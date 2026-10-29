@@ -1,12 +1,17 @@
 import { randomUUID } from "node:crypto";
 import type {
+  AppointmentStatus,
   AutoCampaign,
   AutoCampaignDelivery,
+  AutoCampaignPromotion,
+  AutoCampaignRedemption,
   AutoCampaignSkipReason,
   AutoCampaignTrigger,
 } from "@crm/contracts";
+import type { PoolClient } from "pg";
 import type {
   AutoCampaignDeliveryWrite,
+  AutoCampaignRedemptionWrite,
   AutoCampaignWrite,
 } from "../../repository.js";
 import { DomainError } from "../../repository.js";
@@ -34,6 +39,7 @@ interface CampaignRow {
   trigger: AutoCampaignTrigger;
   active: boolean;
   steps: StoredStep[];
+  promotion: AutoCampaignPromotion | null;
   createdAt: Date;
   updatedAt: Date;
   createdByName: string | null;
@@ -49,17 +55,31 @@ interface DeliveryRow {
   skipReason: AutoCampaignSkipReason | null;
   note: string | null;
   message: string;
+  promotionValidUntil: string | null;
   handledAt: Date;
   handledByName: string | null;
 }
 
-const campaignColumns = `c.id, c.name, c.trigger, c.active, c.steps,
+interface RedemptionRow {
+  id: string;
+  campaignId: string;
+  patientId: string;
+  occurrenceKey: string;
+  appointmentId: string;
+  appointmentStatus: AppointmentStatus;
+  redeemedOn: string;
+  blockedUntil: string | null;
+}
+
+const campaignColumns = `c.id, c.name, c.trigger, c.active, c.steps, c.promotion,
   c.created_at AS "createdAt", c.updated_at AS "updatedAt",
   u.full_name AS "createdByName"`;
 
 const deliveryColumns = `d.id, d.campaign_id AS "campaignId", d.step_id AS "stepId",
   d.patient_id AS "patientId", d.occurrence_key AS "occurrenceKey", d.status,
-  d.skip_reason AS "skipReason", d.note, d.message, d.handled_at AS "handledAt",
+  d.skip_reason AS "skipReason", d.note, d.message,
+  to_char(d.promotion_valid_until, 'YYYY-MM-DD') AS "promotionValidUntil",
+  d.handled_at AS "handledAt",
   u.full_name AS "handledByName"`;
 
 const mapCampaign = (row: CampaignRow): AutoCampaign => ({
@@ -68,6 +88,7 @@ const mapCampaign = (row: CampaignRow): AutoCampaign => ({
   trigger: row.trigger,
   active: row.active,
   steps: [...row.steps].sort((a, b) => a.offset - b.offset),
+  ...(row.promotion ? { promotion: row.promotion } : {}),
   createdAt: row.createdAt.toISOString(),
   updatedAt: row.updatedAt.toISOString(),
   createdByName: row.createdByName ?? "Usuário removido",
@@ -83,6 +104,9 @@ const mapDelivery = (row: DeliveryRow): AutoCampaignDelivery => ({
   ...(row.skipReason ? { skipReason: row.skipReason } : {}),
   ...(row.note ? { note: row.note } : {}),
   message: row.message,
+  ...(row.promotionValidUntil
+    ? { promotionValidUntil: row.promotionValidUntil }
+    : {}),
   handledAt: row.handledAt.toISOString(),
   handledByName: row.handledByName ?? "Usuário removido",
 });
@@ -96,6 +120,31 @@ function writeSteps(input: AutoCampaignWrite, current: StoredStep[] = []) {
     offset: step.offset,
     message: step.message,
   }));
+}
+
+/** Grava o uso da promoção na mesma transação do atendimento. */
+export async function insertAutoCampaignRedemption(
+  client: PoolClient,
+  clinicId: string,
+  patientId: string,
+  appointmentId: string,
+  promotion: AutoCampaignRedemptionWrite,
+) {
+  await client.query(
+    `INSERT INTO auto_campaign_redemptions (
+       clinic_id, campaign_id, patient_id, occurrence_key, appointment_id,
+       redeemed_on, blocked_until
+     ) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+    [
+      clinicId,
+      promotion.campaignId,
+      patientId,
+      promotion.occurrenceKey,
+      appointmentId,
+      promotion.redeemedOn,
+      promotion.blockedUntil ?? null,
+    ],
+  );
 }
 
 export function createAutoCampaignsRepository(
@@ -128,14 +177,16 @@ export function createAutoCampaignsRepository(
       input: AutoCampaignWrite,
     ) {
       const result = await repositoryContext.pool.query<{ id: string }>(
-        `INSERT INTO auto_campaigns (clinic_id, name, trigger, active, steps, created_by)
-         VALUES ($1, $2, $3, $4, $5::jsonb, $6) RETURNING id`,
+        `INSERT INTO auto_campaigns
+           (clinic_id, name, trigger, active, steps, promotion, created_by)
+         VALUES ($1, $2, $3, $4, $5::jsonb, $6::jsonb, $7) RETURNING id`,
         [
           clinicId,
           input.name,
           input.trigger,
           input.active,
           JSON.stringify(writeSteps(input)),
+          input.promotion ? JSON.stringify(input.promotion) : null,
           actorUserId,
         ],
       );
@@ -156,7 +207,8 @@ export function createAutoCampaignsRepository(
         if (!current.rows[0]) return null;
         await client.query(
           `UPDATE auto_campaigns
-           SET name = $3, trigger = $4, active = $5, steps = $6::jsonb, updated_at = now()
+           SET name = $3, trigger = $4, active = $5, steps = $6::jsonb,
+             promotion = $7::jsonb, updated_at = now()
            WHERE clinic_id = $1 AND id = $2`,
           [
             clinicId,
@@ -165,6 +217,7 @@ export function createAutoCampaignsRepository(
             input.trigger,
             input.active,
             JSON.stringify(writeSteps(input, current.rows[0].steps)),
+            input.promotion ? JSON.stringify(input.promotion) : null,
           ],
         );
         const result = await client.query<CampaignRow>(
@@ -228,13 +281,14 @@ export function createAutoCampaignsRepository(
         const saved = await client.query<{ id: string }>(
           `INSERT INTO auto_campaign_deliveries (
              clinic_id, campaign_id, step_id, patient_id, occurrence_key,
-             status, skip_reason, note, message, handled_by
-           ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+             status, skip_reason, note, message, promotion_valid_until, handled_by
+           ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
            ON CONFLICT (campaign_id, step_id, occurrence_key) DO UPDATE SET
              patient_id = EXCLUDED.patient_id, status = EXCLUDED.status,
              skip_reason = EXCLUDED.skip_reason, note = EXCLUDED.note,
-             message = EXCLUDED.message, handled_by = EXCLUDED.handled_by,
-             handled_at = now()
+             message = EXCLUDED.message,
+             promotion_valid_until = EXCLUDED.promotion_valid_until,
+             handled_by = EXCLUDED.handled_by, handled_at = now()
            RETURNING id`,
           [
             clinicId,
@@ -246,6 +300,9 @@ export function createAutoCampaignsRepository(
             input.status === "skipped" ? (input.skipReason ?? null) : null,
             input.note || null,
             input.message,
+            input.status === "sent"
+              ? (input.promotionValidUntil ?? null)
+              : null,
             actorUserId,
           ],
         );
@@ -257,6 +314,27 @@ export function createAutoCampaignsRepository(
         );
         return mapDelivery(result.rows[0]!);
       });
+    },
+
+    async listAutoCampaignRedemptions(
+      clinicId: string,
+    ): Promise<AutoCampaignRedemption[]> {
+      const result = await repositoryContext.pool.query<RedemptionRow>(
+        `SELECT r.id, r.campaign_id AS "campaignId", r.patient_id AS "patientId",
+           r.occurrence_key AS "occurrenceKey", r.appointment_id AS "appointmentId",
+           a.status AS "appointmentStatus",
+           to_char(r.redeemed_on, 'YYYY-MM-DD') AS "redeemedOn",
+           to_char(r.blocked_until, 'YYYY-MM-DD') AS "blockedUntil"
+         FROM auto_campaign_redemptions r
+         JOIN auto_campaigns c ON c.clinic_id = r.clinic_id AND c.id = r.campaign_id
+         JOIN appointments a ON a.clinic_id = r.clinic_id AND a.id = r.appointment_id
+         WHERE r.clinic_id = $1 AND c.deleted_at IS NULL`,
+        [clinicId],
+      );
+      return result.rows.map(({ blockedUntil, ...row }) => ({
+        ...row,
+        ...(blockedUntil ? { blockedUntil } : {}),
+      }));
     },
 
     async deleteAutoCampaignDelivery(clinicId: string, deliveryId: string) {

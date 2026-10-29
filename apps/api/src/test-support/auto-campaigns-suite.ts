@@ -103,6 +103,74 @@ export async function verifyAutoCampaignRepository(
   expect(await repository.deleteAutoCampaignDelivery(clinicId, sent.id)).toBe(
     true,
   );
+
+  // Campanha promocional: validade no envio e uso gravado junto do atendimento.
+  const promo = await repository.createAutoCampaign(clinicId, actor, {
+    name: "Promoção (teste)",
+    trigger: "birthday",
+    active: true,
+    steps: [{ offset: 7, message: "Promoção, {{nome}}" }],
+    promotion: { validDays: 10, cooldown: { amount: 1, unit: "months" } },
+  });
+  expect(promo.promotion).toEqual({
+    validDays: 10,
+    cooldown: { amount: 1, unit: "months" },
+  });
+  const promoSent = await repository.saveAutoCampaignDelivery(clinicId, actor, {
+    campaignId: promo.id,
+    stepId: promo.steps[0]!.id,
+    patientId: patient.id,
+    occurrenceKey: `${patient.id}:2039`,
+    message: "Promoção, Paula",
+    status: "sent",
+    promotionValidUntil: "2039-06-13",
+  });
+  expect(promoSent.promotionValidUntil).toBe("2039-06-13");
+  const [[professional], [room], [service]] = await Promise.all([
+    repository.listProfessionals(clinicId),
+    repository.listRooms(clinicId),
+    repository.listServices(clinicId),
+  ]);
+  const booked = await repository.createAppointment(
+    clinicId,
+    {
+      patientId: patient.id,
+      professionalId: professional!.id,
+      roomId: room!.id,
+      serviceId: service!.id,
+      startsAt: "2039-06-20T13:00:00.000Z",
+      visitType: "regular",
+    },
+    {
+      promotion: {
+        campaignId: promo.id,
+        occurrenceKey: `${patient.id}:2039`,
+        redeemedOn: "2039-06-05",
+        blockedUntil: "2039-07-05",
+      },
+    },
+  );
+  expect(await repository.listAutoCampaignRedemptions(clinicId)).toEqual([
+    expect.objectContaining({
+      campaignId: promo.id,
+      patientId: patient.id,
+      appointmentId: booked.id,
+      appointmentStatus: "scheduled",
+      redeemedOn: "2039-06-05",
+      blockedUntil: "2039-07-05",
+    }),
+  ]);
+  await repository.updateAutoCampaign(clinicId, promo.id, {
+    name: promo.name,
+    trigger: "birthday",
+    active: true,
+    steps: promo.steps,
+  });
+  expect(
+    (await repository.getAutoCampaign(clinicId, promo.id))?.promotion,
+  ).toBe(undefined);
+  expect(await repository.deleteAutoCampaign(clinicId, promo.id)).toBe(true);
+  expect(await repository.listAutoCampaignRedemptions(clinicId)).toEqual([]);
   expect(await ours()).toHaveLength(0);
 
   const source = await repository.getAutoCampaignSourceData(
