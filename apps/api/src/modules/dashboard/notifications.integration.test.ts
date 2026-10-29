@@ -560,6 +560,84 @@ describe("GET /notifications", () => {
     });
   });
 
+  it("accepts a variable expense without estimate and keeps the bill unpaid until informed", async () => {
+    const { app, headers } = await setup();
+    const workspace = (
+      await app.inject({ method: "GET", url: "/finance/workspace", headers })
+    ).json();
+    const base = {
+      description: "Conta de gás",
+      categoryId: workspace.categories.find(
+        (item: { kind: string }) => item.kind === "expense",
+      ).id,
+      costCenterId: workspace.costCenters[0].id,
+      amountInCents: 0,
+      dayOfMonth: 25,
+      startMonth: "2039-06",
+    };
+    // Valor fixo continua exigindo o valor mensal.
+    const fixed = await app.inject({
+      method: "POST",
+      url: "/finance/recurring-payables",
+      headers,
+      payload: base,
+    });
+    expect(fixed.statusCode).toBe(400);
+
+    const created = await app.inject({
+      method: "POST",
+      url: "/finance/recurring-payables",
+      headers,
+      payload: { ...base, amountType: "variable" },
+    });
+    expect(created.statusCode).toBe(201);
+    const model = created.json<{ id: string; amountInCents: number }>();
+    expect(model.amountInCents).toBe(0);
+    async function bill() {
+      await app.inject({
+        method: "GET",
+        url: "/finance/recurring-payables",
+        headers,
+      });
+      return (
+        (
+          await app.inject({
+            method: "GET",
+            url: "/finance/workspace",
+            headers,
+          })
+        ).json().payables as Array<{
+          id: string;
+          recurringPayableId?: string;
+          amountPending?: boolean;
+          amountInCents: number;
+        }>
+      ).find((item) => item.recurringPayableId === model.id)!;
+    }
+    const pending = await bill();
+    expect(pending).toMatchObject({ amountInCents: 0, amountPending: true });
+    const paid = await app.inject({
+      method: "POST",
+      url: `/finance/payables/${pending.id}/pay`,
+      headers,
+      payload: { paymentMethod: "pix" },
+    });
+    expect(paid.statusCode).toBe(409);
+    expect(paid.json().code).toBe("PAYABLE_AMOUNT_PENDING");
+
+    // Virou fixa: a conta sem estimativa passa a valer o valor mensal.
+    const edited = await app.inject({
+      method: "PUT",
+      url: `/finance/recurring-payables/${model.id}`,
+      headers,
+      payload: { ...base, amountType: "fixed", amountInCents: 7_500 },
+    });
+    expect(edited.statusCode).toBe(200);
+    const fixedBill = await bill();
+    expect(fixedBill.amountInCents).toBe(7_500);
+    expect(fixedBill.amountPending).toBeUndefined();
+  });
+
   it("only returns the groups of the modules the user can see", async () => {
     const { notifications, userWith } = await setup();
     expect(

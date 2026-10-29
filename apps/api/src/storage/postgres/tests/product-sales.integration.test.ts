@@ -225,6 +225,75 @@ for (const storage of ["memory", "postgres"] as const) {
         ).toEqual([]);
       });
 
+      it("define o saldo de cada tamanho na edição do produto", async () => {
+        const product = await repository.createProduct(
+          clinicId,
+          actorId,
+          productInputSchema.parse({
+            name: `Top ${randomUUID().slice(0, 8)}`,
+            sku: randomUUID().slice(0, 12),
+            costInCents: 2_000,
+            salePriceInCents: 5_000,
+            sizes: ["p"],
+            initialSizeStock: [{ size: "p", quantity: 2 }],
+          }),
+        );
+        const fields = {
+          name: product.name,
+          sku: product.sku,
+          unit: product.unit,
+          costInCents: product.costInCents,
+          salePriceInCents: product.salePriceInCents,
+          active: true,
+        };
+        await expect(
+          repository.updateProduct(clinicId, actorId, product.id, {
+            ...fields,
+            sizes: ["p"],
+            sizeQuantities: [{ size: "m", quantity: 1 }],
+          }),
+        ).rejects.toMatchObject({ code: "PRODUCT_SIZE_INVALID" });
+        const updated = await repository.updateProduct(
+          clinicId,
+          actorId,
+          product.id,
+          {
+            ...fields,
+            sizes: ["p", "m"],
+            sizeQuantities: [
+              { size: "p", quantity: 1 },
+              { size: "m", quantity: 3 },
+            ],
+          },
+        );
+        expect(updated).toMatchObject({
+          currentStock: 4,
+          sizeStock: [
+            { size: "p", currentStock: 1 },
+            { size: "m", currentStock: 3 },
+          ],
+        });
+        const movements = (
+          await repository.getInventoryWorkspace(clinicId)
+        ).movements.filter((item) => item.productId === product.id);
+        expect(movements).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({
+              kind: "adjustment_out",
+              size: "p",
+              quantity: -1,
+              balanceAfter: 1,
+            }),
+            expect.objectContaining({
+              kind: "adjustment_in",
+              size: "m",
+              quantity: 3,
+              balanceAfter: 3,
+            }),
+          ]),
+        );
+      });
+
       it("separa o estoque por tamanho na venda, no ajuste e no estorno", async () => {
         const { patient } = await fixtures(1);
         const product = await repository.createProduct(

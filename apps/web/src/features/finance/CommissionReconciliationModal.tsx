@@ -1,7 +1,6 @@
 import {
   commissionAccountBalances,
   type CommissionReconciliationPreview,
-  type CommissionAccountBalance,
   type CommissionAccountPayment,
 } from "@crm/contracts";
 import { useEffect, useState, type FormEvent } from "react";
@@ -13,8 +12,7 @@ import { Modal } from "../../shared/components/Modal";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
 import { ErrorBanner } from "../../shared/components/ErrorBanner";
 import { currency, shortDate } from "../../shared/lib/formatting";
-import { PaymentProofsField, PaymentProofsModal } from "./PaymentProofs";
-import { proofFailureMessage, uploadPaymentProofs } from "./payment-proofs";
+import { PaymentProofsModal } from "./PaymentProofs";
 export function CommissionReconciliationModal({
   id,
   onClose,
@@ -39,12 +37,10 @@ export function CommissionReconciliationModal({
       ? ["Motivo da conciliação (pelo menos 5 caracteres)"]
       : [],
   );
-  const [confirmation, setConfirmation] = useState<
-    | { kind: "pay"; balance: CommissionAccountBalance }
-    | { kind: "reverse"; payment: CommissionAccountPayment }
-    | null
-  >(null);
-  const [proofs, setProofs] = useState<File[]>([]);
+  // Só o estorno de baixas antigas: o saldo agora é pago pela folha de pagamento.
+  const [confirmation, setConfirmation] = useState<{
+    payment: CommissionAccountPayment;
+  } | null>(null);
   const [viewingProofs, setViewingProofs] =
     useState<CommissionAccountPayment | null>(null);
   useEffect(() => {
@@ -107,29 +103,11 @@ export function CommissionReconciliationModal({
     setBusy(true);
     setError("");
     try {
-      let failed: string[] = [];
-      if (confirmation.kind === "pay") {
-        const payment = await api.settleCommissionAccount(
-          id,
-          confirmation.balance.professionalId,
-          confirmation.balance.amountInCents,
-        );
-        // A baixa já está registrada: falha de envio só avisa (dá para anexar depois).
-        if (proofs.length)
-          failed = await uploadPaymentProofs(
-            "commission_account_payment",
-            payment.id,
-            proofs,
-          );
-      } else await api.reverseCommissionAccountPayment(confirmation.payment.id);
+      await api.reverseCommissionAccountPayment(confirmation.payment.id);
       setConfirmation(null);
-      setProofs([]);
       setNotice(
-        confirmation.kind === "pay"
-          ? "Baixa conciliada registrada."
-          : "Estorno conciliado registrado sem remover o pagamento original.",
+        "Estorno conciliado registrado sem remover o pagamento original.",
       );
-      if (failed.length) setError(proofFailureMessage(failed));
       await refresh();
     } catch (cause) {
       setError((cause as Error).message);
@@ -307,13 +285,11 @@ export function CommissionReconciliationModal({
                     </p>
                   </div>
                 ))}
-                <h3>Saldos a registrar por profissional</h3>
-                {preview.originalManagedByExpense && (
-                  <p>
-                    A comissão original é paga pela despesa vinculada. Aqui
-                    ficam os ajustes de conciliação.
-                  </p>
-                )}
+                <h3>Saldos em aberto por profissional</h3>
+                <p>
+                  Os ajustes em aberto entram na folha de pagamento da
+                  competência e são pagos com ela (Financeiro › Folha).
+                </p>
                 {!balances.length ? (
                   <p>Nenhum saldo conciliado em aberto.</p>
                 ) : (
@@ -323,23 +299,6 @@ export function CommissionReconciliationModal({
                         {balance.professionalName} ·{" "}
                         {currency.format(balance.amountInCents / 100)}
                       </strong>
-                      {can("finance.commissions_pay") &&
-                        (balance.amountInCents >= 0 ||
-                          can("finance.commissions_reverse")) && (
-                          <button
-                            className="secondary-button"
-                            disabled={busy || preview.changes.length > 0}
-                            onClick={() =>
-                              setConfirmation({ kind: "pay", balance })
-                            }
-                          >
-                            {balance.amountInCents === 0
-                              ? "Compensar saldo zero"
-                              : balance.amountInCents < 0
-                                ? "Registrar devolução ao caixa"
-                                : "Registrar pagamento líquido"}
-                          </button>
-                        )}
                     </div>
                   ))
                 )}
@@ -373,9 +332,7 @@ export function CommissionReconciliationModal({
                         <button
                           className="danger-button"
                           disabled={busy}
-                          onClick={() =>
-                            setConfirmation({ kind: "reverse", payment })
-                          }
+                          onClick={() => setConfirmation({ payment })}
                         >
                           Estornar baixa conciliada
                         </button>
@@ -404,45 +361,21 @@ export function CommissionReconciliationModal({
       </Modal>
       {confirmation && (
         <Modal
-          title={
-            confirmation.kind === "pay"
-              ? "Confirmar baixa conciliada"
-              : "Estornar baixa conciliada"
-          }
+          title="Estornar baixa conciliada"
           subtitle="Confirme o registro financeiro realizado pela equipe."
           busy={busy}
-          dirty={proofs.length > 0}
-          onClose={() => {
-            setConfirmation(null);
-            setProofs([]);
-          }}
+          onClose={() => setConfirmation(null)}
         >
           {error && <ErrorBanner error={error} />}
           <p>
-            {confirmation.kind === "pay"
-              ? confirmation.balance.amountInCents === 0
-                ? "Os lançamentos serão compensados. O saldo zero não gera entrada nem saída no caixa."
-                : confirmation.balance.amountInCents < 0
-                  ? `Registre a devolução de ${currency.format(-confirmation.balance.amountInCents / 100)} já recebida de ${confirmation.balance.professionalName}.`
-                  : `Registre o pagamento líquido de ${currency.format(confirmation.balance.amountInCents / 100)} já realizado para ${confirmation.balance.professionalName}.`
-              : `O estorno preserva a baixa original e registra sua reversão no caixa.`}
+            O estorno preserva a baixa original e registra sua reversão no
+            caixa.
           </p>
-          {confirmation.kind === "pay" &&
-            confirmation.balance.amountInCents !== 0 && (
-              <PaymentProofsField
-                files={proofs}
-                onChange={setProofs}
-                disabled={busy}
-              />
-            )}
           <div className="modal-actions">
             <button
               className="secondary-button"
               disabled={busy}
-              onClick={() => {
-                setConfirmation(null);
-                setProofs([]);
-              }}
+              onClick={() => setConfirmation(null)}
             >
               Voltar
             </button>
