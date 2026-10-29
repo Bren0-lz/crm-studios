@@ -1,4 +1,5 @@
 import {
+  assertSalePrice,
   assertStockSize,
   isStockOut,
 } from "../../modules/finance/product-stock.js";
@@ -337,6 +338,7 @@ export function createFinanceRepository(
         tab,
         product,
       );
+      assertSalePrice(product);
       assertStockSize(product, input.size);
       repositoryContext.changeProductStock(
         product,

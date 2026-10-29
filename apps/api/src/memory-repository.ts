@@ -15,6 +15,7 @@ import { createAssessmentOperationsRepository } from "./storage/memory/assessmen
 import { createCommissionOperationsRepository } from "./storage/memory/commission-operations.js";
 import { createPayrollRepository } from "./storage/memory/payroll.js";
 import { createFinanceOperationsRepository } from "./storage/memory/finance-operations.js";
+import { createSupplierOrdersRepository } from "./storage/memory/supplier-orders.js";
 import { createClinicalResourcesRepository } from "./storage/memory/clinical-resources.js";
 import { createGroupOperationsRepository } from "./storage/memory/group-operations.js";
 import { createPatientManagementRepository } from "./storage/memory/patient-management.js";
@@ -118,6 +119,8 @@ export class MemoryClinicRepository implements ClinicRepository {
   readonly createPatientTabAppointment: ClinicRepository["createPatientTabAppointment"];
   readonly listSuppliers: ClinicRepository["listSuppliers"];
   readonly saveSupplier: ClinicRepository["saveSupplier"];
+  readonly listSupplierOrders: ClinicRepository["listSupplierOrders"];
+  readonly createSupplierOrder: ClinicRepository["createSupplierOrder"];
   readonly createManualReceivable: ClinicRepository["createManualReceivable"];
   readonly classifyFinancialEntry: ClinicRepository["classifyFinancialEntry"];
   readonly setCategoryDreGroup: ClinicRepository["setCategoryDreGroup"];
@@ -199,6 +202,9 @@ export class MemoryClinicRepository implements ClinicRepository {
       financeOperations.createPatientTabAppointment;
     this.listSuppliers = financeOperations.listSuppliers;
     this.saveSupplier = financeOperations.saveSupplier;
+    const supplierOrders = createSupplierOrdersRepository(this.context);
+    this.listSupplierOrders = supplierOrders.listSupplierOrders;
+    this.createSupplierOrder = supplierOrders.createSupplierOrder;
     this.createManualReceivable = financeOperations.createManualReceivable;
     this.classifyFinancialEntry = financeOperations.classifyFinancialEntry;
     this.setCategoryDreGroup = financeOperations.setCategoryDreGroup;

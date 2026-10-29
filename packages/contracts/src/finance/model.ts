@@ -199,7 +199,8 @@ const productBaseSchema = z.object({
   sku: z.string().trim().min(1).max(60),
   unit: z.string().trim().min(1).max(20).default("un"),
   costInCents: z.number().int().min(0),
-  salePriceInCents: z.number().int().min(0),
+  /** `null` = preço ainda não definido: o produto fica cadastrado, mas não pode ser vendido. */
+  salePriceInCents: z.number().int().min(0).nullable(),
   initialStock: z.number().int().min(0).max(1_000_000).default(0),
   /**
    * Aviso de reposição (opcional): o produto pede reposição quando o saldo total chega a esta
@@ -400,6 +401,37 @@ export const supplierInputSchema = z.object({
   contracts: z.string().max(2000).default(""),
   notes: z.string().max(1000).default(""),
   active: z.boolean().default(true),
+});
+/**
+ * Pedido feito ao fornecedor: valor total e itens recebidos. Cada item aponta um produto já
+ * cadastrado (`productId`) ou cadastra um novo (`productName`), sem preço de venda até alguém
+ * defini-lo; a quantidade entra no estoque como compra.
+ */
+export const supplierOrderInputSchema = z.object({
+  orderedOn: z.iso.date(),
+  number: z.string().trim().max(60).default(""),
+  totalInCents: z.number().int().min(0).max(2147483647),
+  notes: z.string().trim().max(1000).default(""),
+  items: z
+    .array(
+      z
+        .object({
+          productId: z.uuid().optional(),
+          productName: z.string().trim().min(2).max(160).optional(),
+          size: productSizeSchema.optional(),
+          quantity: z.number().int().min(1).max(1_000_000),
+          unitCostInCents: z.number().int().min(0).max(2147483647).optional(),
+        })
+        .refine(
+          (item) => Boolean(item.productId) !== Boolean(item.productName),
+          {
+            message: "Escolha um produto cadastrado ou informe o nome do novo.",
+            path: ["productId"],
+          },
+        ),
+    )
+    .min(1, "Informe ao menos um item do pedido.")
+    .max(100),
 });
 export const manualReceivableInputSchema = z.object({
   postedOn: z.iso.date().optional(),

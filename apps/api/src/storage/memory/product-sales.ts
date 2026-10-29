@@ -1,6 +1,9 @@
 import type { PatientTab, ProductSaleInput } from "@crm/contracts";
 import { DomainError, type ClinicRepository } from "../../repository.js";
-import { assertStockSize } from "../../modules/finance/product-stock.js";
+import {
+  assertSalePrice,
+  assertStockSize,
+} from "../../modules/finance/product-stock.js";
 import type { MemoryRepositoryContext } from "./context.js";
 
 type TabOperations = Pick<
@@ -57,6 +60,7 @@ export function createProductSalesRepository(
           { clinicId, branchId },
           product,
         );
+        assertSalePrice(product);
         assertStockSize(product, item.size);
         if (context.productStockOf(product.id, item.size) < item.quantity)
           throw new DomainError(

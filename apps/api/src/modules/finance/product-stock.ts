@@ -36,5 +36,17 @@ export function assertStockSize(
 export const isStockOut = (kind: string) =>
   kind === "adjustment_out" || kind === "loss";
 
+/** Produto sem preço de venda definido não pode ser vendido (nem entrar em comanda). */
+export function assertSalePrice<T extends { name: string }>(
+  product: T & { salePriceInCents: number | null },
+): asserts product is T & { salePriceInCents: number } {
+  if (product.salePriceInCents === null)
+    throw new DomainError(
+      "PRODUCT_PRICE_MISSING",
+      `Cadastre o preço de venda de ${product.name} antes de vendê-lo.`,
+      409,
+    );
+}
+
 /** Motivo do ajuste gravado quando o saldo de um tamanho muda no cadastro do produto. */
 export const sizeQuantityNotes = "Quantidade ajustada no cadastro do produto";

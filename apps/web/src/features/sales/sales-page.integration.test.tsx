@@ -118,6 +118,79 @@ describe("página Vendas de produtos", () => {
     );
   });
 
+  it("bloqueia produto sem preço e cadastra o preço por cima da venda, sem perdê-la", async () => {
+    const { repository, patient, cream } = await seed();
+    const ball = await repository.createProduct(clinicId, actorId, {
+      name: "Bola suíça",
+      sku: "BOLA",
+      unit: "un",
+      costInCents: 3_000,
+      salePriceInCents: null,
+      initialStock: 4,
+    });
+    open("/vendas");
+    const panel = await screen.findByRole("region", { name: "Nova venda" });
+    await choosePatient(patient.fullName, panel);
+    fireEvent.change(within(panel).getByLabelText("Produto 1"), {
+      target: { value: cream.id },
+    });
+    fireEvent.click(
+      within(panel).getByRole("button", { name: "Adicionar produto" }),
+    );
+    fireEvent.change(within(panel).getByLabelText("Produto 2"), {
+      target: { value: ball.id },
+    });
+    fireEvent.change(within(panel).getByLabelText("Observações"), {
+      target: { value: "Entregar na recepção" },
+    });
+    const submit = within(panel).getByRole("button", {
+      name: "Registrar venda",
+    });
+    expect(submit).toBeDisabled();
+    expect(submit).toHaveAccessibleDescription(
+      "Falta: preço de venda do produto.",
+    );
+    const alert = within(panel).getByRole("alert");
+    expect(alert).toHaveTextContent(
+      "Bola suíça está sem preço de venda e não pode ser vendido.",
+    );
+
+    fireEvent.click(
+      within(alert).getByRole("button", { name: "Cadastrar preço" }),
+    );
+    const dialog = await screen.findByRole("dialog", {
+      name: "Editar produto",
+    });
+    fireEvent.change(within(dialog).getByLabelText("Preço de venda (R$)"), {
+      target: { value: "9000" },
+    });
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Salvar produto" }),
+    );
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+    );
+
+    // A venda continua com tudo o que já estava preenchido, agora com o preço novo.
+    await waitFor(() =>
+      expect(within(panel).queryByRole("alert")).not.toBeInTheDocument(),
+    );
+    expect(within(panel).getByLabelText("Produto 1")).toHaveValue(cream.id);
+    expect(within(panel).getByLabelText("Produto 2")).toHaveValue(ball.id);
+    expect(within(panel).getByLabelText("Preço unitário 2")).toHaveValue(
+      "90,00",
+    );
+    expect(within(panel).getByLabelText("Observações")).toHaveValue(
+      "Entregar na recepção",
+    );
+    expect(within(panel).getByText("Total").textContent).toMatch(/130,00/);
+    expect(submit).toBeEnabled();
+    fireEvent.click(submit);
+    expect(
+      await screen.findByText(/Venda de R\$\s130,00 registrada para Bianca\./),
+    ).toBeInTheDocument();
+  });
+
   it("lista vendas realizadas, abre os detalhes e mostra o resumo do período", async () => {
     const { repository, patient, cream, oil } = await seed();
     await sell(repository, patient.id, cream.id, 2);

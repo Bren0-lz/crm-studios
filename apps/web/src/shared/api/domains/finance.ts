@@ -40,6 +40,8 @@ import type {
   AppointmentInput,
   Supplier,
   SupplierInput,
+  SupplierOrder,
+  SupplierOrderInput,
   ManualReceivableInput,
   Receivable,
   FinancialClassification,
@@ -216,6 +218,13 @@ export const financeApi = {
   saveSupplier: (input: SupplierInput, id?: string) =>
     request<Supplier>(id ? `/finance/suppliers/${id}` : "/finance/suppliers", {
       method: id ? "PUT" : "POST",
+      body: JSON.stringify(input),
+    }),
+  supplierOrders: (supplierId: string) =>
+    request<SupplierOrder[]>(`/finance/suppliers/${supplierId}/orders`),
+  createSupplierOrder: (supplierId: string, input: SupplierOrderInput) =>
+    request<SupplierOrder>(`/finance/suppliers/${supplierId}/orders`, {
+      method: "POST",
       body: JSON.stringify(input),
     }),
   createManualReceivable: (input: ManualReceivableInput) =>

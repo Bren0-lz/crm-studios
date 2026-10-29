@@ -70,6 +70,8 @@ import type {
   PatientTabServiceInput,
   Supplier,
   SupplierInput,
+  SupplierOrder,
+  SupplierOrderInput,
   ManualReceivableInput,
   FinancialClassification,
   DreGroup,
@@ -384,6 +386,21 @@ export interface ClinicRepository {
     input: SupplierInput,
     id?: string,
   ): Promise<Supplier | null>;
+  /** Histórico de pedidos do fornecedor, mais recentes primeiro; `null` se ele não existe. */
+  listSupplierOrders(
+    clinicId: string,
+    supplierId: string,
+  ): Promise<SupplierOrder[] | null>;
+  /**
+   * Registra o pedido: cadastra os produtos novos (sem preço de venda) e dá entrada dos itens
+   * no estoque da filial em uso, tudo de uma vez; `null` se o fornecedor não existe.
+   */
+  createSupplierOrder(
+    clinicId: string,
+    actorUserId: string,
+    supplierId: string,
+    input: SupplierOrderInput,
+  ): Promise<SupplierOrder | null>;
   createManualReceivable(
     clinicId: string,
     actorUserId: string,

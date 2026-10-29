@@ -12,9 +12,10 @@ import {
   paymentMethodSchema,
   productSizeLabels,
 } from "@crm/contracts";
-import { Plus, Trash2 } from "lucide-react";
+import { CircleAlert, Plus, Trash2 } from "lucide-react";
 import { useEffect, useId, useState, type FormEvent } from "react";
 import { api } from "../../api";
+import { useAuthorization } from "../../authorization-context";
 import { PatientPicker } from "../../PatientPicker";
 import { EmptyState } from "../../shared/components/EmptyState";
 import { MoneyInput } from "../../shared/components/MoneyInput";
@@ -23,6 +24,7 @@ import { usePaymentMethodSettings } from "../../shared/hooks/usePaymentMethodSet
 import { useToast } from "../../shared/feedback/toast-context";
 import { currency, localIsoDate } from "../../shared/lib/formatting";
 import { sellableStock, stockChoices } from "./model";
+import { ProductModal } from "./ProductModal";
 
 type SaleLine = {
   key: number;
@@ -49,6 +51,10 @@ export function NewSaleSection({
   workspace: InventoryWorkspace;
 }) {
   const toast = useToast();
+  const { can } = useAuthorization();
+  const canPrice = can("patients.products_update");
+  /** Produto sem preço aberto pelo aviso; o modal fica por cima da venda, sem desfazê-la. */
+  const [pricing, setPricing] = useState<Product | null>(null);
   const [patients, setPatients] = useState<PatientOption[]>([]);
   const [patientId, setPatientId] = useState("");
   const [lines, setLines] = useState<SaleLine[]>(() => [emptyLine()]);
@@ -99,8 +105,15 @@ export function NewSaleSection({
     (sum, line) => sum + line.quantity * line.unitPriceInCents,
     0,
   );
+  // Venda bloqueada enquanto algum produto escolhido não tem preço de venda definido.
+  const unpriced = products.filter(
+    (product) =>
+      product.salePriceInCents === null &&
+      filled.some((line) => line.productId === product.id),
+  );
   const missing = [
     ...(!patientId ? ["cliente"] : []),
+    ...(unpriced.length ? ["preço de venda do produto"] : []),
     ...(!filled.length ? ["ao menos um produto"] : []),
     ...(missingSize ? ["tamanho"] : []),
     ...(!missingSize && filled.some((line) => line.quantity > lineStock(line))
@@ -222,6 +235,7 @@ export function NewSaleSection({
                           {totalSellable(item) > 0
                             ? `${totalSellable(item)} ${item.unit}`
                             : "sem estoque"}
+                          {item.salePriceInCents === null && " · sem preço"}
                         </option>
                       ))}
                     </select>
@@ -315,6 +329,27 @@ export function NewSaleSection({
                 </div>
               );
             })}
+            {unpriced.map((product) => (
+              <div className="sale-price-alert" role="alert" key={product.id}>
+                <CircleAlert size={18} aria-hidden="true" />
+                <p>
+                  <strong>{product.name}</strong> está sem preço de venda e não
+                  pode ser vendido.{" "}
+                  {canPrice
+                    ? "Cadastre o preço para continuar; o que já foi preenchido na venda fica como está."
+                    : "Peça a quem pode editar produtos para cadastrar o preço."}
+                </p>
+                {canPrice && (
+                  <button
+                    type="button"
+                    className="secondary-button button-sm"
+                    onClick={() => setPricing(product)}
+                  >
+                    Cadastrar preço
+                  </button>
+                )}
+              </div>
+            ))}
             <div>
               <button
                 type="button"
@@ -404,6 +439,22 @@ export function NewSaleSection({
           </button>
         </div>
       </form>
+      {pricing && (
+        <ProductModal
+          product={pricing}
+          focusPrice
+          onClose={() => setPricing(null)}
+          onSaved={(saved) =>
+            setLines((current) =>
+              current.map((line) =>
+                line.productId === saved.id
+                  ? { ...line, unitPriceInCents: saved.salePriceInCents ?? 0 }
+                  : line,
+              ),
+            )
+          }
+        />
+      )}
     </section>
   );
 }
