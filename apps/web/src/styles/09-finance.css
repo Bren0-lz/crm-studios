@@ -364,6 +364,12 @@
   font-size: var(--text-sm);
 }
 
+/* Aviso de vencimento da despesa fixa (prazo de aviso já começou). */
+.finance-list .finance-item > .recurring-reminder {
+  color: var(--terracotta);
+  font-weight: 600;
+}
+
 .finance-due {
   font-size: var(--text-sm);
   white-space: nowrap;
