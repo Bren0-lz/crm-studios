@@ -123,7 +123,10 @@ import type {
   ContactSuggestion,
   CostCenter,
   CostCenterInput,
+  CashMovement,
   DailyCash,
+  ProLaboreSettings,
+  ProLaboreSettingsInput,
   DashboardSummary,
   DocumentStatus,
   DocumentTemplate,
@@ -555,6 +558,13 @@ export interface ClinicRepository {
   getAutoFinalizationSettings(
     clinicId: string,
   ): Promise<AutoFinalizationSettings>;
+  /** Pró-labore do relatório financeiro (padrão: 0% do lucro). */
+  getProLaboreSettings(clinicId: string): Promise<ProLaboreSettings>;
+  updateProLaboreSettings(
+    clinicId: string,
+    actorUserId: string,
+    input: ProLaboreSettingsInput,
+  ): Promise<ProLaboreSettings>;
   updateAutoFinalizationSettings(
     clinicId: string,
     actorUserId: string,
@@ -1425,6 +1435,15 @@ export interface ClinicRepository {
   ): Promise<SaleMovement[] | null>;
   /** Caixa do dia `date` (aaaa-mm-dd no fuso da clínica). */
   getDailyCash(clinicId: string, date: string): Promise<DailyCash>;
+  /**
+   * Movimentos do caixa (recebimentos, estornos, contas e comissões pagas) com data do
+   * evento entre `from` e `to` (aaaa-mm-dd no fuso da clínica), com o registro de origem.
+   */
+  listCashMovements(
+    clinicId: string,
+    from: string,
+    to: string,
+  ): Promise<CashMovement[]>;
   /**
    * Eventos de recebimento e estorno cuja data, no fuso da clínica, está entre
    * `from` e `to` (aaaa-mm-dd, inclusive), em ordem cronológica.

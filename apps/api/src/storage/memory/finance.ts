@@ -37,6 +37,7 @@ import {
   type PaymentReceipt,
   type Product,
   type ProductInput,
+  type CashMovement,
   type Receivable,
   type ReceivableRenegotiation,
   type ReceivableRenegotiationInput,
@@ -46,6 +47,8 @@ import {
 import {
   buildDailyCash,
   clinicDateOf,
+  collectCashMovements,
+  type DailyCashSources,
 } from "../../modules/finance/daily-cash.js";
 import { assertPayableAmountEditable } from "../../modules/finance/payable-amount.js";
 import { DomainError } from "../../repository.js";
@@ -55,6 +58,54 @@ import { addMonths, now, today, uuid } from "./helpers.js";
 export function createFinanceRepository(
   repositoryContext: MemoryRepositoryContext,
 ) {
+  /** Fontes do caixa (todo o histórico) no escopo de filial da requisição. */
+  function cashSources(clinicId: string): DailyCashSources {
+    const payables = repositoryContext.payables.filter(
+      (item) =>
+        item.clinicId === clinicId && repositoryContext.inBranchScope(item),
+    );
+    const payableIds = new Set(payables.map((item) => item.id));
+    const commissions = repositoryContext.commissions.filter(
+      (item) =>
+        item.clinicId === clinicId &&
+        repositoryContext.professionalInBranchScope(item.professionalId),
+    );
+    const commissionIds = new Set(commissions.map((item) => item.id));
+    return {
+      receipts: repositoryContext.receivedPayments(clinicId),
+      commissionEvents: repositoryContext.commissionPaymentEvents.filter(
+        (item) =>
+          item.clinicId === clinicId && commissionIds.has(item.commissionId),
+      ),
+      payableEvents: repositoryContext.payablePaymentEvents
+        .filter(
+          (item) =>
+            item.clinicId === clinicId && payableIds.has(item.payableId),
+        )
+        .map((item) => {
+          const correction = repositoryContext.financialDateCorrections
+            .filter(
+              (correction) =>
+                correction.clinicId === clinicId &&
+                correction.kind === "payable" &&
+                correction.eventId === item.id,
+            )
+            .at(-1);
+          return {
+            ...item,
+            ...(correction
+              ? {
+                  occurredAt: correction.occurredAt,
+                  availableAt: correction.availableAt,
+                }
+              : {}),
+          };
+        }),
+      payables,
+      commissions,
+    };
+  }
+
   return {
     async setAdminUserCommission(
       clinicId: string,
@@ -1599,54 +1650,23 @@ export function createFinanceRepository(
     },
 
     async getDailyCash(clinicId: string, date: string): Promise<DailyCash> {
-      const payables = repositoryContext.payables.filter(
-        (item) =>
-          item.clinicId === clinicId && repositoryContext.inBranchScope(item),
-      );
-      const payableIds = new Set(payables.map((item) => item.id));
-      const commissions = repositoryContext.commissions.filter(
-        (item) =>
-          item.clinicId === clinicId &&
-          repositoryContext.professionalInBranchScope(item.professionalId),
-      );
-      const commissionIds = new Set(commissions.map((item) => item.id));
       // A função pura filtra pela data do evento no fuso da clínica.
       return buildDailyCash(
         date,
-        {
-          receipts: repositoryContext.receivedPayments(clinicId),
-          commissionEvents: repositoryContext.commissionPaymentEvents.filter(
-            (item) =>
-              item.clinicId === clinicId &&
-              commissionIds.has(item.commissionId),
-          ),
-          payableEvents: repositoryContext.payablePaymentEvents
-            .filter(
-              (item) =>
-                item.clinicId === clinicId && payableIds.has(item.payableId),
-            )
-            .map((item) => {
-              const correction = repositoryContext.financialDateCorrections
-                .filter(
-                  (correction) =>
-                    correction.clinicId === clinicId &&
-                    correction.kind === "payable" &&
-                    correction.eventId === item.id,
-                )
-                .at(-1);
-              return {
-                ...item,
-                ...(correction
-                  ? {
-                      occurredAt: correction.occurredAt,
-                      availableAt: correction.availableAt,
-                    }
-                  : {}),
-              };
-            }),
-          payables,
-          commissions,
-        },
+        cashSources(clinicId),
+        repositoryContext.clinicSettings.timezone,
+      );
+    },
+
+    async listCashMovements(
+      clinicId: string,
+      from: string,
+      to: string,
+    ): Promise<CashMovement[]> {
+      return collectCashMovements(
+        cashSources(clinicId),
+        from,
+        to,
         repositoryContext.clinicSettings.timezone,
       );
     },

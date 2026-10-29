@@ -320,7 +320,7 @@ export function SalesInsights({
             Vendas realizadas e pagamentos registrados no período selecionado.
           </p>
         </div>
-        {can("reports.sales", "reports.export") && (
+        {can("reports.sales_export") && (
           <button
             type="button"
             className="secondary-button"

@@ -218,6 +218,66 @@ describe("per-operation API authorization", () => {
       ).statusCode,
     ).toBe(404);
   });
+  it("authorizes each spreadsheet export and import with its own permission", async () => {
+    const { app, headers, update } = await setup([
+      "reports.view",
+      "reports.dre",
+      "reports.sales",
+      "reports.management",
+      "reports.clients",
+      "patients.view",
+    ]);
+    const range = "from=2025-01-01&to=2025-01-31";
+    const routes: [string, PermissionKey][] = [
+      [`/reports/sales/period.xlsx?${range}`, "reports.sales_export"],
+      ["/reports/sales.xlsx?month=2025-01", "reports.sales_export"],
+      [`/reports/management.csv?${range}`, "reports.management_export"],
+      [`/reports/clients/details/export?${range}`, "reports.clients_export"],
+      ["/patients/export?format=csv&columns=fullName", "patients.export"],
+      [`/reports/dre/export?${range}`, "reports.dre_export"],
+      [
+        "/reports/financial/export?periodFrom=2025-01-01&periodTo=2025-01-31",
+        "reports.financial_export",
+      ],
+    ];
+    const status = async (url: string) =>
+      (await app.inject({ method: "GET", url, headers })).statusCode;
+    for (const [url] of routes) expect(await status(url)).toBe(403);
+    expect(
+      (
+        await app.inject({
+          method: "POST",
+          url: "/patients/import/preview",
+          headers,
+          payload: { csv: "nome\nCliente" },
+        })
+      ).statusCode,
+    ).toBe(403);
+    for (const [, permission] of routes) {
+      await update(
+        togglePermissions(
+          [
+            "reports.view",
+            "reports.dre",
+            "reports.sales",
+            "reports.management",
+            "reports.clients",
+            "patients.view",
+          ],
+          [permission],
+          true,
+        ),
+      );
+      for (const [otherUrl, other] of routes)
+        expect(await status(otherUrl), `${permission} → ${otherUrl}`).toBe(
+          other === permission ? 200 : 403,
+        );
+    }
+    expect(
+      permissionCatalog.find((item) => item.key === "reports.dre_export")
+        ?.dependencies,
+    ).toEqual(["reports.view", "reports.dre"]);
+  });
   it("revokes access using the same token and audits exact before/after permissions", async () => {
     const { app, headers, update, repository, user } = await setup([
       "patients.view",
@@ -319,11 +379,19 @@ describe("per-operation API authorization", () => {
       ),
       "utf8",
     );
+    // 0101 replaced "reports.export" with one spreadsheet export per report.
+    const spreadsheetExports = [
+      "reports.dre_export",
+      "reports.financial_export",
+      "reports.management_export",
+      "reports.clients_export",
+      "reports.sales_export",
+    ];
     const rows = [
       ...sql.matchAll(
         /\('([^']+)', ARRAY\[([^\]]*)\]::text\[\], ARRAY\[([^\]]*)\]::text\[\]\)/g,
       ),
-    ];
+    ].filter((row) => row[1] !== "reports.export");
     expect(rows.map((row) => row[1]).sort()).toEqual(
       permissionCatalog
         // History and waitlist came after 0045; waitlist has its own grant in 0097.
@@ -332,7 +400,8 @@ describe("per-operation API authorization", () => {
             !item.legacyAdmin &&
             !item.explicitGrantOnly &&
             item.module !== "history" &&
-            item.module !== "waitlist",
+            item.module !== "waitlist" &&
+            !spreadsheetExports.includes(item.key),
         )
         .map((item) => item.key)
         .sort(),
@@ -346,6 +415,19 @@ describe("per-operation API authorization", () => {
     }
     expect(sql).toContain("WHERE u.permissions IS NULL");
     expect(sql).not.toContain("history.view");
+    const split = readFileSync(
+      new URL(
+        "../../../migrations/0111_spreadsheet_export_permissions.sql",
+        import.meta.url,
+      ),
+      "utf8",
+    );
+    for (const key of spreadsheetExports) {
+      const report = permissionCatalog.find((item) => item.key === key)!
+        .dependencies[1];
+      expect(split).toContain(`('${report}', '${key}')`);
+    }
+    expect(split).toContain("array_remove(permissions, 'reports.export')");
     expect(legacyPermissions("user", ["patients"], ["patients"])).not.toContain(
       "patients.export",
     );

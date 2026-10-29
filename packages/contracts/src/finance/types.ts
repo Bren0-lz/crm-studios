@@ -454,6 +454,13 @@ export interface DailyCashMovement {
   amountInCents: number;
 }
 
+/** Movimento do caixa com o registro de origem (relatório financeiro por período). */
+export interface CashMovement extends DailyCashMovement {
+  receivableId?: string;
+  payableId?: string;
+  commissionId?: string;
+}
+
 export interface DailyCashMethodTotal {
   paymentMethod: DailyCashPaymentMethod;
   inflowInCents: number;
