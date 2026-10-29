@@ -269,6 +269,14 @@ export interface AuthenticatedUser extends UserSummary {
   updatedAt: string;
 }
 
+/**
+ * Pedido de recálculo retroativo ao gravar regras de comissão. `expectedDigest` (da prévia
+ * confirmada na tela) recusa a gravação se as comissões mudaram desde a prévia.
+ */
+export interface CommissionRecalculationRequest {
+  expectedDigest?: string;
+}
+
 export interface ClinicRepository {
   /** Lista de espera das filiais da leitura, da entrada mais antiga para a mais nova. */
   listWaitlist(clinicId: string): Promise<WaitlistEntry[]>;
@@ -533,12 +541,16 @@ export interface ClinicRepository {
     actorUserId: string,
     input: AdminUserInput,
     passwordHash: string,
+    /** Recalcula as comissões alcançadas pelas regras gravadas (mesma transação). */
+    recalculation?: CommissionRecalculationRequest,
   ): Promise<AdminUser>;
   updateAdminUser(
     clinicId: string,
     actorUserId: string,
     userId: string,
     input: AdminUserUpdate,
+    /** Recalcula as comissões alcançadas pelas regras gravadas (mesma transação). */
+    recalculation?: CommissionRecalculationRequest,
   ): Promise<AdminUser | null>;
   resetAdminUserPassword(
     clinicId: string,
@@ -579,6 +591,8 @@ export interface ClinicRepository {
     actorUserId: string,
     userId: string,
     input: AdminUserCommissionInput,
+    /** Recalcula as comissões alcançadas pela regra (mesma transação). */
+    recalculation?: CommissionRecalculationRequest,
   ): Promise<AdminUser | null>;
   getClinicSettings(clinicId: string): Promise<ClinicSettings | null>;
   updateClinicSettings(
@@ -1252,10 +1266,20 @@ export interface ClinicRepository {
     actorUserId: string,
     input: ReceivableRenegotiationInput,
   ): Promise<ReceivableRenegotiation>;
+  /**
+   * Com `recalculation`, recalcula na mesma transação as comissões que passam a usar a regra
+   * (abertas mudam de valor; pagas ganham ajuste) e registra `commission.recalculated`.
+   */
   createCommissionRule(
     clinicId: string,
     input: CommissionRuleInput,
+    recalculation?: CommissionRecalculationRequest & { actorId: string },
   ): Promise<CommissionRule>;
+  /** Prévia do recálculo retroativo das regras, sem gravar nada. */
+  previewCommissionRecalculation(
+    clinicId: string,
+    input: import("@crm/contracts").CommissionRecalculationPreviewInput,
+  ): Promise<import("@crm/contracts").CommissionRecalculationPreview>;
   /** Colaboradores da folha nas filiais da leitura em curso. */
   listPayrollEmployees(
     clinicId: string,

@@ -129,7 +129,8 @@ export class PostgresClinicRepository implements ClinicRepository {
   private readonly administration: ReturnType<
     typeof createAdministrationRepository
   >;
-  private readonly finance: ReturnType<typeof createFinanceRepository>;
+  private readonly finance: ReturnType<typeof createFinanceRepository> &
+    ReturnType<typeof createCommissionOperationsRepository>;
   private readonly relationship: ReturnType<
     typeof createRelationshipRepository
   >;
@@ -339,6 +340,8 @@ export class PostgresClinicRepository implements ClinicRepository {
       this.finance.generateDueRecurringPayables;
     this.renegotiateReceivables = this.finance.renegotiateReceivables;
     this.createCommissionRule = this.finance.createCommissionRule;
+    this.previewCommissionRecalculation =
+      this.finance.previewCommissionRecalculation;
     const payroll = createPayrollRepository(this.context);
     this.listPayrollEmployees = payroll.listPayrollEmployees;
     this.createPayrollEmployee = payroll.createPayrollEmployee;
@@ -702,9 +705,9 @@ export class PostgresClinicRepository implements ClinicRepository {
   readonly launchPayroll: ClinicRepository["launchPayroll"];
   readonly cancelPayrollLaunch: ClinicRepository["cancelPayrollLaunch"];
 
-  readonly createCommissionRule: ReturnType<
-    typeof createFinanceRepository
-  >["createCommissionRule"];
+  readonly createCommissionRule: ClinicRepository["createCommissionRule"];
+
+  readonly previewCommissionRecalculation: ClinicRepository["previewCommissionRecalculation"];
 
   readonly generateCommissions: ReturnType<
     typeof createFinanceRepository

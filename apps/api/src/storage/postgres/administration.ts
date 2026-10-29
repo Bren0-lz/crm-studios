@@ -30,7 +30,13 @@ import {
   resolvePermissionInput,
 } from "@crm/contracts";
 import type { Pool, PoolClient } from "pg";
-import { DomainError, lastAdminError } from "../../repository.js";
+import {
+  DomainError,
+  lastAdminError,
+  type CommissionRecalculationRequest,
+} from "../../repository.js";
+import { userCommissionDrafts } from "../../modules/finance/commission-recalculation.js";
+import { createPostgresCommissionRecalculation } from "./commission-recalculation.js";
 import type { PostgresRepositoryContext } from "./context.js";
 import {
   type AdminUserRow,
@@ -188,6 +194,7 @@ async function selectOwnProfile(
 export function createAdministrationRepository(
   repositoryContext: PostgresRepositoryContext,
 ) {
+  const commissions = createPostgresCommissionRecalculation(repositoryContext);
   return {
     async revokeUserSessions(
       clinicId: string,
@@ -331,6 +338,7 @@ export function createAdministrationRepository(
       actorUserId: string,
       input: AdminUserInput,
       passwordHash: string,
+      recalculation?: CommissionRecalculationRequest,
     ) {
       const client = await repositoryContext.pool.connect();
       try {
@@ -415,6 +423,16 @@ export function createAdministrationRepository(
           created.id,
           input,
         );
+        // Usuário novo ligado a um profissional que já tem comissões: recalcula pelas regras novas.
+        if (recalculation)
+          await commissions.apply(
+            client,
+            clinicId,
+            actorUserId,
+            { userId: created.id },
+            userCommissionDrafts(input),
+            recalculation.expectedDigest,
+          );
         const withCommission =
           input.commission ||
           input.serviceCommissions?.length ||
@@ -441,6 +459,7 @@ export function createAdministrationRepository(
       actorUserId: string,
       userId: string,
       input: AdminUserUpdate,
+      recalculation?: CommissionRecalculationRequest,
     ) {
       if (userId === actorUserId && !input.active)
         throw new DomainError(
@@ -579,6 +598,15 @@ export function createAdministrationRepository(
           userId,
           input,
         );
+        if (recalculation)
+          await commissions.apply(
+            client,
+            clinicId,
+            actorUserId,
+            { userId },
+            userCommissionDrafts(input),
+            recalculation.expectedDigest,
+          );
         const withCommission = await repositoryContext.findAdminUser(
           client,
           clinicId,

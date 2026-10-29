@@ -484,7 +484,8 @@ describe("CRM API", () => {
       percentage: 20,
     });
 
-    // Gerar de novo não duplica nem recalcula.
+    // Regra retroativa do usuário (desde 01/05) recalcula o lançamento de 06/05 na gravação;
+    // o de 20/05 segue com a regra de 15/05, mais recente. Gerar de novo não duplica.
     await app.inject({
       method: "PUT",
       url: `/admin/users/${user.json().id}/commission`,
@@ -494,7 +495,11 @@ describe("CRM API", () => {
     const second = await generate();
     expect(second.json()).toHaveLength(3);
     expect(byAppointment(second.json()).get(beforeUserRule)).toMatchObject({
-      percentage: 10,
+      percentage: 50,
+      amountInCents: Math.round((service.priceInCents * 50) / 100),
+    });
+    expect(byAppointment(second.json()).get(withUserRule)).toMatchObject({
+      percentage: 35,
     });
 
     // A regra de 15/05 já gerou lançamento: corrigir o percentual dela é bloqueado.
@@ -510,17 +515,25 @@ describe("CRM API", () => {
       message:
         "Esta comissão já foi usada em lançamentos; escolha outra data de início.",
     });
-    // A regra de 01/05 (sem lançamentos) ainda pode ser corrigida.
-    const correctable = await app.inject({
+    // A de 01/05 também passou a ter lançamento (o recálculo de 06/05): corrigir pede outra
+    // data de início, que recalcula de novo.
+    const usedByRecalculation = await app.inject({
       method: "PUT",
       url: `/admin/users/${user.json().id}/commission`,
       headers,
       payload: { percentage: 45, effectiveFrom: "2031-05-01" },
     });
+    expect(usedByRecalculation.statusCode).toBe(409);
+    const correctable = await app.inject({
+      method: "PUT",
+      url: `/admin/users/${user.json().id}/commission`,
+      headers,
+      payload: { percentage: 45, effectiveFrom: "2031-05-02" },
+    });
     expect(correctable.statusCode).toBe(200);
-    expect(
-      byAppointment((await generate()).json()).get(withUserRule),
-    ).toMatchObject({ percentage: 35 });
+    const corrected = byAppointment((await generate()).json());
+    expect(corrected.get(withUserRule)).toMatchObject({ percentage: 35 });
+    expect(corrected.get(beforeUserRule)).toMatchObject({ percentage: 45 });
     await app.close();
   });
 
