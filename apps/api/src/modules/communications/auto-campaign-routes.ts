@@ -7,7 +7,10 @@ import {
 import type { FastifyRequest } from "fastify";
 import type { RouteContext } from "../../infrastructure/route-context.js";
 import { DomainError } from "../../repository.js";
-import { loadAutoCampaignQueue } from "./auto-campaigns.js";
+import {
+  loadAutoCampaignQueue,
+  promotionValidUntil,
+} from "./auto-campaigns.js";
 
 const idParams = z.object({ id: z.uuid() });
 const campaignNotFound = () =>
@@ -43,6 +46,7 @@ export function registerAutoCampaignRoutes(context: RouteContext) {
         trigger: campaign.trigger,
         active: campaign.active,
         steps: campaign.steps.length,
+        promotional: Boolean(campaign.promotion),
       },
       campaign.id,
     );
@@ -144,15 +148,33 @@ export function registerAutoCampaignRoutes(context: RouteContext) {
           "Essa mensagem não está mais na fila. Atualize a lista.",
           409,
         );
-      return reply
-        .status(201)
-        .send(
-          await repository.saveAutoCampaignDelivery(
-            request.user.clinicId,
-            request.user.sub,
-            { ...input, message: item.message },
-          ),
-        );
+      const campaign =
+        input.status === "sent"
+          ? await repository.getAutoCampaign(
+              request.user.clinicId,
+              input.campaignId,
+            )
+          : null;
+      return reply.status(201).send(
+        await repository.saveAutoCampaignDelivery(
+          request.user.clinicId,
+          request.user.sub,
+          {
+            ...input,
+            message: item.message,
+            ...(campaign?.promotion
+              ? {
+                  promotionValidUntil: promotionValidUntil(
+                    campaign,
+                    campaign.promotion,
+                    item.eventDate,
+                    queue.date,
+                  ),
+                }
+              : {}),
+          },
+        ),
+      );
     },
   );
 

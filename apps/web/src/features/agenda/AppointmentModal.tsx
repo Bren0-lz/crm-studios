@@ -21,6 +21,7 @@ export function AppointmentModal({
     >
       <AppointmentForm
         {...props}
+        offerPromotions
         onCancel={onClose}
         onBusyChange={setBusy}
         onNestedModalChange={setInactive}

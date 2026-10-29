@@ -1,9 +1,12 @@
 import { z } from "zod";
+import type { AppointmentStatus } from "../agenda/types.js";
 import type { BroadcastSkippedPatient } from "../patients/types.js";
 import {
   autoCampaignBlockedReasonLabels,
+  autoCampaignCooldownUnitSchema,
   autoCampaignDeliveryInputSchema,
   autoCampaignInputSchema,
+  autoCampaignPromotionSchema,
   autoCampaignSkipReasonSchema,
   autoCampaignTriggerSchema,
   broadcastInputSchema,
@@ -232,6 +235,12 @@ export type AutoCampaignTiming = "before" | "after" | "sessions";
 
 export type AutoCampaignInput = z.input<typeof autoCampaignInputSchema>;
 
+export type AutoCampaignCooldownUnit = z.infer<
+  typeof autoCampaignCooldownUnitSchema
+>;
+
+export type AutoCampaignPromotion = z.infer<typeof autoCampaignPromotionSchema>;
+
 export type AutoCampaignSkipReason = z.infer<
   typeof autoCampaignSkipReasonSchema
 >;
@@ -256,6 +265,8 @@ export interface AutoCampaign {
   trigger: AutoCampaignTrigger;
   active: boolean;
   steps: AutoCampaignStep[];
+  /** Presente só nas campanhas promocionais. */
+  promotion?: AutoCampaignPromotion | undefined;
   createdAt: string;
   updatedAt: string;
   createdByName: string;
@@ -273,6 +284,8 @@ export interface AutoCampaignDelivery {
   note?: string | undefined;
   /** Texto como estava quando foi marcado. */
   message: string;
+  /** Campanha promocional enviada: último dia (aaaa-mm-dd) em que a promoção vale. */
+  promotionValidUntil?: string | undefined;
   handledAt: string;
   handledByName: string;
 }
@@ -314,6 +327,30 @@ export interface AutoCampaignSummary {
   pending: number;
   sent: number;
   skipped: number;
+}
+
+/** Uso de uma promoção num agendamento; cancelar o atendimento desfaz o uso. */
+export interface AutoCampaignRedemption {
+  id: string;
+  campaignId: string;
+  patientId: string;
+  occurrenceKey: string;
+  appointmentId: string;
+  /** Status atual do atendimento (cancelado = uso desfeito). */
+  appointmentStatus: AppointmentStatus;
+  /** Dia (aaaa-mm-dd) em que o atendimento foi agendado com a promoção. */
+  redeemedOn: string;
+  /** Último dia em que o cliente fica fora desta campanha, quando há bloqueio. */
+  blockedUntil?: string | undefined;
+}
+
+/** `GET /appointments/promotions`: promoções que o cliente pode usar ao agendar hoje. */
+export interface AutoCampaignPromotionOffer {
+  campaignId: string;
+  campaignName: string;
+  occurrenceKey: string;
+  /** Último dia (aaaa-mm-dd) para agendar com a promoção. */
+  validUntil: string;
 }
 
 /** `GET /communications/auto-campaigns/queue`: a fila de hoje. */
