@@ -49,6 +49,11 @@ import type {
 import type {
   DocumentSignatureInput,
   DocumentSignatureContent,
+  DocumentSignatureLinkDetails,
+  DocumentSignatureLinkShare,
+  PublicDocumentSignInput,
+  PublicRequestMetadata,
+  PublicSignatureDocument,
 } from "@crm/contracts";
 import type {
   ProductUpdateInput,
@@ -962,6 +967,15 @@ export interface ClinicRepository {
     clinicId: string,
     input: AssessmentTemplateInput,
   ): Promise<AssessmentTemplate>;
+  /** Todas as versões de todos os modelos, inclusive arquivados. */
+  listAssessmentTemplates(clinicId: string): Promise<AssessmentTemplate[]>;
+  /** Arquiva (ou reativa) todas as versões da família; devolve a versão mais recente. */
+  setAssessmentTemplateActive(
+    clinicId: string,
+    actorUserId: string,
+    id: string,
+    active: boolean,
+  ): Promise<AssessmentTemplate | null>;
   createClinicalAssessment(
     clinicId: string,
     authorUserId: string,
@@ -1162,6 +1176,13 @@ export interface ClinicRepository {
     clinicId: string,
     actorUserId: string,
     payableId: string,
+  ): Promise<Payable | null>;
+  /** Informa o valor do mês de uma conta aberta gerada por despesa fixa. */
+  setPayableAmount(
+    clinicId: string,
+    actorUserId: string,
+    payableId: string,
+    amountInCents: number,
   ): Promise<Payable | null>;
   listRecurringPayables(clinicId: string): Promise<RecurringPayable[]>;
   createRecurringPayable(
@@ -1373,6 +1394,26 @@ export interface ClinicRepository {
     actorUserId: string,
     id: string,
   ): Promise<DocumentSignatureContent | null>;
+  /** Gera (ou reaproveita) o link público de assinatura de um documento emitido. */
+  createDocumentSignatureLink(
+    clinicId: string,
+    actorUserId: string,
+    documentId: string,
+  ): Promise<DocumentSignatureLinkShare | null>;
+  getDocumentSignatureLink(
+    clinicId: string,
+    documentId: string,
+  ): Promise<DocumentSignatureLinkDetails | null>;
+  /** Abre o documento pelo link público e registra a visualização. */
+  openPublicSignatureDocument(
+    token: string,
+    metadata: PublicRequestMetadata,
+  ): Promise<PublicSignatureDocument | null>;
+  signPublicDocument(
+    token: string,
+    input: PublicDocumentSignInput,
+    metadata: PublicRequestMetadata,
+  ): Promise<PublicSignatureDocument | null>;
   listDocumentTemplates(clinicId: string): Promise<DocumentTemplate[]>;
   createDocumentTemplate(
     clinicId: string,

@@ -30,6 +30,8 @@ import {
   broadcastSkipReasons,
   clinicSettingsInputSchema,
   formatTaxId,
+  formatCnpj,
+  supplierInputSchema,
   isValidCnpj,
   isValidTaxId,
   clinicalRecordInputSchema,
@@ -81,6 +83,8 @@ import {
   recurringOccurrenceStarts,
   recurringPayableCompetences,
   recurringPayableDueDate,
+  recurringPayableInputSchema,
+  recurringPayableReminders,
   relationshipSettingsSchema,
   resolvePatientTags,
   saoPauloToday,
@@ -103,6 +107,9 @@ import {
   compareClinicalAlerts,
   adminUserServiceCommissionsSchema,
   serviceCommissionsInForce,
+  publicDocumentSignInputSchema,
+  signatureLinkExpiresAt,
+  signatureLinkExpired,
 } from "./index.js";
 
 describe("shared contracts", () => {
@@ -182,6 +189,125 @@ describe("shared contracts", () => {
       recurringPayableCompetences({ ...model, active: false }, "2027-02"),
     ).toEqual([]);
     expect(recurringPayableDueDate("2027-02", 5)).toBe("2027-02-05");
+  });
+
+  it("reminds fixed expenses from the configured days before the due date", () => {
+    const water = {
+      id: "water",
+      description: "Água",
+      amountType: "variable" as const,
+      amountInCents: 15_000,
+      dayOfMonth: 3,
+      reminderDaysBefore: 5,
+      startMonth: "2026-10",
+      active: true,
+    };
+    const internet = {
+      ...water,
+      id: "internet",
+      description: "Internet",
+      amountType: "fixed" as const,
+      amountInCents: 9_990,
+      dayOfMonth: 20,
+      reminderDaysBefore: 2,
+    };
+    const silent = { ...internet, id: "silent", reminderDaysBefore: undefined };
+    const octoberWater = {
+      id: "p1",
+      recurringPayableId: "water",
+      competence: "2026-10",
+      dueDate: "2026-10-03",
+      amountInCents: 15_000,
+      status: "open" as const,
+      amountPending: true,
+    };
+    // 29/10: a água de outubro segue em aberto (vencida) e a de novembro, ainda não
+    // gerada, já está no prazo (03/11 menos 5 dias = 29/10). A internet de outubro foi
+    // paga e a de novembro só avisa em 18/11.
+    expect(
+      recurringPayableReminders(
+        [water, internet, silent],
+        [
+          octoberWater,
+          {
+            ...octoberWater,
+            id: "p2",
+            recurringPayableId: "internet",
+            dueDate: "2026-10-20",
+            amountInCents: 9_990,
+            status: "paid",
+            amountPending: false,
+          },
+        ],
+        "2026-10-29",
+      ),
+    ).toEqual([
+      {
+        recurringPayableId: "water",
+        description: "Água",
+        competence: "2026-10",
+        dueDate: "2026-10-03",
+        remindFrom: "2026-09-28",
+        amountInCents: 15_000,
+        amountType: "variable",
+        amountPending: true,
+        payableId: "p1",
+      },
+      {
+        recurringPayableId: "water",
+        description: "Água",
+        competence: "2026-11",
+        dueDate: "2026-11-03",
+        remindFrom: "2026-10-29",
+        amountInCents: 15_000,
+        amountType: "variable",
+        amountPending: true,
+      },
+    ]);
+    // Um dia antes do prazo não avisa; paga, a conta sai do aviso.
+    expect(
+      recurringPayableReminders(
+        [water],
+        [{ ...octoberWater, status: "paid" }],
+        "2026-10-28",
+      ),
+    ).toEqual([]);
+    // Internet: dia 18 avisa (20 menos 2); pausada, as competências futuras param.
+    expect(
+      recurringPayableReminders([internet], [], "2026-10-18").map(
+        (item) => item.dueDate,
+      ),
+    ).toEqual(["2026-10-20"]);
+    expect(
+      recurringPayableReminders(
+        [{ ...internet, active: false }],
+        [],
+        "2026-10-18",
+      ),
+    ).toEqual([]);
+  });
+
+  it("defaults fixed expenses to a fixed amount and limits the reminder", () => {
+    const base = {
+      description: "Conta de luz",
+      categoryId: "11111111-1111-4111-8111-111111111111",
+      costCenterId: "11111111-1111-4111-8111-111111111112",
+      amountInCents: 20_000,
+      dayOfMonth: 10,
+      startMonth: "2026-10",
+    };
+    expect(recurringPayableInputSchema.parse(base).amountType).toBe("fixed");
+    expect(
+      recurringPayableInputSchema.safeParse({ ...base, reminderDaysBefore: 31 })
+        .success,
+    ).toBe(false);
+    expect(
+      recurringPayableInputSchema.safeParse({
+        ...base,
+        amountType: "variable",
+        reminderDaysBefore: 0,
+      }).success,
+    ).toBe(true);
   });
 
   it("names groups with a per-service letter", () => {
@@ -355,6 +481,25 @@ describe("shared contracts", () => {
     expect(phoneDigits("(11) 3333-4444")).toBe("1133334444");
   });
 
+  it("fills supplier hiring and payment defaults", () => {
+    const parsed = supplierInputSchema.parse({
+      name: "Fornecedor",
+      kind: "company",
+    });
+    expect(parsed).toMatchObject({
+      whatsapp: "",
+      billingCycle: "one_time",
+      installments: 1,
+      paymentTerms: "",
+      orders: "",
+      contracts: "",
+    });
+    expect(parsed.hiredOn).toBeUndefined();
+    expect(() =>
+      supplierInputSchema.parse({ ...parsed, installments: 0 }),
+    ).toThrow();
+  });
+
   it("validates and formats the clinic CPF/CNPJ", () => {
     expect(isValidCnpj("11.222.333/0001-81")).toBe(true);
     expect(isValidCnpj("12.345.678/0001-90")).toBe(false);
@@ -363,6 +508,8 @@ describe("shared contracts", () => {
     expect(isValidTaxId("1122233300018")).toBe(false);
     expect(formatTaxId("11222333000181")).toBe("11.222.333/0001-81");
     expect(formatTaxId("1122233300")).toBe("112.223.330-0");
+    expect(formatCnpj("112223")).toBe("11.222.3");
+    expect(formatCnpj("11222333000181")).toBe("11.222.333/0001-81");
     const base = { name: "Studios Aryana", timezone: "America/Sao_Paulo" };
     expect(
       clinicSettingsInputSchema.parse({ ...base, taxId: "11222333000181" })
@@ -1156,9 +1303,7 @@ describe("appointment auto finalization", () => {
     expect(autoFinalizationDelayLabel(0)).toBe("imediatamente");
     expect(autoFinalizationDelayLabel(45)).toBe("45 minutos");
     expect(autoFinalizationDelayLabel(90)).toBe("1 hora e 30 minutos");
-    expect(autoFinalizationDelayLabel(2 * 1440 + 1)).toBe(
-      "2 dias e 1 minuto",
-    );
+    expect(autoFinalizationDelayLabel(2 * 1440 + 1)).toBe("2 dias e 1 minuto");
   });
 
   it("requires an ordered period of up to one year", () => {
@@ -1631,7 +1776,9 @@ describe("planPixChargeMessage", () => {
         totalSessions: 1,
         installments: 3,
       }),
-    ).toContain("tem 1 sessão por R$ 100,00 (R$ 100,00 por sessão), em 3 parcelas; a 1ª parcela é de R$ 33,34.");
+    ).toContain(
+      "tem 1 sessão por R$ 100,00 (R$ 100,00 por sessão), em 3 parcelas; a 1ª parcela é de R$ 33,34.",
+    );
   });
 });
 
@@ -1822,5 +1969,51 @@ describe("comissões por serviço do usuário", () => {
         "2026-10-25",
       ).map((item) => `${item.serviceName} ${item.effectiveFrom}`),
     ).toEqual(["Dança 2026-12-01", "Pilates 2026-06-01", "Pilates 2026-11-01"]);
+  });
+
+  it("accepts only a valid CPF when signing through the public link", () => {
+    const base = {
+      signerName: "Cliente",
+      accepted: true,
+      signatureImage: "data:image/png;base64,cG5n",
+    };
+    expect(
+      publicDocumentSignInputSchema.parse({
+        ...base,
+        signerCpf: "123.456.789-09",
+      }).signerCpf,
+    ).toBe("12345678909");
+    expect(
+      publicDocumentSignInputSchema.parse({ ...base, signerCpf: "" }).signerCpf,
+    ).toBe("");
+    expect(
+      publicDocumentSignInputSchema.safeParse({
+        ...base,
+        signerCpf: "123.456.789-00",
+      }).success,
+    ).toBe(false);
+    expect(
+      publicDocumentSignInputSchema.safeParse({
+        ...base,
+        signerCpf: "111.111.111-11",
+      }).success,
+    ).toBe(false);
+  });
+
+  it("expires an unsigned signature link after 7 days", () => {
+    const expiresAt = signatureLinkExpiresAt("2026-10-20T12:00:00.000Z");
+    expect(expiresAt).toBe("2026-10-27T12:00:00.000Z");
+    expect(
+      signatureLinkExpired({ expiresAt }, new Date("2026-10-27T11:59:59Z")),
+    ).toBe(false);
+    expect(
+      signatureLinkExpired({ expiresAt }, new Date("2026-10-27T12:00:00Z")),
+    ).toBe(true);
+    expect(
+      signatureLinkExpired(
+        { expiresAt, signedAt: "2026-10-21T10:00:00.000Z" },
+        new Date("2026-11-30T12:00:00Z"),
+      ),
+    ).toBe(false);
   });
 });

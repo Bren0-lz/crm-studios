@@ -35,10 +35,9 @@ export function ClinicalMeasurementModal({
   const [saving, setSaving] = useState(false);
   const dirty = useFormDirty(form);
   const missing = useMissingFields(
-    [
-      !form.name.trim() && "Medida",
-      !form.unit.trim() && "Unidade",
-    ].filter((item): item is string => Boolean(item)),
+    [!form.name.trim() && "Medida", !form.unit.trim() && "Unidade"].filter(
+      (item): item is string => Boolean(item),
+    ),
     "field-hint",
   );
   async function submit(event: FormEvent) {

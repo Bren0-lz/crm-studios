@@ -6,6 +6,7 @@ import {
   patientTabServiceInputSchema,
   productSaleInputSchema,
   supplierInputSchema,
+  supplierBillingCycleSchema,
   manualReceivableInputSchema,
   financialClassificationSchema,
   categoryDreInputSchema,
@@ -17,6 +18,7 @@ export type PatientTabServiceInput = z.infer<
   typeof patientTabServiceInputSchema
 >;
 export type SupplierInput = z.infer<typeof supplierInputSchema>;
+export type SupplierBillingCycle = z.infer<typeof supplierBillingCycleSchema>;
 export interface Supplier extends SupplierInput {
   id: string;
   clinicId: string;
@@ -66,12 +68,14 @@ import {
   patientTabCloseInputSchema,
   patientTabInputSchema,
   patientTabItemInputSchema,
+  payableAmountInputSchema,
   payableInputSchema,
   paymentMethodSchema,
   productInputSchema,
   receivableRenegotiationInputSchema,
   receivableSettlementSchema,
   receivableStatusSchema,
+  recurringPayableAmountTypeSchema,
   recurringPayableInputSchema,
   stockMovementInputSchema,
 } from "./model.js";
@@ -124,6 +128,12 @@ export type CostCenterInput = z.infer<typeof costCenterInputSchema>;
 export type PayableInput = z.infer<typeof payableInputSchema>;
 
 export type RecurringPayableInput = z.infer<typeof recurringPayableInputSchema>;
+
+export type RecurringPayableAmountType = z.infer<
+  typeof recurringPayableAmountTypeSchema
+>;
+
+export type PayableAmountInput = z.infer<typeof payableAmountInputSchema>;
 
 export interface PayablePaymentEvent {
   id: string;
@@ -326,6 +336,8 @@ export interface Payable extends PayableInput {
   /** Despesa fixa que gerou esta conta, com a competência (AAAA-MM). */
   recurringPayableId?: string;
   competence?: string;
+  /** Despesa fixa variável: o valor do mês ainda é a estimativa e precisa ser informado. */
+  amountPending?: boolean;
 }
 
 export interface RecurringPayable {
@@ -339,8 +351,12 @@ export interface RecurringPayable {
   costCenterId: string;
   categoryName: string;
   costCenterName: string;
+  amountType: RecurringPayableAmountType;
+  /** Valor mensal (fixa) ou estimativa usada até o valor do mês ser informado (variável). */
   amountInCents: number;
   dayOfMonth: number;
+  /** Dias de antecedência do aviso no sino; ausente, não avisa. */
+  reminderDaysBefore?: number;
   startMonth: string;
   endMonth?: string;
   active: boolean;
@@ -418,7 +434,10 @@ export type DailyCashFilter = z.infer<typeof dailyCashFilterSchema>;
 export type DailyCashPaymentMethod = PaymentMethod | "unspecified";
 
 export type DailyCashMovementKind =
-  "receipt" | "receipt_reversal" | "payable" | "commission";
+  | "receipt"
+  | "receipt_reversal"
+  | "payable"
+  | "commission";
 
 export interface DailyCashMovement {
   /** `<kind>:<id da origem>`. */

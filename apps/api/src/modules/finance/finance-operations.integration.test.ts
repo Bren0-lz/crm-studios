@@ -318,4 +318,58 @@ describe("mixed tabs and financial classification", () => {
     });
     expect(forbidden.statusCode).toBe(403);
   });
+  it("stores supplier hiring, payment, orders and contracts and clears optional fields on edit", async () => {
+    const { app, headers } = await setup();
+    const created = await app.inject({
+      method: "POST",
+      url: "/finance/suppliers",
+      headers,
+      payload: {
+        name: "Locadora de aparelhos",
+        kind: "company",
+        document: "11222333000181",
+        phone: "1133334444",
+        whatsapp: "11988887777",
+        hiredOn: "2026-09-01",
+        contractAmountInCents: 360000,
+        billingCycle: "yearly",
+        paymentMethod: "boleto",
+        installments: 12,
+        paymentTerms: "Vencimento todo dia 5",
+        orders: "Pedido 42: 3 reformers",
+        contracts: "Contrato 2026/07",
+      },
+    });
+    expect(created.statusCode).toBe(201);
+    const supplier = created.json();
+    const { hiredOn, contractAmountInCents, paymentMethod, ...rest } = supplier;
+    expect({ hiredOn, contractAmountInCents, paymentMethod }).toEqual({
+      hiredOn: "2026-09-01",
+      contractAmountInCents: 360000,
+      paymentMethod: "boleto",
+    });
+    expect(rest).toMatchObject({
+      whatsapp: "11988887777",
+      billingCycle: "yearly",
+      installments: 12,
+      orders: "Pedido 42: 3 reformers",
+      contracts: "Contrato 2026/07",
+    });
+    const updated = await app.inject({
+      method: "PUT",
+      url: `/finance/suppliers/${supplier.id}`,
+      headers,
+      payload: { ...rest, installments: 1 },
+    });
+    expect(updated.statusCode).toBe(200);
+    expect(updated.json()).not.toHaveProperty("hiredOn");
+    expect(updated.json()).not.toHaveProperty("paymentMethod");
+    const invalid = await app.inject({
+      method: "POST",
+      url: "/finance/suppliers",
+      headers,
+      payload: { name: "Sem parcelas", kind: "person", installments: 0 },
+    });
+    expect(invalid.statusCode).toBe(400);
+  });
 });

@@ -6,14 +6,15 @@ import type {
 import { useState, type FormEvent } from "react";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
-import {
-  missingBuilderFields,
-  useMissingFields,
-} from "../../shared/components/MissingFields";
+import { useMissingFields } from "../../shared/components/MissingFields";
 import { Modal } from "../../shared/components/Modal";
-import { ClinicalFormBuilder } from "../../shared/components/ClinicalFormBuilder";
-import { ClinicalFieldInputs } from "../../shared/components/ClinicalFieldInputs";
 import { ErrorBanner } from "../../shared/components/ErrorBanner";
+import { AssessmentTemplateFields } from "./AssessmentTemplateFields";
+import {
+  blankAssessmentTemplate,
+  missingTemplateFields,
+} from "./assessment-forms";
+
 export function AssessmentTemplateModal({
   template,
   onClose,
@@ -26,37 +27,17 @@ export function AssessmentTemplateModal({
   const { can } = useAuthorization();
   const [form, setForm] = useState<AssessmentTemplateInput>(() =>
       template
-        ? structuredClone(template)
-        : {
-            name: "",
-            specialty: "Fisioterapia",
-            fields: [
-              {
-                key: "campo_1",
-                label: "",
-                type: "text",
-                required: false,
-                unit: "",
-              },
-            ],
-          },
+        ? {
+            name: template.name,
+            specialty: template.specialty,
+            fields: structuredClone(template.fields),
+          }
+        : structuredClone(blankAssessmentTemplate),
     ),
-    [preview, setPreview] = useState(false),
     [error, setError] = useState(""),
     [saving, setSaving] = useState(false);
   const [savedForm] = useState(() => JSON.stringify(form));
-  const missing = useMissingFields(
-    [
-      ...(form.name.trim().length < 3
-        ? ["Nome do modelo (pelo menos 3 caracteres)"]
-        : []),
-      ...(form.specialty.trim().length < 2
-        ? ["Especialidade (pelo menos 2 caracteres)"]
-        : []),
-      ...missingBuilderFields(form.fields),
-    ],
-    "field-hint",
-  );
+  const missing = useMissingFields(missingTemplateFields(form), "field-hint");
   async function save(status: "draft" | "published" = "draft") {
     setError("");
     setSaving(true);
@@ -93,62 +74,21 @@ export function AssessmentTemplateModal({
         title={
           template ? "Editar modelo de avaliação" : "Novo modelo de avaliação"
         }
-        subtitle="Modelos publicados permanecem versionados. Editá-los cria uma versão independente."
+        subtitle={
+          template && template.status !== "draft"
+            ? `Publicar cria a versão ${template.version + 1}. As avaliações já registradas continuam com a versão em que foram preenchidas.`
+            : "Modelos publicados permanecem versionados. Editá-los cria uma versão independente."
+        }
         busy={saving || Boolean(prompt.modal)}
         inactive={Boolean(prompt.modal)}
         onClose={close}
+        wide
       >
         {can("clinical.templates_create") && (
           <form className="clinical-form" onSubmit={submit}>
             {error && <ErrorBanner error={error} />}
             <fieldset className="form-fields" disabled={saving}>
-              <div className="form-grid">
-                <label>
-                  Nome do modelo
-                  <input
-                    required
-                    minLength={3}
-                    maxLength={120}
-                    value={form.name}
-                    onChange={(event) =>
-                      setForm({ ...form, name: event.target.value })
-                    }
-                  />
-                </label>
-                <label>
-                  Especialidade
-                  <input
-                    required
-                    minLength={2}
-                    maxLength={100}
-                    value={form.specialty}
-                    onChange={(event) =>
-                      setForm({ ...form, specialty: event.target.value })
-                    }
-                  />
-                </label>
-              </div>
-              <ClinicalFormBuilder
-                fields={form.fields}
-                onChange={(fields) => setForm({ ...form, fields })}
-              />
-              <button
-                type="button"
-                className="secondary-button"
-                onClick={() => setPreview((value) => !value)}
-              >
-                Prévia do formulário
-              </button>
-              {preview && (
-                <fieldset disabled>
-                  <legend>Prévia</legend>
-                  <ClinicalFieldInputs
-                    fields={form.fields}
-                    values={{}}
-                    onChange={() => {}}
-                  />
-                </fieldset>
-              )}
+              <AssessmentTemplateFields form={form} onChange={setForm} />
             </fieldset>
             {missing.hint}
             <div className="modal-actions">
