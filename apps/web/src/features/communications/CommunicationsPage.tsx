@@ -1,22 +1,31 @@
 import type { MessageTemplate } from "@crm/contracts";
-import { Megaphone, MessageSquareText, type LucideIcon } from "lucide-react";
+import {
+  BellRing,
+  Megaphone,
+  MessageSquareText,
+  type LucideIcon,
+} from "lucide-react";
 import { useId, useState, type KeyboardEvent } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useAuthorization } from "../../authorization-context";
 import { PageHeader } from "../../shared/components/PageHeader";
 import { ReadOnlyNotice } from "../../shared/components/ReadOnlyNotice";
+import { AutoCampaignsTab } from "./auto-campaigns/AutoCampaignsTab";
 import { CampaignsTab } from "./campaigns/CampaignsTab";
 import { TemplatesTab } from "./campaigns/TemplatesTab";
 
-type TabKey = "campanhas" | "mensagens";
+type TabKey = "campanhas" | "automaticas" | "mensagens";
 const tabs: Array<{ key: TabKey; label: string; icon: LucideIcon }> = [
   { key: "campanhas", label: "Campanhas", icon: Megaphone },
+  { key: "automaticas", label: "Campanhas automáticas", icon: BellRing },
   { key: "mensagens", label: "Mensagens padrão", icon: MessageSquareText },
 ];
 
 function initialTab(value: string | null): TabKey {
   // Endereços antigos (`?aba=fila`) caem em Campanhas.
-  return tabs.some((tab) => tab.key === value) ? (value as TabKey) : "campanhas";
+  return tabs.some((tab) => tab.key === value)
+    ? (value as TabKey)
+    : "campanhas";
 }
 
 /**
@@ -101,6 +110,8 @@ export function CommunicationsPage() {
                   onTemplateUsed={() => setTemplateToUse(null)}
                   onOpenTemplates={() => select("mensagens")}
                 />
+              ) : tab.key === "automaticas" ? (
+                <AutoCampaignsTab />
               ) : (
                 <TemplatesTab
                   onUseTemplate={(template) => {

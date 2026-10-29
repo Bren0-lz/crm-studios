@@ -6,6 +6,7 @@ import {
 } from "../common/model.js";
 import type {
   PatientPlan,
+  PlanPaymentSummary,
   PlanServiceInput,
   PlanTerms,
   PlanType,
@@ -114,6 +115,8 @@ export const planTemplateFieldsSchema = z.object({
   services: planTemplateServicesSchema,
   planType: planTypeSchema.nullable().optional(),
   kind: planKindSchema.nullable().optional(),
+  /** Máximo de parcelas na venda: 1 = não aceita parcelamento; ausente = sem limite próprio. */
+  maxInstallments: z.number().int().min(1).max(36).nullable().optional(),
 });
 
 export const planTemplateInputSchema = planTemplateFieldsSchema
@@ -224,8 +227,7 @@ export function allocatePlanRevenue(
  */
 export function sessionValueInCents(
   planService:
-    | Pick<PlanServiceInput, "totalSessions" | "totalValueInCents">
-    | undefined,
+    Pick<PlanServiceInput, "totalSessions" | "totalValueInCents"> | undefined,
   priceInCents: number,
 ): number {
   return planService && planService.totalSessions > 0
@@ -330,6 +332,94 @@ export function installmentsBeyondValidity(plan: {
   return lastDueDate > plan.validUntil ? lastDueDate : null;
 }
 
+/** Quantidade de aulas dos horários semanais entre duas datas, inclusive. */
+export function weeklySlotSessionsBetween(
+  slots: readonly { weekday: number }[],
+  from: string,
+  to: string,
+): number {
+  if (!slots.length || to < from) return 0;
+  const days = daysBetweenIsoDates(from, to) + 1;
+  const firstWeekday = new Date(`${from}T12:00:00Z`).getUTCDay();
+  return slots.reduce((sum, slot) => {
+    const offset = (slot.weekday - firstWeekday + 7) % 7;
+    return sum + (offset < days ? Math.floor((days - 1 - offset) / 7) + 1 : 0);
+  }, 0);
+}
+
+export type PlanFirstChargeProration = {
+  /** Aulas da turma do início até o primeiro vencimento, inclusive. */
+  sessions: number;
+  /** Aulas do primeiro ciclo (início até o fim do 1º mês). */
+  cycleSessions: number;
+  cycleEnd: string;
+  amountInCents: number;
+};
+
+/**
+ * 1º pagamento do plano recorrente proporcional às aulas da turma até o vencimento:
+ * vencer no fim do 1º ciclo (ex.: início 01/10, vence 31/10) cobra o valor cheio;
+ * antes sai mais barato, depois sai mais caro. Vencimento no próprio início
+ * (pagamento antecipado) ou sem turma mantém o valor cheio (null).
+ */
+export function planFirstChargeProration(
+  plan: {
+    kind?: z.infer<typeof planKindSchema> | null | undefined;
+    totalValueInCents: number;
+    validFrom: string;
+    firstDueDate: string;
+  },
+  slots: readonly { weekday: number }[] | undefined,
+): PlanFirstChargeProration | null {
+  if (
+    plan.kind !== "recurring" ||
+    !slots?.length ||
+    !z.iso.date().safeParse(plan.validFrom).success ||
+    !z.iso.date().safeParse(plan.firstDueDate).success ||
+    plan.firstDueDate <= plan.validFrom
+  )
+    return null;
+  const cycleEnd = addDaysToIsoDate(addMonthsToIsoDate(plan.validFrom, 1), -1);
+  if (plan.firstDueDate === cycleEnd) return null;
+  const cycleSessions = weeklySlotSessionsBetween(
+    slots,
+    plan.validFrom,
+    cycleEnd,
+  );
+  if (!cycleSessions) return null;
+  const sessions = weeklySlotSessionsBetween(
+    slots,
+    plan.validFrom,
+    plan.firstDueDate,
+  );
+  return {
+    sessions,
+    cycleSessions,
+    cycleEnd,
+    amountInCents: Math.min(
+      2147483647,
+      Math.round((plan.totalValueInCents * sessions) / cycleSessions),
+    ),
+  };
+}
+
+/** Termos do plano com a 1ª parcela proporcional às aulas da turma, quando houver. */
+export function withPlanFirstCharge<
+  T extends Parameters<typeof planFirstChargeProration>[0],
+>(
+  plan: T & { firstInstallmentInCents?: number | undefined },
+  slots: readonly { weekday: number }[] | undefined,
+): T & { firstInstallmentInCents?: number | undefined } {
+  const terms: T & { firstInstallmentInCents?: number | undefined } = {
+    ...plan,
+  };
+  delete terms.firstInstallmentInCents;
+  const proration = planFirstChargeProration(plan, slots);
+  return proration
+    ? { ...terms, firstInstallmentInCents: proration.amountInCents }
+    : terms;
+}
+
 export const planTermsSchema = z.object({
   name: z.string().trim().min(3).max(120),
   services: planServicesSchema,
@@ -341,6 +431,11 @@ export const planTermsSchema = z.object({
   autoRenew: z.boolean().optional(),
   /** Forma de pagamento combinada na venda (ausente = a combinar). */
   paymentMethod: paymentMethodSchema.optional(),
+  /**
+   * Valor da 1ª parcela quando proporcional às aulas até o primeiro vencimento
+   * (`planFirstChargeProration`); ausente = divisão normal do valor total.
+   */
+  firstInstallmentInCents: z.number().int().min(0).max(2147483647).optional(),
 });
 
 export const validPlanPeriod = (value: PlanTerms) =>
@@ -434,5 +529,27 @@ export function nextPlanPeriod(plan: {
     validFrom,
     validUntil: addDaysToIsoDate(validFrom, days - 1),
     firstDueDate: addDaysToIsoDate(plan.firstDueDate, days),
+  };
+}
+
+/** Resume as parcelas do plano (canceladas ficam fora); null quando não há cobrança. */
+export function planPaymentSummary(
+  receivables: readonly {
+    status: "open" | "paid" | "cancelled";
+    amountInCents: number;
+    overdue: boolean;
+  }[],
+): PlanPaymentSummary | null {
+  const active = receivables.filter((item) => item.status !== "cancelled");
+  if (!active.length) return null;
+  const paid = active.filter((item) => item.status === "paid");
+  const open = active.filter((item) => item.status === "open");
+  return {
+    installmentCount: active.length,
+    paidCount: paid.length,
+    openCount: open.length,
+    overdueCount: open.filter((item) => item.overdue).length,
+    paidInCents: paid.reduce((sum, item) => sum + item.amountInCents, 0),
+    openInCents: open.reduce((sum, item) => sum + item.amountInCents, 0),
   };
 }

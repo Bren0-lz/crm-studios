@@ -305,6 +305,13 @@
   background: #f7f8f5;
 }
 
+/* Bloco de um dos planos do cadastro guiado: "Remover plano" abaixo dos campos. */
+.guided-plan-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: var(--space-4);
+}
+
 .form-fieldset legend {
   padding: 0 6px;
   color: #4d5b55;
@@ -946,4 +953,17 @@ p.field-hint {
 .file-field {
   display: grid;
   gap: var(--space-2);
+}
+
+/* Desconto do cliente no cadastro: resumo e botão que abre o modal. */
+.discount-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.discount-summary > .muted-copy {
+  margin: 0;
 }

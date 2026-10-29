@@ -2,12 +2,18 @@ import {
   type GuidedPatientInput,
   type GuidedPatientResult,
   type PatientInput,
+  type PatientPlan,
+  type PatientPlanInput,
   type PatientTagInput,
   patientTagKey,
   patientProfile,
   type PatientTagUpdate,
   type ReceivedPayment,
 } from "@crm/contracts";
+import {
+  guidedPlansResult,
+  guidedSubscriptions,
+} from "../../modules/patients/guided-plans.js";
 import { buildPatientTimeline } from "../../modules/patients/patient-timeline.js";
 import {
   DomainError,
@@ -162,11 +168,13 @@ export function createPatientsRepository(
       input: GuidedPatientInput,
     ): Promise<GuidedPatientResult> {
       return repositoryContext.inTransaction(async (client) => {
-        if (input.next === "plan" && input.groupId) {
+        const subscriptions = guidedSubscriptions(input);
+        for (const item of subscriptions) {
+          if (!item.groupId) continue;
           const group = await client.query<{ serviceId: string }>(
             `SELECT service_id AS "serviceId" FROM group_classes
            WHERE clinic_id = $1 AND id = $2 AND active`,
-            [clinicId, input.groupId],
+            [clinicId, item.groupId],
           );
           if (!group.rows[0])
             throw new DomainError(
@@ -175,8 +183,8 @@ export function createPatientsRepository(
               404,
             );
           if (
-            !input.plan.services.some(
-              (item) => item.serviceId === group.rows[0]!.serviceId,
+            !item.plan.services.some(
+              (entry) => entry.serviceId === group.rows[0]!.serviceId,
             )
           )
             throw new DomainError(
@@ -222,36 +230,51 @@ export function createPatientsRepository(
           );
           return { patient, appointment };
         }
-        const planId = await repositoryContext.insertPatientPlan(
-          client,
-          clinicId,
-          actorUserId,
-          {
-            ...input.plan,
-            patientId: patient.id,
-            kind: input.next === "plan" ? input.plan.kind : "single",
-          },
-          "Crédito inicial do plano",
-        );
-        const plan = (await repositoryContext.findPatientPlan(
-          client,
-          clinicId,
-          planId,
-        ))!;
-        if (input.next === "plan" && input.groupId)
+        const insertPlan = async (
+          plan: PatientPlanInput,
+        ): Promise<PatientPlan> => {
+          const planId = await repositoryContext.insertPatientPlan(
+            client,
+            clinicId,
+            actorUserId,
+            plan,
+            "Crédito inicial do plano",
+          );
+          return (await repositoryContext.findPatientPlan(
+            client,
+            clinicId,
+            planId,
+          ))!;
+        };
+        if (input.next === "single")
           return {
             patient,
-            plan,
-            enrollment: await repositoryContext.insertGroupEnrollment(
-              client,
-              clinicId,
-              {
-                groupId: input.groupId,
-                patientId: patient.id,
-              },
-            ),
+            plan: await insertPlan({
+              ...input.plan,
+              patientId: patient.id,
+              kind: "single",
+            }),
           };
-        return { patient, plan };
+        const created: NonNullable<GuidedPatientResult["additionalPlans"]> = [];
+        for (const item of subscriptions) {
+          const plan = await insertPlan({
+            ...item.plan,
+            patientId: patient.id,
+          });
+          created.push(
+            item.groupId
+              ? {
+                  plan,
+                  enrollment: await repositoryContext.insertGroupEnrollment(
+                    client,
+                    clinicId,
+                    { groupId: item.groupId, patientId: patient.id },
+                  ),
+                }
+              : { plan },
+          );
+        }
+        return guidedPlansResult(patient, created, input);
       });
     },
 

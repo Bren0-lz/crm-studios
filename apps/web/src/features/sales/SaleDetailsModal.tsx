@@ -1,4 +1,5 @@
 import type { PatientTab } from "@crm/contracts";
+import { productItemName } from "@crm/contracts";
 import { useState } from "react";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
@@ -36,7 +37,7 @@ export function SaleDetailsModal({
           {sale.items.map((item) => (
             <li key={item.id}>
               <div className="patient-tab-item-main">
-                <strong>{item.productName}</strong>
+                <strong>{productItemName(item)}</strong>
                 <span>
                   {item.quantity} ×{" "}
                   {currency.format(item.unitPriceInCents / 100)}

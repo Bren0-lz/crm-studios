@@ -302,7 +302,16 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
         ),
         "utf8",
       );
+      // A 0101 troca o "Exportar relatórios" da 0045 por uma permissão por planilha.
+      const spreadsheetSplit = readFileSync(
+        new URL(
+          "../../../../migrations/0111_spreadsheet_export_permissions.sql",
+          import.meta.url,
+        ),
+        "utf8",
+      );
       await client.query(sql);
+      await client.query(spreadsheetSplit);
       for (const item of cases) {
         const row = await client.query(
           "SELECT permissions FROM users WHERE id=$1",
@@ -666,6 +675,78 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
         tags: [],
       }),
     ).rejects.toMatchObject({ code: "PATIENT_DUPLICATE" });
+  });
+
+  it("persists, consumes and removes the client discount", async () => {
+    const input = {
+      fullName: "Cliente com Desconto",
+      phone: "11933334444",
+      cpf: nextTestCpf(),
+      tags: [],
+    };
+    const nextTwo = {
+      type: "percentage",
+      percent: 10,
+      scope: "next",
+      charges: 2,
+    } as const;
+    const patient = await repository.createPatient(clinicId, {
+      ...input,
+      discount: nextTwo,
+    });
+    expect(patient.discount).toEqual(nextTwo);
+    const kept = await repository.updatePatient(clinicId, patient.id, input);
+    expect(kept?.discount).toEqual(nextTwo);
+    // Três parcelas: o desconto vale nas duas primeiras e o uso fica gravado no cliente.
+    const services = await repository.listServices(clinicId);
+    const date = saoPauloToday();
+    const plan = await repository.createPatientPlan(
+      clinicId,
+      ownerId,
+      await configuredPlan({
+        patientId: patient.id,
+        serviceId: services[0]!.id,
+        name: "Plano com desconto",
+        kind: "fixed_package",
+        totalSessions: 3,
+        validFrom: date,
+        totalValueInCents: 30000,
+        installments: 3,
+        firstDueDate: date,
+      }),
+    );
+    const receivables = (
+      await repository.getFinancialSummary(clinicId)
+    ).receivables
+      .filter((item) => item.planId === plan.id)
+      .sort((a, b) => a.installmentNumber - b.installmentNumber);
+    expect(
+      receivables.map((item) => [
+        item.amountInCents,
+        item.customerDiscountInCents,
+      ]),
+    ).toEqual([
+      [9000, 1000],
+      [9000, 1000],
+      [10000, undefined],
+    ]);
+    expect(
+      (await repository.getPatient(clinicId, patient.id))?.discount,
+    ).toEqual({ ...nextTwo, usedCharges: 2 });
+    const amount = await repository.updatePatient(clinicId, patient.id, {
+      ...input,
+      discount: { type: "amount", amountInCents: 2500, scope: "permanent" },
+    });
+    expect(amount?.discount).toEqual({
+      type: "amount",
+      amountInCents: 2500,
+      scope: "permanent",
+    });
+    const removed = await repository.updatePatient(clinicId, patient.id, {
+      ...input,
+      discount: null,
+    });
+    expect(removed?.discount).toBeNull();
   });
 
   it("persists one reschedule and rolls back an occupied time", async () => {
@@ -1555,6 +1636,7 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
       "11955506404",
       "11955506405",
       "11955506406",
+      "11955506407",
     ];
     const serviceId = "77777777-7777-4777-8777-777777777777";
     const otherServiceId = "88888888-8888-4888-8888-888888888888";
@@ -1702,6 +1784,37 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
           plan: { ...terms, kind: "fixed_package" },
         },
       );
+      // Vários planos de uma vez, cada um com a sua turma opcional.
+      const twoPlans = await repository.createPatientWithNextStep(
+        clinicId,
+        ownerId,
+        {
+          next: "plan",
+          patient: {
+            cpf: nextTestCpf(),
+            fullName: "Guiada PG Dois Planos",
+            phone: phones[6]!,
+            tags: [],
+          },
+          plan: { ...terms, kind: "fixed_package" },
+          additionalPlans: [
+            { plan: { ...terms, kind: "recurring" }, groupId },
+            { plan: { ...terms, kind: "single", installments: 1 } },
+          ],
+        },
+      );
+      expect(twoPlans.plan?.kind).toBe("fixed_package");
+      expect(twoPlans.enrollment).toBeUndefined();
+      expect(twoPlans.additionalPlans).toEqual([
+        {
+          plan: expect.objectContaining({
+            kind: "recurring",
+            patientId: twoPlans.patient.id,
+          }),
+          enrollment: expect.objectContaining({ groupId }),
+        },
+        { plan: expect.objectContaining({ kind: "single" }) },
+      ]);
       const single = await repository.createPatientWithNextStep(
         clinicId,
         ownerId,
@@ -1794,7 +1907,7 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
         "SELECT 1 FROM patient_plans WHERE clinic_id = $1 AND name = $2",
         [clinicId, marker],
       );
-      expect(stored.rowCount).toBe(3);
+      expect(stored.rowCount).toBe(6);
     } finally {
       await cleanup();
     }

@@ -84,6 +84,9 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
   "PUT /admin/branches/:id": "admin",
   "GET /clinic/auto-finalization": "login",
   "PUT /admin/auto-finalization": "admin",
+  "GET /clinic/payment-methods": "login",
+  "PUT /admin/payment-methods": "admin",
+  "PUT /admin/pro-labore": "admin",
   "GET /admin/clinic-settings": "admin",
   "PUT /admin/clinic-settings": "admin",
   "PUT /relationship/settings": "admin",
@@ -296,6 +299,21 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
   "POST /communications/templates/:id/archive": operation(
     "communications.templates",
   ),
+  "GET /communications/auto-campaigns": view("communications"),
+  "GET /communications/auto-campaigns/queue": view("communications"),
+  "POST /communications/auto-campaigns": operation("communications.campaigns"),
+  "PUT /communications/auto-campaigns/:id": operation(
+    "communications.campaigns",
+  ),
+  "DELETE /communications/auto-campaigns/:id": operation(
+    "communications.campaigns",
+  ),
+  "POST /communications/auto-campaigns/deliveries": operation(
+    "communications.campaigns",
+  ),
+  "DELETE /communications/auto-campaigns/deliveries/:id": operation(
+    "communications.campaigns",
+  ),
   "GET /communications/campaigns": view("communications"),
   "GET /communications/campaigns/filter-options": view("communications"),
   "GET /communications/campaigns/:id": view("communications"),
@@ -449,28 +467,33 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
     "finance.receivables_reverse",
   ),
 
-  // Relatórios (só leitura).
+  // Relatórios (só leitura). Cada planilha tem sua própria permissão de exportação.
   "GET /reports/dre": operation("reports.dre"),
-  "GET /reports/dre/export": operation("reports.dre", "reports.export"),
+  "GET /reports/dre/export": operation("reports.dre", "reports.dre_export"),
   "GET /reports/management": operation("reports.management"),
+  "GET /reports/financial": operation("reports.dre"),
+  "GET /reports/financial/export": operation(
+    "reports.dre",
+    "reports.financial_export",
+  ),
   "GET /reports/retention": operation("reports.retention"),
   "GET /reports/clients/details": operation("reports.clients"),
   "GET /reports/clients/details/export": operation(
     "reports.clients",
-    "reports.export",
+    "reports.clients_export",
   ),
   "GET /reports/clients": operation("reports.clients"),
   "GET /reports/sales/period": operation("reports.sales"),
   "GET /reports/sales/period.xlsx": operation(
     "reports.sales",
-    "reports.export",
+    "reports.sales_export",
   ),
   "GET /reports/sales": operation("reports.sales"),
   "GET /reports/sales/patients/:id": operation("reports.sales"),
-  "GET /reports/sales.xlsx": operation("reports.sales", "reports.export"),
+  "GET /reports/sales.xlsx": operation("reports.sales", "reports.sales_export"),
   "GET /reports/management.csv": operation(
     "reports.management",
-    "reports.export",
+    "reports.management_export",
   ),
 };
 

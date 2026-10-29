@@ -3,6 +3,8 @@ import {
   type DashboardSummary,
   type ManagementReport,
   type PatientPlanService,
+  type ProductSize,
+  productItemName,
   type ReceivedPayment,
   type SaleMovement,
   type SalesReport,
@@ -37,6 +39,7 @@ type PlanSaleRow = {
   serviceName: string;
   totalValueInCents: number;
   cancelledValueInCents: number;
+  customerDiscountInCents: number;
   createdAt: Date;
   cancelledAt: Date | null;
 };
@@ -47,6 +50,7 @@ type TabSaleRow = {
   patientId: string;
   patientName: string;
   productName: string;
+  size: string;
   sourceType: "product" | "service";
   quantity: number;
   amountInCents: number;
@@ -72,6 +76,9 @@ function toSales(planRows: PlanSaleRow[], tabRows: TabSaleRow[]) {
       kind: "sale",
       occurredAt: plan.createdAt.toISOString(),
       amountInCents: plan.totalValueInCents,
+      ...(plan.customerDiscountInCents
+        ? { customerDiscountInCents: plan.customerDiscountInCents }
+        : {}),
     });
     if (plan.cancelledAt)
       sales.push({
@@ -88,7 +95,10 @@ function toSales(planRows: PlanSaleRow[], tabRows: TabSaleRow[]) {
       sourceType: item.sourceType,
       patientId: item.patientId,
       patientName: item.patientName,
-      itemName: item.productName,
+      itemName: productItemName({
+        productName: item.productName,
+        size: (item.size || undefined) as ProductSize | undefined,
+      }),
       quantity: item.quantity,
       ...(item.receivableId ? { receivableId: item.receivableId } : {}),
     };
@@ -123,6 +133,7 @@ export function createReportsRepository(
                 pp.name, (SELECT string_agg(x.service_name, ', ' ORDER BY x.position) FROM patient_plan_services x WHERE x.plan_id=pp.id) AS "serviceName",
                 pp.total_value_in_cents AS "totalValueInCents",
                 pp.cancelled_value_in_cents AS "cancelledValueInCents",
+                (SELECT coalesce(sum(r.customer_discount_in_cents),0)::int FROM receivables r WHERE r.clinic_id=pp.clinic_id AND r.plan_id=pp.id) AS "customerDiscountInCents",
                 pp.created_at AS "createdAt", pp.cancelled_at AS "cancelledAt"
          FROM patient_plans pp
          JOIN patients p ON p.id=pp.patient_id
@@ -132,7 +143,7 @@ export function createReportsRepository(
       ),
       repositoryContext.pool.query<TabSaleRow>(
         `SELECT i.id, t.id AS "tabId", t.patient_id AS "patientId", 'product'::text AS "sourceType",
-                p.full_name AS "patientName", pr.name AS "productName",
+                p.full_name AS "patientName", pr.name AS "productName", i.size,
                 i.quantity, (i.quantity*i.unit_price_in_cents)::int AS "amountInCents",
                 t.closed_at AS "closedAt", t.cancelled_at AS "cancelledAt",
                 t.receivable_id AS "receivableId"
@@ -141,7 +152,7 @@ export function createReportsRepository(
          JOIN patients p ON p.id=t.patient_id
          JOIN products pr ON pr.id=i.product_id
          WHERE t.clinic_id=$1 AND t.patient_id = ANY($2::uuid[]) AND t.closed_at IS NOT NULL AND ${branchClause("t.branch_id", 3)}
-         UNION ALL SELECT i.id,t.id,t.patient_id,'service'::text,p.full_name,i.service_name,1,i.amount_in_cents,t.closed_at,t.cancelled_at,t.receivable_id FROM patient_tab_services i JOIN patient_tabs t ON t.id=i.tab_id AND t.clinic_id=i.clinic_id JOIN patients p ON p.id=t.patient_id AND p.clinic_id=t.clinic_id WHERE t.clinic_id=$1 AND t.patient_id = ANY($2::uuid[]) AND t.closed_at IS NOT NULL AND ${branchClause("t.branch_id", 3)}`,
+         UNION ALL SELECT i.id,t.id,t.patient_id,'service'::text,p.full_name,i.service_name,'',1,i.amount_in_cents,t.closed_at,t.cancelled_at,t.receivable_id FROM patient_tab_services i JOIN patient_tabs t ON t.id=i.tab_id AND t.clinic_id=i.clinic_id JOIN patients p ON p.id=t.patient_id AND p.clinic_id=t.clinic_id WHERE t.clinic_id=$1 AND t.patient_id = ANY($2::uuid[]) AND t.closed_at IS NOT NULL AND ${branchClause("t.branch_id", 3)}`,
         [clinicId, patientIds, branchIds],
       ),
     ]);
@@ -165,6 +176,7 @@ export function createReportsRepository(
                 pp.name, (SELECT string_agg(x.service_name, ', ' ORDER BY x.position) FROM patient_plan_services x WHERE x.plan_id=pp.id) AS "serviceName",
                 pp.total_value_in_cents AS "totalValueInCents",
                 pp.cancelled_value_in_cents AS "cancelledValueInCents",
+                (SELECT coalesce(sum(r.customer_discount_in_cents),0)::int FROM receivables r WHERE r.clinic_id=pp.clinic_id AND r.plan_id=pp.id) AS "customerDiscountInCents",
                 pp.created_at AS "createdAt", pp.cancelled_at AS "cancelledAt"
          FROM patient_plans pp
          JOIN patients p ON p.id=pp.patient_id
@@ -177,7 +189,7 @@ export function createReportsRepository(
       );
       const productResult = await client.query<TabSaleRow>(
         `SELECT i.id, t.id AS "tabId", t.patient_id AS "patientId", 'product'::text AS "sourceType",
-                p.full_name AS "patientName", pr.name AS "productName",
+                p.full_name AS "patientName", pr.name AS "productName", i.size,
                 i.quantity, (i.quantity*i.unit_price_in_cents)::int AS "amountInCents",
                 t.closed_at AS "closedAt", t.cancelled_at AS "cancelledAt",
                 t.receivable_id AS "receivableId"
@@ -188,7 +200,7 @@ export function createReportsRepository(
          WHERE t.clinic_id=$1 AND t.closed_at IS NOT NULL AND ${branchClause("t.branch_id", 4)} AND (
            (t.closed_at AT TIME ZONE 'America/Sao_Paulo')::date BETWEEN $2::date AND $3::date
            OR (t.cancelled_at AT TIME ZONE 'America/Sao_Paulo')::date BETWEEN $2::date AND $3::date
-         ) UNION ALL SELECT i.id,t.id,t.patient_id,'service'::text,p.full_name,i.service_name,1,i.amount_in_cents,t.closed_at,t.cancelled_at,t.receivable_id FROM patient_tab_services i JOIN patient_tabs t ON t.id=i.tab_id AND t.clinic_id=i.clinic_id JOIN patients p ON p.id=t.patient_id AND p.clinic_id=t.clinic_id WHERE t.clinic_id=$1 AND t.closed_at IS NOT NULL AND ${branchClause("t.branch_id", 4)} AND ((t.closed_at AT TIME ZONE 'America/Sao_Paulo')::date BETWEEN $2::date AND $3::date OR (t.cancelled_at AT TIME ZONE 'America/Sao_Paulo')::date BETWEEN $2::date AND $3::date)`,
+         ) UNION ALL SELECT i.id,t.id,t.patient_id,'service'::text,p.full_name,i.service_name,'',1,i.amount_in_cents,t.closed_at,t.cancelled_at,t.receivable_id FROM patient_tab_services i JOIN patient_tabs t ON t.id=i.tab_id AND t.clinic_id=i.clinic_id JOIN patients p ON p.id=t.patient_id AND p.clinic_id=t.clinic_id WHERE t.clinic_id=$1 AND t.closed_at IS NOT NULL AND ${branchClause("t.branch_id", 4)} AND ((t.closed_at AT TIME ZONE 'America/Sao_Paulo')::date BETWEEN $2::date AND $3::date OR (t.cancelled_at AT TIME ZONE 'America/Sao_Paulo')::date BETWEEN $2::date AND $3::date)`,
         [clinicId, bounds.previousFrom, bounds.currentTo, branchIds],
       );
       const paymentResult = await client.query<{
@@ -705,7 +717,7 @@ export function createReportsRepository(
              (SELECT count(*)::int FROM group_enrollments e JOIN group_classes g ON g.id=e.group_id WHERE e.clinic_id=$1 AND e.status='active' AND g.active AND ${branchClause("g.branch_id", 4)}) AS "activeGroupSeats",
              (SELECT coalesce(sum(capacity),0)::int FROM group_classes WHERE clinic_id=$1 AND active AND ${branchClause("branch_id", 4)}) AS "totalGroupCapacity",
              (SELECT count(*)::int FROM group_enrollments e JOIN group_classes g ON g.id=e.group_id WHERE e.clinic_id=$1 AND e.status='waitlisted' AND g.active AND ${branchClause("g.branch_id", 4)}) AS "waitlistCount",
-             (SELECT count(*)::int FROM products WHERE clinic_id=$1 AND active AND current_stock<=minimum_stock AND ${branchClause("branch_id", 4)}) AS "lowStockCount",
+             (SELECT count(*)::int FROM products WHERE clinic_id=$1 AND active AND current_stock<=COALESCE(restock_alert_at,0) AND ${branchClause("branch_id", 4)}) AS "lowStockCount",
              (SELECT coalesce(avg(amount_in_cents),0)::int FROM receivables WHERE clinic_id=$1 AND status='paid' AND ${branchClause("branch_id", 4)} AND (paid_at AT TIME ZONE 'America/Sao_Paulo')::date BETWEEN $2::date AND $3::date) AS "averageReceiptInCents"`,
           [clinicId, from, to, branchIds],
         ),
