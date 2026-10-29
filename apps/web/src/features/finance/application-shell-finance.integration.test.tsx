@@ -6,6 +6,26 @@ import App from "../../App";
 import { storedUser } from "../../test-support/legacy-fixtures";
 import "../../test-support/legacy-setup";
 
+/** Abre o menu "Mais ações" de uma despesa fixa e devolve a opção pedida. */
+async function recurringAction(
+  scope: HTMLElement,
+  description: string,
+  action: string,
+) {
+  const button = within(scope).getByRole("button", {
+    name: `Mais ações de ${description}`,
+  });
+  // Durante o salvamento da linha o menu fica desativado.
+  await vi.waitFor(() => expect(button).toBeEnabled());
+  fireEvent.click(button);
+  return within(scope).findByRole("menuitem", { name: action });
+}
+
+/** Fecha o menu "Mais ações" aberto. */
+function closeRecurringMenu(scope: HTMLElement) {
+  fireEvent.keyDown(within(scope).getByRole("menu"), { key: "Escape" });
+}
+
 describe("application shell", () => {
   it.each(["reception", "finance", "physiotherapist"])(
     "does not offer patient export to %s",
@@ -242,11 +262,8 @@ describe("application shell", () => {
     expect(within(section).getAllByText("Encerrada")).toHaveLength(1);
     // Encerrada (mês final já passou) não oferece mais pausar nem encerrar.
     expect(
-      within(section).queryByRole("button", { name: "Pausar Software antigo" }),
-    ).not.toBeInTheDocument();
-    expect(
       within(section).queryByRole("button", {
-        name: "Encerrar Software antigo",
+        name: "Mais ações de Software antigo",
       }),
     ).not.toBeInTheDocument();
     // No próprio mês final ela ainda gera conta: continua ativa, com as ações.
@@ -255,15 +272,12 @@ describe("application shell", () => {
       .closest(".finance-row") as HTMLElement;
     expect(within(lastMonthRow).getByText("Ativa")).toBeInTheDocument();
     expect(
-      within(lastMonthRow).getByRole("button", {
-        name: "Pausar Seguro do estúdio",
-      }),
+      await recurringAction(lastMonthRow, "Seguro do estúdio", "Pausar"),
     ).toBeInTheDocument();
     expect(
-      within(lastMonthRow).getByRole("button", {
-        name: "Encerrar Seguro do estúdio",
-      }),
+      within(lastMonthRow).getByRole("menuitem", { name: "Encerrar" }),
     ).toBeInTheDocument();
+    closeRecurringMenu(lastMonthRow);
 
     // Criar: só categorias de despesa no select; depois recarrega o workspace (que gera as contas).
     fireEvent.click(
@@ -324,13 +338,12 @@ describe("application shell", () => {
 
     // Pausar envia o corpo completo com active:false.
     fireEvent.click(
-      within(section).getByRole("button", { name: "Pausar Aluguel da sala" }),
+      await recurringAction(section, "Aluguel da sala", "Pausar"),
     );
     expect(
-      await within(section).findByRole("button", {
-        name: "Reativar Aluguel da sala",
-      }),
+      await recurringAction(section, "Aluguel da sala", "Reativar"),
     ).toBeInTheDocument();
+    closeRecurringMenu(section);
     expect(bodies[1]!.url).toContain(
       "/finance/recurring-payables/e1e1e1e1-e1e1-4e1e-8e1e-e1e1e1e1e1e1",
     );
@@ -347,12 +360,11 @@ describe("application shell", () => {
 
     // Reativar envia active:true explicitamente e recarrega o workspace.
     const loadsBeforeResume = workspaceLoads();
-    fireEvent.click(
-      within(section).getByRole("button", { name: "Reativar Internet" }),
-    );
+    fireEvent.click(await recurringAction(section, "Internet", "Reativar"));
     expect(
-      await within(section).findByRole("button", { name: "Pausar Internet" }),
+      await recurringAction(section, "Internet", "Pausar"),
     ).toBeInTheDocument();
+    closeRecurringMenu(section);
     expect(bodies[2]!.body).toMatchObject({
       description: "Internet",
       active: true,
@@ -361,9 +373,7 @@ describe("application shell", () => {
     expect(workspaceLoads()).toBeGreaterThan(loadsBeforeResume);
 
     // Encerrar abre um modal com o último mês e mantém a situação atual.
-    fireEvent.click(
-      within(section).getByRole("button", { name: "Encerrar Internet" }),
-    );
+    fireEvent.click(await recurringAction(section, "Internet", "Encerrar"));
     const endDialog = await screen.findByRole("dialog", {
       name: "Encerrar despesa fixa",
     });
@@ -484,8 +494,11 @@ describe("application shell", () => {
       await screen.findByRole("button", { name: "Contas a pagar (0)" }),
     );
     fireEvent.click(
-      await screen.findByRole("button", { name: "Encerrar Aluguel da sala" }),
+      await screen.findByRole("button", {
+        name: "Mais ações de Aluguel da sala",
+      }),
     );
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Encerrar" }));
     const dialog = await screen.findByRole("dialog", {
       name: "Encerrar despesa fixa",
     });
@@ -1152,9 +1165,7 @@ describe("application shell", () => {
       );
       expect(
         decodeURIComponent(whatsapp.getAttribute("href")!.split("text=")[1]!),
-      ).toContain(
-        `Olá, ${firstName}! Segue o recibo REC-00007: recebemos R$`,
-      );
+      ).toContain(`Olá, ${firstName}! Segue o recibo REC-00007: recebemos R$`);
     });
 
     it("contacts the client of an overdue installment with a ready message", async () => {
