@@ -250,12 +250,25 @@ describe("searchable client selection across modules", () => {
     fireEvent.change(catalog, { target: { value: template.id } });
     expect(save).toBeDisabled();
     await selectBreno(dialog, "Breno");
+    // Plano de aulas em grupo: só salva com a turma escolhida.
+    expect(save).toBeDisabled();
+    const purchase = vi.spyOn(api, "purchasePlan").mockResolvedValue({
+      plan: { ...plan, patientId: breno.id, patientName: breno.fullName },
+      appointments: [],
+    });
+    fireEvent.change(await within(dialog).findByLabelText("Turma"), {
+      target: { value: group.id },
+    });
     fireEvent.click(save);
     await waitFor(() =>
-      expect(api.createPlan).toHaveBeenCalledWith(
-        expect.objectContaining({ patientId: breno.id }),
+      expect(purchase).toHaveBeenCalledWith(
+        expect.objectContaining({
+          groupId: group.id,
+          plan: expect.objectContaining({ patientId: breno.id }),
+        }),
       ),
     );
+    expect(api.createPlan).not.toHaveBeenCalled();
   });
 
   it("clears a linked contract plan on client edits and issues for the new selection", async () => {

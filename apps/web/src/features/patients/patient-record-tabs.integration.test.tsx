@@ -324,4 +324,127 @@ describe("client record", () => {
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
     );
   });
+
+  it("requires the class when the recurring plan from the Plans tab is a group class plan", async () => {
+    localStorage.setItem("crm.auth.token", "test-token");
+    localStorage.setItem(
+      "crm.auth.user",
+      storedUser({
+        id: "22222222-2222-4222-8222-222222222222",
+        fullName: "Aryana Dutra",
+        email: "admin@movimenta.local",
+        role: "owner",
+      }),
+    );
+    const patient = {
+      id: "99999999-9999-4999-8999-999999999999",
+      clinicId: "11111111-1111-4111-8111-111111111111",
+      recordNumber: "PAC-00001",
+      fullName: "Helena Almeida",
+      phone: "11987654321",
+      tags: [],
+      status: "active",
+      createdAt: "2026-01-01T12:00:00.000Z",
+      updatedAt: "2026-01-01T12:00:00.000Z",
+    };
+    const serviceId = "88888888-8888-4888-8888-888888888888";
+    const template = {
+      id: "aa000000-0000-4000-8000-000000000001",
+      name: "Pilates mensal",
+      kind: "recurring",
+      totalValueInCents: 45000,
+      services: [{ serviceId, totalSessions: 8, totalValueInCents: 45000 }],
+      active: true,
+    };
+    const group = {
+      id: "cc000000-0000-4000-8000-000000000001",
+      clinicId: patient.clinicId,
+      name: "Pilates 01",
+      sequence: 1,
+      serviceId,
+      serviceName: "Pilates",
+      professionalId: "33333333-3333-4333-8333-333333333333",
+      professionalName: "Dra. Ana",
+      roomId: "55555555-5555-4555-8555-555555555555",
+      roomName: "Sala Movimento",
+      weeklySlots: [{ weekday: 1, startTime: "08:00", endTime: "09:00" }],
+      capacity: 4,
+      activeEnrollments: 1,
+      waitlistCount: 0,
+      active: true,
+      createdAt: "2026-01-01T12:00:00.000Z",
+    };
+    const purchases: Record<string, unknown>[] = [];
+    vi.mocked(fetch).mockImplementation(async (input, init) => {
+      const url = String(input);
+      if (init?.method === "POST" && url.endsWith("/plans/purchases")) {
+        const body = JSON.parse(String(init.body)) as Record<string, unknown>;
+        purchases.push(body);
+        return {
+          ok: true,
+          status: 201,
+          json: async () => ({
+            plan: {
+              ...(body.plan as object),
+              id: "p1",
+              patientName: patient.fullName,
+              remainingSessions: 8,
+              totalSessions: 8,
+              status: "active",
+            },
+            appointments: [],
+          }),
+        } as Response;
+      }
+      const body = url.endsWith(`/patients/${patient.id}`)
+        ? patient
+        : url.includes("/plan-templates")
+          ? [template]
+          : url.includes("/services")
+            ? [{ id: serviceId, name: "Pilates", active: true }]
+            : url.includes("/groups/workspace")
+              ? { groups: [group], enrollments: [], sessions: [] }
+              : [];
+      return { ok: true, status: 200, json: async () => body } as Response;
+    });
+    render(
+      <MemoryRouter initialEntries={[`/clientes/${patient.id}`]}>
+        <App />
+      </MemoryRouter>,
+    );
+    fireEvent.click(await screen.findByRole("tab", { name: "Planos" }));
+    const panel = screen.getByRole("tabpanel");
+    await within(panel).findByText("Nenhum plano contratado.");
+    fireEvent.click(
+      within(panel).getByRole("button", { name: "Plano recorrente" }),
+    );
+    const dialog = await screen.findByRole("dialog", {
+      name: "Novo plano recorrente",
+    });
+    await within(dialog).findByRole("option", { name: /Pilates mensal/ });
+    fireEvent.change(within(dialog).getByLabelText("Plano cadastrado"), {
+      target: { value: template.id },
+    });
+    const turma = await within(dialog).findByLabelText("Turma");
+    await within(turma).findByRole("option", { name: /^Pilates 01/ });
+    expect(turma).toBeRequired();
+    const save = within(dialog).getByRole("button", {
+      name: "Criar plano e parcelas",
+    });
+    expect(save).toBeDisabled();
+    expect(within(dialog).getByText(/^Falta:/)).toHaveTextContent("Turma");
+    fireEvent.change(turma, { target: { value: group.id } });
+    expect(save).toBeEnabled();
+    fireEvent.click(save);
+    await waitFor(() => expect(purchases).toHaveLength(1));
+    // Plano e matrícula na turma entram na mesma contratação.
+    expect(purchases[0]).toMatchObject({
+      groupId: group.id,
+      appointments: [],
+      plan: { patientId: patient.id, planTemplateId: template.id },
+    });
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+    );
+  });
 });

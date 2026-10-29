@@ -346,7 +346,7 @@ describe("guided client registration", () => {
     expect(posts).toHaveLength(2);
   });
 
-  it("subscribes a plan with an optional class of the same service and warns about the waiting list", async () => {
+  it("subscribes a group class plan with a required class of the same service and warns about the waiting list", async () => {
     const posts = mockApi((body) =>
       jsonResponse(
         {
@@ -394,20 +394,26 @@ describe("guided client registration", () => {
     // V7: o bloco de cada serviço do plano usa a borda e o raio do padrão.
     for (const group of dialog.querySelectorAll("fieldset fieldset"))
       expect(group).toHaveClass("form-fieldset");
+    const turma = await within(dialog).findByLabelText("Turma");
+    expect(turma).toHaveValue("");
+    expect(turma).toBeRequired();
+    // Plano de aulas em grupo: a turma é obrigatória e trava o salvamento.
     expect(
       within(dialog).getByText(
-        "A turma pode ser escolhida depois com o responsável.",
+        "Plano de aulas em grupo: escolha a turma do cliente.",
       ),
     ).toBeInTheDocument();
-    const turma = await within(dialog).findByLabelText("Turma (opcional)");
-    expect(turma).toHaveValue("");
+    expect(
+      within(dialog).getByRole("button", { name: "Salvar e criar plano" }),
+    ).toBeDisabled();
+    expect(within(dialog).getByText(/^Falta:/)).toHaveTextContent("Turma");
     // Só turmas ativas do serviço do plano, com o responsável e as vagas.
     expect(
       within(turma)
         .getAllByRole("option")
         .map((item) => item.textContent),
     ).toEqual([
-      "Escolher depois",
+      "Selecione a turma",
       expect.stringMatching(/^Pilates 1 — .* · Dra\. Ana Martins · 3 vagas$/),
       expect.stringMatching(
         /^Pilates 2 — .* · Prof\. Bruno Lima · turma cheia \(lista de espera\)$/,
@@ -437,14 +443,12 @@ describe("guided client registration", () => {
     );
     // Trocar o plano limpa a turma escolhida (ela é de outro serviço).
     fireEvent.change(catalog, { target: { value: physioTemplate.id } });
-    expect(within(dialog).getByLabelText("Turma (opcional)")).toHaveValue("");
+    expect(within(dialog).getByLabelText("Turma")).toHaveValue("");
     expect(
-      within(within(dialog).getByLabelText("Turma (opcional)")).getAllByRole(
-        "option",
-      ),
+      within(within(dialog).getByLabelText("Turma")).getAllByRole("option"),
     ).toHaveLength(2);
     fireEvent.change(catalog, { target: { value: pilatesTemplate.id } });
-    fireEvent.change(within(dialog).getByLabelText("Turma (opcional)"), {
+    fireEvent.change(within(dialog).getByLabelText("Turma"), {
       target: { value: groups[1]!.id },
     });
     fireEvent.click(
@@ -471,6 +475,52 @@ describe("guided client registration", () => {
         totalValueInCents: 48000,
       },
     });
+  });
+
+  it("keeps the class optional when no service of the plan has an active class", async () => {
+    const posts = mockApi((body) =>
+      jsonResponse(
+        {
+          patient: created,
+          plan: {
+            id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+            patientId: created.id,
+            patientName: created.fullName,
+            ...(body.plan as object),
+            status: "active",
+            remainingSessions: 8,
+          },
+        },
+        201,
+      ),
+    );
+    // Só a turma inativa de Pilates: o plano não é de aulas em grupo.
+    const base = vi.mocked(fetch).getMockImplementation()!;
+    vi.mocked(fetch).mockImplementation(async (input, init) =>
+      String(input).includes("/groups/workspace?")
+        ? jsonResponse({ groups: [groups[3]], enrollments: [], sessions: [] })
+        : base(input, init),
+    );
+    renderAs(storedUser(admin));
+    const dialog = await openNewClient();
+    fireEvent.click(
+      within(dialog).getByRole("radio", { name: "Assinar um plano" }),
+    );
+    fireEvent.change(await within(dialog).findByLabelText("Plano cadastrado"), {
+      target: { value: pilatesTemplate.id },
+    });
+    const turma = await within(dialog).findByLabelText("Turma (opcional)");
+    expect(turma).not.toBeRequired();
+    expect(
+      within(dialog).getByText(
+        "A turma pode ser escolhida depois com o responsável.",
+      ),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Salvar e criar plano" }),
+    );
+    await waitFor(() => expect(posts).toHaveLength(1));
+    expect(posts[0]).not.toHaveProperty("groupId");
   });
 
   it("subscribes several plans at once, each with its own class", async () => {
@@ -541,14 +591,26 @@ describe("guided client registration", () => {
     fireEvent.change(within(second).getByLabelText("Modelo"), {
       target: { value: "recurring" },
     });
-    const secondGroup =
-      await within(second).findByLabelText("Turma (opcional)");
+    const secondGroup = await within(second).findByLabelText("Turma");
     expect(
       within(secondGroup)
         .getAllByRole("option")
         .map((item) => item.textContent),
-    ).toEqual(["Escolher depois", expect.stringMatching(/^Fisioterapia 1 — /)]);
+    ).toEqual([
+      "Selecione a turma",
+      expect.stringMatching(/^Fisioterapia 1 — /),
+    ]);
     fireEvent.change(secondGroup, { target: { value: groups[2]!.id } });
+    // Cada plano de aulas em grupo exige a própria turma.
+    expect(
+      within(dialog).getByRole("button", { name: "Salvar e criar plano" }),
+    ).toBeDisabled();
+    expect(within(dialog).getByText(/^Falta:/)).toHaveTextContent(
+      "Plano 1: Turma",
+    );
+    fireEvent.change(within(first).getByLabelText("Turma"), {
+      target: { value: groups[0]!.id },
+    });
     // Um terceiro plano adicionado e removido não vai para o cadastro.
     fireEvent.click(
       within(dialog).getByRole("button", { name: "Adicionar outro plano" }),
@@ -576,6 +638,7 @@ describe("guided client registration", () => {
     expect(posts).toHaveLength(1);
     expect(posts[0]).toMatchObject({
       next: "plan",
+      groupId: groups[0]!.id,
       plan: { planTemplateId: pilatesTemplate.id, kind: "fixed_package" },
       additionalPlans: [
         {
@@ -595,7 +658,6 @@ describe("guided client registration", () => {
         },
       ],
     });
-    expect(posts[0]).not.toHaveProperty("groupId");
   });
 
   it("mixes a plan with single services in the same registration", async () => {
@@ -635,6 +697,9 @@ describe("guided client registration", () => {
     fireEvent.change(await within(dialog).findByLabelText("Plano cadastrado"), {
       target: { value: pilatesTemplate.id },
     });
+    fireEvent.change(await within(dialog).findByLabelText("Turma"), {
+      target: { value: groups[0]!.id },
+    });
     fireEvent.click(
       within(dialog).getByRole("button", { name: "Adicionar serviço avulso" }),
     );
@@ -649,9 +714,7 @@ describe("guided client registration", () => {
         .map((item) => item.getAttribute("value")),
     ).toEqual(["", singleTemplate.id]);
     expect(within(single).queryByLabelText("Modelo")).not.toBeInTheDocument();
-    expect(
-      within(single).queryByLabelText("Turma (opcional)"),
-    ).not.toBeInTheDocument();
+    expect(within(single).queryByLabelText(/^Turma/)).not.toBeInTheDocument();
     expect(
       within(dialog).getByRole("button", { name: "Salvar e criar plano" }),
     ).toBeDisabled();
@@ -722,7 +785,7 @@ describe("guided client registration", () => {
       within(dialog).getByText(/^Escolha a turma para calcular o 1º pagamento/),
     ).toBeInTheDocument();
     // Pilates 1 é às segundas: 4 aulas em outubro, 2 delas até o dia 15.
-    fireEvent.change(await within(dialog).findByLabelText("Turma (opcional)"), {
+    fireEvent.change(await within(dialog).findByLabelText("Turma"), {
       target: { value: groups[0]!.id },
     });
     const note = within(dialog).getByText(/^1º pagamento proporcional/);
@@ -773,9 +836,7 @@ describe("guided client registration", () => {
     const catalog = await within(dialog).findByLabelText("Plano cadastrado");
     fireEvent.change(catalog, { target: { value: singleTemplate.id } });
     expect(within(dialog).queryByLabelText("Modelo")).not.toBeInTheDocument();
-    expect(
-      within(dialog).queryByLabelText("Turma (opcional)"),
-    ).not.toBeInTheDocument();
+    expect(within(dialog).queryByLabelText(/^Turma/)).not.toBeInTheDocument();
     fireEvent.click(
       within(dialog).getByRole("button", {
         name: "Salvar e criar serviço avulso",
@@ -843,6 +904,9 @@ describe("guided client registration", () => {
       );
       const catalog = await within(dialog).findByLabelText("Plano cadastrado");
       fireEvent.change(catalog, { target: { value: pilatesTemplate.id } });
+      fireEvent.change(await within(dialog).findByLabelText("Turma"), {
+        target: { value: groups[0]!.id },
+      });
       const method = within(dialog).getByLabelText("Forma de pagamento");
       expect(method).toHaveValue("");
       fireEvent.change(method, { target: { value: "pix" } });
@@ -977,6 +1041,9 @@ describe("guided client registration", () => {
           target: { value: pilatesTemplate.id },
         },
       );
+      fireEvent.change(await within(dialog).findByLabelText("Turma"), {
+        target: { value: groups[0]!.id },
+      });
       fireEvent.click(
         within(dialog).getByRole("button", { name: "Adicionar produto" }),
       );
@@ -1294,9 +1361,7 @@ describe("guided client registration", () => {
       within(dialog).getByRole("radio", { name: "Assinar um plano" }),
     );
     await within(dialog).findByLabelText("Plano cadastrado");
-    expect(
-      within(dialog).queryByLabelText("Turma (opcional)"),
-    ).not.toBeInTheDocument();
+    expect(within(dialog).queryByLabelText(/^Turma/)).not.toBeInTheDocument();
     expect(
       within(dialog).getByText(
         "A turma pode ser escolhida depois com o responsável.",

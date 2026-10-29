@@ -5,7 +5,6 @@ import type {
   Professional,
   Room,
   DocumentTemplate,
-  GroupClass,
   Service,
 } from "@crm/contracts";
 import { recurringOccurrenceStarts } from "@crm/contracts";
@@ -17,10 +16,10 @@ import { AppointmentForm } from "../agenda/index";
 import { Modal } from "../../shared/components/Modal";
 import { ErrorBanner } from "../../shared/components/ErrorBanner";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
-import { PlanGroupPicker } from "../../shared/components/PlanGroupPicker";
+/** A turma é escolhida no próprio formulário do plano (`PlanForm`). */
 export type PurchaseOptions = Pick<
   PlanPurchaseInput,
-  "appointments" | "groupId" | "document"
+  "appointments" | "document"
 >;
 export function PlanPurchaseOptions({
   plan,
@@ -42,32 +41,24 @@ export function PlanPurchaseOptions({
     [attempt, setAttempt] = useState(0),
     [error, setError] = useState(""),
     [loaded, setLoaded] = useState(false),
-    [groups, setGroups] = useState<GroupClass[]>([]),
     [templates, setTemplates] = useState<DocumentTemplate[]>([]),
     [professionals, setProfessionals] = useState<Professional[]>([]),
     [rooms, setRooms] = useState<Room[]>([]),
     [scheduling, setScheduling] = useState(false),
     [busy, setBusy] = useState(false),
     [nested, setNested] = useState(false);
-  const canGroups = can("groups.enroll"),
-    canDocument = can("contracts.issue") && can("contracts.status"),
+  const canDocument = can("contracts.issue") && can("contracts.status"),
     canAgenda = can("agenda.create");
   useEffect(() => {
     if (!expanded) return;
     let alive = true;
-    const from = new Date().toISOString(),
-      to = new Date(Date.now() + 86400000).toISOString();
     Promise.all([
-      canGroups
-        ? api.groupWorkspace(from, to)
-        : Promise.resolve({ groups: [] }),
       canDocument ? api.documentTemplates() : Promise.resolve([]),
       canAgenda ? api.professionals() : Promise.resolve([]),
       canAgenda ? api.rooms() : Promise.resolve([]),
     ])
-      .then(([workspace, documents, staff, places]) => {
+      .then(([documents, staff, places]) => {
         if (alive) {
-          setGroups(workspace.groups);
           setTemplates(documents.filter((item) => item.active));
           setProfessionals(staff);
           setRooms(places);
@@ -80,7 +71,7 @@ export function PlanPurchaseOptions({
     return () => {
       alive = false;
     };
-  }, [expanded, attempt, canGroups, canDocument, canAgenda]);
+  }, [expanded, attempt, canDocument, canAgenda]);
   const patient = patients.find((item) => item.id === plan.patientId);
   function schedule(open: boolean) {
     setScheduling(open);
@@ -99,7 +90,7 @@ export function PlanPurchaseOptions({
           }
         }}
       >
-        <summary>Agenda, turma e contrato da contratação</summary>
+        <summary>Agenda e contrato da contratação</summary>
         {expanded && (
           <div className="clinical-form">
             {error && (
@@ -117,23 +108,6 @@ export function PlanPurchaseOptions({
             {!loaded && !error && <LoadingBlock />}
             {loaded && (
               <>
-                {canGroups && plan.kind !== "single" && (
-                  <PlanGroupPicker
-                    groups={{
-                      items: groups,
-                      error: "",
-                      retry: () => setAttempt((value) => value + 1),
-                    }}
-                    services={plan.services}
-                    value={value.groupId ?? ""}
-                    onChange={(groupId) => {
-                      const next = { ...value };
-                      if (groupId) next.groupId = groupId;
-                      else delete next.groupId;
-                      onChange(next);
-                    }}
-                  />
-                )}
                 {canDocument && (
                   <label>
                     Modelo de contrato ou termo
@@ -225,8 +199,8 @@ export function PlanPurchaseOptions({
                   </>
                 )}
                 <p>
-                  Os horários, a matrícula e o documento serão confirmados junto
-                  com o plano e as parcelas.
+                  Os horários e o documento serão confirmados junto com o plano
+                  e as parcelas.
                 </p>
               </>
             )}

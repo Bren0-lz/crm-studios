@@ -1,9 +1,11 @@
 import type { PatientOption, PatientPlan, Service } from "@crm/contracts";
 import { useEffect, useState } from "react";
 import { api } from "../../api";
+import { useAuthorization } from "../../authorization-context";
 import { FixedPatient } from "../../shared/components/FixedPatient";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
 import { Modal } from "../../shared/components/Modal";
+import { usePlanGroupChoices } from "../../shared/hooks/usePlanGroupChoices";
 import { PlanForm, type PlanCatalogKind } from "../plans/index";
 
 /**
@@ -25,6 +27,12 @@ export function PatientPlanModal({
   const [services, setServices] = useState<Service[] | null>(null);
   const [error, setError] = useState("");
   const [attempt, setAttempt] = useState(0);
+  const { can } = useAuthorization();
+  // Recorrente de aulas em grupo: a matrícula na turma entra na mesma contratação.
+  const groups = usePlanGroupChoices(
+    kind !== "single" && can("plans.purchase") && can("groups.enroll"),
+  );
+  const [purchaseKey] = useState(() => crypto.randomUUID());
   useEffect(() => {
     let active = true;
     api
@@ -48,9 +56,23 @@ export function PatientPlanModal({
           fixedPatient={patient}
           services={services}
           catalogKind={kind}
+          groups={groups}
           onCancel={onClose}
           onBusyChange={setBusy}
-          onSubmit={async (input) => onSaved(await api.createPlan(input))}
+          onSubmit={async (input, groupId) =>
+            onSaved(
+              groupId
+                ? (
+                    await api.purchasePlan({
+                      idempotencyKey: purchaseKey,
+                      plan: input,
+                      appointments: [],
+                      groupId,
+                    })
+                  ).plan
+                : await api.createPlan(input),
+            )
+          }
         />
       ) : (
         <div className="form-grid">
