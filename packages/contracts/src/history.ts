@@ -58,6 +58,16 @@ export const historyActions: {
     label: "Modelo de avaliação salvo",
   },
   {
+    action: "assessment.template_archived",
+    module: "clinical",
+    label: "Modelo de avaliação arquivado",
+  },
+  {
+    action: "assessment.template_restored",
+    module: "clinical",
+    label: "Modelo de avaliação reativado",
+  },
+  {
     action: "catalog.saved",
     module: "settings",
     label: "Cadastro reutilizável salvo",
@@ -101,6 +111,16 @@ export const historyActions: {
     action: "document.signature_downloaded",
     module: "contracts",
     label: "Cópia assinada consultada",
+  },
+  {
+    action: "document.signature_link_created",
+    module: "contracts",
+    label: "Link de assinatura gerado",
+  },
+  {
+    action: "document.signature_link_renewed",
+    module: "contracts",
+    label: "Link de assinatura renovado",
   },
   {
     action: "product.updated",
@@ -283,6 +303,11 @@ export const historyActions: {
     action: "payable.cancellation",
     module: "finance",
     label: "Conta a pagar cancelada",
+  },
+  {
+    action: "payable.amount_informed",
+    module: "finance",
+    label: "Valor do mês informado",
   },
   {
     action: "appointment.rescheduled",

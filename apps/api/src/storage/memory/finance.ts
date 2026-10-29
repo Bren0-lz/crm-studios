@@ -43,6 +43,7 @@ import {
   buildDailyCash,
   clinicDateOf,
 } from "../../modules/finance/daily-cash.js";
+import { assertPayableAmountEditable } from "../../modules/finance/payable-amount.js";
 import { DomainError } from "../../repository.js";
 import type { MemoryRepositoryContext } from "./context.js";
 import { addMonths, now, today, uuid } from "./helpers.js";
@@ -1107,6 +1108,40 @@ export function createFinanceRepository(
       );
     },
 
+    async setPayableAmount(
+      clinicId: string,
+      actorUserId: string,
+      payableId: string,
+      amountInCents: number,
+    ) {
+      const payable = repositoryContext.payables.find(
+        (item) => item.clinicId === clinicId && item.id === payableId,
+      );
+      if (!payable) return null;
+      const model = repositoryContext.recurringPayables.find(
+        (item) =>
+          item.clinicId === clinicId && item.id === payable.recurringPayableId,
+      );
+      assertPayableAmountEditable(payable, model?.amountType);
+      const previousAmountInCents = payable.amountInCents;
+      payable.amountInCents = amountInCents;
+      delete payable.amountPending;
+      payable.updatedAt = now();
+      repositoryContext.recordAudit(
+        clinicId,
+        actorUserId,
+        "payable.amount_informed",
+        "payable",
+        {
+          competence: payable.competence,
+          previousAmountInCents,
+          amountInCents,
+        },
+        payable.id,
+      );
+      return payable;
+    },
+
     async listRecurringPayables(clinicId: string) {
       return repositoryContext.recurringPayables
         .filter(
@@ -1174,6 +1209,19 @@ export function createFinanceRepository(
         updatedAt: now(),
       };
       repositoryContext.recurringPayables[index] = updated;
+      // Trocar o tipo de valor vale também para as contas ainda em aberto: a variável passa a
+      // esperar o valor do mês e a fixa volta a poder ser paga.
+      if (current.amountType !== updated.amountType)
+        for (const payable of repositoryContext.payables)
+          if (
+            payable.clinicId === clinicId &&
+            payable.recurringPayableId === current.id &&
+            payable.status === "open"
+          ) {
+            if (updated.amountType === "variable") payable.amountPending = true;
+            else delete payable.amountPending;
+            payable.updatedAt = now();
+          }
       return repositoryContext.toRecurringPayable(updated);
     },
 
@@ -1237,6 +1285,7 @@ export function createFinanceRepository(
             overdue: dueDate < currentDate,
             recurringPayableId: model.id,
             competence,
+            ...(model.amountType === "variable" ? { amountPending: true } : {}),
             createdAt: timestamp,
             updatedAt: timestamp,
           });

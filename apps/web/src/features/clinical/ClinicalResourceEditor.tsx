@@ -213,8 +213,7 @@ export function ClinicalResourceEditor({
       !form.professionalId
         ? ["Profissional"]
         : []),
-      ...(form.kind === "evolution_template" &&
-      form.format === "questionnaire"
+      ...(form.kind === "evolution_template" && form.format === "questionnaire"
         ? missingBuilderFields(form.fields)
         : []),
       ...(form.kind === "evolution" && !form.sourceId ? ["Atendimento"] : []),

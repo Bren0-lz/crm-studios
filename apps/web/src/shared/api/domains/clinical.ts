@@ -28,6 +28,13 @@ import type {
 import { request } from "../transport";
 
 export const clinicalApi = {
+  assessmentTemplates: () =>
+    request<AssessmentTemplate[]>("/assessment-templates"),
+  setAssessmentTemplateActive: (id: string, active: boolean) =>
+    request<AssessmentTemplate>(`/assessment-templates/${id}/status`, {
+      method: "PATCH",
+      body: JSON.stringify({ active }),
+    }),
   saveAssessmentTemplate: (input: AssessmentTemplateInput, id?: string) =>
     request<AssessmentTemplate>(
       id ? `/assessment-templates/${id}` : "/assessment-templates/drafts",
