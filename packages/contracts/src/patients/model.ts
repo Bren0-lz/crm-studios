@@ -27,6 +27,165 @@ import type {
 
 export const patientStatusSchema = z.enum(["active", "inactive"]);
 
+/** Desconto fixo do cliente: porcentagem (até 100%) ou valor em centavos. */
+/**
+ * Alcance do desconto do cliente nas cobranças de plano (cada parcela ou renovação é uma
+ * cobrança): `once` = só a próxima cobrança; `next` = as próximas `charges` cobranças;
+ * `permanent` = todas, até a equipe remover.
+ */
+export const patientDiscountScopeSchema = z.enum(["once", "next", "permanent"]);
+
+const patientDiscountScopeShape = {
+  scope: patientDiscountScopeSchema,
+  /** Quantas cobranças recebem o desconto (só em `next`). */
+  charges: z
+    .number()
+    .int("Informe quantas cobranças recebem o desconto.")
+    .min(
+      2,
+      "Informe ao menos 2 cobranças (para uma só, use “Só no próximo pagamento”).",
+    )
+    .max(36, "O desconto pode valer em até 36 cobranças.")
+    .optional(),
+  /** Cobranças que já usaram o desconto (gravado pelo sistema). */
+  usedCharges: z.number().int().min(0).optional(),
+};
+
+/** Desconto do cliente: porcentagem (até 100%) ou valor em centavos, com o alcance. */
+export const patientDiscountSchema = z
+  .discriminatedUnion("type", [
+    z.object({
+      type: z.literal("percentage"),
+      percent: z
+        .number()
+        .gt(0, "Informe uma porcentagem maior que zero.")
+        .max(100, "A porcentagem pode ser de até 100%.")
+        .refine(
+          (value) => Math.abs(Math.round(value * 100) - value * 100) < 1e-6,
+          "Use no máximo duas casas decimais.",
+        ),
+      ...patientDiscountScopeShape,
+    }),
+    z.object({
+      type: z.literal("amount"),
+      amountInCents: z
+        .number()
+        .int()
+        .positive("Informe um valor de desconto maior que zero."),
+      ...patientDiscountScopeShape,
+    }),
+  ])
+  .superRefine((value, context) => {
+    if (value.scope === "next" && value.charges === undefined)
+      context.addIssue({
+        code: "custom",
+        message: "Informe quantas cobranças recebem o desconto.",
+        path: ["charges"],
+      });
+  });
+
+type StoredPatientDiscount = z.infer<typeof patientDiscountSchema>;
+
+/** Cobranças em que o desconto ainda vale (`Infinity` no permanente). */
+export function patientDiscountRemaining(
+  discount: StoredPatientDiscount | null | undefined,
+) {
+  if (!discount) return 0;
+  if (discount.scope === "permanent") return Infinity;
+  const limit = discount.scope === "once" ? 1 : (discount.charges ?? 0);
+  return Math.max(0, limit - (discount.usedCharges ?? 0));
+}
+
+/** Mesmo desconto (tipo, valor e alcance), sem olhar quantas cobranças já usaram. */
+export function samePatientDiscount(
+  a: StoredPatientDiscount | null | undefined,
+  b: StoredPatientDiscount | null | undefined,
+) {
+  if (!a || !b) return !a && !b;
+  return (
+    a.type === b.type &&
+    (a.type === "percentage"
+      ? a.percent === (b as typeof a).percent
+      : a.amountInCents === (b as typeof a).amountInCents) &&
+    a.scope === b.scope &&
+    (a.scope !== "next" || a.charges === b.charges)
+  );
+}
+
+/** "10% de desconto · nas próximas 3 cobranças (1 usada)"; vazio sem desconto. */
+export function patientDiscountDescription(
+  discount: StoredPatientDiscount | null | undefined,
+) {
+  if (!discount) return "";
+  const value =
+    discount.type === "percentage"
+      ? `${discount.percent.toLocaleString("pt-BR")}%`
+      : new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" })
+          .format(discount.amountInCents / 100)
+          .replace(/\u00a0/g, " ");
+  const used = discount.usedCharges ?? 0;
+  const reach =
+    discount.scope === "permanent"
+      ? "permanente"
+      : discount.scope === "once"
+        ? used
+          ? "já usado no pagamento"
+          : "só no próximo pagamento"
+        : `nas próximas ${discount.charges} cobranças${used ? ` (${used} ${used === 1 ? "usada" : "usadas"})` : ""}`;
+  return `${value} de desconto · ${reach}`;
+}
+
+/** Valor do desconto sobre uma cobrança (nunca maior que a cobrança). */
+export function patientDiscountOff(
+  amountInCents: number,
+  discount: StoredPatientDiscount | null | undefined,
+) {
+  if (!discount) return 0;
+  const off =
+    discount.type === "percentage"
+      ? Math.round((amountInCents * discount.percent) / 100)
+      : discount.amountInCents;
+  return Math.min(Math.max(0, amountInCents), off);
+}
+
+/** Valor com o desconto do cliente aplicado (nunca abaixo de zero). */
+export function applyPatientDiscount(
+  amountInCents: number,
+  discount: StoredPatientDiscount | null | undefined,
+) {
+  return amountInCents - patientDiscountOff(amountInCents, discount);
+}
+
+/**
+ * Parcelas de um plano com o desconto do cliente: aplica nas primeiras cobranças enquanto o
+ * alcance permitir e devolve quantas cobranças usaram o desconto.
+ */
+export function discountedInstallments<T extends { amountInCents: number }>(
+  installments: readonly T[],
+  discount: StoredPatientDiscount | null | undefined,
+): {
+  installments: Array<T & { customerDiscountInCents: number }>;
+  usedCharges: number;
+} {
+  let remaining = patientDiscountRemaining(discount);
+  let usedCharges = 0;
+  return {
+    installments: installments.map((item) => {
+      if (remaining <= 0) return { ...item, customerDiscountInCents: 0 };
+      const off = patientDiscountOff(item.amountInCents, discount);
+      if (off <= 0) return { ...item, customerDiscountInCents: 0 };
+      remaining -= 1;
+      usedCharges += 1;
+      return {
+        ...item,
+        amountInCents: item.amountInCents - off,
+        customerDiscountInCents: off,
+      };
+    }),
+    usedCharges,
+  };
+}
+
 export const patientProfileSchema = z.object({
   nickname: z.string().trim().max(80).optional(),
   address: z.string().trim().max(300).optional(),
@@ -43,6 +202,14 @@ export const patientProfileSchema = z.object({
   clientSince: z.iso.date().optional().or(z.literal("")),
   imageConsent: z.boolean().optional(),
   interests: z.array(z.string().trim().min(1).max(80)).max(30).optional(),
+});
+
+/**
+ * Perfil gravado (JSON `profile`): os campos acima e o desconto, que fica fora da
+ * importação/exportação. `null` retira o desconto (a edição mescla o perfil).
+ */
+export const patientStoredProfileSchema = patientProfileSchema.extend({
+  discount: patientDiscountSchema.nullable().optional(),
 });
 
 export const patientProfileLabels = {
@@ -63,12 +230,14 @@ export const patientProfileLabels = {
   interests: "Interesses",
 } as const;
 
-export function patientProfile(input: z.infer<typeof patientProfileSchema>) {
-  return patientProfileSchema.parse(input);
+export function patientProfile(
+  input: z.infer<typeof patientStoredProfileSchema>,
+) {
+  return patientStoredProfileSchema.parse(input);
 }
 
 export const patientInputSchema = z.object({
-  ...patientProfileSchema.shape,
+  ...patientStoredProfileSchema.shape,
   fullName: z.string().trim().min(3).max(160),
   cpf: z
     .string({ error: "Informe um CPF válido." })
@@ -280,13 +449,55 @@ export const patientExportFilterSchema = z.object({
   ),
 });
 
+/** Plano de assinatura do cadastro guiado (`recurring` ou `fixed_package`). */
+const guidedSubscriptionPlanSchema = guidedPlanTermsSchema
+  .extend({ kind: z.enum(["recurring", "fixed_package"]) })
+  .refine(validPlanPeriod, planPeriodIssue)
+  .refine(isRecurringChargeValid, {
+    message: recurringSingleChargeIssue,
+    path: ["installments"],
+  })
+  .refine(renewablePlanPeriod, autoRenewIssue)
+  .refine(
+    (value) =>
+      value.services.reduce((sum, item) => sum + item.totalValueInCents, 0) ===
+      value.totalValueInCents,
+    {
+      message: "A soma dos serviços deve corresponder ao valor total.",
+      path: ["totalValueInCents"],
+    },
+  );
+
+/** Serviço avulso adicionado junto com os planos do cadastro guiado (plano `single`). */
+const guidedAdditionalSingleSchema = guidedPlanTermsSchema
+  .extend({ kind: z.literal("single") })
+  .refine(validPlanPeriod, planPeriodIssue)
+  .refine(renewablePlanPeriod, autoRenewIssue)
+  .refine(
+    (value) =>
+      value.services.reduce((sum, item) => sum + item.totalValueInCents, 0) ===
+      value.totalValueInCents,
+    {
+      message: "A soma dos serviços deve corresponder ao valor total.",
+      path: ["totalValueInCents"],
+    },
+  );
+
+const guidedGroupIdSchema = z
+  .uuid()
+  .optional()
+  .or(z.literal("").transform(() => undefined));
+
 /**
  * `POST /patients/guided`: cria o cliente já com o próximo passo, tudo ou nada.
  * - `none`: só o cadastro (igual a `POST /patients`);
  * - `demonstration`: atendimento experimental (`visitType: "trial"`) com serviço, profissional,
  *   sala e data/hora (mesmas regras de feriado e conflito da agenda);
  * - `plan`: plano `recurring` ou `fixed_package` e, opcionalmente, matrícula na turma `groupId`
- *   (precisa ser de um serviço incluído no plano; turma cheia = lista de espera);
+ *   (precisa ser de um serviço incluído no plano; turma cheia = lista de espera). Em
+ *   `additionalPlans` vão os demais planos do cliente, cada um com a sua turma opcional
+ *   (a mesma turma não pode aparecer duas vezes), e os serviços avulsos (`kind: "single"`,
+ *   sem turma) comprados junto;
  * - `single`: serviço avulso (plano `single`).
  */
 export const guidedPatientInputSchema = z.discriminatedUnion("next", [
@@ -296,33 +507,42 @@ export const guidedPatientInputSchema = z.discriminatedUnion("next", [
     patient: patientInputSchema,
     appointment: leadAppointmentInputSchema.omit({ visitType: true }),
   }),
-  z.object({
-    next: z.literal("plan"),
-    patient: patientInputSchema,
-    plan: guidedPlanTermsSchema
-      .extend({ kind: z.enum(["recurring", "fixed_package"]) })
-      .refine(validPlanPeriod, planPeriodIssue)
-      .refine(isRecurringChargeValid, {
-        message: recurringSingleChargeIssue,
-        path: ["installments"],
-      })
-      .refine(renewablePlanPeriod, autoRenewIssue)
-      .refine(
-        (value) =>
-          value.services.reduce(
-            (sum, item) => sum + item.totalValueInCents,
-            0,
-          ) === value.totalValueInCents,
-        {
-          message: "A soma dos serviços deve corresponder ao valor total.",
-          path: ["totalValueInCents"],
-        },
-      ),
-    groupId: z
-      .uuid()
-      .optional()
-      .or(z.literal("").transform(() => undefined)),
-  }),
+  z
+    .object({
+      next: z.literal("plan"),
+      patient: patientInputSchema,
+      plan: guidedSubscriptionPlanSchema,
+      groupId: guidedGroupIdSchema,
+      additionalPlans: z
+        .array(
+          z.union([
+            z.object({
+              plan: guidedSubscriptionPlanSchema,
+              groupId: guidedGroupIdSchema,
+            }),
+            // Avulso não tem turma: `groupId` informado é recusado.
+            z.object({
+              plan: guidedAdditionalSingleSchema,
+              groupId: z.undefined().optional(),
+            }),
+          ]),
+        )
+        .max(9)
+        .optional(),
+    })
+    .refine(
+      (value) => {
+        const groupIds = [
+          value.groupId,
+          ...(value.additionalPlans ?? []).map((item) => item.groupId),
+        ].filter(Boolean);
+        return new Set(groupIds).size === groupIds.length;
+      },
+      {
+        message: "A mesma turma foi escolhida em mais de um plano.",
+        path: ["additionalPlans"],
+      },
+    ),
   z.object({
     next: z.literal("single"),
     patient: patientInputSchema,

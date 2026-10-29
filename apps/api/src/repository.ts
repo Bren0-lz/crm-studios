@@ -117,6 +117,8 @@ import type {
   ClinicSettingsInput,
   AutoFinalizationSettings,
   AutoFinalizationSettingsInput,
+  PaymentMethodSettings,
+  PaymentMethodSettingsInput,
   NavTabLabel,
   NavTabLabelsInput,
   CommissionEntry,
@@ -577,6 +579,13 @@ export interface ClinicRepository {
     actorUserId: string,
     input: AutoFinalizationSettingsInput,
   ): Promise<AutoFinalizationSettings>;
+  /** Parcelamento por forma de pagamento (todas as formas; nunca configurado = até 36x). */
+  getPaymentMethodSettings(clinicId: string): Promise<PaymentMethodSettings>;
+  updatePaymentMethodSettings(
+    clinicId: string,
+    actorUserId: string,
+    input: PaymentMethodSettingsInput,
+  ): Promise<PaymentMethodSettings>;
   /** Nomes das abas do menu da clínica (padrão onde não foram renomeadas), na ordem. */
   listNavTabLabels(clinicId: string): Promise<NavTabLabel[]>;
   /** Renomeia as abas do menu da clínica (vale para todas as filiais). */
@@ -675,8 +684,8 @@ export interface ClinicRepository {
   createPatient(clinicId: string, input: PatientInput): Promise<Patient>;
   /**
    * Cadastro guiado (`POST /patients/guided`): cria o cliente e o próximo passo — atendimento
-   * experimental, plano (com matrícula opcional em turma de um serviço incluído) ou avulso — tudo ou
-   * nada. Etiquetas e feriados já foram validados na rota; conflitos de agenda, turma
+   * experimental, plano (com matrícula opcional em turma de um serviço incluído; `additionalPlans`
+   * cria mais planos, cada um com a sua turma) ou avulso — tudo ou nada. Etiquetas e feriados já foram validados na rota; conflitos de agenda, turma
    * (`GROUP_OR_PATIENT_NOT_FOUND`, `GROUP_SERVICE_MISMATCH`) e plano usam as regras dos fluxos
    * existentes.
    */

@@ -1,4 +1,7 @@
-import { receiptWithClinic } from "../../modules/finance/receipt.js";
+import {
+  receiptInstallments,
+  receiptWithClinic,
+} from "../../modules/finance/receipt.js";
 import { assertPayableAmountEditable } from "../../modules/finance/payable-amount.js";
 import { loadFinancialMonth, loadFinancialSummary } from "./financial-month.js";
 import { clinicDateOf } from "../../modules/finance/daily-cash.js";
@@ -52,6 +55,7 @@ import {
   type DailyCashSources,
 } from "../../modules/finance/daily-cash.js";
 import type { PoolClient } from "pg";
+import { paymentInstallmentsValue } from "./mappers/finance.js";
 import { DomainError } from "../../repository.js";
 import type { PostgresRepositoryContext } from "./context.js";
 import {
@@ -219,7 +223,7 @@ async function closeTab(
   await createTabServiceCredits(client, clinicId, actorUserId, tabId);
   const paid = input.settlement === "paid";
   const receivable = await client.query<{ id: string }>(
-    `INSERT INTO receivables(clinic_id,patient_id,description,installment_number,installment_count,due_date,amount_in_cents,status,paid_at,payment_method,branch_id) VALUES($1,$2,$3,1,1,$4,$5,$6,$7,$8,(SELECT branch_id FROM patient_tabs WHERE clinic_id=$1 AND id=$9)) RETURNING id`,
+    `INSERT INTO receivables(clinic_id,patient_id,description,installment_number,installment_count,due_date,amount_in_cents,status,paid_at,payment_method,branch_id,payment_installments) VALUES($1,$2,$3,1,1,$4,$5,$6,$7,$8,(SELECT branch_id FROM patient_tabs WHERE clinic_id=$1 AND id=$9),$10) RETURNING id`,
     [
       clinicId,
       row.patientId,
@@ -230,6 +234,7 @@ async function closeTab(
       paid ? new Date() : null,
       paid ? input.paymentMethod : null,
       tabId,
+      paid ? paymentInstallmentsValue(input.paymentInstallments) : null,
     ],
   );
   const receivableId = receivable.rows[0]!.id;
@@ -262,6 +267,9 @@ async function closeTab(
         row.totalInCents,
         JSON.stringify({
           paymentMethod: input.paymentMethod,
+          ...(paymentInstallmentsValue(input.paymentInstallments)
+            ? { paymentInstallments: input.paymentInstallments }
+            : {}),
           source: "patient_tab",
         }),
       ],
@@ -734,6 +742,9 @@ export function createFinanceRepository(
           ...(input.paymentMethod
             ? { paymentMethod: input.paymentMethod }
             : {}),
+          ...(input.paymentInstallments
+            ? { paymentInstallments: input.paymentInstallments }
+            : {}),
           ...(input.categoryId ? { categoryId: input.categoryId } : {}),
           ...(input.costCenterId ? { costCenterId: input.costCenterId } : {}),
         });
@@ -1036,6 +1047,7 @@ export function createFinanceRepository(
         description: receivable.description,
         amountInCents: receivable.amountInCents,
         paymentMethod: receivable.paymentMethod,
+        ...receiptInstallments(receivable),
         paidAt: receivable.paidAt,
         clinicName: row?.clinicName ?? "",
         clinicLegalName: row?.clinicLegalName ?? "",

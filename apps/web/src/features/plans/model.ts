@@ -3,6 +3,7 @@ import {
   isTabCreditPlan,
   nextPlanPeriod,
   patientTagKey,
+  paymentMethodLabels,
   planDisplayStatus,
   planDisplayStatusLabels,
   planTypeKind,
@@ -10,7 +11,7 @@ import {
   type PatientPlan,
   type PlanTemplate,
 } from "@crm/contracts";
-import { shortDate } from "../../shared/lib/formatting";
+import { currency, shortDate } from "../../shared/lib/formatting";
 
 export const planKindLabels: Record<PatientPlan["kind"], string> = {
   single: "Avulso",
@@ -144,4 +145,27 @@ export function planRenewalLabel(
     return `Automática em ${shortDate.format(new Date(`${nextPlanPeriod(plan)!.validFrom}T12:00:00`))}`;
   }
   return "Manual";
+}
+
+/** Como o plano é pago: forma combinada e quantidade de parcelas ("Cartão · 3 parcelas"). */
+export function planPaymentTerms(
+  plan: Pick<PatientPlan, "paymentMethod" | "installments" | "kind">,
+) {
+  const method = plan.paymentMethod
+    ? paymentMethodLabels[plan.paymentMethod]
+    : "A combinar";
+  if (plan.kind === "recurring") return `${method} · 1 cobrança por ciclo`;
+  return `${method} · ${plan.installments === 1 ? "à vista" : `${plan.installments} parcelas`}`;
+}
+
+/** Situação das parcelas: "1 de 3 pagas · R$ 200,00 em aberto (1 vencida)". */
+export function planPaymentProgress(plan: Pick<PatientPlan, "paymentSummary">) {
+  const summary = plan.paymentSummary;
+  if (!summary) return "";
+  const paid = `${summary.paidCount} de ${summary.installmentCount} ${summary.installmentCount === 1 ? "paga" : "pagas"}`;
+  if (!summary.openCount) return `${paid} · quitado`;
+  const overdue = summary.overdueCount
+    ? ` (${summary.overdueCount} ${summary.overdueCount === 1 ? "vencida" : "vencidas"})`
+    : "";
+  return `${paid} · ${currency.format(summary.openInCents / 100)} em aberto${overdue}`;
 }

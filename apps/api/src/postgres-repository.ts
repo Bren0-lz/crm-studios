@@ -270,6 +270,10 @@ export class PostgresClinicRepository implements ClinicRepository {
       this.administration.getAutoFinalizationSettings;
     this.updateAutoFinalizationSettings =
       this.administration.updateAutoFinalizationSettings;
+    this.getPaymentMethodSettings =
+      this.administration.getPaymentMethodSettings;
+    this.updatePaymentMethodSettings =
+      this.administration.updatePaymentMethodSettings;
     this.getProLaboreSettings = this.administration.getProLaboreSettings;
     this.updateProLaboreSettings = this.administration.updateProLaboreSettings;
     this.listNavTabLabels = this.administration.listNavTabLabels;
@@ -511,6 +515,9 @@ export class PostgresClinicRepository implements ClinicRepository {
   readonly updateAutoFinalizationSettings: ReturnType<
     typeof createAdministrationRepository
   >["updateAutoFinalizationSettings"];
+
+  readonly getPaymentMethodSettings: ClinicRepository["getPaymentMethodSettings"];
+  readonly updatePaymentMethodSettings: ClinicRepository["updatePaymentMethodSettings"];
 
   readonly listNavTabLabels: ClinicRepository["listNavTabLabels"];
   readonly saveNavTabLabels: ClinicRepository["saveNavTabLabels"];

@@ -463,19 +463,24 @@ export const appointmentStatusInputSchema = z.object({
 
 /**
  * Parcelas de um plano: uma por mês a partir do primeiro vencimento (dia
- * limitado ao fim do mês), com o resto da divisão nos primeiros centavos.
+ * limitado ao fim do mês), com o resto da divisão nos primeiros centavos. Com
+ * `firstInstallmentInCents` (1º pagamento proporcional), a 1ª parcela usa esse valor.
  */
 export function planInstallmentSchedule(plan: {
   totalValueInCents: number;
   installments: number;
   firstDueDate: string;
+  firstInstallmentInCents?: number | undefined;
 }): { installmentNumber: number; dueDate: string; amountInCents: number }[] {
   const baseAmount = Math.floor(plan.totalValueInCents / plan.installments);
   const remainder = plan.totalValueInCents % plan.installments;
   return Array.from({ length: plan.installments }, (_, index) => ({
     installmentNumber: index + 1,
     dueDate: addMonthsToIsoDate(plan.firstDueDate, index),
-    amountInCents: baseAmount + (index < remainder ? 1 : 0),
+    amountInCents:
+      index === 0 && plan.firstInstallmentInCents !== undefined
+        ? plan.firstInstallmentInCents
+        : baseAmount + (index < remainder ? 1 : 0),
   }));
 }
 

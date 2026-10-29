@@ -1,5 +1,6 @@
 import { automaticPatientTagger } from "./automatic-tags.js";
 import { clientSegments } from "./client-segments.js";
+import { guidedSubscriptions } from "./guided-plans.js";
 import {
   matchesPatientProfile,
   matchesPatientSegment,
@@ -11,9 +12,13 @@ import {
   patientListQuerySchema,
   patientTagInputSchema,
   patientTagUpdateSchema,
+  samePatientDiscount,
   saoPauloToday,
   type AppModule,
+  type GuidedPatientInput,
   type GuidedPatientResult,
+  type Patient,
+  type PatientInput,
   type PatientImportResult,
   type PatientOption,
 } from "@crm/contracts";
@@ -26,6 +31,26 @@ import {
   patientsToXlsx,
 } from "./patient-export.js";
 
+/**
+ * Quantas cobranças já usaram o desconto é gravado pelo sistema: a tela não define. O mesmo
+ * desconto (tipo, valor e alcance) mantém a contagem; um desconto novo começa do zero.
+ */
+function withDiscountUsage<T extends Pick<PatientInput, "discount">>(
+  input: T,
+  current?: Pick<Patient, "discount"> | null,
+): T {
+  if (!input.discount) return input;
+  const { usedCharges: _ignored, ...discount } = input.discount;
+  void _ignored;
+  const usedCharges = samePatientDiscount(current?.discount, input.discount)
+    ? (current?.discount?.usedCharges ?? 0)
+    : 0;
+  return {
+    ...input,
+    discount: { ...discount, ...(usedCharges ? { usedCharges } : {}) },
+  };
+}
+
 export function registerPatientsRoutes(context: RouteContext) {
   const {
     app,
@@ -35,6 +60,8 @@ export function registerPatientsRoutes(context: RouteContext) {
     assertPermissions,
     assertNoHoliday,
     assertServiceAvailable,
+    assertInstallmentsAllowed,
+    withServerFirstCharge,
     patientTagNotFound,
     analyzePatientImport,
     requestAccess,
@@ -188,7 +215,7 @@ export function registerPatientsRoutes(context: RouteContext) {
         clinicId,
         await withConfiguredTags(
           clinicId,
-          patientInputSchema.parse(request.body),
+          withDiscountUsage(patientInputSchema.parse(request.body)),
         ),
       );
       return reply.status(201).send(patient);
@@ -203,7 +230,40 @@ export function registerPatientsRoutes(context: RouteContext) {
     "/patients/guided",
     { preHandler: authenticate },
     async (request, reply) => {
-      const input = guidedPatientInputSchema.parse(request.body);
+      const parsed = guidedPatientInputSchema.parse(request.body);
+      const clinicId = request.user.clinicId;
+      // 1º pagamento proporcional recalculado aqui, com a turma de cada plano.
+      let input: GuidedPatientInput = parsed;
+      if (parsed.next === "plan") {
+        const additionalPlans = parsed.additionalPlans
+          ? await Promise.all(
+              parsed.additionalPlans.map(
+                async (item) =>
+                  ({
+                    ...item,
+                    plan: await withServerFirstCharge(
+                      clinicId,
+                      item.plan,
+                      "groupId" in item ? item.groupId : undefined,
+                    ),
+                  }) as typeof item,
+              ),
+            )
+          : undefined;
+        input = {
+          ...parsed,
+          plan: await withServerFirstCharge(
+            clinicId,
+            parsed.plan,
+            parsed.groupId,
+          ),
+          ...(additionalPlans ? { additionalPlans } : {}),
+        };
+      } else if (parsed.next === "single")
+        input = {
+          ...parsed,
+          plan: await withServerFirstCharge(clinicId, parsed.plan),
+        };
       assertPermissions(
         request,
         "patients.create",
@@ -211,16 +271,23 @@ export function registerPatientsRoutes(context: RouteContext) {
         ...(input.next === "plan" || input.next === "single"
           ? ["plans.create" as const]
           : []),
-        ...(input.next === "plan" && input.groupId
+        ...(guidedSubscriptions(input).some((item) => item.groupId)
           ? ["groups.enroll" as const]
           : []),
       );
-      const clinicId = request.user.clinicId;
-      const patient = await withConfiguredTags(clinicId, input.patient);
+      const patient = await withConfiguredTags(
+        clinicId,
+        withDiscountUsage(input.patient),
+      );
       if (input.next === "demonstration") {
         await assertNoHoliday(clinicId, [input.appointment.startsAt]);
         await assertServiceAvailable(clinicId, [input.appointment]);
       }
+      // Limite de parcelas da forma e do plano em cada item: principal, adicionais e avulsos.
+      if (input.next === "single")
+        await assertInstallmentsAllowed(clinicId, input.plan);
+      for (const item of guidedSubscriptions(input))
+        await assertInstallmentsAllowed(clinicId, item.plan);
       const result: GuidedPatientResult =
         await repository.createPatientWithNextStep(clinicId, request.user.sub, {
           ...input,
@@ -327,12 +394,18 @@ export function registerPatientsRoutes(context: RouteContext) {
     { preHandler: authenticate },
     async (request, reply) => {
       const { id } = request.params as { id: string };
+      const input = patientInputSchema.parse(request.body);
       const patient = await repository.updatePatient(
         request.user.clinicId,
         id,
         await withConfiguredTags(
           request.user.clinicId,
-          patientInputSchema.parse(request.body),
+          withDiscountUsage(
+            input,
+            input.discount && z.uuid().safeParse(id).success
+              ? await repository.getPatient(request.user.clinicId, id)
+              : null,
+          ),
         ),
       );
       if (!patient)
