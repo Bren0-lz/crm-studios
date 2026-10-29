@@ -1,6 +1,5 @@
 import {
   documentContentFields,
-  documentSignatureMessage,
   type DocumentPreview,
   type DocumentSignatureLinkShare,
   type DocumentTemplate,
@@ -8,7 +7,6 @@ import {
   type PatientOption,
   type PatientPlan,
 } from "@crm/contracts";
-import { Copy, MessageCircle } from "lucide-react";
 import { useEffect, useId, useRef, useState } from "react";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
@@ -17,9 +15,8 @@ import { ErrorBanner } from "../../shared/components/ErrorBanner";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
 import { useMissingFields } from "../../shared/components/MissingFields";
 import { Modal, ModalCancelButton } from "../../shared/components/Modal";
-import { shortDate } from "../../shared/lib/formatting";
 import { DocumentPaper } from "./DocumentPaper";
-import { signatureLinkUrl, signatureWhatsappLink } from "./model";
+import { SignatureShare } from "./SignatureRequest";
 
 /**
  * Envia o contrato pelo WhatsApp com um link para o cliente ler e assinar.
@@ -61,7 +58,6 @@ export function SendForSignatureModal({
   const [share, setShare] = useState<DocumentSignatureLinkShare | null>(null);
   const [busy, setBusy] = useState(Boolean(document));
   const [error, setError] = useState("");
-  const [copied, setCopied] = useState(false);
   const onSentRef = useRef(onSent);
   useEffect(() => {
     onSentRef.current = onSent;
@@ -151,17 +147,6 @@ export function SendForSignatureModal({
     }
   }
 
-  async function copy(link: string) {
-    try {
-      await navigator.clipboard.writeText(link);
-      setCopied(true);
-    } catch {
-      setError(
-        "Não foi possível copiar. Selecione o link e copie manualmente.",
-      );
-    }
-  }
-
   const title = share?.document.title ?? document?.title;
   return (
     <Modal
@@ -179,56 +164,7 @@ export function SendForSignatureModal({
     >
       {error && <ErrorBanner error={error} />}
       {share ? (
-        <div className="clinical-form signature-share">
-          <label>
-            Mensagem
-            <textarea
-              readOnly
-              rows={6}
-              value={documentSignatureMessage({
-                patientName: share.document.patientName,
-                clinicName: share.clinicName,
-                link: signatureLinkUrl(share.token),
-              })}
-            />
-          </label>
-          <label>
-            Link de assinatura
-            <input
-              readOnly
-              value={signatureLinkUrl(share.token)}
-              onFocus={(event) => event.target.select()}
-            />
-          </label>
-          <p className="muted-copy">
-            {share.patientPhone
-              ? "O WhatsApp abre na conversa do cliente com a mensagem pronta."
-              : "O cliente não tem telefone no cadastro: o WhatsApp vai pedir o contato."}{" "}
-            {share.document.signatureLink &&
-              !share.document.signatureLink.signedAt &&
-              `O link vale até ${shortDate.format(new Date(share.document.signatureLink.expiresAt))}. `}
-            A visualização e a assinatura ficam registradas no documento.
-          </p>
-          <div className="modal-actions">
-            <button
-              type="button"
-              className="secondary-button"
-              onClick={() => void copy(signatureLinkUrl(share.token))}
-            >
-              <Copy size={15} aria-hidden="true" />
-              {copied ? "Link copiado" : "Copiar link"}
-            </button>
-            <a
-              className="whatsapp-button"
-              href={signatureWhatsappLink(share)}
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              <MessageCircle size={15} aria-hidden="true" />
-              Abrir WhatsApp
-            </a>
-          </div>
-        </div>
+        <SignatureShare share={share} />
       ) : document ? (
         busy ? (
           <LoadingBlock />
