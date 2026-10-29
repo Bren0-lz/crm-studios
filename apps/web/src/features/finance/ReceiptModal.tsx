@@ -1,9 +1,14 @@
-import { formatTaxId, whatsappLink, type PaymentReceipt } from "@crm/contracts";
+import {
+  formatTaxId,
+  paymentMethodWithInstallments,
+  whatsappLink,
+  type PaymentReceipt,
+} from "@crm/contracts";
 import { MessageCircle } from "lucide-react";
 import { Logo } from "../../shared/components/Logo";
 import { Modal } from "../../shared/components/Modal";
 import { currency } from "../../shared/lib/formatting";
-import { paymentMethodOptions, receiptMessage } from "./model";
+import { receiptMessage } from "./model";
 
 const money = (cents: number) => currency.format(cents / 100);
 
@@ -14,9 +19,10 @@ export function ReceiptModal({
   receipt: PaymentReceipt;
   onClose: () => void;
 }) {
-  const method =
-    paymentMethodOptions.find((item) => item.value === receipt.paymentMethod)
-      ?.label ?? receipt.paymentMethod;
+  const method = paymentMethodWithInstallments(
+    receipt.paymentMethod,
+    receipt.paymentInstallments,
+  );
   const message = receiptMessage(receipt);
   const whatsapp = receipt.patientPhone
     ? whatsappLink(receipt.patientPhone, message)
@@ -46,10 +52,33 @@ export function ReceiptModal({
             <dt>Pagamento</dt>
             <dd>{method}</dd>
           </div>
+          {receipt.installmentCount && receipt.installmentCount > 1 ? (
+            <div>
+              <dt>Parcela</dt>
+              <dd>
+                {receipt.installmentNumber} de {receipt.installmentCount}
+              </dd>
+            </div>
+          ) : null}
           <div>
             <dt>Data</dt>
             <dd>{new Date(receipt.paidAt).toLocaleString("pt-BR")}</dd>
           </div>
+          {receipt.customerDiscountInCents ? (
+            <div>
+              <dt>Desconto do cliente</dt>
+              <dd>
+                {money(receipt.customerDiscountInCents)} (valor cheio{" "}
+                {money(
+                  receipt.amountInCents +
+                    receipt.customerDiscountInCents +
+                    (receipt.discountInCents ?? 0) -
+                    (receipt.interestInCents ?? 0),
+                )}
+                )
+              </dd>
+            </div>
+          ) : null}
           {receipt.discountInCents ? (
             <div>
               <dt>Desconto</dt>

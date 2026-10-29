@@ -111,6 +111,8 @@ export interface ReceivableRow {
   createdAt: Date;
   updatedAt: Date;
   paymentMethod: PaymentMethod | null;
+  paymentInstallments?: number | null;
+  customerDiscountInCents?: number | null;
 }
 
 export interface FinancialCategoryRow {
@@ -215,6 +217,11 @@ export interface CommissionEntryRow {
   createdAt: Date;
 }
 
+/** Parcelas do pagamento gravadas só quando há parcelamento (1 = à vista = NULL). */
+export function paymentInstallmentsValue(value: number | undefined) {
+  return value && value > 1 ? value : null;
+}
+
 export const receivableColumns = `
   r.branch_id AS "branchId",r.posted_on::text AS "postedOn",r.cash_available_at AS "cashAvailableAt",
   r.competence,r.category_id AS "categoryId",r.cost_center_id AS "costCenterId",CASE WHEN r.plan_id IS NOT NULL THEN 'plan' WHEN EXISTS(SELECT 1 FROM patient_tabs t WHERE t.clinic_id=r.clinic_id AND t.receivable_id=r.id) THEN 'tab' ELSE 'manual' END AS source,
@@ -225,7 +232,8 @@ export const receivableColumns = `
   r.amount_in_cents AS "amountInCents", r.status, r.paid_at AS "paidAt",
   (r.status = 'open' AND r.due_date < CURRENT_DATE) AS overdue,
   r.created_at AS "createdAt", r.updated_at AS "updatedAt"
-  , r.payment_method AS "paymentMethod"
+  , r.payment_method AS "paymentMethod", r.payment_installments AS "paymentInstallments"
+  , r.customer_discount_in_cents AS "customerDiscountInCents"
 `;
 
 export const payableColumns = `
@@ -399,6 +407,12 @@ export function mapReceivable(row: ReceivableRow): Receivable {
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
     ...(row.paymentMethod ? { paymentMethod: row.paymentMethod } : {}),
+    ...(row.paymentInstallments && row.paymentInstallments > 1
+      ? { paymentInstallments: row.paymentInstallments }
+      : {}),
+    ...(row.customerDiscountInCents
+      ? { customerDiscountInCents: row.customerDiscountInCents }
+      : {}),
   };
 }
 

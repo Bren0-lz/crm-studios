@@ -21,6 +21,19 @@ export type GuidedPlanForm = GuidedSingleForm & {
   kind: (typeof guidedPlanKinds)[number];
 };
 
+/** Um dos planos do passo "Assinar um plano", com a turma opcional; `id` só identifica o bloco. */
+export interface GuidedPlanEntry {
+  id: number;
+  form: GuidedPlanForm;
+  groupId: string;
+}
+
+/** Serviço avulso comprado junto com os planos do passo "Assinar um plano". */
+export interface GuidedSingleEntry {
+  id: number;
+  form: GuidedSingleForm;
+}
+
 export type GuidedSingleForm = Extract<
   GuidedPatientInput,
   { next: "single" }

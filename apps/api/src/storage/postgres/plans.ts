@@ -2,6 +2,7 @@ import {
   nextPlanPeriod,
   type PatientPlanInput,
   type PlanCatalogInput,
+  type PlanPaymentSummary,
   type PlanRenewalInput,
   type PlanPauseDetails,
   type PlanStatus,
@@ -59,7 +60,7 @@ export function createPlansRepository(
         );
         const result = await client.query<{ id: string }>(
           `INSERT INTO plan_templates
-        (clinic_id,name,total_value_in_cents,service_id,kind,total_sessions,plan_type) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`,
+        (clinic_id,name,total_value_in_cents,service_id,kind,total_sessions,plan_type,max_installments) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id`,
           [
             clinicId,
             input.name,
@@ -68,6 +69,7 @@ export function createPlansRepository(
             input.kind ?? null,
             totals.totalSessions,
             input.planType ?? null,
+            input.maxInstallments ?? null,
           ],
         );
         const id = result.rows[0]!.id;
@@ -126,7 +128,7 @@ export function createPlansRepository(
           0,
         );
         await client.query(
-          `UPDATE plan_templates SET name=$3,total_value_in_cents=$4,service_id=$5,kind=$6,total_sessions=$7,active=$8,plan_type=$9,updated_at=now()
+          `UPDATE plan_templates SET name=$3,total_value_in_cents=$4,service_id=$5,kind=$6,total_sessions=$7,active=$8,plan_type=$9,max_installments=$10,updated_at=now()
         WHERE clinic_id=$1 AND id=$2`,
           [
             clinicId,
@@ -138,6 +140,7 @@ export function createPlansRepository(
             totalSessions || null,
             item.active,
             item.planType ?? null,
+            item.maxInstallments ?? null,
           ],
         );
         if (input.services)
@@ -256,8 +259,22 @@ export function createPlansRepository(
        WHERE clinic_id = $1 AND status = 'active' AND valid_until < CURRENT_DATE`,
         [clinicId],
       );
-      const result = await repositoryContext.pool.query<PatientPlanRow>(
-        `SELECT ${patientPlanColumns}
+      const result = await repositoryContext.pool.query<
+        PatientPlanRow & { paymentSummary: PlanPaymentSummary | null }
+      >(
+        `SELECT ${patientPlanColumns},
+         (SELECT CASE WHEN count(*) = 0 THEN NULL ELSE jsonb_build_object(
+             'installmentCount', count(*),
+             'paidCount', count(*) FILTER (WHERE r.status = 'paid'),
+             'openCount', count(*) FILTER (WHERE r.status = 'open'),
+             'overdueCount', count(*) FILTER (WHERE r.status = 'open'
+               AND r.due_date < (now() AT TIME ZONE c.timezone)::date),
+             'paidInCents', coalesce(sum(r.amount_in_cents) FILTER (WHERE r.status = 'paid'), 0),
+             'openInCents', coalesce(sum(r.amount_in_cents) FILTER (WHERE r.status = 'open'), 0)
+           ) END
+          FROM receivables r JOIN clinics c ON c.id = r.clinic_id
+          WHERE r.clinic_id = pp.clinic_id AND r.plan_id = pp.id
+            AND r.status <> 'cancelled') AS "paymentSummary"
        FROM patient_plans pp
        JOIN patients p ON p.id = pp.patient_id
        JOIN services s ON s.id = pp.service_id
@@ -268,7 +285,10 @@ export function createPlansRepository(
        ORDER BY pp.created_at DESC`,
         [clinicId, patientId ?? null, repositoryContext.branchReadIds()],
       );
-      return result.rows.map(mapPatientPlan);
+      return result.rows.map(({ paymentSummary, ...row }) => ({
+        ...mapPatientPlan(row),
+        ...(paymentSummary ? { paymentSummary } : {}),
+      }));
     },
 
     async createPatientPlan(

@@ -44,6 +44,7 @@ export function DreSection({ period }: { period: ReportPeriod }) {
             "Receita de serviços",
             "Receita de produtos",
             "Outras receitas",
+            "Descontos concedidos a clientes",
             ...Object.values(dreGroupLabels),
             "Resultado",
           ],
@@ -52,6 +53,7 @@ export function DreSection({ period }: { period: ReportPeriod }) {
             month.serviceRevenueInCents / 100,
             month.productRevenueInCents / 100,
             month.otherRevenueInCents / 100,
+            (month.customerDiscountInCents ?? 0) / 100,
             ...Object.keys(dreGroupLabels).map(
               (key) => month.expenses[key as keyof typeof month.expenses] / 100,
             ),
@@ -118,6 +120,15 @@ export function DreSection({ period }: { period: ReportPeriod }) {
                 "Outras receitas",
                 (m: DreReport["months"][number]) => m.otherRevenueInCents,
               ],
+              ...(data.totals.customerDiscountInCents
+                ? [
+                    [
+                      "Descontos concedidos a clientes (já fora das receitas)",
+                      (m: DreReport["months"][number]) =>
+                        m.customerDiscountInCents ?? 0,
+                    ],
+                  ]
+                : []),
               ...Object.entries(dreGroupLabels)
                 .filter(([key]) => !key.endsWith("revenue"))
                 .map(([key, label]) => [
@@ -168,7 +179,11 @@ export function DreSection({ period }: { period: ReportPeriod }) {
                 <strong>
                   {currency.format(report.totals.revenueInCents / 100)}
                 </strong>
-                <small>Por competência</small>
+                <small>
+                  {report.totals.customerDiscountInCents
+                    ? `Por competência · ${currency.format(report.totals.customerDiscountInCents / 100)} em descontos a clientes`
+                    : "Por competência"}
+                </small>
               </article>
               <article>
                 <span>Despesas</span>
@@ -231,7 +246,7 @@ export function DreSection({ period }: { period: ReportPeriod }) {
             ) : (
               table(report)
             )}
-            {can("reports.export") && (
+            {can("reports.dre_export") && (
               <div className="page-actions">
                 <button
                   disabled={busy}

@@ -9,6 +9,8 @@ import { useMissingFields } from "../../shared/components/MissingFields";
 import { Modal, ModalCancelButton } from "../../shared/components/Modal";
 import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
 import { MoneyInput } from "../../shared/components/MoneyInput";
+import { PaymentInstallmentsSelect } from "../../shared/components/PaymentInstallmentsSelect";
+import { usePaymentMethodSettings } from "../../shared/hooks/usePaymentMethodSettings";
 import { currency } from "../../shared/lib/formatting";
 import { paymentMethodOptions, financeTermHelp } from "./model";
 import type { SettleTarget } from "./types";
@@ -32,6 +34,9 @@ export function SettleModal({
     [paidAt, setPaidAt] = useState(nowForInput),
     [availableAt, setAvailableAt] = useState("");
   const [method, setMethod] = useState<PaymentMethod>("pix");
+  // Parcelas na própria forma (cartão em 3x); só nas parcelas a receber.
+  const [paymentInstallments, setPaymentInstallments] = useState(1);
+  const paymentSettings = usePaymentMethodSettings();
   // Baixa de parcela (U39): desconto, juros e valor recebido; vazio = valor final inteiro.
   const [discount, setDiscount] = useState<number | null>(null),
     [interest, setInterest] = useState<number | null>(null),
@@ -44,6 +49,7 @@ export function SettleModal({
     paidAt,
     availableAt,
     method,
+    paymentInstallments,
     discount,
     interest,
     received,
@@ -68,6 +74,7 @@ export function SettleModal({
   );
   const adjustments: SettlementAdjustments = {
     ...values,
+    ...(paymentInstallments > 1 ? { paymentInstallments } : {}),
     ...(breakdown.balanceInCents > 0 && balanceDueDate
       ? { balanceDueDate }
       : {}),
@@ -127,6 +134,13 @@ export function SettleModal({
         </label>
         {isReceivable && (
           <>
+            <PaymentInstallmentsSelect
+              className="span-2"
+              method={method}
+              settings={paymentSettings}
+              value={paymentInstallments}
+              onChange={setPaymentInstallments}
+            />
             <label>
               Desconto (R$)
               <MoneyInput

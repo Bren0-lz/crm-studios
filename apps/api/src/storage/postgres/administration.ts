@@ -1,6 +1,9 @@
 import { saveUserAgenda, userSaveError } from "./user-agenda.js";
 import {
   type AutoFinalizationSettings,
+  defaultProLaboreSettings,
+  type ProLaboreSettings,
+  type ProLaboreSettingsInput,
   type AutoFinalizationSettingsInput,
   type AdminAuditPage,
   type AdminUserInput,
@@ -18,6 +21,9 @@ import {
   type RoomInput,
   type ServiceInput,
   defaultAutoFinalizationSettings,
+  type PaymentMethodInstallments,
+  type PaymentMethodSettingsInput,
+  resolvePaymentMethodSettings,
   permissionEditModules,
   permissionModules,
   resolveNavTabLabels,
@@ -71,6 +77,24 @@ const autoFinalizationColumns = `auto_finalization_enabled AS enabled,
   auto_finalization_delay_minutes AS "delayMinutes",
   auto_finalization_updated_at AS "updatedAt"`;
 
+type ProLaboreRow = {
+  basisPoints: number;
+  base: ProLaboreSettings["base"];
+  updatedAt: Date | null;
+};
+
+const proLaboreColumns = `pro_labore_basis_points AS "basisPoints",
+  pro_labore_base AS base, pro_labore_updated_at AS "updatedAt"`;
+
+function mapProLabore(row: ProLaboreRow | undefined): ProLaboreSettings {
+  if (!row) return { ...defaultProLaboreSettings };
+  return {
+    percentage: row.basisPoints / 100,
+    base: row.base,
+    ...(row.updatedAt ? { updatedAt: row.updatedAt.toISOString() } : {}),
+  };
+}
+
 function mapAutoFinalization(
   row: AutoFinalizationRow | undefined,
 ): AutoFinalizationSettings {
@@ -80,6 +104,21 @@ function mapAutoFinalization(
     delayMinutes: row.delayMinutes,
     ...(row.updatedAt ? { updatedAt: row.updatedAt.toISOString() } : {}),
   };
+}
+
+type PaymentMethodRow = {
+  methods: PaymentMethodInstallments[] | null;
+  updatedAt: Date | null;
+};
+
+const paymentMethodColumns = `payment_method_settings AS methods,
+  payment_method_settings_updated_at AS "updatedAt"`;
+
+function mapPaymentMethods(row: PaymentMethodRow | undefined) {
+  return resolvePaymentMethodSettings(
+    row?.methods,
+    row?.updatedAt?.toISOString(),
+  );
 }
 
 function mapClinicSettings(row: ClinicSettingsRow): ClinicSettings {
@@ -666,6 +705,45 @@ export function createAdministrationRepository(
       return mapAutoFinalization(result.rows[0]);
     },
 
+    async getProLaboreSettings(clinicId: string): Promise<ProLaboreSettings> {
+      const result = await repositoryContext.pool.query<ProLaboreRow>(
+        `SELECT ${proLaboreColumns} FROM clinics WHERE id = $1`,
+        [clinicId],
+      );
+      return mapProLabore(result.rows[0]);
+    },
+
+    async updateProLaboreSettings(
+      clinicId: string,
+      actorUserId: string,
+      input: ProLaboreSettingsInput,
+    ) {
+      return repositoryContext.inTransaction(async (client) => {
+        const result = await client.query<ProLaboreRow>(
+          `UPDATE clinics SET pro_labore_basis_points = $2, pro_labore_base = $3,
+             pro_labore_updated_at = now()
+           WHERE id = $1 RETURNING ${proLaboreColumns}`,
+          [clinicId, Math.round(input.percentage * 100), input.base],
+        );
+        if (!result.rowCount)
+          throw new DomainError(
+            "CLINIC_NOT_FOUND",
+            "Clínica não encontrada.",
+            404,
+          );
+        await repositoryContext.addAdminAudit(
+          client,
+          clinicId,
+          actorUserId,
+          "clinic.pro_labore_updated",
+          "clinic",
+          clinicId,
+          { percentage: input.percentage, base: input.base },
+        );
+        return mapProLabore(result.rows[0]);
+      });
+    },
+
     async updateAutoFinalizationSettings(
       clinicId: string,
       actorUserId: string,
@@ -694,6 +772,57 @@ export function createAdministrationRepository(
           { enabled: input.enabled, delayMinutes: input.delayMinutes },
         );
         return mapAutoFinalization(result.rows[0]);
+      });
+    },
+
+    async getPaymentMethodSettings(clinicId: string) {
+      const result = await repositoryContext.pool.query<PaymentMethodRow>(
+        `SELECT ${paymentMethodColumns} FROM clinics WHERE id = $1`,
+        [clinicId],
+      );
+      return mapPaymentMethods(result.rows[0]);
+    },
+
+    async updatePaymentMethodSettings(
+      clinicId: string,
+      actorUserId: string,
+      input: PaymentMethodSettingsInput,
+    ) {
+      return repositoryContext.inTransaction(async (client) => {
+        const current = await client.query<PaymentMethodRow>(
+          `SELECT ${paymentMethodColumns} FROM clinics WHERE id = $1 FOR UPDATE`,
+          [clinicId],
+        );
+        if (!current.rowCount)
+          throw new DomainError(
+            "CLINIC_NOT_FOUND",
+            "Clínica não encontrada.",
+            404,
+          );
+        // Formas fora da requisição mantêm o que estava gravado.
+        const { methods } = resolvePaymentMethodSettings([
+          ...input.methods,
+          ...(current.rows[0]!.methods ?? []).filter(
+            (item) =>
+              !input.methods.some((entry) => entry.method === item.method),
+          ),
+        ]);
+        const result = await client.query<PaymentMethodRow>(
+          `UPDATE clinics SET payment_method_settings = $2::jsonb,
+             payment_method_settings_updated_at = now()
+           WHERE id = $1 RETURNING ${paymentMethodColumns}`,
+          [clinicId, JSON.stringify(methods)],
+        );
+        await repositoryContext.addAdminAudit(
+          client,
+          clinicId,
+          actorUserId,
+          "clinic.payment_methods_updated",
+          "clinic",
+          clinicId,
+          { methods },
+        );
+        return mapPaymentMethods(result.rows[0]);
       });
     },
 

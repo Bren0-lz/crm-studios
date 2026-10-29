@@ -1,13 +1,17 @@
-import type {
-  AdminUser,
-  AutoFinalizationSettingsInput,
-  PatientTag,
+import {
+  type AdminUser,
+  type AutoFinalizationSettingsInput,
+  maxInstallmentsLimit,
+  paymentMethodLabels,
+  type PatientTag,
+  type PaymentMethodInstallments,
 } from "@crm/contracts";
 import {
   type LucideIcon,
   Building2,
   CalendarCheck,
   CalendarDays,
+  CreditCard,
   MapPin,
   PanelLeft,
   HeartHandshake,
@@ -21,6 +25,7 @@ import { shortDate } from "../../shared/lib/formatting";
 import type {
   AutoFinalizationDraft,
   AutoFinalizationUnit,
+  PaymentMethodDraft,
   RelationshipDeadlineKey,
   SettingsTabKey,
 } from "./types";
@@ -165,6 +170,15 @@ export const settingsTabs: Array<{
     adminOnly: true,
   },
   {
+    key: "paymentMethods",
+    label: "Formas de pagamento",
+    title: "Formas de pagamento",
+    description:
+      "Defina quais formas aceitam parcelamento e até quantas vezes, nas vendas e nas baixas.",
+    icon: CreditCard,
+    adminOnly: true,
+  },
+  {
     key: "tags",
     label: "Etiquetas",
     title: "Etiquetas",
@@ -209,6 +223,7 @@ const sectionTabs: Record<string, SettingsTabKey> = {
   salas: "registry",
   profissionais: "registry",
   finalizacao: "autoFinalization",
+  pagamentos: "paymentMethods",
 };
 
 export function settingsTabFromSection(
@@ -299,4 +314,41 @@ export function autoFinalizationExample(delayMinutes: number) {
         ? `no dia seguinte, às ${time}`
         : `${days} dias depois, às ${time}`;
   return `Um atendimento que termina às 10:00 vira realizado ${when}, se ninguém registrar o desfecho antes.`;
+}
+
+/** Formulário das formas de pagamento: quem não aceita parcelamento fica sem máximo. */
+export function paymentMethodDrafts(
+  methods: PaymentMethodInstallments[],
+): PaymentMethodDraft[] {
+  return methods.map((item) => ({
+    method: item.method,
+    acceptsInstallments: item.acceptsInstallments,
+    maxInstallments: item.acceptsInstallments
+      ? String(item.maxInstallments)
+      : "",
+  }));
+}
+
+/** Primeiro problema do formulário, ou "" quando todas as formas estão válidas. */
+export function paymentMethodDraftIssue(drafts: PaymentMethodDraft[]) {
+  const invalid = drafts.find((item) => {
+    if (!item.acceptsInstallments) return false;
+    const max = Number(item.maxInstallments);
+    return !Number.isInteger(max) || max < 2 || max > maxInstallmentsLimit;
+  });
+  return invalid
+    ? `${paymentMethodLabels[invalid.method]}: informe de 2 a ${maxInstallmentsLimit} parcelas.`
+    : "";
+}
+
+export function paymentMethodsFromDrafts(
+  drafts: PaymentMethodDraft[],
+): PaymentMethodInstallments[] {
+  return drafts.map((item) => ({
+    method: item.method,
+    acceptsInstallments: item.acceptsInstallments,
+    maxInstallments: item.acceptsInstallments
+      ? Number(item.maxInstallments)
+      : 1,
+  }));
 }
