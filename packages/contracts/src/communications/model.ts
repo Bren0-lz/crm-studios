@@ -456,8 +456,8 @@ export const autoCampaignCooldownUnitLabels: Record<
 };
 
 /**
- * Campanha promocional: a promoção vale `validDays` dias a partir da data programada da
- * primeira mensagem; quem usar fica fora desta campanha pelo `cooldown`, se houver.
+ * Campanha promocional: a promoção vale até `validDays` dias depois do evento; quem usar
+ * fica fora desta campanha pelo `cooldown`, se houver.
  */
 export const autoCampaignPromotionSchema = z.object({
   validDays: z

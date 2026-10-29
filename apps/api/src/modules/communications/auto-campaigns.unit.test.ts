@@ -167,22 +167,22 @@ describe("buildAutoCampaignQueue", () => {
 describe("promoções", () => {
   const promotion = { validDays: 10 };
 
-  it("counts the validity from the scheduled date of the first message", () => {
+  it("counts the validity from the event date", () => {
     const birthday = {
       trigger: "birthday" as const,
       steps: [step(0), step(7)],
     };
-    // Primeira mensagem 7 dias antes + 10 dias: até 3 dias depois do aniversário.
+    // Aniversário + 10 dias, qualquer que seja a antecedência da mensagem.
     expect(
       promotionValidUntil(birthday, promotion, "2039-06-15", "2039-06-13"),
-    ).toBe("2039-06-18");
+    ).toBe("2039-06-25");
     const overdue = {
       trigger: "overdue_payment" as const,
       steps: [step(3), step(10)],
     };
     expect(
       promotionValidUntil(overdue, promotion, "2039-06-01", "2039-06-12"),
-    ).toBe("2039-06-14");
+    ).toBe("2039-06-11");
     const lowBalance = { trigger: "low_balance" as const, steps: [step(2)] };
     expect(
       promotionValidUntil(lowBalance, promotion, undefined, "2039-06-12"),
