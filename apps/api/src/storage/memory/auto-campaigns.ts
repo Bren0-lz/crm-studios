@@ -1,6 +1,8 @@
 import type {
   AutoCampaign,
   AutoCampaignDelivery,
+  AutoCampaignPromotion,
+  AutoCampaignRedemption,
   AutoCampaignTrigger,
 } from "@crm/contracts";
 import type {
@@ -18,6 +20,7 @@ export interface StoredAutoCampaign {
   trigger: AutoCampaignTrigger;
   active: boolean;
   steps: Array<{ id: string; offset: number; message: string }>;
+  promotion?: AutoCampaignPromotion;
   createdBy: string;
   createdAt: string;
   updatedAt: string;
@@ -31,6 +34,11 @@ export interface StoredAutoCampaignDelivery extends Omit<
   clinicId: string;
   handledBy: string;
 }
+
+export type StoredAutoCampaignRedemption = Omit<
+  AutoCampaignRedemption,
+  "appointmentStatus"
+> & { clinicId: string };
 
 export function createAutoCampaignsRepository(
   repositoryContext: MemoryRepositoryContext,
@@ -47,6 +55,7 @@ export function createAutoCampaignsRepository(
       trigger: campaign.trigger,
       active: campaign.active,
       steps: [...campaign.steps].sort((a, b) => a.offset - b.offset),
+      ...(campaign.promotion ? { promotion: campaign.promotion } : {}),
       createdAt: campaign.createdAt,
       updatedAt: campaign.updatedAt,
       createdByName: userName(campaign.clinicId, campaign.createdBy),
@@ -106,6 +115,7 @@ export function createAutoCampaignsRepository(
         trigger: input.trigger,
         active: input.active,
         steps: steps(input),
+        ...(input.promotion ? { promotion: input.promotion } : {}),
         createdBy: actorUserId,
         createdAt: timestamp,
         updatedAt: timestamp,
@@ -125,6 +135,8 @@ export function createAutoCampaignsRepository(
       campaign.name = input.name;
       campaign.trigger = input.trigger;
       campaign.active = input.active;
+      if (input.promotion) campaign.promotion = input.promotion;
+      else delete campaign.promotion;
       campaign.updatedAt = now();
       return toCampaign(campaign);
     },
@@ -188,12 +200,45 @@ export function createAutoCampaignsRepository(
           : {}),
         ...(input.note ? { note: input.note } : {}),
         message: input.message,
+        ...(input.status === "sent" && input.promotionValidUntil
+          ? { promotionValidUntil: input.promotionValidUntil }
+          : {}),
         handledAt: now(),
         handledBy: actorUserId,
       };
       if (index >= 0) deliveries[index] = stored;
       else deliveries.push(stored);
       return toDelivery(stored);
+    },
+
+    async listAutoCampaignRedemptions(clinicId: string) {
+      return repositoryContext.autoCampaignRedemptions
+        .filter(
+          (item) =>
+            item.clinicId === clinicId && find(clinicId, item.campaignId),
+        )
+        .flatMap((redemption): AutoCampaignRedemption[] => {
+          const appointment = repositoryContext.appointments.find(
+            (item) =>
+              item.clinicId === clinicId &&
+              item.id === redemption.appointmentId,
+          );
+          if (!appointment) return [];
+          return [
+            {
+              id: redemption.id,
+              campaignId: redemption.campaignId,
+              patientId: redemption.patientId,
+              occurrenceKey: redemption.occurrenceKey,
+              appointmentId: redemption.appointmentId,
+              appointmentStatus: appointment.status,
+              redeemedOn: redemption.redeemedOn,
+              ...(redemption.blockedUntil
+                ? { blockedUntil: redemption.blockedUntil }
+                : {}),
+            },
+          ];
+        });
     },
 
     async deleteAutoCampaignDelivery(clinicId: string, deliveryId: string) {

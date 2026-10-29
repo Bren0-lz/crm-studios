@@ -1,5 +1,6 @@
 import {
   AUTO_CAMPAIGN_LAST_STEP_WINDOW_DAYS,
+  addMonthsToIsoDate,
   autoCampaignStepLabel,
   autoCampaignTriggerTiming,
   fillCampaignMessage,
@@ -9,7 +10,10 @@ import {
   type AutoCampaign,
   type AutoCampaignDelivery,
   type AutoCampaignItem,
+  type AutoCampaignPromotion,
+  type AutoCampaignPromotionOffer,
   type AutoCampaignQueue,
+  type AutoCampaignRedemption,
   type AutoCampaignStep,
   type AutoCampaignTrigger,
   type CommunicationPreference,
@@ -19,7 +23,11 @@ import {
   type Receivable,
   type SatisfactionSurvey,
 } from "@crm/contracts";
-import type { ClinicRepository } from "../../repository.js";
+import type {
+  AutoCampaignRedemptionWrite,
+  ClinicRepository,
+} from "../../repository.js";
+import { DomainError } from "../../repository.js";
 import {
   clinicDateOf,
   DEFAULT_CLINIC_TIMEZONE,
@@ -394,6 +402,189 @@ export function autoCampaignTriggerAllowed(
   return trigger !== "overdue_payment" || modules.includes("finance");
 }
 
+/**
+ * Último dia da promoção para quem recebeu a mensagem: conta `validDays` a partir da data
+ * programada da primeira mensagem (`before`: maior antecedência; `after`: menor espera).
+ * Sem data do evento (sessões restantes), conta a partir de hoje, o dia do envio.
+ */
+export function promotionValidUntil(
+  campaign: Pick<AutoCampaign, "trigger" | "steps">,
+  promotion: AutoCampaignPromotion,
+  eventDate: string | undefined,
+  today: string,
+) {
+  const timing = autoCampaignTriggerTiming[campaign.trigger];
+  const offsets = campaign.steps.map((step) => step.offset);
+  if (!eventDate || timing === "sessions" || !offsets.length)
+    return addDays(today, promotion.validDays);
+  const firstMessage =
+    timing === "before"
+      ? addDays(eventDate, -Math.max(...offsets))
+      : addDays(eventDate, Math.min(...offsets));
+  return addDays(firstMessage, promotion.validDays);
+}
+
+/** Último dia em que quem usou a promoção fica fora da campanha. */
+export function promotionBlockedUntil(
+  redeemedOn: string,
+  cooldown: NonNullable<AutoCampaignPromotion["cooldown"]>,
+) {
+  if (cooldown.unit === "months")
+    return addMonthsToIsoDate(redeemedOn, cooldown.amount);
+  return addDays(
+    redeemedOn,
+    cooldown.unit === "weeks" ? cooldown.amount * 7 : cooldown.amount,
+  );
+}
+
+/** Usos que valem: cancelar o atendimento desfaz o uso da promoção. */
+function activeRedemptions(redemptions: readonly AutoCampaignRedemption[]) {
+  return redemptions.filter((item) => item.appointmentStatus !== "cancelled");
+}
+
+/**
+ * Cliente fora da campanha: já usou a promoção neste evento ou está no bloqueio
+ * depois de usar. Outras campanhas não são afetadas.
+ */
+function usedPromotion(
+  redemptions: readonly AutoCampaignRedemption[],
+  campaignId: string,
+  patientId: string,
+  occurrenceKey: string,
+  today: string,
+) {
+  return redemptions.some(
+    (item) =>
+      item.campaignId === campaignId &&
+      item.patientId === patientId &&
+      (item.occurrenceKey === occurrenceKey ||
+        (item.blockedUntil !== undefined && item.blockedUntil >= today)),
+  );
+}
+
+/**
+ * Promoções que o cliente pode usar ao agendar hoje: campanha promocional ativa, mensagem
+ * marcada como enviada, prazo vigente e sem uso (ou bloqueio) nesta campanha.
+ */
+export function listPromotionOffers(
+  campaigns: readonly AutoCampaign[],
+  deliveries: readonly AutoCampaignDelivery[],
+  redemptions: readonly AutoCampaignRedemption[],
+  patientId: string,
+  today: string,
+): AutoCampaignPromotionOffer[] {
+  const active = activeRedemptions(redemptions);
+  const offers = new Map<string, AutoCampaignPromotionOffer>();
+  for (const campaign of campaigns) {
+    if (!campaign.active || !campaign.promotion) continue;
+    for (const delivery of deliveries) {
+      if (
+        delivery.campaignId !== campaign.id ||
+        delivery.patientId !== patientId ||
+        delivery.status !== "sent" ||
+        !delivery.promotionValidUntil ||
+        delivery.promotionValidUntil < today ||
+        usedPromotion(
+          active,
+          campaign.id,
+          patientId,
+          delivery.occurrenceKey,
+          today,
+        )
+      )
+        continue;
+      const key = `${campaign.id}:${delivery.occurrenceKey}`;
+      const current = offers.get(key);
+      if (current && current.validUntil >= delivery.promotionValidUntil)
+        continue;
+      offers.set(key, {
+        campaignId: campaign.id,
+        campaignName: campaign.name,
+        occurrenceKey: delivery.occurrenceKey,
+        validUntil: delivery.promotionValidUntil,
+      });
+    }
+  }
+  return [...offers.values()].sort(
+    (a, b) =>
+      a.validUntil.localeCompare(b.validUntil) ||
+      a.campaignName.localeCompare(b.campaignName, "pt-BR"),
+  );
+}
+
+async function clinicToday(repository: ClinicRepository, clinicId: string) {
+  const settings = await repository.getClinicSettings(clinicId);
+  return clinicDateOf(
+    new Date(),
+    settings?.timezone ?? DEFAULT_CLINIC_TIMEZONE,
+  );
+}
+
+/** Promoções vigentes hoje para o cliente (pergunta exibida ao agendar). */
+export async function loadPromotionOffers(
+  repository: ClinicRepository,
+  clinicId: string,
+  patientId: string,
+) {
+  const today = await clinicToday(repository, clinicId);
+  const campaigns = await repository.listAutoCampaigns(clinicId);
+  if (!campaigns.some((campaign) => campaign.active && campaign.promotion))
+    return { today, campaigns, offers: [] };
+  const [deliveries, redemptions] = await Promise.all([
+    repository.listAutoCampaignDeliveries(clinicId),
+    repository.listAutoCampaignRedemptions(clinicId),
+  ]);
+  return {
+    today,
+    campaigns,
+    offers: listPromotionOffers(
+      campaigns,
+      deliveries,
+      redemptions,
+      patientId,
+      today,
+    ),
+  };
+}
+
+/**
+ * Confere que a promoção escolhida ao agendar ainda vale para o cliente hoje (a data do
+ * atendimento não importa) e monta o uso, com o bloqueio da campanha se houver.
+ */
+export async function resolvePromotionRedemption(
+  repository: ClinicRepository,
+  clinicId: string,
+  patientId: string,
+  promotion: { campaignId: string; occurrenceKey: string },
+): Promise<AutoCampaignRedemptionWrite> {
+  const { today, campaigns, offers } = await loadPromotionOffers(
+    repository,
+    clinicId,
+    patientId,
+  );
+  const offer = offers.find(
+    (item) =>
+      item.campaignId === promotion.campaignId &&
+      item.occurrenceKey === promotion.occurrenceKey,
+  );
+  const cooldown = campaigns.find((item) => item.id === promotion.campaignId)
+    ?.promotion?.cooldown;
+  if (!offer)
+    throw new DomainError(
+      "AUTO_CAMPAIGN_PROMOTION_UNAVAILABLE",
+      "Essa promoção não está mais disponível para o cliente.",
+      409,
+    );
+  return {
+    campaignId: offer.campaignId,
+    occurrenceKey: offer.occurrenceKey,
+    redeemedOn: today,
+    ...(cooldown
+      ? { blockedUntil: promotionBlockedUntil(today, cooldown) }
+      : {}),
+  };
+}
+
 const statusRank = { pending: 0, skipped: 1, sent: 2 } as const;
 
 /**
@@ -407,7 +598,9 @@ export function buildAutoCampaignQueue(
   deliveries: readonly AutoCampaignDelivery[],
   today: string,
   timezone: string,
+  redemptions: readonly AutoCampaignRedemption[] = [],
 ): AutoCampaignQueue {
+  const used = activeRedemptions(redemptions);
   const optedOut = new Set(
     data.preferences
       .filter((item) => item.channel === "whatsapp" && !item.allowed)
@@ -438,6 +631,19 @@ export function buildAutoCampaignQueue(
       if (!step) continue;
       const key = `${campaign.id}:${step.id}:${event.occurrenceKey}`;
       const delivery = recorded.get(key);
+      // Quem já usou a promoção (ou está bloqueado) sai da fila; o que foi registrado fica.
+      if (
+        !delivery &&
+        campaign.promotion &&
+        usedPromotion(
+          used,
+          campaign.id,
+          event.patient.id,
+          event.occurrenceKey,
+          today,
+        )
+      )
+        continue;
       const phone = destination(event.patient, "whatsapp");
       const blockedReason = delivery
         ? undefined
@@ -520,13 +726,16 @@ export async function loadAutoCampaignQueue(
       today,
       timezone,
     );
-  const [data, center, deliveries] = await Promise.all([
+  const [data, center, deliveries, redemptions] = await Promise.all([
     repository.getAutoCampaignSourceData(
       clinicId,
       addDays(today, -AUTO_CAMPAIGN_HISTORY_DAYS),
     ),
     repository.getCommunicationCenter(clinicId),
     repository.listAutoCampaignDeliveries(clinicId),
+    campaigns.some((campaign) => campaign.promotion)
+      ? repository.listAutoCampaignRedemptions(clinicId)
+      : [],
   ]);
   return buildAutoCampaignQueue(
     campaigns,
@@ -534,6 +743,7 @@ export async function loadAutoCampaignQueue(
     deliveries,
     today,
     timezone,
+    redemptions,
   );
 }
 

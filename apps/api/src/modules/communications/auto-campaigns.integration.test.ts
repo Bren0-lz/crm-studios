@@ -2,6 +2,7 @@ import { nextTestCpf } from "../../test-support/cpf.js";
 import type {
   AutoCampaign,
   AutoCampaignDelivery,
+  AutoCampaignPromotionOffer,
   AutoCampaignQueue,
   NotificationsSummary,
 } from "@crm/contracts";
@@ -381,6 +382,154 @@ describe("campanhas automáticas", () => {
         .json<AutoCampaignQueue>()
         .campaigns.some((item) => item.trigger === "overdue_payment"),
     ).toBe(false);
+  });
+
+  it("offers the promotion when scheduling and keeps the client out of that campaign after using it", async () => {
+    const { app, headers, createPatient, queue } = await setup();
+    // Aniversário em 15/06; hoje é 10/06 (vale a mensagem de 7 dias antes).
+    const patient = await createPatient("Lara Promo", "1990-06-15");
+    async function createCampaign(name: string, offsets: number[]) {
+      const response = await app.inject({
+        method: "POST",
+        url: "/communications/auto-campaigns",
+        headers,
+        payload: {
+          name,
+          trigger: "birthday",
+          steps: offsets.map((offset) => ({
+            offset,
+            message: "Olá, {{nome}}",
+          })),
+          promotion: {
+            validDays: 10,
+            cooldown: { amount: 2, unit: "months" },
+          },
+        },
+      });
+      expect(response.statusCode).toBe(201);
+      return response.json<AutoCampaign>();
+    }
+    const main = await createCampaign("Aniversariantes promo", [7, 0]);
+    expect(main.promotion).toEqual({
+      validDays: 10,
+      cooldown: { amount: 2, unit: "months" },
+    });
+    const other = await createCampaign("Mês do aniversário", [7]);
+
+    async function offers() {
+      const response = await app.inject({
+        method: "GET",
+        url: `/appointments/promotions?patientId=${patient.id}`,
+        headers,
+      });
+      expect(response.statusCode).toBe(200);
+      return response.json<AutoCampaignPromotionOffer[]>();
+    }
+    // Sem mensagem enviada, não há promoção para usar.
+    expect(await offers()).toEqual([]);
+
+    const pending = (await queue()).items.filter(
+      (item) => item.patientId === patient.id,
+    );
+    expect(pending).toHaveLength(2);
+    for (const item of pending) {
+      const sent = await app.inject({
+        method: "POST",
+        url: "/communications/auto-campaigns/deliveries",
+        headers,
+        payload: {
+          campaignId: item.campaignId,
+          stepId: item.stepId,
+          patientId: patient.id,
+          occurrenceKey: item.occurrenceKey,
+          status: "sent",
+        },
+      });
+      expect(sent.statusCode).toBe(201);
+      // 7 dias antes do aniversário (08/06) + 10 dias: até 3 dias depois dele.
+      expect(sent.json<AutoCampaignDelivery>().promotionValidUntil).toBe(
+        "2039-06-18",
+      );
+    }
+    expect((await offers()).map((offer) => offer.campaignId).sort()).toEqual(
+      [main.id, other.id].sort(),
+    );
+
+    const [professionals, rooms, services] = await Promise.all(
+      ["/professionals", "/rooms", "/services"].map((url) =>
+        app.inject({ method: "GET", url, headers }),
+      ),
+    );
+    const appointment = (startsAt: string, promotion?: object) =>
+      app.inject({
+        method: "POST",
+        url: "/appointments",
+        headers,
+        payload: {
+          patientId: patient.id,
+          professionalId: professionals!.json()[0].id,
+          roomId: rooms!.json()[0].id,
+          serviceId: services!.json()[0].id,
+          startsAt,
+          ...(promotion ? { promotion } : {}),
+        },
+      });
+    const occurrenceKey = `${patient.id}:2039`;
+    // Agendado hoje, dentro do prazo, para depois do fim da promoção: vale.
+    const booked = await appointment("2039-06-30T13:00:00.000Z", {
+      campaignId: main.id,
+      occurrenceKey,
+    });
+    expect(booked.statusCode).toBe(201);
+    expect((await offers()).map((offer) => offer.campaignId)).toEqual([
+      other.id,
+    ]);
+    const repeated = await appointment("2039-07-01T13:00:00.000Z", {
+      campaignId: main.id,
+      occurrenceKey,
+    });
+    expect(repeated.statusCode).toBe(409);
+    expect(repeated.json()).toMatchObject({
+      code: "AUTO_CAMPAIGN_PROMOTION_UNAVAILABLE",
+    });
+
+    // No dia do aniversário, a campanha usada não chama de novo; a outra segue normal.
+    vi.setSystemTime(new Date("2039-06-15T18:00:00Z"));
+    const onBirthday = (data: AutoCampaignQueue) =>
+      data.items.filter((item) => item.patientId === patient.id);
+    expect(
+      onBirthday(await queue()).some((item) => item.campaignId === main.id),
+    ).toBe(false);
+    expect(
+      onBirthday(await queue()).some((item) => item.campaignId === other.id),
+    ).toBe(true);
+
+    // Cancelar o atendimento desfaz o uso: a promoção volta e a mensagem do dia também.
+    const cancelled = await app.inject({
+      method: "PATCH",
+      url: `/appointments/${booked.json<{ id: string }>().id}/status`,
+      headers,
+      payload: { status: "cancelled" },
+    });
+    expect(cancelled.statusCode).toBe(200);
+    expect((await offers()).some((offer) => offer.campaignId === main.id)).toBe(
+      true,
+    );
+    expect(
+      onBirthday(await queue()).some((item) => item.campaignId === main.id),
+    ).toBe(true);
+
+    // Depois do prazo, não há mais promoção.
+    vi.setSystemTime(new Date("2039-06-19T18:00:00Z"));
+    expect(await offers()).toEqual([]);
+    expect(
+      (
+        await appointment("2039-06-25T13:00:00.000Z", {
+          campaignId: main.id,
+          occurrenceKey,
+        })
+      ).statusCode,
+    ).toBe(409);
   });
 });
 

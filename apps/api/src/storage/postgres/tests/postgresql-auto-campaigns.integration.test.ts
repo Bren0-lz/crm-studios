@@ -20,14 +20,23 @@ describe.skipIf(!databaseUrl)("PostgreSQL auto campaigns", () => {
   afterAll(async () => {
     if (!pool) return;
     try {
+      const ours =
+        "SELECT id FROM auto_campaigns WHERE clinic_id=$1 AND (name LIKE 'Aniversário%' OR name LIKE 'Promoção%')";
       await pool.query(
-        "DELETE FROM auto_campaign_deliveries WHERE clinic_id=$1 AND campaign_id IN (SELECT id FROM auto_campaigns WHERE clinic_id=$1 AND name LIKE 'Aniversário%')",
+        `DELETE FROM auto_campaign_redemptions WHERE clinic_id=$1 AND campaign_id IN (${ours})`,
         [autoCampaignClinicId],
       );
       await pool.query(
-        "DELETE FROM auto_campaigns WHERE clinic_id=$1 AND name LIKE 'Aniversário%'",
+        "DELETE FROM appointments WHERE clinic_id=$1 AND patient_id IN (SELECT id FROM patients WHERE clinic_id=$1 AND full_name=$2)",
+        [autoCampaignClinicId, autoCampaignPatientName],
+      );
+      await pool.query(
+        `DELETE FROM auto_campaign_deliveries WHERE clinic_id=$1 AND campaign_id IN (${ours})`,
         [autoCampaignClinicId],
       );
+      await pool.query(`DELETE FROM auto_campaigns WHERE id IN (${ours})`, [
+        autoCampaignClinicId,
+      ]);
       await pool.query(
         "DELETE FROM patients WHERE clinic_id=$1 AND full_name=$2",
         [autoCampaignClinicId, autoCampaignPatientName],
