@@ -48,11 +48,21 @@ describe("integrated plan purchase", () => {
     change("Plano cadastrado", template.id, dialog);
     change("Parcelas", "1", dialog);
     change("Primeiro vencimento", saoPauloToday(), dialog);
-    const panel = expand("Agenda, turma e contrato da contratação");
+    // O serviço tem turma: plano de aulas em grupo só é criado com a turma escolhida.
+    const turma = await within(dialog).findByLabelText("Turma");
+    await within(turma).findByRole("option", { name: new RegExp(group.name) });
+    expect(turma).toBeRequired();
+    expect(
+      within(dialog).getByRole("button", { name: "Criar plano e parcelas" }),
+    ).toBeDisabled();
+    change("Turma", group.id, dialog);
+    expect(
+      within(dialog).getByRole("button", { name: "Criar plano e parcelas" }),
+    ).toBeEnabled();
+    const panel = expand("Agenda e contrato da contratação");
     await within(panel).findByRole("option", {
       name: new RegExp(document.name),
     });
-    change("Turma", group.id, dialog);
     change("Modelo de contrato ou termo", document.id, dialog);
     change(
       "Título do documento da contratação",
