@@ -1,9 +1,10 @@
 import {
+  documentSignatureMessage,
   formatPhone,
-  patientFirstName,
+  whatsappLink,
+  type DocumentSignatureLinkShare,
   type ClinicBranding,
   type DocumentKind,
-  type IssuedDocument,
 } from "@crm/contracts";
 import { api } from "../../api";
 
@@ -30,14 +31,21 @@ export function professionalWithCrefito(name: string, crefito?: string) {
   return `${name} · ${/crefito/i.test(crefito) ? crefito : `CREFITO ${crefito}`}`;
 }
 
-/** Mensagem pronta para enviar o documento emitido pelo WhatsApp. */
-export function issuedDocumentMessage(document: IssuedDocument) {
-  return `Olá, ${patientFirstName(document.patientName)}! Segue o documento "${document.title}" emitido pela clínica. Qualquer dúvida, é só responder esta mensagem.`;
+/** Endereço público onde o cliente lê e assina o documento. */
+export function signatureLinkUrl(token: string) {
+  return `${window.location.origin}/assinar-contrato/${token}`;
 }
 
-/** wa.me sem número: o WhatsApp pede o contato e já abre com a mensagem. */
-export function issuedDocumentWhatsappLink(document: IssuedDocument) {
-  return `https://wa.me/?text=${encodeURIComponent(issuedDocumentMessage(document))}`;
+/** Link do WhatsApp com a mensagem e o link de assinatura; sem telefone, o WhatsApp pede o contato. */
+export function signatureWhatsappLink(share: DocumentSignatureLinkShare) {
+  const message = documentSignatureMessage({
+    patientName: share.document.patientName,
+    clinicName: share.clinicName,
+    link: signatureLinkUrl(share.token),
+  });
+  return share.patientPhone
+    ? whatsappLink(share.patientPhone, message)
+    : `https://wa.me/?text=${encodeURIComponent(message)}`;
 }
 
 /** Identificação da empresa no cabeçalho, uma linha por dado: razão social, CNPJ, endereço e contato. */

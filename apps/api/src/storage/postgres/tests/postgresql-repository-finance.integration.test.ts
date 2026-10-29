@@ -794,6 +794,66 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
     }
   });
 
+  it("saves PostgreSQL supplier hiring and payment details and clears them on edit", async () => {
+    const name = "PG fornecedor com contrato";
+    try {
+      const created = await repository.saveSupplier(clinicId, ownerId, {
+        name,
+        kind: "company",
+        document: "11222333000181",
+        phone: "1133334444",
+        whatsapp: "11988887777",
+        hiredOn: "2026-09-01",
+        contractAmountInCents: 360_000,
+        billingCycle: "yearly",
+        paymentMethod: "boleto",
+        installments: 12,
+        paymentTerms: "Vencimento todo dia 5",
+        orders: "Pedido 42",
+        contracts: "Contrato 2026/07",
+        notes: "",
+        active: true,
+      });
+      expect(created).toMatchObject({
+        whatsapp: "11988887777",
+        hiredOn: "2026-09-01",
+        contractAmountInCents: 360_000,
+        billingCycle: "yearly",
+        paymentMethod: "boleto",
+        installments: 12,
+        orders: "Pedido 42",
+        contracts: "Contrato 2026/07",
+      });
+      const updated = await repository.saveSupplier(
+        clinicId,
+        ownerId,
+        {
+          name,
+          kind: "company",
+          document: "",
+          phone: "",
+          whatsapp: "",
+          billingCycle: "one_time",
+          installments: 1,
+          paymentTerms: "",
+          orders: "",
+          contracts: "",
+          notes: "",
+          active: true,
+        },
+        created!.id,
+      );
+      expect(updated).not.toHaveProperty("hiredOn");
+      expect(updated).not.toHaveProperty("contractAmountInCents");
+      expect(updated).not.toHaveProperty("paymentMethod");
+    } finally {
+      await pool.query(
+        "DELETE FROM suppliers WHERE clinic_id = $1 AND name = $2",
+        [clinicId, name],
+      );
+    }
+  });
+
   it("lists PostgreSQL payments and reversals by event date in the clinic time zone", async () => {
     await cleanupDailyCash();
     const [patients, services] = await Promise.all([
@@ -910,6 +970,7 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
         supplier: "Fornecedor PG",
         categoryId: category.rows[0]!.id,
         costCenterId: costCenter.rows[0]!.id,
+        amountType: "fixed" as const,
         amountInCents: 12_345,
         dayOfMonth: 28,
         startMonth: shift(-2),
@@ -1042,6 +1103,99 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
           base,
         ),
       ).toBeNull();
+    } finally {
+      await cleanupRecurringPayables();
+    }
+  });
+
+  it("keeps variable fixed expenses pending until the month amount is informed", async () => {
+    await cleanupRecurringPayables();
+    try {
+      const [category, costCenter] = await testFinanceClassification();
+      const current = saoPauloToday().slice(0, 7);
+      const variable = await repository.createRecurringPayable(
+        clinicId,
+        ownerId,
+        {
+          description: recurringPayableMarker,
+          categoryId: category.rows[0]!.id,
+          costCenterId: costCenter.rows[0]!.id,
+          amountType: "variable",
+          amountInCents: 15_000,
+          dayOfMonth: 10,
+          reminderDaysBefore: 3,
+          startMonth: current,
+          active: true,
+        },
+      );
+      expect(variable).toMatchObject({
+        amountType: "variable",
+        reminderDaysBefore: 3,
+      });
+      await repository.generateDueRecurringPayables(clinicId, ownerId);
+      const payable = (
+        await repository.getFinancialWorkspace(clinicId)
+      ).payables.find((item) => item.recurringPayableId === variable.id)!;
+      expect(payable).toMatchObject({
+        amountInCents: 15_000,
+        amountPending: true,
+      });
+      await expect(
+        repository.settlePayable(clinicId, ownerId, payable.id, "pix"),
+      ).rejects.toMatchObject({ code: "PAYABLE_AMOUNT_PENDING" });
+      const informed = await repository.setPayableAmount(
+        clinicId,
+        ownerId,
+        payable.id,
+        18_790,
+      );
+      expect(informed?.amountInCents).toBe(18_790);
+      expect(informed?.amountPending).toBeUndefined();
+      const updated = await repository.updateRecurringPayable(
+        clinicId,
+        ownerId,
+        variable.id,
+        {
+          description: recurringPayableMarker,
+          categoryId: category.rows[0]!.id,
+          costCenterId: costCenter.rows[0]!.id,
+          amountType: "fixed",
+          amountInCents: 15_000,
+          dayOfMonth: 10,
+          startMonth: current,
+          active: true,
+        },
+      );
+      expect(updated?.amountType).toBe("fixed");
+      expect(updated?.reminderDaysBefore).toBeUndefined();
+      const audit = await pool.query<{ metadata: Record<string, unknown> }>(
+        "SELECT metadata FROM audit_events WHERE clinic_id=$1 AND action='payable.amount_informed' AND entity_id=$2",
+        [clinicId, payable.id],
+      );
+      expect(audit.rows[0]?.metadata).toMatchObject({
+        previousAmountInCents: 15_000,
+        amountInCents: 18_790,
+      });
+      // Conta de despesa de valor fixo não recebe o valor do mês.
+      await expect(
+        repository.setPayableAmount(clinicId, ownerId, payable.id, 20_000),
+      ).rejects.toMatchObject({ code: "PAYABLE_NOT_VARIABLE" });
+      // Voltar a variável faz a conta ainda aberta esperar o valor do mês de novo.
+      await repository.updateRecurringPayable(clinicId, ownerId, variable.id, {
+        description: recurringPayableMarker,
+        categoryId: category.rows[0]!.id,
+        costCenterId: costCenter.rows[0]!.id,
+        amountType: "variable",
+        amountInCents: 15_000,
+        dayOfMonth: 10,
+        startMonth: current,
+        active: true,
+      });
+      expect(
+        (await repository.getFinancialWorkspace(clinicId)).payables.find(
+          (item) => item.id === payable.id,
+        )?.amountPending,
+      ).toBe(true);
     } finally {
       await cleanupRecurringPayables();
     }
