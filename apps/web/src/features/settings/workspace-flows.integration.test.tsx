@@ -156,17 +156,17 @@ describe("settings workflows through real HTTP handlers", () => {
     await within(dialog).findByRole("option", { name: "Faixa elástica" });
     change("Data do pedido", "2026-10-20", dialog);
     change("Nº do pedido", "123", dialog);
-    change("Valor do pedido (R$)", "180", dialog);
+    change("Valor do pedido (R$)", "18000", dialog);
     change("Produto 1", band.id, dialog);
     change("Quantidade 1", "3", dialog);
-    change("Custo unitário 1", "10", dialog);
+    change("Custo unitário 1", "1000", dialog);
     fireEvent.click(
       within(dialog).getByRole("button", { name: "Adicionar item" }),
     );
     change("Produto 2", "new", dialog);
     change("Nome do produto 2", "Óleo de massagem", dialog);
     change("Quantidade 2", "5", dialog);
-    change("Custo unitário 2", "30", dialog);
+    change("Custo unitário 2", "3000", dialog);
     expect(within(dialog).getByText(/Soma dos itens: R\$\s?180,00/));
     await save("Novo pedido", "Registrar pedido");
 

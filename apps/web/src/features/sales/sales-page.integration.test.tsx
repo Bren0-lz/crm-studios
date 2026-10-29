@@ -162,7 +162,7 @@ describe("página Vendas de produtos", () => {
       name: "Editar produto",
     });
     fireEvent.change(within(dialog).getByLabelText("Preço de venda (R$)"), {
-      target: { value: "90" },
+      target: { value: "9000" },
     });
     fireEvent.click(
       within(dialog).getByRole("button", { name: "Salvar produto" }),
