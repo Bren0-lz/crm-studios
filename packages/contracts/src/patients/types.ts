@@ -10,6 +10,7 @@ import {
   patientExportFilterSchema,
   patientImportFileSchema,
   patientInputSchema,
+  patientDiscountSchema,
   patientListQuerySchema,
   patientStatusSchema,
   patientTagCategorySchema,
@@ -20,6 +21,8 @@ import {
 export type PatientStatus = z.infer<typeof patientStatusSchema>;
 
 export type PatientInput = z.infer<typeof patientInputSchema>;
+
+export type PatientDiscount = z.infer<typeof patientDiscountSchema>;
 
 export type PatientTagInput = z.infer<typeof patientTagInputSchema>;
 export type PatientTagCategory = z.infer<typeof patientTagCategorySchema>;
@@ -56,6 +59,8 @@ export interface GuidedPatientResult {
   plan?: PatientPlan;
   /** `status: "waitlisted"` quando a turma estava cheia. */
   enrollment?: GroupEnrollment;
+  /** Demais planos de `additionalPlans`, na mesma ordem, cada um com a sua matrícula. */
+  additionalPlans?: { plan: PatientPlan; enrollment?: GroupEnrollment }[];
 }
 
 export type PatientListQuery = z.infer<typeof patientListQuerySchema>;

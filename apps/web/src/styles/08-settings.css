@@ -1730,3 +1730,44 @@
   color: var(--ink);
   font-weight: 600;
 }
+
+/* Formas de pagamento: uma linha por forma (nome, aceita, máximo, resumo). */
+.payment-method-list {
+  display: grid;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+}
+
+.payment-method-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) minmax(0, 1fr) minmax(
+      0,
+      0.8fr
+    );
+  gap: var(--space-4);
+  align-items: center;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+}
+
+.payment-method-row strong {
+  font-weight: 600;
+}
+
+.payment-method-summary {
+  color: var(--muted);
+  font-size: var(--text-sm);
+  text-align: right;
+}
+
+@media (max-width: 700px) {
+  .payment-method-row {
+    grid-template-columns: 1fr;
+    gap: var(--space-2);
+  }
+
+  .payment-method-summary {
+    text-align: left;
+  }
+}

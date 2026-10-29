@@ -5,6 +5,10 @@ import type {
   StoredMessageTemplateImage,
   StoredWhatsappCampaign,
 } from "./campaigns.js";
+import type {
+  StoredAutoCampaign,
+  StoredAutoCampaignDelivery,
+} from "./auto-campaigns.js";
 import type { CommissionPaymentEvent } from "@crm/contracts";
 import type { PlanPurchaseResult } from "@crm/contracts";
 import type {
@@ -18,6 +22,7 @@ import type {
   ClinicCatalogEntry,
   NavTabLabel,
   AutoFinalizationSettings,
+  PaymentMethodSettings,
   ProLaboreSettings,
 } from "@crm/contracts";
 import {
@@ -78,6 +83,7 @@ import {
   type PermissionKey,
   permissionModules,
   type PlanCatalogEntry,
+  discountedInstallments,
   planInstallmentSchedule,
   type PlanTemplate,
   type PlanTemplateInput,
@@ -500,6 +506,10 @@ export class MemoryRepositoryContext {
 
   readonly whatsappCampaigns: StoredWhatsappCampaign[] = [];
 
+  readonly autoCampaigns: StoredAutoCampaign[] = [];
+
+  readonly autoCampaignDeliveries: StoredAutoCampaignDelivery[] = [];
+
   readonly documentTemplates: DocumentTemplate[] = [];
 
   readonly issuedDocuments: IssuedDocument[] = [];
@@ -675,6 +685,8 @@ export class MemoryRepositoryContext {
     string,
     AutoFinalizationSettings
   >();
+  /** Parcelamento por forma de pagamento, por clínica (sem entrada = até 36x em todas). */
+  readonly paymentMethodSettings = new Map<string, PaymentMethodSettings>();
   /** Pró-labore configurado, por clínica (sem entrada = padrão). */
   readonly proLaboreSettings = new Map<string, ProLaboreSettings>();
   /** Funil editado, por clínica (sem entrada = etapas padrão). */
@@ -1868,7 +1880,18 @@ export class MemoryRepositoryContext {
       updatedAt: timestamp,
     };
     if (plan.autoRenew && !plan.validUntil) plan.autoRenew = false;
-    const installments: Receivable[] = planInstallmentSchedule(input).map(
+    // O desconto do cliente vale nas primeiras cobranças enquanto o alcance permitir.
+    const discounted = discountedInstallments(
+      planInstallmentSchedule(input),
+      patient.discount,
+    );
+    if (patient.discount && discounted.usedCharges > 0)
+      patient.discount = {
+        ...patient.discount,
+        usedCharges:
+          (patient.discount.usedCharges ?? 0) + discounted.usedCharges,
+      };
+    const installments: Receivable[] = discounted.installments.map(
       (installment) => ({
         id: uuid(),
         clinicId,
@@ -1889,6 +1912,9 @@ export class MemoryRepositoryContext {
         installmentCount: input.installments,
         dueDate: installment.dueDate,
         amountInCents: installment.amountInCents,
+        ...(installment.customerDiscountInCents
+          ? { customerDiscountInCents: installment.customerDiscountInCents }
+          : {}),
         status: "open",
         overdue: false,
         createdAt: timestamp,

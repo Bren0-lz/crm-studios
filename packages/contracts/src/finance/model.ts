@@ -5,6 +5,7 @@ import {
   competenceMonthSchema,
   paymentMethodSchema,
 } from "../common/model.js";
+import { maxInstallmentsLimit } from "./installments.js";
 import {
   fillMessageTemplate,
   patientFirstName,
@@ -277,6 +278,13 @@ export const financialDatesSchema = paymentTimingSchema.extend({
   dueDate: z.iso.date().optional(),
   reason: z.string().trim().min(3).max(500),
 });
+/** Parcelas do pagamento na própria forma (ex.: cartão em 3x); ausente = à vista. */
+export const paymentInstallmentsSchema = z
+  .number()
+  .int()
+  .min(1)
+  .max(maxInstallmentsLimit)
+  .optional();
 export const paymentInputSchema = z.object({
   ...paymentTimingSchema.shape,
   paymentMethod: paymentMethodSchema.default("pix"),
@@ -288,6 +296,7 @@ export const patientTabCloseInputSchema = z
     categoryId: z.uuid().optional(),
     settlement: z.enum(["paid", "receivable"]),
     paymentMethod: paymentMethodSchema.optional(),
+    paymentInstallments: paymentInstallmentsSchema,
     dueDate: z.iso.date(),
   })
   .refine(
@@ -328,6 +337,7 @@ export const productSaleInputSchema = z
     categoryId: z.uuid().optional(),
     settlement: z.enum(["paid", "receivable"]),
     paymentMethod: paymentMethodSchema.optional(),
+    paymentInstallments: paymentInstallmentsSchema,
     dueDate: z.iso.date(),
   })
   .refine(
@@ -685,6 +695,7 @@ export const financeForecastFilterSchema = z.object({
 
 /** Baixa de parcela (U39): desconto, juros e valor recebido (parcial gera nova parcela). */
 export const receivableSettlementSchema = paymentInputSchema.extend({
+  paymentInstallments: paymentInstallmentsSchema,
   discountInCents: z.number().int().min(0).default(0),
   interestInCents: z.number().int().min(0).default(0),
   /** Sem valor = recebe o valor final inteiro. */
@@ -797,6 +808,10 @@ export function planPixChargeMessage(input: {
   totalSessions: number;
   pixKey: string;
   template?: string | undefined;
+  /** 1º pagamento proporcional às aulas até o vencimento (`firstInstallmentInCents`). */
+  firstChargeInCents?: number | undefined;
+  /** Desconto do cliente no 1º pagamento (o valor cobrado já vem com ele descontado). */
+  discountInCents?: number | undefined;
 }): string {
   const money = (cents: number) =>
     new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" })
@@ -804,9 +819,11 @@ export function planPixChargeMessage(input: {
       .replace(/\u00a0/g, " ");
   const installments = Math.max(1, input.installments);
   // Mesma divisão de `planInstallmentSchedule`: o resto vai nos primeiros centavos.
+  const discount = Math.max(0, input.discountInCents ?? 0);
   const firstCharge =
-    Math.floor(input.totalValueInCents / installments) +
-    (input.totalValueInCents % installments ? 1 : 0);
+    (input.firstChargeInCents ??
+      Math.floor(input.totalValueInCents / installments) +
+        (input.totalValueInCents % installments ? 1 : 0)) - discount;
   const sessions = `${input.totalSessions} ${input.totalSessions === 1 ? "sessão" : "sessões"}`;
   const sessionValue =
     input.totalSessions > 0
@@ -825,9 +842,16 @@ export function planPixChargeMessage(input: {
       chave_pix: input.pixKey,
     });
   const perSession = sessionValue ? ` (${sessionValue} por sessão)` : "";
-  const charge =
-    installments > 1
-      ? `o plano “${input.planName}” tem ${sessions} por ${money(input.totalValueInCents)}${perSession}, em ${installments} parcelas; a 1ª parcela é de ${money(firstCharge)}`
-      : `o valor do plano “${input.planName}” é de ${money(firstCharge)}, referente a ${sessions}${perSession}`;
+  const prorated =
+    input.firstChargeInCents !== undefined &&
+    input.firstChargeInCents !== input.totalValueInCents;
+  const withDiscount = discount
+    ? `, já com o seu desconto de ${money(discount)}`
+    : "";
+  const charge = prorated
+    ? `o plano “${input.planName}” tem ${sessions} por ${money(input.totalValueInCents)}${perSession}; o 1º pagamento, proporcional às aulas até o vencimento, é de ${money(firstCharge)}${withDiscount}`
+    : installments > 1
+      ? `o plano “${input.planName}” tem ${sessions} por ${money(input.totalValueInCents)}${perSession}, em ${installments} parcelas; a 1ª parcela é de ${money(firstCharge)}${withDiscount}`
+      : `o valor do plano “${input.planName}” é de ${money(firstCharge)}${withDiscount}, referente a ${sessions}${perSession}`;
   return `Olá, ${patientFirstName(input.patientName)}! Tudo bem? Seja bem-vindo(a)! Para confirmar, ${charge}. Chave Pix: ${input.pixKey}. Assim que fizer o pagamento, envie o comprovante por aqui. Obrigado!`;
 }
