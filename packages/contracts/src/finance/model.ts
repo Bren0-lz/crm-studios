@@ -139,6 +139,14 @@ const productSizesSchema = z
   })
   .transform(sortProductSizes);
 
+/** Produto pede reposição: sem estoque ou, com aviso de reposição, saldo total no limite ou abaixo. */
+export function productNeedsRestock(
+  currentStock: number,
+  restockAlertAt: number | null | undefined,
+) {
+  return currentStock <= Math.max(0, restockAlertAt ?? 0);
+}
+
 /** Saldo de uma chave de estoque do produto: um tamanho, ou `null` para o estoque sem tamanho. */
 export interface ProductSizeStock {
   size: ProductSize | null;
@@ -192,6 +200,11 @@ const productBaseSchema = z.object({
   costInCents: z.number().int().min(0),
   salePriceInCents: z.number().int().min(0),
   initialStock: z.number().int().min(0).max(1_000_000).default(0),
+  /**
+   * Aviso de reposição (opcional): o produto pede reposição quando o saldo total chega a esta
+   * quantidade ou menos. `null` = sem aviso; ausente = nenhum (cadastro) ou mantém o atual (edição).
+   */
+  restockAlertAt: z.number().int().min(1).max(1_000_000).nullable().optional(),
   /** Vazio = sem distinção por tamanhos; ausente = nenhum (cadastro) ou mantém os atuais (edição). */
   sizes: productSizesSchema.optional(),
 });

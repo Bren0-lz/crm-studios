@@ -169,8 +169,10 @@ export interface ReceivedPayment {
 
 export interface Product extends Omit<
   ProductInput,
-  "initialStock" | "initialSizeStock" | "sizes"
+  "initialStock" | "initialSizeStock" | "sizes" | "restockAlertAt"
 > {
+  /** Aviso de reposição; `null` = sem aviso. */
+  restockAlertAt: number | null;
   /** Vazio = produto sem distinção por tamanhos. */
   sizes: ProductSize[];
   /** Saldo por tamanho (ver `productSizeStock`); `currentStock` é a soma de todas as chaves. */
@@ -180,6 +182,7 @@ export interface Product extends Omit<
   id: string;
   clinicId: string;
   currentStock: number;
+  /** Pede reposição: sem estoque ou no aviso de reposição (ver `productNeedsRestock`). */
   lowStock: boolean;
   active: boolean;
   createdAt: string;

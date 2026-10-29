@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   productInputSchema,
   productItemName,
+  productNeedsRestock,
   productSizeStock,
   productSizeLabels,
   productUpdateSchema,
@@ -808,6 +809,31 @@ describe("shared contracts", () => {
         ],
       }),
     ).toThrow("Cada produto entra uma vez só na venda.");
+  });
+
+  it("keeps the restock alert optional and asks for restock at or below it", () => {
+    const product = {
+      name: "Faixa",
+      sku: "FX",
+      costInCents: 0,
+      salePriceInCents: 0,
+    };
+    expect(productInputSchema.parse(product).restockAlertAt).toBeUndefined();
+    expect(
+      productInputSchema.parse({ ...product, restockAlertAt: 5 })
+        .restockAlertAt,
+    ).toBe(5);
+    expect(
+      productUpdateSchema.parse({ ...product, restockAlertAt: null })
+        .restockAlertAt,
+    ).toBeNull();
+    expect(() =>
+      productInputSchema.parse({ ...product, restockAlertAt: 0 }),
+    ).toThrow();
+    expect(productNeedsRestock(0, null)).toBe(true);
+    expect(productNeedsRestock(1, null)).toBe(false);
+    expect(productNeedsRestock(5, 5)).toBe(true);
+    expect(productNeedsRestock(6, 5)).toBe(false);
   });
 
   it("lists the stock per size with leftovers outside the configured sizes", () => {

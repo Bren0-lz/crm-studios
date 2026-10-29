@@ -128,6 +128,47 @@ for (const storage of ["memory", "postgres"] as const) {
         ).toBe(1);
       });
 
+      it("guarda, mantém e desliga o aviso de reposição do produto", async () => {
+        const product = await repository.createProduct(
+          clinicId,
+          actorId,
+          productInputSchema.parse({
+            name: `Faixa ${randomUUID().slice(0, 8)}`,
+            sku: randomUUID().slice(0, 12),
+            costInCents: 500,
+            salePriceInCents: 1_500,
+            initialStock: 3,
+            restockAlertAt: 3,
+          }),
+        );
+        const listed = async () =>
+          (await repository.getInventoryWorkspace(clinicId)).products.find(
+            (item) => item.id === product.id,
+          );
+        expect(await listed()).toMatchObject({
+          restockAlertAt: 3,
+          lowStock: true,
+        });
+        const fields = {
+          name: product.name,
+          sku: product.sku,
+          unit: product.unit,
+          costInCents: product.costInCents,
+          salePriceInCents: 1_800,
+          active: true,
+        };
+        await repository.updateProduct(clinicId, actorId, product.id, fields);
+        expect(await listed()).toMatchObject({ restockAlertAt: 3 });
+        await repository.updateProduct(clinicId, actorId, product.id, {
+          ...fields,
+          restockAlertAt: null,
+        });
+        expect(await listed()).toMatchObject({
+          restockAlertAt: null,
+          lowStock: false,
+        });
+      });
+
       it("guarda, mantém e limpa os tamanhos do produto", async () => {
         const product = await repository.createProduct(
           clinicId,

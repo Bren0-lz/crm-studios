@@ -39,6 +39,7 @@ const emptyProduct: ProductForm = {
   costInCents: 0,
   salePriceInCents: 0,
   initialStock: 0,
+  restockAlertAt: null,
   sizes: [],
 };
 const emptyAdjustment: StockMovementInput = {
@@ -60,7 +61,9 @@ const movementLabels: Record<StockMovement["kind"], string> = {
 
 function productStatus(product: Product) {
   if (!product.active) return { label: "Inativo", className: "" };
-  if (product.lowStock) return { label: "Sem estoque", className: "paused" };
+  if (product.currentStock <= 0)
+    return { label: "Sem estoque", className: "overdue" };
+  if (product.lowStock) return { label: "Repor estoque", className: "paused" };
   return { label: "Ativo", className: "active" };
 }
 
@@ -84,6 +87,7 @@ export function InventorySection({
     [form, setForm] = useState<ProductForm>(emptyProduct),
     [active, setActive] = useState(true),
     [hasSizes, setHasSizes] = useState(false),
+    [restockAlert, setRestockAlert] = useState(false),
     [initialSizeStock, setInitialSizeStock] = useState<
       Partial<Record<ProductSize, number>>
     >({}),
@@ -91,7 +95,7 @@ export function InventorySection({
     [sizeChoice, setSizeChoice] = useState("");
   const version = useDataVersion("inventory");
   const productDirty = useFormDirty(
-    { form, active, hasSizes, initialSizeStock },
+    { form, active, hasSizes, restockAlert, initialSizeStock },
     Boolean(editor),
   );
   const adjustmentDirty = useFormDirty({ adjustment, sizeChoice }, adjusting);
@@ -136,6 +140,7 @@ export function InventorySection({
     setForm(product === "new" ? emptyProduct : { ...product, initialStock: 0 });
     setActive(product === "new" ? true : product.active);
     setHasSizes(product !== "new" && product.sizes.length > 0);
+    setRestockAlert(product !== "new" && product.restockAlertAt !== null);
     setInitialSizeStock({});
     setFormError("");
     setEditor(product);
@@ -175,6 +180,7 @@ export function InventorySection({
     const input: ProductInput = {
       ...form,
       sizes,
+      restockAlertAt: restockAlert ? (form.restockAlertAt ?? 1) : null,
       ...(sizes.length
         ? {
             initialStock: 0,
@@ -574,6 +580,43 @@ export function InventorySection({
                     ))}
                   </div>
                 </fieldset>
+              )}
+              <div className="field-with-hint span-2">
+                <label className="checkbox-field">
+                  <input
+                    type="checkbox"
+                    checked={restockAlert}
+                    onChange={(event) => {
+                      setRestockAlert(event.target.checked);
+                      if (event.target.checked && !form.restockAlertAt)
+                        setForm({ ...form, restockAlertAt: 1 });
+                    }}
+                  />
+                  Avisar quando for hora de repor
+                </label>
+                <p className="field-hint">
+                  Opcional. Quando o estoque chegar à quantidade escolhida, o
+                  produto aparece como “Repor estoque” na lista e entra em
+                  “Produtos para repor” nos Indicadores.
+                  {hasSizes && " Vale o total somando todos os tamanhos."}
+                </p>
+              </div>
+              {restockAlert && (
+                <label>
+                  Avisar quando restarem
+                  <input
+                    type="number"
+                    required
+                    min={1}
+                    value={form.restockAlertAt ?? ""}
+                    onChange={(event) =>
+                      setForm({
+                        ...form,
+                        restockAlertAt: Number(event.target.value) || null,
+                      })
+                    }
+                  />
+                </label>
               )}
               {editor !== "new" && (
                 <label className="checkbox-field">
