@@ -28,7 +28,6 @@ export async function verifyWaitlistRepository(repository: ClinicRepository) {
     costInCents: 500,
     salePriceInCents: 1000,
     initialStock: 0,
-    minimumStock: 1,
   });
   const first = await repository.createWaitlistEntry(clinicId, actor, {
     patientId: ana.id,

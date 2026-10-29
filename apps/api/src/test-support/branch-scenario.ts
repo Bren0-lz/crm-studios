@@ -123,7 +123,6 @@ export async function runBranchScenario(repository: ClinicRepository) {
       ...product,
       ...prices,
       initialStock: 3,
-      minimumStock: 0,
     }),
   );
   await inMatriz(() =>
@@ -131,7 +130,6 @@ export async function runBranchScenario(repository: ClinicRepository) {
       ...product,
       ...prices,
       initialStock: 0,
-      minimumStock: 0,
     }),
   );
   await expect(
@@ -140,7 +138,6 @@ export async function runBranchScenario(repository: ClinicRepository) {
         ...product,
         ...prices,
         initialStock: 0,
-        minimumStock: 0,
       }),
     ),
   ).rejects.toMatchObject({ code: "PRODUCT_SKU_EXISTS" });

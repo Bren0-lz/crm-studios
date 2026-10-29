@@ -17,6 +17,13 @@ import type {
 import type { Branch, BranchInput } from "@crm/contracts";
 import type { OwnProfile, OwnProfileUpdate } from "@crm/contracts";
 import type {
+  AutoCampaign,
+  AutoCampaignDelivery,
+  AutoCampaignDeliveryInput,
+  AutoCampaignTrigger,
+} from "@crm/contracts";
+import type { AutoCampaignSourceData } from "./modules/communications/auto-campaigns.js";
+import type {
   CampaignRecipientStatus,
   CampaignRecipientUpdate,
   MessageImageMimeType,
@@ -125,7 +132,10 @@ import type {
   ContactSuggestion,
   CostCenter,
   CostCenterInput,
+  CashMovement,
   DailyCash,
+  ProLaboreSettings,
+  ProLaboreSettingsInput,
   DashboardSummary,
   DocumentStatus,
   DocumentTemplate,
@@ -557,6 +567,13 @@ export interface ClinicRepository {
   getAutoFinalizationSettings(
     clinicId: string,
   ): Promise<AutoFinalizationSettings>;
+  /** Pró-labore do relatório financeiro (padrão: 0% do lucro). */
+  getProLaboreSettings(clinicId: string): Promise<ProLaboreSettings>;
+  updateProLaboreSettings(
+    clinicId: string,
+    actorUserId: string,
+    input: ProLaboreSettingsInput,
+  ): Promise<ProLaboreSettings>;
   updateAutoFinalizationSettings(
     clinicId: string,
     actorUserId: string,
@@ -1345,6 +1362,43 @@ export interface ClinicRepository {
     recipientId: string,
     status: CampaignRecipientStatus,
   ): Promise<CampaignRecipientUpdate | null>;
+  /** Campanhas automáticas não excluídas, da mais recente para a mais antiga. */
+  listAutoCampaigns(clinicId: string): Promise<AutoCampaign[]>;
+  getAutoCampaign(
+    clinicId: string,
+    campaignId: string,
+  ): Promise<AutoCampaign | null>;
+  createAutoCampaign(
+    clinicId: string,
+    actorUserId: string,
+    input: AutoCampaignWrite,
+  ): Promise<AutoCampaign>;
+  /** Mensagens com `id` mantêm o histórico de envios; sem `id` ganham um novo. */
+  updateAutoCampaign(
+    clinicId: string,
+    campaignId: string,
+    input: AutoCampaignWrite,
+  ): Promise<AutoCampaign | null>;
+  /** Exclui a campanha (some da fila e das notificações); devolve `false` se não existe. */
+  deleteAutoCampaign(clinicId: string, campaignId: string): Promise<boolean>;
+  /** Envios registrados das campanhas não excluídas. */
+  listAutoCampaignDeliveries(clinicId: string): Promise<AutoCampaignDelivery[]>;
+  /** Registra (ou troca) o envio/não envio de uma mensagem para um evento. */
+  saveAutoCampaignDelivery(
+    clinicId: string,
+    actorUserId: string,
+    input: AutoCampaignDeliveryWrite,
+  ): Promise<AutoCampaignDelivery>;
+  /** Desfaz o registro: a mensagem volta a pendente. */
+  deleteAutoCampaignDelivery(
+    clinicId: string,
+    deliveryId: string,
+  ): Promise<boolean>;
+  /** Clientes, planos, atendimentos, parcelas, comandas e pesquisas para as campanhas. */
+  getAutoCampaignSourceData(
+    clinicId: string,
+    surveysFrom: string,
+  ): Promise<Omit<AutoCampaignSourceData, "preferences">>;
   recordDocumentSignature(
     clinicId: string,
     actorUserId: string,
@@ -1435,6 +1489,15 @@ export interface ClinicRepository {
   /** Caixa do dia `date` (aaaa-mm-dd no fuso da clínica). */
   getDailyCash(clinicId: string, date: string): Promise<DailyCash>;
   /**
+   * Movimentos do caixa (recebimentos, estornos, contas e comissões pagas) com data do
+   * evento entre `from` e `to` (aaaa-mm-dd no fuso da clínica), com o registro de origem.
+   */
+  listCashMovements(
+    clinicId: string,
+    from: string,
+    to: string,
+  ): Promise<CashMovement[]>;
+  /**
    * Eventos de recebimento e estorno cuja data, no fuso da clínica, está entre
    * `from` e `to` (aaaa-mm-dd, inclusive), em ordem cronológica.
    */
@@ -1486,6 +1549,18 @@ export function lastAdminError() {
 }
 
 /** Mensagem padrão já validada pela rota: imagens novas chegam com tipo e tamanho conferidos. */
+export interface AutoCampaignWrite {
+  name: string;
+  trigger: AutoCampaignTrigger;
+  active: boolean;
+  steps: Array<{ id?: string | undefined; offset: number; message: string }>;
+}
+
+export type AutoCampaignDeliveryWrite = AutoCampaignDeliveryInput & {
+  /** Mensagem já preenchida, guardada como estava no envio. */
+  message: string;
+};
+
 export interface MessageTemplateWrite {
   title: string;
   body: string;

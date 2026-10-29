@@ -1,5 +1,6 @@
 import { paymentTimingSchema, financialDatesSchema } from "./model.js";
 import { z } from "zod";
+import type { ProductSize, ProductSizeStock } from "./model.js";
 import {
   productUpdateSchema,
   patientTabItemUpdateSchema,
@@ -170,12 +171,22 @@ export interface ReceivedPayment {
   paymentMethod?: PaymentMethod;
 }
 
-export interface Product extends Omit<ProductInput, "initialStock"> {
+export interface Product extends Omit<
+  ProductInput,
+  "initialStock" | "initialSizeStock" | "sizes" | "restockAlertAt"
+> {
+  /** Aviso de reposição; `null` = sem aviso. */
+  restockAlertAt: number | null;
+  /** Vazio = produto sem distinção por tamanhos. */
+  sizes: ProductSize[];
+  /** Saldo por tamanho (ver `productSizeStock`); `currentStock` é a soma de todas as chaves. */
+  sizeStock: ProductSizeStock[];
   /** Filial a que pertence (ver `branches`). */
   branchId?: string;
   id: string;
   clinicId: string;
   currentStock: number;
+  /** Pede reposição: sem estoque ou no aviso de reposição (ver `productNeedsRestock`). */
   lowStock: boolean;
   active: boolean;
   createdAt: string;
@@ -195,7 +206,10 @@ export interface StockMovement {
     | "loss"
     | "sale"
     | "sale_reversal";
+  /** Ausente = estoque sem tamanho. */
+  size?: ProductSize;
   quantity: number;
+  /** Saldo da chave movimentada (do tamanho, quando houver) logo após o movimento. */
   balanceAfter: number;
   notes: string;
   patientTabId?: string;
@@ -206,6 +220,7 @@ export interface PatientTabItem {
   id: string;
   productId: string;
   productName: string;
+  size?: ProductSize;
   quantity: number;
   unitPriceInCents: number;
   unitCostInCents: number;
@@ -455,6 +470,13 @@ export interface DailyCashMovement {
    * negativos; saídas positivas (valor pago).
    */
   amountInCents: number;
+}
+
+/** Movimento do caixa com o registro de origem (relatório financeiro por período). */
+export interface CashMovement extends DailyCashMovement {
+  receivableId?: string;
+  payableId?: string;
+  commissionId?: string;
 }
 
 export interface DailyCashMethodTotal {

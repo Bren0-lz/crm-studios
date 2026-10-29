@@ -286,7 +286,6 @@ describe("payment method installments", () => {
       costInCents: 2000,
       salePriceInCents: 4500,
       initialStock: 5,
-      minimumStock: 1,
     });
     const sale = (body: Record<string, unknown>) =>
       app.inject({

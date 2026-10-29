@@ -11,6 +11,7 @@ import type {
   RecurringPayableReminder,
 } from "@crm/contracts";
 import {
+  cashPaymentMethodLabels,
   patientFirstName,
   paymentMethodWithInstallments,
   type PaymentReceipt,
@@ -61,15 +62,8 @@ export const dailyCashKinds: Record<
   commission: { label: "Comissão", pill: "open" },
 };
 
-export const dailyCashMethodLabels: Record<DailyCashPaymentMethod, string> = {
-  pix: "Pix",
-  card: "Cartão",
-  cash: "Dinheiro",
-  bank_transfer: "Transferência",
-  boleto: "Boleto",
-  other: "Outro",
-  unspecified: "Não informada",
-};
+export const dailyCashMethodLabels: Record<DailyCashPaymentMethod, string> =
+  cashPaymentMethodLabels;
 
 export function dailyCashMovementAmount(movement: DailyCashMovement) {
   const effect =

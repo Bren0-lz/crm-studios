@@ -1,6 +1,9 @@
 import { saveUserAgenda, userSaveError } from "./user-agenda.js";
 import {
   type AutoFinalizationSettings,
+  defaultProLaboreSettings,
+  type ProLaboreSettings,
+  type ProLaboreSettingsInput,
   type AutoFinalizationSettingsInput,
   type AdminAuditPage,
   type AdminUserInput,
@@ -73,6 +76,24 @@ type AutoFinalizationRow = {
 const autoFinalizationColumns = `auto_finalization_enabled AS enabled,
   auto_finalization_delay_minutes AS "delayMinutes",
   auto_finalization_updated_at AS "updatedAt"`;
+
+type ProLaboreRow = {
+  basisPoints: number;
+  base: ProLaboreSettings["base"];
+  updatedAt: Date | null;
+};
+
+const proLaboreColumns = `pro_labore_basis_points AS "basisPoints",
+  pro_labore_base AS base, pro_labore_updated_at AS "updatedAt"`;
+
+function mapProLabore(row: ProLaboreRow | undefined): ProLaboreSettings {
+  if (!row) return { ...defaultProLaboreSettings };
+  return {
+    percentage: row.basisPoints / 100,
+    base: row.base,
+    ...(row.updatedAt ? { updatedAt: row.updatedAt.toISOString() } : {}),
+  };
+}
 
 function mapAutoFinalization(
   row: AutoFinalizationRow | undefined,
@@ -682,6 +703,45 @@ export function createAdministrationRepository(
         [clinicId],
       );
       return mapAutoFinalization(result.rows[0]);
+    },
+
+    async getProLaboreSettings(clinicId: string): Promise<ProLaboreSettings> {
+      const result = await repositoryContext.pool.query<ProLaboreRow>(
+        `SELECT ${proLaboreColumns} FROM clinics WHERE id = $1`,
+        [clinicId],
+      );
+      return mapProLabore(result.rows[0]);
+    },
+
+    async updateProLaboreSettings(
+      clinicId: string,
+      actorUserId: string,
+      input: ProLaboreSettingsInput,
+    ) {
+      return repositoryContext.inTransaction(async (client) => {
+        const result = await client.query<ProLaboreRow>(
+          `UPDATE clinics SET pro_labore_basis_points = $2, pro_labore_base = $3,
+             pro_labore_updated_at = now()
+           WHERE id = $1 RETURNING ${proLaboreColumns}`,
+          [clinicId, Math.round(input.percentage * 100), input.base],
+        );
+        if (!result.rowCount)
+          throw new DomainError(
+            "CLINIC_NOT_FOUND",
+            "Clínica não encontrada.",
+            404,
+          );
+        await repositoryContext.addAdminAudit(
+          client,
+          clinicId,
+          actorUserId,
+          "clinic.pro_labore_updated",
+          "clinic",
+          clinicId,
+          { percentage: input.percentage, base: input.base },
+        );
+        return mapProLabore(result.rows[0]);
+      });
     },
 
     async updateAutoFinalizationSettings(
