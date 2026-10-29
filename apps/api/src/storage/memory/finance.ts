@@ -727,6 +727,11 @@ export function createFinanceRepository(
       delete receivable.paymentInstallments;
       receivable.overdue = receivable.dueDate < today();
       receivable.updatedAt = now();
+      repositoryContext.markPaymentProofsReversed(
+        clinicId,
+        "receivable",
+        receivableId,
+      );
       return receivable;
     },
 

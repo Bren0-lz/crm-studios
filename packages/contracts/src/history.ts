@@ -32,6 +32,21 @@ export const historyActions: {
     label: "Comprovante de operação externa baixado",
   },
   {
+    action: "finance.payment_proof_attached",
+    module: "finance",
+    label: "Comprovante de pagamento anexado",
+  },
+  {
+    action: "finance.payment_proof_downloaded",
+    module: "finance",
+    label: "Comprovante de pagamento baixado",
+  },
+  {
+    action: "finance.payment_proof_deleted",
+    module: "finance",
+    label: "Comprovante de pagamento excluído",
+  },
+  {
     action: "plan.purchased",
     module: "plans",
     label: "Plano contratado com agenda e contrato",

@@ -12,6 +12,7 @@ import { Modal } from "../../shared/components/Modal";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
 import { ErrorBanner } from "../../shared/components/ErrorBanner";
 import { currency, shortDate } from "../../shared/lib/formatting";
+import { PaymentProofsModal } from "./PaymentProofs";
 export function CommissionReconciliationModal({
   id,
   onClose,
@@ -40,6 +41,8 @@ export function CommissionReconciliationModal({
   const [confirmation, setConfirmation] = useState<{
     payment: CommissionAccountPayment;
   } | null>(null);
+  const [viewingProofs, setViewingProofs] =
+    useState<CommissionAccountPayment | null>(null);
   useEffect(() => {
     let active = true;
     api
@@ -125,8 +128,17 @@ export function CommissionReconciliationModal({
         title="Conciliar comissão"
         subtitle="Revise a origem e registre os ajustes. Os valores e a regra da comissão original ficam preservados."
         wide
-        busy={busy || Boolean(prompt.modal) || Boolean(confirmation)}
-        inactive={Boolean(prompt.modal) || Boolean(confirmation)}
+        busy={
+          busy ||
+          Boolean(prompt.modal) ||
+          Boolean(confirmation) ||
+          Boolean(viewingProofs)
+        }
+        inactive={
+          Boolean(prompt.modal) ||
+          Boolean(confirmation) ||
+          Boolean(viewingProofs)
+        }
         onClose={close}
       >
         {error && <ErrorBanner error={error} />}{" "}
@@ -307,6 +319,14 @@ export function CommissionReconciliationModal({
                         {payment.reversedAt ? " · Estornado" : " · Registrado"}
                       </p>
                     </div>
+                    <button
+                      className="secondary-button"
+                      disabled={busy}
+                      aria-label={`Comprovantes do pagamento de ${payment.professionalName}`}
+                      onClick={() => setViewingProofs(payment)}
+                    >
+                      Comprovantes
+                    </button>
                     {!payment.reversedAt &&
                       can("finance.commissions_reverse") && (
                         <button
@@ -368,6 +388,17 @@ export function CommissionReconciliationModal({
             </button>
           </div>
         </Modal>
+      )}
+      {viewingProofs && (
+        <PaymentProofsModal
+          entity="commission_account_payment"
+          entityId={viewingProofs.id}
+          subtitle={`${viewingProofs.professionalName} · ${currency.format(viewingProofs.amountInCents / 100)}`}
+          canAttach={
+            !viewingProofs.reversedAt && can("finance.commissions_pay")
+          }
+          onClose={() => setViewingProofs(null)}
+        />
       )}
       {prompt.modal}
     </>
