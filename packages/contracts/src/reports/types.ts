@@ -89,6 +89,9 @@ export interface NotificationsSummary {
   snoozedContactsDue?: number | undefined;
   /** Planos pausados com retorno previsto até hoje (módulo plans). */
   pauseReturnsDue?: number | undefined;
+  /** Campanhas automáticas com mensagens pendentes hoje (módulo communications). */
+  autoCampaigns?:
+    Array<{ id: string; name: string; pending: number }> | undefined;
 }
 
 export interface DashboardSummary {

@@ -297,6 +297,21 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
   "POST /communications/templates/:id/archive": operation(
     "communications.templates",
   ),
+  "GET /communications/auto-campaigns": view("communications"),
+  "GET /communications/auto-campaigns/queue": view("communications"),
+  "POST /communications/auto-campaigns": operation("communications.campaigns"),
+  "PUT /communications/auto-campaigns/:id": operation(
+    "communications.campaigns",
+  ),
+  "DELETE /communications/auto-campaigns/:id": operation(
+    "communications.campaigns",
+  ),
+  "POST /communications/auto-campaigns/deliveries": operation(
+    "communications.campaigns",
+  ),
+  "DELETE /communications/auto-campaigns/deliveries/:id": operation(
+    "communications.campaigns",
+  ),
   "GET /communications/campaigns": view("communications"),
   "GET /communications/campaigns/filter-options": view("communications"),
   "GET /communications/campaigns/:id": view("communications"),

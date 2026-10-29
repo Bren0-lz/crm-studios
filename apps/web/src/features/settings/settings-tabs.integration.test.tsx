@@ -1,4 +1,5 @@
 import {
+  act,
   fireEvent,
   render,
   screen,
@@ -13,6 +14,10 @@ import {
   relationshipSettingsFixture,
   storedUser,
 } from "../../test-support/legacy-fixtures";
+import {
+  documentEditor,
+  setDocumentText,
+} from "../../test-support/document-editor";
 import "../../test-support/legacy-setup";
 
 describe("settings tabs", () => {
@@ -478,23 +483,27 @@ describe("settings tabs", () => {
     fireEvent.change(await screen.findByLabelText("Chave Pix"), {
       target: { value: "financeiro@aryana.com.br" },
     });
-    const message = screen.getByLabelText("Mensagem do Pix");
+    const message = screen.getByRole("textbox", { name: "Mensagem do Pix" });
     expect(screen.getByText(/^Prévia: Olá, Marina!/)).toBeInTheDocument();
-    fireEvent.change(message, { target: { value: "Oi {{nome}}! " } });
+    setDocumentText(message, "Oi {{nome}}! ");
+    act(() => {
+      documentEditor(message).commands.focus("end");
+    });
     const toolbar = screen.getByRole("toolbar", {
       name: "Inserir dados na mensagem do Pix",
     });
     fireEvent.click(
       within(toolbar).getByRole("button", { name: "Inserir valor por sessão" }),
     );
-    expect(message).toHaveValue("Oi {{nome}}! {{valor_sessao}}");
-    fireEvent.change(message, {
-      target: { value: "Oi {{nome}}! {{valor_sessao}} · {{chave_pix}}" },
-    });
+    // O código aparece como etiqueta verde, igual às mensagens padrão.
+    expect(within(message).getByText("Valor por sessão")).toHaveClass(
+      "document-field",
+    );
+    fireEvent.click(
+      within(toolbar).getByRole("button", { name: "Inserir chave pix" }),
+    );
     expect(
-      screen.getByText(
-        "Prévia: Oi Marina! R$ 60,00 · financeiro@aryana.com.br",
-      ),
+      screen.getByText("Prévia: Oi Marina! R$ 60,00financeiro@aryana.com.br"),
     ).toBeInTheDocument();
     fireEvent.click(
       screen.getByRole("button", { name: "Salvar configurações" }),
@@ -505,7 +514,7 @@ describe("settings tabs", () => {
         .mock.calls.find(([, init]) => init?.method === "PUT");
       expect(JSON.parse(String(put?.[1]?.body))).toMatchObject({
         pixKey: "financeiro@aryana.com.br",
-        pixMessageTemplate: "Oi {{nome}}! {{valor_sessao}} · {{chave_pix}}",
+        pixMessageTemplate: "Oi {{nome}}! {{valor_sessao}}{{chave_pix}}",
       });
     });
   });
