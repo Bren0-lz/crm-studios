@@ -381,14 +381,12 @@ describe("configuração das campanhas automáticas", () => {
     fireEvent.click(within(dialog).getByLabelText(/Campanha promocional/));
     fireEvent.change(
       within(dialog).getByLabelText(
-        "Validade da promoção (dias a partir da primeira mensagem)",
+        "Validade da promoção (dias após o evento)",
       ),
       { target: { value: "10" } },
     );
     expect(
-      within(dialog).getByText(
-        "Com a primeira mensagem 7 dias antes, a promoção vale até 3 dias depois do evento.",
-      ),
+      within(dialog).getByText("A promoção vale até 10 dias depois do evento."),
     ).toBeVisible();
     fireEvent.click(
       within(dialog).getByLabelText(/deixar o cliente fora desta campanha/),

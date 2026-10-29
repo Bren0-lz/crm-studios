@@ -90,7 +90,7 @@ describe("página Vendas de produtos", () => {
       target: { value: "1" },
     });
     fireEvent.change(within(panel).getByLabelText("Preço unitário 2"), {
-      target: { value: "25" },
+      target: { value: "25,00" },
     });
     expect(within(panel).getByText("Total").textContent).toMatch(/105,00/);
     fireEvent.change(within(panel).getByLabelText("Forma de pagamento"), {

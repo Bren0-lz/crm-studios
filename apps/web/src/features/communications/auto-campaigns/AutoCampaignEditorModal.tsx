@@ -168,7 +168,7 @@ export function AutoCampaignEditorModal({
         {draft.promotional && (
           <>
             <label className="span-2">
-              Validade da promoção (dias a partir da primeira mensagem)
+              Validade da promoção (dias após o evento)
               <input
                 type="number"
                 min={1}
