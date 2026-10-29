@@ -126,8 +126,8 @@ export function promotionSummary(promotion: AutoCampaignPromotion) {
 }
 
 /**
- * Até quando a promoção vale, a partir da data programada da primeira mensagem
- * (com a 1ª mensagem 7 dias antes e validade de 10 dias: até 3 dias depois do evento).
+ * Até quando a promoção vale: `validDays` dias depois do evento (validade de 5 dias: até 5
+ * dias depois do evento). Avisa quando alguma mensagem sai depois de a promoção vencer.
  */
 export function promotionValidityHint(
   trigger: AutoCampaignTrigger,
@@ -135,24 +135,13 @@ export function promotionValidityHint(
   validDays: number,
 ) {
   const timing = autoCampaignTriggerTiming[trigger];
-  if (timing === "sessions" || !offsets.length)
-    return `A promoção vale ${plural(validDays, "dia", "dias")} a partir do envio da primeira mensagem.`;
-  const first =
-    timing === "before" ? Math.max(...offsets) : Math.min(...offsets);
-  const firstLabel =
-    first === 0
-      ? "Com a primeira mensagem no dia do evento"
-      : `Com a primeira mensagem ${plural(first, "dia", "dias")} ${
-          timing === "before" ? "antes" : "depois"
-        }`;
-  const end = timing === "before" ? validDays - first : first + validDays;
-  const until =
-    end === 0
-      ? "até o dia do evento"
-      : end > 0
-        ? `até ${plural(end, "dia", "dias")} depois do evento`
-        : `até ${plural(-end, "dia", "dias")} antes do evento`;
-  return `${firstLabel}, a promoção vale ${until}.`;
+  if (timing === "sessions")
+    return `A promoção vale ${plural(validDays, "dia", "dias")} a partir do envio da mensagem.`;
+  const until = `A promoção vale até ${plural(validDays, "dia", "dias")} depois do evento.`;
+  const late = timing === "after" ? Math.max(0, ...offsets) : 0;
+  return late > validDays
+    ? `${until} A mensagem de ${plural(late, "dia", "dias")} depois chega com a promoção vencida.`
+    : until;
 }
 
 let stepKey = 0;

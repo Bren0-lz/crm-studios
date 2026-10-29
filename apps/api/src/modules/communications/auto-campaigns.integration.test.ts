@@ -446,9 +446,9 @@ describe("campanhas automáticas", () => {
         },
       });
       expect(sent.statusCode).toBe(201);
-      // 7 dias antes do aniversário (08/06) + 10 dias: até 3 dias depois dele.
+      // Aniversário (15/06) + 10 dias.
       expect(sent.json<AutoCampaignDelivery>().promotionValidUntil).toBe(
-        "2039-06-18",
+        "2039-06-25",
       );
     }
     expect((await offers()).map((offer) => offer.campaignId).sort()).toEqual(
@@ -520,7 +520,7 @@ describe("campanhas automáticas", () => {
     ).toBe(true);
 
     // Depois do prazo, não há mais promoção.
-    vi.setSystemTime(new Date("2039-06-19T18:00:00Z"));
+    vi.setSystemTime(new Date("2039-06-26T18:00:00Z"));
     expect(await offers()).toEqual([]);
     expect(
       (
