@@ -143,7 +143,7 @@ describe("SOAP draft", () => {
     expect(
       await screen.findByRole("tab", { name: "Linha do tempo" }),
     ).toHaveAttribute("aria-selected", "true");
-    const timeline = screen.getByRole("tabpanel");
+    const timeline = screen.getByRole("tabpanel", { name: "Linha do tempo" });
     const item = await within(timeline).findByText("Dor ao subir escadas.");
     expect(item.closest("li")).toHaveTextContent("Rascunho");
     expect(

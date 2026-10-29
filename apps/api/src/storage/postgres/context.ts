@@ -1544,8 +1544,9 @@ export class PostgresRepositoryContext {
         amountInCents: number;
         paymentMethod: PaymentMethod | null;
         cashAvailableAt: Date | null;
+        amountPending: boolean;
       }>(
-        `SELECT status,commission_id AS "commissionId",payment_method AS "paymentMethod",cash_available_at AS "cashAvailableAt", amount_in_cents AS "amountInCents"
+        `SELECT status,commission_id AS "commissionId",payment_method AS "paymentMethod",cash_available_at AS "cashAvailableAt", amount_in_cents AS "amountInCents", amount_pending AS "amountPending"
          FROM payables WHERE clinic_id = $1 AND id = $2 FOR UPDATE`,
         [clinicId, payableId],
       );
@@ -1560,6 +1561,12 @@ export class PostgresRepositoryContext {
           operation === "payment"
             ? "Somente contas abertas podem ser pagas."
             : "Somente contas pagas podem ser estornadas.",
+          409,
+        );
+      if (operation === "payment" && current.rows[0].amountPending)
+        throw new DomainError(
+          "PAYABLE_AMOUNT_PENDING",
+          "Informe o valor do mês antes de pagar esta conta.",
           409,
         );
       if (current.rows[0].commissionId) {

@@ -1,3 +1,4 @@
+import { starterAssessmentTemplates } from "@crm/contracts";
 import type { ExternalOperation } from "@crm/contracts";
 import type {
   StoredMessageTemplate,
@@ -334,6 +335,17 @@ export class MemoryRepositoryContext {
       active: true,
       createdAt: now(),
     },
+    // Fichas iniciais (mesmo conteúdo da migração 0101).
+    ...starterAssessmentTemplates.map(
+      (template, index): AssessmentTemplate => ({
+        ...structuredClone(template),
+        id: `c1000000-0000-4000-8000-00000000000${index + 2}`,
+        clinicId: CLINIC_ID,
+        version: 1,
+        active: true,
+        createdAt: now(),
+      }),
+    ),
   ];
 
   readonly clinicalAssessments: ClinicalAssessment[] = [];
@@ -1922,8 +1934,12 @@ export class MemoryRepositoryContext {
       ...(input.supplier ? { supplier: input.supplier } : {}),
       categoryId: input.categoryId,
       costCenterId: input.costCenterId,
+      amountType: input.amountType,
       amountInCents: input.amountInCents,
       dayOfMonth: input.dayOfMonth,
+      ...(input.reminderDaysBefore !== undefined
+        ? { reminderDaysBefore: input.reminderDaysBefore }
+        : {}),
       startMonth: input.startMonth,
       ...(input.endMonth ? { endMonth: input.endMonth } : {}),
       active: input.active,
@@ -1966,6 +1982,12 @@ export class MemoryRepositoryContext {
         operation === "payment"
           ? "Somente contas abertas podem ser pagas."
           : "Somente contas pagas podem ser estornadas.",
+        409,
+      );
+    if (operation === "payment" && payable.amountPending)
+      throw new DomainError(
+        "PAYABLE_AMOUNT_PENDING",
+        "Informe o valor do mês antes de pagar esta conta.",
         409,
       );
     const commission = payable.commissionId
