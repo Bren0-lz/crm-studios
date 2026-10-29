@@ -81,6 +81,8 @@ export interface NotificationsSummary {
   birthdaysToday?: number | undefined;
   /** Parcelas em aberto com vencimento antes de hoje (módulo finance). */
   overdueReceivables?: number | undefined;
+  /** Contas de despesas fixas no prazo de aviso ou vencidas, ainda não pagas (módulo finance). */
+  recurringPayablesDue?: number | undefined;
   /** Atendimentos passados ainda agendados/confirmados (módulo agenda). */
   pendingFinalization?: number | undefined;
   /** Tarefas comerciais em aberto já vencidas, de leads em andamento (módulo crm). */

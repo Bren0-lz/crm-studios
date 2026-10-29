@@ -9,6 +9,7 @@ import { createFinancialDatesRepository } from "./storage/postgres/financial-dat
 import { createRegistryRepository } from "./storage/postgres/registry.js";
 import { createAgendaLinksRepository } from "./storage/postgres/agenda-links.js";
 import { createDocumentSignaturesRepository } from "./storage/postgres/document-signatures.js";
+import { createDocumentSignatureLinksRepository } from "./storage/postgres/document-signature-links.js";
 import { createAssessmentOperationsRepository } from "./storage/postgres/assessment-operations.js";
 import { createCommissionOperationsRepository } from "./storage/postgres/commission-operations.js";
 import { createFinanceOperationsRepository } from "./storage/postgres/finance-operations.js";
@@ -83,9 +84,15 @@ export class PostgresClinicRepository implements ClinicRepository {
   readonly createWhatsappCampaign: ClinicRepository["createWhatsappCampaign"];
   readonly setWhatsappCampaignRecipientStatus: ClinicRepository["setWhatsappCampaignRecipientStatus"];
   readonly saveAssessmentTemplate: ClinicRepository["saveAssessmentTemplate"];
+  readonly listAssessmentTemplates: ClinicRepository["listAssessmentTemplates"];
+  readonly setAssessmentTemplateActive: ClinicRepository["setAssessmentTemplateActive"];
   readonly createAbsenceSuccessor: ClinicRepository["createAbsenceSuccessor"];
   readonly recordDocumentSignature: ClinicRepository["recordDocumentSignature"];
   readonly getDocumentSignatureContent: ClinicRepository["getDocumentSignatureContent"];
+  readonly createDocumentSignatureLink: ClinicRepository["createDocumentSignatureLink"];
+  readonly getDocumentSignatureLink: ClinicRepository["getDocumentSignatureLink"];
+  readonly openPublicSignatureDocument: ClinicRepository["openPublicSignatureDocument"];
+  readonly signPublicDocument: ClinicRepository["signPublicDocument"];
   readonly listClinicalResources: ClinicRepository["listClinicalResources"];
   readonly saveClinicalResource: ClinicRepository["saveClinicalResource"];
   readonly finalizeClinicalResource: ClinicRepository["finalizeClinicalResource"];
@@ -211,9 +218,13 @@ export class PostgresClinicRepository implements ClinicRepository {
     this.reports = createReportsRepository(this.context);
     this.plans = createPlansRepository(this.context);
     this.clinical = createClinicalRepository(this.context);
-    this.saveAssessmentTemplate = createAssessmentOperationsRepository(
+    const assessmentOperations = createAssessmentOperationsRepository(
       this.context,
-    ).saveAssessmentTemplate;
+    );
+    this.saveAssessmentTemplate = assessmentOperations.saveAssessmentTemplate;
+    this.listAssessmentTemplates = assessmentOperations.listAssessmentTemplates;
+    this.setAssessmentTemplateActive =
+      assessmentOperations.setAssessmentTemplateActive;
     const clinicalResources = createClinicalResourcesRepository(this.context);
     this.listClinicalResources = clinicalResources.listClinicalResources;
     this.listClinicalSources = clinicalResources.listClinicalSources;
@@ -226,6 +237,13 @@ export class PostgresClinicRepository implements ClinicRepository {
     const signatures = createDocumentSignaturesRepository(this.context);
     this.recordDocumentSignature = signatures.recordDocumentSignature;
     this.getDocumentSignatureContent = signatures.getDocumentSignatureContent;
+    const signatureLinks = createDocumentSignatureLinksRepository(this.context);
+    this.createDocumentSignatureLink =
+      signatureLinks.createDocumentSignatureLink;
+    this.getDocumentSignatureLink = signatureLinks.getDocumentSignatureLink;
+    this.openPublicSignatureDocument =
+      signatureLinks.openPublicSignatureDocument;
+    this.signPublicDocument = signatureLinks.signPublicDocument;
 
     this.revokeUserSessions = this.administration.revokeUserSessions;
     this.findUserByEmail = this.administration.findUserByEmail;
@@ -280,6 +298,7 @@ export class PostgresClinicRepository implements ClinicRepository {
     this.createPayable = this.finance.createPayable;
     this.settlePayable = this.finance.settlePayable;
     this.reversePayablePayment = this.finance.reversePayablePayment;
+    this.setPayableAmount = this.finance.setPayableAmount;
     this.listRecurringPayables = this.finance.listRecurringPayables;
     this.createRecurringPayable = this.finance.createRecurringPayable;
     this.updateRecurringPayable = this.finance.updateRecurringPayable;
@@ -599,6 +618,10 @@ export class PostgresClinicRepository implements ClinicRepository {
   readonly reversePayablePayment: ReturnType<
     typeof createFinanceRepository
   >["reversePayablePayment"];
+
+  readonly setPayableAmount: ReturnType<
+    typeof createFinanceRepository
+  >["setPayableAmount"];
 
   readonly listRecurringPayables: ReturnType<
     typeof createFinanceRepository

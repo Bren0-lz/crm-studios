@@ -13,6 +13,7 @@ import { FinanceClassificationPanel } from "./FinanceClassificationPanel";
 import type {
   CommissionEntry,
   FinancialWorkspace,
+  Payable,
   PaymentTiming,
   PaymentMethod,
   PaymentReceipt,
@@ -21,6 +22,7 @@ import type {
 } from "@crm/contracts";
 import { Building2, Plus, Tags } from "lucide-react";
 import { useEffect, useState } from "react";
+import { useLocation, useSearchParams } from "react-router-dom";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
 import { ErrorBanner } from "../../shared/components/ErrorBanner";
@@ -36,6 +38,7 @@ import { CommissionsList } from "./CommissionsList";
 import { DailyCashSection } from "./DailyCashSection";
 import { FinanceForecastSection } from "./FinanceForecastSection";
 import { FinanceRegistryModal } from "./FinanceRegistryModal";
+import { PayableAmountModal } from "./PayableAmountModal";
 import { PayableModal } from "./PayableModal";
 import { PayablesList } from "./PayablesList";
 import { ReceiptModal } from "./ReceiptModal";
@@ -74,6 +77,8 @@ export function FinancePage() {
     };
   }, []);
   const [data, setData] = useState<FinancialWorkspace | null>(null);
+  // O sino abre direto as contas a pagar (`?aba=contas-a-pagar`).
+  const [searchParams] = useSearchParams();
   const [tab, setTab] = useState<
     | "receivables"
     | "payables"
@@ -82,7 +87,16 @@ export function FinancePage() {
     | "forecast"
     | "entries"
     | "externalOperations"
-  >("receivables");
+  >(() =>
+    searchParams.get("aba") === "contas-a-pagar" ? "payables" : "receivables",
+  );
+  // Já na página, cada clique no sino é uma navegação nova: volta à aba pedida.
+  const location = useLocation();
+  const [seenLocation, setSeenLocation] = useState(location.key);
+  if (location.key !== seenLocation) {
+    setSeenLocation(location.key);
+    if (searchParams.get("aba") === "contas-a-pagar") setTab("payables");
+  }
   const [professionals, setProfessionals] = useState<Professional[]>([]);
   const [selectedReceivables, setSelectedReceivables] = useState<string[]>([]);
   const [receivableFilter, setReceivableFilter] =
@@ -95,6 +109,9 @@ export function FinancePage() {
     subtitle: string;
   } | null>(null);
   const [payableModal, setPayableModal] = useState(false);
+  const [informingPayable, setInformingPayable] = useState<Payable | null>(
+    null,
+  );
   const [adjusting, setAdjusting] = useState<Receivable | null>(null);
   const [contacting, setContacting] = useState<{
     receivable: Receivable;
@@ -538,6 +555,7 @@ export function FinancePage() {
                       .join(" · "),
                   })
                 }
+                onSetAmount={setInformingPayable}
                 onSettle={(item) =>
                   setSettling({
                     kind: "payable",
@@ -625,6 +643,17 @@ export function FinancePage() {
             toast.success("Despesa registrada.");
             setPayableModal(false);
             void reload();
+          }}
+        />
+      )}
+      {informingPayable && (
+        <PayableAmountModal
+          payable={informingPayable}
+          onClose={() => setInformingPayable(null)}
+          onSaved={() => {
+            toast.success("Valor do mês informado.");
+            setInformingPayable(null);
+            void reload().catch((cause: Error) => setError(cause.message));
           }}
         />
       )}
