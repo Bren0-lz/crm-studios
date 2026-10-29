@@ -6,7 +6,12 @@ import type {
   ProductSaleInput,
   ProductSize,
 } from "@crm/contracts";
-import { patientFirstName, productSizeLabels } from "@crm/contracts";
+import {
+  patientFirstName,
+  paymentMethodLabels,
+  paymentMethodSchema,
+  productSizeLabels,
+} from "@crm/contracts";
 import { CircleAlert, Plus, Trash2 } from "lucide-react";
 import { useEffect, useId, useState, type FormEvent } from "react";
 import { api } from "../../api";
@@ -14,6 +19,8 @@ import { useAuthorization } from "../../authorization-context";
 import { PatientPicker } from "../../PatientPicker";
 import { EmptyState } from "../../shared/components/EmptyState";
 import { MoneyInput } from "../../shared/components/MoneyInput";
+import { PaymentInstallmentsSelect } from "../../shared/components/PaymentInstallmentsSelect";
+import { usePaymentMethodSettings } from "../../shared/hooks/usePaymentMethodSettings";
 import { useToast } from "../../shared/feedback/toast-context";
 import { currency, localIsoDate } from "../../shared/lib/formatting";
 import { sellableStock, stockChoices } from "./model";
@@ -27,15 +34,6 @@ type SaleLine = {
   quantity: number;
   unitPriceInCents: number;
 };
-
-const paymentMethods: [PaymentMethod, string][] = [
-  ["pix", "Pix"],
-  ["card", "Cartão"],
-  ["cash", "Dinheiro"],
-  ["bank_transfer", "Transferência"],
-  ["boleto", "Boleto"],
-  ["other", "Outro"],
-];
 
 let nextLineKey = 1;
 const emptyLine = (): SaleLine => ({
@@ -63,6 +61,8 @@ export function NewSaleSection({
   const [settlement, setSettlement] =
     useState<ProductSaleInput["settlement"]>("paid");
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("pix");
+  const [paymentInstallments, setPaymentInstallments] = useState(1);
+  const paymentSettings = usePaymentMethodSettings();
   const [dueDate, setDueDate] = useState(() => localIsoDate());
   const [notes, setNotes] = useState("");
   const [busy, setBusy] = useState(false);
@@ -131,6 +131,7 @@ export function NewSaleSection({
     setLines([emptyLine()]);
     setSettlement("paid");
     setPaymentMethod("pix");
+    setPaymentInstallments(1);
     setDueDate(localIsoDate());
     setNotes("");
   }
@@ -150,7 +151,12 @@ export function NewSaleSection({
           unitPriceInCents: line.unitPriceInCents,
         })),
         settlement,
-        ...(settlement === "paid" ? { paymentMethod } : {}),
+        ...(settlement === "paid"
+          ? {
+              paymentMethod,
+              ...(paymentInstallments > 1 ? { paymentInstallments } : {}),
+            }
+          : {}),
         dueDate,
       });
       toast.success(
@@ -371,21 +377,29 @@ export function NewSaleSection({
               </select>
             </label>
             {settlement === "paid" ? (
-              <label>
-                Forma de pagamento
-                <select
-                  value={paymentMethod}
-                  onChange={(event) =>
-                    setPaymentMethod(event.target.value as PaymentMethod)
-                  }
-                >
-                  {paymentMethods.map(([value, label]) => (
-                    <option key={value} value={value}>
-                      {label}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              <>
+                <label>
+                  Forma de pagamento
+                  <select
+                    value={paymentMethod}
+                    onChange={(event) =>
+                      setPaymentMethod(event.target.value as PaymentMethod)
+                    }
+                  >
+                    {paymentMethodSchema.options.map((value) => (
+                      <option key={value} value={value}>
+                        {paymentMethodLabels[value]}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <PaymentInstallmentsSelect
+                  method={paymentMethod}
+                  settings={paymentSettings}
+                  value={paymentInstallments}
+                  onChange={setPaymentInstallments}
+                />
+              </>
             ) : (
               <label>
                 Vencimento

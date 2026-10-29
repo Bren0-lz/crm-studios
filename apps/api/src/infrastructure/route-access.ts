@@ -84,6 +84,8 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
   "PUT /admin/branches/:id": "admin",
   "GET /clinic/auto-finalization": "login",
   "PUT /admin/auto-finalization": "admin",
+  "GET /clinic/payment-methods": "login",
+  "PUT /admin/payment-methods": "admin",
   "PUT /admin/pro-labore": "admin",
   "GET /admin/clinic-settings": "admin",
   "PUT /admin/clinic-settings": "admin",
@@ -296,6 +298,21 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
   "PUT /communications/templates/:id": operation("communications.templates"),
   "POST /communications/templates/:id/archive": operation(
     "communications.templates",
+  ),
+  "GET /communications/auto-campaigns": view("communications"),
+  "GET /communications/auto-campaigns/queue": view("communications"),
+  "POST /communications/auto-campaigns": operation("communications.campaigns"),
+  "PUT /communications/auto-campaigns/:id": operation(
+    "communications.campaigns",
+  ),
+  "DELETE /communications/auto-campaigns/:id": operation(
+    "communications.campaigns",
+  ),
+  "POST /communications/auto-campaigns/deliveries": operation(
+    "communications.campaigns",
+  ),
+  "DELETE /communications/auto-campaigns/deliveries/:id": operation(
+    "communications.campaigns",
   ),
   "GET /communications/campaigns": view("communications"),
   "GET /communications/campaigns/filter-options": view("communications"),

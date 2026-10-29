@@ -5,12 +5,13 @@ import { clinicId, setupApi } from "../../test-support/api-server";
 import { open } from "../../test-support/workflow-ui";
 
 describe("communication workflows", () => {
-  it("keeps only campaigns and standard messages, sending old queue links to campaigns", async () => {
+  it("keeps campaigns, automatic campaigns and standard messages, sending old queue links to campaigns", async () => {
     await setupApi();
     open("/comunicacoes?aba=fila");
     const tabs = await screen.findAllByRole("tab");
     expect(tabs.map((tab) => tab.textContent)).toEqual([
       "Campanhas",
+      "Campanhas automáticas",
       "Mensagens padrão",
     ]);
     expect(screen.getByRole("tab", { name: "Campanhas" })).toHaveAttribute(
@@ -42,8 +43,9 @@ describe("communication workflows", () => {
       name: "WhatsApp",
     });
     expect(whatsapp).toBeChecked();
-    expect(within(group).getByRole("checkbox", { name: "E-mail" })).not
-      .toBeChecked();
+    expect(
+      within(group).getByRole("checkbox", { name: "E-mail" }),
+    ).not.toBeChecked();
     fireEvent.click(whatsapp);
     await screen.findByText("Envios por este canal bloqueados.");
     await waitFor(() => expect(whatsapp).not.toBeChecked());

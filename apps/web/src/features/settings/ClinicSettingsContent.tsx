@@ -19,6 +19,7 @@ import { api } from "../../api";
 import { ErrorBanner } from "../../shared/components/ErrorBanner";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
 import { PhoneInput } from "../../shared/components/PhoneInput";
+import { MessageBodyEditor } from "../communications/index";
 import { useSettingsBusy } from "../../shared/workflows/useSettingsBusy";
 import { useUnsavedChangesPrompt } from "./useUnsavedChangesPrompt";
 
@@ -33,7 +34,6 @@ export function ClinicSettingsContent() {
   const [saving, setSaving] = useState(false);
   const [attempt, setAttempt] = useState(0);
   const formRef = useRef<HTMLFormElement>(null);
-  const pixMessageRef = useRef<HTMLTextAreaElement>(null);
   const savingRef = useRef(false);
   const dirty =
     settings !== null &&
@@ -324,51 +324,24 @@ export function ClinicSettingsContent() {
                 />
               </label>
               <div className="span-2 field-with-hint">
-                <label htmlFor="clinic-pix-message">Mensagem do Pix</label>
-                <div
-                  className="template-toolbar"
-                  role="toolbar"
-                  aria-label="Inserir dados na mensagem do Pix"
-                >
-                  {pixMessageVariables.map((variable) => (
-                    <button
-                      key={variable.code}
-                      type="button"
-                      className="secondary-button"
-                      title={`Insere ${variable.code}: vira "${variable.example}" na mensagem`}
-                      onClick={() => {
-                        const current = settings.pixMessageTemplate ?? "";
-                        const field = pixMessageRef.current;
-                        const start = field?.selectionStart ?? current.length;
-                        const end = field?.selectionEnd ?? current.length;
-                        setSettings({
-                          ...settings,
-                          pixMessageTemplate:
-                            current.slice(0, start) +
-                            variable.code +
-                            current.slice(end),
-                        });
-                        setNotice("");
-                      }}
-                    >
-                      Inserir {variable.label.toLowerCase()}
-                    </button>
-                  ))}
-                </div>
-                <textarea
-                  id="clinic-pix-message"
-                  ref={pixMessageRef}
-                  rows={4}
-                  maxLength={1000}
-                  aria-describedby="clinic-pix-message-help"
-                  placeholder="Em branco, usa a mensagem padrão com o valor, as sessões, o preço por sessão e a chave."
+                <label id="clinic-pix-message-label">Mensagem do Pix</label>
+                <MessageBodyEditor
+                  labelId="clinic-pix-message-label"
                   value={settings.pixMessageTemplate ?? ""}
-                  onChange={(event) =>
-                    setSettings({
-                      ...settings,
-                      pixMessageTemplate: event.target.value,
-                    })
-                  }
+                  maxLength={1000}
+                  variables={pixMessageVariables}
+                  toolbarLabel="Inserir dados na mensagem do Pix"
+                  formatting={false}
+                  required={false}
+                  disabled={saving}
+                  describedBy="clinic-pix-message-help"
+                  placeholder="Em branco, usa a mensagem padrão com o valor, as sessões, o preço por sessão e a chave."
+                  onChange={(pixMessageTemplate) => {
+                    setSettings((current) =>
+                      current ? { ...current, pixMessageTemplate } : current,
+                    );
+                    setNotice("");
+                  }}
                 />
                 <small id="clinic-pix-message-help" className="field-hint">
                   {`Prévia: ${planPixChargeMessage({

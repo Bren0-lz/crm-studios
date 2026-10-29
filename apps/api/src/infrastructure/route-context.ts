@@ -11,6 +11,9 @@ import {
   appModuleLabels,
   broadcastInputSchema,
   historyAction,
+  installmentsIssue,
+  installmentsLimit,
+  type PaymentMethod,
   type PatientImportAnalysis,
   patientImportFileSchema,
   type PatientInput,
@@ -19,6 +22,7 @@ import {
   resolvePatientTags,
   withoutAutomaticPatientTags,
   saoPauloToday,
+  withPlanFirstCharge,
   serviceAvailableFor,
   type UserSummary,
   ptBrValidationError,
@@ -485,6 +489,56 @@ export async function createRouteContext({
   }
 
   /**
+   * 1º pagamento do plano recorrente proporcional às aulas da turma, calculado aqui a partir
+   * dos horários da turma (`groupId`). O valor enviado pela tela é descartado: sem turma, ou
+   * fora da regra, o plano fica com a divisão normal do valor.
+   */
+  async function withServerFirstCharge<
+    T extends Parameters<typeof withPlanFirstCharge>[0],
+  >(clinicId: string, plan: T, groupId?: string): Promise<T> {
+    const today = saoPauloToday();
+    const slots = groupId
+      ? (
+          await repository.getGroupWorkspace(clinicId, today, today)
+        ).groups.find((group) => group.id === groupId)?.weeklySlots
+      : undefined;
+    return withPlanFirstCharge(plan, slots) as T;
+  }
+
+  /**
+   * Recusa (400 `INSTALLMENTS_NOT_ALLOWED`) parcelas acima do aceito pela forma de pagamento
+   * (Configurações › Formas de pagamento) e pelo plano do catálogo (`maxInstallments`).
+   * Sem forma escolhida ("a combinar"), vale só o limite do plano.
+   */
+  async function assertInstallmentsAllowed(
+    clinicId: string,
+    input: {
+      installments: number | undefined;
+      paymentMethod?: PaymentMethod | undefined;
+      planTemplateId?: string | undefined;
+    },
+  ) {
+    if (!input.installments || input.installments <= 1) return;
+    const [settings, templates] = await Promise.all([
+      repository.getPaymentMethodSettings(clinicId),
+      input.planTemplateId
+        ? repository.listPlanTemplates(clinicId)
+        : Promise.resolve([]),
+    ]);
+    const limit = installmentsLimit({
+      settings,
+      paymentMethod: input.paymentMethod,
+      template: templates.find((item) => item.id === input.planTemplateId),
+    });
+    const issue = installmentsIssue(
+      input.installments,
+      limit,
+      input.paymentMethod,
+    );
+    if (issue) throw new DomainError("INSTALLMENTS_NOT_ALLOWED", issue, 400);
+  }
+
+  /**
    * O cliente só recebe etiquetas configuradas: troca cada uma pela grafia oficial (sem
    * diferenciar maiúsculas/acentos) ou recusa com 400 listando as desconhecidas. Etiquetas
    * automáticas ("Pagamento atrasado") são calculadas na leitura: informadas à mão, são ignoradas.
@@ -604,6 +658,8 @@ export async function createRouteContext({
     assertPermissions,
     assertNoHoliday,
     assertServiceAvailable,
+    assertInstallmentsAllowed,
+    withServerFirstCharge,
     patientTagNotFound,
     analyzePatientImport,
     planBroadcast,

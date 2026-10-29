@@ -77,4 +77,86 @@ describe("recurring plan charges", () => {
     expect(renewed.statusCode).toBe(201);
     await app.close();
   });
+
+  it("computes the prorated first charge from the class on the server", async () => {
+    const { app, token } = await authenticatedApp();
+    const headers = { authorization: `Bearer ${token}` };
+    const [patients, services, professionals, rooms] = await Promise.all(
+      ["/patients", "/services", "/professionals", "/rooms"].map((url) =>
+        app.inject({ method: "GET", url, headers }),
+      ),
+    );
+    const serviceId = services!.json()[0].id as string;
+    const plan = await configuredPlan(app, {
+      patientId: patients!.json()[0].id as string,
+      serviceId,
+      name: "Pilates 2x",
+      kind: "recurring" as const,
+      totalSessions: 8,
+      validFrom: "2026-10-01",
+      validUntil: "2026-10-31",
+      totalValueInCents: 40_000,
+      installments: 1,
+      firstDueDate: "2026-10-15",
+    });
+    const receivablesOf = async (planId: string) =>
+      (
+        (
+          await app.inject({
+            method: "GET",
+            url: "/finance/workspace",
+            headers,
+          })
+        ).json().summary.receivables as {
+          planId?: string;
+          dueDate: string;
+          amountInCents: number;
+        }[]
+      ).filter((item) => item.planId === planId);
+
+    // Sem turma, o valor enviado pela tela é ignorado: vale o valor cheio.
+    const withoutGroup = await app.inject({
+      method: "POST",
+      url: "/plans",
+      headers,
+      payload: { ...plan, firstInstallmentInCents: 100 },
+    });
+    expect(withoutGroup.statusCode).toBe(201);
+    expect(await receivablesOf(withoutGroup.json().id)).toMatchObject([
+      { dueDate: "2026-10-15", amountInCents: 40_000 },
+    ]);
+
+    // Turma de segunda e quarta: 4 de 8 aulas do ciclo até 15/10 = metade.
+    const group = await app.inject({
+      method: "POST",
+      url: "/groups",
+      headers,
+      payload: {
+        capacity: 1,
+        serviceId,
+        professionalId: professionals!.json()[0].id,
+        roomId: rooms!.json()[0].id,
+        weeklySlots: [
+          { weekday: 1, startTime: "07:00", endTime: "08:00" },
+          { weekday: 3, startTime: "07:00", endTime: "08:00" },
+        ],
+      },
+    });
+    expect(group.statusCode, group.body).toBe(201);
+    const purchase = await app.inject({
+      method: "POST",
+      url: "/plans/purchases",
+      headers,
+      payload: {
+        idempotencyKey: "0f0f0f0f-0f0f-4f0f-8f0f-0f0f0f0f0f0f",
+        plan: { ...plan, firstInstallmentInCents: 100 },
+        groupId: group.json().id,
+      },
+    });
+    expect(purchase.statusCode, purchase.body).toBe(201);
+    expect(await receivablesOf(purchase.json().plan.id)).toMatchObject([
+      { dueDate: "2026-10-15", amountInCents: 20_000 },
+    ]);
+    await app.close();
+  });
 });

@@ -1,4 +1,4 @@
-import type { RelationshipSettings } from "@crm/contracts";
+import type { PaymentMethod, RelationshipSettings } from "@crm/contracts";
 
 export type RelationshipDeadlineKey = Exclude<
   keyof RelationshipSettings,
@@ -16,7 +16,15 @@ export type SettingsTabKey =
   | "holidays"
   | "tags"
   | "relationship"
-  | "autoFinalization";
+  | "autoFinalization"
+  | "paymentMethods";
+
+/** Linha do formulário de formas de pagamento: o máximo é digitado como texto. */
+export type PaymentMethodDraft = {
+  method: PaymentMethod;
+  acceptsInstallments: boolean;
+  maxInstallments: string;
+};
 
 export type AutoFinalizationUnit = "minutes" | "hours" | "days";
 
