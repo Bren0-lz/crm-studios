@@ -36,6 +36,7 @@ import { LoadingBlock } from "../../shared/components/LoadingBlock";
 import { PlanGroupPicker } from "../../shared/components/PlanGroupPicker";
 import { usePaymentMethodSettings } from "../../shared/hooks/usePaymentMethodSettings";
 import { currency, localIsoDate } from "../../shared/lib/formatting";
+import { planGroupMissing } from "../../shared/lib/plan-groups";
 import type { GroupChoices } from "../../shared/workflows/types";
 import {
   useConfirmDiscard,
@@ -126,6 +127,12 @@ export function PlanForm({
   const submitting = useRef(false);
   const [groupId, setGroupId] = useState("");
   const [baseline] = useState(() => JSON.stringify(form));
+  // Plano de aulas em grupo (serviço com turma ativa) só é contratado com a turma escolhida.
+  const groupMissing =
+    Boolean(groups) &&
+    !renewing &&
+    form.kind !== "single" &&
+    planGroupMissing(groups?.items, form.services, groupId);
   // O que falta para contratar ou renovar: o botão fica desativado listando (QM14).
   const missing = useMissingFields(
     [
@@ -134,6 +141,7 @@ export function PlanForm({
       Boolean(renewing) && !form.name.trim() && "Nome do plano",
       !form.validFrom && "Início",
       !form.firstDueDate && "Primeiro vencimento",
+      groupMissing && "Turma",
     ].filter((item): item is string => Boolean(item)),
   );
   const formElement = useRef<HTMLFormElement>(null);
@@ -177,6 +185,10 @@ export function PlanForm({
     ) {
       setError("Selecione um plano cadastrado.");
       throw new Error("Selecione um plano cadastrado.");
+    }
+    if (groupMissing) {
+      setError("Selecione a turma do plano de aulas em grupo.");
+      throw new Error("Selecione a turma do plano de aulas em grupo.");
     }
     submitting.current = true;
     setLoading(true);
@@ -614,6 +626,7 @@ export function PlanForm({
                 value={groupId}
                 onChange={setGroupId}
                 disabled={loading}
+                required
               />
             )}
             {renderAdditional?.(form)}
