@@ -13,6 +13,7 @@ import { createDocumentSignaturesRepository } from "./storage/memory/document-si
 import { createDocumentSignatureLinksRepository } from "./storage/memory/document-signature-links.js";
 import { createAssessmentOperationsRepository } from "./storage/memory/assessment-operations.js";
 import { createCommissionOperationsRepository } from "./storage/memory/commission-operations.js";
+import { createPayrollRepository } from "./storage/memory/payroll.js";
 import { createFinanceOperationsRepository } from "./storage/memory/finance-operations.js";
 import { createClinicalResourcesRepository } from "./storage/memory/clinical-resources.js";
 import { createGroupOperationsRepository } from "./storage/memory/group-operations.js";
@@ -335,6 +336,13 @@ export class MemoryClinicRepository implements ClinicRepository {
       this.finance.generateDueRecurringPayables;
     this.renegotiateReceivables = this.finance.renegotiateReceivables;
     this.createCommissionRule = this.finance.createCommissionRule;
+    const payroll = createPayrollRepository(this.context);
+    this.listPayrollEmployees = payroll.listPayrollEmployees;
+    this.createPayrollEmployee = payroll.createPayrollEmployee;
+    this.updatePayrollEmployee = payroll.updatePayrollEmployee;
+    this.getPayroll = payroll.getPayroll;
+    this.launchPayroll = payroll.launchPayroll;
+    this.cancelPayrollLaunch = payroll.cancelPayrollLaunch;
     this.generateCommissions = this.finance.generateCommissions;
     this.settleCommission = this.finance.settleCommission;
     this.reverseCommission = this.finance.reverseCommission;
@@ -695,6 +703,13 @@ export class MemoryClinicRepository implements ClinicRepository {
   readonly renegotiateReceivables: ReturnType<
     typeof createFinanceRepository
   >["renegotiateReceivables"];
+
+  readonly listPayrollEmployees: ClinicRepository["listPayrollEmployees"];
+  readonly createPayrollEmployee: ClinicRepository["createPayrollEmployee"];
+  readonly updatePayrollEmployee: ClinicRepository["updatePayrollEmployee"];
+  readonly getPayroll: ClinicRepository["getPayroll"];
+  readonly launchPayroll: ClinicRepository["launchPayroll"];
+  readonly cancelPayrollLaunch: ClinicRepository["cancelPayrollLaunch"];
 
   readonly createCommissionRule: ReturnType<
     typeof createFinanceRepository
