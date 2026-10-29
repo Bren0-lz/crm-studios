@@ -74,6 +74,16 @@ export function buildFinancialReport(
   const commissions = new Map(
     sources.commissions.map((item) => [item.id, item]),
   );
+  // Despesa da folha: o profissional das comissões e ajustes que ela paga.
+  const payrollProfessionals = new Map(
+    [...sources.commissions, ...sources.adjustments].flatMap((item) =>
+      item.payrollPayableId
+        ? [[item.payrollPayableId, item] as const]
+        : [],
+    ),
+  );
+  /** Quanto de cada movimento é comissão paga ao profissional. */
+  const commissionShare = new Map<string, number>();
   const categories = new Map(sources.categories.map((item) => [item.id, item]));
   const costCenters = new Map(
     sources.costCenters.map((item) => [item.id, item.name]),
@@ -120,7 +130,17 @@ export function buildFinancialReport(
         commission = payable?.commissionId
           ? commissions.get(payable.commissionId)
           : undefined,
-        origin = commission ? ("commission" as const) : ("expense" as const);
+        origin = commission ? ("commission" as const) : ("expense" as const),
+        payroll = payable?.payroll
+          ? payrollProfessionals.get(payable.id)
+          : undefined,
+        paidTo = commission ?? payroll;
+      // Na folha, só a parte de comissão conta como pago ao profissional (o resto é salário).
+      if (payroll && payable?.payroll)
+        commissionShare.set(
+          movement.id,
+          Math.sign(movement.amountInCents) * payable.payroll.commissionInCents,
+        );
       return {
         ...base,
         origin,
@@ -131,10 +151,10 @@ export function buildFinancialReport(
           ? { costCenterName: payable.costCenterName }
           : {}),
         ...(payable?.branchId ? { branchId: payable.branchId } : {}),
-        ...(commission
+        ...(paidTo
           ? {
-              professionalId: commission.professionalId,
-              professionalName: commission.professionalName,
+              professionalId: paidTo.professionalId,
+              professionalName: paidTo.professionalName,
             }
           : {}),
       };
@@ -180,7 +200,7 @@ export function buildFinancialReport(
   for (const entry of entries)
     if (entry.professionalId)
       person(entry.professionalId, entry.professionalName ?? "").paidInCents +=
-        entry.amountInCents;
+        commissionShare.get(entry.id) ?? entry.amountInCents;
   for (const item of [...sources.commissions, ...sources.adjustments]) {
     if (!commissionMonths.includes(item.competence)) continue;
     const target = person(item.professionalId, item.professionalName);

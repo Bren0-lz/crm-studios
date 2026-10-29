@@ -90,7 +90,7 @@ export function createPostgresCommissionRecalculation(
       `SELECT ce.id,(src.starts_at AT TIME ZONE c.timezone)::date::text AS date,src.service_id AS "serviceId",pr.user_id AS "userId",
          coalesce((SELECT sum(ca.amount_in_cents) FROM commission_adjustments ca WHERE ca.clinic_id=ce.clinic_id AND ca.commission_id=ce.id AND ca.professional_id=ce.professional_id),0)::int AS "adjustmentsInCents",
          EXISTS(SELECT 1 FROM commission_adjustments ca WHERE ca.clinic_id=ce.clinic_id AND ca.commission_id=ce.id) AS "hasAdjustments",
-         EXISTS(SELECT 1 FROM payables p WHERE p.clinic_id=ce.clinic_id AND p.commission_id=ce.id AND p.status<>'cancelled') AS "managedByExpense"
+         (ce.payroll_payable_id IS NOT NULL OR EXISTS(SELECT 1 FROM payables p WHERE p.clinic_id=ce.clinic_id AND p.commission_id=ce.id AND p.status<>'cancelled')) AS "managedByExpense"
        FROM commission_entries ce
        JOIN clinics c ON c.id=ce.clinic_id
        JOIN professionals pr ON pr.id=ce.professional_id AND pr.clinic_id=ce.clinic_id

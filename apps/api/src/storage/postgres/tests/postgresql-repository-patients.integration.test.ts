@@ -677,7 +677,7 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
     ).rejects.toMatchObject({ code: "PATIENT_DUPLICATE" });
   });
 
-  it("persists, consumes and removes the client discount", async () => {
+  it("keeps the legacy client discount and consumes the plan discount", async () => {
     const input = {
       fullName: "Cliente com Desconto",
       phone: "11933334444",
@@ -697,13 +697,12 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
     expect(patient.discount).toEqual(nextTwo);
     const kept = await repository.updatePatient(clinicId, patient.id, input);
     expect(kept?.discount).toEqual(nextTwo);
-    // Três parcelas: o desconto vale nas duas primeiras e o uso fica gravado no cliente.
+    // Três parcelas: o desconto do plano vale nas duas primeiras e o uso fica no plano;
+    // o desconto antigo do cadastro do cliente não é mais aplicado.
     const services = await repository.listServices(clinicId);
     const date = saoPauloToday();
-    const plan = await repository.createPatientPlan(
-      clinicId,
-      ownerId,
-      await configuredPlan({
+    const plan = await repository.createPatientPlan(clinicId, ownerId, {
+      ...(await configuredPlan({
         patientId: patient.id,
         serviceId: services[0]!.id,
         name: "Plano com desconto",
@@ -713,8 +712,10 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
         totalValueInCents: 30000,
         installments: 3,
         firstDueDate: date,
-      }),
-    );
+      })),
+      discount: nextTwo,
+    });
+    expect(plan.discount).toEqual({ ...nextTwo, usedCharges: 2 });
     const receivables = (
       await repository.getFinancialSummary(clinicId)
     ).receivables
@@ -732,7 +733,7 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
     ]);
     expect(
       (await repository.getPatient(clinicId, patient.id))?.discount,
-    ).toEqual({ ...nextTwo, usedCharges: 2 });
+    ).toEqual(nextTwo);
     const amount = await repository.updatePatient(clinicId, patient.id, {
       ...input,
       discount: { type: "amount", amountInCents: 2500, scope: "permanent" },

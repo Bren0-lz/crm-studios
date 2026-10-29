@@ -3,6 +3,7 @@ import { z } from "zod";
 import { emptyQueryToUndefined } from "../common/model.js";
 import { patientStatusSchema } from "../patients/model.js";
 import type {
+  AutoCampaignCooldownUnit,
   AutoCampaignSkipReason,
   AutoCampaignTiming,
   AutoCampaignTrigger,
@@ -439,6 +440,43 @@ export const autoCampaignStepSchema = z.object({
   message: messageTemplateSchema,
 });
 
+export const autoCampaignCooldownUnitSchema = z.enum([
+  "days",
+  "weeks",
+  "months",
+]);
+
+export const autoCampaignCooldownUnitLabels: Record<
+  AutoCampaignCooldownUnit,
+  { singular: string; plural: string }
+> = {
+  days: { singular: "dia", plural: "dias" },
+  weeks: { singular: "semana", plural: "semanas" },
+  months: { singular: "mês", plural: "meses" },
+};
+
+/**
+ * Campanha promocional: a promoção vale até `validDays` dias depois do evento; quem usar
+ * fica fora desta campanha pelo `cooldown`, se houver.
+ */
+export const autoCampaignPromotionSchema = z.object({
+  validDays: z
+    .number()
+    .int()
+    .min(1, "A promoção precisa valer pelo menos 1 dia.")
+    .max(365, "Use no máximo 365 dias de validade."),
+  cooldown: z
+    .object({
+      amount: z
+        .number()
+        .int()
+        .min(1, "O bloqueio precisa ser de pelo menos 1.")
+        .max(365, "Use no máximo 365 no bloqueio."),
+      unit: autoCampaignCooldownUnitSchema,
+    })
+    .optional(),
+});
+
 export const autoCampaignInputSchema = z
   .object({
     name: z.string().trim().min(1, "Dê um nome para a campanha.").max(80),
@@ -448,6 +486,8 @@ export const autoCampaignInputSchema = z
       .array(autoCampaignStepSchema)
       .min(1, "Adicione pelo menos uma mensagem.")
       .max(10, "Use no máximo 10 mensagens."),
+    /** Sem promoção = campanha só de mensagens. */
+    promotion: autoCampaignPromotionSchema.optional(),
   })
   .refine(
     (value) =>

@@ -39,6 +39,17 @@ export const appointmentInputSchema = z.object({
   visitType: appointmentVisitTypeSchema.default("regular"),
 });
 
+/** Promoção escolhida ao agendar: a campanha e o evento em que o cliente recebeu a mensagem. */
+export const appointmentPromotionSchema = z.object({
+  campaignId: z.uuid(),
+  occurrenceKey: z.string().trim().min(1).max(200),
+});
+
+/** `POST /appointments`: o atendimento e, se for o caso, a promoção que ele usa. */
+export const appointmentCreateInputSchema = appointmentInputSchema.extend({
+  promotion: appointmentPromotionSchema.optional(),
+});
+
 export const appointmentRescheduleInputSchema = z.object({
   professionalId: z.uuid(),
   roomId: z.uuid(),
@@ -86,6 +97,12 @@ export const recurringAppointmentInputSchema = appointmentInputSchema
         message: "Há datas repetidas na recorrência.",
       });
   });
+
+/** `POST /appointments/recurring`: a promoção, se houver, fica com a 1ª ocorrência. */
+export const recurringAppointmentCreateInputSchema =
+  recurringAppointmentInputSchema.and(
+    z.object({ promotion: appointmentPromotionSchema.optional() }),
+  );
 
 /** Início de cada ocorrência da recorrência, em ordem cronológica (ISO UTC). */
 export function recurringOccurrenceStarts(input: {

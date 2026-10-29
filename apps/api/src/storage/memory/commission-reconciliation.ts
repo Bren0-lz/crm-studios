@@ -138,7 +138,14 @@ export function createCommissionReconciliationRepository(
     context.commissionAdjustments.filter(
       (entry) => entry.clinicId === clinicId && entry.commissionId === id,
     );
+  // Despesa avulsa ligada à comissão ou despesa da folha que a inclui.
   const expense = (clinicId: string, id: string) =>
+    context.commissions.some(
+      (entry) =>
+        entry.clinicId === clinicId &&
+        entry.id === id &&
+        Boolean(entry.payrollPayableId),
+    ) ||
     context.payables.some(
       (entry) =>
         entry.clinicId === clinicId &&
@@ -389,6 +396,11 @@ export function createCommissionReconciliationRepository(
         delete entry.paidAt;
       }
       payment.reversedAt = now();
+      context.markPaymentProofsReversed(
+        clinicId,
+        "commission_account_payment",
+        paymentId,
+      );
       context.commissionPaymentEvents.push({
         id: uuid(),
         clinicId,

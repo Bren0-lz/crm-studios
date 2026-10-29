@@ -1,13 +1,16 @@
 import {
   autoCampaignBlockedReasonLabels,
+  autoCampaignCooldownUnitLabels,
   autoCampaignSkipReasonLabels,
   autoCampaignTriggerSchema,
   autoCampaignTriggerTiming,
   autoCampaignTriggerVariables,
   type AutoCampaign,
+  type AutoCampaignCooldownUnit,
   type AutoCampaignInput,
   type AutoCampaignItem,
   type AutoCampaignItemStatus,
+  type AutoCampaignPromotion,
   type AutoCampaignTrigger,
 } from "@crm/contracts";
 
@@ -95,23 +98,79 @@ export interface AutoCampaignDraft {
   trigger: AutoCampaignTrigger;
   active: boolean;
   steps: StepDraft[];
+  promotional: boolean;
+  validDays: string;
+  cooldown: boolean;
+  cooldownAmount: string;
+  cooldownUnit: AutoCampaignCooldownUnit;
+}
+
+export const cooldownUnits = Object.keys(
+  autoCampaignCooldownUnitLabels,
+) as AutoCampaignCooldownUnit[];
+
+function plural(count: number, singular: string, pluralForm: string) {
+  return `${count} ${count === 1 ? singular : pluralForm}`;
+}
+
+/** "Vale 10 dias · fora da campanha por 2 meses depois de usar". */
+export function promotionSummary(promotion: AutoCampaignPromotion) {
+  const validity = `Vale ${plural(promotion.validDays, "dia", "dias")}`;
+  if (!promotion.cooldown) return validity;
+  const unit = autoCampaignCooldownUnitLabels[promotion.cooldown.unit];
+  return `${validity} · fora da campanha por ${plural(
+    promotion.cooldown.amount,
+    unit.singular,
+    unit.plural,
+  )} depois de usar`;
+}
+
+/**
+ * Até quando a promoção vale: `validDays` dias depois do evento (validade de 5 dias: até 5
+ * dias depois do evento). Avisa quando alguma mensagem sai depois de a promoção vencer.
+ */
+export function promotionValidityHint(
+  trigger: AutoCampaignTrigger,
+  offsets: number[],
+  validDays: number,
+) {
+  const timing = autoCampaignTriggerTiming[trigger];
+  if (timing === "sessions")
+    return `A promoção vale ${plural(validDays, "dia", "dias")} a partir do envio da mensagem.`;
+  const until = `A promoção vale até ${plural(validDays, "dia", "dias")} depois do evento.`;
+  const late = timing === "after" ? Math.max(0, ...offsets) : 0;
+  return late > validDays
+    ? `${until} A mensagem de ${plural(late, "dia", "dias")} depois chega com a promoção vencida.`
+    : until;
 }
 
 let stepKey = 0;
 export const newStepKey = () => `step-${++stepKey}`;
 
 export function autoCampaignDraft(campaign?: AutoCampaign): AutoCampaignDraft {
+  const promotion = campaign?.promotion;
+  const promotionDraft = {
+    promotional: Boolean(promotion),
+    validDays: promotion ? String(promotion.validDays) : "",
+    cooldown: Boolean(promotion?.cooldown),
+    cooldownAmount: promotion?.cooldown
+      ? String(promotion.cooldown.amount)
+      : "",
+    cooldownUnit: promotion?.cooldown?.unit ?? "days",
+  } satisfies Partial<AutoCampaignDraft>;
   if (!campaign)
     return {
       name: "",
       trigger: "birthday",
       active: true,
       steps: [{ key: newStepKey(), offset: "0", message: "" }],
+      ...promotionDraft,
     };
   return {
     name: campaign.name,
     trigger: campaign.trigger,
     active: campaign.active,
+    ...promotionDraft,
     // Do momento mais distante para o mais próximo do evento.
     steps: [...campaign.steps]
       .sort((a, b) =>
@@ -138,5 +197,20 @@ export function autoCampaignInput(draft: AutoCampaignDraft): AutoCampaignInput {
       offset: Number(step.offset),
       message: step.message.trim(),
     })),
+    ...(draft.promotional
+      ? {
+          promotion: {
+            validDays: Number(draft.validDays),
+            ...(draft.cooldown
+              ? {
+                  cooldown: {
+                    amount: Number(draft.cooldownAmount),
+                    unit: draft.cooldownUnit,
+                  },
+                }
+              : {}),
+          },
+        }
+      : {}),
   };
 }

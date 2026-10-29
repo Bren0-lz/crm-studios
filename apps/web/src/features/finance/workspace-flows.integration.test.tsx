@@ -218,71 +218,52 @@ describe("finance workflows through real HTTP handlers", () => {
     await within(dialog).findByText(
       "Conciliação registrada com ajustes separados da comissão original.",
     );
-    fireEvent.click(
-      within(dialog).getByRole("button", {
+    // O saldo conciliado é pago pela folha: aqui só se consulta.
+    expect(
+      within(dialog).getByText(/Os ajustes em aberto entram na folha/),
+    ).toBeInTheDocument();
+    expect(
+      within(dialog).queryByRole("button", {
         name: "Registrar devolução ao caixa",
       }),
-    );
-    await save("Confirmar baixa conciliada", "Confirmar registro conciliado");
-    await within(dialog).findByText("Baixa conciliada registrada.");
-    const workspace = await repository.getFinancialWorkspace(clinicId);
+    ).not.toBeInTheDocument();
+    let workspace = await repository.getFinancialWorkspace(clinicId);
     expect(
       workspace.commissions.find((item) => item.id === commission.id),
     ).toEqual(original);
     expect(workspace.commissionAdjustments).toMatchObject([
-      { commissionId: commission.id, amountInCents: -1500, status: "paid" },
+      { commissionId: commission.id, amountInCents: -1500, status: "open" },
     ]);
+    // Baixa conciliada registrada antes da folha ainda pode ser estornada aqui.
+    await repository.settleCommissionAccount(
+      clinicId,
+      actorId,
+      commission.id,
+      professional!.id,
+      -1500,
+    );
     fireEvent.click(
-      within(dialog).getByRole("button", { name: "Estornar baixa conciliada" }),
+      within(dialog).getByRole("button", {
+        name: "Atualizar conta conciliada",
+      }),
+    );
+    fireEvent.click(
+      await within(dialog).findByRole("button", {
+        name: "Estornar baixa conciliada",
+      }),
     );
     await save("Estornar baixa conciliada", "Confirmar registro conciliado");
     await within(dialog).findByText(
       "Estorno conciliado registrado sem remover o pagamento original.",
     );
     expect(within(dialog).getByText(/Estornado/)).toBeInTheDocument();
-    vi.useFakeTimers({ toFake: ["Date"] });
-    vi.setSystemTime(new Date("2039-02-11T12:00:00Z"));
-    try {
-      await repository.updateAppointmentStatus(
-        clinicId,
-        appointment.id,
-        "completed",
-      );
-    } finally {
-      vi.useRealTimers();
-    }
-    fireEvent.click(
-      within(dialog).getByRole("button", {
-        name: "Atualizar conta conciliada",
-      }),
-    );
-    await within(dialog).findByLabelText("Motivo da conciliação");
-    change(
-      "Motivo da conciliação",
-      "Presença restaurada após conferência",
-      dialog,
-    );
-    fireEvent.click(
-      within(dialog).getByRole("button", { name: "Confirmar conciliação" }),
-    );
-    const compensate = await within(dialog).findByRole("button", {
-      name: "Compensar saldo zero",
-    });
-    fireEvent.click(compensate);
+    workspace = await repository.getFinancialWorkspace(clinicId);
+    expect(workspace.commissionAdjustments).toMatchObject([
+      { commissionId: commission.id, amountInCents: -1500, status: "open" },
+    ]);
     expect(
-      screen.getByRole("dialog", { name: "Confirmar baixa conciliada" }),
-    ).toHaveTextContent("O saldo zero não gera entrada nem saída no caixa.");
-    await save("Confirmar baixa conciliada", "Confirmar registro conciliado");
-    await waitFor(async () => {
-      const current = await repository.getFinancialWorkspace(clinicId);
-      expect(current.commissionAdjustments).toHaveLength(2);
-      expect(
-        current.commissionAdjustments?.every((item) => item.status === "paid"),
-      ).toBe(true);
-      expect(
-        current.commissions.find((item) => item.id === commission.id),
-      ).toEqual(original);
-    });
+      workspace.commissions.find((item) => item.id === commission.id),
+    ).toEqual(original);
   });
   it("creates a contextual receivable, reclassifies it and changes dates without losing its value", async () => {
     const { repository } = await setupApi();
@@ -306,7 +287,7 @@ describe("finance workflows through real HTTP handlers", () => {
       name: "Nova conta a receber",
     });
     change("Descrição", "Sessão avulsa negociada", dialog);
-    change("Valor (R$)", "125.50", dialog);
+    change("Valor (R$)", "125,50", dialog);
     change("Vencimento", "2040-06-10", dialog);
     change("Competência", "2040-06", dialog);
     await save("Nova conta a receber", "Salvar lançamento");

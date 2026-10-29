@@ -92,12 +92,15 @@ export function createMemoryCommissionRecalculation(
               )
               .reduce((total, entry) => total + entry.amountInCents, 0),
             hasAdjustments: adjustments.length > 0,
-            managedByExpense: context.payables.some(
-              (entry) =>
-                entry.clinicId === clinicId &&
-                entry.commissionId === commission.id &&
-                entry.status !== "cancelled",
-            ),
+            // Despesa própria da comissão ou despesa da folha que a inclui.
+            managedByExpense:
+              Boolean(commission.payrollPayableId) ||
+              context.payables.some(
+                (entry) =>
+                  entry.clinicId === clinicId &&
+                  entry.commissionId === commission.id &&
+                  entry.status !== "cancelled",
+              ),
           },
         ];
       });
