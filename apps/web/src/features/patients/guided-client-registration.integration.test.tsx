@@ -885,14 +885,19 @@ describe("guided client registration", () => {
       ).not.toBeInTheDocument();
     });
 
-    it("charges the first installment already with the client discount", async () => {
+    it("charges the first installment already with the plan discount", async () => {
       const posts = mockPlanSale("financeiro@aryana.com.br");
       const dialog = await choosePlanWithPix();
+      // O desconto fica no fim do bloco do plano, não no cadastro do cliente.
+      const planBlock = within(dialog).getByRole("group", { name: "Plano" });
+      expect(
+        within(planBlock).getByText("Sem desconto neste plano."),
+      ).toBeVisible();
       fireEvent.click(
-        within(dialog).getByRole("button", { name: "Configurar desconto" }),
+        within(planBlock).getByRole("button", { name: "Configurar desconto" }),
       );
       const discount = await screen.findByRole("dialog", {
-        name: "Desconto do cliente",
+        name: "Desconto do plano",
       });
       fireEvent.click(within(discount).getByLabelText("Valor (R$)"));
       fireEvent.change(
@@ -904,8 +909,18 @@ describe("guided client registration", () => {
       );
       await waitFor(() =>
         expect(
-          screen.queryByRole("dialog", { name: "Desconto do cliente" }),
+          screen.queryByRole("dialog", { name: "Desconto do plano" }),
         ).toBeNull(),
+      );
+      expect(
+        within(planBlock).getByText(
+          /R\$\s20,00 de desconto · só no próximo pagamento/,
+        ),
+      ).toBeVisible();
+      const bag = within(dialog).getByRole("group", { name: "Sacola" });
+      expect(within(bag).getByText("Desconto do plano")).toBeVisible();
+      expect(within(bag).getByText("Total").closest("div")).toHaveTextContent(
+        /R\$\s460,00/,
       );
       fireEvent.click(
         within(dialog).getByRole("button", { name: "Salvar e criar plano" }),
@@ -914,16 +929,145 @@ describe("guided client registration", () => {
         name: "Enviar cobrança Pix",
       });
       expect(posts[0]).toMatchObject({
-        patient: {
+        plan: {
           discount: { type: "amount", amountInCents: 2000, scope: "once" },
         },
       });
+      expect(posts[0]!.patient).not.toHaveProperty("discount");
       const href = within(charge)
         .getByRole("link", { name: "Enviar Pix pelo WhatsApp" })
         .getAttribute("href")!;
       expect(decodeURIComponent(href.split("?text=")[1]!)).toContain(
         "em 3 parcelas; a 1ª parcela é de R$ 140,00, já com o seu desconto de R$ 20,00. Chave Pix:",
       );
+    });
+
+    it("sells a product with its own discount and a general discount on the bag", async () => {
+      const bottle = {
+        id: "e1111111-1111-4111-8111-111111111111",
+        clinicId: created.clinicId,
+        name: "Garrafa térmica",
+        unit: "un",
+        active: true,
+        salePriceInCents: 5_000,
+        currentStock: 5,
+        sizes: [],
+        sizeStock: [],
+      };
+      const sales: Array<Record<string, unknown>> = [];
+      const posts = mockPlanSale("");
+      const base = vi.mocked(fetch).getMockImplementation()!;
+      vi.mocked(fetch).mockImplementation(async (input, init) => {
+        const url = String(input);
+        if (url.includes("/inventory/workspace"))
+          return jsonResponse({ products: [bottle], movements: [] });
+        if (init?.method === "POST" && url.endsWith("/product-sales")) {
+          sales.push(JSON.parse(String(init.body)) as Record<string, unknown>);
+          return jsonResponse({ totalInCents: 8_100 }, 201);
+        }
+        return base(input, init);
+      });
+      const dialog = await openNewClient();
+      fireEvent.click(
+        within(dialog).getByRole("radio", { name: "Assinar um plano" }),
+      );
+      fireEvent.change(
+        await within(dialog).findByLabelText("Plano cadastrado"),
+        {
+          target: { value: pilatesTemplate.id },
+        },
+      );
+      fireEvent.click(
+        within(dialog).getByRole("button", { name: "Adicionar produto" }),
+      );
+      const productBlock = within(dialog).getByRole("group", {
+        name: "Produto",
+      });
+      fireEvent.change(await within(productBlock).findByLabelText("Produto"), {
+        target: { value: bottle.id },
+      });
+      fireEvent.change(within(productBlock).getByLabelText("Quantidade"), {
+        target: { value: "2" },
+      });
+      // Desconto do produto: só porcentagem/valor, sem alcance de cobranças.
+      fireEvent.click(
+        within(productBlock).getByRole("button", {
+          name: "Configurar desconto",
+        }),
+      );
+      const productDiscount = await screen.findByRole("dialog", {
+        name: "Desconto do produto",
+      });
+      expect(
+        within(productDiscount).queryByText("Onde o desconto vale"),
+      ).toBeNull();
+      fireEvent.change(
+        within(productDiscount).getByLabelText("Porcentagem de desconto (%)"),
+        { target: { value: "10" } },
+      );
+      fireEvent.click(
+        within(productDiscount).getByRole("button", {
+          name: "Aplicar desconto",
+        }),
+      );
+      await waitFor(() =>
+        expect(
+          screen.queryByRole("dialog", { name: "Desconto do produto" }),
+        ).toBeNull(),
+      );
+      // Desconto geral sobre plano + produto (R$ 480 + R$ 90), configurado na sacola.
+      const bag = within(dialog).getByRole("group", { name: "Sacola" });
+      fireEvent.click(
+        within(bag).getByRole("button", { name: "Configurar desconto" }),
+      );
+      const general = await screen.findByRole("dialog", {
+        name: "Desconto geral",
+      });
+      fireEvent.click(within(general).getByLabelText("Valor (R$)"));
+      fireEvent.change(
+        within(general).getByLabelText("Valor do desconto (R$)"),
+        { target: { value: "57,00" } },
+      );
+      fireEvent.click(
+        within(general).getByRole("button", { name: "Aplicar desconto" }),
+      );
+      await waitFor(() =>
+        expect(
+          screen.queryByRole("dialog", { name: "Desconto geral" }),
+        ).toBeNull(),
+      );
+      const items = within(bag).getByRole("list", { name: "Itens da sacola" });
+      expect(items).toHaveTextContent("Pilates 2x semana");
+      expect(items).toHaveTextContent("Garrafa térmica");
+      expect(
+        within(bag).getByText("Subtotal").closest("div"),
+      ).toHaveTextContent(/R\$\s580,00/);
+      expect(
+        within(bag).getByText("Descontos dos itens").closest("div"),
+      ).toHaveTextContent(/R\$\s10,00/);
+      expect(
+        within(bag).getByText("Desconto geral").closest("div"),
+      ).toHaveTextContent(/R\$\s57,00/);
+      expect(within(bag).getByText("Total").closest("div")).toHaveTextContent(
+        /R\$\s513,00/,
+      );
+      fireEvent.click(
+        within(dialog).getByRole("button", { name: "Salvar e criar plano" }),
+      );
+      await waitFor(() => expect(sales).toHaveLength(1));
+      // O plano leva a parte dele do desconto geral; o produto vai com o preço descontado.
+      expect(posts[0]).toMatchObject({
+        plan: {
+          planTemplateId: pilatesTemplate.id,
+          orderDiscountInCents: 4_800,
+        },
+      });
+      expect(sales[0]).toMatchObject({
+        patientId: created.id,
+        items: [{ productId: bottle.id, quantity: 2, unitPriceInCents: 4_050 }],
+        settlement: "paid",
+        paymentMethod: "pix",
+      });
     });
 
     it("uses the message configured by the clinic", async () => {

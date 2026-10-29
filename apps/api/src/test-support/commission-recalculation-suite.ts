@@ -309,5 +309,51 @@ export function commissionRecalculationSuite(
         ruleSnapshot: { kind: "fixed", fixedAmountInCents: 4321 },
       });
     });
+
+    it("lança ajuste em vez de alterar a comissão já incluída na folha", async () => {
+      const repo = repository();
+      const { professional, commissions, commission, percent } = await scenario(
+        repo,
+        ["10"],
+      );
+      const [included] = commissions as [CommissionEntry];
+      const employee = await repo.createPayrollEmployee(clinic, actor, {
+          name: `Colaboradora ${randomUUID().slice(0, 6)}`,
+          professionalId: professional.id,
+          baseSalaryInCents: 0,
+          active: true,
+        }),
+        category = await repo.createFinancialCategory(clinic, {
+          name: `Folha ${randomUUID().slice(0, 8)}`,
+          kind: "expense",
+        });
+      await repo.launchPayroll(clinic, actor, {
+        competence: "2025-03",
+        employeeIds: [employee.id],
+        dueDate: "2025-04-05",
+        categoryId: category.id,
+      });
+      const launched = await commission(included.id);
+      expect(launched.payrollPayableId).toBeTruthy();
+      const rule = { percentage: 30, effectiveFrom: "2025-03-01" };
+      const preview = await repo.previewCommissionRecalculation(clinic, {
+        professionalId: professional.id,
+        rules: [rule],
+      });
+      expect(preview.items).toEqual([
+        expect.objectContaining({
+          commissionId: included.id,
+          mode: "adjustment",
+          differenceInCents: percent(30) - percent(10),
+        }),
+      ]);
+      await repo.createCommissionRule(
+        clinic,
+        { ...rule, professionalId: professional.id },
+        { actorId: actor, expectedDigest: preview.digest },
+      );
+      // O valor lançado na despesa da folha continua o mesmo; a diferença vira ajuste.
+      expect(await commission(included.id)).toEqual(launched);
+    });
   });
 }

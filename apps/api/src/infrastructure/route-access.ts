@@ -118,6 +118,7 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
   "GET /appointments/:id/reschedules": viewAny("agenda"),
   "GET /appointments/pending-finalization": viewAny("agenda"),
   "GET /appointments/completed": viewAny("agenda"),
+  "GET /appointments/promotions": operation("agenda.create"),
   "GET /waitlist": view("waitlist"),
   "GET /waitlist/options": view("waitlist"),
   "POST /waitlist": operation("waitlist.manage"),
@@ -435,6 +436,14 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
   "POST /finance/commission-rules/recalculation/preview": operation(
     "finance.commission_rules",
   ),
+  "GET /finance/payroll": operation("finance.payroll_view"),
+  "GET /finance/payroll/employees": operation("finance.payroll_view"),
+  "POST /finance/payroll/employees": operation("finance.payroll_manage"),
+  "PUT /finance/payroll/employees/:id": operation("finance.payroll_manage"),
+  "POST /finance/payroll/launch": operation("finance.payroll_manage"),
+  "POST /finance/payroll/payables/:id/cancel": operation(
+    "finance.payroll_manage",
+  ),
   "POST /finance/commissions/generate": operation(
     "finance.commissions_generate",
   ),
@@ -457,6 +466,17 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
   "POST /finance/payables": operation("finance.payables_create"),
   "POST /finance/payables/:id/pay": operation("finance.payables_pay"),
   "POST /finance/payables/:id/reverse": operation("finance.payables_reverse"),
+  "GET /finance/receivables/:id/proofs": view("finance"),
+  "POST /finance/receivables/:id/proofs": operation("finance.receive"),
+  "GET /finance/payables/:id/proofs": view("finance"),
+  "POST /finance/payables/:id/proofs": operation("finance.payables_pay"),
+  "GET /finance/commission-account-payments/:id/proofs": view("finance"),
+  "POST /finance/commission-account-payments/:id/proofs": operation(
+    "finance.commissions_pay",
+  ),
+  "GET /finance/payment-proofs/:id/content": view("finance"),
+  // A permissão de excluir é a de anexar no tipo do registro (conferida na rota).
+  "DELETE /finance/payment-proofs/:id": view("finance"),
   "PUT /finance/payables/:id/amount": operation("finance.recurring_update"),
   "POST /finance/receivables/:id/reverse": operation(
     "finance.receivables_reverse",

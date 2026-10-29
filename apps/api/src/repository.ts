@@ -20,6 +20,8 @@ import type {
   AutoCampaign,
   AutoCampaignDelivery,
   AutoCampaignDeliveryInput,
+  AutoCampaignPromotion,
+  AutoCampaignRedemption,
   AutoCampaignTrigger,
 } from "@crm/contracts";
 import type { AutoCampaignSourceData } from "./modules/communications/auto-campaigns.js";
@@ -38,6 +40,10 @@ import type {
   ExternalOperation,
   ExternalOperationInput,
   ExternalOperationContent,
+  PaymentProof,
+  PaymentProofContent,
+  PaymentProofEntity,
+  PaymentProofInput,
 } from "@crm/contracts";
 import type { PlanPurchaseInput, PlanPurchaseResult } from "@crm/contracts";
 import type {
@@ -809,9 +815,11 @@ export interface ClinicRepository {
     cutoff: string,
     at: string,
   ): Promise<number>;
+  /** Com `promotion`, grava o uso da promoção junto do atendimento (mesma transação). */
   createAppointment(
     clinicId: string,
     input: AppointmentInput,
+    options?: AppointmentCreateOptions,
   ): Promise<Appointment>;
   rescheduleAppointment(
     clinicId: string,
@@ -844,9 +852,11 @@ export interface ClinicRepository {
     appointmentId: string,
     input: AppointmentUpdateInput,
   ): Promise<Appointment | null>;
+  /** Com `promotion`, o uso fica ligado à 1ª ocorrência. */
   createRecurringAppointments(
     clinicId: string,
     input: RecurringAppointmentInput,
+    options?: AppointmentCreateOptions,
   ): Promise<Appointment[]>;
   listScheduleBlocks(
     clinicId: string,
@@ -1084,6 +1094,40 @@ export interface ClinicRepository {
     actorUserId: string,
     id: string,
   ): Promise<ExternalOperationContent | null>;
+  /** Comprovantes de uma baixa (parcela, despesa ou baixa conciliada), sem o conteúdo. */
+  listPaymentProofs(
+    clinicId: string,
+    entityType: PaymentProofEntity,
+    entityId: string,
+  ): Promise<PaymentProof[]>;
+  /** Anexa um comprovante a um registro já pago/recebido. */
+  createPaymentProof(
+    clinicId: string,
+    actorUserId: string,
+    entityType: PaymentProofEntity,
+    entityId: string,
+    input: PaymentProofInput,
+  ): Promise<PaymentProof>;
+  getPaymentProofContent(
+    clinicId: string,
+    actorUserId: string,
+    id: string,
+  ): Promise<PaymentProofContent | null>;
+  /**
+   * Exclui um comprovante enviado por engano: sai da lista, o registro e o motivo ficam na
+   * auditoria. `null` = não encontrado (ou fora das filiais da leitura).
+   */
+  deletePaymentProof(
+    clinicId: string,
+    actorUserId: string,
+    id: string,
+    reason: string,
+  ): Promise<PaymentProof | null>;
+  /** Tipo do registro de um comprovante visível (para conferir a permissão de excluir). */
+  findPaymentProofEntity(
+    clinicId: string,
+    id: string,
+  ): Promise<PaymentProofEntity | null>;
   purchasePatientPlan(
     clinicId: string,
     actorUserId: string,
@@ -1219,6 +1263,46 @@ export interface ClinicRepository {
     clinicId: string,
     input: import("@crm/contracts").CommissionRecalculationPreviewInput,
   ): Promise<import("@crm/contracts").CommissionRecalculationPreview>;
+  /** Colaboradores da folha nas filiais da leitura em curso. */
+  listPayrollEmployees(
+    clinicId: string,
+  ): Promise<import("@crm/contracts").PayrollEmployee[]>;
+  createPayrollEmployee(
+    clinicId: string,
+    actorId: string,
+    input: import("@crm/contracts").PayrollEmployeeInput,
+  ): Promise<import("@crm/contracts").PayrollEmployee>;
+  updatePayrollEmployee(
+    clinicId: string,
+    actorId: string,
+    employeeId: string,
+    input: import("@crm/contracts").PayrollEmployeeInput,
+  ): Promise<import("@crm/contracts").PayrollEmployee | null>;
+  /**
+   * Folha da competência por filial (as pedidas, dentro das da leitura em curso; ausente =
+   * todas). BRANCH_ACCESS_DENIED (403) para filial fora do acesso.
+   */
+  getPayroll(
+    clinicId: string,
+    competence: string,
+    branchIds?: string[],
+  ): Promise<import("@crm/contracts").PayrollSummary>;
+  /**
+   * Lança o que está pendente na competência: uma despesa por colaborador com salário +
+   * comissões + ajustes; pagar a despesa paga as comissões e os ajustes incluídos.
+   * PAYROLL_NOTHING_PENDING (409) quando não há nada a lançar.
+   */
+  launchPayroll(
+    clinicId: string,
+    actorId: string,
+    input: import("@crm/contracts").PayrollLaunchInput,
+  ): Promise<import("@crm/contracts").PayrollLaunchResult>;
+  /** Desfaz o lançamento de uma despesa da folha em aberto (os itens voltam a pendentes). */
+  cancelPayrollLaunch(
+    clinicId: string,
+    actorId: string,
+    payableId: string,
+  ): Promise<Payable | null>;
   generateCommissions(
     clinicId: string,
     competence: string,
@@ -1413,6 +1497,10 @@ export interface ClinicRepository {
     actorUserId: string,
     input: AutoCampaignDeliveryWrite,
   ): Promise<AutoCampaignDelivery>;
+  /** Usos de promoção das campanhas não excluídas, com o status atual do atendimento. */
+  listAutoCampaignRedemptions(
+    clinicId: string,
+  ): Promise<AutoCampaignRedemption[]>;
   /** Desfaz o registro: a mensagem volta a pendente. */
   deleteAutoCampaignDelivery(
     clinicId: string,
@@ -1578,12 +1666,27 @@ export interface AutoCampaignWrite {
   trigger: AutoCampaignTrigger;
   active: boolean;
   steps: Array<{ id?: string | undefined; offset: number; message: string }>;
+  promotion?: AutoCampaignPromotion | undefined;
 }
 
 export type AutoCampaignDeliveryWrite = AutoCampaignDeliveryInput & {
   /** Mensagem já preenchida, guardada como estava no envio. */
   message: string;
+  /** Calculado pela rota quando a campanha é promocional e a mensagem foi enviada. */
+  promotionValidUntil?: string | undefined;
 };
+
+/** Uso de promoção já validado pela rota (oferta vigente para o cliente). */
+export interface AutoCampaignRedemptionWrite {
+  campaignId: string;
+  occurrenceKey: string;
+  redeemedOn: string;
+  blockedUntil?: string | undefined;
+}
+
+export interface AppointmentCreateOptions {
+  promotion?: AutoCampaignRedemptionWrite | undefined;
+}
 
 export interface MessageTemplateWrite {
   title: string;

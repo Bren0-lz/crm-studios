@@ -32,6 +32,21 @@ export const historyActions: {
     label: "Comprovante de operação externa baixado",
   },
   {
+    action: "finance.payment_proof_attached",
+    module: "finance",
+    label: "Comprovante de pagamento anexado",
+  },
+  {
+    action: "finance.payment_proof_downloaded",
+    module: "finance",
+    label: "Comprovante de pagamento baixado",
+  },
+  {
+    action: "finance.payment_proof_deleted",
+    module: "finance",
+    label: "Comprovante de pagamento excluído",
+  },
+  {
     action: "plan.purchased",
     module: "plans",
     label: "Plano contratado com agenda e contrato",
@@ -497,6 +512,26 @@ export const historyActions: {
     action: "finance.renegotiated",
     module: "finance",
     label: "Recebíveis renegociados",
+  },
+  {
+    action: "payroll.employee_created",
+    module: "finance",
+    label: "Colaborador cadastrado na folha",
+  },
+  {
+    action: "payroll.employee_updated",
+    module: "finance",
+    label: "Colaborador da folha atualizado",
+  },
+  {
+    action: "payroll.launched",
+    module: "finance",
+    label: "Folha de pagamento lançada",
+  },
+  {
+    action: "payroll.launch_cancelled",
+    module: "finance",
+    label: "Lançamento da folha desfeito",
   },
   {
     action: "commission.reconciled",

@@ -305,7 +305,36 @@ export const patientTabCloseInputSchema = z
 
 export const productUpdateSchema = productBaseSchema
   .omit({ initialStock: true })
-  .extend({ active: z.boolean().default(true) });
+  .extend({
+    active: z.boolean().default(true),
+    /**
+     * Novo saldo de cada tamanho, definido no próprio cadastro: a diferença para o saldo atual
+     * vira um ajuste no histórico de estoque. Ausente = saldos não mudam.
+     */
+    sizeQuantities: z
+      .array(
+        z.object({
+          size: productSizeSchema,
+          quantity: z.number().int().min(0).max(1_000_000),
+        }),
+      )
+      .max(productSizeSchema.options.length)
+      .optional(),
+  })
+  .superRefine((value, context) => {
+    const entries = value.sizeQuantities ?? [];
+    if (
+      (value.sizes &&
+        entries.some((entry) => !value.sizes!.includes(entry.size))) ||
+      new Set(entries.map((entry) => entry.size)).size !== entries.length
+    )
+      context.addIssue({
+        code: "custom",
+        message:
+          "As quantidades devem usar os tamanhos do produto, uma vez cada.",
+        path: ["sizeQuantities"],
+      });
+  });
 export const patientTabItemUpdateSchema = z.object({
   quantity: z.number().int().min(1).max(10000),
   unitPriceInCents: z.number().int().min(0).max(2147483647),
@@ -479,9 +508,12 @@ export const recurringPayableInputSchema = z
     supplier: z.string().trim().max(160).optional().or(z.literal("")),
     categoryId: z.uuid(),
     costCenterId: z.uuid(),
-    /** Na variável, `amountInCents` é a estimativa; o valor de cada mês é informado na conta. */
+    /**
+     * Na variável, `amountInCents` é a estimativa (0 = sem estimativa); o valor de cada mês é
+     * informado na conta.
+     */
     amountType: recurringPayableAmountTypeSchema.default("fixed"),
-    amountInCents: z.number().int().min(1),
+    amountInCents: z.number().int().min(0),
     dayOfMonth: z.number().int().min(1).max(28),
     /** Dias de antecedência do aviso no sino; ausente, não avisa. */
     reminderDaysBefore: z
@@ -494,6 +526,13 @@ export const recurringPayableInputSchema = z
     endMonth: competenceMonthSchema.optional(),
     active: z.boolean().default(true),
   })
+  .refine(
+    (value) => value.amountType === "variable" || value.amountInCents > 0,
+    {
+      message: "Informe o valor mensal.",
+      path: ["amountInCents"],
+    },
+  )
   .refine((value) => !value.endMonth || value.endMonth >= value.startMonth, {
     message: "O mês final não pode ser anterior ao mês inicial.",
     path: ["endMonth"],

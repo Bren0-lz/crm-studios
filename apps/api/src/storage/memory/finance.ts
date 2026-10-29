@@ -743,6 +743,11 @@ export function createFinanceRepository(
       delete receivable.paymentInstallments;
       receivable.overdue = receivable.dueDate < today();
       receivable.updatedAt = now();
+      repositoryContext.markPaymentProofsReversed(
+        clinicId,
+        "receivable",
+        receivableId,
+      );
       return receivable;
     },
 
@@ -964,6 +969,7 @@ export function createFinanceRepository(
                 repositoryContext.clinicSettings.timezone,
               ).slice(0, 7) === month &&
               !tracked.has(item.id) &&
+              !item.payrollPayableId &&
               !payables.some(
                 (expense) =>
                   expense.commissionId === item.id &&
@@ -1318,7 +1324,12 @@ export function createFinanceRepository(
             payable.status === "open"
           ) {
             if (updated.amountType === "variable") payable.amountPending = true;
-            else delete payable.amountPending;
+            else {
+              delete payable.amountPending;
+              // Conta sem estimativa (valor 0) passa a valer o valor mensal da fixa.
+              if (payable.amountInCents === 0)
+                payable.amountInCents = updated.amountInCents;
+            }
             payable.updatedAt = now();
           }
       return repositoryContext.toRecurringPayable(updated);

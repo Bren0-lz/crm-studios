@@ -3,6 +3,7 @@ import { createWaitlistRepository } from "./storage/postgres/waitlist.js";
 import { createBranchesRepository } from "./storage/postgres/branches.js";
 import { createCommissionReconciliationRepository } from "./storage/postgres/commission-reconciliation.js";
 import { createExternalOperationsRepository } from "./storage/postgres/external-operations.js";
+import { createPaymentProofsRepository } from "./storage/postgres/payment-proofs.js";
 import { createPlanPurchasesRepository } from "./storage/postgres/plan-purchases.js";
 import { createFinancialDatesRepository } from "./storage/postgres/financial-dates.js";
 import { createRegistryRepository } from "./storage/postgres/registry.js";
@@ -11,6 +12,7 @@ import { createDocumentSignaturesRepository } from "./storage/postgres/document-
 import { createDocumentSignatureLinksRepository } from "./storage/postgres/document-signature-links.js";
 import { createAssessmentOperationsRepository } from "./storage/postgres/assessment-operations.js";
 import { createCommissionOperationsRepository } from "./storage/postgres/commission-operations.js";
+import { createPayrollRepository } from "./storage/postgres/payroll.js";
 import { createFinanceOperationsRepository } from "./storage/postgres/finance-operations.js";
 import { createClinicalResourcesRepository } from "./storage/postgres/clinical-resources.js";
 import { createGroupOperationsRepository } from "./storage/postgres/group-operations.js";
@@ -54,6 +56,11 @@ export class PostgresClinicRepository implements ClinicRepository {
   readonly listExternalOperations: ClinicRepository["listExternalOperations"];
   readonly createExternalOperation: ClinicRepository["createExternalOperation"];
   readonly getExternalOperationContent: ClinicRepository["getExternalOperationContent"];
+  readonly listPaymentProofs: ClinicRepository["listPaymentProofs"];
+  readonly createPaymentProof: ClinicRepository["createPaymentProof"];
+  readonly getPaymentProofContent: ClinicRepository["getPaymentProofContent"];
+  readonly deletePaymentProof: ClinicRepository["deletePaymentProof"];
+  readonly findPaymentProofEntity: ClinicRepository["findPaymentProofEntity"];
   readonly purchasePatientPlan: ClinicRepository["purchasePatientPlan"];
   readonly getAdministrativeRegistry: ClinicRepository["getAdministrativeRegistry"];
   readonly updateAdministrativeRegistry: ClinicRepository["updateAdministrativeRegistry"];
@@ -81,6 +88,7 @@ export class PostgresClinicRepository implements ClinicRepository {
   readonly deleteAutoCampaign: ClinicRepository["deleteAutoCampaign"];
   readonly listAutoCampaignDeliveries: ClinicRepository["listAutoCampaignDeliveries"];
   readonly saveAutoCampaignDelivery: ClinicRepository["saveAutoCampaignDelivery"];
+  readonly listAutoCampaignRedemptions: ClinicRepository["listAutoCampaignRedemptions"];
   readonly deleteAutoCampaignDelivery: ClinicRepository["deleteAutoCampaignDelivery"];
   readonly getAutoCampaignSourceData: ClinicRepository["getAutoCampaignSourceData"];
   readonly listWhatsappCampaigns: ClinicRepository["listWhatsappCampaigns"];
@@ -155,6 +163,12 @@ export class PostgresClinicRepository implements ClinicRepository {
     this.createExternalOperation = externalOperations.createExternalOperation;
     this.getExternalOperationContent =
       externalOperations.getExternalOperationContent;
+    const paymentProofs = createPaymentProofsRepository(this.context);
+    this.listPaymentProofs = paymentProofs.listPaymentProofs;
+    this.createPaymentProof = paymentProofs.createPaymentProof;
+    this.getPaymentProofContent = paymentProofs.getPaymentProofContent;
+    this.deletePaymentProof = paymentProofs.deletePaymentProof;
+    this.findPaymentProofEntity = paymentProofs.findPaymentProofEntity;
     this.purchasePatientPlan = createPlanPurchasesRepository(
       this.context,
     ).purchasePatientPlan;
@@ -240,6 +254,8 @@ export class PostgresClinicRepository implements ClinicRepository {
     this.deleteAutoCampaign = autoCampaigns.deleteAutoCampaign;
     this.listAutoCampaignDeliveries = autoCampaigns.listAutoCampaignDeliveries;
     this.saveAutoCampaignDelivery = autoCampaigns.saveAutoCampaignDelivery;
+    this.listAutoCampaignRedemptions =
+      autoCampaigns.listAutoCampaignRedemptions;
     this.deleteAutoCampaignDelivery = autoCampaigns.deleteAutoCampaignDelivery;
     this.getAutoCampaignSourceData = autoCampaigns.getAutoCampaignSourceData;
     this.contracts = createContractsRepository(this.context);
@@ -320,6 +336,13 @@ export class PostgresClinicRepository implements ClinicRepository {
     this.createCommissionRule = this.finance.createCommissionRule;
     this.previewCommissionRecalculation =
       this.finance.previewCommissionRecalculation;
+    const payroll = createPayrollRepository(this.context);
+    this.listPayrollEmployees = payroll.listPayrollEmployees;
+    this.createPayrollEmployee = payroll.createPayrollEmployee;
+    this.updatePayrollEmployee = payroll.updatePayrollEmployee;
+    this.getPayroll = payroll.getPayroll;
+    this.launchPayroll = payroll.launchPayroll;
+    this.cancelPayrollLaunch = payroll.cancelPayrollLaunch;
     this.generateCommissions = this.finance.generateCommissions;
     this.settleCommission = this.finance.settleCommission;
     this.reverseCommission = this.finance.reverseCommission;
@@ -668,6 +691,13 @@ export class PostgresClinicRepository implements ClinicRepository {
   readonly renegotiateReceivables: ReturnType<
     typeof createFinanceRepository
   >["renegotiateReceivables"];
+
+  readonly listPayrollEmployees: ClinicRepository["listPayrollEmployees"];
+  readonly createPayrollEmployee: ClinicRepository["createPayrollEmployee"];
+  readonly updatePayrollEmployee: ClinicRepository["updatePayrollEmployee"];
+  readonly getPayroll: ClinicRepository["getPayroll"];
+  readonly launchPayroll: ClinicRepository["launchPayroll"];
+  readonly cancelPayrollLaunch: ClinicRepository["cancelPayrollLaunch"];
 
   readonly createCommissionRule: ClinicRepository["createCommissionRule"];
 

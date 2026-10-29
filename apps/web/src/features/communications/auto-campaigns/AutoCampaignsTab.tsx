@@ -15,6 +15,7 @@ import { LoadingBlock } from "../../../shared/components/LoadingBlock";
 import { Modal } from "../../../shared/components/Modal";
 import { useToast } from "../../../shared/feedback/toast-context";
 import { AutoCampaignEditorModal } from "./AutoCampaignEditorModal";
+import { promotionSummary } from "./model";
 
 /** Configuração das campanhas automáticas (a fila do dia fica na página inicial). */
 export function AutoCampaignsTab() {
@@ -117,6 +118,9 @@ export function AutoCampaignsTab() {
                   >
                     {campaign.active ? "Ativa" : "Pausada"}
                   </span>
+                  {campaign.promotion && (
+                    <span className="status-pill scheduled">Promocional</span>
+                  )}
                 </div>
                 <h3>{campaign.name}</h3>
                 <ul className="auto-campaign-step-summary">
@@ -129,6 +133,12 @@ export function AutoCampaignsTab() {
                     </li>
                   ))}
                 </ul>
+                {campaign.promotion && (
+                  <div className="plan-meta">
+                    <span>Promoção</span>
+                    <strong>{promotionSummary(campaign.promotion)}</strong>
+                  </div>
+                )}
                 {summary && campaign.active && (
                   <div className="plan-meta">
                     <span>Hoje</span>

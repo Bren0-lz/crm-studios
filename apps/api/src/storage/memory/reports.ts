@@ -498,14 +498,14 @@ export function createReportsRepository(
             inPeriod(item.paidAt),
         )
         .reduce((sum, item) => sum + item.amountInCents, 0);
-      const paidCommissions = repositoryContext
-        .scopedCommissions()
-        .filter(
-          (item) =>
-            item.clinicId === clinicId &&
-            item.status === "paid" &&
-            inPeriod(item.paidAt),
-        );
+      const paidCommissions = repositoryContext.scopedCommissions().filter(
+        (item) =>
+          item.clinicId === clinicId &&
+          item.status === "paid" &&
+          // Paga pela folha: a saída já está nas despesas pagas.
+          !item.payrollPayableId &&
+          inPeriod(item.paidAt),
+      );
       const commissionsInCents = paidCommissions.reduce(
         (sum, item) => sum + item.amountInCents,
         0,

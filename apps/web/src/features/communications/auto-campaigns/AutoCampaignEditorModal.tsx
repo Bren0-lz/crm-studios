@@ -1,4 +1,5 @@
 import {
+  autoCampaignCooldownUnitLabels,
   autoCampaignInputSchema,
   autoCampaignStepLabel,
   autoCampaignTriggerDescriptions,
@@ -16,8 +17,10 @@ import {
   autoCampaignEditorVariables,
   autoCampaignInput,
   autoCampaignTriggers,
+  cooldownUnits,
   newStepKey,
   offsetUnit,
+  promotionValidityHint,
   type AutoCampaignDraft,
   type StepDraft,
 } from "./model";
@@ -48,6 +51,9 @@ export function AutoCampaignEditorModal({
       campaign?.trigger === trigger,
   );
   const variables = autoCampaignEditorVariables[draft.trigger];
+  const offsets = draft.steps
+    .filter((step) => step.offset !== "")
+    .map((step) => Number(step.offset));
 
   function updateStep(key: string, change: Partial<StepDraft>) {
     setDraft((current) => ({
@@ -145,6 +151,102 @@ export function AutoCampaignEditorModal({
           />
           Campanha ativa (aparece na lista do dia e nas notificações)
         </label>
+        <label className="checkbox-field span-2">
+          <input
+            type="checkbox"
+            checked={draft.promotional}
+            onChange={(event) =>
+              setDraft((current) => ({
+                ...current,
+                promotional: event.target.checked,
+              }))
+            }
+          />
+          Campanha promocional (ao agendar, dá para marcar que o atendimento é
+          desta campanha)
+        </label>
+        {draft.promotional && (
+          <>
+            <label className="span-2">
+              Validade da promoção (dias após o evento)
+              <input
+                type="number"
+                min={1}
+                max={365}
+                required
+                value={draft.validDays}
+                onChange={(event) =>
+                  setDraft((current) => ({
+                    ...current,
+                    validDays: event.target.value,
+                  }))
+                }
+              />
+              {Number(draft.validDays) > 0 && (
+                <span className="field-hint">
+                  {promotionValidityHint(
+                    draft.trigger,
+                    offsets,
+                    Number(draft.validDays),
+                  )}
+                </span>
+              )}
+            </label>
+            <label className="checkbox-field span-2">
+              <input
+                type="checkbox"
+                checked={draft.cooldown}
+                onChange={(event) =>
+                  setDraft((current) => ({
+                    ...current,
+                    cooldown: event.target.checked,
+                  }))
+                }
+              />
+              Depois de usar a promoção, deixar o cliente fora desta campanha
+              por um tempo (ele continua nas outras)
+            </label>
+            {draft.cooldown && (
+              <>
+                <label>
+                  Tempo fora da campanha
+                  <input
+                    type="number"
+                    min={1}
+                    max={365}
+                    required
+                    value={draft.cooldownAmount}
+                    onChange={(event) =>
+                      setDraft((current) => ({
+                        ...current,
+                        cooldownAmount: event.target.value,
+                      }))
+                    }
+                  />
+                </label>
+                <label>
+                  Unidade
+                  <select
+                    value={draft.cooldownUnit}
+                    onChange={(event) =>
+                      setDraft((current) => ({
+                        ...current,
+                        cooldownUnit: event.target
+                          .value as AutoCampaignDraft["cooldownUnit"],
+                      }))
+                    }
+                  >
+                    {cooldownUnits.map((unit) => (
+                      <option key={unit} value={unit}>
+                        {autoCampaignCooldownUnitLabels[unit].plural}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </>
+            )}
+          </>
+        )}
         <div className="span-2 auto-campaign-steps">
           <span className="filter-label">Mensagens</span>
           <p className="field-hint">

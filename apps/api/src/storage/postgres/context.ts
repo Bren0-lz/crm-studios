@@ -1,3 +1,4 @@
+import { markPaymentProofsReversed } from "./payment-proofs.js";
 import {
   formatSequenceNumber,
   settlementBreakdown,
@@ -24,7 +25,7 @@ import {
   type PatientPlanInput,
   type Payable,
   type PaymentMethod,
-  discountedInstallments,
+  discountedPlanInstallments,
   type PatientDiscount,
   planInstallmentSchedule,
   type PlanTemplateInput,
@@ -842,10 +843,22 @@ export class PostgresRepositoryContext {
       input.totalValueInCents,
       allowed,
     );
-    // Trava o cliente: o desconto dele é consumido pelas cobranças geradas aqui.
-    const patient = await client.query<{ discount: PatientDiscount | null }>(
-      "SELECT profile->'discount' AS discount FROM patients WHERE clinic_id=$1 AND id=$2 AND status='active' FOR UPDATE",
+    const patient = await client.query(
+      "SELECT 1 FROM patients WHERE clinic_id=$1 AND id=$2 AND status='active'",
       [clinicId, input.patientId],
+    );
+    // O desconto é do plano: a renovação segue o do plano anterior, com o que já foi usado.
+    const previous = renewedFromPlanId
+      ? await client.query<{ discount: PatientDiscount | null }>(
+          "SELECT discount FROM patient_plans WHERE clinic_id=$1 AND id=$2",
+          [clinicId, renewedFromPlanId],
+        )
+      : null;
+    const discounted = discountedPlanInstallments(
+      planInstallmentSchedule(input),
+      input.discount,
+      previous?.rows[0]?.discount,
+      input.orderDiscountInCents,
     );
     const context = await client.query<{ id: string; name: string }>(
       `SELECT s.id,coalesce((SELECT x.service_name FROM patient_plan_services x WHERE x.plan_id=$3 AND x.service_id=s.id),s.name) AS name
@@ -870,11 +883,11 @@ export class PostgresRepositoryContext {
          clinic_id, patient_id, service_id, name, kind, total_sessions,
          remaining_sessions, valid_from, valid_until, total_value_in_cents,
          installments, first_due_date, auto_renew, renewed_from_plan_id, plan_template_id,
-         branch_id, payment_method
+         branch_id, payment_method, discount
        ) VALUES ($1,$2,$3,$4,$5,$6,$6,$7,$8,$9,$10,$11,$12,$13,$14,
          -- Renovação fica na filial do plano anterior; venda nova, na da requisição.
          coalesce((SELECT branch_id FROM patient_plans WHERE clinic_id=$1 AND id=$13), $15),
-         $16
+         $16, $17
        ) RETURNING id`,
       [
         clinicId,
@@ -893,6 +906,7 @@ export class PostgresRepositoryContext {
         input.planTemplateId ?? null,
         this.branchWriteId(),
         input.paymentMethod ?? null,
+        discounted.discount ?? null,
       ],
     );
     const planId = inserted.rows[0]!.id;
@@ -927,21 +941,6 @@ export class PostgresRepositoryContext {
         ],
       );
     }
-    const discount = patient.rows[0]?.discount ?? null;
-    const discounted = discountedInstallments(
-      planInstallmentSchedule(input),
-      discount,
-    );
-    if (discount && discounted.usedCharges > 0)
-      await client.query(
-        `UPDATE patients SET profile = jsonb_set(profile, '{discount,usedCharges}', to_jsonb($3::int))
-         WHERE clinic_id = $1 AND id = $2`,
-        [
-          clinicId,
-          input.patientId,
-          (discount.usedCharges ?? 0) + discounted.usedCharges,
-        ],
-      );
     for (const installment of discounted.installments) {
       const amount = installment.amountInCents;
       const receivable = await client.query<{ id: string }>(
@@ -1089,7 +1088,7 @@ export class PostgresRepositoryContext {
       ce.professional_id AS "professionalId", p.full_name AS "professionalName",
       ce.appointment_id AS "appointmentId",ce.group_attendance_id AS "groupAttendanceId",ce.service_id AS "serviceId",ce.rule_id AS "ruleId",ce.rule_snapshot AS "ruleSnapshot", ce.competence, ce.base_amount_in_cents AS "baseAmountInCents",
       ce.percentage, ce.amount_in_cents AS "amountInCents", ce.status, ce.paid_at AS "paidAt",
-      ce.created_at AS "createdAt" FROM commission_entries ce JOIN professionals p ON p.id = ce.professional_id
+      ce.created_at AS "createdAt",ce.payroll_payable_id AS "payrollPayableId" FROM commission_entries ce JOIN professionals p ON p.id = ce.professional_id
       WHERE ce.clinic_id = $1 AND ($2::text IS NULL OR ce.competence = $2) ORDER BY ce.competence DESC`,
       [clinicId, competence ?? null],
     );
@@ -1508,6 +1507,13 @@ export class PostgresRepositoryContext {
           balanceReceivableId,
         ],
       );
+      if (operation === "payment_reversal")
+        await markPaymentProofsReversed(
+          client,
+          clinicId,
+          "receivable",
+          receivableId,
+        );
       const receivable = await this.findReceivable(
         client,
         clinicId,
@@ -1594,6 +1600,30 @@ export class PostgresRepositoryContext {
             : [clinicId, current.rows[0].commissionId],
         );
       }
+      // Despesa da folha: as comissões e os ajustes incluídos pagam (e estornam) junto.
+      for (const table of ["commission_entries", "commission_adjustments"]) {
+        const included = await client.query<{ status: string }>(
+          `SELECT status FROM ${table} WHERE clinic_id=$1 AND payroll_payable_id=$2 FOR UPDATE`,
+          [clinicId, payableId],
+        );
+        if (included.rows.some((row) => row.status !== expected))
+          throw new DomainError(
+            "PAYROLL_EXPENSE_STATE",
+            "Uma comissão desta folha mudou de situação; revise a folha antes de continuar.",
+            409,
+          );
+        if (!included.rowCount) continue;
+        await client.query(
+          operation === "payment"
+            ? `UPDATE ${table} SET status='paid',paid_at=coalesce($3::timestamptz,now())${table === "commission_entries" ? ",paid_by_user_id=$4" : ""} WHERE clinic_id=$1 AND payroll_payable_id=$2`
+            : `UPDATE ${table} SET status='open',paid_at=NULL${table === "commission_entries" ? ",paid_by_user_id=NULL" : ""} WHERE clinic_id=$1 AND payroll_payable_id=$2`,
+          operation === "payment"
+            ? table === "commission_entries"
+              ? [clinicId, payableId, timing?.paidAt ?? null, actorUserId]
+              : [clinicId, payableId, timing?.paidAt ?? null]
+            : [clinicId, payableId],
+        );
+      }
       await client.query(
         operation === "payment"
           ? `UPDATE payables SET status = 'paid', paid_at = coalesce($5::timestamptz,now()),cash_available_at=coalesce($6,cash_available_at),
@@ -1633,6 +1663,8 @@ export class PostgresRepositoryContext {
             (operation === "payment" ? current.rows[0].cashAvailableAt : null),
         ],
       );
+      if (operation === "payment_reversal")
+        await markPaymentProofsReversed(client, clinicId, "payable", payableId);
       const payable = await this.findPayable(client, clinicId, payableId);
       await client.query("COMMIT");
       return payable;

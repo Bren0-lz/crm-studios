@@ -1,5 +1,5 @@
 import { starterAssessmentTemplates } from "@crm/contracts";
-import type { ExternalOperation } from "@crm/contracts";
+import type { ExternalOperation, PaymentProof } from "@crm/contracts";
 import type {
   StoredMessageTemplate,
   StoredMessageTemplateImage,
@@ -8,6 +8,7 @@ import type {
 import type {
   StoredAutoCampaign,
   StoredAutoCampaignDelivery,
+  StoredAutoCampaignRedemption,
 } from "./auto-campaigns.js";
 import type { CommissionPaymentEvent } from "@crm/contracts";
 import type { PlanPurchaseResult } from "@crm/contracts";
@@ -83,7 +84,7 @@ import {
   type PermissionKey,
   permissionModules,
   type PlanCatalogEntry,
-  discountedInstallments,
+  discountedPlanInstallments,
   planInstallmentSchedule,
   type PlanTemplate,
   type PlanTemplateInput,
@@ -289,6 +290,30 @@ export class MemoryRepositoryContext {
   readonly externalOperations: (ExternalOperation & {
     contentBase64: string;
   })[] = [];
+  readonly paymentProofs: (PaymentProof & {
+    contentBase64: string;
+    deletedAt?: string;
+    deletedByUserId?: string;
+    deletionReason?: string;
+  })[] = [];
+
+  /** Estorno da baixa: os comprovantes ficam no histórico, marcados como da baixa estornada. */
+  markPaymentProofsReversed(
+    clinicId: string,
+    entityType: PaymentProof["entityType"],
+    entityId: string,
+  ) {
+    const timestamp = now();
+    for (const proof of this.paymentProofs)
+      if (
+        proof.clinicId === clinicId &&
+        proof.entityType === entityType &&
+        proof.entityId === entityId &&
+        !proof.reversedAt &&
+        !proof.deletedAt
+      )
+        proof.reversedAt = timestamp;
+  }
   readonly planPurchases = new Map<
     string,
     { fingerprint: string; result: PlanPurchaseResult }
@@ -301,6 +326,9 @@ export class MemoryRepositoryContext {
   readonly commissionAccountPayments: import("@crm/contracts").CommissionAccountPayment[] =
     [];
   readonly commissionPaymentEvents: CommissionPaymentEvent[] = [];
+  /** Colaboradores da folha de pagamento (`payroll_employees`). */
+  readonly payrollEmployees: import("./payroll.js").PayrollEmployeeRecord[] =
+    [];
   readonly planTemplates: PlanTemplate[] = [];
 
   readonly appointmentReschedules: AppointmentRescheduleEvent[] = [];
@@ -509,6 +537,8 @@ export class MemoryRepositoryContext {
   readonly autoCampaigns: StoredAutoCampaign[] = [];
 
   readonly autoCampaignDeliveries: StoredAutoCampaignDelivery[] = [];
+
+  readonly autoCampaignRedemptions: StoredAutoCampaignRedemption[] = [];
 
   readonly documentTemplates: DocumentTemplate[] = [];
 
@@ -1879,17 +1909,16 @@ export class MemoryRepositoryContext {
       updatedAt: timestamp,
     };
     if (plan.autoRenew && !plan.validUntil) plan.autoRenew = false;
-    // O desconto do cliente vale nas primeiras cobranças enquanto o alcance permitir.
-    const discounted = discountedInstallments(
+    // O desconto é do plano: a renovação segue o do plano anterior, com o que já foi usado.
+    const discounted = discountedPlanInstallments(
       planInstallmentSchedule(input),
-      patient.discount,
+      input.discount,
+      renewedFrom?.discount,
+      input.orderDiscountInCents,
     );
-    if (patient.discount && discounted.usedCharges > 0)
-      patient.discount = {
-        ...patient.discount,
-        usedCharges:
-          (patient.discount.usedCharges ?? 0) + discounted.usedCharges,
-      };
+    delete plan.discount;
+    delete plan.orderDiscountInCents;
+    if (discounted.discount) plan.discount = discounted.discount;
     const installments: Receivable[] = discounted.installments.map(
       (installment) => ({
         id: uuid(),
@@ -2062,8 +2091,29 @@ export class MemoryRepositoryContext {
         "Concilie a situação da comissão com a despesa antes de continuar.",
         409,
       );
+    // Despesa da folha: as comissões e os ajustes incluídos pagam (e estornam) junto.
+    const payrollCommissions = this.commissions.filter(
+        (item) =>
+          item.clinicId === clinicId && item.payrollPayableId === payableId,
+      ),
+      payrollAdjustments = this.commissionAdjustments.filter(
+        (item) =>
+          item.clinicId === clinicId && item.payrollPayableId === payableId,
+      );
+    if (
+      [...payrollCommissions, ...payrollAdjustments].some(
+        (item) => item.status !== expected,
+      )
+    )
+      throw new DomainError(
+        "PAYROLL_EXPENSE_STATE",
+        "Uma comissão desta folha mudou de situação; revise a folha antes de continuar.",
+        409,
+      );
     const previousMethod = payable.paymentMethod;
     payable.status = operation === "payment" ? "paid" : "open";
+    if (operation === "payment_reversal")
+      this.markPaymentProofsReversed(clinicId, "payable", payableId);
     payable.updatedAt = now();
     if (operation === "payment") {
       payable.paidAt = timing?.paidAt ?? payable.updatedAt;
@@ -2075,10 +2125,14 @@ export class MemoryRepositoryContext {
       delete payable.paymentMethod;
       payable.overdue = payable.dueDate < today();
     }
-    if (commission) {
-      commission.status = payable.status as "open" | "paid";
-      if (payable.paidAt) commission.paidAt = payable.paidAt;
-      else delete commission.paidAt;
+    for (const item of [
+      ...(commission ? [commission] : []),
+      ...payrollCommissions,
+      ...payrollAdjustments,
+    ]) {
+      item.status = payable.status as "open" | "paid";
+      if (payable.paidAt) item.paidAt = payable.paidAt;
+      else delete item.paidAt;
     }
     this.payablePaymentEvents.push({
       id: uuid(),
