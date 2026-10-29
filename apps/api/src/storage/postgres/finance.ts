@@ -81,6 +81,7 @@ import {
 } from "./helpers.js";
 import { changeProductStock, productStockOf } from "./product-stock.js";
 import {
+  assertSalePrice,
   assertStockSize,
   isStockOut,
   stockKey,
@@ -109,7 +110,7 @@ async function addTabItem(
     id: string;
     name: string;
     sizes: ProductSize[];
-    salePriceInCents: number;
+    salePriceInCents: number | null;
     costInCents: number;
     sameBranch: boolean;
   }>(
@@ -125,6 +126,7 @@ async function addTabItem(
       "O produto é de outra filial que não a da comanda.",
       409,
     );
+  assertSalePrice(productRow);
   assertStockSize(productRow, input.size);
   const balance = await changeProductStock(
     client,

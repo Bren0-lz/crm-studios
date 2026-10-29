@@ -49,6 +49,8 @@ describe("aba Estoque de Vendas de produtos (QM9)", () => {
     expect(
       within(dialog).queryByLabelText("Avisar quando restarem"),
     ).not.toBeInTheDocument();
+    // As categorias carregam junto com o modal.
+    await within(dialog).findByRole("option", { name: "Terapia" });
     change("Categoria", category!.id, dialog);
     await save("Novo produto", "Salvar produto");
     const product = (

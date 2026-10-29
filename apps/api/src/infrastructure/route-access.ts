@@ -394,6 +394,8 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
   "GET /finance/suppliers": view("finance"),
   "POST /finance/suppliers": operation("finance.suppliers_manage"),
   "PUT /finance/suppliers/:id": operation("finance.suppliers_manage"),
+  "GET /finance/suppliers/:id/orders": view("finance"),
+  "POST /finance/suppliers/:id/orders": operation("finance.suppliers_manage"),
   "POST /finance/receivables": operation("finance.receivables_create"),
   "PUT /finance/classifications/:kind/:id": operation("finance.classify"),
   "PUT /finance/categories/:id/dre": operation("finance.classify"),

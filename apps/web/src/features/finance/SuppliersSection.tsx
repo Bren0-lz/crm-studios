@@ -7,12 +7,14 @@ import { EmptyState } from "../../shared/components/EmptyState";
 import { ErrorBanner } from "../../shared/components/ErrorBanner";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
 import { SupplierModal } from "./SupplierModal";
+import { SupplierOrdersModal } from "./SupplierOrdersModal";
 /** `embedded` mostra a lista aberta (sub-aba de Cadastros) em vez do bloco recolhível. */
 export function SuppliersSection({ embedded = false }: { embedded?: boolean }) {
   const { can } = useAuthorization();
   const [items, setItems] = useState<Supplier[] | null>(null),
     [opened, setOpened] = useState(embedded),
     [editor, setEditor] = useState<Supplier | "new" | null>(null),
+    [ordersOf, setOrdersOf] = useState<Supplier | null>(null),
     [error, setError] = useState("");
   async function load() {
     setError("");
@@ -67,6 +69,13 @@ export function SuppliersSection({ embedded = false }: { embedded?: boolean }) {
                 {(item.whatsapp || item.phone) &&
                   ` · ${formatPhone(item.whatsapp || item.phone)}`}
               </span>
+              <button
+                className="secondary-button"
+                aria-label={`Pedidos de ${item.name}`}
+                onClick={() => setOrdersOf(item)}
+              >
+                Pedidos
+              </button>
               {can("finance.suppliers_manage") && (
                 <button
                   className="secondary-button"
@@ -106,6 +115,12 @@ export function SuppliersSection({ embedded = false }: { embedded?: boolean }) {
           <summary className="panel-head">Fornecedores</summary>
           {opened && <div className="inventory-body">{list}</div>}
         </details>
+      )}
+      {ordersOf && (
+        <SupplierOrdersModal
+          supplier={ordersOf}
+          onClose={() => setOrdersOf(null)}
+        />
       )}
       {editor && (
         <SupplierModal
