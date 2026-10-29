@@ -1916,8 +1916,12 @@ export class MemoryRepositoryContext {
       ...(input.supplier ? { supplier: input.supplier } : {}),
       categoryId: input.categoryId,
       costCenterId: input.costCenterId,
+      amountType: input.amountType,
       amountInCents: input.amountInCents,
       dayOfMonth: input.dayOfMonth,
+      ...(input.reminderDaysBefore !== undefined
+        ? { reminderDaysBefore: input.reminderDaysBefore }
+        : {}),
       startMonth: input.startMonth,
       ...(input.endMonth ? { endMonth: input.endMonth } : {}),
       active: input.active,
@@ -1960,6 +1964,12 @@ export class MemoryRepositoryContext {
         operation === "payment"
           ? "Somente contas abertas podem ser pagas."
           : "Somente contas pagas podem ser estornadas.",
+        409,
+      );
+    if (operation === "payment" && payable.amountPending)
+      throw new DomainError(
+        "PAYABLE_AMOUNT_PENDING",
+        "Informe o valor do mês antes de pagar esta conta.",
         409,
       );
     const commission = payable.commissionId

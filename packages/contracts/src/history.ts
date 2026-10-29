@@ -305,6 +305,11 @@ export const historyActions: {
     label: "Conta a pagar cancelada",
   },
   {
+    action: "payable.amount_informed",
+    module: "finance",
+    label: "Valor do mês informado",
+  },
+  {
     action: "appointment.rescheduled",
     module: "agenda",
     label: "Atendimento reagendado",

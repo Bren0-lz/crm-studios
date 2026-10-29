@@ -1,5 +1,6 @@
 import {
   isOverdueReceivable,
+  recurringPayableReminders,
   type DashboardViewSummary,
   type NotificationsSummary,
 } from "@crm/contracts";
@@ -80,7 +81,8 @@ export function registerDashboardRoutes(context: RouteContext) {
   /**
    * Sino do cabeçalho (QM13): só contagens, cada grupo apenas com o módulo correspondente.
    * Aniversariantes do dia ainda sem parabéns (relacionamento), parcelas vencidas em aberto
-   * (financeiro, mesma regra da etiqueta "Pagamento atrasado"), atendimentos a finalizar
+   * (financeiro, mesma regra da etiqueta "Pagamento atrasado"), despesas fixas no prazo de
+   * aviso configurado ou vencidas (financeiro), atendimentos a finalizar
    * (agenda) e os retornos combinados pela equipe: tarefas comerciais vencidas (crm),
    * contatos adiados que voltaram à lista (relacionamento) e pausas com retorno previsto
    * até hoje (planos).
@@ -93,13 +95,23 @@ export function registerDashboardRoutes(context: RouteContext) {
       new Date(),
       settings?.timezone ?? DEFAULT_CLINIC_TIMEZONE,
     );
-    const [birthdays, finance, pending, leads, snoozed, plans] =
+    const [birthdays, finance, recurringDue, pending, leads, snoozed, plans] =
       await Promise.all([
         modules.includes("relationship")
           ? repository.listBirthdays(clinicId, date.slice(0, 7))
           : undefined,
         modules.includes("finance")
           ? repository.getFinancialSummary(clinicId)
+          : undefined,
+        modules.includes("finance")
+          ? Promise.all([
+              repository.listRecurringPayables(clinicId),
+              repository.getFinancialWorkspace(clinicId),
+            ]).then(
+              ([models, workspace]) =>
+                recurringPayableReminders(models, workspace.payables, date)
+                  .length,
+            )
           : undefined,
         modules.includes("agenda")
           ? Promise.all([
@@ -148,6 +160,9 @@ export function registerDashboardRoutes(context: RouteContext) {
               isOverdueReceivable(item, date),
             ).length,
           }
+        : {}),
+      ...(recurringDue !== undefined
+        ? { recurringPayablesDue: recurringDue }
         : {}),
       ...(pending ? { pendingFinalization: pending.length } : {}),
       ...(leads

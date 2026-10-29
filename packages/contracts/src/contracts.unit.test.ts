@@ -79,6 +79,8 @@ import {
   recurringOccurrenceStarts,
   recurringPayableCompetences,
   recurringPayableDueDate,
+  recurringPayableInputSchema,
+  recurringPayableReminders,
   relationshipSettingsSchema,
   resolvePatientTags,
   saoPauloToday,
@@ -183,6 +185,125 @@ describe("shared contracts", () => {
       recurringPayableCompetences({ ...model, active: false }, "2027-02"),
     ).toEqual([]);
     expect(recurringPayableDueDate("2027-02", 5)).toBe("2027-02-05");
+  });
+
+  it("reminds fixed expenses from the configured days before the due date", () => {
+    const water = {
+      id: "water",
+      description: "Água",
+      amountType: "variable" as const,
+      amountInCents: 15_000,
+      dayOfMonth: 3,
+      reminderDaysBefore: 5,
+      startMonth: "2026-10",
+      active: true,
+    };
+    const internet = {
+      ...water,
+      id: "internet",
+      description: "Internet",
+      amountType: "fixed" as const,
+      amountInCents: 9_990,
+      dayOfMonth: 20,
+      reminderDaysBefore: 2,
+    };
+    const silent = { ...internet, id: "silent", reminderDaysBefore: undefined };
+    const octoberWater = {
+      id: "p1",
+      recurringPayableId: "water",
+      competence: "2026-10",
+      dueDate: "2026-10-03",
+      amountInCents: 15_000,
+      status: "open" as const,
+      amountPending: true,
+    };
+    // 29/10: a água de outubro segue em aberto (vencida) e a de novembro, ainda não
+    // gerada, já está no prazo (03/11 menos 5 dias = 29/10). A internet de outubro foi
+    // paga e a de novembro só avisa em 18/11.
+    expect(
+      recurringPayableReminders(
+        [water, internet, silent],
+        [
+          octoberWater,
+          {
+            ...octoberWater,
+            id: "p2",
+            recurringPayableId: "internet",
+            dueDate: "2026-10-20",
+            amountInCents: 9_990,
+            status: "paid",
+            amountPending: false,
+          },
+        ],
+        "2026-10-29",
+      ),
+    ).toEqual([
+      {
+        recurringPayableId: "water",
+        description: "Água",
+        competence: "2026-10",
+        dueDate: "2026-10-03",
+        remindFrom: "2026-09-28",
+        amountInCents: 15_000,
+        amountType: "variable",
+        amountPending: true,
+        payableId: "p1",
+      },
+      {
+        recurringPayableId: "water",
+        description: "Água",
+        competence: "2026-11",
+        dueDate: "2026-11-03",
+        remindFrom: "2026-10-29",
+        amountInCents: 15_000,
+        amountType: "variable",
+        amountPending: true,
+      },
+    ]);
+    // Um dia antes do prazo não avisa; paga, a conta sai do aviso.
+    expect(
+      recurringPayableReminders(
+        [water],
+        [{ ...octoberWater, status: "paid" }],
+        "2026-10-28",
+      ),
+    ).toEqual([]);
+    // Internet: dia 18 avisa (20 menos 2); pausada, as competências futuras param.
+    expect(
+      recurringPayableReminders([internet], [], "2026-10-18").map(
+        (item) => item.dueDate,
+      ),
+    ).toEqual(["2026-10-20"]);
+    expect(
+      recurringPayableReminders(
+        [{ ...internet, active: false }],
+        [],
+        "2026-10-18",
+      ),
+    ).toEqual([]);
+  });
+
+  it("defaults fixed expenses to a fixed amount and limits the reminder", () => {
+    const base = {
+      description: "Conta de luz",
+      categoryId: "11111111-1111-4111-8111-111111111111",
+      costCenterId: "11111111-1111-4111-8111-111111111112",
+      amountInCents: 20_000,
+      dayOfMonth: 10,
+      startMonth: "2026-10",
+    };
+    expect(recurringPayableInputSchema.parse(base).amountType).toBe("fixed");
+    expect(
+      recurringPayableInputSchema.safeParse({ ...base, reminderDaysBefore: 31 })
+        .success,
+    ).toBe(false);
+    expect(
+      recurringPayableInputSchema.safeParse({
+        ...base,
+        amountType: "variable",
+        reminderDaysBefore: 0,
+      }).success,
+    ).toBe(true);
   });
 
   it("names groups with a per-service letter", () => {
