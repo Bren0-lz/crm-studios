@@ -1574,9 +1574,16 @@ export function createFinanceRepository(
         // esperar o valor do mês e a fixa volta a poder ser paga.
         if (model.amountType !== input.amountType)
           await client.query(
-            `UPDATE payables SET amount_pending = $3, updated_at = now()
+            `UPDATE payables SET amount_pending = $3,
+             amount_in_cents = CASE WHEN NOT $3 AND amount_in_cents = 0 THEN $4 ELSE amount_in_cents END,
+             updated_at = now()
            WHERE clinic_id = $1 AND recurring_payable_id = $2 AND status = 'open'`,
-            [clinicId, recurringPayableId, input.amountType === "variable"],
+            [
+              clinicId,
+              recurringPayableId,
+              input.amountType === "variable",
+              input.amountInCents,
+            ],
           );
         return repositoryContext.findRecurringPayable(
           client,
