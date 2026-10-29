@@ -171,9 +171,9 @@ describe("variable fixed expenses", () => {
       }),
     ).toBeInTheDocument();
     const table = section.querySelector(".recurring-table") as HTMLElement;
-    const waterRow = (
-      await within(table).findByText("Conta de água")
-    ).closest(".finance-row") as HTMLElement;
+    const waterRow = (await within(table).findByText("Conta de água")).closest(
+      ".finance-row",
+    ) as HTMLElement;
     expect(
       within(waterRow).getByText(
         "Valor variável (estimativa) · Aviso 3 dias antes",
@@ -233,9 +233,9 @@ describe("variable fixed expenses", () => {
     expect(
       within(remindersBlock).queryByRole("button", { name: /Informar valor/ }),
     ).not.toBeInTheDocument();
-    expect(within(remindersBlock).getByText(/vence em 2 dias/)).toHaveTextContent(
-      /187,90$/,
-    );
+    expect(
+      within(remindersBlock).getByText(/vence em 2 dias/),
+    ).toHaveTextContent(/187,90$/);
 
     // Editar a internet: passa a variável e sem aviso.
     fireEvent.click(
@@ -253,9 +253,11 @@ describe("variable fixed expenses", () => {
     fireEvent.change(within(editDialog).getByLabelText("Tipo de valor"), {
       target: { value: "variable" },
     });
-    expect(
-      within(editDialog).getByLabelText("Valor estimado"),
-    ).toBeInTheDocument();
+    // Na variável, a estimativa é opcional: dá para salvar sem ela.
+    fireEvent.change(
+      within(editDialog).getByLabelText("Valor estimado (opcional)"),
+      { target: { value: "" } },
+    );
     fireEvent.click(
       within(editDialog).getByLabelText("Avisar antes do vencimento"),
     );
@@ -275,7 +277,7 @@ describe("variable fixed expenses", () => {
           categoryId: category.id,
           costCenterId: center.id,
           amountType: "variable",
-          amountInCents: 12990,
+          amountInCents: 0,
           dayOfMonth: 5,
           startMonth: "2026-01",
           active: true,
@@ -288,6 +290,7 @@ describe("variable fixed expenses", () => {
       )
     ).closest(".finance-row") as HTMLElement;
     expect(within(internetRow).getByText("Internet")).toBeInTheDocument();
+    expect(within(internetRow).getByText("A informar")).toBeInTheDocument();
   });
 
   it("opens accounts payable from the fixed expenses notification", async () => {

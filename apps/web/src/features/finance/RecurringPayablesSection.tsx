@@ -127,8 +127,12 @@ export function RecurringPayablesSection({
                       <strong>{reminder.description}</strong>
                       <span>
                         {recurringReminderLabel(reminder, today)} ·{" "}
-                        {signedCurrency(-reminder.amountInCents)}
-                        {reminder.amountPending && " (estimado)"}
+                        {reminder.amountPending && reminder.amountInCents === 0
+                          ? "valor a informar"
+                          : signedCurrency(-reminder.amountInCents)}
+                        {reminder.amountPending &&
+                          reminder.amountInCents > 0 &&
+                          " (estimado)"}
                       </span>
                     </span>
                     {canInform && payable && reminder.amountPending && (
@@ -218,7 +222,9 @@ export function RecurringPayablesSection({
                     <span>Dia {item.dayOfMonth}</span>
                   </span>
                   <strong className="finance-amount cash-out">
-                    {signedCurrency(-item.amountInCents)}
+                    {item.amountInCents === 0
+                      ? "A informar"
+                      : signedCurrency(-item.amountInCents)}
                   </strong>
                   <span>
                     <span className={`status-pill ${status}`}>
@@ -231,14 +237,14 @@ export function RecurringPayablesSection({
                   </span>
                   <div className="finance-actions">
                     {canInform && pendingPayable && (
-                        <button
-                          className="primary-button button-sm"
-                          aria-label={`Informar valor de ${item.description}`}
-                          onClick={() => setInforming(pendingPayable)}
-                        >
-                          Informar valor
-                        </button>
-                      )}
+                      <button
+                        className="primary-button button-sm"
+                        aria-label={`Informar valor de ${item.description}`}
+                        onClick={() => setInforming(pendingPayable)}
+                      >
+                        Informar valor
+                      </button>
+                    )}
                     {editable && status !== "ended" && (
                       <>
                         {can("finance.recurring_update") && (
