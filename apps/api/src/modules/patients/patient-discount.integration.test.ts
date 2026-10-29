@@ -9,7 +9,7 @@ import "../../test-support/legacy-setup.js";
 const percent = (value: number) =>
   ({ type: "percentage", percent: value, scope: "permanent" }) as const;
 
-describe("client discount", () => {
+describe("plan discount", () => {
   it("saves a percentage or amount discount and removes it with null", async () => {
     const { app, token } = await authenticatedApp();
     const headers = { authorization: `Bearer ${token}` };
@@ -64,18 +64,14 @@ describe("client discount", () => {
     await app.close();
   });
 
-  it("applies the discount to the plan charges while the scope allows", async () => {
+  it("applies the plan discount only to that plan and its renewals", async () => {
     const { app, token } = await authenticatedApp();
     const headers = { authorization: `Bearer ${token}` };
-    const [services] = await Promise.all([
-      app.inject({ method: "GET", url: "/services", headers }),
-    ]);
-    const base = {
-      cpf: nextTestCpf(),
-      fullName: "Cliente Desconto Parcelas",
-      phone: "11955554444",
-      tags: [],
-    };
+    const services = await app.inject({
+      method: "GET",
+      url: "/services",
+      headers,
+    });
     const nextTwo = {
       type: "percentage",
       percent: 10,
@@ -87,28 +83,16 @@ describe("client discount", () => {
         method: "POST",
         url: "/patients",
         headers,
-        payload: { ...base, discount: nextTwo },
+        payload: {
+          cpf: nextTestCpf(),
+          fullName: "Cliente Desconto Parcelas",
+          phone: "11955554444",
+          tags: [],
+        },
       })
     ).json<{ id: string }>();
-    const sell = async (installments: number) => {
-      const plan = await app.inject({
-        method: "POST",
-        url: "/plans",
-        headers,
-        payload: await configuredPlan(app, {
-          patientId: patient.id,
-          serviceId: services!.json()[0].id as string,
-          name: "Pacote com desconto",
-          kind: "fixed_package",
-          totalSessions: 3,
-          validFrom: "2039-06-01",
-          totalValueInCents: 30_000,
-          installments,
-          firstDueDate: "2039-06-10",
-        }),
-      });
-      expect(plan.statusCode, plan.body).toBe(201);
-      return (
+    const charges = async (planId: string) =>
+      (
         (
           await app.inject({
             method: "GET",
@@ -122,50 +106,84 @@ describe("client discount", () => {
           customerDiscountInCents?: number;
         }[]
       )
-        .filter((item) => item.planId === plan.json().id)
+        .filter((item) => item.planId === planId)
         .sort((a, b) => a.installmentNumber - b.installmentNumber)
         .map((item) => [item.amountInCents, item.customerDiscountInCents]);
+    const sell = async (extra: Record<string, unknown>) => {
+      const plan = await app.inject({
+        method: "POST",
+        url: "/plans",
+        headers,
+        payload: {
+          ...(await configuredPlan(app, {
+            patientId: patient.id,
+            serviceId: services.json()[0].id as string,
+            name: "Pacote com desconto",
+            kind: "fixed_package",
+            totalSessions: 3,
+            validFrom: "2039-06-01",
+            validUntil: "2039-06-30",
+            totalValueInCents: 30_000,
+            installments: 1,
+            firstDueDate: "2039-06-10",
+          })),
+          ...extra,
+        },
+      });
+      expect(plan.statusCode, plan.body).toBe(201);
+      return plan.json<{ id: string; discount?: unknown }>();
     };
-    const current = async () =>
-      (
-        await app.inject({
-          method: "GET",
-          url: `/patients/${patient.id}`,
-          headers,
-        })
-      ).json().discount;
 
-    // 1ª venda em 1 parcela: usa 1 das 2 cobranças.
-    expect(await sell(1)).toEqual([[27_000, 3_000]]);
-    expect(await current()).toEqual({ ...nextTwo, usedCharges: 1 });
-    // Editar o cliente sem mexer no desconto mantém o uso.
-    await app.inject({
-      method: "PUT",
-      url: `/patients/${patient.id}`,
+    // 1ª venda em 1 parcela: usa 1 das 2 cobranças; o uso enviado pela tela é ignorado.
+    const first = await sell({ discount: { ...nextTwo, usedCharges: 5 } });
+    expect(await charges(first.id)).toEqual([[27_000, 3_000]]);
+    expect(first.discount).toEqual({ ...nextTwo, usedCharges: 1 });
+    // Outro plano do mesmo cliente, sem desconto, não ganha o desconto do primeiro.
+    const other = await sell({});
+    expect(await charges(other.id)).toEqual([[30_000, undefined]]);
+    expect(other.discount).toBeUndefined();
+
+    // A renovação segue o desconto do plano: só a 1ª parcela ainda tem desconto.
+    const renewed = await app.inject({
+      method: "POST",
+      url: `/plans/${first.id}/renew`,
       headers,
-      payload: { ...base, discount: { ...nextTwo, usedCharges: 0 } },
+      payload: {
+        name: "Pacote com desconto",
+        services: [
+          {
+            serviceId: services.json()[0].id as string,
+            totalSessions: 3,
+            totalValueInCents: 30_000,
+          },
+        ],
+        validFrom: "2039-07-01",
+        validUntil: "2039-07-31",
+        totalValueInCents: 30_000,
+        installments: 3,
+        firstDueDate: "2039-07-10",
+      },
     });
-    expect(await current()).toEqual({ ...nextTwo, usedCharges: 1 });
-    // 2ª venda em 3 parcelas: só a primeira ainda tem desconto.
-    expect(await sell(3)).toEqual([
+    expect(renewed.statusCode, renewed.body).toBe(201);
+    expect(await charges(renewed.json().id)).toEqual([
       [9_000, 1_000],
       [10_000, undefined],
       [10_000, undefined],
     ]);
-    expect(await current()).toEqual({ ...nextTwo, usedCharges: 2 });
-    expect(await sell(1)).toEqual([[30_000, undefined]]);
-    // Desconto novo começa a contar do zero.
-    await app.inject({
-      method: "PUT",
-      url: `/patients/${patient.id}`,
-      headers,
-      payload: { ...base, discount: { ...nextTwo, charges: 4 } },
-    });
-    expect(await current()).toEqual({ ...nextTwo, charges: 4 });
+    expect(renewed.json().discount).toEqual({ ...nextTwo, usedCharges: 2 });
+
+    // Parte do desconto geral do pedido: abate da 1ª cobrança em diante e não fica no plano.
+    const order = await sell({ installments: 3, orderDiscountInCents: 12_000 });
+    expect(await charges(order.id)).toEqual([
+      [0, 10_000],
+      [8_000, 2_000],
+      [10_000, undefined],
+    ]);
+    expect(order).not.toHaveProperty("orderDiscountInCents");
     await app.close();
   });
 
-  it("shows the client discount in the reports and in the receipt", async () => {
+  it("shows the plan discount in the reports and in the receipt", async () => {
     const { app, token } = await authenticatedApp();
     const headers = { authorization: `Bearer ${token}` };
     const services = await app.inject({
@@ -183,7 +201,6 @@ describe("client discount", () => {
           fullName: "Cliente Relatório Desconto",
           phone: "11955556666",
           tags: [],
-          discount: { type: "amount", amountInCents: 5_000, scope: "once" },
         },
       })
     ).json<{ id: string }>();
@@ -192,17 +209,20 @@ describe("client discount", () => {
       method: "POST",
       url: "/plans",
       headers,
-      payload: await configuredPlan(app, {
-        patientId: patient.id,
-        serviceId: services.json()[0].id as string,
-        name: "Plano do relatório",
-        kind: "fixed_package",
-        totalSessions: 2,
-        validFrom: today,
-        totalValueInCents: 20_000,
-        installments: 1,
-        firstDueDate: today,
-      }),
+      payload: {
+        ...(await configuredPlan(app, {
+          patientId: patient.id,
+          serviceId: services.json()[0].id as string,
+          name: "Plano do relatório",
+          kind: "fixed_package",
+          totalSessions: 2,
+          validFrom: today,
+          totalValueInCents: 20_000,
+          installments: 1,
+          firstDueDate: today,
+        })),
+        discount: { type: "amount", amountInCents: 5_000, scope: "once" },
+      },
     });
     expect(plan.statusCode, plan.body).toBe(201);
     const receivable = (
@@ -252,7 +272,8 @@ describe("client discount", () => {
       id: patient.id,
       values: {
         fullName: "Cliente Relatório Desconto",
-        discount: "R$ 50,00 de desconto · já usado no pagamento",
+        discount:
+          "Plano do relatório: R$ 50,00 de desconto · já usado no pagamento",
         discountGranted: "R$ 50,00",
       },
     });

@@ -11,6 +11,47 @@ import App from "../../App";
 import { storedUser } from "../../test-support/legacy-fixtures";
 import "../../test-support/legacy-setup";
 
+const pilatesId = "77777777-7777-4777-8777-777777777777";
+const singleTemplate = {
+  id: "b3333333-3333-4333-8333-333333333333",
+  name: "Aula avulsa",
+  kind: "single",
+  active: true,
+  totalValueInCents: 9000,
+  services: [
+    { serviceId: pilatesId, totalSessions: 1, totalValueInCents: 9000 },
+  ],
+};
+
+/** Respostas da API: cadastro guiado devolve o cliente com o serviço avulso. */
+function mockApi(extra: (url: string) => unknown = () => undefined) {
+  vi.mocked(fetch).mockImplementation(async (input, options) => {
+    const url = String(input);
+    const body =
+      extra(url) ??
+      (options?.method === "POST" && url.includes("/patients/guided")
+        ? { patient }
+        : options?.method === "POST"
+          ? patient
+          : url.includes("/plan-templates")
+            ? [singleTemplate]
+            : url.includes("/services")
+              ? [{ id: pilatesId, name: "Pilates", priceInCents: 9000 }]
+              : []);
+    return { ok: true, status: 200, json: async () => body } as Response;
+  });
+}
+
+async function chooseSingleService(dialog: HTMLElement) {
+  fireEvent.click(
+    within(dialog).getByRole("radio", { name: "Serviço avulso" }),
+  );
+  fireEvent.change(await within(dialog).findByLabelText("Plano cadastrado"), {
+    target: { value: singleTemplate.id },
+  });
+  return within(dialog).getByRole("group", { name: "Serviço avulso" });
+}
+
 const patient = {
   id: "99999999-9999-4999-8999-999999999999",
   clinicId: "11111111-1111-4111-8111-111111111111",
@@ -73,21 +114,28 @@ async function openNewClient() {
   return dialog;
 }
 
-describe("client discount", () => {
-  it("configures a percentage discount in a modal and sends it with the registration", async () => {
+describe("plan discount", () => {
+  it("only offers the discount once a plan or service is chosen and sends it with it", async () => {
     login();
-    vi.mocked(fetch).mockImplementation(async (_input, options) => {
-      const body = options?.method === "POST" ? patient : [];
-      return { ok: true, status: 200, json: async () => body } as Response;
-    });
+    mockApi();
     renderAt("/clientes");
     const dialog = await openNewClient();
-    expect(within(dialog).getByText("Sem desconto configurado.")).toBeVisible();
+    // Só o cadastro: nada de desconto (ele é do plano, não do cliente).
+    expect(
+      within(dialog).queryByRole("group", { name: "Desconto" }),
+    ).toBeNull();
+    expect(
+      within(dialog).queryByRole("button", { name: "Configurar desconto" }),
+    ).toBeNull();
+    const block = await chooseSingleService(dialog);
+    expect(
+      within(block).getByText("Sem desconto neste serviço."),
+    ).toBeVisible();
     fireEvent.click(
-      within(dialog).getByRole("button", { name: "Configurar desconto" }),
+      within(block).getByRole("button", { name: "Configurar desconto" }),
     );
     const discount = await screen.findByRole("dialog", {
-      name: "Desconto do cliente",
+      name: "Desconto do plano",
     });
     fireEvent.change(
       within(discount).getByLabelText("Porcentagem de desconto (%)"),
@@ -114,15 +162,11 @@ describe("client discount", () => {
     fireEvent.click(
       within(discount).getByRole("button", { name: "Aplicar desconto" }),
     );
-    // Menos de 2 cobranças não passa da validação do campo (para uma só, "Só no próximo pagamento").
     expect(
       within(discount).getByLabelText(
         "Quantas cobranças (parcelas ou renovações)",
       ),
     ).toBeInvalid();
-    expect(
-      screen.getByRole("dialog", { name: "Desconto do cliente" }),
-    ).toBeInTheDocument();
     fireEvent.change(
       within(discount).getByLabelText(
         "Quantas cobranças (parcelas ou renovações)",
@@ -134,130 +178,107 @@ describe("client discount", () => {
     );
     await waitFor(() =>
       expect(
-        screen.queryByRole("dialog", { name: "Desconto do cliente" }),
+        screen.queryByRole("dialog", { name: "Desconto do plano" }),
       ).toBeNull(),
     );
     expect(
-      within(dialog).getByText("12,5% de desconto · nas próximas 3 cobranças"),
+      within(block).getByText("12,5% de desconto · nas próximas 3 cobranças"),
     ).toBeVisible();
     fireEvent.click(
-      within(dialog).getByRole("button", { name: "Salvar cliente" }),
+      within(dialog).getByRole("button", {
+        name: "Salvar e criar serviço avulso",
+      }),
     );
     await waitFor(() =>
-      expect(sentBody("POST", "/patients")).toMatchObject({
-        discount: {
-          type: "percentage",
-          percent: 12.5,
-          scope: "next",
-          charges: 3,
+      expect(sentBody("POST", "/patients/guided")).toMatchObject({
+        next: "single",
+        plan: {
+          planTemplateId: singleTemplate.id,
+          discount: {
+            type: "percentage",
+            percent: 12.5,
+            scope: "next",
+            charges: 3,
+          },
         },
       }),
     );
+    expect(sentBody("POST", "/patients/guided").patient).not.toHaveProperty(
+      "discount",
+    );
   });
 
-  it("configures an amount discount", async () => {
+  it("removes the plan discount before saving", async () => {
     login();
-    vi.mocked(fetch).mockImplementation(async (_input, options) => {
-      const body = options?.method === "POST" ? patient : [];
-      return { ok: true, status: 200, json: async () => body } as Response;
-    });
+    mockApi();
     renderAt("/clientes");
     const dialog = await openNewClient();
+    const block = await chooseSingleService(dialog);
     fireEvent.click(
-      within(dialog).getByRole("button", { name: "Configurar desconto" }),
+      within(block).getByRole("button", { name: "Configurar desconto" }),
     );
     const discount = await screen.findByRole("dialog", {
-      name: "Desconto do cliente",
+      name: "Desconto do plano",
     });
     fireEvent.click(within(discount).getByLabelText("Valor (R$)"));
     fireEvent.change(
       within(discount).getByLabelText("Valor do desconto (R$)"),
-      {
-        target: { value: "25,00" },
-      },
+      { target: { value: "25,00" } },
     );
     fireEvent.click(
       within(discount).getByRole("button", { name: "Aplicar desconto" }),
     );
     expect(
-      await within(dialog).findByText(
+      await within(block).findByText(
         /R\$\s25,00 de desconto · só no próximo pagamento/,
       ),
     ).toBeVisible();
     fireEvent.click(
-      within(dialog).getByRole("button", { name: "Salvar cliente" }),
+      within(block).getByRole("button", { name: "Alterar desconto" }),
+    );
+    fireEvent.click(
+      within(
+        await screen.findByRole("dialog", { name: "Desconto do plano" }),
+      ).getByRole("button", { name: "Remover desconto" }),
+    );
+    expect(
+      await within(block).findByText("Sem desconto neste serviço."),
+    ).toBeVisible();
+    fireEvent.click(
+      within(dialog).getByRole("button", {
+        name: "Salvar e criar serviço avulso",
+      }),
     );
     await waitFor(() =>
-      expect(sentBody("POST", "/patients")).toMatchObject({
-        discount: { type: "amount", amountInCents: 2500, scope: "once" },
-      }),
+      expect(sentBody("POST", "/patients/guided")).toBeDefined(),
+    );
+    expect(sentBody("POST", "/patients/guided").plan).not.toHaveProperty(
+      "discount",
     );
   });
 
-  it("removes the saved discount when editing the client", async () => {
+  it("no longer shows a discount field when editing the client", async () => {
     login();
     const withDiscount = {
       ...patient,
-      discount: {
-        type: "percentage",
-        percent: 10,
-        scope: "permanent",
-        usedCharges: 4,
-      },
+      discount: { type: "percentage", percent: 10, scope: "permanent" },
     };
-    vi.mocked(fetch).mockImplementation(async (input, options) => {
-      const url = String(input);
-      const body =
-        options?.method === "PUT"
-          ? patient
-          : url.endsWith(`/patients/${patient.id}`)
-            ? withDiscount
-            : /\/patients(\?|$)/.test(url)
-              ? [withDiscount]
-              : [];
-      return { ok: true, status: 200, json: async () => body } as Response;
-    });
+    mockApi((url) =>
+      url.endsWith(`/patients/${patient.id}`)
+        ? withDiscount
+        : /\/patients(\?|$)/.test(url)
+          ? [withDiscount]
+          : undefined,
+    );
     renderAt(`/clientes/${patient.id}`);
-    const summary = await screen.findByRole("region", {
-      name: "Resumo do cliente",
-    });
-    expect(
-      within(summary).getByText("Desconto").closest("div"),
-    ).toHaveTextContent("10% de desconto · permanente");
     fireEvent.click(
       await screen.findByRole("button", { name: /Editar cadastro|Editar/ }),
     );
     const dialog = await screen.findByRole("dialog", {
       name: "Editar cliente",
     });
-    fireEvent.click(
-      within(dialog).getByRole("button", { name: "Alterar desconto" }),
-    );
-    const discount = await screen.findByRole("dialog", {
-      name: "Desconto do cliente",
-    });
     expect(
-      within(discount).getByLabelText("Porcentagem de desconto (%)"),
-    ).toHaveValue("10");
-    expect(
-      within(discount).getByLabelText("Permanente (até remover)"),
-    ).toBeChecked();
-    expect(
-      within(discount).getByText(/Já usado em 4 cobranças\./),
-    ).toBeInTheDocument();
-    fireEvent.click(
-      within(discount).getByRole("button", { name: "Remover desconto" }),
-    );
-    expect(
-      await within(dialog).findByText("Sem desconto configurado."),
-    ).toBeVisible();
-    fireEvent.click(
-      within(dialog).getByRole("button", { name: "Salvar alterações" }),
-    );
-    await waitFor(() =>
-      expect(sentBody("PUT", `/patients/${patient.id}`)).toMatchObject({
-        discount: null,
-      }),
-    );
+      within(dialog).queryByRole("button", { name: "Alterar desconto" }),
+    ).toBeNull();
   });
 });
