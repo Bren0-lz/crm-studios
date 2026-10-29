@@ -11,7 +11,9 @@ Execute **UMA** iteração do loop de desenvolvimento. Responda em pt-BR.
    `PLAN.md`, registre em `STATE.md` "aguardando revisão manual de <ID>", **PARE** e me chame
    com o escopo da revisão. (Marcar `BLOCKED` faz o loop headless parar; o dono marca `DONE`
    depois de aprovar.)
-3. Marque a tarefa `DOING` no `PLAN.md` e delegue ao agente `implementer` (via Agent,
+3. Crie o branch da tarefa a partir da `main` atual (`git fetch origin main` e
+   `git switch -c <branch-da-tarefa> origin/main`), nunca de um branch antigo ou de outro PR
+   (regras em "PRs sem conflito" no `CLAUDE.md`). Marque a tarefa `DOING` no `PLAN.md` e delegue ao agente `implementer` (via Agent,
    subagent_type `implementer`) passando: ID, escopo, gate e as descobertas do diário que
    sejam relevantes.
 4. Se voltar `BLOCKED`: marque a tarefa `BLOCKED`, registre o motivo em `STATE.md`, **PARE** e me chame.
@@ -27,7 +29,11 @@ Execute **UMA** iteração do loop de desenvolvimento. Responda em pt-BR.
    - `git add -A && git commit -m "<ID>: <título da tarefa>"` — mensagem em pt-BR, **sem**
      linhas `Co-Authored-By` nem "Generated with Claude" (regra do dono do repositório).
      O commit inclui código, `PLAN.md` e `STATE.md` juntos; o hash fica no `git log`.
-8. Abra um PR: `git push -u origin <branch-da-tarefa>` (nunca no branch padrão, nunca
+8. Sincronize com a `main` antes do push: `git fetch origin main && git merge origin/main`.
+   Se houver conflito, resolva trecho a trecho (nunca `checkout --ours/--theirs` no arquivo
+   inteiro), renumere a migração se o número já existir na `main`, rode o gate completo de novo
+   e confirme `git merge-tree --write-tree origin/main HEAD` com saída 0.
+   Abra um PR: `git push -u origin <branch-da-tarefa>` (nunca no branch padrão, nunca
    force-push) e crie o pull request para o branch padrão com título `<ID>: <título da tarefa>`
    e descrição em pt-BR com o que mudou e a saída do gate.
 9. Reporte em 3 linhas: o que foi feito · gate que passou + link do PR · qual é a próxima.
