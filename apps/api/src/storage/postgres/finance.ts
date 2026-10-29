@@ -1,4 +1,7 @@
-import { receiptWithClinic } from "../../modules/finance/receipt.js";
+import {
+  receiptInstallments,
+  receiptWithClinic,
+} from "../../modules/finance/receipt.js";
 import { assertPayableAmountEditable } from "../../modules/finance/payable-amount.js";
 import { loadFinancialMonth, loadFinancialSummary } from "./financial-month.js";
 import { clinicDateOf } from "../../modules/finance/daily-cash.js";
@@ -16,6 +19,7 @@ import {
   type AdminUserCommissionInput,
   type CommissionRuleInput,
   type CostCenterInput,
+  type CashMovement,
   type DailyCash,
   type FinancialCategoryInput,
   formatSequenceNumber,
@@ -46,9 +50,12 @@ import {
 } from "@crm/contracts";
 import {
   buildDailyCash,
+  collectCashMovements,
   DEFAULT_CLINIC_TIMEZONE,
+  type DailyCashSources,
 } from "../../modules/finance/daily-cash.js";
 import type { PoolClient } from "pg";
+import { paymentInstallmentsValue } from "./mappers/finance.js";
 import { DomainError } from "../../repository.js";
 import type { PostgresRepositoryContext } from "./context.js";
 import {
@@ -216,7 +223,7 @@ async function closeTab(
   await createTabServiceCredits(client, clinicId, actorUserId, tabId);
   const paid = input.settlement === "paid";
   const receivable = await client.query<{ id: string }>(
-    `INSERT INTO receivables(clinic_id,patient_id,description,installment_number,installment_count,due_date,amount_in_cents,status,paid_at,payment_method,branch_id) VALUES($1,$2,$3,1,1,$4,$5,$6,$7,$8,(SELECT branch_id FROM patient_tabs WHERE clinic_id=$1 AND id=$9)) RETURNING id`,
+    `INSERT INTO receivables(clinic_id,patient_id,description,installment_number,installment_count,due_date,amount_in_cents,status,paid_at,payment_method,branch_id,payment_installments) VALUES($1,$2,$3,1,1,$4,$5,$6,$7,$8,(SELECT branch_id FROM patient_tabs WHERE clinic_id=$1 AND id=$9),$10) RETURNING id`,
     [
       clinicId,
       row.patientId,
@@ -227,6 +234,7 @@ async function closeTab(
       paid ? new Date() : null,
       paid ? input.paymentMethod : null,
       tabId,
+      paid ? paymentInstallmentsValue(input.paymentInstallments) : null,
     ],
   );
   const receivableId = receivable.rows[0]!.id;
@@ -259,6 +267,9 @@ async function closeTab(
         row.totalInCents,
         JSON.stringify({
           paymentMethod: input.paymentMethod,
+          ...(paymentInstallmentsValue(input.paymentInstallments)
+            ? { paymentInstallments: input.paymentInstallments }
+            : {}),
           source: "patient_tab",
         }),
       ],
@@ -273,6 +284,144 @@ async function closeTab(
 export function createFinanceRepository(
   repositoryContext: PostgresRepositoryContext,
 ) {
+  /** Fontes do caixa com recebimentos entre `from` e `to` (fuso da clínica). */
+  async function loadCashSources(
+    clinicId: string,
+    from: string,
+    to: string,
+  ): Promise<{ sources: DailyCashSources; timeZone: string }> {
+    const branchIds = repositoryContext.branchReadIds();
+    const client = await repositoryContext.pool.connect();
+    try {
+      await client.query("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY");
+      const clinic = await client.query<{ timezone: string }>(
+        `SELECT timezone FROM clinics WHERE id=$1`,
+        [clinicId],
+      );
+      // Estorno não registra forma: herda a do pagamento mais recente do
+      // mesmo recebível até o estorno.
+      const receiptResult = await client.query<{
+        id: string;
+        receivableId: string;
+        kind: "payment" | "payment_reversal";
+        patientId: string;
+        patientName: string;
+        description: string;
+        amountInCents: number;
+        occurredAt: Date;
+        availableAt: Date;
+        paymentMethod: ReceivedPayment["paymentMethod"] | null;
+      }>(
+        `SELECT fe.id, fe.receivable_id AS "receivableId", fe.kind,
+              r.patient_id AS "patientId", p.full_name AS "patientName",
+              r.description, fe.amount_in_cents AS "amountInCents",
+              coalesce(dc.occurred_at,fe.occurred_at,fe.created_at) AS "occurredAt",coalesce(dc.cash_available_at,fe.cash_available_at,fe.occurred_at,fe.created_at) AS "availableAt",
+              COALESCE(fe.metadata->>'paymentMethod', (
+                SELECT prev.metadata->>'paymentMethod' FROM financial_events prev
+                WHERE prev.clinic_id=fe.clinic_id AND prev.receivable_id=fe.receivable_id
+                  AND prev.kind='payment' AND prev.created_at<=fe.created_at
+                  AND prev.metadata->>'paymentMethod' IS NOT NULL
+                ORDER BY prev.created_at DESC LIMIT 1
+              )) AS "paymentMethod"
+       FROM financial_events fe
+       LEFT JOIN LATERAL (SELECT occurred_at,cash_available_at FROM financial_date_corrections WHERE clinic_id=fe.clinic_id AND receivable_event_id=fe.id ORDER BY revision DESC LIMIT 1) dc ON true
+       JOIN clinics c ON c.id=fe.clinic_id
+       JOIN receivables r ON r.id=fe.receivable_id
+       JOIN patients p ON p.id=r.patient_id
+       WHERE fe.clinic_id=$1 AND fe.kind IN ('payment','payment_reversal')
+         AND ${branchClause("r.branch_id", 3)}
+         AND (coalesce(dc.cash_available_at,fe.cash_available_at,fe.occurred_at,fe.created_at) AT TIME ZONE c.timezone)::date BETWEEN $2::date AND $4::date`,
+        [clinicId, from, branchIds, to],
+      );
+      const payableResult = await client.query<PayableRow>(
+        `SELECT ${payableColumns} FROM payables py
+       JOIN financial_categories fc ON fc.id = py.category_id
+       LEFT JOIN cost_centers cc ON cc.id = py.cost_center_id
+       JOIN clinics c ON c.id = py.clinic_id
+       WHERE py.clinic_id=$1 AND ${branchClause("py.branch_id", 2)}`,
+        [clinicId, branchIds],
+      );
+      const payableEvents = await client.query<{
+        id: string;
+        clinicId: string;
+        payableId: string;
+        kind: "payment" | "payment_reversal";
+        occurredAt: Date;
+        availableAt: Date;
+        amountInCents: number;
+        paymentMethod: PaymentMethod | null;
+      }>(
+        `SELECT pe.id,pe.clinic_id AS "clinicId",pe.payable_id AS "payableId",pe.kind,coalesce(dc.occurred_at,pe.occurred_at,pe.created_at) AS "occurredAt",coalesce(dc.cash_available_at,pe.cash_available_at,pe.occurred_at,pe.created_at) AS "availableAt",-pe.amount_in_cents AS "amountInCents",coalesce(pe.metadata->>'paymentMethod',(SELECT prev.metadata->>'paymentMethod' FROM payable_events prev WHERE prev.clinic_id=pe.clinic_id AND prev.payable_id=pe.payable_id AND prev.kind='payment' AND prev.created_at<=pe.created_at ORDER BY prev.created_at DESC LIMIT 1)) AS "paymentMethod" FROM payable_events pe LEFT JOIN LATERAL(SELECT occurred_at,cash_available_at FROM financial_date_corrections WHERE clinic_id=pe.clinic_id AND payable_event_id=pe.id ORDER BY revision DESC LIMIT 1) dc ON true WHERE pe.clinic_id=$1 AND pe.kind IN ('payment','payment_reversal') AND EXISTS(SELECT 1 FROM payables pb WHERE pb.id=pe.payable_id AND ${branchClause("pb.branch_id", 2)})`,
+        [clinicId, branchIds],
+      );
+      const commissionEvents = await client.query<{
+        id: string;
+        clinicId: string;
+        commissionId: string;
+        kind: "payment" | "reversal";
+        amountInCents: number;
+        occurredAt: Date;
+      }>(
+        `SELECT e.id,e.clinic_id AS "clinicId",e.commission_id AS "commissionId",e.kind,e.amount_in_cents AS "amountInCents",e.occurred_at AS "occurredAt",e.professional_name AS "professionalName" FROM commission_payment_events e JOIN commission_entries ce ON ce.id=e.commission_id JOIN professionals p ON p.id=ce.professional_id WHERE e.clinic_id=$1 AND ${branchClause("p.branch_id", 2)}`,
+        [clinicId, branchIds],
+      );
+      const commissionResult = await client.query<CommissionEntryRow>(
+        `SELECT ce.id, ce.clinic_id AS "clinicId", ce.professional_id AS "professionalId",
+              p.full_name AS "professionalName", ce.appointment_id AS "appointmentId",ce.group_attendance_id AS "groupAttendanceId",ce.service_id AS "serviceId",ce.rule_id AS "ruleId",ce.rule_snapshot AS "ruleSnapshot",
+              ce.competence, ce.base_amount_in_cents AS "baseAmountInCents",
+              ce.percentage, ce.amount_in_cents AS "amountInCents", ce.status,
+              ce.paid_at AS "paidAt", ce.created_at AS "createdAt"
+       FROM commission_entries ce
+       JOIN professionals p ON p.id = ce.professional_id
+       JOIN clinics c ON c.id = ce.clinic_id
+       WHERE ce.clinic_id=$1 AND ${branchClause("p.branch_id", 2)}`,
+        [clinicId, branchIds],
+      );
+      await client.query("COMMIT");
+      const receipts: ReceivedPayment[] = receiptResult.rows.map((item) => ({
+        id: item.id,
+        receivableId: item.receivableId,
+        kind: item.kind === "payment" ? "payment" : "reversal",
+        occurredAt: item.occurredAt.toISOString(),
+        availableAt: item.availableAt.toISOString(),
+        patientId: item.patientId,
+        patientName: item.patientName,
+        description: item.description,
+        amountInCents: item.amountInCents,
+        ...(item.paymentMethod ? { paymentMethod: item.paymentMethod } : {}),
+      }));
+      return {
+        sources: {
+          receipts,
+          payables: payableResult.rows.map(mapPayable),
+          payableEvents: payableEvents.rows.map((item) => ({
+            ...item,
+            kind:
+              item.kind === "payment"
+                ? ("payment" as const)
+                : ("reversal" as const),
+            occurredAt: item.occurredAt.toISOString(),
+            availableAt: item.availableAt.toISOString(),
+            ...(item.paymentMethod
+              ? { paymentMethod: item.paymentMethod }
+              : { paymentMethod: undefined }),
+          })),
+          commissionEvents: commissionEvents.rows.map((item) => ({
+            ...item,
+            occurredAt: item.occurredAt.toISOString(),
+          })),
+          commissions: commissionResult.rows.map(mapCommissionEntry),
+        },
+        timeZone: clinic.rows[0]?.timezone ?? DEFAULT_CLINIC_TIMEZONE,
+      };
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
   return {
     async setAdminUserCommission(
       clinicId: string,
@@ -593,6 +742,9 @@ export function createFinanceRepository(
           ...(input.paymentMethod
             ? { paymentMethod: input.paymentMethod }
             : {}),
+          ...(input.paymentInstallments
+            ? { paymentInstallments: input.paymentInstallments }
+            : {}),
           ...(input.categoryId ? { categoryId: input.categoryId } : {}),
           ...(input.costCenterId ? { costCenterId: input.costCenterId } : {}),
         });
@@ -895,6 +1047,7 @@ export function createFinanceRepository(
         description: receivable.description,
         amountInCents: receivable.amountInCents,
         paymentMethod: receivable.paymentMethod,
+        ...receiptInstallments(receivable),
         paidAt: receivable.paidAt,
         clinicName: row?.clinicName ?? "",
         clinicLegalName: row?.clinicLegalName ?? "",
@@ -1851,137 +2004,17 @@ export function createFinanceRepository(
     },
 
     async getDailyCash(clinicId: string, date: string): Promise<DailyCash> {
-      const branchIds = repositoryContext.branchReadIds();
-      const client = await repositoryContext.pool.connect();
-      try {
-        await client.query("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY");
-        const clinic = await client.query<{ timezone: string }>(
-          `SELECT timezone FROM clinics WHERE id=$1`,
-          [clinicId],
-        );
-        // Estorno não registra forma: herda a do pagamento mais recente do
-        // mesmo recebível até o estorno.
-        const receiptResult = await client.query<{
-          id: string;
-          receivableId: string;
-          kind: "payment" | "payment_reversal";
-          patientId: string;
-          patientName: string;
-          description: string;
-          amountInCents: number;
-          occurredAt: Date;
-          availableAt: Date;
-          paymentMethod: ReceivedPayment["paymentMethod"] | null;
-        }>(
-          `SELECT fe.id, fe.receivable_id AS "receivableId", fe.kind,
-                r.patient_id AS "patientId", p.full_name AS "patientName",
-                r.description, fe.amount_in_cents AS "amountInCents",
-                coalesce(dc.occurred_at,fe.occurred_at,fe.created_at) AS "occurredAt",coalesce(dc.cash_available_at,fe.cash_available_at,fe.occurred_at,fe.created_at) AS "availableAt",
-                COALESCE(fe.metadata->>'paymentMethod', (
-                  SELECT prev.metadata->>'paymentMethod' FROM financial_events prev
-                  WHERE prev.clinic_id=fe.clinic_id AND prev.receivable_id=fe.receivable_id
-                    AND prev.kind='payment' AND prev.created_at<=fe.created_at
-                    AND prev.metadata->>'paymentMethod' IS NOT NULL
-                  ORDER BY prev.created_at DESC LIMIT 1
-                )) AS "paymentMethod"
-         FROM financial_events fe
-         LEFT JOIN LATERAL (SELECT occurred_at,cash_available_at FROM financial_date_corrections WHERE clinic_id=fe.clinic_id AND receivable_event_id=fe.id ORDER BY revision DESC LIMIT 1) dc ON true
-         JOIN clinics c ON c.id=fe.clinic_id
-         JOIN receivables r ON r.id=fe.receivable_id
-         JOIN patients p ON p.id=r.patient_id
-         WHERE fe.clinic_id=$1 AND fe.kind IN ('payment','payment_reversal')
-           AND ${branchClause("r.branch_id", 3)}
-           AND (coalesce(dc.cash_available_at,fe.cash_available_at,fe.occurred_at,fe.created_at) AT TIME ZONE c.timezone)::date=$2::date`,
-          [clinicId, date, branchIds],
-        );
-        const payableResult = await client.query<PayableRow>(
-          `SELECT ${payableColumns} FROM payables py
-         JOIN financial_categories fc ON fc.id = py.category_id
-         LEFT JOIN cost_centers cc ON cc.id = py.cost_center_id
-         JOIN clinics c ON c.id = py.clinic_id
-         WHERE py.clinic_id=$1 AND ${branchClause("py.branch_id", 2)}`,
-          [clinicId, branchIds],
-        );
-        const payableEvents = await client.query<{
-          id: string;
-          clinicId: string;
-          payableId: string;
-          kind: "payment" | "payment_reversal";
-          occurredAt: Date;
-          availableAt: Date;
-          amountInCents: number;
-          paymentMethod: PaymentMethod | null;
-        }>(
-          `SELECT pe.id,pe.clinic_id AS "clinicId",pe.payable_id AS "payableId",pe.kind,coalesce(dc.occurred_at,pe.occurred_at,pe.created_at) AS "occurredAt",coalesce(dc.cash_available_at,pe.cash_available_at,pe.occurred_at,pe.created_at) AS "availableAt",-pe.amount_in_cents AS "amountInCents",coalesce(pe.metadata->>'paymentMethod',(SELECT prev.metadata->>'paymentMethod' FROM payable_events prev WHERE prev.clinic_id=pe.clinic_id AND prev.payable_id=pe.payable_id AND prev.kind='payment' AND prev.created_at<=pe.created_at ORDER BY prev.created_at DESC LIMIT 1)) AS "paymentMethod" FROM payable_events pe LEFT JOIN LATERAL(SELECT occurred_at,cash_available_at FROM financial_date_corrections WHERE clinic_id=pe.clinic_id AND payable_event_id=pe.id ORDER BY revision DESC LIMIT 1) dc ON true WHERE pe.clinic_id=$1 AND pe.kind IN ('payment','payment_reversal') AND EXISTS(SELECT 1 FROM payables pb WHERE pb.id=pe.payable_id AND ${branchClause("pb.branch_id", 2)})`,
-          [clinicId, branchIds],
-        );
-        const commissionEvents = await client.query<{
-          id: string;
-          clinicId: string;
-          commissionId: string;
-          kind: "payment" | "reversal";
-          amountInCents: number;
-          occurredAt: Date;
-        }>(
-          `SELECT e.id,e.clinic_id AS "clinicId",e.commission_id AS "commissionId",e.kind,e.amount_in_cents AS "amountInCents",e.occurred_at AS "occurredAt",e.professional_name AS "professionalName" FROM commission_payment_events e JOIN commission_entries ce ON ce.id=e.commission_id JOIN professionals p ON p.id=ce.professional_id WHERE e.clinic_id=$1 AND ${branchClause("p.branch_id", 2)}`,
-          [clinicId, branchIds],
-        );
-        const commissionResult = await client.query<CommissionEntryRow>(
-          `SELECT ce.id, ce.clinic_id AS "clinicId", ce.professional_id AS "professionalId",
-                p.full_name AS "professionalName", ce.appointment_id AS "appointmentId",ce.group_attendance_id AS "groupAttendanceId",ce.service_id AS "serviceId",ce.rule_id AS "ruleId",ce.rule_snapshot AS "ruleSnapshot",
-                ce.competence, ce.base_amount_in_cents AS "baseAmountInCents",
-                ce.percentage, ce.amount_in_cents AS "amountInCents", ce.status,
-                ce.paid_at AS "paidAt", ce.created_at AS "createdAt"
-         FROM commission_entries ce
-         JOIN professionals p ON p.id = ce.professional_id
-         JOIN clinics c ON c.id = ce.clinic_id
-         WHERE ce.clinic_id=$1 AND ${branchClause("p.branch_id", 2)}`,
-          [clinicId, branchIds],
-        );
-        await client.query("COMMIT");
-        const receipts: ReceivedPayment[] = receiptResult.rows.map((item) => ({
-          id: item.id,
-          receivableId: item.receivableId,
-          kind: item.kind === "payment" ? "payment" : "reversal",
-          occurredAt: item.occurredAt.toISOString(),
-          availableAt: item.availableAt.toISOString(),
-          patientId: item.patientId,
-          patientName: item.patientName,
-          description: item.description,
-          amountInCents: item.amountInCents,
-          ...(item.paymentMethod ? { paymentMethod: item.paymentMethod } : {}),
-        }));
-        return buildDailyCash(
-          date,
-          {
-            receipts,
-            payables: payableResult.rows.map(mapPayable),
-            payableEvents: payableEvents.rows.map((item) => ({
-              ...item,
-              kind:
-                item.kind === "payment"
-                  ? ("payment" as const)
-                  : ("reversal" as const),
-              occurredAt: item.occurredAt.toISOString(),
-              availableAt: item.availableAt.toISOString(),
-              ...(item.paymentMethod
-                ? { paymentMethod: item.paymentMethod }
-                : { paymentMethod: undefined }),
-            })),
-            commissionEvents: commissionEvents.rows.map((item) => ({
-              ...item,
-              occurredAt: item.occurredAt.toISOString(),
-            })),
-            commissions: commissionResult.rows.map(mapCommissionEntry),
-          },
-          clinic.rows[0]?.timezone ?? DEFAULT_CLINIC_TIMEZONE,
-        );
-      } catch (error) {
-        await client.query("ROLLBACK");
-        throw error;
-      } finally {
-        client.release();
-      }
+      const { sources, timeZone } = await loadCashSources(clinicId, date, date);
+      return buildDailyCash(date, sources, timeZone);
+    },
+
+    async listCashMovements(
+      clinicId: string,
+      from: string,
+      to: string,
+    ): Promise<CashMovement[]> {
+      const { sources, timeZone } = await loadCashSources(clinicId, from, to);
+      return collectCashMovements(sources, from, to, timeZone);
     },
 
     async listReceivedPayments(

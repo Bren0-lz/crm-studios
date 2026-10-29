@@ -79,6 +79,18 @@ export interface PatientPlan extends Omit<
   pausedAt?: string;
   pauseReason?: string;
   pauseExpectedReturn?: string;
+  /** Situação das parcelas do plano (só na listagem; ausente sem cobrança). */
+  paymentSummary?: PlanPaymentSummary;
+}
+
+/** Parcelas do plano por situação; canceladas ficam fora. */
+export interface PlanPaymentSummary {
+  installmentCount: number;
+  paidCount: number;
+  openCount: number;
+  overdueCount: number;
+  paidInCents: number;
+  openInCents: number;
 }
 
 export type PlanPauseDetails = z.infer<typeof planPauseDetailsSchema>;

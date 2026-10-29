@@ -473,6 +473,279 @@ describe("guided client registration", () => {
     });
   });
 
+  it("subscribes several plans at once, each with its own class", async () => {
+    const planResult = (plan: object, id: string) => ({
+      id,
+      patientId: created.id,
+      patientName: created.fullName,
+      ...plan,
+      status: "active",
+      remainingSessions: 8,
+    });
+    const posts = mockApi((body) => {
+      const additional = body.additionalPlans as {
+        plan: object;
+        groupId?: string;
+      }[];
+      return jsonResponse(
+        {
+          patient: created,
+          plan: planResult(
+            body.plan as object,
+            "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+          ),
+          additionalPlans: additional.map((entry) => ({
+            plan: planResult(
+              entry.plan,
+              "dddddddd-dddd-4ddd-8ddd-ddddddddddd2",
+            ),
+            enrollment: {
+              id: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+              clinicId: created.clinicId,
+              groupId: entry.groupId,
+              patientId: created.id,
+              patientName: created.fullName,
+              status: "active",
+              enrolledAt: "2026-10-04T12:00:00.000Z",
+              updatedAt: "2026-10-04T12:00:00.000Z",
+            },
+          })),
+        },
+        201,
+      );
+    });
+    renderAs(storedUser(admin));
+    const dialog = await openNewClient();
+    fireEvent.click(
+      within(dialog).getByRole("radio", { name: "Assinar um plano" }),
+    );
+    fireEvent.change(await within(dialog).findByLabelText("Plano cadastrado"), {
+      target: { value: pilatesTemplate.id },
+    });
+    // Um plano só: nada para remover.
+    expect(
+      within(dialog).queryByRole("button", { name: /^Remover plano/ }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Adicionar outro plano" }),
+    );
+    const first = within(dialog).getByRole("group", { name: "Plano 1" });
+    const second = within(dialog).getByRole("group", { name: "Plano 2" });
+    // O segundo plano ainda sem escolha trava o salvamento.
+    expect(
+      within(dialog).getByRole("button", { name: "Salvar e criar plano" }),
+    ).toBeDisabled();
+    fireEvent.change(await within(second).findByLabelText("Plano cadastrado"), {
+      target: { value: physioTemplate.id },
+    });
+    fireEvent.change(within(second).getByLabelText("Modelo"), {
+      target: { value: "recurring" },
+    });
+    const secondGroup =
+      await within(second).findByLabelText("Turma (opcional)");
+    expect(
+      within(secondGroup)
+        .getAllByRole("option")
+        .map((item) => item.textContent),
+    ).toEqual(["Escolher depois", expect.stringMatching(/^Fisioterapia 1 — /)]);
+    fireEvent.change(secondGroup, { target: { value: groups[2]!.id } });
+    // Um terceiro plano adicionado e removido não vai para o cadastro.
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Adicionar outro plano" }),
+    );
+    fireEvent.click(
+      within(within(dialog).getByRole("group", { name: "Plano 3" })).getByRole(
+        "button",
+        { name: "Remover plano 3" },
+      ),
+    );
+    expect(
+      within(dialog).queryByRole("group", { name: "Plano 3" }),
+    ).not.toBeInTheDocument();
+    expect(within(first).getByLabelText("Plano cadastrado")).toHaveValue(
+      pilatesTemplate.id,
+    );
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Salvar e criar plano" }),
+    );
+    expect(
+      await screen.findByText(
+        "Planos “Pilates 2x semana” e “Fisioterapia” criados. Matrícula feita na turma Fisioterapia 1.",
+      ),
+    ).toBeInTheDocument();
+    expect(posts).toHaveLength(1);
+    expect(posts[0]).toMatchObject({
+      next: "plan",
+      plan: { planTemplateId: pilatesTemplate.id, kind: "fixed_package" },
+      additionalPlans: [
+        {
+          groupId: groups[2]!.id,
+          plan: {
+            planTemplateId: physioTemplate.id,
+            kind: "recurring",
+            installments: 1,
+            services: [
+              {
+                serviceId: physioId,
+                totalSessions: 8,
+                totalValueInCents: 48000,
+              },
+            ],
+          },
+        },
+      ],
+    });
+    expect(posts[0]).not.toHaveProperty("groupId");
+  });
+
+  it("mixes a plan with single services in the same registration", async () => {
+    const planResult = (plan: object, id: string) => ({
+      id,
+      patientId: created.id,
+      patientName: created.fullName,
+      ...plan,
+      status: "active",
+      remainingSessions: 1,
+    });
+    const posts = mockApi((body) =>
+      jsonResponse(
+        {
+          patient: created,
+          plan: planResult(
+            body.plan as object,
+            "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+          ),
+          additionalPlans: (body.additionalPlans as { plan: object }[]).map(
+            (entry) => ({
+              plan: planResult(
+                entry.plan,
+                "dddddddd-dddd-4ddd-8ddd-ddddddddddd2",
+              ),
+            }),
+          ),
+        },
+        201,
+      ),
+    );
+    renderAs(storedUser(admin));
+    const dialog = await openNewClient();
+    fireEvent.click(
+      within(dialog).getByRole("radio", { name: "Assinar um plano" }),
+    );
+    fireEvent.change(await within(dialog).findByLabelText("Plano cadastrado"), {
+      target: { value: pilatesTemplate.id },
+    });
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Adicionar serviço avulso" }),
+    );
+    const single = within(dialog).getByRole("group", {
+      name: "Serviço avulso",
+    });
+    // Avulso: só os planos do tipo avulso, sem modelo nem turma.
+    const catalog = await within(single).findByLabelText("Plano cadastrado");
+    expect(
+      within(catalog)
+        .getAllByRole("option")
+        .map((item) => item.getAttribute("value")),
+    ).toEqual(["", singleTemplate.id]);
+    expect(within(single).queryByLabelText("Modelo")).not.toBeInTheDocument();
+    expect(
+      within(single).queryByLabelText("Turma (opcional)"),
+    ).not.toBeInTheDocument();
+    expect(
+      within(dialog).getByRole("button", { name: "Salvar e criar plano" }),
+    ).toBeDisabled();
+    fireEvent.change(catalog, { target: { value: singleTemplate.id } });
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Salvar e criar plano" }),
+    );
+    expect(
+      await screen.findByText(
+        "Plano “Pilates 2x semana” criado. Serviço avulso “Serviço avulso” criado.",
+      ),
+    ).toBeInTheDocument();
+    expect(posts[0]).toMatchObject({
+      next: "plan",
+      plan: { planTemplateId: pilatesTemplate.id, kind: "fixed_package" },
+      additionalPlans: [
+        {
+          plan: {
+            planTemplateId: singleTemplate.id,
+            kind: "single",
+            installments: 1,
+            totalValueInCents: 9000,
+          },
+        },
+      ],
+    });
+    expect(
+      (posts[0]!.additionalPlans as Record<string, unknown>[])[0],
+    ).not.toHaveProperty("groupId");
+  });
+
+  it("prorates the first charge of a recurring plan by the classes until the due date", async () => {
+    const posts = mockApi((body) =>
+      jsonResponse(
+        {
+          patient: created,
+          plan: {
+            id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+            patientId: created.id,
+            patientName: created.fullName,
+            serviceName: "Pilates",
+            ...(body.plan as object),
+            status: "active",
+            remainingSessions: 8,
+          },
+        },
+        201,
+      ),
+    );
+    renderAs(storedUser(admin));
+    const dialog = await openNewClient();
+    fireEvent.click(
+      within(dialog).getByRole("radio", { name: "Assinar um plano" }),
+    );
+    fireEvent.change(await within(dialog).findByLabelText("Plano cadastrado"), {
+      target: { value: pilatesTemplate.id },
+    });
+    fireEvent.change(within(dialog).getByLabelText("Modelo"), {
+      target: { value: "recurring" },
+    });
+    fireEvent.change(within(dialog).getByLabelText("Início"), {
+      target: { value: "2026-10-01" },
+    });
+    fireEvent.change(within(dialog).getByLabelText("Primeiro vencimento"), {
+      target: { value: "2026-10-15" },
+    });
+    expect(
+      within(dialog).getByText(/^Escolha a turma para calcular o 1º pagamento/),
+    ).toBeInTheDocument();
+    // Pilates 1 é às segundas: 4 aulas em outubro, 2 delas até o dia 15.
+    fireEvent.change(await within(dialog).findByLabelText("Turma (opcional)"), {
+      target: { value: groups[0]!.id },
+    });
+    const note = within(dialog).getByText(/^1º pagamento proporcional/);
+    expect(note).toHaveTextContent(
+      /R\$\s240,00 \(2 aulas da turma até 15\/10\/2026, de 4 aulas no ciclo até 31\/10\/2026\)/,
+    );
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Salvar e criar plano" }),
+    );
+    await waitFor(() => expect(posts).toHaveLength(1));
+    expect(posts[0]).toMatchObject({
+      next: "plan",
+      groupId: groups[0]!.id,
+      plan: {
+        kind: "recurring",
+        installments: 1,
+        totalValueInCents: 48000,
+        firstDueDate: "2026-10-15",
+        firstInstallmentInCents: 24000,
+      },
+    });
+  });
+
   it("sells a single service without model nor class", async () => {
     const posts = mockApi((body) =>
       jsonResponse(
@@ -610,6 +883,47 @@ describe("guided client registration", () => {
       expect(
         screen.queryByRole("dialog", { name: "Enviar cobrança Pix" }),
       ).not.toBeInTheDocument();
+    });
+
+    it("charges the first installment already with the client discount", async () => {
+      const posts = mockPlanSale("financeiro@aryana.com.br");
+      const dialog = await choosePlanWithPix();
+      fireEvent.click(
+        within(dialog).getByRole("button", { name: "Configurar desconto" }),
+      );
+      const discount = await screen.findByRole("dialog", {
+        name: "Desconto do cliente",
+      });
+      fireEvent.click(within(discount).getByLabelText("Valor (R$)"));
+      fireEvent.change(
+        within(discount).getByLabelText("Valor do desconto (R$)"),
+        { target: { value: "20,00" } },
+      );
+      fireEvent.click(
+        within(discount).getByRole("button", { name: "Aplicar desconto" }),
+      );
+      await waitFor(() =>
+        expect(
+          screen.queryByRole("dialog", { name: "Desconto do cliente" }),
+        ).toBeNull(),
+      );
+      fireEvent.click(
+        within(dialog).getByRole("button", { name: "Salvar e criar plano" }),
+      );
+      const charge = await screen.findByRole("dialog", {
+        name: "Enviar cobrança Pix",
+      });
+      expect(posts[0]).toMatchObject({
+        patient: {
+          discount: { type: "amount", amountInCents: 2000, scope: "once" },
+        },
+      });
+      const href = within(charge)
+        .getByRole("link", { name: "Enviar Pix pelo WhatsApp" })
+        .getAttribute("href")!;
+      expect(decodeURIComponent(href.split("?text=")[1]!)).toContain(
+        "em 3 parcelas; a 1ª parcela é de R$ 140,00, já com o seu desconto de R$ 20,00. Chave Pix:",
+      );
     });
 
     it("uses the message configured by the clinic", async () => {

@@ -14,6 +14,7 @@ import {
   clinicDateOf,
   DEFAULT_CLINIC_TIMEZONE,
 } from "../finance/daily-cash.js";
+import { loadAutoCampaignQueue } from "../communications/auto-campaigns.js";
 
 export function registerDashboardRoutes(context: RouteContext) {
   const { app, authenticate, repository, requestAccess } = context;
@@ -85,7 +86,7 @@ export function registerDashboardRoutes(context: RouteContext) {
    * aviso configurado ou vencidas (financeiro), atendimentos a finalizar
    * (agenda) e os retornos combinados pela equipe: tarefas comerciais vencidas (crm),
    * contatos adiados que voltaram à lista (relacionamento) e pausas com retorno previsto
-   * até hoje (planos).
+   * até hoje (planos). Com Comunicações, as campanhas automáticas com mensagens pendentes.
    */
   app.get("/notifications", { preHandler: authenticate }, async (request) => {
     const { clinicId } = request.user;
@@ -95,56 +96,67 @@ export function registerDashboardRoutes(context: RouteContext) {
       new Date(),
       settings?.timezone ?? DEFAULT_CLINIC_TIMEZONE,
     );
-    const [birthdays, finance, recurringDue, pending, leads, snoozed, plans] =
-      await Promise.all([
-        modules.includes("relationship")
-          ? repository.listBirthdays(clinicId, date.slice(0, 7))
-          : undefined,
-        modules.includes("finance")
-          ? repository.getFinancialSummary(clinicId)
-          : undefined,
-        modules.includes("finance")
-          ? Promise.all([
-              repository.listRecurringPayables(clinicId),
-              repository.getFinancialWorkspace(clinicId),
-            ]).then(
-              ([models, workspace]) =>
-                recurringPayableReminders(models, workspace.payables, date)
-                  .length,
-            )
-          : undefined,
-        modules.includes("agenda")
-          ? Promise.all([
-              repository.listPendingFinalizationAppointments(
-                clinicId,
-                new Date().toISOString(),
+    const [
+      birthdays,
+      finance,
+      recurringDue,
+      pending,
+      leads,
+      snoozed,
+      plans,
+      autoQueue,
+    ] = await Promise.all([
+      modules.includes("relationship")
+        ? repository.listBirthdays(clinicId, date.slice(0, 7))
+        : undefined,
+      modules.includes("finance")
+        ? repository.getFinancialSummary(clinicId)
+        : undefined,
+      modules.includes("finance")
+        ? Promise.all([
+            repository.listRecurringPayables(clinicId),
+            repository.getFinancialWorkspace(clinicId),
+          ]).then(
+            ([models, workspace]) =>
+              recurringPayableReminders(models, workspace.payables, date)
+                .length,
+          )
+        : undefined,
+      modules.includes("agenda")
+        ? Promise.all([
+            repository.listPendingFinalizationAppointments(
+              clinicId,
+              new Date().toISOString(),
+            ),
+            professionalScope(request),
+          ]).then(([items, scope]) => inProfessionalScope(items, scope))
+        : undefined,
+      modules.includes("crm") ? repository.listLeads(clinicId) : undefined,
+      modules.includes("relationship")
+        ? Promise.all([
+            repository.listContactSuggestions(clinicId, modules),
+            repository.listContactActivities(clinicId),
+          ]).then(([suggestions, activities]) => {
+            // Sugestão visível com "Adiar contato" registrado: o adiamento acabou.
+            const returned = suggestions.filter((suggestion) =>
+              activities.some(
+                (activity) =>
+                  activity.outcome === "snoozed" &&
+                  activity.patientId === suggestion.patientId &&
+                  activity.reason === suggestion.reason &&
+                  activity.referenceKey === suggestion.referenceKey,
               ),
-              professionalScope(request),
-            ]).then(([items, scope]) => inProfessionalScope(items, scope))
-          : undefined,
-        modules.includes("crm") ? repository.listLeads(clinicId) : undefined,
-        modules.includes("relationship")
-          ? Promise.all([
-              repository.listContactSuggestions(clinicId, modules),
-              repository.listContactActivities(clinicId),
-            ]).then(([suggestions, activities]) => {
-              // Sugestão visível com "Adiar contato" registrado: o adiamento acabou.
-              const returned = suggestions.filter((suggestion) =>
-                activities.some(
-                  (activity) =>
-                    activity.outcome === "snoozed" &&
-                    activity.patientId === suggestion.patientId &&
-                    activity.reason === suggestion.reason &&
-                    activity.referenceKey === suggestion.referenceKey,
-                ),
-              );
-              return new Set(returned.map((item) => item.patientId)).size;
-            })
-          : undefined,
-        modules.includes("plans")
-          ? repository.listPatientPlans(clinicId)
-          : undefined,
-      ]);
+            );
+            return new Set(returned.map((item) => item.patientId)).size;
+          })
+        : undefined,
+      modules.includes("plans")
+        ? repository.listPatientPlans(clinicId)
+        : undefined,
+      modules.includes("communications")
+        ? loadAutoCampaignQueue(repository, clinicId, modules)
+        : undefined,
+    ]);
     return {
       date,
       ...(birthdays
@@ -181,6 +193,17 @@ export function registerDashboardRoutes(context: RouteContext) {
                 plan.pauseExpectedReturn !== undefined &&
                 plan.pauseExpectedReturn <= date,
             ).length,
+          }
+        : {}),
+      ...(autoQueue
+        ? {
+            autoCampaigns: autoQueue.campaigns
+              .filter((campaign) => campaign.pending > 0)
+              .map((campaign) => ({
+                id: campaign.campaignId,
+                name: campaign.name,
+                pending: campaign.pending,
+              })),
           }
         : {}),
     } satisfies NotificationsSummary;

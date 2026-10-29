@@ -98,6 +98,21 @@ export const historyActions: {
     label: "Campanha de WhatsApp criada",
   },
   {
+    action: "auto_campaign.created",
+    module: "communications",
+    label: "Campanha automática criada",
+  },
+  {
+    action: "auto_campaign.updated",
+    module: "communications",
+    label: "Campanha automática alterada",
+  },
+  {
+    action: "auto_campaign.deleted",
+    module: "communications",
+    label: "Campanha automática excluída",
+  },
+  {
     action: "message.manual_completion",
     module: "communications",
     label: "Conclusão manual de mensagem registrada",
@@ -247,6 +262,11 @@ export const historyActions: {
     action: "clinic.auto_finalization_updated",
     module: "settings",
     label: "Finalização automática alterada",
+  },
+  {
+    action: "clinic.payment_methods_updated",
+    module: "settings",
+    label: "Formas de pagamento alteradas",
   },
   {
     action: "patient_tag.created",

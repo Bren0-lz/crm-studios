@@ -2,6 +2,8 @@ import { useUnsavedChangesPrompt } from "../../shared/workflows/useUnsavedChange
 import type { CloseGuard } from "../../shared/workflows/types";
 import {
   nextPlanPeriod,
+  paymentMethodLabels,
+  paymentMethodSchema,
   planPeriodEnd,
   planPeriodMonths,
   planServiceValueForSessions,
@@ -10,8 +12,10 @@ import {
   type PatientOption,
   type PatientPlan,
   type PatientPlanInput,
+  type PaymentMethod,
   type PlanTemplate,
   type Service,
+  withPlanFirstCharge,
 } from "@crm/contracts";
 import {
   useEffect,
@@ -21,6 +25,7 @@ import {
   type ReactNode,
 } from "react";
 import { NavLink } from "react-router-dom";
+import { PlanFirstChargeNote } from "./PlanFirstChargeNote";
 import { PlanInstallmentsField } from "./PlanInstallmentsField";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
@@ -29,6 +34,7 @@ import { FixedPatient } from "../../shared/components/FixedPatient";
 import { useMissingFields } from "../../shared/components/MissingFields";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
 import { PlanGroupPicker } from "../../shared/components/PlanGroupPicker";
+import { usePaymentMethodSettings } from "../../shared/hooks/usePaymentMethodSettings";
 import { currency, localIsoDate } from "../../shared/lib/formatting";
 import type { GroupChoices } from "../../shared/workflows/types";
 import {
@@ -108,6 +114,9 @@ export function PlanForm({
       ),
       totalValueInCents: renewing.totalValueInCents,
       installments: renewing.kind === "recurring" ? 1 : renewing.installments,
+      ...(renewing.paymentMethod
+        ? { paymentMethod: renewing.paymentMethod }
+        : {}),
       autoRenew: renewing.autoRenew && Boolean(period.validUntil),
       ...period,
     };
@@ -129,6 +138,7 @@ export function PlanForm({
   );
   const formElement = useRef<HTMLFormElement>(null);
   const [templates, setTemplates] = useState<PlanTemplate[] | null>(null);
+  const paymentSettings = usePaymentMethodSettings();
   const [catalogError, setCatalogError] = useState("");
   const [catalogAttempt, setCatalogAttempt] = useState(0);
   useEffect(() => {
@@ -174,7 +184,7 @@ export function PlanForm({
     setError("");
     try {
       await onSubmit(
-        form,
+        withPlanFirstCharge(form, firstChargeSlots),
         form.kind !== "single" ? groupId || undefined : undefined,
       );
     } catch (cause) {
@@ -186,6 +196,10 @@ export function PlanForm({
       onBusyChange(false);
     }
   }
+  // 1º pagamento proporcional às aulas da turma escolhida; a renovação mantém o valor cheio.
+  const firstChargeSlots = renewing
+    ? undefined
+    : groups?.items?.find((group) => group.id === groupId)?.weeklySlots;
   // Plano é fixo: sessões e valor vêm do plano cadastrado (ou do plano renovado).
   // Só o avulso muda as sessões, e o valor acompanha o preço por sessão.
   const references = renewing
@@ -532,11 +546,38 @@ export function PlanForm({
                 }
               />
             </label>
+            <label>
+              Forma de pagamento
+              <select
+                value={form.paymentMethod ?? ""}
+                onChange={(event) => {
+                  const paymentMethod = event.target.value as
+                    PaymentMethod | "";
+                  const next = { ...form };
+                  if (paymentMethod) next.paymentMethod = paymentMethod;
+                  else delete next.paymentMethod;
+                  setForm(next);
+                }}
+              >
+                <option value="">A combinar</option>
+                {paymentMethodSchema.options.map((method) => (
+                  <option value={method} key={method}>
+                    {paymentMethodLabels[method]}
+                  </option>
+                ))}
+              </select>
+            </label>
             <PlanInstallmentsField
               kind={form.kind}
               installments={form.installments}
               firstDueDate={form.firstDueDate}
               validUntil={form.validUntil}
+              paymentMethod={form.paymentMethod}
+              settings={paymentSettings}
+              template={templates?.find(
+                (item) =>
+                  item.id === (renewing?.planTemplateId ?? form.planTemplateId),
+              )}
               onChange={(installments) => setForm({ ...form, installments })}
             />
             <label>
@@ -550,6 +591,9 @@ export function PlanForm({
                 }
               />
             </label>
+            {!renewing && (
+              <PlanFirstChargeNote plan={form} slots={firstChargeSlots} />
+            )}
             <label className="checkbox-field span-2">
               <input
                 type="checkbox"

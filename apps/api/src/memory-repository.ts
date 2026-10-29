@@ -23,6 +23,7 @@ import { createAgendaRepository } from "./storage/memory/agenda.js";
 import { createClinicalRepository } from "./storage/memory/clinical.js";
 import { createCommercialRepository } from "./storage/memory/commercial.js";
 import { createCampaignsRepository } from "./storage/memory/campaigns.js";
+import { createAutoCampaignsRepository } from "./storage/memory/auto-campaigns.js";
 import { createCommunicationsRepository } from "./storage/memory/communications.js";
 import { MemoryRepositoryContext } from "./storage/memory/context.js";
 import { createContractsRepository } from "./storage/memory/contracts.js";
@@ -74,6 +75,15 @@ export class MemoryClinicRepository implements ClinicRepository {
   readonly createMessageTemplate: ClinicRepository["createMessageTemplate"];
   readonly updateMessageTemplate: ClinicRepository["updateMessageTemplate"];
   readonly setMessageTemplateArchived: ClinicRepository["setMessageTemplateArchived"];
+  readonly listAutoCampaigns: ClinicRepository["listAutoCampaigns"];
+  readonly getAutoCampaign: ClinicRepository["getAutoCampaign"];
+  readonly createAutoCampaign: ClinicRepository["createAutoCampaign"];
+  readonly updateAutoCampaign: ClinicRepository["updateAutoCampaign"];
+  readonly deleteAutoCampaign: ClinicRepository["deleteAutoCampaign"];
+  readonly listAutoCampaignDeliveries: ClinicRepository["listAutoCampaignDeliveries"];
+  readonly saveAutoCampaignDelivery: ClinicRepository["saveAutoCampaignDelivery"];
+  readonly deleteAutoCampaignDelivery: ClinicRepository["deleteAutoCampaignDelivery"];
+  readonly getAutoCampaignSourceData: ClinicRepository["getAutoCampaignSourceData"];
   readonly listWhatsappCampaigns: ClinicRepository["listWhatsappCampaigns"];
   readonly getWhatsappCampaign: ClinicRepository["getWhatsappCampaign"];
   readonly createWhatsappCampaign: ClinicRepository["createWhatsappCampaign"];
@@ -222,6 +232,16 @@ export class MemoryClinicRepository implements ClinicRepository {
     this.commercial = createCommercialRepository(this.context);
     this.communications = createCommunicationsRepository(this.context);
     this.campaigns = createCampaignsRepository(this.context);
+    const autoCampaigns = createAutoCampaignsRepository(this.context);
+    this.listAutoCampaigns = autoCampaigns.listAutoCampaigns;
+    this.getAutoCampaign = autoCampaigns.getAutoCampaign;
+    this.createAutoCampaign = autoCampaigns.createAutoCampaign;
+    this.updateAutoCampaign = autoCampaigns.updateAutoCampaign;
+    this.deleteAutoCampaign = autoCampaigns.deleteAutoCampaign;
+    this.listAutoCampaignDeliveries = autoCampaigns.listAutoCampaignDeliveries;
+    this.saveAutoCampaignDelivery = autoCampaigns.saveAutoCampaignDelivery;
+    this.deleteAutoCampaignDelivery = autoCampaigns.deleteAutoCampaignDelivery;
+    this.getAutoCampaignSourceData = autoCampaigns.getAutoCampaignSourceData;
     this.contracts = createContractsRepository(this.context);
     const signatures = createDocumentSignaturesRepository(this.context);
     this.recordDocumentSignature = signatures.recordDocumentSignature;
@@ -251,6 +271,12 @@ export class MemoryClinicRepository implements ClinicRepository {
       this.administration.getAutoFinalizationSettings;
     this.updateAutoFinalizationSettings =
       this.administration.updateAutoFinalizationSettings;
+    this.getPaymentMethodSettings =
+      this.administration.getPaymentMethodSettings;
+    this.updatePaymentMethodSettings =
+      this.administration.updatePaymentMethodSettings;
+    this.getProLaboreSettings = this.administration.getProLaboreSettings;
+    this.updateProLaboreSettings = this.administration.updateProLaboreSettings;
     this.listNavTabLabels = this.administration.listNavTabLabels;
     this.saveNavTabLabels = this.administration.saveNavTabLabels;
     this.listAdminAuditEvents = this.administration.listAdminAuditEvents;
@@ -301,6 +327,7 @@ export class MemoryClinicRepository implements ClinicRepository {
     this.settleCommission = this.finance.settleCommission;
     this.reverseCommission = this.finance.reverseCommission;
     this.getDailyCash = this.finance.getDailyCash;
+    this.listCashMovements = this.finance.listCashMovements;
     this.listReceivedPayments = this.finance.listReceivedPayments;
     this.getRelationshipSettings = this.relationship.getRelationshipSettings;
     this.updateRelationshipSettings =
@@ -495,9 +522,20 @@ export class MemoryClinicRepository implements ClinicRepository {
     typeof createAdministrationRepository
   >["getAutoFinalizationSettings"];
 
+  readonly getProLaboreSettings: ReturnType<
+    typeof createAdministrationRepository
+  >["getProLaboreSettings"];
+
+  readonly updateProLaboreSettings: ReturnType<
+    typeof createAdministrationRepository
+  >["updateProLaboreSettings"];
+
   readonly updateAutoFinalizationSettings: ReturnType<
     typeof createAdministrationRepository
   >["updateAutoFinalizationSettings"];
+
+  readonly getPaymentMethodSettings: ClinicRepository["getPaymentMethodSettings"];
+  readonly updatePaymentMethodSettings: ClinicRepository["updatePaymentMethodSettings"];
 
   readonly listNavTabLabels: ClinicRepository["listNavTabLabels"];
   readonly saveNavTabLabels: ClinicRepository["saveNavTabLabels"];
@@ -665,6 +703,10 @@ export class MemoryClinicRepository implements ClinicRepository {
   readonly getDailyCash: ReturnType<
     typeof createFinanceRepository
   >["getDailyCash"];
+
+  readonly listCashMovements: ReturnType<
+    typeof createFinanceRepository
+  >["listCashMovements"];
 
   readonly listReceivedPayments: ReturnType<
     typeof createFinanceRepository
