@@ -8,6 +8,7 @@ export function DocumentPdfPreview({
   body,
   content,
   branding,
+  signature,
   download = false,
   onReady,
 }: DocumentPdfInput & {
@@ -18,8 +19,9 @@ export function DocumentPdfPreview({
   const [attempt, setAttempt] = useState(0);
   const downloaded = useRef(false);
   const key = useMemo(
-    () => JSON.stringify({ title, body, content, branding, attempt }),
-    [title, body, content, branding, attempt],
+    () =>
+      JSON.stringify({ title, body, content, branding, signature, attempt }),
+    [title, body, content, branding, signature, attempt],
   );
   const url = result.key === key ? result.url : "";
   const error = result.key === key ? result.error : "";
@@ -32,7 +34,13 @@ export function DocumentPdfPreview({
         return import("./document-pdf");
       })
       .then((module) =>
-        module.generateDocumentPdf({ title, body, content, branding }),
+        module.generateDocumentPdf({
+          title,
+          body,
+          content,
+          branding,
+          signature,
+        }),
       )
       .then((blob) => {
         if (!active) return;
@@ -52,7 +60,7 @@ export function DocumentPdfPreview({
       active = false;
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [title, body, content, branding, attempt, onReady, key]);
+  }, [title, body, content, branding, signature, attempt, onReady, key]);
   const filename = `${
     title
       .replace(/[<>:"/\\|?*]/g, "-")
