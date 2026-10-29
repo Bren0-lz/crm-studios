@@ -56,7 +56,11 @@ import {
 } from "../../modules/finance/daily-cash.js";
 import type { PoolClient } from "pg";
 import { paymentInstallmentsValue } from "./mappers/finance.js";
-import { DomainError } from "../../repository.js";
+import {
+  DomainError,
+  type CommissionRecalculationRequest,
+} from "../../repository.js";
+import { createPostgresCommissionRecalculation } from "./commission-recalculation.js";
 import type { PostgresRepositoryContext } from "./context.js";
 import {
   type CommissionEntryRow,
@@ -430,6 +434,7 @@ export function createFinanceRepository(
       actorUserId: string,
       userId: string,
       input: AdminUserCommissionInput,
+      recalculation?: CommissionRecalculationRequest,
     ) {
       return repositoryContext.inTransaction(async (client) => {
         const user = await client.query(
@@ -444,6 +449,15 @@ export function createFinanceRepository(
           userId,
           input,
         );
+        if (recalculation)
+          await createPostgresCommissionRecalculation(repositoryContext).apply(
+            client,
+            clinicId,
+            actorUserId,
+            { userId },
+            [input],
+            recalculation.expectedDigest,
+          );
         return repositoryContext.findAdminUser(client, clinicId, userId);
       });
     },

@@ -2121,7 +2121,7 @@ describe("application shell", () => {
         target: { value: "27.5" },
       });
       fireEvent.change(within(dialog).getByLabelText("Vale a partir de"), {
-        target: { value: "2026-11-01" },
+        target: { value: "2099-11-01" },
       });
       fireEvent.click(within(dialog).getByRole("button", { name: "Salvar" }));
       await vi.waitFor(() =>
@@ -2131,7 +2131,151 @@ describe("application shell", () => {
       expect(JSON.parse(String(posts()[0]![1]?.body))).toEqual({
         professionalId: professionals[1]!.id,
         percentage: 27.5,
-        effectiveFrom: "2026-11-01",
+        effectiveFrom: "2099-11-01",
+      });
+    });
+
+    it("shows the retroactive recalculation before saving a rule that starts in the past", async () => {
+      const workspace = financeWorkspace();
+      localStorage.setItem("crm.auth.token", "test-token");
+      localStorage.setItem(
+        "crm.auth.user",
+        storedUser({
+          id: "22222222-2222-4222-8222-222222222222",
+          fullName: "Aryana Dutra",
+          email: "admin@movimenta.local",
+          role: "owner",
+        }),
+      );
+      const professional = {
+        id: "33333333-3333-4333-8333-333333333333",
+        fullName: "Juliana Prado",
+        color: "#5c6f68",
+        active: true,
+      };
+      const preview = {
+        from: "2026-03-01",
+        until: "2026-03-31",
+        items: [
+          {
+            commissionId: "c1",
+            professionalId: professional.id,
+            professionalName: "Juliana Prado",
+            competence: "2026-03",
+            sourceDate: "2026-03-10",
+            status: "open",
+            mode: "update",
+            previousAmountInCents: 1000,
+            amountInCents: 3000,
+            differenceInCents: 2000,
+            ruleSnapshot: { percentage: 30, effectiveFrom: "2026-03-01" },
+          },
+          {
+            commissionId: "c2",
+            professionalId: professional.id,
+            professionalName: "Juliana Prado",
+            competence: "2026-03",
+            sourceDate: "2026-03-05",
+            status: "paid",
+            mode: "adjustment",
+            previousAmountInCents: 1000,
+            amountInCents: 3000,
+            differenceInCents: 2000,
+            ruleSnapshot: { percentage: 30, effectiveFrom: "2026-03-01" },
+          },
+        ],
+        differenceInCents: 4000,
+        adjustmentInCents: 2000,
+        digest: "a".repeat(64),
+      };
+      vi.mocked(fetch).mockImplementation(async (input, init) => {
+        const url = String(input);
+        if (url.includes("/recalculation/preview"))
+          return {
+            ok: true,
+            status: 200,
+            json: async () => preview,
+          } as Response;
+        if (init?.method === "POST")
+          return { ok: true, status: 201, json: async () => ({}) } as Response;
+        const body = url.includes("/finance/workspace")
+          ? workspace
+          : url.endsWith("/professionals")
+            ? [professional]
+            : [];
+        return { ok: true, status: 200, json: async () => body } as Response;
+      });
+      render(
+        <MemoryRouter initialEntries={["/financeiro"]}>
+          <App />
+        </MemoryRouter>,
+      );
+      fireEvent.click(
+        await screen.findByRole("button", { name: "Comissões (2)" }),
+      );
+      const calls = (path: string) =>
+        vi
+          .mocked(fetch)
+          .mock.calls.filter(
+            ([url, options]) =>
+              options?.method === "POST" && String(url).endsWith(path),
+          );
+      fireEvent.click(
+        await screen.findByRole("button", { name: "Nova regra" }),
+      );
+      const dialog = await screen.findByRole("dialog", {
+        name: "Nova regra de comissão",
+      });
+      await vi.waitFor(() =>
+        expect(within(dialog).getByLabelText("Profissional")).toHaveValue(
+          professional.id,
+        ),
+      );
+      fireEvent.change(within(dialog).getByLabelText("Vale a partir de"), {
+        target: { value: "2026-03-01" },
+      });
+      fireEvent.click(within(dialog).getByRole("button", { name: "Salvar" }));
+      expect(
+        await within(dialog).findByText(
+          "Esta mudança recalcula 2 comissões de 01/03/2026 a 31/03/2026 (diferença: +R$ 40,00; +R$ 20,00 em ajustes de comissões já pagas).",
+          { normalizer: (text) => text.replace(/\s+/g, " ").trim() },
+        ),
+      ).toBeInTheDocument();
+      expect(
+        within(dialog).getByText(/já paga: ajuste de \+R\$\s20,00/),
+      ).toBeInTheDocument();
+      expect(
+        JSON.parse(String(calls("/recalculation/preview")[0]![1]?.body)),
+      ).toEqual({
+        professionalId: professional.id,
+        rules: [{ percentage: 30, effectiveFrom: "2026-03-01" }],
+      });
+      expect(calls("/finance/commission-rules")).toHaveLength(0);
+
+      // Mudar a regra descarta a prévia: o botão volta a ser "Salvar".
+      fireEvent.change(within(dialog).getByLabelText("Percentual (%)"), {
+        target: { value: "35" },
+      });
+      expect(
+        within(dialog).queryByText(/Esta mudança recalcula/),
+      ).not.toBeInTheDocument();
+      fireEvent.change(within(dialog).getByLabelText("Percentual (%)"), {
+        target: { value: "30" },
+      });
+      fireEvent.click(
+        within(dialog).getByRole("button", { name: "Confirmar e recalcular" }),
+      );
+      await vi.waitFor(() =>
+        expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+      );
+      expect(calls("/recalculation/preview")).toHaveLength(1);
+      expect(
+        JSON.parse(String(calls("/finance/commission-rules")[0]![1]?.body)),
+      ).toEqual({
+        professionalId: professional.id,
+        percentage: 30,
+        effectiveFrom: "2026-03-01",
+        recalculationDigest: "a".repeat(64),
       });
     });
   });

@@ -55,8 +55,12 @@ import {
   type DailyCashSources,
 } from "../../modules/finance/daily-cash.js";
 import { assertPayableAmountEditable } from "../../modules/finance/payable-amount.js";
-import { DomainError } from "../../repository.js";
+import {
+  DomainError,
+  type CommissionRecalculationRequest,
+} from "../../repository.js";
 import type { MemoryRepositoryContext } from "./context.js";
+import { createMemoryCommissionRecalculation } from "./commission-recalculation.js";
 import { addMonths, now, today, uuid } from "./helpers.js";
 
 export function createFinanceRepository(
@@ -116,17 +120,29 @@ export function createFinanceRepository(
       actorUserId: string,
       userId: string,
       input: AdminUserCommissionInput,
+      recalculation?: CommissionRecalculationRequest,
     ) {
       const user = repositoryContext.users.find(
         (item) => item.clinicId === clinicId && item.id === userId,
       );
       if (!user) return null;
-      repositoryContext.addUserCommissionRule(
-        clinicId,
-        actorUserId,
-        userId,
-        input,
-      );
+      const save = () =>
+        repositoryContext.addUserCommissionRule(
+          clinicId,
+          actorUserId,
+          userId,
+          input,
+        );
+      if (recalculation)
+        createMemoryCommissionRecalculation(repositoryContext).saveAndApply(
+          clinicId,
+          actorUserId,
+          { userId },
+          [input],
+          recalculation.expectedDigest,
+          save,
+        );
+      else save();
       return repositoryContext.toAdminUser(user);
     },
 

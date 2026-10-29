@@ -9281,6 +9281,20 @@ describe("users and permissions", () => {
             status: 200,
             json: async () => handled,
           } as Response;
+        // Sem comissão lançada no período: a prévia do recálculo vem vazia.
+        if (url.endsWith("/recalculation/preview"))
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              from: "2026-01-01",
+              until: "2026-01-01",
+              items: [],
+              differenceInCents: 0,
+              adjustmentInCents: 0,
+              digest: "b".repeat(64),
+            }),
+          } as Response;
         if (url.endsWith("/professionals") && options.professionalsFail)
           return {
             ok: false,
@@ -9323,10 +9337,16 @@ describe("users and permissions", () => {
       return screen.getByRole("dialog", { name: `Editar ${name}` });
     }
 
+    // A prévia do recálculo é consulta por POST: não conta como gravação.
     const writes = () =>
       vi
         .mocked(fetch)
-        .mock.calls.filter(([, init]) => init?.method && init.method !== "GET")
+        .mock.calls.filter(
+          ([input, init]) =>
+            init?.method &&
+            init.method !== "GET" &&
+            !String(input).endsWith("/recalculation/preview"),
+        )
         .map(([input, init]) => ({
           method: init!.method!,
           url: String(input),

@@ -1,12 +1,50 @@
-import type { CommissionRuleInput } from "@crm/contracts";
+import type {
+  CommissionRecalculationPreviewInput,
+  CommissionRuleInput,
+} from "@crm/contracts";
+import type { CommissionRecalculationRequest } from "../../repository.js";
+import { createPostgresCommissionRecalculation } from "./commission-recalculation.js";
 import type { PostgresRepositoryContext } from "./context.js";
 export function createCommissionOperationsRepository(
   context: PostgresRepositoryContext,
 ) {
+  const recalculation = createPostgresCommissionRecalculation(context);
   return {
-    async createCommissionRule(clinicId: string, input: CommissionRuleInput) {
-      return context.inTransaction(async (client) =>
-        context.insertCommissionRule(client, clinicId, input),
+    async createCommissionRule(
+      clinicId: string,
+      input: CommissionRuleInput,
+      request?: CommissionRecalculationRequest & { actorId: string },
+    ) {
+      return context.inTransaction(async (client) => {
+        const rule = await context.insertCommissionRule(
+          client,
+          clinicId,
+          input,
+        );
+        if (request) {
+          const { professionalId, ...terms } = input;
+          await recalculation.apply(
+            client,
+            clinicId,
+            request.actorId,
+            { professionalId },
+            [terms],
+            request.expectedDigest,
+          );
+        }
+        return rule;
+      });
+    },
+    async previewCommissionRecalculation(
+      clinicId: string,
+      input: CommissionRecalculationPreviewInput,
+    ) {
+      return recalculation.preview(
+        clinicId,
+        input.userId
+          ? { userId: input.userId }
+          : { professionalId: input.professionalId! },
+        input.rules,
       );
     },
     async generateCommissions(clinicId: string, competence: string) {
