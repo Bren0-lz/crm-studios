@@ -52,8 +52,17 @@ z.config({ customError: ptBrValidationError });
 export async function createRouteContext({
   repository,
   logger = true,
+  trustProxy = config.TRUST_PROXY,
 }: BuildAppOptions) {
-  const app = Fastify({ logger, bodyLimit: 8 * 1024 * 1024 });
+  const app = Fastify({
+    logger,
+    bodyLimit: 8 * 1024 * 1024,
+    // Só os N últimos saltos, nunca `true`: confiar em qualquer X-Forwarded-For deixa o
+    // cliente escolher o IP gravado na assinatura e burlar o bloqueio de tentativas de login.
+    ...(trustProxy > 0
+      ? { trustProxy: (_address: string, hop: number) => hop < trustProxy }
+      : {}),
+  });
 
   const loginAttempts = new Map<
     string,

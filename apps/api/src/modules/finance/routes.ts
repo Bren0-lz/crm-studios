@@ -10,6 +10,7 @@ import {
   patientTabCloseInputSchema,
   patientTabInputSchema,
   patientTabItemInputSchema,
+  payableAmountInputSchema,
   payableInputSchema,
   paymentInputSchema,
   receivableSettlementSchema,
@@ -546,6 +547,29 @@ export function registerFinanceRoutes(context: RouteContext) {
         id,
         input.paymentMethod,
         input,
+      );
+      if (!payable)
+        return reply.status(404).send({
+          code: "PAYABLE_NOT_FOUND",
+          message: "Conta a pagar não encontrada.",
+        });
+      return payable;
+    },
+  );
+
+  app.put(
+    "/finance/payables/:id/amount",
+    { preHandler: authenticate },
+    async (request, reply) => {
+      const { id } = request.params as { id: string };
+      const { amountInCents } = payableAmountInputSchema.parse(
+        request.body ?? {},
+      );
+      const payable = await repository.setPayableAmount(
+        request.user.clinicId,
+        request.user.sub,
+        id,
+        amountInCents,
       );
       if (!payable)
         return reply.status(404).send({
