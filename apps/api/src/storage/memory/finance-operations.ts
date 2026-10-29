@@ -142,10 +142,13 @@ export function createFinanceOperationsRepository(
             "Classificação do produto não encontrada.",
             404,
           );
-      Object.assign(item, input, {
+      const { sizes, restockAlertAt, ...fields } = input;
+      Object.assign(item, fields, {
+        ...(sizes ? { sizes } : {}),
+        ...(restockAlertAt !== undefined ? { restockAlertAt } : {}),
         updatedAt: now(),
-        lowStock: item.currentStock <= input.minimumStock,
       });
+      context.refreshProductStock(item);
       context.recordAudit(
         clinicId,
         actorUserId,
@@ -191,15 +194,7 @@ export function createFinanceOperationsRepository(
           400,
         );
       const delta = (input?.quantity ?? 0) - item.quantity;
-      if (delta > product.currentStock)
-        throw new DomainError(
-          "INSUFFICIENT_STOCK",
-          "O estoque disponível é insuficiente.",
-          409,
-        );
-      product.currentStock -= delta;
-      product.lowStock = product.currentStock <= product.minimumStock;
-      product.updatedAt = now();
+      context.changeProductStock(product, item.size, -delta);
       if (delta)
         context.pushStockMovement(
           product,
@@ -207,6 +202,7 @@ export function createFinanceOperationsRepository(
           -delta,
           "Ajuste de item na comanda",
           tabId,
+          item.size,
         );
       if (input) {
         item.quantity = input.quantity;
