@@ -1,4 +1,4 @@
-import type { FinancialWorkspace } from "@crm/contracts";
+import type { FinancialWorkspace, RecurringPayable } from "@crm/contracts";
 import { useState, type FormEvent } from "react";
 import { api } from "../../api";
 import { useToast } from "../../shared/feedback/toast-context";
@@ -12,37 +12,49 @@ import {
   InlineClassificationCreate,
 } from "./InlineClassificationCreate";
 
+/** Cria uma despesa fixa ou, com `item`, edita a existente. */
 export function RecurringPayableModal({
   workspace,
   currentMonth,
+  item,
   onClose,
   onCreated,
 }: {
   workspace: FinancialWorkspace;
   currentMonth: string;
+  item?: RecurringPayable | undefined;
   onClose: () => void;
   onCreated: () => void;
 }) {
   const toast = useToast();
   const { can } = useAuthorization();
+  // Na edição, a categoria e o centro atuais continuam na lista mesmo se inativados.
   const [expenseCategories, setExpenseCategories] = useState(() =>
     workspace.categories.filter(
-      (item) => item.kind === "expense" && item.active,
+      (category) =>
+        category.kind === "expense" &&
+        (category.active || category.id === item?.categoryId),
     ),
   );
   const [costCenters, setCostCenters] = useState(() =>
-    workspace.costCenters.filter((item) => item.active),
+    workspace.costCenters.filter(
+      (center) => center.active || center.id === item?.costCenterId,
+    ),
   );
   const [form, setForm] = useState({
-    description: "",
-    supplier: "",
-    categoryId: expenseCategories[0]?.id ?? "",
-    costCenterId: costCenters[0]?.id ?? "",
-    amountInCents: 0,
-    dayOfMonth: Math.min(new Date().getDate(), 28),
-    startMonth: currentMonth,
-    endMonth: "",
+    description: item?.description ?? "",
+    supplier: item?.supplier ?? "",
+    categoryId: item?.categoryId ?? expenseCategories[0]?.id ?? "",
+    costCenterId: item?.costCenterId ?? costCenters[0]?.id ?? "",
+    amountType: item?.amountType ?? "fixed",
+    amountInCents: item?.amountInCents ?? 0,
+    dayOfMonth: item?.dayOfMonth ?? Math.min(new Date().getDate(), 28),
+    remind: item ? item.reminderDaysBefore !== undefined : true,
+    reminderDaysBefore: item?.reminderDaysBefore ?? 3,
+    startMonth: item?.startMonth ?? currentMonth,
+    endMonth: item?.endMonth ?? "",
   });
+  const variable = form.amountType === "variable";
   const [error, setError] = useState("");
   const [creating, setCreating] = useState<"category" | "costCenter" | null>(
     null,
@@ -55,22 +67,32 @@ export function RecurringPayableModal({
         "Descrição (pelo menos 3 caracteres)",
       !form.categoryId && "Categoria",
       !form.costCenterId && "Centro de custo",
-      form.amountInCents <= 0 && "Valor mensal",
+      form.amountInCents <= 0 && (variable ? "Valor estimado" : "Valor mensal"),
+      form.remind &&
+        !(
+          Number.isInteger(form.reminderDaysBefore) &&
+          form.reminderDaysBefore >= 0 &&
+          form.reminderDaysBefore <= 30
+        ) &&
+        "Dias de antecedência do aviso (0 a 30)",
     ].filter((item): item is string => Boolean(item)),
   );
   async function submit(event: FormEvent) {
     event.preventDefault();
     setError("");
     setLoading(true);
-    const { supplier, endMonth, ...rest } = form;
+    const { supplier, endMonth, remind, reminderDaysBefore, ...rest } = form;
+    const input = {
+      ...rest,
+      description: rest.description.trim(),
+      ...(supplier.trim() ? { supplier: supplier.trim() } : {}),
+      ...(remind ? { reminderDaysBefore } : {}),
+      ...(endMonth ? { endMonth } : {}),
+      active: item?.active ?? true,
+    };
     try {
-      await api.createRecurringPayable({
-        ...rest,
-        description: rest.description.trim(),
-        ...(supplier.trim() ? { supplier: supplier.trim() } : {}),
-        ...(endMonth ? { endMonth } : {}),
-        active: true,
-      });
+      if (item) await api.updateRecurringPayable(item.id, input);
+      else await api.createRecurringPayable(input);
       onCreated();
     } catch (cause) {
       setError((cause as Error).message);
@@ -80,13 +102,17 @@ export function RecurringPayableModal({
   }
   return (
     <Modal
-      title="Nova despesa fixa"
-      subtitle="A conta a pagar é gerada todo mês, do mês inicial até o final."
+      title={item ? "Editar despesa fixa" : "Nova despesa fixa"}
+      subtitle={
+        item
+          ? "As mudanças valem para as contas dos próximos meses."
+          : "A conta a pagar é gerada todo mês, do mês inicial até o final."
+      }
       busy={loading}
       dirty={dirty}
       onClose={onClose}
     >
-      {can("finance.recurring_create") && (
+      {can(item ? "finance.recurring_update" : "finance.recurring_create") && (
         <form className="form-grid" onSubmit={submit}>
           <label className="span-2">
             Descrição
@@ -108,8 +134,31 @@ export function RecurringPayableModal({
               }
             />
           </label>
+          <div className="field-with-hint">
+            <label>
+              Tipo de valor
+              <select
+                value={form.amountType}
+                onChange={(event) =>
+                  setForm({
+                    ...form,
+                    amountType:
+                      event.target.value === "variable" ? "variable" : "fixed",
+                  })
+                }
+              >
+                <option value="fixed">Valor fixo</option>
+                <option value="variable">Valor variável</option>
+              </select>
+            </label>
+            <span className="field-hint">
+              {variable
+                ? "Muda todo mês, como água e luz: informe o valor de cada conta quando ela chegar."
+                : "O mesmo valor todo mês, como internet e aluguel."}
+            </span>
+          </div>
           <label>
-            Valor mensal
+            {variable ? "Valor estimado" : "Valor mensal"}
             <MoneyInput
               required
               valueInCents={form.amountInCents}
@@ -229,6 +278,35 @@ export function RecurringPayableModal({
               }
             />
           </label>
+          <label className="checkbox-field">
+            <input
+              type="checkbox"
+              checked={form.remind}
+              onChange={(event) =>
+                setForm({ ...form, remind: event.target.checked })
+              }
+            />
+            Avisar antes do vencimento
+          </label>
+          {form.remind && (
+            <label>
+              Dias de antecedência do aviso
+              <input
+                required
+                type="number"
+                min="0"
+                max="30"
+                step="1"
+                value={form.reminderDaysBefore}
+                onChange={(event) =>
+                  setForm({
+                    ...form,
+                    reminderDaysBefore: Number(event.target.value),
+                  })
+                }
+              />
+            </label>
+          )}
           <label>
             Mês inicial
             <input
@@ -260,7 +338,11 @@ export function RecurringPayableModal({
               disabled={loading || missing.blocked}
               aria-describedby={missing.describedBy}
             >
-              {loading ? "Salvando…" : "Cadastrar despesa fixa"}
+              {loading
+                ? "Salvando…"
+                : item
+                  ? "Salvar alterações"
+                  : "Cadastrar despesa fixa"}
             </button>
           </div>
         </form>

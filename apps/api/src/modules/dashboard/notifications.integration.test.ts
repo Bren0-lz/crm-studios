@@ -124,6 +124,7 @@ describe("GET /notifications", () => {
       date: "2039-06-10",
       birthdaysToday: (before.birthdaysToday ?? 0) + 1,
       overdueReceivables: (before.overdueReceivables ?? 0) + 1,
+      recurringPayablesDue: before.recurringPayablesDue,
       pendingFinalization: (before.pendingFinalization ?? 0) + 1,
       overdueLeadTasks: before.overdueLeadTasks,
       snoozedContactsDue: before.snoozedContactsDue,
@@ -292,11 +293,278 @@ describe("GET /notifications", () => {
     expect(handled.snoozedContactsDue).toBe(before.snoozedContactsDue ?? 0);
   });
 
+  it("reminds fixed expenses ahead of the due date until they are paid", async () => {
+    const { app, headers, notifications, userWith } = await setup();
+    const before = (await notifications()).recurringPayablesDue ?? 0;
+    const workspace = await app.inject({
+      method: "GET",
+      url: "/finance/workspace",
+      headers,
+    });
+    const category = workspace
+      .json()
+      .categories.find((item: { kind: string }) => item.kind === "expense");
+    const costCenter = workspace.json().costCenters[0];
+    const base = {
+      categoryId: category.id,
+      costCenterId: costCenter.id,
+      amountInCents: 15_000,
+      startMonth: "2039-06",
+    };
+    async function createModel(payload: Record<string, unknown>) {
+      const response = await app.inject({
+        method: "POST",
+        url: "/finance/recurring-payables",
+        headers,
+        payload: { ...base, ...payload },
+      });
+      expect(response.statusCode).toBe(201);
+      return response.json<{ id: string }>();
+    }
+    const invalid = await app.inject({
+      method: "POST",
+      url: "/finance/recurring-payables",
+      headers,
+      payload: {
+        ...base,
+        description: "Aviso inválido",
+        dayOfMonth: 12,
+        reminderDaysBefore: 31,
+      },
+    });
+    expect(invalid.statusCode).toBe(400);
+    // Água vence dia 12 com aviso de 3 dias: o aviso começou em 09/06.
+    const water = await createModel({
+      description: "Conta de água",
+      amountType: "variable",
+      dayOfMonth: 12,
+      reminderDaysBefore: 3,
+    });
+    expect(water).toMatchObject({
+      amountType: "variable",
+      reminderDaysBefore: 3,
+    });
+    // Internet vence dia 20 com aviso de 5 dias: só a partir de 15/06.
+    const internet = await createModel({
+      description: "Internet",
+      dayOfMonth: 20,
+      reminderDaysBefore: 5,
+    });
+    expect(internet).toMatchObject({ amountType: "fixed" });
+    // Sem antecedência configurada, não avisa.
+    await createModel({ description: "Aluguel", dayOfMonth: 11 });
+    expect((await notifications()).recurringPayablesDue).toBe(before + 1);
+
+    // A listagem gera as contas do mês; a variável nasce com o valor pendente.
+    await app.inject({
+      method: "GET",
+      url: "/finance/recurring-payables",
+      headers,
+    });
+    const payables = (
+      await app.inject({ method: "GET", url: "/finance/workspace", headers })
+    ).json().payables as Array<{
+      id: string;
+      recurringPayableId?: string;
+      amountPending?: boolean;
+      amountInCents: number;
+    }>;
+    const waterBill = payables.find(
+      (item) => item.recurringPayableId === water.id,
+    )!;
+    expect(waterBill).toMatchObject({
+      amountInCents: 15_000,
+      amountPending: true,
+    });
+    expect(
+      payables.find((item) => item.recurringPayableId === internet.id)
+        ?.amountPending,
+    ).toBeUndefined();
+    expect((await notifications()).recurringPayablesDue).toBe(before + 1);
+
+    const blocked = await app.inject({
+      method: "POST",
+      url: `/finance/payables/${waterBill.id}/pay`,
+      headers,
+      payload: { paymentMethod: "pix" },
+    });
+    expect(blocked.statusCode).toBe(409);
+    expect(blocked.json().code).toBe("PAYABLE_AMOUNT_PENDING");
+    const viewer = await userWith(["finance"]);
+    const denied = await app.inject({
+      method: "PUT",
+      url: `/finance/payables/${waterBill.id}/amount`,
+      headers: viewer,
+      payload: { amountInCents: 18_790 },
+    });
+    expect(denied.statusCode).toBe(403);
+    const zero = await app.inject({
+      method: "PUT",
+      url: `/finance/payables/${waterBill.id}/amount`,
+      headers,
+      payload: { amountInCents: 0 },
+    });
+    expect(zero.statusCode).toBe(400);
+    const informed = await app.inject({
+      method: "PUT",
+      url: `/finance/payables/${waterBill.id}/amount`,
+      headers,
+      payload: { amountInCents: 18_790 },
+    });
+    expect(informed.statusCode).toBe(200);
+    expect(informed.json().amountInCents).toBe(18_790);
+    expect(informed.json().amountPending).toBeUndefined();
+    const paid = await app.inject({
+      method: "POST",
+      url: `/finance/payables/${waterBill.id}/pay`,
+      headers,
+      payload: { paymentMethod: "pix" },
+    });
+    expect(paid.statusCode).toBe(200);
+    expect(paid.json().amountInCents).toBe(18_790);
+    expect((await notifications()).recurringPayablesDue).toBe(before);
+
+    const afterPaid = await app.inject({
+      method: "PUT",
+      url: `/finance/payables/${waterBill.id}/amount`,
+      headers,
+      payload: { amountInCents: 20_000 },
+    });
+    expect(afterPaid.statusCode).toBe(409);
+    const manual = await app.inject({
+      method: "POST",
+      url: "/finance/payables",
+      headers,
+      payload: {
+        description: "Compra avulsa",
+        categoryId: category.id,
+        costCenterId: costCenter.id,
+        dueDate: "2039-06-15",
+        amountInCents: 5_000,
+      },
+    });
+    expect(manual.statusCode).toBe(201);
+    const notRecurring = await app.inject({
+      method: "PUT",
+      url: `/finance/payables/${manual.json().id}/amount`,
+      headers,
+      payload: { amountInCents: 6_000 },
+    });
+    expect(notRecurring.statusCode).toBe(409);
+    expect(notRecurring.json().code).toBe("PAYABLE_NOT_RECURRING");
+    const missing = await app.inject({
+      method: "PUT",
+      url: "/finance/payables/00000000-0000-4000-8000-000000000000/amount",
+      headers,
+      payload: { amountInCents: 6_000 },
+    });
+    expect(missing.statusCode).toBe(404);
+  });
+
+  it("informs the month only on variable bills, audits it and follows type changes", async () => {
+    const { app, headers } = await setup();
+    const workspace = (
+      await app.inject({ method: "GET", url: "/finance/workspace", headers })
+    ).json();
+    const base = {
+      categoryId: workspace.categories.find(
+        (item: { kind: string }) => item.kind === "expense",
+      ).id,
+      costCenterId: workspace.costCenters[0].id,
+      amountInCents: 9_000,
+      dayOfMonth: 25,
+      startMonth: "2039-06",
+    };
+    const created = await app.inject({
+      method: "POST",
+      url: "/finance/recurring-payables",
+      headers,
+      payload: { ...base, description: "Conta de luz" },
+    });
+    expect(created.statusCode).toBe(201);
+    const model = created.json<{ id: string }>();
+    async function bill() {
+      await app.inject({
+        method: "GET",
+        url: "/finance/recurring-payables",
+        headers,
+      });
+      return (
+        (
+          await app.inject({
+            method: "GET",
+            url: "/finance/workspace",
+            headers,
+          })
+        ).json().payables as Array<{
+          id: string;
+          recurringPayableId?: string;
+          amountPending?: boolean;
+        }>
+      ).find((item) => item.recurringPayableId === model.id)!;
+    }
+    async function edit(amountType: "fixed" | "variable") {
+      const response = await app.inject({
+        method: "PUT",
+        url: `/finance/recurring-payables/${model.id}`,
+        headers,
+        payload: { ...base, description: "Conta de luz", amountType },
+      });
+      expect(response.statusCode).toBe(200);
+    }
+    const fixedBill = await bill();
+    expect(fixedBill.amountPending).toBeUndefined();
+    // Conta de despesa de valor fixo não recebe o valor do mês.
+    const fixedAmount = await app.inject({
+      method: "PUT",
+      url: `/finance/payables/${fixedBill.id}/amount`,
+      headers,
+      payload: { amountInCents: 9_500 },
+    });
+    expect(fixedAmount.statusCode).toBe(409);
+    expect(fixedAmount.json().code).toBe("PAYABLE_NOT_VARIABLE");
+
+    // Virou variável: a conta do mês ainda aberta passa a esperar o valor real.
+    await edit("variable");
+    expect((await bill()).amountPending).toBe(true);
+    // Voltou a fixa: a conta aberta pode ser paga de novo.
+    await edit("fixed");
+    expect((await bill()).amountPending).toBeUndefined();
+    await edit("variable");
+    const informed = await app.inject({
+      method: "PUT",
+      url: `/finance/payables/${fixedBill.id}/amount`,
+      headers,
+      payload: { amountInCents: 11_230 },
+    });
+    expect(informed.statusCode).toBe(200);
+    expect(informed.json().amountPending).toBeUndefined();
+
+    const history = await app.inject({
+      method: "GET",
+      url: "/history/audit-events?module=finance&action=payable.amount_informed",
+      headers,
+    });
+    expect(history.statusCode).toBe(200);
+    const events = history.json<{
+      items: { entityId?: string; metadata: Record<string, unknown> }[];
+    }>().items;
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({
+      entityId: fixedBill.id,
+      metadata: {
+        competence: "2039-06",
+        previousAmountInCents: 9_000,
+        amountInCents: 11_230,
+      },
+    });
+  });
+
   it("only returns the groups of the modules the user can see", async () => {
     const { notifications, userWith } = await setup();
     expect(
       Object.keys(await notifications(await userWith(["finance"]))),
-    ).toEqual(["date", "overdueReceivables"]);
+    ).toEqual(["date", "overdueReceivables", "recurringPayablesDue"]);
     expect(
       Object.keys(await notifications(await userWith(["agenda"]))),
     ).toEqual(["date", "pendingFinalization"]);

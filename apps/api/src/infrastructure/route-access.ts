@@ -12,7 +12,7 @@ export interface ModuleRequirement {
   permission: PermissionKey;
 }
 /**
- * - `public`: sem login (saúde e login).
+ * - `public`: sem login (saúde, login e link de assinatura de documento).
  * - `login`: basta estar logado (usuário ativo).
  * - `admin`: Administração, sempre só do usuário admin (não é módulo configurável).
  * - lista de módulos: o usuário precisa de TODOS os níveis listados.
@@ -330,6 +330,11 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
   ),
   "POST /documents/:id/signature": operation("contracts.status"),
   "GET /documents/:id/signature/content": view("contracts"),
+  "POST /documents/:id/signature-link": operation("contracts.status"),
+  "GET /documents/:id/signature-link": view("contracts"),
+  // Link de assinatura enviado ao cliente (sem login; o token identifica o documento).
+  "GET /public/document-signatures/:token": "public",
+  "POST /public/document-signatures/:token": "public",
   "GET /documents": view("contracts"),
   "POST /documents": operation("contracts.issue"),
   "POST /documents/preview": operation("contracts.issue"),
@@ -376,6 +381,10 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
   "POST /clinical-addenda": operation("clinical.addenda_create"),
   "POST /clinical-alerts": operation("clinical.records_update"),
   "DELETE /clinical-alerts/:id": operation("clinical.records_update"),
+  "GET /assessment-templates": view("clinical"),
+  "PATCH /assessment-templates/:id/status": operation(
+    "clinical.templates_create",
+  ),
   "POST /assessment-templates/drafts": operation("clinical.templates_create"),
   "PUT /assessment-templates/:id": operation("clinical.templates_create"),
   "POST /assessment-templates": operation("clinical.templates_create"),
@@ -442,6 +451,7 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
   "POST /finance/payables": operation("finance.payables_create"),
   "POST /finance/payables/:id/pay": operation("finance.payables_pay"),
   "POST /finance/payables/:id/reverse": operation("finance.payables_reverse"),
+  "PUT /finance/payables/:id/amount": operation("finance.recurring_update"),
   "POST /finance/receivables/:id/reverse": operation(
     "finance.receivables_reverse",
   ),
