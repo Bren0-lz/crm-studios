@@ -305,7 +305,7 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
       // A 0101 troca o "Exportar relatórios" da 0045 por uma permissão por planilha.
       const spreadsheetSplit = readFileSync(
         new URL(
-          "../../../../migrations/0101_spreadsheet_export_permissions.sql",
+          "../../../../migrations/0111_spreadsheet_export_permissions.sql",
           import.meta.url,
         ),
         "utf8",

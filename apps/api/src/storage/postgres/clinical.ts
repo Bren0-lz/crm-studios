@@ -307,7 +307,7 @@ export function createClinicalRepository(
           `SELECT id, clinic_id AS "clinicId", name, specialty, fields, version,
                   active,status,family_id AS "familyId", created_at AS "createdAt"
            FROM assessment_templates
-           WHERE clinic_id = $1 AND active ORDER BY name, version DESC`,
+           WHERE clinic_id = $1 ORDER BY name, version DESC`,
           [clinicId],
         ),
         repositoryContext.pool.query<ClinicalAssessmentRow>(

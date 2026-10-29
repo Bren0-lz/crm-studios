@@ -4,6 +4,10 @@ import type {
   DocumentPreview,
   DocumentDraftInput,
   DocumentSignatureContent,
+  DocumentSignatureLinkDetails,
+  DocumentSignatureLinkShare,
+  PublicDocumentSignInput,
+  PublicSignatureDocument,
   DocumentStatus,
   DocumentTemplate,
   DocumentTemplateInput,
@@ -18,6 +22,22 @@ export const contractsApi = {
       method: "POST",
       body: JSON.stringify(input),
     }),
+  createDocumentSignatureLink: (id: string) =>
+    request<DocumentSignatureLinkShare>(`/documents/${id}/signature-link`, {
+      method: "POST",
+    }),
+  documentSignatureLink: (id: string) =>
+    request<DocumentSignatureLinkDetails>(`/documents/${id}/signature-link`),
+  /** Link público: o cliente lê o documento sem login (registra a visualização). */
+  publicSignatureDocument: (token: string) =>
+    request<PublicSignatureDocument>(
+      `/public/document-signatures/${encodeURIComponent(token)}`,
+    ),
+  signPublicDocument: (token: string, input: PublicDocumentSignInput) =>
+    request<PublicSignatureDocument>(
+      `/public/document-signatures/${encodeURIComponent(token)}`,
+      { method: "POST", body: JSON.stringify(input) },
+    ),
   documentSignatureContent: (id: string) =>
     request<DocumentSignatureContent>(`/documents/${id}/signature/content`),
   documentTemplates: () => request<DocumentTemplate[]>("/document-templates"),

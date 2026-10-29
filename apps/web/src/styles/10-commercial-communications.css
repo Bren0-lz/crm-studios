@@ -1408,3 +1408,141 @@
   background: var(--mint);
   box-shadow: inset 0 0 0 2px var(--green-2);
 }
+
+/* Link de assinatura enviado pelo WhatsApp: situação na lista de documentos. */
+.signature-link-record {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+.signature-link-record p {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+
+.signature-share textarea {
+  resize: vertical;
+}
+
+.signature-link-details h3 {
+  margin: var(--space-4) 0 var(--space-2);
+  font-size: var(--text-md);
+  font-weight: 600;
+}
+
+.signature-evidence {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+}
+
+.signature-evidence > div {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.signature-evidence dt {
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+
+.signature-evidence dd {
+  margin: 0;
+  font-size: var(--text-md);
+  overflow-wrap: anywhere;
+}
+
+.signature-hash {
+  font-family: ui-monospace, monospace;
+}
+
+.signature-image {
+  margin: var(--space-4) 0 0;
+}
+
+.signature-image img {
+  display: block;
+  max-width: 100%;
+  max-height: calc(var(--space-8) * 3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: white;
+}
+
+.signature-image figcaption {
+  margin-top: var(--space-1);
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+
+.signature-views {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.signature-views li {
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-sm);
+}
+
+.signature-views li span {
+  color: var(--muted);
+  font-size: var(--text-xs);
+  overflow-wrap: anywhere;
+}
+
+/* Página pública aberta pelo cliente para ler e assinar. */
+.public-signature-page {
+  min-height: 100vh;
+  padding: var(--space-6) var(--space-4);
+  background: var(--cream);
+}
+
+.public-signature-page > .panel {
+  max-width: 880px;
+  margin: 0 auto;
+}
+
+.public-signature-document,
+.public-signature-form {
+  padding: 0 calc(var(--space-5) - 1px) calc(var(--space-5) - 1px);
+}
+
+.public-signature-form h3 {
+  margin: 0 0 var(--space-3);
+  font-size: var(--text-lg);
+  font-weight: 600;
+}
+
+.signature-pad-label {
+  display: block;
+  margin-bottom: var(--space-2);
+  font-size: var(--text-sm);
+}
+
+.signature-pad {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-2);
+}
+
+.signature-pad canvas {
+  width: 100%;
+  height: calc(var(--space-8) * 3);
+  border: 1px dashed var(--muted);
+  border-radius: var(--radius-sm);
+  background: white;
+  touch-action: none;
+  cursor: crosshair;
+}
