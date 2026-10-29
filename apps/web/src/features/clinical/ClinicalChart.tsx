@@ -1,4 +1,5 @@
 import {
+  assessmentAnswerGroups,
   clinicalAlertSeverityLabels,
   patientFirstName,
   type AssessmentTemplate,
@@ -30,8 +31,8 @@ import { initials, shortDate, timeLabel } from "../../shared/lib/formatting";
 import { professionalWithCrefito } from "../contracts/index";
 import { AssessmentTemplateModal } from "./AssessmentTemplateModal";
 import { ChartFilesTab } from "./ChartFilesTab";
+import { ChartAssessmentsTab } from "./ChartAssessmentsTab";
 import {
-  ChartAssessmentsTab,
   ChartEvolutionsTab,
   ChartGoalsTab,
   ChartTimelineTab,
@@ -256,7 +257,7 @@ export function ClinicalChart({
               className="secondary-button"
               onClick={() => setEditor({ kind: "assessment" })}
             >
-              Nova avaliação
+              Registrar avaliação
             </button>
           )}
           {editable && (
@@ -484,10 +485,6 @@ export function ClinicalChart({
             templates={workspace.templates}
             editable={editable}
             onNew={() => setEditor({ kind: "assessment" })}
-            onNewTemplate={() => setEditor({ kind: "template" })}
-            onEditTemplate={(template) =>
-              setEditor({ kind: "template", template })
-            }
           />
         )}
         {tab === "goals" && (
@@ -585,6 +582,7 @@ export function ClinicalChart({
         <ClinicalAssessmentModal
           patientId={patientId}
           templates={workspace.templates}
+          assessments={workspace.assessments}
           onClose={() => setEditor(null)}
           onSaved={() => saved("Avaliação registrada.")}
         />
@@ -696,11 +694,22 @@ function ClinicalPrintSummary({ workspace }: { workspace: ClinicalWorkspace }) {
       {workspace.assessments.map((assessment) => (
         <article key={assessment.id}>
           <h3>{assessment.templateName}</h3>
-          {Object.entries(assessment.values).map(([key, value]) => (
-            <p key={key}>
-              <strong>{key}:</strong> {String(value)}
-            </p>
-          ))}
+          {assessmentAnswerGroups(
+            workspace.templates.find(
+              (template) => template.id === assessment.templateId,
+            )?.fields ?? [],
+            assessment.values,
+          ).flatMap((group) =>
+            group.answers.map((answer) => (
+              <p key={answer.key}>
+                <strong>
+                  {group.title ? `${group.title} · ` : ""}
+                  {answer.label}:
+                </strong>{" "}
+                {answer.value}
+              </p>
+            )),
+          )}
           <small>
             {assessment.authorName} ·{" "}
             {new Date(assessment.createdAt).toLocaleString("pt-BR")}

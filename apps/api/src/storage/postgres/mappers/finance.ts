@@ -143,6 +143,7 @@ export interface PayableRow {
   updatedAt: Date;
   recurringPayableId: string | null;
   competence: string | null;
+  amountPending?: boolean;
 }
 
 export interface RecurringPayableRow {
@@ -155,8 +156,10 @@ export interface RecurringPayableRow {
   costCenterId: string;
   categoryName: string;
   costCenterName: string;
+  amountType: RecurringPayable["amountType"];
   amountInCents: number;
   dayOfMonth: number;
+  reminderDaysBefore: number | null;
   startMonth: string;
   endMonth: string | null;
   active: boolean;
@@ -230,14 +233,16 @@ export const payableColumns = `
   py.paid_at AS "paidAt",
   (py.status = 'open' AND py.due_date < CURRENT_DATE) AS overdue,
   py.created_at AS "createdAt", py.updated_at AS "updatedAt",
-  py.recurring_payable_id AS "recurringPayableId", py.competence
+  py.recurring_payable_id AS "recurringPayableId", py.competence,
+  py.amount_pending AS "amountPending"
 `;
 
 export const recurringPayableColumns = `
   rp.branch_id AS "branchId", rp.id, rp.clinic_id AS "clinicId", rp.description, rp.supplier,
   rp.category_id AS "categoryId", rp.cost_center_id AS "costCenterId",
   fc.name AS "categoryName", cc.name AS "costCenterName",
-  rp.amount_in_cents AS "amountInCents", rp.day_of_month::int AS "dayOfMonth",
+  rp.amount_type AS "amountType", rp.amount_in_cents AS "amountInCents",
+  rp.day_of_month::int AS "dayOfMonth", rp.reminder_days_before::int AS "reminderDaysBefore",
   rp.start_month AS "startMonth", rp.end_month AS "endMonth", rp.active,
   rp.resumed_from_month AS "resumedFromMonth",
   (SELECT max(py.competence) FROM payables py
@@ -419,6 +424,7 @@ export function mapPayable(row: PayableRow): Payable {
       ? { recurringPayableId: row.recurringPayableId }
       : {}),
     ...(row.competence ? { competence: row.competence } : {}),
+    ...(row.amountPending ? { amountPending: true } : {}),
   };
 }
 
@@ -435,8 +441,12 @@ export function mapRecurringPayable(
     costCenterId: row.costCenterId,
     categoryName: row.categoryName,
     costCenterName: row.costCenterName,
+    amountType: row.amountType,
     amountInCents: row.amountInCents,
     dayOfMonth: row.dayOfMonth,
+    ...(row.reminderDaysBefore !== null
+      ? { reminderDaysBefore: row.reminderDaysBefore }
+      : {}),
     startMonth: row.startMonth,
     ...(row.endMonth ? { endMonth: row.endMonth } : {}),
     active: row.active,
