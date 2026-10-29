@@ -132,6 +132,11 @@ export interface CostCenterRow {
 }
 
 export interface PayableRow {
+  payrollEmployeeId?: string | null;
+  payrollEmployeeName?: string | null;
+  payrollCompetence?: string | null;
+  payrollSalaryInCents?: number | null;
+  payrollCommissionInCents?: number | null;
   branchId?: string;
   postedOn?: string | null;
   cashAvailableAt?: Date | null;
@@ -215,6 +220,7 @@ export interface CommissionEntryRow {
   status: CommissionEntry["status"];
   paidAt: Date | null;
   createdAt: Date;
+  payrollPayableId?: string | null;
 }
 
 /** Parcelas do pagamento gravadas só quando há parcelamento (1 = à vista = NULL). */
@@ -248,7 +254,10 @@ export const payableColumns = `
   (py.status = 'open' AND py.due_date < CURRENT_DATE) AS overdue,
   py.created_at AS "createdAt", py.updated_at AS "updatedAt",
   py.recurring_payable_id AS "recurringPayableId", py.competence,
-  py.amount_pending AS "amountPending"
+  py.amount_pending AS "amountPending",
+  py.payroll_employee_id AS "payrollEmployeeId",py.payroll_competence AS "payrollCompetence",
+  py.payroll_salary_in_cents AS "payrollSalaryInCents",py.payroll_commission_in_cents AS "payrollCommissionInCents",
+  (SELECT pe.name FROM payroll_employees pe WHERE pe.id=py.payroll_employee_id) AS "payrollEmployeeName"
 `;
 
 export const recurringPayableColumns = `
@@ -448,6 +457,17 @@ export function mapPayable(row: PayableRow): Payable {
       ? { recurringPayableId: row.recurringPayableId }
       : {}),
     ...(row.competence ? { competence: row.competence } : {}),
+    ...(row.payrollEmployeeId
+      ? {
+          payroll: {
+            employeeId: row.payrollEmployeeId,
+            employeeName: row.payrollEmployeeName ?? "",
+            competence: row.payrollCompetence!,
+            salaryInCents: row.payrollSalaryInCents ?? 0,
+            commissionInCents: row.payrollCommissionInCents ?? 0,
+          },
+        }
+      : {}),
     ...(row.amountPending ? { amountPending: true } : {}),
   };
 }
@@ -525,6 +545,7 @@ export function mapCommissionEntry(row: CommissionEntryRow): CommissionEntry {
     status: row.status,
     ...(row.paidAt ? { paidAt: row.paidAt.toISOString() } : {}),
     createdAt: row.createdAt.toISOString(),
+    ...(row.payrollPayableId ? { payrollPayableId: row.payrollPayableId } : {}),
   };
 }
 

@@ -370,7 +370,7 @@ export function createFinanceRepository(
               p.full_name AS "professionalName", ce.appointment_id AS "appointmentId",ce.group_attendance_id AS "groupAttendanceId",ce.service_id AS "serviceId",ce.rule_id AS "ruleId",ce.rule_snapshot AS "ruleSnapshot",
               ce.competence, ce.base_amount_in_cents AS "baseAmountInCents",
               ce.percentage, ce.amount_in_cents AS "amountInCents", ce.status,
-              ce.paid_at AS "paidAt", ce.created_at AS "createdAt"
+              ce.paid_at AS "paidAt", ce.created_at AS "createdAt",ce.payroll_payable_id AS "payrollPayableId"
        FROM commission_entries ce
        JOIN professionals p ON p.id = ce.professional_id
        JOIN clinics c ON c.id = ce.clinic_id
@@ -1111,7 +1111,7 @@ export function createFinanceRepository(
                 p.full_name AS "professionalName", ce.appointment_id AS "appointmentId",ce.group_attendance_id AS "groupAttendanceId",ce.service_id AS "serviceId",ce.rule_id AS "ruleId",ce.rule_snapshot AS "ruleSnapshot",
                 ce.competence, ce.base_amount_in_cents AS "baseAmountInCents",
                 ce.percentage, ce.amount_in_cents AS "amountInCents", ce.status,
-                ce.paid_at AS "paidAt", ce.created_at AS "createdAt"
+                ce.paid_at AS "paidAt", ce.created_at AS "createdAt",ce.payroll_payable_id AS "payrollPayableId"
          FROM commission_entries ce JOIN professionals p ON p.id = ce.professional_id
          WHERE ce.clinic_id = $1 AND ${branchClause("p.branch_id", 2)}
          ORDER BY ce.competence DESC, p.full_name`,
@@ -1154,6 +1154,7 @@ export function createFinanceRepository(
                 clinicDateOf(new Date(item.paidAt), timezone).slice(0, 7) ===
                   clinicMonth &&
                 !tracked.has(item.id) &&
+                !item.payrollPayableId &&
                 !mapped.some(
                   (expense) =>
                     expense.commissionId === item.id &&
@@ -1574,9 +1575,16 @@ export function createFinanceRepository(
         // esperar o valor do mês e a fixa volta a poder ser paga.
         if (model.amountType !== input.amountType)
           await client.query(
-            `UPDATE payables SET amount_pending = $3, updated_at = now()
+            `UPDATE payables SET amount_pending = $3,
+             amount_in_cents = CASE WHEN NOT $3 AND amount_in_cents = 0 THEN $4 ELSE amount_in_cents END,
+             updated_at = now()
            WHERE clinic_id = $1 AND recurring_payable_id = $2 AND status = 'open'`,
-            [clinicId, recurringPayableId, input.amountType === "variable"],
+            [
+              clinicId,
+              recurringPayableId,
+              input.amountType === "variable",
+              input.amountInCents,
+            ],
           );
         return repositoryContext.findRecurringPayable(
           client,

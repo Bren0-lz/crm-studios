@@ -432,6 +432,14 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
   ),
   "POST /finance/renegotiations": operation("finance.renegotiate"),
   "POST /finance/commission-rules": operation("finance.commission_rules"),
+  "GET /finance/payroll": operation("finance.payroll_view"),
+  "GET /finance/payroll/employees": operation("finance.payroll_view"),
+  "POST /finance/payroll/employees": operation("finance.payroll_manage"),
+  "PUT /finance/payroll/employees/:id": operation("finance.payroll_manage"),
+  "POST /finance/payroll/launch": operation("finance.payroll_manage"),
+  "POST /finance/payroll/payables/:id/cancel": operation(
+    "finance.payroll_manage",
+  ),
   "POST /finance/commissions/generate": operation(
     "finance.commissions_generate",
   ),

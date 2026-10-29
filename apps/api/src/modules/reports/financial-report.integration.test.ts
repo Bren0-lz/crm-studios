@@ -136,12 +136,38 @@ describe("relatório financeiro", () => {
           payload: { competence: "2031-03" },
         })
       ).json();
-      at("2031-03-12T15:00:00.000Z");
-      await app.inject({
+      // Comissão é paga pela folha: colaborador ligado ao profissional, sem salário fixo.
+      const employee = await app.inject({
         method: "POST",
-        url: `/finance/commissions/${commission.id}/pay`,
+        url: "/finance/payroll/employees",
         headers: as("owner"),
+        payload: {
+          name: professionals[0].fullName,
+          professionalId: professionals[0].id,
+          baseSalaryInCents: 0,
+        },
       });
+      expect(employee.statusCode).toBe(201);
+      const launch = await app.inject({
+        method: "POST",
+        url: "/finance/payroll/launch",
+        headers: as("owner"),
+        payload: {
+          competence: "2031-03",
+          employeeIds: [employee.json().id],
+          dueDate: "2031-03-12",
+          categoryId: category.id,
+        },
+      });
+      expect(launch.statusCode).toBe(201);
+      at("2031-03-12T15:00:00.000Z");
+      const paid = await app.inject({
+        method: "POST",
+        url: `/finance/payables/${launch.json().payables[0].id}/pay`,
+        headers: as("owner"),
+        payload: { paymentMethod: "pix" },
+      });
+      expect(paid.statusCode).toBe(200);
 
       const saved = await app.inject({
         method: "PUT",
@@ -175,7 +201,7 @@ describe("relatório financeiro", () => {
       ).toEqual([
         ["plan", "in", 12_000, "2031-03-10"],
         ["expense", "out", 4_000, "2031-03-10"],
-        ["commission", "out", commission.amountInCents, "2031-03-12"],
+        ["expense", "out", commission.amountInCents, "2031-03-12"],
       ]);
       expect(report.entries[0]).toMatchObject({
         paymentMethod: "card",
