@@ -5,6 +5,10 @@ import type {
   StoredMessageTemplateImage,
   StoredWhatsappCampaign,
 } from "./campaigns.js";
+import type {
+  StoredAutoCampaign,
+  StoredAutoCampaignDelivery,
+} from "./auto-campaigns.js";
 import type { CommissionPaymentEvent } from "@crm/contracts";
 import type { PlanPurchaseResult } from "@crm/contracts";
 import type {
@@ -499,6 +503,10 @@ export class MemoryRepositoryContext {
   readonly messageTemplateImages: StoredMessageTemplateImage[] = [];
 
   readonly whatsappCampaigns: StoredWhatsappCampaign[] = [];
+
+  readonly autoCampaigns: StoredAutoCampaign[] = [];
+
+  readonly autoCampaignDeliveries: StoredAutoCampaignDelivery[] = [];
 
   readonly documentTemplates: DocumentTemplate[] = [];
 
