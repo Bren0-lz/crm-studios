@@ -70,7 +70,7 @@ export const clientDetailsColumnLabels: Record<ClientDetailsColumn, string> = {
   productQuantity: "Quantidade de produtos",
   pendingReceivables: "Contas pendentes",
   overdueReceivables: "Contas atrasadas",
-  discount: "Desconto do cliente",
+  discount: "Desconto dos planos",
   discountGranted: "Descontos concedidos no período",
 };
 export const clientDetailsFilterSchema = patientProfileFilterSchema

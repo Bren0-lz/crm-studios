@@ -45,6 +45,7 @@ export async function buildClientDetails(
     resources,
     sources,
     finance,
+    plans,
   ] = await Promise.all([
     repository.listPatients(clinicId, input.search),
     clientSegments(repository, clinicId, financial),
@@ -63,7 +64,27 @@ export async function buildClientDetails(
     financial
       ? repository.getFinancialSummary(clinicId)
       : Promise.resolve(null),
+    repository.listPatientPlans(clinicId),
   ]);
+  // O desconto é de cada plano vendido; o do cadastro do cliente é o formato antigo.
+  const discountOf = (patient: Patient) =>
+    [
+      ...(patient.discount
+        ? [patientDiscountDescription(patient.discount)]
+        : []),
+      ...plans
+        .filter(
+          (plan) =>
+            plan.patientId === patient.id &&
+            plan.discount &&
+            (plan.status === "active" || plan.status === "paused") &&
+            !plan.renewedByPlanId,
+        )
+        .map(
+          (plan) =>
+            `${plan.name}: ${patientDiscountDescription(plan.discount)}`,
+        ),
+    ].join("; ");
   const money = (cents: number) =>
     new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" })
       .format(cents / 100)
@@ -101,7 +122,7 @@ export async function buildClientDetails(
       (patient) =>
         (!input.status || patient.status === input.status) &&
         (!input.discount ||
-          (input.discount === "with") === Boolean(patient.discount)) &&
+          (input.discount === "with") === Boolean(discountOf(patient))) &&
         matchesPatientProfile(patient, input) &&
         matchesPatientSegment(
           summary.find((item) => item.patientId === patient.id),
@@ -231,7 +252,7 @@ export async function buildClientDetails(
       }
       if (patient.gender)
         values.gender = patientProfileValueLabels[patient.gender];
-      values.discount = patientDiscountDescription(patient.discount);
+      values.discount = discountOf(patient);
       if (finance)
         values.discountGranted = money(
           finance.receivables
