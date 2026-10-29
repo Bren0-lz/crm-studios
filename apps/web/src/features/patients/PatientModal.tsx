@@ -37,6 +37,7 @@ import { useToast } from "../../shared/feedback/toast-context";
 import { CpfInput } from "../../shared/components/CpfInput";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
 import { useMissingFields } from "../../shared/components/MissingFields";
+import { planGroupMissing } from "../../shared/lib/plan-groups";
 import { Modal, ModalCancelButton } from "../../shared/components/Modal";
 import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
 import { PhoneInput } from "../../shared/components/PhoneInput";
@@ -309,6 +310,10 @@ export function PatientModal({
   /** Horários da turma escolhida: base do 1º pagamento proporcional do plano. */
   const slotsOf = (groupId: string) =>
     groups?.find((group) => group.id === groupId)?.weeklySlots;
+  // Plano de aulas em grupo exige a turma (quem não matricula escolhe depois).
+  const canEnroll = can("groups.enroll");
+  const groupMissing = (plan: GuidedPlanForm, groupId: string) =>
+    canEnroll && planGroupMissing(groups, plan.services, groupId);
   const dirty = useFormDirty({
     form,
     step,
@@ -403,8 +408,11 @@ export function PatientModal({
         ].filter((item): item is string => Boolean(item))
       : []),
     ...(step === "plan"
-      ? plans.flatMap(({ form: plan }, index) =>
-          missingPlanFields(plan).map((item) =>
+      ? plans.flatMap(({ form: plan, groupId }, index) =>
+          [
+            ...missingPlanFields(plan),
+            ...(groupMissing(plan, groupId) ? ["Turma"] : []),
+          ].map((item) =>
             plans.length > 1 ? `${planLabel(index)}: ${item}` : item,
           ),
         )
@@ -453,6 +461,8 @@ export function PatientModal({
     )
       return "Selecione um plano cadastrado.";
     if (step === "plan") {
+      if (plans.some((entry) => groupMissing(entry.form, entry.groupId)))
+        return "Selecione a turma do plano de aulas em grupo.";
       const groupIds = plans.map((entry) => entry.groupId).filter(Boolean);
       if (new Set(groupIds).size !== groupIds.length)
         return "A mesma turma foi escolhida em mais de um plano.";

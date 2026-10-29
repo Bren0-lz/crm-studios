@@ -13084,7 +13084,7 @@ describe("guided client registration", () => {
     expect(posts).toHaveLength(2);
   });
 
-  it("subscribes a plan with an optional class of the same service and warns about the waiting list", async () => {
+  it("subscribes a group class plan with a required class of the same service and warns about the waiting list", async () => {
     const posts = mockApi((body) =>
       jsonResponse(
         {
@@ -13129,20 +13129,21 @@ describe("guided client registration", () => {
         .getAllByRole("option")
         .map((item) => item.textContent),
     ).toEqual(["Pacote fixo", "Recorrente"]);
+    const turma = await within(dialog).findByLabelText("Turma");
+    expect(turma).toHaveValue("");
+    expect(turma).toBeRequired();
     expect(
       within(dialog).getByText(
-        "A turma pode ser escolhida depois com o responsável.",
+        "Plano de aulas em grupo: escolha a turma do cliente.",
       ),
     ).toBeInTheDocument();
-    const turma = await within(dialog).findByLabelText("Turma (opcional)");
-    expect(turma).toHaveValue("");
     // Só turmas ativas do serviço do plano, com o responsável e as vagas.
     expect(
       within(turma)
         .getAllByRole("option")
         .map((item) => item.textContent),
     ).toEqual([
-      "Escolher depois",
+      "Selecione a turma",
       expect.stringMatching(/^Pilates 1 — .* · Dra\. Ana Martins · 3 vagas$/),
       expect.stringMatching(
         /^Pilates 2 — .* · Prof\. Bruno Lima · turma cheia \(lista de espera\)$/,
@@ -13157,14 +13158,12 @@ describe("guided client registration", () => {
     });
     // Trocar o plano limpa a turma escolhida (ela é de outro serviço).
     fireEvent.change(catalog, { target: { value: physioTemplate.id } });
-    expect(within(dialog).getByLabelText("Turma (opcional)")).toHaveValue("");
+    expect(within(dialog).getByLabelText("Turma")).toHaveValue("");
     expect(
-      within(within(dialog).getByLabelText("Turma (opcional)")).getAllByRole(
-        "option",
-      ),
+      within(within(dialog).getByLabelText("Turma")).getAllByRole("option"),
     ).toHaveLength(2);
     fireEvent.change(catalog, { target: { value: pilatesTemplate.id } });
-    fireEvent.change(within(dialog).getByLabelText("Turma (opcional)"), {
+    fireEvent.change(within(dialog).getByLabelText("Turma"), {
       target: { value: groups[1]!.id },
     });
     fireEvent.click(
@@ -13220,9 +13219,7 @@ describe("guided client registration", () => {
     const catalog = await within(dialog).findByLabelText("Plano cadastrado");
     fireEvent.change(catalog, { target: { value: singleTemplate.id } });
     expect(within(dialog).queryByLabelText("Modelo")).not.toBeInTheDocument();
-    expect(
-      within(dialog).queryByLabelText("Turma (opcional)"),
-    ).not.toBeInTheDocument();
+    expect(within(dialog).queryByLabelText(/^Turma/)).not.toBeInTheDocument();
     fireEvent.click(
       within(dialog).getByRole("button", {
         name: "Salvar e criar serviço avulso",
@@ -13289,9 +13286,7 @@ describe("guided client registration", () => {
       within(dialog).getByRole("radio", { name: "Assinar um plano" }),
     );
     await within(dialog).findByLabelText("Plano cadastrado");
-    expect(
-      within(dialog).queryByLabelText("Turma (opcional)"),
-    ).not.toBeInTheDocument();
+    expect(within(dialog).queryByLabelText(/^Turma/)).not.toBeInTheDocument();
     expect(
       within(dialog).getByText(
         "A turma pode ser escolhida depois com o responsável.",
