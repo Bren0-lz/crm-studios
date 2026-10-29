@@ -379,6 +379,21 @@ export interface Payable extends PayableInput {
   competence?: string;
   /** Despesa fixa variável: o valor do mês ainda é a estimativa e precisa ser informado. */
   amountPending?: boolean;
+  /** Despesa lançada pela folha de pagamento (ver `payroll.ts`). */
+  payroll?: PayablePayroll;
+}
+
+/**
+ * Parte de folha de uma despesa: o colaborador, a competência e quanto do valor é salário e
+ * quanto é comissão (comissões + ajustes). Na DRE, a comissão segue como custo do serviço na
+ * competência dela; a despesa entra só com o salário.
+ */
+export interface PayablePayroll {
+  employeeId: string;
+  employeeName: string;
+  competence: string;
+  salaryInCents: number;
+  commissionInCents: number;
 }
 
 export interface RecurringPayable {
@@ -464,6 +479,8 @@ export interface CommissionEntry {
   status: "open" | "paid";
   paidAt?: string;
   createdAt: string;
+  /** Despesa da folha que inclui (e paga) esta comissão. */
+  payrollPayableId?: string;
 }
 
 export type DailyCashFilter = z.infer<typeof dailyCashFilterSchema>;

@@ -47,3 +47,6 @@ export function assertSalePrice<T extends { name: string }>(
       409,
     );
 }
+
+/** Motivo do ajuste gravado quando o saldo de um tamanho muda no cadastro do produto. */
+export const sizeQuantityNotes = "Quantidade ajustada no cadastro do produto";

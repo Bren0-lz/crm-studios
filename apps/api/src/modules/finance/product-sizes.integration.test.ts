@@ -220,6 +220,89 @@ describe("product sizes", () => {
     await app.close();
   });
 
+  it("sets the stock of each size when the product is edited", async () => {
+    const { app, headers, fields, product } = await setup();
+    const created = await app.inject({
+      method: "POST",
+      url: "/inventory/products",
+      headers,
+      payload: { ...fields, initialStock: 3 },
+    });
+    const id = created.json<ProductBody>().id;
+    const update = (payload: Record<string, unknown>) =>
+      app.inject({
+        method: "PUT",
+        url: `/inventory/products/${id}`,
+        headers,
+        payload: { ...fields, ...payload },
+      });
+
+    // Quantidade de tamanho fora dos tamanhos do produto é recusada sem mudar nada.
+    const outside = await update({
+      sizes: ["p"],
+      sizeQuantities: [{ size: "m", quantity: 2 }],
+    });
+    expect(outside.statusCode).toBe(400);
+    expect((await product(id)).sizes).toEqual([]);
+
+    const sized = await update({
+      sizes: ["p", "m"],
+      sizeQuantities: [
+        { size: "p", quantity: 4 },
+        { size: "m", quantity: 1 },
+      ],
+    });
+    expect(sized.statusCode).toBe(200);
+    expect(sized.json<ProductBody>()).toMatchObject({
+      currentStock: 8,
+      sizeStock: [
+        { size: "p", currentStock: 4 },
+        { size: "m", currentStock: 1 },
+        { size: null, currentStock: 3 },
+      ],
+    });
+
+    const lowered = await update({
+      sizes: ["p", "m"],
+      sizeQuantities: [{ size: "p", quantity: 1 }],
+    });
+    expect(lowered.json<ProductBody>()).toMatchObject({ currentStock: 5 });
+    const movements = (
+      await app.inject({ method: "GET", url: "/inventory/workspace", headers })
+    ).json<{
+      movements: {
+        kind: string;
+        size?: string;
+        quantity: number;
+        balanceAfter: number;
+        notes: string;
+      }[];
+    }>().movements;
+    expect(movements).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "adjustment_in",
+          size: "p",
+          quantity: 4,
+          balanceAfter: 4,
+          notes: "Quantidade ajustada no cadastro do produto",
+        }),
+        expect.objectContaining({
+          kind: "adjustment_in",
+          size: "m",
+          quantity: 1,
+        }),
+        expect.objectContaining({
+          kind: "adjustment_out",
+          size: "p",
+          quantity: -3,
+          balanceAfter: 1,
+        }),
+      ]),
+    );
+    await app.close();
+  });
+
   it("sells by size and returns the size stock when the sale is cancelled", async () => {
     const { app, headers, fields, product, sell } = await setup();
     const created = await app.inject({

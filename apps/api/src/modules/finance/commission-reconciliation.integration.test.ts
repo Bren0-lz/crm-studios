@@ -113,6 +113,7 @@ describe("commission reconciliation", () => {
         ).statusCode,
       ).toBe(403);
       await reconcile(repository, commission.id);
+      // O saldo conciliado agora é pago pela folha de pagamento.
       const url = `/finance/commissions/${commission.id}/accounts/${professional.id}/pay`;
       expect(
         (
@@ -122,8 +123,8 @@ describe("commission reconciliation", () => {
             headers,
             payload: { expectedAmountInCents: -1500 },
           })
-        ).statusCode,
-      ).toBe(403);
+        ).json().code,
+      ).toBe("COMMISSION_PAID_BY_PAYROLL");
       expect(
         (
           await app.inject({

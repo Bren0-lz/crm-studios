@@ -673,7 +673,7 @@ export function createReportsRepository(
              COALESCE((SELECT sum(r.amount_in_cents) FROM paid r JOIN product_tabs t ON t.receivable_id=r.id),0)::int AS "productRevenueInCents",
              COALESCE((SELECT sum(i.quantity*i.unit_cost_in_cents) FROM patient_tab_items i JOIN product_tabs t ON t.id=i.tab_id),0)::int AS "productCostInCents",
              COALESCE((SELECT sum(amount_in_cents) FROM payables WHERE clinic_id=$1 AND status='paid' AND ${branchClause("branch_id", 4)} AND (paid_at AT TIME ZONE 'America/Sao_Paulo')::date BETWEEN $2::date AND $3::date),0)::int AS "operatingExpensesInCents",
-             COALESCE((SELECT sum(amount_in_cents) FROM commission_entries ce WHERE clinic_id=$1 AND status='paid' AND EXISTS(SELECT 1 FROM professionals pb WHERE pb.id=ce.professional_id AND ${branchClause("pb.branch_id", 4)}) AND (paid_at AT TIME ZONE 'America/Sao_Paulo')::date BETWEEN $2::date AND $3::date),0)::int AS "commissionsInCents"`,
+             COALESCE((SELECT sum(amount_in_cents) FROM commission_entries ce WHERE clinic_id=$1 AND status='paid' AND payroll_payable_id IS NULL AND EXISTS(SELECT 1 FROM professionals pb WHERE pb.id=ce.professional_id AND ${branchClause("pb.branch_id", 4)}) AND (paid_at AT TIME ZONE 'America/Sao_Paulo')::date BETWEEN $2::date AND $3::date),0)::int AS "commissionsInCents"`,
           [clinicId, from, to, branchIds],
         ),
         repositoryContext.pool.query<{
@@ -701,7 +701,7 @@ export function createReportsRepository(
           `SELECT s.id,s.name,
              (SELECT count(*)::int FROM appointments a WHERE a.clinic_id=$1 AND a.service_id=s.id AND a.status='completed' AND ${branchClause("a.branch_id", 4)} AND (a.starts_at AT TIME ZONE 'America/Sao_Paulo')::date BETWEEN $2::date AND $3::date) AS "completedAppointments",
              0::int AS "revenueInCents",
-             (SELECT coalesce(sum(c.amount_in_cents),0)::int FROM commission_entries c JOIN appointments a ON a.id=c.appointment_id WHERE c.clinic_id=$1 AND a.service_id=s.id AND ${branchClause("a.branch_id", 4)} AND c.status='paid' AND (c.paid_at AT TIME ZONE 'America/Sao_Paulo')::date BETWEEN $2::date AND $3::date) AS "commissionsInCents"
+             (SELECT coalesce(sum(c.amount_in_cents),0)::int FROM commission_entries c JOIN appointments a ON a.id=c.appointment_id WHERE c.clinic_id=$1 AND a.service_id=s.id AND ${branchClause("a.branch_id", 4)} AND c.status='paid' AND c.payroll_payable_id IS NULL AND (c.paid_at AT TIME ZONE 'America/Sao_Paulo')::date BETWEEN $2::date AND $3::date) AS "commissionsInCents"
            FROM services s WHERE s.clinic_id=$1
            ORDER BY "revenueInCents" DESC`,
           [clinicId, from, to, branchIds],

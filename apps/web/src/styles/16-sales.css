@@ -413,6 +413,16 @@
   gap: var(--space-2) var(--space-4);
 }
 
+/* Aviso de reposição: caixa, quantidade e explicação empilhadas no mesmo bloco. */
+.restock-fieldset {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.restock-fieldset .restock-quantity {
+  max-width: calc(var(--space-8) * 3);
+}
+
 /* Estoque: tamanhos configurados que zeraram (o produto ainda tem saldo em outros). */
 .inventory-product .inventory-sold-out {
   color: var(--terracotta);
