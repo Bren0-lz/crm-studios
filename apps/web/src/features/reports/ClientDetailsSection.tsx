@@ -330,7 +330,7 @@ export function ClientDetailsSection({ period }: { period: ReportPeriod }) {
                 copy="Revise os filtros e o período."
               />
             )}
-            {can("reports.export") && (
+            {can("reports.clients_export") && (
               <div className="page-actions">
                 <button
                   disabled={busy || !selectedColumns.length}

@@ -97,7 +97,7 @@ export function ReportsDetails({ period }: { period: ReportPeriod }) {
                   Dinheiro, atendimentos, turmas e satisfação dos clientes.
                 </p>
               </div>
-              {can("reports.management", "reports.export") && (
+              {can("reports.management_export") && (
                 <button
                   type="button"
                   className="secondary-button"
