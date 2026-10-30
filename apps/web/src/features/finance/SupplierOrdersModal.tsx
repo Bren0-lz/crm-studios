@@ -1,5 +1,5 @@
 import {
-  productSizeLabels,
+  productSizeLabel,
   type Supplier,
   type SupplierOrder,
 } from "@crm/contracts";
@@ -16,7 +16,7 @@ import { SupplierOrderModal } from "./SupplierOrderModal";
 
 function itemLabel(item: SupplierOrder["items"][number]) {
   const name = item.size
-    ? `${item.productName} · ${productSizeLabels[item.size]}`
+    ? `${item.productName} · ${productSizeLabel(item.size)}`
     : item.productName;
   return `${item.quantity}× ${name}`;
 }
