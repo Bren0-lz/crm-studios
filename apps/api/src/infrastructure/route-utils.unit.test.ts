@@ -17,7 +17,7 @@ function report(): ManagementReport {
     },
     trials: { scheduled: 0, completed: 0, converted: 0, conversionRate: 0 },
     plans: { active: 0, availableSessions: 0, consumedInPeriod: 0 },
-    finance: { openInCents: 0, overdueInCents: 0, paidInPeriodInCents: 10000 },
+    finance: { openInCents: 0, overdueInCents: 2500 },
     commercial: {
       leadsCreated: 0,
       won: 0,
@@ -29,27 +29,13 @@ function report(): ManagementReport {
     byService: [],
     bySource: [],
     profitability: {
-      dre: {
-        serviceRevenueInCents: 10000,
-        productRevenueInCents: 0,
-        grossRevenueInCents: 10000,
-        productCostInCents: 1000,
-        grossProfitInCents: 9000,
-        operatingExpensesInCents: 0,
-        commissionsInCents: 0,
-        netResultInCents: 9000,
-        netMargin: 90,
-      },
       byService: [],
-      byProduct: [],
       operational: {
         groupOccupancyRate: 0,
         activeGroupSeats: 0,
         totalGroupCapacity: 0,
         waitlistCount: 0,
         lowStockCount: 0,
-        productUnitsSold: 0,
-        averageReceiptInCents: 0,
       },
     },
   };
@@ -59,11 +45,13 @@ describe("management CSV export", () => {
   it("preserves UTF-8, Windows line endings and values in cents", () => {
     const csv = reportToCsv(report());
     expect(csv.startsWith("\uFEFFseção;item;total;")).toBe(true);
-    expect(csv).toContain("financeiro;recebido no período;;;;;10000\r\n");
-    expect(csv).toContain("dre;custo dos produtos vendidos;;;;;-1000\r\n");
+    expect(csv).toContain("financeiro;em atraso;;;;;2500\r\n");
+    // Caixa e vendas ficam nos próprios relatórios (Financeiro e Vendas).
+    expect(csv).not.toContain("recebido no período");
+    expect(csv).not.toContain("dre;");
   });
 
-  it("escapes delimiters, quotes and multiline service/product names", () => {
+  it("escapes delimiters, quotes and multiline service names", () => {
     const data = report();
     data.profitability.byService = [
       {
@@ -76,23 +64,9 @@ describe("management CSV export", () => {
         contributionMargin: 100,
       },
     ];
-    data.profitability.byProduct = [
-      {
-        id: "product",
-        name: 'Faixa;"premium"',
-        unitsSold: 1,
-        revenueInCents: 2000,
-        costInCents: 1000,
-        grossProfitInCents: 1000,
-        grossMargin: 50,
-      },
-    ];
     const csv = reportToCsv(data);
     expect(csv).toContain(
       'rentabilidade por serviço;"Fisio;""VIP""\nretorno";2;;;100;10000',
-    );
-    expect(csv).toContain(
-      'rentabilidade por produto;"Faixa;""premium""";1;;;50;1000',
     );
   });
 });
