@@ -9,6 +9,7 @@ import type {
   FinancialExportFilter,
   FinancialReport,
   ManagementReport,
+  NotificationPreferences,
   NotificationsSummary,
   ProLaboreSettings,
   ProLaboreSettingsInput,
@@ -51,6 +52,14 @@ export const reportsApi = {
     ),
   /** Contagens do sino do cabeçalho (QM13). */
   notifications: () => request<NotificationsSummary>("/notifications"),
+  /** Preferências do sino do usuário logado. */
+  notificationPreferences: () =>
+    request<NotificationPreferences>("/notifications/preferences"),
+  saveNotificationPreferences: (input: NotificationPreferences) =>
+    request<NotificationPreferences>("/notifications/preferences", {
+      method: "PUT",
+      body: JSON.stringify(input),
+    }),
   managementReport: (from: string, to: string) =>
     request<ManagementReport>(
       `/reports/management?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,

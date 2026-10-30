@@ -17,6 +17,8 @@ import type {
 } from "../patients/types.js";
 import {
   managementReportFilterSchema,
+  notificationKindSchema,
+  notificationPreferencesSchema,
   retentionReportFilterSchema,
   salesReportFilterSchema,
 } from "./model.js";
@@ -95,6 +97,11 @@ export interface NotificationsSummary {
   autoCampaigns?:
     Array<{ id: string; name: string; pending: number }> | undefined;
 }
+
+export type NotificationKind = z.infer<typeof notificationKindSchema>;
+export type NotificationPreferences = z.infer<
+  typeof notificationPreferencesSchema
+>;
 
 export interface DashboardSummary {
   date: string;

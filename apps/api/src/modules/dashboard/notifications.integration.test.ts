@@ -1,6 +1,8 @@
 import { nextTestCpf } from "../../test-support/cpf.js";
 import {
+  defaultNotificationPreferences,
   patientPlanInputSchema,
+  type NotificationPreferences,
   type NotificationsSummary,
 } from "@crm/contracts";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -664,6 +666,77 @@ describe("GET /notifications", () => {
   it("requires login", async () => {
     const { app } = await setup();
     const response = await app.inject({ method: "GET", url: "/notifications" });
+    expect(response.statusCode).toBe(401);
+  });
+});
+
+describe("/notifications/preferences", () => {
+  it("starts with the defaults and keeps each user's own choices", async () => {
+    const { app, headers, userWith } = await setup();
+    const read = async (requestHeaders = headers) => {
+      const response = await app.inject({
+        method: "GET",
+        url: "/notifications/preferences",
+        headers: requestHeaders,
+      });
+      expect(response.statusCode).toBe(200);
+      return response.json<NotificationPreferences>();
+    };
+    expect(await read()).toEqual(defaultNotificationPreferences);
+
+    const saved = await app.inject({
+      method: "PUT",
+      url: "/notifications/preferences",
+      headers,
+      payload: {
+        // Repetidos e fora de ordem: a API guarda na ordem dos grupos, sem repetir.
+        hiddenKinds: ["pauseReturns", "birthdays", "birthdays"],
+        highlightedKinds: ["autoCampaigns"],
+        showBanner: false,
+        showToasts: true,
+        playSound: true,
+        refreshMinutes: 1,
+      },
+    });
+    expect(saved.statusCode).toBe(200);
+    const expected = {
+      hiddenKinds: ["birthdays", "pauseReturns"],
+      highlightedKinds: ["autoCampaigns"],
+      showBanner: false,
+      showToasts: true,
+      playSound: true,
+      refreshMinutes: 1,
+    };
+    expect(saved.json()).toEqual(expected);
+    expect(await read()).toEqual(expected);
+    // Outro usuário da mesma clínica segue com o padrão.
+    expect(await read(await userWith(["agenda"]))).toEqual(
+      defaultNotificationPreferences,
+    );
+  });
+
+  it("rejects unknown groups and intervals", async () => {
+    const { app, headers } = await setup();
+    for (const payload of [
+      { ...defaultNotificationPreferences, hiddenKinds: ["inventado"] },
+      { ...defaultNotificationPreferences, refreshMinutes: 2 },
+    ]) {
+      const response = await app.inject({
+        method: "PUT",
+        url: "/notifications/preferences",
+        headers,
+        payload,
+      });
+      expect(response.statusCode).toBe(400);
+    }
+  });
+
+  it("requires login", async () => {
+    const { app } = await setup();
+    const response = await app.inject({
+      method: "GET",
+      url: "/notifications/preferences",
+    });
     expect(response.statusCode).toBe(401);
   });
 });

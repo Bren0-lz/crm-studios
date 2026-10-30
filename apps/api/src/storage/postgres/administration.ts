@@ -14,6 +14,7 @@ import {
   type HistoryActor,
   type NavTabLabel,
   type NavTabLabelsInput,
+  type NotificationPreferences,
   type OwnProfile,
   type OwnProfileUpdate,
   type Professional,
@@ -27,6 +28,7 @@ import {
   permissionEditModules,
   permissionModules,
   resolveNavTabLabels,
+  resolveNotificationPreferences,
   resolvePermissionInput,
 } from "@crm/contracts";
 import type { Pool, PoolClient } from "pg";
@@ -1114,6 +1116,33 @@ export function createAdministrationRepository(
           );
       });
       return resolveNavTabLabels(input.tabs);
+    },
+
+    async getNotificationPreferences(clinicId: string, userId: string) {
+      const result = await repositoryContext.pool.query<{
+        preferences: unknown;
+      }>(
+        `SELECT preferences FROM user_notification_preferences
+         WHERE clinic_id = $1 AND user_id = $2`,
+        [clinicId, userId],
+      );
+      return resolveNotificationPreferences(result.rows[0]?.preferences);
+    },
+
+    async saveNotificationPreferences(
+      clinicId: string,
+      userId: string,
+      input: NotificationPreferences,
+    ) {
+      const preferences = resolveNotificationPreferences(input);
+      await repositoryContext.pool.query(
+        `INSERT INTO user_notification_preferences (clinic_id, user_id, preferences)
+         VALUES ($1, $2, $3)
+         ON CONFLICT (clinic_id, user_id)
+         DO UPDATE SET preferences = EXCLUDED.preferences, updated_at = now()`,
+        [clinicId, userId, JSON.stringify(preferences)],
+      );
+      return preferences;
     },
   };
 }

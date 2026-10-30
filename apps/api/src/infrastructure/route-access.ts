@@ -102,6 +102,9 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
   "GET /dashboard": "login",
   // Sino do cabeçalho: cada contagem é filtrada pelos módulos dentro da rota.
   "GET /notifications": "login",
+  // Preferências do sino: cada usuário lê e grava só as suas.
+  "GET /notifications/preferences": "login",
+  "PUT /notifications/preferences": "login",
   "GET /holidays": viewAny("agenda", "groups", "crm", "clinical"),
   "GET /professionals": viewAny(
     "agenda",
