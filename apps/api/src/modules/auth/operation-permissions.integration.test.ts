@@ -1,6 +1,5 @@
 import { nextTestCpf } from "../../test-support/cpf.js";
 import {
-  legacyPermissions,
   permissionCatalog,
   togglePermissions,
   type PermissionKey,
@@ -371,65 +370,31 @@ describe("per-operation API authorization", () => {
       ).statusCode,
     ).toBe(200);
   });
-  it("migration backfill matches the shared legacy rules and never includes admin-only export", () => {
-    const sql = readFileSync(
-      new URL(
-        "../../../migrations/0045_operation_permissions.sql",
-        import.meta.url,
-      ),
-      "utf8",
-    );
-    // 0101 replaced "reports.export" with one spreadsheet export per report.
-    const spreadsheetExports = [
+  it("migrations grant one spreadsheet export per report and template deletion", () => {
+    const migration = (name: string) =>
+      readFileSync(
+        new URL(`../../../migrations/${name}`, import.meta.url),
+        "utf8",
+      );
+    const split = migration("0008_spreadsheet_export_permissions.sql");
+    for (const key of [
       "reports.dre_export",
       "reports.financial_export",
       "reports.management_export",
       "reports.clients_export",
       "reports.sales_export",
-    ];
-    const rows = [
-      ...sql.matchAll(
-        /\('([^']+)', ARRAY\[([^\]]*)\]::text\[\], ARRAY\[([^\]]*)\]::text\[\]\)/g,
-      ),
-    ].filter((row) => row[1] !== "reports.export");
-    expect(rows.map((row) => row[1]).sort()).toEqual(
-      permissionCatalog
-        // History and waitlist came after 0045; waitlist has its own grant in 0097.
-        .filter(
-          (item) =>
-            !item.legacyAdmin &&
-            !item.explicitGrantOnly &&
-            item.module !== "history" &&
-            item.module !== "waitlist" &&
-            !spreadsheetExports.includes(item.key),
-        )
-        .map((item) => item.key)
-        .sort(),
-    );
-    for (const row of rows) {
-      const definition = permissionCatalog.find((item) => item.key === row[1])!;
-      const parse = (text: string) =>
-        [...text.matchAll(/'([^']+)'/g)].map((match) => match[1]);
-      expect(parse(row[2]!)).toEqual(definition.legacyView);
-      expect(parse(row[3]!)).toEqual(definition.legacyEdit);
-    }
-    expect(sql).toContain("WHERE u.permissions IS NULL");
-    expect(sql).not.toContain("history.view");
-    const split = readFileSync(
-      new URL(
-        "../../../migrations/0111_spreadsheet_export_permissions.sql",
-        import.meta.url,
-      ),
-      "utf8",
-    );
-    for (const key of spreadsheetExports) {
+    ] as const) {
       const report = permissionCatalog.find((item) => item.key === key)!
         .dependencies[1];
-      expect(split).toContain(`('${report}', '${key}')`);
+      expect(split).toContain(
+        `JSON_CONTAINS(permissions, '"${report}"')\n  AND NOT JSON_CONTAINS(permissions, '"${key}"')`,
+      );
     }
-    expect(split).toContain("array_remove(permissions, 'reports.export')");
-    expect(legacyPermissions("user", ["patients"], ["patients"])).not.toContain(
-      "patients.export",
+    expect(split).toContain(
+      "JSON_REMOVE(permissions, JSON_UNQUOTE(JSON_SEARCH(permissions, 'one', 'reports.export')))",
+    );
+    expect(migration("0017_document_template_delete.sql")).toContain(
+      `WHERE JSON_CONTAINS(permissions, '"contracts.templates_create"')`,
     );
   });
 });

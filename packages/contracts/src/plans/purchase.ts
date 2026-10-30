@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { patientPlanInputSchema } from "./model.js";
 import { appointmentInputSchema } from "../agenda/model.js";
-import { issuedDocumentInputSchema } from "../contracts/model.js";
+import { issuedDocumentFieldsSchema } from "../contracts/model.js";
 import type { PatientPlan } from "./types.js";
 import type { Appointment, GroupEnrollment } from "../agenda/types.js";
 import type { IssuedDocument } from "../contracts/types.js";
@@ -13,8 +13,8 @@ export const planPurchaseInputSchema = z.object({
     .array(appointmentInputSchema.omit({ patientId: true }))
     .max(120)
     .default([]),
-  document: issuedDocumentInputSchema
-    .omit({ patientId: true, planId: true })
+  document: issuedDocumentFieldsSchema
+    .omit({ patientId: true, supplierId: true, planId: true })
     .optional(),
 });
 export type PlanPurchaseInput = z.infer<typeof planPurchaseInputSchema>;

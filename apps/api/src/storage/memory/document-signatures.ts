@@ -35,9 +35,10 @@ export function createDocumentSignaturesRepository(
           "Somente documentos emitidos sem assinatura registrada aceitam este registro.",
           409,
         );
+      // Só confere o arquivo: o vínculo com cliente não é usado na checagem.
       const { sha256 } = inspectClinicalAttachment({
         ...input,
-        patientId: document.patientId,
+        patientId: document.patientId ?? "",
       });
       const { contentBase64, ...metadata } = input;
       const signature = {

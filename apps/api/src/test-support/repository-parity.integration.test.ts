@@ -13,14 +13,18 @@ import {
   patientPlanInputSchema,
   planTemplateInputSchema,
   saoPauloToday,
+  supplierInputSchema,
 } from "@crm/contracts";
 import { randomUUID } from "node:crypto";
-import { Pool } from "pg";
+import type { Database as Pool } from "../infrastructure/mysql-client.js";
+import { createDatabasePool } from "../database.js";
+import {
+  createTestDatabase,
+  type TestDatabase,
+} from "../test-support/mysql-database.js";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { runMigrations, seedDemoData } from "../database.js";
-import { databaseConnectionConfig } from "../infrastructure/database-connection.js";
 import { MemoryClinicRepository } from "../memory-repository.js";
-import { PostgresClinicRepository } from "../postgres-repository.js";
+import { MysqlClinicRepository } from "../mysql-repository.js";
 import type { ClinicRepository } from "../repository.js";
 import { atInstant } from "./clock.js";
 
@@ -30,48 +34,27 @@ const serviceId = "77777777-7777-4777-8777-777777777777";
 const professionalId = "44444444-4444-4444-8444-444444444444";
 const roomId = "66666666-6666-4666-8666-666666666666";
 
-for (const storage of ["memory", "postgres"] as const) {
-  describe.skipIf(storage === "postgres" && !process.env.TEST_DATABASE_URL)(
+for (const storage of ["memory", "mysql"] as const) {
+  describe.skipIf(storage === "mysql" && !process.env.TEST_DATABASE_URL)(
     `${storage} repository parity`,
     () => {
       let repository: ClinicRepository;
-      let adminPool: Pool | undefined;
+      let database: TestDatabase | undefined;
       let pool: Pool | undefined;
-      const schema = `parity_${randomUUID().replaceAll("-", "")}`;
 
       beforeAll(async () => {
         if (storage === "memory") return;
-        const connection = databaseConnectionConfig({
-          url: process.env.TEST_DATABASE_URL!,
-          ssl: "auto",
-        });
-        adminPool = new Pool(connection);
-        await adminPool.query(`CREATE SCHEMA ${schema}`);
-        // Own migration registry prevents falling through to the public schema's registry.
-        await adminPool.query(
-          `CREATE TABLE ${schema}.schema_migrations (name text PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now())`,
-        );
-        pool = new Pool({
-          ...connection,
-          options: `-c search_path=${schema},public`,
-        });
-        await runMigrations(pool);
-        await seedDemoData(pool);
-        repository = new PostgresClinicRepository(pool);
-      }, 20_000);
+        database = await createTestDatabase("repositorypa");
+        pool = database.pool;
+        repository = new MysqlClinicRepository(pool);
+      }, 60_000);
 
       beforeEach(() => {
         if (storage === "memory")
           repository = new MemoryClinicRepository(false);
       });
       afterAll(async () => {
-        try {
-          await pool?.end();
-          if (adminPool)
-            await adminPool.query(`DROP SCHEMA IF EXISTS ${schema} CASCADE`);
-        } finally {
-          await adminPool?.end();
-        }
+        await database?.drop();
       });
 
       async function patient(name: string) {
@@ -255,7 +238,7 @@ for (const storage of ["memory", "postgres"] as const) {
             ["Vinculada", "Avulsa"].map((name) =>
               repository.createProfessional(clinicId, {
                 fullName: `Profissional ${name} ${randomUUID()}`,
-                crefito: "",
+                crefito: `PARITY-${randomUUID().slice(0, 8)}`,
                 specialty: "Pilates",
                 color: "#336699",
               }),
@@ -301,7 +284,7 @@ for (const storage of ["memory", "postgres"] as const) {
         await atInstant("2055-01-01T12:00:00Z", async () => {
           const professional = await repository.createProfessional(clinicId, {
             fullName: "Profissional nome " + randomUUID(),
-            crefito: "",
+            crefito: `PARITY-${randomUUID().slice(0, 8)}`,
             specialty: "Pilates",
             color: "#336699",
           });
@@ -554,10 +537,10 @@ for (const storage of ["memory", "postgres"] as const) {
       it("saves every settings section repeatedly with one database connection", async () => {
         const original = await repository.getClinicSettings(clinicId);
         const limitedPool = pool
-          ? new Pool({ ...pool.options, max: 1, connectionTimeoutMillis: 1000 })
+          ? createDatabasePool({ url: pool.url, max: 1 })
           : undefined;
         const settingsRepository = limitedPool
-          ? new PostgresClinicRepository(limitedPool)
+          ? new MysqlClinicRepository(limitedPool)
           : repository;
         try {
           const input = clinicSettingsInputSchema.parse({
@@ -971,6 +954,55 @@ for (const storage of ["memory", "postgres"] as const) {
               item.groupId === group.id && item.patientId === created.id,
           ),
         ).toHaveLength(1);
+      });
+
+      it("issues a supplier contract and shares the link with the supplier's WhatsApp", async () => {
+        const supplier = (await repository.saveSupplier(
+          clinicId,
+          actorId,
+          supplierInputSchema.parse({
+            name: "Fornecedor " + randomUUID(),
+            kind: "person",
+            document: "52998224725",
+            whatsapp: "19988887777",
+            contractAmountInCents: 50000,
+          }),
+        ))!;
+        const template = await repository.createDocumentTemplate(clinicId, {
+          name: "Contrato de fornecedor " + randomUUID(),
+          kind: "contract",
+          body: "Contrato com {{fornecedor_nome}}, CPF {{fornecedor_documento}}, cliente {{paciente_nome}}.",
+        });
+        const draft = await repository.createIssuedDocument(clinicId, actorId, {
+          templateId: template.id,
+          supplierId: supplier.id,
+          title: "Contrato do fornecedor",
+        });
+        expect(draft).toMatchObject({
+          supplierId: supplier.id,
+          patientName: supplier.name,
+          snapshotBody: `Contrato com ${supplier.name}, CPF 529.982.247-25, cliente não informado.`,
+        });
+        expect(draft).not.toHaveProperty("patientId");
+        await repository.updateIssuedDocumentStatus(
+          clinicId,
+          draft.id,
+          "issued",
+        );
+        const share = await repository.createDocumentSignatureLink(
+          clinicId,
+          actorId,
+          draft.id,
+        );
+        expect(share).toMatchObject({ patientPhone: "19988887777" });
+        expect(
+          await repository.openPublicSignatureDocument(share!.token, {}),
+        ).toMatchObject({ patientName: supplier.name, status: "pending" });
+        expect(
+          (await repository.listIssuedDocuments(clinicId)).find(
+            (item) => item.id === draft.id,
+          ),
+        ).toMatchObject({ supplierId: supplier.id, status: "issued" });
       });
 
       // QM15: prontuário sequencial e único; os 3 clientes semente são PAC-00001..00003.

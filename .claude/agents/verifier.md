@@ -26,7 +26,7 @@ Responda em pt-BR.
    - caso de erro ignorado ou engolido
    - funcionalidade removida/desabilitada em vez de corrigida
    - escopo além da tarefa (mudança que ninguém pediu)
-   - método novo do repositório implementado só em memória e não no PostgreSQL (ou vice-versa)
+   - método novo do repositório implementado só em memória e não no MySQL (ou vice-versa)
    - migração existente editada, `.env`/`compose.yaml`/`docs/PLANO_*` alterados, dependência nova
    - `apps/web/scripts/audit-panels.cjs` alterado para esconder apontamento (só a D03 pode ampliá-lo)
    - interface nova que viola a seção "Design de páginas" do `CLAUDE.md`:

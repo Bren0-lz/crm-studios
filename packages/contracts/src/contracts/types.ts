@@ -46,6 +46,7 @@ export interface IssuedDocument extends IssuedDocumentInput {
   clinicId: string;
   templateName: string;
   templateVersion: number;
+  /** Nome de quem assina: o cliente ou, com `supplierId`, o fornecedor. */
   patientName: string;
   planName?: string;
   snapshotBody: string;
@@ -101,10 +102,11 @@ export interface DocumentSignatureLinkDetails extends DocumentSignatureLink {
   signerUserAgent?: string;
   documentSha256?: string;
 }
-/** Envio pelo WhatsApp: documento atualizado, telefone do cliente e nome da clínica. */
+/** Envio pelo WhatsApp: documento atualizado, telefone de quem assina e nome da clínica. */
 export interface DocumentSignatureLinkShare {
   document: IssuedDocument;
   token: string;
+  /** WhatsApp (ou telefone) do cliente ou do fornecedor que assina. */
   patientPhone?: string;
   clinicName: string;
 }
