@@ -488,6 +488,7 @@ export class MemoryClinicRepository implements ClinicRepository {
     this.createDocumentTemplate = this.contracts.createDocumentTemplate;
     this.createDocumentTemplateVersion =
       this.contracts.createDocumentTemplateVersion;
+    this.deleteDocumentTemplate = this.contracts.deleteDocumentTemplate;
     this.listIssuedDocuments = this.contracts.listIssuedDocuments;
     this.createIssuedDocument = this.contracts.createIssuedDocument;
     this.previewDocument = this.contracts.previewDocument;
@@ -1158,6 +1159,9 @@ export class MemoryClinicRepository implements ClinicRepository {
   readonly createDocumentTemplateVersion: ReturnType<
     typeof createContractsRepository
   >["createDocumentTemplateVersion"];
+  readonly deleteDocumentTemplate: ReturnType<
+    typeof createContractsRepository
+  >["deleteDocumentTemplate"];
 
   readonly listIssuedDocuments: ReturnType<
     typeof createContractsRepository
