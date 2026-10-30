@@ -9,7 +9,10 @@ import {
 } from "@crm/contracts";
 import { DomainError } from "../../repository.js";
 import { clinicDateOf } from "../../modules/finance/daily-cash.js";
-import { payrollLaunchTotals } from "../../modules/finance/payroll.js";
+import {
+  payrollLaunchTotals,
+  userManagedEmployeeError,
+} from "../../modules/finance/payroll.js";
 import type { MemoryRepositoryContext } from "./context.js";
 import { now, today, uuid } from "./helpers.js";
 
@@ -21,6 +24,8 @@ export interface PayrollEmployeeRecord {
   name: string;
   role?: string;
   professionalId?: string;
+  /** Usuário dono do salário; ausente = cadastrado antes, direto na folha. */
+  userId?: string;
   baseSalaryInCents: number;
   active: boolean;
   createdByUserId: string;
@@ -38,17 +43,22 @@ export function createPayrollRepository(context: MemoryRepositoryContext) {
     const professional = record.professionalId
       ? context.professionals.find((item) => item.id === record.professionalId)
       : undefined;
+    // Colaborador do usuário: o nome é sempre o atual do cadastro (o perfil também o muda).
+    const user = record.userId
+      ? context.users.find((item) => item.id === record.userId)
+      : undefined;
     return {
       id: record.id,
       clinicId: record.clinicId,
       branchId: record.branchId,
       ...(branch ? { branchName: branch.name } : {}),
-      name: record.name,
+      name: user?.fullName ?? record.name,
       ...(record.role ? { role: record.role } : {}),
       ...(record.professionalId
         ? { professionalId: record.professionalId }
         : {}),
       ...(professional ? { professionalName: professional.fullName } : {}),
+      ...(record.userId ? { userId: record.userId } : {}),
       baseSalaryInCents: record.baseSalaryInCents,
       active: record.active,
       createdAt: record.createdAt,
@@ -220,39 +230,6 @@ export function createPayrollRepository(context: MemoryRepositoryContext) {
         .map(toEmployee)
         .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
     },
-    async createPayrollEmployee(
-      clinicId: string,
-      actorId: string,
-      input: PayrollEmployeeInput,
-    ) {
-      const branchId = validateEmployee(clinicId, input),
-        timestamp = now();
-      const record: PayrollEmployeeRecord = {
-        id: uuid(),
-        clinicId,
-        branchId,
-        name: input.name,
-        ...(input.role ? { role: input.role } : {}),
-        ...(input.professionalId
-          ? { professionalId: input.professionalId }
-          : {}),
-        baseSalaryInCents: input.baseSalaryInCents,
-        active: input.active,
-        createdByUserId: actorId,
-        createdAt: timestamp,
-        updatedAt: timestamp,
-      };
-      context.payrollEmployees.push(record);
-      context.recordAudit(
-        clinicId,
-        actorId,
-        "payroll.employee_created",
-        "payroll_employee",
-        { name: record.name, baseSalaryInCents: record.baseSalaryInCents },
-        record.id,
-      );
-      return toEmployee(record);
-    },
     async updatePayrollEmployee(
       clinicId: string,
       actorId: string,
@@ -263,6 +240,7 @@ export function createPayrollRepository(context: MemoryRepositoryContext) {
         (item) => item.clinicId === clinicId && item.id === id,
       );
       if (!record) return null;
+      if (record.userId) throw userManagedEmployeeError();
       context.assertBranchInScope(record.branchId);
       const branchId = validateEmployee(clinicId, input, id);
       const previous = toEmployee(record);

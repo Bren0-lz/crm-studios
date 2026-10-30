@@ -10,6 +10,7 @@ import {
 } from "../../test-support/legacy-fixtures.js";
 import "../../test-support/legacy-setup.js";
 import { patchStatusAt } from "../../test-support/clock.js";
+import { salariedEmployeeViaApi } from "../../test-support/payroll-users.js";
 
 describe("CRM API", () => {
   it("links users to agenda professionals and sets their commission rule, owner only", async () => {
@@ -1010,24 +1011,18 @@ describe("CRM API", () => {
       expect(reversed.statusCode).toBe(200);
       // A comissão é paga pela folha: a despesa da folha sai em dinheiro.
       at("2031-03-11T02:40:00.000Z");
-      const employee = await app.inject({
-        method: "POST",
-        url: "/finance/payroll/employees",
-        headers,
-        payload: {
-          name: "Profissional do caixa",
-          professionalId: professionals.json()[0].id,
-          baseSalaryInCents: 0,
-        },
+      const employeeId = await salariedEmployeeViaApi(app, headers, {
+        name: "Profissional do caixa",
+        professionalId: professionals.json()[0].id,
+        salaryInCents: null,
       });
-      expect(employee.statusCode).toBe(201);
       const launched = await app.inject({
         method: "POST",
         url: "/finance/payroll/launch",
         headers,
         payload: {
           competence: "2031-03",
-          employeeIds: [employee.json().id],
+          employeeIds: [employeeId],
           dueDate: "2031-03-10",
           categoryId: workspace
             .json()

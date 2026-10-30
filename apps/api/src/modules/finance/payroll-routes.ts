@@ -28,21 +28,8 @@ export function registerPayrollRoutes({
     async (request) => repository.listPayrollEmployees(request.user.clinicId),
   );
 
-  app.post(
-    "/finance/payroll/employees",
-    { preHandler: authenticate },
-    async (request, reply) =>
-      reply
-        .status(201)
-        .send(
-          await repository.createPayrollEmployee(
-            request.user.clinicId,
-            request.user.sub,
-            payrollEmployeeInputSchema.parse(request.body),
-          ),
-        ),
-  );
-
+  // Não há cadastro direto na folha: o colaborador nasce do cadastro do usuário ("recebe
+  // salário"). A edição abaixo vale só para os colaboradores cadastrados antes disso.
   app.put(
     "/finance/payroll/employees/:id",
     { preHandler: authenticate },

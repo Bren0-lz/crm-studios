@@ -863,6 +863,9 @@ export class MemoryRepositoryContext {
       user.id,
       today,
     );
+    const salaryInCents = this.payrollEmployees.find(
+      (item) => item.clinicId === user.clinicId && item.userId === user.id,
+    )?.baseSalaryInCents;
     return {
       ...summary,
       ...(whatsapp ? { whatsapp } : {}),
@@ -889,6 +892,7 @@ export class MemoryRepositoryContext {
           }
         : {}),
       ...(serviceCommissions.length ? { serviceCommissions } : {}),
+      ...(salaryInCents ? { salaryInCents } : {}),
     };
   }
 

@@ -183,6 +183,10 @@ describe.skipIf(!databaseUrl)("MySQL repository", () => {
       `UPDATE professionals SET user_id = NULL WHERE clinic_id = $1 AND user_id IN (${ids})`,
       [clinicId, permissionsUserEmail],
     );
+    await pool.query(
+      `DELETE FROM payroll_employees WHERE clinic_id = $1 AND user_id IN (${ids})`,
+      [clinicId, permissionsUserEmail],
+    );
     await pool.query("DELETE FROM users WHERE clinic_id = $1 AND email = $2", [
       clinicId,
       permissionsUserEmail,
