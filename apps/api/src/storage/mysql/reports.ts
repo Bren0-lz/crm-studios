@@ -5,7 +5,6 @@ import {
   type PatientPlanService,
   type ProductSize,
   productItemName,
-  type ReceivedPayment,
   type SaleMovement,
   type SalesReport,
   type SalesPeriodReport,
@@ -21,6 +20,8 @@ import {
   withContractedHistory,
   withPatientContacts,
   salesReportBounds,
+  type SaleReceivable,
+  type SalesBilling,
 } from "../../modules/reports/sales-report.js";
 import type { MysqlRepositoryContext } from "./context.js";
 import {
@@ -34,10 +35,10 @@ import { orderedItems } from "./mappers/plans.js";
 import {
   commissionAmount,
   commissionRuleJoin,
-  latestDateCorrection,
   localDate,
   localDayStart,
   localMonth,
+  inJsonArray,
   localToday,
 } from "./sql.js";
 
@@ -64,6 +65,7 @@ type TabSaleRow = {
   sourceType: "product" | "service";
   quantity: number;
   amountInCents: number;
+  costInCents: number | null;
   closedAt: Date;
   cancelledAt: Date | null;
   receivableId: string | null;
@@ -96,6 +98,7 @@ function toSales(planRows: PlanSaleRow[], tabRows: TabSaleRow[]) {
         id: `${plan.id}:cancellation`,
         kind: "cancellation",
         occurredAt: plan.cancelledAt.toISOString(),
+        saleOccurredAt: plan.createdAt.toISOString(),
         amountInCents: -plan.cancelledValueInCents,
       });
   }
@@ -118,6 +121,9 @@ function toSales(planRows: PlanSaleRow[], tabRows: TabSaleRow[]) {
       kind: "sale",
       occurredAt: item.closedAt.toISOString(),
       amountInCents: item.amountInCents,
+      ...(item.costInCents === null
+        ? {}
+        : { costInCents: Number(item.costInCents) }),
     });
     if (item.cancelledAt)
       sales.push({
@@ -125,6 +131,7 @@ function toSales(planRows: PlanSaleRow[], tabRows: TabSaleRow[]) {
         id: `${item.id}:cancellation`,
         kind: "cancellation",
         occurredAt: item.cancelledAt.toISOString(),
+        saleOccurredAt: item.closedAt.toISOString(),
         amountInCents: -item.amountInCents,
       });
   }
@@ -155,6 +162,7 @@ export function createReportsRepository(
         `SELECT i.id, t.id AS "tabId", t.patient_id AS "patientId", 'product' AS "sourceType",
                 p.full_name AS "patientName", pr.name AS "productName", i.size,
                 i.quantity, CAST((i.quantity*i.unit_price_in_cents) AS SIGNED) AS "amountInCents",
+                CAST((i.quantity*i.unit_cost_in_cents) AS SIGNED) AS "costInCents",
                 t.closed_at AS "closedAt", t.cancelled_at AS "cancelledAt",
                 t.receivable_id AS "receivableId"
          FROM patient_tab_items i
@@ -162,7 +170,7 @@ export function createReportsRepository(
          JOIN patients p ON p.id=t.patient_id
          JOIN products pr ON pr.id=i.product_id
          WHERE t.clinic_id=$1 AND JSON_CONTAINS($2, JSON_QUOTE(t.patient_id)) AND t.closed_at IS NOT NULL AND ${branchClause("t.branch_id", 3)}
-         UNION ALL SELECT i.id,t.id,t.patient_id,'service',p.full_name,i.service_name,'',1,i.amount_in_cents,t.closed_at,t.cancelled_at,t.receivable_id FROM patient_tab_services i JOIN patient_tabs t ON t.id=i.tab_id AND t.clinic_id=i.clinic_id JOIN patients p ON p.id=t.patient_id AND p.clinic_id=t.clinic_id WHERE t.clinic_id=$1 AND JSON_CONTAINS($2, JSON_QUOTE(t.patient_id)) AND t.closed_at IS NOT NULL AND ${branchClause("t.branch_id", 3)}`,
+         UNION ALL SELECT i.id,t.id,t.patient_id,'service',p.full_name,i.service_name,'',1,i.amount_in_cents,NULL,t.closed_at,t.cancelled_at,t.receivable_id FROM patient_tab_services i JOIN patient_tabs t ON t.id=i.tab_id AND t.clinic_id=i.clinic_id JOIN patients p ON p.id=t.patient_id AND p.clinic_id=t.clinic_id WHERE t.clinic_id=$1 AND JSON_CONTAINS($2, JSON_QUOTE(t.patient_id)) AND t.closed_at IS NOT NULL AND ${branchClause("t.branch_id", 3)}`,
         [clinicId, patientIds, branchIds],
       ),
     ]);
@@ -204,6 +212,7 @@ export function createReportsRepository(
         `SELECT i.id, t.id AS "tabId", t.patient_id AS "patientId", 'product' AS "sourceType",
                 p.full_name AS "patientName", pr.name AS "productName", i.size,
                 i.quantity, CAST((i.quantity*i.unit_price_in_cents) AS SIGNED) AS "amountInCents",
+                CAST((i.quantity*i.unit_cost_in_cents) AS SIGNED) AS "costInCents",
                 t.closed_at AS "closedAt", t.cancelled_at AS "cancelledAt",
                 t.receivable_id AS "receivableId"
          FROM patient_tab_items i
@@ -213,34 +222,7 @@ export function createReportsRepository(
          WHERE t.clinic_id=$1 AND t.closed_at IS NOT NULL AND ${branchClause("t.branch_id", 4)} AND (
            ${localDate("t.closed_at")} BETWEEN $2 AND $3
            OR ${localDate("t.cancelled_at")} BETWEEN $2 AND $3
-         ) UNION ALL SELECT i.id,t.id,t.patient_id,'service',p.full_name,i.service_name,'',1,i.amount_in_cents,t.closed_at,t.cancelled_at,t.receivable_id FROM patient_tab_services i JOIN patient_tabs t ON t.id=i.tab_id AND t.clinic_id=i.clinic_id JOIN patients p ON p.id=t.patient_id AND p.clinic_id=t.clinic_id WHERE t.clinic_id=$1 AND t.closed_at IS NOT NULL AND ${branchClause("t.branch_id", 4)} AND (${localDate("t.closed_at")} BETWEEN $2 AND $3 OR ${localDate("t.cancelled_at")} BETWEEN $2 AND $3)`,
-        [clinicId, bounds.previousFrom, bounds.currentTo, branchIds],
-      );
-      const paymentResult = await client.query<{
-        id: string;
-        receivableId: string;
-        kind: "payment" | "payment_reversal";
-        patientId: string;
-        patientName: string;
-        planId: string | null;
-        tabId: string | null;
-        description: string;
-        amountInCents: number;
-        occurredAt: Date;
-        paymentMethod: ReceivedPayment["paymentMethod"] | null;
-      }>(
-        `SELECT fe.id, fe.receivable_id AS "receivableId", fe.kind,
-                r.patient_id AS "patientId", p.full_name AS "patientName",
-                r.plan_id AS "planId", t.id AS "tabId", r.description,
-                fe.amount_in_cents AS "amountInCents", coalesce(dc.occurred_at,fe.occurred_at,fe.created_at) AS "occurredAt",
-                JSON_VALUE(fe.metadata, '$.paymentMethod') AS "paymentMethod"
-         FROM financial_events fe
-         ${latestDateCorrection("dc", "fe", "receivable_event_id")}
-         JOIN receivables r ON r.id=fe.receivable_id
-         JOIN patients p ON p.id=r.patient_id
-         LEFT JOIN patient_tabs t ON t.receivable_id=r.id
-         WHERE fe.clinic_id=$1 AND fe.kind IN ('payment','payment_reversal') AND ${branchClause("r.branch_id", 4)} AND
-           ${localDate("coalesce(dc.occurred_at,fe.occurred_at,fe.created_at)")} BETWEEN $2 AND $3`,
+         ) UNION ALL SELECT i.id,t.id,t.patient_id,'service',p.full_name,i.service_name,'',1,i.amount_in_cents,NULL,t.closed_at,t.cancelled_at,t.receivable_id FROM patient_tab_services i JOIN patient_tabs t ON t.id=i.tab_id AND t.clinic_id=i.clinic_id JOIN patients p ON p.id=t.patient_id AND p.clinic_id=t.clinic_id WHERE t.clinic_id=$1 AND t.closed_at IS NOT NULL AND ${branchClause("t.branch_id", 4)} AND (${localDate("t.closed_at")} BETWEEN $2 AND $3 OR ${localDate("t.cancelled_at")} BETWEEN $2 AND $3)`,
         [clinicId, bounds.previousFrom, bounds.currentTo, branchIds],
       );
       const appointmentResult = await client.query<AppointmentRow>(
@@ -257,25 +239,64 @@ export function createReportsRepository(
           branchIds,
         ],
       );
-      await client.query("COMMIT");
       const sales = toSales(planResult.rows, productResult.rows);
-      const payments: ReceivedPayment[] = paymentResult.rows.map((item) => ({
-        id: item.id,
-        receivableId: item.receivableId,
-        kind: item.kind === "payment" ? "payment" : "reversal",
-        ...(item.planId || item.tabId
-          ? { sourceId: item.planId ?? item.tabId! }
-          : {}),
-        occurredAt: item.occurredAt.toISOString(),
-        patientId: item.patientId,
-        patientName: item.patientName,
-        description: item.description,
-        amountInCents: item.amountInCents,
-        ...(item.paymentMethod ? { paymentMethod: item.paymentMethod } : {}),
-      }));
+      const sold = sales.filter((item) => item.kind === "sale");
+      const planIds = [
+        ...new Set(
+          sold
+            .filter((item) => item.sourceType === "plan")
+            .map((item) => item.sourceId),
+        ),
+      ];
+      const tabIds = [
+        ...new Set(
+          sold
+            .filter((item) => item.sourceType !== "plan")
+            .map((item) => item.sourceId),
+        ),
+      ];
+      const patientIds = [...new Set(sold.map((item) => item.patientId))];
+      // Contas das vendas carregadas (plano pelo plan_id, comanda pela conta da comanda).
+      const receivableResult = await client.query<SaleReceivable>(
+        `SELECT r.plan_id AS "sourceId", r.status, r.amount_in_cents AS "amountInCents", r.due_date AS "dueDate"
+         FROM receivables r
+         WHERE r.clinic_id=$1 AND r.plan_id IS NOT NULL AND ${inJsonArray("r.plan_id", "$2")}
+         UNION ALL
+         SELECT t.id, r.status, r.amount_in_cents, r.due_date
+         FROM patient_tabs t JOIN receivables r ON r.id=t.receivable_id AND r.clinic_id=t.clinic_id
+         WHERE t.clinic_id=$1 AND ${inJsonArray("t.id", "$3")}`,
+        [clinicId, planIds, tabIds],
+      );
+      // Primeira compra da história de cada comprador (novos × recorrentes).
+      const firstSaleResult = await client.query<{
+        patientId: string;
+        firstSaleAt: Date;
+      }>(
+        `SELECT x.patient_id AS "patientId", MIN(x.sold_at) AS "firstSaleAt" FROM (
+           SELECT pp.patient_id, pp.created_at AS sold_at FROM patient_plans pp
+           WHERE pp.clinic_id=$1 AND pp.source_tab_id IS NULL AND ${inJsonArray("pp.patient_id", "$2")} AND ${branchClause("pp.branch_id", 3)}
+           UNION ALL
+           SELECT t.patient_id, t.closed_at FROM patient_tabs t
+           WHERE t.clinic_id=$1 AND t.closed_at IS NOT NULL AND ${inJsonArray("t.patient_id", "$2")} AND ${branchClause("t.branch_id", 3)}
+         ) x GROUP BY x.patient_id`,
+        [clinicId, patientIds, branchIds],
+      );
+      await client.query("COMMIT");
+      const billing: SalesBilling = {
+        receivables: receivableResult.rows.map((item) => ({
+          ...item,
+          amountInCents: Number(item.amountInCents),
+        })),
+        firstSaleAt: new Map(
+          firstSaleResult.rows.map((item) => [
+            item.patientId,
+            new Date(item.firstSaleAt).toISOString(),
+          ]),
+        ),
+      };
       return {
         sales,
-        payments,
+        billing,
         appointments: appointmentResult.rows.map(mapAppointment),
         asOf,
       };
@@ -378,7 +399,7 @@ export function createReportsRepository(
       return buildSalesReport(
         month,
         data.sales,
-        data.payments,
+        data.billing,
         data.appointments,
         data.asOf,
       );
@@ -393,7 +414,7 @@ export function createReportsRepository(
         from,
         to,
         data.sales,
-        data.payments,
+        data.billing,
         data.appointments,
         data.asOf,
       );
@@ -594,22 +615,13 @@ export function createReportsRepository(
         repositoryContext.pool.query<{
           openInCents: number;
           overdueInCents: number;
-          paidInPeriodInCents: number;
         }>(
           `SELECT
            CAST(COALESCE(SUM(CASE WHEN status = 'open' THEN amount_in_cents END), 0) AS SIGNED) AS "openInCents",
            CAST(COALESCE(SUM(CASE WHEN status = 'open' AND due_date < ${localToday()}
-             THEN amount_in_cents END), 0) AS SIGNED) AS "overdueInCents",
-           CAST(COALESCE((SELECT SUM(fe.amount_in_cents)
-             FROM financial_events fe
-         ${latestDateCorrection("dc", "fe", "receivable_event_id")}
-             WHERE fe.clinic_id=$1 AND fe.kind IN ('payment','payment_reversal')
-               AND EXISTS (SELECT 1 FROM receivables rb WHERE rb.id = fe.receivable_id
-                 AND ${branchClause("rb.branch_id", 4)})
-               AND ${localDate("coalesce(dc.occurred_at,fe.occurred_at,fe.created_at)")}
-                   BETWEEN $2 AND $3), 0) AS SIGNED) AS "paidInPeriodInCents"
-         FROM receivables WHERE clinic_id = $1 AND ${branchClause("branch_id", 4)}`,
-          [clinicId, from, to, branchIds],
+             THEN amount_in_cents END), 0) AS SIGNED) AS "overdueInCents"
+         FROM receivables WHERE clinic_id = $1 AND ${branchClause("branch_id", 2)}`,
+          [clinicId, branchIds],
         ),
         repositoryContext.pool.query<{
           leadsCreated: number;
@@ -649,48 +661,7 @@ export function createReportsRepository(
           [clinicId, from, to, branchIds],
         ),
       ]);
-      const [
-        dreResult,
-        productProfitResult,
-        serviceProfitResult,
-        operationResult,
-      ] = await Promise.all([
-        repositoryContext.pool.query<{
-          serviceRevenueInCents: number;
-          productRevenueInCents: number;
-          productCostInCents: number;
-          operatingExpensesInCents: number;
-          commissionsInCents: number;
-        }>(
-          `WITH paid AS (
-             SELECT r.* FROM receivables r WHERE r.clinic_id=$1 AND r.status='paid' AND ${branchClause("r.branch_id", 4)}
-               AND ${localDate("r.paid_at")} BETWEEN $2 AND $3
-           ), product_tabs AS (
-             SELECT t.id,t.receivable_id FROM patient_tabs t JOIN paid r ON r.id=t.receivable_id
-             WHERE t.status='closed'
-           ) SELECT
-             CAST(COALESCE((SELECT sum(amount_in_cents) FROM paid r WHERE NOT EXISTS(SELECT 1 FROM product_tabs t WHERE t.receivable_id=r.id)),0) AS SIGNED) AS "serviceRevenueInCents",
-             CAST(COALESCE((SELECT sum(r.amount_in_cents) FROM paid r JOIN product_tabs t ON t.receivable_id=r.id),0) AS SIGNED) AS "productRevenueInCents",
-             CAST(COALESCE((SELECT sum(i.quantity*i.unit_cost_in_cents) FROM patient_tab_items i JOIN product_tabs t ON t.id=i.tab_id),0) AS SIGNED) AS "productCostInCents",
-             CAST(COALESCE((SELECT sum(amount_in_cents) FROM payables WHERE clinic_id=$1 AND status='paid' AND ${branchClause("branch_id", 4)} AND ${localDate("paid_at")} BETWEEN $2 AND $3),0) AS SIGNED) AS "operatingExpensesInCents",
-             CAST(COALESCE((SELECT sum(amount_in_cents) FROM commission_entries ce WHERE clinic_id=$1 AND status='paid' AND payroll_payable_id IS NULL AND EXISTS(SELECT 1 FROM professionals pb WHERE pb.id=ce.professional_id AND ${branchClause("pb.branch_id", 4)}) AND ${localDate("paid_at")} BETWEEN $2 AND $3),0) AS SIGNED) AS "commissionsInCents"`,
-          [clinicId, from, to, branchIds],
-        ),
-        repositoryContext.pool.query<{
-          id: string;
-          name: string;
-          unitsSold: number;
-          revenueInCents: number;
-          costInCents: number;
-        }>(
-          `SELECT p.id,p.name,CAST(sum(i.quantity) AS SIGNED) AS "unitsSold",CAST(sum(i.quantity*i.unit_price_in_cents) AS SIGNED) AS "revenueInCents",CAST(sum(i.quantity*i.unit_cost_in_cents) AS SIGNED) AS "costInCents"
-           FROM patient_tab_items i JOIN products p ON p.id=i.product_id
-           JOIN patient_tabs t ON t.id=i.tab_id JOIN receivables r ON r.id=t.receivable_id
-           WHERE i.clinic_id=$1 AND t.status='closed' AND r.status='paid' AND ${branchClause("t.branch_id", 4)}
-             AND ${localDate("r.paid_at")} BETWEEN $2 AND $3
-           GROUP BY p.id,p.name ORDER BY "revenueInCents" DESC`,
-          [clinicId, from, to, branchIds],
-        ),
+      const [serviceProfitResult, operationResult] = await Promise.all([
         repositoryContext.pool.query<{
           id: string;
           name: string;
@@ -711,14 +682,12 @@ export function createReportsRepository(
           totalGroupCapacity: number;
           waitlistCount: number;
           lowStockCount: number;
-          averageReceiptInCents: number;
         }>(
           `SELECT
              (SELECT count(*) FROM group_enrollments e JOIN group_classes g ON g.id=e.group_id WHERE e.clinic_id=$1 AND e.status='active' AND g.active AND ${branchClause("g.branch_id", 4)}) AS "activeGroupSeats",
              (SELECT CAST(coalesce(sum(capacity),0) AS SIGNED) FROM group_classes WHERE clinic_id=$1 AND active AND ${branchClause("branch_id", 4)}) AS "totalGroupCapacity",
              (SELECT count(*) FROM group_enrollments e JOIN group_classes g ON g.id=e.group_id WHERE e.clinic_id=$1 AND e.status='waitlisted' AND g.active AND ${branchClause("g.branch_id", 4)}) AS "waitlistCount",
-             (SELECT count(*) FROM products WHERE clinic_id=$1 AND active AND current_stock<=COALESCE(restock_alert_at,0) AND ${branchClause("branch_id", 4)}) AS "lowStockCount",
-             (SELECT CAST(coalesce(avg(amount_in_cents),0) AS SIGNED) FROM receivables WHERE clinic_id=$1 AND status='paid' AND ${branchClause("branch_id", 4)} AND ${localDate("paid_at")} BETWEEN $2 AND $3) AS "averageReceiptInCents"`,
+             (SELECT count(*) FROM products WHERE clinic_id=$1 AND active AND current_stock<=COALESCE(restock_alert_at,0) AND ${branchClause("branch_id", 4)}) AS "lowStockCount"`,
           [clinicId, from, to, branchIds],
         ),
       ]);
@@ -740,22 +709,6 @@ export function createReportsRepository(
       });
       const percentage = (part: number, total: number) =>
         total ? Math.round((part / total) * 1000) / 10 : 0;
-      const dre = dreResult.rows[0]!;
-      const grossRevenueInCents =
-        dre.serviceRevenueInCents + dre.productRevenueInCents;
-      const grossProfitInCents = grossRevenueInCents - dre.productCostInCents;
-      const netResultInCents =
-        grossProfitInCents -
-        dre.operatingExpensesInCents -
-        dre.commissionsInCents;
-      const byProduct = productProfitResult.rows.map((row) => {
-        const grossProfitInCents = row.revenueInCents - row.costInCents;
-        return {
-          ...row,
-          grossProfitInCents,
-          grossMargin: percentage(grossProfitInCents, row.revenueInCents),
-        };
-      });
       const receivedPlans = await repositoryContext.pool.query<{
         amount: number;
         services: PatientPlanService[];
@@ -849,24 +802,12 @@ export function createReportsRepository(
             : 0,
         })),
         profitability: {
-          dre: {
-            ...dre,
-            grossRevenueInCents,
-            grossProfitInCents,
-            netResultInCents,
-            netMargin: percentage(netResultInCents, grossRevenueInCents),
-          },
           byService: byServiceProfitability,
-          byProduct,
           operational: {
             ...operation,
             groupOccupancyRate: percentage(
               operation.activeGroupSeats,
               operation.totalGroupCapacity,
-            ),
-            productUnitsSold: byProduct.reduce(
-              (sum, item) => sum + item.unitsSold,
-              0,
             ),
           },
         },

@@ -241,7 +241,7 @@ export function registerReportsRoutes(context: RouteContext) {
     // Janela folgada de um dia em cada ponta; o relatório filtra pela data
     // no fuso da clínica.
     const day = 24 * 60 * 60 * 1000;
-    const [patients, appointments, plans, payments] = await Promise.all([
+    const [patients, appointments, plans] = await Promise.all([
       repository.listPatients(clinicId),
       repository.listAppointments(
         clinicId,
@@ -253,11 +253,10 @@ export function registerReportsRoutes(context: RouteContext) {
         ).toISOString(),
       ),
       repository.listPatientPlans(clinicId),
-      repository.listReceivedPayments(clinicId, period.from, period.to),
     ]);
     return buildClientReport(
       period,
-      { patients, appointments, plans, payments },
+      { patients, appointments, plans },
       timeZone,
     );
   });

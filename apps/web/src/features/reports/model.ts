@@ -1,4 +1,7 @@
-﻿import type { SalesPeriodReport } from "@crm/contracts/reports";
+﻿import type {
+  SalesBreakdownRow,
+  SalesPeriodReport,
+} from "@crm/contracts/reports";
 import type { ContractedItem, PatientWithoutReturn } from "@crm/contracts";
 import type { ChartPoint } from "./ReportChart";
 import { formatIsoDate } from "../../shared/lib/formatting";
@@ -38,6 +41,28 @@ const compactCurrency = new Intl.NumberFormat("pt-BR", {
 export const compactMoney = (cents: number) =>
   compactCurrency.format(cents / 100);
 
+export const saleTypeLabels: Record<SalesBreakdownRow["sourceType"], string> = {
+  plan: "Plano",
+  service: "Serviço avulso",
+  product: "Produto",
+};
+
+/** Margem do produto sobre o líquido ("62%"); "—" sem custo ou sem líquido. */
+export function saleMargin(row: SalesBreakdownRow) {
+  if (row.costInCents === undefined || row.netInCents <= 0) return "—";
+  return `${Math.round(((row.netInCents - row.costInCents) / row.netInCents) * 100)}%`;
+}
+
+/** Dia (aaaa-mm-dd) de um movimento de venda no fuso da clínica, como o servidor. */
+export const salesDay = (value: string) =>
+  new Date(value).toLocaleDateString("sv-SE", {
+    timeZone: "America/Sao_Paulo",
+  });
+
+/**
+ * Vendas líquidas por dia, semana ou mês: vendas do período menos os cancelamentos dessas
+ * mesmas vendas (cancelamento de venda anterior fica fora, como no "Vendido líquido").
+ */
 export function salesChartPoints(report: SalesPeriodReport): {
   points: ChartPoint[];
   grouping: string;
@@ -62,18 +87,21 @@ export function salesChartPoints(report: SalesPeriodReport): {
     bins.push({
       from: new Date(cursor).toISOString().slice(0, 10),
       to: new Date(Math.min(end, next - day)).toISOString().slice(0, 10),
-      values: [0, 0],
+      values: [0],
     });
     cursor = next;
   }
-  for (const [series, movements] of [report.sales, report.payments].entries()) {
-    for (const movement of movements) {
-      const date = new Date(movement.occurredAt).toLocaleDateString("sv-SE", {
-        timeZone: "America/Sao_Paulo",
-      });
-      const bin = bins.find((b) => date >= b.from && date <= b.to);
-      if (bin) bin.values[series]! += movement.amountInCents;
-    }
+  const inReport = (value: string | undefined) => {
+    if (!value) return false;
+    const date = salesDay(value);
+    return date >= report.from && date <= report.to;
+  };
+  for (const movement of report.sales) {
+    if (movement.kind === "cancellation" && !inReport(movement.saleOccurredAt))
+      continue;
+    const date = salesDay(movement.occurredAt);
+    const bin = bins.find((b) => date >= b.from && date <= b.to);
+    if (bin) bin.values[0]! += movement.amountInCents;
   }
   return {
     grouping,

@@ -425,7 +425,7 @@ describe("CRM API", () => {
         headers: laterHeaders,
       });
       expect(sales.statusCode).toBe(200);
-      expect(sales.json().previousComparable.attendedPatients).toBe(0);
+      expect(sales.json().previousComparable.buyers).toBe(0);
       expect(sales.json().patientsWithoutReturn).toEqual([]);
     } finally {
       vi.useRealTimers();

@@ -9,7 +9,6 @@ import {
 } from "./client-report.js";
 
 type AppointmentSource = ClientReportSources["appointments"][number];
-type PaymentSource = ClientReportSources["payments"][number];
 type PlanSource = ClientReportSources["plans"][number];
 
 const visit = (
@@ -21,19 +20,6 @@ const visit = (
   patientName: patientId ? `Nome ${patientId}` : "Lead",
   startsAt,
   status,
-});
-
-const payment = (
-  patientId: string,
-  occurredAt: string,
-  amountInCents: number,
-  kind: PaymentSource["kind"] = "payment",
-): PaymentSource => ({
-  patientId,
-  patientName: `Nome ${patientId}`,
-  kind,
-  occurredAt,
-  amountInCents,
 });
 
 const plan = (
@@ -53,7 +39,7 @@ function report(
 ) {
   return buildClientReport(
     { from, to },
-    { patients: [], appointments: [], plans: [], payments: [], ...sources },
+    { patients: [], appointments: [], plans: [], ...sources },
     "America/Sao_Paulo",
     generatedAt,
   );
@@ -139,16 +125,14 @@ describe("buildClientReport", () => {
     });
   });
 
-  it("keeps only the top 20 in each ranking, highest first", () => {
+  it("keeps only the top 20 sessions ranking, highest first", () => {
     const appointments: AppointmentSource[] = [];
-    const payments: PaymentSource[] = [];
     for (let index = 1; index <= 25; index += 1) {
       const id = `p${String(index).padStart(2, "0")}`;
       for (let count = 0; count < index; count += 1)
         appointments.push(visit(id, "2026-03-10T13:00:00.000Z"));
-      payments.push(payment(id, "2026-03-10T13:00:00.000Z", index * 1_000));
     }
-    const result = report({ appointments, payments });
+    const result = report({ appointments });
     expect(result.topBySessions).toHaveLength(20);
     expect(result.topBySessions[0]).toMatchObject({
       patientId: "p25",
@@ -156,38 +140,6 @@ describe("buildClientReport", () => {
       completedSessions: 25,
     });
     expect(result.topBySessions.at(-1)?.patientId).toBe("p06");
-    expect(result.topByRevenue).toHaveLength(20);
-    expect(result.topByRevenue[0]).toMatchObject({
-      patientId: "p25",
-      receivedInCents: 25_000,
-    });
-    expect(result.topByRevenue.at(-1)?.patientId).toBe("p06");
-  });
-
-  it("ranks payments minus reversals by the event day, dropping non-positive totals", () => {
-    const result = report({
-      patients: [{ id: "a", fullName: "Ana", birthDate: "" }],
-      payments: [
-        payment("a", "2026-03-05T13:00:00.000Z", 10_000),
-        payment("a", "2026-03-06T13:00:00.000Z", 4_000),
-        payment("a", "2026-03-07T13:00:00.000Z", -4_000, "reversal"),
-        payment("b", "2026-03-05T13:00:00.000Z", 7_000),
-        // Estorno gravado com valor positivo também desconta.
-        payment("b", "2026-03-06T13:00:00.000Z", 2_000, "reversal"),
-        payment("c", "2026-03-05T13:00:00.000Z", 3_000),
-        payment("c", "2026-03-06T13:00:00.000Z", -3_000, "reversal"),
-        // 22h de 28/02 em São Paulo: fora.
-        payment("d", "2026-03-01T01:00:00.000Z", 50_000),
-        // Estorno fora do período não desconta o pagamento de dentro.
-        payment("e", "2026-03-20T13:00:00.000Z", 1_000),
-        payment("e", "2026-04-02T13:00:00.000Z", -1_000, "reversal"),
-      ],
-    });
-    expect(result.topByRevenue).toEqual([
-      { patientId: "a", patientName: "Ana", receivedInCents: 10_000 },
-      { patientId: "b", patientName: "Nome b", receivedInCents: 5_000 },
-      { patientId: "e", patientName: "Nome e", receivedInCents: 1_000 },
-    ]);
   });
 
   it("distributes active clients by age band on the period end", () => {
@@ -275,7 +227,6 @@ describe("buildClientReport", () => {
 
     const empty = report({});
     expect(empty.topBySessions).toEqual([]);
-    expect(empty.topByRevenue).toEqual([]);
     expect(empty.activeClients).toBe(0);
     expect(empty.ageDistribution.every((item) => item.clients === 0)).toBe(
       true,
