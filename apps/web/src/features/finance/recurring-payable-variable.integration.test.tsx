@@ -262,8 +262,8 @@ describe("variable fixed expenses", () => {
       within(editDialog).getByLabelText("Avisar antes do vencimento"),
     );
     expect(
-      within(editDialog).queryByLabelText("Dias de antecedência do aviso"),
-    ).not.toBeInTheDocument();
+      within(editDialog).getByLabelText("Dias de antecedência do aviso"),
+    ).toBeDisabled();
     fireEvent.click(
       within(editDialog).getByRole("button", { name: "Salvar alterações" }),
     );
@@ -332,5 +332,88 @@ describe("variable fixed expenses", () => {
     expect(
       screen.getByRole("button", { name: "Contas a pagar (0)" }),
     ).toHaveClass("active");
+  });
+
+  it("creates a category on top of the fixed expense form and saves it without amount", async () => {
+    login();
+    const created = {
+      id: "c2c2c2c2-c2c2-4c2c-8c2c-c2c2c2c2c2c2",
+      clinicId,
+      name: "Limpeza",
+      kind: "expense",
+      active: true,
+    };
+    const bodies: { url: string; body: Record<string, unknown> }[] = [];
+    vi.mocked(fetch).mockImplementation(async (input, init) => {
+      const url = String(input);
+      const method = init?.method ?? "GET";
+      const json = (body: unknown) =>
+        ({ ok: true, status: 200, json: async () => body }) as Response;
+      if (method === "POST") {
+        const body = JSON.parse(String(init!.body)) as Record<string, unknown>;
+        bodies.push({ url, body });
+        if (url.includes("/finance/categories")) return json(created);
+        return json({
+          ...base,
+          id: "e3e3e3e3-e3e3-4e3e-8e3e-e3e3e3e3e3e3",
+          ...body,
+        });
+      }
+      if (url.includes("/finance/workspace")) return json(workspaceWith([]));
+      return json([]);
+    });
+    render(
+      <MemoryRouter initialEntries={["/financeiro?aba=contas-a-pagar"]}>
+        <App />
+      </MemoryRouter>,
+    );
+    const section = (
+      await screen.findByRole("heading", { name: "Despesas fixas" })
+    ).closest("section")!;
+    fireEvent.click(
+      within(section).getByRole("button", { name: "Nova despesa fixa" }),
+    );
+    const dialog = await screen.findByRole("dialog", {
+      name: "Nova despesa fixa",
+    });
+    fireEvent.change(within(dialog).getByLabelText("Descrição"), {
+      target: { value: "Faxina" },
+    });
+    // "+ Nova categoria" abre o cadastro por cima, sem fechar a despesa.
+    fireEvent.change(within(dialog).getByLabelText("Categoria"), {
+      target: { value: "__create__" },
+    });
+    const categoryDialog = await screen.findByRole("dialog", {
+      name: "Nova categoria de despesa",
+    });
+    expect(dialog).toBeInTheDocument();
+    expect(within(dialog).getByLabelText("Descrição")).toHaveValue("Faxina");
+    fireEvent.change(within(categoryDialog).getByLabelText("Nome"), {
+      target: { value: "Limpeza" },
+    });
+    fireEvent.click(
+      within(categoryDialog).getByRole("button", { name: "Salvar" }),
+    );
+    await vi.waitFor(() =>
+      expect(
+        screen.queryByRole("dialog", { name: "Nova categoria de despesa" }),
+      ).not.toBeInTheDocument(),
+    );
+    expect(within(dialog).getByLabelText("Categoria")).toHaveValue(created.id);
+    // O valor é opcional: sem ele, a despesa fica com o valor informado a cada mês.
+    const save = within(dialog).getByRole("button", {
+      name: "Cadastrar despesa fixa",
+    });
+    expect(save).toBeEnabled();
+    fireEvent.click(save);
+    await vi.waitFor(() =>
+      expect(bodies[1]?.body).toMatchObject({
+        description: "Faxina",
+        categoryId: created.id,
+        amountType: "variable",
+        amountInCents: 0,
+      }),
+    );
+    expect(bodies[0]?.body).toEqual({ name: "Limpeza", kind: "expense" });
   });
 });

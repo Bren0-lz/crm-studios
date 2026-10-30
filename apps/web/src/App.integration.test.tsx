@@ -6157,7 +6157,7 @@ describe("application shell", () => {
     });
     expect(createRecurring).toBeDisabled();
     expect(createRecurring).toHaveAccessibleDescription(
-      "Falta: Descrição (pelo menos 3 caracteres), Valor mensal.",
+      "Falta: Descrição (pelo menos 3 caracteres).",
     );
     fireEvent.change(within(dialog).getByLabelText("Descrição"), {
       target: { value: "Contador" },
@@ -6165,7 +6165,7 @@ describe("application shell", () => {
     fireEvent.change(within(dialog).getByLabelText("Fornecedor"), {
       target: { value: "Escritório Silva" },
     });
-    fireEvent.change(within(dialog).getByLabelText("Valor mensal"), {
+    fireEvent.change(within(dialog).getByLabelText("Valor mensal (opcional)"), {
       target: { value: "450,00" },
     });
     fireEvent.change(within(dialog).getByLabelText("Dia do vencimento"), {
