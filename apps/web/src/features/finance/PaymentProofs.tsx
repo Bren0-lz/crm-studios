@@ -3,7 +3,8 @@ import {
   type PaymentProof,
   type PaymentProofEntity,
 } from "@crm/contracts";
-import { useEffect, useState } from "react";
+import { Download, FileText, Image, Trash2, X } from "lucide-react";
+import { type ReactNode, useEffect, useState } from "react";
 import { api } from "../../api";
 import { EmptyState } from "../../shared/components/EmptyState";
 import { ErrorBanner } from "../../shared/components/ErrorBanner";
@@ -29,6 +30,8 @@ export function PaymentProofsField({
   onChange,
   disabled = false,
   limit = paymentProofLimits.maxFiles,
+  legend = "Comprovantes",
+  label = "Adicionar comprovantes (opcional)",
   className = "",
 }: {
   files: File[];
@@ -36,6 +39,8 @@ export function PaymentProofsField({
   disabled?: boolean;
   /** Vagas restantes no registro (o total por registro é limitado). */
   limit?: number;
+  legend?: string;
+  label?: string;
   className?: string;
 }) {
   const [error, setError] = useState("");
@@ -60,9 +65,9 @@ export function PaymentProofsField({
   }
   return (
     <fieldset className={`form-fieldset proof-field ${className}`.trim()}>
-      <legend>Comprovantes</legend>
+      <legend>{legend}</legend>
       <label>
-        Adicionar comprovantes (opcional)
+        {label}
         <input
           type="file"
           multiple
@@ -78,32 +83,63 @@ export function PaymentProofsField({
       <p className="muted-copy">
         PDF, PNG ou JPEG de até 5 MB cada. Selecione vários arquivos de uma vez
         ou adicione aos poucos.
+        {limit < paymentProofLimits.maxFiles &&
+          ` Cabe${limit === 1 ? "" : "m"} mais ${limit}.`}
       </p>
       {files.length > 0 && (
         <ul className="proof-list" aria-label="Comprovantes selecionados">
           {files.map((file, index) => (
-            <li key={`${file.name}-${index}`}>
-              <div>
-                <strong title={file.name}>{file.name}</strong>
-                <small>{proofSizeLabel(file.size)}</small>
-              </div>
+            <ProofRow
+              key={`${file.name}-${index}`}
+              name={file.name}
+              mimeType={file.type}
+              details={proofSizeLabel(file.size)}
+            >
               <button
                 type="button"
-                className="secondary-button button-sm"
+                className="text-button button-sm proof-delete"
                 disabled={disabled}
                 aria-label={`Remover ${file.name}`}
                 onClick={() =>
                   onChange(files.filter((_, position) => position !== index))
                 }
               >
+                <X size={15} aria-hidden="true" />
                 Remover
               </button>
-            </li>
+            </ProofRow>
           ))}
         </ul>
       )}
       {error && <div className="form-error">{error}</div>}
     </fieldset>
+  );
+}
+
+/** Linha de um arquivo: ícone pelo tipo, nome, detalhes e ações à direita. */
+function ProofRow({
+  name,
+  mimeType,
+  details,
+  children,
+}: {
+  name: string;
+  mimeType: string;
+  details: string;
+  children: ReactNode;
+}) {
+  const Icon = mimeType.startsWith("image/") ? Image : FileText;
+  return (
+    <li>
+      <span className="proof-icon" aria-hidden="true">
+        <Icon size={18} />
+      </span>
+      <div className="proof-info">
+        <strong title={name}>{name}</strong>
+        <small>{details}</small>
+      </div>
+      <div className="proof-actions">{children}</div>
+    </li>
   );
 }
 
@@ -126,40 +162,39 @@ function ProofList({
   return (
     <ul className="proof-list" aria-label={label}>
       {proofs.map((proof) => (
-        <li key={proof.id}>
-          <div>
-            <strong title={proof.fileName}>{proof.fileName}</strong>
-            <small>
-              {proofSizeLabel(proof.sizeInBytes)} · {proof.authorName} em{" "}
-              {shortDate.format(new Date(proof.createdAt))}
-              {proof.reversedAt
-                ? ` · baixa estornada em ${shortDate.format(new Date(proof.reversedAt))}`
-                : ""}
-            </small>
-          </div>
-          <div className="proof-actions">
+        <ProofRow
+          key={proof.id}
+          name={proof.fileName}
+          mimeType={proof.mimeType}
+          details={`${proofSizeLabel(proof.sizeInBytes)} · ${proof.authorName} em ${shortDate.format(new Date(proof.createdAt))}${
+            proof.reversedAt
+              ? ` · baixa estornada em ${shortDate.format(new Date(proof.reversedAt))}`
+              : ""
+          }`}
+        >
+          <button
+            type="button"
+            className="secondary-button button-sm"
+            disabled={busy}
+            aria-label={`Baixar ${proof.fileName}`}
+            onClick={() => onDownload(proof.id)}
+          >
+            <Download size={15} aria-hidden="true" />
+            Baixar
+          </button>
+          {canDelete && (
             <button
               type="button"
-              className="secondary-button button-sm"
+              className="text-button button-sm proof-delete"
               disabled={busy}
-              aria-label={`Baixar ${proof.fileName}`}
-              onClick={() => onDownload(proof.id)}
+              aria-label={`Excluir ${proof.fileName}`}
+              onClick={() => onDelete(proof)}
             >
-              Baixar
+              <Trash2 size={15} aria-hidden="true" />
+              Excluir
             </button>
-            {canDelete && (
-              <button
-                type="button"
-                className="secondary-button button-sm"
-                disabled={busy}
-                aria-label={`Excluir ${proof.fileName}`}
-                onClick={() => onDelete(proof)}
-              >
-                Excluir
-              </button>
-            )}
-          </div>
-        </li>
+          )}
+        </ProofRow>
       ))}
     </ul>
   );
@@ -246,18 +281,28 @@ export function PaymentProofsModal({
         ) : (
           <>
             {current.length > 0 && (
-              <ProofList
-                label="Comprovantes anexados"
-                proofs={current}
-                busy={busy}
-                canDelete={canAttach}
-                onDownload={(id) => void download(id)}
-                onDelete={setDeleting}
-              />
+              <section className="proof-section">
+                <div className="proof-section-head">
+                  <h3>Anexados</h3>
+                  <span>
+                    {current.length} de {paymentProofLimits.maxFiles}
+                  </span>
+                </div>
+                <ProofList
+                  label="Comprovantes anexados"
+                  proofs={current}
+                  busy={busy}
+                  canDelete={canAttach}
+                  onDownload={(id) => void download(id)}
+                  onDelete={setDeleting}
+                />
+              </section>
             )}
             {reversed.length > 0 && (
-              <>
-                <h3 className="proof-history-title">Da baixa estornada</h3>
+              <section className="proof-section">
+                <div className="proof-section-head">
+                  <h3>Da baixa estornada</h3>
+                </div>
                 <ProofList
                   label="Comprovantes da baixa estornada"
                   proofs={reversed}
@@ -266,7 +311,7 @@ export function PaymentProofsModal({
                   onDownload={(id) => void download(id)}
                   onDelete={setDeleting}
                 />
-              </>
+              </section>
             )}
           </>
         )}
@@ -276,6 +321,9 @@ export function PaymentProofsModal({
             onChange={setFiles}
             disabled={busy}
             limit={remaining}
+            legend="Anexar comprovantes"
+            label="Arquivos"
+            className="proof-section"
           />
         )}
         <div className="modal-actions">
