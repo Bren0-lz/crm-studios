@@ -25,7 +25,7 @@ export function assertServerlessConfig(current: {
 }) {
   if (current.STORAGE_MODE !== "mysql") {
     throw new Error(
-      "O site publicado exige STORAGE_MODE=mysql (a memória se perde a cada reinício ou instância nova).",
+      "A função serverless exige STORAGE_MODE=mysql (memória não persiste entre instâncias).",
     );
   }
   if (current.JWT_SECRET === defaultJwtSecret) {
