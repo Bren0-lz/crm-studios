@@ -12,6 +12,7 @@ import {
 import type { PoolClient } from "pg";
 import {
   documentTemplateValues,
+  type DocumentTemplateContext,
   type DocumentStatus,
   type DocumentTemplateInput,
   type IssuedDocumentInput,
@@ -26,6 +27,7 @@ import {
   documentTemplateColumns,
   hasDatabaseCode,
   issuedDocumentColumns,
+  issuedDocumentJoins,
   mapDocumentTemplate,
   mapIssuedDocument,
 } from "./helpers.js";
@@ -180,8 +182,7 @@ export function createContractsRepository(
       const result = await repositoryContext.pool.query<IssuedDocumentRow>(
         `SELECT ${issuedDocumentColumns}
        FROM issued_documents d
-       JOIN patients p ON p.id = d.patient_id
-       LEFT JOIN patient_plans pp ON pp.id = d.plan_id
+       ${issuedDocumentJoins}
        WHERE d.clinic_id = $1 ORDER BY d.created_at DESC`,
         [clinicId],
       );
@@ -271,18 +272,17 @@ export async function createIssuedDocumentInTransaction(
     `WITH inserted AS (
          INSERT INTO issued_documents
            (clinic_id, template_id, patient_id, plan_id, title, template_name,
-            template_version, snapshot_body, created_by_user_id, professional_id, snapshot_content, branding)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+            template_version, snapshot_body, created_by_user_id, professional_id, snapshot_content, branding, supplier_id)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
          RETURNING *
        )
        SELECT ${issuedDocumentColumns}
        FROM inserted d
-       JOIN patients p ON p.id = d.patient_id
-       LEFT JOIN patient_plans pp ON pp.id = d.plan_id`,
+       ${issuedDocumentJoins}`,
     [
       clinicId,
       input.templateId,
-      input.patientId,
+      input.patientId || null,
       input.planId || null,
       input.title,
       item.templateName,
@@ -292,6 +292,7 @@ export async function createIssuedDocumentInTransaction(
       input.professionalId || null,
       JSON.stringify(item.snapshotContent),
       JSON.stringify(item.branding),
+      input.supplierId || null,
     ],
   );
   return mapIssuedDocument(result.rows[0]!);
@@ -310,7 +311,8 @@ async function prepareDocumentInTransaction(
     templateContent: DocumentContent | null;
     clinicLogo: string;
     clinicTimezone: string;
-    patientName: string;
+    patientName: string | null;
+    supplier: NonNullable<DocumentTemplateContext["supplier"]> | null;
     planName: string | null;
     planServices: PatientPlanService[] | null;
     planTotalValueInCents: number | null;
@@ -346,23 +348,33 @@ async function prepareDocumentInTransaction(
               c.phone AS "clinicPhone", c.email AS "clinicEmail",
               (SELECT jsonb_agg(jsonb_build_object('serviceName', x.service_name, 'totalSessions', x.total_sessions, 'totalValueInCents', x.total_value_in_cents) ORDER BY x.position) FROM patient_plan_services x WHERE x.plan_id=pp.id) AS "planServices",
               pr.full_name AS "professionalName",
-              pr.crefito AS "professionalCrefito"
+              pr.crefito AS "professionalCrefito",
+              CASE WHEN s.id IS NOT NULL THEN jsonb_build_object(
+                'name', s.name, 'kind', s.kind, 'document', s.document,
+                'hiredOn', s.hired_on::text, 'contractAmountInCents', s.contract_amount_in_cents,
+                'billingCycle', s.billing_cycle, 'paymentMethod', s.payment_method,
+                'installments', s.installments, 'paymentTerms', s.payment_terms) END AS supplier
        FROM document_templates dt
        JOIN clinics c ON c.id = dt.clinic_id
-       JOIN patients p ON p.clinic_id = dt.clinic_id AND p.id = $3
+       LEFT JOIN patients p ON p.clinic_id = dt.clinic_id AND p.id = $3
+       LEFT JOIN suppliers s ON s.clinic_id = dt.clinic_id AND s.id = $6
        LEFT JOIN patient_plans pp
          ON pp.clinic_id = dt.clinic_id AND pp.id = $4 AND pp.patient_id = p.id
        LEFT JOIN professionals pr
          ON pr.clinic_id = dt.clinic_id AND pr.id = $5
        WHERE dt.clinic_id = $1 AND dt.id = $2 AND dt.active
+         AND ($3::uuid IS NULL OR p.id IS NOT NULL)
+         AND ($6::uuid IS NULL OR s.id IS NOT NULL)
+         AND (p.id IS NOT NULL OR s.id IS NOT NULL)
          AND ($4::uuid IS NULL OR pp.id IS NOT NULL)
          AND ($5::uuid IS NULL OR pr.id IS NOT NULL)`,
     [
       clinicId,
       input.templateId,
-      input.patientId,
+      input.patientId || null,
       input.planId || null,
       professionalId || null,
+      input.supplierId || null,
     ],
   );
   if (!context.rows[0]) {
@@ -377,15 +389,34 @@ async function prepareDocumentInTransaction(
         "Modelo ativo não encontrado.",
         404,
       );
-    const patient = await client.query(
-      `SELECT 1 FROM patients WHERE clinic_id = $1 AND id = $2`,
-      [clinicId, input.patientId],
-    );
-    if (!patient.rows[0])
+    if (input.patientId) {
+      const patient = await client.query(
+        `SELECT 1 FROM patients WHERE clinic_id = $1 AND id = $2`,
+        [clinicId, input.patientId],
+      );
+      if (!patient.rows[0])
+        throw new DomainError(
+          "PATIENT_NOT_FOUND",
+          "Cliente não encontrado.",
+          404,
+        );
+    }
+    if (input.supplierId) {
+      const supplier = await client.query(
+        `SELECT 1 FROM suppliers WHERE clinic_id = $1 AND id = $2`,
+        [clinicId, input.supplierId],
+      );
+      if (!supplier.rows[0])
+        throw new DomainError(
+          "SUPPLIER_NOT_FOUND",
+          "Fornecedor não encontrado.",
+          404,
+        );
+    }
+    if (!input.patientId && !input.supplierId)
       throw new DomainError(
-        "PATIENT_NOT_FOUND",
-        "Cliente não encontrado.",
-        404,
+        "DOCUMENT_PARTY_REQUIRED",
+        "Informe o cliente ou o fornecedor do documento.",
       );
     if (professionalId) {
       const professional = await client.query(
@@ -427,15 +458,20 @@ async function prepareDocumentInTransaction(
       phone: item.clinicPhone,
       email: item.clinicEmail,
     },
-    patient: {
-      address: item.patientProfile?.address,
-      neighborhood: item.patientProfile?.neighborhood,
-      city: item.patientProfile?.city,
-      state: item.patientProfile?.state,
-      postalCode: item.patientProfile?.postalCode,
-      fullName: item.patientName,
-      cpf: item.patientCpf,
-    },
+    ...(item.patientName !== null
+      ? {
+          patient: {
+            address: item.patientProfile?.address,
+            neighborhood: item.patientProfile?.neighborhood,
+            city: item.patientProfile?.city,
+            state: item.patientProfile?.state,
+            postalCode: item.patientProfile?.postalCode,
+            fullName: item.patientName,
+            cpf: item.patientCpf,
+          },
+        }
+      : {}),
+    ...(item.supplier ? { supplier: item.supplier } : {}),
     ...(item.planName !== null
       ? {
           plan: {
@@ -467,7 +503,7 @@ async function prepareDocumentInTransaction(
     branding,
     templateName: item.templateName,
     templateVersion: item.templateVersion,
-    patientName: item.patientName,
+    patientName: item.patientName ?? item.supplier!.name,
     ...(item.planName ? { planName: item.planName } : {}),
   };
 }

@@ -91,6 +91,7 @@ export type {
 export {
   documentTemplateColumns,
   issuedDocumentColumns,
+  issuedDocumentJoins,
   mapDocumentTemplate,
   mapIssuedDocument,
 } from "./mappers/contracts.js";

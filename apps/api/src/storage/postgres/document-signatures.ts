@@ -4,6 +4,7 @@ import { DomainError } from "../../repository.js";
 import { inspectClinicalAttachment } from "../../modules/clinical/clinical-integrity.js";
 import {
   issuedDocumentColumns,
+  issuedDocumentJoins,
   mapIssuedDocument,
   type IssuedDocumentRow,
 } from "./helpers.js";
@@ -76,7 +77,7 @@ export function createDocumentSignaturesRepository(
           { signedOn: input.signedOn, sha256 },
         );
         const result = await client.query<IssuedDocumentRow>(
-          `SELECT ${issuedDocumentColumns} FROM issued_documents d JOIN patients p ON p.id=d.patient_id AND p.clinic_id=d.clinic_id LEFT JOIN patient_plans pp ON pp.id=d.plan_id AND pp.clinic_id=d.clinic_id WHERE d.clinic_id=$1 AND d.id=$2`,
+          `SELECT ${issuedDocumentColumns} FROM issued_documents d ${issuedDocumentJoins} WHERE d.clinic_id=$1 AND d.id=$2`,
           [clinicId, id],
         );
         return mapIssuedDocument(result.rows[0]!);

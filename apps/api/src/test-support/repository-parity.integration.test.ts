@@ -13,6 +13,7 @@ import {
   patientPlanInputSchema,
   planTemplateInputSchema,
   saoPauloToday,
+  supplierInputSchema,
 } from "@crm/contracts";
 import { randomUUID } from "node:crypto";
 import { Pool } from "pg";
@@ -971,6 +972,55 @@ for (const storage of ["memory", "postgres"] as const) {
               item.groupId === group.id && item.patientId === created.id,
           ),
         ).toHaveLength(1);
+      });
+
+      it("issues a supplier contract and shares the link with the supplier's WhatsApp", async () => {
+        const supplier = (await repository.saveSupplier(
+          clinicId,
+          actorId,
+          supplierInputSchema.parse({
+            name: "Fornecedor " + randomUUID(),
+            kind: "person",
+            document: "52998224725",
+            whatsapp: "19988887777",
+            contractAmountInCents: 50000,
+          }),
+        ))!;
+        const template = await repository.createDocumentTemplate(clinicId, {
+          name: "Contrato de fornecedor " + randomUUID(),
+          kind: "contract",
+          body: "Contrato com {{fornecedor_nome}}, CPF {{fornecedor_documento}}, cliente {{paciente_nome}}.",
+        });
+        const draft = await repository.createIssuedDocument(clinicId, actorId, {
+          templateId: template.id,
+          supplierId: supplier.id,
+          title: "Contrato do fornecedor",
+        });
+        expect(draft).toMatchObject({
+          supplierId: supplier.id,
+          patientName: supplier.name,
+          snapshotBody: `Contrato com ${supplier.name}, CPF 529.982.247-25, cliente não informado.`,
+        });
+        expect(draft).not.toHaveProperty("patientId");
+        await repository.updateIssuedDocumentStatus(
+          clinicId,
+          draft.id,
+          "issued",
+        );
+        const share = await repository.createDocumentSignatureLink(
+          clinicId,
+          actorId,
+          draft.id,
+        );
+        expect(share).toMatchObject({ patientPhone: "19988887777" });
+        expect(
+          await repository.openPublicSignatureDocument(share!.token, {}),
+        ).toMatchObject({ patientName: supplier.name, status: "pending" });
+        expect(
+          (await repository.listIssuedDocuments(clinicId)).find(
+            (item) => item.id === draft.id,
+          ),
+        ).toMatchObject({ supplierId: supplier.id, status: "issued" });
       });
 
       // QM15: prontuário sequencial e único; os 3 clientes semente são PAC-00001..00003.
