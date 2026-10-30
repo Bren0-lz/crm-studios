@@ -903,6 +903,76 @@ for (const storage of ["memory", "postgres"] as const) {
         ).toHaveLength(1);
       });
 
+      it("keeps the current group enrollment when a new plan is purchased for the same class", async () => {
+        const created = await patient("Matrícula reaproveitada");
+        const services = [
+          { serviceId, totalSessions: 4, totalValueInCents: 20000 },
+        ];
+        const group = await repository.createGroupClass(clinicId, {
+          serviceId,
+          professionalId,
+          roomId,
+          capacity: 1,
+          weeklySlots: [{ weekday: 6, startTime: "21:00", endTime: "22:00" }],
+        });
+        const template = await repository.createPlanTemplate(
+          clinicId,
+          actorId,
+          planTemplateInputSchema.parse({
+            name: "Plano da turma " + randomUUID(),
+            totalValueInCents: 20000,
+            services,
+          }),
+        );
+        const purchase = (validFrom: string, validUntil: string) =>
+          repository.purchasePatientPlan(
+            clinicId,
+            actorId,
+            planPurchaseInputSchema.parse({
+              idempotencyKey: randomUUID(),
+              groupId: group.id,
+              plan: {
+                patientId: created.id,
+                planTemplateId: template.id,
+                name: template.name,
+                kind: "fixed_package",
+                services,
+                totalValueInCents: 20000,
+                installments: 1,
+                validFrom,
+                validUntil,
+                firstDueDate: validFrom,
+              },
+            }),
+          );
+        const first = await purchase("2059-04-01", "2059-04-30");
+        expect(first.enrollment).toMatchObject({
+          groupId: group.id,
+          patientId: created.id,
+          status: "active",
+        });
+        // O plano anterior não encerra a matrícula: o novo segue com a mesma, sem erro.
+        const second = await purchase("2059-05-01", "2059-05-31");
+        expect(second.enrollment).toMatchObject({
+          id: first.enrollment!.id,
+          status: "active",
+        });
+        expect(
+          await repository.listPatientPlans(clinicId, created.id),
+        ).toHaveLength(2);
+        const workspace = await repository.getGroupWorkspace(
+          clinicId,
+          new Date().toISOString(),
+          new Date(Date.now() + 86_400_000).toISOString(),
+        );
+        expect(
+          workspace.enrollments.filter(
+            (item) =>
+              item.groupId === group.id && item.patientId === created.id,
+          ),
+        ).toHaveLength(1);
+      });
+
       // QM15: prontuário sequencial e único; os 3 clientes semente são PAC-00001..00003.
       it("keeps record numbers unique and the seed clients as PAC-00001..00003", async () => {
         const patients = await repository.listPatients(clinicId);
