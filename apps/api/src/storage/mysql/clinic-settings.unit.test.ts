@@ -17,7 +17,7 @@ const input: ClinicSettingsInput = {
   timezone: "America/Sao_Paulo",
 };
 
-// Models the serverless pool: a pool query cannot acquire another connection
+// Models a single-connection pool: a pool query cannot acquire another connection
 // while the only client is leased, even after that client commits.
 function singleConnectionRepository({
   missing = false,
