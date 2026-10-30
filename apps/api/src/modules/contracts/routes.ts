@@ -185,6 +185,23 @@ export function registerContractsRoutes(context: RouteContext) {
     },
   );
 
+  app.delete(
+    "/document-templates/:id",
+    { preHandler: authenticate },
+    async (request, reply) => {
+      const { id } = request.params as { id: string };
+      const deleted =
+        z.uuid().safeParse(id).success &&
+        (await repository.deleteDocumentTemplate(request.user.clinicId, id));
+      if (!deleted)
+        return reply.status(404).send({
+          code: "DOCUMENT_TEMPLATE_NOT_FOUND",
+          message: "Modelo não encontrado.",
+        });
+      return reply.status(204).send();
+    },
+  );
+
   app.post(
     "/documents/preview",
     { preHandler: authenticate },

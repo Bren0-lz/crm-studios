@@ -12,12 +12,22 @@ import {
 } from "@crm/contracts";
 import { useState } from "react";
 import { api } from "../../api";
+import { useAuthorization } from "../../authorization-context";
 import { useToast } from "../../shared/feedback/toast-context";
 import { Modal, ModalCancelButton } from "../../shared/components/Modal";
 import { MoneyInput } from "../../shared/components/MoneyInput";
 import { PhoneInput } from "../../shared/components/PhoneInput";
 import { ErrorBanner } from "../../shared/components/ErrorBanner";
 import { currency } from "../../shared/lib/formatting";
+import {
+  issueDocumentForSignature,
+  SignatureSendStep,
+  SignatureTemplateField,
+  SupplierDocuments,
+  useCanRequestSignature,
+  useSignatureTemplates,
+  type SignatureRequest,
+} from "../contracts/index";
 import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
 import { paymentMethodOptions } from "./model";
 import { SupplierOrdersModal } from "./SupplierOrdersModal";
@@ -75,7 +85,16 @@ export function SupplierModal({
   const [busy, setBusy] = useState(false);
   const [documentTouched, setDocumentTouched] = useState(false);
   const [ordersOpen, setOrdersOpen] = useState(false);
-  const dirty = useFormDirty(form, true);
+  const { canView } = useAuthorization();
+  const canSign = useCanRequestSignature();
+  const templates = useSignatureTemplates(canSign);
+  const [signature, setSignature] = useState<SignatureRequest | null>(null);
+  // Fornecedor salvo com documento: o modal passa para o envio do link de assinatura.
+  const [sending, setSending] = useState<{
+    name: string;
+    prepare: () => ReturnType<typeof issueDocumentForSignature>;
+  } | null>(null);
+  const dirty = useFormDirty(form, true) || Boolean(signature);
   const isNew = supplier === "new";
   const person = form.kind === "person";
   const documentLabel = person ? "CPF" : "CNPJ";
@@ -120,10 +139,21 @@ export function SupplierModal({
     setBusy(true);
     setError("");
     try {
-      await api.saveSupplier(form, isNew ? undefined : supplier.id);
+      const saved = await api.saveSupplier(
+        form,
+        isNew ? undefined : supplier.id,
+      );
       toast.success(
         isNew ? "Fornecedor cadastrado." : "Fornecedor atualizado.",
       );
+      if (signature) {
+        setSending({
+          name: saved.name,
+          prepare: () =>
+            issueDocumentForSignature({ ...signature, supplierId: saved.id }),
+        });
+        return;
+      }
       await onSaved();
       onClose();
     } catch (cause) {
@@ -132,6 +162,27 @@ export function SupplierModal({
       setBusy(false);
     }
   }
+
+  async function finish() {
+    await onSaved();
+    onClose();
+  }
+
+  if (sending)
+    return (
+      <Modal
+        title={isNew ? "Novo fornecedor" : "Editar fornecedor"}
+        subtitle={`${sending.name} salvo. Envie o documento para o fornecedor assinar.`}
+        busy={busy}
+        onClose={() => void finish()}
+      >
+        <SignatureSendStep
+          prepare={sending.prepare}
+          onBusyChange={setBusy}
+          onDone={() => void finish()}
+        />
+      </Modal>
+    );
 
   return (
     <>
@@ -374,6 +425,19 @@ export function SupplierModal({
                     onChange={(event) => update("orders", event.target.value)}
                   />
                 </label>
+                {canSign && (
+                  <SignatureTemplateField
+                    signer="fornecedor"
+                    state={templates}
+                    value={signature}
+                    onChange={setSignature}
+                  />
+                )}
+                {!isNew && canView("contracts") && (
+                  <div className="span-2">
+                    <SupplierDocuments supplierId={supplier.id} />
+                  </div>
+                )}
                 <label className="span-2">
                   Contratos
                   <textarea

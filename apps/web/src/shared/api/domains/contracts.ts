@@ -55,6 +55,8 @@ export const contractsApi = {
       method: "POST",
       body: JSON.stringify({ body, ...(content ? { content } : {}) }),
     }),
+  deleteDocumentTemplate: (id: string) =>
+    request<void>(`/document-templates/${id}`, { method: "DELETE" }),
   previewDocument: (input: IssuedDocumentInput) =>
     request<DocumentPreview>("/documents/preview", {
       method: "POST",
