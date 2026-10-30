@@ -21,6 +21,8 @@ equipe — não existe app nem portal do cliente. Interface e textos em pt-BR; a
 
 Gate completo: `npm run typecheck && npm run lint && npm test && npm run build && node apps/web/scripts/audit-panels.cjs` (~2 min).
 Na rodada 2, o `audit-panels` só passa a valer depois da D01 (que zera os apontamentos atuais).
+Se a tarefa mexer em SQL (`storage/mysql`, migração), rode também `npm run test:mysql` com
+`TEST_DATABASE_URL` (ver "Banco de dados: MySQL/MariaDB").
 Nunca edite o `audit-panels.cjs` para esconder um apontamento — corrija o layout ou reporte BLOCKED.
 Limite de tempo dos testes: 20s (máquina lenta com OneDrive); não altere.
 Gate focado num arquivo de teste: `npm exec -w @crm/api -- vitest run src/<arquivo>.test.ts`
@@ -74,6 +76,45 @@ em conflito com a `main` e entre si, com números de migração repetidos. Para 
   propósito. Nunca use `git stash` no meio de um merge (ele desfaz o merge).
 - **Mudança de infraestrutura** (trocar banco, mover pastas, renomear em massa) só com a fila
   de PRs vazia ou com o dono avisado: ela conflita com todo PR aberto.
+
+### Banco de dados: MySQL/MariaDB (não é mais Postgres)
+
+Desde 30/10/2026 o banco é **MySQL 8 / MariaDB 10.6+** (Hostinger). O Postgres saiu: não existem
+mais `storage/postgres`, `postgres-repository.ts` nem o pacote `pg`, e as migrações recomeçaram
+em `0001_schema.sql` (as antigas `0001`–`0120` do Postgres foram apagadas). Código, migração ou
+teste escrito para o Postgres (de memória, de um branch antigo ou de um PR aberto antes da troca)
+precisa ser portado antes do commit. O teste `storage/mysql/mysql-dialect.unit.test.ts` reprova
+o que sobrar; nunca o afrouxe para passar — porte o SQL.
+
+- **Onde fica**: fachada `apps/api/src/mysql-repository.ts` (`MysqlClinicRepository`),
+  domínios em `apps/api/src/storage/mysql/<domínio>.ts`, cliente em
+  `infrastructure/mysql-client.ts`, helpers SQL em `storage/mysql/sql.ts` e
+  `storage/mysql/helpers.ts`. Testes opt-in em `storage/mysql/tests/*.integration.test.ts`, com
+  `createTestDatabase("<prefixo>")`/`database.drop()` de `test-support/mysql-database.ts` (copie
+  o molde de `nav-tabs.integration.test.ts`); o laço é `for (const storage of ["memory", "mysql"])`.
+- **Migração nova** (`apps/api/migrations/NNNN_nome.sql`, 4 dígitos, número livre pelas regras
+  acima — hoje a sequência está na casa de `0019`+, nunca `01xx`): nomes entre crases; ids e FKs
+  `VARCHAR(36) CHARACTER SET ascii COLLATE ascii_bin` (id com `DEFAULT (UUID())`); datas
+  `DATETIME(6)` com `DEFAULT CURRENT_TIMESTAMP(6)` (sempre UTC); booleano `TINYINT(1)`; listas e
+  objetos em `JSON` (`DEFAULT ('[]')`), nunca `text[]`/`jsonb`; texto livre `LONGTEXT`, texto
+  em chave/índice `VARCHAR(191)`; restrições nomeadas (`CONSTRAINT <tabela>_<col>_fkey FOREIGN
+  KEY ... REFERENCES ...`, `CHECK (...)`). Sem `uuid`, `timestamptz`, `SERIAL`, extensões,
+  gatilhos, funções, procedures ou blocos `$$`. Veja `0011_payment_proofs.sql` como modelo.
+- **Consultas**: o cliente aceita `$1`, `$2`… (viram `?`) e serializa objetos/arrays como JSON.
+  Equivalências: `RETURNING` → gravar e ler em seguida (`writeAndRead()` de `sql.ts`, ou
+  `randomUUID()` na aplicação + `SELECT`); `ON CONFLICT DO UPDATE` → `ON DUPLICATE KEY UPDATE
+  col = VALUES(col)`; `ON CONFLICT DO NOTHING` → `insertRows(client, tabela, linhas, { onDuplicate: "ignore" })`; `= ANY($n)` → `inJsonArray()`;
+  `now()` → `NOW(6)`; `ILIKE` → `LIKE`; `x::tipo` → `CAST(x AS ...)`; `JOIN LATERAL`/`DISTINCT
+  ON` → `LEFT JOIN` com subconsulta; `jsonb_set`/`->>'chave'` → `JSON_SET(col,'$.chave',...)`/
+  `JSON_VALUE(col,'$.chave')`; trava consultiva → `client.lock(...)` (GET_LOCK); violação de
+  única → `hasDatabaseCode(error, "23505")` (o cliente traduz o erro do MySQL).
+- **Leitura de JSON**: coluna JSON montada na consulta (`JSON_OBJECT`, `JSON_ARRAYAGG`, `CASE`)
+  volta como texto/binário no MariaDB — passe sempre por `json<T>(valor)` de `helpers.ts`, também
+  nas linhas lidas com `FOR UPDATE` antes de reaproveitá-las.
+- **Rodar os testes MySQL localmente** (não precisa de Docker): MariaDB local e
+  `TEST_DATABASE_URL=mysql://<usuário>:<senha>@127.0.0.1:3306/crm_test npm run test:mysql`
+  (o banco `crm_test` precisa existir; cada arquivo cria e apaga o próprio banco derivado).
+  Ao mexer em SQL, rode-os; sem banco, eles ficam `skip` e o erro só aparece no CI.
 
 ### Convenções do projeto
 

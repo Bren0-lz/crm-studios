@@ -11,13 +11,16 @@ Responda em pt-BR.
 ## Procedimento
 
 1. Leia `CLAUDE.md` e os arquivos citados no escopo. Entenda as convenções antes de escrever
-   — em especial a seção "Convenções do projeto" (repositório duplo memória/MySQL).
+   — em especial "Convenções do projeto" (repositório duplo memória/MySQL) e "Banco de dados:
+   MySQL/MariaDB" (tipos da migração e equivalências de SQL; nada de sintaxe do Postgres).
 2. Escreva ou ajuste os testes que expressam o gate **antes** do código de produção.
 3. Implemente o mínimo que faz o gate passar.
 4. Rode o gate da tarefa (o comando indicado em **Gate** no `PLAN.md`). Se falhar, corrija e
    rode de novo. Até 5 ciclos.
 5. Rode a suíte completa para confirmar que nada regrediu:
    `npm run typecheck && npm run lint && npm test && npm run build`
+   Se mexeu em SQL ou migração, rode também `npm run test:mysql` com `TEST_DATABASE_URL` de um
+   MariaDB/MySQL local de testes; sem banco disponível, diga isso em **Descobertas**.
 
 ## Regras
 
