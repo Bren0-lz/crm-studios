@@ -1355,21 +1355,8 @@
   font-weight: 500;
 }
 
-/* Despesa fixa: dia e período numa linha; aviso e resumo logo abaixo. */
+/* Despesa fixa: período, dia e aviso na mesma grade de 2 colunas das outras seções. */
 .recurring-schedule {
   display: grid;
   gap: var(--space-4);
-}
-
-.recurring-schedule-dates {
-  display: grid;
-  grid-template-columns: minmax(0, 0.7fr) minmax(0, 1fr) minmax(0, 1fr);
-  align-items: start;
-  gap: calc(var(--space-3) + 2px);
-}
-
-@media (max-width: 700px) {
-  .recurring-schedule-dates {
-    grid-template-columns: 1fr;
-  }
 }
