@@ -399,8 +399,9 @@ export function DocumentsPage() {
                       <div className="document-summary">
                         <strong>{item.title}</strong>
                         <span>
-                          {item.patientName} · {item.templateName} v
-                          {item.templateVersion}
+                          {item.patientName}
+                          {item.supplierId ? " (fornecedor)" : ""} ·{" "}
+                          {item.templateName} v{item.templateVersion}
                         </span>
                         <details>
                           <summary>Ver conteúdo</summary>

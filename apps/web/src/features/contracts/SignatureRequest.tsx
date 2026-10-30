@@ -24,18 +24,21 @@ export function SignatureTemplateField({
   value,
   onChange,
   disabled = false,
+  signer = "cliente",
 }: {
   state: SignatureTemplatesState;
   value: SignatureRequest | null;
   onChange: (value: SignatureRequest | null) => void;
   disabled?: boolean;
+  /** Quem assina, no rótulo do campo. */
+  signer?: "cliente" | "fornecedor";
 }) {
   const hintId = useId();
   const templates = state.templates ?? [];
   return (
     <div className="span-2">
       <label>
-        Documento para o cliente assinar
+        Documento para o {signer} assinar
         <select
           aria-describedby={hintId}
           disabled={disabled || !state.templates || templates.length === 0}
@@ -157,6 +160,7 @@ export function SignatureShare({
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState("");
   const link = signatureLinkUrl(share.token);
+  const signer = share.document.supplierId ? "fornecedor" : "cliente";
   async function copy() {
     try {
       await navigator.clipboard.writeText(link);
@@ -180,6 +184,7 @@ export function SignatureShare({
             patientName: share.document.patientName,
             clinicName: share.clinicName,
             link,
+            supplier: Boolean(share.document.supplierId),
           })}
         />
       </label>
@@ -193,8 +198,8 @@ export function SignatureShare({
       </label>
       <p className="muted-copy">
         {share.patientPhone
-          ? "O WhatsApp abre na conversa do cliente com a mensagem pronta."
-          : "O cliente não tem telefone no cadastro: o WhatsApp vai pedir o contato."}{" "}
+          ? `O WhatsApp abre na conversa do ${signer} com a mensagem pronta.`
+          : `O ${signer} não tem telefone no cadastro: o WhatsApp vai pedir o contato.`}{" "}
         {share.document.signatureLink &&
           !share.document.signatureLink.signedAt &&
           `O link vale até ${shortDate.format(new Date(share.document.signatureLink.expiresAt))}. `}
