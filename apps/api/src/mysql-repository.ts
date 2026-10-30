@@ -305,6 +305,11 @@ export class MysqlClinicRepository implements ClinicRepository {
       this.administration.getNotificationPreferences;
     this.saveNotificationPreferences =
       this.administration.saveNotificationPreferences;
+    this.listIntegrationKeys = this.administration.listIntegrationKeys;
+    this.createIntegrationKey = this.administration.createIntegrationKey;
+    this.revokeIntegrationKey = this.administration.revokeIntegrationKey;
+    this.findIntegrationKeyByTokenHash = this.administration.findIntegrationKeyByTokenHash;
+    this.touchIntegrationKey = this.administration.touchIntegrationKey;
     this.recordAdminAuditEvent = this.administration.recordAdminAuditEvent;
     this.listAdminAuditEvents = this.administration.listAdminAuditEvents;
     this.listHistoryActors = this.administration.listHistoryActors;
@@ -560,6 +565,11 @@ export class MysqlClinicRepository implements ClinicRepository {
   readonly saveNavTabLabels: ClinicRepository["saveNavTabLabels"];
   readonly getNotificationPreferences: ClinicRepository["getNotificationPreferences"];
   readonly saveNotificationPreferences: ClinicRepository["saveNotificationPreferences"];
+  readonly listIntegrationKeys: ClinicRepository["listIntegrationKeys"];
+  readonly createIntegrationKey: ClinicRepository["createIntegrationKey"];
+  readonly revokeIntegrationKey: ClinicRepository["revokeIntegrationKey"];
+  readonly findIntegrationKeyByTokenHash: ClinicRepository["findIntegrationKeyByTokenHash"];
+  readonly touchIntegrationKey: ClinicRepository["touchIntegrationKey"];
 
   readonly recordAdminAuditEvent: ReturnType<
     typeof createAdministrationRepository
