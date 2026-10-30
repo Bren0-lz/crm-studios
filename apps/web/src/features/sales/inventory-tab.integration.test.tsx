@@ -180,8 +180,14 @@ describe("aba Estoque de Vendas de produtos (QM9)", () => {
     ).toBeInTheDocument();
   });
 
-  it("configura os tamanhos do produto quando ele tem distinção por tamanho", async () => {
+  it("usa os tamanhos definidos na categoria do produto", async () => {
     const { repository } = await setupApi();
+    const category = await repository.saveClinicCatalog(
+      clinicId,
+      actorId,
+      "product_category",
+      { name: "Calçados", active: true, sizes: ["37", "38", "39"] },
+    );
     const panel = await openInventoryTab();
     await within(panel).findByText("Nenhum produto");
 
@@ -190,114 +196,96 @@ describe("aba Estoque de Vendas de produtos (QM9)", () => {
     );
     let dialog = screen.getByRole("dialog", { name: "Novo produto" });
     expect(
-      within(dialog).queryByRole("group", { name: "Tamanhos disponíveis" }),
+      within(dialog).queryByRole("group", { name: "Tamanhos deste produto" }),
     ).not.toBeInTheDocument();
-    change("Nome", "Camiseta do estúdio", dialog);
-    change("Código do produto", "CAM", dialog);
-    fireEvent.click(
-      within(dialog).getByLabelText("Possui distinção por tamanhos"),
-    );
+    change("Nome", "Tênis do estúdio", dialog);
+    change("Código do produto", "TEN", dialog);
+    await within(dialog).findByRole("option", { name: "Calçados" });
+    change("Categoria", category!.id, dialog);
+    // A categoria traz todos os seus tamanhos marcados; o usuário desmarca os que faltam.
+    const sizes = within(dialog).getByRole("group", {
+      name: "Tamanhos deste produto",
+    });
+    for (const label of ["37", "38", "39"]) {
+      const box = within(sizes).getByLabelText<HTMLInputElement>(label);
+      expect(box.checked).toBe(true);
+      fireEvent.click(box);
+    }
+    expect(within(sizes).queryByLabelText("PP")).toBeNull();
     fireEvent.click(
       within(dialog).getByRole("button", { name: "Salvar produto" }),
     );
     expect(
-      await within(dialog).findByText("Selecione ao menos um tamanho."),
+      await within(dialog).findByText("Marque ao menos um tamanho."),
     ).toBeInTheDocument();
-    const sizes = within(dialog).getByRole("group", {
-      name: "Tamanhos disponíveis",
-    });
-    for (const label of [
-      "PP",
-      "P",
-      "M",
-      "G",
-      "GG",
-      "Tamanho único",
-      "Baby look PP",
-      "Baby look P",
-      "Baby look M",
-      "Baby look G",
-      "Baby look GG",
-    ])
-      expect(within(sizes).getByLabelText(label)).toBeInTheDocument();
-    fireEvent.click(within(sizes).getByLabelText("G"));
-    fireEvent.click(within(sizes).getByLabelText("Baby look M"));
-    fireEvent.click(within(sizes).getByLabelText("P"));
+    fireEvent.click(within(sizes).getByLabelText("37"));
+    fireEvent.click(within(sizes).getByLabelText("38"));
     expect(within(dialog).queryByLabelText("Estoque inicial")).toBeNull();
-    change("Estoque inicial P", "2", dialog);
-    change("Estoque inicial Baby look M", "1", dialog);
+    change("Estoque inicial 37", "2", dialog);
     await save("Novo produto", "Salvar produto");
     const product = (
       await repository.getInventoryWorkspace(clinicId)
-    ).products.find((item) => item.sku === "CAM")!;
-    expect(product).toMatchObject({
-      sizes: ["p", "g", "baby_look_m"],
-      currentStock: 3,
-    });
-    expect(
-      await within(panel).findByText("P: 2 · G: 0 · Baby look M: 1"),
-    ).toBeInTheDocument();
-    // Sem aviso de reposição: o produto tem saldo, mas o tamanho zerado aparece como esgotado.
-    expect(within(panel).getByText("Esgotado: G")).toBeInTheDocument();
+    ).products.find((item) => item.sku === "TEN")!;
+    expect(product).toMatchObject({ sizes: ["37", "38"], currentStock: 2 });
+    expect(await within(panel).findByText("37: 2 · 38: 0")).toBeInTheDocument();
+    expect(within(panel).getByText("Esgotado: 38")).toBeInTheDocument();
 
     // Ajuste de estoque pede o tamanho do produto.
     fireEvent.click(
       within(panel).getByRole("button", { name: "Ajustar estoque" }),
     );
     dialog = screen.getByRole("dialog", { name: "Ajustar estoque" });
-    expect(within(dialog).queryByLabelText("Tamanho")).toBeNull();
     change("Produto", product.id, dialog);
     expect(
-      within(dialog).getByRole("option", { name: "G · 0 un" }),
+      within(dialog).getByRole("option", { name: "38 · 0 un" }),
     ).toBeInTheDocument();
-    change("Tamanho", "g", dialog);
+    change("Tamanho", "38", dialog);
     change("Quantidade", "4", dialog);
-    change("Motivo", "Compra de camisetas", dialog);
+    change("Motivo", "Compra de tênis", dialog);
     await save("Ajustar estoque", "Salvar ajuste");
-    expect(
-      await within(panel).findByText("P: 2 · G: 4 · Baby look M: 1"),
-    ).toBeInTheDocument();
-    expect(within(panel).queryByText(/Esgotado/)).toBeNull();
+    expect(await within(panel).findByText("37: 2 · 38: 4")).toBeInTheDocument();
     const history = expand("Histórico de estoque");
     const movement = within(history)
-      .getByText("Compra de camisetas")
+      .getByText("Compra de tênis")
       .closest<HTMLElement>("tr")!;
     expect(
-      within(movement).getByText("Camiseta do estúdio · G"),
+      within(movement).getByText("Tênis do estúdio · 38"),
     ).toBeInTheDocument();
 
-    // Sem tamanhos, o saldo dos tamanhos antigos continua visível até ser baixado.
+    // Sem categoria, o produto fica sem tamanhos; o saldo antigo segue visível até ser baixado.
     fireEvent.click(
-      within(panel).getByRole("button", { name: "Editar Camiseta do estúdio" }),
+      within(panel).getByRole("button", { name: "Editar Tênis do estúdio" }),
     );
     dialog = screen.getByRole("dialog", { name: "Editar produto" });
-    const checkbox = within(dialog).getByLabelText<HTMLInputElement>(
-      "Possui distinção por tamanhos",
-    );
-    expect(checkbox.checked).toBe(true);
-    fireEvent.click(checkbox);
+    await within(dialog).findByRole("option", { name: "Calçados" });
+    change("Categoria", "", dialog);
     await save("Editar produto", "Salvar produto");
     expect(
       (await repository.getInventoryWorkspace(clinicId)).products.find(
         (item) => item.id === product.id,
       ),
-    ).toMatchObject({ sizes: [], currentStock: 7 });
-    expect(
-      await within(panel).findByText("P: 2 · G: 4 · Baby look M: 1"),
-    ).toBeInTheDocument();
+    ).toMatchObject({ sizes: [], currentStock: 6 });
+    expect(await within(panel).findByText("37: 2 · 38: 4")).toBeInTheDocument();
   });
 
   it("define a quantidade de cada tamanho ao editar o produto", async () => {
     const { repository } = await setupApi();
+    const category = await repository.saveClinicCatalog(
+      clinicId,
+      actorId,
+      "product_category",
+      { name: "Camisetas", active: true, sizes: ["P", "M"] },
+    );
     const product = await repository.createProduct(clinicId, actorId, {
       name: "Camiseta do estúdio",
       sku: "CAM",
       unit: "un",
+      categoryId: category!.id,
       costInCents: 2000,
       salePriceInCents: 5000,
       initialStock: 0,
-      sizes: ["p"],
-      initialSizeStock: [{ size: "p", quantity: 2 }],
+      sizes: ["P"],
+      initialSizeStock: [{ size: "P", quantity: 2 }],
     });
     const panel = await openInventoryTab();
     fireEvent.click(
@@ -312,11 +300,13 @@ describe("aba Estoque de Vendas de produtos (QM9)", () => {
     expect(
       within(quantities).getByLabelText<HTMLInputElement>("Quantidade P").value,
     ).toBe("2");
-    fireEvent.click(
-      within(
-        within(dialog).getByRole("group", { name: "Tamanhos disponíveis" }),
-      ).getByLabelText("M"),
-    );
+    // Tamanho novo da categoria aparece desmarcado no produto já cadastrado.
+    const sizes = await within(dialog).findByRole("group", {
+      name: "Tamanhos deste produto",
+    });
+    const medium = await within(sizes).findByLabelText<HTMLInputElement>("M");
+    expect(medium.checked).toBe(false);
+    fireEvent.click(medium);
     change("Quantidade M", "3", dialog);
     await save("Editar produto", "Salvar produto");
     expect(
@@ -324,14 +314,41 @@ describe("aba Estoque de Vendas de produtos (QM9)", () => {
         (item) => item.id === product.id,
       ),
     ).toMatchObject({
-      sizes: ["p", "m"],
+      sizes: ["P", "M"],
       currentStock: 5,
       sizeStock: [
-        { size: "p", currentStock: 2 },
-        { size: "m", currentStock: 3 },
+        { size: "P", currentStock: 2 },
+        { size: "M", currentStock: 3 },
       ],
     });
     expect(await within(panel).findByText("P: 2 · M: 3")).toBeInTheDocument();
+  });
+
+  it("mostra os tamanhos antigos (escala fixa) de um produto sem categoria", async () => {
+    const { repository } = await setupApi();
+    await repository.createProduct(clinicId, actorId, {
+      name: "Regata",
+      sku: "REG",
+      unit: "un",
+      costInCents: 2000,
+      salePriceInCents: 5000,
+      initialStock: 0,
+      sizes: ["p", "baby_look_m"],
+      initialSizeStock: [{ size: "baby_look_m", quantity: 1 }],
+    });
+    const panel = await openInventoryTab();
+    expect(
+      await within(panel).findByText("P: 0 · Baby look M: 1"),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      within(panel).getByRole("button", { name: "Editar Regata" }),
+    );
+    const sizes = within(
+      screen.getByRole("dialog", { name: "Editar produto" }),
+    ).getByRole("group", { name: "Tamanhos deste produto" });
+    expect(
+      within(sizes).getByLabelText<HTMLInputElement>("Baby look M").checked,
+    ).toBe(true);
   });
 
   it("cadastra categoria e marca sem fechar o formulário do produto", async () => {
@@ -347,6 +364,13 @@ describe("aba Estoque de Vendas de produtos (QM9)", () => {
     const category = screen.getByRole("dialog", { name: "Nova categoria" });
     change("Nome", "Meias", category);
     fireEvent.click(
+      within(category).getByLabelText("Os itens desta categoria têm tamanhos"),
+    );
+    change("Novo tamanho", "Infantil, Adulto", category);
+    fireEvent.click(
+      within(category).getByRole("button", { name: "Adicionar" }),
+    );
+    fireEvent.click(
       within(category).getByRole("button", { name: "Cadastrar" }),
     );
     await waitFor(() =>
@@ -361,6 +385,15 @@ describe("aba Estoque de Vendas de produtos (QM9)", () => {
     expect(
       within(dialog).getByRole("option", { name: "Meias" }),
     ).toHaveProperty("selected", true);
+    const sizes = within(dialog).getByRole("group", {
+      name: "Tamanhos deste produto",
+    });
+    expect(
+      within(sizes).getByLabelText<HTMLInputElement>("Infantil").checked,
+    ).toBe(true);
+    expect(
+      within(sizes).getByLabelText<HTMLInputElement>("Adulto").checked,
+    ).toBe(true);
 
     change("Marca", "__new__", dialog);
     const brand = screen.getByRole("dialog", { name: "Nova marca" });
@@ -381,9 +414,14 @@ describe("aba Estoque de Vendas de produtos (QM9)", () => {
       clinicId,
       "product_brand",
     );
+    expect(meias!.sizes).toEqual(["Infantil", "Adulto"]);
     expect(
       (await repository.getInventoryWorkspace(clinicId)).products[0],
-    ).toMatchObject({ categoryId: meias!.id, brandId: toesox!.id });
+    ).toMatchObject({
+      categoryId: meias!.id,
+      brandId: toesox!.id,
+      sizes: ["Infantil", "Adulto"],
+    });
   });
 
   it("tira o Estoque do Financeiro, mesmo com permissão de consultar", async () => {
@@ -414,12 +452,66 @@ describe("aba Estoque de Vendas de produtos (QM9)", () => {
         name: "Adicionar em Categorias de produtos",
       }),
     );
-    const dialog = screen.getByRole("dialog", { name: "Novo cadastro" });
+    let dialog = screen.getByRole("dialog", { name: "Novo cadastro" });
     change("Nome", "Óleos", dialog);
     await save("Novo cadastro", "Salvar");
     expect(
       await repository.listClinicCatalog(clinicId, "product_category"),
-    ).toEqual([expect.objectContaining({ name: "Óleos", active: true })]);
+    ).toEqual([
+      expect.objectContaining({ name: "Óleos", active: true, sizes: [] }),
+    ]);
+
+    // Categoria com tamanhos: lista montada pelo usuário, do jeito que os itens são medidos.
+    fireEvent.click(
+      within(categories).getByRole("button", {
+        name: "Adicionar em Categorias de produtos",
+      }),
+    );
+    dialog = screen.getByRole("dialog", { name: "Novo cadastro" });
+    change("Nome", "Calçados", dialog);
+    expect(within(dialog).queryByLabelText("Novo tamanho")).toBeNull();
+    fireEvent.click(
+      within(dialog).getByLabelText("Os itens desta categoria têm tamanhos"),
+    );
+    fireEvent.click(within(dialog).getByRole("button", { name: "Salvar" }));
+    expect(
+      await within(dialog).findByText(
+        "Adicione ao menos um tamanho ou desmarque a opção.",
+      ),
+    ).toBeInTheDocument();
+    change("Novo tamanho", "36, 40", dialog);
+    fireEvent.keyDown(within(dialog).getByLabelText("Novo tamanho"), {
+      key: "Enter",
+    });
+    change("Novo tamanho", "38", dialog);
+    fireEvent.click(within(dialog).getByRole("button", { name: "Adicionar" }));
+    change("Novo tamanho", "40", dialog);
+    fireEvent.click(within(dialog).getByRole("button", { name: "Adicionar" }));
+    expect(
+      within(dialog).getByText("“40” já está na lista."),
+    ).toBeInTheDocument();
+    expect(
+      within(dialog).queryByText(
+        "Adicione ao menos um tamanho ou desmarque a opção.",
+      ),
+    ).toBeNull();
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Mover 38 para antes" }),
+    );
+    fireEvent.click(within(dialog).getByRole("button", { name: "Remover 36" }));
+    // Tamanho digitado sem clicar em Adicionar também entra ao salvar.
+    change("Novo tamanho", "42", dialog);
+    await save("Novo cadastro", "Salvar");
+    expect(
+      (await repository.listClinicCatalog(clinicId, "product_category")).find(
+        (item) => item.name === "Calçados",
+      )?.sizes,
+    ).toEqual(["38", "40", "42"]);
+    expect(
+      await within(categories).findByText("· Tamanhos: 38, 40, 42", {
+        exact: false,
+      }),
+    ).toBeInTheDocument();
     expect(
       within(catalogs).getByRole("region", { name: "Marcas" }),
     ).toBeInTheDocument();

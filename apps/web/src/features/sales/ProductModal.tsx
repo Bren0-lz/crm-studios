@@ -6,8 +6,8 @@ import type {
   ProductUpdateInput,
 } from "@crm/contracts";
 import {
-  productSizeLabels,
-  productSizeSchema,
+  productCategorySizes,
+  productSizeLabel,
   sortProductSizes,
 } from "@crm/contracts";
 import { useEffect, useId, useState, type FormEvent } from "react";
@@ -77,9 +77,6 @@ export function ProductModal({
       product === "new" ? emptyProduct : { ...product, initialStock: 0 },
     ),
     [active, setActive] = useState(product === "new" || product.active),
-    [hasSizes, setHasSizes] = useState(
-      product !== "new" && product.sizes.length > 0,
-    ),
     [restockAlert, setRestockAlert] = useState(
       product !== "new" && product.restockAlertAt !== null,
     ),
@@ -90,9 +87,19 @@ export function ProductModal({
       null,
     );
   const productDirty = useFormDirty(
-    { form, active, hasSizes, restockAlert, sizeQuantities },
+    { form, active, restockAlert, sizeQuantities },
     true,
   );
+  // Os tamanhos vêm da categoria; um produto antigo mantém os seus para poder desmarcá-los.
+  const categorySizes = productCategorySizes(categories, form.categoryId);
+  const sizeOptions = sortProductSizes([
+    ...categorySizes,
+    ...(product === "new" ? [] : product.sizes),
+  ]);
+  const hasSizes = sizeOptions.length > 0;
+  const categoryName = categories.find(
+    (item) => item.id === form.categoryId,
+  )?.name;
   useEffect(() => {
     let alive = true;
     Promise.all([
@@ -115,27 +122,37 @@ export function ProductModal({
   function catalogCreated(entry: ClinicCatalogEntry) {
     if (catalogCreator === "product_category") {
       setCategories((items) => [...items, entry]);
-      setForm((current) => ({ ...current, categoryId: entry.id }));
+      setForm((current) => ({
+        ...current,
+        categoryId: entry.id,
+        sizes: entry.sizes,
+      }));
     } else {
       setBrands((items) => [...items, entry]);
       setForm((current) => ({ ...current, brandId: entry.id }));
     }
     setCatalogCreator(null);
   }
+  /** Trocar a categoria marca todos os tamanhos dela (o usuário desmarca os que faltam). */
+  function changeCategory(categoryId: string | null) {
+    setForm({
+      ...form,
+      categoryId,
+      sizes: productCategorySizes(categories, categoryId),
+    });
+  }
   function toggleSize(size: ProductSize, checked: boolean) {
     setForm({
       ...form,
-      sizes: sortProductSizes(
-        checked
-          ? [...form.sizes, size]
-          : form.sizes.filter((item) => item !== size),
+      sizes: sizeOptions.filter((item) =>
+        item === size ? checked : form.sizes.includes(item),
       ),
     });
   }
   async function save(event: FormEvent) {
     event.preventDefault();
-    if (hasSizes && !form.sizes.length) {
-      setFormError("Selecione ao menos um tamanho.");
+    if (categorySizes.length && !form.sizes.length) {
+      setFormError("Marque ao menos um tamanho.");
       return;
     }
     const sizes = hasSizes ? form.sizes : [];
@@ -273,10 +290,7 @@ export function ProductModal({
                 onChange={(event) =>
                   event.target.value === NEW_CATALOG_ENTRY
                     ? setCatalogCreator("product_category")
-                    : setForm({
-                        ...form,
-                        categoryId: event.target.value || null,
-                      })
+                    : changeCategory(event.target.value || null)
                 }
               >
                 <option value="">Não classificado</option>
@@ -314,19 +328,16 @@ export function ProductModal({
                 )}
               </select>
             </label>
-            <label className="checkbox-field span-2">
-              <input
-                type="checkbox"
-                checked={hasSizes}
-                onChange={(event) => setHasSizes(event.target.checked)}
-              />
-              Possui distinção por tamanhos
-            </label>
             {hasSizes && (
               <fieldset className="form-fieldset span-2">
-                <legend>Tamanhos disponíveis</legend>
+                <legend>Tamanhos deste produto</legend>
+                <p className="field-hint">
+                  {categorySizes.length
+                    ? `Tamanhos definidos na categoria ${categoryName ?? ""}. Desmarque os que este produto não tem.`
+                    : "Tamanhos de antes da categoria ter os seus. Desmarque todos para deixar o produto sem tamanhos."}
+                </p>
                 <div className="product-size-grid">
-                  {productSizeSchema.options.map((size) => (
+                  {sizeOptions.map((size) => (
                     <label key={size} className="checkbox-field">
                       <input
                         type="checkbox"
@@ -335,7 +346,7 @@ export function ProductModal({
                           toggleSize(size, event.target.checked)
                         }
                       />
-                      {productSizeLabels[size]}
+                      {productSizeLabel(size)}
                     </label>
                   ))}
                 </div>
@@ -357,7 +368,7 @@ export function ProductModal({
                 <div className="product-size-grid">
                   {form.sizes.map((size) => (
                     <label key={size}>
-                      {`${isNew ? "Estoque inicial" : "Quantidade"} ${productSizeLabels[size]}`}
+                      {`${isNew ? "Estoque inicial" : "Quantidade"} ${productSizeLabel(size)}`}
                       <input
                         type="number"
                         min={0}

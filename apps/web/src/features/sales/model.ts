@@ -5,9 +5,9 @@ import type {
   ProductSize,
 } from "@crm/contracts";
 import {
+  legacyProductSizeLabels,
   productItemName,
   productSizeLabel,
-  productSizeSchema,
 } from "@crm/contracts";
 import { localIsoDate } from "../../shared/lib/formatting";
 
@@ -181,8 +181,8 @@ export function soldOutSizes(product: Product): string[] {
   return product.sizes
     .filter(
       (size) =>
-        (product.sizeStock.find((entry) => entry.size === size)
-          ?.currentStock ?? 0) <= 0,
+        (product.sizeStock.find((entry) => entry.size === size)?.currentStock ??
+          0) <= 0,
     )
     .map((size) => productSizeLabel(size));
 }
@@ -302,9 +302,11 @@ export function rankSoldItems(
   );
 }
 
+/** Códigos antigos na ordem da escala; os demais tamanhos vêm depois, em ordem natural. */
+const legacySizeOrder = Object.keys(legacyProductSizeLabels);
 const sizeOrder = (key: string) => {
-  const index = productSizeSchema.options.indexOf(key as ProductSize);
-  return index < 0 ? productSizeSchema.options.length : index;
+  const index = legacySizeOrder.indexOf(key);
+  return index < 0 ? legacySizeOrder.length : index;
 };
 
 /** Opções distintas (valor e rótulo) de tipo ou tamanho presentes nas vendas. */
@@ -318,7 +320,8 @@ export function soldItemOptions(
     else options.set(line.sizeKey, line.sizeLabel);
   return [...options].sort(([leftKey, left], [rightKey, right]) =>
     field === "size"
-      ? sizeOrder(leftKey) - sizeOrder(rightKey)
+      ? sizeOrder(leftKey) - sizeOrder(rightKey) ||
+        left.localeCompare(right, "pt-BR", { numeric: true })
       : left.localeCompare(right, "pt-BR"),
   );
 }

@@ -12,6 +12,8 @@ import { EmptyState } from "../../shared/components/EmptyState";
 import { ErrorBanner } from "../../shared/components/ErrorBanner";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
 import { Modal, ModalCancelButton } from "../../shared/components/Modal";
+import { ProductSizesEditor } from "../../shared/components/ProductSizesEditor";
+import { sizesWithDraft } from "../../shared/lib/product-sizes";
 import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
 
 const kindHints: Partial<Record<ClinicCatalogKind, string>> = {
@@ -32,8 +34,15 @@ export function CatalogSection({ kind }: { kind: ClinicCatalogKind }) {
   const [editor, setEditor] = useState<ClinicCatalogEntry | "new" | null>(null);
   const [name, setName] = useState("");
   const [active, setActive] = useState(true);
+  const [hasSizes, setHasSizes] = useState(false);
+  const [sizes, setSizes] = useState<string[]>([]);
+  const [sizeDraft, setSizeDraft] = useState("");
   const [saving, setSaving] = useState(false);
-  const dirty = useFormDirty({ name, active }, Boolean(editor));
+  const dirty = useFormDirty(
+    { name, active, hasSizes, sizes, sizeDraft },
+    Boolean(editor),
+  );
+  const withSizes = kind === "product_category";
   const label = clinicCatalogLabels[kind];
   const admin = user?.role === "admin";
   useEffect(() => {
@@ -53,17 +62,25 @@ export function CatalogSection({ kind }: { kind: ClinicCatalogKind }) {
   function open(item: ClinicCatalogEntry | "new") {
     setName(item === "new" ? "" : item.name);
     setActive(item === "new" ? true : item.active);
+    setHasSizes(item !== "new" && item.sizes.length > 0);
+    setSizes(item === "new" ? [] : item.sizes);
+    setSizeDraft("");
     setError("");
     setEditor(item);
   }
   async function save(event: FormEvent) {
     event.preventDefault();
+    const finalSizes = hasSizes ? sizesWithDraft(sizes, sizeDraft) : [];
+    if (withSizes && hasSizes && !finalSizes.length) {
+      setError("Adicione ao menos um tamanho ou desmarque a opção.");
+      return;
+    }
     setSaving(true);
     setError("");
     try {
       await api.saveClinicCatalog(
         kind,
-        { name, active },
+        { name, active, ...(withSizes ? { sizes: finalSizes } : {}) },
         editor && editor !== "new" ? editor.id : undefined,
       );
       toast.success(
@@ -122,6 +139,11 @@ export function CatalogSection({ kind }: { kind: ClinicCatalogKind }) {
                   </span>
                 )}
                 {item.name}
+                {item.sizes.length > 0 && (
+                  <span className="catalog-parent">
+                    {` · Tamanhos: ${item.sizes.join(", ")}`}
+                  </span>
+                )}
               </strong>
               <span
                 className={
@@ -167,6 +189,25 @@ export function CatalogSection({ kind }: { kind: ClinicCatalogKind }) {
               />
               Ativo
             </label>
+            {withSizes && (
+              <ProductSizesEditor
+                enabled={hasSizes}
+                sizes={sizes}
+                draft={sizeDraft}
+                onEnabledChange={setHasSizes}
+                onSizesChange={(next) => {
+                  setSizes(next);
+                  setError("");
+                }}
+                onDraftChange={setSizeDraft}
+              />
+            )}
+            {withSizes && editor !== "new" && hasSizes && (
+              <p className="field-hint">
+                Os produtos já cadastrados mantêm os tamanhos que têm; um
+                tamanho novo aparece para marcar ao editar o produto.
+              </p>
+            )}
             <div className="modal-actions">
               <ModalCancelButton disabled={saving}>Cancelar</ModalCancelButton>
               <button className="primary-button" disabled={saving}>

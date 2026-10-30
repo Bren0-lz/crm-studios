@@ -4,7 +4,7 @@ import {
   discountedPlanInstallments,
   planInstallmentSchedule,
   planPixChargeMessage,
-  productSizeLabels,
+  productSizeLabel,
   whatsappLink,
   withPlanFirstCharge,
 } from "@crm/contracts";
@@ -378,7 +378,7 @@ export function PatientModal({
       return {
         key: `product-${line.key}`,
         name: product.name,
-        detail: `${line.quantity} × ${currency.format(line.unitPriceInCents / 100)}${line.size ? ` · ${productSizeLabels[line.size]}` : ""}`,
+        detail: `${line.quantity} × ${currency.format(line.unitPriceInCents / 100)}${line.size ? ` · ${productSizeLabel(line.size)}` : ""}`,
         quantity: line.quantity,
         unitPriceInCents: line.unitPriceInCents,
         discount: line.discount,

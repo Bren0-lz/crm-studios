@@ -1,5 +1,5 @@
 import {
-  productSizeLabels,
+  productSizeLabel,
   type Product,
   type ProductSize,
   type Supplier,
@@ -246,7 +246,7 @@ export function SupplierOrderModal({
                           <option value="">Selecione</option>
                           {product.sizes.map((size) => (
                             <option key={size} value={size}>
-                              {productSizeLabels[size]}
+                              {productSizeLabel(size)}
                             </option>
                           ))}
                         </select>

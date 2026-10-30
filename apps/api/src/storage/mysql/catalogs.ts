@@ -9,13 +9,14 @@ import type { MysqlRepositoryContext } from "./context.js";
 import { randomUUID } from "node:crypto";
 import { hasDatabaseCode, json } from "./helpers.js";
 
-const columns = `id,clinic_id AS "clinicId",kind,name,active,parent_id AS "parentId",created_at AS "createdAt",updated_at AS "updatedAt"`;
+const columns = `id,clinic_id AS "clinicId",kind,name,active,parent_id AS "parentId",sizes,created_at AS "createdAt",updated_at AS "updatedAt"`;
 type Row = Omit<ClinicCatalogEntry, "createdAt" | "updatedAt"> & {
   createdAt: Date;
   updatedAt: Date;
 };
 const map = (row: Row): ClinicCatalogEntry => ({
   ...row,
+  sizes: json<string[]>(row.sizes ?? []),
   createdAt: row.createdAt.toISOString(),
   updatedAt: row.updatedAt.toISOString(),
 });
@@ -47,6 +48,7 @@ export function createCatalogsRepository(context: MysqlRepositoryContext) {
               ).rows[0]
             : undefined;
           if (id && !current) return null;
+          if (current) current.sizes = json<string[]>(current.sizes ?? []);
           if (input.parentId) {
             if (
               id &&
@@ -77,10 +79,15 @@ export function createCatalogsRepository(context: MysqlRepositoryContext) {
                 400,
               );
           }
+          // Só categorias de produtos têm tamanhos; ausente na edição = mantém os atuais.
+          const sizes =
+            kind === "product_category"
+              ? (input.sizes ?? current?.sizes ?? [])
+              : [];
           const catalogId = id ?? randomUUID();
           if (id)
             await client.query(
-                `UPDATE clinic_catalogs SET name=$4,name_key=$5,active=$6,parent_id=$7,updated_at=NOW(6) WHERE clinic_id=$1 AND kind=$2 AND id=$3`,
+                `UPDATE clinic_catalogs SET name=$4,name_key=$5,active=$6,parent_id=$7,sizes=$8,updated_at=NOW(6) WHERE clinic_id=$1 AND kind=$2 AND id=$3`,
                 [
                   clinicId,
                   kind,
@@ -91,11 +98,12 @@ export function createCatalogsRepository(context: MysqlRepositoryContext) {
                   input.parentId === undefined
                     ? (current?.parentId ?? null)
                     : input.parentId,
+                  sizes,
                 ],
               );
           else
             await client.query(
-                `INSERT INTO clinic_catalogs(clinic_id,kind,name,name_key,active,parent_id,id) VALUES($1,$2,$3,$4,$5,$6,$7)`,
+                `INSERT INTO clinic_catalogs(clinic_id,kind,name,name_key,active,parent_id,id,sizes) VALUES($1,$2,$3,$4,$5,$6,$7,$8)`,
                 [
                   clinicId,
                   kind,
@@ -104,6 +112,7 @@ export function createCatalogsRepository(context: MysqlRepositoryContext) {
                   input.active,
                   input.parentId ?? null,
                   catalogId,
+                  sizes,
                 ],
               );
           const result = await client.query<Row>(
