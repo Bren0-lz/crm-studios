@@ -37,21 +37,39 @@ export function createContractsRepository(
         "Modelo ativo não encontrado.",
         404,
       );
-    const patient = repositoryContext.patients.find(
-      (item) => item.clinicId === clinicId && item.id === input.patientId,
-    );
-    if (!patient)
+    const patient = input.patientId
+      ? repositoryContext.patients.find(
+          (item) => item.clinicId === clinicId && item.id === input.patientId,
+        )
+      : undefined;
+    if (input.patientId && !patient)
       throw new DomainError(
         "PATIENT_NOT_FOUND",
         "Cliente não encontrado.",
         404,
+      );
+    const supplier = input.supplierId
+      ? repositoryContext.suppliers.find(
+          (item) => item.clinicId === clinicId && item.id === input.supplierId,
+        )
+      : undefined;
+    if (input.supplierId && !supplier)
+      throw new DomainError(
+        "SUPPLIER_NOT_FOUND",
+        "Fornecedor não encontrado.",
+        404,
+      );
+    if (!patient && !supplier)
+      throw new DomainError(
+        "DOCUMENT_PARTY_REQUIRED",
+        "Informe o cliente ou o fornecedor do documento.",
       );
     const plan = input.planId
       ? repositoryContext.patientPlans.find(
           (item) =>
             item.clinicId === clinicId &&
             item.id === input.planId &&
-            item.patientId === patient.id,
+            item.patientId === patient?.id,
         )
       : undefined;
     if (input.planId && !plan)
@@ -77,7 +95,8 @@ export function createContractsRepository(
       throw new DomainError("CLINIC_NOT_FOUND", "Clínica não encontrada.", 404);
     const values = documentTemplateValues({
       clinic: settings,
-      patient,
+      ...(patient ? { patient } : {}),
+      ...(supplier ? { supplier } : {}),
       ...(plan
         ? { plan: { ...plan, services: formatPlanServices(plan.services) } }
         : {}),
@@ -98,7 +117,7 @@ export function createContractsRepository(
       }),
       templateName: template.name,
       templateVersion: template.version,
-      patientName: patient.fullName,
+      patientName: patient?.fullName ?? supplier!.name,
       ...(plan ? { planName: plan.name } : {}),
     };
   }
@@ -217,7 +236,8 @@ export function createContractsRepository(
       const timestamp = now();
       const issuedDocument: IssuedDocument = {
         templateId: input.templateId,
-        patientId: input.patientId,
+        ...(input.patientId ? { patientId: input.patientId } : {}),
+        ...(input.supplierId ? { supplierId: input.supplierId } : {}),
         title: input.title,
         ...(input.planId ? { planId: input.planId } : {}),
         ...(input.professionalId
