@@ -62,7 +62,6 @@ describe("finance workflows through real HTTP handlers", () => {
       ["Data considerada", "postedOn"],
       ["De", "2040-06-01"],
       ["Até", "2040-06-30"],
-      ["Competência", "2040-06"],
       ["Situação do lançamento", "open"],
       ["Categoria do lançamento", category.id],
       ["Centro de custo do lançamento", center.id],
@@ -74,7 +73,7 @@ describe("finance workflows through real HTTP handlers", () => {
       within(filters).getByRole("button", { name: "Salvar filtros" }),
     );
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-    expect(screen.getByText("9 filtros aplicados")).toBeInTheDocument();
+    expect(screen.getByText("8 filtros aplicados")).toBeInTheDocument();
     expect(
       screen.getByText("Compra de faixas", { exact: true }),
     ).toBeInTheDocument();

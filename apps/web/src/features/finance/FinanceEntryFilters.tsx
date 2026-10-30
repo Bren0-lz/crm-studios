@@ -20,7 +20,6 @@ function activeFilterCount(filter: FinancialEntryFilter) {
       filter.search?.trim(),
       filter.from,
       filter.to,
-      filter.competence,
       filter.status,
       filter.categoryId,
       filter.costCenterId,
@@ -108,7 +107,7 @@ export function FinanceEntryFilters({
           onClose={() => setOpen(false)}
         >
           <form
-            className="form-grid"
+            className="form-grid finance-entry-filter-form"
             onSubmit={(event) => {
               event.preventDefault();
               onChange({ ...draft, search: draft.search?.trim() || undefined });
@@ -161,19 +160,6 @@ export function FinanceEntryFilters({
                 value={draft.to ?? ""}
                 onChange={(event) =>
                   patch({ to: event.target.value || undefined })
-                }
-              />
-            </label>
-            <label>
-              <span className="label-with-help">
-                Competência
-                <HelpTip term="Competência" text={financeTermHelp.competence} />
-              </span>
-              <input
-                type="month"
-                value={draft.competence ?? ""}
-                onChange={(event) =>
-                  patch({ competence: event.target.value || undefined })
                 }
               />
             </label>
