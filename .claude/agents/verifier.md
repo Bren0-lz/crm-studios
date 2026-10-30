@@ -27,6 +27,10 @@ Responda em pt-BR.
    - funcionalidade removida/desabilitada em vez de corrigida
    - escopo além da tarefa (mudança que ninguém pediu)
    - método novo do repositório implementado só em memória e não no MySQL (ou vice-versa)
+   - SQL ou migração com sintaxe/tipos do Postgres (`RETURNING`, `ON CONFLICT`, `jsonb`, `uuid`,
+     `timestamptz`, `text[]`, `::`, `ANY(`), arquivo em `storage/postgres`, migração com número
+     `01xx` ou repetido, ou `mysql-dialect.unit.test.ts` afrouxado; se houver banco de testes,
+     rode `npm run test:mysql` quando o diff tocar SQL
    - migração existente editada, `.env`/`compose.yaml`/`docs/PLANO_*` alterados, dependência nova
    - `apps/web/scripts/audit-panels.cjs` alterado para esconder apontamento (só a D03 pode ampliá-lo)
    - interface nova que viola a seção "Design de páginas" do `CLAUDE.md`:

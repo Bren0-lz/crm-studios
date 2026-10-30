@@ -31,11 +31,14 @@ Execute **UMA** iteração do loop de desenvolvimento. Responda em pt-BR.
      O commit inclui código, `PLAN.md` e `STATE.md` juntos; o hash fica no `git log`.
 8. Sincronize com a `main` antes do push: `git fetch origin main && git merge origin/main`.
    Se houver conflito, resolva trecho a trecho (nunca `checkout --ours/--theirs` no arquivo
-   inteiro), renumere a migração se o número já existir na `main`, rode o gate completo de novo
+   inteiro), renumere a migração se o número já existir na `main`, porte para MySQL
+   qualquer SQL do Postgres que venha do branch (seção "Banco de dados: MySQL/MariaDB" do
+   `CLAUDE.md`), rode o gate completo de novo
    e confirme `git merge-tree --write-tree origin/main HEAD` com saída 0.
    Abra um PR: `git push -u origin <branch-da-tarefa>` (nunca no branch padrão, nunca
    force-push) e crie o pull request para o branch padrão com título `<ID>: <título da tarefa>`
-   e descrição em pt-BR com o que mudou e a saída do gate.
+   e descrição em pt-BR com o que mudou e a saída do gate (inclua `npm run test:mysql` quando a
+   tarefa mexer em SQL ou migração).
 9. Reporte em 3 linhas: o que foi feito · gate que passou + link do PR · qual é a próxima.
 
 **Nunca faça mais de uma tarefa por invocação.** O valor do loop está no ponto de controle
