@@ -32,7 +32,7 @@ async function fileAt(path: string) {
 }
 
 /**
- * Serve o site compilado (`apps/web/dist`) como a Vercel faz: arquivo existente sai como está;
+ * Serve o site compilado (`apps/web/dist`): arquivo existente sai como está;
  * rota sem extensão (`/clientes/123`) recebe o `index.html` da SPA; o resto é 404. Os arquivos
  * de `/assets/` têm hash no nome e ficam em cache por um ano; o `index.html` nunca fica.
  */
