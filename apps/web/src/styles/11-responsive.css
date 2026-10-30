@@ -322,9 +322,6 @@
   .clinical-chart-output {
     margin-left: 0;
   }
-  .chart-soap {
-    grid-template-columns: 1fr;
-  }
 
   /* Barra do funil: busca na linha toda, resumo abaixo dos atalhos. */
   .commercial-search {

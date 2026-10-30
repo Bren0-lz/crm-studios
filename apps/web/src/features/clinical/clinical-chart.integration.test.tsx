@@ -35,7 +35,6 @@ async function clientWithHistory() {
       visitType: "trial",
     });
   const previous = await session(7);
-  const pending = await session(1);
   const record = await repository.saveClinicalRecord(clinicId, actorId, {
     appointmentId: previous.id,
     subjective: "Dor no joelho ao subir escadas.",
@@ -71,23 +70,18 @@ async function clientWithHistory() {
     sizeInBytes: Buffer.from(pixel, "base64").length,
     contentBase64: pixel,
   });
-  return { repository, patient, pending };
+  return { repository, patient };
 }
 
 describe("prontuário por cliente", () => {
-  it("lists clients with pending sessions and evolves one copying the last evolution", async () => {
-    const { repository, patient, pending } = await clientWithHistory();
+  it("searches clients and opens a chart without evolutions or pending sessions", async () => {
+    await clientWithHistory();
     open("/prontuarios");
 
-    // O resumo soma as sessões pendentes de todos os clientes (inclui os da demonstração).
-    expect(
-      await screen.findByText(/\d+ sess(ão|ões) sem evolução/),
-    ).toBeInTheDocument();
-    const filters = screen.getByRole("group", { name: "Filtrar clientes" });
-    fireEvent.click(
-      within(filters).getByRole("button", { name: /Sem evolução/ }),
-    );
-    const list = screen.getByRole("region", { name: "Clientes" });
+    const list = await screen.findByRole("region", { name: "Clientes" });
+    fireEvent.change(within(list).getByLabelText("Buscar cliente"), {
+      target: { value: "helena prontuario" },
+    });
     expect(
       within(list).queryByRole("button", { name: /Zuleica/ }),
     ).not.toBeInTheDocument();
@@ -101,38 +95,23 @@ describe("prontuário por cliente", () => {
         name: "Helena Prontuário",
       }),
     ).toBeInTheDocument();
-    const pendencies = screen.getByRole("region", { name: "Pendências" });
-    expect(within(pendencies).getByText("Sessão sem evolução")).toBeVisible();
-    fireEvent.click(
-      within(pendencies).getByRole("button", { name: "Evoluir" }),
-    );
-
-    const dialog = screen.getByRole("dialog", {
-      name: "Nova evolução clínica",
-    });
-    fireEvent.click(
-      within(dialog).getByRole("button", { name: /Copiar da última evolução/ }),
-    );
-    expect(within(dialog).getByLabelText(/S — Subjetivo/)).toHaveValue(
-      "Dor no joelho ao subir escadas.",
-    );
-    change("P — Plano", "Progredir carga.", dialog);
-    await save("Nova evolução clínica", "Salvar rascunho");
-
-    const records = await repository.listClinicalRecords(clinicId, patient.id);
+    expect(screen.getByText(/0 avaliações/)).toBeInTheDocument();
     expect(
-      records.find((item) => item.appointmentId === pending.id),
-    ).toMatchObject({
-      status: "draft",
-      subjective: "Dor no joelho ao subir escadas.",
-      plan: "Progredir carga.",
-    });
-    const updated = await screen.findByRole("region", { name: "Pendências" });
+      screen.queryByRole("region", { name: "Pendências" }),
+    ).not.toBeInTheDocument();
     expect(
-      await within(updated).findByText("Rascunho de evolução"),
-    ).toBeInTheDocument();
+      screen.queryByRole("tab", { name: /Evoluções/ }),
+    ).not.toBeInTheDocument();
     expect(
-      within(updated).queryByText("Sessão sem evolução"),
+      screen.queryByRole("button", { name: /Evoluir|Nova evolução/ }),
+    ).not.toBeInTheDocument();
+    // A evolução antiga continua guardada, mas não aparece na linha do tempo.
+    const timeline = screen.getByRole("tabpanel", { name: "Linha do tempo" });
+    expect(
+      within(timeline).getByText(/Flexão do joelho: 110 graus/),
+    ).toBeVisible();
+    expect(
+      within(timeline).queryByText("Melhora parcial."),
     ).not.toBeInTheDocument();
   });
 
@@ -169,10 +148,9 @@ describe("prontuário por cliente", () => {
     const { patient } = await clientWithHistory();
     open(`/prontuarios?cliente=${patient.id}`);
 
-    fireEvent.click(await screen.findByRole("tab", { name: "Evoluções" }));
-    expect(await screen.findByText("Dor 6/10")).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("tab", { name: "Plano e medições" }));
+    fireEvent.click(
+      await screen.findByRole("tab", { name: "Plano e medições" }),
+    );
     expect(
       screen.getByRole("progressbar", {
         name: "Progresso de Recuperar flexão do joelho",

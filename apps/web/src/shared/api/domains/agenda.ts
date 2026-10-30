@@ -21,7 +21,6 @@ import type {
   AppointmentUpdateInput,
   AutoFinalizationSettings,
   AutoFinalizationSettingsInput,
-  ClinicalAppointmentOption,
   GroupClass,
   GroupClassInput,
   GroupClassRenameInput,
@@ -94,10 +93,6 @@ export const agendaApi = {
     }),
   completeGroupSession: (id: string) =>
     request<GroupSession>(`/group-sessions/${id}/complete`, { method: "POST" }),
-  clinicalAppointmentOptions: (from: string, to: string) =>
-    request<ClinicalAppointmentOption[]>(
-      `/appointments/options?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
-    ),
   /** `options`: `allBranches` na ficha do cliente (atendimentos de todas as filiais). */
   appointments: (from: string, to: string, options?: RequestInit) =>
     request<Appointment[]>(

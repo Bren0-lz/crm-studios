@@ -1,18 +1,14 @@
 import {
   assessmentAnswerGroups,
   clinicalAlertSeverityLabels,
-  patientFirstName,
   type AssessmentTemplate,
   type ClinicalAlert,
-  type ClinicalAppointmentOption,
-  type ClinicalRecord,
   type ClinicalWorkspace,
 } from "@crm/contracts";
 import {
   AlertTriangle,
   CircleAlert,
   Download,
-  FilePlus2,
   Info,
   Paperclip,
   Plus,
@@ -27,25 +23,16 @@ import { ActionModal } from "../../shared/components/ActionModal";
 import { ErrorBanner } from "../../shared/components/ErrorBanner";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
 import { useToast } from "../../shared/feedback/toast-context";
-import { initials, shortDate, timeLabel } from "../../shared/lib/formatting";
-import { professionalWithCrefito } from "../contracts/index";
+import { initials, shortDate } from "../../shared/lib/formatting";
 import { AssessmentTemplateModal } from "./AssessmentTemplateModal";
 import { ChartFilesTab } from "./ChartFilesTab";
 import { ChartAssessmentsTab } from "./ChartAssessmentsTab";
-import {
-  ChartEvolutionsTab,
-  ChartGoalsTab,
-  ChartTimelineTab,
-} from "./ChartTabs";
-import { ClinicalAddendumModal } from "./ClinicalAddendumModal";
+import { ChartGoalsTab, ChartTimelineTab } from "./ChartTabs";
 import { ClinicalAlertModal } from "./ClinicalAlertModal";
 import { ClinicalAssessmentModal } from "./ClinicalAssessmentModal";
 import { ClinicalAttachmentModal } from "./ClinicalAttachmentModal";
-import { ClinicalHistoryModal } from "./ClinicalHistoryModal";
 import { ClinicalMeasurementModal } from "./ClinicalMeasurementModal";
-import { ClinicalRecordModal } from "./ClinicalRecordModal";
 import { ClinicalResourcesPanel } from "./ClinicalResourcesPanel";
-import { FinalizeRecordModal } from "./FinalizeRecordModal";
 import { TherapeuticGoalModal } from "./TherapeuticGoalModal";
 import { TreatmentClosureModal } from "./TreatmentClosureModal";
 import {
@@ -57,7 +44,6 @@ import {
 
 const chartTabs = [
   ["timeline", "Linha do tempo"],
-  ["evolutions", "Evoluções"],
   ["assessments", "Avaliações"],
   ["goals", "Plano e medições"],
   ["files", "Arquivos"],
@@ -67,14 +53,6 @@ const chartTabs = [
 type ChartTab = (typeof chartTabs)[number][0];
 
 type Editor =
-  | {
-      kind: "record";
-      record?: ClinicalRecord;
-      appointmentId?: string | undefined;
-    }
-  | { kind: "history"; record: ClinicalRecord }
-  | { kind: "finalize"; record: ClinicalRecord }
-  | { kind: "addendum"; record?: ClinicalRecord }
   | { kind: "template"; template?: AssessmentTemplate }
   | { kind: "archiveAlert"; alert: ClinicalAlert }
   | {
@@ -93,28 +71,18 @@ const alertIcons = {
   info: Info,
 };
 
-function dateTime(iso: string) {
-  const date = new Date(iso);
-  return `${shortDate.format(date)} · ${timeLabel.format(date)}`;
-}
-
 /**
- * Prontuário de um cliente: cabeçalho com resumo e alertas, pendências de evolução e abas
- * (linha do tempo, evoluções, avaliações, plano, arquivos e treinos). Usado na página
+ * Prontuário de um cliente: cabeçalho com resumo e alertas e abas (linha do tempo,
+ * avaliações, plano, arquivos e treinos). Usado na página
  * Prontuários e na aba "Prontuário" da ficha do cliente.
  */
 export function ClinicalChart({
   patientId,
   editable,
-  appointments,
-  onRecordChanged,
 }: {
   patientId: string;
   /** Sem edição de Prontuários: só consulta, impressão e exportação. */
   editable: boolean;
-  /** Sessões já iniciadas do cliente ainda sem evolução. */
-  appointments: ClinicalAppointmentOption[];
-  onRecordChanged?: ((record: ClinicalRecord) => void) | undefined;
 }) {
   const { can } = useAuthorization();
   const toast = useToast();
@@ -175,26 +143,19 @@ export function ClinicalChart({
   if (!workspace)
     return error ? <ErrorBanner error={error} /> : <LoadingBlock />;
 
-  const { patient, records } = workspace;
+  const { patient, assessments } = workspace;
   const alerts = workspace.alerts ?? [];
-  const addenda = workspace.addenda ?? [];
   const attachments = workspace.attachments ?? [];
-  const drafts = records.filter((record) => record.status === "draft");
-  const pending = appointments.filter(
-    (appointment) =>
-      !records.some((record) => record.appointmentId === appointment.id),
-  );
-  const canEvolve =
-    editable && can("clinical.records_create") && pending.length > 0;
   const age = patientAge(patient.birthDate || undefined);
-  const lastRecord = records[0];
+  const lastAssessmentAt = assessments
+    .map((assessment) => assessment.createdAt)
+    .sort((a, b) => b.localeCompare(a))[0];
   const closure = workspace.closures[0];
   const activeGoals = workspace.goals.filter(
     (goal) => goal.status === "active",
   ).length;
   const counts: Partial<Record<ChartTab, number>> = {
-    evolutions: records.length,
-    assessments: workspace.assessments.length,
+    assessments: assessments.length,
     goals: workspace.goals.length,
     files: attachments.length,
   };
@@ -211,9 +172,9 @@ export function ClinicalChart({
             {[
               patient.recordNumber,
               age !== undefined ? `${age} anos` : null,
-              `${records.length} ${records.length === 1 ? "evolução" : "evoluções"}`,
-              lastRecord
-                ? `última sessão em ${shortDate.format(new Date(lastRecord.appointmentStartsAt))}`
+              `${assessments.length} ${assessments.length === 1 ? "avaliação" : "avaliações"}`,
+              lastAssessmentAt
+                ? `última avaliação em ${shortDate.format(new Date(lastAssessmentAt))}`
                 : null,
             ]
               .filter(Boolean)
@@ -237,24 +198,10 @@ export function ClinicalChart({
           </div>
         </div>
         <div className="clinical-chart-actions">
-          {canEvolve && (
-            <button
-              type="button"
-              className="primary-button"
-              onClick={() =>
-                setEditor({
-                  kind: "record",
-                  appointmentId: pending[0]?.id,
-                })
-              }
-            >
-              <FilePlus2 size={16} /> Evoluir sessão
-            </button>
-          )}
           {editable && can("clinical.assessments_create") && (
             <button
               type="button"
-              className="secondary-button"
+              className="primary-button"
               onClick={() => setEditor({ kind: "assessment" })}
             >
               Registrar avaliação
@@ -364,74 +311,6 @@ export function ClinicalChart({
         </ul>
       )}
 
-      {editable && (pending.length > 0 || drafts.length > 0) && (
-        <section className="clinical-pending" aria-label="Pendências">
-          <h3>Pendências</h3>
-          <ul>
-            {can("clinical.records_create") &&
-              pending.slice(0, 4).map((appointment) => (
-                <li key={appointment.id}>
-                  <span>
-                    <strong>Sessão sem evolução</strong>
-                    <small>
-                      {dateTime(appointment.startsAt)} ·{" "}
-                      {appointment.professionalName}
-                    </small>
-                  </span>
-                  <button
-                    type="button"
-                    className="primary-button button-sm"
-                    onClick={() =>
-                      setEditor({
-                        kind: "record",
-                        appointmentId: appointment.id,
-                      })
-                    }
-                  >
-                    Evoluir
-                  </button>
-                </li>
-              ))}
-            {drafts.map((record) => (
-              <li key={record.id}>
-                <span>
-                  <strong>Rascunho de evolução</strong>
-                  <small>
-                    {dateTime(record.appointmentStartsAt)} ·{" "}
-                    {record.professionalName}
-                  </small>
-                </span>
-                <span className="clinical-pending-actions">
-                  {can("clinical.records_update") && (
-                    <button
-                      type="button"
-                      className="secondary-button button-sm"
-                      onClick={() => setEditor({ kind: "record", record })}
-                    >
-                      Editar
-                    </button>
-                  )}
-                  {can("clinical.finalize") && (
-                    <button
-                      type="button"
-                      className="primary-button button-sm"
-                      onClick={() => setEditor({ kind: "finalize", record })}
-                    >
-                      Finalizar
-                    </button>
-                  )}
-                </span>
-              </li>
-            ))}
-          </ul>
-          {can("clinical.records_create") && pending.length > 4 && (
-            <p className="panel-context">
-              E mais {pending.length - 4} sessões sem evolução.
-            </p>
-          )}
-        </section>
-      )}
-
       <div
         className="clinical-chart-tabs"
         role="tablist"
@@ -464,24 +343,9 @@ export function ClinicalChart({
         {tab === "timeline" && (
           <ChartTimelineTab events={buildClinicalTimeline(workspace)} />
         )}
-        {tab === "evolutions" && (
-          <ChartEvolutionsTab
-            records={records}
-            addenda={addenda}
-            editable={editable}
-            canEvolve={canEvolve}
-            onEvolve={() =>
-              setEditor({ kind: "record", appointmentId: pending[0]?.id })
-            }
-            onEdit={(record) => setEditor({ kind: "record", record })}
-            onFinalize={(record) => setEditor({ kind: "finalize", record })}
-            onHistory={(record) => setEditor({ kind: "history", record })}
-            onAddendum={(record) => setEditor({ kind: "addendum", record })}
-          />
-        )}
         {tab === "assessments" && (
           <ChartAssessmentsTab
-            assessments={workspace.assessments}
+            assessments={assessments}
             templates={workspace.templates}
             editable={editable}
             onNew={() => setEditor({ kind: "assessment" })}
@@ -528,49 +392,6 @@ export function ClinicalChart({
 
       <ClinicalPrintSummary workspace={workspace} />
 
-      {editor?.kind === "record" && (
-        <ClinicalRecordModal
-          record={editor.record}
-          appointments={pending}
-          initialAppointmentId={editor.appointmentId}
-          previousRecord={editor.record ? undefined : lastRecord}
-          onClose={() => setEditor(null)}
-          onSaved={(record) => {
-            onRecordChanged?.(record);
-            saved(`Evolução de ${patientFirstName(record.patientName)} salva.`);
-          }}
-        />
-      )}
-      {editor?.kind === "history" && (
-        <ClinicalHistoryModal
-          record={editor.record}
-          onClose={() => setEditor(null)}
-        />
-      )}
-      {editor?.kind === "finalize" && (
-        <FinalizeRecordModal
-          record={editor.record}
-          onClose={() => setEditor(null)}
-          onConfirm={async () => {
-            const record = await api.finalizeClinicalRecord(editor.record.id);
-            onRecordChanged?.(record);
-            saved(
-              `Evolução de ${patientFirstName(record.patientName)} finalizada.`,
-            );
-          }}
-        />
-      )}
-      {editor?.kind === "addendum" && (
-        <ClinicalAddendumModal
-          records={
-            editor.record
-              ? [editor.record]
-              : records.filter((item) => item.status === "finalized")
-          }
-          onClose={() => setEditor(null)}
-          onSaved={() => saved("Adendo registrado.")}
-        />
-      )}
       {editor?.kind === "template" && (
         <AssessmentTemplateModal
           template={editor.template}
@@ -644,7 +465,6 @@ export function ClinicalChart({
 
 /** Versão para impressão (oculta na tela; ver regras `@media print`). */
 function ClinicalPrintSummary({ workspace }: { workspace: ClinicalWorkspace }) {
-  const addenda = workspace.addenda ?? [];
   const alerts = workspace.alerts ?? [];
   return (
     <div className="clinical-print-summary">
@@ -662,33 +482,6 @@ function ClinicalPrintSummary({ workspace }: { workspace: ClinicalWorkspace }) {
           <strong>{clinicalAlertSeverityLabels[alert.severity]}:</strong>{" "}
           {alert.text}
         </p>
-      ))}
-      <h2>Evoluções SOAP</h2>
-      {workspace.records.map((record) => (
-        <article key={record.id}>
-          <h3>
-            {new Date(record.appointmentStartsAt).toLocaleString("pt-BR")}
-          </h3>
-          <p>
-            <strong>S:</strong> {record.subjective}
-          </p>
-          <p>
-            <strong>O:</strong> {record.objective}
-          </p>
-          <p>
-            <strong>A:</strong> {record.assessment}
-          </p>
-          <p>
-            <strong>P:</strong> {record.plan}
-          </p>
-          <small>
-            {professionalWithCrefito(
-              record.professionalName,
-              record.professionalCrefito,
-            )}{" "}
-            · Registrado por {record.authorName} · versão {record.version}
-          </small>
-        </article>
       ))}
       <h2>Avaliações estruturadas</h2>
       {workspace.assessments.map((assessment) => (
@@ -731,17 +524,6 @@ function ClinicalPrintSummary({ workspace }: { workspace: ClinicalWorkspace }) {
                 {measurement.value} {measurement.unit}
               </p>
             ))}
-        </article>
-      ))}
-      {addenda.length > 0 && <h2>Adendos</h2>}
-      {addenda.map((addendum) => (
-        <article key={addendum.id}>
-          <h3>{addendum.reason}</h3>
-          <p>{addendum.content}</p>
-          <small>
-            {addendum.authorName} ·{" "}
-            {new Date(addendum.createdAt).toLocaleString("pt-BR")}
-          </small>
         </article>
       ))}
       {workspace.closures.length > 0 && <h2>Encerramentos</h2>}
