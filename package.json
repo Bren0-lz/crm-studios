@@ -10,7 +10,7 @@
     "dev": "concurrently -n api,web -c blue,green \"npm run dev -w @crm/api\" \"npm run dev -w @crm/web\"",
     "build": "npm run build -w @crm/contracts && npm run build -w @crm/api && npm run build -w @crm/web",
     "test": "npm run test -w @crm/contracts && npm run test -w @crm/api && npm run test -w @crm/web",
-    "test:postgres": "npm run test:postgres -w @crm/api",
+    "test:mysql": "npm run test:mysql -w @crm/api",
     "db:setup": "npm run db:setup -w @crm/api",
     "db:migrate": "npm run db:migrate -w @crm/api",
     "typecheck": "npm run typecheck -w @crm/contracts && npm run typecheck -w @crm/api && npm run typecheck -w @crm/web && tsc -p tsconfig.json",

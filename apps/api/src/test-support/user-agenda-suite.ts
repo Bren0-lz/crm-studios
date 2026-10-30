@@ -293,10 +293,14 @@ export function userAgendaSuite(repository: () => ClinicRepository) {
         (await repo.listAdminUsers(clinic)).filter((u) => u.id !== other.id),
       ).toEqual(users);
       expect(
+        // A lista tem limite: compara só os eventos novos (os do usuário criado depois valem).
         (await repo.listAdminAuditEvents(clinic)).filter(
-          (e) => e.entityId !== other.id,
+          (e) =>
+            !audit.some((item) => item.id === e.id) &&
+            e.entityId !== other.id &&
+            e.entityId !== other.professionalId,
         ),
-      ).toEqual(audit);
+      ).toEqual([]);
     });
 
     it("desfaz tudo quando a comissão ou as filiais são inválidas", async () => {
