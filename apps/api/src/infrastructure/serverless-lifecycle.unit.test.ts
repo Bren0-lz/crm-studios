@@ -9,17 +9,17 @@ const dependencies = vi.hoisted(() => {
 
 vi.mock("../config.js", () => ({
   config: {
-    STORAGE_MODE: "postgres",
+    STORAGE_MODE: "mysql",
     JWT_SECRET: "private-test-secret-with-more-than-32-characters",
-    DATABASE_URL: "postgresql://test:test@localhost:5432/crm_test",
+    DATABASE_URL: "mysql://test:test@localhost:3306/crm_test",
   },
 }));
 vi.mock("../database.js", () => ({
   createDatabasePool: dependencies.createDatabasePool,
 }));
 vi.mock("../app.js", () => ({ buildApp: dependencies.buildApp }));
-vi.mock("../postgres-repository.js", () => ({
-  PostgresClinicRepository: class {},
+vi.mock("../mysql-repository.js", () => ({
+  MysqlClinicRepository: class {},
 }));
 
 beforeEach(() => {
