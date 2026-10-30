@@ -4,6 +4,10 @@ import { buildApp } from "../app.js";
 import { config } from "../config.js";
 import { createDatabasePool } from "../database.js";
 import { MysqlClinicRepository } from "../mysql-repository.js";
+import { stripApiPrefix } from "./api-prefix.js";
+import { defaultJwtSecret } from "./published-config.js";
+
+export { apiPrefix, stripApiPrefix } from "./api-prefix.js";
 
 /**
  * Entrada da API como função serverless (Vercel). A mesma aplicação Fastify do `server.ts`,
@@ -11,13 +15,7 @@ import { MysqlClinicRepository } from "../mysql-repository.js";
  * migrações rodam à parte (`npm run db:migrate`, no build).
  */
 
-/** Prefixo público das rotas da API no mesmo domínio do site. */
-export const apiPrefix = "/api";
-
 let appPromise: Promise<FastifyInstance> | undefined;
-
-/** Segredo padrão do `config.ts`: público no repositório, nunca aceito num site publicado. */
-const defaultJwtSecret = "development-secret-change-before-production";
 
 export function assertServerlessConfig(current: {
   STORAGE_MODE: string;
@@ -65,16 +63,6 @@ function getApp() {
     throw error;
   });
   return appPromise;
-}
-
-/** Remove o prefixo `/api` para casar com as rotas registradas no Fastify. */
-export function stripApiPrefix(url: string) {
-  if (url === apiPrefix) return "/";
-  if (url.startsWith(`${apiPrefix}/`) || url.startsWith(`${apiPrefix}?`)) {
-    const rest = url.slice(apiPrefix.length);
-    return rest.startsWith("?") ? `/${rest}` : rest;
-  }
-  return url;
 }
 
 export default async function handler(
