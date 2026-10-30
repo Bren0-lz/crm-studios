@@ -22,6 +22,8 @@ Interface em pt-BR; no produto, `patient` significa **cliente**. Node 22+; Windo
 
 ## Invariantes
 
+- Banco é MySQL 8/MariaDB 10.6+ (o Postgres saiu em 30/10/2026): migração nova e SQL seguem a seção "Banco de dados: MySQL/MariaDB" do CLAUDE.md; `storage/mysql/mysql-dialect.unit.test.ts` reprova sintaxe do Postgres. Branch ou PR de antes da troca: porte para `storage/mysql` e renumere a migração antes de abrir/atualizar o PR.
+
 - Preserve URLs, formatos HTTP, permissões, aliases antigos e textos da interface.
 - Toda operação de repositório deve existir em memória e MySQL; escrituras relacionadas mantêm a mesma transação e filtro clinic_id.
 - Shared não importa funcionalidades; funcionalidades usam entradas públicas de outras. Não introduza ciclos de execução.
