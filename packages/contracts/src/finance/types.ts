@@ -199,8 +199,9 @@ export interface ReceivedPayment {
 
 export interface Product extends Omit<
   ProductInput,
-  "initialStock" | "initialSizeStock" | "sizes" | "restockAlertAt"
+  "initialStock" | "initialSizeStock" | "sizes" | "restockAlertAt" | "sku"
 > {
+  sku: string;
   /** Aviso de reposição; `null` = sem aviso. */
   restockAlertAt: number | null;
   /** Vazio = produto sem distinção por tamanhos. */
@@ -492,10 +493,7 @@ export type DailyCashFilter = z.infer<typeof dailyCashFilterSchema>;
 export type DailyCashPaymentMethod = PaymentMethod | "unspecified";
 
 export type DailyCashMovementKind =
-  | "receipt"
-  | "receipt_reversal"
-  | "payable"
-  | "commission";
+  "receipt" | "receipt_reversal" | "payable" | "commission";
 
 export interface DailyCashMovement {
   /** `<kind>:<id da origem>`. */

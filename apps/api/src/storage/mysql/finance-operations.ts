@@ -280,12 +280,12 @@ export function createFinanceOperationsRepository(
               );
           const result = await writeAndRead<ProductRow>(
             client,
-            `UPDATE products SET name=$3,sku=$4,unit=$5,cost_in_cents=$6,sale_price_in_cents=$7,active=$8,category_id=CASE WHEN $9 THEN $10 ELSE category_id END,brand_id=CASE WHEN $11 THEN $12 ELSE brand_id END,sizes=COALESCE($13,sizes),restock_alert_at=CASE WHEN $14 THEN $15 ELSE restock_alert_at END,updated_at=NOW(6) WHERE clinic_id=$1 AND id=$2`,
+            `UPDATE products SET name=$3,sku=COALESCE($4,sku),unit=$5,cost_in_cents=$6,sale_price_in_cents=$7,active=$8,category_id=CASE WHEN $9 THEN $10 ELSE category_id END,brand_id=CASE WHEN $11 THEN $12 ELSE brand_id END,sizes=COALESCE($13,sizes),restock_alert_at=CASE WHEN $14 THEN $15 ELSE restock_alert_at END,updated_at=NOW(6) WHERE clinic_id=$1 AND id=$2`,
             [
               clinicId,
               id,
               input.name,
-              input.sku,
+              input.sku ?? null,
               input.unit,
               input.costInCents,
               input.salePriceInCents,

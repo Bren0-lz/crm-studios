@@ -1021,6 +1021,36 @@ for (const storage of ["memory", "mysql"] as const) {
         expect(numbers).not.toContain(created.recordNumber);
       });
 
+      it("generates the product code when it is not informed and keeps it on update", async () => {
+        const fields = {
+          unit: "un",
+          costInCents: 500,
+          salePriceInCents: 1000,
+          initialStock: 0,
+        };
+        const first = await repository.createProduct(clinicId, actorId, {
+          ...fields,
+          name: "Produto sem código",
+        });
+        const second = await repository.createProduct(clinicId, actorId, {
+          ...fields,
+          name: "Outro produto sem código",
+        });
+        expect(first.sku).toMatch(/^PRD-[0-9A-F]{8}$/);
+        expect(second.sku).toMatch(/^PRD-[0-9A-F]{8}$/);
+        expect(second.sku).not.toBe(first.sku);
+        const updated = await repository.updateProduct(
+          clinicId,
+          actorId,
+          first.id,
+          { ...fields, name: "Produto renomeado", active: true },
+        );
+        expect(updated).toMatchObject({
+          name: "Produto renomeado",
+          sku: first.sku,
+        });
+      });
+
       it("closes one mixed tab charge, consumes only its linked service and reverses the credit before cancellation", async () => {
         const created = await patient("Comanda integrada");
         const tab = await repository.openPatientTab(clinicId, actorId, {
