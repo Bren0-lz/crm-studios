@@ -92,9 +92,8 @@ describe("folha de pagamento pela API real", () => {
       name: "Itens de Marina Folha",
     });
     expect(within(items).getByText("Salário fixo")).toBeInTheDocument();
-    expect(
-      within(items).getByText(`Comissão · ${service.name}`),
-    ).toBeInTheDocument();
+    expect(within(items).getByText("Comissão")).toBeInTheDocument();
+    expect(within(items).getByText(service.name)).toBeInTheDocument();
     expect(within(items).getAllByText("A lançar")).toHaveLength(2);
     expect(
       within(panel).getByRole("region", { name: "Folha de Centro" }),

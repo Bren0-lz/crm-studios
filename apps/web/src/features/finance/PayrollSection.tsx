@@ -11,7 +11,7 @@ import {
   type PayrollTotals,
   type Professional,
 } from "@crm/contracts";
-import { UserPlus, Wallet } from "lucide-react";
+import { ChevronDown, ChevronUp, UserPlus, Wallet } from "lucide-react";
 import { useEffect, useState } from "react";
 import { allBranches, api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
@@ -34,13 +34,25 @@ const statusLabels: Record<PayrollItemStatus, string> = {
 };
 const money = (cents: number) => currency.format(cents / 100);
 
-/** Itens iguais (mesma descrição e situação) somados numa linha: "21 × Comissão · Pilates". */
+/** Cor da situação: âmbar pede ação (a lançar), cinza-azulado aguarda pagamento, verde quitado. */
+const statusTones: Record<PayrollItemStatus, string> = {
+  pending: "paused",
+  launched: "open",
+  paid: "paid",
+  outside: "paid",
+};
+
+/**
+ * Itens iguais (mesmo tipo, descrição e situação) somados numa linha. A descrição é separada
+ * no primeiro " · ": "Comissão" como título e "Pilates individual" como detalhe.
+ */
 function groupItems(items: PayrollItem[]) {
   const groups = new Map<
     string,
     {
       key: string;
-      description: string;
+      title: string;
+      detail: string;
       status: PayrollItemStatus;
       count: number;
       amountInCents: number;
@@ -48,9 +60,11 @@ function groupItems(items: PayrollItem[]) {
   >();
   for (const item of items) {
     const key = `${item.kind}|${item.description}|${item.status}`;
+    const [title = item.description, ...rest] = item.description.split(" · ");
     const group = groups.get(key) ?? {
       key,
-      description: item.description,
+      title,
+      detail: rest.join(" · "),
       status: item.status,
       count: 0,
       amountInCents: 0,
@@ -63,11 +77,11 @@ function groupItems(items: PayrollItem[]) {
 }
 
 function lineStatus(line: PayrollLine) {
-  if (line.pendingInCents !== 0) return "A lançar";
-  if (!line.payables.length) return "Sem valores";
+  if (line.pendingInCents !== 0) return { label: "A lançar", tone: "paused" };
+  if (!line.payables.length) return { label: "Sem valores", tone: "open" };
   return line.payables.every((item) => item.status === "paid")
-    ? "Paga"
-    : "Lançada";
+    ? { label: "Paga", tone: "paid" }
+    : { label: "Lançada", tone: "open" };
 }
 
 function Totals({ totals, label }: { totals: PayrollTotals; label: string }) {
@@ -358,9 +372,10 @@ export function PayrollSection({
                         </div>
                         {branch.lines.map((line) => {
                           const expanded = open.includes(line.employee.id);
+                          const status = lineStatus(line);
                           return (
                             <div
-                              className="payroll-line"
+                              className={`payroll-line${expanded ? " is-open" : ""}`}
                               key={line.employee.id}
                             >
                               <div className="finance-row">
@@ -399,9 +414,9 @@ export function PayrollSection({
                                 </strong>
                                 <span>
                                   <span
-                                    className={`status-pill ${line.pendingInCents ? "open" : "paid"}`}
+                                    className={`status-pill ${status.tone}`}
                                   >
-                                    {lineStatus(line)}
+                                    {status.label}
                                   </span>
                                 </span>
                                 <div className="finance-actions">
@@ -420,6 +435,11 @@ export function PayrollSection({
                                       )
                                     }
                                   >
+                                    {expanded ? (
+                                      <ChevronUp size={16} />
+                                    ) : (
+                                      <ChevronDown size={16} />
+                                    )}
                                     {expanded ? "Ocultar" : "Detalhes"}
                                   </button>
                                   {canManage && (
@@ -444,66 +464,85 @@ export function PayrollSection({
                               </div>
                               {expanded && (
                                 <div className="payroll-detail">
-                                  {line.items.length === 0 ? (
-                                    <p>Nada nesta competência.</p>
-                                  ) : (
-                                    <ul
-                                      aria-label={`Itens de ${line.employee.name}`}
-                                    >
-                                      {groupItems(line.items).map((group) => (
-                                        <li key={group.key}>
-                                          <span>
-                                            {group.count > 1
-                                              ? `${group.count} × ${group.description}`
-                                              : group.description}
-                                          </span>
-                                          <strong>
-                                            {money(group.amountInCents)}
-                                          </strong>
-                                          <span
-                                            className={`status-pill ${group.status === "pending" ? "open" : "paid"}`}
-                                          >
-                                            {statusLabels[group.status]}
-                                          </span>
-                                        </li>
-                                      ))}
-                                    </ul>
-                                  )}
+                                  <section className="payroll-detail-block">
+                                    <h4>Composição do mês</h4>
+                                    {line.items.length === 0 ? (
+                                      <p className="payroll-detail-empty">
+                                        Nada nesta competência.
+                                      </p>
+                                    ) : (
+                                      <ul
+                                        className="payroll-detail-list"
+                                        aria-label={`Itens de ${line.employee.name}`}
+                                      >
+                                        {groupItems(line.items).map((group) => (
+                                          <li key={group.key}>
+                                            <span className="payroll-detail-text">
+                                              <span>{group.title}</span>
+                                              {group.detail && (
+                                                <small>{group.detail}</small>
+                                              )}
+                                            </span>
+                                            <span className="payroll-detail-meta">
+                                              {group.count > 1
+                                                ? `${group.count} lançamentos`
+                                                : ""}
+                                            </span>
+                                            <strong>
+                                              {money(group.amountInCents)}
+                                            </strong>
+                                            <span
+                                              className={`status-pill ${statusTones[group.status]}`}
+                                            >
+                                              {statusLabels[group.status]}
+                                            </span>
+                                          </li>
+                                        ))}
+                                      </ul>
+                                    )}
+                                  </section>
                                   {line.payables.length > 0 && (
-                                    <ul
-                                      aria-label={`Despesas da folha de ${line.employee.name}`}
-                                    >
-                                      {line.payables.map((payable) => (
-                                        <li key={payable.id}>
-                                          <span>
-                                            {payable.description} · vence{" "}
-                                            {formatIsoDate(payable.dueDate)}
-                                          </span>
-                                          <strong>
-                                            {money(payable.amountInCents)}
-                                          </strong>
-                                          <span
-                                            className={`status-pill ${payable.status}`}
-                                          >
-                                            {payable.status === "paid"
-                                              ? "Paga"
-                                              : "Em aberto"}
-                                          </span>
-                                          {canManage &&
-                                            payable.status === "open" && (
-                                              <button
-                                                type="button"
-                                                className="secondary-button button-sm"
-                                                onClick={() =>
-                                                  setUndoing(payable)
-                                                }
-                                              >
-                                                Desfazer lançamento
-                                              </button>
-                                            )}
-                                        </li>
-                                      ))}
-                                    </ul>
+                                    <section className="payroll-detail-block">
+                                      <h4>Contas a pagar</h4>
+                                      <ul
+                                        className="payroll-detail-list"
+                                        aria-label={`Despesas da folha de ${line.employee.name}`}
+                                      >
+                                        {line.payables.map((payable) => (
+                                          <li key={payable.id}>
+                                            <span className="payroll-detail-text">
+                                              <span>{payable.description}</span>
+                                              {canManage &&
+                                                payable.status === "open" && (
+                                                  <button
+                                                    type="button"
+                                                    className="secondary-button button-sm"
+                                                    onClick={() =>
+                                                      setUndoing(payable)
+                                                    }
+                                                  >
+                                                    Desfazer lançamento
+                                                  </button>
+                                                )}
+                                            </span>
+                                            <span className="payroll-detail-meta">
+                                              Vence{" "}
+                                              {formatIsoDate(payable.dueDate)}
+                                            </span>
+                                            <strong>
+                                              {money(payable.amountInCents)}
+                                            </strong>
+                                            <span
+                                              className={`status-pill ${payable.status}`}
+                                            >
+                                              {payable.status === "paid"
+                                                ? "Paga"
+                                                : "Em aberto"}
+                                            </span>
+                                          </li>
+                                        ))}
+                                      </ul>
+                                    </section>
                                   )}
                                 </div>
                               )}

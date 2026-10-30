@@ -1120,7 +1120,6 @@
   margin: 0;
 }
 .payroll-unassigned ul,
-.payroll-detail ul,
 .payroll-launch-list {
   display: grid;
   gap: var(--space-2);
@@ -1129,7 +1128,6 @@
   list-style: none;
 }
 .payroll-unassigned li,
-.payroll-detail li,
 .payroll-launch-list li {
   display: flex;
   flex-wrap: wrap;
@@ -1185,13 +1183,77 @@
     minmax(160px, 1fr) 100px 100px 90px 110px 100px
     minmax(150px, auto);
 }
+/* Detalhe aberto: bloco recuado com fundo próprio, colado à linha do colaborador. */
+.payroll-line.is-open > .finance-row {
+  background: var(--cream);
+}
 .payroll-detail {
   display: grid;
-  gap: var(--space-3);
-  padding: 0 calc(var(--space-5) - 1px) var(--space-4);
+  gap: var(--space-4);
+  margin: 0 calc(var(--space-5) - 1px) var(--space-3);
+  padding: var(--space-3) var(--space-4) var(--space-4);
+  border: 1px solid var(--line);
+  border-top: 0;
+  border-radius: 0 0 var(--radius-sm) var(--radius-sm);
+  background: var(--cream);
   font-size: var(--text-sm);
 }
-.payroll-detail li > strong,
+.payroll-detail-block {
+  display: grid;
+  gap: var(--space-2);
+}
+.payroll-detail-block h4 {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--text-xs);
+  font-weight: 600;
+}
+.payroll-detail-empty {
+  margin: 0;
+  color: var(--muted);
+}
+.payroll-detail-list {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  border-radius: var(--radius-sm);
+  background: var(--paper);
+  list-style: none;
+}
+/* Mesmas colunas nas duas listas: descrição, quantidade/vencimento, valor e situação. */
+.payroll-detail-list li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 130px 110px 130px;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+}
+.payroll-detail-list li + li {
+  border-top: 1px solid var(--line);
+}
+.payroll-detail-text {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-3);
+  min-width: 0;
+}
+.payroll-detail-text small {
+  flex-basis: 100%;
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+.payroll-detail-meta {
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+.payroll-detail-list li > strong {
+  text-align: right;
+}
+.payroll-detail-list .status-pill {
+  justify-self: end;
+  white-space: nowrap;
+}
 .payroll-launch-list li > strong {
   margin-left: auto;
   text-align: right;
