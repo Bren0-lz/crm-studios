@@ -20,6 +20,7 @@ import {
 import { z } from "zod";
 import type { RouteContext } from "../../infrastructure/route-context.js";
 import { DomainError } from "../../repository.js";
+import { reconcileChangedCommissions } from "../finance/commission-reconciliation.js";
 import {
   loadPromotionOffers,
   resolvePromotionRedemption,
@@ -351,6 +352,12 @@ export function registerAgendaRoutes(context: RouteContext) {
           code: "APPOINTMENT_NOT_FOUND",
           message: "Atendimento não encontrado.",
         });
+      await reconcileChangedCommissions(
+        repository,
+        request,
+        { appointmentIds: [id] },
+        "atendimento remarcado.",
+      );
       return appointment;
     },
   );
@@ -388,6 +395,12 @@ export function registerAgendaRoutes(context: RouteContext) {
           code: "APPOINTMENT_NOT_FOUND",
           message: "Atendimento não encontrado.",
         } satisfies ApiError);
+      await reconcileChangedCommissions(
+        repository,
+        request,
+        { appointmentIds: [id] },
+        "atendimento editado.",
+      );
       return appointment;
     },
   );
@@ -433,6 +446,12 @@ export function registerAgendaRoutes(context: RouteContext) {
           code: "APPOINTMENT_NOT_FOUND",
           message: "Atendimento não encontrado.",
         });
+      await reconcileChangedCommissions(
+        repository,
+        request,
+        { appointmentIds: [id] },
+        "situação do atendimento alterada.",
+      );
       return appointment;
     },
   );

@@ -4,11 +4,13 @@ import {
   type CommissionReconciliationInput,
   type CommissionAdjustment,
   type CommissionAccountPayment,
+  type CommissionEntry,
 } from "@crm/contracts";
-import { DomainError } from "../../repository.js";
+import { DomainError, type CommissionSourceScope } from "../../repository.js";
 import {
   commissionReconciliationDigest,
   commissionReconciliationChanges,
+  commissionAdjustmentsWithinLimit as withinLimit,
 } from "../../modules/finance/commission-reconciliation.js";
 import {
   selectCommissionRule,
@@ -171,6 +173,80 @@ export function createCommissionReconciliationRepository(
       originalManagedByExpense: expense(clinicId, id),
     });
   };
+  // Grava a conciliação (manual ou automática) com os ajustes e a auditoria de quem fez.
+  const apply = (
+    clinicId: string,
+    actorId: string,
+    id: string,
+    comparison: ReturnType<typeof preview>,
+    input: { idempotencyKey: string; reason: string; automatic?: boolean },
+  ) => {
+    const reconciliationId = uuid(),
+      timestamp = now(),
+      entries: CommissionAdjustment[] = comparison.changes.map((change) => ({
+        ...change,
+        id: uuid(),
+        clinicId,
+        commissionId: id,
+        reconciliationId,
+        reason: input.reason,
+        actorId,
+        createdAt: timestamp,
+        status: "open",
+      }));
+    const record = {
+      actorName: context.users.find(
+        (user) => user.clinicId === clinicId && user.id === actorId,
+      )!.fullName,
+      expectedDigest: comparison.digest,
+      id: reconciliationId,
+      clinicId,
+      commissionId: id,
+      idempotencyKey: input.idempotencyKey,
+      reason: input.reason,
+      actorId,
+      createdAt: timestamp,
+      expected: comparison.expected,
+      adjustments: entries,
+    };
+    context.commissionAdjustments.push(...entries);
+    context.commissionReconciliations.push(record);
+    context.recordAudit(
+      clinicId,
+      actorId,
+      input.automatic ? "commission.auto_reconciled" : "commission.reconciled",
+      "commission",
+      { reason: input.reason, reconciliationId, changes: comparison.changes },
+      id,
+    );
+    return record;
+  };
+  const inScope = (
+    commission: CommissionEntry,
+    scope: CommissionSourceScope,
+  ) => {
+    if (
+      commission.appointmentId &&
+      scope.appointmentIds?.includes(commission.appointmentId)
+    )
+      return true;
+    if (!commission.groupAttendanceId) return false;
+    if (scope.groupAttendanceIds?.includes(commission.groupAttendanceId))
+      return true;
+    const attendance = context.groupAttendance.find(
+        (entry) =>
+          entry.clinicId === commission.clinicId &&
+          entry.id === commission.groupAttendanceId,
+      ),
+      meeting = attendance
+        ? context.groupSessions.find(
+            (entry) =>
+              entry.clinicId === commission.clinicId &&
+              entry.id === attendance.sessionId,
+          )
+        : undefined;
+    return Boolean(meeting && scope.groupSessionIds?.includes(meeting.id));
+  };
   return {
     async getCommissionReconciliationPreview(clinicId: string, id: string) {
       return preview(clinicId, id);
@@ -213,57 +289,41 @@ export function createCommissionReconciliationRepository(
           "A comissão já está conciliada com sua origem.",
           409,
         );
-      if (
-        comparison.changes.some(
-          (entry) =>
-            !Number.isSafeInteger(entry.amountInCents) ||
-            Math.abs(entry.amountInCents) > 2147483647,
-        )
-      )
+      if (!withinLimit(comparison.changes))
         throw new DomainError(
           "COMMISSION_AMOUNT_LIMIT",
           "O ajuste excede o limite financeiro permitido.",
           409,
         );
-      const reconciliationId = uuid(),
-        timestamp = now(),
-        entries: CommissionAdjustment[] = comparison.changes.map((change) => ({
-          ...change,
-          id: uuid(),
-          clinicId,
-          commissionId: id,
-          reconciliationId,
+      return structuredClone(
+        apply(clinicId, actorId, id, comparison, {
+          idempotencyKey: input.idempotencyKey,
           reason: input.reason,
-          actorId,
-          createdAt: timestamp,
-          status: "open",
-        }));
-      const record = {
-        actorName: context.users.find(
-          (user) => user.clinicId === clinicId && user.id === actorId,
-        )!.fullName,
-        expectedDigest: input.expectedDigest,
-        id: reconciliationId,
-        clinicId,
-        commissionId: id,
-        idempotencyKey: input.idempotencyKey,
-        reason: input.reason,
-        actorId,
-        createdAt: timestamp,
-        expected: comparison.expected,
-        adjustments: entries,
-      };
-      context.commissionAdjustments.push(...entries);
-      context.commissionReconciliations.push(record);
-      context.recordAudit(
-        clinicId,
-        actorId,
-        "commission.reconciled",
-        "commission",
-        { reason: input.reason, reconciliationId, changes: comparison.changes },
-        id,
+        }),
       );
-      return structuredClone(record);
+    },
+    async autoReconcileCommissions(
+      clinicId: string,
+      actorId: string,
+      scope: CommissionSourceScope,
+      reason: string,
+    ) {
+      actor(clinicId, actorId);
+      let reconciled = 0;
+      for (const commission of context.commissions.filter(
+        (entry) => entry.clinicId === clinicId && inScope(entry, scope),
+      )) {
+        const comparison = preview(clinicId, commission.id);
+        if (!comparison.changes.length || !withinLimit(comparison.changes))
+          continue;
+        apply(clinicId, actorId, commission.id, comparison, {
+          idempotencyKey: uuid(),
+          reason,
+          automatic: true,
+        });
+        reconciled += 1;
+      }
+      return reconciled;
     },
     async settleCommissionAccount(
       clinicId: string,
