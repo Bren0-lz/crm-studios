@@ -204,8 +204,6 @@ beforeEach(() => {
     attendance: [],
     replacementCredits: [],
   });
-  vi.spyOn(api, "clinicalRecords").mockResolvedValue([]);
-  vi.spyOn(api, "clinicalAppointmentOptions").mockResolvedValue([]);
   vi.spyOn(api, "clinicalWorkspace").mockImplementation(async (id) =>
     workspace(id === ana.id ? ana : breno),
   );

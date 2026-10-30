@@ -42,7 +42,7 @@ export function ClinicCatalogsContent() {
                 <section className="catalog-section">
                   <header className="catalog-section-head">
                     <div>
-                      <h3>Aparelhos, exercícios e modelos de evolução</h3>
+                      <h3>Aparelhos e exercícios</h3>
                       <p>Recursos compartilhados nos prontuários.</p>
                     </div>
                   </header>
