@@ -75,12 +75,25 @@ export function createPlanPurchasesRepository(
               patientId: plan.patientId,
             }),
           );
-        const enrollment = input.groupId
-          ? await context.operations.createGroupEnrollment(clinicId, {
-              groupId: input.groupId,
-              patientId: plan.patientId,
-            })
+        // Cliente que já está na turma (plano anterior vencido ou cancelado não encerra a
+        // matrícula): o novo plano segue com a mesma matrícula, sem duplicar.
+        const current = input.groupId
+          ? context.groupEnrollments.find(
+              (item) =>
+                item.clinicId === clinicId &&
+                item.groupId === input.groupId &&
+                item.patientId === plan.patientId &&
+                item.status !== "cancelled",
+            )
           : undefined;
+        const enrollment = current
+          ? structuredClone(current)
+          : input.groupId
+            ? await context.operations.createGroupEnrollment(clinicId, {
+                groupId: input.groupId,
+                patientId: plan.patientId,
+              })
+            : undefined;
         let document = input.document
           ? await context.operations.createIssuedDocument(clinicId, actorId, {
               ...input.document,
