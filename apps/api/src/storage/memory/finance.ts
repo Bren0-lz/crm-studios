@@ -3,6 +3,7 @@ import {
   assertStockSize,
   isStockOut,
 } from "../../modules/finance/product-stock.js";
+import { generatedProductSku } from "../../modules/finance/product-sku.js";
 import {
   receiptInstallments,
   receiptWithClinic,
@@ -182,19 +183,21 @@ export function createFinanceRepository(
       input: ProductInput,
     ) {
       const branchId = repositoryContext.writeBranchId(clinicId);
-      if (
+      const skuTaken = (sku: string) =>
         repositoryContext.products.some(
           (item) =>
             item.clinicId === clinicId &&
             repositoryContext.branchOf(item) === branchId &&
-            item.sku.toLocaleLowerCase() === input.sku.toLocaleLowerCase(),
-        )
-      )
+            item.sku.toLocaleLowerCase() === sku.toLocaleLowerCase(),
+        );
+      if (input.sku && skuTaken(input.sku))
         throw new DomainError(
           "PRODUCT_SKU_EXISTS",
           "Já existe um produto com este SKU.",
           409,
         );
+      let sku = input.sku ?? generatedProductSku(uuid());
+      while (!input.sku && skuTaken(sku)) sku = generatedProductSku(uuid());
       for (const [key, kind] of [
         ["categoryId", "product_category"],
         ["brandId", "product_brand"],
@@ -217,7 +220,7 @@ export function createFinanceRepository(
           : {}),
         ...(input.brandId !== undefined ? { brandId: input.brandId } : {}),
         name: input.name,
-        sku: input.sku,
+        sku,
         unit: input.unit,
         costInCents: input.costInCents,
         salePriceInCents: input.salePriceInCents,
