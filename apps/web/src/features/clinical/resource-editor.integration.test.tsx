@@ -9,14 +9,16 @@ import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import {
   clinicalResourceInputSchema,
-  type ClinicalResourceKind,
   type ClinicalResource,
 } from "@crm/contracts";
 import { AuthorizationProvider } from "../../authorization";
 import { actorId, clinicId, setupApi } from "../../test-support/api-server";
-import { ClinicalResourceEditor } from "./ClinicalResourceEditor";
+import {
+  ClinicalResourceEditor,
+  type EditableResourceKind,
+} from "./ClinicalResourceEditor";
 
-async function setup(kind: ClinicalResourceKind, resource?: ClinicalResource) {
+async function setup(kind: EditableResourceKind, resource?: ClinicalResource) {
   const { repository } = await setupApi();
   const [patient] = await repository.listPatients(clinicId);
   const professionals = await repository.listProfessionals(clinicId);
@@ -47,7 +49,6 @@ async function setup(kind: ClinicalResourceKind, resource?: ClinicalResource) {
             patients={[patient!]}
             professionals={professionals}
             resources={resources}
-            sources={[]}
             muscleGroups={muscleGroups}
             onSaved={saved}
             onClose={closed}
@@ -172,171 +173,6 @@ describe("clinical editor with the real API", () => {
     });
     expect(revised.history).toHaveLength(1);
   });
-  it("applies SOAP defaults and updates the equipment and exercise references on an evolution", async () => {
-    const { repository, patient, professionals, appointment, show, saved } =
-      await setup("evolution");
-    const equipment = await repository.saveClinicalResource(
-      clinicId,
-      actorId,
-      clinicalResourceInputSchema.parse({
-        kind: "equipment",
-        name: "Aparelho histórico",
-      }),
-    );
-    const exercise = await repository.saveClinicalResource(
-      clinicId,
-      actorId,
-      clinicalResourceInputSchema.parse({
-        kind: "exercise",
-        name: "Exercício histórico",
-      }),
-    );
-    const template = await repository.saveClinicalResource(
-      clinicId,
-      actorId,
-      clinicalResourceInputSchema.parse({
-        kind: "evolution_template",
-        name: "SOAP publicado",
-        status: "published",
-        format: "soap",
-        soap: {
-          subjective: "Relato inicial",
-          objective: "Avaliação objetiva",
-          assessment: "Hipótese funcional",
-          plan: "Plano inicial",
-        },
-      }),
-    );
-    const evolution = await repository.saveClinicalResource(
-      clinicId,
-      actorId,
-      clinicalResourceInputSchema.parse({
-        kind: "evolution",
-        name: "Evolução em revisão",
-        patientId: patient.id,
-        professionalId: professionals[0]!.id,
-        sourceType: "appointment",
-        sourceId: appointment.id,
-        format: "text",
-        body: "Registro inicial",
-        equipmentIds: [equipment.id],
-        exerciseIds: [exercise.id],
-      }),
-    );
-    const inactiveEquipment = await repository.saveClinicalResource(
-      clinicId,
-      actorId,
-      clinicalResourceInputSchema.parse({ ...equipment.data, active: false }),
-      equipment.id,
-    );
-    const inactiveExercise = await repository.saveClinicalResource(
-      clinicId,
-      actorId,
-      clinicalResourceInputSchema.parse({ ...exercise.data, active: false }),
-      exercise.id,
-    );
-    show([inactiveEquipment, inactiveExercise, template], [], evolution);
-    change("Modelo", template.id);
-    expect(screen.getByLabelText("Subjetivo")).toHaveValue("Relato inicial");
-    for (const label of ["Subjetivo", "Objetivo", "Avaliação", "Plano"])
-      change(label, `Revisado ${label}`);
-    for (const label of [equipment.name, exercise.name]) {
-      fireEvent.click(screen.getByLabelText(label));
-      fireEvent.click(screen.getByLabelText(label));
-    }
-    await submit(saved);
-    expect(
-      (
-        await repository.listClinicalResources(clinicId, actorId, patient.id)
-      ).find((item) => item.id === evolution.id)?.data,
-    ).toMatchObject({
-      format: "soap",
-      subjective: "Revisado Subjetivo",
-      templateId: template.id,
-      equipmentIds: [equipment.id],
-      exerciseIds: [exercise.id],
-    });
-  });
-  it("builds and publishes an ordered questionnaire with required choices and bounded numbers", async () => {
-    const { repository, show, saved } = await setup("evolution_template");
-    show();
-    change("Nome", "Ficha clínica publicada");
-    change("Formato", "questionnaire");
-    fireEvent.click(screen.getByRole("button", { name: "Adicionar campo" }));
-    let group = screen.getByRole("group", { name: "Campo 1" });
-    change("Pergunta ou título", "Atividade", group);
-    change("Tipo", "select", group);
-    change("Opções, uma por linha", "Mobilidade\nForça", group);
-    fireEvent.click(within(group).getByLabelText("Obrigatório"));
-    fireEvent.click(screen.getByRole("button", { name: "Adicionar campo" }));
-    group = screen.getByRole("group", { name: "Campo 2" });
-    change("Pergunta ou título", "Dor", group);
-    change("Tipo", "scale", group);
-    change("Unidade", "pontos", group);
-    change("Mínimo", "0", group);
-    change("Máximo", "10", group);
-    fireEvent.click(
-      within(group).getByRole("button", { name: "Mover para cima" }),
-    );
-    fireEvent.click(screen.getByRole("button", { name: "Adicionar campo" }));
-    group = screen.getByRole("group", { name: "Campo 3" });
-    change("Pergunta ou título", "Campo descartado", group);
-    fireEvent.click(
-      within(group).getByRole("button", { name: "Remover campo" }),
-    );
-    fireEvent.click(
-      screen.getByRole("button", { name: "Pré-visualizar ficha" }),
-    );
-    expect(screen.getByLabelText("Dor (pontos)")).toBeDisabled();
-    change("Situação", "published");
-    await submit(saved);
-    const record = (
-      await repository.listClinicalResources(clinicId, actorId)
-    ).find((item) => item.name === "Ficha clínica publicada")!;
-    expect(record).toMatchObject({
-      status: "published",
-      data: {
-        kind: "evolution_template",
-        format: "questionnaire",
-        fields: [
-          { key: "campo_2", label: "Dor", type: "scale", min: 0, max: 10 },
-          {
-            key: "campo_1",
-            label: "Atividade",
-            type: "select",
-            required: true,
-            options: ["Mobilidade", "Força"],
-          },
-        ],
-      },
-    });
-  });
-
-  it("publishes SOAP defaults in a reusable model", async () => {
-    const { repository, show, saved } = await setup("evolution_template");
-    show();
-    change("Nome", "Modelo SOAP assistido");
-    change("Formato", "soap");
-    for (const label of ["Subjetivo", "Objetivo", "Avaliação", "Plano"])
-      change(label, `Orientação ${label}`);
-    change("Situação", "published");
-    await submit(saved);
-    expect(
-      (await repository.listClinicalResources(clinicId, actorId)).find(
-        (item) => item.name === "Modelo SOAP assistido",
-      )?.data,
-    ).toMatchObject({
-      kind: "evolution_template",
-      format: "soap",
-      soap: {
-        subjective: "Orientação Subjetivo",
-        objective: "Orientação Objetivo",
-        assessment: "Orientação Avaliação",
-        plan: "Orientação Plano",
-      },
-    });
-  });
-
   it("rejects an unsupported image and saves an exercise with its equipment and muscle group", async () => {
     const { repository, show, saved } = await setup("exercise");
     const equipment = await repository.saveClinicalResource(

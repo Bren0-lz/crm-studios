@@ -1,22 +1,9 @@
-import type {
-  ClinicalAddendum,
-  ClinicalMeasurement,
-  ClinicalRecord,
-  TherapeuticGoal,
-} from "@crm/contracts";
-import {
-  FileClock,
-  FilePlus2,
-  History,
-  LineChart,
-  Search,
-  Target,
-} from "lucide-react";
+import type { ClinicalMeasurement, TherapeuticGoal } from "@crm/contracts";
+import { History, LineChart, Search, Target } from "lucide-react";
 import { useState } from "react";
 import { useAuthorization } from "../../authorization-context";
 import { EmptyState } from "../../shared/components/EmptyState";
 import { shortDate, timeLabel } from "../../shared/lib/formatting";
-import { professionalWithCrefito } from "../contracts/index";
 import { MeasurementChart } from "./MeasurementChart";
 import {
   clinicalTimelineKindLabels,
@@ -58,7 +45,7 @@ export function ChartTimelineTab({
       <EmptyState
         icon={History}
         title="Nenhum evento clínico registrado"
-        copy="Evoluções, avaliações, medições e arquivos aparecem aqui em ordem."
+        copy="Avaliações, medições e arquivos aparecem aqui em ordem."
       />
     );
   return (
@@ -108,12 +95,7 @@ export function ChartTimelineTab({
             <li key={event.id} className={`timeline-${event.kind}`}>
               <span className="chart-timeline-dot" aria-hidden="true" />
               <div>
-                <span className="chart-timeline-kind">
-                  {event.label}
-                  {event.draft && (
-                    <span className="status-pill draft">Rascunho</span>
-                  )}
-                </span>
+                <span className="chart-timeline-kind">{event.label}</span>
                 <strong>{event.title}</strong>
                 <small>
                   {dateTime(event.date)} · {event.author}
@@ -123,170 +105,6 @@ export function ChartTimelineTab({
           ))}
         </ol>
       )}
-    </div>
-  );
-}
-
-const soapLabels = [
-  ["subjective", "S", "Subjetivo"],
-  ["objective", "O", "Objetivo"],
-  ["assessment", "A", "Avaliação"],
-  ["plan", "P", "Plano"],
-] as const;
-
-export function ChartEvolutionsTab({
-  records,
-  addenda,
-  editable,
-  canEvolve,
-  onEvolve,
-  onEdit,
-  onFinalize,
-  onHistory,
-  onAddendum,
-}: {
-  records: ClinicalRecord[];
-  addenda: ClinicalAddendum[];
-  editable: boolean;
-  /** Há sessão pendente e permissão para registrar. */
-  canEvolve: boolean;
-  onEvolve: () => void;
-  onEdit: (record: ClinicalRecord) => void;
-  onFinalize: (record: ClinicalRecord) => void;
-  onHistory: (record: ClinicalRecord) => void;
-  onAddendum: (record: ClinicalRecord) => void;
-}) {
-  const { can } = useAuthorization();
-  if (records.length === 0)
-    return (
-      <EmptyState
-        icon={FileClock}
-        title="Nenhuma evolução registrada"
-        copy="Registre a evolução a partir de uma sessão já iniciada na agenda."
-        action={
-          canEvolve ? (
-            <button type="button" className="primary-button" onClick={onEvolve}>
-              <FilePlus2 size={16} /> Evoluir sessão
-            </button>
-          ) : undefined
-        }
-      />
-    );
-  return (
-    <div className="chart-tab chart-evolutions">
-      {records.map((record) => {
-        const recordAddenda = addenda.filter(
-          (item) => item.clinicalRecordId === record.id,
-        );
-        return (
-          <article className="chart-evolution" key={record.id}>
-            <header>
-              <div className="chart-evolution-date">
-                <strong>
-                  {new Intl.DateTimeFormat("pt-BR", { day: "2-digit" }).format(
-                    new Date(record.appointmentStartsAt),
-                  )}
-                </strong>
-                <span>
-                  {new Intl.DateTimeFormat("pt-BR", { month: "short" }).format(
-                    new Date(record.appointmentStartsAt),
-                  )}
-                </span>
-              </div>
-              <div className="chart-evolution-meta">
-                <h3>
-                  Sessão de {dateTime(record.appointmentStartsAt)}
-                  <span className={`status-pill ${record.status}`}>
-                    {record.status === "finalized" ? "Finalizado" : "Rascunho"}
-                  </span>
-                </h3>
-                <p>
-                  {professionalWithCrefito(
-                    record.professionalName,
-                    record.professionalCrefito,
-                  )}{" "}
-                  · versão {record.version}
-                </p>
-              </div>
-              {record.painScale !== undefined && (
-                <span
-                  className={`chart-pain pain-${record.painScale >= 7 ? "high" : record.painScale >= 4 ? "mid" : "low"}`}
-                  title="Escala de dor"
-                >
-                  Dor {record.painScale}/10
-                </span>
-              )}
-            </header>
-            <dl className="chart-soap">
-              {soapLabels.map(([key, letter, label]) => (
-                <div key={key}>
-                  <dt>
-                    <span aria-hidden="true">{letter}</span> {label}
-                  </dt>
-                  <dd className={record[key] ? "" : "is-empty"}>
-                    {record[key] || "Não preenchido"}
-                  </dd>
-                </div>
-              ))}
-            </dl>
-            {recordAddenda.length > 0 && (
-              <ul className="chart-addenda" aria-label="Adendos">
-                {recordAddenda.map((addendum) => (
-                  <li key={addendum.id}>
-                    <strong>Adendo · {addendum.reason}</strong>
-                    <p>{addendum.content}</p>
-                    <small>
-                      {dateTime(addendum.createdAt)} · {addendum.authorName}
-                    </small>
-                  </li>
-                ))}
-              </ul>
-            )}
-            <footer>
-              <button
-                type="button"
-                className="secondary-button button-sm"
-                onClick={() => onHistory(record)}
-              >
-                <FileClock size={16} /> Histórico
-              </button>
-              {editable && record.status === "draft" && (
-                <>
-                  {can("clinical.records_update") && (
-                    <button
-                      type="button"
-                      className="secondary-button button-sm"
-                      onClick={() => onEdit(record)}
-                    >
-                      Editar
-                    </button>
-                  )}
-                  {can("clinical.finalize") && (
-                    <button
-                      type="button"
-                      className="primary-button button-sm"
-                      onClick={() => onFinalize(record)}
-                    >
-                      Finalizar
-                    </button>
-                  )}
-                </>
-              )}
-              {editable &&
-                record.status === "finalized" &&
-                can("clinical.addenda_create") && (
-                  <button
-                    type="button"
-                    className="secondary-button button-sm"
-                    onClick={() => onAddendum(record)}
-                  >
-                    Incluir adendo
-                  </button>
-                )}
-            </footer>
-          </article>
-        );
-      })}
     </div>
   );
 }

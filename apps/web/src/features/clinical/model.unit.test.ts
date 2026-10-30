@@ -1,12 +1,7 @@
-import type {
-  ClinicalAppointmentOption,
-  ClinicalMeasurement,
-  ClinicalRecord,
-} from "@crm/contracts";
+import type { ClinicalMeasurement } from "@crm/contracts";
 import { describe, expect, it } from "vitest";
 import {
-  buildPatientSummaries,
-  filterPatientSummaries,
+  filterClinicalPatients,
   goalProgress,
   measurementSeries,
   patientAge,
@@ -16,61 +11,20 @@ const ana = { id: "a", fullName: "Ana Gomes", tags: [] };
 const bia = { id: "b", fullName: "Bia Lima", tags: [] };
 const caio = { id: "c", fullName: "Caio Souza", tags: [] };
 
-const appointment = (
-  id: string,
-  patientId: string,
-  startsAt: string,
-): ClinicalAppointmentOption => ({
-  id,
-  patientId,
-  startsAt,
-  patientName: "",
-  professionalName: "Dra. Ana",
-  status: "completed",
-});
-
 describe("clinical chart model", () => {
-  it("summarizes pending sessions and drafts per client, most recent activity first", () => {
-    const records = [
-      {
-        id: "r1",
-        appointmentId: "s1",
-        patientId: ana.id,
-        status: "draft",
-        appointmentStartsAt: "2026-10-10T12:00:00Z",
-      },
-    ] as ClinicalRecord[];
-    const summaries = buildPatientSummaries([caio, bia, ana], records, [
-      appointment("s1", ana.id, "2026-10-10T12:00:00Z"),
-      appointment("s2", bia.id, "2026-10-20T12:00:00Z"),
-    ]);
-    const byId = Object.fromEntries(
-      summaries.map((item) => [item.patient.id, item]),
-    );
-    expect(byId.a).toMatchObject({ records: 1, drafts: 1, pending: [] });
-    expect(byId.b?.pending.map((item) => item.id)).toEqual(["s2"]);
-    expect(byId.c).not.toHaveProperty("lastActivityAt");
-
+  it("lists clients alphabetically and searches by name without accents", () => {
     expect(
-      filterPatientSummaries(summaries, "", "all").map(
-        (item) => item.patient.id,
-      ),
-    ).toEqual(["b", "a", "c"]);
+      filterClinicalPatients([caio, bia, ana], "").map((item) => item.id),
+    ).toEqual(["a", "b", "c"]);
     expect(
-      filterPatientSummaries(summaries, "", "pending").map(
-        (item) => item.patient.id,
-      ),
-    ).toEqual(["b"]);
-    expect(
-      filterPatientSummaries(summaries, "", "drafts").map(
-        (item) => item.patient.id,
-      ),
-    ).toEqual(["a"]);
-    expect(
-      filterPatientSummaries(summaries, "souza", "all").map(
-        (item) => item.patient.id,
-      ),
+      filterClinicalPatients([caio, bia, ana], "SOUZA").map((item) => item.id),
     ).toEqual(["c"]);
+    expect(
+      filterClinicalPatients(
+        [{ id: "d", fullName: "Débora Lú", tags: [] }],
+        "debora lu",
+      ),
+    ).toHaveLength(1);
   });
 
   it("measures goal progress whether the target goes up or down", () => {
