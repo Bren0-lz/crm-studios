@@ -37,7 +37,8 @@ export interface IssuedDocumentRow {
   id: string;
   clinicId: string;
   templateId: string;
-  patientId: string;
+  patientId: string | null;
+  supplierId: string | null;
   planId: string | null;
   professionalId: string | null;
   title: string;
@@ -60,12 +61,19 @@ export const documentTemplateColumns = `
   previous_version_id AS "previousVersionId", created_at AS "createdAt"
 `;
 
+/** Junções que `issuedDocumentColumns` pede (`d` = issued_documents): quem assina é cliente ou fornecedor. */
+export const issuedDocumentJoins = `
+  LEFT JOIN patients p ON p.id = d.patient_id AND p.clinic_id = d.clinic_id
+  LEFT JOIN suppliers s ON s.id = d.supplier_id AND s.clinic_id = d.clinic_id
+  LEFT JOIN patient_plans pp ON pp.id = d.plan_id AND pp.clinic_id = d.clinic_id
+`;
+
 export const issuedDocumentColumns = `
   d.id, d.clinic_id AS "clinicId", d.template_id AS "templateId",
-  d.patient_id AS "patientId", d.plan_id AS "planId",
+  d.patient_id AS "patientId", d.supplier_id AS "supplierId", d.plan_id AS "planId",
   d.professional_id AS "professionalId", d.title,
   d.template_name AS "templateName", d.template_version AS "templateVersion",
-  p.full_name AS "patientName", pp.name AS "planName",
+  COALESCE(p.full_name, s.name) AS "patientName", pp.name AS "planName",
   d.manual_signature AS "manualSignature",d.snapshot_body AS "snapshotBody", d.snapshot_content AS "snapshotContent", d.branding, d.status,
   d.issued_at AS "issuedAt", d.cancelled_at AS "cancelledAt",
   d.created_at AS "createdAt", d.updated_at AS "updatedAt",
@@ -121,7 +129,8 @@ export function mapIssuedDocument(row: IssuedDocumentRow): IssuedDocument {
     id: row.id,
     clinicId: row.clinicId,
     templateId: row.templateId,
-    patientId: row.patientId,
+    ...(row.patientId ? { patientId: row.patientId } : {}),
+    ...(row.supplierId ? { supplierId: row.supplierId } : {}),
     ...(row.planId ? { planId: row.planId } : {}),
     ...(row.professionalId ? { professionalId: row.professionalId } : {}),
     title: row.title,

@@ -45,14 +45,15 @@ function assertRowOpen(row: PublicLinkRow) {
 /** Documento pelo token, travado para registrar visualização ou assinatura. */
 async function lockByToken(client: PoolClient, token: string) {
   const result = await client.query<PublicLinkRow>(
-    `SELECT l.id, d.title, p.full_name AS "patientName",
+    `SELECT l.id, d.title, COALESCE(p.full_name, s.name) AS "patientName",
             COALESCE(NULLIF(d.branding->>'name', ''), c.name) AS "clinicName",
             d.snapshot_body AS "snapshotBody", d.snapshot_content AS "snapshotContent",
             d.branding, d.status AS "documentStatus", l.views,
             l.expires_at AS "expiresAt", l.signed_at AS "signedAt", l.signature
        FROM document_signature_links l
        JOIN issued_documents d ON d.id = l.document_id AND d.clinic_id = l.clinic_id
-       JOIN patients p ON p.id = d.patient_id AND p.clinic_id = d.clinic_id
+       LEFT JOIN patients p ON p.id = d.patient_id AND p.clinic_id = d.clinic_id
+       LEFT JOIN suppliers s ON s.id = d.supplier_id AND s.clinic_id = d.clinic_id
        JOIN clinics c ON c.id = l.clinic_id
       WHERE l.token = $1
       FOR UPDATE OF l`,
@@ -96,10 +97,13 @@ export function createDocumentSignatureLinksRepository(
           phone: string | null;
           clinicName: string;
         }>(
-          `SELECT d.status, p.phone,
+          // Quem assina: o cliente ou o fornecedor (WhatsApp, senão telefone).
+          `SELECT d.status,
+                  COALESCE(p.phone, NULLIF(s.whatsapp, ''), NULLIF(s.phone, '')) AS phone,
                   COALESCE(NULLIF(d.branding->>'name', ''), c.name) AS "clinicName"
              FROM issued_documents d
-             JOIN patients p ON p.id = d.patient_id AND p.clinic_id = d.clinic_id
+             LEFT JOIN patients p ON p.id = d.patient_id AND p.clinic_id = d.clinic_id
+             LEFT JOIN suppliers s ON s.id = d.supplier_id AND s.clinic_id = d.clinic_id
              JOIN clinics c ON c.id = d.clinic_id
             WHERE d.clinic_id = $1 AND d.id = $2
             FOR UPDATE OF d`,
