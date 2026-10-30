@@ -404,6 +404,89 @@ describe("application shell", () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
+  it("deletes a template with all its versions after confirming", async () => {
+    localStorage.setItem("crm.auth.token", "test-token");
+    localStorage.setItem(
+      "crm.auth.user",
+      storedUser({
+        id: "22222222-2222-4222-8222-222222222222",
+        fullName: "Aryana Dutra",
+        email: "admin@movimenta.local",
+        role: "owner",
+      }),
+    );
+    const base = {
+      kind: "contract",
+      body: "CONTRATO\n\n{{clinica_nome}} e {{paciente_nome}} firmam.",
+      createdAt: new Date().toISOString(),
+    };
+    const templates = [
+      {
+        ...base,
+        id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        name: "Contrato teste",
+        version: 2,
+        active: true,
+      },
+      {
+        ...base,
+        id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+        name: "Contrato teste",
+        version: 1,
+        active: false,
+      },
+      {
+        ...base,
+        id: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        name: "Contrato padrão",
+        version: 1,
+        active: true,
+      },
+    ];
+    const deleted: string[] = [];
+    vi.mocked(fetch).mockImplementation(async (input, init) => {
+      const url = String(input);
+      if (init?.method === "DELETE") {
+        deleted.push(url);
+        return { ok: true, status: 204, json: async () => null } as Response;
+      }
+      const body = url.endsWith("/document-templates") ? templates : [];
+      return { ok: true, status: 200, json: async () => body } as Response;
+    });
+    render(
+      <MemoryRouter initialEntries={["/contratos"]}>
+        <App />
+      </MemoryRouter>,
+    );
+    fireEvent.click(await screen.findByRole("tab", { name: "Modelos" }));
+    expect(
+      screen.getAllByRole("button", { name: /^Excluir modelo/ }),
+    ).toHaveLength(2);
+    fireEvent.click(
+      screen.getByRole("button", { name: "Excluir modelo Contrato teste" }),
+    );
+    const dialog = await screen.findByRole("dialog");
+    expect(
+      within(dialog).getByText(/Os contratos já criados com ele continuam/),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Excluir modelo" }),
+    );
+    await vi.waitFor(() =>
+      expect(deleted).toEqual([
+        expect.stringContaining(
+          "/document-templates/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        ),
+      ]),
+    );
+    expect(
+      await screen.findByText("Modelo “Contrato teste” excluído."),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.queryByText("Contrato teste")).not.toBeInTheDocument();
+    expect(screen.getByText("Contrato padrão")).toBeInTheDocument();
+  });
+
   it("cancels a document after confirming in a modal", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
     localStorage.setItem(

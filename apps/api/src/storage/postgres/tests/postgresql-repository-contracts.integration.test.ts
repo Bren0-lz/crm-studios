@@ -435,6 +435,74 @@ describe.skipIf(!databaseUrl)("PostgreSQL repository", () => {
     }
   });
 
+  it("deletes every template version keeping issued documents and freeing the name", async () => {
+    const name = "postgres-document-delete-test";
+    const cleanup = async () => {
+      await pool.query(
+        `DELETE FROM issued_documents WHERE template_id IN
+           (SELECT id FROM document_templates WHERE clinic_id = $1 AND name = $2)`,
+        [clinicId, name],
+      );
+      await pool.query(
+        "DELETE FROM document_templates WHERE clinic_id = $1 AND name = $2",
+        [clinicId, name],
+      );
+    };
+    await cleanup();
+    try {
+      const [patient] = await repository.listPatients(clinicId);
+      const body = "Contrato de {{paciente_nome}} em {{clinica_nome}}.";
+      const template = await repository.createDocumentTemplate(clinicId, {
+        name,
+        kind: "contract",
+        body,
+      });
+      const next = await repository.createDocumentTemplateVersion(
+        clinicId,
+        template.id,
+        `${body} Revisado.`,
+      );
+      const document = await repository.createIssuedDocument(
+        clinicId,
+        ownerId,
+        { templateId: next!.id, patientId: patient!.id, title: "Contrato" },
+      );
+
+      expect(await repository.deleteDocumentTemplate(clinicId, next!.id)).toBe(
+        true,
+      );
+      expect(
+        (await repository.listDocumentTemplates(clinicId)).some(
+          (item) => item.name === name,
+        ),
+      ).toBe(false);
+      expect(
+        (await repository.listIssuedDocuments(clinicId)).find(
+          (item) => item.id === document.id,
+        ),
+      ).toMatchObject({ templateName: name, templateVersion: 2 });
+      expect(
+        await repository.deleteDocumentTemplate(clinicId, template.id),
+      ).toBe(false);
+      expect(
+        await repository.createDocumentTemplateVersion(
+          clinicId,
+          next!.id,
+          `${body} Depois de excluído.`,
+        ),
+      ).toBeNull();
+
+      const recreated = await repository.createDocumentTemplate(clinicId, {
+        name,
+        kind: "contract",
+        body,
+      });
+      expect(recreated).toMatchObject({ version: 1, active: true });
+    } finally {
+      await cleanup();
+    }
+  });
+
   it("records views and the client's signature through the public link", async () => {
     const name = "postgres-document-signature-link-test";
     const cleanup = async () => {

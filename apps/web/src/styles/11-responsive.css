@@ -588,7 +588,7 @@
     padding: calc(var(--space-3) + 2px) var(--space-4);
   }
 
-  .template-list > article > button,
+  .template-list > article > .template-actions,
   .document-actions {
     grid-column: 1 / -1;
   }
