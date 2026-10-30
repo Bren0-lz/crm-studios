@@ -116,15 +116,23 @@ export function registerReportsRoutes(context: RouteContext) {
     to: string,
   ) {
     const readIds = repository.branchScope.readIds();
-    const [movements, workspace, professionals, branches, proLabore, settings] =
-      await Promise.all([
-        repository.listCashMovements(clinicId, from, to),
-        repository.getFinancialWorkspace(clinicId),
-        repository.listProfessionals(clinicId),
-        repository.listBranches(clinicId),
-        repository.getProLaboreSettings(clinicId),
-        repository.getClinicSettings(clinicId),
-      ]);
+    const [
+      movements,
+      workspace,
+      professionals,
+      employees,
+      branches,
+      proLabore,
+      settings,
+    ] = await Promise.all([
+      repository.listCashMovements(clinicId, from, to),
+      repository.getFinancialWorkspace(clinicId),
+      repository.listProfessionals(clinicId),
+      repository.listPayrollEmployees(clinicId),
+      repository.listBranches(clinicId),
+      repository.getProLaboreSettings(clinicId),
+      repository.getClinicSettings(clinicId),
+    ]);
     return buildFinancialReport(
       from,
       to,
@@ -137,6 +145,7 @@ export function registerReportsRoutes(context: RouteContext) {
         commissions: workspace.commissions,
         adjustments: workspace.commissionAdjustments ?? [],
         professionals,
+        employees,
         branches: readIds
           ? branches.filter((branch) => readIds.includes(branch.id))
           : branches,
