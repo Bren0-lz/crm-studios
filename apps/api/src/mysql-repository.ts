@@ -52,6 +52,7 @@ export class MysqlClinicRepository implements ClinicRepository {
   readonly saveBranch: ClinicRepository["saveBranch"];
   readonly getCommissionReconciliationPreview: ClinicRepository["getCommissionReconciliationPreview"];
   readonly reconcileCommission: ClinicRepository["reconcileCommission"];
+  readonly autoReconcileCommissions: ClinicRepository["autoReconcileCommissions"];
   readonly settleCommissionAccount: ClinicRepository["settleCommissionAccount"];
   readonly reverseCommissionAccountPayment: ClinicRepository["reverseCommissionAccountPayment"];
   readonly listExternalOperations: ClinicRepository["listExternalOperations"];
@@ -158,6 +159,7 @@ export class MysqlClinicRepository implements ClinicRepository {
     this.getCommissionReconciliationPreview =
       reconciliation.getCommissionReconciliationPreview;
     this.reconcileCommission = reconciliation.reconcileCommission;
+    this.autoReconcileCommissions = reconciliation.autoReconcileCommissions;
     this.settleCommissionAccount = reconciliation.settleCommissionAccount;
     this.reverseCommissionAccountPayment =
       reconciliation.reverseCommissionAccountPayment;

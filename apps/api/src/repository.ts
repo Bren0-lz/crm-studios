@@ -278,6 +278,13 @@ export interface CommissionRecalculationRequest {
   expectedDigest?: string;
 }
 
+/** Origens alteradas (atendimentos, presenças ou encontros) cujas comissões serão conferidas. */
+export interface CommissionSourceScope {
+  appointmentIds?: string[];
+  groupAttendanceIds?: string[];
+  groupSessionIds?: string[];
+}
+
 export interface ClinicRepository {
   /** Lista de espera das filiais da leitura, da entrada mais antiga para a mais nova. */
   listWaitlist(clinicId: string): Promise<WaitlistEntry[]>;
@@ -345,6 +352,17 @@ export interface ClinicRepository {
     id: string,
     input: import("@crm/contracts").CommissionReconciliationInput,
   ): Promise<import("@crm/contracts").CommissionReconciliation>;
+  /**
+   * Concilia sozinha as comissões das origens alteradas que divergem do cálculo atual: grava
+   * a conciliação e os ajustes em nome de `actorId` (quem alterou a origem), com auditoria
+   * `commission.auto_reconciled`. Devolve quantas comissões foram ajustadas.
+   */
+  autoReconcileCommissions(
+    clinicId: string,
+    actorId: string,
+    scope: CommissionSourceScope,
+    reason: string,
+  ): Promise<number>;
   settleCommissionAccount(
     clinicId: string,
     actorId: string,
