@@ -36,10 +36,21 @@
 }
 .reports-period {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-5);
   padding: var(--space-5);
+}
+.reports-period-presets {
+  display: flex;
+  flex-basis: 100%;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.reports-period-presets .secondary-button[aria-pressed="true"] {
+  border-color: var(--green);
+  color: var(--green);
 }
 .reports-period-context {
   display: flex;
@@ -837,6 +848,37 @@
 }
 .financial-waterfall {
   max-width: calc(var(--space-8) * 10);
+}
+.reports-page .financial-kpis .financial-variation {
+  color: var(--muted);
+  font-size: var(--text-xs);
+  font-style: normal;
+  font-variant-numeric: tabular-nums;
+}
+.reports-page .financial-variation.positive {
+  color: var(--green-2);
+}
+.reports-page .financial-variation.negative,
+.reports-page .financial-matrix .negative {
+  color: var(--red);
+}
+.financial-matrix th,
+.financial-matrix td {
+  white-space: nowrap;
+}
+.financial-matrix tbody th:first-child {
+  position: sticky;
+  left: 0;
+  background: var(--paper);
+}
+.financial-matrix .financial-matrix-group th,
+.financial-matrix .financial-matrix-group td {
+  font-weight: 600;
+  border-top: 1px solid var(--line);
+}
+.financial-matrix .financial-matrix-item {
+  padding-left: var(--space-6);
+  font-weight: 400;
 }
 .reports-page .financial-flows {
   display: grid;

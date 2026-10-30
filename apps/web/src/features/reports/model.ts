@@ -3,6 +3,27 @@ import type { ContractedItem, PatientWithoutReturn } from "@crm/contracts";
 import type { ChartPoint } from "./ReportChart";
 import { formatIsoDate } from "../../shared/lib/formatting";
 
+/** Atalhos de período do relatório, a partir de hoje (aaaa-mm-dd). */
+export function periodPresets(today: string) {
+  const year = Number(today.slice(0, 4)),
+    month = Number(today.slice(5, 7));
+  const monthStart = (offset: number) =>
+    new Date(Date.UTC(year, month - 1 + offset, 1)).toISOString().slice(0, 10);
+  const monthEnd = (offset: number) =>
+    new Date(Date.UTC(year, month + offset, 0)).toISOString().slice(0, 10);
+  return [
+    { label: "Este mês", from: monthStart(0), to: today },
+    { label: "Mês passado", from: monthStart(-1), to: monthEnd(-1) },
+    { label: "Últimos 3 meses", from: monthStart(-2), to: today },
+    { label: "Este ano", from: `${year}-01-01`, to: today },
+    {
+      label: "Ano passado",
+      from: `${year - 1}-01-01`,
+      to: `${year - 1}-12-31`,
+    },
+  ];
+}
+
 export function formatRate(rate: number | null) {
   return rate === null ? "—" : `${Math.round(rate * 100)}%`;
 }
