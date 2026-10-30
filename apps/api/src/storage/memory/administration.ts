@@ -1,4 +1,5 @@
 import { prepareUserAgenda } from "./user-agenda.js";
+import { syncUserPayroll } from "./user-payroll.js";
 import {
   defaultAutoFinalizationSettings,
   resolveNavTabLabels,
@@ -157,6 +158,7 @@ export function createAdministrationRepository(
           { professionalId, previousProfessionalId },
           clinicId,
         );
+        syncUserPayroll(repositoryContext, actorUserId, user, undefined);
       }
       return repositoryContext.toAdminUser(user);
     },
@@ -268,6 +270,12 @@ export function createAdministrationRepository(
           item,
         );
       saveAgenda();
+      syncUserPayroll(
+        repositoryContext,
+        actorUserId,
+        user,
+        input.salaryInCents ?? null,
+      );
       // Usuário novo ligado a um profissional que já tem comissões: recalcula pelas regras novas.
       if (recalculation)
         commissions.apply(
@@ -407,6 +415,12 @@ export function createAdministrationRepository(
           item,
         );
       saveAgenda();
+      syncUserPayroll(
+        repositoryContext,
+        actorUserId,
+        user,
+        input.salaryInCents,
+      );
       if (recalculation)
         commissions.apply(
           clinicId,

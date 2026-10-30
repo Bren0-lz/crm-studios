@@ -318,6 +318,7 @@ export function mapAdminUserWithCommission(raw: AdminUserRow): AdminUser {
           ),
         }
       : {}),
+    ...(row.salaryInCents ? { salaryInCents: Number(row.salaryInCents) } : {}),
   };
 }
 

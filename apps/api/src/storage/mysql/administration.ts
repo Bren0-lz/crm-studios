@@ -1,4 +1,5 @@
 import { saveUserAgenda, userSaveError } from "./user-agenda.js";
+import { syncUserPayroll } from "./user-payroll.js";
 import {
   type AutoFinalizationSettings,
   defaultProLaboreSettings,
@@ -324,6 +325,14 @@ export function createAdministrationRepository(
               userId,
               { professionalId, previousProfessionalId },
             );
+            await syncUserPayroll(
+              repositoryContext,
+              client,
+              clinicId,
+              actorUserId,
+              userId,
+              undefined,
+            );
           }
           return repositoryContext.findAdminUser(client, clinicId, userId);
         });
@@ -430,6 +439,14 @@ export function createAdministrationRepository(
           created.id,
           input,
         );
+        await syncUserPayroll(
+          repositoryContext,
+          client,
+          clinicId,
+          actorUserId,
+          created.id,
+          input.salaryInCents ?? null,
+        );
         // Usuário novo ligado a um profissional que já tem comissões: recalcula pelas regras novas.
         if (recalculation)
           await commissions.apply(
@@ -444,7 +461,8 @@ export function createAdministrationRepository(
           input.commission ||
           input.serviceCommissions?.length ||
           input.branchAccess ||
-          input.professional
+          input.professional ||
+          input.salaryInCents
             ? await repositoryContext.findAdminUser(
                 client,
                 clinicId,
@@ -605,6 +623,14 @@ export function createAdministrationRepository(
           actorUserId,
           userId,
           input,
+        );
+        await syncUserPayroll(
+          repositoryContext,
+          client,
+          clinicId,
+          actorUserId,
+          userId,
+          input.salaryInCents,
         );
         if (recalculation)
           await commissions.apply(

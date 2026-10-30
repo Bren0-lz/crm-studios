@@ -9,19 +9,19 @@ import { ActionModal } from "../../shared/components/ActionModal";
 import { CurrencyField } from "../../shared/components/CurrencyField";
 import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
 
-/** Cadastro do colaborador da folha: salário fixo e, se atende, o profissional da agenda. */
+/**
+ * Edição de um colaborador cadastrado direto na folha, antes do salário no usuário. Não há
+ * cadastro novo aqui: quem recebe salário é marcado no cadastro do usuário.
+ */
 export function PayrollEmployeeModal({
   employee,
-  initial,
   professionals,
   branches,
   takenProfessionalIds,
   onClose,
   onSave,
 }: {
-  employee: PayrollEmployee | null;
-  /** Preenchimento de um profissional com comissão sem colaborador. */
-  initial?: { name: string; professionalId: string; branchId?: string };
+  employee: PayrollEmployee;
   professionals: Professional[];
   branches: Branch[];
   /** Profissionais já ligados a outro colaborador. */
@@ -29,16 +29,14 @@ export function PayrollEmployeeModal({
   onClose: () => void;
   onSave: (input: PayrollEmployeeInput) => Promise<void>;
 }) {
-  const [name, setName] = useState(employee?.name ?? initial?.name ?? ""),
-    [role, setRole] = useState(employee?.role ?? ""),
+  const [name, setName] = useState(employee.name),
+    [role, setRole] = useState(employee.role ?? ""),
     [professionalId, setProfessionalId] = useState(
-      employee?.professionalId ?? initial?.professionalId ?? "",
+      employee.professionalId ?? "",
     ),
-    [branchId, setBranchId] = useState(
-      employee?.branchId ?? initial?.branchId ?? "",
-    ),
-    [salary, setSalary] = useState(employee?.baseSalaryInCents ?? 0),
-    [active, setActive] = useState(employee?.active ?? true);
+    [branchId, setBranchId] = useState(employee.branchId),
+    [salary, setSalary] = useState(employee.baseSalaryInCents),
+    [active, setActive] = useState(employee.active);
   const dirty = useFormDirty({
     name,
     role,
@@ -55,7 +53,7 @@ export function PayrollEmployeeModal({
   return (
     <ActionModal
       eyebrow="Folha de pagamento"
-      title={employee ? `Editar ${employee.name}` : "Novo colaborador"}
+      title={`Editar ${employee.name}`}
       subtitle="Salário fixo mensal e, para quem atende, o profissional da agenda."
       effect="As comissões e os ajustes do profissional ligado entram na folha deste colaborador e são pagos com ela."
       confirmLabel="Salvar"

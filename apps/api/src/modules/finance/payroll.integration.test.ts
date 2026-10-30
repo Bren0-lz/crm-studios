@@ -4,6 +4,7 @@ import { buildApp } from "../../app.js";
 import { MemoryClinicRepository } from "../../memory-repository.js";
 import { nextTestCpf } from "../../test-support/cpf.js";
 import { payrollSuite } from "../../test-support/payroll-suite.js";
+import { salariedEmployeeViaApi } from "../../test-support/payroll-users.js";
 
 const clinicId = "11111111-1111-4111-8111-111111111111",
   actorId = "22222222-2222-4222-8222-222222222222";
@@ -84,17 +85,27 @@ describe("rotas da folha de pagamento", () => {
       });
       expect(linked.json().code).toBe("COMMISSION_PAID_BY_PAYROLL");
 
-      const employee = await app.inject({
+      // Não há cadastro direto na folha: o colaborador vem do usuário com salário.
+      const direct = await app.inject({
         method: "POST",
         url: "/finance/payroll/employees",
         headers: admin,
-        payload: {
-          name: "Colaboradora das rotas",
-          professionalId: professional!.id,
-          baseSalaryInCents: 100000,
-        },
+        payload: { name: "Direto na folha", baseSalaryInCents: 100000 },
       });
-      expect(employee.statusCode).toBe(201);
+      expect(direct.statusCode).toBe(404);
+      const employeeId = await salariedEmployeeViaApi(app, admin, {
+        name: "Colaboradora das rotas",
+        professionalId: professional!.id,
+        salaryInCents: 100000,
+      });
+      const edit = await app.inject({
+        method: "PUT",
+        url: `/finance/payroll/employees/${employeeId}`,
+        headers: admin,
+        payload: { name: "Outro nome", baseSalaryInCents: 1 },
+      });
+      expect(edit.statusCode).toBe(409);
+      expect(edit.json().code).toBe("PAYROLL_EMPLOYEE_MANAGED_BY_USER");
       const summary = await app.inject({
         method: "GET",
         url: "/finance/payroll?competence=2025-02",
@@ -110,7 +121,7 @@ describe("rotas da folha de pagamento", () => {
         headers: admin,
         payload: {
           competence: "2025-02",
-          employeeIds: [employee.json().id],
+          employeeIds: [employeeId],
           dueDate: "2025-03-05",
           categoryId: expenseCategory.id,
         },
