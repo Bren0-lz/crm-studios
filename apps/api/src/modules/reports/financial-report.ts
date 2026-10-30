@@ -1,5 +1,6 @@
 import {
   financialEntryOriginLabels,
+  PAYROLL_EMPLOYEE_PREFIX,
   type Branch,
   type CashMovement,
   type CommissionAdjustment,
@@ -11,6 +12,7 @@ import {
   type FinancialProfessional,
   type FinancialReport,
   type Payable,
+  type PayrollEmployee,
   type Professional,
   type ProLaboreSettings,
   type Receivable,
@@ -26,6 +28,8 @@ export interface FinancialReportSources {
   commissions: CommissionEntry[];
   adjustments: CommissionAdjustment[];
   professionals: Professional[];
+  /** Colaboradores da folha (salário de quem não é profissional da agenda). */
+  employees?: PayrollEmployee[];
   branches: Branch[];
   proLabore: ProLaboreSettings;
 }
@@ -58,7 +62,8 @@ function receivableOrigin(receivable: Receivable | undefined) {
 
 /**
  * Relatório financeiro do período: cada movimento do caixa com a origem, categoria,
- * centro de custo, filial e profissional, mais o que cada profissional recebeu.
+ * centro de custo, filial e profissional, mais o que cada profissional ou colaborador
+ * recebeu (comissões e salário da folha).
  */
 export function buildFinancialReport(
   from: string,
@@ -77,13 +82,15 @@ export function buildFinancialReport(
   // Despesa da folha: o profissional das comissões e ajustes que ela paga.
   const payrollProfessionals = new Map(
     [...sources.commissions, ...sources.adjustments].flatMap((item) =>
-      item.payrollPayableId
-        ? [[item.payrollPayableId, item] as const]
-        : [],
+      item.payrollPayableId ? [[item.payrollPayableId, item] as const] : [],
     ),
   );
-  /** Quanto de cada movimento é comissão paga ao profissional. */
+  const employees = new Map(
+    (sources.employees ?? []).map((item) => [item.id, item]),
+  );
+  /** Quanto de cada movimento da folha é comissão e quanto é salário. */
   const commissionShare = new Map<string, number>();
+  const salaryShare = new Map<string, number>();
   const categories = new Map(sources.categories.map((item) => [item.id, item]));
   const costCenters = new Map(
     sources.costCenters.map((item) => [item.id, item.name]),
@@ -130,17 +137,40 @@ export function buildFinancialReport(
         commission = payable?.commissionId
           ? commissions.get(payable.commissionId)
           : undefined,
-        origin = commission ? ("commission" as const) : ("expense" as const),
-        payroll = payable?.payroll
-          ? payrollProfessionals.get(payable.id)
+        origin = commission
+          ? ("commission" as const)
+          : payable?.payroll
+            ? ("payroll" as const)
+            : ("expense" as const),
+        employee = payable?.payroll
+          ? employees.get(payable.payroll.employeeId)
           : undefined,
-        paidTo = commission ?? payroll;
-      // Na folha, só a parte de comissão conta como pago ao profissional (o resto é salário).
-      if (payroll && payable?.payroll)
+        // Folha: o profissional das comissões, o profissional ligado ao colaborador ou o
+        // próprio colaborador (quem não atende na agenda recebe só salário).
+        paidTo =
+          commission ??
+          (payable?.payroll
+            ? (payrollProfessionals.get(payable.id) ??
+              (employee?.professionalId
+                ? {
+                    professionalId: employee.professionalId,
+                    professionalName:
+                      employee.professionalName ?? employee.name,
+                  }
+                : {
+                    professionalId: `${PAYROLL_EMPLOYEE_PREFIX}${payable.payroll.employeeId}`,
+                    professionalName: payable.payroll.employeeName,
+                  }))
+            : undefined);
+      // A despesa da folha soma salário e comissões: cada parte é contada separada.
+      if (payable?.payroll) {
+        const sign = Math.sign(movement.amountInCents);
         commissionShare.set(
           movement.id,
-          Math.sign(movement.amountInCents) * payable.payroll.commissionInCents,
+          sign * payable.payroll.commissionInCents,
         );
+        salaryShare.set(movement.id, sign * payable.payroll.salaryInCents);
+      }
       return {
         ...base,
         origin,
@@ -182,15 +212,23 @@ export function buildFinancialReport(
   });
   const commissionMonths = monthsBetween(from, to);
   const people = new Map<string, FinancialProfessional>();
+  const employeeOf = (id: string) =>
+    id.startsWith(PAYROLL_EMPLOYEE_PREFIX)
+      ? employees.get(id.slice(PAYROLL_EMPLOYEE_PREFIX.length))
+      : [...employees.values()].find((item) => item.professionalId === id);
   const person = (id: string, name: string) => {
     const current = people.get(id);
     if (current) return current;
-    const branchId = professionals.get(id)?.branchId ?? defaultBranchId;
+    const employee = employeeOf(id);
+    const branchId =
+      professionals.get(id)?.branchId ?? employee?.branchId ?? defaultBranchId;
     const created: FinancialProfessional = {
       id,
       name: professionals.get(id)?.fullName ?? name,
+      ...(employee?.role ? { role: employee.role } : {}),
       ...(branchId ? { branchId } : {}),
       paidInCents: 0,
+      salaryPaidInCents: 0,
       generatedInCents: 0,
       openInCents: 0,
     };
@@ -198,9 +236,12 @@ export function buildFinancialReport(
     return created;
   };
   for (const entry of entries)
-    if (entry.professionalId)
-      person(entry.professionalId, entry.professionalName ?? "").paidInCents +=
+    if (entry.professionalId) {
+      const target = person(entry.professionalId, entry.professionalName ?? "");
+      target.paidInCents +=
         commissionShare.get(entry.id) ?? entry.amountInCents;
+      target.salaryPaidInCents += salaryShare.get(entry.id) ?? 0;
+    }
   for (const item of [...sources.commissions, ...sources.adjustments]) {
     if (!commissionMonths.includes(item.competence)) continue;
     const target = person(item.professionalId, item.professionalName);
@@ -222,12 +263,15 @@ export function buildFinancialReport(
       .filter(
         (item) =>
           item.paidInCents !== 0 ||
+          item.salaryPaidInCents !== 0 ||
           item.generatedInCents !== 0 ||
           item.openInCents !== 0,
       )
       .sort(
         (a, b) =>
-          b.paidInCents - a.paidInCents ||
+          b.paidInCents +
+            b.salaryPaidInCents -
+            (a.paidInCents + a.salaryPaidInCents) ||
           b.generatedInCents - a.generatedInCents ||
           a.name.localeCompare(b.name),
       ),

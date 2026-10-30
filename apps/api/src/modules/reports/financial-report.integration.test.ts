@@ -168,6 +168,41 @@ describe("relatório financeiro", () => {
         payload: { paymentMethod: "pix" },
       });
       expect(paid.statusCode).toBe(200);
+      // Colaborador sem profissional ligado: recebe só o salário fixo pela folha.
+      const reception = await app.inject({
+        method: "POST",
+        url: "/finance/payroll/employees",
+        headers: as("owner"),
+        payload: {
+          name: "Carla Recepção",
+          role: "Recepcionista",
+          baseSalaryInCents: 250_000,
+        },
+      });
+      expect(reception.statusCode).toBe(201);
+      const salary = await app.inject({
+        method: "POST",
+        url: "/finance/payroll/launch",
+        headers: as("owner"),
+        payload: {
+          competence: "2031-03",
+          employeeIds: [reception.json().id],
+          dueDate: "2031-03-12",
+          categoryId: category.id,
+        },
+      });
+      expect(salary.statusCode).toBe(201);
+      at("2031-03-13T15:00:00.000Z");
+      expect(
+        (
+          await app.inject({
+            method: "POST",
+            url: `/finance/payables/${salary.json().payables[0].id}/pay`,
+            headers: as("owner"),
+            payload: { paymentMethod: "bank_transfer" },
+          })
+        ).statusCode,
+      ).toBe(200);
 
       const saved = await app.inject({
         method: "PUT",
@@ -201,7 +236,8 @@ describe("relatório financeiro", () => {
       ).toEqual([
         ["plan", "in", 12_000, "2031-03-10"],
         ["expense", "out", 4_000, "2031-03-10"],
-        ["expense", "out", commission.amountInCents, "2031-03-12"],
+        ["payroll", "out", commission.amountInCents, "2031-03-12"],
+        ["payroll", "out", 250_000, "2031-03-13"],
       ]);
       expect(report.entries[0]).toMatchObject({
         paymentMethod: "card",
@@ -218,10 +254,23 @@ describe("relatório financeiro", () => {
         professionalId: professionals[0].id,
       });
       expect(report.entries.every((item) => item.branchId)).toBe(true);
+      expect(report.entries[3]).toMatchObject({
+        professionalId: `employee:${reception.json().id}`,
+        professionalName: "Carla Recepção",
+      });
       expect(report.professionals).toEqual([
+        expect.objectContaining({
+          id: `employee:${reception.json().id}`,
+          name: "Carla Recepção",
+          role: "Recepcionista",
+          paidInCents: 0,
+          salaryPaidInCents: 250_000,
+          generatedInCents: 0,
+        }),
         expect.objectContaining({
           id: professionals[0].id,
           paidInCents: commission.amountInCents,
+          salaryPaidInCents: 0,
           generatedInCents: commission.amountInCents,
           openInCents: 0,
         }),
@@ -303,13 +352,13 @@ describe("relatório financeiro", () => {
         ).statusCode,
       ).toBe(400);
 
-      const reception = as("reception");
+      const receptionUser = as("reception");
       expect(
         (
           await app.inject({
             method: "GET",
             url: "/reports/financial?from=2031-03-01&to=2031-03-31",
-            headers: reception,
+            headers: receptionUser,
           })
         ).statusCode,
       ).toBe(403);
@@ -318,7 +367,7 @@ describe("relatório financeiro", () => {
           await app.inject({
             method: "PUT",
             url: "/admin/pro-labore",
-            headers: reception,
+            headers: receptionUser,
             payload: { percentage: 10, base: "profit" },
           })
         ).statusCode,
