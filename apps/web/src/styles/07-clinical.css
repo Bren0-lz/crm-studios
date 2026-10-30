@@ -37,57 +37,6 @@
   gap: 15px;
 }
 
-/* audit: mobile-ok rótulo + nota curta (ex.: 7/10); a régua ocupa a linha inteira */
-.pain-field {
-  grid-template-columns: 1fr auto;
-  align-items: center;
-  padding: 13px 15px;
-  border-radius: 12px;
-  background: #f2f0ea;
-}
-
-.pain-field span {
-  color: var(--terracotta);
-}
-
-.pain-field input {
-  grid-column: span 2;
-  min-height: 24px;
-  padding: 0;
-  accent-color: var(--terracotta);
-}
-
-.revision-list {
-  display: grid;
-  gap: 10px;
-}
-
-.revision-list article {
-  padding: 15px;
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  background: white;
-}
-
-.revision-list article > div {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.revision-list small {
-  display: block;
-  margin-top: 5px;
-  color: var(--muted);
-}
-
-.revision-list p {
-  margin: 11px 0 0;
-  color: #59645f;
-  font-size: var(--text-xs);
-  line-height: 1.5;
-}
-
 .action-menu {
   position: relative;
 }
@@ -729,16 +678,6 @@
   top: var(--space-4);
 }
 
-.clinical-records-summary {
-  margin: 0;
-  padding: var(--space-3) var(--space-4);
-  border-radius: var(--radius-md);
-  background: #fff4dc;
-  color: #7a5f22;
-  font-size: var(--text-sm);
-  font-weight: 600;
-}
-
 .clinical-patient-list-head {
   display: grid;
   gap: var(--space-3);
@@ -839,8 +778,7 @@
   gap: calc(var(--space-1) - 2px);
 }
 
-.clinical-patient-copy strong,
-.clinical-patient-copy small {
+.clinical-patient-copy strong {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -849,36 +787,6 @@
 .clinical-patient-copy strong {
   font-size: var(--text-md);
   font-weight: 600;
-}
-
-.clinical-patient-copy small {
-  color: var(--muted);
-  font-size: var(--text-xs);
-}
-
-.clinical-patient-flags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-1);
-  margin-top: calc(var(--space-1) - 2px);
-}
-
-.clinical-flag {
-  padding: 0 var(--space-2);
-  border-radius: 999px;
-  font-size: var(--text-xs);
-  font-weight: 600;
-  white-space: nowrap;
-}
-
-.clinical-flag.pending {
-  background: #fde8e3;
-  color: #9c4d3c;
-}
-
-.clinical-flag.draft {
-  background: #fff0cf;
-  color: #886b29;
 }
 
 .clinical-chart-shell {
@@ -1062,63 +970,6 @@
   font-size: var(--text-xs);
 }
 
-.clinical-pending {
-  padding: var(--space-3) var(--space-4);
-  border: 1px solid #f0dca9;
-  border-radius: var(--radius-md);
-  background: #fffaf0;
-}
-
-.clinical-pending h3 {
-  margin: 0 0 var(--space-2);
-  font-size: var(--text-md);
-  font-weight: 600;
-}
-
-.clinical-pending ul {
-  display: grid;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.clinical-pending li {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2);
-  padding: var(--space-2) 0;
-  border-top: 1px solid #f3e6c4;
-}
-
-.clinical-pending li:first-child {
-  border-top: 0;
-}
-
-.clinical-pending li > span:first-child {
-  display: grid;
-  gap: calc(var(--space-1) - 2px);
-}
-
-.clinical-pending strong {
-  font-size: var(--text-sm);
-}
-
-.clinical-pending small {
-  color: var(--muted);
-  font-size: var(--text-xs);
-}
-
-.clinical-pending .panel-context {
-  margin: var(--space-2) 0 0;
-}
-
-.clinical-pending-actions {
-  display: flex;
-  gap: var(--space-2);
-}
-
 .clinical-chart-tabs {
   display: flex;
   gap: var(--space-4);
@@ -1252,10 +1103,6 @@
   background: #7d8a84;
 }
 
-.timeline-addendum .chart-timeline-dot {
-  background: var(--terracotta);
-}
-
 .timeline-closure .chart-timeline-dot {
   background: var(--red);
 }
@@ -1286,183 +1133,6 @@
 .chart-timeline small {
   color: var(--muted);
   font-size: var(--text-xs);
-}
-
-.chart-evolutions {
-  gap: var(--space-3);
-}
-
-.chart-evolution {
-  display: grid;
-  gap: var(--space-3);
-  padding: var(--space-4);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-md);
-  background: white;
-}
-
-.chart-evolution header {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-}
-
-.chart-evolution-date {
-  display: grid;
-  flex: 0 0 auto;
-  width: var(--space-7);
-  height: var(--space-7);
-  place-content: center;
-  border-radius: var(--radius-sm);
-  background: #edf3ef;
-  text-align: center;
-}
-
-.chart-evolution-date strong {
-  font-size: var(--text-xl);
-  line-height: 1;
-}
-
-.chart-evolution-date span {
-  color: var(--muted);
-  font-size: var(--text-xs);
-  text-transform: uppercase;
-}
-
-.chart-evolution-meta {
-  flex: 1;
-  min-width: 0;
-}
-
-.chart-evolution-meta h3 {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-2);
-  margin: 0;
-  font-size: var(--text-md);
-  font-weight: 600;
-}
-
-.chart-evolution-meta p {
-  margin: calc(var(--space-1) - 2px) 0 0;
-  color: var(--muted);
-  font-size: var(--text-xs);
-}
-
-.chart-pain {
-  padding: calc(var(--space-1) - 2px) var(--space-2);
-  border-radius: 999px;
-  font-size: var(--text-xs);
-  font-weight: 600;
-  white-space: nowrap;
-}
-
-.chart-pain.pain-low {
-  background: #dceee7;
-  color: #31715e;
-}
-
-.chart-pain.pain-mid {
-  background: #fff0cf;
-  color: #886b29;
-}
-
-.chart-pain.pain-high {
-  background: #fbe2dd;
-  color: #9c4d3c;
-}
-
-.chart-soap {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--space-2);
-  margin: 0;
-}
-
-.chart-soap > div {
-  padding: var(--space-3);
-  border-radius: var(--radius-sm);
-  background: #f7f8f5;
-}
-
-.chart-soap dt {
-  margin-bottom: var(--space-1);
-  color: var(--muted);
-  font-size: var(--text-xs);
-  font-weight: 600;
-}
-
-.chart-soap dt span {
-  display: inline-grid;
-  width: var(--space-5);
-  height: var(--space-5);
-  margin-right: var(--space-1);
-  place-items: center;
-  border-radius: 50%;
-  background: var(--green);
-  color: white;
-}
-
-.chart-soap dd {
-  margin: 0;
-  font-size: var(--text-md);
-  line-height: 1.5;
-  white-space: pre-line;
-  overflow-wrap: anywhere;
-}
-
-.chart-soap dd.is-empty {
-  color: var(--muted);
-  font-style: italic;
-}
-
-.chart-addenda {
-  display: grid;
-  gap: var(--space-2);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.chart-addenda li {
-  padding: var(--space-2) var(--space-3);
-  border-left: 3px solid var(--terracotta);
-  background: #fbf3ef;
-}
-
-.chart-addenda strong {
-  font-size: var(--text-sm);
-}
-
-.chart-addenda p {
-  margin: var(--space-1) 0;
-  font-size: var(--text-md);
-}
-
-.chart-addenda small {
-  color: var(--muted);
-  font-size: var(--text-xs);
-}
-
-.chart-evolution footer {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: var(--space-2);
-}
-
-.clinical-copy-previous {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2);
-  padding: var(--space-2) var(--space-3);
-  border-radius: var(--radius-sm);
-  background: #f4f8f5;
-  color: var(--muted);
-  font-size: var(--text-sm);
 }
 
 .chart-assessments {
