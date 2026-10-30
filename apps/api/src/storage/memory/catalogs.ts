@@ -79,6 +79,10 @@ export function createCatalogsRepository(context: MemoryRepositoryContext) {
       const item: ClinicCatalogEntry = {
         ...current,
         ...input,
+        sizes:
+          kind === "product_category"
+            ? (input.sizes ?? current?.sizes ?? [])
+            : [],
         id: current?.id ?? uuid(),
         clinicId,
         kind,
