@@ -4,7 +4,6 @@ import {
   type ClinicalResource,
   type ClinicalResourceInput,
   type ClinicalResourceKind,
-  type ClinicalSource,
   type ClinicCatalogEntry,
   type PatientOption,
   type Professional,
@@ -12,23 +11,23 @@ import {
 import { useEffect, useState, type FormEvent } from "react";
 import { api } from "../../api";
 import { PatientPicker } from "../../PatientPicker";
-import {
-  missingBuilderFields,
-  useMissingFields,
-} from "../../shared/components/MissingFields";
+import { useMissingFields } from "../../shared/components/MissingFields";
 import { Modal } from "../../shared/components/Modal";
 import { ErrorBanner } from "../../shared/components/ErrorBanner";
-import { ClinicalFormBuilder } from "../../shared/components/ClinicalFormBuilder";
-import { ClinicalFieldInputs } from "../../shared/components/ClinicalFieldInputs";
 import { localIsoDate } from "../../shared/lib/formatting";
 import { useToast } from "../../shared/feedback/toast-context";
 import { fileToBase64 } from "./model";
 
+/** Evoluções saíram do prontuário: o editor só cria e altera os demais registros. */
+export type EditableResourceKind = Exclude<
+  ClinicalResourceKind,
+  "evolution" | "evolution_template"
+>;
+
 function initial(
-  kind: ClinicalResourceKind,
+  kind: EditableResourceKind,
   patientId: string,
   professionalId: string,
-  source?: ClinicalSource,
 ): ClinicalResourceInput {
   const common = { name: "", active: true };
   const forms = {
@@ -42,32 +41,6 @@ function initial(
       level: "",
       image: "",
       videoUrl: "",
-    },
-    evolution_template: {
-      kind,
-      ...common,
-      format: "text",
-      status: "draft",
-      body: "",
-      fields: [],
-    },
-    evolution: {
-      kind,
-      name: "Evolução do atendimento",
-      patientId,
-      professionalId: source?.professionalId ?? professionalId,
-      sourceType: source?.type ?? "appointment",
-      sourceId: source?.id ?? "",
-      templateId: "",
-      format: "text",
-      body: "",
-      subjective: "",
-      objective: "",
-      assessment: "",
-      plan: "",
-      values: {},
-      equipmentIds: [],
-      exerciseIds: [],
     },
     training: {
       kind,
@@ -105,19 +78,17 @@ export function ClinicalResourceEditor({
   patientId,
   patients,
   professionals,
-  sources,
   resources,
   muscleGroups,
   onClose,
   onSaved,
 }: {
-  kind: ClinicalResourceKind;
+  kind: EditableResourceKind;
   resource?: ClinicalResource | undefined;
   copy?: boolean;
   patientId: string;
   patients: PatientOption[];
   professionals: Professional[];
-  sources: ClinicalSource[];
   resources: ClinicalResource[];
   muscleGroups: ClinicCatalogEntry[];
   onClose: () => void;
@@ -127,11 +98,10 @@ export function ClinicalResourceEditor({
   const [form, setForm] = useState<ClinicalResourceInput>(() =>
     resource
       ? structuredClone(resource.data)
-      : initial(kind, patientId, professionals[0]?.id ?? "", sources[0]),
+      : initial(kind, patientId, professionals[0]?.id ?? ""),
   );
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
-  const [preview, setPreview] = useState(false);
   const [copyPatients, setCopyPatients] = useState<PatientOption[]>(patients);
   useEffect(() => {
     if (!copy) return;
@@ -169,11 +139,9 @@ export function ClinicalResourceEditor({
     historical
       ? historical.kind === "exercise"
         ? [historical.equipmentId]
-        : historical.kind === "evolution"
-          ? [...historical.equipmentIds, ...historical.exerciseIds]
-          : historical.kind === "training"
-            ? historical.exercises.map((entry) => entry.exerciseId)
-            : []
+        : historical.kind === "training"
+          ? historical.exercises.map((entry) => entry.exerciseId)
+          : []
       : [],
   );
   const equipment = resources.filter(
@@ -185,50 +153,17 @@ export function ClinicalResourceEditor({
       (item) =>
         item.kind === "exercise" &&
         (item.status === "active" || historicIds.has(item.id)),
-    ),
-    templates = resources.filter(
-      (item) =>
-        item.kind === "evolution_template" && item.status === "published",
     );
-  const selectedTemplate =
-    form.kind === "evolution"
-      ? templates.find((item) => item.id === form.templateId)
-      : undefined;
   // O que falta para salvar: Salvar fica desativado listando os campos (QM14).
-  const questionnaireFields =
-    form.kind === "evolution" && form.format === "questionnaire"
-      ? (selectedTemplate?.templateSnapshot?.fields ??
-        (selectedTemplate?.data.kind === "evolution_template"
-          ? selectedTemplate.data.fields
-          : []))
-      : [];
   const missing = useMissingFields(
     [
       ...(form.name.trim().length < 2
         ? ["Nome (pelo menos 2 caracteres)"]
         : []),
       ...("patientId" in form && !form.patientId ? ["Cliente"] : []),
-      ...("professionalId" in form &&
-      form.kind !== "evolution" &&
-      !form.professionalId
+      ...("professionalId" in form && !form.professionalId
         ? ["Profissional"]
         : []),
-      ...(form.kind === "evolution_template" && form.format === "questionnaire"
-        ? missingBuilderFields(form.fields)
-        : []),
-      ...(form.kind === "evolution" && !form.sourceId ? ["Atendimento"] : []),
-      ...questionnaireFields
-        .filter((field) => field.type !== "section" && field.required)
-        .filter((field) => {
-          const value =
-            form.kind === "evolution" ? form.values[field.key] : undefined;
-          return (
-            value === undefined ||
-            (typeof value === "string" && !value.trim()) ||
-            (Array.isArray(value) && value.length === 0)
-          );
-        })
-        .map((field) => field.label),
       ...(form.kind === "training" && !form.validFrom ? ["Início"] : []),
       ...(form.kind === "training"
         ? form.exercises
@@ -298,36 +233,6 @@ export function ClinicalResourceEditor({
       setSaving(false);
     }
   }
-  function chooseTemplate(id: string) {
-    if (!id) {
-      patch({ templateId: "", values: {} });
-      return;
-    }
-    const template = templates.find((item) => item.id === id);
-    if (
-      form.kind !== "evolution" ||
-      template?.data.kind !== "evolution_template"
-    )
-      return;
-    patch({
-      templateId: id,
-      format: template.data.format,
-      body: template.data.body,
-      values: {},
-      subjective:
-        template.data.soap?.subjective ??
-        (template.data.format === "soap" ? template.data.body : ""),
-      objective: template.data.soap?.objective ?? "",
-      assessment: template.data.soap?.assessment ?? "",
-      plan: template.data.soap?.plan ?? "",
-    });
-  }
-  const soapLabels = {
-    subjective: "Subjetivo",
-    objective: "Objetivo",
-    assessment: "Avaliação",
-    plan: "Plano",
-  };
   return (
     <>
       {" "}
@@ -369,7 +274,7 @@ export function ClinicalResourceEditor({
               />
             </label>
           )}
-          {"professionalId" in form && form.kind !== "evolution" && (
+          {"professionalId" in form && (
             <label>
               Profissional
               <select
@@ -384,10 +289,7 @@ export function ClinicalResourceEditor({
                 ) &&
                   form.professionalId && (
                     <option value={form.professionalId}>
-                      {sources.find(
-                        (item) => item.professionalId === form.professionalId,
-                      )?.professionalName ??
-                        "Profissional do registro original"}
+                      Profissional do registro original
                     </option>
                   )}
                 {professionals.map((item) => (
@@ -478,236 +380,6 @@ export function ClinicalResourceEditor({
                   onChange={(event) => patch({ videoUrl: event.target.value })}
                 />
               </label>
-            </>
-          )}
-          {form.kind === "evolution_template" && (
-            <>
-              <label>
-                Formato
-                <select
-                  value={form.format}
-                  onChange={(event) =>
-                    patch({
-                      format: event.target.value as
-                        "soap" | "text" | "questionnaire",
-                    })
-                  }
-                >
-                  <option value="text">Texto</option>
-                  <option value="soap">SOAP</option>
-                  <option value="questionnaire">Questionário</option>
-                </select>
-              </label>
-              <label>
-                Situação
-                <select
-                  value={form.status}
-                  onChange={(event) =>
-                    patch({
-                      status: event.target.value as "draft" | "published",
-                    })
-                  }
-                >
-                  <option value="draft">Rascunho</option>
-                  <option value="published">Publicado</option>
-                </select>
-              </label>
-              {form.format === "questionnaire" ? (
-                <>
-                  <ClinicalFormBuilder
-                    fields={form.fields}
-                    onChange={(fields) => patch({ fields })}
-                  />
-                  <button
-                    type="button"
-                    className="secondary-button"
-                    onClick={() => setPreview((value) => !value)}
-                  >
-                    Pré-visualizar ficha
-                  </button>
-                  {preview && (
-                    <ClinicalFieldInputs
-                      fields={form.fields}
-                      values={{}}
-                      onChange={() => undefined}
-                      disabled
-                    />
-                  )}
-                </>
-              ) : form.format === "soap" ? (
-                Object.entries(soapLabels).map(([key, label]) => (
-                  <label key={key}>
-                    {label}
-                    <textarea
-                      rows={3}
-                      value={form.soap?.[key as keyof typeof soapLabels] ?? ""}
-                      onChange={(event) => {
-                        const soap = {
-                          subjective: "",
-                          objective: "",
-                          assessment: "",
-                          plan: "",
-                          ...form.soap,
-                          [key]: event.target.value,
-                        };
-                        patch({ soap, body: Object.values(soap).join("\n") });
-                      }}
-                    />
-                  </label>
-                ))
-              ) : (
-                <label>
-                  Conteúdo do modelo
-                  <textarea
-                    rows={7}
-                    value={form.body}
-                    onChange={(event) => patch({ body: event.target.value })}
-                  />
-                </label>
-              )}
-            </>
-          )}
-          {form.kind === "evolution" && (
-            <>
-              <label>
-                Atendimento
-                <select
-                  required
-                  disabled={Boolean(resource)}
-                  value={form.sourceId}
-                  onChange={(event) => {
-                    const source = sources.find(
-                      (item) => item.id === event.target.value,
-                    );
-                    if (source)
-                      patch({
-                        sourceId: source.id,
-                        sourceType: source.type,
-                        patientId: source.patientId,
-                        professionalId: source.professionalId,
-                      });
-                  }}
-                >
-                  <option value="">Selecione</option>
-                  {sources
-                    .filter(
-                      (item) =>
-                        item.patientId === form.patientId ||
-                        item.id === form.sourceId,
-                    )
-                    .map((item) => (
-                      <option key={item.id} value={item.id}>
-                        {new Date(item.startsAt).toLocaleString("pt-BR")} ·{" "}
-                        {item.type === "group_attendance"
-                          ? "Turma"
-                          : "Individual"}{" "}
-                        · {item.professionalName}
-                      </option>
-                    ))}
-                </select>
-              </label>
-              <label>
-                Modelo
-                <select
-                  value={form.templateId ?? ""}
-                  onChange={(event) => chooseTemplate(event.target.value)}
-                >
-                  <option value="">Sem modelo</option>
-                  {templates.map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {item.name} · versão {item.version}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                Formato
-                <select
-                  value={form.format}
-                  onChange={(event) =>
-                    patch({
-                      format: event.target.value as
-                        "soap" | "text" | "questionnaire",
-                      templateId: "",
-                      values: {},
-                    })
-                  }
-                >
-                  <option value="text">Texto</option>
-                  <option value="soap">SOAP</option>
-                  <option value="questionnaire">Questionário</option>
-                </select>
-              </label>
-              {form.format === "questionnaire" ? (
-                <ClinicalFieldInputs
-                  fields={
-                    selectedTemplate?.templateSnapshot?.fields ??
-                    (selectedTemplate?.data.kind === "evolution_template"
-                      ? selectedTemplate.data.fields
-                      : [])
-                  }
-                  values={form.values}
-                  onChange={(values) => patch({ values })}
-                />
-              ) : form.format === "soap" ? (
-                Object.entries(soapLabels).map(([key, label]) => (
-                  <label key={key}>
-                    {label}
-                    <textarea
-                      rows={3}
-                      value={form[key as keyof typeof soapLabels]}
-                      onChange={(event) => patch({ [key]: event.target.value })}
-                    />
-                  </label>
-                ))
-              ) : (
-                <label>
-                  Evolução
-                  <textarea
-                    rows={7}
-                    value={form.body}
-                    onChange={(event) => patch({ body: event.target.value })}
-                  />
-                </label>
-              )}
-              <fieldset className="form-fieldset">
-                <legend>Aparelhos utilizados</legend>
-                {equipment.map((item) => (
-                  <label className="checkbox-field" key={item.id}>
-                    <input
-                      type="checkbox"
-                      checked={form.equipmentIds.includes(item.id)}
-                      onChange={(event) =>
-                        patch({
-                          equipmentIds: event.target.checked
-                            ? [...form.equipmentIds, item.id]
-                            : form.equipmentIds.filter((id) => id !== item.id),
-                        })
-                      }
-                    />
-                    {item.name}
-                  </label>
-                ))}
-              </fieldset>
-              <fieldset className="form-fieldset">
-                <legend>Exercícios realizados</legend>
-                {exercises.map((item) => (
-                  <label className="checkbox-field" key={item.id}>
-                    <input
-                      type="checkbox"
-                      checked={form.exerciseIds.includes(item.id)}
-                      onChange={(event) =>
-                        patch({
-                          exerciseIds: event.target.checked
-                            ? [...form.exerciseIds, item.id]
-                            : form.exerciseIds.filter((id) => id !== item.id),
-                        })
-                      }
-                    />
-                    {item.name}
-                  </label>
-                ))}
-              </fieldset>
             </>
           )}
           {form.kind === "training" && (

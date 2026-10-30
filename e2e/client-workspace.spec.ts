@@ -90,10 +90,7 @@ test("manages clinical catalogs in settings and creates, orders, copies and reco
   await login(page);
   await page.goto("/configuracoes");
   await page.getByRole("tab", { name: "Cadastros", exact: true }).click();
-  const catalogs = page.getByText(
-    "Aparelhos, exercícios e modelos de evolução",
-    { exact: true },
-  );
+  const catalogs = page.getByText("Aparelhos e exercícios", { exact: true });
   await catalogs.focus();
   await catalogs.press("Enter");
   await page
@@ -144,7 +141,7 @@ test("manages clinical catalogs in settings and creates, orders, copies and reco
   await page
     .getByRole("tab", { name: "Treinos e documentos", exact: true })
     .click();
-  const resources = page.getByText("Modelos, evoluções e treinos", {
+  const resources = page.getByText("Treinos, relatórios e prescrições", {
     exact: true,
   });
   await resources.focus();

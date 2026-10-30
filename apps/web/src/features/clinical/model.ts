@@ -1,20 +1,12 @@
 import {
-  isAppointmentStarted,
   patientTagKey,
-  type ClinicalAppointmentOption,
   type ClinicalMeasurement,
-  type ClinicalRecord,
   type ClinicalWorkspace,
   type Patient,
   type PatientOption,
   type TherapeuticGoal,
 } from "@crm/contracts";
 import { api } from "../../api";
-import {
-  clinicIsoDate,
-  formatIsoDate,
-  timeLabel,
-} from "../../shared/lib/formatting";
 
 export async function fetchAgendaPatients(
   canSeePatients: boolean,
@@ -34,153 +26,33 @@ export function fileToBase64(file: File) {
   });
 }
 
-/** Janela padrão do seletor de atendimento da evolução. */
-export const RECENT_APPOINTMENT_DAYS = 90;
-
-export function clinicalAppointmentLabel(
-  appointment: Pick<
-    ClinicalAppointmentOption,
-    "startsAt" | "patientName" | "professionalName"
-  >,
-) {
-  const date = formatIsoDate(clinicIsoDate(appointment.startsAt));
-  const time = timeLabel.format(new Date(appointment.startsAt));
-  return `${date} ${time} · ${appointment.patientName} · ${appointment.professionalName}`;
-}
-
-/**
- * Atendimentos do mais recente para o mais antigo. Sem `includeOlder`, só os últimos 90 dias
- * (e os próximos, já carregados). A busca casa nome do cliente ou do profissional sem acento,
- * ou a data em DD/MM ou DD/MM/AAAA.
- */
-export function filterClinicalAppointments(
-  appointments: ClinicalAppointmentOption[],
-  query: string,
-  includeOlder: boolean,
-  now = new Date(),
-) {
-  const limit = new Date(now);
-  limit.setDate(limit.getDate() - RECENT_APPOINTMENT_DAYS);
-  const term = patientTagKey(query);
-  return appointments
-    .filter(
-      (appointment) => includeOlder || new Date(appointment.startsAt) >= limit,
-    )
-    .filter(
-      (appointment) =>
-        !term ||
-        patientTagKey(clinicalAppointmentLabel(appointment)).includes(term),
-    )
-    .sort((a, b) => b.startsAt.localeCompare(a.startsAt));
-}
-
-const soapSteps = [
-  ["subjective", "S — Subjetivo"],
-  ["objective", "O — Objetivo"],
-  ["assessment", "A — Avaliação"],
-  ["plan", "P — Plano"],
-] as const;
-
-/** Etapas SOAP ainda vazias: o rascunho aceita, mas finalizar exige as quatro. */
-export function missingSoapSteps(
-  record: Pick<
-    ClinicalRecord,
-    "subjective" | "objective" | "assessment" | "plan"
-  >,
-) {
-  return soapSteps
-    .filter(([key]) => !record[key].trim())
-    .map(([, label]) => label);
-}
-
 export const goalStatusLabels: Record<TherapeuticGoal["status"], string> = {
   active: "Ativo",
   achieved: "Alcançado",
   cancelled: "Cancelado",
 };
 
-/** Resumo de um cliente na coluna do prontuário. */
-export interface ClinicalPatientSummary {
-  patient: PatientOption;
-  records: number;
-  drafts: number;
-  /** Sessões já iniciadas e sem evolução. */
-  pending: ClinicalAppointmentOption[];
-  /** Evolução ou sessão pendente mais recente. */
-  lastActivityAt?: string;
-}
-
-export type ClinicalPatientFilter = "all" | "pending" | "drafts";
-
-export function buildPatientSummaries(
+/** Busca sem acento pelo nome; lista em ordem alfabética. */
+export function filterClinicalPatients(
   patients: PatientOption[],
-  records: ClinicalRecord[],
-  appointments: ClinicalAppointmentOption[],
-): ClinicalPatientSummary[] {
-  const evolved = new Set(records.map((record) => record.appointmentId));
-  return patients.map((patient) => {
-    const own = records.filter((record) => record.patientId === patient.id);
-    const pending = appointments
-      .filter(
-        (appointment) =>
-          appointment.patientId === patient.id && !evolved.has(appointment.id),
-      )
-      .sort((a, b) => b.startsAt.localeCompare(a.startsAt));
-    const lastActivityAt = [
-      ...own.map((record) => record.appointmentStartsAt),
-      ...pending.map((appointment) => appointment.startsAt),
-    ].sort((a, b) => b.localeCompare(a))[0];
-    return {
-      patient,
-      records: own.length,
-      drafts: own.filter((record) => record.status === "draft").length,
-      pending,
-      ...(lastActivityAt ? { lastActivityAt } : {}),
-    };
-  });
-}
-
-/**
- * Busca sem acento pelo nome; quem tem atividade clínica aparece primeiro (a mais recente no
- * topo) e o restante em ordem alfabética.
- */
-export function filterPatientSummaries(
-  summaries: ClinicalPatientSummary[],
   query: string,
-  filter: ClinicalPatientFilter,
 ) {
   const term = patientTagKey(query);
-  return summaries
+  return patients
     .filter(
-      (summary) =>
-        (filter === "all" ||
-          (filter === "pending"
-            ? summary.pending.length > 0
-            : summary.drafts > 0)) &&
-        (!term || patientTagKey(summary.patient.fullName).includes(term)),
+      (patient) => !term || patientTagKey(patient.fullName).includes(term),
     )
-    .sort(
-      (a, b) =>
-        (b.lastActivityAt ?? "").localeCompare(a.lastActivityAt ?? "") ||
-        a.patient.fullName.localeCompare(b.patient.fullName, "pt-BR"),
-    );
+    .sort((a, b) => a.fullName.localeCompare(b.fullName, "pt-BR"));
 }
 
 export type ClinicalTimelineKind =
-  | "record"
-  | "assessment"
-  | "measurement"
-  | "attachment"
-  | "addendum"
-  | "closure";
+  "assessment" | "measurement" | "attachment" | "closure";
 
 export const clinicalTimelineKindLabels: Record<ClinicalTimelineKind, string> =
   {
-    record: "Evoluções",
     assessment: "Avaliações",
     measurement: "Medições",
     attachment: "Arquivos",
-    addendum: "Adendos",
     closure: "Encerramentos",
   };
 
@@ -191,7 +63,6 @@ export interface ClinicalTimelineEvent {
   date: string;
   title: string;
   author: string;
-  draft?: boolean;
 }
 
 export const closureKindLabels = {
@@ -205,15 +76,6 @@ export function buildClinicalTimeline(
   workspace: ClinicalWorkspace,
 ): ClinicalTimelineEvent[] {
   return [
-    ...workspace.records.map((item) => ({
-      id: `record-${item.id}`,
-      kind: "record" as const,
-      label: "Evolução SOAP",
-      date: item.appointmentStartsAt,
-      title: item.assessment || item.subjective || "Evolução clínica",
-      author: item.authorName,
-      draft: item.status === "draft",
-    })),
     ...workspace.assessments.map((item) => ({
       id: `assessment-${item.id}`,
       kind: "assessment" as const,
@@ -246,14 +108,6 @@ export function buildClinicalTimeline(
       title: item.summary,
       author: item.authorName,
     })),
-    ...(workspace.addenda ?? []).map((item) => ({
-      id: `addendum-${item.id}`,
-      kind: "addendum" as const,
-      label: "Adendo imutável",
-      date: item.createdAt,
-      title: `${item.reason}: ${item.content}`,
-      author: item.authorName,
-    })),
   ].sort((a, b) => b.date.localeCompare(a.date));
 }
 
@@ -265,7 +119,7 @@ export interface MeasurementSeries {
   points: ClinicalMeasurement[];
 }
 
-/** Medições agrupadas por nome e unidade, para o gráfico de evolução. */
+/** Medições agrupadas por nome e unidade, para o gráfico das medições. */
 export function measurementSeries(
   measurements: ClinicalMeasurement[],
 ): MeasurementSeries[] {
@@ -311,20 +165,3 @@ export function goalProgress(
 }
 
 export { patientAge } from "../../shared/lib/formatting";
-
-/** Janela de sessões oferecidas para evoluir, igual à da página Prontuários. */
-export function clinicalAppointmentRange(now = new Date()) {
-  const from = new Date(now);
-  from.setDate(from.getDate() - 180);
-  const to = new Date(now);
-  to.setDate(to.getDate() + 2);
-  return [from.toISOString(), to.toISOString()] as const;
-}
-
-/** Evolução só para atendimento já iniciado (início − 15 min); a API também recusa. */
-export function evolvableAppointments(options: ClinicalAppointmentOption[]) {
-  return options.filter(
-    (appointment) =>
-      appointment.status !== "cancelled" && isAppointmentStarted(appointment),
-  );
-}
