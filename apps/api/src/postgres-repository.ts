@@ -301,6 +301,10 @@ export class PostgresClinicRepository implements ClinicRepository {
     this.updateProLaboreSettings = this.administration.updateProLaboreSettings;
     this.listNavTabLabels = this.administration.listNavTabLabels;
     this.saveNavTabLabels = this.administration.saveNavTabLabels;
+    this.getNotificationPreferences =
+      this.administration.getNotificationPreferences;
+    this.saveNotificationPreferences =
+      this.administration.saveNotificationPreferences;
     this.recordAdminAuditEvent = this.administration.recordAdminAuditEvent;
     this.listAdminAuditEvents = this.administration.listAdminAuditEvents;
     this.listHistoryActors = this.administration.listHistoryActors;
@@ -553,6 +557,8 @@ export class PostgresClinicRepository implements ClinicRepository {
 
   readonly listNavTabLabels: ClinicRepository["listNavTabLabels"];
   readonly saveNavTabLabels: ClinicRepository["saveNavTabLabels"];
+  readonly getNotificationPreferences: ClinicRepository["getNotificationPreferences"];
+  readonly saveNotificationPreferences: ClinicRepository["saveNotificationPreferences"];
 
   readonly recordAdminAuditEvent: ReturnType<
     typeof createAdministrationRepository

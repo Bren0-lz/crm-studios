@@ -22,6 +22,7 @@ import type {
   ClinicalResource,
   ClinicCatalogEntry,
   NavTabLabel,
+  NotificationPreferences,
   AutoFinalizationSettings,
   PaymentMethodSettings,
   ProLaboreSettings,
@@ -549,6 +550,9 @@ export class MemoryRepositoryContext {
 
   /** Foto do perfil por usuário (`users.avatar_data_url` no PostgreSQL). */
   readonly userAvatars = new Map<string, string>();
+
+  /** Preferências do sino por usuário (`user_notification_preferences` no PostgreSQL). */
+  readonly notificationPreferences = new Map<string, NotificationPreferences>();
 
   /** WhatsApp por usuário (`users.whatsapp` no PostgreSQL). */
   readonly userWhatsapps = new Map<string, string>();

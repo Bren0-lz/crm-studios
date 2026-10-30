@@ -129,6 +129,7 @@ import type {
   PaymentMethodSettingsInput,
   NavTabLabel,
   NavTabLabelsInput,
+  NotificationPreferences,
   CommissionEntry,
   CommissionRule,
   CommissionRuleInput,
@@ -630,6 +631,16 @@ export interface ClinicRepository {
     clinicId: string,
     input: NavTabLabelsInput,
   ): Promise<NavTabLabel[]>;
+  /** Preferências do sino de notificações do usuário (padrão se nunca salvas). */
+  getNotificationPreferences(
+    clinicId: string,
+    userId: string,
+  ): Promise<NotificationPreferences>;
+  saveNotificationPreferences(
+    clinicId: string,
+    userId: string,
+    input: NotificationPreferences,
+  ): Promise<NotificationPreferences>;
   listAdminAuditEvents(clinicId: string): Promise<AdminAuditEvent[]>;
   listAdminAuditPage(
     clinicId: string,
