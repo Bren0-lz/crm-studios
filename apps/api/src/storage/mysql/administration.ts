@@ -14,6 +14,7 @@ import {
   type HistoryActor,
   type NavTabLabel,
   type NavTabLabelsInput,
+  type NotificationPreferences,
   type OwnProfile,
   type OwnProfileUpdate,
   type Professional,
@@ -27,6 +28,7 @@ import {
   permissionEditModules,
   permissionModules,
   resolveNavTabLabels,
+  resolveNotificationPreferences,
   resolvePermissionInput,
 } from "@crm/contracts";
 import type { Pool, PoolClient } from "../../infrastructure/mysql-client.js";
@@ -55,6 +57,7 @@ import {
   rowPermissions,
   userColumns,
   branchClause,
+  json,
 } from "./helpers.js";
 
 type ClinicSettingsRow = {
@@ -1131,6 +1134,35 @@ export function createAdministrationRepository(
           );
       });
       return resolveNavTabLabels(input.tabs);
+    },
+
+    async getNotificationPreferences(clinicId: string, userId: string) {
+      const result = await repositoryContext.pool.query<{
+        preferences: unknown;
+      }>(
+        `SELECT preferences FROM user_notification_preferences
+         WHERE clinic_id = $1 AND user_id = $2`,
+        [clinicId, userId],
+      );
+      const row = result.rows[0];
+      return resolveNotificationPreferences(
+        row ? json<unknown>(row.preferences) : undefined,
+      );
+    },
+
+    async saveNotificationPreferences(
+      clinicId: string,
+      userId: string,
+      input: NotificationPreferences,
+    ) {
+      const preferences = resolveNotificationPreferences(input);
+      await repositoryContext.pool.query(
+        `INSERT INTO user_notification_preferences (clinic_id, user_id, preferences)
+         VALUES ($1, $2, $3)
+         ON DUPLICATE KEY UPDATE preferences = VALUES(preferences), updated_at = NOW(6)`,
+        [clinicId, userId, JSON.stringify(preferences)],
+      );
+      return preferences;
     },
   };
 }

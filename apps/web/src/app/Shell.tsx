@@ -20,6 +20,8 @@ import { installInlineValidation } from "../shared/feedback/inline-validation";
 import { api, BRANCH_CHANGED_EVENT, getStoredBranchId } from "../api";
 import { BranchSelector } from "./BranchSelector";
 import { NotificationsMenu } from "./HeaderMenus";
+import { NotificationAlerts, NotificationsBanner } from "./NotificationAlerts";
+import { useNotificationCenter } from "./notification-center";
 import { navGroups } from "./navItems";
 
 export function Shell({
@@ -91,6 +93,7 @@ export function Shell({
       ),
     }))
     .filter((group) => group.items.length > 0);
+  const notifications = useNotificationCenter();
   const guards = useRef(new Set<NavigationGuard>());
   const registerGuard = useCallback((guard: NavigationGuard) => {
     const set = guards.current;
@@ -191,10 +194,21 @@ export function Shell({
           <div className="top-actions">
             <BranchSelector />
             <EmergencyButton />
-            <NotificationsMenu onNavigate={guardedNavigate} />
+            <NotificationsMenu
+              center={notifications}
+              onNavigate={guardedNavigate}
+            />
           </div>
         </header>
+        <NotificationAlerts
+          center={notifications}
+          onNavigate={guardedNavigate}
+        />
         <div className="page-content" key={branchKey}>
+          <NotificationsBanner
+            center={notifications}
+            onNavigate={guardedNavigate}
+          />
           <NavigationGuardContext.Provider value={registerGuard}>
             <NavTabLabelsContext.Provider value={applyTabLabels}>
               <ModuleLabelContext.Provider value={moduleLabel}>

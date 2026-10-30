@@ -1,5 +1,6 @@
 import {
   isOverdueReceivable,
+  notificationPreferencesSchema,
   recurringPayableReminders,
   type DashboardViewSummary,
   type NotificationsSummary,
@@ -88,6 +89,27 @@ export function registerDashboardRoutes(context: RouteContext) {
    * contatos adiados que voltaram à lista (relacionamento) e pausas com retorno previsto
    * até hoje (planos). Com Comunicações, as campanhas automáticas com mensagens pendentes.
    */
+  app.get(
+    "/notifications/preferences",
+    { preHandler: authenticate },
+    async (request) =>
+      repository.getNotificationPreferences(
+        request.user.clinicId,
+        request.user.sub,
+      ),
+  );
+
+  app.put(
+    "/notifications/preferences",
+    { preHandler: authenticate },
+    async (request) =>
+      repository.saveNotificationPreferences(
+        request.user.clinicId,
+        request.user.sub,
+        notificationPreferencesSchema.parse(request.body),
+      ),
+  );
+
   app.get("/notifications", { preHandler: authenticate }, async (request) => {
     const { clinicId } = request.user;
     const modules = requestAccess.get(request)?.modules ?? [];

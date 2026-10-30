@@ -2,6 +2,7 @@ import { prepareUserAgenda } from "./user-agenda.js";
 import {
   defaultAutoFinalizationSettings,
   resolveNavTabLabels,
+  resolveNotificationPreferences,
   resolvePaymentMethodSettings,
   type PaymentMethodSettingsInput,
   type AutoFinalizationSettings,
@@ -18,6 +19,7 @@ import {
   type ClinicSettingsInput,
   type HistoryActor,
   type NavTabLabelsInput,
+  type NotificationPreferences,
   type OwnProfile,
   type OwnProfileUpdate,
   type Professional,
@@ -795,6 +797,25 @@ export function createAdministrationRepository(
         input.tabs.map((item) => ({ ...item })),
       );
       return resolveNavTabLabels(input.tabs);
+    },
+
+    async getNotificationPreferences(clinicId: string, userId: string) {
+      return resolveNotificationPreferences(
+        repositoryContext.notificationPreferences.get(`${clinicId}:${userId}`),
+      );
+    },
+
+    async saveNotificationPreferences(
+      clinicId: string,
+      userId: string,
+      input: NotificationPreferences,
+    ) {
+      const preferences = resolveNotificationPreferences(input);
+      repositoryContext.notificationPreferences.set(
+        `${clinicId}:${userId}`,
+        preferences,
+      );
+      return preferences;
     },
   };
 }
