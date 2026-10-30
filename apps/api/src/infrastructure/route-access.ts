@@ -1,6 +1,7 @@
 import {
   permissionCatalog,
   type AppModule,
+  type IntegrationScope,
   type PermissionKey,
 } from "@crm/contracts";
 
@@ -18,13 +19,21 @@ export interface ModuleRequirement {
  * - lista de módulos: o usuário precisa de TODOS os níveis listados.
  * - `{ anyOf: [...] }`: basta UM dos níveis listados (leituras de apoio usadas por várias
  *   telas). O 403 usa o código do primeiro módulo e cita todos na mensagem.
+ * - `{ apiKey, requires }`: API externa (`/external/v1`), só com chave de integração que tenha o
+ *   escopo; a chave age com as permissões do admin que a criou, e `requires` são as dele.
  */
 export type RouteAccess =
   | "public"
   | "login"
   | "admin"
   | ModuleRequirement[]
-  | { anyOf: ModuleRequirement[] };
+  | { anyOf: ModuleRequirement[] }
+  | ExternalAccess;
+
+export interface ExternalAccess {
+  apiKey: IntegrationScope;
+  requires: ModuleRequirement[];
+}
 
 const view = (...modules: AppModule[]): ModuleRequirement[] =>
   modules.map((module) => ({
@@ -43,6 +52,15 @@ const operation = (...keys: PermissionKey[]): ModuleRequirement[] =>
       permission,
     };
   });
+
+/**
+ * Rota da API externa. Sem `requires`, a rota repassa a chamada à rota interna equivalente,
+ * que confere as permissões como para qualquer usuário.
+ */
+const external = (
+  scope: IntegrationScope,
+  ...requires: ModuleRequirement[][]
+): ExternalAccess => ({ apiKey: scope, requires: requires.flat() });
 
 /** Explicit authorization policy for every registered route. Startup rejects unmapped routes.
  * View permissions authorize module reads; operation permissions authorize individual actions.
@@ -96,6 +114,10 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
   "GET /history/audit-events": view("history"),
   "GET /history/actors": view("history"),
   "GET /admin/permission-matrix": "admin",
+  // Chaves da API externa (dashboard de vendas): só admin cria, lista e revoga.
+  "GET /integration-keys": "admin",
+  "POST /integration-keys": "admin",
+  "POST /integration-keys/:id/revoke": "admin",
   "GET /patients/export": operation("patients.export"),
 
   // Visão geral e leituras de apoio da agenda: só login.
@@ -343,6 +365,42 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
   // Link de assinatura enviado ao cliente (sem login; o token identifica o documento).
   "GET /public/document-signatures/:token": "public",
   "POST /public/document-signatures/:token": "public",
+  // API externa de vendas (chave de integração; ver `modules/external/endpoints.ts`).
+  "GET /external/v1": external("sales:read"),
+  "GET /external/v1/groups": external("sales:read", view("groups", "plans")),
+  "GET /external/v1/groups/:id": external(
+    "sales:read",
+    view("groups", "plans"),
+  ),
+  "GET /external/v1/patients": external("sales:read", view("patients")),
+  "GET /external/v1/patients/:id/plans": external("sales:read"),
+  "GET /external/v1/services": external("sales:read"),
+  "GET /external/v1/professionals": external("sales:read"),
+  "GET /external/v1/plan-catalog": external("sales:read"),
+  "GET /external/v1/leads": external("sales:read"),
+  "GET /external/v1/leads/board": external("sales:read"),
+  "GET /external/v1/leads/insights": external("sales:read"),
+  "GET /external/v1/leads/stages": external("sales:read"),
+  "GET /external/v1/leads/filter-options": external("sales:read"),
+  "GET /external/v1/leads/:id/activity": external("sales:read"),
+  "GET /external/v1/waitlist": external("sales:read"),
+  "GET /external/v1/sales": external("sales:read"),
+  "GET /external/v1/sales/period": external("sales:read"),
+  "GET /external/v1/finance/summary": external("sales:read"),
+  "POST /external/v1/leads": external("sales:write"),
+  "PUT /external/v1/leads/:id": external("sales:write"),
+  "PATCH /external/v1/leads/:id/stage": external("sales:write"),
+  "POST /external/v1/leads/:id/contacts": external("sales:write"),
+  "POST /external/v1/leads/:id/tasks": external("sales:write"),
+  "PATCH /external/v1/lead-tasks/:id/status": external("sales:write"),
+  "POST /external/v1/leads/:id/convert": external("sales:write"),
+  "POST /external/v1/patients": external("sales:write"),
+  "POST /external/v1/group-enrollments": external("sales:write"),
+  "POST /external/v1/group-enrollments/:id/cancel": external("sales:write"),
+  "POST /external/v1/plans/purchases": external("sales:write"),
+  "POST /external/v1/waitlist": external("sales:write"),
+  "PATCH /external/v1/waitlist/:id": external("sales:write"),
+  "DELETE /external/v1/waitlist/:id": external("sales:write"),
   "GET /documents": view("contracts"),
   "POST /documents": operation("contracts.issue"),
   "POST /documents/preview": operation("contracts.issue"),

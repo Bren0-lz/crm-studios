@@ -18,6 +18,7 @@ import { PaymentMethodsContent } from "./PaymentMethodsContent";
 import { BranchesContent } from "./BranchesContent";
 import { ClinicSettingsContent } from "./ClinicSettingsContent";
 import { HolidaysContent } from "./HolidaysContent";
+import { IntegrationKeysContent } from "./IntegrationKeysContent";
 import { NavTabLabelsContent } from "./NavTabLabelsContent";
 import { settingsTabFromSection, settingsTabs } from "./model";
 import { PatientTagsContent } from "./PatientTagsContent";
@@ -143,6 +144,8 @@ export function SettingsPage() {
               <AutoFinalizationContent />
             ) : tab.key === "paymentMethods" ? (
               <PaymentMethodsContent />
+            ) : tab.key === "integrations" ? (
+              <IntegrationKeysContent />
             ) : tab.key === "plans" ? (
               <PlanTemplatesContent />
             ) : tab.key === "holidays" ? (

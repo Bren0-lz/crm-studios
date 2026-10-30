@@ -130,6 +130,8 @@ import type {
   NavTabLabel,
   NavTabLabelsInput,
   NotificationPreferences,
+  IntegrationKey,
+  IntegrationKeyInput,
   CommissionEntry,
   CommissionRule,
   CommissionRuleInput,
@@ -641,6 +643,29 @@ export interface ClinicRepository {
     userId: string,
     input: NotificationPreferences,
   ): Promise<NotificationPreferences>;
+  /** Chaves da API externa da clínica (sem o segredo), as revogadas por último. */
+  listIntegrationKeys(clinicId: string): Promise<IntegrationKey[]>;
+  /** Grava a chave pelo hash do token; o token em si nunca é guardado. */
+  createIntegrationKey(
+    clinicId: string,
+    actorUserId: string,
+    input: IntegrationKeyInput,
+    secret: { prefix: string; tokenHash: string },
+  ): Promise<IntegrationKey>;
+  /** Revoga a chave (sem volta); null se não existe na clínica. */
+  revokeIntegrationKey(
+    clinicId: string,
+    id: string,
+  ): Promise<IntegrationKey | null>;
+  /**
+   * Chave ativa (não revogada) pelo hash do token, em qualquer clínica: é o token que diz a
+   * clínica, como o link público de assinatura.
+   */
+  findIntegrationKeyByTokenHash(
+    tokenHash: string,
+  ): Promise<{ clinicId: string; key: IntegrationKey } | null>;
+  /** Registra o último uso da chave. */
+  touchIntegrationKey(clinicId: string, id: string): Promise<void>;
   listAdminAuditEvents(clinicId: string): Promise<AdminAuditEvent[]>;
   listAdminAuditPage(
     clinicId: string,
