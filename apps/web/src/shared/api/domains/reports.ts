@@ -6,13 +6,18 @@ import type {
 import type {
   ClientReport,
   DashboardViewSummary,
+  FinancialExportFilter,
+  FinancialReport,
   ManagementReport,
   NotificationsSummary,
+  ProLaboreSettings,
+  ProLaboreSettingsInput,
   RetentionReport,
   SaleMovement,
   SalesReport,
   SalesPeriodReport,
 } from "@crm/contracts";
+import { allBranches } from "../branch";
 import { request, requestBlob } from "../transport";
 
 export const reportsApi = {
@@ -23,6 +28,7 @@ export const reportsApi = {
       search?: string;
       columns?: ClientDetailsColumn[];
       status?: "active" | "inactive" | undefined;
+      discount?: "with" | "without" | undefined;
     },
     exporting = false,
   ) => {
@@ -53,6 +59,24 @@ export const reportsApi = {
     requestBlob(
       `/reports/management.csv?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
     ),
+  /** Todas as filiais do usuário: a tela filtra e compara as filiais. */
+  financialReport: (from: string, to: string) =>
+    request<FinancialReport>(
+      `/reports/financial?${new URLSearchParams({ from, to })}`,
+      allBranches,
+    ),
+  /** Planilha do extrato com os filtros da tela; todas as filiais, como o relatório. */
+  financialReportCsv: (input: Partial<FinancialExportFilter>) => {
+    const query = new URLSearchParams();
+    for (const [key, value] of Object.entries(input))
+      if (value) query.set(key, String(value));
+    return requestBlob(`/reports/financial/export?${query}`, allBranches);
+  },
+  updateProLabore: (input: ProLaboreSettingsInput) =>
+    request<ProLaboreSettings>("/admin/pro-labore", {
+      method: "PUT",
+      body: JSON.stringify(input),
+    }),
   retentionReport: (from: string, to: string) =>
     request<RetentionReport>(
       `/reports/retention?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,

@@ -1,3 +1,4 @@
+import { markPaymentProofsReversed } from "./payment-proofs.js";
 import {
   formatSequenceNumber,
   settlementBreakdown,
@@ -25,6 +26,8 @@ import {
   type PatientPlanInput,
   type Payable,
   type PaymentMethod,
+  discountedPlanInstallments,
+  type PatientDiscount,
   planInstallmentSchedule,
   type PlanTemplateInput,
   type ReceivableStatus,
@@ -70,6 +73,7 @@ import {
   hasGroupSessionConflict,
   json,
   issuedDocumentColumns,
+  issuedDocumentJoins,
   type IssuedDocumentRow,
   leadColumns,
   type LeadContactRow,
@@ -105,6 +109,7 @@ import {
   type PatientTagRow,
   payableColumns,
   type PayableRow,
+  paymentInstallmentsValue,
   receivableColumns,
   type ReceivableRow,
   recurringPayableColumns,
@@ -962,6 +967,19 @@ export class MysqlRepositoryContext {
       "SELECT 1 FROM patients WHERE clinic_id=$1 AND id=$2 AND status='active'",
       [clinicId, input.patientId],
     );
+    // O desconto é do plano: a renovação segue o do plano anterior, com o que já foi usado.
+    const previous = renewedFromPlanId
+      ? await client.query<{ discount: PatientDiscount | null }>(
+          "SELECT discount FROM patient_plans WHERE clinic_id=$1 AND id=$2",
+          [clinicId, renewedFromPlanId],
+        )
+      : null;
+    const discounted = discountedPlanInstallments(
+      planInstallmentSchedule(input),
+      input.discount,
+      previous?.rows[0]?.discount,
+      input.orderDiscountInCents,
+    );
     const context = await client.query<{ id: string; name: string }>(
       `SELECT s.id,coalesce((SELECT x.service_name FROM patient_plan_services x WHERE x.plan_id=$3 AND x.service_id=s.id),s.name) AS name
        FROM services s WHERE s.clinic_id=$1 AND JSON_CONTAINS($2, JSON_QUOTE(s.id)) AND s.active LOCK IN SHARE MODE`,
@@ -995,9 +1013,9 @@ export class MysqlRepositoryContext {
          clinic_id, patient_id, service_id, name, kind, total_sessions,
          remaining_sessions, valid_from, valid_until, total_value_in_cents,
          installments, first_due_date, auto_renew, renewed_from_plan_id, plan_template_id,
-         branch_id, payment_method, id
+         branch_id, payment_method, id, discount, created_at
        ) VALUES ($1,$2,$3,$4,$5,$6,$6,$7,$8,$9,$10,$11,$12,$13,$14,
-         ${branchOrDefault("$15", "$1")}, $16, $17
+         ${branchOrDefault("$15", "$1")}, $16, $17, $18, $19
        )`,
       [
         clinicId,
@@ -1017,6 +1035,9 @@ export class MysqlRepositoryContext {
         previousBranch ?? this.branchWriteId(),
         input.paymentMethod ?? null,
         planId,
+        discounted.discount ?? null,
+        // Hora da venda pelo relógio da aplicação (o mesmo do relatório de vendas por período).
+        new Date(),
       ],
     );
     for (const [position, entry] of input.services.entries()) {
@@ -1050,15 +1071,16 @@ export class MysqlRepositoryContext {
         ],
       );
     }
-    for (const installment of planInstallmentSchedule(input)) {
+    for (const installment of discounted.installments) {
       const amount = installment.amountInCents;
       const receivableId = randomUUID();
       await client.query(
         `INSERT INTO receivables (
            clinic_id, patient_id, plan_id, description, installment_number,
-           installment_count, due_date, amount_in_cents, branch_id, id
+           installment_count, due_date, amount_in_cents, branch_id, id,
+           customer_discount_in_cents
          ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,
-           (SELECT branch_id FROM patient_plans WHERE clinic_id=$1 AND id=$3), $9
+           (SELECT branch_id FROM patient_plans WHERE clinic_id=$1 AND id=$3), $9, $10
          )`,
         [
           clinicId,
@@ -1070,6 +1092,7 @@ export class MysqlRepositoryContext {
           installment.dueDate,
           amount,
           receivableId,
+          installment.customerDiscountInCents,
         ],
       );
       await client.query(
@@ -1203,7 +1226,7 @@ export class MysqlRepositoryContext {
       ce.professional_id AS "professionalId", p.full_name AS "professionalName",
       ce.appointment_id AS "appointmentId",ce.group_attendance_id AS "groupAttendanceId",ce.service_id AS "serviceId",ce.rule_id AS "ruleId",ce.rule_snapshot AS "ruleSnapshot", ce.competence, ce.base_amount_in_cents AS "baseAmountInCents",
       ce.percentage, ce.amount_in_cents AS "amountInCents", ce.status, ce.paid_at AS "paidAt",
-      ce.created_at AS "createdAt" FROM commission_entries ce JOIN professionals p ON p.id = ce.professional_id
+      ce.created_at AS "createdAt",ce.payroll_payable_id AS "payrollPayableId" FROM commission_entries ce JOIN professionals p ON p.id = ce.professional_id
       WHERE ce.clinic_id = $1 AND ($2 IS NULL OR ce.competence = $2) ORDER BY ce.competence DESC`,
       [clinicId, competence ?? null],
     );
@@ -1285,8 +1308,7 @@ export class MysqlRepositoryContext {
     const result = await client.query<IssuedDocumentRow>(
       `SELECT ${issuedDocumentColumns}
        FROM issued_documents d
-       JOIN patients p ON p.id = d.patient_id
-       LEFT JOIN patient_plans pp ON pp.id = d.plan_id
+       ${issuedDocumentJoins}
        WHERE d.clinic_id = $1 AND d.id = $2`,
       [clinicId, documentId],
     );
@@ -1360,7 +1382,7 @@ export class MysqlRepositoryContext {
         [clinicId, tabId],
       ),
       client.query<PatientTabItemRow>(
-        `SELECT i.id,i.tab_id AS "tabId",i.product_id AS "productId",p.name AS "productName",i.quantity,i.unit_price_in_cents AS "unitPriceInCents",i.unit_cost_in_cents AS "unitCostInCents" FROM patient_tab_items i JOIN products p ON p.id=i.product_id WHERE i.clinic_id=$1 AND i.tab_id=$2 ORDER BY i.created_at`,
+        `SELECT i.id,i.tab_id AS "tabId",i.product_id AS "productId",p.name AS "productName",i.size,i.quantity,i.unit_price_in_cents AS "unitPriceInCents",i.unit_cost_in_cents AS "unitCostInCents" FROM patient_tab_items i JOIN products p ON p.id=i.product_id WHERE i.clinic_id=$1 AND i.tab_id=$2 ORDER BY i.created_at`,
         [clinicId, tabId],
       ),
     ]);
@@ -1579,9 +1601,9 @@ export class MysqlRepositoryContext {
       }
       await client.query(
         operation === "payment"
-          ? `UPDATE receivables SET status = 'paid', paid_at = coalesce($4,NOW(6)),cash_available_at=coalesce($5,cash_available_at), payment_method = $3, updated_at = NOW(6)
+          ? `UPDATE receivables SET status = 'paid', paid_at = coalesce($4,NOW(6)),cash_available_at=coalesce($5,cash_available_at), payment_method = $3, payment_installments = $6, updated_at = NOW(6)
              WHERE clinic_id = $1 AND id = $2`
-          : `UPDATE receivables SET status = 'open', paid_at = NULL, payment_method = NULL, updated_at = NOW(6)
+          : `UPDATE receivables SET status = 'open', paid_at = NULL, payment_method = NULL, payment_installments = NULL, updated_at = NOW(6)
              WHERE clinic_id = $1 AND id = $2`,
         operation === "payment"
           ? [
@@ -1590,6 +1612,7 @@ export class MysqlRepositoryContext {
               paymentMethod,
               timing?.paidAt ?? null,
               timing?.availableAt ?? null,
+              paymentInstallmentsValue(adjustments.paymentInstallments),
             ]
           : [clinicId, receivableId],
       );
@@ -1606,7 +1629,12 @@ export class MysqlRepositoryContext {
           operation,
           operation === "payment" ? receivedInCents : -receivedInCents,
           operation === "payment"
-            ? { paymentMethod }
+            ? {
+                paymentMethod,
+                ...(paymentInstallmentsValue(adjustments.paymentInstallments)
+                  ? { paymentInstallments: adjustments.paymentInstallments }
+                  : {}),
+              }
             : { paymentMethod: current.rows[0].paymentMethod },
           timing?.paidAt ?? null,
           timing?.availableAt ??
@@ -1616,6 +1644,13 @@ export class MysqlRepositoryContext {
           balanceReceivableId,
         ],
       );
+      if (operation === "payment_reversal")
+        await markPaymentProofsReversed(
+          client,
+          clinicId,
+          "receivable",
+          receivableId,
+        );
       const receivable = await this.findReceivable(
         client,
         clinicId,
@@ -1699,6 +1734,30 @@ export class MysqlRepositoryContext {
             : [clinicId, current.rows[0].commissionId],
         );
       }
+      // Despesa da folha: as comissões e os ajustes incluídos pagam (e estornam) junto.
+      for (const table of ["commission_entries", "commission_adjustments"]) {
+        const included = await client.query<{ status: string }>(
+          `SELECT status FROM ${table} WHERE clinic_id=$1 AND payroll_payable_id=$2 FOR UPDATE`,
+          [clinicId, payableId],
+        );
+        if (included.rows.some((row) => row.status !== expected))
+          throw new DomainError(
+            "PAYROLL_EXPENSE_STATE",
+            "Uma comissão desta folha mudou de situação; revise a folha antes de continuar.",
+            409,
+          );
+        if (!included.rowCount) continue;
+        await client.query(
+          operation === "payment"
+            ? `UPDATE ${table} SET status='paid',paid_at=coalesce($3,NOW(6))${table === "commission_entries" ? ",paid_by_user_id=$4" : ""} WHERE clinic_id=$1 AND payroll_payable_id=$2`
+            : `UPDATE ${table} SET status='open',paid_at=NULL${table === "commission_entries" ? ",paid_by_user_id=NULL" : ""} WHERE clinic_id=$1 AND payroll_payable_id=$2`,
+          operation === "payment"
+            ? table === "commission_entries"
+              ? [clinicId, payableId, timing?.paidAt ?? null, actorUserId]
+              : [clinicId, payableId, timing?.paidAt ?? null]
+            : [clinicId, payableId],
+        );
+      }
       await client.query(
         operation === "payment"
           ? `UPDATE payables SET status = 'paid', paid_at = coalesce($5,NOW(6)),cash_available_at=coalesce($6,cash_available_at),
@@ -1738,6 +1797,8 @@ export class MysqlRepositoryContext {
             (operation === "payment" ? current.rows[0].cashAvailableAt : null),
         ],
       );
+      if (operation === "payment_reversal")
+        await markPaymentProofsReversed(client, clinicId, "payable", payableId);
       const payable = await this.findPayable(client, clinicId, payableId);
       await client.query("COMMIT");
       return payable;

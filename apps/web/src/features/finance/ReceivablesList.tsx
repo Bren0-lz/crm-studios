@@ -6,6 +6,7 @@ import { currency, shortDate } from "../../shared/lib/formatting";
 import {
   normalizeSearch,
   receivableFilterLabels,
+  receivableInstallmentLine,
   receivableSituation,
   signedCurrency,
 } from "./model";
@@ -25,6 +26,7 @@ export function ReceivablesList({
   onReverse,
   onAdjust,
   onReceipt,
+  onProofs,
   onContact,
 }: {
   receivables: Receivable[];
@@ -40,6 +42,7 @@ export function ReceivablesList({
   onReverse: (id: string) => void;
   onAdjust: (item: Receivable) => void;
   onReceipt: (id: string) => void;
+  onProofs: (item: Receivable) => void;
   onContact: (item: Receivable, overdue: boolean) => void;
 }) {
   const { can } = useAuthorization();
@@ -206,6 +209,11 @@ export function ReceivablesList({
               <div className="finance-item">
                 <strong title={item.patientName}>{item.patientName}</strong>
                 <span title={item.description}>{item.description}</span>
+                {receivableInstallmentLine(item) && (
+                  <span className="finance-installment">
+                    {receivableInstallmentLine(item)}
+                  </span>
+                )}
               </div>
               <span className="finance-due">
                 <span className="finance-label">Vencimento </span>
@@ -259,6 +267,15 @@ export function ReceivablesList({
                     onClick={() => onReceipt(item.id)}
                   >
                     Recibo
+                  </button>
+                )}
+                {item.status === "paid" && (
+                  <button
+                    className="secondary-button button-sm"
+                    aria-label={`Comprovantes de ${item.description}`}
+                    onClick={() => onProofs(item)}
+                  >
+                    Comprovantes
                   </button>
                 )}
                 {canManage &&

@@ -8,15 +8,24 @@ import type {
   Payable,
   PaymentMethod,
   Product,
+  ProductSize,
   Receivable,
   ReceivableStatus,
   RecurringPayable,
   StockMovement,
 } from "@crm/contracts";
-import { serviceCommissionsInForce } from "@crm/contracts";
+import {
+  productSizeStock,
+  serviceCommissionsInForce,
+  productNeedsRestock,
+  sortProductSizes,
+} from "@crm/contracts";
 import { localToday } from "../sql.js";
 import { mapAdminUser, type AdminUserRow } from "./administration.js";
 import { bool, json } from "./common.js";
+
+/** Coluna com os saldos por tamanho; exige a tabela `products` sem apelido na consulta. */
+export const productStockRowsColumn = `(SELECT JSON_ARRAYAGG(JSON_OBJECT('size',s.size,'currentStock',s.current_stock)) FROM product_stock s WHERE s.product_id=products.id) AS "stockRows"`;
 
 export interface ProductRow {
   branchId?: string;
@@ -28,9 +37,12 @@ export interface ProductRow {
   sku: string;
   unit: string;
   costInCents: number;
-  salePriceInCents: number;
+  salePriceInCents: number | null;
   currentStock: number;
-  minimumStock: number;
+  restockAlertAt: number | null;
+  sizes: ProductSize[];
+  /** Linhas de `product_stock` ("" = sem tamanho), via `productStockRowsColumn`. */
+  stockRows?: unknown;
   active: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -42,6 +54,7 @@ export interface StockMovementRow {
   productId: string;
   productName: string;
   kind: StockMovement["kind"];
+  size?: string;
   quantity: number;
   balanceAfter: number;
   notes: string;
@@ -70,6 +83,7 @@ export interface PatientTabItemRow {
   tabId: string;
   productId: string;
   productName: string;
+  size?: string;
   quantity: number;
   unitPriceInCents: number;
   unitCostInCents: number;
@@ -99,6 +113,8 @@ export interface ReceivableRow {
   createdAt: Date;
   updatedAt: Date;
   paymentMethod: PaymentMethod | null;
+  paymentInstallments?: number | null;
+  customerDiscountInCents?: number | null;
 }
 
 export interface FinancialCategoryRow {
@@ -118,6 +134,11 @@ export interface CostCenterRow {
 }
 
 export interface PayableRow {
+  payrollEmployeeId?: string | null;
+  payrollEmployeeName?: string | null;
+  payrollCompetence?: string | null;
+  payrollSalaryInCents?: number | null;
+  payrollCommissionInCents?: number | null;
   branchId?: string;
   postedOn?: string | null;
   cashAvailableAt?: Date | null;
@@ -201,6 +222,12 @@ export interface CommissionEntryRow {
   status: CommissionEntry["status"];
   paidAt: Date | null;
   createdAt: Date;
+  payrollPayableId?: string | null;
+}
+
+/** Parcelas do pagamento gravadas só quando há parcelamento (1 = à vista = NULL). */
+export function paymentInstallmentsValue(value: number | undefined) {
+  return value && value > 1 ? value : null;
 }
 
 export const receivableColumns = `
@@ -213,7 +240,8 @@ export const receivableColumns = `
   r.amount_in_cents AS "amountInCents", r.status, r.paid_at AS "paidAt",
   (r.status = 'open' AND r.due_date < ${localToday()}) AS overdue,
   r.created_at AS "createdAt", r.updated_at AS "updatedAt"
-  , r.payment_method AS "paymentMethod"
+  , r.payment_method AS "paymentMethod", r.payment_installments AS "paymentInstallments"
+  , r.customer_discount_in_cents AS "customerDiscountInCents"
 `;
 
 export const payableColumns = `
@@ -228,7 +256,10 @@ export const payableColumns = `
   (py.status = 'open' AND py.due_date < ${localToday()}) AS overdue,
   py.created_at AS "createdAt", py.updated_at AS "updatedAt",
   py.recurring_payable_id AS "recurringPayableId", py.competence,
-  py.amount_pending AS "amountPending"
+  py.amount_pending AS "amountPending",
+  py.payroll_employee_id AS "payrollEmployeeId",py.payroll_competence AS "payrollCompetence",
+  py.payroll_salary_in_cents AS "payrollSalaryInCents",py.payroll_commission_in_cents AS "payrollCommissionInCents",
+  (SELECT pe.name FROM payroll_employees pe WHERE pe.id=py.payroll_employee_id) AS "payrollEmployeeName"
 `;
 
 export const recurringPayableColumns = `
@@ -303,8 +334,19 @@ export function mapProduct(row: ProductRow): Product {
     costInCents: row.costInCents,
     salePriceInCents: row.salePriceInCents,
     currentStock: row.currentStock,
-    minimumStock: row.minimumStock,
-    lowStock: row.currentStock <= row.minimumStock,
+    restockAlertAt: row.restockAlertAt,
+    sizes: sortProductSizes(json<ProductSize[]>(row.sizes)),
+    sizeStock: productSizeStock(
+      json<ProductSize[]>(row.sizes),
+      (
+        json<{ size: string; currentStock: number }[] | null>(row.stockRows) ??
+        []
+      ).map((item) => ({
+        size: (item.size || null) as ProductSize | null,
+        currentStock: item.currentStock,
+      })),
+    ),
+    lowStock: productNeedsRestock(row.currentStock, row.restockAlertAt),
     active: row.active,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
@@ -318,6 +360,7 @@ export function mapStockMovement(row: StockMovementRow): StockMovement {
     productId: row.productId,
     productName: row.productName,
     kind: row.kind,
+    ...(row.size ? { size: row.size as ProductSize } : {}),
     quantity: row.quantity,
     balanceAfter: row.balanceAfter,
     notes: row.notes,
@@ -331,6 +374,7 @@ export function mapPatientTabItem(row: PatientTabItemRow): PatientTabItem {
     id: row.id,
     productId: row.productId,
     productName: row.productName,
+    ...(row.size ? { size: row.size as ProductSize } : {}),
     quantity: row.quantity,
     unitPriceInCents: row.unitPriceInCents,
     unitCostInCents: row.unitCostInCents,
@@ -388,6 +432,12 @@ export function mapReceivable(row: ReceivableRow): Receivable {
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
     ...(row.paymentMethod ? { paymentMethod: row.paymentMethod } : {}),
+    ...(row.paymentInstallments && row.paymentInstallments > 1
+      ? { paymentInstallments: row.paymentInstallments }
+      : {}),
+    ...(row.customerDiscountInCents
+      ? { customerDiscountInCents: row.customerDiscountInCents }
+      : {}),
   };
 }
 
@@ -423,6 +473,17 @@ export function mapPayable(row: PayableRow): Payable {
       ? { recurringPayableId: row.recurringPayableId }
       : {}),
     ...(row.competence ? { competence: row.competence } : {}),
+    ...(row.payrollEmployeeId
+      ? {
+          payroll: {
+            employeeId: row.payrollEmployeeId,
+            employeeName: row.payrollEmployeeName ?? "",
+            competence: row.payrollCompetence!,
+            salaryInCents: row.payrollSalaryInCents ?? 0,
+            commissionInCents: row.payrollCommissionInCents ?? 0,
+          },
+        }
+      : {}),
     ...(row.amountPending ? { amountPending: true } : {}),
   };
 }
@@ -500,6 +561,7 @@ export function mapCommissionEntry(row: CommissionEntryRow): CommissionEntry {
     status: row.status,
     ...(row.paidAt ? { paidAt: row.paidAt.toISOString() } : {}),
     createdAt: row.createdAt.toISOString(),
+    ...(row.payrollPayableId ? { payrollPayableId: row.payrollPayableId } : {}),
   };
 }
 

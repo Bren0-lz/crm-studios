@@ -2,38 +2,44 @@ import type {
   InventoryWorkspace,
   PatientOption,
   PaymentMethod,
+  Product,
   ProductSaleInput,
+  ProductSize,
 } from "@crm/contracts";
-import { patientFirstName } from "@crm/contracts";
-import { Plus, Trash2 } from "lucide-react";
+import {
+  patientFirstName,
+  paymentMethodLabels,
+  paymentMethodSchema,
+  productSizeLabels,
+} from "@crm/contracts";
+import { CircleAlert, Plus, Trash2 } from "lucide-react";
 import { useEffect, useId, useState, type FormEvent } from "react";
 import { api } from "../../api";
+import { useAuthorization } from "../../authorization-context";
 import { PatientPicker } from "../../PatientPicker";
 import { EmptyState } from "../../shared/components/EmptyState";
 import { MoneyInput } from "../../shared/components/MoneyInput";
+import { PaymentInstallmentsSelect } from "../../shared/components/PaymentInstallmentsSelect";
+import { usePaymentMethodSettings } from "../../shared/hooks/usePaymentMethodSettings";
 import { useToast } from "../../shared/feedback/toast-context";
 import { currency, localIsoDate } from "../../shared/lib/formatting";
+import { sellableStock, stockChoices } from "./model";
+import { ProductModal } from "./ProductModal";
 
 type SaleLine = {
   key: number;
   productId: string;
+  /** Tamanho escolhido ("" = ainda não escolhido ou produto sem tamanhos). */
+  size: ProductSize | "";
   quantity: number;
   unitPriceInCents: number;
 };
-
-const paymentMethods: [PaymentMethod, string][] = [
-  ["pix", "Pix"],
-  ["card", "Cartão"],
-  ["cash", "Dinheiro"],
-  ["bank_transfer", "Transferência"],
-  ["boleto", "Boleto"],
-  ["other", "Outro"],
-];
 
 let nextLineKey = 1;
 const emptyLine = (): SaleLine => ({
   key: nextLineKey++,
   productId: "",
+  size: "",
   quantity: 1,
   unitPriceInCents: 0,
 });
@@ -45,12 +51,18 @@ export function NewSaleSection({
   workspace: InventoryWorkspace;
 }) {
   const toast = useToast();
+  const { can } = useAuthorization();
+  const canPrice = can("patients.products_update");
+  /** Produto sem preço aberto pelo aviso; o modal fica por cima da venda, sem desfazê-la. */
+  const [pricing, setPricing] = useState<Product | null>(null);
   const [patients, setPatients] = useState<PatientOption[]>([]);
   const [patientId, setPatientId] = useState("");
   const [lines, setLines] = useState<SaleLine[]>(() => [emptyLine()]);
   const [settlement, setSettlement] =
     useState<ProductSaleInput["settlement"]>("paid");
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("pix");
+  const [paymentInstallments, setPaymentInstallments] = useState(1);
+  const paymentSettings = usePaymentMethodSettings();
   const [dueDate, setDueDate] = useState(() => localIsoDate());
   const [notes, setNotes] = useState("");
   const [busy, setBusy] = useState(false);
@@ -72,17 +84,39 @@ export function NewSaleSection({
   }, []);
   const products = workspace.products.filter((item) => item.active);
   const productOf = (id: string) => products.find((item) => item.id === id);
+  /** Saldo vendável da linha: do tamanho escolhido ou, sem tamanhos, do produto. */
+  const lineStock = (line: SaleLine) => {
+    const product = productOf(line.productId);
+    return product ? sellableStock(product, line.size || undefined) : 0;
+  };
+  const totalSellable = (product: Product) =>
+    stockChoices(product)
+      .filter((choice) => choice.configured)
+      .reduce((sum, choice) => sum + choice.currentStock, 0);
+  const sellableKeys = products.reduce(
+    (sum, item) => sum + Math.max(1, item.sizes.length),
+    0,
+  );
   const filled = lines.filter((line) => line.productId);
+  const missingSize = filled.some(
+    (line) => productOf(line.productId)?.sizes.length && !line.size,
+  );
   const totalInCents = filled.reduce(
     (sum, line) => sum + line.quantity * line.unitPriceInCents,
     0,
   );
+  // Venda bloqueada enquanto algum produto escolhido não tem preço de venda definido.
+  const unpriced = products.filter(
+    (product) =>
+      product.salePriceInCents === null &&
+      filled.some((line) => line.productId === product.id),
+  );
   const missing = [
     ...(!patientId ? ["cliente"] : []),
+    ...(unpriced.length ? ["preço de venda do produto"] : []),
     ...(!filled.length ? ["ao menos um produto"] : []),
-    ...(filled.some(
-      (line) => line.quantity > (productOf(line.productId)?.currentStock ?? 0),
-    )
+    ...(missingSize ? ["tamanho"] : []),
+    ...(!missingSize && filled.some((line) => line.quantity > lineStock(line))
       ? ["quantidade dentro do estoque"]
       : []),
     ...(filled.length && totalInCents <= 0 ? ["valor maior que zero"] : []),
@@ -97,6 +131,7 @@ export function NewSaleSection({
     setLines([emptyLine()]);
     setSettlement("paid");
     setPaymentMethod("pix");
+    setPaymentInstallments(1);
     setDueDate(localIsoDate());
     setNotes("");
   }
@@ -111,11 +146,17 @@ export function NewSaleSection({
         notes,
         items: filled.map((line) => ({
           productId: line.productId,
+          ...(line.size ? { size: line.size } : {}),
           quantity: line.quantity,
           unitPriceInCents: line.unitPriceInCents,
         })),
         settlement,
-        ...(settlement === "paid" ? { paymentMethod } : {}),
+        ...(settlement === "paid"
+          ? {
+              paymentMethod,
+              ...(paymentInstallments > 1 ? { paymentInstallments } : {}),
+            }
+          : {}),
         dueDate,
       });
       toast.success(
@@ -155,8 +196,13 @@ export function NewSaleSection({
             {lines.map((line, index) => {
               const product = productOf(line.productId);
               const position = index + 1;
+              const available = lineStock(line);
+              const sized = Boolean(product?.sizes.length);
               return (
-                <div className="sale-line" key={line.key}>
+                <div
+                  className={`sale-line${sized ? " has-size" : ""}`}
+                  key={line.key}
+                >
                   <label>
                     Produto
                     <select
@@ -166,6 +212,7 @@ export function NewSaleSection({
                         const chosen = productOf(event.target.value);
                         update(line.key, {
                           productId: event.target.value,
+                          size: "",
                           unitPriceInCents: chosen?.salePriceInCents ?? 0,
                         });
                       }}
@@ -177,27 +224,65 @@ export function NewSaleSection({
                           value={item.id}
                           disabled={
                             item.id !== line.productId &&
-                            (item.currentStock <= 0 ||
-                              lines.some(
-                                (other) => other.productId === item.id,
-                              ))
+                            (totalSellable(item) <= 0 ||
+                              (!item.sizes.length &&
+                                lines.some(
+                                  (other) => other.productId === item.id,
+                                )))
                           }
                         >
                           {item.name} ·{" "}
-                          {item.currentStock > 0
-                            ? `${item.currentStock} ${item.unit}`
+                          {totalSellable(item) > 0
+                            ? `${totalSellable(item)} ${item.unit}`
                             : "sem estoque"}
+                          {item.salePriceInCents === null && " · sem preço"}
                         </option>
                       ))}
                     </select>
                   </label>
+                  {product && sized && (
+                    <label>
+                      Tamanho
+                      <select
+                        aria-label={`Tamanho ${position}`}
+                        value={line.size}
+                        onChange={(event) =>
+                          update(line.key, {
+                            size: event.target.value as ProductSize | "",
+                          })
+                        }
+                      >
+                        <option value="">Selecione</option>
+                        {product.sizes.map((size) => {
+                          const stock = sellableStock(product, size);
+                          return (
+                            <option
+                              key={size}
+                              value={size}
+                              disabled={
+                                size !== line.size &&
+                                (stock <= 0 ||
+                                  lines.some(
+                                    (other) =>
+                                      other.productId === product.id &&
+                                      other.size === size,
+                                  ))
+                              }
+                            >
+                              {`${productSizeLabels[size]} · ${stock > 0 ? `${stock} ${product.unit}` : "sem estoque"}`}
+                            </option>
+                          );
+                        })}
+                      </select>
+                    </label>
+                  )}
                   <label>
                     Quantidade
                     <input
                       aria-label={`Quantidade ${position}`}
                       type="number"
                       min={1}
-                      max={product?.currentStock}
+                      max={available}
                       value={line.quantity}
                       onChange={(event) =>
                         update(line.key, {
@@ -220,12 +305,13 @@ export function NewSaleSection({
                     {currency.format(
                       (line.quantity * line.unitPriceInCents) / 100,
                     )}
-                    {product && line.quantity > product.currentStock && (
-                      <span className="field-hint">
-                        Estoque disponível: {product.currentStock}{" "}
-                        {product.unit}
-                      </span>
-                    )}
+                    {product &&
+                      (!sized || line.size) &&
+                      line.quantity > available && (
+                        <span className="field-hint">
+                          Estoque disponível: {available} {product.unit}
+                        </span>
+                      )}
                   </p>
                   <button
                     type="button"
@@ -243,11 +329,32 @@ export function NewSaleSection({
                 </div>
               );
             })}
+            {unpriced.map((product) => (
+              <div className="sale-price-alert" role="alert" key={product.id}>
+                <CircleAlert size={18} aria-hidden="true" />
+                <p>
+                  <strong>{product.name}</strong> está sem preço de venda e não
+                  pode ser vendido.{" "}
+                  {canPrice
+                    ? "Cadastre o preço para continuar; o que já foi preenchido na venda fica como está."
+                    : "Peça a quem pode editar produtos para cadastrar o preço."}
+                </p>
+                {canPrice && (
+                  <button
+                    type="button"
+                    className="secondary-button button-sm"
+                    onClick={() => setPricing(product)}
+                  >
+                    Cadastrar preço
+                  </button>
+                )}
+              </div>
+            ))}
             <div>
               <button
                 type="button"
                 className="secondary-button"
-                disabled={lines.length >= products.length}
+                disabled={lines.length >= sellableKeys}
                 onClick={() => setLines((current) => [...current, emptyLine()])}
               >
                 <Plus size={16} /> Adicionar produto
@@ -270,21 +377,29 @@ export function NewSaleSection({
               </select>
             </label>
             {settlement === "paid" ? (
-              <label>
-                Forma de pagamento
-                <select
-                  value={paymentMethod}
-                  onChange={(event) =>
-                    setPaymentMethod(event.target.value as PaymentMethod)
-                  }
-                >
-                  {paymentMethods.map(([value, label]) => (
-                    <option key={value} value={value}>
-                      {label}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              <>
+                <label>
+                  Forma de pagamento
+                  <select
+                    value={paymentMethod}
+                    onChange={(event) =>
+                      setPaymentMethod(event.target.value as PaymentMethod)
+                    }
+                  >
+                    {paymentMethodSchema.options.map((value) => (
+                      <option key={value} value={value}>
+                        {paymentMethodLabels[value]}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <PaymentInstallmentsSelect
+                  method={paymentMethod}
+                  settings={paymentSettings}
+                  value={paymentInstallments}
+                  onChange={setPaymentInstallments}
+                />
+              </>
             ) : (
               <label>
                 Vencimento
@@ -324,6 +439,22 @@ export function NewSaleSection({
           </button>
         </div>
       </form>
+      {pricing && (
+        <ProductModal
+          product={pricing}
+          focusPrice
+          onClose={() => setPricing(null)}
+          onSaved={(saved) =>
+            setLines((current) =>
+              current.map((line) =>
+                line.productId === saved.id
+                  ? { ...line, unitPriceInCents: saved.salePriceInCents ?? 0 }
+                  : line,
+              ),
+            )
+          }
+        />
+      )}
     </section>
   );
 }

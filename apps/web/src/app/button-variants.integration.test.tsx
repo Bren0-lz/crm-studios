@@ -23,6 +23,8 @@ describe("button variants", () => {
     "text-button",
     "danger-button",
     "icon-button",
+    // Etiqueta verde que insere um código nos editores de mensagem.
+    "variable-chip",
   ];
 
   /** Botões da página (fora da barra lateral e do topo) sem uma das variantes padronizadas. */

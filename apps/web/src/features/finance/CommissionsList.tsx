@@ -9,11 +9,10 @@ import { EmptyState } from "../../shared/components/EmptyState";
 import { currency, shortDate } from "../../shared/lib/formatting";
 import { formatCompetence, signedCurrency } from "./model";
 
+/** Comissões só para consulta: o pagamento é feito pela folha de pagamento. */
 export function CommissionsList({
   onCreateRule,
   commissions,
-  canManage,
-  onToggle,
   payables = [],
   adjustments = [],
   onReconcile,
@@ -24,8 +23,6 @@ export function CommissionsList({
   onReconcile?: ((id: string) => void) | undefined;
   /** Ação principal do estado vazio (V11). */
   onCreateRule?: (() => void) | undefined;
-  canManage: boolean;
-  onToggle: (item: CommissionEntry) => void;
 }) {
   const { can } = useAuthorization();
   if (commissions.length === 0) {
@@ -93,7 +90,13 @@ export function CommissionsList({
             </strong>
             <span>
               <span className={`status-pill ${item.status}`}>
-                {item.status === "paid" ? "Paga" : "Em aberto"}
+                {item.payrollPayableId
+                  ? item.status === "paid"
+                    ? "Paga pela folha"
+                    : "Na folha"
+                  : item.status === "paid"
+                    ? "Paga"
+                    : "Em aberto"}
               </span>
             </span>
             <div className="finance-actions">
@@ -109,26 +112,6 @@ export function CommissionsList({
                     aria-label={`Conciliar comissão de ${item.professionalName}`}
                   >
                     Conciliar comissão
-                  </button>
-                )}
-              {!adjustments.some((entry) => entry.commissionId === item.id) &&
-                !linked &&
-                canManage &&
-                can(
-                  item.status === "paid"
-                    ? "finance.commissions_reverse"
-                    : "finance.commissions_pay",
-                ) && (
-                  <button
-                    className={
-                      item.status === "paid"
-                        ? "danger-button button-sm"
-                        : "primary-button button-sm"
-                    }
-                    aria-label={`${item.status === "paid" ? "Estornar" : "Pagar"} comissão de ${item.professionalName}`}
-                    onClick={() => onToggle(item)}
-                  >
-                    {item.status === "paid" ? "Estornar" : "Pagar"}
                   </button>
                 )}
             </div>

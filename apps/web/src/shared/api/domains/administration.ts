@@ -20,6 +20,8 @@ import type {
   ClinicBranding,
   ClinicSettings,
   ClinicSettingsInput,
+  PaymentMethodSettings,
+  PaymentMethodSettingsInput,
   HistoryActor,
   NavTabLabel,
   OwnPasswordChange,
@@ -116,7 +118,11 @@ export const administrationApi = {
       method: "POST",
       body: JSON.stringify(input),
     }),
-  updateAdminUser: (id: string, input: AdminUserUpdate) =>
+  /** `recalculationDigest`: prévia confirmada do recálculo das comissões já lançadas. */
+  updateAdminUser: (
+    id: string,
+    input: AdminUserUpdate & { recalculationDigest?: string },
+  ) =>
     request<AdminUser>(`/admin/users/${id}`, {
       method: "PATCH",
       body: JSON.stringify(input),
@@ -132,6 +138,14 @@ export const administrationApi = {
       body: JSON.stringify({ password }),
     }),
   clinicSettings: () => request<ClinicSettings>("/admin/clinic-settings"),
+  /** Parcelamento aceito por forma de pagamento (todos leem; só o admin altera). */
+  paymentMethodSettings: () =>
+    request<PaymentMethodSettings>("/clinic/payment-methods"),
+  savePaymentMethodSettings: (input: PaymentMethodSettingsInput) =>
+    request<PaymentMethodSettings>("/admin/payment-methods", {
+      method: "PUT",
+      body: JSON.stringify(input),
+    }),
   updateClinicSettings: (input: ClinicSettingsInput) =>
     request<ClinicSettings>("/admin/clinic-settings", {
       method: "PUT",

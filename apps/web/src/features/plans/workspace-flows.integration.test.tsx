@@ -3,7 +3,7 @@ import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { saoPauloToday } from "@crm/contracts";
 import { actorId, clinicId, setupApi } from "../../test-support/api-server";
-import { open, change, expand, save } from "../../test-support/workflow-ui";
+import { open, change, expand } from "../../test-support/workflow-ui";
 
 describe("integrated plan purchase", () => {
   it("creates one plan, invoice, group enrollment and issued contract and records attendance", async () => {
@@ -48,19 +48,28 @@ describe("integrated plan purchase", () => {
     change("Plano cadastrado", template.id, dialog);
     change("Parcelas", "1", dialog);
     change("Primeiro vencimento", saoPauloToday(), dialog);
-    const panel = expand("Agenda, turma e contrato da contratação");
-    await within(panel).findByRole("option", {
+    // O serviço tem turma: plano de aulas em grupo só é criado com a turma escolhida.
+    const turma = await within(dialog).findByLabelText("Turma");
+    await within(turma).findByRole("option", { name: new RegExp(group.name) });
+    expect(turma).toBeRequired();
+    expect(
+      within(dialog).getByRole("button", { name: "Criar plano e parcelas" }),
+    ).toBeDisabled();
+    change("Turma", group.id, dialog);
+    expect(
+      within(dialog).getByRole("button", { name: "Criar plano e parcelas" }),
+    ).toBeEnabled();
+    // O documento para assinatura fica à vista no formulário, fora do bloco recolhido.
+    const signature = within(dialog).getByLabelText(
+      "Documento para o cliente assinar",
+    );
+    await within(signature).findByRole("option", {
       name: new RegExp(document.name),
     });
-    change("Turma", group.id, dialog);
-    change("Modelo de contrato ou termo", document.id, dialog);
-    change(
-      "Título do documento da contratação",
-      "Contrato integrado emitido",
-      dialog,
-    );
+    change("Documento para o cliente assinar", document.id, dialog);
+    expand("Horários da contratação");
     fireEvent.click(
-      within(dialog).getByRole("button", {
+      await within(dialog).findByRole("button", {
         name: "Adicionar horários à contratação",
       }),
     );
@@ -77,7 +86,24 @@ describe("integrated plan purchase", () => {
       within(nested).getByRole("heading", { name: "Dias e horários fixos" }),
     ).toBeInTheDocument();
     fireEvent.click(within(nested).getByRole("button", { name: "Voltar" }));
-    await save("Novo plano", "Criar plano e parcelas");
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Criar plano e parcelas" }),
+    );
+    // Plano salvo: o mesmo modal mostra o link pronto para o WhatsApp do cliente.
+    const whatsapp = await within(dialog).findByRole("link", {
+      name: "Abrir WhatsApp",
+    });
+    expect(whatsapp.getAttribute("href")).toContain("wa.me/5511988887777");
+    expect(
+      within(dialog).getByLabelText<HTMLInputElement>("Link de assinatura")
+        .value,
+    ).toMatch(/\/assinar-contrato\/[A-Za-z0-9_-]{43}$/);
+    fireEvent.click(within(dialog).getByRole("button", { name: "Concluir" }));
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("dialog", { name: "Novo plano" }),
+      ).not.toBeInTheDocument(),
+    );
     const plans = (await repository.listPatientPlans(clinicId)).filter(
       (item) => item.patientId === patient.id,
     );
@@ -94,7 +120,8 @@ describe("integrated plan purchase", () => {
     ).toMatchObject({
       status: "issued",
       planId: plans[0]!.id,
-      title: "Contrato integrado emitido",
+      title: document.name,
+      signatureLink: { viewCount: 0 },
     });
     const from = new Date().toISOString(),
       to = new Date(Date.now() + 14 * 86400000).toISOString();

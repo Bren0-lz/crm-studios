@@ -53,6 +53,8 @@ export function ActionModal({
     setSaving(true);
     try {
       await onConfirm();
+      // Quem confirma pode manter o modal aberto (ex.: prévia antes de salvar).
+      setSaving(false);
     } catch (cause) {
       setError((cause as Error).message);
       setSaving(false);

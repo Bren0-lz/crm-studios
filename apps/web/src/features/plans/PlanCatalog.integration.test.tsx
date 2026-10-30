@@ -115,7 +115,7 @@ describe("plan types and weekly sessions", () => {
       { target: { value: "2" } },
     );
     fireEvent.change(within(dialog).getByLabelText("Valor total"), {
-      target: { value: "160" },
+      target: { value: "160,00" },
     });
     expect(
       within(dialog).getByText(/8 sessões no período/),
@@ -274,12 +274,12 @@ describe("plan types and weekly sessions", () => {
     );
     const dialog = screen.getByRole("dialog");
     fireEvent.change(within(dialog).getByLabelText("Valor total"), {
-      target: { value: "180" },
+      target: { value: "180,00" },
     });
     fireEvent.click(
       within(dialog).getByRole("button", { name: "Salvar plano" }),
     );
     await within(dialog).findByText("Falha ao salvar");
-    expect(within(dialog).getByLabelText("Valor total")).toHaveValue("180");
+    expect(within(dialog).getByLabelText("Valor total")).toHaveValue("180,00");
   });
 });

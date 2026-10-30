@@ -6,6 +6,7 @@ import {
   matchesPatientProfile,
   matchesPatientSegment,
   type Patient,
+  patientDiscountDescription,
   patientProfileValueLabels,
 } from "@crm/contracts";
 import type { ClinicRepository } from "../../repository.js";
@@ -20,6 +21,7 @@ export async function buildClientDetails(
     to: string;
     search?: string | undefined;
     status?: Patient["status"] | undefined;
+    discount?: "with" | "without" | undefined;
     columns?: ClientDetailsColumn[] | undefined;
   },
   financial: boolean,
@@ -42,6 +44,8 @@ export async function buildClientDetails(
     inventory,
     resources,
     sources,
+    finance,
+    plans,
   ] = await Promise.all([
     repository.listPatients(clinicId, input.search),
     clientSegments(repository, clinicId, financial),
@@ -57,7 +61,34 @@ export async function buildClientDetails(
         )
       : Promise.resolve([]),
     clinical ? repository.listClinicalSources(clinicId) : Promise.resolve([]),
+    financial
+      ? repository.getFinancialSummary(clinicId)
+      : Promise.resolve(null),
+    repository.listPatientPlans(clinicId),
   ]);
+  // O desconto é de cada plano vendido; o do cadastro do cliente é o formato antigo.
+  const discountOf = (patient: Patient) =>
+    [
+      ...(patient.discount
+        ? [patientDiscountDescription(patient.discount)]
+        : []),
+      ...plans
+        .filter(
+          (plan) =>
+            plan.patientId === patient.id &&
+            plan.discount &&
+            (plan.status === "active" || plan.status === "paused") &&
+            !plan.renewedByPlanId,
+        )
+        .map(
+          (plan) =>
+            `${plan.name}: ${patientDiscountDescription(plan.discount)}`,
+        ),
+    ].join("; ");
+  const money = (cents: number) =>
+    new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" })
+      .format(cents / 100)
+      .replace(/\u00a0/g, " ");
   const canonicalPatients = new Map(
     await Promise.all(
       [
@@ -76,7 +107,11 @@ export async function buildClientDetails(
       .filter(
         (column) =>
           financial ||
-          !["pendingReceivables", "overdueReceivables"].includes(column),
+          ![
+            "pendingReceivables",
+            "overdueReceivables",
+            "discountGranted",
+          ].includes(column),
       )
       .filter((column) => clinical || column !== "equipment"),
     columns = input.columns?.filter((column) =>
@@ -86,6 +121,8 @@ export async function buildClientDetails(
     .filter(
       (patient) =>
         (!input.status || patient.status === input.status) &&
+        (!input.discount ||
+          (input.discount === "with") === Boolean(discountOf(patient))) &&
         matchesPatientProfile(patient, input) &&
         matchesPatientSegment(
           summary.find((item) => item.patientId === patient.id),
@@ -215,6 +252,21 @@ export async function buildClientDetails(
       }
       if (patient.gender)
         values.gender = patientProfileValueLabels[patient.gender];
+      values.discount = discountOf(patient);
+      if (finance)
+        values.discountGranted = money(
+          finance.receivables
+            .filter(
+              (entry) =>
+                entry.patientId === patient.id &&
+                entry.status !== "cancelled" &&
+                inPeriod(entry.createdAt),
+            )
+            .reduce(
+              (sum, entry) => sum + (entry.customerDiscountInCents ?? 0),
+              0,
+            ),
+        );
       values.status = patient.status === "active" ? "Ativo" : "Inativo";
       return {
         id: patient.id,

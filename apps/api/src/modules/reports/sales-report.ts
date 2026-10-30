@@ -204,6 +204,9 @@ function buildReport(
     const grossSalesInCents = movements
       .filter((item) => item.kind === "sale")
       .reduce((sum, item) => sum + item.amountInCents, 0);
+    const customerDiscountInCents = movements
+      .filter((item) => item.kind === "sale")
+      .reduce((sum, item) => sum + (item.customerDiscountInCents ?? 0), 0);
     const cancelledSalesInCents = -movements
       .filter((item) => item.kind === "cancellation")
       .reduce((sum, item) => sum + item.amountInCents, 0);
@@ -217,6 +220,7 @@ function buildReport(
         .filter((item) => inRange(item.occurredAt, from, to))
         .reduce((sum, item) => sum + item.amountInCents, 0),
       attendedPatients: attended.size,
+      ...(customerDiscountInCents ? { customerDiscountInCents } : {}),
     };
   };
   const current = period(bounds.currentFrom, bounds.currentTo);

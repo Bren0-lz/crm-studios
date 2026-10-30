@@ -34,6 +34,26 @@ import {
 } from "./test-support/patient-actions";
 import { isLeadBoardUrl, leadBoardResponse } from "./test-support/lead-board";
 
+/** Abre o menu "Mais ações" de uma despesa fixa e devolve a opção pedida. */
+async function recurringAction(
+  scope: HTMLElement,
+  description: string,
+  action: string,
+) {
+  const button = within(scope).getByRole("button", {
+    name: `Mais ações de ${description}`,
+  });
+  // Durante o salvamento da linha o menu fica desativado.
+  await vi.waitFor(() => expect(button).toBeEnabled());
+  fireEvent.click(button);
+  return within(scope).findByRole("menuitem", { name: action });
+}
+
+/** Fecha o menu "Mais ações" aberto. */
+function closeRecurringMenu(scope: HTMLElement) {
+  fireEvent.keyDown(within(scope).getByRole("menu"), { key: "Escape" });
+}
+
 vi.stubGlobal("fetch", vi.fn());
 
 describe("configured plan catalog", () => {
@@ -334,13 +354,13 @@ describe("configured plan catalog", () => {
       });
     fill("Nome do plano", "Plano completo");
     fill("Tipo de plano", "promotional");
-    fill("Valor total", "125.50");
+    fill("Valor total", "125,50");
     fill("Serviço 1", first.serviceId);
     fill("Sessões do serviço 1", "8");
     fireEvent.click(
       within(dialog).getByRole("button", { name: "Adicionar serviço" }),
     );
-    fill("Valor do serviço 1", "100");
+    fill("Valor do serviço 1", "100,00");
     expect(
       within(dialog).getByRole("button", { name: "Salvar plano" }),
     ).toBeDisabled();
@@ -350,7 +370,7 @@ describe("configured plan catalog", () => {
     ).toHaveAccessibleDescription("Falta: Serviço 2, Valor do serviço 2.");
     fill("Serviço 2", "77777777-7777-4777-8777-777777777777");
     fill("Sessões do serviço 2", "2");
-    fill("Valor do serviço 2", "25.50");
+    fill("Valor do serviço 2", "25,50");
     expect(
       within(dialog).getByRole("button", { name: "Salvar plano" }),
     ).toBeEnabled();
@@ -387,7 +407,7 @@ describe("configured plan catalog", () => {
     fireEvent.click(
       within(dialog).getByRole("button", { name: "Remover serviço 2" }),
     );
-    fill("Valor total", "100");
+    fill("Valor total", "100,00");
     fireEvent.click(
       within(dialog).getByRole("button", { name: "Salvar plano" }),
     );
@@ -1721,68 +1741,6 @@ describe("application shell", () => {
     expect(screen.queryByText(/^movimenta$/i)).not.toBeInTheDocument();
   });
 
-  it("opens the SOAP editor for an authenticated clinical user", async () => {
-    localStorage.setItem("crm.auth.token", "test-token");
-    localStorage.setItem(
-      "crm.auth.user",
-      storedUser({
-        id: "22222222-2222-4222-8222-222222222222",
-        fullName: "Aryana Dutra",
-        email: "admin@movimenta.local",
-        role: "owner",
-      }),
-    );
-    vi.mocked(fetch).mockImplementation(async (input) => {
-      const url = String(input);
-      const patient = {
-        id: "99999999-9999-4999-8999-999999999999",
-        fullName: "Helena Almeida",
-      };
-      const body = url.includes("/clinical-workspace/")
-        ? {
-            patient,
-            records: [],
-            templates: [],
-            assessments: [],
-            goals: [],
-            measurements: [],
-            closures: [],
-          }
-        : url.includes("/clinical-records")
-          ? []
-          : url.includes("/patients")
-            ? [patient]
-            : [
-                {
-                  id: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
-                  patientId: patient.id,
-                  patientName: "Helena Almeida",
-                  professionalName: "Dra. Ana Martins",
-                  startsAt: new Date().toISOString(),
-                  status: "completed",
-                },
-              ];
-      return { ok: true, status: 200, json: async () => body } as Response;
-    });
-
-    render(
-      <MemoryRouter initialEntries={["/prontuarios"]}>
-        <App />
-      </MemoryRouter>,
-    );
-    expect(
-      await screen.findByRole("heading", { name: "Prontuários" }),
-    ).toBeInTheDocument();
-    const newRecord = await screen.findByRole("button", {
-      name: "Nova evolução",
-    });
-    fireEvent.click(newRecord);
-    expect(
-      screen.getByRole("heading", { name: "Nova evolução clínica" }),
-    ).toBeInTheDocument();
-    expect(screen.getByLabelText(/S — Subjetivo/)).toBeInTheDocument();
-  });
-
   it("opens a plan sale with patient and service data", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
     localStorage.setItem(
@@ -3047,82 +3005,6 @@ describe("application shell", () => {
         .mocked(fetch)
         .mock.calls.some(([url]) => String(url).includes("/relationship/")),
     ).toBe(false);
-  });
-
-  it("shows the professional CREFITO in the clinical list and print summary", async () => {
-    localStorage.setItem("crm.auth.token", "test-token");
-    localStorage.setItem(
-      "crm.auth.user",
-      storedUser({
-        id: "22222222-2222-4222-8222-222222222222",
-        fullName: "Aryana Dutra",
-        email: "admin@movimenta.local",
-        role: "owner",
-      }),
-    );
-    const patient = {
-      id: "99999999-9999-4999-8999-999999999999",
-      fullName: "Helena Almeida",
-      recordNumber: 12,
-    };
-    const record = {
-      id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
-      appointmentId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
-      patientId: patient.id,
-      professionalId: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
-      status: "finalized",
-      version: 2,
-      authorName: "Aryana Dutra",
-      patientName: "Helena Almeida",
-      professionalName: "Dra. Ana Martins",
-      professionalCrefito: "CREFITO-3 123456-F",
-      appointmentStartsAt: new Date().toISOString(),
-      subjective: "Relato",
-      objective: "Exame",
-      assessment: "Evolução positiva",
-      plan: "Manter",
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-    vi.mocked(fetch).mockImplementation(async (input) => {
-      const url = String(input);
-      const body = url.includes("/clinical-workspace/")
-        ? {
-            patient,
-            records: [record],
-            templates: [],
-            assessments: [],
-            goals: [],
-            measurements: [],
-            closures: [],
-            attachments: [],
-            addenda: [],
-          }
-        : url.includes("/clinical-records")
-          ? [record]
-          : url.includes("/patients")
-            ? [patient]
-            : [];
-      return { ok: true, status: 200, json: async () => body } as Response;
-    });
-    render(
-      <MemoryRouter initialEntries={["/prontuarios"]}>
-        <App />
-      </MemoryRouter>,
-    );
-    fireEvent.click(
-      await screen.findByRole("button", { name: /Helena Almeida/ }),
-    );
-    fireEvent.click(await screen.findByRole("tab", { name: "Evoluções" }));
-    expect(
-      await screen.findByText(
-        "Dra. Ana Martins · CREFITO-3 123456-F · versão 2",
-      ),
-    ).toBeInTheDocument();
-    const summary = (
-      await screen.findByText("Prontuário longitudinal")
-    ).closest(".clinical-print-summary")!;
-    expect(summary).toHaveTextContent("Dra. Ana Martins · CREFITO-3 123456-F");
   });
 
   it("offers the contracts page in the menu and redirects the old documents route", async () => {
@@ -6242,11 +6124,8 @@ describe("application shell", () => {
     expect(within(section).getAllByText("Encerrada")).toHaveLength(1);
     // Encerrada (mês final já passou) não oferece mais pausar nem encerrar.
     expect(
-      within(section).queryByRole("button", { name: "Pausar Software antigo" }),
-    ).not.toBeInTheDocument();
-    expect(
       within(section).queryByRole("button", {
-        name: "Encerrar Software antigo",
+        name: "Mais ações de Software antigo",
       }),
     ).not.toBeInTheDocument();
     // No próprio mês final ela ainda gera conta: continua ativa, com as ações.
@@ -6255,15 +6134,12 @@ describe("application shell", () => {
       .closest(".finance-row") as HTMLElement;
     expect(within(lastMonthRow).getByText("Ativa")).toBeInTheDocument();
     expect(
-      within(lastMonthRow).getByRole("button", {
-        name: "Pausar Seguro do estúdio",
-      }),
+      await recurringAction(lastMonthRow, "Seguro do estúdio", "Pausar"),
     ).toBeInTheDocument();
     expect(
-      within(lastMonthRow).getByRole("button", {
-        name: "Encerrar Seguro do estúdio",
-      }),
+      within(lastMonthRow).getByRole("menuitem", { name: "Encerrar" }),
     ).toBeInTheDocument();
+    closeRecurringMenu(lastMonthRow);
 
     // Criar: só categorias de despesa no select; depois recarrega o workspace (que gera as contas).
     fireEvent.click(
@@ -6290,7 +6166,7 @@ describe("application shell", () => {
       target: { value: "Escritório Silva" },
     });
     fireEvent.change(within(dialog).getByLabelText("Valor mensal"), {
-      target: { value: "450" },
+      target: { value: "450,00" },
     });
     fireEvent.change(within(dialog).getByLabelText("Dia do vencimento"), {
       target: { value: "20" },
@@ -6334,13 +6210,12 @@ describe("application shell", () => {
 
     // Pausar envia o corpo completo com active:false.
     fireEvent.click(
-      within(section).getByRole("button", { name: "Pausar Aluguel da sala" }),
+      await recurringAction(section, "Aluguel da sala", "Pausar"),
     );
     expect(
-      await within(section).findByRole("button", {
-        name: "Reativar Aluguel da sala",
-      }),
+      await recurringAction(section, "Aluguel da sala", "Reativar"),
     ).toBeInTheDocument();
+    closeRecurringMenu(section);
     expect(bodies[1]!.url).toContain(
       "/finance/recurring-payables/e1e1e1e1-e1e1-4e1e-8e1e-e1e1e1e1e1e1",
     );
@@ -6357,12 +6232,11 @@ describe("application shell", () => {
 
     // Reativar envia active:true explicitamente e recarrega o workspace.
     const loadsBeforeResume = workspaceLoads();
-    fireEvent.click(
-      within(section).getByRole("button", { name: "Reativar Internet" }),
-    );
+    fireEvent.click(await recurringAction(section, "Internet", "Reativar"));
     expect(
-      await within(section).findByRole("button", { name: "Pausar Internet" }),
+      await recurringAction(section, "Internet", "Pausar"),
     ).toBeInTheDocument();
+    closeRecurringMenu(section);
     expect(bodies[2]!.body).toMatchObject({
       description: "Internet",
       active: true,
@@ -6371,9 +6245,7 @@ describe("application shell", () => {
     expect(workspaceLoads()).toBeGreaterThan(loadsBeforeResume);
 
     // Encerrar abre um modal com o último mês e mantém a situação atual.
-    fireEvent.click(
-      within(section).getByRole("button", { name: "Encerrar Internet" }),
-    );
+    fireEvent.click(await recurringAction(section, "Internet", "Encerrar"));
     const endDialog = await screen.findByRole("dialog", {
       name: "Encerrar despesa fixa",
     });
@@ -6494,8 +6366,11 @@ describe("application shell", () => {
       await screen.findByRole("button", { name: "Contas a pagar (0)" }),
     );
     fireEvent.click(
-      await screen.findByRole("button", { name: "Encerrar Aluguel da sala" }),
+      await screen.findByRole("button", {
+        name: "Mais ações de Aluguel da sala",
+      }),
     );
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Encerrar" }));
     const dialog = await screen.findByRole("dialog", {
       name: "Encerrar despesa fixa",
     });
@@ -7099,7 +6974,7 @@ describe("application shell", () => {
         name: "Ajustar valor da parcela",
       });
       fireEvent.change(within(adjust).getByLabelText("Novo valor (R$)"), {
-        target: { value: "200" },
+        target: { value: "200,00" },
       });
       fireEvent.change(within(adjust).getByLabelText("Justificativa"), {
         target: { value: "Desconto combinado" },
@@ -7175,7 +7050,7 @@ describe("application shell", () => {
         "Falta: Novo valor, Justificativa (pelo menos 5 caracteres).",
       );
       fireEvent.change(within(dialog).getByLabelText("Novo valor (R$)"), {
-        target: { value: "199.9" },
+        target: { value: "199,90" },
       });
       fireEvent.change(within(dialog).getByLabelText("Justificativa"), {
         target: { value: "Desc" },
@@ -7243,7 +7118,7 @@ describe("application shell", () => {
         within(dialog).getByRole("button", { name: "Fechar" }),
       ).toBeEnabled();
       fireEvent.change(within(dialog).getByLabelText("Novo valor (R$)"), {
-        target: { value: "200" },
+        target: { value: "200,00" },
       });
       fireEvent.change(within(dialog).getByLabelText("Justificativa"), {
         target: { value: "Desconto combinado" },
@@ -7304,7 +7179,7 @@ describe("application shell", () => {
         name: "Renegociar parcelas",
       });
       fireEvent.change(within(dialog).getByLabelText("Novo valor total (R$)"), {
-        target: { value: "300" },
+        target: { value: "300,00" },
       });
       fireEvent.change(within(dialog).getByLabelText("Número de parcelas"), {
         target: { value: "40" },
@@ -7678,11 +7553,17 @@ describe("application shell", () => {
         "status-pill",
         "open",
       );
+      // Pagamento é pela folha: a lista não tem Pagar nem Estornar.
       expect(
-        within(juliana).getByRole("button", {
+        within(juliana).queryByRole("button", {
           name: "Pagar comissão de Juliana Prado",
         }),
-      ).toHaveClass("primary-button", "button-sm");
+      ).not.toBeInTheDocument();
+      expect(
+        within(section).getByText(
+          /O pagamento das comissões é feito pela folha/,
+        ),
+      ).toBeInTheDocument();
 
       const rafael = rowOf("Rafael Costa");
       expect(
@@ -7691,29 +7572,10 @@ describe("application shell", () => {
         ),
       ).toBeInTheDocument();
       expect(
-        within(rafael).getByRole("button", {
+        within(rafael).queryByRole("button", {
           name: "Estornar comissão de Rafael Costa",
         }),
-      ).toHaveClass("danger-button", "button-sm");
-
-      fireEvent.click(
-        within(juliana).getByRole("button", {
-          name: "Pagar comissão de Juliana Prado",
-        }),
-      );
-      await vi.waitFor(() =>
-        expect(
-          vi
-            .mocked(fetch)
-            .mock.calls.some(
-              ([url, options]) =>
-                options?.method === "POST" &&
-                String(url).includes(
-                  "/finance/commissions/g1g1g1g1-0000-4000-8000-000000000001/pay",
-                ),
-            ),
-        ).toBe(true),
-      );
+      ).not.toBeInTheDocument();
     });
 
     it("shows an empty commissions list with the next step", async () => {
@@ -8705,7 +8567,7 @@ describe("users and permissions", () => {
       within(row("Davi Rocha")).getByText("Nenhum módulo (só Visão geral)"),
     ).toBeInTheDocument();
     expect(
-      within(row("Elisa Prado")).getByText("Vê 1 módulo · 6 permissões"),
+      within(row("Elisa Prado")).getByText("Vê 1 módulo · 8 permissões"),
     ).toBeInTheDocument();
     // Sem padrão por perfil: nem selo de "personalizadas" nem a matriz de padrões.
     expect(
@@ -9281,6 +9143,20 @@ describe("users and permissions", () => {
             status: 200,
             json: async () => handled,
           } as Response;
+        // Sem comissão lançada no período: a prévia do recálculo vem vazia.
+        if (url.endsWith("/recalculation/preview"))
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              from: "2026-01-01",
+              until: "2026-01-01",
+              items: [],
+              differenceInCents: 0,
+              adjustmentInCents: 0,
+              digest: "b".repeat(64),
+            }),
+          } as Response;
         if (url.endsWith("/professionals") && options.professionalsFail)
           return {
             ok: false,
@@ -9323,10 +9199,16 @@ describe("users and permissions", () => {
       return screen.getByRole("dialog", { name: `Editar ${name}` });
     }
 
+    // A prévia do recálculo é consulta por POST: não conta como gravação.
     const writes = () =>
       vi
         .mocked(fetch)
-        .mock.calls.filter(([, init]) => init?.method && init.method !== "GET")
+        .mock.calls.filter(
+          ([input, init]) =>
+            init?.method &&
+            init.method !== "GET" &&
+            !String(input).endsWith("/recalculation/preview"),
+        )
         .map(([input, init]) => ({
           method: init!.method!,
           url: String(input),
@@ -10111,6 +9993,7 @@ describe("settings tabs", () => {
       "Planos",
       "Feriados",
       "Finalização automática",
+      "Formas de pagamento",
       "Etiquetas",
       "Cadastros",
       "Serviços e salas",
@@ -11140,6 +11023,8 @@ describe("button variants", () => {
     "text-button",
     "danger-button",
     "icon-button",
+    // Etiqueta verde que insere um código nos editores de mensagem.
+    "variable-chip",
   ];
 
   /** Botões da página (fora da barra lateral e do topo) sem uma das variantes padronizadas. */
@@ -11879,97 +11764,6 @@ describe("action modals instead of browser dialogs", () => {
     expect(JSON.parse(String(writes()[0]![1]?.body))).toEqual({
       status: "cancelled",
     });
-  });
-
-  it("finalizes a clinical record after a confirmation saying it cannot be edited anymore", async () => {
-    const patient = {
-      id: "99999999-9999-4999-8999-999999999999",
-      fullName: "Helena Almeida",
-      recordNumber: 12,
-    };
-    const record = {
-      id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
-      appointmentId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
-      patientId: patient.id,
-      professionalId: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
-      status: "draft",
-      version: 1,
-      authorName: "Aryana Dutra",
-      patientName: "Helena Almeida",
-      professionalName: "Dra. Ana Martins",
-      professionalCrefito: "CREFITO-3 123456-F",
-      appointmentStartsAt: new Date().toISOString(),
-      subjective: "Relato",
-      objective: "Exame",
-      assessment: "Evolução positiva",
-      plan: "Manter",
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-    // O servidor passa a devolver a evolução finalizada depois da confirmação.
-    let current: Record<string, unknown> = record;
-    mockApi(
-      (url) =>
-        url.includes("/clinical-workspace/")
-          ? {
-              patient,
-              records: [current],
-              templates: [],
-              assessments: [],
-              goals: [],
-              measurements: [],
-              closures: [],
-              attachments: [],
-              addenda: [],
-            }
-          : url.includes("/clinical-records")
-            ? [record]
-            : url.includes("/patients")
-              ? [patient]
-              : undefined,
-      () =>
-        (current = {
-          ...record,
-          status: "finalized",
-          finalizedAt: new Date().toISOString(),
-        }),
-    );
-    render(
-      <MemoryRouter initialEntries={["/prontuarios"]}>
-        <App />
-      </MemoryRouter>,
-    );
-    fireEvent.click(
-      await screen.findByRole("button", { name: /Helena Almeida/ }),
-    );
-    fireEvent.click(await screen.findByRole("button", { name: "Finalizar" }));
-    let dialog = await screen.findByRole("dialog", {
-      name: "Finalizar evolução",
-    });
-    expect(
-      within(dialog).getByText(/não poderá mais ser editada/),
-    ).toBeInTheDocument();
-    expect(within(dialog).getByText(/^Helena Almeida · /)).toBeInTheDocument();
-    fireEvent.click(within(dialog).getByRole("button", { name: "Voltar" }));
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-    expect(writes()).toHaveLength(0);
-
-    fireEvent.click(screen.getByRole("button", { name: "Finalizar" }));
-    dialog = await screen.findByRole("dialog", { name: "Finalizar evolução" });
-    fireEvent.click(within(dialog).getByRole("button", { name: "Confirmar" }));
-    await vi.waitFor(() =>
-      expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
-    );
-    expect(writes()).toHaveLength(1);
-    expect(String(writes()[0]![0])).toContain(
-      `/clinical-records/${record.id}/finalize`,
-    );
-    expect(writes()[0]![1]?.method).toBe("POST");
-    await vi.waitFor(() =>
-      expect(
-        screen.queryByRole("button", { name: "Finalizar" }),
-      ).not.toBeInTheDocument(),
-    );
   });
 
   it("cancels a schedule block after a confirmation with the reason and the time", async () => {
@@ -13061,7 +12855,7 @@ describe("guided client registration", () => {
     expect(posts).toHaveLength(2);
   });
 
-  it("subscribes a plan with an optional class of the same service and warns about the waiting list", async () => {
+  it("subscribes a group class plan with a required class of the same service and warns about the waiting list", async () => {
     const posts = mockApi((body) =>
       jsonResponse(
         {
@@ -13106,20 +12900,21 @@ describe("guided client registration", () => {
         .getAllByRole("option")
         .map((item) => item.textContent),
     ).toEqual(["Pacote fixo", "Recorrente"]);
+    const turma = await within(dialog).findByLabelText("Turma");
+    expect(turma).toHaveValue("");
+    expect(turma).toBeRequired();
     expect(
       within(dialog).getByText(
-        "A turma pode ser escolhida depois com o responsável.",
+        "Plano de aulas em grupo: escolha a turma do cliente.",
       ),
     ).toBeInTheDocument();
-    const turma = await within(dialog).findByLabelText("Turma (opcional)");
-    expect(turma).toHaveValue("");
     // Só turmas ativas do serviço do plano, com o responsável e as vagas.
     expect(
       within(turma)
         .getAllByRole("option")
         .map((item) => item.textContent),
     ).toEqual([
-      "Escolher depois",
+      "Selecione a turma",
       expect.stringMatching(/^Pilates 1 — .* · Dra\. Ana Martins · 3 vagas$/),
       expect.stringMatching(
         /^Pilates 2 — .* · Prof\. Bruno Lima · turma cheia \(lista de espera\)$/,
@@ -13130,18 +12925,16 @@ describe("guided client registration", () => {
       target: { value: "8" },
     });
     fireEvent.change(within(dialog).getByLabelText("Valor do serviço 1"), {
-      target: { value: "480" },
+      target: { value: "480,00" },
     });
     // Trocar o plano limpa a turma escolhida (ela é de outro serviço).
     fireEvent.change(catalog, { target: { value: physioTemplate.id } });
-    expect(within(dialog).getByLabelText("Turma (opcional)")).toHaveValue("");
+    expect(within(dialog).getByLabelText("Turma")).toHaveValue("");
     expect(
-      within(within(dialog).getByLabelText("Turma (opcional)")).getAllByRole(
-        "option",
-      ),
+      within(within(dialog).getByLabelText("Turma")).getAllByRole("option"),
     ).toHaveLength(2);
     fireEvent.change(catalog, { target: { value: pilatesTemplate.id } });
-    fireEvent.change(within(dialog).getByLabelText("Turma (opcional)"), {
+    fireEvent.change(within(dialog).getByLabelText("Turma"), {
       target: { value: groups[1]!.id },
     });
     fireEvent.click(
@@ -13197,9 +12990,7 @@ describe("guided client registration", () => {
     const catalog = await within(dialog).findByLabelText("Plano cadastrado");
     fireEvent.change(catalog, { target: { value: singleTemplate.id } });
     expect(within(dialog).queryByLabelText("Modelo")).not.toBeInTheDocument();
-    expect(
-      within(dialog).queryByLabelText("Turma (opcional)"),
-    ).not.toBeInTheDocument();
+    expect(within(dialog).queryByLabelText(/^Turma/)).not.toBeInTheDocument();
     fireEvent.click(
       within(dialog).getByRole("button", {
         name: "Salvar e criar serviço avulso",
@@ -13266,9 +13057,7 @@ describe("guided client registration", () => {
       within(dialog).getByRole("radio", { name: "Assinar um plano" }),
     );
     await within(dialog).findByLabelText("Plano cadastrado");
-    expect(
-      within(dialog).queryByLabelText("Turma (opcional)"),
-    ).not.toBeInTheDocument();
+    expect(within(dialog).queryByLabelText(/^Turma/)).not.toBeInTheDocument();
     expect(
       within(dialog).getByText(
         "A turma pode ser escolhida depois com o responsável.",

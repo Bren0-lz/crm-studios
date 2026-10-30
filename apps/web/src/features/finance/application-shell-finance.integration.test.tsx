@@ -6,6 +6,26 @@ import App from "../../App";
 import { storedUser } from "../../test-support/legacy-fixtures";
 import "../../test-support/legacy-setup";
 
+/** Abre o menu "Mais ações" de uma despesa fixa e devolve a opção pedida. */
+async function recurringAction(
+  scope: HTMLElement,
+  description: string,
+  action: string,
+) {
+  const button = within(scope).getByRole("button", {
+    name: `Mais ações de ${description}`,
+  });
+  // Durante o salvamento da linha o menu fica desativado.
+  await vi.waitFor(() => expect(button).toBeEnabled());
+  fireEvent.click(button);
+  return within(scope).findByRole("menuitem", { name: action });
+}
+
+/** Fecha o menu "Mais ações" aberto. */
+function closeRecurringMenu(scope: HTMLElement) {
+  fireEvent.keyDown(within(scope).getByRole("menu"), { key: "Escape" });
+}
+
 describe("application shell", () => {
   it.each(["reception", "finance", "physiotherapist"])(
     "does not offer patient export to %s",
@@ -242,11 +262,8 @@ describe("application shell", () => {
     expect(within(section).getAllByText("Encerrada")).toHaveLength(1);
     // Encerrada (mês final já passou) não oferece mais pausar nem encerrar.
     expect(
-      within(section).queryByRole("button", { name: "Pausar Software antigo" }),
-    ).not.toBeInTheDocument();
-    expect(
       within(section).queryByRole("button", {
-        name: "Encerrar Software antigo",
+        name: "Mais ações de Software antigo",
       }),
     ).not.toBeInTheDocument();
     // No próprio mês final ela ainda gera conta: continua ativa, com as ações.
@@ -255,15 +272,12 @@ describe("application shell", () => {
       .closest(".finance-row") as HTMLElement;
     expect(within(lastMonthRow).getByText("Ativa")).toBeInTheDocument();
     expect(
-      within(lastMonthRow).getByRole("button", {
-        name: "Pausar Seguro do estúdio",
-      }),
+      await recurringAction(lastMonthRow, "Seguro do estúdio", "Pausar"),
     ).toBeInTheDocument();
     expect(
-      within(lastMonthRow).getByRole("button", {
-        name: "Encerrar Seguro do estúdio",
-      }),
+      within(lastMonthRow).getByRole("menuitem", { name: "Encerrar" }),
     ).toBeInTheDocument();
+    closeRecurringMenu(lastMonthRow);
 
     // Criar: só categorias de despesa no select; depois recarrega o workspace (que gera as contas).
     fireEvent.click(
@@ -282,7 +296,7 @@ describe("application shell", () => {
       target: { value: "Escritório Silva" },
     });
     fireEvent.change(within(dialog).getByLabelText("Valor mensal"), {
-      target: { value: "450" },
+      target: { value: "450,00" },
     });
     fireEvent.change(within(dialog).getByLabelText("Dia do vencimento"), {
       target: { value: "20" },
@@ -324,13 +338,12 @@ describe("application shell", () => {
 
     // Pausar envia o corpo completo com active:false.
     fireEvent.click(
-      within(section).getByRole("button", { name: "Pausar Aluguel da sala" }),
+      await recurringAction(section, "Aluguel da sala", "Pausar"),
     );
     expect(
-      await within(section).findByRole("button", {
-        name: "Reativar Aluguel da sala",
-      }),
+      await recurringAction(section, "Aluguel da sala", "Reativar"),
     ).toBeInTheDocument();
+    closeRecurringMenu(section);
     expect(bodies[1]!.url).toContain(
       "/finance/recurring-payables/e1e1e1e1-e1e1-4e1e-8e1e-e1e1e1e1e1e1",
     );
@@ -347,12 +360,11 @@ describe("application shell", () => {
 
     // Reativar envia active:true explicitamente e recarrega o workspace.
     const loadsBeforeResume = workspaceLoads();
-    fireEvent.click(
-      within(section).getByRole("button", { name: "Reativar Internet" }),
-    );
+    fireEvent.click(await recurringAction(section, "Internet", "Reativar"));
     expect(
-      await within(section).findByRole("button", { name: "Pausar Internet" }),
+      await recurringAction(section, "Internet", "Pausar"),
     ).toBeInTheDocument();
+    closeRecurringMenu(section);
     expect(bodies[2]!.body).toMatchObject({
       description: "Internet",
       active: true,
@@ -361,9 +373,7 @@ describe("application shell", () => {
     expect(workspaceLoads()).toBeGreaterThan(loadsBeforeResume);
 
     // Encerrar abre um modal com o último mês e mantém a situação atual.
-    fireEvent.click(
-      within(section).getByRole("button", { name: "Encerrar Internet" }),
-    );
+    fireEvent.click(await recurringAction(section, "Internet", "Encerrar"));
     const endDialog = await screen.findByRole("dialog", {
       name: "Encerrar despesa fixa",
     });
@@ -484,8 +494,11 @@ describe("application shell", () => {
       await screen.findByRole("button", { name: "Contas a pagar (0)" }),
     );
     fireEvent.click(
-      await screen.findByRole("button", { name: "Encerrar Aluguel da sala" }),
+      await screen.findByRole("button", {
+        name: "Mais ações de Aluguel da sala",
+      }),
     );
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Encerrar" }));
     const dialog = await screen.findByRole("dialog", {
       name: "Encerrar despesa fixa",
     });
@@ -1152,9 +1165,7 @@ describe("application shell", () => {
       );
       expect(
         decodeURIComponent(whatsapp.getAttribute("href")!.split("text=")[1]!),
-      ).toContain(
-        `Olá, ${firstName}! Segue o recibo REC-00007: recebemos R$`,
-      );
+      ).toContain(`Olá, ${firstName}! Segue o recibo REC-00007: recebemos R$`);
     });
 
     it("contacts the client of an overdue installment with a ready message", async () => {
@@ -1364,7 +1375,7 @@ describe("application shell", () => {
         name: "Ajustar valor da parcela",
       });
       fireEvent.change(within(adjust).getByLabelText("Novo valor (R$)"), {
-        target: { value: "200" },
+        target: { value: "200,00" },
       });
       fireEvent.change(within(adjust).getByLabelText("Justificativa"), {
         target: { value: "Desconto combinado" },
@@ -1440,7 +1451,7 @@ describe("application shell", () => {
         "Falta: Novo valor, Justificativa (pelo menos 5 caracteres).",
       );
       fireEvent.change(within(dialog).getByLabelText("Novo valor (R$)"), {
-        target: { value: "199.9" },
+        target: { value: "199,90" },
       });
       fireEvent.change(within(dialog).getByLabelText("Justificativa"), {
         target: { value: "Desc" },
@@ -1508,7 +1519,7 @@ describe("application shell", () => {
         within(dialog).getByRole("button", { name: "Fechar" }),
       ).toBeEnabled();
       fireEvent.change(within(dialog).getByLabelText("Novo valor (R$)"), {
-        target: { value: "200" },
+        target: { value: "200,00" },
       });
       fireEvent.change(within(dialog).getByLabelText("Justificativa"), {
         target: { value: "Desconto combinado" },
@@ -1569,7 +1580,7 @@ describe("application shell", () => {
         name: "Renegociar parcelas",
       });
       fireEvent.change(within(dialog).getByLabelText("Novo valor total (R$)"), {
-        target: { value: "300" },
+        target: { value: "300,00" },
       });
       fireEvent.change(within(dialog).getByLabelText("Número de parcelas"), {
         target: { value: "40" },
@@ -1956,11 +1967,17 @@ describe("application shell", () => {
         "status-pill",
         "open",
       );
+      // Pagamento é pela folha: a lista não tem Pagar nem Estornar.
       expect(
-        within(juliana).getByRole("button", {
+        within(juliana).queryByRole("button", {
           name: "Pagar comissão de Juliana Prado",
         }),
-      ).toHaveClass("primary-button", "button-sm");
+      ).not.toBeInTheDocument();
+      expect(
+        within(section).getByText(
+          /O pagamento das comissões é feito pela folha/,
+        ),
+      ).toBeInTheDocument();
 
       const rafael = rowOf("Rafael Costa");
       expect(
@@ -1969,29 +1986,10 @@ describe("application shell", () => {
         ),
       ).toBeInTheDocument();
       expect(
-        within(rafael).getByRole("button", {
+        within(rafael).queryByRole("button", {
           name: "Estornar comissão de Rafael Costa",
         }),
-      ).toHaveClass("danger-button", "button-sm");
-
-      fireEvent.click(
-        within(juliana).getByRole("button", {
-          name: "Pagar comissão de Juliana Prado",
-        }),
-      );
-      await vi.waitFor(() =>
-        expect(
-          vi
-            .mocked(fetch)
-            .mock.calls.some(
-              ([url, options]) =>
-                options?.method === "POST" &&
-                String(url).includes(
-                  "/finance/commissions/g1g1g1g1-0000-4000-8000-000000000001/pay",
-                ),
-            ),
-        ).toBe(true),
-      );
+      ).not.toBeInTheDocument();
     });
 
     it("shows an empty commissions list with the next step", async () => {
@@ -2123,7 +2121,7 @@ describe("application shell", () => {
         target: { value: "27.5" },
       });
       fireEvent.change(within(dialog).getByLabelText("Vale a partir de"), {
-        target: { value: "2026-11-01" },
+        target: { value: "2099-11-01" },
       });
       fireEvent.click(within(dialog).getByRole("button", { name: "Salvar" }));
       await vi.waitFor(() =>
@@ -2133,7 +2131,151 @@ describe("application shell", () => {
       expect(JSON.parse(String(posts()[0]![1]?.body))).toEqual({
         professionalId: professionals[1]!.id,
         percentage: 27.5,
-        effectiveFrom: "2026-11-01",
+        effectiveFrom: "2099-11-01",
+      });
+    });
+
+    it("shows the retroactive recalculation before saving a rule that starts in the past", async () => {
+      const workspace = financeWorkspace();
+      localStorage.setItem("crm.auth.token", "test-token");
+      localStorage.setItem(
+        "crm.auth.user",
+        storedUser({
+          id: "22222222-2222-4222-8222-222222222222",
+          fullName: "Aryana Dutra",
+          email: "admin@movimenta.local",
+          role: "owner",
+        }),
+      );
+      const professional = {
+        id: "33333333-3333-4333-8333-333333333333",
+        fullName: "Juliana Prado",
+        color: "#5c6f68",
+        active: true,
+      };
+      const preview = {
+        from: "2026-03-01",
+        until: "2026-03-31",
+        items: [
+          {
+            commissionId: "c1",
+            professionalId: professional.id,
+            professionalName: "Juliana Prado",
+            competence: "2026-03",
+            sourceDate: "2026-03-10",
+            status: "open",
+            mode: "update",
+            previousAmountInCents: 1000,
+            amountInCents: 3000,
+            differenceInCents: 2000,
+            ruleSnapshot: { percentage: 30, effectiveFrom: "2026-03-01" },
+          },
+          {
+            commissionId: "c2",
+            professionalId: professional.id,
+            professionalName: "Juliana Prado",
+            competence: "2026-03",
+            sourceDate: "2026-03-05",
+            status: "paid",
+            mode: "adjustment",
+            previousAmountInCents: 1000,
+            amountInCents: 3000,
+            differenceInCents: 2000,
+            ruleSnapshot: { percentage: 30, effectiveFrom: "2026-03-01" },
+          },
+        ],
+        differenceInCents: 4000,
+        adjustmentInCents: 2000,
+        digest: "a".repeat(64),
+      };
+      vi.mocked(fetch).mockImplementation(async (input, init) => {
+        const url = String(input);
+        if (url.includes("/recalculation/preview"))
+          return {
+            ok: true,
+            status: 200,
+            json: async () => preview,
+          } as Response;
+        if (init?.method === "POST")
+          return { ok: true, status: 201, json: async () => ({}) } as Response;
+        const body = url.includes("/finance/workspace")
+          ? workspace
+          : url.endsWith("/professionals")
+            ? [professional]
+            : [];
+        return { ok: true, status: 200, json: async () => body } as Response;
+      });
+      render(
+        <MemoryRouter initialEntries={["/financeiro"]}>
+          <App />
+        </MemoryRouter>,
+      );
+      fireEvent.click(
+        await screen.findByRole("button", { name: "Comissões (2)" }),
+      );
+      const calls = (path: string) =>
+        vi
+          .mocked(fetch)
+          .mock.calls.filter(
+            ([url, options]) =>
+              options?.method === "POST" && String(url).endsWith(path),
+          );
+      fireEvent.click(
+        await screen.findByRole("button", { name: "Nova regra" }),
+      );
+      const dialog = await screen.findByRole("dialog", {
+        name: "Nova regra de comissão",
+      });
+      await vi.waitFor(() =>
+        expect(within(dialog).getByLabelText("Profissional")).toHaveValue(
+          professional.id,
+        ),
+      );
+      fireEvent.change(within(dialog).getByLabelText("Vale a partir de"), {
+        target: { value: "2026-03-01" },
+      });
+      fireEvent.click(within(dialog).getByRole("button", { name: "Salvar" }));
+      expect(
+        await within(dialog).findByText(
+          "Esta mudança recalcula 2 comissões de 01/03/2026 a 31/03/2026 (diferença: +R$ 40,00; +R$ 20,00 em ajustes de comissões já pagas).",
+          { normalizer: (text) => text.replace(/\s+/g, " ").trim() },
+        ),
+      ).toBeInTheDocument();
+      expect(
+        within(dialog).getByText(/já paga: ajuste de \+R\$\s20,00/),
+      ).toBeInTheDocument();
+      expect(
+        JSON.parse(String(calls("/recalculation/preview")[0]![1]?.body)),
+      ).toEqual({
+        professionalId: professional.id,
+        rules: [{ percentage: 30, effectiveFrom: "2026-03-01" }],
+      });
+      expect(calls("/finance/commission-rules")).toHaveLength(0);
+
+      // Mudar a regra descarta a prévia: o botão volta a ser "Salvar".
+      fireEvent.change(within(dialog).getByLabelText("Percentual (%)"), {
+        target: { value: "35" },
+      });
+      expect(
+        within(dialog).queryByText(/Esta mudança recalcula/),
+      ).not.toBeInTheDocument();
+      fireEvent.change(within(dialog).getByLabelText("Percentual (%)"), {
+        target: { value: "30" },
+      });
+      fireEvent.click(
+        within(dialog).getByRole("button", { name: "Confirmar e recalcular" }),
+      );
+      await vi.waitFor(() =>
+        expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+      );
+      expect(calls("/recalculation/preview")).toHaveLength(1);
+      expect(
+        JSON.parse(String(calls("/finance/commission-rules")[0]![1]?.body)),
+      ).toEqual({
+        professionalId: professional.id,
+        percentage: 30,
+        effectiveFrom: "2026-03-01",
+        recalculationDigest: "a".repeat(64),
       });
     });
   });

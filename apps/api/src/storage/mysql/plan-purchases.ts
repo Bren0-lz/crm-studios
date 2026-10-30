@@ -6,6 +6,11 @@ import {
   validatePurchaseSchedule,
 } from "../../modules/plans/purchase.js";
 import { createIssuedDocumentInTransaction } from "./contracts.js";
+import {
+  type GroupEnrollmentRow,
+  groupEnrollmentColumns,
+  mapGroupEnrollment,
+} from "./helpers.js";
 export function createPlanPurchasesRepository(
   context: MysqlRepositoryContext,
 ) {
@@ -102,12 +107,24 @@ export function createPlanPurchasesRepository(
             ),
           );
         }
-        const enrollment = input.groupId
-          ? await context.insertGroupEnrollment(client, clinicId, {
-              groupId: input.groupId,
-              patientId: plan.patientId,
-            })
+        // Cliente que já está na turma (plano anterior vencido ou cancelado não encerra a
+        // matrícula): o novo plano segue com a mesma matrícula, sem duplicar.
+        const current = input.groupId
+          ? (
+              await client.query<GroupEnrollmentRow>(
+                `SELECT ${groupEnrollmentColumns} FROM group_enrollments e JOIN patients p ON p.id=e.patient_id WHERE e.clinic_id=$1 AND e.group_id=$2 AND e.patient_id=$3 AND e.status IN ('active','waitlisted') FOR UPDATE`,
+                [clinicId, input.groupId, plan.patientId],
+              )
+            ).rows[0]
           : undefined;
+        const enrollment = current
+          ? mapGroupEnrollment(current)
+          : input.groupId
+            ? await context.insertGroupEnrollment(client, clinicId, {
+                groupId: input.groupId,
+                patientId: plan.patientId,
+              })
+            : undefined;
         let document = input.document
           ? await createIssuedDocumentInTransaction(
               context,

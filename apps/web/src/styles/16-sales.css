@@ -158,12 +158,90 @@
   align-items: end;
 }
 
+.sale-line.has-size {
+  grid-template-columns:
+    minmax(0, 2fr) minmax(0, 1fr) minmax(0, 0.7fr) minmax(0, 1fr)
+    minmax(0, 1fr) auto;
+}
+
+/* Produto escolhido sem preço de venda: bloqueia a venda e oferece cadastrar o preço. */
+.sale-price-alert {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  padding: var(--space-3);
+  border-radius: var(--radius-sm);
+  background: #fdf1dc;
+  color: #8a5a12;
+  font-size: var(--text-sm);
+}
+
+.sale-price-alert p {
+  flex: 1 1 16rem;
+  margin: 0;
+}
+
 .sale-line-total {
   display: grid;
   gap: var(--space-1);
   margin: 0;
   padding-bottom: var(--space-2);
   font-size: var(--text-md);
+}
+
+/* Pedidos ao fornecedor (Financeiro › Fornecedores): itens recebidos e histórico. */
+.supplier-order-lines {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.supplier-order-line {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr)) var(--space-7);
+  gap: var(--space-3);
+  align-items: end;
+}
+
+.supplier-orders {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.supplier-orders-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.supplier-orders-head .panel-context {
+  margin: 0;
+}
+
+.supplier-order-items ul {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-weight: 400;
+}
+
+.supplier-order-items li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.supplier-order-items small {
+  display: block;
+  margin-top: var(--space-1);
+  color: var(--muted);
+  font-size: var(--text-xs);
+  font-weight: 400;
 }
 
 .sale-actions {
@@ -181,7 +259,9 @@
 }
 
 @media (max-width: 700px) {
-  .sale-line {
+  .sale-line,
+  .sale-line.has-size,
+  .supplier-order-line {
     grid-template-columns: 1fr;
   }
 
@@ -317,4 +397,34 @@
 
 .product-catalogs {
   padding: 0 calc(var(--space-5) - 1px) calc(var(--space-5) - 1px);
+}
+
+.sales-ranking-body {
+  padding: var(--space-4) var(--space-5);
+}
+
+/* Tamanhos do produto no cadastro do estoque. */
+.product-size-grid {
+  display: grid;
+  grid-template-columns: repeat(
+    auto-fill,
+    minmax(calc(var(--space-8) * 2 + var(--space-5)), 1fr)
+  );
+  gap: var(--space-2) var(--space-4);
+}
+
+/* Aviso de reposição: caixa, quantidade e explicação empilhadas no mesmo bloco. */
+.restock-fieldset {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.restock-fieldset .restock-quantity {
+  max-width: calc(var(--space-8) * 3);
+}
+
+/* Estoque: tamanhos configurados que zeraram (o produto ainda tem saldo em outros). */
+.inventory-product .inventory-sold-out {
+  color: var(--terracotta);
+  font-weight: 600;
 }

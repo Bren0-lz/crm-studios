@@ -1,4 +1,13 @@
 import type {
+  PayrollEmployee,
+  PayrollEmployeeInput,
+  PayrollLaunchInput,
+  PayrollLaunchResult,
+  PayrollSummary,
+} from "@crm/contracts";
+import type {
+  CommissionRecalculationPreview,
+  CommissionRecalculationPreviewInput,
   CommissionReconciliationPreview,
   CommissionReconciliationInput,
   CommissionReconciliation,
@@ -33,6 +42,8 @@ import type {
   AppointmentInput,
   Supplier,
   SupplierInput,
+  SupplierOrder,
+  SupplierOrderInput,
   ManualReceivableInput,
   Receivable,
   FinancialClassification,
@@ -61,8 +72,18 @@ import type {
   ReceivableRenegotiationInput,
   RecurringPayable,
   RecurringPayableInput,
+  PaymentProof,
+  PaymentProofContent,
+  PaymentProofEntity,
+  PaymentProofInput,
 } from "@crm/contracts";
 import { request } from "../transport";
+
+const proofPath: Record<PaymentProofEntity, string> = {
+  receivable: "receivables",
+  payable: "payables",
+  commission_account_payment: "commission-account-payments",
+};
 
 export const financeApi = {
   commissionReconciliation: (id: string) =>
@@ -73,15 +94,6 @@ export const financeApi = {
     request<CommissionReconciliation>(
       `/finance/commissions/${id}/reconciliation`,
       { method: "POST", body: JSON.stringify(input) },
-    ),
-  settleCommissionAccount: (
-    id: string,
-    professionalId: string,
-    expectedAmountInCents: number,
-  ) =>
-    request<CommissionAccountPayment>(
-      `/finance/commissions/${id}/accounts/${professionalId}/pay`,
-      { method: "POST", body: JSON.stringify({ expectedAmountInCents }) },
     ),
   reverseCommissionAccountPayment: (id: string) =>
     request<CommissionAccountPayment>(
@@ -96,6 +108,25 @@ export const financeApi = {
     request<ExternalOperation>("/finance/external-operations", {
       method: "POST",
       body: JSON.stringify(input),
+    }),
+  paymentProofs: (entity: PaymentProofEntity, id: string) =>
+    request<PaymentProof[]>(`/finance/${proofPath[entity]}/${id}/proofs`),
+  createPaymentProof: (
+    entity: PaymentProofEntity,
+    id: string,
+    input: PaymentProofInput,
+  ) =>
+    request<PaymentProof>(`/finance/${proofPath[entity]}/${id}/proofs`, {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  paymentProofContent: (id: string) =>
+    request<PaymentProofContent>(`/finance/payment-proofs/${id}/content`),
+  /** Comprovante enviado por engano: sai da lista; o motivo fica no histórico. */
+  deletePaymentProof: (id: string, reason: string) =>
+    request<PaymentProof>(`/finance/payment-proofs/${id}`, {
+      method: "DELETE",
+      body: JSON.stringify({ reason }),
     }),
   externalOperationContent: (id: string) =>
     request<ExternalOperationContent>(
@@ -191,6 +222,13 @@ export const financeApi = {
       method: id ? "PUT" : "POST",
       body: JSON.stringify(input),
     }),
+  supplierOrders: (supplierId: string) =>
+    request<SupplierOrder[]>(`/finance/suppliers/${supplierId}/orders`),
+  createSupplierOrder: (supplierId: string, input: SupplierOrderInput) =>
+    request<SupplierOrder>(`/finance/suppliers/${supplierId}/orders`, {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
   createManualReceivable: (input: ManualReceivableInput) =>
     request<Receivable>("/finance/receivables", {
       method: "POST",
@@ -219,7 +257,10 @@ export const financeApi = {
     request<DreReport>(
       `/reports/dre${exporting ? "/export" : ""}?from=${from}&to=${to}${costCenterId ? `&costCenterId=${costCenterId}` : ""}`,
     ),
-  setUserCommission: (id: string, input: AdminUserCommissionInput) =>
+  setUserCommission: (
+    id: string,
+    input: AdminUserCommissionInput & { recalculationDigest?: string },
+  ) =>
     request<AdminUser>(`/admin/users/${id}/commission`, {
       method: "PUT",
       body: JSON.stringify(input),
@@ -263,22 +304,48 @@ export const financeApi = {
       method: "POST",
       body: JSON.stringify(input),
     }),
-  createCommissionRule: (input: CommissionRuleInput) =>
+  /** `recalculationDigest`: prévia confirmada; as comissões alcançadas são recalculadas. */
+  createCommissionRule: (
+    input: CommissionRuleInput & { recalculationDigest?: string },
+  ) =>
     request<CommissionRule>("/finance/commission-rules", {
       method: "POST",
       body: JSON.stringify(input),
     }),
+  commissionRecalculationPreview: (
+    input: CommissionRecalculationPreviewInput,
+  ) =>
+    request<CommissionRecalculationPreview>(
+      "/finance/commission-rules/recalculation/preview",
+      { method: "POST", body: JSON.stringify(input) },
+    ),
   generateCommissions: (competence: string) =>
     request<CommissionEntry[]>("/finance/commissions/generate", {
       method: "POST",
       body: JSON.stringify({ competence }),
     }),
-  settleCommission: (id: string) =>
-    request<CommissionEntry>(`/finance/commissions/${id}/pay`, {
+  /** Folha da competência; `branchIds` vazio = todas as filiais acessíveis. */
+  payroll: (competence: string, branchIds: string[], options?: RequestInit) =>
+    request<PayrollSummary>(
+      `/finance/payroll?competence=${competence}${branchIds.length ? `&branchIds=${branchIds.join(",")}` : ""}`,
+      options,
+    ),
+  payrollEmployees: (options?: RequestInit) =>
+    request<PayrollEmployee[]>("/finance/payroll/employees", options),
+  savePayrollEmployee: (input: PayrollEmployeeInput, id?: string) =>
+    request<PayrollEmployee>(
+      id ? `/finance/payroll/employees/${id}` : "/finance/payroll/employees",
+      { method: id ? "PUT" : "POST", body: JSON.stringify(input) },
+    ),
+  launchPayroll: (input: PayrollLaunchInput, options?: RequestInit) =>
+    request<PayrollLaunchResult>("/finance/payroll/launch", {
+      ...options,
       method: "POST",
+      body: JSON.stringify(input),
     }),
-  reverseCommission: (id: string) =>
-    request<CommissionEntry>(`/finance/commissions/${id}/reverse`, {
+  cancelPayrollLaunch: (payableId: string, options?: RequestInit) =>
+    request<Payable>(`/finance/payroll/payables/${payableId}/cancel`, {
+      ...options,
       method: "POST",
     }),
   createFinancialCategory: (input: FinancialCategoryInput) =>

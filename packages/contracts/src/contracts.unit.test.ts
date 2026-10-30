@@ -1,9 +1,22 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  appointmentCreateInputSchema,
+  autoCampaignInputSchema,
+  recurringAppointmentCreateInputSchema,
+  productInputSchema,
+  productItemName,
+  productNeedsRestock,
+  productSizeStock,
+  productSizeLabels,
+  productUpdateSchema,
   cpfMatchKey,
   receivableContactMessage,
   planPixChargeMessage,
+  planFirstChargeProration,
+  planInstallmentSchedule,
   planServiceValueForSessions,
+  weeklySlotSessionsBetween,
+  withPlanFirstCharge,
   fillCampaignMessage,
   usesAppointmentVariables,
   imageDataUrlInfo,
@@ -28,6 +41,7 @@ import {
   formatTaxId,
   formatCnpj,
   supplierInputSchema,
+  supplierOrderInputSchema,
   isValidCnpj,
   isValidTaxId,
   clinicalRecordInputSchema,
@@ -496,6 +510,47 @@ describe("shared contracts", () => {
     ).toThrow();
   });
 
+  it("requires each supplier order item to name exactly one product", () => {
+    const order = {
+      orderedOn: "2026-10-20",
+      totalInCents: 1_000,
+      items: [{ productName: "Óleo", quantity: 2 }],
+    };
+    expect(supplierOrderInputSchema.parse(order)).toMatchObject({
+      number: "",
+      notes: "",
+    });
+    expect(() =>
+      supplierOrderInputSchema.parse({ ...order, items: [{ quantity: 1 }] }),
+    ).toThrow();
+    expect(() =>
+      supplierOrderInputSchema.parse({
+        ...order,
+        items: [
+          {
+            productId: "11111111-1111-4111-8111-111111111111",
+            productName: "Óleo",
+            quantity: 1,
+          },
+        ],
+      }),
+    ).toThrow();
+    expect(() =>
+      supplierOrderInputSchema.parse({ ...order, items: [] }),
+    ).toThrow();
+  });
+
+  it("accepts a product without sale price yet", () => {
+    expect(
+      productInputSchema.parse({
+        name: "Bola suíça",
+        sku: "BOLA",
+        costInCents: 0,
+        salePriceInCents: null,
+      }).salePriceInCents,
+    ).toBeNull();
+  });
+
   it("validates and formats the clinic CPF/CNPJ", () => {
     expect(isValidCnpj("11.222.333/0001-81")).toBe(true);
     expect(isValidCnpj("12.345.678/0001-90")).toBe(false);
@@ -729,6 +784,138 @@ describe("shared contracts", () => {
         items: [{ productId, quantity: 2, unitPriceInCents: 1500 }],
       }).items[0],
     ).toEqual({ productId, quantity: 2, unitPriceInCents: 1500 });
+  });
+
+  it("validates product sizes and keeps them in scale order", () => {
+    const base = {
+      name: "Camiseta",
+      sku: "CAM",
+      costInCents: 1000,
+      salePriceInCents: 3000,
+    };
+    expect(productInputSchema.parse(base).sizes).toBeUndefined();
+    expect(
+      productInputSchema.parse({
+        ...base,
+        sizes: ["baby_look_gg", "unique", "gg", "pp"],
+      }).sizes,
+    ).toEqual(["pp", "gg", "unique", "baby_look_gg"]);
+    expect(() =>
+      productInputSchema.parse({ ...base, sizes: ["m", "m"] }),
+    ).toThrow("Cada tamanho entra uma vez só.");
+    expect(() =>
+      productInputSchema.parse({ ...base, sizes: ["xg"] }),
+    ).toThrow();
+    expect(productUpdateSchema.parse({ ...base, sizes: [] }).sizes).toEqual([]);
+    expect(productSizeLabels.unique).toBe("Tamanho único");
+    expect(productSizeLabels.baby_look_p).toBe("Baby look P");
+  });
+
+  it("validates the initial stock per size and sizes in a sale", () => {
+    const base = {
+      name: "Camiseta",
+      sku: "CAM",
+      costInCents: 1000,
+      salePriceInCents: 3000,
+      sizes: ["p", "m"],
+    };
+    expect(() =>
+      productInputSchema.parse({ ...base, initialStock: 2 }),
+    ).toThrow("Informe o estoque inicial por tamanho.");
+    expect(() =>
+      productInputSchema.parse({
+        ...base,
+        initialSizeStock: [{ size: "g", quantity: 1 }],
+      }),
+    ).toThrow("O estoque inicial deve usar os tamanhos do produto");
+    expect(
+      productInputSchema.parse({
+        ...base,
+        initialSizeStock: [{ size: "m", quantity: 4 }],
+      }).initialSizeStock,
+    ).toEqual([{ size: "m", quantity: 4 }]);
+    const productId = "22222222-2222-4222-8222-222222222222";
+    const sale = {
+      patientId: "11111111-1111-4111-8111-111111111111",
+      settlement: "receivable" as const,
+      dueDate: "2026-09-12",
+    };
+    expect(
+      productSaleInputSchema.parse({
+        ...sale,
+        items: [
+          { productId, size: "p", quantity: 1 },
+          { productId, size: "m", quantity: 1 },
+        ],
+      }).items,
+    ).toHaveLength(2);
+    expect(() =>
+      productSaleInputSchema.parse({
+        ...sale,
+        items: [
+          { productId, size: "p", quantity: 1 },
+          { productId, size: "p", quantity: 2 },
+        ],
+      }),
+    ).toThrow("Cada produto entra uma vez só na venda.");
+  });
+
+  it("keeps the restock alert optional and asks for restock at or below it", () => {
+    const product = {
+      name: "Faixa",
+      sku: "FX",
+      costInCents: 0,
+      salePriceInCents: 0,
+    };
+    expect(productInputSchema.parse(product).restockAlertAt).toBeUndefined();
+    expect(
+      productInputSchema.parse({ ...product, restockAlertAt: 5 })
+        .restockAlertAt,
+    ).toBe(5);
+    expect(
+      productUpdateSchema.parse({ ...product, restockAlertAt: null })
+        .restockAlertAt,
+    ).toBeNull();
+    expect(() =>
+      productInputSchema.parse({ ...product, restockAlertAt: 0 }),
+    ).toThrow();
+    expect(productNeedsRestock(0, null)).toBe(true);
+    expect(productNeedsRestock(1, null)).toBe(false);
+    expect(productNeedsRestock(5, 5)).toBe(true);
+    expect(productNeedsRestock(6, 5)).toBe(false);
+  });
+
+  it("lists the stock per size with leftovers outside the configured sizes", () => {
+    expect(
+      productSizeStock(
+        ["p", "g"],
+        [
+          { size: "g", currentStock: 2 },
+          { size: "m", currentStock: 0 },
+          { size: "gg", currentStock: 1 },
+          { size: null, currentStock: 3 },
+        ],
+      ),
+    ).toEqual([
+      { size: "p", currentStock: 0 },
+      { size: "g", currentStock: 2 },
+      { size: "gg", currentStock: 1 },
+      { size: null, currentStock: 3 },
+    ]);
+    expect(productSizeStock([], [{ size: null, currentStock: 5 }])).toEqual([]);
+    expect(
+      productSizeStock(
+        [],
+        [
+          { size: null, currentStock: 5 },
+          { size: "m", currentStock: 1 },
+        ],
+      ),
+    ).toEqual([{ size: "m", currentStock: 1 }]);
+    expect(
+      productItemName({ productName: "Camiseta", size: "baby_look_m" }),
+    ).toBe("Camiseta · Baby look M");
+    expect(productItemName({ productName: "Óleo" })).toBe("Óleo");
   });
 });
 
@@ -1778,6 +1965,94 @@ describe("planPixChargeMessage", () => {
   });
 });
 
+describe("1º pagamento proporcional às aulas até o vencimento", () => {
+  // Turma de segunda e quarta: outubro/2026 tem 8 aulas (5, 7, 12, 14, 19, 21, 26, 28).
+  const slots = [{ weekday: 1 }, { weekday: 3 }];
+  const plan = {
+    kind: "recurring" as const,
+    totalValueInCents: 40_000,
+    validFrom: "2026-10-01",
+    firstDueDate: "2026-10-31",
+  };
+  it("counts the weekly classes between two dates", () => {
+    expect(weeklySlotSessionsBetween(slots, "2026-10-01", "2026-10-31")).toBe(
+      8,
+    );
+    expect(weeklySlotSessionsBetween(slots, "2026-10-05", "2026-10-05")).toBe(
+      1,
+    );
+    expect(weeklySlotSessionsBetween(slots, "2026-10-06", "2026-10-06")).toBe(
+      0,
+    );
+    expect(weeklySlotSessionsBetween([], "2026-10-01", "2026-10-31")).toBe(0);
+  });
+  it("charges the full value at the end of the first cycle", () => {
+    expect(planFirstChargeProration(plan, slots)).toBeNull();
+  });
+  it("is cheaper before and more expensive after the end of the cycle", () => {
+    expect(
+      planFirstChargeProration({ ...plan, firstDueDate: "2026-10-15" }, slots),
+    ).toEqual({
+      sessions: 4,
+      cycleSessions: 8,
+      cycleEnd: "2026-10-31",
+      amountInCents: 20_000,
+    });
+    expect(
+      planFirstChargeProration({ ...plan, firstDueDate: "2026-11-10" }, slots)
+        ?.amountInCents,
+    ).toBe(55_000);
+  });
+  it("keeps the full value without a group, when paid upfront or outside recurring plans", () => {
+    const early = { ...plan, firstDueDate: "2026-10-15" };
+    expect(planFirstChargeProration(early, undefined)).toBeNull();
+    expect(planFirstChargeProration(early, [])).toBeNull();
+    expect(
+      planFirstChargeProration({ ...plan, firstDueDate: "2026-10-01" }, slots),
+    ).toBeNull();
+    expect(
+      planFirstChargeProration({ ...early, kind: "fixed_package" }, slots),
+    ).toBeNull();
+  });
+  it("replaces only the first installment of the schedule", () => {
+    const terms = withPlanFirstCharge(
+      { ...plan, firstDueDate: "2026-10-15", installments: 1 },
+      slots,
+    );
+    expect(terms.firstInstallmentInCents).toBe(20_000);
+    expect(planInstallmentSchedule(terms)).toEqual([
+      { installmentNumber: 1, dueDate: "2026-10-15", amountInCents: 20_000 },
+    ]);
+    // Voltar para o fim do ciclo remove o valor proporcional calculado antes.
+    expect(
+      withPlanFirstCharge({ ...terms, firstDueDate: "2026-10-31" }, slots),
+    ).not.toHaveProperty("firstInstallmentInCents");
+    expect(
+      planInstallmentSchedule({
+        totalValueInCents: 30_000,
+        installments: 3,
+        firstDueDate: "2026-10-15",
+        firstInstallmentInCents: 5_000,
+      }).map((item) => item.amountInCents),
+    ).toEqual([5_000, 10_000, 10_000]);
+  });
+  it("tells the prorated first charge in the Pix message", () => {
+    expect(
+      planPixChargeMessage({
+        patientName: "Marina Costa",
+        planName: "Pilates 2x semana",
+        totalValueInCents: 40_000,
+        totalSessions: 8,
+        installments: 1,
+        pixKey: "financeiro@aryana.com.br",
+        firstChargeInCents: 20_000,
+      }),
+    ).toContain(
+      "o plano “Pilates 2x semana” tem 8 sessões por R$ 400,00 (R$ 50,00 por sessão); o 1º pagamento, proporcional às aulas até o vencimento, é de R$ 200,00.",
+    );
+  });
+});
+
 describe("planPixChargeMessage with the clinic template", () => {
   it("fills every variable and ignores a blank template", () => {
     const plan = {
@@ -1922,6 +2197,64 @@ describe("comissões por serviço do usuário", () => {
         { expiresAt, signedAt: "2026-10-21T10:00:00.000Z" },
         new Date("2026-11-30T12:00:00Z"),
       ),
+    ).toBe(false);
+  });
+});
+
+describe("campanhas automáticas promocionais", () => {
+  const campaign = {
+    name: "Aniversariantes",
+    trigger: "birthday",
+    steps: [{ offset: 7, message: "Olá, {{nome}}" }],
+  };
+
+  it("accepts an optional promotion with validity and cooldown", () => {
+    expect(autoCampaignInputSchema.parse(campaign).promotion).toBeUndefined();
+    expect(
+      autoCampaignInputSchema.parse({
+        ...campaign,
+        promotion: { validDays: 10, cooldown: { amount: 3, unit: "weeks" } },
+      }).promotion,
+    ).toEqual({ validDays: 10, cooldown: { amount: 3, unit: "weeks" } });
+    for (const promotion of [
+      { validDays: 0 },
+      { validDays: 366 },
+      { validDays: 10, cooldown: { amount: 0, unit: "days" } },
+      { validDays: 10, cooldown: { amount: 1, unit: "years" } },
+    ])
+      expect(
+        autoCampaignInputSchema.safeParse({ ...campaign, promotion }).success,
+      ).toBe(false);
+  });
+
+  it("takes the promotion used when scheduling", () => {
+    const appointment = {
+      patientId: "11111111-1111-4111-8111-111111111111",
+      professionalId: "22222222-2222-4222-8222-222222222222",
+      roomId: "33333333-3333-4333-8333-333333333333",
+      serviceId: "44444444-4444-4444-8444-444444444444",
+      startsAt: "2039-06-20T13:00:00.000Z",
+    };
+    const promotion = {
+      campaignId: "55555555-5555-4555-8555-555555555555",
+      occurrenceKey: "cliente:2039",
+    };
+    expect(
+      appointmentCreateInputSchema.parse({ ...appointment, promotion })
+        .promotion,
+    ).toEqual(promotion);
+    expect(
+      recurringAppointmentCreateInputSchema.parse({
+        ...appointment,
+        occurrences: 4,
+        promotion,
+      }),
+    ).toMatchObject({ occurrences: 4, promotion });
+    expect(
+      appointmentCreateInputSchema.safeParse({
+        ...appointment,
+        promotion: { campaignId: "x", occurrenceKey: "" },
+      }).success,
     ).toBe(false);
   });
 });

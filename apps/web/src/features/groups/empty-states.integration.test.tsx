@@ -1,10 +1,4 @@
-import {
-  fireEvent,
-  render,
-  screen,
-  waitFor,
-  within,
-} from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import App from "../../App";
@@ -56,42 +50,22 @@ describe("empty states with illustration and main action (V11)", () => {
     ).toBeInTheDocument();
   });
 
-  it("offers to register the first clinical record when there is an appointment", async () => {
+  it("asks to choose a client on the clinical records page", async () => {
     login();
-    vi.mocked(fetch).mockImplementation(async (input) => {
-      const url = String(input);
-      const body = url.includes("/clinical-records")
-        ? []
-        : url.includes("/appointments")
-          ? [
-              {
-                id: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
-                patientName: "Helena Almeida",
-                professionalName: "Dra. Ana Martins",
-                startsAt: new Date().toISOString(),
-                status: "completed",
-              },
-            ]
-          : [];
-      return { ok: true, status: 200, json: async () => body } as Response;
-    });
+    vi.mocked(fetch).mockImplementation(
+      async () => ({ ok: true, status: 200, json: async () => [] }) as Response,
+    );
     render(
       <MemoryRouter initialEntries={["/prontuarios"]}>
         <App />
       </MemoryRouter>,
     );
-    const empty = (
-      await screen.findByText("Nenhuma evolução registrada")
-    ).closest(".empty-state") as HTMLElement;
+    const empty = (await screen.findByText("Escolha um cliente")).closest(
+      ".empty-state",
+    ) as HTMLElement;
     expect(empty.querySelector(".empty-state-icon svg")).not.toBeNull();
-    const action = await waitFor(() =>
-      within(empty).getByRole("button", {
-        name: /Registrar primeira evolução/,
-      }),
-    );
-    fireEvent.click(action);
     expect(
-      await screen.findByRole("dialog", { name: "Nova evolução clínica" }),
-    ).toBeInTheDocument();
+      screen.queryByText("Nenhuma evolução registrada"),
+    ).not.toBeInTheDocument();
   });
 });

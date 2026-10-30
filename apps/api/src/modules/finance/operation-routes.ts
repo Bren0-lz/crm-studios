@@ -1,11 +1,25 @@
 import { commissionReconciliationInputSchema } from "@crm/contracts";
 import { externalOperationInputSchema } from "@crm/contracts";
+import {
+  paymentProofDeletionSchema,
+  paymentProofInputSchema,
+  type PaymentProofEntity,
+  type PermissionKey,
+} from "@crm/contracts";
+
+/** Quem anexa comprovante em cada tipo de registro (vale também para excluir). */
+const proofAttachPermission: Record<PaymentProofEntity, PermissionKey> = {
+  receivable: "finance.receive",
+  payable: "finance.payables_pay",
+  commission_account_payment: "finance.commissions_pay",
+};
 import { financialDatesSchema } from "@crm/contracts";
 import {
   productUpdateSchema,
   patientTabItemUpdateSchema,
   patientTabServiceInputSchema,
   supplierInputSchema,
+  supplierOrderInputSchema,
   manualReceivableInputSchema,
   financialClassificationSchema,
   categoryDreInputSchema,
@@ -14,6 +28,7 @@ import {
 } from "@crm/contracts";
 import { z } from "zod";
 import type { RouteContext } from "../../infrastructure/route-context.js";
+import { payrollOnlyError } from "./payroll.js";
 export function registerFinanceOperationRoutes({
   app,
   authenticate,
@@ -49,28 +64,9 @@ export function registerFinanceOperationRoutes({
   app.post(
     "/finance/commissions/:id/accounts/:professionalId/pay",
     { preHandler: authenticate },
-    async (request) => {
-      const { id, professionalId } = z
-        .object({ id: z.uuid(), professionalId: z.uuid() })
-        .parse(request.params);
-      const { expectedAmountInCents } = z
-        .object({
-          expectedAmountInCents: z
-            .number()
-            .int()
-            .min(-2147483647)
-            .max(2147483647),
-        })
-        .parse(request.body);
-      if (expectedAmountInCents < 0)
-        assertPermissions(request, "finance.commissions_reverse");
-      return repository.settleCommissionAccount(
-        request.user.clinicId,
-        request.user.sub,
-        id,
-        professionalId,
-        expectedAmountInCents,
-      );
+    // O saldo conciliado (comissão + ajustes) é pago pela folha de pagamento.
+    async () => {
+      throw payrollOnlyError();
     },
   );
   app.post(
@@ -120,6 +116,82 @@ export function registerFinanceOperationRoutes({
         code: "EXTERNAL_OPERATION_NOT_FOUND",
         message: "Comprovante não encontrado.",
       }),
+  );
+  // Comprovantes de baixas: um arquivo por pedido (o limite do corpo é 8 MB).
+  for (const [path, entityType] of [
+    ["receivables", "receivable"],
+    ["payables", "payable"],
+    ["commission-account-payments", "commission_account_payment"],
+  ] as const) {
+    app.get(
+      `/finance/${path}/:id/proofs`,
+      { preHandler: authenticate },
+      async (request) =>
+        repository.listPaymentProofs(
+          request.user.clinicId,
+          entityType,
+          z.object({ id: z.uuid() }).parse(request.params).id,
+        ),
+    );
+    app.post(
+      `/finance/${path}/:id/proofs`,
+      { preHandler: authenticate, bodyLimit: 8 * 1024 * 1024 },
+      async (request, reply) =>
+        reply
+          .status(201)
+          .send(
+            await repository.createPaymentProof(
+              request.user.clinicId,
+              request.user.sub,
+              entityType,
+              z.object({ id: z.uuid() }).parse(request.params).id,
+              paymentProofInputSchema.parse(request.body),
+            ),
+          ),
+    );
+  }
+  app.get(
+    "/finance/payment-proofs/:id/content",
+    { preHandler: authenticate },
+    async (request, reply) =>
+      (await repository.getPaymentProofContent(
+        request.user.clinicId,
+        request.user.sub,
+        z.object({ id: z.uuid() }).parse(request.params).id,
+      )) ??
+      reply.status(404).send({
+        code: "PAYMENT_PROOF_NOT_FOUND",
+        message: "Comprovante não encontrado.",
+      }),
+  );
+  // Comprovante enviado por engano: quem pode anexar naquele tipo de registro pode excluir.
+  app.delete(
+    "/finance/payment-proofs/:id",
+    { preHandler: authenticate },
+    async (request, reply) => {
+      const { id } = z.object({ id: z.uuid() }).parse(request.params);
+      const { reason } = paymentProofDeletionSchema.parse(request.body ?? {});
+      const entity = await repository.findPaymentProofEntity(
+        request.user.clinicId,
+        id,
+      );
+      if (entity) assertPermissions(request, proofAttachPermission[entity]);
+      const deleted =
+        entity &&
+        (await repository.deletePaymentProof(
+          request.user.clinicId,
+          request.user.sub,
+          id,
+          reason,
+        ));
+      return (
+        deleted ??
+        reply.status(404).send({
+          code: "PAYMENT_PROOF_NOT_FOUND",
+          message: "Comprovante não encontrado.",
+        })
+      );
+    },
   );
   const ids = z.object({ id: z.uuid(), itemId: z.uuid().optional() });
   app.put(
@@ -303,6 +375,37 @@ export function registerFinanceOperationRoutes({
         code: "SUPPLIER_NOT_FOUND",
         message: "Fornecedor não encontrado.",
       }),
+  );
+  app.get(
+    "/finance/suppliers/:id/orders",
+    { preHandler: authenticate },
+    async (request, reply) =>
+      (await repository.listSupplierOrders(
+        request.user.clinicId,
+        ids.parse(request.params).id,
+      )) ??
+      reply.status(404).send({
+        code: "SUPPLIER_NOT_FOUND",
+        message: "Fornecedor não encontrado.",
+      }),
+  );
+  app.post(
+    "/finance/suppliers/:id/orders",
+    { preHandler: authenticate },
+    async (request, reply) => {
+      const order = await repository.createSupplierOrder(
+        request.user.clinicId,
+        request.user.sub,
+        ids.parse(request.params).id,
+        supplierOrderInputSchema.parse(request.body),
+      );
+      return order
+        ? reply.status(201).send(order)
+        : reply.status(404).send({
+            code: "SUPPLIER_NOT_FOUND",
+            message: "Fornecedor não encontrado.",
+          });
+    },
   );
   app.post(
     "/finance/receivables",

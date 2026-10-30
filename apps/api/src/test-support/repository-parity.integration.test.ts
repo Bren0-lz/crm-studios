@@ -13,6 +13,7 @@ import {
   patientPlanInputSchema,
   planTemplateInputSchema,
   saoPauloToday,
+  supplierInputSchema,
 } from "@crm/contracts";
 import { randomUUID } from "node:crypto";
 import type { Database as Pool } from "../infrastructure/mysql-client.js";
@@ -885,6 +886,125 @@ for (const storage of ["memory", "mysql"] as const) {
         ).toHaveLength(1);
       });
 
+      it("keeps the current group enrollment when a new plan is purchased for the same class", async () => {
+        const created = await patient("Matrícula reaproveitada");
+        const services = [
+          { serviceId, totalSessions: 4, totalValueInCents: 20000 },
+        ];
+        const group = await repository.createGroupClass(clinicId, {
+          serviceId,
+          professionalId,
+          roomId,
+          capacity: 1,
+          weeklySlots: [{ weekday: 6, startTime: "21:00", endTime: "22:00" }],
+        });
+        const template = await repository.createPlanTemplate(
+          clinicId,
+          actorId,
+          planTemplateInputSchema.parse({
+            name: "Plano da turma " + randomUUID(),
+            totalValueInCents: 20000,
+            services,
+          }),
+        );
+        const purchase = (validFrom: string, validUntil: string) =>
+          repository.purchasePatientPlan(
+            clinicId,
+            actorId,
+            planPurchaseInputSchema.parse({
+              idempotencyKey: randomUUID(),
+              groupId: group.id,
+              plan: {
+                patientId: created.id,
+                planTemplateId: template.id,
+                name: template.name,
+                kind: "fixed_package",
+                services,
+                totalValueInCents: 20000,
+                installments: 1,
+                validFrom,
+                validUntil,
+                firstDueDate: validFrom,
+              },
+            }),
+          );
+        const first = await purchase("2059-04-01", "2059-04-30");
+        expect(first.enrollment).toMatchObject({
+          groupId: group.id,
+          patientId: created.id,
+          status: "active",
+        });
+        // O plano anterior não encerra a matrícula: o novo segue com a mesma, sem erro.
+        const second = await purchase("2059-05-01", "2059-05-31");
+        expect(second.enrollment).toMatchObject({
+          id: first.enrollment!.id,
+          status: "active",
+        });
+        expect(
+          await repository.listPatientPlans(clinicId, created.id),
+        ).toHaveLength(2);
+        const workspace = await repository.getGroupWorkspace(
+          clinicId,
+          new Date().toISOString(),
+          new Date(Date.now() + 86_400_000).toISOString(),
+        );
+        expect(
+          workspace.enrollments.filter(
+            (item) =>
+              item.groupId === group.id && item.patientId === created.id,
+          ),
+        ).toHaveLength(1);
+      });
+
+      it("issues a supplier contract and shares the link with the supplier's WhatsApp", async () => {
+        const supplier = (await repository.saveSupplier(
+          clinicId,
+          actorId,
+          supplierInputSchema.parse({
+            name: "Fornecedor " + randomUUID(),
+            kind: "person",
+            document: "52998224725",
+            whatsapp: "19988887777",
+            contractAmountInCents: 50000,
+          }),
+        ))!;
+        const template = await repository.createDocumentTemplate(clinicId, {
+          name: "Contrato de fornecedor " + randomUUID(),
+          kind: "contract",
+          body: "Contrato com {{fornecedor_nome}}, CPF {{fornecedor_documento}}, cliente {{paciente_nome}}.",
+        });
+        const draft = await repository.createIssuedDocument(clinicId, actorId, {
+          templateId: template.id,
+          supplierId: supplier.id,
+          title: "Contrato do fornecedor",
+        });
+        expect(draft).toMatchObject({
+          supplierId: supplier.id,
+          patientName: supplier.name,
+          snapshotBody: `Contrato com ${supplier.name}, CPF 529.982.247-25, cliente não informado.`,
+        });
+        expect(draft).not.toHaveProperty("patientId");
+        await repository.updateIssuedDocumentStatus(
+          clinicId,
+          draft.id,
+          "issued",
+        );
+        const share = await repository.createDocumentSignatureLink(
+          clinicId,
+          actorId,
+          draft.id,
+        );
+        expect(share).toMatchObject({ patientPhone: "19988887777" });
+        expect(
+          await repository.openPublicSignatureDocument(share!.token, {}),
+        ).toMatchObject({ patientName: supplier.name, status: "pending" });
+        expect(
+          (await repository.listIssuedDocuments(clinicId)).find(
+            (item) => item.id === draft.id,
+          ),
+        ).toMatchObject({ supplierId: supplier.id, status: "issued" });
+      });
+
       // QM15: prontuário sequencial e único; os 3 clientes semente são PAC-00001..00003.
       it("keeps record numbers unique and the seed clients as PAC-00001..00003", async () => {
         const patients = await repository.listPatients(clinicId);
@@ -913,7 +1033,6 @@ for (const storage of ["memory", "mysql"] as const) {
           costInCents: 500,
           salePriceInCents: 1000,
           initialStock: 3,
-          minimumStock: 1,
         });
         await repository.addPatientTabItem(clinicId, actorId, tab.id, {
           productId: product.id,

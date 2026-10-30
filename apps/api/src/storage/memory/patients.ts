@@ -10,6 +10,10 @@ import {
   patientTagKey,
   type PatientTagUpdate,
 } from "@crm/contracts";
+import {
+  guidedPlansResult,
+  guidedSubscriptions,
+} from "../../modules/patients/guided-plans.js";
 import { buildPatientTimeline } from "../../modules/patients/patient-timeline.js";
 import {
   DomainError,
@@ -116,12 +120,14 @@ export function createPatientsRepository(
       ];
       const lengths = collections.map((collection) => collection.length);
       try {
-        if (input.next === "plan" && input.groupId) {
+        const subscriptions = guidedSubscriptions(input);
+        for (const item of subscriptions) {
+          if (!item.groupId) continue;
           const group = repositoryContext.groupClasses.find(
-            (item) =>
-              item.clinicId === clinicId &&
-              item.id === input.groupId &&
-              item.active,
+            (entry) =>
+              entry.clinicId === clinicId &&
+              entry.id === item.groupId &&
+              entry.active,
           );
           if (!group)
             throw new DomainError(
@@ -130,8 +136,8 @@ export function createPatientsRepository(
               404,
             );
           if (
-            !input.plan.services.some(
-              (item) => item.serviceId === group.serviceId,
+            !item.plan.services.some(
+              (entry) => entry.serviceId === group.serviceId,
             )
           )
             throw new DomainError(
@@ -157,29 +163,36 @@ export function createPatientsRepository(
             ),
           };
         if (input.next === "none") return { patient };
-        const plan = await repositoryContext.operations.createPatientPlan(
-          clinicId,
-          actorUserId,
-          {
-            ...input.plan,
-            patientId: patient.id,
-            kind: input.next === "plan" ? input.plan.kind : "single",
-          },
-        );
-        if (input.next === "plan" && input.groupId)
+        if (input.next === "single")
           return {
             patient,
-            plan,
-            enrollment:
-              await repositoryContext.operations.createGroupEnrollment(
-                clinicId,
-                {
-                  groupId: input.groupId,
-                  patientId: patient.id,
-                },
-              ),
+            plan: await repositoryContext.operations.createPatientPlan(
+              clinicId,
+              actorUserId,
+              { ...input.plan, patientId: patient.id, kind: "single" },
+            ),
           };
-        return { patient, plan };
+        const created: NonNullable<GuidedPatientResult["additionalPlans"]> = [];
+        for (const item of subscriptions) {
+          const plan = await repositoryContext.operations.createPatientPlan(
+            clinicId,
+            actorUserId,
+            { ...item.plan, patientId: patient.id },
+          );
+          created.push(
+            item.groupId
+              ? {
+                  plan,
+                  enrollment:
+                    await repositoryContext.operations.createGroupEnrollment(
+                      clinicId,
+                      { groupId: item.groupId, patientId: patient.id },
+                    ),
+                }
+              : { plan },
+          );
+        }
+        return guidedPlansResult(patient, created, input);
       } catch (error) {
         collections.forEach((collection, index) => {
           collection.length = lengths[index]!;

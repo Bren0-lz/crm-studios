@@ -8,6 +8,8 @@ export function phoneSearchDigits(term: string) {
  * o MySQL devolve o objeto. Colunas JSON das tabelas já chegam convertidas.
  */
 export function json<T>(value: unknown): T {
+  // `CASE`/`IF` em volta de um JSON montado pode voltar como binário no MariaDB.
+  if (Buffer.isBuffer(value)) return JSON.parse(value.toString("utf8")) as T;
   return (typeof value === "string" ? JSON.parse(value) : value) as T;
 }
 

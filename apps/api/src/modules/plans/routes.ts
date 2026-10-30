@@ -25,12 +25,23 @@ export function registerPlansRoutes(context: RouteContext) {
     assertPermissions,
     assertNoHoliday,
     assertServiceAvailable,
+    assertInstallmentsAllowed,
+    withServerFirstCharge,
+    requestAccess,
   } = context;
   app.post(
     "/plans/purchases",
     { preHandler: authenticate },
     async (request, reply) => {
-      const input = planPurchaseInputSchema.parse(request.body);
+      const parsed = planPurchaseInputSchema.parse(request.body);
+      const input = {
+        ...parsed,
+        plan: await withServerFirstCharge(
+          request.user.clinicId,
+          parsed.plan,
+          parsed.groupId,
+        ),
+      };
       if (input.groupId) assertPermissions(request, "groups.enroll");
       if (input.appointments.length)
         assertPermissions(request, "agenda.create");
@@ -42,6 +53,7 @@ export function registerPlansRoutes(context: RouteContext) {
           input.appointments.map((item) => item.startsAt),
         );
       await assertServiceAvailable(request.user.clinicId, input.appointments);
+      await assertInstallmentsAllowed(request.user.clinicId, input.plan);
       return reply
         .status(201)
         .send(
@@ -165,20 +177,36 @@ export function registerPlansRoutes(context: RouteContext) {
       request.user.clinicId,
       request.user.sub,
     );
-    return repository.listPatientPlans(request.user.clinicId, query.patientId);
+    const plans = await repository.listPatientPlans(
+      request.user.clinicId,
+      query.patientId,
+    );
+    // Situação das parcelas só para quem vê o Financeiro (como "Pagamento atrasado").
+    if (requestAccess.get(request)?.modules.includes("finance")) return plans;
+    return plans.map((plan) => {
+      const { paymentSummary, ...rest } = plan;
+      void paymentSummary;
+      return rest;
+    });
   });
 
-  app.post("/plans", { preHandler: authenticate }, async (request, reply) =>
-    reply
+  app.post("/plans", { preHandler: authenticate }, async (request, reply) => {
+    // Sem turma nesta rota: o 1º pagamento proporcional não se aplica.
+    const input = await withServerFirstCharge(
+      request.user.clinicId,
+      patientPlanInputSchema.parse(request.body),
+    );
+    await assertInstallmentsAllowed(request.user.clinicId, input);
+    return reply
       .status(201)
       .send(
         await repository.createPatientPlan(
           request.user.clinicId,
           request.user.sub,
-          patientPlanInputSchema.parse(request.body),
+          input,
         ),
-      ),
-  );
+      );
+  });
 
   app.patch(
     "/plans/:id/status",
@@ -217,7 +245,11 @@ export function registerPlansRoutes(context: RouteContext) {
     { preHandler: authenticate },
     async (request, reply) => {
       const { id } = request.params as { id: string };
-      const input = planRenewalInputSchema.parse(request.body);
+      // A renovação cobra o valor cheio: nada de 1º pagamento proporcional.
+      const input = await withServerFirstCharge(
+        request.user.clinicId,
+        planRenewalInputSchema.parse(request.body),
+      );
       const current = (
         await repository.listPatientPlans(request.user.clinicId)
       ).find((item) => item.id === id);
@@ -233,6 +265,11 @@ export function registerPlansRoutes(context: RouteContext) {
           recurringSingleChargeIssue,
           400,
         );
+      await assertInstallmentsAllowed(request.user.clinicId, {
+        installments: input.installments,
+        paymentMethod: input.paymentMethod,
+        planTemplateId: current?.planTemplateId,
+      });
       const plan = await repository.renewPatientPlan(
         request.user.clinicId,
         request.user.sub,

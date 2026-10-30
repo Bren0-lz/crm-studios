@@ -24,7 +24,8 @@ Responda em pt-BR.
 - Fique dentro do escopo. Nada de refatoração oportunista, renomeação ou "já que estou aqui".
 - **Não commite.** O orquestrador commita.
 - Nunca toque em: `.env`, `compose.yaml`, `docs/PLANO_*.md`, migrações já existentes em
-  `apps/api/migrations/` (só crie arquivos novos, com o próximo número livre),
+  `apps/api/migrations/` (só crie arquivos novos, com o próximo número livre — maior número em
+  `origin/main` e nos branches remotos + 1, ver "PRs sem conflito" no `CLAUDE.md`),
   `package.json`/`package-lock.json` (nenhuma dependência nova).
 - Nunca rode `git push`, `git commit`, `git reset`, `git checkout --` ou `git stash`.
 - Nunca enfraqueça um teste para fazê-lo passar. Se o teste está errado, isso é um BLOCKED.

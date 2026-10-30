@@ -42,6 +42,7 @@ export function signatureWhatsappLink(share: DocumentSignatureLinkShare) {
     patientName: share.document.patientName,
     clinicName: share.clinicName,
     link: signatureLinkUrl(share.token),
+    supplier: Boolean(share.document.supplierId),
   });
   return share.patientPhone
     ? whatsappLink(share.patientPhone, message)

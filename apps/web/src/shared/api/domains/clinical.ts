@@ -1,11 +1,8 @@
-import type { ClinicalSource } from "@crm/contracts";
 import type { ClinicalResource, ClinicalResourceInput } from "@crm/contracts";
 import type {
   AssessmentTemplate,
   AssessmentTemplateInput,
   ClinicalAccessEvent,
-  ClinicalAddendum,
-  ClinicalAddendumInput,
   ClinicalAlert,
   ClinicalAlertInput,
   ClinicalAssessment,
@@ -15,9 +12,6 @@ import type {
   ClinicalAttachmentInput,
   ClinicalMeasurement,
   ClinicalMeasurementInput,
-  ClinicalRecord,
-  ClinicalRecordInput,
-  ClinicalRecordRevision,
   ClinicalWorkspace,
   TherapeuticGoal,
   TherapeuticGoalInput,
@@ -40,10 +34,6 @@ export const clinicalApi = {
       id ? `/assessment-templates/${id}` : "/assessment-templates/drafts",
       { method: id ? "PUT" : "POST", body: JSON.stringify(input) },
     ),
-  clinicalSources: (patientId = "") =>
-    request<ClinicalSource[]>(
-      `/clinical-sources${patientId ? "?patientId=" + encodeURIComponent(patientId) : ""}`,
-    ),
   clinicalResourceCatalog: () =>
     request<ClinicalResource[]>("/clinical-resources/catalog"),
   clinicalResources: (patientId = "", exporting = false) =>
@@ -59,21 +49,6 @@ export const clinicalApi = {
     request<ClinicalResource>(`/clinical-resources/${id}/finalize`, {
       method: "POST",
     }),
-  clinicalRecords: (patientId = "") =>
-    request<ClinicalRecord[]>(
-      `/clinical-records?patientId=${encodeURIComponent(patientId)}`,
-    ),
-  saveClinicalRecord: (input: ClinicalRecordInput) =>
-    request<ClinicalRecord>("/clinical-records", {
-      method: "POST",
-      body: JSON.stringify(input),
-    }),
-  finalizeClinicalRecord: (id: string) =>
-    request<ClinicalRecord>(`/clinical-records/${id}/finalize`, {
-      method: "POST",
-    }),
-  clinicalRecordRevisions: (id: string) =>
-    request<ClinicalRecordRevision[]>(`/clinical-records/${id}/revisions`),
   clinicalWorkspace: (patientId: string) =>
     request<ClinicalWorkspace>(`/clinical-workspace/${patientId}`),
   exportClinicalWorkspace: (patientId: string) =>
@@ -89,11 +64,6 @@ export const clinicalApi = {
     }),
   clinicalAttachmentContent: (id: string) =>
     request<ClinicalAttachmentContent>(`/clinical-attachments/${id}/content`),
-  createClinicalAddendum: (input: ClinicalAddendumInput) =>
-    request<ClinicalAddendum>("/clinical-addenda", {
-      method: "POST",
-      body: JSON.stringify(input),
-    }),
   createClinicalAlert: (input: ClinicalAlertInput) =>
     request<ClinicalAlert>("/clinical-alerts", {
       method: "POST",

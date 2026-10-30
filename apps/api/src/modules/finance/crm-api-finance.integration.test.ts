@@ -484,7 +484,8 @@ describe("CRM API", () => {
       percentage: 20,
     });
 
-    // Gerar de novo não duplica nem recalcula.
+    // Regra retroativa do usuário (desde 01/05) recalcula o lançamento de 06/05 na gravação;
+    // o de 20/05 segue com a regra de 15/05, mais recente. Gerar de novo não duplica.
     await app.inject({
       method: "PUT",
       url: `/admin/users/${user.json().id}/commission`,
@@ -494,7 +495,11 @@ describe("CRM API", () => {
     const second = await generate();
     expect(second.json()).toHaveLength(3);
     expect(byAppointment(second.json()).get(beforeUserRule)).toMatchObject({
-      percentage: 10,
+      percentage: 50,
+      amountInCents: Math.round((service.priceInCents * 50) / 100),
+    });
+    expect(byAppointment(second.json()).get(withUserRule)).toMatchObject({
+      percentage: 35,
     });
 
     // A regra de 15/05 já gerou lançamento: corrigir o percentual dela é bloqueado.
@@ -510,17 +515,25 @@ describe("CRM API", () => {
       message:
         "Esta comissão já foi usada em lançamentos; escolha outra data de início.",
     });
-    // A regra de 01/05 (sem lançamentos) ainda pode ser corrigida.
-    const correctable = await app.inject({
+    // A de 01/05 também passou a ter lançamento (o recálculo de 06/05): corrigir pede outra
+    // data de início, que recalcula de novo.
+    const usedByRecalculation = await app.inject({
       method: "PUT",
       url: `/admin/users/${user.json().id}/commission`,
       headers,
       payload: { percentage: 45, effectiveFrom: "2031-05-01" },
     });
+    expect(usedByRecalculation.statusCode).toBe(409);
+    const correctable = await app.inject({
+      method: "PUT",
+      url: `/admin/users/${user.json().id}/commission`,
+      headers,
+      payload: { percentage: 45, effectiveFrom: "2031-05-02" },
+    });
     expect(correctable.statusCode).toBe(200);
-    expect(
-      byAppointment((await generate()).json()).get(withUserRule),
-    ).toMatchObject({ percentage: 35 });
+    const corrected = byAppointment((await generate()).json());
+    expect(corrected.get(withUserRule)).toMatchObject({ percentage: 35 });
+    expect(corrected.get(beforeUserRule)).toMatchObject({ percentage: 45 });
     await app.close();
   });
 
@@ -995,11 +1008,40 @@ describe("CRM API", () => {
         headers,
       });
       expect(reversed.statusCode).toBe(200);
+      // A comissão é paga pela folha: a despesa da folha sai em dinheiro.
       at("2031-03-11T02:40:00.000Z");
+      const employee = await app.inject({
+        method: "POST",
+        url: "/finance/payroll/employees",
+        headers,
+        payload: {
+          name: "Profissional do caixa",
+          professionalId: professionals.json()[0].id,
+          baseSalaryInCents: 0,
+        },
+      });
+      expect(employee.statusCode).toBe(201);
+      const launched = await app.inject({
+        method: "POST",
+        url: "/finance/payroll/launch",
+        headers,
+        payload: {
+          competence: "2031-03",
+          employeeIds: [employee.json().id],
+          dueDate: "2031-03-10",
+          categoryId: workspace
+            .json()
+            .categories.find(
+              (item: { kind: string }) => item.kind === "expense",
+            ).id,
+        },
+      });
+      expect(launched.statusCode).toBe(201);
       const commissionPaid = await app.inject({
         method: "POST",
-        url: `/finance/commissions/${commission.id}/pay`,
+        url: `/finance/payables/${launched.json().payables[0].id}/pay`,
         headers,
+        payload: { paymentMethod: "cash" },
       });
       expect(commissionPaid.statusCode).toBe(200);
 
@@ -1038,7 +1080,7 @@ describe("CRM API", () => {
           balanceInCents: 0,
         },
         {
-          paymentMethod: "unspecified",
+          paymentMethod: "cash",
           inflowInCents: 0,
           outflowInCents: commission.amountInCents,
           balanceInCents: -commission.amountInCents,
@@ -1053,7 +1095,7 @@ describe("CRM API", () => {
         ["receipt", 12_000],
         ["payable", 4_000],
         ["receipt_reversal", -12_000],
-        ["commission", commission.amountInCents],
+        ["payable", commission.amountInCents],
       ]);
       expect(cash.movements[2]).toMatchObject({
         occurredAt: "2031-03-11T02:30:00.000Z",
@@ -1665,12 +1707,13 @@ describe("CRM API", () => {
     });
     expect(first.json()).toHaveLength(1);
     expect(second.json()).toHaveLength(1);
+    // Pagar comissão avulsa foi substituído pela folha de pagamento.
     const paid = await app.inject({
       method: "POST",
       url: `/finance/commissions/${first.json()[0].id}/pay`,
       headers,
     });
-    expect(paid.json().status).toBe("paid");
+    expect(paid.json().code).toBe("COMMISSION_PAID_BY_PAYROLL");
     workspace = await app.inject({
       method: "GET",
       url: "/finance/workspace",
@@ -1699,7 +1742,6 @@ describe("CRM API", () => {
         costInCents: 2000,
         salePriceInCents: 4500,
         initialStock: 5,
-        minimumStock: 2,
       },
     });
     expect(product.statusCode).toBe(201);

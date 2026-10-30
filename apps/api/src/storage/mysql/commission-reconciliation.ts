@@ -13,6 +13,7 @@ import {
   commissionReconciliationChanges,
 } from "../../modules/finance/commission-reconciliation.js";
 import type { MysqlRepositoryContext } from "./context.js";
+import { markPaymentProofsReversed } from "./payment-proofs.js";
 import {
   commissionAmount,
   commissionRuleJoin,
@@ -22,11 +23,15 @@ import {
 } from "./sql.js";
 import { json } from "./helpers.js";
 import { randomUUID } from "node:crypto";
-const adjustmentColumns = `id,clinic_id AS "clinicId",commission_id AS "commissionId",reconciliation_id AS "reconciliationId",professional_id AS "professionalId",professional_name AS "professionalName",competence,amount_in_cents AS "amountInCents",reason,actor_id AS "actorId",status,paid_at AS "paidAt",created_at AS "createdAt"`;
+const adjustmentColumns = `id,clinic_id AS "clinicId",commission_id AS "commissionId",reconciliation_id AS "reconciliationId",professional_id AS "professionalId",professional_name AS "professionalName",competence,amount_in_cents AS "amountInCents",reason,actor_id AS "actorId",status,paid_at AS "paidAt",created_at AS "createdAt",payroll_payable_id AS "payrollPayableId"`;
 const paymentColumns = `id,clinic_id AS "clinicId",commission_id AS "commissionId",professional_id AS "professionalId",professional_name AS "professionalName",amount_in_cents AS "amountInCents",actor_id AS "actorId",occurred_at AS "occurredAt",original_included AS "originalIncluded",adjustment_ids AS "adjustmentIds",reversed_at AS "reversedAt"`;
-type AdjustmentRow = Omit<CommissionAdjustment, "createdAt" | "paidAt"> & {
+type AdjustmentRow = Omit<
+  CommissionAdjustment,
+  "createdAt" | "paidAt" | "payrollPayableId"
+> & {
   createdAt: Date;
   paidAt: Date | null;
+  payrollPayableId: string | null;
 };
 type PaymentRow = Omit<
   CommissionAccountPayment,
@@ -35,11 +40,13 @@ type PaymentRow = Omit<
 const mapAdjustment = ({
   paidAt,
   createdAt,
+  payrollPayableId,
   ...row
 }: AdjustmentRow): CommissionAdjustment => ({
   ...row,
   createdAt: createdAt.toISOString(),
   ...(paidAt ? { paidAt: paidAt.toISOString() } : {}),
+  ...(payrollPayableId ? { payrollPayableId } : {}),
 });
 const mapPayment = ({
   occurredAt,
@@ -110,7 +117,7 @@ export function createCommissionReconciliationRepository(
     return Boolean(
       (
         await client.query(
-          "SELECT id FROM payables WHERE clinic_id=$1 AND commission_id=$2 AND status<>'cancelled'",
+          "SELECT id FROM payables WHERE clinic_id=$1 AND status<>'cancelled' AND (commission_id=$2 OR id=(SELECT payroll_payable_id FROM commission_entries WHERE clinic_id=$1 AND id=$2))",
           [clinicId, id],
         )
       ).rowCount,
@@ -476,6 +483,12 @@ export function createCommissionReconciliationRepository(
               `SELECT ${paymentColumns} FROM commission_account_payments WHERE clinic_id=$1 AND id=$2`,
             )
           ).rows[0]!,
+        );
+        await markPaymentProofsReversed(
+          client,
+          clinicId,
+          "commission_account_payment",
+          paymentId,
         );
         await client.query(
           "INSERT INTO commission_payment_events(clinic_id,commission_id,kind,amount_in_cents,actor_user_id,occurred_at,professional_name,account_payment_id) VALUES($1,$2,'reversal',$3,$4,$5,$6,$7)",

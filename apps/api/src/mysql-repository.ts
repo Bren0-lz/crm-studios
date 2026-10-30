@@ -3,6 +3,7 @@ import { createWaitlistRepository } from "./storage/mysql/waitlist.js";
 import { createBranchesRepository } from "./storage/mysql/branches.js";
 import { createCommissionReconciliationRepository } from "./storage/mysql/commission-reconciliation.js";
 import { createExternalOperationsRepository } from "./storage/mysql/external-operations.js";
+import { createPaymentProofsRepository } from "./storage/mysql/payment-proofs.js";
 import { createPlanPurchasesRepository } from "./storage/mysql/plan-purchases.js";
 import { createFinancialDatesRepository } from "./storage/mysql/financial-dates.js";
 import { createRegistryRepository } from "./storage/mysql/registry.js";
@@ -11,7 +12,9 @@ import { createDocumentSignaturesRepository } from "./storage/mysql/document-sig
 import { createDocumentSignatureLinksRepository } from "./storage/mysql/document-signature-links.js";
 import { createAssessmentOperationsRepository } from "./storage/mysql/assessment-operations.js";
 import { createCommissionOperationsRepository } from "./storage/mysql/commission-operations.js";
+import { createPayrollRepository } from "./storage/mysql/payroll.js";
 import { createFinanceOperationsRepository } from "./storage/mysql/finance-operations.js";
+import { createSupplierOrdersRepository } from "./storage/mysql/supplier-orders.js";
 import { createClinicalResourcesRepository } from "./storage/mysql/clinical-resources.js";
 import { createGroupOperationsRepository } from "./storage/mysql/group-operations.js";
 import { createPatientManagementRepository } from "./storage/mysql/patient-management.js";
@@ -23,6 +26,7 @@ import { createAgendaRepository } from "./storage/mysql/agenda.js";
 import { createClinicalRepository } from "./storage/mysql/clinical.js";
 import { createCommercialRepository } from "./storage/mysql/commercial.js";
 import { createCampaignsRepository } from "./storage/mysql/campaigns.js";
+import { createAutoCampaignsRepository } from "./storage/mysql/auto-campaigns.js";
 import { createCommunicationsRepository } from "./storage/mysql/communications.js";
 import { MysqlRepositoryContext } from "./storage/mysql/context.js";
 import { createContractsRepository } from "./storage/mysql/contracts.js";
@@ -53,6 +57,11 @@ export class MysqlClinicRepository implements ClinicRepository {
   readonly listExternalOperations: ClinicRepository["listExternalOperations"];
   readonly createExternalOperation: ClinicRepository["createExternalOperation"];
   readonly getExternalOperationContent: ClinicRepository["getExternalOperationContent"];
+  readonly listPaymentProofs: ClinicRepository["listPaymentProofs"];
+  readonly createPaymentProof: ClinicRepository["createPaymentProof"];
+  readonly getPaymentProofContent: ClinicRepository["getPaymentProofContent"];
+  readonly deletePaymentProof: ClinicRepository["deletePaymentProof"];
+  readonly findPaymentProofEntity: ClinicRepository["findPaymentProofEntity"];
   readonly purchasePatientPlan: ClinicRepository["purchasePatientPlan"];
   readonly getAdministrativeRegistry: ClinicRepository["getAdministrativeRegistry"];
   readonly updateAdministrativeRegistry: ClinicRepository["updateAdministrativeRegistry"];
@@ -73,6 +82,16 @@ export class MysqlClinicRepository implements ClinicRepository {
   readonly createMessageTemplate: ClinicRepository["createMessageTemplate"];
   readonly updateMessageTemplate: ClinicRepository["updateMessageTemplate"];
   readonly setMessageTemplateArchived: ClinicRepository["setMessageTemplateArchived"];
+  readonly listAutoCampaigns: ClinicRepository["listAutoCampaigns"];
+  readonly getAutoCampaign: ClinicRepository["getAutoCampaign"];
+  readonly createAutoCampaign: ClinicRepository["createAutoCampaign"];
+  readonly updateAutoCampaign: ClinicRepository["updateAutoCampaign"];
+  readonly deleteAutoCampaign: ClinicRepository["deleteAutoCampaign"];
+  readonly listAutoCampaignDeliveries: ClinicRepository["listAutoCampaignDeliveries"];
+  readonly saveAutoCampaignDelivery: ClinicRepository["saveAutoCampaignDelivery"];
+  readonly listAutoCampaignRedemptions: ClinicRepository["listAutoCampaignRedemptions"];
+  readonly deleteAutoCampaignDelivery: ClinicRepository["deleteAutoCampaignDelivery"];
+  readonly getAutoCampaignSourceData: ClinicRepository["getAutoCampaignSourceData"];
   readonly listWhatsappCampaigns: ClinicRepository["listWhatsappCampaigns"];
   readonly getWhatsappCampaign: ClinicRepository["getWhatsappCampaign"];
   readonly createWhatsappCampaign: ClinicRepository["createWhatsappCampaign"];
@@ -99,6 +118,8 @@ export class MysqlClinicRepository implements ClinicRepository {
   readonly createPatientTabAppointment: ClinicRepository["createPatientTabAppointment"];
   readonly listSuppliers: ClinicRepository["listSuppliers"];
   readonly saveSupplier: ClinicRepository["saveSupplier"];
+  readonly listSupplierOrders: ClinicRepository["listSupplierOrders"];
+  readonly createSupplierOrder: ClinicRepository["createSupplierOrder"];
   readonly createManualReceivable: ClinicRepository["createManualReceivable"];
   readonly classifyFinancialEntry: ClinicRepository["classifyFinancialEntry"];
   readonly setCategoryDreGroup: ClinicRepository["setCategoryDreGroup"];
@@ -108,7 +129,8 @@ export class MysqlClinicRepository implements ClinicRepository {
   private readonly administration: ReturnType<
     typeof createAdministrationRepository
   >;
-  private readonly finance: ReturnType<typeof createFinanceRepository>;
+  private readonly finance: ReturnType<typeof createFinanceRepository> &
+    ReturnType<typeof createCommissionOperationsRepository>;
   private readonly relationship: ReturnType<
     typeof createRelationshipRepository
   >;
@@ -144,6 +166,12 @@ export class MysqlClinicRepository implements ClinicRepository {
     this.createExternalOperation = externalOperations.createExternalOperation;
     this.getExternalOperationContent =
       externalOperations.getExternalOperationContent;
+    const paymentProofs = createPaymentProofsRepository(this.context);
+    this.listPaymentProofs = paymentProofs.listPaymentProofs;
+    this.createPaymentProof = paymentProofs.createPaymentProof;
+    this.getPaymentProofContent = paymentProofs.getPaymentProofContent;
+    this.deletePaymentProof = paymentProofs.deletePaymentProof;
+    this.findPaymentProofEntity = paymentProofs.findPaymentProofEntity;
     this.purchasePatientPlan = createPlanPurchasesRepository(
       this.context,
     ).purchasePatientPlan;
@@ -174,6 +202,9 @@ export class MysqlClinicRepository implements ClinicRepository {
       financeOperations.createPatientTabAppointment;
     this.listSuppliers = financeOperations.listSuppliers;
     this.saveSupplier = financeOperations.saveSupplier;
+    const supplierOrders = createSupplierOrdersRepository(this.context);
+    this.listSupplierOrders = supplierOrders.listSupplierOrders;
+    this.createSupplierOrder = supplierOrders.createSupplierOrder;
     this.createManualReceivable = financeOperations.createManualReceivable;
     this.classifyFinancialEntry = financeOperations.classifyFinancialEntry;
     this.setCategoryDreGroup = financeOperations.setCategoryDreGroup;
@@ -221,6 +252,18 @@ export class MysqlClinicRepository implements ClinicRepository {
     this.commercial = createCommercialRepository(this.context);
     this.communications = createCommunicationsRepository(this.context);
     this.campaigns = createCampaignsRepository(this.context);
+    const autoCampaigns = createAutoCampaignsRepository(this.context);
+    this.listAutoCampaigns = autoCampaigns.listAutoCampaigns;
+    this.getAutoCampaign = autoCampaigns.getAutoCampaign;
+    this.createAutoCampaign = autoCampaigns.createAutoCampaign;
+    this.updateAutoCampaign = autoCampaigns.updateAutoCampaign;
+    this.deleteAutoCampaign = autoCampaigns.deleteAutoCampaign;
+    this.listAutoCampaignDeliveries = autoCampaigns.listAutoCampaignDeliveries;
+    this.saveAutoCampaignDelivery = autoCampaigns.saveAutoCampaignDelivery;
+    this.listAutoCampaignRedemptions =
+      autoCampaigns.listAutoCampaignRedemptions;
+    this.deleteAutoCampaignDelivery = autoCampaigns.deleteAutoCampaignDelivery;
+    this.getAutoCampaignSourceData = autoCampaigns.getAutoCampaignSourceData;
     this.contracts = createContractsRepository(this.context);
     const signatures = createDocumentSignaturesRepository(this.context);
     this.recordDocumentSignature = signatures.recordDocumentSignature;
@@ -250,6 +293,12 @@ export class MysqlClinicRepository implements ClinicRepository {
       this.administration.getAutoFinalizationSettings;
     this.updateAutoFinalizationSettings =
       this.administration.updateAutoFinalizationSettings;
+    this.getPaymentMethodSettings =
+      this.administration.getPaymentMethodSettings;
+    this.updatePaymentMethodSettings =
+      this.administration.updatePaymentMethodSettings;
+    this.getProLaboreSettings = this.administration.getProLaboreSettings;
+    this.updateProLaboreSettings = this.administration.updateProLaboreSettings;
     this.listNavTabLabels = this.administration.listNavTabLabels;
     this.saveNavTabLabels = this.administration.saveNavTabLabels;
     this.recordAdminAuditEvent = this.administration.recordAdminAuditEvent;
@@ -291,10 +340,20 @@ export class MysqlClinicRepository implements ClinicRepository {
       this.finance.generateDueRecurringPayables;
     this.renegotiateReceivables = this.finance.renegotiateReceivables;
     this.createCommissionRule = this.finance.createCommissionRule;
+    this.previewCommissionRecalculation =
+      this.finance.previewCommissionRecalculation;
+    const payroll = createPayrollRepository(this.context);
+    this.listPayrollEmployees = payroll.listPayrollEmployees;
+    this.createPayrollEmployee = payroll.createPayrollEmployee;
+    this.updatePayrollEmployee = payroll.updatePayrollEmployee;
+    this.getPayroll = payroll.getPayroll;
+    this.launchPayroll = payroll.launchPayroll;
+    this.cancelPayrollLaunch = payroll.cancelPayrollLaunch;
     this.generateCommissions = this.finance.generateCommissions;
     this.settleCommission = this.finance.settleCommission;
     this.reverseCommission = this.finance.reverseCommission;
     this.getDailyCash = this.finance.getDailyCash;
+    this.listCashMovements = this.finance.listCashMovements;
     this.listReceivedPayments = this.finance.listReceivedPayments;
     this.getRelationshipSettings = this.relationship.getRelationshipSettings;
     this.updateRelationshipSettings =
@@ -423,6 +482,7 @@ export class MysqlClinicRepository implements ClinicRepository {
     this.createDocumentTemplate = this.contracts.createDocumentTemplate;
     this.createDocumentTemplateVersion =
       this.contracts.createDocumentTemplateVersion;
+    this.deleteDocumentTemplate = this.contracts.deleteDocumentTemplate;
     this.listIssuedDocuments = this.contracts.listIssuedDocuments;
     this.createIssuedDocument = this.contracts.createIssuedDocument;
     this.previewDocument = this.contracts.previewDocument;
@@ -477,9 +537,20 @@ export class MysqlClinicRepository implements ClinicRepository {
     typeof createAdministrationRepository
   >["getAutoFinalizationSettings"];
 
+  readonly getProLaboreSettings: ReturnType<
+    typeof createAdministrationRepository
+  >["getProLaboreSettings"];
+
+  readonly updateProLaboreSettings: ReturnType<
+    typeof createAdministrationRepository
+  >["updateProLaboreSettings"];
+
   readonly updateAutoFinalizationSettings: ReturnType<
     typeof createAdministrationRepository
   >["updateAutoFinalizationSettings"];
+
+  readonly getPaymentMethodSettings: ClinicRepository["getPaymentMethodSettings"];
+  readonly updatePaymentMethodSettings: ClinicRepository["updatePaymentMethodSettings"];
 
   readonly listNavTabLabels: ClinicRepository["listNavTabLabels"];
   readonly saveNavTabLabels: ClinicRepository["saveNavTabLabels"];
@@ -628,9 +699,16 @@ export class MysqlClinicRepository implements ClinicRepository {
     typeof createFinanceRepository
   >["renegotiateReceivables"];
 
-  readonly createCommissionRule: ReturnType<
-    typeof createFinanceRepository
-  >["createCommissionRule"];
+  readonly listPayrollEmployees: ClinicRepository["listPayrollEmployees"];
+  readonly createPayrollEmployee: ClinicRepository["createPayrollEmployee"];
+  readonly updatePayrollEmployee: ClinicRepository["updatePayrollEmployee"];
+  readonly getPayroll: ClinicRepository["getPayroll"];
+  readonly launchPayroll: ClinicRepository["launchPayroll"];
+  readonly cancelPayrollLaunch: ClinicRepository["cancelPayrollLaunch"];
+
+  readonly createCommissionRule: ClinicRepository["createCommissionRule"];
+
+  readonly previewCommissionRecalculation: ClinicRepository["previewCommissionRecalculation"];
 
   readonly generateCommissions: ReturnType<
     typeof createFinanceRepository
@@ -647,6 +725,10 @@ export class MysqlClinicRepository implements ClinicRepository {
   readonly getDailyCash: ReturnType<
     typeof createFinanceRepository
   >["getDailyCash"];
+
+  readonly listCashMovements: ReturnType<
+    typeof createFinanceRepository
+  >["listCashMovements"];
 
   readonly listReceivedPayments: ReturnType<
     typeof createFinanceRepository
@@ -1059,6 +1141,9 @@ export class MysqlClinicRepository implements ClinicRepository {
   readonly createDocumentTemplateVersion: ReturnType<
     typeof createContractsRepository
   >["createDocumentTemplateVersion"];
+  readonly deleteDocumentTemplate: ReturnType<
+    typeof createContractsRepository
+  >["deleteDocumentTemplate"];
 
   readonly listIssuedDocuments: ReturnType<
     typeof createContractsRepository

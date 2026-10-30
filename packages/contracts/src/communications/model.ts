@@ -2,7 +2,13 @@ import { patientProfileFilterSchema } from "../patients/segments.js";
 import { z } from "zod";
 import { emptyQueryToUndefined } from "../common/model.js";
 import { patientStatusSchema } from "../patients/model.js";
-import type { BroadcastSkipReason } from "./types.js";
+import type {
+  AutoCampaignCooldownUnit,
+  AutoCampaignSkipReason,
+  AutoCampaignTiming,
+  AutoCampaignTrigger,
+  BroadcastSkipReason,
+} from "./types.js";
 
 export const communicationChannelSchema = z.enum(["whatsapp", "email"]);
 
@@ -322,3 +328,229 @@ export const campaignRecipientStatusLabels = {
   sent: "Enviada",
   skipped: "Pulada",
 } as const;
+
+// Campanhas automáticas: eventos que o sistema já detecta, com várias mensagens
+// por campanha, cada uma num momento (dias antes/depois do evento ou sessões restantes).
+
+export const autoCampaignTriggerSchema = z.enum([
+  "birthday",
+  "appointment_upcoming",
+  "plan_expiring",
+  "low_balance",
+  "overdue_payment",
+  "expired_with_balance",
+  "treatment_paused",
+  "single_no_return",
+  "former_client",
+  "nps_detractor",
+]);
+
+/**
+ * Como o momento de cada mensagem é medido: `before` = dias que faltam para o evento,
+ * `after` = dias desde o evento, `sessions` = sessões restantes no plano.
+ */
+export const autoCampaignTriggerTiming: Record<
+  AutoCampaignTrigger,
+  AutoCampaignTiming
+> = {
+  birthday: "before",
+  appointment_upcoming: "before",
+  plan_expiring: "before",
+  low_balance: "sessions",
+  overdue_payment: "after",
+  expired_with_balance: "after",
+  treatment_paused: "after",
+  single_no_return: "after",
+  former_client: "after",
+  nps_detractor: "after",
+};
+
+export const autoCampaignTriggerLabels: Record<AutoCampaignTrigger, string> = {
+  birthday: "Aniversário",
+  appointment_upcoming: "Atendimento agendado",
+  plan_expiring: "Plano acabando",
+  low_balance: "Saldo baixo de sessões",
+  overdue_payment: "Pagamento atrasado",
+  expired_with_balance: "Plano vencido com saldo",
+  treatment_paused: "Tratamento parado",
+  single_no_return: "Veio uma vez e não voltou",
+  former_client: "Ex-cliente",
+  nps_detractor: "Avaliação baixa",
+};
+
+export const autoCampaignTriggerDescriptions: Record<
+  AutoCampaignTrigger,
+  string
+> = {
+  birthday: "Clientes ativos que fazem aniversário.",
+  appointment_upcoming: "Atendimentos agendados ou confirmados.",
+  plan_expiring:
+    "Planos ativos com data de término, sem renovação automática nem renovados.",
+  low_balance: "Planos ativos (exceto avulsos) com poucas sessões restantes.",
+  overdue_payment:
+    "Parcelas em aberto com vencimento passado (conta a mais antiga do cliente).",
+  expired_with_balance: "Planos vencidos que ainda têm sessões.",
+  treatment_paused:
+    "Último atendimento realizado sem nenhum outro agendado depois.",
+  single_no_return:
+    "Última compra avulsa sem atendimento ou plano depois dela.",
+  former_client: "Plano cancelado e nenhum plano ativo.",
+  nps_detractor: "Pesquisa de satisfação com nota de 0 a 6.",
+};
+
+/** Códigos extras de cada evento, além de `{{nome}}` e `{{nome_completo}}`. */
+export const autoCampaignTriggerVariables: Record<
+  AutoCampaignTrigger,
+  readonly string[]
+> = {
+  birthday: ["data", "idade"],
+  appointment_upcoming: ["data", "hora", "servico"],
+  plan_expiring: ["data", "plano"],
+  low_balance: ["plano", "sessoes"],
+  overdue_payment: ["data", "parcelas"],
+  expired_with_balance: ["data", "plano", "sessoes"],
+  treatment_paused: ["data"],
+  single_no_return: ["data"],
+  former_client: ["data", "plano"],
+  nps_detractor: ["data", "nota"],
+};
+
+/** Por quantos dias a última mensagem de um evento "depois" continua na fila. */
+export const AUTO_CAMPAIGN_LAST_STEP_WINDOW_DAYS = 7;
+
+/** Rótulo do momento da mensagem ("2 dias antes", "No dia", "1 sessão restante"…). */
+export function autoCampaignStepLabel(
+  trigger: AutoCampaignTrigger,
+  offset: number,
+): string {
+  const timing = autoCampaignTriggerTiming[trigger];
+  if (timing === "sessions")
+    return offset === 0
+      ? "Sem sessões restantes"
+      : `${offset} ${offset === 1 ? "sessão restante" : "sessões restantes"}`;
+  if (offset === 0) return "No dia";
+  const days = `${offset} ${offset === 1 ? "dia" : "dias"}`;
+  return timing === "before" ? `${days} antes` : `${days} depois`;
+}
+
+export const autoCampaignStepSchema = z.object({
+  /** Mensagem já existente (mantém o histórico de envios); sem id = nova. */
+  id: z.uuid().optional(),
+  offset: z.number().int().min(0).max(365),
+  message: messageTemplateSchema,
+});
+
+export const autoCampaignCooldownUnitSchema = z.enum([
+  "days",
+  "weeks",
+  "months",
+]);
+
+export const autoCampaignCooldownUnitLabels: Record<
+  AutoCampaignCooldownUnit,
+  { singular: string; plural: string }
+> = {
+  days: { singular: "dia", plural: "dias" },
+  weeks: { singular: "semana", plural: "semanas" },
+  months: { singular: "mês", plural: "meses" },
+};
+
+/**
+ * Campanha promocional: a promoção vale até `validDays` dias depois do evento; quem usar
+ * fica fora desta campanha pelo `cooldown`, se houver.
+ */
+export const autoCampaignPromotionSchema = z.object({
+  validDays: z
+    .number()
+    .int()
+    .min(1, "A promoção precisa valer pelo menos 1 dia.")
+    .max(365, "Use no máximo 365 dias de validade."),
+  cooldown: z
+    .object({
+      amount: z
+        .number()
+        .int()
+        .min(1, "O bloqueio precisa ser de pelo menos 1.")
+        .max(365, "Use no máximo 365 no bloqueio."),
+      unit: autoCampaignCooldownUnitSchema,
+    })
+    .optional(),
+});
+
+export const autoCampaignInputSchema = z
+  .object({
+    name: z.string().trim().min(1, "Dê um nome para a campanha.").max(80),
+    trigger: autoCampaignTriggerSchema,
+    active: z.boolean().default(true),
+    steps: z
+      .array(autoCampaignStepSchema)
+      .min(1, "Adicione pelo menos uma mensagem.")
+      .max(10, "Use no máximo 10 mensagens."),
+    /** Sem promoção = campanha só de mensagens. */
+    promotion: autoCampaignPromotionSchema.optional(),
+  })
+  .refine(
+    (value) =>
+      new Set(value.steps.map((step) => step.offset)).size ===
+      value.steps.length,
+    {
+      message: "Cada mensagem precisa de um momento diferente.",
+      path: ["steps"],
+    },
+  )
+  .refine(
+    (value) =>
+      autoCampaignTriggerTiming[value.trigger] !== "sessions" ||
+      value.steps.every((step) => step.offset <= 100),
+    {
+      message: "Use no máximo 100 sessões restantes.",
+      path: ["steps"],
+    },
+  );
+
+export const autoCampaignSkipReasonSchema = z.enum([
+  "contacted_other_way",
+  "not_appropriate",
+  "wrong_number",
+  "client_asked",
+  "other",
+]);
+
+export const autoCampaignSkipReasonLabels: Record<
+  AutoCampaignSkipReason,
+  string
+> = {
+  contacted_other_way: "Já falei de outra forma",
+  not_appropriate: "Não é o momento",
+  wrong_number: "Número errado ou sem WhatsApp",
+  client_asked: "Cliente pediu para não receber",
+  other: "Outro motivo",
+};
+
+/** Motivos que o próprio sistema aponta (cliente na lista, mas sem como enviar). */
+export const autoCampaignBlockedReasonLabels = {
+  opt_out: "Cliente não autoriza mensagens no WhatsApp",
+  no_destination: "Sem WhatsApp ou telefone cadastrado",
+} as const;
+
+export const autoCampaignDeliveryInputSchema = z
+  .object({
+    campaignId: z.uuid(),
+    stepId: z.uuid(),
+    patientId: z.uuid(),
+    occurrenceKey: z.string().trim().min(1).max(200),
+    status: z.enum(["sent", "skipped"]),
+    skipReason: autoCampaignSkipReasonSchema.optional(),
+    note: z.string().trim().max(300).optional(),
+  })
+  .refine((value) => value.status !== "skipped" || value.skipReason, {
+    message: "Escolha o motivo de não enviar.",
+    path: ["skipReason"],
+  })
+  .refine(
+    (value) =>
+      value.status !== "skipped" ||
+      value.skipReason !== "other" ||
+      (value.note ?? "").length > 0,
+    { message: "Descreva o motivo.", path: ["note"] },
+  );

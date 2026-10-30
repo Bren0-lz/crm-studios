@@ -25,7 +25,11 @@ import {
   groupSessionHorizon,
 } from "../../modules/groups/group-schedule.js";
 import { assertAppointmentStarted } from "../../modules/agenda/appointment-start.js";
-import { DomainError } from "../../repository.js";
+import {
+  DomainError,
+  type AppointmentCreateOptions,
+} from "../../repository.js";
+import { insertAutoCampaignRedemption } from "./auto-campaigns.js";
 import type { MysqlRepositoryContext } from "./context.js";
 import {
   appointmentColumns,
@@ -215,7 +219,11 @@ export function createAgendaRepository(
       return finalized;
     },
 
-    async createAppointment(clinicId: string, input: AppointmentInput) {
+    async createAppointment(
+      clinicId: string,
+      input: AppointmentInput,
+      options?: AppointmentCreateOptions,
+    ) {
       const related = await repositoryContext.pool.query<{
         durationMinutes: number;
       }>(
@@ -242,12 +250,32 @@ export function createAgendaRepository(
           404,
         );
       }
-      return repositoryContext.insertAppointment(
-        clinicId,
-        input,
-        related.rows[0].durationMinutes,
-        { patientId: input.patientId, leadId: null },
-      );
+      const durationMinutes = related.rows[0].durationMinutes;
+      const promotion = options?.promotion;
+      if (!promotion)
+        return repositoryContext.insertAppointment(
+          clinicId,
+          input,
+          durationMinutes,
+          { patientId: input.patientId, leadId: null },
+        );
+      return repositoryContext.inTransaction(async (client) => {
+        const appointment = await repositoryContext.insertAppointment(
+          clinicId,
+          input,
+          durationMinutes,
+          { patientId: input.patientId, leadId: null },
+          client,
+        );
+        await insertAutoCampaignRedemption(
+          client,
+          clinicId,
+          input.patientId,
+          appointment.id,
+          promotion,
+        );
+        return appointment;
+      });
     },
 
     async createLeadAppointment(
@@ -692,6 +720,7 @@ export function createAgendaRepository(
     async createRecurringAppointments(
       clinicId: string,
       input: RecurringAppointmentInput,
+      options?: AppointmentCreateOptions,
     ) {
       const client = await repositoryContext.pool.connect();
       try {
@@ -776,6 +805,14 @@ export function createAgendaRepository(
           );
           ids.push(inserted.rows[0]!.id);
         }
+        if (options?.promotion)
+          await insertAutoCampaignRedemption(
+            client,
+            clinicId,
+            input.patientId,
+            ids[0]!,
+            options.promotion,
+          );
         const appointments = await Promise.all(
           ids.map((id) =>
             repositoryContext.findAppointment(clinicId, id, client),

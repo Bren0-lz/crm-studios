@@ -1,5 +1,9 @@
 import type { PatientTab, ProductSaleInput } from "@crm/contracts";
 import { DomainError, type ClinicRepository } from "../../repository.js";
+import {
+  assertSalePrice,
+  assertStockSize,
+} from "../../modules/finance/product-stock.js";
 import type { MemoryRepositoryContext } from "./context.js";
 
 type TabOperations = Pick<
@@ -56,7 +60,9 @@ export function createProductSalesRepository(
           { clinicId, branchId },
           product,
         );
-        if (product.currentStock < item.quantity)
+        assertSalePrice(product);
+        assertStockSize(product, item.size);
+        if (context.productStockOf(product.id, item.size) < item.quantity)
           throw new DomainError(
             "INSUFFICIENT_STOCK",
             "O estoque disponível é insuficiente.",
@@ -103,10 +109,15 @@ export function createProductSalesRepository(
           clinicId,
           actorUserId,
           tab.id,
-          { productId: item.productId, quantity: item.quantity },
+          {
+            productId: item.productId,
+            quantity: item.quantity,
+            ...(item.size ? { size: item.size } : {}),
+          },
         ))!;
         const line = updated.items.find(
-          (entry) => entry.productId === item.productId,
+          (entry) =>
+            entry.productId === item.productId && entry.size === item.size,
         )!;
         if (
           item.unitPriceInCents !== undefined &&
@@ -127,6 +138,9 @@ export function createProductSalesRepository(
         settlement: input.settlement,
         dueDate: input.dueDate,
         ...(input.paymentMethod ? { paymentMethod: input.paymentMethod } : {}),
+        ...(input.paymentInstallments
+          ? { paymentInstallments: input.paymentInstallments }
+          : {}),
         ...(input.categoryId ? { categoryId: input.categoryId } : {}),
         ...(input.costCenterId ? { costCenterId: input.costCenterId } : {}),
       });

@@ -33,6 +33,8 @@ export interface CommissionAdjustment {
   createdAt: string;
   status: "open" | "paid";
   paidAt?: string;
+  /** Despesa da folha que inclui (e paga) este ajuste. */
+  payrollPayableId?: string;
 }
 export interface CommissionAccountPayment {
   id: string;

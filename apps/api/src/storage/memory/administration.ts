@@ -2,7 +2,12 @@ import { prepareUserAgenda } from "./user-agenda.js";
 import {
   defaultAutoFinalizationSettings,
   resolveNavTabLabels,
+  resolvePaymentMethodSettings,
+  type PaymentMethodSettingsInput,
   type AutoFinalizationSettings,
+  defaultProLaboreSettings,
+  type ProLaboreSettings,
+  type ProLaboreSettingsInput,
   type AutoFinalizationSettingsInput,
   resolvePermissionInput,
   saoPauloToday,
@@ -26,13 +31,17 @@ import {
   DomainError,
   lastAdminError,
   type AuthenticatedUser,
+  type CommissionRecalculationRequest,
 } from "../../repository.js";
+import { userCommissionDrafts } from "../../modules/finance/commission-recalculation.js";
 import type { MemoryRepositoryContext } from "./context.js";
+import { createMemoryCommissionRecalculation } from "./commission-recalculation.js";
 import { CLINIC_ID, now, uuid } from "./helpers.js";
 
 export function createAdministrationRepository(
   repositoryContext: MemoryRepositoryContext,
 ) {
+  const commissions = createMemoryCommissionRecalculation(repositoryContext);
   function ownProfileOf(user: AuthenticatedUser): OwnProfile {
     const professional = repositoryContext.linkedProfessional(
       user.clinicId,
@@ -155,6 +164,7 @@ export function createAdministrationRepository(
       actorUserId: string,
       input: AdminUserInput,
       passwordHash: string,
+      recalculation?: CommissionRecalculationRequest,
     ) {
       if (
         repositoryContext.users.some(
@@ -256,6 +266,14 @@ export function createAdministrationRepository(
           item,
         );
       saveAgenda();
+      // Usuário novo ligado a um profissional que já tem comissões: recalcula pelas regras novas.
+      if (recalculation)
+        commissions.apply(
+          clinicId,
+          actorUserId,
+          { userId: user.id },
+          userCommissionDrafts(input),
+        );
       return repositoryContext.toAdminUser(user);
     },
 
@@ -264,6 +282,7 @@ export function createAdministrationRepository(
       actorUserId: string,
       userId: string,
       input: AdminUserUpdate,
+      recalculation?: CommissionRecalculationRequest,
     ) {
       const user = repositoryContext.users.find(
         (item) => item.clinicId === clinicId && item.id === userId,
@@ -300,6 +319,13 @@ export function createAdministrationRepository(
         );
       for (const item of input.serviceCommissions ?? [])
         repositoryContext.validateUserCommissionRule(clinicId, userId, item);
+      if (recalculation)
+        commissions.check(
+          clinicId,
+          { userId },
+          userCommissionDrafts(input),
+          recalculation.expectedDigest,
+        );
       const saveAgenda = prepareUserAgenda(
         repositoryContext,
         user,
@@ -379,6 +405,13 @@ export function createAdministrationRepository(
           item,
         );
       saveAgenda();
+      if (recalculation)
+        commissions.apply(
+          clinicId,
+          actorUserId,
+          { userId },
+          userCommissionDrafts(input),
+        );
       return repositoryContext.toAdminUser(user);
     },
 
@@ -493,6 +526,35 @@ export function createAdministrationRepository(
       );
     },
 
+    async getProLaboreSettings(clinicId: string): Promise<ProLaboreSettings> {
+      return {
+        ...(repositoryContext.proLaboreSettings.get(clinicId) ??
+          defaultProLaboreSettings),
+      };
+    },
+
+    async updateProLaboreSettings(
+      clinicId: string,
+      actorUserId: string,
+      input: ProLaboreSettingsInput,
+    ) {
+      const saved: ProLaboreSettings = {
+        percentage: Math.round(input.percentage * 100) / 100,
+        base: input.base,
+        updatedAt: now(),
+      };
+      repositoryContext.proLaboreSettings.set(clinicId, saved);
+      repositoryContext.addAdminAudit(
+        actorUserId,
+        "clinic.pro_labore_updated",
+        "clinic",
+        clinicId,
+        { percentage: saved.percentage, base: saved.base },
+        clinicId,
+      );
+      return { ...saved };
+    },
+
     async updateAutoFinalizationSettings(
       clinicId: string,
       actorUserId: string,
@@ -513,6 +575,39 @@ export function createAdministrationRepository(
         clinicId,
       );
       return { ...saved };
+    },
+
+    async getPaymentMethodSettings(clinicId: string) {
+      const saved = repositoryContext.paymentMethodSettings.get(clinicId);
+      return resolvePaymentMethodSettings(saved?.methods, saved?.updatedAt);
+    },
+
+    async updatePaymentMethodSettings(
+      clinicId: string,
+      actorUserId: string,
+      input: PaymentMethodSettingsInput,
+    ) {
+      const current = repositoryContext.paymentMethodSettings.get(clinicId);
+      const saved = resolvePaymentMethodSettings(
+        [
+          ...input.methods,
+          ...(current?.methods ?? []).filter(
+            (item) =>
+              !input.methods.some((entry) => entry.method === item.method),
+          ),
+        ],
+        now(),
+      );
+      repositoryContext.paymentMethodSettings.set(clinicId, saved);
+      repositoryContext.addAdminAudit(
+        actorUserId,
+        "clinic.payment_methods_updated",
+        "clinic",
+        clinicId,
+        { methods: saved.methods },
+        clinicId,
+      );
+      return saved;
     },
 
     async listAdminAuditEvents(clinicId: string) {
