@@ -1,6 +1,14 @@
 ﻿import { useState } from "react";
-import { BarChart3, Banknote, CalendarDays, Users, Wallet } from "lucide-react";
+import {
+  BarChart3,
+  Banknote,
+  CalendarDays,
+  Megaphone,
+  Users,
+  Wallet,
+} from "lucide-react";
 import { useSearchParams } from "react-router-dom";
+import { CampaignsSection } from "./CampaignsSection";
 import { ClientDetailsSection } from "./ClientDetailsSection";
 import { ClientInsights } from "./ClientInsights";
 import { DreSection } from "./DreSection";
@@ -38,6 +46,12 @@ export function ReportsPage() {
       label: "Clientes",
       icon: Users,
       visible: hasClientReports || can("reports.sales"),
+    },
+    {
+      key: "campaigns" as const,
+      label: "Campanhas",
+      icon: Megaphone,
+      visible: can("reports.campaigns"),
     },
     {
       key: "dre" as const,
@@ -152,6 +166,8 @@ export function ReportsPage() {
                 <ReportsDetails period={period} />
               ) : tab === "finance" ? (
                 <FinancialSection period={period} />
+              ) : tab === "campaigns" ? (
+                <CampaignsSection period={period} />
               ) : tab === "clients" ? (
                 <ReportTabs
                   sub
