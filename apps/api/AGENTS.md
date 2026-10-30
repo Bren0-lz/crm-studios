@@ -10,3 +10,4 @@
 - Integração usa Fastify inject com memória. Testes MySQL e paridade usam exclusivamente TEST_DATABASE_URL; cada arquivo cria e apaga o próprio banco (`test-support/mysql-database.ts`).
 - `test-support` reúne fixtures e a suíte compartilhada de paridade entre memória/MySQL. Feche aplicações e pools mesmo quando uma asserção falha.
 - Não altere migrações existentes; não conecte testes ao banco do site.
+- Banco MySQL/MariaDB: migração nova em `migrations/NNNN_nome.sql` com tipos MySQL (VARCHAR(36) ascii para ids, DATETIME(6), JSON, TINYINT(1)) e SQL sem `RETURNING`/`ON CONFLICT`/`jsonb`/`::`/`ANY(` — equivalências e helpers (`writeAndRead`, `insertRows`, `inJsonArray`, `json()`) no CLAUDE.md, seção "Banco de dados: MySQL/MariaDB". `storage/mysql/mysql-dialect.unit.test.ts` vigia isso.
