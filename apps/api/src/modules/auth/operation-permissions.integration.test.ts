@@ -394,13 +394,15 @@ describe("per-operation API authorization", () => {
     ].filter((row) => row[1] !== "reports.export");
     expect(rows.map((row) => row[1]).sort()).toEqual(
       permissionCatalog
-        // History and waitlist came after 0045; waitlist has its own grant in 0097.
+        // History and waitlist came after 0045; waitlist has its own grant in 0097
+        // and template deletion in 0120.
         .filter(
           (item) =>
             !item.legacyAdmin &&
             !item.explicitGrantOnly &&
             item.module !== "history" &&
             item.module !== "waitlist" &&
+            item.key !== "contracts.templates_delete" &&
             !spreadsheetExports.includes(item.key),
         )
         .map((item) => item.key)
@@ -428,6 +430,16 @@ describe("per-operation API authorization", () => {
       expect(split).toContain(`('${report}', '${key}')`);
     }
     expect(split).toContain("array_remove(permissions, 'reports.export')");
+    const templateDelete = readFileSync(
+      new URL(
+        "../../../migrations/0120_document_template_delete.sql",
+        import.meta.url,
+      ),
+      "utf8",
+    );
+    expect(templateDelete).toContain(
+      "permissions @> ARRAY['contracts.templates_create']::text[]",
+    );
     expect(legacyPermissions("user", ["patients"], ["patients"])).not.toContain(
       "patients.export",
     );

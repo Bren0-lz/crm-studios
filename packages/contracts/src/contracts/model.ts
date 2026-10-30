@@ -4,7 +4,17 @@ import {
   type DocumentTemplateValues,
 } from "./variables.js";
 import { documentContentSchema, documentContentText } from "./content.js";
-import { formatCpf, formatPhone, isValidCpf } from "../common/model.js";
+import {
+  formatCnpj,
+  formatCpf,
+  formatPhone,
+  isValidCpf,
+  type paymentMethodSchema,
+} from "../common/model.js";
+import { paymentMethodLabels } from "../finance/installments.js";
+import type { SupplierBillingCycle } from "../finance/types.js";
+
+type PaymentMethod = z.infer<typeof paymentMethodSchema>;
 
 export const documentKindSchema = z.enum([
   "contract",
@@ -47,9 +57,12 @@ export const documentTemplateInputSchema = z
   );
 export const documentTemplateVersionInputSchema = templateBodyShape;
 
-export const issuedDocumentInputSchema = z.object({
+/** Campos da emissão sem a regra de quem assina (base para `omit` na contratação de plano). */
+export const issuedDocumentFieldsSchema = z.object({
   templateId: z.uuid(),
-  patientId: z.uuid(),
+  /** Quem assina: um cliente (`patientId`) ou um fornecedor (`supplierId`), nunca os dois. */
+  patientId: z.uuid().optional(),
+  supplierId: z.uuid().optional(),
   planId: z.uuid().optional(),
   professionalId: z.uuid().optional(),
   title: z.string().trim().min(3).max(160),
@@ -60,6 +73,16 @@ export const issuedDocumentInputSchema = z.object({
     )
     .optional(),
 });
+
+export const issuedDocumentInputSchema = issuedDocumentFieldsSchema
+  .refine((input) => Boolean(input.patientId) !== Boolean(input.supplierId), {
+    message: "Informe o cliente ou o fornecedor do documento.",
+    path: ["patientId"],
+  })
+  .refine((input) => !input.supplierId || !input.planId, {
+    message: "Documento de fornecedor não tem plano vinculado.",
+    path: ["planId"],
+  });
 
 export const documentStatusSchema = z.enum(["draft", "issued", "cancelled"]);
 
@@ -85,6 +108,7 @@ export {
 export const missingDocumentValue = "não informado";
 
 const noPlanValue = "Não vinculado";
+const noSupplierValue = "Não vinculado";
 
 /** Dados da emissão: cadastro da clínica, do cliente, plano e profissional. */
 export interface DocumentTemplateContext {
@@ -96,7 +120,8 @@ export interface DocumentTemplateContext {
     phone?: string | null | undefined;
     email?: string | null | undefined;
   };
-  patient: {
+  /** Cliente que assina; ausente em documento de fornecedor. */
+  patient?: {
     fullName: string;
     cpf?: string | null | undefined;
     address?: string | null | undefined;
@@ -115,6 +140,18 @@ export interface DocumentTemplateContext {
     validUntil?: string | null | undefined;
   };
   professional?: { fullName: string; crefito?: string | null };
+  /** Fornecedor que assina (contrato de fornecimento ou prestação de serviço). */
+  supplier?: {
+    name: string;
+    kind: "person" | "company";
+    document?: string | null | undefined;
+    hiredOn?: string | null | undefined;
+    contractAmountInCents?: number | null | undefined;
+    billingCycle?: SupplierBillingCycle | null | undefined;
+    paymentMethod?: PaymentMethod | null | undefined;
+    installments?: number | null | undefined;
+    paymentTerms?: string | null | undefined;
+  };
   /** Data de emissão já formatada (dd/mm/aaaa). */
   issuedOn: string;
 }
@@ -130,7 +167,7 @@ function filled(value: string | null | undefined) {
 
 /** Endereço do cliente em uma linha: "Rua, Bairro, Cidade/UF, CEP 00000-000". */
 export function formatPatientAddress(
-  patient: DocumentTemplateContext["patient"],
+  patient: NonNullable<DocumentTemplateContext["patient"]>,
 ) {
   const cityState = [patient.city?.trim(), patient.state?.trim()]
     .filter(Boolean)
@@ -155,19 +192,74 @@ export function formatPlanValidity(
     : `a partir de ${brDate(validFrom)}, por prazo indeterminado`;
 }
 
+const supplierBillingCycleLabels: Record<SupplierBillingCycle, string> = {
+  one_time: "valor único",
+  monthly: "mensal",
+  quarterly: "trimestral",
+  yearly: "anual",
+};
+
+/** Campos `fornecedor_*`: dados do cadastro do fornecedor (vazios fora desse documento). */
+function supplierTemplateValues(
+  supplier: DocumentTemplateContext["supplier"],
+  currency: Intl.NumberFormat,
+) {
+  if (!supplier)
+    return {
+      fornecedor_nome: noSupplierValue,
+      fornecedor_documento: noSupplierValue,
+      fornecedor_valor: noSupplierValue,
+      fornecedor_pagamento: noSupplierValue,
+      fornecedor_contratacao: noSupplierValue,
+    };
+  const document = supplier.document?.replace(/\D/g, "") ?? "";
+  const payment = [
+    supplier.paymentMethod
+      ? `${paymentMethodLabels[supplier.paymentMethod]}${
+          (supplier.installments ?? 1) > 1
+            ? ` em ${supplier.installments} parcelas`
+            : ""
+        }`
+      : "",
+    supplier.paymentTerms?.trim(),
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  return {
+    fornecedor_nome: supplier.name,
+    fornecedor_documento: document
+      ? supplier.kind === "person"
+        ? formatCpf(document)
+        : formatCnpj(document)
+      : missingDocumentValue,
+    fornecedor_valor:
+      supplier.contractAmountInCents != null
+        ? `${currency.format(supplier.contractAmountInCents / 100)} (${
+            supplierBillingCycleLabels[supplier.billingCycle ?? "one_time"]
+          })`
+        : missingDocumentValue,
+    fornecedor_pagamento: payment || missingDocumentValue,
+    fornecedor_contratacao: supplier.hiredOn
+      ? brDate(supplier.hiredOn)
+      : missingDocumentValue,
+  };
+}
+
 /** Valor de cada campo do modelo na emissão (o mesmo cálculo em memória e PostgreSQL). */
 export function documentTemplateValues(
   context: DocumentTemplateContext,
 ): DocumentTemplateValues {
-  const { clinic, patient, plan, professional } = context;
+  const { clinic, patient, plan, professional, supplier } = context;
   const currency = new Intl.NumberFormat("pt-BR", {
     style: "currency",
     currency: "BRL",
   });
   return {
-    paciente_nome: patient.fullName,
-    paciente_cpf: patient.cpf ? formatCpf(patient.cpf) : missingDocumentValue,
-    paciente_endereco: filled(formatPatientAddress(patient)),
+    paciente_nome: patient?.fullName ?? missingDocumentValue,
+    paciente_cpf: patient?.cpf ? formatCpf(patient.cpf) : missingDocumentValue,
+    paciente_endereco: patient
+      ? filled(formatPatientAddress(patient))
+      : missingDocumentValue,
     plano_nome: plan?.name ?? noPlanValue,
     plano_servicos: plan?.services || noPlanValue,
     plano_valor: plan
@@ -179,6 +271,7 @@ export function documentTemplateValues(
       : noPlanValue,
     profissional_nome: professional?.fullName ?? "",
     profissional_crefito: professional?.crefito ?? "",
+    ...supplierTemplateValues(supplier, currency),
     data_emissao: context.issuedOn,
     clinica_nome: clinic.name,
     clinica_razao_social: clinic.legalName?.trim() || clinic.name,
@@ -341,7 +434,11 @@ export function documentSignatureMessage(input: {
   patientName: string;
   clinicName: string;
   link: string;
+  /** Documento de fornecedor: o texto fala do contrato com a clínica, não de plano. */
+  supplier?: boolean;
 }) {
   const firstName = input.patientName.trim().split(/\s+/)[0] ?? "";
+  if (input.supplier)
+    return `Olá ${firstName}, a ${input.clinicName} está lhe enviando o contrato firmado entre vocês. Acesse o link abaixo para leitura e assinatura do contrato.\n\n${input.link}`;
   return `Olá ${firstName}, a ${input.clinicName} está lhe enviando o contrato referente ao seu plano de atendimentos/aulas contratado. Acesse o link abaixo para leitura e assinatura do contrato.\n\n${input.link}`;
 }

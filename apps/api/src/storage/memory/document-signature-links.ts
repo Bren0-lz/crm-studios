@@ -130,13 +130,24 @@ export function createDocumentSignatureLinksRepository(
           documentId,
         );
       }
-      const patient = context.patients.find(
-        (item) => item.clinicId === clinicId && item.id === document.patientId,
-      );
+      // Quem assina: o cliente ou o fornecedor (WhatsApp, senão telefone).
+      const patient = document.patientId
+        ? context.patients.find(
+            (item) =>
+              item.clinicId === clinicId && item.id === document.patientId,
+          )
+        : undefined;
+      const supplier = document.supplierId
+        ? context.suppliers.find(
+            (item) =>
+              item.clinicId === clinicId && item.id === document.supplierId,
+          )
+        : undefined;
+      const phone = patient?.phone || supplier?.whatsapp || supplier?.phone;
       return {
         document: structuredClone(document),
         token: link.token,
-        ...(patient?.phone ? { patientPhone: patient.phone } : {}),
+        ...(phone ? { patientPhone: phone } : {}),
         clinicName: document.branding?.name || context.clinicSettings.name,
       };
     },

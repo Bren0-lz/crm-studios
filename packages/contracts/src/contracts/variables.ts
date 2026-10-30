@@ -29,6 +29,31 @@ export const documentTemplateVariables = [
     label: "CREFITO do profissional",
     example: "CREFITO-3 223344-F",
   },
+  {
+    key: "fornecedor_nome",
+    label: "Nome do fornecedor",
+    example: "Equipamentos Pilates Ltda.",
+  },
+  {
+    key: "fornecedor_documento",
+    label: "CPF ou CNPJ do fornecedor",
+    example: "11.222.333/0001-81",
+  },
+  {
+    key: "fornecedor_valor",
+    label: "Valor contratado com o fornecedor",
+    example: "R$ 2.400,00 (mensal)",
+  },
+  {
+    key: "fornecedor_pagamento",
+    label: "Pagamento ao fornecedor",
+    example: "Boleto em 3 parcelas · vencimento todo dia 10",
+  },
+  {
+    key: "fornecedor_contratacao",
+    label: "Data de contratação do fornecedor",
+    example: "01/11/2026",
+  },
   { key: "data_emissao", label: "Data de hoje", example: "17/10/2026" },
   { key: "clinica_nome", label: "Nome da clínica", example: "Studios Aryana" },
   {

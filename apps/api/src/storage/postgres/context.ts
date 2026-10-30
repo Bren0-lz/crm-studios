@@ -58,6 +58,7 @@ import {
   hasDatabaseCode,
   hasGroupSessionConflict,
   issuedDocumentColumns,
+  issuedDocumentJoins,
   type IssuedDocumentRow,
   leadColumns,
   type LeadContactRow,
@@ -1170,8 +1171,7 @@ export class PostgresRepositoryContext {
     const result = await client.query<IssuedDocumentRow>(
       `SELECT ${issuedDocumentColumns}
        FROM issued_documents d
-       JOIN patients p ON p.id = d.patient_id
-       LEFT JOIN patient_plans pp ON pp.id = d.plan_id
+       ${issuedDocumentJoins}
        WHERE d.clinic_id = $1 AND d.id = $2`,
       [clinicId, documentId],
     );
