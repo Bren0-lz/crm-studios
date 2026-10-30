@@ -590,7 +590,6 @@
   .clinical-back,
   .clinical-chart-head,
   .clinical-alerts,
-  .clinical-pending,
   .clinical-chart-tabs,
   .clinical-chart-panel {
     display: none !important;

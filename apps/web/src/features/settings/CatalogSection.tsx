@@ -17,7 +17,7 @@ import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
 const kindHints: Partial<Record<ClinicCatalogKind, string>> = {
   product_category: "Agrupam os produtos do estoque.",
   product_brand: "Fabricantes dos produtos vendidos ou usados na clínica.",
-  muscle_group: "Usados nos exercícios e nas evoluções clínicas.",
+  muscle_group: "Usados nos exercícios e treinos.",
   lead_source: "De onde vêm os contatos comerciais.",
   lead_channel: "Como o contato chegou à clínica.",
   lead_lost_reason: "Por que um contato não virou cliente.",

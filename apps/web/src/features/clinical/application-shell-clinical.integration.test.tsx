@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import App from "../../App";
@@ -6,7 +6,7 @@ import { storedUser } from "../../test-support/legacy-fixtures";
 import "../../test-support/legacy-setup";
 
 describe("application shell", () => {
-  it("opens the SOAP editor for an authenticated clinical user", async () => {
+  it("opens the assessment form and offers no clinical evolution", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
     localStorage.setItem(
       "crm.auth.user",
@@ -33,20 +33,9 @@ describe("application shell", () => {
             measurements: [],
             closures: [],
           }
-        : url.includes("/clinical-records")
-          ? []
-          : url.includes("/patients")
-            ? [patient]
-            : [
-                {
-                  id: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
-                  patientId: patient.id,
-                  patientName: "Helena Almeida",
-                  professionalName: "Dra. Ana Martins",
-                  startsAt: new Date().toISOString(),
-                  status: "completed",
-                },
-              ];
+        : url.includes("/patients")
+          ? [patient]
+          : [];
       return { ok: true, status: 200, json: async () => body } as Response;
     });
 
@@ -58,19 +47,31 @@ describe("application shell", () => {
     expect(
       await screen.findByRole("heading", { name: "Prontuários" }),
     ).toBeInTheDocument();
-    const newRecord = await screen.findByRole("button", {
-      name: "Nova evolução",
-    });
-    // O botão só habilita depois de carregar os atendimentos.
-    await waitFor(() => expect(newRecord).toBeEnabled());
-    fireEvent.click(newRecord);
+    fireEvent.click(
+      await screen.findByRole("button", { name: /Helena Almeida/ }),
+    );
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Registrar avaliação" }),
+    );
     expect(
-      await screen.findByRole("heading", { name: "Nova evolução clínica" }),
+      await screen.findByRole("dialog", { name: "Registrar avaliação" }),
     ).toBeInTheDocument();
-    expect(screen.getByLabelText(/S — Subjetivo/)).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /Nova evolução|Evoluir/ }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("tab", { name: /Evoluções/ }),
+    ).not.toBeInTheDocument();
+    expect(
+      vi
+        .mocked(fetch)
+        .mock.calls.some(([input]) =>
+          /clinical-records|clinical-appointment-options/.test(String(input)),
+        ),
+    ).toBe(false);
   });
 
-  it("shows the professional CREFITO in the clinical list and print summary", async () => {
+  it("prints goals and assessments without legacy evolutions", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
     localStorage.setItem(
       "crm.auth.user",
@@ -129,11 +130,9 @@ describe("application shell", () => {
             attachments: [],
             addenda: [],
           }
-        : url.includes("/clinical-records")
-          ? [record]
-          : url.includes("/patients")
-            ? [patient]
-            : [];
+        : url.includes("/patients")
+          ? [patient]
+          : [];
       return { ok: true, status: 200, json: async () => body } as Response;
     });
     render(
@@ -144,17 +143,13 @@ describe("application shell", () => {
     fireEvent.click(
       await screen.findByRole("button", { name: /Helena Almeida/ }),
     );
-    fireEvent.click(await screen.findByRole("tab", { name: "Evoluções" }));
-    expect(
-      await screen.findByText(
-        "Dra. Ana Martins · CREFITO-3 123456-F · versão 2",
-      ),
-    ).toBeInTheDocument();
     const summary = (
       await screen.findByText("Prontuário longitudinal")
     ).closest(".clinical-print-summary")!;
-    expect(summary).toHaveTextContent("Dra. Ana Martins · CREFITO-3 123456-F");
     expect(summary).toHaveTextContent("Subir escadas sem dor · Ativo");
+    expect(summary).toHaveTextContent("Avaliações estruturadas");
+    expect(summary).not.toHaveTextContent("Evoluções SOAP");
+    expect(summary).not.toHaveTextContent("Evolução positiva");
     expect(summary).not.toHaveTextContent("active");
   });
 });

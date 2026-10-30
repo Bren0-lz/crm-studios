@@ -116,9 +116,9 @@ const operations = {
     export: "Exportar prontuário",
     access_events: "Consultar acessos ao prontuário",
     attachments_read: "Baixar anexo clínico",
-    records_create: "Registrar evolução",
-    records_update: "Editar evolução em rascunho",
-    finalize: "Finalizar evolução",
+    records_create: "Registrar relatório ou prescrição",
+    records_update: "Editar relatório em rascunho e alertas clínicos",
+    finalize: "Finalizar relatório ou prescrição",
     attachments_create: "Anexar documento clínico",
     addenda_create: "Registrar adendo",
     templates_create: "Criar modelo de avaliação",
@@ -182,7 +182,9 @@ const operations = {
 } as const;
 
 type OperationKey = {
-  [M in keyof typeof operations]: `${M}.${keyof (typeof operations)[M] & string}`;
+  [
+    M in keyof typeof operations
+  ]: `${M}.${keyof (typeof operations)[M] & string}`;
 }[keyof typeof operations];
 export type PermissionKey = `${AppModule}.view` | OperationKey;
 export interface PermissionDefinition {
