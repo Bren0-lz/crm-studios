@@ -182,7 +182,7 @@ describe("users and permissions", () => {
       within(row("Davi Rocha")).getByText("Nenhum módulo (só Visão geral)"),
     ).toBeInTheDocument();
     expect(
-      within(row("Elisa Prado")).getByText("Vê 1 módulo · 6 permissões"),
+      within(row("Elisa Prado")).getByText("Vê 1 módulo · 8 permissões"),
     ).toBeInTheDocument();
     // Sem padrão por perfil: nem selo de "personalizadas" nem a matriz de padrões.
     expect(
@@ -850,6 +850,15 @@ describe("users and permissions", () => {
         json: async () => ({ code, message }),
       }) as Response;
 
+    const emptyRecalculation = {
+      from: saoPauloToday(),
+      until: saoPauloToday(),
+      items: [],
+      differenceInCents: 0,
+      adjustmentInCents: 0,
+      digest: "b".repeat(64),
+    };
+
     function mockCommission(
       handler: (url: string, init?: RequestInit) => unknown,
       options: { professionalsFail?: boolean } = {},
@@ -869,6 +878,13 @@ describe("users and permissions", () => {
             ok: true,
             status: 200,
             json: async () => handled,
+          } as Response;
+        // Sem comissão lançada no período: a prévia do recálculo vem vazia.
+        if (url.endsWith("/recalculation/preview"))
+          return {
+            ok: true,
+            status: 200,
+            json: async () => emptyRecalculation,
           } as Response;
         if (url.endsWith("/professionals") && options.professionalsFail)
           return {
@@ -912,10 +928,16 @@ describe("users and permissions", () => {
       return screen.getByRole("dialog", { name: `Editar ${name}` });
     }
 
+    // A prévia do recálculo é consulta por POST: não conta como gravação.
     const writes = () =>
       vi
         .mocked(fetch)
-        .mock.calls.filter(([, init]) => init?.method && init.method !== "GET")
+        .mock.calls.filter(
+          ([input, init]) =>
+            init?.method &&
+            init.method !== "GET" &&
+            !String(input).endsWith("/recalculation/preview"),
+        )
         .map(([input, init]) => ({
           method: init!.method!,
           url: String(input),
@@ -1272,6 +1294,61 @@ describe("users and permissions", () => {
           id: pilatesId,
           data: { fullName: "Maria Pilates" },
         },
+      });
+    });
+
+    it("shows the retroactive recalculation before saving and sends the confirmed preview", async () => {
+      const preview = {
+        from: "2026-03-01",
+        until: saoPauloToday(),
+        items: [
+          {
+            commissionId: "c1",
+            professionalId: takenId,
+            professionalName: "Bruno Lima (agenda)",
+            competence: "2026-03",
+            sourceDate: "2026-03-10",
+            status: "paid",
+            mode: "adjustment",
+            previousAmountInCents: 1000,
+            amountInCents: 4000,
+            differenceInCents: 3000,
+            ruleSnapshot: { percentage: 40, effectiveFrom: "2026-03-01" },
+          },
+        ],
+        differenceInCents: 3000,
+        adjustmentInCents: 3000,
+        digest: "c".repeat(64),
+      };
+      mockCommission((url, init) =>
+        url.endsWith("/recalculation/preview")
+          ? preview
+          : init?.method === "PATCH"
+            ? otherUser
+            : undefined,
+      );
+      const dialog = await openEditor("Bruno Lima");
+      fireEvent.change(within(dialog).getByLabelText("Comissão (%)"), {
+        target: { value: "40" },
+      });
+      fireEvent.change(within(dialog).getByLabelText("Vale a partir de"), {
+        target: { value: "2026-03-01" },
+      });
+      fireEvent.submit(
+        within(dialog).getByLabelText("Comissão (%)").closest("form")!,
+      );
+      expect(
+        await within(dialog).findByText(/Esta mudança recalcula 1 comissão/),
+      ).toBeInTheDocument();
+      expect(writes()).toEqual([]);
+      fireEvent.click(
+        within(dialog).getByRole("button", { name: "Confirmar e recalcular" }),
+      );
+      await screen.findByText("Alterações de Bruno Lima salvas.");
+      expect(writes()).toHaveLength(1);
+      expect(writes()[0]!.body).toMatchObject({
+        commission: { percentage: 40, effectiveFrom: "2026-03-01" },
+        recalculationDigest: "c".repeat(64),
       });
     });
 

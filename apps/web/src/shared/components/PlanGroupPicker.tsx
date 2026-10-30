@@ -1,3 +1,4 @@
+import { compatiblePlanGroups } from "../lib/plan-groups";
 import type { GroupChoices } from "../workflows/types";
 import { GroupDetails } from "./GroupDetails";
 import { LoadingBlock } from "./LoadingBlock";
@@ -8,32 +9,34 @@ export function PlanGroupPicker({
   value,
   onChange,
   disabled = false,
+  required = false,
 }: {
   groups: GroupChoices;
   services: { serviceId: string }[];
   value: string;
   onChange: (id: string) => void;
   disabled?: boolean;
+  /** Plano de aulas em grupo: a turma é obrigatória quando há turma compatível. */
+  required?: boolean;
 }) {
-  const choices =
-    groups.items?.filter(
-      (group) =>
-        group.active &&
-        services.some((item) => item.serviceId === group.serviceId),
-    ) ?? [];
+  const choices = compatiblePlanGroups(groups.items, services);
+  const mandatory = required && choices.length > 0;
   const selected = choices.find((group) => group.id === value);
   const weekdays = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
   return (
     <fieldset className="form-fieldset span-2">
-      <legend>Turma opcional</legend>
+      <legend>{mandatory ? "Turma" : "Turma opcional"}</legend>
       <label>
         Turma
         <select
+          required={mandatory}
           value={value}
           disabled={disabled || !choices.length || Boolean(groups.error)}
           onChange={(event) => onChange(event.target.value)}
         >
-          <option value="">Escolher depois</option>
+          <option value="">
+            {mandatory ? "Selecione a turma" : "Escolher depois"}
+          </option>
           {choices.map((group) => {
             const vacancies = Math.max(
               0,
@@ -80,7 +83,9 @@ export function PlanGroupPicker({
         </p>
       )}
       <p className="field-hint">
-        A turma pode ser escolhida depois com o responsável.
+        {mandatory
+          ? "Plano de aulas em grupo: escolha a turma do cliente."
+          : "A turma pode ser escolhida depois com o responsável."}
       </p>
     </fieldset>
   );

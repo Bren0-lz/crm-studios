@@ -1,4 +1,7 @@
-import { receiptWithClinic } from "../../modules/finance/receipt.js";
+import {
+  receiptInstallments,
+  receiptWithClinic,
+} from "../../modules/finance/receipt.js";
 import { assertPayableAmountEditable } from "../../modules/finance/payable-amount.js";
 import { loadFinancialMonth, loadFinancialSummary } from "./financial-month.js";
 import { clinicDateOf } from "../../modules/finance/daily-cash.js";
@@ -16,6 +19,7 @@ import {
   type AdminUserCommissionInput,
   type CommissionRuleInput,
   type CostCenterInput,
+  type CashMovement,
   type DailyCash,
   type FinancialCategoryInput,
   formatSequenceNumber,
@@ -31,6 +35,7 @@ import {
   type PaymentMethod,
   type PaymentReceipt,
   type ProductInput,
+  type ProductSize,
   type Receivable,
   type ReceivableRenegotiation,
   type ReceivableRenegotiationInput,
@@ -45,10 +50,17 @@ import {
 } from "@crm/contracts";
 import {
   buildDailyCash,
+  collectCashMovements,
   DEFAULT_CLINIC_TIMEZONE,
+  type DailyCashSources,
 } from "../../modules/finance/daily-cash.js";
 import type { PoolClient } from "../../infrastructure/mysql-client.js";
-import { DomainError } from "../../repository.js";
+import { paymentInstallmentsValue } from "./mappers/finance.js";
+import {
+  DomainError,
+  type CommissionRecalculationRequest,
+} from "../../repository.js";
+import { createMysqlCommissionRecalculation } from "./commission-recalculation.js";
 import type { MysqlRepositoryContext } from "./context.js";
 import {
   type CommissionEntryRow,
@@ -74,6 +86,7 @@ import {
   type StockMovementRow,
   branchClause,
   json,
+  productStockRowsColumn,
 } from "./helpers.js";
 import { randomUUID } from "node:crypto";
 import {
@@ -84,6 +97,13 @@ import {
   localToday,
   writeAndRead,
 } from "./sql.js";
+import { changeProductStock, productStockOf } from "./product-stock.js";
+import {
+  assertSalePrice,
+  assertStockSize,
+  isStockOut,
+  stockKey,
+} from "../../modules/finance/product-stock.js";
 
 /** Insere um produto na comanda (reserva estoque); `false` se a comanda não existe. */
 async function addTabItem(
@@ -107,12 +127,12 @@ async function addTabItem(
   const product = await client.query<{
     id: string;
     name: string;
-    currentStock: number;
-    salePriceInCents: number;
+    sizes: ProductSize[];
+    salePriceInCents: number | null;
     costInCents: number;
     sameBranch: boolean;
   }>(
-    `SELECT id,name,current_stock AS "currentStock",sale_price_in_cents AS "salePriceInCents",cost_in_cents AS "costInCents",branch_id=(SELECT branch_id FROM patient_tabs WHERE clinic_id=$1 AND id=$3) AS "sameBranch" FROM products WHERE id=$2 AND clinic_id=$1 AND active FOR UPDATE`,
+    `SELECT id,name,sizes,sale_price_in_cents AS "salePriceInCents",cost_in_cents AS "costInCents",branch_id=(SELECT branch_id FROM patient_tabs WHERE clinic_id=$1 AND id=$3) AS "sameBranch" FROM products WHERE id=$2 AND clinic_id=$1 AND active FOR UPDATE`,
     [clinicId, input.productId, tabId],
   );
   const productRow = product.rows[0];
@@ -124,14 +144,17 @@ async function addTabItem(
       "O produto é de outra filial que não a da comanda.",
       409,
     );
-  if (productRow.currentStock < input.quantity)
-    throw new DomainError(
-      "INSUFFICIENT_STOCK",
-      "O estoque disponível é insuficiente.",
-      409,
-    );
+  assertSalePrice(productRow);
+  assertStockSize(productRow, input.size);
+  const balance = await changeProductStock(
+    client,
+    clinicId,
+    productRow.id,
+    input.size,
+    -input.quantity,
+  );
   await client.query(
-    `INSERT INTO patient_tab_items(clinic_id,tab_id,product_id,quantity,unit_price_in_cents,unit_cost_in_cents) VALUES($1,$2,$3,$4,$5,$6) ON DUPLICATE KEY UPDATE quantity=quantity+VALUES(quantity)`,
+    `INSERT INTO patient_tab_items(clinic_id,tab_id,product_id,quantity,unit_price_in_cents,unit_cost_in_cents,size) VALUES($1,$2,$3,$4,$5,$6,$7) ON DUPLICATE KEY UPDATE quantity=quantity+VALUES(quantity)`,
     [
       clinicId,
       tabId,
@@ -139,15 +162,11 @@ async function addTabItem(
       input.quantity,
       input.unitPriceInCents ?? productRow.salePriceInCents,
       productRow.costInCents,
+      stockKey(input.size),
     ],
   );
-  const balance = productRow.currentStock - input.quantity;
   await client.query(
-    `UPDATE products SET current_stock=$2,updated_at=NOW(6) WHERE id=$1`,
-    [productRow.id, balance],
-  );
-  await client.query(
-    `INSERT INTO stock_movements(clinic_id,product_id,patient_tab_id,kind,quantity,balance_after,notes,actor_user_id) VALUES($1,$2,$3,'sale',$4,$5,$6,$7)`,
+    `INSERT INTO stock_movements(clinic_id,product_id,patient_tab_id,kind,quantity,balance_after,notes,actor_user_id,size) VALUES($1,$2,$3,'sale',$4,$5,$6,$7,$8)`,
     [
       clinicId,
       productRow.id,
@@ -156,6 +175,7 @@ async function addTabItem(
       balance,
       `Reserva na comanda de ${tab.rows[0].patientName}`,
       actorUserId,
+      stockKey(input.size),
     ],
   );
   await client.query(
@@ -219,7 +239,7 @@ async function closeTab(
   const paid = input.settlement === "paid";
   const receivable = await writeAndRead<{ id: string }>(
     client,
-    `INSERT INTO receivables(clinic_id,patient_id,description,installment_number,installment_count,due_date,amount_in_cents,status,paid_at,payment_method,branch_id, id) VALUES ($1,$2,$3,1,1,$4,$5,$6,$7,$8,(SELECT branch_id FROM patient_tabs WHERE clinic_id=$1 AND id=$9), $10)`,
+    `INSERT INTO receivables(clinic_id,patient_id,description,installment_number,installment_count,due_date,amount_in_cents,status,paid_at,payment_method,branch_id, id,payment_installments) VALUES ($1,$2,$3,1,1,$4,$5,$6,$7,$8,(SELECT branch_id FROM patient_tabs WHERE clinic_id=$1 AND id=$9), $10,$11)`,
     [
       clinicId,
       row.patientId,
@@ -231,6 +251,7 @@ async function closeTab(
       paid ? input.paymentMethod : null,
       tabId,
       randomUUID(),
+      paid ? paymentInstallmentsValue(input.paymentInstallments) : null,
     ],
     `SELECT id FROM receivables WHERE id = $10`,
   );
@@ -264,6 +285,9 @@ async function closeTab(
         row.totalInCents,
         JSON.stringify({
           paymentMethod: input.paymentMethod,
+          ...(paymentInstallmentsValue(input.paymentInstallments)
+            ? { paymentInstallments: input.paymentInstallments }
+            : {}),
           source: "patient_tab",
         }),
       ],
@@ -278,12 +302,151 @@ async function closeTab(
 export function createFinanceRepository(
   repositoryContext: MysqlRepositoryContext,
 ) {
+  /** Fontes do caixa com recebimentos entre `from` e `to` (fuso da clínica). */
+  async function loadCashSources(
+    clinicId: string,
+    from: string,
+    to: string,
+  ): Promise<{ sources: DailyCashSources; timeZone: string }> {
+    const branchIds = repositoryContext.branchReadIds();
+    const client = await repositoryContext.pool.connect();
+    try {
+      await client.query("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ");
+      await client.query(
+        "START TRANSACTION WITH CONSISTENT SNAPSHOT, READ ONLY",
+      );
+      const clinic = await client.query<{ timezone: string }>(
+        `SELECT timezone FROM clinics WHERE id=$1`,
+        [clinicId],
+      );
+      // Estorno não registra forma: herda a do pagamento mais recente do
+      // mesmo recebível até o estorno.
+      const receiptResult = await client.query<{
+        id: string;
+        receivableId: string;
+        kind: "payment" | "payment_reversal";
+        patientId: string;
+        patientName: string;
+        description: string;
+        amountInCents: number;
+        occurredAt: Date;
+        availableAt: Date;
+        paymentMethod: ReceivedPayment["paymentMethod"] | null;
+      }>(
+        `SELECT fe.id, fe.receivable_id AS "receivableId", fe.kind,
+              r.patient_id AS "patientId", p.full_name AS "patientName",
+              r.description, fe.amount_in_cents AS "amountInCents",
+              coalesce(dc.occurred_at,fe.occurred_at,fe.created_at) AS "occurredAt",coalesce(dc.cash_available_at,fe.cash_available_at,fe.occurred_at,fe.created_at) AS "availableAt",
+              COALESCE(JSON_VALUE(fe.metadata, '$.paymentMethod'), (
+                SELECT JSON_VALUE(prev.metadata, '$.paymentMethod') FROM financial_events prev
+                WHERE prev.clinic_id=fe.clinic_id AND prev.receivable_id=fe.receivable_id
+                  AND prev.kind='payment' AND prev.created_at<=fe.created_at
+                  AND JSON_VALUE(prev.metadata, '$.paymentMethod') IS NOT NULL
+                ORDER BY prev.created_at DESC LIMIT 1
+              )) AS "paymentMethod"
+       FROM financial_events fe
+       ${latestDateCorrection("dc", "fe", "receivable_event_id")}
+       JOIN receivables r ON r.id=fe.receivable_id
+       JOIN patients p ON p.id=r.patient_id
+       WHERE fe.clinic_id=$1 AND fe.kind IN ('payment','payment_reversal')
+         AND ${branchClause("r.branch_id", 3)}
+         AND ${localDate("coalesce(dc.cash_available_at,fe.cash_available_at,fe.occurred_at,fe.created_at)")} BETWEEN $2 AND $4`,
+        [clinicId, from, branchIds, to],
+      );
+      const payableResult = await client.query<PayableRow>(
+        `SELECT ${payableColumns} FROM payables py
+       JOIN financial_categories fc ON fc.id = py.category_id
+       LEFT JOIN cost_centers cc ON cc.id = py.cost_center_id
+       WHERE py.clinic_id=$1 AND ${branchClause("py.branch_id", 2)}`,
+        [clinicId, branchIds],
+      );
+      const payableEvents = await client.query<{
+        id: string;
+        clinicId: string;
+        payableId: string;
+        kind: "payment" | "payment_reversal";
+        occurredAt: Date;
+        availableAt: Date;
+        amountInCents: number;
+        paymentMethod: PaymentMethod | null;
+      }>(
+        `SELECT pe.id,pe.clinic_id AS "clinicId",pe.payable_id AS "payableId",pe.kind,coalesce(dc.occurred_at,pe.occurred_at,pe.created_at) AS "occurredAt",coalesce(dc.cash_available_at,pe.cash_available_at,pe.occurred_at,pe.created_at) AS "availableAt",-pe.amount_in_cents AS "amountInCents",coalesce(JSON_VALUE(pe.metadata, '$.paymentMethod'),(SELECT JSON_VALUE(prev.metadata, '$.paymentMethod') FROM payable_events prev WHERE prev.clinic_id=pe.clinic_id AND prev.payable_id=pe.payable_id AND prev.kind='payment' AND prev.created_at<=pe.created_at ORDER BY prev.created_at DESC LIMIT 1)) AS "paymentMethod" FROM payable_events pe ${latestDateCorrection("dc", "pe", "payable_event_id")} WHERE pe.clinic_id=$1 AND pe.kind IN ('payment','payment_reversal') AND EXISTS(SELECT 1 FROM payables pb WHERE pb.id=pe.payable_id AND ${branchClause("pb.branch_id", 2)})`,
+        [clinicId, branchIds],
+      );
+      const commissionEvents = await client.query<{
+        id: string;
+        clinicId: string;
+        commissionId: string;
+        kind: "payment" | "reversal";
+        amountInCents: number;
+        occurredAt: Date;
+      }>(
+        `SELECT e.id,e.clinic_id AS "clinicId",e.commission_id AS "commissionId",e.kind,e.amount_in_cents AS "amountInCents",e.occurred_at AS "occurredAt",e.professional_name AS "professionalName" FROM commission_payment_events e JOIN commission_entries ce ON ce.id=e.commission_id JOIN professionals p ON p.id=ce.professional_id WHERE e.clinic_id=$1 AND ${branchClause("p.branch_id", 2)}`,
+        [clinicId, branchIds],
+      );
+      const commissionResult = await client.query<CommissionEntryRow>(
+        `SELECT ce.id, ce.clinic_id AS "clinicId", ce.professional_id AS "professionalId",
+              p.full_name AS "professionalName", ce.appointment_id AS "appointmentId",ce.group_attendance_id AS "groupAttendanceId",ce.service_id AS "serviceId",ce.rule_id AS "ruleId",ce.rule_snapshot AS "ruleSnapshot",
+              ce.competence, ce.base_amount_in_cents AS "baseAmountInCents",
+              ce.percentage, ce.amount_in_cents AS "amountInCents", ce.status,
+              ce.paid_at AS "paidAt", ce.created_at AS "createdAt",ce.payroll_payable_id AS "payrollPayableId"
+       FROM commission_entries ce
+       JOIN professionals p ON p.id = ce.professional_id
+       WHERE ce.clinic_id=$1 AND ${branchClause("p.branch_id", 2)}`,
+        [clinicId, branchIds],
+      );
+      await client.query("COMMIT");
+      const receipts: ReceivedPayment[] = receiptResult.rows.map((item) => ({
+        id: item.id,
+        receivableId: item.receivableId,
+        kind: item.kind === "payment" ? "payment" : "reversal",
+        occurredAt: item.occurredAt.toISOString(),
+        availableAt: item.availableAt.toISOString(),
+        patientId: item.patientId,
+        patientName: item.patientName,
+        description: item.description,
+        amountInCents: item.amountInCents,
+        ...(item.paymentMethod ? { paymentMethod: item.paymentMethod } : {}),
+      }));
+      return {
+        sources: {
+          receipts,
+          payables: payableResult.rows.map(mapPayable),
+          payableEvents: payableEvents.rows.map((item) => ({
+            ...item,
+            kind:
+              item.kind === "payment"
+                ? ("payment" as const)
+                : ("reversal" as const),
+            occurredAt: item.occurredAt.toISOString(),
+            availableAt: item.availableAt.toISOString(),
+            ...(item.paymentMethod
+              ? { paymentMethod: item.paymentMethod }
+              : { paymentMethod: undefined }),
+          })),
+          commissionEvents: commissionEvents.rows.map((item) => ({
+            ...item,
+            occurredAt: item.occurredAt.toISOString(),
+          })),
+          commissions: commissionResult.rows.map(mapCommissionEntry),
+        },
+        timeZone: clinic.rows[0]?.timezone ?? DEFAULT_CLINIC_TIMEZONE,
+      };
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
   return {
     async setAdminUserCommission(
       clinicId: string,
       actorUserId: string,
       userId: string,
       input: AdminUserCommissionInput,
+      recalculation?: CommissionRecalculationRequest,
     ) {
       return repositoryContext.inTransaction(async (client) => {
         const user = await client.query(
@@ -298,6 +461,15 @@ export function createFinanceRepository(
           userId,
           input,
         );
+        if (recalculation)
+          await createMysqlCommissionRecalculation(repositoryContext).apply(
+            client,
+            clinicId,
+            actorUserId,
+            { userId },
+            [input],
+            recalculation.expectedDigest,
+          );
         return repositoryContext.findAdminUser(client, clinicId, userId);
       });
     },
@@ -312,11 +484,11 @@ export function createFinanceRepository(
         servicesResult,
       ] = await Promise.all([
         repositoryContext.pool.query<ProductRow>(
-          `SELECT id,clinic_id AS "clinicId",branch_id AS "branchId",name,sku,unit,category_id AS "categoryId",brand_id AS "brandId",cost_in_cents AS "costInCents",sale_price_in_cents AS "salePriceInCents",current_stock AS "currentStock",minimum_stock AS "minimumStock",active,created_at AS "createdAt",updated_at AS "updatedAt" FROM products WHERE clinic_id=$1 AND ${branchClause("branch_id", 2)} ORDER BY name`,
+          `SELECT id,clinic_id AS "clinicId",branch_id AS "branchId",name,sku,unit,category_id AS "categoryId",brand_id AS "brandId",cost_in_cents AS "costInCents",sale_price_in_cents AS "salePriceInCents",current_stock AS "currentStock",restock_alert_at AS "restockAlertAt",sizes,${productStockRowsColumn},active,created_at AS "createdAt",updated_at AS "updatedAt" FROM products WHERE clinic_id=$1 AND ${branchClause("branch_id", 2)} ORDER BY name`,
           [clinicId, branchIds],
         ),
         repositoryContext.pool.query<StockMovementRow>(
-          `SELECT sm.id,sm.clinic_id AS "clinicId",sm.product_id AS "productId",p.name AS "productName",sm.kind,sm.quantity,sm.balance_after AS "balanceAfter",sm.notes,sm.patient_tab_id AS "patientTabId",sm.created_at AS "createdAt" FROM stock_movements sm JOIN products p ON p.id=sm.product_id WHERE sm.clinic_id=$1 AND ${branchClause("p.branch_id", 2)} ORDER BY sm.created_at DESC LIMIT 500`,
+          `SELECT sm.id,sm.clinic_id AS "clinicId",sm.product_id AS "productId",p.name AS "productName",sm.kind,sm.size,sm.quantity,sm.balance_after AS "balanceAfter",sm.notes,sm.patient_tab_id AS "patientTabId",sm.created_at AS "createdAt" FROM stock_movements sm JOIN products p ON p.id=sm.product_id WHERE sm.clinic_id=$1 AND ${branchClause("p.branch_id", 2)} ORDER BY sm.created_at DESC LIMIT 500`,
           [clinicId, branchIds],
         ),
         repositoryContext.pool.query<PatientTabRow>(
@@ -324,7 +496,7 @@ export function createFinanceRepository(
           [clinicId, branchIds],
         ),
         repositoryContext.pool.query<PatientTabItemRow>(
-          `SELECT i.id,i.tab_id AS "tabId",i.product_id AS "productId",p.name AS "productName",i.quantity,i.unit_price_in_cents AS "unitPriceInCents",i.unit_cost_in_cents AS "unitCostInCents" FROM patient_tab_items i JOIN products p ON p.id=i.product_id WHERE i.clinic_id=$1 ORDER BY i.created_at`,
+          `SELECT i.id,i.tab_id AS "tabId",i.product_id AS "productId",p.name AS "productName",i.size,i.quantity,i.unit_price_in_cents AS "unitPriceInCents",i.unit_cost_in_cents AS "unitCostInCents" FROM patient_tab_items i JOIN products p ON p.id=i.product_id WHERE i.clinic_id=$1 ORDER BY i.created_at`,
           [clinicId],
         ),
         repositoryContext.pool.query<
@@ -388,9 +560,9 @@ export function createFinanceRepository(
               "Classificação do produto não encontrada.",
               404,
             );
-        const result = await writeAndRead<ProductRow>(
+        const result = await writeAndRead<{ id: string }>(
           client,
-          `INSERT INTO products(clinic_id,name,sku,unit,cost_in_cents,sale_price_in_cents,current_stock,minimum_stock,category_id,brand_id,branch_id, id) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,${branchOrDefault("$11", "$1")}, $12)`,
+          `INSERT INTO products(clinic_id,name,sku,unit,cost_in_cents,sale_price_in_cents,current_stock,category_id,brand_id,branch_id, id,sizes,restock_alert_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,${branchOrDefault("$10", "$1")}, $11,$12,$13)`,
           [
             clinicId,
             input.name,
@@ -398,23 +570,42 @@ export function createFinanceRepository(
             input.unit,
             input.costInCents,
             input.salePriceInCents,
-            input.initialStock,
-            input.minimumStock,
+            0,
             input.categoryId ?? null,
             input.brandId ?? null,
             repositoryContext.branchWriteId(),
             randomUUID(),
+            input.sizes ?? [],
+            input.restockAlertAt ?? null,
           ],
-          `SELECT id,clinic_id AS "clinicId",branch_id AS "branchId",name,sku,unit,cost_in_cents AS "costInCents",sale_price_in_cents AS "salePriceInCents",current_stock AS "currentStock",minimum_stock AS "minimumStock",active,category_id AS "categoryId",brand_id AS "brandId",created_at AS "createdAt",updated_at AS "updatedAt" FROM products WHERE id = $12`,
+          `SELECT id FROM products WHERE id = $11`,
         );
         const product = result.rows[0]!;
-        if (input.initialStock > 0)
-          await client.query(
-            `INSERT INTO stock_movements(clinic_id,product_id,kind,quantity,balance_after,notes,actor_user_id) VALUES($1,$2,'initial_stock',$3,$3,'Estoque inicial',$4)`,
-            [clinicId, product.id, input.initialStock, actorUserId],
-          );
+        const initial = input.sizes?.length
+          ? (input.initialSizeStock ?? []).map(
+              (entry) => [entry.size, entry.quantity] as const,
+            )
+          : [[undefined, input.initialStock] as const];
+        for (const [size, quantity] of initial)
+          if (quantity > 0) {
+            await changeProductStock(
+              client,
+              clinicId,
+              product.id,
+              size,
+              quantity,
+            );
+            await client.query(
+              `INSERT INTO stock_movements(clinic_id,product_id,kind,quantity,balance_after,notes,actor_user_id,size) VALUES($1,$2,'initial_stock',$3,$3,'Estoque inicial',$4,$5)`,
+              [clinicId, product.id, quantity, actorUserId, stockKey(size)],
+            );
+          }
+        const created = await client.query<ProductRow>(
+          `SELECT id,clinic_id AS "clinicId",branch_id AS "branchId",name,sku,unit,cost_in_cents AS "costInCents",sale_price_in_cents AS "salePriceInCents",current_stock AS "currentStock",restock_alert_at AS "restockAlertAt",sizes,${productStockRowsColumn},active,category_id AS "categoryId",brand_id AS "brandId",created_at AS "createdAt",updated_at AS "updatedAt" FROM products WHERE id=$1`,
+          [product.id],
+        );
         await client.query("COMMIT");
-        return mapProduct(product);
+        return mapProduct(created.rows[0]!);
       } catch (error) {
         await client.query("ROLLBACK");
         if (hasDatabaseCode(error, "23505"))
@@ -438,7 +629,7 @@ export function createFinanceRepository(
       try {
         await client.query("BEGIN");
         const product = await client.query<ProductRow>(
-          `SELECT id,clinic_id AS "clinicId",name,sku,unit,cost_in_cents AS "costInCents",sale_price_in_cents AS "salePriceInCents",current_stock AS "currentStock",minimum_stock AS "minimumStock",active,created_at AS "createdAt",updated_at AS "updatedAt" FROM products WHERE id=$2 AND clinic_id=$1 FOR UPDATE`,
+          `SELECT id,clinic_id AS "clinicId",name,sku,unit,cost_in_cents AS "costInCents",sale_price_in_cents AS "salePriceInCents",current_stock AS "currentStock",restock_alert_at AS "restockAlertAt",sizes,active,created_at AS "createdAt",updated_at AS "updatedAt" FROM products WHERE id=$2 AND clinic_id=$1 FOR UPDATE`,
           [clinicId, input.productId],
         );
         const row = product.rows[0];
@@ -448,23 +639,27 @@ export function createFinanceRepository(
             "Produto não encontrado.",
             404,
           );
-        const quantity = ["adjustment_out", "loss"].includes(input.kind)
-          ? -input.quantity
-          : input.quantity;
-        const balance = row.currentStock + quantity;
-        if (balance < 0)
-          throw new DomainError(
-            "INSUFFICIENT_STOCK",
-            "O estoque disponível é insuficiente.",
-            409,
-          );
-        await client.query(
-          `UPDATE products SET current_stock=$2,updated_at=NOW(6) WHERE id=$1`,
-          [row.id, balance],
+        const out = isStockOut(input.kind);
+        assertStockSize(
+          { sizes: json<ProductSize[]>(row.sizes) },
+          input.size,
+          {
+            leftoverStock: out
+              ? await productStockOf(client, row.id, input.size)
+              : 0,
+          },
+        );
+        const quantity = out ? -input.quantity : input.quantity;
+        const balance = await changeProductStock(
+          client,
+          clinicId,
+          row.id,
+          input.size,
+          quantity,
         );
         const movement = await writeAndRead<StockMovementRow>(
           client,
-          `INSERT INTO stock_movements(clinic_id,product_id,kind,quantity,balance_after,notes,actor_user_id, id) VALUES ($1,$2,$3,$4,$5,$6,$7, $9)`,
+          `INSERT INTO stock_movements(clinic_id,product_id,kind,quantity,balance_after,notes,actor_user_id, id,size) VALUES ($1,$2,$3,$4,$5,$6,$7, $9,$10)`,
           [
             clinicId,
             row.id,
@@ -475,8 +670,9 @@ export function createFinanceRepository(
             actorUserId,
             row.name,
             randomUUID(),
+            stockKey(input.size),
           ],
-          `SELECT id,clinic_id AS "clinicId",product_id AS "productId",$8 AS "productName",kind,quantity,balance_after AS "balanceAfter",notes,patient_tab_id AS "patientTabId",created_at AS "createdAt" FROM stock_movements WHERE id = $9`,
+          `SELECT id,clinic_id AS "clinicId",product_id AS "productId",$8 AS "productName",kind,size,quantity,balance_after AS "balanceAfter",notes,patient_tab_id AS "patientTabId",created_at AS "createdAt" FROM stock_movements WHERE id = $9`,
         );
         await client.query("COMMIT");
         return mapStockMovement(movement.rows[0]!);
@@ -581,6 +777,9 @@ export function createFinanceRepository(
           ...(input.paymentMethod
             ? { paymentMethod: input.paymentMethod }
             : {}),
+          ...(input.paymentInstallments
+            ? { paymentInstallments: input.paymentInstallments }
+            : {}),
           ...(input.categoryId ? { categoryId: input.categoryId } : {}),
           ...(input.costCenterId ? { costCenterId: input.costCenterId } : {}),
         });
@@ -638,26 +837,26 @@ export function createFinanceRepository(
         await cancelTabServiceCredits(client, clinicId, actorUserId, tabId);
         const items = await client.query<{
           productId: string;
+          size: string;
           quantity: number;
         }>(
-          `SELECT product_id AS "productId",quantity FROM patient_tab_items WHERE tab_id=$1 ORDER BY product_id FOR UPDATE`,
+          `SELECT product_id AS "productId",size,quantity FROM patient_tab_items WHERE tab_id=$1 ORDER BY product_id,size FOR UPDATE`,
           [tabId],
         );
         for (const item of items.rows) {
-          const product = await client.query<{
-            name: string;
-            currentStock: number;
-          }>(
-            `SELECT name,current_stock AS "currentStock" FROM products WHERE id=$1 FOR UPDATE`,
-            [item.productId],
+          await client.query(`SELECT id FROM products WHERE id=$1 FOR UPDATE`, [
+            item.productId,
+          ]);
+          const size = (item.size || undefined) as ProductSize | undefined;
+          const balance = await changeProductStock(
+            client,
+            clinicId,
+            item.productId,
+            size,
+            item.quantity,
           );
-          const balance = product.rows[0]!.currentStock + item.quantity;
           await client.query(
-            `UPDATE products SET current_stock=$2,updated_at=NOW(6) WHERE id=$1`,
-            [item.productId, balance],
-          );
-          await client.query(
-            `INSERT INTO stock_movements(clinic_id,product_id,patient_tab_id,kind,quantity,balance_after,notes,actor_user_id) VALUES($1,$2,$3,'sale_reversal',$4,$5,$6,$7)`,
+            `INSERT INTO stock_movements(clinic_id,product_id,patient_tab_id,kind,quantity,balance_after,notes,actor_user_id,size) VALUES($1,$2,$3,'sale_reversal',$4,$5,$6,$7,$8)`,
             [
               clinicId,
               item.productId,
@@ -666,6 +865,7 @@ export function createFinanceRepository(
               balance,
               `Estorno da comanda de ${row.patientName}`,
               actorUserId,
+              item.size,
             ],
           );
         }
@@ -876,6 +1076,7 @@ export function createFinanceRepository(
         description: receivable.description,
         amountInCents: receivable.amountInCents,
         paymentMethod: receivable.paymentMethod,
+        ...receiptInstallments(receivable),
         paidAt: receivable.paidAt,
         clinicName: row?.clinicName ?? "",
         clinicLegalName: row?.clinicLegalName ?? "",
@@ -936,7 +1137,7 @@ export function createFinanceRepository(
                 p.full_name AS "professionalName", ce.appointment_id AS "appointmentId",ce.group_attendance_id AS "groupAttendanceId",ce.service_id AS "serviceId",ce.rule_id AS "ruleId",ce.rule_snapshot AS "ruleSnapshot",
                 ce.competence, ce.base_amount_in_cents AS "baseAmountInCents",
                 ce.percentage, ce.amount_in_cents AS "amountInCents", ce.status,
-                ce.paid_at AS "paidAt", ce.created_at AS "createdAt"
+                ce.paid_at AS "paidAt", ce.created_at AS "createdAt",ce.payroll_payable_id AS "payrollPayableId"
          FROM commission_entries ce JOIN professionals p ON p.id = ce.professional_id
          WHERE ce.clinic_id = $1 AND ${branchClause("p.branch_id", 2)}
          ORDER BY ce.competence DESC, p.full_name`,
@@ -979,6 +1180,7 @@ export function createFinanceRepository(
                 clinicDateOf(new Date(item.paidAt), timezone).slice(0, 7) ===
                   clinicMonth &&
                 !tracked.has(item.id) &&
+                !item.payrollPayableId &&
                 !mapped.some(
                   (expense) =>
                     expense.commissionId === item.id &&
@@ -1401,9 +1603,16 @@ export function createFinanceRepository(
         // esperar o valor do mês e a fixa volta a poder ser paga.
         if (model.amountType !== input.amountType)
           await client.query(
-            `UPDATE payables SET amount_pending = $3, updated_at = NOW(6)
+            `UPDATE payables SET amount_pending = $3,
+             amount_in_cents = CASE WHEN NOT $3 AND amount_in_cents = 0 THEN $4 ELSE amount_in_cents END,
+             updated_at = NOW(6)
            WHERE clinic_id = $1 AND recurring_payable_id = $2 AND status = 'open'`,
-            [clinicId, recurringPayableId, input.amountType === "variable"],
+            [
+              clinicId,
+              recurringPayableId,
+              input.amountType === "variable",
+              input.amountInCents,
+            ],
           );
         return repositoryContext.findRecurringPayable(
           client,
@@ -1851,137 +2060,17 @@ export function createFinanceRepository(
     },
 
     async getDailyCash(clinicId: string, date: string): Promise<DailyCash> {
-      const branchIds = repositoryContext.branchReadIds();
-      const client = await repositoryContext.pool.connect();
-      try {
-        await client.query("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ");
-        await client.query(
-          "START TRANSACTION WITH CONSISTENT SNAPSHOT, READ ONLY",
-        );
-        const clinic = await client.query<{ timezone: string }>(
-          `SELECT timezone FROM clinics WHERE id=$1`,
-          [clinicId],
-        );
-        // Estorno não registra forma: herda a do pagamento mais recente do
-        // mesmo recebível até o estorno.
-        const receiptResult = await client.query<{
-          id: string;
-          receivableId: string;
-          kind: "payment" | "payment_reversal";
-          patientId: string;
-          patientName: string;
-          description: string;
-          amountInCents: number;
-          occurredAt: Date;
-          availableAt: Date;
-          paymentMethod: ReceivedPayment["paymentMethod"] | null;
-        }>(
-          `SELECT fe.id, fe.receivable_id AS "receivableId", fe.kind,
-                r.patient_id AS "patientId", p.full_name AS "patientName",
-                r.description, fe.amount_in_cents AS "amountInCents",
-                coalesce(dc.occurred_at,fe.occurred_at,fe.created_at) AS "occurredAt",coalesce(dc.cash_available_at,fe.cash_available_at,fe.occurred_at,fe.created_at) AS "availableAt",
-                COALESCE(JSON_VALUE(fe.metadata, '$.paymentMethod'), (
-                  SELECT JSON_VALUE(prev.metadata, '$.paymentMethod') FROM financial_events prev
-                  WHERE prev.clinic_id=fe.clinic_id AND prev.receivable_id=fe.receivable_id
-                    AND prev.kind='payment' AND prev.created_at<=fe.created_at
-                    AND JSON_VALUE(prev.metadata, '$.paymentMethod') IS NOT NULL
-                  ORDER BY prev.created_at DESC LIMIT 1
-                )) AS "paymentMethod"
-         FROM financial_events fe
-         ${latestDateCorrection("dc", "fe", "receivable_event_id")}
-         JOIN receivables r ON r.id=fe.receivable_id
-         JOIN patients p ON p.id=r.patient_id
-         WHERE fe.clinic_id=$1 AND fe.kind IN ('payment','payment_reversal')
-           AND ${branchClause("r.branch_id", 3)}
-           AND ${localDate("coalesce(dc.cash_available_at,fe.cash_available_at,fe.occurred_at,fe.created_at)")}=$2`,
-          [clinicId, date, branchIds],
-        );
-        const payableResult = await client.query<PayableRow>(
-          `SELECT ${payableColumns} FROM payables py
-         JOIN financial_categories fc ON fc.id = py.category_id
-         LEFT JOIN cost_centers cc ON cc.id = py.cost_center_id
-         WHERE py.clinic_id=$1 AND ${branchClause("py.branch_id", 2)}`,
-          [clinicId, branchIds],
-        );
-        const payableEvents = await client.query<{
-          id: string;
-          clinicId: string;
-          payableId: string;
-          kind: "payment" | "payment_reversal";
-          occurredAt: Date;
-          availableAt: Date;
-          amountInCents: number;
-          paymentMethod: PaymentMethod | null;
-        }>(
-          `SELECT pe.id,pe.clinic_id AS "clinicId",pe.payable_id AS "payableId",pe.kind,coalesce(dc.occurred_at,pe.occurred_at,pe.created_at) AS "occurredAt",coalesce(dc.cash_available_at,pe.cash_available_at,pe.occurred_at,pe.created_at) AS "availableAt",-pe.amount_in_cents AS "amountInCents",coalesce(JSON_VALUE(pe.metadata, '$.paymentMethod'),(SELECT JSON_VALUE(prev.metadata, '$.paymentMethod') FROM payable_events prev WHERE prev.clinic_id=pe.clinic_id AND prev.payable_id=pe.payable_id AND prev.kind='payment' AND prev.created_at<=pe.created_at ORDER BY prev.created_at DESC LIMIT 1)) AS "paymentMethod" FROM payable_events pe ${latestDateCorrection("dc", "pe", "payable_event_id")} WHERE pe.clinic_id=$1 AND pe.kind IN ('payment','payment_reversal') AND EXISTS(SELECT 1 FROM payables pb WHERE pb.id=pe.payable_id AND ${branchClause("pb.branch_id", 2)})`,
-          [clinicId, branchIds],
-        );
-        const commissionEvents = await client.query<{
-          id: string;
-          clinicId: string;
-          commissionId: string;
-          kind: "payment" | "reversal";
-          amountInCents: number;
-          occurredAt: Date;
-        }>(
-          `SELECT e.id,e.clinic_id AS "clinicId",e.commission_id AS "commissionId",e.kind,e.amount_in_cents AS "amountInCents",e.occurred_at AS "occurredAt",e.professional_name AS "professionalName" FROM commission_payment_events e JOIN commission_entries ce ON ce.id=e.commission_id JOIN professionals p ON p.id=ce.professional_id WHERE e.clinic_id=$1 AND ${branchClause("p.branch_id", 2)}`,
-          [clinicId, branchIds],
-        );
-        const commissionResult = await client.query<CommissionEntryRow>(
-          `SELECT ce.id, ce.clinic_id AS "clinicId", ce.professional_id AS "professionalId",
-                p.full_name AS "professionalName", ce.appointment_id AS "appointmentId",ce.group_attendance_id AS "groupAttendanceId",ce.service_id AS "serviceId",ce.rule_id AS "ruleId",ce.rule_snapshot AS "ruleSnapshot",
-                ce.competence, ce.base_amount_in_cents AS "baseAmountInCents",
-                ce.percentage, ce.amount_in_cents AS "amountInCents", ce.status,
-                ce.paid_at AS "paidAt", ce.created_at AS "createdAt"
-         FROM commission_entries ce
-         JOIN professionals p ON p.id = ce.professional_id
-         WHERE ce.clinic_id=$1 AND ${branchClause("p.branch_id", 2)}`,
-          [clinicId, branchIds],
-        );
-        await client.query("COMMIT");
-        const receipts: ReceivedPayment[] = receiptResult.rows.map((item) => ({
-          id: item.id,
-          receivableId: item.receivableId,
-          kind: item.kind === "payment" ? "payment" : "reversal",
-          occurredAt: item.occurredAt.toISOString(),
-          availableAt: item.availableAt.toISOString(),
-          patientId: item.patientId,
-          patientName: item.patientName,
-          description: item.description,
-          amountInCents: item.amountInCents,
-          ...(item.paymentMethod ? { paymentMethod: item.paymentMethod } : {}),
-        }));
-        return buildDailyCash(
-          date,
-          {
-            receipts,
-            payables: payableResult.rows.map(mapPayable),
-            payableEvents: payableEvents.rows.map((item) => ({
-              ...item,
-              kind:
-                item.kind === "payment"
-                  ? ("payment" as const)
-                  : ("reversal" as const),
-              occurredAt: item.occurredAt.toISOString(),
-              availableAt: item.availableAt.toISOString(),
-              ...(item.paymentMethod
-                ? { paymentMethod: item.paymentMethod }
-                : { paymentMethod: undefined }),
-            })),
-            commissionEvents: commissionEvents.rows.map((item) => ({
-              ...item,
-              occurredAt: item.occurredAt.toISOString(),
-            })),
-            commissions: commissionResult.rows.map(mapCommissionEntry),
-          },
-          clinic.rows[0]?.timezone ?? DEFAULT_CLINIC_TIMEZONE,
-        );
-      } catch (error) {
-        await client.query("ROLLBACK");
-        throw error;
-      } finally {
-        client.release();
-      }
+      const { sources, timeZone } = await loadCashSources(clinicId, date, date);
+      return buildDailyCash(date, sources, timeZone);
+    },
+
+    async listCashMovements(
+      clinicId: string,
+      from: string,
+      to: string,
+    ): Promise<CashMovement[]> {
+      const { sources, timeZone } = await loadCashSources(clinicId, from, to);
+      return collectCashMovements(sources, from, to, timeZone);
     },
 
     async listReceivedPayments(

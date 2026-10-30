@@ -4,8 +4,6 @@ import type {
   PatientOption,
   Professional,
   Room,
-  DocumentTemplate,
-  GroupClass,
   Service,
 } from "@crm/contracts";
 import { recurringOccurrenceStarts } from "@crm/contracts";
@@ -17,11 +15,11 @@ import { AppointmentForm } from "../agenda/index";
 import { Modal } from "../../shared/components/Modal";
 import { ErrorBanner } from "../../shared/components/ErrorBanner";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
-import { PlanGroupPicker } from "../../shared/components/PlanGroupPicker";
-export type PurchaseOptions = Pick<
-  PlanPurchaseInput,
-  "appointments" | "groupId" | "document"
->;
+/**
+ * A turma é escolhida no próprio formulário do plano (`PlanForm`) e o documento para
+ * assinatura no `PlanModal`.
+ */
+export type PurchaseOptions = Pick<PlanPurchaseInput, "appointments">;
 export function PlanPurchaseOptions({
   plan,
   patients,
@@ -42,33 +40,18 @@ export function PlanPurchaseOptions({
     [attempt, setAttempt] = useState(0),
     [error, setError] = useState(""),
     [loaded, setLoaded] = useState(false),
-    [groups, setGroups] = useState<GroupClass[]>([]),
-    [templates, setTemplates] = useState<DocumentTemplate[]>([]),
     [professionals, setProfessionals] = useState<Professional[]>([]),
     [rooms, setRooms] = useState<Room[]>([]),
     [scheduling, setScheduling] = useState(false),
     [busy, setBusy] = useState(false),
     [nested, setNested] = useState(false);
-  const canGroups = can("groups.enroll"),
-    canDocument = can("contracts.issue") && can("contracts.status"),
-    canAgenda = can("agenda.create");
+  const canAgenda = can("agenda.create");
   useEffect(() => {
-    if (!expanded) return;
+    if (!expanded || !canAgenda) return;
     let alive = true;
-    const from = new Date().toISOString(),
-      to = new Date(Date.now() + 86400000).toISOString();
-    Promise.all([
-      canGroups
-        ? api.groupWorkspace(from, to)
-        : Promise.resolve({ groups: [] }),
-      canDocument ? api.documentTemplates() : Promise.resolve([]),
-      canAgenda ? api.professionals() : Promise.resolve([]),
-      canAgenda ? api.rooms() : Promise.resolve([]),
-    ])
-      .then(([workspace, documents, staff, places]) => {
+    Promise.all([api.professionals(), api.rooms()])
+      .then(([staff, places]) => {
         if (alive) {
-          setGroups(workspace.groups);
-          setTemplates(documents.filter((item) => item.active));
           setProfessionals(staff);
           setRooms(places);
           setLoaded(true);
@@ -80,12 +63,13 @@ export function PlanPurchaseOptions({
     return () => {
       alive = false;
     };
-  }, [expanded, attempt, canGroups, canDocument, canAgenda]);
+  }, [expanded, attempt, canAgenda]);
   const patient = patients.find((item) => item.id === plan.patientId);
   function schedule(open: boolean) {
     setScheduling(open);
     onNestedChange(open);
   }
+  if (!canAgenda) return null;
   return (
     <div className="span-2">
       <details
@@ -99,7 +83,7 @@ export function PlanPurchaseOptions({
           }
         }}
       >
-        <summary>Agenda, turma e contrato da contratação</summary>
+        <summary>Horários da contratação</summary>
         {expanded && (
           <div className="clinical-form">
             {error && (
@@ -117,116 +101,43 @@ export function PlanPurchaseOptions({
             {!loaded && !error && <LoadingBlock />}
             {loaded && (
               <>
-                {canGroups && plan.kind !== "single" && (
-                  <PlanGroupPicker
-                    groups={{
-                      items: groups,
-                      error: "",
-                      retry: () => setAttempt((value) => value + 1),
-                    }}
-                    services={plan.services}
-                    value={value.groupId ?? ""}
-                    onChange={(groupId) => {
-                      const next = { ...value };
-                      if (groupId) next.groupId = groupId;
-                      else delete next.groupId;
-                      onChange(next);
-                    }}
-                  />
-                )}
-                {canDocument && (
-                  <label>
-                    Modelo de contrato ou termo
-                    <select
-                      value={value.document?.templateId ?? ""}
-                      onChange={(event) => {
-                        const template = templates.find(
-                            (item) => item.id === event.target.value,
-                          ),
-                          next = { ...value };
-                        if (template)
-                          next.document = {
-                            templateId: template.id,
-                            title: template.name,
-                          };
-                        else delete next.document;
-                        onChange(next);
-                      }}
-                    >
-                      <option value="">Emitir depois</option>
-                      {templates.map((item) => (
-                        <option value={item.id} key={item.id}>
-                          {item.name} · versão {item.version}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                )}
-                {value.document && (
-                  <label>
-                    Título do documento da contratação
-                    <input
-                      required
-                      minLength={3}
-                      maxLength={160}
-                      value={value.document.title}
-                      onChange={(event) =>
-                        onChange({
-                          ...value,
-                          document: {
-                            ...value.document!,
-                            title: event.target.value,
-                          },
-                        })
+                <button
+                  type="button"
+                  className="secondary-button"
+                  disabled={!patient || !plan.services.length}
+                  onClick={() => schedule(true)}
+                >
+                  Adicionar horários à contratação
+                </button>
+                {value.appointments.map((item, index) => (
+                  <div className="table-row" key={`${index}:${item.startsAt}`}>
+                    <span>
+                      {new Date(item.startsAt).toLocaleString("pt-BR")} ·{" "}
+                      {
+                        professionals.find(
+                          (professional) =>
+                            professional.id === item.professionalId,
+                        )?.fullName
                       }
-                    />
-                  </label>
-                )}
-                {canAgenda && (
-                  <>
+                    </span>
                     <button
                       type="button"
                       className="secondary-button"
-                      disabled={!patient || !plan.services.length}
-                      onClick={() => schedule(true)}
+                      onClick={() =>
+                        onChange({
+                          ...value,
+                          appointments: value.appointments.filter(
+                            (_, position) => position !== index,
+                          ),
+                        })
+                      }
                     >
-                      Adicionar horários à contratação
+                      Remover horário
                     </button>
-                    {value.appointments.map((item, index) => (
-                      <div
-                        className="table-row"
-                        key={`${index}:${item.startsAt}`}
-                      >
-                        <span>
-                          {new Date(item.startsAt).toLocaleString("pt-BR")} ·{" "}
-                          {
-                            professionals.find(
-                              (professional) =>
-                                professional.id === item.professionalId,
-                            )?.fullName
-                          }
-                        </span>
-                        <button
-                          type="button"
-                          className="secondary-button"
-                          onClick={() =>
-                            onChange({
-                              ...value,
-                              appointments: value.appointments.filter(
-                                (_, position) => position !== index,
-                              ),
-                            })
-                          }
-                        >
-                          Remover horário
-                        </button>
-                      </div>
-                    ))}
-                  </>
-                )}
+                  </div>
+                ))}
                 <p>
-                  Os horários, a matrícula e o documento serão confirmados junto
-                  com o plano e as parcelas.
+                  Os horários serão confirmados junto com o plano e as parcelas.
                 </p>
               </>
             )}

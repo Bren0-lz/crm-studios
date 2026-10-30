@@ -305,6 +305,13 @@
   background: #f7f8f5;
 }
 
+/* Bloco de um dos planos do cadastro guiado: "Remover plano" abaixo dos campos. */
+.guided-plan-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: var(--space-4);
+}
+
 .form-fieldset legend {
   padding: 0 6px;
   color: #4d5b55;
@@ -946,4 +953,90 @@ p.field-hint {
 .file-field {
   display: grid;
   gap: var(--space-2);
+}
+
+/* Desconto do plano no cadastro: resumo e botão que abre o modal. */
+.discount-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.discount-summary > .muted-copy {
+  margin: 0;
+}
+
+/* No fim do bloco do plano/serviço avulso, separado dos termos acima. */
+.plan-discount {
+  margin-top: var(--space-4);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--line);
+}
+
+/* Sacola do cadastro: itens, descontos e total, como no carrinho de uma loja. */
+.order-summary {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.order-lines {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.order-line,
+.order-totals > div {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--space-3);
+  font-size: var(--text-md);
+}
+
+.order-line > span:first-child {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.order-line .muted-copy {
+  margin: 0;
+  font-size: var(--text-sm);
+}
+
+.order-line .numeric-value,
+.order-totals dd {
+  margin: 0;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.order-discount {
+  color: var(--green);
+}
+
+.order-totals {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--line);
+}
+
+.order-total {
+  font-size: var(--text-lg);
+  font-weight: 600;
+}
+
+.order-summary > .muted-copy {
+  margin: 0;
+  font-size: var(--text-sm);
+}
+
+.order-summary > .plan-discount {
+  margin-top: 0;
 }

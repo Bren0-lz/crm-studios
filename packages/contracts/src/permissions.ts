@@ -23,7 +23,17 @@ const additionalPermissions = new Set([
   "reports.team_finance",
   "communications.templates",
   "communications.campaigns",
+  "finance.payroll_view",
+  "finance.payroll_manage",
 ]);
+/** Exportação de planilha de cada relatório → consulta do relatório exportado. */
+const reportSpreadsheetExports: Partial<Record<string, PermissionKey>> = {
+  "reports.dre_export": "reports.dre",
+  "reports.financial_export": "reports.dre",
+  "reports.management_export": "reports.management",
+  "reports.clients_export": "reports.clients",
+  "reports.sales_export": "reports.sales",
+};
 const operations = {
   agenda: {
     view_all: "Ver agenda de todos os profissionais",
@@ -53,8 +63,8 @@ const operations = {
   patients: {
     create: "Cadastrar cliente",
     update: "Editar cliente",
-    import: "Importar clientes",
-    export: "Exportar clientes",
+    import: "Importar planilha de clientes",
+    export: "Exportar planilha de clientes",
     timeline: "Consultar histórico do cliente",
     inventory_view: "Consultar estoque e comandas",
     products_update: "Editar produto",
@@ -97,6 +107,7 @@ const operations = {
   contracts: {
     templates_create: "Criar modelo de contrato",
     templates_version: "Versionar modelo de contrato",
+    templates_delete: "Excluir modelo de contrato",
     issue: "Emitir contrato",
     status: "Alterar situação do contrato",
     cancel: "Cancelar contrato",
@@ -106,9 +117,9 @@ const operations = {
     export: "Exportar prontuário",
     access_events: "Consultar acessos ao prontuário",
     attachments_read: "Baixar anexo clínico",
-    records_create: "Registrar evolução",
-    records_update: "Editar evolução em rascunho",
-    finalize: "Finalizar evolução",
+    records_create: "Registrar relatório ou prescrição",
+    records_update: "Editar relatório em rascunho e alertas clínicos",
+    finalize: "Finalizar relatório ou prescrição",
     attachments_create: "Anexar documento clínico",
     addenda_create: "Registrar adendo",
     templates_create: "Criar modelo de avaliação",
@@ -137,6 +148,8 @@ const operations = {
     commissions_generate: "Gerar comissões",
     commissions_pay: "Pagar comissão",
     commissions_reverse: "Estornar comissão",
+    payroll_view: "Consultar folha de pagamento",
+    payroll_manage: "Gerenciar colaboradores e lançar a folha de pagamento",
     categories_create: "Cadastrar categoria financeira",
     cost_centers_create: "Cadastrar centro de custo",
     payables_create: "Cadastrar conta a pagar",
@@ -151,7 +164,11 @@ const operations = {
     retention: "Consultar retenção",
     clients: "Consultar relatório de clientes",
     sales: "Consultar vendas",
-    export: "Exportar relatórios",
+    dre_export: "Exportar planilha da DRE",
+    financial_export: "Exportar planilha do relatório financeiro",
+    management_export: "Exportar planilha do relatório gerencial",
+    clients_export: "Exportar planilha do relatório de clientes",
+    sales_export: "Exportar planilha de vendas",
   },
   settings: {
     registry_manage: "Editar e desativar cadastros administrativos",
@@ -212,6 +229,11 @@ export const permissionCatalog: readonly PermissionDefinition[] =
             dependencies.push("finance.external_records_view");
           if (key === "reports.team_finance")
             dependencies.push("reports.management");
+          if (key === "finance.payroll_manage")
+            dependencies.push("finance.payroll_view");
+          // Cada planilha de relatório exige consultar o próprio relatório.
+          const exportedReport = reportSpreadsheetExports[key];
+          if (exportedReport) dependencies.push(exportedReport);
           if (key === "patients.timeline") {
             dependencies.push("crm.view");
             legacyView.push("crm");

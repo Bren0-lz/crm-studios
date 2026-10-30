@@ -1,8 +1,12 @@
 import {
   patientFirstName,
   patientTagDisplayColor,
+  discountedPlanInstallments,
+  planInstallmentSchedule,
   planPixChargeMessage,
+  productSizeLabels,
   whatsappLink,
+  withPlanFirstCharge,
 } from "@crm/contracts";
 import {
   isValidCpf,
@@ -11,41 +15,79 @@ import {
   type GuidedPatientInput,
   type GuidedPatientNext,
   type Patient,
+  type PatientDiscount,
   type PatientInput,
   type PatientTag,
+  type Product,
   withoutAutomaticPatientTags,
 } from "@crm/contracts";
-import { MessageCircle } from "lucide-react";
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { MessageCircle, Plus, Trash2 } from "lucide-react";
+import {
+  type Dispatch,
+  type FormEvent,
+  type SetStateAction,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
+import { createPortal } from "react-dom";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
 import { useToast } from "../../shared/feedback/toast-context";
 import { CpfInput } from "../../shared/components/CpfInput";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
 import { useMissingFields } from "../../shared/components/MissingFields";
+import { planGroupMissing } from "../../shared/lib/plan-groups";
 import { Modal, ModalCancelButton } from "../../shared/components/Modal";
 import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
 import { PhoneInput } from "../../shared/components/PhoneInput";
 import { TagChoice } from "../../shared/components/TagChoice";
-import { tagColorLookup } from "../../shared/lib/formatting";
+import {
+  currency,
+  localIsoDate,
+  tagColorLookup,
+} from "../../shared/lib/formatting";
 import { planKindLabels } from "../plans/index";
+import { sellableStock } from "../sales/index";
 import { GuidedDemonstrationFields } from "./GuidedDemonstrationFields";
 import { GuidedGroupField } from "./GuidedGroupField";
+import { GuidedOrderSummary } from "./GuidedOrderSummary";
 import { GuidedPlanFields } from "./GuidedPlanFields";
 import {
+  GuidedProductFields,
+  GuidedProductPaymentFields,
+  type GuidedProductPayment,
+} from "./GuidedProductFields";
+import {
+  guidedOrder,
+  type GuidedProductLine,
+  type OrderPlanItem,
+} from "./order";
+import {
   defaultGuidedDemonstration,
-  defaultPlanTerms,
+  defaultGuidedPlanEntry,
+  defaultSingleForm,
   guidedNotice,
   guidedPlanKinds,
   guidedStepLabels,
   guidedStepOrder,
   guidedStepPermissions,
   guidedSubmitLabels,
+  maxGuidedPlans,
+  missingPlanFields,
+  withPlanDiscount,
 } from "./model";
+import {
+  PatientDiscountModal,
+  type DiscountTarget,
+} from "./PatientDiscountModal";
+import { PlanDiscountSummary } from "./PlanDiscountSummary";
 import { PatientTimelineSection } from "./PatientTimelineSection";
 import { PatientProfileFields } from "./PatientProfileFields";
 import type {
+  GuidedPlanEntry,
   GuidedPlanForm,
+  GuidedSingleEntry,
   GuidedSingleForm,
   PatientRegistrationResult,
 } from "./types";
@@ -88,6 +130,12 @@ export function PatientModal({
   const editable = patient ? can("patients.update") : can("patients.create");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  // Desconto (de plano, produto ou geral) em edição no modal: o atual e onde gravá-lo.
+  const [discountTarget, setDiscountTarget] = useState<{
+    target: DiscountTarget;
+    discount: PatientDiscount | undefined;
+    apply: (discount: PatientDiscount | null) => void;
+  } | null>(null);
   const submitting = useRef(false);
   function field<K extends keyof PatientInput>(key: K, value: PatientInput[K]) {
     setForm((current) => ({ ...current, [key]: value }));
@@ -122,16 +170,110 @@ export function PatientModal({
   const [demonstration, setDemonstration] = useState(
     defaultGuidedDemonstration,
   );
-  const [planForm, setPlanForm] = useState<GuidedPlanForm>(() => ({
-    kind: "fixed_package",
-    ...defaultPlanTerms(),
-  }));
-  const [singleForm, setSingleForm] = useState<GuidedSingleForm>(() => ({
-    ...defaultPlanTerms(),
-    name: "Serviço avulso",
-    installments: 1,
-    validUntil: "",
-  }));
+  // Planos do passo "Assinar um plano": o cliente pode assinar vários de uma vez.
+  const nextPlanId = useRef(1);
+  const [plans, setPlans] = useState<GuidedPlanEntry[]>(() => [
+    defaultGuidedPlanEntry(0),
+  ]);
+  function updatePlan(id: number, patch: Partial<GuidedPlanEntry>) {
+    setPlans((current) =>
+      current.map((entry) =>
+        entry.id === id ? { ...entry, ...patch } : entry,
+      ),
+    );
+  }
+  function planFormSetter(
+    id: number,
+  ): Dispatch<SetStateAction<GuidedPlanForm>> {
+    return (action) =>
+      setPlans((current) =>
+        current.map((entry) =>
+          entry.id === id
+            ? {
+                ...entry,
+                form:
+                  typeof action === "function" ? action(entry.form) : action,
+              }
+            : entry,
+        ),
+      );
+  }
+  // Serviços avulsos comprados junto com os planos (passo "Assinar um plano").
+  const [singles, setSingles] = useState<GuidedSingleEntry[]>([]);
+  function singleFormSetter(
+    id: number,
+  ): Dispatch<SetStateAction<GuidedSingleForm>> {
+    return (action) =>
+      setSingles((current) =>
+        current.map((entry) =>
+          entry.id === id
+            ? {
+                ...entry,
+                form:
+                  typeof action === "function" ? action(entry.form) : action,
+              }
+            : entry,
+        ),
+      );
+  }
+  const [singleForm, setSingleForm] =
+    useState<GuidedSingleForm>(defaultSingleForm);
+  function editDiscount<T extends { discount?: PatientDiscount | undefined }>(
+    discount: PatientDiscount | undefined,
+    setForm: Dispatch<SetStateAction<T>>,
+  ) {
+    setDiscountTarget({
+      target: "plan",
+      discount,
+      apply: (next) => setForm((current) => withPlanDiscount(current, next)),
+    });
+  }
+  // Produtos levados junto com o plano/serviço avulso (mesma venda da tela Vendas).
+  const sellsProducts =
+    can("patients.inventory_view") &&
+    can("patients.tabs_create") &&
+    can("patients.tabs_items") &&
+    can("patients.tabs_close");
+  const nextProductKey = useRef(1);
+  const [productLines, setProductLines] = useState<GuidedProductLine[]>([]);
+  const [productPayment, setProductPayment] = useState<GuidedProductPayment>(
+    () => ({
+      settlement: "paid",
+      paymentMethod: "pix",
+      paymentInstallments: 1,
+      dueDate: localIsoDate(),
+    }),
+  );
+  // Produtos ativos da filial; `null` enquanto não buscados.
+  const [products, setProducts] = useState<Product[] | null>(null);
+  const [productsError, setProductsError] = useState("");
+  const productsRequested = useRef(false);
+  const [orderDiscount, setOrderDiscount] = useState<PatientDiscount>();
+  function updateProductLine(key: number, patch: Partial<GuidedProductLine>) {
+    setProductLines((current) =>
+      current.map((line) => (line.key === key ? { ...line, ...patch } : line)),
+    );
+  }
+  function addProductLine() {
+    setProductLines((current) => [
+      ...current,
+      {
+        key: nextProductKey.current++,
+        productId: "",
+        size: "",
+        quantity: 1,
+        unitPriceInCents: 0,
+      },
+    ]);
+    if (productsRequested.current) return;
+    productsRequested.current = true;
+    api
+      .inventoryWorkspace()
+      .then((workspace) =>
+        setProducts(workspace.products.filter((item) => item.active)),
+      )
+      .catch((cause: Error) => setProductsError(cause.message));
+  }
   // Chave Pix da clínica para a cobrança do plano vendido no cadastro; `null` enquanto carrega.
   const sellsPlans = guidedSteps.some(
     (item) => item === "plan" || item === "single",
@@ -163,19 +305,96 @@ export function PatientModal({
     result: PatientRegistrationResult;
     message: string;
   } | null>(null);
-  const [groupId, setGroupId] = useState("");
   // Turmas carregadas uma vez (sobrevivem à troca de opção); `null` enquanto não buscadas.
   const [groups, setGroups] = useState<GroupClass[] | null>(null);
+  /** Horários da turma escolhida: base do 1º pagamento proporcional do plano. */
+  const slotsOf = (groupId: string) =>
+    groups?.find((group) => group.id === groupId)?.weeklySlots;
+  // Plano de aulas em grupo exige a turma (quem não matricula escolhe depois).
+  const canEnroll = can("groups.enroll");
+  const groupMissing = (plan: GuidedPlanForm, groupId: string) =>
+    canEnroll && planGroupMissing(groups, plan.services, groupId);
   const dirty = useFormDirty({
     form,
     step,
     demonstration,
-    planForm,
+    plans,
+    singles,
     singleForm,
-    groupId,
+    productLines,
+    orderDiscount,
   });
   // O que falta no cadastro e na etapa guiada escolhida: o botão fica desativado listando (QM14).
-  const guidedPlan = step === "plan" ? planForm : singleForm;
+  const planLabel = (index: number) =>
+    plans.length > 1 ? `Plano ${index + 1}` : "Plano";
+  const singleLabel = (index: number) =>
+    singles.length > 1 ? `Serviço avulso ${index + 1}` : "Serviço avulso";
+  const productOf = (id: string) => products?.find((item) => item.id === id);
+  // Produtos só entram junto com plano ou serviço avulso.
+  const soldProducts =
+    step === "plan" || step === "single"
+      ? productLines.filter((line) => productOf(line.productId))
+      : [];
+  const orderPlans: (OrderPlanItem & { form: GuidedSingleForm })[] = [
+    ...(step === "plan"
+      ? [
+          ...plans.map((entry, index) => ({
+            key: `plan-${entry.id}`,
+            label: planLabel(index),
+            form: entry.form,
+            terms: withPlanFirstCharge(entry.form, slotsOf(entry.groupId)),
+          })),
+          ...singles.map((entry, index) => ({
+            key: `plan-${entry.id}`,
+            label: singleLabel(index),
+            form: entry.form,
+            terms: entry.form,
+          })),
+        ]
+      : step === "single"
+        ? [
+            {
+              key: "single",
+              label: "Serviço avulso",
+              form: singleForm,
+              terms: singleForm,
+            },
+          ]
+        : []),
+  ]
+    .filter((item) => item.form.planTemplateId)
+    .map((item) => ({
+      key: item.key,
+      name: item.form.name || item.label,
+      detail: `${item.label} · ${item.form.installments === 1 ? "1 cobrança" : `${item.form.installments} parcelas`}`,
+      terms: item.terms,
+      discount: item.form.discount,
+      form: item.form,
+    }));
+  const order = guidedOrder(
+    orderPlans,
+    soldProducts.map((line) => {
+      const product = productOf(line.productId)!;
+      return {
+        key: `product-${line.key}`,
+        name: product.name,
+        detail: `${line.quantity} × ${currency.format(line.unitPriceInCents / 100)}${line.size ? ` · ${productSizeLabels[line.size]}` : ""}`,
+        quantity: line.quantity,
+        unitPriceInCents: line.unitPriceInCents,
+        discount: line.discount,
+      };
+    }),
+    orderDiscount,
+  );
+  const orderLine = (key: string) =>
+    order.lines.find((line) => line.key === key);
+  /** Termos do plano com a parte do desconto geral que coube a ele. */
+  function withOrderShare<T extends GuidedSingleForm>(form: T, key: string): T {
+    const terms = { ...form };
+    delete terms.orderDiscountInCents;
+    const share = orderLine(key)?.orderDiscountInCents ?? 0;
+    return share ? { ...terms, orderDiscountInCents: share } : terms;
+  }
   const missing = useMissingFields([
     ...(form.fullName.trim() ? [] : ["Nome completo"]),
     ...(form.cpf.trim() ? [] : ["CPF"]),
@@ -188,12 +407,35 @@ export function PatientModal({
           !demonstration.startsAt && "Data e horário",
         ].filter((item): item is string => Boolean(item))
       : []),
-    ...(step === "plan" || step === "single"
-      ? [
-          !guidedPlan.planTemplateId && "Plano cadastrado",
-          !guidedPlan.validFrom && "Início",
-          !guidedPlan.firstDueDate && "Primeiro vencimento",
-        ].filter((item): item is string => Boolean(item))
+    ...(step === "plan"
+      ? plans.flatMap(({ form: plan, groupId }, index) =>
+          [
+            ...missingPlanFields(plan),
+            ...(groupMissing(plan, groupId) ? ["Turma"] : []),
+          ].map((item) =>
+            plans.length > 1 ? `${planLabel(index)}: ${item}` : item,
+          ),
+        )
+      : []),
+    ...(step === "plan"
+      ? singles.flatMap(({ form: single }, index) =>
+          missingPlanFields(single).map(
+            (item) => `${singleLabel(index)}: ${item}`,
+          ),
+        )
+      : []),
+    ...(step === "single" ? missingPlanFields(singleForm) : []),
+    ...((step === "plan" || step === "single") && productLines.length
+      ? productLines.flatMap((line, index) => {
+          const label =
+            productLines.length > 1 ? `Produto ${index + 1}` : "Produto";
+          const product = productOf(line.productId);
+          if (!product) return [`${label}: produto`];
+          if (product.sizes.length && !line.size) return [`${label}: tamanho`];
+          return line.quantity > sellableStock(product, line.size || undefined)
+            ? [`${label}: quantidade dentro do estoque`]
+            : [];
+        })
       : []),
   ]);
   function guidedInput(): GuidedPatientInput | string {
@@ -213,20 +455,100 @@ export function PatientModal({
       };
     }
     if (
-      (step === "plan" && !planForm.planTemplateId) ||
+      (step === "plan" &&
+        [...plans, ...singles].some((entry) => !entry.form.planTemplateId)) ||
       (step === "single" && !singleForm.planTemplateId)
     )
       return "Selecione um plano cadastrado.";
-    if (step === "plan")
+    if (step === "plan") {
+      if (plans.some((entry) => groupMissing(entry.form, entry.groupId)))
+        return "Selecione a turma do plano de aulas em grupo.";
+      const groupIds = plans.map((entry) => entry.groupId).filter(Boolean);
+      if (new Set(groupIds).size !== groupIds.length)
+        return "A mesma turma foi escolhida em mais de um plano.";
+      const [first, ...rest] = plans;
       return {
         next: "plan",
         patient: form,
-        plan: planForm,
-        ...(groupId ? { groupId } : {}),
+        plan: withOrderShare(
+          withPlanFirstCharge(first!.form, slotsOf(first!.groupId)),
+          `plan-${first!.id}`,
+        ),
+        ...(first!.groupId ? { groupId: first!.groupId } : {}),
+        ...(rest.length || singles.length
+          ? {
+              additionalPlans: [
+                ...rest.map((entry) => ({
+                  plan: withOrderShare(
+                    withPlanFirstCharge(entry.form, slotsOf(entry.groupId)),
+                    `plan-${entry.id}`,
+                  ),
+                  ...(entry.groupId ? { groupId: entry.groupId } : {}),
+                })),
+                ...singles.map((entry) => ({
+                  plan: {
+                    ...withOrderShare(entry.form, `plan-${entry.id}`),
+                    kind: "single" as const,
+                  },
+                })),
+              ],
+            }
+          : {}),
       };
+    }
     if (step === "single")
-      return { next: "single", patient: form, plan: singleForm };
+      return {
+        next: "single",
+        patient: form,
+        plan: withOrderShare(singleForm, "single"),
+      };
     return { next: "none", patient: form };
+  }
+  /**
+   * Vende os produtos da sacola depois do cadastro (mesma venda da tela Vendas), com o
+   * preço unitário já descontado. Devolve o complemento do aviso; se a venda falhar, o
+   * cadastro e os planos continuam salvos e o erro aparece num aviso.
+   */
+  async function sellProducts(patientId: string) {
+    if (!soldProducts.length) return "";
+    const discountInCents = soldProducts.reduce((sum, line) => {
+      const item = orderLine(`product-${line.key}`);
+      return (
+        sum + (item ? item.itemDiscountInCents + item.orderDiscountInCents : 0)
+      );
+    }, 0);
+    try {
+      const sale = await api.createProductSale({
+        patientId,
+        notes: discountInCents
+          ? `Venda do cadastro do cliente, com ${currency.format(discountInCents / 100)} de desconto.`
+          : "Venda do cadastro do cliente.",
+        items: soldProducts.map((line) => ({
+          productId: line.productId,
+          ...(line.size ? { size: line.size } : {}),
+          quantity: line.quantity,
+          unitPriceInCents:
+            orderLine(`product-${line.key}`)?.unitNetInCents ??
+            line.unitPriceInCents,
+        })),
+        settlement: productPayment.settlement,
+        ...(productPayment.settlement === "paid"
+          ? {
+              paymentMethod: productPayment.paymentMethod,
+              ...(productPayment.paymentInstallments > 1
+                ? { paymentInstallments: productPayment.paymentInstallments }
+                : {}),
+            }
+          : {}),
+        dueDate: productPayment.dueDate,
+      });
+      return ` Venda de produtos de ${currency.format(sale.totalInCents / 100)} registrada.`;
+    } catch (cause) {
+      toast.error(
+        `Cadastro salvo, mas a venda dos produtos não foi registrada: ${(cause as Error).message}`,
+      );
+      return "";
+    }
   }
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -273,24 +595,89 @@ export function PatientModal({
       }
       // O cadastro guiado já confirma num aviso detalhado na lista (savedNotice).
       const result = await api.createGuidedPatient(input);
-      const notice = guidedNotice(result, groups ?? []);
+      const soldNotice = await sellProducts(result.patient.id);
+      const notice = `${guidedNotice(result, groups ?? [])}${soldNotice}`;
       const registration = {
         ...result,
         group: groups?.find((group) => group.id === result.enrollment?.groupId),
       };
-      if (result.plan?.paymentMethod === "pix" && pixKey) {
+      // Vários planos no Pix: uma cobrança só, com os nomes e a soma dos valores.
+      // A resposta vem na ordem do que foi enviado (principal e depois os adicionais).
+      const sentPlans =
+        input.next === "plan"
+          ? [
+              input.plan,
+              ...(input.additionalPlans ?? []).map((entry) => entry.plan),
+            ]
+          : input.next === "single"
+            ? [input.plan]
+            : [];
+      const createdPlans = [
+        ...(result.plan ? [result.plan] : []),
+        ...(result.additionalPlans ?? []).map((entry) => entry.plan),
+      ];
+      const pixPlans = createdPlans.filter(
+        (plan) => plan.paymentMethod === "pix",
+      );
+      // 1º pagamento de cada item no Pix (proporcional à turma e com o desconto do plano),
+      // somado.
+      const pixFirstCharges = createdPlans.flatMap((plan, index) => {
+        const firstInstallmentInCents =
+          sentPlans[index]?.firstInstallmentInCents;
+        const discounted = discountedPlanInstallments(
+          planInstallmentSchedule({ ...plan, firstInstallmentInCents }),
+          sentPlans[index]?.discount,
+          undefined,
+          sentPlans[index]?.orderDiscountInCents,
+        );
+        const first = discounted.installments[0];
+        return plan.paymentMethod === "pix" && first
+          ? [
+              {
+                prorated: firstInstallmentInCents !== undefined,
+                amountInCents:
+                  first.amountInCents + first.customerDiscountInCents,
+                discountInCents: first.customerDiscountInCents,
+              },
+            ]
+          : [];
+      });
+      const pixDiscount = pixFirstCharges.reduce(
+        (sum, item) => sum + item.discountInCents,
+        0,
+      );
+      if (pixPlans.length > 0 && pixKey) {
+        const installments = pixPlans[0]!.installments;
         setPixCharge({
           patient: result.patient,
           notice,
           result: registration,
           message: planPixChargeMessage({
             patientName: result.patient.fullName,
-            planName: result.plan.name,
-            totalValueInCents: result.plan.totalValueInCents,
-            installments: result.plan.installments,
-            totalSessions: result.plan.totalSessions,
+            planName: pixPlans.map((plan) => plan.name).join(" + "),
+            totalValueInCents: pixPlans.reduce(
+              (sum, plan) => sum + plan.totalValueInCents,
+              0,
+            ),
+            // Parcelas diferentes entre os planos: a mensagem cobra o total.
+            installments: pixPlans.every(
+              (plan) => plan.installments === installments,
+            )
+              ? installments
+              : 1,
+            totalSessions: pixPlans.reduce(
+              (sum, plan) => sum + plan.totalSessions,
+              0,
+            ),
             pixKey,
             template: pixTemplate,
+            firstChargeInCents: pixFirstCharges.some((item) => item.prorated)
+              ? pixFirstCharges.reduce(
+                  (sum, item) => sum + item.amountInCents,
+                  0,
+                )
+              : undefined,
+            ...(pixDiscount ? { discountInCents: pixDiscount } : {}),
           }),
         });
         return;
@@ -304,6 +691,49 @@ export function PatientModal({
       setLoading(false);
     }
   }
+  const addProductButton = sellsProducts && (
+    <button type="button" className="secondary-button" onClick={addProductLine}>
+      <Plus size={16} aria-hidden="true" />
+      Adicionar produto
+    </button>
+  );
+  const productBlocks = productLines.map((line, index) => (
+    <fieldset className="form-fieldset span-2" key={`product-${line.key}`}>
+      <legend>
+        {productLines.length > 1 ? `Produto ${index + 1}` : "Produto"}
+      </legend>
+      {productsError ? (
+        <p className="form-error">{`Não foi possível carregar os produtos: ${productsError}`}</p>
+      ) : products === null ? (
+        <LoadingBlock />
+      ) : !products.length ? (
+        <p className="muted-copy">
+          Nenhum produto ativo. Cadastre produtos em Vendas › Estoque.
+        </p>
+      ) : (
+        <GuidedProductFields
+          line={line}
+          lines={productLines}
+          products={products}
+          disabled={!editable || loading}
+          onChange={(patch) => updateProductLine(line.key, patch)}
+          onRemove={() =>
+            setProductLines((current) =>
+              current.filter((item) => item.key !== line.key),
+            )
+          }
+          onEditDiscount={() =>
+            setDiscountTarget({
+              target: "product",
+              discount: line.discount,
+              apply: (next) =>
+                updateProductLine(line.key, { discount: next ?? undefined }),
+            })
+          }
+        />
+      )}
+    </fieldset>
+  ));
   if (pixCharge) {
     const finish = () =>
       onSaved(pixCharge.patient, pixCharge.notice, pixCharge.result);
@@ -321,11 +751,7 @@ export function PatientModal({
             <textarea readOnly rows={5} value={pixCharge.message} />
           </label>
           <div className="modal-actions span-2">
-            <button
-              type="button"
-              className="secondary-button"
-              onClick={finish}
-            >
+            <button type="button" className="secondary-button" onClick={finish}>
               Concluir
             </button>
             <a
@@ -353,6 +779,7 @@ export function PatientModal({
       }
       busy={loading}
       dirty={dirty}
+      inactive={Boolean(discountTarget)}
       onClose={onClose}
     >
       <form className="form-grid" onSubmit={submit}>
@@ -524,53 +951,165 @@ export function PatientModal({
             />
           </fieldset>
         )}
-        {step === "plan" && (
-          <fieldset className="form-fieldset span-2">
-            <legend>Plano</legend>
-            <GuidedPlanFields
-              form={planForm}
-              setForm={setPlanForm}
-              onServiceChange={() => setGroupId("")}
-              patientName={form.fullName}
-              pixKey={pixKey}
-              pixTemplate={pixTemplate}
-              kindField={
-                <label>
-                  Modelo
-                  <select
-                    value={planForm.kind}
-                    onChange={(e) => {
-                      const kind = e.target.value as GuidedPlanForm["kind"];
-                      setPlanForm({
-                        ...planForm,
-                        kind,
-                        // Recorrente: uma cobrança por ciclo.
-                        installments:
-                          kind === "recurring" ? 1 : planForm.installments,
-                        autoRenew:
-                          kind === "recurring" && Boolean(planForm.validUntil),
-                      });
-                    }}
+        {step === "plan" &&
+          plans.map((entry, index) => (
+            <fieldset className="form-fieldset span-2" key={entry.id}>
+              <legend>{planLabel(index)}</legend>
+              <GuidedPlanFields
+                form={entry.form}
+                setForm={planFormSetter(entry.id)}
+                onServiceChange={() => updatePlan(entry.id, { groupId: "" })}
+                groupSlots={slotsOf(entry.groupId)}
+                patientName={form.fullName}
+                pixKey={pixKey}
+                pixTemplate={pixTemplate}
+                kindField={
+                  <label>
+                    Modelo
+                    <select
+                      value={entry.form.kind}
+                      onChange={(e) => {
+                        const kind = e.target.value as GuidedPlanForm["kind"];
+                        updatePlan(entry.id, {
+                          form: {
+                            ...entry.form,
+                            kind,
+                            // Recorrente: uma cobrança por ciclo.
+                            installments:
+                              kind === "recurring"
+                                ? 1
+                                : entry.form.installments,
+                            autoRenew:
+                              kind === "recurring" &&
+                              Boolean(entry.form.validUntil),
+                          },
+                        });
+                      }}
+                    >
+                      {guidedPlanKinds.map((kind) => (
+                        <option value={kind} key={kind}>
+                          {planKindLabels[kind]}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                }
+              >
+                <GuidedGroupField
+                  serviceIds={entry.form.services.map(
+                    (service) => service.serviceId,
+                  )}
+                  value={entry.groupId}
+                  onChange={(groupId) => updatePlan(entry.id, { groupId })}
+                  groups={groups}
+                  setGroups={setGroups}
+                />
+              </GuidedPlanFields>
+              {entry.form.planTemplateId && (
+                <PlanDiscountSummary
+                  discount={entry.form.discount}
+                  emptyLabel="Sem desconto neste plano."
+                  disabled={!editable || loading}
+                  onEdit={() =>
+                    editDiscount(entry.form.discount, planFormSetter(entry.id))
+                  }
+                />
+              )}
+              {plans.length > 1 && (
+                <div className="guided-plan-actions">
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    onClick={() =>
+                      setPlans((current) =>
+                        current.filter((item) => item.id !== entry.id),
+                      )
+                    }
                   >
-                    {guidedPlanKinds.map((kind) => (
-                      <option value={kind} key={kind}>
-                        {planKindLabels[kind]}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              }
-            >
-              <GuidedGroupField
-                serviceIds={planForm.services.map((entry) => entry.serviceId)}
-                value={groupId}
-                onChange={setGroupId}
-                groups={groups}
-                setGroups={setGroups}
+                    <Trash2 size={16} aria-hidden="true" />
+                    {`Remover ${planLabel(index).toLowerCase()}`}
+                  </button>
+                </div>
+              )}
+            </fieldset>
+          ))}
+        {step === "plan" &&
+          singles.map((entry, index) => (
+            <fieldset className="form-fieldset span-2" key={entry.id}>
+              <legend>{singleLabel(index)}</legend>
+              <GuidedPlanFields
+                form={entry.form}
+                setForm={singleFormSetter(entry.id)}
+                patientName={form.fullName}
+                pixKey={pixKey}
+                pixTemplate={pixTemplate}
               />
-            </GuidedPlanFields>
-          </fieldset>
-        )}
+              {entry.form.planTemplateId && (
+                <PlanDiscountSummary
+                  discount={entry.form.discount}
+                  emptyLabel="Sem desconto neste serviço."
+                  disabled={!editable || loading}
+                  onEdit={() =>
+                    editDiscount(
+                      entry.form.discount,
+                      singleFormSetter(entry.id),
+                    )
+                  }
+                />
+              )}
+              <div className="guided-plan-actions">
+                <button
+                  type="button"
+                  className="secondary-button"
+                  onClick={() =>
+                    setSingles((current) =>
+                      current.filter((item) => item.id !== entry.id),
+                    )
+                  }
+                >
+                  <Trash2 size={16} aria-hidden="true" />
+                  {`Remover ${singleLabel(index).toLowerCase()}`}
+                </button>
+              </div>
+            </fieldset>
+          ))}
+        {step === "plan" && productBlocks}
+        {step === "plan" &&
+          (plans.length + singles.length < maxGuidedPlans || sellsProducts) && (
+            <div className="page-actions span-2">
+              {plans.length + singles.length < maxGuidedPlans && (
+                <>
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    onClick={() =>
+                      setPlans((current) => [
+                        ...current,
+                        defaultGuidedPlanEntry(nextPlanId.current++),
+                      ])
+                    }
+                  >
+                    <Plus size={16} aria-hidden="true" />
+                    Adicionar outro plano
+                  </button>
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    onClick={() =>
+                      setSingles((current) => [
+                        ...current,
+                        { id: nextPlanId.current++, form: defaultSingleForm() },
+                      ])
+                    }
+                  >
+                    <Plus size={16} aria-hidden="true" />
+                    Adicionar serviço avulso
+                  </button>
+                </>
+              )}
+              {addProductButton}
+            </div>
+          )}
         {step === "single" && (
           <fieldset className="form-fieldset span-2">
             <legend>Serviço avulso</legend>
@@ -581,7 +1120,44 @@ export function PatientModal({
               pixKey={pixKey}
               pixTemplate={pixTemplate}
             />
+            {singleForm.planTemplateId && (
+              <PlanDiscountSummary
+                discount={singleForm.discount}
+                emptyLabel="Sem desconto neste serviço."
+                disabled={!editable || loading}
+                onEdit={() => editDiscount(singleForm.discount, setSingleForm)}
+              />
+            )}
           </fieldset>
+        )}
+        {step === "single" && productBlocks}
+        {step === "single" && sellsProducts && (
+          <div className="page-actions span-2">{addProductButton}</div>
+        )}
+        {(step === "plan" || step === "single") && productLines.length > 0 && (
+          <fieldset className="form-fieldset span-2">
+            <legend>Pagamento dos produtos</legend>
+            <GuidedProductPaymentFields
+              value={productPayment}
+              onChange={(patch) =>
+                setProductPayment((current) => ({ ...current, ...patch }))
+              }
+            />
+          </fieldset>
+        )}
+        {(step === "plan" || step === "single") && (
+          <GuidedOrderSummary
+            order={order}
+            orderDiscount={orderDiscount}
+            disabled={!editable || loading}
+            onEditOrderDiscount={() =>
+              setDiscountTarget({
+                target: "order",
+                discount: orderDiscount,
+                apply: (next) => setOrderDiscount(next ?? undefined),
+              })
+            }
+          />
         )}
         {error && <div className="form-error span-2">{error}</div>}
         {!editable && (
@@ -613,6 +1189,19 @@ export function PatientModal({
       {showHistory && patient && (
         <PatientTimelineSection patientId={patient.id} />
       )}
+      {discountTarget &&
+        createPortal(
+          <PatientDiscountModal
+            discount={discountTarget.discount}
+            target={discountTarget.target}
+            onApply={(discount) => {
+              discountTarget.apply(discount);
+              setDiscountTarget(null);
+            }}
+            onClose={() => setDiscountTarget(null)}
+          />,
+          document.body,
+        )}
     </Modal>
   );
 }

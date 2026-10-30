@@ -16,6 +16,7 @@ import { assertCategoryDreGroup, buildDre } from "../../modules/finance/dre.js";
 import { clinicDateOf } from "../../modules/finance/daily-cash.js";
 import type { MemoryRepositoryContext } from "./context.js";
 import { now, uuid } from "./helpers.js";
+import { sizeQuantityNotes } from "../../modules/finance/product-stock.js";
 
 export function createFinanceOperationsRepository(
   context: MemoryRepositoryContext,
@@ -142,10 +143,33 @@ export function createFinanceOperationsRepository(
             "Classificação do produto não encontrada.",
             404,
           );
-      Object.assign(item, input, {
+      const { sizes, restockAlertAt, sizeQuantities, ...fields } = input;
+      const finalSizes = sizes ?? item.sizes;
+      if (sizeQuantities?.some((entry) => !finalSizes.includes(entry.size)))
+        throw new DomainError(
+          "PRODUCT_SIZE_INVALID",
+          "As quantidades devem usar os tamanhos do produto.",
+          400,
+        );
+      Object.assign(item, fields, {
+        ...(sizes ? { sizes } : {}),
+        ...(restockAlertAt !== undefined ? { restockAlertAt } : {}),
         updatedAt: now(),
-        lowStock: item.currentStock <= input.minimumStock,
       });
+      context.refreshProductStock(item);
+      for (const { size, quantity } of sizeQuantities ?? []) {
+        const delta = quantity - context.productStockOf(item.id, size);
+        if (!delta) continue;
+        context.changeProductStock(item, size, delta);
+        context.pushStockMovement(
+          item,
+          delta > 0 ? "adjustment_in" : "adjustment_out",
+          delta,
+          sizeQuantityNotes,
+          undefined,
+          size,
+        );
+      }
       context.recordAudit(
         clinicId,
         actorUserId,
@@ -191,15 +215,7 @@ export function createFinanceOperationsRepository(
           400,
         );
       const delta = (input?.quantity ?? 0) - item.quantity;
-      if (delta > product.currentStock)
-        throw new DomainError(
-          "INSUFFICIENT_STOCK",
-          "O estoque disponível é insuficiente.",
-          409,
-        );
-      product.currentStock -= delta;
-      product.lowStock = product.currentStock <= product.minimumStock;
-      product.updatedAt = now();
+      context.changeProductStock(product, item.size, -delta);
       if (delta)
         context.pushStockMovement(
           product,
@@ -207,6 +223,7 @@ export function createFinanceOperationsRepository(
           -delta,
           "Ajuste de item na comanda",
           tabId,
+          item.size,
         );
       if (input) {
         item.quantity = input.quantity;

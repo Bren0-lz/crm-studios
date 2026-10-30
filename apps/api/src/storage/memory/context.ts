@@ -1,10 +1,15 @@
 import { starterAssessmentTemplates } from "@crm/contracts";
-import type { ExternalOperation } from "@crm/contracts";
+import type { ExternalOperation, PaymentProof } from "@crm/contracts";
 import type {
   StoredMessageTemplate,
   StoredMessageTemplateImage,
   StoredWhatsappCampaign,
 } from "./campaigns.js";
+import type {
+  StoredAutoCampaign,
+  StoredAutoCampaignDelivery,
+  StoredAutoCampaignRedemption,
+} from "./auto-campaigns.js";
 import type { CommissionPaymentEvent } from "@crm/contracts";
 import type { PlanPurchaseResult } from "@crm/contracts";
 import type {
@@ -12,12 +17,14 @@ import type {
   FinancialDateCorrection,
 } from "@crm/contracts";
 import type { PaymentTiming } from "@crm/contracts";
-import type { Supplier } from "@crm/contracts";
+import type { Supplier, SupplierOrder } from "@crm/contracts";
 import type {
   ClinicalResource,
   ClinicCatalogEntry,
   NavTabLabel,
   AutoFinalizationSettings,
+  PaymentMethodSettings,
+  ProLaboreSettings,
 } from "@crm/contracts";
 import {
   type AdminAuditEvent,
@@ -77,10 +84,14 @@ import {
   type PermissionKey,
   permissionModules,
   type PlanCatalogEntry,
+  discountedPlanInstallments,
   planInstallmentSchedule,
   type PlanTemplate,
   type PlanTemplateInput,
   type Product,
+  type ProductSize,
+  productNeedsRestock,
+  productSizeStock,
   type Professional,
   type Receivable,
   type ReceivableRenegotiation,
@@ -279,6 +290,30 @@ export class MemoryRepositoryContext {
   readonly externalOperations: (ExternalOperation & {
     contentBase64: string;
   })[] = [];
+  readonly paymentProofs: (PaymentProof & {
+    contentBase64: string;
+    deletedAt?: string;
+    deletedByUserId?: string;
+    deletionReason?: string;
+  })[] = [];
+
+  /** Estorno da baixa: os comprovantes ficam no histórico, marcados como da baixa estornada. */
+  markPaymentProofsReversed(
+    clinicId: string,
+    entityType: PaymentProof["entityType"],
+    entityId: string,
+  ) {
+    const timestamp = now();
+    for (const proof of this.paymentProofs)
+      if (
+        proof.clinicId === clinicId &&
+        proof.entityType === entityType &&
+        proof.entityId === entityId &&
+        !proof.reversedAt &&
+        !proof.deletedAt
+      )
+        proof.reversedAt = timestamp;
+  }
   readonly planPurchases = new Map<
     string,
     { fingerprint: string; result: PlanPurchaseResult }
@@ -291,6 +326,9 @@ export class MemoryRepositoryContext {
   readonly commissionAccountPayments: import("@crm/contracts").CommissionAccountPayment[] =
     [];
   readonly commissionPaymentEvents: CommissionPaymentEvent[] = [];
+  /** Colaboradores da folha de pagamento (`payroll_employees`). */
+  readonly payrollEmployees: import("./payroll.js").PayrollEmployeeRecord[] =
+    [];
   readonly planTemplates: PlanTemplate[] = [];
 
   readonly appointmentReschedules: AppointmentRescheduleEvent[] = [];
@@ -496,6 +534,12 @@ export class MemoryRepositoryContext {
 
   readonly whatsappCampaigns: StoredWhatsappCampaign[] = [];
 
+  readonly autoCampaigns: StoredAutoCampaign[] = [];
+
+  readonly autoCampaignDeliveries: StoredAutoCampaignDelivery[] = [];
+
+  readonly autoCampaignRedemptions: StoredAutoCampaignRedemption[] = [];
+
   readonly documentTemplates: DocumentTemplate[] = [];
 
   readonly issuedDocuments: IssuedDocument[] = [];
@@ -671,6 +715,10 @@ export class MemoryRepositoryContext {
     string,
     AutoFinalizationSettings
   >();
+  /** Parcelamento por forma de pagamento, por clínica (sem entrada = até 36x em todas). */
+  readonly paymentMethodSettings = new Map<string, PaymentMethodSettings>();
+  /** Pró-labore configurado, por clínica (sem entrada = padrão). */
+  readonly proLaboreSettings = new Map<string, ProLaboreSettings>();
   /** Funil editado, por clínica (sem entrada = etapas padrão). */
   readonly leadStages = new Map<
     string,
@@ -681,7 +729,10 @@ export class MemoryRepositoryContext {
   readonly replacementCredits: ReplacementCredit[] = [];
 
   readonly suppliers: Supplier[] = [];
+  readonly supplierOrders: SupplierOrder[] = [];
   readonly products: Product[] = [];
+  /** Saldo por produto e chave de estoque ("" = sem tamanho); `currentStock` é a soma. */
+  readonly productStocks = new Map<string, Map<string, number>>();
 
   readonly stockMovements: StockMovement[] = [];
 
@@ -1636,12 +1687,55 @@ export class MemoryRepositoryContext {
     });
   }
 
+  productStockOf(productId: string, size: ProductSize | undefined) {
+    return this.productStocks.get(productId)?.get(size ?? "") ?? 0;
+  }
+
+  /** Recalcula total, aviso de reposição e saldos por tamanho a partir das chaves de estoque. */
+  refreshProductStock(product: Product) {
+    const rows = [...(this.productStocks.get(product.id) ?? new Map())];
+    product.currentStock = rows.reduce((sum, [, stock]) => sum + stock, 0);
+    product.lowStock = productNeedsRestock(
+      product.currentStock,
+      product.restockAlertAt,
+    );
+    product.sizeStock = productSizeStock(
+      product.sizes,
+      rows.map(([size, currentStock]) => ({
+        size: (size || null) as ProductSize | null,
+        currentStock,
+      })),
+    );
+  }
+
+  /** Soma `delta` ao saldo do tamanho (recusa saldo negativo) e devolve o novo saldo dele. */
+  changeProductStock(
+    product: Product,
+    size: ProductSize | undefined,
+    delta: number,
+  ) {
+    const balance = this.productStockOf(product.id, size) + delta;
+    if (balance < 0)
+      throw new DomainError(
+        "INSUFFICIENT_STOCK",
+        "O estoque disponível é insuficiente.",
+        409,
+      );
+    const rows = this.productStocks.get(product.id) ?? new Map();
+    rows.set(size ?? "", balance);
+    this.productStocks.set(product.id, rows);
+    this.refreshProductStock(product);
+    product.updatedAt = now();
+    return balance;
+  }
+
   pushStockMovement(
     product: Product,
     kind: StockMovement["kind"],
     quantity: number,
     notes: string,
     patientTabId?: string,
+    size?: ProductSize,
   ) {
     const movement: StockMovement = {
       id: uuid(),
@@ -1649,8 +1743,9 @@ export class MemoryRepositoryContext {
       productId: product.id,
       productName: product.name,
       kind,
+      ...(size ? { size } : {}),
       quantity,
-      balanceAfter: product.currentStock,
+      balanceAfter: this.productStockOf(product.id, size),
       notes,
       ...(patientTabId ? { patientTabId } : {}),
       createdAt: now(),
@@ -1815,7 +1910,17 @@ export class MemoryRepositoryContext {
       updatedAt: timestamp,
     };
     if (plan.autoRenew && !plan.validUntil) plan.autoRenew = false;
-    const installments: Receivable[] = planInstallmentSchedule(input).map(
+    // O desconto é do plano: a renovação segue o do plano anterior, com o que já foi usado.
+    const discounted = discountedPlanInstallments(
+      planInstallmentSchedule(input),
+      input.discount,
+      renewedFrom?.discount,
+      input.orderDiscountInCents,
+    );
+    delete plan.discount;
+    delete plan.orderDiscountInCents;
+    if (discounted.discount) plan.discount = discounted.discount;
+    const installments: Receivable[] = discounted.installments.map(
       (installment) => ({
         id: uuid(),
         clinicId,
@@ -1836,6 +1941,9 @@ export class MemoryRepositoryContext {
         installmentCount: input.installments,
         dueDate: installment.dueDate,
         amountInCents: installment.amountInCents,
+        ...(installment.customerDiscountInCents
+          ? { customerDiscountInCents: installment.customerDiscountInCents }
+          : {}),
         status: "open",
         overdue: false,
         createdAt: timestamp,
@@ -1984,8 +2092,29 @@ export class MemoryRepositoryContext {
         "Concilie a situação da comissão com a despesa antes de continuar.",
         409,
       );
+    // Despesa da folha: as comissões e os ajustes incluídos pagam (e estornam) junto.
+    const payrollCommissions = this.commissions.filter(
+        (item) =>
+          item.clinicId === clinicId && item.payrollPayableId === payableId,
+      ),
+      payrollAdjustments = this.commissionAdjustments.filter(
+        (item) =>
+          item.clinicId === clinicId && item.payrollPayableId === payableId,
+      );
+    if (
+      [...payrollCommissions, ...payrollAdjustments].some(
+        (item) => item.status !== expected,
+      )
+    )
+      throw new DomainError(
+        "PAYROLL_EXPENSE_STATE",
+        "Uma comissão desta folha mudou de situação; revise a folha antes de continuar.",
+        409,
+      );
     const previousMethod = payable.paymentMethod;
     payable.status = operation === "payment" ? "paid" : "open";
+    if (operation === "payment_reversal")
+      this.markPaymentProofsReversed(clinicId, "payable", payableId);
     payable.updatedAt = now();
     if (operation === "payment") {
       payable.paidAt = timing?.paidAt ?? payable.updatedAt;
@@ -1997,10 +2126,14 @@ export class MemoryRepositoryContext {
       delete payable.paymentMethod;
       payable.overdue = payable.dueDate < today();
     }
-    if (commission) {
-      commission.status = payable.status as "open" | "paid";
-      if (payable.paidAt) commission.paidAt = payable.paidAt;
-      else delete commission.paidAt;
+    for (const item of [
+      ...(commission ? [commission] : []),
+      ...payrollCommissions,
+      ...payrollAdjustments,
+    ]) {
+      item.status = payable.status as "open" | "paid";
+      if (payable.paidAt) item.paidAt = payable.paidAt;
+      else delete item.paidAt;
     }
     this.payablePaymentEvents.push({
       id: uuid(),

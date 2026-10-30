@@ -7,6 +7,8 @@ import {
   type SalesPeriodReport,
   type TeamProductionSources,
   allocatePlanRevenue,
+  productItemName,
+  productNeedsRestock,
 } from "@crm/contracts";
 import { commissionAmount } from "../../modules/finance/commission-calculation.js";
 import { competencesBetween } from "../../modules/reports/team-finance.js";
@@ -37,12 +39,16 @@ export function createReportsRepository(
         itemName: `${plan.name} (${plan.serviceName})`,
         quantity: 1,
       };
+      const customerDiscountInCents = repositoryContext.receivables
+        .filter((item) => item.planId === plan.id)
+        .reduce((sum, item) => sum + (item.customerDiscountInCents ?? 0), 0);
       sales.push({
         ...base,
         id: `${plan.id}:sale`,
         kind: "sale",
         occurredAt: plan.createdAt,
         amountInCents: plan.totalValueInCents,
+        ...(customerDiscountInCents ? { customerDiscountInCents } : {}),
       });
       if (plan.cancelledAt)
         sales.push({
@@ -77,7 +83,10 @@ export function createReportsRepository(
           sourceType: item.sourceType,
           patientId: tab.patientId,
           patientName: tab.patientName,
-          itemName: item.productName,
+          itemName:
+            item.sourceType === "product"
+              ? productItemName(item)
+              : item.productName,
           quantity: item.quantity,
           ...(tab.receivableId ? { receivableId: tab.receivableId } : {}),
         };
@@ -489,14 +498,14 @@ export function createReportsRepository(
             inPeriod(item.paidAt),
         )
         .reduce((sum, item) => sum + item.amountInCents, 0);
-      const paidCommissions = repositoryContext
-        .scopedCommissions()
-        .filter(
-          (item) =>
-            item.clinicId === clinicId &&
-            item.status === "paid" &&
-            inPeriod(item.paidAt),
-        );
+      const paidCommissions = repositoryContext.scopedCommissions().filter(
+        (item) =>
+          item.clinicId === clinicId &&
+          item.status === "paid" &&
+          // Paga pela folha: a saída já está nas despesas pagas.
+          !item.payrollPayableId &&
+          inPeriod(item.paidAt),
+      );
       const commissionsInCents = paidCommissions.reduce(
         (sum, item) => sum + item.amountInCents,
         0,
@@ -734,7 +743,7 @@ export function createReportsRepository(
               .filter(
                 (item) =>
                   item.clinicId === clinicId &&
-                  item.currentStock <= item.minimumStock,
+                  productNeedsRestock(item.currentStock, item.restockAlertAt),
               ).length,
             productUnitsSold: byProduct.reduce(
               (sum, item) => sum + item.unitsSold,

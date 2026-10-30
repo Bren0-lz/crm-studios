@@ -958,4 +958,40 @@ describe.skipIf(!databaseUrl)("MySQL repository", () => {
       }),
     ).rejects.toMatchObject({ code: "PLAN_ALREADY_RENEWED" });
   });
+
+  it("stores the prorated first charge of a recurring plan", async () => {
+    const [patients, services] = await Promise.all([
+      repository.listPatients(clinicId),
+      repository.listServices(clinicId),
+    ]);
+    const plan = await repository.createPatientPlan(
+      clinicId,
+      ownerId,
+      await configuredPlan({
+        patientId: patients[0]!.id,
+        serviceId: services[0]!.id,
+        name: `Proporcional ${randomUUID()}`,
+        kind: "recurring",
+        totalSessions: 8,
+        validFrom: "2026-10-01",
+        validUntil: "2026-10-31",
+        totalValueInCents: 40_000,
+        installments: 1,
+        firstDueDate: "2026-10-15",
+        firstInstallmentInCents: 20_000,
+      }),
+    );
+    const receivables = await pool.query<{
+      dueDate: string;
+      amountInCents: number;
+    }>(
+      `SELECT due_date AS "dueDate", amount_in_cents AS "amountInCents"
+       FROM receivables WHERE plan_id = $1`,
+      [plan.id],
+    );
+    expect(plan.totalValueInCents).toBe(40_000);
+    expect(receivables.rows).toEqual([
+      { dueDate: "2026-10-15", amountInCents: 20_000 },
+    ]);
+  });
 });

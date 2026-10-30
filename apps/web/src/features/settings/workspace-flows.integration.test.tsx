@@ -1,6 +1,6 @@
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { clinicId, setupApi } from "../../test-support/api-server";
+import { actorId, clinicId, setupApi } from "../../test-support/api-server";
 import { open, change, save } from "../../test-support/workflow-ui";
 
 describe("settings workflows through real HTTP handlers", () => {
@@ -73,7 +73,7 @@ describe("settings workflows through real HTTP handlers", () => {
     change("WhatsApp", "11977776666", dialog);
     change("E-mail", "fornecedor@example.com", dialog);
     change("Data de contratação", "2026-09-01", dialog);
-    change("Valor contratado (R$)", "1200", dialog);
+    change("Valor contratado (R$)", "1200,00", dialog);
     change("Recorrência", "monthly", dialog);
     change("Forma de pagamento", "boleto", dialog);
     change("Parcelas", "3", dialog);
@@ -106,6 +106,84 @@ describe("settings workflows through real HTTP handlers", () => {
         contracts: "Contrato 2026/01, vigência de 12 meses",
       },
     ]);
+  });
+  it("records a supplier order whose new item becomes a product without sale price", async () => {
+    const { repository } = await setupApi();
+    const supplier = (await repository.saveSupplier(clinicId, actorId, {
+      name: "Distribuidora Bem-Estar",
+      kind: "company",
+      document: "",
+      phone: "",
+      whatsapp: "",
+      billingCycle: "one_time",
+      installments: 1,
+      paymentTerms: "",
+      orders: "",
+      contracts: "",
+      notes: "",
+      active: true,
+    }))!;
+    const band = await repository.createProduct(clinicId, actorId, {
+      name: "Faixa elástica",
+      sku: "FAIXA",
+      unit: "un",
+      costInCents: 1_000,
+      salePriceInCents: 2_500,
+      initialStock: 1,
+    });
+    open("/configuracoes");
+    fireEvent.click(await screen.findByRole("tab", { name: "Cadastros" }));
+    const catalogs = screen.getByRole("tabpanel", { name: "Cadastros" });
+    fireEvent.click(
+      within(catalogs).getByRole("tab", { name: "Fornecedores" }),
+    );
+    const panel = within(catalogs).getByRole("tabpanel", {
+      name: "Fornecedores",
+    });
+    fireEvent.click(
+      await within(panel).findByRole("button", {
+        name: "Pedidos de Distribuidora Bem-Estar",
+      }),
+    );
+    const history = screen.getByRole("dialog", {
+      name: "Pedidos de Distribuidora Bem-Estar",
+    });
+    await within(history).findByText("Nenhum pedido");
+    fireEvent.click(
+      within(history).getByRole("button", { name: "Novo pedido" }),
+    );
+    const dialog = screen.getByRole("dialog", { name: "Novo pedido" });
+    await within(dialog).findByRole("option", { name: "Faixa elástica" });
+    change("Data do pedido", "2026-10-20", dialog);
+    change("Nº do pedido", "123", dialog);
+    change("Valor do pedido (R$)", "18000", dialog);
+    change("Produto 1", band.id, dialog);
+    change("Quantidade 1", "3", dialog);
+    change("Custo unitário 1", "1000", dialog);
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Adicionar item" }),
+    );
+    change("Produto 2", "new", dialog);
+    change("Nome do produto 2", "Óleo de massagem", dialog);
+    change("Quantidade 2", "5", dialog);
+    change("Custo unitário 2", "3000", dialog);
+    expect(within(dialog).getByText(/Soma dos itens: R\$\s?180,00/));
+    await save("Novo pedido", "Registrar pedido");
+
+    expect(
+      await within(history).findByText("5× Óleo de massagem"),
+    ).toBeInTheDocument();
+    expect(within(history).getByText("3× Faixa elástica")).toBeInTheDocument();
+    expect(within(history).getByText("20/10/2026")).toBeInTheDocument();
+    const products = (await repository.getInventoryWorkspace(clinicId))
+      .products;
+    expect(
+      products.find((item) => item.name === "Óleo de massagem"),
+    ).toMatchObject({ salePriceInCents: null, currentStock: 5 });
+    expect(products.find((item) => item.id === band.id)?.currentStock).toBe(4);
+    expect(
+      await repository.listSupplierOrders(clinicId, supplier.id),
+    ).toMatchObject([{ number: "123", totalInCents: 18_000 }]);
   });
   it("creates and renames a shared lead source", async () => {
     const { repository } = await setupApi();

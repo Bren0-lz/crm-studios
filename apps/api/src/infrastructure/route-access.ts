@@ -84,6 +84,9 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
   "PUT /admin/branches/:id": "admin",
   "GET /clinic/auto-finalization": "login",
   "PUT /admin/auto-finalization": "admin",
+  "GET /clinic/payment-methods": "login",
+  "PUT /admin/payment-methods": "admin",
+  "PUT /admin/pro-labore": "admin",
   "GET /admin/clinic-settings": "admin",
   "PUT /admin/clinic-settings": "admin",
   "PUT /relationship/settings": "admin",
@@ -115,6 +118,7 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
   "GET /appointments/:id/reschedules": viewAny("agenda"),
   "GET /appointments/pending-finalization": viewAny("agenda"),
   "GET /appointments/completed": viewAny("agenda"),
+  "GET /appointments/promotions": operation("agenda.create"),
   "GET /waitlist": view("waitlist"),
   "GET /waitlist/options": view("waitlist"),
   "POST /waitlist": operation("waitlist.manage"),
@@ -296,6 +300,21 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
   "POST /communications/templates/:id/archive": operation(
     "communications.templates",
   ),
+  "GET /communications/auto-campaigns": view("communications"),
+  "GET /communications/auto-campaigns/queue": view("communications"),
+  "POST /communications/auto-campaigns": operation("communications.campaigns"),
+  "PUT /communications/auto-campaigns/:id": operation(
+    "communications.campaigns",
+  ),
+  "DELETE /communications/auto-campaigns/:id": operation(
+    "communications.campaigns",
+  ),
+  "POST /communications/auto-campaigns/deliveries": operation(
+    "communications.campaigns",
+  ),
+  "DELETE /communications/auto-campaigns/deliveries/:id": operation(
+    "communications.campaigns",
+  ),
   "GET /communications/campaigns": view("communications"),
   "GET /communications/campaigns/filter-options": view("communications"),
   "GET /communications/campaigns/:id": view("communications"),
@@ -313,6 +332,7 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
   "POST /document-templates/:id/versions": operation(
     "contracts.templates_version",
   ),
+  "DELETE /document-templates/:id": operation("contracts.templates_delete"),
   "POST /documents/:id/signature": operation("contracts.status"),
   "GET /documents/:id/signature/content": view("contracts"),
   "POST /documents/:id/signature-link": operation("contracts.status"),
@@ -393,6 +413,8 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
   "GET /finance/suppliers": view("finance"),
   "POST /finance/suppliers": operation("finance.suppliers_manage"),
   "PUT /finance/suppliers/:id": operation("finance.suppliers_manage"),
+  "GET /finance/suppliers/:id/orders": view("finance"),
+  "POST /finance/suppliers/:id/orders": operation("finance.suppliers_manage"),
   "POST /finance/receivables": operation("finance.receivables_create"),
   "PUT /finance/classifications/:kind/:id": operation("finance.classify"),
   "PUT /finance/categories/:id/dre": operation("finance.classify"),
@@ -414,6 +436,17 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
   ),
   "POST /finance/renegotiations": operation("finance.renegotiate"),
   "POST /finance/commission-rules": operation("finance.commission_rules"),
+  "POST /finance/commission-rules/recalculation/preview": operation(
+    "finance.commission_rules",
+  ),
+  "GET /finance/payroll": operation("finance.payroll_view"),
+  "GET /finance/payroll/employees": operation("finance.payroll_view"),
+  "POST /finance/payroll/employees": operation("finance.payroll_manage"),
+  "PUT /finance/payroll/employees/:id": operation("finance.payroll_manage"),
+  "POST /finance/payroll/launch": operation("finance.payroll_manage"),
+  "POST /finance/payroll/payables/:id/cancel": operation(
+    "finance.payroll_manage",
+  ),
   "POST /finance/commissions/generate": operation(
     "finance.commissions_generate",
   ),
@@ -436,33 +469,49 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
   "POST /finance/payables": operation("finance.payables_create"),
   "POST /finance/payables/:id/pay": operation("finance.payables_pay"),
   "POST /finance/payables/:id/reverse": operation("finance.payables_reverse"),
+  "GET /finance/receivables/:id/proofs": view("finance"),
+  "POST /finance/receivables/:id/proofs": operation("finance.receive"),
+  "GET /finance/payables/:id/proofs": view("finance"),
+  "POST /finance/payables/:id/proofs": operation("finance.payables_pay"),
+  "GET /finance/commission-account-payments/:id/proofs": view("finance"),
+  "POST /finance/commission-account-payments/:id/proofs": operation(
+    "finance.commissions_pay",
+  ),
+  "GET /finance/payment-proofs/:id/content": view("finance"),
+  // A permissão de excluir é a de anexar no tipo do registro (conferida na rota).
+  "DELETE /finance/payment-proofs/:id": view("finance"),
   "PUT /finance/payables/:id/amount": operation("finance.recurring_update"),
   "POST /finance/receivables/:id/reverse": operation(
     "finance.receivables_reverse",
   ),
 
-  // Relatórios (só leitura).
+  // Relatórios (só leitura). Cada planilha tem sua própria permissão de exportação.
   "GET /reports/dre": operation("reports.dre"),
-  "GET /reports/dre/export": operation("reports.dre", "reports.export"),
+  "GET /reports/dre/export": operation("reports.dre", "reports.dre_export"),
   "GET /reports/management": operation("reports.management"),
+  "GET /reports/financial": operation("reports.dre"),
+  "GET /reports/financial/export": operation(
+    "reports.dre",
+    "reports.financial_export",
+  ),
   "GET /reports/retention": operation("reports.retention"),
   "GET /reports/clients/details": operation("reports.clients"),
   "GET /reports/clients/details/export": operation(
     "reports.clients",
-    "reports.export",
+    "reports.clients_export",
   ),
   "GET /reports/clients": operation("reports.clients"),
   "GET /reports/sales/period": operation("reports.sales"),
   "GET /reports/sales/period.xlsx": operation(
     "reports.sales",
-    "reports.export",
+    "reports.sales_export",
   ),
   "GET /reports/sales": operation("reports.sales"),
   "GET /reports/sales/patients/:id": operation("reports.sales"),
-  "GET /reports/sales.xlsx": operation("reports.sales", "reports.export"),
+  "GET /reports/sales.xlsx": operation("reports.sales", "reports.sales_export"),
   "GET /reports/management.csv": operation(
     "reports.management",
-    "reports.export",
+    "reports.management_export",
   ),
 };
 

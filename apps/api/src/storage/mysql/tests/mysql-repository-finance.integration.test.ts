@@ -938,6 +938,50 @@ describe.skipIf(!databaseUrl)("MySQL repository", () => {
     }
   });
 
+  it("accepts a variable fixed expense without estimate and fills it when it turns fixed", async () => {
+    await cleanupRecurringPayables();
+    try {
+      const [category, costCenter] = await testFinanceClassification();
+      const current = saoPauloToday().slice(0, 7);
+      const input = {
+        description: recurringPayableMarker,
+        categoryId: category.rows[0]!.id,
+        costCenterId: costCenter.rows[0]!.id,
+        amountType: "variable" as const,
+        amountInCents: 0,
+        dayOfMonth: 10,
+        startMonth: current,
+        active: true,
+      };
+      const model = await repository.createRecurringPayable(
+        clinicId,
+        ownerId,
+        input,
+      );
+      expect(model.amountInCents).toBe(0);
+      await repository.generateDueRecurringPayables(clinicId, ownerId);
+      const payable = (
+        await repository.getFinancialWorkspace(clinicId)
+      ).payables.find((item) => item.recurringPayableId === model.id)!;
+      expect(payable).toMatchObject({ amountInCents: 0, amountPending: true });
+      await expect(
+        repository.settlePayable(clinicId, ownerId, payable.id, "pix"),
+      ).rejects.toMatchObject({ code: "PAYABLE_AMOUNT_PENDING" });
+      await repository.updateRecurringPayable(clinicId, ownerId, model.id, {
+        ...input,
+        amountType: "fixed",
+        amountInCents: 7_500,
+      });
+      const fixed = (
+        await repository.getFinancialWorkspace(clinicId)
+      ).payables.find((item) => item.id === payable.id);
+      expect(fixed?.amountInCents).toBe(7_500);
+      expect(fixed?.amountPending).toBeUndefined();
+    } finally {
+      await cleanupRecurringPayables();
+    }
+  });
+
   it("keeps variable fixed expenses pending until the month amount is informed", async () => {
     await cleanupRecurringPayables();
     try {

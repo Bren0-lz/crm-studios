@@ -7,6 +7,8 @@ import {
   adminUserProfessionalInputSchema,
   adminUserUpdateSchema,
   autoFinalizationSettingsInputSchema,
+  commissionRecalculationConfirmationSchema,
+  paymentMethodSettingsInputSchema,
   clinicSettingsInputSchema,
   isValidTaxId,
   navTabLabelsInputSchema,
@@ -15,6 +17,13 @@ import {
 } from "@crm/contracts";
 import { hash } from "bcryptjs";
 import type { RouteContext } from "../../infrastructure/route-context.js";
+
+/** Regras de comissão gravadas pelo usuário recalculam as comissões já lançadas. */
+function recalculationOf(body: unknown) {
+  const { recalculationDigest } =
+    commissionRecalculationConfirmationSchema.parse(body);
+  return recalculationDigest ? { expectedDigest: recalculationDigest } : {};
+}
 
 export function registerAdministrationRoutes(context: RouteContext) {
   const { app, authenticate, autoFinalizer, repository, visibleHistory } =
@@ -50,6 +59,7 @@ export function registerAdministrationRoutes(context: RouteContext) {
             request.user.sub,
             input,
             await hash(input.password, 12),
+            recalculationOf(request.body),
           ),
         );
     },
@@ -65,6 +75,7 @@ export function registerAdministrationRoutes(context: RouteContext) {
         request.user.sub,
         id,
         adminUserUpdateSchema.parse(request.body),
+        recalculationOf(request.body),
       );
       if (!user)
         return reply.status(404).send({
@@ -131,6 +142,7 @@ export function registerAdministrationRoutes(context: RouteContext) {
         request.user.sub,
         id,
         adminUserCommissionInputSchema.parse(request.body),
+        recalculationOf(request.body),
       );
       if (!user)
         return reply.status(404).send({
@@ -189,6 +201,24 @@ export function registerAdministrationRoutes(context: RouteContext) {
       await autoFinalizer.run(request.user.clinicId, { force: true });
       return saved;
     },
+  );
+
+  // Parcelamento por forma de pagamento: todos leem (as vendas limitam as parcelas); só o admin altera.
+  app.get(
+    "/clinic/payment-methods",
+    { preHandler: authenticate },
+    async (request) =>
+      repository.getPaymentMethodSettings(request.user.clinicId),
+  );
+  app.put(
+    "/admin/payment-methods",
+    { preHandler: authenticate },
+    async (request) =>
+      repository.updatePaymentMethodSettings(
+        request.user.clinicId,
+        request.user.sub,
+        paymentMethodSettingsInputSchema.parse(request.body),
+      ),
   );
 
   app.get(

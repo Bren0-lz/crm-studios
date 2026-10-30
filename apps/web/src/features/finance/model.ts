@@ -10,7 +10,12 @@ import type {
   RecurringPayableInput,
   RecurringPayableReminder,
 } from "@crm/contracts";
-import { patientFirstName, type PaymentReceipt } from "@crm/contracts";
+import {
+  cashPaymentMethodLabels,
+  patientFirstName,
+  paymentMethodWithInstallments,
+  type PaymentReceipt,
+} from "@crm/contracts";
 import { currency, shortDate } from "../../shared/lib/formatting";
 import type { ReceivableFilter } from "./types";
 
@@ -57,15 +62,8 @@ export const dailyCashKinds: Record<
   commission: { label: "Comissão", pill: "open" },
 };
 
-export const dailyCashMethodLabels: Record<DailyCashPaymentMethod, string> = {
-  pix: "Pix",
-  card: "Cartão",
-  cash: "Dinheiro",
-  bank_transfer: "Transferência",
-  boleto: "Boleto",
-  other: "Outro",
-  unspecified: "Não informada",
-};
+export const dailyCashMethodLabels: Record<DailyCashPaymentMethod, string> =
+  cashPaymentMethodLabels;
 
 export function dailyCashMovementAmount(movement: DailyCashMovement) {
   const effect =
@@ -209,7 +207,17 @@ export function signedCurrency(effectInCents: number) {
 
 /** Mensagem pronta para enviar o recibo pelo WhatsApp (U40). */
 export function receiptMessage(receipt: PaymentReceipt) {
-  return `Olá, ${patientFirstName(receipt.patientName)}! Segue o recibo ${receipt.receiptNumber}: recebemos ${currency.format(receipt.amountInCents / 100)} referente a ${receipt.description}, em ${new Date(receipt.paidAt).toLocaleDateString("pt-BR")}. Obrigado! ${receipt.clinicName}`;
+  const installment =
+    receipt.installmentCount && receipt.installmentCount > 1
+      ? ` (parcela ${receipt.installmentNumber} de ${receipt.installmentCount})`
+      : "";
+  const method = receipt.paymentInstallments
+    ? `, ${paymentMethodWithInstallments(receipt.paymentMethod, receipt.paymentInstallments)}`
+    : "";
+  const discount = receipt.customerDiscountInCents
+    ? ` (com desconto de ${currency.format(receipt.customerDiscountInCents / 100)})`
+    : "";
+  return `Olá, ${patientFirstName(receipt.patientName)}! Segue o recibo ${receipt.receiptNumber}: recebemos ${currency.format(receipt.amountInCents / 100)}${discount} referente a ${receipt.description}${installment}, em ${new Date(receipt.paidAt).toLocaleDateString("pt-BR")}${method}. Obrigado! ${receipt.clinicName}`;
 }
 
 /** Explicações curtas dos termos financeiros (U41), usadas no HelpTip. */
@@ -223,3 +231,30 @@ export const financeTermHelp = {
   cashAvailable:
     "Quando o dinheiro fica de fato disponível (ex.: cartão que cai em 30 dias). É a data usada no caixa.",
 } as const;
+
+/** "Parcela 2 de 3 · Pago: Cartão · 3x": posição no parcelamento e como foi pago. */
+export function receivableInstallmentLine(
+  item: Pick<
+    Receivable,
+    | "installmentNumber"
+    | "installmentCount"
+    | "status"
+    | "paymentMethod"
+    | "paymentInstallments"
+    | "customerDiscountInCents"
+  >,
+) {
+  return [
+    item.installmentCount > 1
+      ? `Parcela ${item.installmentNumber} de ${item.installmentCount}`
+      : "",
+    item.customerDiscountInCents
+      ? `Desconto do cliente: ${currency.format(item.customerDiscountInCents / 100)}`
+      : "",
+    item.status === "paid" && item.paymentMethod
+      ? `Pago: ${paymentMethodWithInstallments(item.paymentMethod, item.paymentInstallments)}`
+      : "",
+  ]
+    .filter(Boolean)
+    .join(" · ");
+}

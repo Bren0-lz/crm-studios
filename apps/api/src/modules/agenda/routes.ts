@@ -1,6 +1,6 @@
 import { registerAgendaNoteRoutes } from "./notes-routes.js";
 import {
-  appointmentInputSchema,
+  appointmentCreateInputSchema,
   appointmentRescheduleInputSchema,
   appointmentStatusInputSchema,
   appointmentUpdateInputSchema,
@@ -9,7 +9,7 @@ import {
   isAppointmentStarted,
   leadAppointmentInputSchema,
   professionalInputSchema,
-  recurringAppointmentInputSchema,
+  recurringAppointmentCreateInputSchema,
   recurringOccurrenceStarts,
   roomInputSchema,
   scheduleBlockInputSchema,
@@ -20,6 +20,10 @@ import {
 import { z } from "zod";
 import type { RouteContext } from "../../infrastructure/route-context.js";
 import { DomainError } from "../../repository.js";
+import {
+  loadPromotionOffers,
+  resolvePromotionRedemption,
+} from "../communications/auto-campaigns.js";
 import {
   agendaProfessionalScope,
   inProfessionalScope,
@@ -236,16 +240,42 @@ export function registerAgendaRoutes(context: RouteContext) {
     },
   );
 
+  /** Promoções de campanhas automáticas que o cliente pode usar se agendar hoje. */
+  app.get(
+    "/appointments/promotions",
+    { preHandler: authenticate },
+    async (request) => {
+      const { patientId } = z
+        .object({ patientId: z.uuid() })
+        .parse(request.query);
+      return (
+        await loadPromotionOffers(repository, request.user.clinicId, patientId)
+      ).offers;
+    },
+  );
+
   app.post(
     "/appointments",
     { preHandler: authenticate },
     async (request, reply) => {
-      const input = appointmentInputSchema.parse(request.body);
+      const { promotion, ...input } = appointmentCreateInputSchema.parse(
+        request.body,
+      );
       await assertNoHoliday(request.user.clinicId, [input.startsAt]);
       await assertServiceAvailable(request.user.clinicId, [input]);
-      return reply
-        .status(201)
-        .send(await repository.createAppointment(request.user.clinicId, input));
+      const redemption = promotion
+        ? await resolvePromotionRedemption(
+            repository,
+            request.user.clinicId,
+            input.patientId,
+            promotion,
+          )
+        : undefined;
+      return reply.status(201).send(
+        await repository.createAppointment(request.user.clinicId, input, {
+          promotion: redemption,
+        }),
+      );
     },
   );
 
@@ -253,17 +283,27 @@ export function registerAgendaRoutes(context: RouteContext) {
     "/appointments/recurring",
     { preHandler: authenticate },
     async (request, reply) => {
-      const input = recurringAppointmentInputSchema.parse(request.body);
+      const { promotion, ...input } =
+        recurringAppointmentCreateInputSchema.parse(request.body);
       // Mesmas datas que os repositórios geram para cada ocorrência.
       const occurrences = recurringOccurrenceStarts(input);
       await assertNoHoliday(request.user.clinicId, occurrences);
       await assertServiceAvailable(request.user.clinicId, [input]);
+      const redemption = promotion
+        ? await resolvePromotionRedemption(
+            repository,
+            request.user.clinicId,
+            input.patientId,
+            promotion,
+          )
+        : undefined;
       return reply
         .status(201)
         .send(
           await repository.createRecurringAppointments(
             request.user.clinicId,
             input,
+            { promotion: redemption },
           ),
         );
     },

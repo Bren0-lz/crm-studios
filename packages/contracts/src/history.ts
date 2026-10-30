@@ -32,6 +32,21 @@ export const historyActions: {
     label: "Comprovante de operação externa baixado",
   },
   {
+    action: "finance.payment_proof_attached",
+    module: "finance",
+    label: "Comprovante de pagamento anexado",
+  },
+  {
+    action: "finance.payment_proof_downloaded",
+    module: "finance",
+    label: "Comprovante de pagamento baixado",
+  },
+  {
+    action: "finance.payment_proof_deleted",
+    module: "finance",
+    label: "Comprovante de pagamento excluído",
+  },
+  {
     action: "plan.purchased",
     module: "plans",
     label: "Plano contratado com agenda e contrato",
@@ -96,6 +111,21 @@ export const historyActions: {
     action: "campaign.created",
     module: "communications",
     label: "Campanha de WhatsApp criada",
+  },
+  {
+    action: "auto_campaign.created",
+    module: "communications",
+    label: "Campanha automática criada",
+  },
+  {
+    action: "auto_campaign.updated",
+    module: "communications",
+    label: "Campanha automática alterada",
+  },
+  {
+    action: "auto_campaign.deleted",
+    module: "communications",
+    label: "Campanha automática excluída",
   },
   {
     action: "message.manual_completion",
@@ -247,6 +277,11 @@ export const historyActions: {
     action: "clinic.auto_finalization_updated",
     module: "settings",
     label: "Finalização automática alterada",
+  },
+  {
+    action: "clinic.payment_methods_updated",
+    module: "settings",
+    label: "Formas de pagamento alteradas",
   },
   {
     action: "patient_tag.created",
@@ -479,9 +514,34 @@ export const historyActions: {
     label: "Recebíveis renegociados",
   },
   {
+    action: "payroll.employee_created",
+    module: "finance",
+    label: "Colaborador cadastrado na folha",
+  },
+  {
+    action: "payroll.employee_updated",
+    module: "finance",
+    label: "Colaborador da folha atualizado",
+  },
+  {
+    action: "payroll.launched",
+    module: "finance",
+    label: "Folha de pagamento lançada",
+  },
+  {
+    action: "payroll.launch_cancelled",
+    module: "finance",
+    label: "Lançamento da folha desfeito",
+  },
+  {
     action: "commission.reconciled",
     module: "finance",
     label: "Comissão conciliada com a origem",
+  },
+  {
+    action: "commission.recalculated",
+    module: "finance",
+    label: "Comissões recalculadas pela regra nova",
   },
   {
     action: "commission.account_paid",

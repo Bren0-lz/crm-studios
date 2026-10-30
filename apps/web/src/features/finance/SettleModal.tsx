@@ -9,10 +9,13 @@ import { useMissingFields } from "../../shared/components/MissingFields";
 import { Modal, ModalCancelButton } from "../../shared/components/Modal";
 import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
 import { MoneyInput } from "../../shared/components/MoneyInput";
+import { PaymentInstallmentsSelect } from "../../shared/components/PaymentInstallmentsSelect";
+import { usePaymentMethodSettings } from "../../shared/hooks/usePaymentMethodSettings";
 import { currency } from "../../shared/lib/formatting";
 import { paymentMethodOptions, financeTermHelp } from "./model";
 import type { SettleTarget } from "./types";
 import { HelpTip } from "../../shared/components/HelpTip";
+import { PaymentProofsField } from "./PaymentProofs";
 
 export function SettleModal({
   target,
@@ -25,6 +28,7 @@ export function SettleModal({
     method: PaymentMethod,
     timing?: PaymentTiming,
     adjustments?: SettlementAdjustments,
+    proofs?: File[],
   ) => Promise<void>;
 }) {
   // Por padrão a baixa é agora; "Pagamento antigo?" libera as datas para edição.
@@ -32,23 +36,29 @@ export function SettleModal({
     [paidAt, setPaidAt] = useState(nowForInput),
     [availableAt, setAvailableAt] = useState("");
   const [method, setMethod] = useState<PaymentMethod>("pix");
+  // Parcelas na própria forma (cartão em 3x); só nas parcelas a receber.
+  const [paymentInstallments, setPaymentInstallments] = useState(1);
+  const paymentSettings = usePaymentMethodSettings();
   // Baixa de parcela (U39): desconto, juros e valor recebido; vazio = valor final inteiro.
   const [discount, setDiscount] = useState<number | null>(null),
     [interest, setInterest] = useState<number | null>(null),
     [received, setReceived] = useState<number | null>(null),
     [balanceDueDate, setBalanceDueDate] = useState(target.dueDate ?? "");
+  const [proofs, setProofs] = useState<File[]>([]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const dirty = useFormDirty({
+  const formDirty = useFormDirty({
     pastPayment,
     paidAt,
     availableAt,
     method,
+    paymentInstallments,
     discount,
     interest,
     received,
     balanceDueDate,
   });
+  const dirty = formDirty || proofs.length > 0;
   const isReceivable = target.kind === "receivable";
   // Só os ajustes informados: a baixa simples continua com o mesmo pedido de antes.
   const values: SettlementAdjustments = {
@@ -68,6 +78,7 @@ export function SettleModal({
   );
   const adjustments: SettlementAdjustments = {
     ...values,
+    ...(paymentInstallments > 1 ? { paymentInstallments } : {}),
     ...(breakdown.balanceInCents > 0 && balanceDueDate
       ? { balanceDueDate }
       : {}),
@@ -92,6 +103,7 @@ export function SettleModal({
             }
           : undefined,
         isReceivable ? adjustments : undefined,
+        proofs,
       );
     } catch (cause) {
       setError((cause as Error).message);
@@ -127,6 +139,13 @@ export function SettleModal({
         </label>
         {isReceivable && (
           <>
+            <PaymentInstallmentsSelect
+              className="span-2"
+              method={method}
+              settings={paymentSettings}
+              value={paymentInstallments}
+              onChange={setPaymentInstallments}
+            />
             <label>
               Desconto (R$)
               <MoneyInput
@@ -231,6 +250,12 @@ export function SettleModal({
             </p>
           </div>
         </fieldset>
+        <PaymentProofsField
+          className="span-2"
+          files={proofs}
+          onChange={setProofs}
+          disabled={loading}
+        />
         {error && <div className="form-error span-2">{error}</div>}
         {missing.hint}
         <div className="modal-actions span-2">

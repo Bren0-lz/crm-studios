@@ -109,6 +109,300 @@ for (const storage of ["memory", "mysql"] as const) {
           after.products.find((item) => item.id === product.id)?.currentStock,
         ).toBe(1);
       });
+
+      it("guarda, mantém e desliga o aviso de reposição do produto", async () => {
+        const product = await repository.createProduct(
+          clinicId,
+          actorId,
+          productInputSchema.parse({
+            name: `Faixa ${randomUUID().slice(0, 8)}`,
+            sku: randomUUID().slice(0, 12),
+            costInCents: 500,
+            salePriceInCents: 1_500,
+            initialStock: 3,
+            restockAlertAt: 3,
+          }),
+        );
+        const listed = async () =>
+          (await repository.getInventoryWorkspace(clinicId)).products.find(
+            (item) => item.id === product.id,
+          );
+        expect(await listed()).toMatchObject({
+          restockAlertAt: 3,
+          lowStock: true,
+        });
+        const fields = {
+          name: product.name,
+          sku: product.sku,
+          unit: product.unit,
+          costInCents: product.costInCents,
+          salePriceInCents: 1_800,
+          active: true,
+        };
+        await repository.updateProduct(clinicId, actorId, product.id, fields);
+        expect(await listed()).toMatchObject({ restockAlertAt: 3 });
+        await repository.updateProduct(clinicId, actorId, product.id, {
+          ...fields,
+          restockAlertAt: null,
+        });
+        expect(await listed()).toMatchObject({
+          restockAlertAt: null,
+          lowStock: false,
+        });
+      });
+
+      it("guarda, mantém e limpa os tamanhos do produto", async () => {
+        const product = await repository.createProduct(
+          clinicId,
+          actorId,
+          productInputSchema.parse({
+            name: `Camiseta ${randomUUID().slice(0, 8)}`,
+            sku: randomUUID().slice(0, 12),
+            costInCents: 2_000,
+            salePriceInCents: 5_000,
+            sizes: ["g", "baby_look_m", "p"],
+          }),
+        );
+        expect(product.sizes).toEqual(["p", "g", "baby_look_m"]);
+        const fields = {
+          name: product.name,
+          sku: product.sku,
+          unit: product.unit,
+          costInCents: product.costInCents,
+          salePriceInCents: 5_500,
+          active: true,
+        };
+        expect(
+          (
+            await repository.updateProduct(
+              clinicId,
+              actorId,
+              product.id,
+              fields,
+            )
+          )?.sizes,
+        ).toEqual(["p", "g", "baby_look_m"]);
+        expect(
+          (
+            await repository.updateProduct(clinicId, actorId, product.id, {
+              ...fields,
+              sizes: [],
+            })
+          )?.sizes,
+        ).toEqual([]);
+        const plain = await repository.createProduct(
+          clinicId,
+          actorId,
+          productInputSchema.parse({
+            name: `Óleo ${randomUUID().slice(0, 8)}`,
+            sku: randomUUID().slice(0, 12),
+            costInCents: 1_000,
+            salePriceInCents: 2_000,
+          }),
+        );
+        expect(
+          (await repository.getInventoryWorkspace(clinicId)).products.find(
+            (item) => item.id === plain.id,
+          )?.sizes,
+        ).toEqual([]);
+      });
+
+      it("define o saldo de cada tamanho na edição do produto", async () => {
+        const product = await repository.createProduct(
+          clinicId,
+          actorId,
+          productInputSchema.parse({
+            name: `Top ${randomUUID().slice(0, 8)}`,
+            sku: randomUUID().slice(0, 12),
+            costInCents: 2_000,
+            salePriceInCents: 5_000,
+            sizes: ["p"],
+            initialSizeStock: [{ size: "p", quantity: 2 }],
+          }),
+        );
+        const fields = {
+          name: product.name,
+          sku: product.sku,
+          unit: product.unit,
+          costInCents: product.costInCents,
+          salePriceInCents: product.salePriceInCents,
+          active: true,
+        };
+        await expect(
+          repository.updateProduct(clinicId, actorId, product.id, {
+            ...fields,
+            sizes: ["p"],
+            sizeQuantities: [{ size: "m", quantity: 1 }],
+          }),
+        ).rejects.toMatchObject({ code: "PRODUCT_SIZE_INVALID" });
+        const updated = await repository.updateProduct(
+          clinicId,
+          actorId,
+          product.id,
+          {
+            ...fields,
+            sizes: ["p", "m"],
+            sizeQuantities: [
+              { size: "p", quantity: 1 },
+              { size: "m", quantity: 3 },
+            ],
+          },
+        );
+        expect(updated).toMatchObject({
+          currentStock: 4,
+          sizeStock: [
+            { size: "p", currentStock: 1 },
+            { size: "m", currentStock: 3 },
+          ],
+        });
+        const movements = (
+          await repository.getInventoryWorkspace(clinicId)
+        ).movements.filter((item) => item.productId === product.id);
+        expect(movements).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({
+              kind: "adjustment_out",
+              size: "p",
+              quantity: -1,
+              balanceAfter: 1,
+            }),
+            expect.objectContaining({
+              kind: "adjustment_in",
+              size: "m",
+              quantity: 3,
+              balanceAfter: 3,
+            }),
+          ]),
+        );
+      });
+
+      it("separa o estoque por tamanho na venda, no ajuste e no estorno", async () => {
+        const { patient } = await fixtures(1);
+        const product = await repository.createProduct(
+          clinicId,
+          actorId,
+          productInputSchema.parse({
+            name: `Legging ${randomUUID().slice(0, 8)}`,
+            sku: randomUUID().slice(0, 12),
+            costInCents: 3_000,
+            salePriceInCents: 9_000,
+            sizes: ["m", "p", "baby_look_g"],
+            initialSizeStock: [
+              { size: "p", quantity: 4 },
+              { size: "m", quantity: 2 },
+            ],
+          }),
+        );
+        expect(product).toMatchObject({
+          currentStock: 6,
+          sizeStock: [
+            { size: "p", currentStock: 4 },
+            { size: "m", currentStock: 2 },
+            { size: "baby_look_g", currentStock: 0 },
+          ],
+        });
+        const stockOf = async () =>
+          (await repository.getInventoryWorkspace(clinicId)).products.find(
+            (item) => item.id === product.id,
+          )!;
+
+        await expect(
+          repository.createStockMovement(clinicId, actorId, {
+            productId: product.id,
+            kind: "purchase",
+            quantity: 1,
+            notes: "Sem tamanho",
+          }),
+        ).rejects.toMatchObject({ code: "PRODUCT_SIZE_REQUIRED" });
+        const movement = await repository.createStockMovement(
+          clinicId,
+          actorId,
+          {
+            productId: product.id,
+            kind: "purchase",
+            size: "baby_look_g",
+            quantity: 3,
+            notes: "Reposição",
+          },
+        );
+        expect(movement).toMatchObject({
+          size: "baby_look_g",
+          quantity: 3,
+          balanceAfter: 3,
+        });
+
+        await expect(
+          repository.createProductSale(clinicId, actorId, {
+            patientId: patient.id,
+            items: [{ productId: product.id, size: "m", quantity: 3 }],
+            settlement: "receivable",
+            dueDate: saoPauloToday(),
+          }),
+        ).rejects.toMatchObject({ code: "INSUFFICIENT_STOCK" });
+        const sale = await repository.createProductSale(clinicId, actorId, {
+          patientId: patient.id,
+          items: [
+            { productId: product.id, size: "p", quantity: 2 },
+            { productId: product.id, size: "m", quantity: 1 },
+          ],
+          settlement: "receivable",
+          dueDate: saoPauloToday(),
+        });
+        expect(
+          sale.items.map((item) => [item.size, item.quantity]).sort(),
+        ).toEqual([
+          ["m", 1],
+          ["p", 2],
+        ]);
+        expect((await stockOf()).sizeStock).toEqual([
+          { size: "p", currentStock: 2 },
+          { size: "m", currentStock: 1 },
+          { size: "baby_look_g", currentStock: 3 },
+        ]);
+        const period = await repository.getSalesPeriodReport(
+          clinicId,
+          saoPauloToday(),
+          saoPauloToday(),
+        );
+        expect(
+          period.sales
+            .filter((item) => item.sourceId === sale.id)
+            .map((item) => item.itemName)
+            .sort(),
+        ).toEqual([`${product.name} · M`, `${product.name} · P`]);
+
+        // Comanda aberta: ajuste de quantidade mexe só no tamanho do item.
+        const tab = await repository.openPatientTab(clinicId, actorId, {
+          patientId: patient.id,
+        });
+        const withItem = (await repository.addPatientTabItem(
+          clinicId,
+          actorId,
+          tab.id,
+          { productId: product.id, size: "baby_look_g", quantity: 1 },
+        ))!;
+        await repository.updatePatientTabItem(
+          clinicId,
+          actorId,
+          tab.id,
+          withItem.items[0]!.id,
+          { quantity: 3, unitPriceInCents: 9_000 },
+        );
+        expect((await stockOf()).sizeStock[2]).toEqual({
+          size: "baby_look_g",
+          currentStock: 0,
+        });
+        await repository.cancelPatientTab(clinicId, actorId, tab.id);
+        await repository.cancelPatientTab(clinicId, actorId, sale.id);
+        expect(await stockOf()).toMatchObject({
+          currentStock: 9,
+          sizeStock: [
+            { size: "p", currentStock: 4 },
+            { size: "m", currentStock: 2 },
+            { size: "baby_look_g", currentStock: 3 },
+          ],
+        });
+      });
     },
   );
 }

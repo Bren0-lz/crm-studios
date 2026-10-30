@@ -34,12 +34,14 @@ import { useDataVersion } from "../../shared/hooks/useDataVersion";
 import type { DataDomain } from "../../shared/api/data-version";
 import { ClinicalWorkspacePanel } from "../clinical/index";
 import { PatientMessagePreferences } from "../communications/index";
+import { SignatureLinkRecord } from "../contracts/index";
 import {
   PlanCard,
   SessionMovementsModal,
   planSubtitle,
   type PlanCatalogKind,
 } from "../plans/index";
+import { patientDiscountLabel } from "./model";
 import { PatientPlanModal } from "./PatientPlanModal";
 import { PatientTimelineSection } from "./PatientTimelineSection";
 
@@ -145,6 +147,12 @@ function profileFields(patient: Patient) {
               : value,
     ]);
   }
+  if (patient.discount)
+    fields.push([
+      "discount",
+      "Desconto",
+      patientDiscountLabel(patient.discount),
+    ]);
   return fields;
 }
 
@@ -492,9 +500,18 @@ export function PatientRecordTabs({
               <TabList
                 state={finance}
                 empty="Nenhuma parcela registrada."
-                summary={(items) =>
-                  countLabel(items.length, "parcela", "parcelas")
-                }
+                summary={(items) => {
+                  // Total de desconto do cliente já concedido nas cobranças.
+                  const discount = items
+                    .filter((item) => item.status !== "cancelled")
+                    .reduce(
+                      (sum, item) => sum + (item.customerDiscountInCents ?? 0),
+                      0,
+                    );
+                  return discount
+                    ? `${countLabel(items.length, "parcela", "parcelas")} · ${currency.format(discount / 100)} em descontos concedidos`
+                    : countLabel(items.length, "parcela", "parcelas");
+                }}
                 link={{
                   to: moduleLink("/financeiro"),
                   label: "Abrir no Financeiro",
@@ -507,7 +524,12 @@ export function PatientRecordTabs({
                         <li key={item.id}>
                           <div className="patient-tab-item-main">
                             <strong>{item.description}</strong>
-                            <span>Vence em {formatIsoDate(item.dueDate)}</span>
+                            <span>
+                              Vence em {formatIsoDate(item.dueDate)}
+                              {item.customerDiscountInCents
+                                ? ` · desconto de ${currency.format(item.customerDiscountInCents / 100)}`
+                                : ""}
+                            </span>
                           </div>
                           <div className="patient-tab-item-side">
                             <span className="patient-tab-amount">
@@ -549,6 +571,9 @@ export function PatientRecordTabs({
                         <div className="patient-tab-item-main">
                           <strong>{item.title}</strong>
                           <span>{item.templateName}</span>
+                          {item.status !== "cancelled" && (
+                            <SignatureLinkRecord document={item} />
+                          )}
                         </div>
                         <div className="patient-tab-item-side">
                           <span className={`status-pill ${item.status}`}>

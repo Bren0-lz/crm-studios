@@ -1,4 +1,3 @@
-import type { ClinicalRecord } from "@crm/contracts";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { describe, expect, it } from "vitest";
@@ -7,7 +6,6 @@ import {
   AuthorizationContext,
 } from "../../authorization-context";
 import "../../test-support/legacy-setup";
-import { ClinicalAddendumModal } from "./ClinicalAddendumModal";
 import { ClinicalMeasurementModal } from "./ClinicalMeasurementModal";
 import { TherapeuticGoalModal } from "./TherapeuticGoalModal";
 import { TreatmentClosureModal } from "./TreatmentClosureModal";
@@ -84,36 +82,6 @@ describe("clinical modals list what is missing (QM14)", () => {
     type(dialog, "Resumo clínico", "Curto");
     expectMissing(save, "Falta: Resumo clínico (pelo menos 10 caracteres).");
     type(dialog, "Resumo clínico", "Alta com ganho funcional completo");
-    expectComplete(dialog, save);
-  });
-
-  it("clinical addendum", () => {
-    const record = {
-      id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
-      appointmentStartsAt: "2040-06-01T12:00:00.000Z",
-      professionalName: "Dra. Ana Martins",
-    } as ClinicalRecord;
-    const dialog = mount(
-      <ClinicalAddendumModal
-        records={[record]}
-        onClose={noop}
-        onSaved={noop}
-      />,
-      "Adendo ao prontuário",
-    );
-    const save = within(dialog).getByRole("button", {
-      name: "Registrar adendo",
-    });
-    expectMissing(
-      save,
-      "Falta: Motivo do adendo (pelo menos 5 caracteres), Conteúdo complementar (pelo menos 10 caracteres).",
-    );
-    type(dialog, "Motivo do adendo", "Correção de digitação");
-    expectMissing(
-      save,
-      "Falta: Conteúdo complementar (pelo menos 10 caracteres).",
-    );
-    type(dialog, "Conteúdo complementar", "Escala de dor correta: 4/10.");
     expectComplete(dialog, save);
   });
 

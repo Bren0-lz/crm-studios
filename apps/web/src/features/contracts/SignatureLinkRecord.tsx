@@ -4,13 +4,15 @@ import {
   type DocumentSignatureLinkDetails,
   type IssuedDocument,
 } from "@crm/contracts";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { api } from "../../api";
 import { EmptyState } from "../../shared/components/EmptyState";
 import { ErrorBanner } from "../../shared/components/ErrorBanner";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
 import { Modal } from "../../shared/components/Modal";
 import { shortDate, timeLabel } from "../../shared/lib/formatting";
+import type { DocumentPdfSignature } from "./ContractPdf";
+import { DocumentPdfPreview } from "./DocumentPdfPreview";
 
 function when(iso: string) {
   const date = new Date(iso);
@@ -24,6 +26,7 @@ export function SignatureLinkRecord({
   document: IssuedDocument;
 }) {
   const [open, setOpen] = useState(false);
+  const [viewing, setViewing] = useState(false);
   const link = document.signatureLink;
   if (!link) return null;
   return (
@@ -51,17 +54,34 @@ export function SignatureLinkRecord({
           ? `Visualizado ${link.viewCount === 1 ? "1 vez" : `${link.viewCount} vezes`}${link.lastViewedAt ? ` (última em ${when(link.lastViewedAt)})` : ""}.`
           : "Ainda não visualizado."}
       </p>
-      <button
-        type="button"
-        className="secondary-button button-sm"
-        onClick={() => setOpen(true)}
-      >
-        Ver registro
-      </button>
+      <div className="page-actions">
+        {link.signedAt && (
+          <button
+            type="button"
+            className="secondary-button button-sm"
+            onClick={() => setViewing(true)}
+          >
+            Ver contrato assinado
+          </button>
+        )}
+        <button
+          type="button"
+          className="secondary-button button-sm"
+          onClick={() => setOpen(true)}
+        >
+          Ver registro
+        </button>
+      </div>
       {open && (
         <SignatureLinkDetailsModal
           document={document}
           onClose={() => setOpen(false)}
+        />
+      )}
+      {viewing && (
+        <SignedDocumentModal
+          document={document}
+          onClose={() => setViewing(false)}
         />
       )}
     </div>
@@ -79,6 +99,7 @@ function SignatureLinkDetailsModal({
     null,
   );
   const [error, setError] = useState("");
+  const [viewing, setViewing] = useState(false);
   useEffect(() => {
     let active = true;
     api
@@ -93,6 +114,7 @@ function SignatureLinkDetailsModal({
     <Modal
       eyebrow="Contratos"
       title="Registro da assinatura"
+      inactive={viewing}
       subtitle={`${document.title} · ${document.patientName}`}
       onClose={onClose}
     >
@@ -197,9 +219,101 @@ function SignatureLinkDetailsModal({
             >
               Fechar
             </button>
+            {details.signedAt && (
+              <button
+                type="button"
+                className="primary-button"
+                onClick={() => setViewing(true)}
+              >
+                Ver contrato assinado
+              </button>
+            )}
           </div>
         </div>
       )}
+      {viewing && details && (
+        <SignedDocumentModal
+          document={document}
+          details={details}
+          onClose={() => setViewing(false)}
+        />
+      )}
+    </Modal>
+  );
+}
+
+/** PDF do documento com a assinatura do cliente (imagem, nome, data, IP e hash) no fim. */
+export function SignedDocumentModal({
+  document,
+  details: loaded,
+  onClose,
+}: {
+  document: IssuedDocument;
+  details?: DocumentSignatureLinkDetails;
+  onClose: () => void;
+}) {
+  const [details, setDetails] = useState<DocumentSignatureLinkDetails | null>(
+    loaded ?? null,
+  );
+  const [error, setError] = useState("");
+  useEffect(() => {
+    if (loaded) return;
+    let active = true;
+    api
+      .documentSignatureLink(document.id)
+      .then((data) => active && setDetails(data))
+      .catch((cause: Error) => active && setError(cause.message));
+    return () => {
+      active = false;
+    };
+  }, [loaded, document.id]);
+  const signature = useMemo<DocumentPdfSignature | undefined>(
+    () =>
+      details?.signedAt && details.signerName
+        ? {
+            signerName: details.signerName,
+            signedAt: details.signedAt,
+            signerCpf: details.signerCpf,
+            signatureImage: details.signatureImage,
+            ipAddress: details.signerIpAddress,
+            documentSha256: details.documentSha256,
+          }
+        : undefined,
+    [details],
+  );
+  return (
+    <Modal
+      eyebrow="Contratos"
+      title="Contrato assinado"
+      subtitle={`${document.title} · ${document.patientName}`}
+      wide
+      onClose={onClose}
+    >
+      <div className="receipt-content">
+        {error ? (
+          <ErrorBanner error={error} />
+        ) : !details ? (
+          <LoadingBlock />
+        ) : !signature ? (
+          <EmptyState
+            title="Ainda não assinado"
+            copy="O contrato assinado aparece aqui quando o cliente assinar pelo link."
+          />
+        ) : (
+          <DocumentPdfPreview
+            title={document.title}
+            body={document.snapshotBody}
+            content={document.snapshotContent}
+            branding={document.branding}
+            signature={signature}
+          />
+        )}
+        <div className="modal-actions">
+          <button type="button" className="secondary-button" onClick={onClose}>
+            Fechar
+          </button>
+        </div>
+      </div>
     </Modal>
   );
 }

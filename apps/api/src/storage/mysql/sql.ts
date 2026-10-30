@@ -56,6 +56,28 @@ export const localToday = () => localDate("UTC_TIMESTAMP(6)");
 export const inJsonArray = (column: string, parameter: string) =>
   `JSON_CONTAINS(${parameter}, JSON_QUOTE(${column}))`;
 
+/**
+ * Troca as chaves de primeiro nível do objeto JSON `parameter` em `column` (o `||` do
+ * Postgres), a partir do objeto gravado no parâmetro. O `JSON_MERGE_PATCH` sozinho mesclaria
+ * também os objetos internos e apagaria as chaves `null`: as chaves saem antes, voltam com o
+ * valor novo e as `null` ficam gravadas como `null`.
+ */
+export const replaceJsonKeys = (
+  column: string,
+  parameter: string,
+  value: Record<string, unknown>,
+) => {
+  const paths = Object.keys(value).map((key) => {
+    if (!/^\w+$/.test(key)) throw new Error(`Chave JSON inválida: ${key}`);
+    return `'$.${key}'`;
+  });
+  const merged = `JSON_MERGE_PATCH(${paths.length ? `JSON_REMOVE(${column}, ${paths.join(", ")})` : column}, ${parameter})`;
+  const nulls = Object.keys(value)
+    .filter((key) => value[key] === null)
+    .map((key) => `'$.${key}', NULL`);
+  return nulls.length ? `JSON_SET(${merged}, ${nulls.join(", ")})` : merged;
+};
+
 /** Filial padrão da clínica do parâmetro. */
 export const defaultBranchOf = (clinicParameter: string) =>
   `(SELECT b.id FROM branches b WHERE b.clinic_id = ${clinicParameter} AND b.is_default = 1)`;

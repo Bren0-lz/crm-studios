@@ -287,6 +287,18 @@
     justify-content: space-between;
   }
 
+  /* Folha de pagamento: competência e ações descem para baixo do título. */
+  .payroll-panel .panel-head {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .payroll-panel .panel-head .page-actions {
+    width: 100%;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
   /* Prontuários: lista ou prontuário, um de cada vez. */
   .clinical-records-layout {
     grid-template-columns: 1fr;
@@ -309,9 +321,6 @@
   }
   .clinical-chart-output {
     margin-left: 0;
-  }
-  .chart-soap {
-    grid-template-columns: 1fr;
   }
 
   /* Barra do funil: busca na linha toda, resumo abaixo dos atalhos. */
@@ -579,7 +588,7 @@
     padding: calc(var(--space-3) + 2px) var(--space-4);
   }
 
-  .template-list > article > button,
+  .template-list > article > .template-actions,
   .document-actions {
     grid-column: 1 / -1;
   }

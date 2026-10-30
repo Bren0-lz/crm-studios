@@ -2,6 +2,8 @@ import { useUnsavedChangesPrompt } from "../../shared/workflows/useUnsavedChange
 import type { CloseGuard } from "../../shared/workflows/types";
 import {
   nextPlanPeriod,
+  paymentMethodLabels,
+  paymentMethodSchema,
   planPeriodEnd,
   planPeriodMonths,
   planServiceValueForSessions,
@@ -10,8 +12,10 @@ import {
   type PatientOption,
   type PatientPlan,
   type PatientPlanInput,
+  type PaymentMethod,
   type PlanTemplate,
   type Service,
+  withPlanFirstCharge,
 } from "@crm/contracts";
 import {
   useEffect,
@@ -21,6 +25,7 @@ import {
   type ReactNode,
 } from "react";
 import { NavLink } from "react-router-dom";
+import { PlanFirstChargeNote } from "./PlanFirstChargeNote";
 import { PlanInstallmentsField } from "./PlanInstallmentsField";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
@@ -29,7 +34,9 @@ import { FixedPatient } from "../../shared/components/FixedPatient";
 import { useMissingFields } from "../../shared/components/MissingFields";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
 import { PlanGroupPicker } from "../../shared/components/PlanGroupPicker";
+import { usePaymentMethodSettings } from "../../shared/hooks/usePaymentMethodSettings";
 import { currency, localIsoDate } from "../../shared/lib/formatting";
+import { planGroupMissing } from "../../shared/lib/plan-groups";
 import type { GroupChoices } from "../../shared/workflows/types";
 import {
   useConfirmDiscard,
@@ -108,6 +115,9 @@ export function PlanForm({
       ),
       totalValueInCents: renewing.totalValueInCents,
       installments: renewing.kind === "recurring" ? 1 : renewing.installments,
+      ...(renewing.paymentMethod
+        ? { paymentMethod: renewing.paymentMethod }
+        : {}),
       autoRenew: renewing.autoRenew && Boolean(period.validUntil),
       ...period,
     };
@@ -117,6 +127,12 @@ export function PlanForm({
   const submitting = useRef(false);
   const [groupId, setGroupId] = useState("");
   const [baseline] = useState(() => JSON.stringify(form));
+  // Plano de aulas em grupo (serviço com turma ativa) só é contratado com a turma escolhida.
+  const groupMissing =
+    Boolean(groups) &&
+    !renewing &&
+    form.kind !== "single" &&
+    planGroupMissing(groups?.items, form.services, groupId);
   // O que falta para contratar ou renovar: o botão fica desativado listando (QM14).
   const missing = useMissingFields(
     [
@@ -125,10 +141,12 @@ export function PlanForm({
       Boolean(renewing) && !form.name.trim() && "Nome do plano",
       !form.validFrom && "Início",
       !form.firstDueDate && "Primeiro vencimento",
+      groupMissing && "Turma",
     ].filter((item): item is string => Boolean(item)),
   );
   const formElement = useRef<HTMLFormElement>(null);
   const [templates, setTemplates] = useState<PlanTemplate[] | null>(null);
+  const paymentSettings = usePaymentMethodSettings();
   const [catalogError, setCatalogError] = useState("");
   const [catalogAttempt, setCatalogAttempt] = useState(0);
   useEffect(() => {
@@ -168,13 +186,17 @@ export function PlanForm({
       setError("Selecione um plano cadastrado.");
       throw new Error("Selecione um plano cadastrado.");
     }
+    if (groupMissing) {
+      setError("Selecione a turma do plano de aulas em grupo.");
+      throw new Error("Selecione a turma do plano de aulas em grupo.");
+    }
     submitting.current = true;
     setLoading(true);
     onBusyChange(true);
     setError("");
     try {
       await onSubmit(
-        form,
+        withPlanFirstCharge(form, firstChargeSlots),
         form.kind !== "single" ? groupId || undefined : undefined,
       );
     } catch (cause) {
@@ -186,6 +208,10 @@ export function PlanForm({
       onBusyChange(false);
     }
   }
+  // 1º pagamento proporcional às aulas da turma escolhida; a renovação mantém o valor cheio.
+  const firstChargeSlots = renewing
+    ? undefined
+    : groups?.items?.find((group) => group.id === groupId)?.weeklySlots;
   // Plano é fixo: sessões e valor vêm do plano cadastrado (ou do plano renovado).
   // Só o avulso muda as sessões, e o valor acompanha o preço por sessão.
   const references = renewing
@@ -532,11 +558,38 @@ export function PlanForm({
                 }
               />
             </label>
+            <label>
+              Forma de pagamento
+              <select
+                value={form.paymentMethod ?? ""}
+                onChange={(event) => {
+                  const paymentMethod = event.target.value as
+                    PaymentMethod | "";
+                  const next = { ...form };
+                  if (paymentMethod) next.paymentMethod = paymentMethod;
+                  else delete next.paymentMethod;
+                  setForm(next);
+                }}
+              >
+                <option value="">A combinar</option>
+                {paymentMethodSchema.options.map((method) => (
+                  <option value={method} key={method}>
+                    {paymentMethodLabels[method]}
+                  </option>
+                ))}
+              </select>
+            </label>
             <PlanInstallmentsField
               kind={form.kind}
               installments={form.installments}
               firstDueDate={form.firstDueDate}
               validUntil={form.validUntil}
+              paymentMethod={form.paymentMethod}
+              settings={paymentSettings}
+              template={templates?.find(
+                (item) =>
+                  item.id === (renewing?.planTemplateId ?? form.planTemplateId),
+              )}
               onChange={(installments) => setForm({ ...form, installments })}
             />
             <label>
@@ -550,6 +603,9 @@ export function PlanForm({
                 }
               />
             </label>
+            {!renewing && (
+              <PlanFirstChargeNote plan={form} slots={firstChargeSlots} />
+            )}
             <label className="checkbox-field span-2">
               <input
                 type="checkbox"
@@ -570,6 +626,7 @@ export function PlanForm({
                 value={groupId}
                 onChange={setGroupId}
                 disabled={loading}
+                required
               />
             )}
             {renderAdditional?.(form)}

@@ -1,5 +1,10 @@
 import { nextTestCpf } from "../../test-support/cpf.js";
-import { togglePermissions, type PermissionKey } from "@crm/contracts";
+import {
+  permissionCatalog,
+  togglePermissions,
+  type PermissionKey,
+} from "@crm/contracts";
+import { readFileSync } from "node:fs";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { buildApp } from "../../app.js";
 import { ROUTE_ACCESS } from "../../infrastructure/route-access.js";
@@ -212,6 +217,66 @@ describe("per-operation API authorization", () => {
       ).statusCode,
     ).toBe(404);
   });
+  it("authorizes each spreadsheet export and import with its own permission", async () => {
+    const { app, headers, update } = await setup([
+      "reports.view",
+      "reports.dre",
+      "reports.sales",
+      "reports.management",
+      "reports.clients",
+      "patients.view",
+    ]);
+    const range = "from=2025-01-01&to=2025-01-31";
+    const routes: [string, PermissionKey][] = [
+      [`/reports/sales/period.xlsx?${range}`, "reports.sales_export"],
+      ["/reports/sales.xlsx?month=2025-01", "reports.sales_export"],
+      [`/reports/management.csv?${range}`, "reports.management_export"],
+      [`/reports/clients/details/export?${range}`, "reports.clients_export"],
+      ["/patients/export?format=csv&columns=fullName", "patients.export"],
+      [`/reports/dre/export?${range}`, "reports.dre_export"],
+      [
+        "/reports/financial/export?periodFrom=2025-01-01&periodTo=2025-01-31",
+        "reports.financial_export",
+      ],
+    ];
+    const status = async (url: string) =>
+      (await app.inject({ method: "GET", url, headers })).statusCode;
+    for (const [url] of routes) expect(await status(url)).toBe(403);
+    expect(
+      (
+        await app.inject({
+          method: "POST",
+          url: "/patients/import/preview",
+          headers,
+          payload: { csv: "nome\nCliente" },
+        })
+      ).statusCode,
+    ).toBe(403);
+    for (const [, permission] of routes) {
+      await update(
+        togglePermissions(
+          [
+            "reports.view",
+            "reports.dre",
+            "reports.sales",
+            "reports.management",
+            "reports.clients",
+            "patients.view",
+          ],
+          [permission],
+          true,
+        ),
+      );
+      for (const [otherUrl, other] of routes)
+        expect(await status(otherUrl), `${permission} → ${otherUrl}`).toBe(
+          other === permission ? 200 : 403,
+        );
+    }
+    expect(
+      permissionCatalog.find((item) => item.key === "reports.dre_export")
+        ?.dependencies,
+    ).toEqual(["reports.view", "reports.dre"]);
+  });
   it("revokes access using the same token and audits exact before/after permissions", async () => {
     const { app, headers, update, repository, user } = await setup([
       "patients.view",
@@ -304,5 +369,32 @@ describe("per-operation API authorization", () => {
         })
       ).statusCode,
     ).toBe(200);
+  });
+  it("migrations grant one spreadsheet export per report and template deletion", () => {
+    const migration = (name: string) =>
+      readFileSync(
+        new URL(`../../../migrations/${name}`, import.meta.url),
+        "utf8",
+      );
+    const split = migration("0008_spreadsheet_export_permissions.sql");
+    for (const key of [
+      "reports.dre_export",
+      "reports.financial_export",
+      "reports.management_export",
+      "reports.clients_export",
+      "reports.sales_export",
+    ] as const) {
+      const report = permissionCatalog.find((item) => item.key === key)!
+        .dependencies[1];
+      expect(split).toContain(
+        `JSON_CONTAINS(permissions, '"${report}"')\n  AND NOT JSON_CONTAINS(permissions, '"${key}"')`,
+      );
+    }
+    expect(split).toContain(
+      "JSON_REMOVE(permissions, JSON_UNQUOTE(JSON_SEARCH(permissions, 'one', 'reports.export')))",
+    );
+    expect(migration("0017_document_template_delete.sql")).toContain(
+      `WHERE JSON_CONTAINS(permissions, '"contracts.templates_create"')`,
+    );
   });
 });

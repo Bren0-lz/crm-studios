@@ -1,0 +1,449 @@
+import type {
+  ClinicCatalogEntry,
+  Product,
+  ProductInput,
+  ProductSize,
+  ProductUpdateInput,
+} from "@crm/contracts";
+import {
+  productSizeLabels,
+  productSizeSchema,
+  sortProductSizes,
+} from "@crm/contracts";
+import { useEffect, useId, useState, type FormEvent } from "react";
+import { api } from "../../api";
+import { useAuthorization } from "../../authorization-context";
+import { CurrencyField } from "../../shared/components/CurrencyField";
+import { Modal, ModalCancelButton } from "../../shared/components/Modal";
+import { MoneyInput } from "../../shared/components/MoneyInput";
+import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
+import { useToast } from "../../shared/feedback/toast-context";
+import {
+  NewCatalogEntryModal,
+  type ProductCatalogKind,
+} from "./NewCatalogEntryModal";
+
+/** Opção do select de categoria/marca que abre o cadastro rápido. */
+const NEW_CATALOG_ENTRY = "__new__";
+
+type ProductForm = ProductInput & { sizes: ProductSize[] };
+
+const emptyProduct: ProductForm = {
+  name: "",
+  sku: "",
+  unit: "un",
+  costInCents: 0,
+  salePriceInCents: null,
+  initialStock: 0,
+  restockAlertAt: null,
+  sizes: [],
+};
+
+/** Saldo atual de cada tamanho configurado, como o formulário edita. */
+function currentSizeStock(product: Product) {
+  const stock: Partial<Record<ProductSize, number>> = {};
+  for (const entry of product.sizeStock)
+    if (entry.size) stock[entry.size] = entry.currentStock;
+  return stock;
+}
+
+/**
+ * Cadastro e edição do produto. Abre também por cima da venda (produto sem preço), sem
+ * fechá-la: quem chama recebe o produto salvo em `onSaved`.
+ */
+export function ProductModal({
+  product,
+  focusPrice = false,
+  onClose,
+  onSaved,
+}: {
+  product: Product | "new";
+  /** Abre com o foco no preço de venda (atalho do aviso de produto sem preço). */
+  focusPrice?: boolean;
+  onClose: () => void;
+  onSaved?: ((product: Product) => void) | undefined;
+}) {
+  const { user } = useAuthorization();
+  // Cadastrar categoria e marca é exclusivo do administrador (como em Configurações › Cadastros).
+  const canCreateCatalog = user?.role === "admin";
+  const toast = useToast();
+  const isNew = product === "new";
+  const salePriceHintId = useId();
+  const [categories, setCategories] = useState<ClinicCatalogEntry[]>([]),
+    [brands, setBrands] = useState<ClinicCatalogEntry[]>([]),
+    [busy, setBusy] = useState(false),
+    [formError, setFormError] = useState(""),
+    [form, setForm] = useState<ProductForm>(() =>
+      product === "new" ? emptyProduct : { ...product, initialStock: 0 },
+    ),
+    [active, setActive] = useState(product === "new" || product.active),
+    [hasSizes, setHasSizes] = useState(
+      product !== "new" && product.sizes.length > 0,
+    ),
+    [restockAlert, setRestockAlert] = useState(
+      product !== "new" && product.restockAlertAt !== null,
+    ),
+    [sizeQuantities, setSizeQuantities] = useState<
+      Partial<Record<ProductSize, number>>
+    >(() => (product === "new" ? {} : currentSizeStock(product))),
+    [catalogCreator, setCatalogCreator] = useState<ProductCatalogKind | null>(
+      null,
+    );
+  const productDirty = useFormDirty(
+    { form, active, hasSizes, restockAlert, sizeQuantities },
+    true,
+  );
+  useEffect(() => {
+    let alive = true;
+    Promise.all([
+      api.clinicCatalog("product_category"),
+      api.clinicCatalog("product_brand"),
+    ])
+      .then(([categoryData, brandData]) => {
+        if (alive) {
+          setCategories(categoryData);
+          setBrands(brandData);
+        }
+      })
+      .catch((cause: Error) => {
+        if (alive) setFormError(cause.message);
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
+  function catalogCreated(entry: ClinicCatalogEntry) {
+    if (catalogCreator === "product_category") {
+      setCategories((items) => [...items, entry]);
+      setForm((current) => ({ ...current, categoryId: entry.id }));
+    } else {
+      setBrands((items) => [...items, entry]);
+      setForm((current) => ({ ...current, brandId: entry.id }));
+    }
+    setCatalogCreator(null);
+  }
+  function toggleSize(size: ProductSize, checked: boolean) {
+    setForm({
+      ...form,
+      sizes: sortProductSizes(
+        checked
+          ? [...form.sizes, size]
+          : form.sizes.filter((item) => item !== size),
+      ),
+    });
+  }
+  async function save(event: FormEvent) {
+    event.preventDefault();
+    if (hasSizes && !form.sizes.length) {
+      setFormError("Selecione ao menos um tamanho.");
+      return;
+    }
+    const sizes = hasSizes ? form.sizes : [];
+    const quantities = sizes.map((size) => ({
+      size,
+      quantity: sizeQuantities[size] ?? 0,
+    }));
+    const fields: ProductInput = {
+      ...form,
+      sizes,
+      restockAlertAt: restockAlert ? (form.restockAlertAt ?? 1) : null,
+    };
+    setBusy(true);
+    setFormError("");
+    try {
+      let saved: Product;
+      if (product === "new")
+        saved = await api.createProduct({
+          ...fields,
+          ...(sizes.length
+            ? {
+                initialStock: 0,
+                initialSizeStock: quantities.filter(
+                  (entry) => entry.quantity > 0,
+                ),
+              }
+            : {}),
+        });
+      else {
+        // Só os tamanhos cujo saldo mudou: o resto do estoque segue o que estiver gravado.
+        const current = currentSizeStock(product);
+        saved = await api.updateProduct(product.id, {
+          ...fields,
+          active,
+          sizeQuantities: quantities.filter(
+            (entry) => entry.quantity !== (current[entry.size] ?? 0),
+          ),
+        } as ProductUpdateInput);
+      }
+      toast.success(isNew ? "Produto cadastrado." : "Produto atualizado.");
+      onSaved?.(saved);
+      onClose();
+    } catch (cause) {
+      setFormError((cause as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <>
+      <Modal
+        title={isNew ? "Novo produto" : "Editar produto"}
+        subtitle="Preços e classificação. O saldo muda pelos ajustes de estoque."
+        {...(focusPrice ? { initialFocus: 'input[name="salePrice"]' } : {})}
+        busy={busy}
+        inactive={Boolean(catalogCreator)}
+        dirty={productDirty}
+        onClose={onClose}
+      >
+        <form className="clinical-form" onSubmit={save}>
+          {formError && <p className="form-error">{formError}</p>}
+          <div className="form-grid">
+            <label>
+              Nome
+              <input
+                required
+                value={form.name}
+                onChange={(event) =>
+                  setForm({ ...form, name: event.target.value })
+                }
+              />
+            </label>
+            <label>
+              Código do produto
+              <input
+                required
+                value={form.sku}
+                onChange={(event) =>
+                  setForm({ ...form, sku: event.target.value })
+                }
+              />
+            </label>
+            <label>
+              Unidade
+              <input
+                required
+                value={form.unit}
+                onChange={(event) =>
+                  setForm({ ...form, unit: event.target.value })
+                }
+              />
+            </label>
+            <CurrencyField
+              label="Custo"
+              value={form.costInCents}
+              onChange={(value) => setForm({ ...form, costInCents: value })}
+            />
+            <div className="field-with-hint">
+              <label>
+                Preço de venda (R$)
+                <MoneyInput
+                  name="salePrice"
+                  aria-describedby={salePriceHintId}
+                  valueInCents={form.salePriceInCents}
+                  onChange={(cents) =>
+                    setForm({ ...form, salePriceInCents: cents })
+                  }
+                />
+              </label>
+              <small className="field-hint" id={salePriceHintId}>
+                Pode ficar em branco até o preço ser calculado; sem ele o
+                produto não pode ser vendido.
+              </small>
+            </div>
+            {isNew && !hasSizes && (
+              <label>
+                Estoque inicial
+                <input
+                  type="number"
+                  min={0}
+                  value={form.initialStock}
+                  onChange={(event) =>
+                    setForm({
+                      ...form,
+                      initialStock: Number(event.target.value),
+                    })
+                  }
+                />
+              </label>
+            )}
+            <label>
+              Categoria
+              <select
+                value={form.categoryId ?? ""}
+                onChange={(event) =>
+                  event.target.value === NEW_CATALOG_ENTRY
+                    ? setCatalogCreator("product_category")
+                    : setForm({
+                        ...form,
+                        categoryId: event.target.value || null,
+                      })
+                }
+              >
+                <option value="">Não classificado</option>
+                {categories.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.name}
+                  </option>
+                ))}
+                {canCreateCatalog && (
+                  <option value={NEW_CATALOG_ENTRY}>+ Nova categoria</option>
+                )}
+              </select>
+            </label>
+            <label>
+              Marca
+              <select
+                value={form.brandId ?? ""}
+                onChange={(event) =>
+                  event.target.value === NEW_CATALOG_ENTRY
+                    ? setCatalogCreator("product_brand")
+                    : setForm({
+                        ...form,
+                        brandId: event.target.value || null,
+                      })
+                }
+              >
+                <option value="">Não informada</option>
+                {brands.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.name}
+                  </option>
+                ))}
+                {canCreateCatalog && (
+                  <option value={NEW_CATALOG_ENTRY}>+ Nova marca</option>
+                )}
+              </select>
+            </label>
+            <label className="checkbox-field span-2">
+              <input
+                type="checkbox"
+                checked={hasSizes}
+                onChange={(event) => setHasSizes(event.target.checked)}
+              />
+              Possui distinção por tamanhos
+            </label>
+            {hasSizes && (
+              <fieldset className="form-fieldset span-2">
+                <legend>Tamanhos disponíveis</legend>
+                <div className="product-size-grid">
+                  {productSizeSchema.options.map((size) => (
+                    <label key={size} className="checkbox-field">
+                      <input
+                        type="checkbox"
+                        checked={form.sizes.includes(size)}
+                        onChange={(event) =>
+                          toggleSize(size, event.target.checked)
+                        }
+                      />
+                      {productSizeLabels[size]}
+                    </label>
+                  ))}
+                </div>
+                {!isNew && (
+                  <p className="field-hint">
+                    O saldo de um tamanho desmarcado continua no estoque até ser
+                    baixado por um ajuste.
+                  </p>
+                )}
+              </fieldset>
+            )}
+            {hasSizes && form.sizes.length > 0 && (
+              <fieldset className="form-fieldset span-2">
+                <legend>
+                  {isNew
+                    ? "Estoque inicial por tamanho"
+                    : "Quantidade por tamanho"}
+                </legend>
+                <div className="product-size-grid">
+                  {form.sizes.map((size) => (
+                    <label key={size}>
+                      {`${isNew ? "Estoque inicial" : "Quantidade"} ${productSizeLabels[size]}`}
+                      <input
+                        type="number"
+                        min={0}
+                        value={sizeQuantities[size] ?? 0}
+                        onChange={(event) =>
+                          setSizeQuantities({
+                            ...sizeQuantities,
+                            [size]: Number(event.target.value),
+                          })
+                        }
+                      />
+                    </label>
+                  ))}
+                </div>
+                {!isNew && (
+                  <p className="field-hint">
+                    Mudar uma quantidade registra um ajuste no histórico de
+                    estoque.
+                  </p>
+                )}
+              </fieldset>
+            )}
+            <fieldset className="form-fieldset restock-fieldset span-2">
+              <legend>Aviso de reposição</legend>
+              <label className="checkbox-field">
+                <input
+                  type="checkbox"
+                  checked={restockAlert}
+                  onChange={(event) => {
+                    setRestockAlert(event.target.checked);
+                    if (event.target.checked && !form.restockAlertAt)
+                      setForm({ ...form, restockAlertAt: 1 });
+                  }}
+                />
+                Avisar quando for hora de repor
+              </label>
+              {restockAlert && (
+                <label className="restock-quantity">
+                  Avisar quando restarem
+                  <input
+                    type="number"
+                    required
+                    min={1}
+                    value={form.restockAlertAt ?? ""}
+                    onChange={(event) =>
+                      setForm({
+                        ...form,
+                        restockAlertAt: Number(event.target.value) || null,
+                      })
+                    }
+                  />
+                </label>
+              )}
+              <p className="field-hint">
+                Opcional. Quando o estoque chegar à quantidade escolhida, o
+                produto aparece como “Repor estoque” na lista e entra em
+                “Produtos para repor” nos Indicadores.
+                {hasSizes && " Vale o total somando todos os tamanhos."}
+              </p>
+            </fieldset>
+            {!isNew && (
+              <label className="checkbox-field span-2">
+                <input
+                  type="checkbox"
+                  checked={active}
+                  onChange={(event) => setActive(event.target.checked)}
+                />
+                Ativo
+              </label>
+            )}
+          </div>
+          <div className="modal-actions">
+            <ModalCancelButton disabled={busy}>Cancelar</ModalCancelButton>
+            <button className="primary-button" disabled={busy}>
+              Salvar produto
+            </button>
+          </div>
+        </form>
+      </Modal>
+      {catalogCreator && (
+        <NewCatalogEntryModal
+          kind={catalogCreator}
+          onClose={() => setCatalogCreator(null)}
+          onCreated={catalogCreated}
+        />
+      )}
+    </>
+  );
+}

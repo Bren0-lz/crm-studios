@@ -14,6 +14,7 @@ import { PageHeader } from "../../shared/components/PageHeader";
 import type { CloseGuard } from "../../shared/workflows/types";
 import { AdminUsersContent } from "./AdminUsersContent";
 import { AutoFinalizationContent } from "./AutoFinalizationContent";
+import { PaymentMethodsContent } from "./PaymentMethodsContent";
 import { BranchesContent } from "./BranchesContent";
 import { ClinicSettingsContent } from "./ClinicSettingsContent";
 import { HolidaysContent } from "./HolidaysContent";
@@ -140,6 +141,8 @@ export function SettingsPage() {
               <NavTabLabelsContent />
             ) : tab.key === "autoFinalization" ? (
               <AutoFinalizationContent />
+            ) : tab.key === "paymentMethods" ? (
+              <PaymentMethodsContent />
             ) : tab.key === "plans" ? (
               <PlanTemplatesContent />
             ) : tab.key === "holidays" ? (

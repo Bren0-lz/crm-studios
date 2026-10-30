@@ -1,10 +1,4 @@
-import {
-  patientFirstName,
-  type AssessmentTemplateInput,
-  type ClinicalAppointmentOption,
-  type ClinicalRecord,
-  type PatientOption,
-} from "@crm/contracts";
+import type { AssessmentTemplateInput, PatientOption } from "@crm/contracts";
 import {
   ArrowLeft,
   ClipboardList,
@@ -29,7 +23,6 @@ import { ErrorBanner } from "../../shared/components/ErrorBanner";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
 import { PageHeader } from "../../shared/components/PageHeader";
 import { ReadOnlyNotice } from "../../shared/components/ReadOnlyNotice";
-import { useToast } from "../../shared/feedback/toast-context";
 import {
   AssessmentTemplateLibrary,
   AssessmentTemplateStudio,
@@ -37,34 +30,20 @@ import {
 } from "./AssessmentTemplatesTabs";
 import { ClinicalChart } from "./ClinicalChart";
 import { ClinicalPatientList } from "./ClinicalPatientList";
-import { ClinicalRecordModal } from "./ClinicalRecordModal";
-import {
-  buildPatientSummaries,
-  clinicalAppointmentRange,
-  evolvableAppointments,
-} from "./model";
 
 type RecordsTab = "prontuarios" | "modelos" | "criar-modelo";
 
 /**
- * Prontuários por cliente: à esquerda a lista com busca e pendências, à direita o prontuário
+ * Prontuários por cliente: à esquerda a lista com busca, à direita o prontuário
  * do cliente escolhido (`?cliente=<id>`, que também serve de link direto). As abas Modelos e
  * Criar modelo gerenciam os formulários de avaliação (`?aba=modelos` abre direto na lista).
  */
 export function ClinicalRecordsPage() {
   const { can, canEdit } = useAuthorization();
-  const toast = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
-  const [records, setRecords] = useState<ClinicalRecord[]>([]);
-  const [appointments, setAppointments] = useState<ClinicalAppointmentOption[]>(
-    [],
-  );
   const [patients, setPatients] = useState<PatientOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [creating, setCreating] = useState(false);
-  // Recarrega o prontuário aberto depois de uma evolução criada pelo cabeçalho.
-  const [chartVersion, setChartVersion] = useState(0);
   const canManage = canEdit("clinical");
   const selectedId = searchParams.get("cliente") ?? undefined;
   const canCreateTemplate = canManage && can("clinical.templates_create");
@@ -116,16 +95,10 @@ export function ClinicalRecordsPage() {
 
   useEffect(() => {
     let active = true;
-    Promise.all([
-      api.clinicalRecords(),
-      api.clinicalAppointmentOptions(...clinicalAppointmentRange()),
-      api.patientOptions(),
-    ])
-      .then(([recordData, appointmentData, patientData]) => {
-        if (!active) return;
-        setRecords(recordData);
-        setPatients(patientData);
-        setAppointments(evolvableAppointments(appointmentData));
+    api
+      .patientOptions()
+      .then((patientData) => {
+        if (active) setPatients(patientData);
       })
       .catch((cause: Error) => {
         if (active) setError(cause.message);
@@ -142,49 +115,13 @@ export function ClinicalRecordsPage() {
     setSearchParams(patientId ? { cliente: patientId } : {});
   }
 
-  function replaceRecord(record: ClinicalRecord) {
-    setRecords((current) =>
-      [record, ...current.filter((item) => item.id !== record.id)].sort(
-        (a, b) => b.appointmentStartsAt.localeCompare(a.appointmentStartsAt),
-      ),
-    );
-  }
-
-  const availableAppointments = appointments.filter(
-    (appointment) =>
-      !records.some((record) => record.appointmentId === appointment.id),
-  );
-  const summaries = buildPatientSummaries(patients, records, appointments);
-  const selected = summaries.find((item) => item.patient.id === selectedId);
-  const totalPending = summaries.reduce(
-    (total, item) => total + item.pending.length,
-    0,
-  );
-  const totalDrafts = records.filter((item) => item.status === "draft").length;
+  const selected = patients.find((patient) => patient.id === selectedId);
 
   return (
     <>
       <PageHeader
         title="Prontuários"
-        description="Evoluções, avaliações, metas e arquivos de cada cliente, num só lugar."
-        action={
-          canManage &&
-          can("clinical.records_create") && (
-            <button
-              className="primary-button"
-              onClick={() => setCreating(true)}
-              disabled={availableAppointments.length === 0}
-              title={
-                availableAppointments.length === 0
-                  ? "Todos os atendimentos disponíveis já possuem prontuário"
-                  : undefined
-              }
-            >
-              <FileText size={18} />
-              Nova evolução
-            </button>
-          )
-        }
+        description="Avaliações, metas e arquivos de cada cliente, num só lugar."
       />
       {!canManage && <ReadOnlyNotice module="clinical" />}
       {error && <ErrorBanner error={error} />}
@@ -256,23 +193,9 @@ export function ClinicalRecordsPage() {
           className={`clinical-records-layout${selected ? " has-selection" : ""}`}
         >
           <div className="clinical-records-aside">
-            {(totalPending > 0 || totalDrafts > 0) && (
-              <p className="clinical-records-summary">
-                {[
-                  totalPending > 0
-                    ? `${totalPending} ${totalPending === 1 ? "sessão" : "sessões"} sem evolução`
-                    : null,
-                  totalDrafts > 0
-                    ? `${totalDrafts} ${totalDrafts === 1 ? "rascunho" : "rascunhos"} para finalizar`
-                    : null,
-                ]
-                  .filter(Boolean)
-                  .join(" · ")}
-              </p>
-            )}
             <ClinicalPatientList
-              summaries={summaries}
-              selectedId={selected?.patient.id}
+              patients={patients}
+              selectedId={selected?.id}
               onSelect={select}
             />
           </div>
@@ -290,32 +213,11 @@ export function ClinicalRecordsPage() {
                   <ArrowLeft size={16} /> Clientes
                 </button>
                 <ClinicalChart
-                  key={`${selected.patient.id}-${chartVersion}`}
-                  patientId={selected.patient.id}
+                  key={selected.id}
+                  patientId={selected.id}
                   editable={canManage}
-                  appointments={selected.pending}
-                  onRecordChanged={replaceRecord}
                 />
               </>
-            ) : records.length === 0 ? (
-              <EmptyState
-                icon={FileText}
-                title="Nenhuma evolução registrada"
-                copy="Crie o primeiro prontuário a partir de um atendimento realizado."
-                action={
-                  canManage &&
-                  can("clinical.records_create") &&
-                  availableAppointments.length > 0 ? (
-                    <button
-                      type="button"
-                      className="primary-button"
-                      onClick={() => setCreating(true)}
-                    >
-                      <FileText size={18} /> Registrar primeira evolução
-                    </button>
-                  ) : undefined
-                }
-              />
             ) : (
               <EmptyState
                 icon={Stethoscope}
@@ -325,22 +227,6 @@ export function ClinicalRecordsPage() {
             )}
           </section>
         </div>
-      )}
-      {creating && (
-        <ClinicalRecordModal
-          record={undefined}
-          appointments={availableAppointments}
-          onClose={() => setCreating(false)}
-          onSaved={(record) => {
-            toast.success(
-              `Evolução de ${patientFirstName(record.patientName)} salva.`,
-            );
-            replaceRecord(record);
-            setCreating(false);
-            setChartVersion((current) => current + 1);
-            select(record.patientId);
-          }}
-        />
       )}
     </>
   );

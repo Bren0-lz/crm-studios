@@ -13,13 +13,14 @@ import type {
 import type {
   Appointment,
   AppointmentInput,
+  AppointmentPromotion,
+  AutoCampaignPromotionOffer,
   AppointmentRescheduleEvent,
   AppointmentRescheduleInput,
   AppointmentStatus,
   AppointmentUpdateInput,
   AutoFinalizationSettings,
   AutoFinalizationSettingsInput,
-  ClinicalAppointmentOption,
   GroupClass,
   GroupClassInput,
   GroupClassRenameInput,
@@ -92,10 +93,6 @@ export const agendaApi = {
     }),
   completeGroupSession: (id: string) =>
     request<GroupSession>(`/group-sessions/${id}/complete`, { method: "POST" }),
-  clinicalAppointmentOptions: (from: string, to: string) =>
-    request<ClinicalAppointmentOption[]>(
-      `/appointments/options?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
-    ),
   /** `options`: `allBranches` na ficha do cliente (atendimentos de todas as filiais). */
   appointments: (from: string, to: string, options?: RequestInit) =>
     request<Appointment[]>(
@@ -117,7 +114,14 @@ export const agendaApi = {
       method: "PUT",
       body: JSON.stringify(input),
     }),
-  createAppointment: (input: AppointmentInput) =>
+  /** Promoções de campanhas automáticas que o cliente pode usar se agendar hoje. */
+  appointmentPromotions: (patientId: string) =>
+    request<AutoCampaignPromotionOffer[]>(
+      `/appointments/promotions?patientId=${encodeURIComponent(patientId)}`,
+    ),
+  createAppointment: (
+    input: AppointmentInput & { promotion?: AppointmentPromotion | undefined },
+  ) =>
     request<Appointment>("/appointments", {
       method: "POST",
       body: JSON.stringify(input),
@@ -135,7 +139,11 @@ export const agendaApi = {
     }),
   appointmentReschedules: (id: string) =>
     request<AppointmentRescheduleEvent[]>(`/appointments/${id}/reschedules`),
-  createRecurringAppointments: (input: RecurringAppointmentInput) =>
+  createRecurringAppointments: (
+    input: RecurringAppointmentInput & {
+      promotion?: AppointmentPromotion | undefined;
+    },
+  ) =>
     request<Appointment[]>("/appointments/recurring", {
       method: "POST",
       body: JSON.stringify(input),

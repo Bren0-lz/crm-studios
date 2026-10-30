@@ -3,6 +3,8 @@ import {
   type DashboardSummary,
   type ManagementReport,
   type PatientPlanService,
+  type ProductSize,
+  productItemName,
   type ReceivedPayment,
   type SaleMovement,
   type SalesReport,
@@ -47,6 +49,7 @@ type PlanSaleRow = {
   serviceName: string;
   totalValueInCents: number;
   cancelledValueInCents: number;
+  customerDiscountInCents: number;
   createdAt: Date;
   cancelledAt: Date | null;
 };
@@ -57,6 +60,7 @@ type TabSaleRow = {
   patientId: string;
   patientName: string;
   productName: string;
+  size: string;
   sourceType: "product" | "service";
   quantity: number;
   amountInCents: number;
@@ -82,6 +86,9 @@ function toSales(planRows: PlanSaleRow[], tabRows: TabSaleRow[]) {
       kind: "sale",
       occurredAt: plan.createdAt.toISOString(),
       amountInCents: plan.totalValueInCents,
+      ...(plan.customerDiscountInCents
+        ? { customerDiscountInCents: plan.customerDiscountInCents }
+        : {}),
     });
     if (plan.cancelledAt)
       sales.push({
@@ -98,7 +105,10 @@ function toSales(planRows: PlanSaleRow[], tabRows: TabSaleRow[]) {
       sourceType: item.sourceType,
       patientId: item.patientId,
       patientName: item.patientName,
-      itemName: item.productName,
+      itemName: productItemName({
+        productName: item.productName,
+        size: (item.size || undefined) as ProductSize | undefined,
+      }),
       quantity: item.quantity,
       ...(item.receivableId ? { receivableId: item.receivableId } : {}),
     };
@@ -133,6 +143,7 @@ export function createReportsRepository(
                 pp.name, (SELECT GROUP_CONCAT(x.service_name ORDER BY x.position SEPARATOR ', ') FROM patient_plan_services x WHERE x.plan_id=pp.id) AS "serviceName",
                 pp.total_value_in_cents AS "totalValueInCents",
                 pp.cancelled_value_in_cents AS "cancelledValueInCents",
+                (SELECT CAST(coalesce(sum(r.customer_discount_in_cents),0) AS SIGNED) FROM receivables r WHERE r.clinic_id=pp.clinic_id AND r.plan_id=pp.id) AS "customerDiscountInCents",
                 pp.created_at AS "createdAt", pp.cancelled_at AS "cancelledAt"
          FROM patient_plans pp
          JOIN patients p ON p.id=pp.patient_id
@@ -142,7 +153,7 @@ export function createReportsRepository(
       ),
       repositoryContext.pool.query<TabSaleRow>(
         `SELECT i.id, t.id AS "tabId", t.patient_id AS "patientId", 'product' AS "sourceType",
-                p.full_name AS "patientName", pr.name AS "productName",
+                p.full_name AS "patientName", pr.name AS "productName", i.size,
                 i.quantity, CAST((i.quantity*i.unit_price_in_cents) AS SIGNED) AS "amountInCents",
                 t.closed_at AS "closedAt", t.cancelled_at AS "cancelledAt",
                 t.receivable_id AS "receivableId"
@@ -151,7 +162,7 @@ export function createReportsRepository(
          JOIN patients p ON p.id=t.patient_id
          JOIN products pr ON pr.id=i.product_id
          WHERE t.clinic_id=$1 AND JSON_CONTAINS($2, JSON_QUOTE(t.patient_id)) AND t.closed_at IS NOT NULL AND ${branchClause("t.branch_id", 3)}
-         UNION ALL SELECT i.id,t.id,t.patient_id,'service',p.full_name,i.service_name,1,i.amount_in_cents,t.closed_at,t.cancelled_at,t.receivable_id FROM patient_tab_services i JOIN patient_tabs t ON t.id=i.tab_id AND t.clinic_id=i.clinic_id JOIN patients p ON p.id=t.patient_id AND p.clinic_id=t.clinic_id WHERE t.clinic_id=$1 AND JSON_CONTAINS($2, JSON_QUOTE(t.patient_id)) AND t.closed_at IS NOT NULL AND ${branchClause("t.branch_id", 3)}`,
+         UNION ALL SELECT i.id,t.id,t.patient_id,'service',p.full_name,i.service_name,'',1,i.amount_in_cents,t.closed_at,t.cancelled_at,t.receivable_id FROM patient_tab_services i JOIN patient_tabs t ON t.id=i.tab_id AND t.clinic_id=i.clinic_id JOIN patients p ON p.id=t.patient_id AND p.clinic_id=t.clinic_id WHERE t.clinic_id=$1 AND JSON_CONTAINS($2, JSON_QUOTE(t.patient_id)) AND t.closed_at IS NOT NULL AND ${branchClause("t.branch_id", 3)}`,
         [clinicId, patientIds, branchIds],
       ),
     ]);
@@ -178,6 +189,7 @@ export function createReportsRepository(
                 pp.name, (SELECT GROUP_CONCAT(x.service_name ORDER BY x.position SEPARATOR ', ') FROM patient_plan_services x WHERE x.plan_id=pp.id) AS "serviceName",
                 pp.total_value_in_cents AS "totalValueInCents",
                 pp.cancelled_value_in_cents AS "cancelledValueInCents",
+                (SELECT CAST(coalesce(sum(r.customer_discount_in_cents),0) AS SIGNED) FROM receivables r WHERE r.clinic_id=pp.clinic_id AND r.plan_id=pp.id) AS "customerDiscountInCents",
                 pp.created_at AS "createdAt", pp.cancelled_at AS "cancelledAt"
          FROM patient_plans pp
          JOIN patients p ON p.id=pp.patient_id
@@ -190,7 +202,7 @@ export function createReportsRepository(
       );
       const productResult = await client.query<TabSaleRow>(
         `SELECT i.id, t.id AS "tabId", t.patient_id AS "patientId", 'product' AS "sourceType",
-                p.full_name AS "patientName", pr.name AS "productName",
+                p.full_name AS "patientName", pr.name AS "productName", i.size,
                 i.quantity, CAST((i.quantity*i.unit_price_in_cents) AS SIGNED) AS "amountInCents",
                 t.closed_at AS "closedAt", t.cancelled_at AS "cancelledAt",
                 t.receivable_id AS "receivableId"
@@ -201,7 +213,7 @@ export function createReportsRepository(
          WHERE t.clinic_id=$1 AND t.closed_at IS NOT NULL AND ${branchClause("t.branch_id", 4)} AND (
            ${localDate("t.closed_at")} BETWEEN $2 AND $3
            OR ${localDate("t.cancelled_at")} BETWEEN $2 AND $3
-         ) UNION ALL SELECT i.id,t.id,t.patient_id,'service',p.full_name,i.service_name,1,i.amount_in_cents,t.closed_at,t.cancelled_at,t.receivable_id FROM patient_tab_services i JOIN patient_tabs t ON t.id=i.tab_id AND t.clinic_id=i.clinic_id JOIN patients p ON p.id=t.patient_id AND p.clinic_id=t.clinic_id WHERE t.clinic_id=$1 AND t.closed_at IS NOT NULL AND ${branchClause("t.branch_id", 4)} AND (${localDate("t.closed_at")} BETWEEN $2 AND $3 OR ${localDate("t.cancelled_at")} BETWEEN $2 AND $3)`,
+         ) UNION ALL SELECT i.id,t.id,t.patient_id,'service',p.full_name,i.service_name,'',1,i.amount_in_cents,t.closed_at,t.cancelled_at,t.receivable_id FROM patient_tab_services i JOIN patient_tabs t ON t.id=i.tab_id AND t.clinic_id=i.clinic_id JOIN patients p ON p.id=t.patient_id AND p.clinic_id=t.clinic_id WHERE t.clinic_id=$1 AND t.closed_at IS NOT NULL AND ${branchClause("t.branch_id", 4)} AND (${localDate("t.closed_at")} BETWEEN $2 AND $3 OR ${localDate("t.cancelled_at")} BETWEEN $2 AND $3)`,
         [clinicId, bounds.previousFrom, bounds.currentTo, branchIds],
       );
       const paymentResult = await client.query<{
@@ -661,7 +673,7 @@ export function createReportsRepository(
              CAST(COALESCE((SELECT sum(r.amount_in_cents) FROM paid r JOIN product_tabs t ON t.receivable_id=r.id),0) AS SIGNED) AS "productRevenueInCents",
              CAST(COALESCE((SELECT sum(i.quantity*i.unit_cost_in_cents) FROM patient_tab_items i JOIN product_tabs t ON t.id=i.tab_id),0) AS SIGNED) AS "productCostInCents",
              CAST(COALESCE((SELECT sum(amount_in_cents) FROM payables WHERE clinic_id=$1 AND status='paid' AND ${branchClause("branch_id", 4)} AND ${localDate("paid_at")} BETWEEN $2 AND $3),0) AS SIGNED) AS "operatingExpensesInCents",
-             CAST(COALESCE((SELECT sum(amount_in_cents) FROM commission_entries ce WHERE clinic_id=$1 AND status='paid' AND EXISTS(SELECT 1 FROM professionals pb WHERE pb.id=ce.professional_id AND ${branchClause("pb.branch_id", 4)}) AND ${localDate("paid_at")} BETWEEN $2 AND $3),0) AS SIGNED) AS "commissionsInCents"`,
+             CAST(COALESCE((SELECT sum(amount_in_cents) FROM commission_entries ce WHERE clinic_id=$1 AND status='paid' AND payroll_payable_id IS NULL AND EXISTS(SELECT 1 FROM professionals pb WHERE pb.id=ce.professional_id AND ${branchClause("pb.branch_id", 4)}) AND ${localDate("paid_at")} BETWEEN $2 AND $3),0) AS SIGNED) AS "commissionsInCents"`,
           [clinicId, from, to, branchIds],
         ),
         repositoryContext.pool.query<{
@@ -689,7 +701,7 @@ export function createReportsRepository(
           `SELECT s.id,s.name,
              (SELECT count(*) FROM appointments a WHERE a.clinic_id=$1 AND a.service_id=s.id AND a.status='completed' AND ${branchClause("a.branch_id", 4)} AND ${localDate("a.starts_at")} BETWEEN $2 AND $3) AS "completedAppointments",
              CAST(0 AS SIGNED) AS "revenueInCents",
-             (SELECT CAST(coalesce(sum(c.amount_in_cents),0) AS SIGNED) FROM commission_entries c JOIN appointments a ON a.id=c.appointment_id WHERE c.clinic_id=$1 AND a.service_id=s.id AND ${branchClause("a.branch_id", 4)} AND c.status='paid' AND ${localDate("c.paid_at")} BETWEEN $2 AND $3) AS "commissionsInCents"
+             (SELECT CAST(coalesce(sum(c.amount_in_cents),0) AS SIGNED) FROM commission_entries c JOIN appointments a ON a.id=c.appointment_id WHERE c.clinic_id=$1 AND a.service_id=s.id AND ${branchClause("a.branch_id", 4)} AND c.status='paid' AND c.payroll_payable_id IS NULL AND ${localDate("c.paid_at")} BETWEEN $2 AND $3) AS "commissionsInCents"
            FROM services s WHERE s.clinic_id=$1
            ORDER BY "revenueInCents" DESC`,
           [clinicId, from, to, branchIds],
@@ -705,7 +717,7 @@ export function createReportsRepository(
              (SELECT count(*) FROM group_enrollments e JOIN group_classes g ON g.id=e.group_id WHERE e.clinic_id=$1 AND e.status='active' AND g.active AND ${branchClause("g.branch_id", 4)}) AS "activeGroupSeats",
              (SELECT CAST(coalesce(sum(capacity),0) AS SIGNED) FROM group_classes WHERE clinic_id=$1 AND active AND ${branchClause("branch_id", 4)}) AS "totalGroupCapacity",
              (SELECT count(*) FROM group_enrollments e JOIN group_classes g ON g.id=e.group_id WHERE e.clinic_id=$1 AND e.status='waitlisted' AND g.active AND ${branchClause("g.branch_id", 4)}) AS "waitlistCount",
-             (SELECT count(*) FROM products WHERE clinic_id=$1 AND active AND current_stock<=minimum_stock AND ${branchClause("branch_id", 4)}) AS "lowStockCount",
+             (SELECT count(*) FROM products WHERE clinic_id=$1 AND active AND current_stock<=COALESCE(restock_alert_at,0) AND ${branchClause("branch_id", 4)}) AS "lowStockCount",
              (SELECT CAST(coalesce(avg(amount_in_cents),0) AS SIGNED) FROM receivables WHERE clinic_id=$1 AND status='paid' AND ${branchClause("branch_id", 4)} AND ${localDate("paid_at")} BETWEEN $2 AND $3) AS "averageReceiptInCents"`,
           [clinicId, from, to, branchIds],
         ),

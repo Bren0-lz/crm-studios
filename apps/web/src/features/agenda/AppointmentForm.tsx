@@ -1,5 +1,6 @@
 import type {
   AppointmentInput,
+  AppointmentPromotion,
   AppointmentVisitType,
   PackageWeeklySlot,
   Patient,
@@ -18,6 +19,7 @@ import {
   useRef,
   useState,
   type FormEvent,
+  type ReactNode,
 } from "react";
 import { createPortal } from "react-dom";
 import { api, ApiClientError } from "../../api";
@@ -33,6 +35,7 @@ import {
 } from "../../shared/lib/formatting";
 import { AppointmentPatientWarnings } from "./AppointmentPatientWarnings";
 import { AppointmentPatientCreateModal } from "./AppointmentPatientCreateModal";
+import { AppointmentPromotionField } from "./AppointmentPromotionField";
 import { initialPackageSlot } from "./model";
 import { PackageWeeklySlotsFields } from "./PackageWeeklySlotsFields";
 import {
@@ -54,6 +57,9 @@ export function AppointmentForm({
   onNestedModalChange,
   initialSlot,
   packageSessions,
+  offerPromotions = false,
+  additional,
+  additionalDirty = false,
 }: {
   patients: PatientOption[];
   professionals: Professional[];
@@ -63,7 +69,9 @@ export function AppointmentForm({
   onCancel: () => void;
   onBusyChange: (busy: boolean) => void;
   onSubmit: (
-    input: AppointmentInput,
+    input: AppointmentInput & {
+      promotion?: AppointmentPromotion | undefined;
+    },
     recurrence?: {
       occurrences: number;
       intervalWeeks: number;
@@ -78,6 +86,11 @@ export function AppointmentForm({
    * semana" e usa esse total como número de sessões.
    */
   packageSessions?: Record<string, number> | undefined;
+  /** Pergunta se o atendimento usa a promoção de uma campanha automática. */
+  offerPromotions?: boolean | undefined;
+  /** Campos extras do modal (ex.: documento para assinatura), antes dos avisos do cliente. */
+  additional?: ReactNode;
+  additionalDirty?: boolean;
 }) {
   const { can, canView } = useAuthorization();
   const [form, setForm] = useState({
@@ -101,6 +114,7 @@ export function AppointmentForm({
     // Vazio: um único dia fixo, o do atendimento escolhido acima.
     slots: [] as PackageWeeklySlot[],
     occurrencesEdited: false,
+    promotion: undefined as AppointmentPromotion | undefined,
   });
   const fetchedRemaining = usePackageRemaining(
     form.packageDays && !packageSessions && canView("plans")
@@ -146,7 +160,7 @@ export function AppointmentForm({
   // Sem cliente, "Confirmar atendimento" fica desativado e diz o que falta (QM14).
   const missing = form.patientId ? [] : ["Cliente"];
   const missingId = useId();
-  useModalDirty(useFormDirty(form));
+  useModalDirty(useFormDirty(form) || additionalDirty);
   const confirmDiscard = useConfirmDiscard();
   const submitting = useRef(false);
   const [patientModalOpen, setPatientModalOpen] = useState(false);
@@ -189,7 +203,9 @@ export function AppointmentForm({
     onBusyChange(true);
     setError("");
     try {
-      const input: AppointmentInput = {
+      const input: AppointmentInput & {
+        promotion?: AppointmentPromotion | undefined;
+      } = {
         patientId: form.patientId,
         professionalId: form.professionalId,
         roomId: form.roomId,
@@ -201,6 +217,7 @@ export function AppointmentForm({
         ).toISOString(),
         notes: form.notes,
         visitType: form.visitType as AppointmentVisitType,
+        ...(form.promotion ? { promotion: form.promotion } : {}),
       };
       await onSubmit(
         input,
@@ -265,7 +282,14 @@ export function AppointmentForm({
                   }
                   onChange={(patientId, patient) => {
                     if (patient) setSelectedPatient(patient);
-                    setForm((current) => ({ ...current, patientId }));
+                    setForm((current) => ({
+                      ...current,
+                      patientId,
+                      promotion:
+                        current.patientId === patientId
+                          ? current.promotion
+                          : undefined,
+                    }));
                   }}
                 />
               </div>
@@ -526,6 +550,15 @@ export function AppointmentForm({
                 ))}
               </div>
             )}
+            {offerPromotions && can("agenda.create") && (
+              <AppointmentPromotionField
+                patientId={form.patientId}
+                value={form.promotion}
+                onChange={(promotion) =>
+                  setForm((current) => ({ ...current, promotion }))
+                }
+              />
+            )}
             <label className="span-2">
               Observação
               <textarea
@@ -534,6 +567,7 @@ export function AppointmentForm({
                 rows={3}
               />
             </label>
+            {additional}
             {/* No fim do formulário: o aviso chega depois da busca dos planos e não desloca os campos. */}
             <AppointmentPatientWarnings
               patient={
@@ -581,7 +615,11 @@ export function AppointmentForm({
               onPatientCreated?.(patient);
               setSelectedPatient(patient);
               setPickerVersion((version) => version + 1);
-              setForm((current) => ({ ...current, patientId: patient.id }));
+              setForm((current) => ({
+                ...current,
+                patientId: patient.id,
+                promotion: undefined,
+              }));
               closePatientModal();
             }}
           />,

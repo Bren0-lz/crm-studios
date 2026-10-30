@@ -1,6 +1,9 @@
 import { saveUserAgenda, userSaveError } from "./user-agenda.js";
 import {
   type AutoFinalizationSettings,
+  defaultProLaboreSettings,
+  type ProLaboreSettings,
+  type ProLaboreSettingsInput,
   type AutoFinalizationSettingsInput,
   type AdminAuditPage,
   type AdminUserInput,
@@ -18,13 +21,22 @@ import {
   type RoomInput,
   type ServiceInput,
   defaultAutoFinalizationSettings,
+  type PaymentMethodInstallments,
+  type PaymentMethodSettingsInput,
+  resolvePaymentMethodSettings,
   permissionEditModules,
   permissionModules,
   resolveNavTabLabels,
   resolvePermissionInput,
 } from "@crm/contracts";
 import type { Pool, PoolClient } from "../../infrastructure/mysql-client.js";
-import { DomainError, lastAdminError } from "../../repository.js";
+import {
+  DomainError,
+  lastAdminError,
+  type CommissionRecalculationRequest,
+} from "../../repository.js";
+import { userCommissionDrafts } from "../../modules/finance/commission-recalculation.js";
+import { createMysqlCommissionRecalculation } from "./commission-recalculation.js";
 import type { MysqlRepositoryContext } from "./context.js";
 import { historyEventsTable } from "./system-history.js";
 import { branchOrDefault, writeAndRead } from "./sql.js";
@@ -74,6 +86,24 @@ const autoFinalizationColumns = `auto_finalization_enabled AS enabled,
   auto_finalization_delay_minutes AS "delayMinutes",
   auto_finalization_updated_at AS "updatedAt"`;
 
+type ProLaboreRow = {
+  basisPoints: number;
+  base: ProLaboreSettings["base"];
+  updatedAt: Date | null;
+};
+
+const proLaboreColumns = `pro_labore_basis_points AS "basisPoints",
+  pro_labore_base AS base, pro_labore_updated_at AS "updatedAt"`;
+
+function mapProLabore(row: ProLaboreRow | undefined): ProLaboreSettings {
+  if (!row) return { ...defaultProLaboreSettings };
+  return {
+    percentage: row.basisPoints / 100,
+    base: row.base,
+    ...(row.updatedAt ? { updatedAt: row.updatedAt.toISOString() } : {}),
+  };
+}
+
 function mapAutoFinalization(
   row: AutoFinalizationRow | undefined,
 ): AutoFinalizationSettings {
@@ -83,6 +113,21 @@ function mapAutoFinalization(
     delayMinutes: row.delayMinutes,
     ...(row.updatedAt ? { updatedAt: row.updatedAt.toISOString() } : {}),
   };
+}
+
+type PaymentMethodRow = {
+  methods: PaymentMethodInstallments[] | null;
+  updatedAt: Date | null;
+};
+
+const paymentMethodColumns = `payment_method_settings AS methods,
+  payment_method_settings_updated_at AS "updatedAt"`;
+
+function mapPaymentMethods(row: PaymentMethodRow | undefined) {
+  return resolvePaymentMethodSettings(
+    row?.methods,
+    row?.updatedAt?.toISOString(),
+  );
 }
 
 function mapClinicSettings(row: ClinicSettingsRow): ClinicSettings {
@@ -152,6 +197,7 @@ async function selectOwnProfile(
 export function createAdministrationRepository(
   repositoryContext: MysqlRepositoryContext,
 ) {
+  const commissions = createMysqlCommissionRecalculation(repositoryContext);
   return {
     async revokeUserSessions(
       clinicId: string,
@@ -295,6 +341,7 @@ export function createAdministrationRepository(
       actorUserId: string,
       input: AdminUserInput,
       passwordHash: string,
+      recalculation?: CommissionRecalculationRequest,
     ) {
       const client = await repositoryContext.pool.connect();
       try {
@@ -380,6 +427,16 @@ export function createAdministrationRepository(
           created.id,
           input,
         );
+        // Usuário novo ligado a um profissional que já tem comissões: recalcula pelas regras novas.
+        if (recalculation)
+          await commissions.apply(
+            client,
+            clinicId,
+            actorUserId,
+            { userId: created.id },
+            userCommissionDrafts(input),
+            recalculation.expectedDigest,
+          );
         const withCommission =
           input.commission ||
           input.serviceCommissions?.length ||
@@ -406,6 +463,7 @@ export function createAdministrationRepository(
       actorUserId: string,
       userId: string,
       input: AdminUserUpdate,
+      recalculation?: CommissionRecalculationRequest,
     ) {
       if (userId === actorUserId && !input.active)
         throw new DomainError(
@@ -545,6 +603,15 @@ export function createAdministrationRepository(
           userId,
           input,
         );
+        if (recalculation)
+          await commissions.apply(
+            client,
+            clinicId,
+            actorUserId,
+            { userId },
+            userCommissionDrafts(input),
+            recalculation.expectedDigest,
+          );
         const withCommission = await repositoryContext.findAdminUser(
           client,
           clinicId,
@@ -672,6 +739,48 @@ export function createAdministrationRepository(
       return mapAutoFinalization(result.rows[0]);
     },
 
+    async getProLaboreSettings(clinicId: string): Promise<ProLaboreSettings> {
+      const result = await repositoryContext.pool.query<ProLaboreRow>(
+        `SELECT ${proLaboreColumns} FROM clinics WHERE id = $1`,
+        [clinicId],
+      );
+      return mapProLabore(result.rows[0]);
+    },
+
+    async updateProLaboreSettings(
+      clinicId: string,
+      actorUserId: string,
+      input: ProLaboreSettingsInput,
+    ) {
+      return repositoryContext.inTransaction(async (client) => {
+        const result = await writeAndRead<ProLaboreRow>(
+          client,
+          `UPDATE clinics SET pro_labore_basis_points = $2, pro_labore_base = $3,
+             pro_labore_updated_at = NOW(6)
+           WHERE id = $1`,
+          [clinicId, Math.round(input.percentage * 100), input.base],
+          `SELECT ${proLaboreColumns} FROM clinics WHERE id = $1`,
+          [clinicId],
+        );
+        if (!result.rowCount)
+          throw new DomainError(
+            "CLINIC_NOT_FOUND",
+            "Clínica não encontrada.",
+            404,
+          );
+        await repositoryContext.addAdminAudit(
+          client,
+          clinicId,
+          actorUserId,
+          "clinic.pro_labore_updated",
+          "clinic",
+          clinicId,
+          { percentage: input.percentage, base: input.base },
+        );
+        return mapProLabore(result.rows[0]);
+      });
+    },
+
     async updateAutoFinalizationSettings(
       clinicId: string,
       actorUserId: string,
@@ -702,6 +811,60 @@ export function createAdministrationRepository(
           { enabled: input.enabled, delayMinutes: input.delayMinutes },
         );
         return mapAutoFinalization(result.rows[0]);
+      });
+    },
+
+    async getPaymentMethodSettings(clinicId: string) {
+      const result = await repositoryContext.pool.query<PaymentMethodRow>(
+        `SELECT ${paymentMethodColumns} FROM clinics WHERE id = $1`,
+        [clinicId],
+      );
+      return mapPaymentMethods(result.rows[0]);
+    },
+
+    async updatePaymentMethodSettings(
+      clinicId: string,
+      actorUserId: string,
+      input: PaymentMethodSettingsInput,
+    ) {
+      return repositoryContext.inTransaction(async (client) => {
+        const current = await client.query<PaymentMethodRow>(
+          `SELECT ${paymentMethodColumns} FROM clinics WHERE id = $1 FOR UPDATE`,
+          [clinicId],
+        );
+        if (!current.rowCount)
+          throw new DomainError(
+            "CLINIC_NOT_FOUND",
+            "Clínica não encontrada.",
+            404,
+          );
+        // Formas fora da requisição mantêm o que estava gravado.
+        const { methods } = resolvePaymentMethodSettings([
+          ...input.methods,
+          ...(current.rows[0]!.methods ?? []).filter(
+            (item) =>
+              !input.methods.some((entry) => entry.method === item.method),
+          ),
+        ]);
+        const result = await writeAndRead<PaymentMethodRow>(
+          client,
+          `UPDATE clinics SET payment_method_settings = $2,
+             payment_method_settings_updated_at = NOW(6)
+           WHERE id = $1`,
+          [clinicId, JSON.stringify(methods)],
+          `SELECT ${paymentMethodColumns} FROM clinics WHERE id = $1`,
+          [clinicId],
+        );
+        await repositoryContext.addAdminAudit(
+          client,
+          clinicId,
+          actorUserId,
+          "clinic.payment_methods_updated",
+          "clinic",
+          clinicId,
+          { methods },
+        );
+        return mapPaymentMethods(result.rows[0]);
       });
     },
 
