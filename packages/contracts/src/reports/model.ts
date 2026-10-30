@@ -60,3 +60,77 @@ export function salesChangePercent(
     10
   );
 }
+
+/** Grupos do sino de notificações, na ordem em que aparecem. */
+export const notificationKinds = [
+  "birthdays",
+  "overdueReceivables",
+  "recurringPayables",
+  "pendingFinalization",
+  "overdueLeadTasks",
+  "snoozedContacts",
+  "pauseReturns",
+  "autoCampaigns",
+] as const;
+
+export const notificationKindSchema = z.enum(notificationKinds);
+
+/** Intervalos (minutos) entre as conferências automáticas do sino. */
+export const notificationRefreshMinutes = [1, 5, 15, 30] as const;
+
+const uniqueKinds = z
+  .array(notificationKindSchema)
+  .max(notificationKinds.length)
+  .transform((kinds) =>
+    notificationKinds.filter((kind) => kinds.includes(kind)),
+  );
+
+/**
+ * Preferências de notificação de cada usuário (`PUT /notifications/preferences`).
+ * `hiddenKinds` guarda os grupos desligados: grupo novo aparece ligado por padrão.
+ */
+export const notificationPreferencesSchema = z.object({
+  hiddenKinds: uniqueKinds,
+  /** Grupos que entram na faixa de alertas no topo da tela. */
+  highlightedKinds: uniqueKinds,
+  showBanner: z.boolean(),
+  showToasts: z.boolean(),
+  playSound: z.boolean(),
+  refreshMinutes: z.union(
+    notificationRefreshMinutes.map((value) => z.literal(value)),
+    { error: "Escolha um intervalo da lista." },
+  ),
+});
+
+export const defaultNotificationPreferences: z.infer<
+  typeof notificationPreferencesSchema
+> = {
+  hiddenKinds: [],
+  highlightedKinds: [
+    "overdueReceivables",
+    "pendingFinalization",
+    "overdueLeadTasks",
+  ],
+  showBanner: true,
+  showToasts: true,
+  playSound: false,
+  refreshMinutes: 5,
+};
+
+/** Lê preferências gravadas; o que estiver ausente ou inválido volta ao padrão. */
+export function resolveNotificationPreferences(
+  stored: unknown,
+): z.infer<typeof notificationPreferencesSchema> {
+  const record =
+    stored && typeof stored === "object"
+      ? (stored as Record<string, unknown>)
+      : {};
+  const result = { ...defaultNotificationPreferences };
+  for (const key of Object.keys(result) as Array<keyof typeof result>) {
+    const parsed = notificationPreferencesSchema.shape[key].safeParse(
+      record[key],
+    );
+    if (parsed.success) Object.assign(result, { [key]: parsed.data });
+  }
+  return result;
+}
