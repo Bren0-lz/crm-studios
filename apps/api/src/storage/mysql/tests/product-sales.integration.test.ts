@@ -151,6 +151,56 @@ for (const storage of ["memory", "mysql"] as const) {
         });
       });
 
+      it("pede reposição quando um tamanho chega ao aviso, mesmo com o total acima", async () => {
+        const lowStockCount = async () =>
+          (
+            await repository.getManagementReport(
+              clinicId,
+              saoPauloToday(),
+              saoPauloToday(),
+            )
+          ).profitability.operational.lowStockCount;
+        const baseline = await lowStockCount();
+        const product = await repository.createProduct(
+          clinicId,
+          actorId,
+          productInputSchema.parse({
+            name: `Camiseta ${randomUUID().slice(0, 8)}`,
+            sku: randomUUID().slice(0, 12),
+            costInCents: 2_000,
+            salePriceInCents: 5_000,
+            initialStock: 0,
+            sizes: ["P", "M"],
+            initialSizeStock: [
+              { size: "P", quantity: 6 },
+              { size: "M", quantity: 20 },
+            ],
+            restockAlertAt: 5,
+          }),
+        );
+        const listed = async () =>
+          (await repository.getInventoryWorkspace(clinicId)).products.find(
+            (item) => item.id === product.id,
+          );
+        expect(await listed()).toMatchObject({
+          currentStock: 26,
+          lowStock: false,
+        });
+        expect(await lowStockCount()).toBe(baseline);
+        await repository.createStockMovement(clinicId, actorId, {
+          productId: product.id,
+          size: "P",
+          kind: "loss",
+          quantity: 1,
+          notes: "Rasgou",
+        });
+        expect(await listed()).toMatchObject({
+          currentStock: 25,
+          lowStock: true,
+        });
+        expect(await lowStockCount()).toBe(baseline + 1);
+      });
+
       it("guarda os tamanhos definidos na categoria de produtos", async () => {
         const name = `Calçados ${randomUUID().slice(0, 8)}`;
         const category = await repository.saveClinicCatalog(
