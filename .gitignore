@@ -10,5 +10,6 @@ coverage/
 .vscode/
 
 .vercel/
+dist-site/
 playwright-report/
 test-results/
