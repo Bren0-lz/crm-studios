@@ -15,6 +15,7 @@ import { LoadingBlock } from "../../shared/components/LoadingBlock";
 import { getStoredBranchId } from "../../shared/api/branch";
 import { currency, formatIsoDate } from "../../shared/lib/formatting";
 import { formatCompetence } from "../finance/index";
+import { FinancialCashFlow } from "./FinancialCashFlow";
 import { FinancialLedger } from "./FinancialLedger";
 import {
   compareBranches,
@@ -26,6 +27,8 @@ import {
   inBranch,
   NO_BRANCH,
   outflowSplit,
+  previousPeriod,
+  variation,
   type FinancialFilters,
   type FinancialGrouping,
 } from "./financial-model";
@@ -35,6 +38,42 @@ import { useReportQuery, type ReportPeriod } from "./useReportQuery";
 const money = (value: number) => currency.format(value / 100);
 const percent = (share: number) =>
   `${(share * 100).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%`;
+
+/** "+12,3% vs. 01 de set. a 30 de set." (sem base de comparação, só o valor anterior). */
+function Variation({
+  current,
+  previous,
+  inverse = false,
+}: {
+  current: number;
+  previous: number | undefined;
+  /** Saídas: subir é ruim. */
+  inverse?: boolean;
+}) {
+  if (previous === undefined) return null;
+  const change = variation(current, previous);
+  const better = inverse ? current < previous : current > previous;
+  const tone =
+    change === null || current === previous
+      ? ""
+      : better
+        ? " positive"
+        : " negative";
+  return (
+    <em className={`financial-variation${tone}`}>
+      {change === null
+        ? `Antes: ${money(previous)}`
+        : `${change > 0 ? "+" : ""}${change.toLocaleString("pt-BR")}% (antes ${money(previous)})`}
+    </em>
+  );
+}
+
+function variationLabel(current: number, previous: number) {
+  const change = variation(current, previous);
+  return change === null
+    ? "novo"
+    : `${change > 0 ? "+" : ""}${change.toLocaleString("pt-BR")}%`;
+}
 
 function proLaboreLabel(settings: ProLaboreSettings) {
   return `${settings.percentage.toLocaleString("pt-BR")}% ${proLaboreBaseLabels[settings.base]}`;
@@ -47,6 +86,14 @@ function proLaboreLabel(settings: ProLaboreSettings) {
 export function FinancialSection({ period }: { period: ReportPeriod }) {
   const { user, can } = useAuthorization();
   const { data, error, loading } = useReportQuery(period, api.financialReport);
+  const previous = useMemo(
+    () => ({
+      ...previousPeriod(period.from, period.to),
+      version: period.version,
+    }),
+    [period.from, period.to, period.version],
+  );
+  const { data: before } = useReportQuery(previous, api.financialReport);
   const [proLabore, setProLabore] = useState<ProLaboreSettings | null>(null);
   const [editing, setEditing] = useState(false);
   const [branchId, setBranchId] = useState(() => getStoredBranchId() ?? "");
@@ -71,12 +118,28 @@ export function FinancialSection({ period }: { period: ReportPeriod }) {
     [report, validBranch],
   );
   const totals = report ? financialTotals(entries, report.proLabore) : null;
+  const previousEntries = useMemo(
+    () => (before ? inBranch(before.entries, validBranch) : null),
+    [before, validBranch],
+  );
+  const previousTotals =
+    report && previousEntries
+      ? financialTotals(previousEntries, report.proLabore)
+      : null;
   const split = outflowSplit(entries);
   const branches = report ? compareBranches(report) : [];
   const professionals =
     report?.professionals.filter(
       (item) => !validBranch || (item.branchId ?? NO_BRANCH) === validBranch,
     ) ?? [];
+  const peopleTotal = professionals.reduce(
+    (sum, item) => sum + item.paidInCents + item.salaryPaidInCents,
+    0,
+  );
+  const branchInflow = branches.reduce(
+    (sum, branch) => sum + branch.totals.inflowInCents,
+    0,
+  );
   const branchName = (entry: FinancialEntry) =>
     branchNames.get(entryBranch(entry)) ?? "Sem filial";
 
@@ -93,7 +156,8 @@ export function FinancialSection({ period }: { period: ReportPeriod }) {
             <h2>Resultado do caixa</h2>
             <p className="panel-context">
               {formatIsoDate(period.from)} a {formatIsoDate(period.to)} · pela
-              data em que o dinheiro entrou ou saiu
+              data em que o dinheiro entrou ou saiu · comparado com{" "}
+              {formatIsoDate(previous.from)} a {formatIsoDate(previous.to)}
               {report
                 ? ` · pró-labore de ${proLaboreLabel(report.proLabore)}`
                 : ""}
@@ -140,11 +204,20 @@ export function FinancialSection({ period }: { period: ReportPeriod }) {
                   <span>Entradas</span>
                   <strong>{money(totals.inflowInCents)}</strong>
                   <small>Recebido no período, já sem estornos</small>
+                  <Variation
+                    current={totals.inflowInCents}
+                    previous={previousTotals?.inflowInCents}
+                  />
                 </article>
                 <article>
                   <span>Saídas</span>
                   <strong>{money(totals.outflowInCents)}</strong>
-                  <small>Despesas pagas e pagamento de profissionais</small>
+                  <small>Despesas pagas e pagamento de pessoas</small>
+                  <Variation
+                    current={totals.outflowInCents}
+                    previous={previousTotals?.outflowInCents}
+                    inverse
+                  />
                 </article>
                 <article>
                   <span>Resultado do caixa</span>
@@ -158,11 +231,19 @@ export function FinancialSection({ period }: { period: ReportPeriod }) {
                       ? "Sem entradas no período"
                       : `Margem de ${totals.marginPercent.toLocaleString("pt-BR")}%`}
                   </small>
+                  <Variation
+                    current={totals.resultInCents}
+                    previous={previousTotals?.resultInCents}
+                  />
                 </article>
                 <article>
                   <span>Pró-labore</span>
                   <strong>{money(totals.proLaboreInCents)}</strong>
                   <small>{proLaboreLabel(report.proLabore)}</small>
+                  <Variation
+                    current={totals.proLaboreInCents}
+                    previous={previousTotals?.proLaboreInCents}
+                  />
                 </article>
                 <article>
                   <span>Lucro no caixa da empresa</span>
@@ -172,6 +253,10 @@ export function FinancialSection({ period }: { period: ReportPeriod }) {
                     {money(totals.retainedInCents)}
                   </strong>
                   <small>Resultado menos o pró-labore</small>
+                  <Variation
+                    current={totals.retainedInCents}
+                    previous={previousTotals?.retainedInCents}
+                  />
                 </article>
               </div>
               <dl
@@ -187,7 +272,7 @@ export function FinancialSection({ period }: { period: ReportPeriod }) {
                   <dd>{money(-split.expenses)}</dd>
                 </div>
                 <div>
-                  <dt>(−) Pagamento de profissionais</dt>
+                  <dt>(−) Folha e pagamento de profissionais</dt>
                   <dd>{money(-split.professionals)}</dd>
                 </div>
                 <div className="indicator-group">
@@ -215,23 +300,34 @@ export function FinancialSection({ period }: { period: ReportPeriod }) {
               direction="in"
               title="Por onde entrou"
               entries={entries}
+              previous={previousEntries}
               onDrill={drill}
             />
             <FinancialBreakdown
               direction="out"
               title="Por onde saiu"
               entries={entries}
+              previous={previousEntries}
               onDrill={drill}
             />
           </div>
+
+          <FinancialCashFlow
+            key={`${report.from}/${report.to}`}
+            from={report.from}
+            to={report.to}
+            entries={entries}
+            proLabore={report.proLabore}
+            onDrill={drill}
+          />
 
           <section className="panel report-table">
             <div className="panel-head">
               <div>
                 <h2>Quanto cada profissional recebeu</h2>
                 <p className="panel-context">
-                  Pago no período pela data do pagamento; comissões geradas
-                  pelas competências{" "}
+                  Profissionais e colaboradores da folha. Pago no período pela
+                  data do pagamento; comissões geradas pelas competências{" "}
                   {report.commissionMonths.map(formatCompetence).join(", ")}.
                 </p>
               </div>
@@ -239,7 +335,7 @@ export function FinancialSection({ period }: { period: ReportPeriod }) {
             {!professionals.length ? (
               <EmptyState
                 title="Nenhum pagamento a profissionais"
-                copy="Comissões pagas ou geradas no período aparecem aqui."
+                copy="Salários e comissões pagos ou gerados no período aparecem aqui."
               />
             ) : (
               <div className="table-scroll">
@@ -249,7 +345,16 @@ export function FinancialSection({ period }: { period: ReportPeriod }) {
                     <tr>
                       <th scope="col">Profissional</th>
                       <th scope="col" className="numeric-value">
+                        Comissões pagas
+                      </th>
+                      <th scope="col" className="numeric-value">
+                        Salário pago
+                      </th>
+                      <th scope="col" className="numeric-value">
                         Recebeu no período
+                      </th>
+                      <th scope="col" className="numeric-value">
+                        Participação
                       </th>
                       <th scope="col" className="numeric-value">
                         Comissões geradas
@@ -267,15 +372,38 @@ export function FinancialSection({ period }: { period: ReportPeriod }) {
                       <tr key={item.id}>
                         <th scope="row">
                           {item.name}
-                          {report.branches.length > 1 && (
+                          {(item.role || report.branches.length > 1) && (
                             <span className="reports-cell-detail">
-                              {branchNames.get(item.branchId ?? "") ??
-                                "Sem filial"}
+                              {[
+                                item.role,
+                                report.branches.length > 1
+                                  ? (branchNames.get(item.branchId ?? "") ??
+                                    "Sem filial")
+                                  : "",
+                              ]
+                                .filter(Boolean)
+                                .join(" · ")}
                             </span>
                           )}
                         </th>
                         <td className="numeric-value">
                           {money(item.paidInCents)}
+                        </td>
+                        <td className="numeric-value">
+                          {money(item.salaryPaidInCents)}
+                        </td>
+                        <td className="numeric-value">
+                          <strong>
+                            {money(item.paidInCents + item.salaryPaidInCents)}
+                          </strong>
+                        </td>
+                        <td className="numeric-value">
+                          {percent(
+                            peopleTotal > 0
+                              ? (item.paidInCents + item.salaryPaidInCents) /
+                                  peopleTotal
+                              : 0,
+                          )}
                         </td>
                         <td className="numeric-value">
                           {money(item.generatedInCents)}
@@ -287,7 +415,9 @@ export function FinancialSection({ period }: { period: ReportPeriod }) {
                           <button
                             type="button"
                             className="text-button"
-                            disabled={!item.paidInCents}
+                            disabled={
+                              !item.paidInCents && !item.salaryPaidInCents
+                            }
                             aria-label={`Ver pagamentos de ${item.name}`}
                             onClick={() =>
                               drill({
@@ -306,22 +436,34 @@ export function FinancialSection({ period }: { period: ReportPeriod }) {
                   <tfoot>
                     <tr>
                       <th scope="row">Total</th>
-                      {(
-                        [
-                          "paidInCents",
-                          "generatedInCents",
-                          "openInCents",
-                        ] as const
-                      ).map((key) => (
-                        <td className="numeric-value" key={key}>
-                          {money(
-                            professionals.reduce(
-                              (sum, item) => sum + item[key],
-                              0,
-                            ),
-                          )}
-                        </td>
-                      ))}
+                      {(["paidInCents", "salaryPaidInCents"] as const).map(
+                        (key) => (
+                          <td className="numeric-value" key={key}>
+                            {money(
+                              professionals.reduce(
+                                (sum, item) => sum + item[key],
+                                0,
+                              ),
+                            )}
+                          </td>
+                        ),
+                      )}
+                      <td className="numeric-value">{money(peopleTotal)}</td>
+                      <td className="numeric-value">
+                        {percent(peopleTotal > 0 ? 1 : 0)}
+                      </td>
+                      {(["generatedInCents", "openInCents"] as const).map(
+                        (key) => (
+                          <td className="numeric-value" key={key}>
+                            {money(
+                              professionals.reduce(
+                                (sum, item) => sum + item[key],
+                                0,
+                              ),
+                            )}
+                          </td>
+                        ),
+                      )}
                       <td />
                     </tr>
                   </tfoot>
@@ -365,6 +507,9 @@ export function FinancialSection({ period }: { period: ReportPeriod }) {
                       <th scope="col" className="numeric-value">
                         Margem
                       </th>
+                      <th scope="col" className="numeric-value">
+                        Participação nas entradas
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
@@ -399,9 +544,43 @@ export function FinancialSection({ period }: { period: ReportPeriod }) {
                             ? "—"
                             : `${branch.totals.marginPercent.toLocaleString("pt-BR")}%`}
                         </td>
+                        <td className="numeric-value">
+                          {percent(
+                            branchInflow > 0
+                              ? branch.totals.inflowInCents / branchInflow
+                              : 0,
+                          )}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
+                  <tfoot>
+                    <tr>
+                      <th scope="row">Todas as filiais</th>
+                      {totals &&
+                        (
+                          [
+                            "inflowInCents",
+                            "outflowInCents",
+                            "resultInCents",
+                            "proLaboreInCents",
+                            "retainedInCents",
+                          ] as const
+                        ).map((key) => (
+                          <td className="numeric-value" key={key}>
+                            {money(totals[key])}
+                          </td>
+                        ))}
+                      <td className="numeric-value">
+                        {totals?.marginPercent == null
+                          ? "—"
+                          : `${totals.marginPercent.toLocaleString("pt-BR")}%`}
+                      </td>
+                      <td className="numeric-value">
+                        {percent(branchInflow > 0 ? 1 : 0)}
+                      </td>
+                    </tr>
+                  </tfoot>
                 </table>
               </div>
             </section>
@@ -442,16 +621,27 @@ function FinancialBreakdown({
   direction,
   title,
   entries,
+  previous,
   onDrill,
 }: {
   direction: FinancialEntry["direction"];
   title: string;
   entries: readonly FinancialEntry[];
+  /** Movimentos do período anterior (ainda carregando ou com erro = `null`). */
+  previous: readonly FinancialEntry[] | null;
   onDrill: (filters: FinancialFilters) => void;
 }) {
   const options = financialGroupings[direction];
   const [grouping, setGrouping] = useState<FinancialGrouping>(options[0].key);
   const rows = groupEntries(entries, direction, grouping);
+  const before = previous
+    ? new Map(
+        groupEntries(previous, direction, grouping).map((row) => [
+          row.key,
+          row.amountInCents,
+        ]),
+      )
+    : null;
   const total = rows.reduce((sum, row) => sum + row.amountInCents, 0);
   return (
     <section className="panel report-table">
@@ -504,6 +694,11 @@ function FinancialBreakdown({
                 <th scope="col" className="numeric-value">
                   Participação
                 </th>
+                {before && (
+                  <th scope="col" className="numeric-value">
+                    Período anterior
+                  </th>
+                )}
               </tr>
             </thead>
             <tbody>
@@ -524,6 +719,17 @@ function FinancialBreakdown({
                   <td className="numeric-value">{row.count}</td>
                   <td className="numeric-value">{money(row.amountInCents)}</td>
                   <td className="numeric-value">{percent(row.share)}</td>
+                  {before && (
+                    <td className="numeric-value">
+                      {money(before.get(row.key) ?? 0)}
+                      <span className="reports-cell-detail">
+                        {variationLabel(
+                          row.amountInCents,
+                          before.get(row.key) ?? 0,
+                        )}
+                      </span>
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>

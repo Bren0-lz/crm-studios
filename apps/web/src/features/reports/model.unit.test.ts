@@ -1,5 +1,6 @@
 ﻿import { describe, expect, it } from "vitest";
 import {
+  periodPresets,
   plural,
   responseTimeLabel,
   salesChartPoints,
@@ -73,5 +74,27 @@ describe("textos simples dos indicadores", () => {
   it("usa singular e plural", () => {
     expect(plural(1, "cliente", "clientes")).toBe("1 cliente");
     expect(plural(0, "cliente", "clientes")).toBe("0 clientes");
+  });
+});
+
+describe("atalhos de período", () => {
+  it("calcula mês, mês passado, trimestre e anos a partir de hoje", () => {
+    expect(
+      periodPresets("2026-03-15").map((item) => [
+        item.label,
+        item.from,
+        item.to,
+      ]),
+    ).toEqual([
+      ["Este mês", "2026-03-01", "2026-03-15"],
+      ["Mês passado", "2026-02-01", "2026-02-28"],
+      ["Últimos 3 meses", "2026-01-01", "2026-03-15"],
+      ["Este ano", "2026-01-01", "2026-03-15"],
+      ["Ano passado", "2025-01-01", "2025-12-31"],
+    ]);
+    expect(periodPresets("2026-01-10")[1]).toMatchObject({
+      from: "2025-12-01",
+      to: "2025-12-31",
+    });
   });
 });

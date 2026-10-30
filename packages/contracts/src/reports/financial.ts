@@ -40,7 +40,7 @@ export const proLaboreBaseLabels: Record<ProLaboreSettings["base"], string> = {
 
 /** Por onde o dinheiro entrou ou saiu. */
 export type FinancialEntryOrigin =
-  "plan" | "tab" | "manual_receivable" | "expense" | "commission";
+  "plan" | "tab" | "manual_receivable" | "expense" | "payroll" | "commission";
 
 export const financialEntryOriginLabels: Record<FinancialEntryOrigin, string> =
   {
@@ -48,6 +48,7 @@ export const financialEntryOriginLabels: Record<FinancialEntryOrigin, string> =
     tab: "Comandas",
     manual_receivable: "Receitas avulsas",
     expense: "Despesas",
+    payroll: "Folha de pagamento",
     commission: "Pagamento de profissionais",
   };
 
@@ -77,17 +78,28 @@ export interface FinancialEntry {
   costCenterName?: string;
   /** Ausente quando o registro não tem filial. */
   branchId?: string;
+  /**
+   * Quem recebeu o pagamento: id do profissional ou, para colaborador da folha sem
+   * profissional ligado, `employee:<id do colaborador>`.
+   */
   professionalId?: string;
   professionalName?: string;
 }
 
-/** Quanto cada profissional recebeu (caixa) e gerou de comissão no período. */
+/** Prefixo do id de quem recebe pela folha sem ser profissional da agenda. */
+export const PAYROLL_EMPLOYEE_PREFIX = "employee:";
+
+/** Quanto cada profissional ou colaborador recebeu (caixa) e gerou de comissão no período. */
 export interface FinancialProfessional {
   id: string;
   name: string;
+  /** Cargo do colaborador na folha, quando houver. */
+  role?: string;
   branchId?: string;
   /** Comissões efetivamente pagas no período (data do pagamento). */
   paidInCents: number;
+  /** Salário fixo pago pela folha no período (data do pagamento). */
+  salaryPaidInCents: number;
   /** Comissões das competências do período (pagas ou não). */
   generatedInCents: number;
   /** Parte das competências do período ainda não paga. */
@@ -141,12 +153,31 @@ export const financialReportFilterSchema = z
   .object(financialPeriodShape)
   .superRefine(refineFinancialPeriod);
 
+const amountFilterSchema = z
+  .string()
+  .trim()
+  .regex(/^(\d{1,9}([.,]\d{0,2})?)?$/, "Informe um valor como 150 ou 150,50.")
+  .default("");
+
+/** Valor em reais do filtro convertido para centavos; vazio = `null`. */
+export function amountFilterInCents(value: string) {
+  return value ? Math.round(Number(value.replace(",", ".")) * 100) : null;
+}
+
 /** Filtros do extrato detalhado; vazio = sem filtro. */
 export const financialEntryFiltersSchema = z.object({
   search: z.string().max(200).default(""),
   direction: z.enum(["", "in", "out"]).default(""),
   origin: z
-    .enum(["", "plan", "tab", "manual_receivable", "expense", "commission"])
+    .enum([
+      "",
+      "plan",
+      "tab",
+      "manual_receivable",
+      "expense",
+      "payroll",
+      "commission",
+    ])
     .default(""),
   category: z.string().max(200).default(""),
   costCenter: z.string().max(200).default(""),
@@ -167,6 +198,9 @@ export const financialEntryFiltersSchema = z.object({
   /** Datas (aaaa-mm-dd) dentro do período do relatório. */
   from: z.union([z.literal(""), z.iso.date()]).default(""),
   to: z.union([z.literal(""), z.iso.date()]).default(""),
+  /** Faixa do valor absoluto, em reais ("150" ou "150,50"). */
+  minAmount: amountFilterSchema,
+  maxAmount: amountFilterSchema,
 });
 export type FinancialFilters = z.infer<typeof financialEntryFiltersSchema>;
 
@@ -216,8 +250,12 @@ export function filterFinancialEntries(
   filters: FinancialFilters,
 ) {
   const search = normalizeSearch(filters.search.trim());
+  const min = amountFilterInCents(filters.minAmount);
+  const max = amountFilterInCents(filters.maxAmount);
   return entries.filter(
     (entry) =>
+      (min === null || Math.abs(entry.amountInCents) >= min) &&
+      (max === null || Math.abs(entry.amountInCents) <= max) &&
       (!filters.direction || entry.direction === filters.direction) &&
       (!filters.origin || entry.origin === filters.origin) &&
       (!filters.category || entry.categoryName === filters.category) &&
