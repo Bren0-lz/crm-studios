@@ -202,6 +202,27 @@ export function createContractsRepository(
       return next;
     },
 
+    async deleteDocumentTemplate(clinicId: string, templateId: string) {
+      const template = repositoryContext.documentTemplates.find(
+        (item) => item.clinicId === clinicId && item.id === templateId,
+      );
+      if (!template) return false;
+      const name = template.name.toLocaleLowerCase();
+      for (
+        let index = repositoryContext.documentTemplates.length - 1;
+        index >= 0;
+        index--
+      ) {
+        const item = repositoryContext.documentTemplates[index]!;
+        if (
+          item.clinicId === clinicId &&
+          item.name.toLocaleLowerCase() === name
+        )
+          repositoryContext.documentTemplates.splice(index, 1);
+      }
+      return true;
+    },
+
     async listIssuedDocuments(clinicId: string) {
       return repositoryContext.issuedDocuments
         .filter((item) => item.clinicId === clinicId)

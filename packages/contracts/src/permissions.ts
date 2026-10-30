@@ -107,6 +107,7 @@ const operations = {
   contracts: {
     templates_create: "Criar modelo de contrato",
     templates_version: "Versionar modelo de contrato",
+    templates_delete: "Excluir modelo de contrato",
     issue: "Emitir contrato",
     status: "Alterar situação do contrato",
     cancel: "Cancelar contrato",

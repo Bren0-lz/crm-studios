@@ -25,6 +25,7 @@ import {
   MessageCircle,
   Plus,
   Printer,
+  Trash2,
   type LucideIcon,
 } from "lucide-react";
 import {
@@ -97,6 +98,8 @@ export function DocumentsPage() {
     pdf: boolean;
   } | null>(null);
   const [versioning, setVersioning] = useState<DocumentTemplate | null>(null);
+  const [deletingTemplate, setDeletingTemplate] =
+    useState<DocumentTemplate | null>(null);
   const [cancelling, setCancelling] = useState<IssuedDocument | null>(null);
   const [sending, setSending] = useState<{
     document: IssuedDocument | null;
@@ -108,6 +111,7 @@ export function DocumentsPage() {
   const [activeTab, setActiveTab] = useState<ContractsTab>("documentos");
   const tabsId = useId();
   const canCreateTemplate = canManage && can("contracts.templates_create");
+  const canDeleteTemplate = canManage && can("contracts.templates_delete");
   // Enviar pelo WhatsApp emite o contrato e gera o link: exige emitir e alterar situação.
   const canSendForSignature =
     canManage && can("contracts.issue") && can("contracts.status");
@@ -538,16 +542,28 @@ export function DocumentsPage() {
                       >
                         {template.active ? "Ativa" : "Histórica"}
                       </span>
-                      {canManage &&
-                        template.active &&
-                        can("contracts.templates_version") && (
-                          <button
-                            className="secondary-button button-sm"
-                            onClick={() => setVersioning(template)}
-                          >
-                            Nova versão
-                          </button>
-                        )}
+                      {template.active && (
+                        <div className="template-actions">
+                          {canManage && can("contracts.templates_version") && (
+                            <button
+                              className="secondary-button button-sm"
+                              onClick={() => setVersioning(template)}
+                            >
+                              Nova versão
+                            </button>
+                          )}
+                          {canDeleteTemplate && (
+                            <button
+                              type="button"
+                              className="text-button button-sm"
+                              aria-label={`Excluir modelo ${template.name}`}
+                              onClick={() => setDeletingTemplate(template)}
+                            >
+                              <Trash2 size={15} aria-hidden="true" /> Excluir
+                            </button>
+                          )}
+                        </div>
+                      )}
                     </article>
                   ))}
                 </div>
@@ -680,6 +696,26 @@ export function DocumentsPage() {
           onConfirm={async () => {
             setTemplateForm(replacingTemplate);
             setReplacingTemplate(null);
+          }}
+        />
+      )}
+      {deletingTemplate && (
+        <ActionModal
+          eyebrow="Modelos"
+          title="Excluir modelo"
+          subtitle={`${deletingTemplate.name} · versão ${deletingTemplate.version}`}
+          effect="O modelo e todas as versões anteriores saem da lista e não poderão mais ser usados em novos contratos. Os contratos já criados com ele continuam disponíveis."
+          confirmLabel="Excluir modelo"
+          danger
+          onClose={() => setDeletingTemplate(null)}
+          onConfirm={async () => {
+            await api.deleteDocumentTemplate(deletingTemplate.id);
+            const name = deletingTemplate.name.toLocaleLowerCase();
+            setTemplates((current) =>
+              current.filter((item) => item.name.toLocaleLowerCase() !== name),
+            );
+            setDeletingTemplate(null);
+            setNotice(`Modelo “${deletingTemplate.name}” excluído.`);
           }}
         />
       )}

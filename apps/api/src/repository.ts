@@ -1570,6 +1570,11 @@ export interface ClinicRepository {
     body: string,
     content?: DocumentContent,
   ): Promise<DocumentTemplate | null>;
+  /** Exclui o modelo com todas as versões; os contratos já criados guardam a cópia do texto. */
+  deleteDocumentTemplate(
+    clinicId: string,
+    templateId: string,
+  ): Promise<boolean>;
   previewDocument(
     clinicId: string,
     input: IssuedDocumentInput,

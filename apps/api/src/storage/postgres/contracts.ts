@@ -81,7 +81,7 @@ export function createContractsRepository(
     async listDocumentTemplates(clinicId: string) {
       const result = await repositoryContext.pool.query<DocumentTemplateRow>(
         `SELECT ${documentTemplateColumns} FROM document_templates
-       WHERE clinic_id = $1 ORDER BY name, version DESC`,
+       WHERE clinic_id = $1 AND deleted_at IS NULL ORDER BY name, version DESC`,
         [clinicId],
       );
       return result.rows.map(mapDocumentTemplate);
@@ -133,7 +133,7 @@ export function createContractsRepository(
         await client.query("BEGIN");
         const current = await client.query<DocumentTemplateRow>(
           `SELECT ${documentTemplateColumns} FROM document_templates
-         WHERE clinic_id = $1 AND id = $2 FOR UPDATE`,
+         WHERE clinic_id = $1 AND deleted_at IS NULL AND id = $2 FOR UPDATE`,
           [clinicId, templateId],
         );
         if (!current.rows[0]) {
@@ -143,7 +143,8 @@ export function createContractsRepository(
         const template = current.rows[0];
         const versionResult = await client.query<{ nextVersion: number }>(
           `SELECT COALESCE(MAX(version), 0) + 1 AS "nextVersion"
-         FROM document_templates WHERE clinic_id = $1 AND name = $2`,
+         FROM document_templates
+         WHERE clinic_id = $1 AND name = $2 AND deleted_at IS NULL`,
           [clinicId, template.name],
         );
         await client.query(
@@ -174,6 +175,19 @@ export function createContractsRepository(
       } finally {
         client.release();
       }
+    },
+
+    async deleteDocumentTemplate(clinicId: string, templateId: string) {
+      // Só marca: os contratos emitidos continuam apontando para as versões.
+      const result = await repositoryContext.pool.query(
+        `UPDATE document_templates SET deleted_at = now(), active = false
+         WHERE clinic_id = $1 AND deleted_at IS NULL AND name = (
+           SELECT name FROM document_templates
+           WHERE clinic_id = $1 AND id = $2 AND deleted_at IS NULL
+         )`,
+        [clinicId, templateId],
+      );
+      return (result.rowCount ?? 0) > 0;
     },
 
     async listIssuedDocuments(clinicId: string) {
