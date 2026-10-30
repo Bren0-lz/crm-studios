@@ -169,6 +169,51 @@ for (const storage of ["memory", "postgres"] as const) {
         });
       });
 
+      it("guarda os tamanhos definidos na categoria de produtos", async () => {
+        const name = `Calçados ${randomUUID().slice(0, 8)}`;
+        const category = await repository.saveClinicCatalog(
+          clinicId,
+          actorId,
+          "product_category",
+          { name, active: true, sizes: ["38", "36", "40"] },
+        );
+        expect(category?.sizes).toEqual(["38", "36", "40"]);
+        // Sem `sizes` na edição, a lista atual fica como está.
+        const renamed = await repository.saveClinicCatalog(
+          clinicId,
+          actorId,
+          "product_category",
+          { name: `${name} adulto`, active: true },
+          category!.id,
+        );
+        expect(renamed?.sizes).toEqual(["38", "36", "40"]);
+        const cleared = await repository.saveClinicCatalog(
+          clinicId,
+          actorId,
+          "product_category",
+          { name: `${name} adulto`, active: true, sizes: [] },
+          category!.id,
+        );
+        expect(cleared?.sizes).toEqual([]);
+        // Só categorias de produtos guardam tamanhos.
+        const brand = await repository.saveClinicCatalog(
+          clinicId,
+          actorId,
+          "product_brand",
+          {
+            name: `Marca ${randomUUID().slice(0, 8)}`,
+            active: true,
+            sizes: ["P"],
+          },
+        );
+        expect(brand?.sizes).toEqual([]);
+        expect(
+          (await repository.listClinicCatalog(clinicId, "product_brand")).find(
+            (item) => item.id === brand!.id,
+          )?.sizes,
+        ).toEqual([]);
+      });
+
       it("guarda, mantém e limpa os tamanhos do produto", async () => {
         const product = await repository.createProduct(
           clinicId,
@@ -181,7 +226,7 @@ for (const storage of ["memory", "postgres"] as const) {
             sizes: ["g", "baby_look_m", "p"],
           }),
         );
-        expect(product.sizes).toEqual(["p", "g", "baby_look_m"]);
+        expect(product.sizes).toEqual(["g", "baby_look_m", "p"]);
         const fields = {
           name: product.name,
           sku: product.sku,
@@ -199,7 +244,7 @@ for (const storage of ["memory", "postgres"] as const) {
               fields,
             )
           )?.sizes,
-        ).toEqual(["p", "g", "baby_look_m"]);
+        ).toEqual(["g", "baby_look_m", "p"]);
         expect(
           (
             await repository.updateProduct(clinicId, actorId, product.id, {
@@ -314,8 +359,8 @@ for (const storage of ["memory", "postgres"] as const) {
         expect(product).toMatchObject({
           currentStock: 6,
           sizeStock: [
-            { size: "p", currentStock: 4 },
             { size: "m", currentStock: 2 },
+            { size: "p", currentStock: 4 },
             { size: "baby_look_g", currentStock: 0 },
           ],
         });
@@ -373,8 +418,8 @@ for (const storage of ["memory", "postgres"] as const) {
           ["p", 2],
         ]);
         expect((await stockOf()).sizeStock).toEqual([
-          { size: "p", currentStock: 2 },
           { size: "m", currentStock: 1 },
+          { size: "p", currentStock: 2 },
           { size: "baby_look_g", currentStock: 3 },
         ]);
         const period = await repository.getSalesPeriodReport(
@@ -415,8 +460,8 @@ for (const storage of ["memory", "postgres"] as const) {
         expect(await stockOf()).toMatchObject({
           currentStock: 9,
           sizeStock: [
-            { size: "p", currentStock: 4 },
             { size: "m", currentStock: 2 },
+            { size: "p", currentStock: 4 },
             { size: "baby_look_g", currentStock: 3 },
           ],
         });

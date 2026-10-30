@@ -54,6 +54,42 @@ async function setup() {
 }
 
 describe("product sizes", () => {
+  it("saves the sizes of a product category and uses them on products", async () => {
+    const { app, headers, fields, product } = await setup();
+    const category = await app.inject({
+      method: "POST",
+      url: "/clinic-catalogs/product_category",
+      headers,
+      payload: { name: "Óleos", sizes: ["250 ml", "500 ml", "1 litro"] },
+    });
+    expect(category.statusCode).toBe(201);
+    expect(category.json().sizes).toEqual(["250 ml", "500 ml", "1 litro"]);
+    const repeated = await app.inject({
+      method: "POST",
+      url: "/clinic-catalogs/product_category",
+      headers,
+      payload: { name: "Toalhas", sizes: ["Rosto", "rosto"] },
+    });
+    expect(repeated.statusCode).toBe(400);
+
+    const created = await app.inject({
+      method: "POST",
+      url: "/inventory/products",
+      headers,
+      payload: {
+        ...fields,
+        categoryId: category.json().id,
+        sizes: ["500 ml", "1 litro"],
+        initialSizeStock: [{ size: "1 litro", quantity: 2 }],
+      },
+    });
+    expect(created.statusCode).toBe(201);
+    expect((await product(created.json().id)).sizeStock).toEqual([
+      { size: "500 ml", currentStock: 0 },
+      { size: "1 litro", currentStock: 2 },
+    ]);
+  });
+
   it("saves, keeps and clears the sizes of a product", async () => {
     const { app, headers, fields } = await setup();
     const created = await app.inject({
@@ -63,7 +99,7 @@ describe("product sizes", () => {
       payload: { ...fields, sizes: ["gg", "unique", "pp"] },
     });
     expect(created.statusCode).toBe(201);
-    expect(created.json().sizes).toEqual(["pp", "gg", "unique"]);
+    expect(created.json().sizes).toEqual(["gg", "unique", "pp"]);
     const id = created.json().id as string;
 
     const duplicated = await app.inject({
@@ -82,7 +118,7 @@ describe("product sizes", () => {
     });
     expect(kept.json()).toMatchObject({
       salePriceInCents: 5_500,
-      sizes: ["pp", "gg", "unique"],
+      sizes: ["gg", "unique", "pp"],
     });
 
     const changed = await app.inject({
@@ -176,9 +212,9 @@ describe("product sizes", () => {
       payload: { ...fields, sizes: ["m", "g"] },
     });
     expect((await product(id)).sizeStock).toEqual([
-      { size: "p", currentStock: 2 },
       { size: "m", currentStock: 5 },
       { size: "g", currentStock: 4 },
+      { size: "p", currentStock: 2 },
     ]);
     expect(
       (await move({ productId: id, kind: "purchase", size: "p" })).statusCode,

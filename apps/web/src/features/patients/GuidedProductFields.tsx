@@ -1,7 +1,7 @@
 import {
   paymentMethodLabels,
   paymentMethodSchema,
-  productSizeLabels,
+  productSizeLabel,
   type PaymentMethod,
   type Product,
   type ProductSaleInput,
@@ -104,7 +104,7 @@ export function GuidedProductFields({
                       ))
                   }
                 >
-                  {`${productSizeLabels[size]} · ${stock > 0 ? `${stock} ${product.unit}` : "sem estoque"}`}
+                  {`${productSizeLabel(size)} · ${stock > 0 ? `${stock} ${product.unit}` : "sem estoque"}`}
                 </option>
               );
             })}

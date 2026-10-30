@@ -100,22 +100,11 @@ export function serviceCommissionsInForce(
     );
 }
 
-/** Tamanhos que um produto pode ter (roupas): padrão, tamanho único e baby look. */
-export const productSizeSchema = z.enum([
-  "pp",
-  "p",
-  "m",
-  "g",
-  "gg",
-  "unique",
-  "baby_look_pp",
-  "baby_look_p",
-  "baby_look_m",
-  "baby_look_g",
-  "baby_look_gg",
-]);
-export type ProductSize = z.infer<typeof productSizeSchema>;
-export const productSizeLabels: Record<ProductSize, string> = {
+/**
+ * Rótulos dos códigos de tamanho gravados antes de os tamanhos virem da categoria (escala fixa de
+ * roupas). Tamanho novo é gravado com o próprio nome que a categoria definiu ("38", "500 ml").
+ */
+export const legacyProductSizeLabels: Record<string, string> = {
   pp: "PP",
   p: "P",
   m: "M",
@@ -128,17 +117,34 @@ export const productSizeLabels: Record<ProductSize, string> = {
   baby_look_g: "Baby look G",
   baby_look_gg: "Baby look GG",
 };
-/** Tamanhos na ordem da escala (independe da ordem em que foram marcados). */
+
+/** Um tamanho: o nome definido na categoria do produto (ou um código antigo da escala fixa). */
+export const productSizeSchema = z.string().trim().min(1).max(40);
+export type ProductSize = z.infer<typeof productSizeSchema>;
+
+/** Quantos tamanhos uma categoria (e um produto) pode ter. */
+export const maxProductSizes = 40;
+
+const sizeKey = (size: string) => size.trim().toLocaleLowerCase("pt-BR");
+
+/** Tamanhos sem repetição (ignorando maiúsculas), na ordem em que foram informados. */
 export function sortProductSizes(sizes: readonly ProductSize[]): ProductSize[] {
-  return productSizeSchema.options.filter((size) => sizes.includes(size));
+  const seen = new Set<string>();
+  return sizes.filter((size) => {
+    const key = sizeKey(size);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
-const productSizesSchema = z
+
+/** Lista de tamanhos (categoria ou produto): cada um uma vez só, na ordem informada. */
+export const productSizesSchema = z
   .array(productSizeSchema)
-  .max(productSizeSchema.options.length)
-  .refine((sizes) => new Set(sizes).size === sizes.length, {
+  .max(maxProductSizes)
+  .refine((sizes) => new Set(sizes.map(sizeKey)).size === sizes.length, {
     message: "Cada tamanho entra uma vez só.",
-  })
-  .transform(sortProductSizes);
+  });
 
 /** Produto pede reposição: sem estoque ou, com aviso de reposição, saldo total no limite ou abaixo. */
 export function productNeedsRestock(
@@ -155,7 +161,7 @@ export interface ProductSizeStock {
 }
 
 export function productSizeLabel(size: ProductSize | null | undefined) {
-  return size ? productSizeLabels[size] : "Sem tamanho";
+  return size ? (legacyProductSizeLabels[size] ?? size) : "Sem tamanho";
 }
 
 /** Nome do item vendido com o tamanho, quando houver ("Camiseta · M"). */
@@ -164,7 +170,7 @@ export function productItemName(item: {
   size?: ProductSize | undefined;
 }) {
   return item.size
-    ? `${item.productName} · ${productSizeLabels[item.size]}`
+    ? `${item.productName} · ${productSizeLabel(item.size)}`
     : item.productName;
 }
 
@@ -183,7 +189,10 @@ export function productSizeStock(
       .reduce((sum, row) => sum + row.currentStock, 0);
   const configured = (size: ProductSize | null) =>
     sizes.length ? size !== null && sizes.includes(size) : size === null;
-  return [...productSizeSchema.options, null]
+  const keys = [
+    ...new Set<ProductSize | null>([...sizes, ...rows.map((row) => row.size)]),
+  ].filter((size) => size !== null);
+  return [...keys, null]
     .filter(
       (size) =>
         (sizes.length > 0 && configured(size)) ||
@@ -221,7 +230,7 @@ export const productInputSchema = productBaseSchema
           quantity: z.number().int().min(0).max(1_000_000),
         }),
       )
-      .max(productSizeSchema.options.length)
+      .max(maxProductSizes)
       .optional(),
   })
   .superRefine((value, context) => {
@@ -319,7 +328,7 @@ export const productUpdateSchema = productBaseSchema
           quantity: z.number().int().min(0).max(1_000_000),
         }),
       )
-      .max(productSizeSchema.options.length)
+      .max(maxProductSizes)
       .optional(),
   })
   .superRefine((value, context) => {

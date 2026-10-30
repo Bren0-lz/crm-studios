@@ -8,7 +8,7 @@ import { DomainError } from "../../repository.js";
 import type { PostgresRepositoryContext } from "./context.js";
 import { hasDatabaseCode } from "./helpers.js";
 
-const columns = `id,clinic_id AS "clinicId",kind,name,active,parent_id AS "parentId",created_at AS "createdAt",updated_at AS "updatedAt"`;
+const columns = `id,clinic_id AS "clinicId",kind,name,active,parent_id AS "parentId",sizes,created_at AS "createdAt",updated_at AS "updatedAt"`;
 type Row = Omit<ClinicCatalogEntry, "createdAt" | "updatedAt"> & {
   createdAt: Date;
   updatedAt: Date;
@@ -79,9 +79,14 @@ export function createCatalogsRepository(context: PostgresRepositoryContext) {
                 400,
               );
           }
+          // Só categorias de produtos têm tamanhos; ausente na edição = mantém os atuais.
+          const sizes =
+            kind === "product_category"
+              ? (input.sizes ?? current?.sizes ?? [])
+              : [];
           const result = id
             ? await client.query<Row>(
-                `UPDATE clinic_catalogs SET name=$4,name_key=$5,active=$6,parent_id=$7,updated_at=now() WHERE clinic_id=$1 AND kind=$2 AND id=$3 RETURNING ${columns}`,
+                `UPDATE clinic_catalogs SET name=$4,name_key=$5,active=$6,parent_id=$7,sizes=$8,updated_at=now() WHERE clinic_id=$1 AND kind=$2 AND id=$3 RETURNING ${columns}`,
                 [
                   clinicId,
                   kind,
@@ -92,10 +97,11 @@ export function createCatalogsRepository(context: PostgresRepositoryContext) {
                   input.parentId === undefined
                     ? (current?.parentId ?? null)
                     : input.parentId,
+                  sizes,
                 ],
               )
             : await client.query<Row>(
-                `INSERT INTO clinic_catalogs(clinic_id,kind,name,name_key,active,parent_id) VALUES($1,$2,$3,$4,$5,$6) RETURNING ${columns}`,
+                `INSERT INTO clinic_catalogs(clinic_id,kind,name,name_key,active,parent_id,sizes) VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING ${columns}`,
                 [
                   clinicId,
                   kind,
@@ -103,6 +109,7 @@ export function createCatalogsRepository(context: PostgresRepositoryContext) {
                   patientTagKey(input.name),
                   input.active,
                   input.parentId ?? null,
+                  sizes,
                 ],
               );
           if (current && current.name !== input.name) {

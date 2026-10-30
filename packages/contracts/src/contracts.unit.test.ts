@@ -7,7 +7,9 @@ import {
   productItemName,
   productNeedsRestock,
   productSizeStock,
-  productSizeLabels,
+  productSizeLabel,
+  sortProductSizes,
+  clinicCatalogInputSchema,
   productUpdateSchema,
   cpfMatchKey,
   receivableContactMessage,
@@ -786,7 +788,7 @@ describe("shared contracts", () => {
     ).toEqual({ productId, quantity: 2, unitPriceInCents: 1500 });
   });
 
-  it("validates product sizes and keeps them in scale order", () => {
+  it("validates free product sizes and keeps the informed order", () => {
     const base = {
       name: "Camiseta",
       sku: "CAM",
@@ -795,20 +797,31 @@ describe("shared contracts", () => {
     };
     expect(productInputSchema.parse(base).sizes).toBeUndefined();
     expect(
-      productInputSchema.parse({
-        ...base,
-        sizes: ["baby_look_gg", "unique", "gg", "pp"],
-      }).sizes,
-    ).toEqual(["pp", "gg", "unique", "baby_look_gg"]);
+      productInputSchema.parse({ ...base, sizes: [" 36 ", "38", "250 ml"] })
+        .sizes,
+    ).toEqual(["36", "38", "250 ml"]);
     expect(() =>
-      productInputSchema.parse({ ...base, sizes: ["m", "m"] }),
+      productInputSchema.parse({ ...base, sizes: ["M", "m"] }),
     ).toThrow("Cada tamanho entra uma vez só.");
-    expect(() =>
-      productInputSchema.parse({ ...base, sizes: ["xg"] }),
-    ).toThrow();
+    expect(() => productInputSchema.parse({ ...base, sizes: [" "] })).toThrow();
     expect(productUpdateSchema.parse({ ...base, sizes: [] }).sizes).toEqual([]);
-    expect(productSizeLabels.unique).toBe("Tamanho único");
-    expect(productSizeLabels.baby_look_p).toBe("Baby look P");
+    expect(sortProductSizes(["P", "M", "p", "G"])).toEqual(["P", "M", "G"]);
+    expect(productSizeLabel("unique")).toBe("Tamanho único");
+    expect(productSizeLabel("baby_look_p")).toBe("Baby look P");
+    expect(productSizeLabel("500 ml")).toBe("500 ml");
+  });
+
+  it("keeps the sizes only on product categories", () => {
+    expect(
+      clinicCatalogInputSchema.parse({ name: "Calçados", sizes: ["37", "38"] })
+        .sizes,
+    ).toEqual(["37", "38"]);
+    expect(clinicCatalogInputSchema.parse({ name: "Óleos" }).sizes).toBe(
+      undefined,
+    );
+    expect(() =>
+      clinicCatalogInputSchema.parse({ name: "Calçados", sizes: ["37", "37"] }),
+    ).toThrow("Cada tamanho entra uma vez só.");
   });
 
   it("validates the initial stock per size and sizes in a sale", () => {

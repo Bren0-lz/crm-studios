@@ -10,7 +10,7 @@ import {
   patientFirstName,
   paymentMethodLabels,
   paymentMethodSchema,
-  productSizeLabels,
+  productSizeLabel,
 } from "@crm/contracts";
 import { CircleAlert, Plus, Trash2 } from "lucide-react";
 import { useEffect, useId, useState, type FormEvent } from "react";
@@ -269,7 +269,7 @@ export function NewSaleSection({
                                   ))
                               }
                             >
-                              {`${productSizeLabels[size]} · ${stock > 0 ? `${stock} ${product.unit}` : "sem estoque"}`}
+                              {`${productSizeLabel(size)} · ${stock > 0 ? `${stock} ${product.unit}` : "sem estoque"}`}
                             </option>
                           );
                         })}
