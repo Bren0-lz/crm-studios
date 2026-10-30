@@ -26,7 +26,7 @@ describe("CRM API", () => {
     await app.close();
   });
 
-  it("returns reproducible management metrics and an authenticated CSV", async () => {
+  it("returns reproducible management metrics and an authenticated spreadsheet", async () => {
     const { app, token } = await authenticatedApp();
     const headers = { authorization: `Bearer ${token}` };
     // Dia da clínica em que o seed criou os atendimentos de "hoje" (`dateAt` usa o fuso do
@@ -43,14 +43,23 @@ describe("CRM API", () => {
     expect(report.json()).toMatchObject({ from: date, to: date });
     expect(report.json().appointments.total).toBeGreaterThan(0);
     expect(report.json().byProfessional.length).toBeGreaterThan(0);
-    const csv = await app.inject({
+    const xlsx = await app.inject({
       method: "GET",
-      url: `/reports/management.csv?from=${date}&to=${date}`,
+      url: `/reports/management.xlsx?from=${date}&to=${date}`,
       headers,
     });
-    expect(csv.statusCode).toBe(200);
-    expect(csv.headers["content-type"]).toContain("text/csv");
-    expect(csv.body).toContain("atendimentos");
+    expect(xlsx.statusCode).toBe(200);
+    expect(xlsx.headers["content-type"]).toContain("spreadsheetml.sheet");
+    expect(xlsx.headers["content-disposition"]).toContain(
+      `relatorio-${date}-${date}.xlsx`,
+    );
+    const managementWorkbook = new ExcelJS.Workbook();
+    await managementWorkbook.xlsx.load(
+      xlsx.rawPayload as unknown as ExcelJS.Buffer,
+    );
+    expect(
+      managementWorkbook.getWorksheet("Resumo")!.getColumn(2).values,
+    ).toContain("Atendimentos");
     await seedRoleUsers(app);
     const receptionToken = app.jwt.sign({
       sub: roleSub(app, "reception"),
@@ -74,18 +83,20 @@ describe("CRM API", () => {
       month,
       current: { from: `${month}-01` },
     });
-    const xlsx = await app.inject({
+    const salesXlsx = await app.inject({
       method: "GET",
       url: `/reports/sales.xlsx?month=${month}`,
       headers,
     });
-    expect(xlsx.statusCode).toBe(200);
-    expect(xlsx.headers["content-type"]).toContain("spreadsheetml.sheet");
-    expect(xlsx.headers["content-disposition"]).toContain(
+    expect(salesXlsx.statusCode).toBe(200);
+    expect(salesXlsx.headers["content-type"]).toContain("spreadsheetml.sheet");
+    expect(salesXlsx.headers["content-disposition"]).toContain(
       `vendas-${month}.xlsx`,
     );
     const salesWorkbook = new ExcelJS.Workbook();
-    await salesWorkbook.xlsx.load(xlsx.rawPayload as unknown as ExcelJS.Buffer);
+    await salesWorkbook.xlsx.load(
+      salesXlsx.rawPayload as unknown as ExcelJS.Buffer,
+    );
     expect(salesWorkbook.creator).toBe("Studios Aryana");
     const deniedSales = await app.inject({
       method: "GET",

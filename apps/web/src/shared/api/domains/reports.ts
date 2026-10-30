@@ -21,26 +21,33 @@ import type {
 import { allBranches } from "../branch";
 import { request, requestBlob } from "../transport";
 
+type ClientDetailsInput = PatientProfileFilter & {
+  from: string;
+  to: string;
+  search?: string;
+  columns?: ClientDetailsColumn[];
+  status?: "active" | "inactive" | undefined;
+  discount?: "with" | "without" | undefined;
+};
+
+function clientDetailsQuery(input: ClientDetailsInput) {
+  const query = new URLSearchParams();
+  for (const [key, value] of Object.entries(input))
+    if (value !== undefined && value !== "")
+      query.set(key, Array.isArray(value) ? value.join(",") : String(value));
+  return query;
+}
+
 export const reportsApi = {
-  clientDetailsReport: (
-    input: PatientProfileFilter & {
-      from: string;
-      to: string;
-      search?: string;
-      columns?: ClientDetailsColumn[];
-      status?: "active" | "inactive" | undefined;
-      discount?: "with" | "without" | undefined;
-    },
-    exporting = false,
-  ) => {
-    const query = new URLSearchParams();
-    for (const [key, value] of Object.entries(input))
-      if (value !== undefined && value !== "")
-        query.set(key, Array.isArray(value) ? value.join(",") : String(value));
-    return request<ClientDetailsReport>(
-      `/reports/clients/details${exporting ? "/export" : ""}?${query}`,
-    );
-  },
+  clientDetailsReport: (input: ClientDetailsInput, exporting = false) =>
+    request<ClientDetailsReport>(
+      `/reports/clients/details${exporting ? "/export" : ""}?${clientDetailsQuery(input)}`,
+    ),
+  /** Planilha Excel da consulta de clientes (mesmos filtros e colunas). */
+  clientDetailsReportXlsx: (input: ClientDetailsInput) =>
+    requestBlob(
+      `/reports/clients/details/export.xlsx?${clientDetailsQuery(input)}`,
+    ),
   /** `professionalIds`: agenda só desses profissionais (vazio = todos os permitidos). */
   dashboard: (date: string, professionalIds: readonly string[] = []) =>
     request<DashboardViewSummary>(
@@ -64,9 +71,9 @@ export const reportsApi = {
     request<ManagementReport>(
       `/reports/management?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
     ),
-  managementReportCsv: (from: string, to: string) =>
+  managementReportXlsx: (from: string, to: string) =>
     requestBlob(
-      `/reports/management.csv?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
+      `/reports/management.xlsx?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
     ),
   /** Todas as filiais do usuário: a tela filtra e compara as filiais. */
   financialReport: (from: string, to: string) =>
@@ -75,7 +82,7 @@ export const reportsApi = {
       allBranches,
     ),
   /** Planilha do extrato com os filtros da tela; todas as filiais, como o relatório. */
-  financialReportCsv: (input: Partial<FinancialExportFilter>) => {
+  financialReportXlsx: (input: Partial<FinancialExportFilter>) => {
     const query = new URLSearchParams();
     for (const [key, value] of Object.entries(input))
       if (value) query.set(key, String(value));

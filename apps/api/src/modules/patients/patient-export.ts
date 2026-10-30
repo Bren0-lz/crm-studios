@@ -6,8 +6,17 @@ import {
   type PatientExportColumn,
   type PatientExportFilter,
   type PatientPlan,
+  splitPhone,
 } from "@crm/contracts";
-import ExcelJS from "exceljs";
+import {
+  addTableSheet,
+  createWorkbook,
+  phoneColumns,
+  sheetDate,
+  sheetDateTime,
+  workbookBuffer,
+  type SheetColumn,
+} from "../../infrastructure/spreadsheet.js";
 
 /**
  * Aplica os filtros da exportação. `today` é a data da clínica (aaaa-mm-dd).
@@ -61,7 +70,15 @@ function clinicDate(timestamp: string) {
   }).format(new Date(timestamp));
 }
 
-function cellValue(patient: Patient, column: PatientExportColumn): string {
+/** Colunas de telefone saem em duas: DDD e número. */
+const phoneExportColumns = new Set<PatientExportColumn>([
+  "phone",
+  "whatsapp",
+  "emergencyContactPhone",
+  "guardianPhone",
+]);
+
+function textValue(patient: Patient, column: PatientExportColumn): string {
   switch (column) {
     case "gender":
       return (
@@ -92,15 +109,28 @@ function cellValue(patient: Patient, column: PatientExportColumn): string {
   }
 }
 
-/** Cabeçalho + uma linha por cliente, só com as colunas pedidas. */
+function columnHeaders(column: PatientExportColumn): string[] {
+  const header = patientExportColumnLabels[column];
+  return phoneExportColumns.has(column)
+    ? [`DDD (${header})`, header]
+    : [header];
+}
+
+function cellValues(patient: Patient, column: PatientExportColumn): string[] {
+  if (!phoneExportColumns.has(column)) return [textValue(patient, column)];
+  const { ddd, number } = splitPhone(String(patient[column] ?? ""));
+  return [ddd, number];
+}
+
+/** Cabeçalho + uma linha por cliente, só com as colunas pedidas (telefone em DDD + número). */
 export function patientExportRows(
   patients: Patient[],
   columns: PatientExportColumn[],
 ): string[][] {
   return [
-    columns.map((column) => patientExportColumnLabels[column]),
+    columns.flatMap(columnHeaders),
     ...patients.map((patient) =>
-      columns.map((column) => cellValue(patient, column)),
+      columns.flatMap((column) => cellValues(patient, column)),
     ),
   ];
 }
@@ -118,30 +148,37 @@ export function patientsToCsv(
   return `\uFEFF${lines.join("\r\n")}\r\n`;
 }
 
+/** Datas como data do Excel (filtro por período funciona); o resto como no CSV. */
+function sheetColumns(columns: PatientExportColumn[]): SheetColumn<Patient>[] {
+  return columns.flatMap((column): SheetColumn<Patient>[] => {
+    const header = patientExportColumnLabels[column];
+    if (phoneExportColumns.has(column))
+      return phoneColumns(header, (patient) => String(patient[column] ?? ""));
+    if (column === "birthDate" || column === "clientSince")
+      return [
+        {
+          header,
+          kind: "date",
+          value: (patient) => sheetDate(patient[column]),
+        },
+      ];
+    if (column === "createdAt")
+      return [
+        {
+          header,
+          kind: "datetime",
+          value: (patient) => sheetDateTime(patient.createdAt),
+        },
+      ];
+    return [{ header, value: (patient) => textValue(patient, column) }];
+  });
+}
+
 export async function patientsToXlsx(
   patients: Patient[],
   columns: PatientExportColumn[],
 ): Promise<Buffer> {
-  const workbook = new ExcelJS.Workbook();
-  workbook.creator = "Studios Aryana";
-  workbook.created = new Date();
-  const sheet = workbook.addWorksheet("Clientes");
-  sheet.columns = columns.map((column) => ({
-    header: patientExportColumnLabels[column],
-    key: column,
-    width: Math.max(14, patientExportColumnLabels[column].length + 4),
-  }));
-  sheet.getRow(1).font = { bold: true, color: { argb: "FFFFFFFF" } };
-  sheet.getRow(1).fill = {
-    type: "pattern",
-    pattern: "solid",
-    fgColor: { argb: "FF3D625B" },
-  };
-  sheet.views = [{ state: "frozen", ySplit: 1 }];
-  sheet.autoFilter = {
-    from: { row: 1, column: 1 },
-    to: { row: 1, column: columns.length },
-  };
-  sheet.addRows(patientExportRows(patients, columns).slice(1));
-  return Buffer.from(await workbook.xlsx.writeBuffer());
+  const workbook = createWorkbook();
+  addTableSheet(workbook, "Clientes", sheetColumns(columns), patients);
+  return workbookBuffer(workbook);
 }

@@ -491,6 +491,10 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
   // Relatórios (só leitura). Cada planilha tem sua própria permissão de exportação.
   "GET /reports/dre": operation("reports.dre"),
   "GET /reports/dre/export": operation("reports.dre", "reports.dre_export"),
+  "GET /reports/dre/export.xlsx": operation(
+    "reports.dre",
+    "reports.dre_export",
+  ),
   "GET /reports/management": operation("reports.management"),
   "GET /reports/financial": operation("reports.dre"),
   "GET /reports/financial/export": operation(
@@ -503,6 +507,10 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
     "reports.clients",
     "reports.clients_export",
   ),
+  "GET /reports/clients/details/export.xlsx": operation(
+    "reports.clients",
+    "reports.clients_export",
+  ),
   "GET /reports/clients": operation("reports.clients"),
   "GET /reports/sales/period": operation("reports.sales"),
   "GET /reports/sales/period.xlsx": operation(
@@ -512,7 +520,7 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
   "GET /reports/sales": operation("reports.sales"),
   "GET /reports/sales/patients/:id": operation("reports.sales"),
   "GET /reports/sales.xlsx": operation("reports.sales", "reports.sales_export"),
-  "GET /reports/management.csv": operation(
+  "GET /reports/management.xlsx": operation(
     "reports.management",
     "reports.management_export",
   ),

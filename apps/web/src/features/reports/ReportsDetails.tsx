@@ -34,15 +34,15 @@ export function ReportsDetails({ period }: { period: ReportPeriod }) {
   const filter = period;
   const error =
     loadError || (exportError.period === period ? exportError.message : "");
-  async function exportCsv() {
+  async function exportXlsx() {
     setExporting(true);
     setExportError({ period, message: "" });
     try {
-      const blob = await api.managementReportCsv(filter.from, filter.to);
+      const blob = await api.managementReportXlsx(filter.from, filter.to);
       const url = URL.createObjectURL(blob);
       const anchor = window.document.createElement("a");
       anchor.href = url;
-      anchor.download = `relatorio-${filter.from}-${filter.to}.csv`;
+      anchor.download = `relatorio-${filter.from}-${filter.to}.xlsx`;
       anchor.click();
       URL.revokeObjectURL(url);
     } catch (cause) {
@@ -102,9 +102,9 @@ export function ReportsDetails({ period }: { period: ReportPeriod }) {
                   type="button"
                   className="secondary-button"
                   disabled={!report || exporting}
-                  onClick={() => void exportCsv()}
+                  onClick={() => void exportXlsx()}
                 >
-                  {exporting ? "Exportando…" : "Exportar CSV"}
+                  {exporting ? "Exportando…" : "Exportar Excel"}
                 </button>
               )}
             </div>

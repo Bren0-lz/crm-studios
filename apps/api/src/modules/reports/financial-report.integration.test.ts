@@ -1,3 +1,4 @@
+import ExcelJS from "exceljs";
 import type { FinancialReport } from "@crm/contracts";
 import { describe, expect, it, vi } from "vitest";
 import {
@@ -238,30 +239,44 @@ describe("relatório financeiro", () => {
       expect(april.professionals).toEqual([]);
 
       // Planilha do extrato gerada pela API com os mesmos filtros da tela.
-      const csv = await app.inject({
+      const sheet = async (response: { rawPayload: Buffer }) => {
+        const workbook = new ExcelJS.Workbook();
+        await workbook.xlsx.load(
+          response.rawPayload as unknown as ExcelJS.Buffer,
+        );
+        return workbook.getWorksheet("Extrato")!;
+      };
+      const xlsx = await app.inject({
         method: "GET",
         url: "/reports/financial/export?periodFrom=2031-03-01&periodTo=2031-03-31&direction=out&search=imobiliaria",
         headers: as("owner"),
       });
-      expect(csv.statusCode).toBe(200);
-      expect(csv.headers["content-type"]).toContain("text/csv");
-      expect(csv.headers["content-disposition"]).toContain(
-        "extrato-financeiro-2031-03-01-2031-03-31.csv",
+      expect(xlsx.statusCode).toBe(200);
+      expect(xlsx.headers["content-type"]).toContain("spreadsheetml.sheet");
+      expect(xlsx.headers["content-disposition"]).toContain(
+        "extrato-financeiro-2031-03-01-2031-03-31.xlsx",
       );
-      const lines = csv.body.replace(/^\uFEFF/, "").split("\r\n");
-      expect(lines).toHaveLength(2);
-      expect(lines[0]).toContain('"Data";"Tipo";"Descrição"');
-      expect(lines[1]).toContain(
-        '"10/03/2031";"Saída";"Aluguel da sala";"Imobiliária Centro"',
-      );
-      expect(lines[1]).toContain('"-40,00"');
+      const filtered = await sheet(xlsx);
+      expect(filtered.rowCount).toBe(2);
+      expect((filtered.getRow(1).values as unknown[]).slice(1, 4)).toEqual([
+        "Data",
+        "Tipo",
+        "Descrição",
+      ]);
+      expect((filtered.getRow(2).values as unknown[]).slice(1, 5)).toEqual([
+        new Date("2031-03-10T00:00:00Z"),
+        "Saída",
+        "Aluguel da sala",
+        "Imobiliária Centro",
+      ]);
+      expect(filtered.getCell("J2").value).toBe(-40);
       const branchId = report.entries[0]!.branchId!;
       const all = await app.inject({
         method: "GET",
         url: `/reports/financial/export?periodFrom=2031-03-01&periodTo=2031-03-31&branchId=${branchId}`,
         headers: as("owner"),
       });
-      expect(all.body.replace(/^\uFEFF/, "").split("\r\n")).toHaveLength(
+      expect((await sheet(all)).rowCount).toBe(
         1 + report.entries.filter((item) => item.branchId === branchId).length,
       );
       expect(
