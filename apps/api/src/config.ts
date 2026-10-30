@@ -1,6 +1,7 @@
 import { config as loadEnv } from "dotenv";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
+import { defaultJwtSecret } from "./infrastructure/published-config.js";
 
 loadEnv({ path: fileURLToPath(new URL("../../../.env", import.meta.url)) });
 
@@ -18,7 +19,7 @@ const configSchema = z.object({
   JWT_SECRET: z
     .string()
     .min(32)
-    .default("development-secret-change-before-production"),
+    .default(defaultJwtSecret),
   STORAGE_MODE: z.enum(["memory", "mysql"]).default("memory"),
   DATABASE_URL: z.string().url().default("mysql://crm:crm@localhost:3306/crm"),
   DATABASE_SSL: z.enum(["disable", "require", "verify"]).default("disable"),
