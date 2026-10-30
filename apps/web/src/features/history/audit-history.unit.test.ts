@@ -192,7 +192,7 @@ describe("readable audit history", () => {
     ).toEqual([
       { label: "Clientes exportados", value: "0" },
       { label: "Formato do arquivo", value: "Planilha do Excel" },
-      { label: "Informações exportadas", value: "nome" },
+      { label: "Informações exportadas", value: "Nome" },
     ]);
     expect(
       formatAuditEvent(

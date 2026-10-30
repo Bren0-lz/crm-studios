@@ -178,7 +178,7 @@ describe("client management", () => {
       Buffer.from([0xef, 0xbb, 0xbf]),
     );
     expect(csv.rawPayload.toString("utf8")).toBe(
-      "﻿nome;observações\r\nJoão Conceição Araújo;Prefere manhã\r\n",
+      "﻿Nome;Observações\r\nJoão Conceição Araújo;Prefere manhã\r\n",
     );
     const xlsx = await app.inject({
       method: "GET",
@@ -195,7 +195,7 @@ describe("client management", () => {
         .slice(1)
         .map((row) => row.slice(1)),
     ).toEqual([
-      ["nome", "observações"],
+      ["Nome", "Observações"],
       ["João Conceição Araújo", "Prefere manhã"],
     ]);
   });

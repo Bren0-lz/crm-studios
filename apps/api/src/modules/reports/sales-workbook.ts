@@ -3,206 +3,272 @@ import {
   type SalesReport,
   type SalesPeriodReport,
 } from "@crm/contracts";
-import ExcelJS from "exceljs";
+import {
+  addTableSheet,
+  createWorkbook,
+  sheetDateTime,
+  workbookBuffer,
+  type SheetCell,
+  type SheetColumnKind,
+} from "../../infrastructure/spreadsheet.js";
 
-const currencyFormat = '"R$" #,##0.00;[Red]("R$" #,##0.00)';
-const dateFormat = "dd/mm/yyyy hh:mm";
+type PaymentMovement = SalesReport["payments"][number];
+type SaleMovement = SalesReport["sales"][number];
+type WithoutReturn = SalesReport["patientsWithoutReturn"][number];
 
-function heading(sheet: ExcelJS.Worksheet) {
-  sheet.getRow(1).font = { bold: true, color: { argb: "FFFFFFFF" } };
-  sheet.getRow(1).fill = {
-    type: "pattern",
-    pattern: "solid",
-    fgColor: { argb: "FF3D625B" },
-  };
-  sheet.views = [{ state: "frozen", ySplit: 1 }];
-  sheet.autoFilter = {
-    from: { row: 1, column: 1 },
-    to: { row: 1, column: sheet.columnCount },
-  };
+interface SummaryLine {
+  label: string;
+  kind: SheetColumnKind;
+  current: SheetCell;
+  previous?: SheetCell;
 }
+
+const money = (cents: number) => cents / 100;
 
 export async function salesReportToXlsx(
   report: SalesReport | SalesPeriodReport,
 ): Promise<Buffer> {
-  const workbook = new ExcelJS.Workbook();
-  workbook.creator = "Studios Aryana";
-  workbook.created = new Date(report.generatedAt);
+  const workbook = createWorkbook(new Date(report.generatedAt));
 
-  const summary = workbook.addWorksheet("Resumo");
   if ("summary" in report) {
-    summary.columns = [
-      { header: "Indicador", width: 42 },
-      { header: "Período selecionado", width: 30 },
+    const lines: SummaryLine[] = [
+      {
+        label: "Período",
+        kind: "text",
+        current: `${report.from} a ${report.to}`,
+      },
+      {
+        label: "Vendas brutas",
+        kind: "currency",
+        current: money(report.summary.grossSalesInCents),
+      },
+      {
+        label: "Cancelamentos",
+        kind: "currency",
+        current: money(report.summary.cancelledSalesInCents),
+      },
+      {
+        label: "Vendas líquidas",
+        kind: "currency",
+        current: money(report.summary.netSalesInCents),
+      },
+      {
+        label: "Recebido",
+        kind: "currency",
+        current: money(report.summary.receivedInCents),
+      },
+      {
+        label: "Clientes atendidos",
+        kind: "integer",
+        current: report.summary.attendedPatients,
+      },
+      {
+        label: "Clientes sem retorno",
+        kind: "integer",
+        current: report.patientsWithoutReturn.length,
+      },
+      {
+        label: "Descontos concedidos a clientes",
+        kind: "currency",
+        current: money(report.summary.customerDiscountInCents ?? 0),
+      },
     ];
-    heading(summary);
-    summary.addRows([
-      ["Período", report.from + " a " + report.to],
-      ["Vendas brutas", report.summary.grossSalesInCents / 100],
-      ["Cancelamentos", report.summary.cancelledSalesInCents / 100],
-      ["Vendas líquidas", report.summary.netSalesInCents / 100],
-      ["Recebido", report.summary.receivedInCents / 100],
-      ["Clientes atendidos", report.summary.attendedPatients],
-      ["Clientes sem retorno", report.patientsWithoutReturn.length],
+    addTableSheet(
+      workbook,
+      "Resumo",
       [
-        "Descontos concedidos a clientes",
-        (report.summary.customerDiscountInCents ?? 0) / 100,
+        {
+          header: "Indicador",
+          width: 42,
+          value: (line: SummaryLine) => line.label,
+        },
+        {
+          header: "Período selecionado",
+          width: 30,
+          kind: (line) => line.kind,
+          value: (line) => line.current,
+        },
       ],
-    ]);
-    for (const row of [3, 4, 5, 6, 9])
-      summary.getCell("B" + row).numFmt = currencyFormat;
+      lines,
+    );
   } else {
-    summary.columns = [
-      { header: "Indicador", key: "metric", width: 42 },
-      { header: "Mês selecionado", key: "current", width: 24 },
-      { header: "Mês anterior comparável", key: "previous", width: 28 },
-    ];
-    heading(summary);
-    summary.addRow([
-      "Período",
-      `${report.current.from} a ${report.current.to}`,
-      `${report.previousComparable.from} a ${report.previousComparable.to}`,
-    ]);
-    summary.addRow([
-      "Vendas brutas",
-      report.current.grossSalesInCents / 100,
-      report.previousComparable.grossSalesInCents / 100,
-    ]);
-    summary.addRow([
-      "Cancelamentos",
-      report.current.cancelledSalesInCents / 100,
-      report.previousComparable.cancelledSalesInCents / 100,
-    ]);
-    summary.addRow([
-      "Vendas líquidas",
-      report.current.netSalesInCents / 100,
-      report.previousComparable.netSalesInCents / 100,
-    ]);
-    summary.addRow([
-      "Recebido",
-      report.current.receivedInCents / 100,
-      report.previousComparable.receivedInCents / 100,
-    ]);
-    summary.addRow([
-      "Clientes atendidos",
-      report.current.attendedPatients,
-      report.previousComparable.attendedPatients,
-    ]);
-    summary.addRow([
-      "Variação de vendas (R$)",
-      report.changeInCents / 100,
-      null,
-    ]);
     const changePercent = salesChangePercent(
       report.current.netSalesInCents,
       report.previousComparable.netSalesInCents,
     );
-    summary.addRow([
-      "Variação de vendas (%)",
-      changePercent === null ? "Sem base de comparação" : changePercent / 100,
-      null,
-    ]);
-    summary.addRow([
-      "Clientes do mês anterior sem retorno",
-      report.patientsWithoutReturn.length,
-      null,
-    ]);
-    for (const rowNumber of [3, 4, 5, 6, 8]) {
-      summary.getCell(`B${rowNumber}`).numFmt = currencyFormat;
-      summary.getCell(`C${rowNumber}`).numFmt = currencyFormat;
-    }
-    summary.getCell("B9").numFmt = "0.0%";
+    const { current, previousComparable: previous } = report;
+    const lines: SummaryLine[] = [
+      {
+        label: "Período",
+        kind: "text",
+        current: `${current.from} a ${current.to}`,
+        previous: `${previous.from} a ${previous.to}`,
+      },
+      {
+        label: "Vendas brutas",
+        kind: "currency",
+        current: money(current.grossSalesInCents),
+        previous: money(previous.grossSalesInCents),
+      },
+      {
+        label: "Cancelamentos",
+        kind: "currency",
+        current: money(current.cancelledSalesInCents),
+        previous: money(previous.cancelledSalesInCents),
+      },
+      {
+        label: "Vendas líquidas",
+        kind: "currency",
+        current: money(current.netSalesInCents),
+        previous: money(previous.netSalesInCents),
+      },
+      {
+        label: "Recebido",
+        kind: "currency",
+        current: money(current.receivedInCents),
+        previous: money(previous.receivedInCents),
+      },
+      {
+        label: "Clientes atendidos",
+        kind: "integer",
+        current: current.attendedPatients,
+        previous: previous.attendedPatients,
+      },
+      {
+        label: "Variação de vendas (R$)",
+        kind: "currency",
+        current: money(report.changeInCents),
+      },
+      changePercent === null
+        ? {
+            label: "Variação de vendas (%)",
+            kind: "text",
+            current: "Sem base de comparação",
+          }
+        : {
+            label: "Variação de vendas (%)",
+            kind: "percent",
+            current: changePercent / 100,
+          },
+      {
+        label: "Clientes do mês anterior sem retorno",
+        kind: "integer",
+        current: report.patientsWithoutReturn.length,
+      },
+    ];
+    const summary = addTableSheet(
+      workbook,
+      "Resumo",
+      [
+        {
+          header: "Indicador",
+          width: 42,
+          value: (line: SummaryLine) => line.label,
+        },
+        {
+          header: "Mês selecionado",
+          width: 24,
+          kind: (line) => line.kind,
+          value: (line) => line.current,
+        },
+        {
+          header: "Mês anterior comparável",
+          width: 28,
+          kind: (line) => line.kind,
+          value: (line) => line.previous,
+        },
+      ],
+      lines,
+    );
     summary.getRow(5).font = { bold: true };
   }
 
-  const sales = workbook.addWorksheet("Vendas");
-  sales.columns = [
-    { header: "Data movimento", key: "date", width: 22 },
-    { header: "Movimento", key: "kind", width: 18 },
-    { header: "Tipo", key: "type", width: 16 },
-    { header: "Cliente", key: "patient", width: 28 },
-    { header: "Item", key: "item", width: 36 },
-    { header: "Quantidade", key: "quantity", width: 15 },
-    { header: "Valor (R$)", key: "amount", width: 20 },
-    { header: "ID do movimento", key: "id", width: 45 },
-    { header: "ID da origem", key: "sourceId", width: 40 },
-    { header: "ID do cliente", key: "patientId", width: 40 },
-    { header: "ID da conta", key: "receivableId", width: 40 },
-  ];
-  heading(sales);
-  for (const item of report.sales) {
-    const row = sales.addRow({
-      date: new Date(item.occurredAt),
-      kind: item.kind === "sale" ? "Venda" : "Cancelamento",
-      type: item.sourceType === "product" ? "Produto" : "Plano/serviço",
-      patient: item.patientName,
-      item: item.itemName,
-      quantity: item.quantity,
-      amount: item.amountInCents / 100,
-      id: item.id,
-      sourceId: item.sourceId,
-      patientId: item.patientId,
-      receivableId: item.receivableId ?? "",
-    });
-    row.getCell(1).numFmt = dateFormat;
-    row.getCell(7).numFmt = currencyFormat;
-  }
+  addTableSheet(
+    workbook,
+    "Vendas",
+    [
+      {
+        header: "Data movimento",
+        kind: "datetime",
+        value: (item: SaleMovement) => sheetDateTime(item.occurredAt),
+      },
+      {
+        header: "Movimento",
+        value: (item) => (item.kind === "sale" ? "Venda" : "Cancelamento"),
+      },
+      {
+        header: "Tipo",
+        value: (item) =>
+          item.sourceType === "product" ? "Produto" : "Plano/serviço",
+      },
+      { header: "Cliente", value: (item) => item.patientName },
+      { header: "Item", value: (item) => item.itemName },
+      { header: "Quantidade", kind: "decimal", value: (item) => item.quantity },
+      {
+        header: "Valor (R$)",
+        kind: "currency",
+        value: (item) => money(item.amountInCents),
+      },
+      { header: "ID do movimento", value: (item) => item.id },
+      { header: "ID da origem", value: (item) => item.sourceId },
+      { header: "ID do cliente", value: (item) => item.patientId },
+      { header: "ID da conta", value: (item) => item.receivableId ?? "" },
+    ],
+    report.sales,
+  );
 
-  const payments = workbook.addWorksheet("Recebimentos");
-  payments.columns = [
-    { header: "Data da baixa", key: "date", width: 22 },
-    { header: "Movimento", key: "kind", width: 18 },
-    { header: "Cliente", key: "patient", width: 28 },
-    { header: "Descrição", key: "description", width: 36 },
-    { header: "Valor (R$)", key: "amount", width: 20 },
-    { header: "Forma de pagamento", key: "method", width: 22 },
-    { header: "ID da conta", key: "receivableId", width: 40 },
-    { header: "ID da origem", key: "sourceId", width: 40 },
-    { header: "ID do cliente", key: "patientId", width: 40 },
-  ];
-  heading(payments);
-  for (const item of report.payments) {
-    const row = payments.addRow({
-      date: new Date(item.occurredAt),
-      kind: item.kind === "payment" ? "Pagamento" : "Estorno",
-      patient: item.patientName,
-      description: item.description,
-      amount: item.amountInCents / 100,
-      method: item.paymentMethod ?? "",
-      receivableId: item.receivableId,
-      sourceId: item.sourceId ?? "",
-      patientId: item.patientId,
-    });
-    row.getCell(1).numFmt = dateFormat;
-    row.getCell(5).numFmt = currencyFormat;
-  }
+  addTableSheet(
+    workbook,
+    "Recebimentos",
+    [
+      {
+        header: "Data da baixa",
+        kind: "datetime",
+        value: (item: PaymentMovement) => sheetDateTime(item.occurredAt),
+      },
+      {
+        header: "Movimento",
+        value: (item) => (item.kind === "payment" ? "Pagamento" : "Estorno"),
+      },
+      { header: "Cliente", value: (item) => item.patientName },
+      { header: "Descrição", value: (item) => item.description },
+      {
+        header: "Valor (R$)",
+        kind: "currency",
+        value: (item) => money(item.amountInCents),
+      },
+      {
+        header: "Forma de pagamento",
+        value: (item) => item.paymentMethod ?? "",
+      },
+      { header: "ID da conta", value: (item) => item.receivableId },
+      { header: "ID da origem", value: (item) => item.sourceId ?? "" },
+      { header: "ID do cliente", value: (item) => item.patientId },
+    ],
+    report.payments,
+  );
 
-  const withoutReturn = workbook.addWorksheet("Sem retorno");
-  withoutReturn.columns = [
-    { header: "Cliente", key: "patient", width: 30 },
-    { header: "Último atendimento concluído", key: "last", width: 29 },
-    { header: "Próximo agendamento", key: "next", width: 25 },
-    { header: "ID do cliente", key: "id", width: 40 },
-  ];
-  heading(withoutReturn);
-  for (const item of report.patientsWithoutReturn) {
-    const row = withoutReturn.addRow({
-      patient: item.patientName,
-      last: new Date(item.lastCompletedAt),
-      next: item.nextAppointmentAt ? new Date(item.nextAppointmentAt) : null,
-      id: item.patientId,
-    });
-    row.getCell(2).numFmt = dateFormat;
-    row.getCell(3).numFmt = dateFormat;
-  }
+  addTableSheet(
+    workbook,
+    "Sem retorno",
+    [
+      { header: "Cliente", value: (item: WithoutReturn) => item.patientName },
+      {
+        header: "Último atendimento concluído",
+        kind: "datetime",
+        value: (item) => sheetDateTime(item.lastCompletedAt),
+      },
+      {
+        header: "Próximo agendamento",
+        kind: "datetime",
+        value: (item) => sheetDateTime(item.nextAppointmentAt),
+      },
+      { header: "ID do cliente", value: (item) => item.patientId },
+    ],
+    report.patientsWithoutReturn,
+  );
 
-  const definitions = workbook.addWorksheet("Definições");
-  definitions.columns = [
-    { header: "Indicador", key: "metric", width: 35 },
-    { header: "Definição", key: "definition", width: 105 },
-  ];
-  heading(definitions);
-  definitions.addRows([
+  let definitions: [string, string][] = [
     [
       "Vendas brutas",
       "Valor dos planos criados e dos itens das comandas fechadas no período, pela data local do movimento.",
@@ -236,28 +302,39 @@ export async function salesReportToXlsx(
       "Fonte",
       "IDs nas abas de detalhe apontam para plano, comanda, conta e cliente no CRM.",
     ],
-  ]);
+  ];
+  if ("summary" in report)
+    definitions = [
+      ...definitions.filter(
+        ([label]) =>
+          label !== "Mês anterior comparável" && label !== "Sem retorno",
+      ),
+      [
+        "Sem retorno",
+        "Clientes atendidos de " +
+          report.returnReference.from +
+          " a " +
+          report.returnReference.to +
+          ", sem atendimento concluído de " +
+          report.from +
+          " a " +
+          report.to +
+          ".",
+      ],
+    ];
+  addTableSheet(
+    workbook,
+    "Definições",
+    [
+      {
+        header: "Indicador",
+        width: 35,
+        value: ([label]: [string, string]) => label,
+      },
+      { header: "Definição", width: 105, value: ([, text]) => text },
+    ],
+    definitions,
+  );
 
-  if ("summary" in report) {
-    for (let row = definitions.rowCount; row >= 2; row--) {
-      const label = definitions.getCell(row, 1).value;
-      if (label === "Mês anterior comparável" || label === "Sem retorno")
-        definitions.spliceRows(row, 1);
-    }
-    definitions.addRow([
-      "Sem retorno",
-      "Clientes atendidos de " +
-        report.returnReference.from +
-        " a " +
-        report.returnReference.to +
-        ", sem atendimento concluído de " +
-        report.from +
-        " a " +
-        report.to +
-        ".",
-    ]);
-  }
-
-  const output = await workbook.xlsx.writeBuffer();
-  return Buffer.from(output);
+  return workbookBuffer(workbook);
 }

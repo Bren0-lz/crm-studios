@@ -30,55 +30,24 @@ export function DreSection({ period }: { period: ReportPeriod }) {
     setBusy(true);
     setExportError({ period, message: "" });
     try {
-      const data = await api.dreReport(report.from, report.to, undefined, true);
       if (print) {
+        const data = await api.dreReport(
+          report.from,
+          report.to,
+          undefined,
+          true,
+        );
         setPrinted(data);
         requestAnimationFrame(() => {
           window.print();
           setPrinted(null);
         });
       } else {
-        const rows = [
-          [
-            "Competência",
-            "Receita de serviços",
-            "Receita de produtos",
-            "Outras receitas",
-            "Descontos concedidos a clientes",
-            ...Object.values(dreGroupLabels),
-            "Resultado",
-          ],
-          ...data.months.map((month) => [
-            month.month,
-            month.serviceRevenueInCents / 100,
-            month.productRevenueInCents / 100,
-            month.otherRevenueInCents / 100,
-            (month.customerDiscountInCents ?? 0) / 100,
-            ...Object.keys(dreGroupLabels).map(
-              (key) => month.expenses[key as keyof typeof month.expenses] / 100,
-            ),
-            month.resultInCents / 100,
-          ]),
-        ];
-        const blob = new Blob(
-            [
-              "\ufeff" +
-                rows
-                  .map((row) =>
-                    row
-                      .map(
-                        (value) => `"${String(value).replaceAll('"', '""')}"`,
-                      )
-                      .join(";"),
-                  )
-                  .join("\r\n"),
-            ],
-            { type: "text/csv;charset=utf-8" },
-          ),
+        const blob = await api.dreReportXlsx(report.from, report.to),
           url = URL.createObjectURL(blob),
           link = document.createElement("a");
         link.href = url;
-        link.download = `dre-${data.from}-${data.to}.csv`;
+        link.download = `dre-${report.from}-${report.to}.xlsx`;
         link.click();
         URL.revokeObjectURL(url);
       }

@@ -3740,10 +3740,10 @@ describe("CRM API", () => {
         /^attachment; filename="clientes-\d{4}-\d{2}-\d{2}\.csv"$/,
       );
       expect(csvLines(all.body)[0]).toBe(
-        "nome;prontuário;cpf;telefone;whatsapp;email;nascimento;etiquetas;situação;contato de emergência;telefone de emergência;observações;cadastrado em",
+        "Nome;Prontuário;CPF;DDD (Telefone);Telefone;DDD (WhatsApp);WhatsApp;E-mail;Nascimento;Etiquetas;Situação;Contato de emergência;DDD (Telefone de emergência);Telefone de emergência;Observações;Cadastrado em",
       );
       expect(all.body).toContain(
-        `\r\n"Ana; ""Exportada""";${ana.recordNumber};${ana.cpf};11911110001;;ana.exporta@example.com;20/03/1990;${tag}, vip;ativo;;;"Linha 1\nLinha 2";`,
+        `\r\n"Ana; ""Exportada""";${ana.recordNumber};${ana.cpf};11;91111-0001;;;ana.exporta@example.com;20/03/1990;${tag}, vip;ativo;;;;"Linha 1\nLinha 2";`,
       );
 
       const chosen = await app.inject({
@@ -3753,9 +3753,9 @@ describe("CRM API", () => {
       });
       expect(chosen.statusCode).toBe(200);
       expect(csvLines(chosen.body)).toEqual([
-        "nome;telefone",
-        '"Ana; ""Exportada""";11911110001',
-        "Bruno Exportado;11911110002",
+        "Nome;DDD (Telefone);Telefone",
+        '"Ana; ""Exportada""";11;91111-0001',
+        "Bruno Exportado;11;91111-0002",
       ]);
       await app.close();
     });
@@ -3764,7 +3764,7 @@ describe("CRM API", () => {
       const { app, headers } = await setup();
       const response = await app.inject({
         method: "GET",
-        url: `/patients/export?format=xlsx&columns=fullName,tags,birthDate&tags=${tag}`,
+        url: `/patients/export?format=xlsx&columns=fullName,phone,tags,birthDate&tags=${tag}`,
         headers,
       });
       expect(response.statusCode).toBe(200);
@@ -3781,10 +3781,24 @@ describe("CRM API", () => {
         .slice(1)
         .map((row) => row.slice(1));
       expect(values).toEqual([
-        ["nome", "nascimento", "etiquetas"],
-        ['Ana; "Exportada"', "20/03/1990", `${tag}, vip`],
-        ["Bruno Exportado", "02/07/1988", tag],
+        ["Nome", "DDD (Telefone)", "Telefone", "Nascimento", "Etiquetas"],
+        [
+          'Ana; "Exportada"',
+          "11",
+          "91111-0001",
+          new Date("1990-03-20T00:00:00Z"),
+          `${tag}, vip`,
+        ],
+        [
+          "Bruno Exportado",
+          "11",
+          "91111-0002",
+          new Date("1988-07-02T00:00:00Z"),
+          tag,
+        ],
       ]);
+      expect(sheet.autoFilter).toBe("A1:E3");
+      expect(sheet.getCell("A1").font).toMatchObject({ bold: true });
       await app.close();
     });
 
@@ -3877,7 +3891,7 @@ describe("CRM API", () => {
         expect(empty.statusCode).toBe(200);
         expect(empty.headers["content-type"]).toBe("text/csv; charset=utf-8");
         const emptyLines = csvLines(empty.body);
-        expect(emptyLines[0]?.split(";")).toHaveLength(13);
+        expect(emptyLines[0]?.split(";")).toHaveLength(16);
         expect(emptyLines).toHaveLength(patients.length + 1);
         await app.close();
       } finally {
@@ -5042,7 +5056,7 @@ describe("CRM API", () => {
       });
       expect(exported.statusCode).toBe(200);
       expect(exported.body.slice(1).replace(/\r\n$/, "").split("\r\n")).toEqual(
-        ["nome", "Filtro Espera", "Filtro Outra Turma", "Filtro Sem Turma"],
+        ["Nome", "Filtro Espera", "Filtro Outra Turma", "Filtro Sem Turma"],
       );
       await app.close();
     });

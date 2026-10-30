@@ -257,51 +257,6 @@ export const cashPaymentMethodLabels: Record<DailyCashPaymentMethod, string> = {
   unspecified: "Não informada",
 };
 
-/** Planilha (CSV com `;` e BOM para o Excel) dos movimentos do extrato. */
-export function financialEntriesCsv(
-  entries: readonly FinancialEntry[],
-  branchName: (entry: FinancialEntry) => string,
-) {
-  const rows: Array<Array<string | number>> = [
-    [
-      "Data",
-      "Tipo",
-      "Descrição",
-      "Cliente/fornecedor/profissional",
-      "Origem",
-      "Categoria",
-      "Centro de custo",
-      "Filial",
-      "Forma de pagamento",
-      "Valor",
-    ],
-    ...entries.map((entry) => [
-      entry.date.split("-").reverse().join("/"),
-      entry.direction === "in" ? "Entrada" : "Saída",
-      entry.description,
-      entry.counterpart ?? "",
-      financialEntryOriginLabels[entry.origin],
-      entry.categoryName,
-      entry.costCenterName ?? "",
-      branchName(entry),
-      cashPaymentMethodLabels[entry.paymentMethod],
-      (((entry.direction === "in" ? 1 : -1) * entry.amountInCents) / 100)
-        .toFixed(2)
-        .replace(".", ","),
-    ]),
-  ];
-  return (
-    "\uFEFF" +
-    rows
-      .map((row) =>
-        row
-          .map((value) => `"${String(value).replaceAll('"', '""')}"`)
-          .join(";"),
-      )
-      .join("\r\n")
-  );
-}
-
 export interface FinancialBreakdownRow {
   key: string;
   label: string;
