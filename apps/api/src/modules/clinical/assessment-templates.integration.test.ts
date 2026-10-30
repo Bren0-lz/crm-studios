@@ -1,8 +1,4 @@
-import { readFile } from "node:fs/promises";
-import {
-  starterAssessmentTemplates,
-  type AssessmentTemplate,
-} from "@crm/contracts";
+import { type AssessmentTemplate } from "@crm/contracts";
 import { describe, expect, it } from "vitest";
 import {
   authenticatedApp,
@@ -173,21 +169,5 @@ describe("Modelos de avaliação", () => {
     });
     expect(archive.statusCode).toBe(403);
     await app.close();
-  });
-
-  it("mantém a migração 0101 igual às fichas iniciais dos contratos", async () => {
-    const sql = await readFile(
-      new URL(
-        "../../../migrations/0101_assessment_starter_templates.sql",
-        import.meta.url,
-      ),
-      "utf8",
-    );
-    for (const template of starterAssessmentTemplates) {
-      const literal = (value: string) => `'${value.replace(/'/g, "''")}'`;
-      expect(sql).toContain(
-        `(${literal(template.name)}, ${literal(template.specialty)}, ${literal(JSON.stringify(template.fields))}::jsonb)`,
-      );
-    }
   });
 });

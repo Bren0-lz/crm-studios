@@ -11,7 +11,7 @@ Responda em pt-BR.
 ## Procedimento
 
 1. Leia `CLAUDE.md` e os arquivos citados no escopo. Entenda as convenções antes de escrever
-   — em especial a seção "Convenções do projeto" (repositório duplo memória/PostgreSQL).
+   — em especial a seção "Convenções do projeto" (repositório duplo memória/MySQL).
 2. Escreva ou ajuste os testes que expressam o gate **antes** do código de produção.
 3. Implemente o mínimo que faz o gate passar.
 4. Rode o gate da tarefa (o comando indicado em **Gate** no `PLAN.md`). Se falhar, corrija e

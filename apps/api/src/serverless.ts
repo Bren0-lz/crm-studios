@@ -45,5 +45,5 @@ export function describeStartupError(error: unknown) {
   }
   const message = error instanceof Error ? error.message : String(error);
   // Mensagens do driver do banco podem trazer a URL de conexão; nunca devolva a senha.
-  return message.replace(/postgres(?:ql)?:\/\/[^\s@]+@/gi, "postgresql://***@");
+  return message.replace(/mysql:\/\/[^\s@]+@/gi, "mysql://***@");
 }
