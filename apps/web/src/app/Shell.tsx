@@ -191,6 +191,10 @@ export function Shell({
             <span className="clinic-label">Studios Aryana</span>
             <span className="environment-dot">Demonstração</span>
           </div>
+          <NotificationsBanner
+            center={notifications}
+            onNavigate={guardedNavigate}
+          />
           <div className="top-actions">
             <BranchSelector />
             <EmergencyButton />
@@ -205,10 +209,6 @@ export function Shell({
           onNavigate={guardedNavigate}
         />
         <div className="page-content" key={branchKey}>
-          <NotificationsBanner
-            center={notifications}
-            onNavigate={guardedNavigate}
-          />
           <NavigationGuardContext.Provider value={registerGuard}>
             <NavTabLabelsContext.Provider value={applyTabLabels}>
               <ModuleLabelContext.Provider value={moduleLabel}>
