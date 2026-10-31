@@ -162,7 +162,6 @@
   .sidebar .main-nav {
     margin-top: var(--space-4);
     overflow-x: hidden;
-    scrollbar-width: thin;
   }
 
   .sidebar .nav-item,
