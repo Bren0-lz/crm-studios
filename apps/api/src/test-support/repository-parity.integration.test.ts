@@ -140,7 +140,7 @@ for (const storage of ["memory", "mysql"] as const) {
           "2063-01-01",
         );
         expect(foreign.sales).toEqual([]);
-        expect(foreign.payments).toEqual([]);
+        expect(foreign.summary.payment.paidInCents).toBe(0);
         expect(foreign.patientsWithoutReturn).toEqual([]);
       });
 
