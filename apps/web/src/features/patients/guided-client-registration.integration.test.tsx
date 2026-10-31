@@ -303,6 +303,39 @@ describe("guided client registration", () => {
     ).toBeInTheDocument();
   });
 
+  it("announces each item added or removed and animates the removal", async () => {
+    mockApi(() => jsonResponse({ patient: created }, 201));
+    renderAs(storedUser(admin));
+    const dialog = await openNewClient();
+    const status = within(dialog).getByRole("status");
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Adicionar plano" }),
+    );
+    expect(status).toHaveTextContent("Plano adicionado logo abaixo.");
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Adicionar plano" }),
+    );
+    expect(status).toHaveTextContent("Plano 2 adicionado logo abaixo.");
+    // Sem movimento reduzido, o bloco recolhe antes de sair.
+    const original = window.matchMedia;
+    window.matchMedia = ((query: string) =>
+      ({ matches: true, media: query }) as MediaQueryList) as typeof original;
+    try {
+      const second = within(dialog).getByRole("group", { name: "Plano 2" });
+      fireEvent.click(
+        within(second).getByRole("button", { name: "Remover plano 2" }),
+      );
+      expect(second).toHaveClass("guided-item-leaving");
+      fireEvent.animationEnd(second);
+      expect(
+        within(dialog).queryByRole("group", { name: "Plano 2" }),
+      ).not.toBeInTheDocument();
+      expect(status).toHaveTextContent("Plano 2 removido.");
+    } finally {
+      window.matchMedia = original;
+    }
+  });
+
   it("books a demonstration class with service, professional, room and time", async () => {
     const posts = mockApi((body) => {
       const appointment = body.appointment as Record<string, unknown>;
