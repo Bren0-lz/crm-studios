@@ -263,7 +263,11 @@ describe("aba Estoque de Vendas de produtos (QM9)", () => {
       await repository.getInventoryWorkspace(clinicId)
     ).products.find((item) => item.name === "Tênis do estúdio")!;
     expect(product).toMatchObject({ sizes: ["37", "38"], currentStock: 2 });
-    expect(await within(panel).findByText("37: 2 · 38: 0")).toBeInTheDocument();
+    expect(
+      await within(panel).findByRole("list", {
+        name: "Estoque por tamanho: 37: 2 · 38: 0",
+      }),
+    ).toBeInTheDocument();
     expect(within(panel).getByText("Esgotado: 38")).toBeInTheDocument();
 
     // Ajuste de estoque pede o tamanho do produto.
@@ -279,7 +283,11 @@ describe("aba Estoque de Vendas de produtos (QM9)", () => {
     change("Quantidade", "4", dialog);
     change("Motivo", "Compra de tênis", dialog);
     await save("Ajustar estoque", "Salvar ajuste");
-    expect(await within(panel).findByText("37: 2 · 38: 4")).toBeInTheDocument();
+    expect(
+      await within(panel).findByRole("list", {
+        name: "Estoque por tamanho: 37: 2 · 38: 4",
+      }),
+    ).toBeInTheDocument();
     const history = expand("Histórico de estoque");
     const movement = within(history)
       .getByText("Compra de tênis")
@@ -301,7 +309,11 @@ describe("aba Estoque de Vendas de produtos (QM9)", () => {
         (item) => item.id === product.id,
       ),
     ).toMatchObject({ sizes: [], currentStock: 6 });
-    expect(await within(panel).findByText("37: 2 · 38: 4")).toBeInTheDocument();
+    expect(
+      await within(panel).findByRole("list", {
+        name: "Estoque por tamanho: 37: 2 · 38: 4",
+      }),
+    ).toBeInTheDocument();
   });
 
   it("define a quantidade de cada tamanho ao editar o produto", async () => {
@@ -357,7 +369,11 @@ describe("aba Estoque de Vendas de produtos (QM9)", () => {
         { size: "M", currentStock: 3 },
       ],
     });
-    expect(await within(panel).findByText("P: 2 · M: 3")).toBeInTheDocument();
+    expect(
+      await within(panel).findByRole("list", {
+        name: "Estoque por tamanho: P: 2 · M: 3",
+      }),
+    ).toBeInTheDocument();
   });
 
   it("mostra os tamanhos antigos (escala fixa) de um produto sem categoria", async () => {
@@ -374,7 +390,9 @@ describe("aba Estoque de Vendas de produtos (QM9)", () => {
     });
     const panel = await openInventoryTab();
     expect(
-      await within(panel).findByText("P: 0 · Baby look M: 1"),
+      await within(panel).findByRole("list", {
+        name: "Estoque por tamanho: P: 0 · Baby look M: 1",
+      }),
     ).toBeInTheDocument();
     fireEvent.click(
       within(panel).getByRole("button", { name: "Editar Regata" }),
