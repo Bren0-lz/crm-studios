@@ -36,6 +36,7 @@ import { ClinicalWorkspacePanel } from "../clinical/index";
 import { PatientMessagePreferences } from "../communications/index";
 import { SignatureLinkRecord } from "../contracts/index";
 import {
+  PlanCancelModal,
   PlanCard,
   SessionMovementsModal,
   planSubtitle,
@@ -247,6 +248,10 @@ export function PatientRecordTabs({
   const [newPlanKind, setNewPlanKind] = useState<PlanCatalogKind | null>(null);
   const toast = useToast();
   const canCreatePlan = canEdit("plans") && can("plans.create");
+  const [cancellingPlan, setCancellingPlan] = useState<PatientPlan | null>(
+    null,
+  );
+  const canCancelPlan = canEdit("plans") && can("plans.cancel");
   const active = selected ?? visibleTabs[0]?.key ?? null;
   const moduleLink = (to: string) =>
     `${to}?patientId=${encodeURIComponent(id)}`;
@@ -481,14 +486,27 @@ export function PatientRecordTabs({
                         plans={items}
                         title={planSubtitle(plan)}
                         actions={
-                          <button
-                            type="button"
-                            className="secondary-button button-sm"
-                            onClick={() => setMovementPlan(plan)}
-                          >
-                            <FileClock size={15} />
-                            Extrato
-                          </button>
+                          <>
+                            <button
+                              type="button"
+                              className="secondary-button button-sm"
+                              onClick={() => setMovementPlan(plan)}
+                            >
+                              <FileClock size={15} />
+                              Extrato
+                            </button>
+                            {canCancelPlan &&
+                              !isTabCreditPlan(plan) &&
+                              plan.status !== "cancelled" && (
+                                <button
+                                  type="button"
+                                  className="danger-button button-sm"
+                                  onClick={() => setCancellingPlan(plan)}
+                                >
+                                  Cancelar plano
+                                </button>
+                              )}
+                          </>
                         }
                       />
                     ))}
@@ -609,6 +627,26 @@ export function PatientRecordTabs({
           onSaved={(plan) => {
             setNewPlanKind(null);
             toast.success(`Plano ${plan.name} vinculado.`);
+          }}
+        />
+      )}
+      {cancellingPlan && (
+        <PlanCancelModal
+          plan={cancellingPlan}
+          onClose={() => setCancellingPlan(null)}
+          onConfirm={async (cancellation) => {
+            await api.updatePlanStatus(
+              cancellingPlan.id,
+              "cancelled",
+              undefined,
+              cancellation,
+            );
+            toast.success(
+              cancellation.refundedInCents
+                ? `Plano cancelado. Estorno de ${currency.format(cancellation.refundedInCents / 100)} registrado.`
+                : "Plano cancelado.",
+            );
+            setCancellingPlan(null);
           }}
         />
       )}

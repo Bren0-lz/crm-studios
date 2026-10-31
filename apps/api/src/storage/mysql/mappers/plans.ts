@@ -75,6 +75,8 @@ export interface PatientPlanRow {
   renewedByPlanId: string | null;
   cancelledAt: Date | null;
   cancelledValueInCents: number;
+  refundedInCents: number;
+  refundNote: string | null;
   pausedAt: Date | null;
   pauseReason: string | null;
   pauseExpectedReturn: string | null;
@@ -110,6 +112,7 @@ export const patientPlanColumns = `
   (SELECT JSON_ARRAYAGG(JSON_OBJECT('position',x.position,'serviceId',x.service_id,'serviceName',x.service_name,'totalSessions',x.total_sessions,'remainingSessions',x.remaining_sessions,'totalValueInCents',x.total_value_in_cents))
     FROM patient_plan_services x WHERE x.plan_id=pp.id) AS services,
   pp.cancelled_at AS "cancelledAt", pp.cancelled_value_in_cents AS "cancelledValueInCents",
+  pp.refunded_in_cents AS "refundedInCents", pp.refund_note AS "refundNote",
   pp.paused_at AS "pausedAt", pp.pause_reason AS "pauseReason", pp.pause_expected_return AS "pauseExpectedReturn",
   pp.created_at AS "createdAt", pp.updated_at AS "updatedAt"
 `;
@@ -155,6 +158,10 @@ export function mapPatientPlan(row: PatientPlanRow): PatientPlan {
           cancelledAt: row.cancelledAt.toISOString(),
           cancelledValueInCents: row.cancelledValueInCents,
         }
+      : {}),
+    ...(row.refundedInCents ? { refundedInCents: row.refundedInCents } : {}),
+    ...(row.refundedInCents && row.refundNote
+      ? { refundNote: row.refundNote }
       : {}),
     ...(row.pausedAt ? { pausedAt: row.pausedAt.toISOString() } : {}),
     ...(row.pauseReason ? { pauseReason: row.pauseReason } : {}),
