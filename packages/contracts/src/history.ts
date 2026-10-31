@@ -264,6 +264,11 @@ export const historyActions: {
     label: "Permissões de acesso alteradas",
   },
   {
+    action: "users.dashboard_access_updated",
+    module: "settings",
+    label: "Acesso ao painel de vendas alterado",
+  },
+  {
     action: "users.commission_updated",
     module: "settings",
     label: "Comissão alterada",

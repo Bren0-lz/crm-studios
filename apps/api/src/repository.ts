@@ -263,6 +263,8 @@ export interface AuthenticatedUser extends UserSummary {
   allBranches?: boolean;
   /** Filiais do usuário quando `allBranches` é `false`. */
   branchIds?: string[];
+  /** Acesso ao painel de vendas (permissão especial: nem o admin a tem sem marcar). */
+  dashboardAccess?: boolean;
   clinicId: string;
   /** `true` quando há módulos ou edição gravados para o usuário comum (admin: `false`). */
   customModules: boolean;

@@ -168,6 +168,8 @@ export const adminUserInputSchema = z
     branchAccess: userBranchAccessSchema.optional(),
     /** Salário mensal; ausente ou `null` = não recebe (fica fora da folha). */
     salaryInCents: userSalarySchema.optional(),
+    /** Acesso ao painel de vendas (vale também para admin); ausente = sem acesso. */
+    dashboardAccess: z.boolean().optional(),
   })
   .superRefine(validatePermissionInput);
 
@@ -193,6 +195,8 @@ export const adminUserUpdateSchema = z
     serviceCommissions: adminUserServiceCommissionsSchema.optional(),
     /** Ausente = mantém; `null` = deixa de receber salário (sai da folha). */
     salaryInCents: userSalarySchema.optional(),
+    /** Acesso ao painel de vendas (vale também para admin); ausente = mantém. */
+    dashboardAccess: z.boolean().optional(),
   })
   .superRefine(validatePermissionInput);
 

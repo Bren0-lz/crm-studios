@@ -6,6 +6,7 @@ import {
   type AdminAuditEvent,
   type ApiError,
   BRANCH_HEADER,
+  EXTERNAL_USER_TOKEN_HEADER,
   type BranchScope,
   type AppModule,
   appModuleLabels,
@@ -171,6 +172,12 @@ export async function createRouteContext({
         message: "Sua sessão expirou. Entre novamente.",
       } satisfies ApiError);
     }
+    // O token do painel de vendas só vale na API externa, junto da chave de integração.
+    if (request.user.kind === "dashboard")
+      return reply.status(401).send({
+        code: "UNAUTHORIZED",
+        message: "Sua sessão expirou. Entre novamente.",
+      } satisfies ApiError);
     const user = await repository.findUserById(
       request.user.clinicId,
       request.user.sub,
@@ -198,6 +205,12 @@ export async function createRouteContext({
       request.log.error(error);
     }
   }
+
+  const dashboardAccessDenied = {
+    code: "DASHBOARD_ACCESS_DENIED",
+    message:
+      "Seu usuário não tem acesso ao painel de vendas. Peça a um administrador para liberar em Administração › Usuários.",
+  } satisfies ApiError;
 
   /** Chave de integração da requisição da API externa (gravada no `authenticateApiKey`). */
   const integrationKeys = new WeakMap<FastifyRequest, IntegrationKey>();
@@ -257,7 +270,16 @@ export async function createRouteContext({
           message: `Esta chave não tem o escopo ${scope}.`,
           details: { scope },
         } satisfies ApiError);
-      const user = await repository.findUserById(clinicId, key.createdByUserId);
+      const userToken = request.headers[EXTERNAL_USER_TOKEN_HEADER];
+      const actor =
+        typeof userToken === "string" && userToken
+          ? await dashboardUser(clinicId, userToken)
+          : await repository.findUserById(clinicId, key.createdByUserId);
+      if (actor && "code" in actor)
+        return reply
+          .status(actor.code === "DASHBOARD_ACCESS_DENIED" ? 403 : 401)
+          .send(actor);
+      const user = actor;
       if (!user) return reply.status(401).send(invalid);
       request.user = {
         sub: user.id,
@@ -283,6 +305,34 @@ export async function createRouteContext({
         }
       }
     };
+  }
+
+  /**
+   * Usuário do token do painel de vendas (`X-CRM-User-Token`, emitido no login externo): da
+   * mesma clínica da chave, ativo, sem sessões revogadas e ainda com acesso ao painel — tirar
+   * a permissão derruba o acesso na próxima chamada.
+   */
+  async function dashboardUser(
+    clinicId: string,
+    token: string,
+  ): Promise<AuthenticatedUser | ApiError> {
+    const expired = {
+      code: "USER_TOKEN_INVALID",
+      message: "Sua sessão no painel de vendas expirou. Entre novamente.",
+    } satisfies ApiError;
+    let payload: FastifyRequest["user"];
+    try {
+      payload = app.jwt.verify<FastifyRequest["user"]>(token);
+    } catch {
+      return expired;
+    }
+    if (payload.kind !== "dashboard" || payload.clinicId !== clinicId)
+      return expired;
+    const user = await repository.findUserById(clinicId, payload.sub);
+    if (!user || (payload.sessionVersion ?? 0) !== (user.sessionVersion ?? 0))
+      return expired;
+    if (!user.dashboardAccess) return dashboardAccessDenied;
+    return user;
   }
 
   /** Filiais ativas que o usuário acessa (admin e "todas as filiais": todas as ativas). */
@@ -755,6 +805,7 @@ export async function createRouteContext({
     autoFinalizer,
     requestAccess,
     integrationKeys,
+    dashboardAccessDenied,
     accessibleBranches,
     visibleHistory,
     withConfiguredTags,
