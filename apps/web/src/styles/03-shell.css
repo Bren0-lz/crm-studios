@@ -232,6 +232,17 @@
   background: var(--paper);
 }
 
+/* Menu lateral recolhível: botão, fechar e fundo existem só no celular (11-responsive.css). */
+.topbar .menu-toggle,
+.sidebar-head .sidebar-close,
+.sidebar-scrim {
+  display: none;
+}
+
+.topbar-context {
+  min-width: 0;
+}
+
 .clinic-label {
   display: block;
   font-size: var(--text-md);
