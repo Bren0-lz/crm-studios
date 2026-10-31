@@ -367,15 +367,20 @@ describe("variable fixed expenses", () => {
         <App />
       </MemoryRouter>,
     );
-    const section = (
-      await screen.findByRole("heading", { name: "Despesas fixas" })
-    ).closest("section")!;
+    await screen.findByRole("heading", { name: "Despesas fixas" });
+    // "Nova despesa" é um botão só; a despesa fixa é escolhida no modal.
     fireEvent.click(
-      within(section).getByRole("button", { name: "Nova despesa fixa" }),
+      screen.getAllByRole("button", { name: "Nova despesa" })[0]!,
     );
-    const dialog = await screen.findByRole("dialog", {
-      name: "Nova despesa fixa",
-    });
+    fireEvent.click(
+      within(
+        await screen.findByRole("dialog", { name: "Nova despesa" }),
+      ).getByRole("radio", { name: "Fixa (todo mês)" }),
+    );
+    const dialog = await screen.findByRole("dialog", { name: "Nova despesa" });
+    expect(
+      within(dialog).getByRole("radio", { name: "Fixa (todo mês)" }),
+    ).toBeChecked();
     fireEvent.change(within(dialog).getByLabelText("Descrição"), {
       target: { value: "Faxina" },
     });

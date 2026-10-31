@@ -33,7 +33,7 @@ describe("finance workflows through real HTTP handlers", () => {
     fireEvent.click(
       await screen.findByRole("button", { name: "Nova despesa" }),
     );
-    let dialog = screen.getByRole("dialog", { name: "Nova conta a pagar" });
+    let dialog = screen.getByRole("dialog", { name: "Nova despesa" });
     await within(dialog).findByRole("option", { name: supplier!.name });
     for (const [label, value] of [
       ["Descrição", "Compra de faixas"],
@@ -47,7 +47,7 @@ describe("finance workflows through real HTTP handlers", () => {
       ["Observações", "Material terapêutico"],
     ])
       change(label!, value!, dialog);
-    await save("Nova conta a pagar", "Cadastrar despesa");
+    await save("Nova despesa", "Cadastrar despesa");
     fireEvent.click(screen.getByRole("button", { name: /^Contas a pagar \(/ }));
     const openFilters = async () => {
       fireEvent.click(
