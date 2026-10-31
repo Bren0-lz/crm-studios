@@ -490,6 +490,10 @@
     justify-content: flex-start;
   }
 
+  .payables-table .finance-row > :not(:first-child) {
+    text-align: left;
+  }
+
   .daily-cash-groups {
     padding: var(--space-4);
   }
