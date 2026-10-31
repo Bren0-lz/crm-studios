@@ -13,6 +13,42 @@ import { dailyCashMethodLabels, financeTermHelp } from "./model";
 
 const emptyFilter: FinancialEntryFilter = { dateField: "dueDate" };
 
+/** Valor do campo "Plano": nome do plano vendido, comanda ou lançamento manual. */
+function originValue(filter: FinancialEntryFilter) {
+  if (filter.source === "plan" && filter.planName)
+    return `plan:${filter.planName}`;
+  return filter.source ?? "";
+}
+
+function originFilter(
+  value: string,
+): Pick<FinancialEntryFilter, "source" | "planName"> {
+  if (value.startsWith("plan:"))
+    return { source: "plan", planName: value.slice(5) };
+  return {
+    source: (value || undefined) as FinancialEntryFilter["source"],
+    planName: undefined,
+  };
+}
+
+/** Planos e serviços que aparecem nas contas a receber, em ordem alfabética. */
+function receivableOrigins(workspace: FinancialWorkspace) {
+  const plans = new Set<string>(),
+    services = new Map<string, string>();
+  for (const item of workspace.summary.receivables) {
+    if (item.planName) plans.add(item.planName);
+    for (const service of item.services ?? [])
+      services.set(service.id, service.name);
+  }
+  const byName = (a: string, b: string) => a.localeCompare(b, "pt-BR");
+  return {
+    plans: [...plans].sort(byName),
+    services: [...services]
+      .map(([id, name]) => ({ id, name }))
+      .sort((a, b) => byName(a.name, b.name)),
+  };
+}
+
 /** Quantos critérios restringem a lista ("Data considerada" sozinha não filtra). */
 function activeFilterCount(filter: FinancialEntryFilter) {
   return (
@@ -23,6 +59,8 @@ function activeFilterCount(filter: FinancialEntryFilter) {
       filter.competence,
       filter.status,
       filter.categoryId,
+      filter.source,
+      filter.serviceId,
       filter.costCenterId,
       filter.supplierId,
       filter.paymentMethod,
@@ -64,6 +102,7 @@ export function FinanceEntryFilters({
   const patch = (filter: Partial<FinancialEntryFilter>) =>
     setDraft((current) => ({ ...current, ...filter }));
   const count = activeFilterCount(value);
+  const origins = receivableOrigins(workspace);
   return (
     <div className="finance-filter-bar">
       <button
@@ -196,27 +235,69 @@ export function FinanceEntryFilters({
                 <option value="cancelled">Cancelado</option>
               </select>
             </label>
-            <label>
-              Categoria do lançamento
-              <select
-                value={draft.categoryId ?? ""}
-                onChange={(event) =>
-                  patch({ categoryId: event.target.value || undefined })
-                }
-              >
-                <option value="">Todas</option>
-                {workspace.categories
-                  .filter(
-                    (item) => item.kind === (payables ? "expense" : "income"),
-                  )
-                  .map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {item.name}
-                      {item.active ? "" : " (inativa)"}
-                    </option>
-                  ))}
-              </select>
-            </label>
+            {payables ? (
+              <label>
+                Categoria do lançamento
+                <select
+                  value={draft.categoryId ?? ""}
+                  onChange={(event) =>
+                    patch({ categoryId: event.target.value || undefined })
+                  }
+                >
+                  <option value="">Todas</option>
+                  {workspace.categories
+                    .filter((item) => item.kind === "expense")
+                    .map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.name}
+                        {item.active ? "" : " (inativa)"}
+                      </option>
+                    ))}
+                </select>
+              </label>
+            ) : (
+              <>
+                <label>
+                  Plano do lançamento
+                  <select
+                    value={originValue(draft)}
+                    onChange={(event) =>
+                      patch(originFilter(event.target.value))
+                    }
+                  >
+                    <option value="">Todos</option>
+                    {origins.plans.length > 0 && (
+                      <optgroup label="Planos vendidos">
+                        {origins.plans.map((name) => (
+                          <option key={name} value={`plan:${name}`}>
+                            {name}
+                          </option>
+                        ))}
+                      </optgroup>
+                    )}
+                    <option value="plan">Qualquer plano</option>
+                    <option value="tab">Comanda</option>
+                    <option value="manual">Lançamento manual</option>
+                  </select>
+                </label>
+                <label>
+                  Serviço do lançamento
+                  <select
+                    value={draft.serviceId ?? ""}
+                    onChange={(event) =>
+                      patch({ serviceId: event.target.value || undefined })
+                    }
+                  >
+                    <option value="">Todos</option>
+                    {origins.services.map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </>
+            )}
             <label>
               <span className="label-with-help">
                 Centro de custo do lançamento

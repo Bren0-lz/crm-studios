@@ -11,6 +11,12 @@ export const financialEntryFilterSchema = z
       .regex(/^\d{4}-(0[1-9]|1[0-2])$/)
       .optional(),
     categoryId: z.uuid().optional(),
+    /** Origem da conta a receber: plano vendido, comanda ou lançamento manual. */
+    source: z.enum(["plan", "tab", "manual"]).optional(),
+    /** Plano vendido (pelo nome gravado na venda); vale junto de `source: "plan"`. */
+    planName: z.string().max(120).optional(),
+    /** Serviço do plano ou da comanda que originou a conta a receber. */
+    serviceId: z.uuid().optional(),
     costCenterId: z.uuid().optional(),
     supplierId: z.uuid().optional(),
     paymentMethod: z
@@ -49,6 +55,9 @@ export interface FilterableFinancialEntry {
   competence?: string | undefined;
   dreCompetence?: string | undefined;
   categoryId?: string | undefined;
+  source?: string | undefined;
+  planName?: string | undefined;
+  services?: Array<{ id: string }> | undefined;
   costCenterId?: string | undefined;
   paymentMethod?: string | undefined;
   installmentCount?: number | undefined;
@@ -111,8 +120,19 @@ export function matchesFinancialEntry(
       : entry.status !== filter.status)
   )
     return false;
-  for (const key of ["categoryId", "costCenterId", "supplierId"] as const)
+  for (const key of [
+    "categoryId",
+    "source",
+    "planName",
+    "costCenterId",
+    "supplierId",
+  ] as const)
     if (filter[key] && entry[key] !== filter[key]) return false;
+  if (
+    filter.serviceId &&
+    !entry.services?.some((service) => service.id === filter.serviceId)
+  )
+    return false;
   if (
     filter.paymentMethod &&
     (entry.paymentMethod ?? "unspecified") !== filter.paymentMethod
