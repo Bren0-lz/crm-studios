@@ -440,6 +440,23 @@
     padding-inline: var(--space-4);
   }
 
+  .payroll-table > .finance-head,
+  .payroll-table > .payroll-line {
+    min-width: 0;
+  }
+
+  .payroll-table .finance-row > :not(:first-child) {
+    text-align: left;
+  }
+
+  .payroll-table .finance-actions {
+    justify-content: flex-start;
+  }
+
+  .payroll-table .finance-row > :nth-child(6) {
+    justify-self: start;
+  }
+
   /* audit: mobile-ok totais curtos (rótulo + valor) cabem em duas colunas no celular */
   .payroll-totals {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -447,6 +464,10 @@
 
   .payroll-totals div {
     padding: var(--space-2) var(--space-3);
+  }
+
+  .payroll-totals dd {
+    font-size: var(--text-md);
   }
 
   .payroll-detail-list li {
