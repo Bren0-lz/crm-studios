@@ -13,6 +13,7 @@
     "test:mysql": "npm run test:mysql -w @crm/api",
     "db:setup": "npm run db:setup -w @crm/api",
     "db:migrate": "npm run db:migrate -w @crm/api",
+    "seed:test": "node scripts/seed-test-data.mjs",
     "typecheck": "npm run typecheck -w @crm/contracts && npm run typecheck -w @crm/api && npm run typecheck -w @crm/web && tsc -p tsconfig.json",
     "lint": "npm run lint:architecture && eslint apps/api/src apps/api/vitest.config.ts apps/web/src apps/web/vite.config.ts packages/contracts/src packages/contracts/vitest.config.ts e2e playwright.config.ts scripts --max-warnings=0",
     "format:check": "prettier --check .",
