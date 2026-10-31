@@ -4,6 +4,7 @@ import type {
   ClientDetailsColumn,
 } from "@crm/contracts";
 import type {
+  CampaignReport,
   ClientReport,
   DashboardViewSummary,
   FinancialExportFilter,
@@ -109,6 +110,12 @@ export const reportsApi = {
     requestBlob(
       `/reports/sales/period.xlsx?${new URLSearchParams({ from, to })}`,
     ),
+  campaignReport: (from: string, to: string) =>
+    request<CampaignReport>(
+      `/reports/campaigns?${new URLSearchParams({ from, to })}`,
+    ),
+  campaignReportXlsx: (from: string, to: string) =>
+    requestBlob(`/reports/campaigns.xlsx?${new URLSearchParams({ from, to })}`),
   patientSalesHistory: (patientId: string) =>
     request<SaleMovement[]>(
       `/reports/sales/patients/${encodeURIComponent(patientId)}`,

@@ -1,6 +1,14 @@
 ﻿import { useState } from "react";
-import { BarChart3, Banknote, CalendarDays, Users, Wallet } from "lucide-react";
+import {
+  BarChart3,
+  Banknote,
+  CalendarDays,
+  Megaphone,
+  Users,
+  Wallet,
+} from "lucide-react";
 import { useSearchParams } from "react-router-dom";
+import { CampaignsSection } from "./CampaignsSection";
 import { ClientDetailsSection } from "./ClientDetailsSection";
 import { ClientInsights } from "./ClientInsights";
 import { DreSection } from "./DreSection";
@@ -12,6 +20,7 @@ import { localIsoDate, formatIsoDate } from "../../shared/lib/formatting";
 import { ReportsDetails } from "./ReportsDetails";
 import { ReportTabs } from "./ReportTabs";
 import { SalesInsights } from "./SalesInsights";
+import { periodPresets } from "./model";
 
 export function ReportsPage() {
   const { can, canView } = useAuthorization();
@@ -22,6 +31,7 @@ export function ReportsPage() {
     to: today,
   });
   const [period, setPeriod] = useState({ ...draft, version: 0 });
+  const presets = periodPresets(today);
   const hasClientReports = can("reports.retention") || can("reports.clients");
   const tabs = [
     {
@@ -38,6 +48,12 @@ export function ReportsPage() {
       label: "Clientes",
       icon: Users,
       visible: hasClientReports || can("reports.sales"),
+    },
+    {
+      key: "campaigns" as const,
+      label: "Campanhas",
+      icon: Megaphone,
+      visible: can("reports.campaigns"),
     },
     {
       key: "dre" as const,
@@ -141,6 +157,34 @@ export function ReportsPage() {
                 Atualizar
               </button>
             </form>
+            <div
+              className="reports-period-presets"
+              role="group"
+              aria-label="Atalhos de período"
+            >
+              {presets.map((preset) => {
+                const active =
+                  preset.from === period.from && preset.to === period.to;
+                return (
+                  <button
+                    key={preset.label}
+                    type="button"
+                    className="secondary-button"
+                    aria-pressed={active}
+                    onClick={() => {
+                      setDraft({ from: preset.from, to: preset.to });
+                      setPeriod({
+                        from: preset.from,
+                        to: preset.to,
+                        version: period.version + 1,
+                      });
+                    }}
+                  >
+                    {preset.label}
+                  </button>
+                );
+              })}
+            </div>
           </section>
           <ReportTabs
             label="Seções dos relatórios"
@@ -152,6 +196,8 @@ export function ReportsPage() {
                 <ReportsDetails period={period} />
               ) : tab === "finance" ? (
                 <FinancialSection period={period} />
+              ) : tab === "campaigns" ? (
+                <CampaignsSection period={period} />
               ) : tab === "clients" ? (
                 <ReportTabs
                   sub

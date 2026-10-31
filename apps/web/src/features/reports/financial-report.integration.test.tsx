@@ -14,6 +14,7 @@ import {
   withPermissions,
 } from "../../test-support/legacy-fixtures";
 import "../../test-support/legacy-setup";
+import { localIsoDate } from "../../shared/lib/formatting";
 
 const centro = "b1",
   norte = "b2";
@@ -90,10 +91,38 @@ function report(): FinancialReport {
         name: "Beatriz Lima",
         branchId: centro,
         paidInCents: 20_000,
+        salaryPaidInCents: 0,
         generatedInCents: 26_000,
         openInCents: 6_000,
       },
     ],
+  };
+}
+
+/** Período anterior (06 a 30 de setembro): metade das entradas, mesma despesa. */
+function previousReport(): FinancialReport {
+  return {
+    ...report(),
+    from: "2026-09-06",
+    to: "2026-09-30",
+    entries: [
+      entry("old-r1", {
+        direction: "in",
+        amountInCents: 75_000,
+        origin: "plan",
+        date: "2026-09-10",
+        occurredAt: "2026-09-10T15:00:00.000Z",
+      }),
+      entry("old-p1", {
+        direction: "out",
+        amountInCents: 30_000,
+        origin: "expense",
+        categoryName: "Aluguel",
+        date: "2026-09-10",
+        occurredAt: "2026-09-10T15:00:00.000Z",
+      }),
+    ],
+    professionals: [],
   };
 }
 
@@ -126,7 +155,16 @@ async function openFinancialTab(admin = true) {
     const url = String(input);
     calls.push({ url, ...(init ? { init } : {}) });
     if (url.includes("/reports/financial?"))
-      return { ok: true, status: 200, json: async () => report() } as Response;
+      return {
+        ok: true,
+        status: 200,
+        json: async () =>
+          // A tela começa no dia 1º do mês corrente; antes disso é o período anterior.
+          new URL(url).searchParams.get("from")! >=
+          `${localIsoDate().slice(0, 7)}-01`
+            ? report()
+            : previousReport(),
+      } as Response;
     if (url.includes("/reports/financial/export?"))
       return {
         ok: true,
@@ -176,7 +214,7 @@ describe("aba Financeiro dos relatórios", () => {
     });
     expect(
       text(within(professionals).getByRole("row", { name: /Beatriz Lima/ })),
-    ).toContain("R$ 200,00R$ 260,00R$ 60,00");
+    ).toContain("R$ 200,00R$ 0,00R$ 200,00100%R$ 260,00R$ 60,00");
     const branches = screen.getByRole("table", {
       name: "Resultado do caixa por filial",
     });
@@ -329,5 +367,71 @@ describe("aba Financeiro dos relatórios", () => {
     });
     expect(new Headers(exported.init?.headers).get("x-branch-id")).toBe("all");
     expect(revokeObjectURL).toHaveBeenCalledWith("blob:extrato");
+  });
+
+  it("compara com o período anterior e mostra o fluxo de caixa por semana", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-25T12:00:00.000Z"));
+    onTestFinished(() => {
+      vi.useRealTimers();
+    });
+    const calls = await openFinancialTab();
+    expect(
+      calls.some((call) =>
+        call.url.includes("/reports/financial?from=2026-09-06&to=2026-09-30"),
+      ),
+    ).toBe(true);
+    const inflow = (await screen.findByText(/\+100% \(antes R\$ 750,00\)/))
+      .parentElement!;
+    expect(text(inflow)).toContain("Entradas");
+    const flow = screen.getByRole("table", {
+      name: "Fluxo de caixa por categoria",
+    });
+    expect(within(flow).getAllByRole("columnheader")).toHaveLength(6);
+    expect(text(within(flow).getByRole("row", { name: /^Aluguel/ }))).toContain(
+      "—-R$ 300,00——-R$ 300,00",
+    );
+    expect(
+      text(within(flow).getByRole("row", { name: /Fica no caixa da empresa/ })),
+    ).toContain("R$ 800,00");
+    fireEvent.click(within(flow).getByRole("button", { name: "08/10 a 14/10" }));
+    const filters = screen.getByRole("search", { name: "Filtros" });
+    expect(within(filters).getByLabelText("De")).toHaveValue("2026-10-08");
+    expect(within(filters).getByLabelText("Até")).toHaveValue("2026-10-14");
+  });
+
+  it("filtra o extrato por faixa de valor e ordena com saldo acumulado", async () => {
+    await openFinancialTab();
+    const rows = () =>
+      within(
+        screen.getByRole("table", { name: "Lançamentos do caixa" }),
+      ).getAllByRole("row");
+    expect(
+      within(rows()[0]!).getByRole("columnheader", { name: "Saldo" }),
+    ).toBeInTheDocument();
+    // Saldo após as quatro linhas: 1.000 + 500 − 300 − 200.
+    expect(text(rows()[4]!)).toContain("R$ 1.000,00");
+    fireEvent.change(screen.getByLabelText("Valor mínimo (R$)"), {
+      target: { value: "400" },
+    });
+    expect(rows()).toHaveLength(3);
+    fireEvent.change(screen.getByLabelText("Valor mínimo (R$)"), {
+      target: { value: "" },
+    });
+    fireEvent.change(screen.getByLabelText("Valor máximo (R$)"), {
+      target: { value: "250,5x" },
+    });
+    expect(screen.getByLabelText("Valor máximo (R$)")).toHaveValue("250,5");
+    expect(rows()).toHaveLength(2);
+    fireEvent.change(screen.getByLabelText("Valor máximo (R$)"), {
+      target: { value: "" },
+    });
+    fireEvent.change(screen.getByLabelText("Ordenar"), {
+      target: { value: "amount-desc" },
+    });
+    expect(text(rows()[1]!)).toContain("Lançamento r1");
+    expect(
+      within(rows()[0]!).queryByRole("columnheader", { name: "Saldo" }),
+    ).not.toBeInTheDocument();
   });
 });

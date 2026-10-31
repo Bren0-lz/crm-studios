@@ -11,6 +11,24 @@ import {
   type SheetCell,
   type SheetColumnKind,
 } from "../../infrastructure/spreadsheet.js";
+import type ExcelJS from "exceljs";
+
+// Usados pela planilha de campanhas (campaign-workbook.ts).
+export const dateFormat = "dd/mm/yyyy hh:mm";
+
+export function heading(sheet: ExcelJS.Worksheet) {
+  sheet.getRow(1).font = { bold: true, color: { argb: "FFFFFFFF" } };
+  sheet.getRow(1).fill = {
+    type: "pattern",
+    pattern: "solid",
+    fgColor: { argb: "FF3D625B" },
+  };
+  sheet.views = [{ state: "frozen", ySplit: 1 }];
+  sheet.autoFilter = {
+    from: { row: 1, column: 1 },
+    to: { row: 1, column: sheet.columnCount },
+  };
+}
 
 type PaymentMovement = SalesReport["payments"][number];
 type SaleMovement = SalesReport["sales"][number];

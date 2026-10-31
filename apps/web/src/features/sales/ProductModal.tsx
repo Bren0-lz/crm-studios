@@ -16,6 +16,7 @@ import { useAuthorization } from "../../authorization-context";
 import { CurrencyField } from "../../shared/components/CurrencyField";
 import { Modal, ModalCancelButton } from "../../shared/components/Modal";
 import { MoneyInput } from "../../shared/components/MoneyInput";
+import { ProductSizesEditor } from "../../shared/components/ProductSizesEditor";
 import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
 import { useToast } from "../../shared/feedback/toast-context";
 import {
@@ -48,18 +49,21 @@ function currentSizeStock(product: Product) {
 }
 
 /**
- * Cadastro e edição do produto. Abre também por cima da venda (produto sem preço), sem
- * fechá-la: quem chama recebe o produto salvo em `onSaved`.
+ * Cadastro e edição do produto. Abre também por cima da venda (produto sem preço) e do pedido
+ * ao fornecedor, sem fechá-los: quem chama recebe o produto salvo em `onSaved`.
  */
 export function ProductModal({
   product,
   focusPrice = false,
+  fromSupplierOrder = false,
   onClose,
   onSaved,
 }: {
   product: Product | "new";
   /** Abre com o foco no preço de venda (atalho do aviso de produto sem preço). */
   focusPrice?: boolean;
+  /** Cadastro feito no pedido ao fornecedor: o estoque entra pelo pedido, sem estoque inicial. */
+  fromSupplierOrder?: boolean;
   onClose: () => void;
   onSaved?: ((product: Product) => void) | undefined;
 }) {
@@ -68,6 +72,7 @@ export function ProductModal({
   const canCreateCatalog = user?.role === "admin";
   const toast = useToast();
   const isNew = product === "new";
+  const withInitialStock = isNew && !fromSupplierOrder;
   const salePriceHintId = useId();
   const [categories, setCategories] = useState<ClinicCatalogEntry[]>([]),
     [brands, setBrands] = useState<ClinicCatalogEntry[]>([]),
@@ -85,9 +90,11 @@ export function ProductModal({
     >(() => (product === "new" ? {} : currentSizeStock(product))),
     [catalogCreator, setCatalogCreator] = useState<ProductCatalogKind | null>(
       null,
-    );
+    ),
+    [ownSizesEnabled, setOwnSizesEnabled] = useState(false),
+    [sizeDraft, setSizeDraft] = useState("");
   const productDirty = useFormDirty(
-    { form, active, restockAlert, sizeQuantities },
+    { form, active, restockAlert, sizeQuantities, ownSizesEnabled, sizeDraft },
     true,
   );
   // Os tamanhos vêm da categoria; um produto antigo mantém os seus para poder desmarcá-los.
@@ -96,7 +103,11 @@ export function ProductModal({
     ...categorySizes,
     ...(product === "new" ? [] : product.sizes),
   ]);
-  const hasSizes = sizeOptions.length > 0;
+  // Sem tamanhos na categoria (nem antigos), o próprio produto pode definir os seus.
+  const ownSizes = sizeOptions.length === 0;
+  const hasSizes = ownSizes
+    ? ownSizesEnabled && form.sizes.length > 0
+    : sizeOptions.length > 0;
   const categoryName = categories.find(
     (item) => item.id === form.categoryId,
   )?.name;
@@ -135,10 +146,12 @@ export function ProductModal({
   }
   /** Trocar a categoria marca todos os tamanhos dela (o usuário desmarca os que faltam). */
   function changeCategory(categoryId: string | null) {
+    const sizes = productCategorySizes(categories, categoryId);
+    // Categoria sem tamanhos mantém os que o usuário definiu para o produto.
     setForm({
       ...form,
       categoryId,
-      sizes: productCategorySizes(categories, categoryId),
+      sizes: sizes.length || !ownSizes ? sizes : form.sizes,
     });
   }
   function toggleSize(size: ProductSize, checked: boolean) {
@@ -153,6 +166,10 @@ export function ProductModal({
     event.preventDefault();
     if (categorySizes.length && !form.sizes.length) {
       setFormError("Marque ao menos um tamanho.");
+      return;
+    }
+    if (ownSizes && ownSizesEnabled && !form.sizes.length) {
+      setFormError("Adicione ao menos um tamanho ou desmarque a opção.");
       return;
     }
     const sizes = hasSizes ? form.sizes : [];
@@ -172,12 +189,13 @@ export function ProductModal({
       if (product === "new")
         saved = await api.createProduct({
           ...fields,
+          ...(fromSupplierOrder ? { initialStock: 0 } : {}),
           ...(sizes.length
             ? {
                 initialStock: 0,
-                initialSizeStock: quantities.filter(
-                  (entry) => entry.quantity > 0,
-                ),
+                initialSizeStock: fromSupplierOrder
+                  ? []
+                  : quantities.filter((entry) => entry.quantity > 0),
               }
             : {}),
         });
@@ -205,7 +223,11 @@ export function ProductModal({
     <>
       <Modal
         title={isNew ? "Novo produto" : "Editar produto"}
-        subtitle="Preços e classificação. O saldo muda pelos ajustes de estoque."
+        subtitle={
+          fromSupplierOrder
+            ? "Dados do produto. A quantidade comprada entra no estoque pelo pedido."
+            : "Preços e classificação. O saldo muda pelos ajustes de estoque."
+        }
         {...(focusPrice ? { initialFocus: 'input[name="salePrice"]' } : {})}
         busy={busy}
         inactive={Boolean(catalogCreator)}
@@ -267,7 +289,7 @@ export function ProductModal({
                 produto não pode ser vendido.
               </small>
             </div>
-            {isNew && !hasSizes && (
+            {withInitialStock && !hasSizes && (
               <label>
                 Estoque inicial
                 <input
@@ -328,7 +350,20 @@ export function ProductModal({
                 )}
               </select>
             </label>
-            {hasSizes && (
+            {ownSizes && (
+              <div className="span-2 size-editor">
+                <ProductSizesEditor
+                  scope="product"
+                  enabled={ownSizesEnabled}
+                  sizes={form.sizes}
+                  draft={sizeDraft}
+                  onEnabledChange={setOwnSizesEnabled}
+                  onSizesChange={(sizes) => setForm({ ...form, sizes })}
+                  onDraftChange={setSizeDraft}
+                />
+              </div>
+            )}
+            {!ownSizes && (
               <fieldset className="form-fieldset span-2">
                 <legend>Tamanhos deste produto</legend>
                 <p className="field-hint">
@@ -358,7 +393,7 @@ export function ProductModal({
                 )}
               </fieldset>
             )}
-            {hasSizes && form.sizes.length > 0 && (
+            {hasSizes && form.sizes.length > 0 && !fromSupplierOrder && (
               <fieldset className="form-fieldset span-2">
                 <legend>
                   {isNew
@@ -426,7 +461,8 @@ export function ProductModal({
                 Opcional. Quando o estoque chegar à quantidade escolhida, o
                 produto aparece como “Repor estoque” na lista e entra em
                 “Produtos para repor” nos Indicadores.
-                {hasSizes && " Vale o total somando todos os tamanhos."}
+                {hasSizes &&
+                  " Vale para cada tamanho: basta um deles chegar à quantidade."}
               </p>
             </fieldset>
             {!isNew && (

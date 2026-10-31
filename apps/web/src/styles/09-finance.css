@@ -1223,13 +1223,46 @@
   gap: var(--space-2);
 }
 
+.proof-field label {
+  display: grid;
+  gap: var(--space-2);
+  color: #4d5b55;
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
 .proof-field .muted-copy {
   margin: 0;
   font-size: var(--text-xs);
 }
 
+/* Modal de comprovantes: blocos "Anexados", "Da baixa estornada" e "Anexar". */
+.proof-section + .proof-section {
+  margin-top: var(--space-5);
+}
+
+.proof-section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-2);
+}
+
+.proof-section-head h3 {
+  margin: 0;
+  font-size: var(--text-md);
+  font-weight: 600;
+}
+
+.proof-section-head span {
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+
 .proof-list {
   display: grid;
+  gap: var(--space-2);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -1237,17 +1270,29 @@
 
 .proof-list li {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
   gap: var(--space-3);
-  padding: var(--space-2) 0;
-  border-top: 1px solid var(--line);
+  padding: var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: white;
 }
 
-.proof-list li > div {
+.proof-icon {
   display: grid;
-  flex: 1 1 auto;
+  flex: 0 0 auto;
+  place-items: center;
+  width: calc(var(--space-6) + var(--space-3));
+  height: calc(var(--space-6) + var(--space-3));
+  border-radius: var(--radius-sm);
+  background: var(--mint);
+  color: var(--green);
+}
+
+/* Base 0: o nome longo encolhe com reticências em vez de empurrar o ícone para outra linha. */
+.proof-info {
+  display: grid;
+  flex: 1 1 0;
   min-width: 0;
   gap: var(--space-1);
 }
@@ -1259,22 +1304,36 @@
   white-space: nowrap;
 }
 
-.proof-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-}
-
-.proof-history-title {
-  margin: var(--space-4) 0 var(--space-1);
-  color: var(--muted);
-  font-size: var(--text-sm);
-  font-weight: 600;
-}
-
 .proof-list small {
   color: var(--muted);
   font-size: var(--text-xs);
+}
+
+.proof-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.proof-actions .proof-delete {
+  color: var(--red);
+}
+
+.proof-actions .proof-delete:hover:not(:disabled) {
+  background: #f7e4e1;
+  color: #a04e45;
+}
+
+@media (max-width: 700px) {
+  .proof-list li {
+    flex-wrap: wrap;
+  }
+
+  .proof-actions {
+    justify-content: flex-end;
+    width: 100%;
+  }
 }
 
 /* Despesas fixas: bloco "Avisos de vencimento" no topo da seção. */
@@ -1355,21 +1414,8 @@
   font-weight: 500;
 }
 
-/* Despesa fixa: dia e período numa linha; aviso e resumo logo abaixo. */
+/* Despesa fixa: período, dia e aviso na mesma grade de 2 colunas das outras seções. */
 .recurring-schedule {
   display: grid;
   gap: var(--space-4);
-}
-
-.recurring-schedule-dates {
-  display: grid;
-  grid-template-columns: minmax(0, 0.7fr) minmax(0, 1fr) minmax(0, 1fr);
-  align-items: start;
-  gap: calc(var(--space-3) + 2px);
-}
-
-@media (max-width: 700px) {
-  .recurring-schedule-dates {
-    grid-template-columns: 1fr;
-  }
 }
