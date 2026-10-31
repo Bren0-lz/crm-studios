@@ -303,12 +303,21 @@ export type SettlementAdjustments = Pick<
   | "paymentInstallments"
 >;
 export type FinancialDatesInput = z.infer<typeof financialDatesSchema>;
+export interface ReceivableService {
+  id: string;
+  name: string;
+}
+
 export interface Receivable {
   /** Filial a que pertence (ver `branches`). */
   branchId?: string;
   postedOn?: string | undefined;
   cashAvailableAt?: string | undefined;
   source?: "plan" | "tab" | "manual";
+  /** Nome do plano como foi vendido; só nas cobranças de plano. */
+  planName?: string;
+  /** Serviços de origem: os do plano ou os atendimentos da comanda. */
+  services?: ReceivableService[];
   competence?: string;
   categoryId?: string | undefined;
   costCenterId?: string | undefined;
@@ -492,10 +501,7 @@ export type DailyCashFilter = z.infer<typeof dailyCashFilterSchema>;
 export type DailyCashPaymentMethod = PaymentMethod | "unspecified";
 
 export type DailyCashMovementKind =
-  | "receipt"
-  | "receipt_reversal"
-  | "payable"
-  | "commission";
+  "receipt" | "receipt_reversal" | "payable" | "commission";
 
 export interface DailyCashMovement {
   /** `<kind>:<id da origem>`. */
