@@ -1028,43 +1028,6 @@ export function PatientModal({
             </label>
           </div>
         </details>
-        {addOptions.length > 0 && (
-          <fieldset className="form-fieldset guided-add span-2">
-            <legend>O que o cliente vai fazer?</legend>
-            <p className="field-hint">{addedSummary}</p>
-            <p className="guided-item-notice" role="status">
-              {itemNotice && (
-                <span key={itemNotice.id}>
-                  <CheckCircle2 size={16} aria-hidden="true" />
-                  {itemNotice.text}
-                </span>
-              )}
-            </p>
-            <div className="guided-add-grid">
-              {addOptions.map(
-                ({ key, label, detail, icon: Icon, disabled }) => (
-                  <button
-                    type="button"
-                    key={key}
-                    className="guided-add-option"
-                    aria-label={label}
-                    aria-describedby={`guided-add-${key}`}
-                    disabled={disabled || !editable || loading}
-                    onClick={() => addItem(key)}
-                  >
-                    <span className="guided-add-icon" aria-hidden="true">
-                      <Icon size={18} />
-                    </span>
-                    <span className="guided-add-text">
-                      <strong>{label}</strong>
-                      <small id={`guided-add-${key}`}>{detail}</small>
-                    </span>
-                  </button>
-                ),
-              )}
-            </div>
-          </fieldset>
-        )}
         {demonstrationAdded && (
           <GuidedItemFieldset
             legend="Aula experimental"
@@ -1213,6 +1176,44 @@ export function PatientModal({
                 setProductPayment((current) => ({ ...current, ...patch }))
               }
             />
+          </fieldset>
+        )}
+        {/* Menu de adicionar sempre depois do último item, logo acima da sacola. */}
+        {addOptions.length > 0 && (
+          <fieldset className="form-fieldset guided-add span-2">
+            <legend>O que o cliente vai fazer?</legend>
+            <p className="field-hint">{addedSummary}</p>
+            <p className="guided-item-notice" role="status">
+              {itemNotice && (
+                <span key={itemNotice.id}>
+                  <CheckCircle2 size={16} aria-hidden="true" />
+                  {itemNotice.text}
+                </span>
+              )}
+            </p>
+            <div className="guided-add-grid">
+              {addOptions.map(
+                ({ key, label, detail, icon: Icon, disabled }) => (
+                  <button
+                    type="button"
+                    key={key}
+                    className="guided-add-option"
+                    aria-label={label}
+                    aria-describedby={`guided-add-${key}`}
+                    disabled={disabled || !editable || loading}
+                    onClick={() => addItem(key)}
+                  >
+                    <span className="guided-add-icon" aria-hidden="true">
+                      <Icon size={18} />
+                    </span>
+                    <span className="guided-add-text">
+                      <strong>{label}</strong>
+                      <small id={`guided-add-${key}`}>{detail}</small>
+                    </span>
+                  </button>
+                ),
+              )}
+            </div>
           </fieldset>
         )}
         {(sellsItems > 0 || productLines.length > 0) && (
