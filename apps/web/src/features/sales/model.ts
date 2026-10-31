@@ -200,6 +200,46 @@ export function restockSizes(product: Product): string[] {
     .filter((label) => !soldOut.has(label));
 }
 
+export type SizeStockState = "ok" | "restock" | "sold_out";
+
+/**
+ * Saldo de cada tamanho para a lista de estoque, com a situação do tamanho: esgotado (tamanho
+ * configurado zerado com o produto ainda com saldo) ou no aviso de reposição.
+ */
+export function sizeStockSummary(product: Product): {
+  key: string;
+  label: string;
+  stock: number;
+  state: SizeStockState;
+}[] {
+  const hasStock = product.currentStock > 0;
+  const restock = new Set<ProductSize>(
+    hasStock ? productRestockSizes(product) : [],
+  );
+  return product.sizeStock.map((entry) => {
+    const configured =
+      entry.size !== null && product.sizes.includes(entry.size);
+    const state: SizeStockState =
+      hasStock && configured && entry.currentStock <= 0
+        ? "sold_out"
+        : entry.size !== null && restock.has(entry.size)
+          ? "restock"
+          : "ok";
+    return {
+      key: sizeChoiceValue(entry.size),
+      label: productSizeLabel(entry.size),
+      stock: entry.currentStock,
+      state,
+    };
+  });
+}
+
+/** Texto do saldo por tamanho ("P: 4 · M: 10"), usado como nome acessível da lista. */
+export const sizeStockText = (product: Product) =>
+  sizeStockSummary(product)
+    .map((entry) => `${entry.label}: ${entry.stock}`)
+    .join(" · ");
+
 /** Saldo que pode ser vendido no tamanho (ou sem tamanho, para produto sem tamanhos). */
 export function sellableStock(product: Product, size: ProductSize | undefined) {
   return (
