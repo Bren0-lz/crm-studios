@@ -51,7 +51,6 @@
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior-y: contain;
-  scrollbar-width: thin;
   margin-top: var(--space-6);
   padding: var(--space-1);
   margin-inline: calc(-1 * var(--space-1));
