@@ -308,7 +308,26 @@
 
 /* audit: mobile-ok no celular (≤ 700px) a linha vira cartão de 1 coluna */
 .payables-table .finance-row {
-  grid-template-columns: minmax(0, 1fr) 90px 130px 140px minmax(180px, auto);
+  /* Ações com largura fixa (cabe "Comprovantes" + "Estornar"): com `auto`, cada linha
+     tinha a própria largura e as colunas do meio saíam do alinhamento com o cabeçalho. */
+  grid-template-columns:
+    minmax(0, 1fr) 110px 140px 150px
+    calc(var(--space-8) * 3 + var(--space-5));
+  column-gap: var(--space-5);
+}
+
+/* Contas a pagar: colunas do meio e ações centralizadas, cabeçalho e linhas iguais. */
+.payables-table .finance-row > :not(:first-child) {
+  text-align: center;
+}
+
+.payables-table .finance-head {
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.payables-table .finance-actions {
+  justify-content: center;
 }
 
 /* Colunas de largura fixa: cada linha é uma grade própria e precisa bater com o cabeçalho.
