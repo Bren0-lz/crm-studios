@@ -164,14 +164,43 @@ describe("settings workflows through real HTTP handlers", () => {
       within(dialog).getByRole("button", { name: "Adicionar item" }),
     );
     change("Produto 2", "new", dialog);
-    change("Nome do produto 2", "Óleo de massagem", dialog);
-    change("Quantidade 2", "5", dialog);
+    // O cadastro do produto abre por cima do pedido, sem fechá-lo.
+    const productDialog = screen.getByRole("dialog", { name: "Novo produto" });
+    expect(dialog).toBeInTheDocument();
+    expect(
+      within(productDialog).queryByLabelText("Estoque inicial"),
+    ).not.toBeInTheDocument();
+    change("Nome", "Óleo de massagem", productDialog);
+    change("Código do produto", "OLEO", productDialog);
+    fireEvent.click(
+      within(productDialog).getByLabelText(
+        "Este produto tem distinção de tamanho",
+      ),
+    );
+    change("Novo tamanho", "100 ml, 250 ml", productDialog);
+    fireEvent.click(
+      within(productDialog).getByRole("button", { name: "Adicionar" }),
+    );
+    await save("Novo produto", "Salvar produto");
+    await waitFor(() =>
+      expect(within(dialog).getByLabelText("Produto 2")).toHaveDisplayValue(
+        "Óleo de massagem",
+      ),
+    );
+    expect(
+      within(dialog).queryByLabelText("Quantidade 2"),
+    ).not.toBeInTheDocument();
+    change("Quantidade 100 ml do item 2", "2", dialog);
+    change("Quantidade 250 ml do item 2", "3", dialog);
     change("Custo unitário 2", "3000", dialog);
     expect(within(dialog).getByText(/Soma dos itens: R\$\s?180,00/));
     await save("Novo pedido", "Registrar pedido");
 
     expect(
-      await within(history).findByText("5× Óleo de massagem"),
+      await within(history).findByText("2× Óleo de massagem · 100 ml"),
+    ).toBeInTheDocument();
+    expect(
+      within(history).getByText("3× Óleo de massagem · 250 ml"),
     ).toBeInTheDocument();
     expect(within(history).getByText("3× Faixa elástica")).toBeInTheDocument();
     expect(within(history).getByText("20/10/2026")).toBeInTheDocument();
@@ -179,7 +208,11 @@ describe("settings workflows through real HTTP handlers", () => {
       .products;
     expect(
       products.find((item) => item.name === "Óleo de massagem"),
-    ).toMatchObject({ salePriceInCents: null, currentStock: 5 });
+    ).toMatchObject({
+      salePriceInCents: null,
+      currentStock: 5,
+      sizes: ["100 ml", "250 ml"],
+    });
     expect(products.find((item) => item.id === band.id)?.currentStock).toBe(4);
     expect(
       await repository.listSupplierOrders(clinicId, supplier.id),

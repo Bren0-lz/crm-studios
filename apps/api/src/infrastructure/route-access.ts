@@ -509,6 +509,11 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
     "reports.sales",
     "reports.sales_export",
   ),
+  "GET /reports/campaigns": operation("reports.campaigns"),
+  "GET /reports/campaigns.xlsx": operation(
+    "reports.campaigns",
+    "reports.campaigns_export",
+  ),
   "GET /reports/sales": operation("reports.sales"),
   "GET /reports/sales/patients/:id": operation("reports.sales"),
   "GET /reports/sales.xlsx": operation("reports.sales", "reports.sales_export"),
