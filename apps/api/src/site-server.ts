@@ -9,7 +9,7 @@ import { createWebHandler } from "./infrastructure/web-static.js";
 
 /**
  * Site e API num só processo Node, no mesmo domínio (app Node.js da Hostinger): `/api/*` vai
- * para o Fastify sem o prefixo, como na função da Vercel; o resto é o site de `apps/web/dist`,
+ * para o Fastify sem o prefixo; o resto é o site de `apps/web/dist`,
  * compilado com `VITE_API_URL=/api` (`npm run hostinger-build`). Na hospedagem roda o bundle
  * `apps/api/dist/site-server.mjs` (`npm start`).
  */

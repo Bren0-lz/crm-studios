@@ -9,6 +9,5 @@ coverage/
 .idea/
 .vscode/
 
-.vercel/
 playwright-report/
 test-results/
