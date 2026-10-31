@@ -1,9 +1,11 @@
-import type { PatientTab } from "@crm/contracts";
+import type { PatientTab, Product } from "@crm/contracts";
 import { describe, expect, it } from "vitest";
 import {
   monthPeriod,
   productSales,
   salesTabFromParam,
+  sizeStockSummary,
+  sizeStockText,
   summarizeProductSales,
 } from "./model";
 
@@ -90,5 +92,53 @@ describe("vendas de produtos", () => {
       "b",
       "a",
     ]);
+  });
+});
+
+describe("estoque por tamanho", () => {
+  const shirt = {
+    currentStock: 40,
+    restockAlertAt: 3,
+    sizes: ["P", "M", "G", "XG"],
+    sizeStock: [
+      { size: "P", currentStock: 4 },
+      { size: "M", currentStock: 10 },
+      { size: "G", currentStock: 0 },
+      { size: "XG", currentStock: 2 },
+      { size: null, currentStock: 24 },
+    ],
+  } as unknown as Product;
+
+  it("marca cada tamanho como esgotado, a repor ou em dia", () => {
+    expect(
+      sizeStockSummary(shirt).map(({ label, stock, state }) => [
+        label,
+        stock,
+        state,
+      ]),
+    ).toEqual([
+      ["P", 4, "ok"],
+      ["M", 10, "ok"],
+      ["G", 0, "sold_out"],
+      ["XG", 2, "restock"],
+      ["Sem tamanho", 24, "ok"],
+    ]);
+    expect(sizeStockText(shirt)).toBe(
+      "P: 4 · M: 10 · G: 0 · XG: 2 · Sem tamanho: 24",
+    );
+  });
+
+  it("não marca tamanhos quando o produto todo está sem estoque", () => {
+    const empty = {
+      ...shirt,
+      currentStock: 0,
+      sizeStock: shirt.sizeStock.map((entry) => ({
+        ...entry,
+        currentStock: 0,
+      })),
+    } as Product;
+    expect(sizeStockSummary(empty).every((entry) => entry.state === "ok")).toBe(
+      true,
+    );
   });
 });
