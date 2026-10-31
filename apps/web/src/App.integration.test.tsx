@@ -12664,7 +12664,7 @@ describe("guided client registration", () => {
     });
   }
 
-  it("asks what the client will do and only registers when chosen 'Só cadastrar por enquanto'", async () => {
+  it("asks what the client will do and only registers when nothing is added", async () => {
     const posts = mockApi(() => jsonResponse({ patient: created }, 201));
     renderAs(storedUser(admin));
     const dialog = await openNewClient();
@@ -12673,19 +12673,19 @@ describe("guided client registration", () => {
     });
     expect(
       within(question)
-        .getAllByRole("radio")
-        .map((radio) => radio.closest("label")?.textContent),
+        .getAllByRole("button")
+        .map((button) => button.getAttribute("aria-label")),
     ).toEqual([
-      "Aula experimental",
-      "Assinar um plano",
-      "Serviço avulso",
-      "Só cadastrar por enquanto",
+      "Agendar aula experimental",
+      "Adicionar plano",
+      "Adicionar serviço avulso",
+      "Adicionar produto",
     ]);
     expect(
-      within(question).getByRole("radio", {
-        name: "Só cadastrar por enquanto",
-      }),
-    ).toBeChecked();
+      within(question).getByText(
+        "Nada adicionado: só o cadastro do cliente será salvo.",
+      ),
+    ).toBeInTheDocument();
     fireEvent.click(
       within(dialog).getByRole("button", { name: "Salvar cliente" }),
     );
@@ -12733,7 +12733,7 @@ describe("guided client registration", () => {
     renderAs(storedUser(admin));
     const dialog = await openNewClient();
     fireEvent.click(
-      within(dialog).getByRole("radio", { name: "Aula experimental" }),
+      within(dialog).getByRole("button", { name: "Agendar aula experimental" }),
     );
     const service = await within(dialog).findByLabelText("Serviço");
     expect(service).toHaveValue(pilatesId);
@@ -12785,7 +12785,7 @@ describe("guided client registration", () => {
     renderAs(storedUser(admin));
     const dialog = await openNewClient();
     fireEvent.click(
-      within(dialog).getByRole("radio", { name: "Aula experimental" }),
+      within(dialog).getByRole("button", { name: "Agendar aula experimental" }),
     );
     await within(dialog).findByLabelText("Serviço");
     fireEvent.change(within(dialog).getByLabelText("Data e horário"), {
@@ -12805,8 +12805,8 @@ describe("guided client registration", () => {
       "Marina Costa",
     );
     expect(
-      within(dialog).getByRole("radio", { name: "Aula experimental" }),
-    ).toBeChecked();
+      within(dialog).getByRole("group", { name: "Aula experimental" }),
+    ).toBeInTheDocument();
     expect(within(dialog).getByLabelText("Data e horário")).toHaveValue(
       "2026-10-06T09:00",
     );
@@ -12859,7 +12859,7 @@ describe("guided client registration", () => {
     renderAs(storedUser(admin));
     const dialog = await openNewClient();
     fireEvent.click(
-      within(dialog).getByRole("radio", { name: "Assinar um plano" }),
+      within(dialog).getByRole("button", { name: "Adicionar plano" }),
     );
     const catalog = await within(dialog).findByLabelText("Plano cadastrado");
     expect(catalog).toHaveValue("");
@@ -12955,7 +12955,7 @@ describe("guided client registration", () => {
     renderAs(storedUser(admin));
     const dialog = await openNewClient();
     fireEvent.click(
-      within(dialog).getByRole("radio", { name: "Serviço avulso" }),
+      within(dialog).getByRole("button", { name: "Adicionar serviço avulso" }),
     );
     const catalog = await within(dialog).findByLabelText("Plano cadastrado");
     fireEvent.change(catalog, { target: { value: singleTemplate.id } });
@@ -12986,11 +12986,16 @@ describe("guided client registration", () => {
     mockApi(() => jsonResponse({ patient: created }, 201));
     renderAs(customUser(["patients"]));
     let dialog = await openNewClient();
+    // Sem Agenda nem Planos: só a venda de produtos (que vem com Clientes).
     expect(
-      within(dialog).queryByRole("group", {
-        name: "O que o cliente vai fazer?",
-      }),
-    ).not.toBeInTheDocument();
+      within(
+        within(dialog).getByRole("group", {
+          name: "O que o cliente vai fazer?",
+        }),
+      )
+        .getAllByRole("button")
+        .map((button) => button.getAttribute("aria-label")),
+    ).toEqual(["Adicionar produto"]);
     expect(
       within(dialog).getByRole("button", { name: "Salvar cliente" }),
     ).toBeInTheDocument();
@@ -13003,9 +13008,9 @@ describe("guided client registration", () => {
     });
     expect(
       within(question)
-        .getAllByRole("radio")
-        .map((radio) => radio.closest("label")?.textContent),
-    ).toEqual(["Aula experimental", "Só cadastrar por enquanto"]);
+        .getAllByRole("button")
+        .map((button) => button.getAttribute("aria-label")),
+    ).toEqual(["Agendar aula experimental", "Adicionar produto"]);
     cleanup();
 
     // Edita Planos mas não Turmas: plano sem o campo de turma (e sem buscar as turmas).
@@ -13016,15 +13021,15 @@ describe("guided client registration", () => {
     });
     expect(
       within(question)
-        .getAllByRole("radio")
-        .map((radio) => radio.closest("label")?.textContent),
+        .getAllByRole("button")
+        .map((button) => button.getAttribute("aria-label")),
     ).toEqual([
-      "Assinar um plano",
-      "Serviço avulso",
-      "Só cadastrar por enquanto",
+      "Adicionar plano",
+      "Adicionar serviço avulso",
+      "Adicionar produto",
     ]);
     fireEvent.click(
-      within(dialog).getByRole("radio", { name: "Assinar um plano" }),
+      within(dialog).getByRole("button", { name: "Adicionar plano" }),
     );
     await within(dialog).findByLabelText("Plano cadastrado");
     expect(within(dialog).queryByLabelText(/^Turma/)).not.toBeInTheDocument();
