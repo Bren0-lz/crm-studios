@@ -232,7 +232,8 @@ const productBaseSchema = z.object({
   categoryId: z.uuid().nullable().optional(),
   brandId: z.uuid().nullable().optional(),
   name: z.string().trim().min(2).max(160),
-  sku: z.string().trim().min(1).max(60),
+  /** Ausente = gerado automaticamente (cadastro) ou mantém o atual (edição). */
+  sku: z.string().trim().min(1).max(60).optional(),
   unit: z.string().trim().min(1).max(20).default("un"),
   costInCents: z.number().int().min(0),
   /** `null` = preço ainda não definido: o produto fica cadastrado, mas não pode ser vendido. */
