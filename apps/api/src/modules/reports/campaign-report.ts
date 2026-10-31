@@ -1,9 +1,11 @@
 import {
+  autoCampaignBlockedReasonLabels,
   autoCampaignSkipReasonLabels,
   autoCampaignStepLabel,
   autoCampaignTriggerLabels,
   type AutoCampaign,
   type AutoCampaignDelivery,
+  type AutoCampaignItem,
   type AutoCampaignRedemption,
   type CampaignReport,
   type CampaignReportMessage,
@@ -21,6 +23,29 @@ export interface CampaignReportSources {
   deliveries: AutoCampaignDelivery[];
   redemptions: AutoCampaignRedemption[];
   patients: Patient[];
+  /**
+   * Fila de hoje das automáticas (só na planilha): as mensagens ainda não marcadas entram
+   * como previstas, sem mudar os totais do relatório.
+   */
+  queue?: AutoCampaignItem[] | undefined;
+}
+
+/** Uso da promoção pelo cliente nesta ocorrência; um uso ativo vale mais que um cancelado. */
+function redemptionOf(
+  redemptions: AutoCampaignRedemption[],
+  campaignId: string,
+  patientId: string,
+  occurrenceKey: string,
+) {
+  const own = redemptions.filter(
+    (item) =>
+      item.campaignId === campaignId &&
+      item.patientId === patientId &&
+      item.occurrenceKey === occurrenceKey,
+  );
+  return (
+    own.find((item) => item.appointmentStatus !== "cancelled") ?? own.at(-1)
+  );
 }
 
 /** Campanhas manuais criadas entre as datas (dia da clínica). */
@@ -85,6 +110,7 @@ export function buildCampaignReport(
         detail: "",
         handledAt: recipient.handledAt,
         handledByName: recipient.handledByName,
+        message: recipient.message,
       });
   }
 
@@ -114,10 +140,42 @@ export function buildCampaignReport(
       skipped: deliveries.length - sent,
       pending: 0,
       redemptions,
+      promotional: Boolean(campaign.promotion),
     });
+    const promotionOf = (
+      patientId: string,
+      occurrenceKey: string,
+      validUntil: string | undefined,
+    ) => {
+      if (!campaign.promotion) return {};
+      const used = redemptionOf(
+        sources.redemptions,
+        campaign.id,
+        patientId,
+        occurrenceKey,
+      );
+      return {
+        promotion: {
+          validUntil,
+          redeemedOn: used?.redeemedOn,
+          appointmentStatus: used?.appointmentStatus,
+        },
+      };
+    };
     for (const delivery of deliveries) {
       const patient = patients.get(delivery.patientId);
       const step = campaign.steps.find((item) => item.id === delivery.stepId);
+      const stepLabel = step
+        ? autoCampaignStepLabel(campaign.trigger, step.offset)
+        : "";
+      const reason = [
+        delivery.skipReason
+          ? autoCampaignSkipReasonLabels[delivery.skipReason]
+          : "",
+        delivery.note ?? "",
+      ]
+        .filter(Boolean)
+        .join(" · ");
       messages.push({
         campaignId: campaign.id,
         campaignName: campaign.name,
@@ -125,17 +183,41 @@ export function buildCampaignReport(
         patientName: patient?.fullName ?? "Cliente removido",
         phone: patient ? destination(patient, "whatsapp") : "",
         status: delivery.status,
-        detail: [
-          step ? autoCampaignStepLabel(campaign.trigger, step.offset) : "",
-          delivery.skipReason
-            ? autoCampaignSkipReasonLabels[delivery.skipReason]
-            : "",
-          delivery.note ?? "",
-        ]
-          .filter(Boolean)
-          .join(" · "),
+        detail: [stepLabel, reason].filter(Boolean).join(" · "),
         handledAt: delivery.handledAt,
         handledByName: delivery.handledByName,
+        step: stepLabel,
+        reason,
+        message: delivery.message,
+        ...promotionOf(
+          delivery.patientId,
+          delivery.occurrenceKey,
+          delivery.promotionValidUntil,
+        ),
+      });
+    }
+    // O que já foi marcado veio acima; da fila entram só as previstas e as bloqueadas.
+    for (const item of sources.queue ?? []) {
+      if (item.campaignId !== campaign.id || item.delivery) continue;
+      const reason = item.blockedReason
+        ? autoCampaignBlockedReasonLabels[item.blockedReason]
+        : "";
+      messages.push({
+        campaignId: campaign.id,
+        campaignName: campaign.name,
+        kind: "automatic",
+        patientName: item.patientName,
+        phone: item.phone,
+        status: item.status,
+        detail: [item.stepLabel, item.detail, reason]
+          .filter(Boolean)
+          .join(" · "),
+        step: item.stepLabel,
+        eventDate: item.eventDate,
+        reason,
+        message: item.message,
+        upcoming: true,
+        ...promotionOf(item.patientId, item.occurrenceKey, undefined),
       });
     }
   }

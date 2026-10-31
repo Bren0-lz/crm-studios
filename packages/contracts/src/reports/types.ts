@@ -7,6 +7,7 @@ import type {
 import type {
   Appointment,
   AppointmentReportBreakdown,
+  AppointmentStatus,
   AppointmentVisitType,
 } from "../agenda/types.js";
 import type { CommercialSourceBreakdown } from "../commercial/types.js";
@@ -87,6 +88,8 @@ export interface CampaignReportRow {
   pending: number;
   /** Agendamentos com a promoção da campanha no período, sem os cancelados. */
   redemptions: number;
+  /** Campanha automática promocional (tem promoção para usar ao agendar). */
+  promotional?: boolean | undefined;
 }
 
 /**
@@ -121,6 +124,24 @@ export interface CampaignReportMessage {
   detail: string;
   handledAt?: string | undefined;
   handledByName?: string | undefined;
+  /** Mensagem da campanha automática ("No dia", "2 dias antes"…). */
+  step?: string | undefined;
+  /** Data do evento (aaaa-mm-dd), quando houver. */
+  eventDate?: string | undefined;
+  /** Motivo de não envio (escolhido pela equipe ou apontado pelo sistema) e observação. */
+  reason?: string | undefined;
+  /** Texto da mensagem (personalizado para o cliente). */
+  message?: string | undefined;
+  /** Ainda não marcada e prevista na fila de hoje (campanha automática). */
+  upcoming?: boolean | undefined;
+  /** Só campanhas promocionais: validade e uso da promoção por este cliente. */
+  promotion?:
+    | {
+        validUntil?: string | undefined;
+        redeemedOn?: string | undefined;
+        appointmentStatus?: AppointmentStatus | undefined;
+      }
+    | undefined;
 }
 
 export type DashboardViewSummary = Pick<DashboardSummary, "date"> &
