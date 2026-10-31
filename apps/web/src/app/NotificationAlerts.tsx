@@ -2,8 +2,8 @@ import { AlertTriangle, BellRing, X } from "lucide-react";
 import type { NotificationCenter } from "./notification-center";
 
 /**
- * Faixa de alertas abaixo do cabeçalho: os grupos destacados nas preferências, com atalho
- * para cada tela. "Dispensar" esconde até alguma contagem crescer (ou a sessão acabar).
+ * Alertas fixos no cabeçalho: os grupos destacados nas preferências, com atalho para cada
+ * tela. Não tem como fechar: some só quando as pendências destacadas zeram.
  */
 export function NotificationsBanner({
   center,
@@ -17,7 +17,9 @@ export function NotificationsBanner({
   const total = groups.reduce((sum, group) => sum + group.count, 0);
   return (
     <section className="notification-banner" aria-label="Alertas">
-      <AlertTriangle size={18} aria-hidden="true" />
+      <span className="notification-banner-icon" aria-hidden="true">
+        <AlertTriangle size={16} />
+      </span>
       <strong>
         {total === 1
           ? "1 pendência pede atenção"
@@ -29,6 +31,7 @@ export function NotificationsBanner({
             <button
               type="button"
               className="notification-banner-item"
+              title={group.detail}
               onClick={() => onNavigate(group.to)}
             >
               {group.icon}
@@ -38,15 +41,6 @@ export function NotificationsBanner({
           </li>
         ))}
       </ul>
-      <button
-        type="button"
-        className="icon-button notification-banner-close"
-        aria-label="Dispensar alertas"
-        title="Dispensar alertas"
-        onClick={center.dismissBanner}
-      >
-        <X size={16} />
-      </button>
     </section>
   );
 }
