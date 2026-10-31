@@ -312,6 +312,70 @@
   margin-top: var(--space-4);
 }
 
+/* "O que o cliente vai fazer?": um botão "Adicionar" para cada item do cadastro guiado. */
+.guided-add > .field-hint {
+  margin: 0 0 var(--space-3);
+}
+.guided-add-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+  gap: var(--space-3);
+}
+.guided-add-option {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--paper);
+  box-shadow: var(--shadow-sm);
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    background-color 0.15s ease;
+}
+.guided-add-option:hover:not(:disabled) {
+  border-color: var(--green);
+  background: #fff;
+}
+.guided-add-option:focus-visible {
+  outline: 2px solid var(--green);
+  outline-offset: 2px;
+}
+.guided-add-option:disabled {
+  box-shadow: none;
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+.guided-add-icon {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: var(--space-6);
+  height: var(--space-6);
+  border-radius: var(--radius-sm);
+  background: var(--mint);
+  color: var(--green);
+}
+.guided-add-text {
+  display: grid;
+  gap: calc(var(--space-1) - 2px);
+  min-width: 0;
+}
+.guided-add-text strong {
+  font-size: var(--text-md);
+  font-weight: 600;
+}
+.guided-add-text small {
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+
 .form-fieldset legend {
   padding: 0 6px;
   color: #4d5b55;
