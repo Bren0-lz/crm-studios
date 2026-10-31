@@ -566,6 +566,42 @@ export function createFinanceRepository(
     },
 
     async getFinancialSummary(clinicId: string): Promise<FinancialSummary> {
+      // Plano e serviços de origem saem do que já foi vendido (plano ou comanda).
+      const receivableOrigin = (
+        item: Receivable,
+      ): Pick<Receivable, "source" | "planName" | "services"> => {
+        const plan = item.planId
+          ? repositoryContext.patientPlans.find(
+              (candidate) =>
+                candidate.clinicId === item.clinicId &&
+                candidate.id === item.planId,
+            )
+          : undefined;
+        if (plan)
+          return {
+            source: "plan",
+            planName: plan.name,
+            services: plan.services.length
+              ? plan.services.map((service) => ({
+                  id: service.serviceId,
+                  name: service.serviceName,
+                }))
+              : [{ id: plan.serviceId, name: plan.serviceName }],
+          };
+        const tab = repositoryContext.patientTabs.find(
+          (candidate) =>
+            candidate.clinicId === item.clinicId &&
+            candidate.receivableId === item.id,
+        );
+        if (!tab) return { source: item.planId ? "plan" : "manual" };
+        const services = new Map(
+          (tab.services ?? []).map((service) => [
+            service.serviceId,
+            { id: service.serviceId, name: service.serviceName },
+          ]),
+        );
+        return { source: "tab", services: [...services.values()] };
+      };
       const currentDate = clinicDateOf(
         new Date(),
         repositoryContext.clinicSettings.timezone,
@@ -578,6 +614,7 @@ export function createFinanceRepository(
         )
         .map((item) => ({
           ...item,
+          ...receivableOrigin(item),
           overdue: item.status === "open" && item.dueDate < currentDate,
         }))
         .sort((a, b) => a.dueDate.localeCompare(b.dueDate));
