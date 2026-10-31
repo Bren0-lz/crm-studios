@@ -24,6 +24,8 @@ import { registerPlansRoutes } from "./modules/plans/routes.js";
 import { registerRelationshipRoutes } from "./modules/relationship/routes.js";
 import { registerReportsRoutes } from "./modules/reports/routes.js";
 import { registerWaitlistRoutes } from "./modules/waitlist/routes.js";
+import { registerIntegrationRoutes } from "./modules/integrations/routes.js";
+import { registerExternalRoutes } from "./modules/external/routes.js";
 
 export async function buildApp(options: BuildAppOptions) {
   const context = await createRouteContext(options);
@@ -31,6 +33,7 @@ export async function buildApp(options: BuildAppOptions) {
   registerBranchesRoutes(context);
   registerCatalogRoutes(context);
   registerAdministrationRoutes(context);
+  registerIntegrationRoutes(context);
   registerRelationshipRoutes(context);
   registerWaitlistRoutes(context);
   registerAgendaRoutes(context);
@@ -51,5 +54,6 @@ export async function buildApp(options: BuildAppOptions) {
   registerAutoCampaignRoutes(context);
   registerContractsRoutes(context);
   registerReportsRoutes(context);
+  registerExternalRoutes(context);
   return context.app;
 }
