@@ -1488,7 +1488,6 @@ describe("CRM API", () => {
         from: string;
         to: string;
         topBySessions: { patientId: string; completedSessions: number }[];
-        topByRevenue: { patientId: string; receivedInCents: number }[];
         activeClients: number;
         ageDistribution: { band: string; clients: number }[];
       };
@@ -1629,13 +1628,8 @@ describe("CRM API", () => {
         adult,
         noDate,
       ]);
-      expect(
-        after.topByRevenue.find((item) => item.patientId === noDate)
-          ?.receivedInCents,
-      ).toBe(12_000);
-      expect(after.topByRevenue.some((item) => item.patientId === adult)).toBe(
-        false,
-      );
+      // Receita por cliente fica em Vendas (maiores compradores), não aqui.
+      expect(after).not.toHaveProperty("topByRevenue");
       expect(after.activeClients - before.activeClients).toBe(2);
       const bandDelta = (band: string) =>
         after.ageDistribution.find((item) => item.band === band)!.clients -
@@ -1647,9 +1641,6 @@ describe("CRM API", () => {
       // Fora do período: nada dos novos clientes nos rankings.
       const april = await clientsReport("?from=2034-04-01&to=2034-04-30");
       expect(april.topBySessions.some((item) => item.patientId === adult)).toBe(
-        false,
-      );
-      expect(april.topByRevenue.some((item) => item.patientId === noDate)).toBe(
         false,
       );
 

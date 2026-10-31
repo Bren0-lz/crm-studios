@@ -94,7 +94,8 @@ export function ReportsDetails({ period }: { period: ReportPeriod }) {
               <div>
                 <h2>Como a clínica foi no período</h2>
                 <p className="panel-context">
-                  Dinheiro, atendimentos, turmas e satisfação dos clientes.
+                  Atendimentos, comercial, turmas e satisfação dos clientes.
+                  Vendas e dinheiro ficam nas abas Vendas e Financeiro.
                 </p>
               </div>
               {can("reports.management_export") && (
@@ -197,8 +198,9 @@ export function ReportsDetails({ period }: { period: ReportPeriod }) {
                     turma) pelo valor da sessão no plano do cliente ou, sem
                     plano, pelo preço do serviço. Comissão = comissões geradas
                     nas competências do período mais a previsão das sessões
-                    ainda sem comissão. Turmas: alunos ativos × valor da sessão
-                    × aulas por mês (horários semanais × 4); potencial =
+                    ainda sem comissão (o que já foi pago e o que falta pagar
+                    ficam no Financeiro). Turmas: alunos ativos × valor da
+                    sessão × aulas por mês (horários semanais × 4); potencial =
                     capacidade × valor médio por vaga.
                   </>
                 )}

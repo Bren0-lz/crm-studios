@@ -3,6 +3,9 @@ import {
   patientFirstName,
   whatsappLink,
   type PatientWithoutReturn,
+  type SaleMovement,
+  type SalesBreakdownRow,
+  type SalesPeriodReport,
 } from "@crm/contracts";
 import { Download, History, MessageCircle, Search, X } from "lucide-react";
 import { api } from "../../api";
@@ -10,6 +13,7 @@ import { useAuthorization } from "../../authorization-context";
 import { ErrorBanner } from "../../shared/components/ErrorBanner";
 import { EmptyState } from "../../shared/components/EmptyState";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
+import { TrendBadge } from "../../shared/components/TrendBadge";
 import {
   currency,
   formatIsoDate,
@@ -24,7 +28,11 @@ import {
   matchesContracted,
   matchesNoReturnSchedule,
   noReturnScheduleFilterLabels,
+  plural,
+  saleMargin,
+  saleTypeLabels,
   salesChartPoints,
+  salesDay,
   searchPatientsWithoutReturn,
   type NoReturnScheduleFilter,
 } from "./model";
@@ -49,6 +57,10 @@ export function SalesInsights({
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState({ period, message: "" });
   const [historyOf, setHistoryOf] = useState<PatientWithoutReturn | null>(null);
+  const [buyerHistory, setBuyerHistory] = useState<{
+    patientId: string;
+    patientName: string;
+  } | null>(null);
   const [search, setSearch] = useState("");
   const [schedule, setSchedule] = useState<NoReturnScheduleFilter>("all");
   const [contracted, setContracted] = useState("");
@@ -311,13 +323,15 @@ export function SalesInsights({
     );
   }
   const chart = report ? salesChartPoints(report) : null;
+  const summary = report?.summary;
   return (
     <section className="panel reports-sales">
       <div className="panel-head">
         <div>
-          <h2>Vendas e recebimentos</h2>
+          <h2>Vendas</h2>
           <p className="panel-context">
-            Vendas realizadas e pagamentos registrados no período selecionado.
+            O que foi vendido no período: planos, serviços avulsos e produtos. O
+            dinheiro recebido fica no Financeiro.
           </p>
         </div>
         {can("reports.sales_export") && (
@@ -337,57 +351,160 @@ export function SalesInsights({
         <ErrorBanner error={exportError.message} />
       )}
       {loading && <LoadingBlock />}
-      {report && (
+      {report && summary && (
         <div className="reports-body">
-          <div className="reports-kpis">
+          <div className="reports-kpis sales-kpis">
             <article>
               <span>Vendido líquido</span>
-              <strong>{money(report.summary.netSalesInCents)}</strong>
+              <strong>{money(summary.netSalesInCents)}</strong>
+              <TrendBadge
+                changePercent={report.changePercent}
+                changeInCents={report.changeInCents}
+                hasCurrentValue={summary.netSalesInCents !== 0}
+                comparison="em relação ao período anterior"
+              />
               <small>
-                {money(report.summary.grossSalesInCents)} em vendas ·{" "}
-                {money(report.summary.cancelledSalesInCents)} em estornos
-                {report.summary.customerDiscountInCents
-                  ? ` · ${money(report.summary.customerDiscountInCents)} em descontos a clientes`
+                {money(summary.grossSalesInCents)} em vendas
+                {summary.cancelledInPeriodSalesInCents
+                  ? ` · ${money(summary.cancelledInPeriodSalesInCents)} cancelados`
+                  : ""}
+                {summary.customerDiscountInCents
+                  ? ` · ${money(summary.customerDiscountInCents)} em descontos a clientes`
                   : ""}
               </small>
             </article>
             <article>
-              <span>Dinheiro recebido</span>
-              <strong>{money(report.summary.receivedInCents)}</strong>
-              <small>Pagamentos registrados, após estornos</small>
+              <span>Vendas</span>
+              <strong>{summary.salesCount}</strong>
+              <small>
+                Valor médio de {money(summary.averageTicketInCents)} por venda
+              </small>
             </article>
             <article>
-              <span>Clientes atendidos</span>
-              <strong>{report.summary.attendedPatients}</strong>
-              <small>Clientes com atendimento concluído</small>
+              <span>Clientes compradores</span>
+              <strong>{summary.buyers}</strong>
+              <small>
+                {plural(summary.newBuyers, "comprou", "compraram")} pela
+                primeira vez · {summary.buyers - summary.newBuyers} já{" "}
+                {summary.buyers - summary.newBuyers === 1 ? "era" : "eram"}{" "}
+                clientes
+              </small>
+            </article>
+            <article>
+              <span>Vendas já pagas</span>
+              <strong>{money(summary.payment.paidInCents)}</strong>
+              <small>
+                {money(summary.payment.openInCents)} em aberto
+                {summary.payment.overdueInCents
+                  ? ` · ${money(summary.payment.overdueInCents)} em atraso`
+                  : ""}
+              </small>
             </article>
           </div>
-          <div className="reports-chart-heading">
-            <h3>Evolução no período</h3>
-            <span className="panel-context">{chart?.grouping}</span>
-          </div>
-          {!report.sales.length && !report.payments.length ? (
+          {summary.cancelledPriorSalesInCents > 0 && (
+            <p className="panel-context sales-prior-cancellations">
+              {money(summary.cancelledPriorSalesInCents)} em cancelamentos de
+              vendas de períodos anteriores. Eles não entram no vendido líquido
+              deste período; veja quais são em &ldquo;Ver movimentos do
+              período&rdquo;.
+            </p>
+          )}
+          {!summary.salesCount && !report.sales.length ? (
             <EmptyState
-              title="Sem movimentações no período"
-              copy="Não houve vendas, cancelamentos ou recebimentos entre as datas selecionadas."
+              title="Sem vendas no período"
+              copy="Não houve vendas nem cancelamentos entre as datas selecionadas."
             />
           ) : (
-            <ReportChart
-              title="Vendas líquidas e recebimentos no período"
-              points={chart!.points}
-              series={[
-                {
-                  label: "Vendas líquidas",
-                  format: money,
-                  axisFormat: compactMoney,
-                },
-                {
-                  label: "Recebimentos",
-                  format: money,
-                  axisFormat: compactMoney,
-                },
-              ]}
-            />
+            <>
+              <div className="reports-chart-heading">
+                <h3>Evolução no período</h3>
+                <span className="panel-context">{chart?.grouping}</span>
+              </div>
+              <ReportChart
+                title="Vendas líquidas no período"
+                points={chart!.points}
+                series={[
+                  {
+                    label: "Vendas líquidas",
+                    format: money,
+                    axisFormat: compactMoney,
+                  },
+                ]}
+              />
+              <SalesBreakdownTable
+                title="Por tipo"
+                caption="Vendas por tipo no período"
+                rows={summary.byType}
+                firstColumn="Tipo"
+              />
+              <SalesBreakdownTable
+                title="Por item"
+                caption="Vendas por item no período"
+                rows={summary.byItem}
+                firstColumn="Item"
+                withCost
+              />
+              <div className="reports-chart-heading">
+                <h3>Maiores compradores</h3>
+              </div>
+              {!summary.topBuyers.length ? (
+                <EmptyState title="Nenhuma venda no período." copy="" />
+              ) : (
+                <div className="table-scroll">
+                  <table className="dre-table">
+                    <caption>Clientes que mais compraram no período</caption>
+                    <thead>
+                      <tr>
+                        <th scope="col">Cliente</th>
+                        <th scope="col" className="numeric-value">
+                          Vendas
+                        </th>
+                        <th scope="col" className="numeric-value">
+                          Líquido
+                        </th>
+                        <th scope="col" className="table-actions-head">
+                          Histórico
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {summary.topBuyers.map((item) => (
+                        <tr key={item.patientId}>
+                          <th scope="row">
+                            {item.patientName}
+                            {item.firstPurchase && (
+                              <small className="reports-cell-detail">
+                                Primeira compra
+                              </small>
+                            )}
+                          </th>
+                          <td className="numeric-value">{item.salesCount}</td>
+                          <td className="numeric-value">
+                            {money(item.netInCents)}
+                          </td>
+                          <td className="table-actions">
+                            <button
+                              type="button"
+                              className="secondary-button button-sm"
+                              aria-label={`Ver compras de ${item.patientName}`}
+                              onClick={() =>
+                                setBuyerHistory({
+                                  patientId: item.patientId,
+                                  patientName: item.patientName,
+                                })
+                              }
+                            >
+                              <History size={16} aria-hidden="true" />
+                              Compras
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </>
           )}
           <details className="report-data-disclosure">
             <summary>Ver movimentos do período</summary>
@@ -421,7 +538,11 @@ export function SalesInsights({
                           </small>
                         </th>
                         <td>
-                          {item.kind === "sale" ? "Venda" : "Cancelamento"}
+                          {item.kind === "sale"
+                            ? "Venda"
+                            : priorCancellation(item, report)
+                              ? `Cancelamento · venda de ${shortDate.format(new Date(item.saleOccurredAt!))}`
+                              : "Cancelamento"}
                         </td>
                         <td className="numeric-value">
                           {money(item.amountInCents)}
@@ -434,11 +555,121 @@ export function SalesInsights({
             )}
           </details>
           <p className="muted-copy">
-            A planilha traz cada venda, pagamento e cliente sem retorno
-            referentes ao período selecionado.
+            A planilha traz cada venda, os totais por item, os maiores
+            compradores e os clientes sem retorno do período selecionado.
           </p>
         </div>
       )}
+      {buyerHistory && (
+        <PatientSalesHistoryModal
+          patientId={buyerHistory.patientId}
+          patientName={buyerHistory.patientName}
+          onClose={() => setBuyerHistory(null)}
+        />
+      )}
     </section>
+  );
+}
+
+/** Cancelamento de uma venda feita antes do período (fica fora do líquido). */
+function priorCancellation(item: SaleMovement, report: SalesPeriodReport) {
+  if (!item.saleOccurredAt) return false;
+  return salesDay(item.saleOccurredAt) < report.from;
+}
+
+function SalesBreakdownTable({
+  title,
+  caption,
+  rows,
+  firstColumn,
+  withCost = false,
+}: {
+  title: string;
+  caption: string;
+  rows: SalesBreakdownRow[];
+  firstColumn: string;
+  withCost?: boolean;
+}) {
+  const showCost =
+    withCost && rows.some((row) => row.costInCents !== undefined);
+  return (
+    <>
+      <div className="reports-chart-heading">
+        <h3>{title}</h3>
+      </div>
+      {!rows.length ? (
+        <EmptyState title="Nenhuma venda no período." copy="" />
+      ) : (
+        <div className="table-scroll">
+          <table className="dre-table">
+            <caption>{caption}</caption>
+            <thead>
+              <tr>
+                <th scope="col">{firstColumn}</th>
+                <th scope="col" className="numeric-value">
+                  Vendas
+                </th>
+                <th scope="col" className="numeric-value">
+                  Qtd.
+                </th>
+                <th scope="col" className="numeric-value">
+                  Bruto
+                </th>
+                <th scope="col" className="numeric-value">
+                  Cancelado
+                </th>
+                <th scope="col" className="numeric-value">
+                  Líquido
+                </th>
+                {showCost && (
+                  <>
+                    <th scope="col" className="numeric-value">
+                      Custo
+                    </th>
+                    <th scope="col" className="numeric-value">
+                      Margem
+                    </th>
+                  </>
+                )}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row) => (
+                <tr key={row.key}>
+                  <th scope="row">
+                    {row.label}
+                    {withCost && (
+                      <small className="reports-cell-detail">
+                        {saleTypeLabels[row.sourceType]}
+                        {row.customerDiscountInCents
+                          ? ` · desconto do cliente ${money(row.customerDiscountInCents)}`
+                          : ""}
+                      </small>
+                    )}
+                  </th>
+                  <td className="numeric-value">{row.salesCount}</td>
+                  <td className="numeric-value">{row.quantity}</td>
+                  <td className="numeric-value">{money(row.grossInCents)}</td>
+                  <td className="numeric-value">
+                    {money(row.cancelledInCents)}
+                  </td>
+                  <td className="numeric-value">{money(row.netInCents)}</td>
+                  {showCost && (
+                    <>
+                      <td className="numeric-value">
+                        {row.costInCents === undefined
+                          ? "—"
+                          : money(row.costInCents)}
+                      </td>
+                      <td className="numeric-value">{saleMargin(row)}</td>
+                    </>
+                  )}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </>
   );
 }

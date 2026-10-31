@@ -155,7 +155,7 @@ export function NotificationSettingsModal({
               }))
             }
           />
-          Mostrar a faixa de alertas no topo da tela com os grupos destacados
+          Mostrar os grupos destacados como alerta fixo no cabeçalho
         </label>
         <label className="checkbox-field span-2">
           <input

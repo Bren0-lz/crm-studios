@@ -92,6 +92,7 @@ describe("settings tabs", () => {
       "Feriados",
       "Finalização automática",
       "Formas de pagamento",
+      "Integrações",
       "Etiquetas",
       "Cadastros",
       "Serviços e salas",

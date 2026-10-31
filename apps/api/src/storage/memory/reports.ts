@@ -17,6 +17,7 @@ import {
   buildSalesReport,
   buildSalesPeriodReport,
   patientSalesHistory,
+  type SalesBilling,
   withContractedHistory,
   withPatientContacts,
 } from "../../modules/reports/sales-report.js";
@@ -56,6 +57,7 @@ export function createReportsRepository(
           id: `${plan.id}:cancellation`,
           kind: "cancellation",
           occurredAt: plan.cancelledAt,
+          saleOccurredAt: plan.createdAt,
           amountInCents: -(
             plan.cancelledValueInCents ?? plan.totalValueInCents
           ),
@@ -74,6 +76,7 @@ export function createReportsRepository(
           productName: item.serviceName,
           quantity: 1,
           totalInCents: item.amountInCents,
+          unitCostInCents: undefined,
           sourceType: "service" as const,
         })),
       ];
@@ -96,6 +99,9 @@ export function createReportsRepository(
           kind: "sale",
           occurredAt: tab.closedAt!,
           amountInCents: item.totalInCents,
+          ...(item.unitCostInCents === undefined
+            ? {}
+            : { costInCents: item.quantity * item.unitCostInCents }),
         });
         if (tab.cancelledAt)
           sales.push({
@@ -103,13 +109,43 @@ export function createReportsRepository(
             id: `${item.id}:cancellation`,
             kind: "cancellation",
             occurredAt: tab.cancelledAt,
+            saleOccurredAt: tab.closedAt!,
             amountInCents: -item.totalInCents,
           });
       }
     }
+    const tabSources = new Map(
+      repositoryContext.patientTabs
+        .filter((tab) => tab.clinicId === clinicId && tab.receivableId)
+        .map((tab) => [tab.receivableId!, tab.id]),
+    );
+    const firstSaleAt = new Map<string, string>();
+    for (const item of sales) {
+      const first = firstSaleAt.get(item.patientId);
+      if (item.kind === "sale" && (!first || item.occurredAt < first))
+        firstSaleAt.set(item.patientId, item.occurredAt);
+    }
+    const billing: SalesBilling = {
+      receivables: repositoryContext.receivables
+        .filter((item) => item.clinicId === clinicId)
+        .flatMap((item) => {
+          const sourceId = item.planId ?? tabSources.get(item.id);
+          return sourceId
+            ? [
+                {
+                  sourceId,
+                  status: item.status,
+                  amountInCents: item.amountInCents,
+                  dueDate: item.dueDate,
+                },
+              ]
+            : [];
+        }),
+      firstSaleAt,
+    };
     return {
       sales,
-      payments: repositoryContext.receivedPayments(clinicId),
+      billing,
       appointments: repositoryContext
         .scoped(repositoryContext.appointments)
         .filter((item) => item.clinicId === clinicId),
@@ -283,7 +319,7 @@ export function createReportsRepository(
       return buildSalesReport(
         month,
         data.sales,
-        data.payments,
+        data.billing,
         data.appointments,
       );
     },
@@ -299,7 +335,7 @@ export function createReportsRepository(
             from,
             to,
             data.sales,
-            data.payments,
+            data.billing,
             data.appointments,
           ),
           data.sales,
@@ -456,48 +492,6 @@ export function createReportsRepository(
         const date = localDate(new Date(value));
         return date >= from && date <= to;
       };
-      const paidProductTabs = repositoryContext
-        .scoped(repositoryContext.patientTabs)
-        .filter((tab) => {
-          if (tab.clinicId !== clinicId || tab.status !== "closed")
-            return false;
-          const receivable = repositoryContext
-            .scoped(repositoryContext.receivables)
-            .find(
-              (item) => item.id === tab.receivableId && item.status === "paid",
-            );
-          return inPeriod(receivable?.paidAt);
-        });
-      const productReceivableIds = new Set(
-        paidProductTabs.flatMap((item) =>
-          item.receivableId ? [item.receivableId] : [],
-        ),
-      );
-      const productRevenueInCents = paidProductTabs.reduce(
-        (sum, item) => sum + item.totalInCents,
-        0,
-      );
-      const productCostInCents = paidProductTabs.reduce(
-        (sum, tab) =>
-          sum +
-          tab.items.reduce(
-            (itemSum, item) => itemSum + item.quantity * item.unitCostInCents,
-            0,
-          ),
-        0,
-      );
-      const serviceRevenueInCents = paidInPeriod
-        .filter((item) => !productReceivableIds.has(item.id))
-        .reduce((sum, item) => sum + item.amountInCents, 0);
-      const operatingExpensesInCents = repositoryContext
-        .scoped(repositoryContext.payables)
-        .filter(
-          (item) =>
-            item.clinicId === clinicId &&
-            item.status === "paid" &&
-            inPeriod(item.paidAt),
-        )
-        .reduce((sum, item) => sum + item.amountInCents, 0);
       const paidCommissions = repositoryContext.scopedCommissions().filter(
         (item) =>
           item.clinicId === clinicId &&
@@ -506,48 +500,8 @@ export function createReportsRepository(
           !item.payrollPayableId &&
           inPeriod(item.paidAt),
       );
-      const commissionsInCents = paidCommissions.reduce(
-        (sum, item) => sum + item.amountInCents,
-        0,
-      );
-      const grossRevenueInCents = serviceRevenueInCents + productRevenueInCents;
-      const grossProfitInCents = grossRevenueInCents - productCostInCents;
-      const netResultInCents =
-        grossProfitInCents - operatingExpensesInCents - commissionsInCents;
       const percentage = (part: number, total: number) =>
         total ? Math.round((part / total) * 1000) / 10 : 0;
-      const byProduct = repositoryContext
-        .scoped(repositoryContext.products)
-        .filter((product) => product.clinicId === clinicId)
-        .map((product) => {
-          const soldItems = paidProductTabs.flatMap((tab) =>
-            tab.items.filter((item) => item.productId === product.id),
-          );
-          const unitsSold = soldItems.reduce(
-            (sum, item) => sum + item.quantity,
-            0,
-          );
-          const revenueInCents = soldItems.reduce(
-            (sum, item) => sum + item.totalInCents,
-            0,
-          );
-          const costInCents = soldItems.reduce(
-            (sum, item) => sum + item.quantity * item.unitCostInCents,
-            0,
-          );
-          const grossProfitInCents = revenueInCents - costInCents;
-          return {
-            id: product.id,
-            name: product.name,
-            unitsSold,
-            revenueInCents,
-            costInCents,
-            grossProfitInCents,
-            grossMargin: percentage(grossProfitInCents, revenueInCents),
-          };
-        })
-        .filter((item) => item.unitsSold > 0)
-        .sort((a, b) => b.revenueInCents - a.revenueInCents);
       const serviceRevenue = new Map<string, number>();
       for (const plan of repositoryContext
         .scoped(repositoryContext.patientPlans)
@@ -671,16 +625,6 @@ export function createReportsRepository(
           overdueInCents: openReceivables
             .filter((item) => item.dueDate < today())
             .reduce((sum, item) => sum + item.amountInCents, 0),
-          paidInPeriodInCents: repositoryContext.receiptEvents
-            .filter((event) => {
-              const receivable = repositoryContext
-                .scoped(repositoryContext.receivables)
-                .find((item) => item.id === event.receivableId);
-              return (
-                receivable?.clinicId === clinicId && inPeriod(event.occurredAt)
-              );
-            })
-            .reduce((sum, event) => sum + event.amountInCents, 0),
         },
         commercial: {
           leadsCreated: leads.length,
@@ -714,19 +658,7 @@ export function createReportsRepository(
         ),
         bySource,
         profitability: {
-          dre: {
-            serviceRevenueInCents,
-            productRevenueInCents,
-            grossRevenueInCents,
-            productCostInCents,
-            grossProfitInCents,
-            operatingExpensesInCents,
-            commissionsInCents,
-            netResultInCents,
-            netMargin: percentage(netResultInCents, grossRevenueInCents),
-          },
           byService: byServiceProfitability,
-          byProduct,
           operational: {
             groupOccupancyRate: percentage(
               activeGroupSeats,
@@ -745,18 +677,6 @@ export function createReportsRepository(
                   item.clinicId === clinicId &&
                   productNeedsRestock(item),
               ).length,
-            productUnitsSold: byProduct.reduce(
-              (sum, item) => sum + item.unitsSold,
-              0,
-            ),
-            averageReceiptInCents: paidInPeriod.length
-              ? Math.round(
-                  paidInPeriod.reduce(
-                    (sum, item) => sum + item.amountInCents,
-                    0,
-                  ) / paidInPeriod.length,
-                )
-              : 0,
           },
         },
       };

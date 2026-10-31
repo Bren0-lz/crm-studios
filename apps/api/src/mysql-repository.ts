@@ -52,6 +52,7 @@ export class MysqlClinicRepository implements ClinicRepository {
   readonly saveBranch: ClinicRepository["saveBranch"];
   readonly getCommissionReconciliationPreview: ClinicRepository["getCommissionReconciliationPreview"];
   readonly reconcileCommission: ClinicRepository["reconcileCommission"];
+  readonly autoReconcileCommissions: ClinicRepository["autoReconcileCommissions"];
   readonly settleCommissionAccount: ClinicRepository["settleCommissionAccount"];
   readonly reverseCommissionAccountPayment: ClinicRepository["reverseCommissionAccountPayment"];
   readonly listExternalOperations: ClinicRepository["listExternalOperations"];
@@ -158,6 +159,7 @@ export class MysqlClinicRepository implements ClinicRepository {
     this.getCommissionReconciliationPreview =
       reconciliation.getCommissionReconciliationPreview;
     this.reconcileCommission = reconciliation.reconcileCommission;
+    this.autoReconcileCommissions = reconciliation.autoReconcileCommissions;
     this.settleCommissionAccount = reconciliation.settleCommissionAccount;
     this.reverseCommissionAccountPayment =
       reconciliation.reverseCommissionAccountPayment;
@@ -305,6 +307,11 @@ export class MysqlClinicRepository implements ClinicRepository {
       this.administration.getNotificationPreferences;
     this.saveNotificationPreferences =
       this.administration.saveNotificationPreferences;
+    this.listIntegrationKeys = this.administration.listIntegrationKeys;
+    this.createIntegrationKey = this.administration.createIntegrationKey;
+    this.revokeIntegrationKey = this.administration.revokeIntegrationKey;
+    this.findIntegrationKeyByTokenHash = this.administration.findIntegrationKeyByTokenHash;
+    this.touchIntegrationKey = this.administration.touchIntegrationKey;
     this.recordAdminAuditEvent = this.administration.recordAdminAuditEvent;
     this.listAdminAuditEvents = this.administration.listAdminAuditEvents;
     this.listHistoryActors = this.administration.listHistoryActors;
@@ -348,7 +355,6 @@ export class MysqlClinicRepository implements ClinicRepository {
       this.finance.previewCommissionRecalculation;
     const payroll = createPayrollRepository(this.context);
     this.listPayrollEmployees = payroll.listPayrollEmployees;
-    this.createPayrollEmployee = payroll.createPayrollEmployee;
     this.updatePayrollEmployee = payroll.updatePayrollEmployee;
     this.getPayroll = payroll.getPayroll;
     this.launchPayroll = payroll.launchPayroll;
@@ -560,6 +566,11 @@ export class MysqlClinicRepository implements ClinicRepository {
   readonly saveNavTabLabels: ClinicRepository["saveNavTabLabels"];
   readonly getNotificationPreferences: ClinicRepository["getNotificationPreferences"];
   readonly saveNotificationPreferences: ClinicRepository["saveNotificationPreferences"];
+  readonly listIntegrationKeys: ClinicRepository["listIntegrationKeys"];
+  readonly createIntegrationKey: ClinicRepository["createIntegrationKey"];
+  readonly revokeIntegrationKey: ClinicRepository["revokeIntegrationKey"];
+  readonly findIntegrationKeyByTokenHash: ClinicRepository["findIntegrationKeyByTokenHash"];
+  readonly touchIntegrationKey: ClinicRepository["touchIntegrationKey"];
 
   readonly recordAdminAuditEvent: ReturnType<
     typeof createAdministrationRepository
@@ -706,7 +717,6 @@ export class MysqlClinicRepository implements ClinicRepository {
   >["renegotiateReceivables"];
 
   readonly listPayrollEmployees: ClinicRepository["listPayrollEmployees"];
-  readonly createPayrollEmployee: ClinicRepository["createPayrollEmployee"];
   readonly updatePayrollEmployee: ClinicRepository["updatePayrollEmployee"];
   readonly getPayroll: ClinicRepository["getPayroll"];
   readonly launchPayroll: ClinicRepository["launchPayroll"];

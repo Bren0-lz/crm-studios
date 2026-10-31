@@ -15,6 +15,7 @@ import {
   MapPin,
   PanelLeft,
   HeartHandshake,
+  KeyRound,
   PackageOpen,
   Stethoscope,
   Tags,
@@ -179,6 +180,15 @@ export const settingsTabs: Array<{
     adminOnly: true,
   },
   {
+    key: "integrations",
+    label: "Integrações",
+    title: "Integrações",
+    description:
+      "Crie chaves para outros sistemas, como o dashboard de vendas, consultarem e gravarem dados pela API.",
+    icon: KeyRound,
+    adminOnly: true,
+  },
+  {
     key: "tags",
     label: "Etiquetas",
     title: "Etiquetas",
@@ -224,6 +234,7 @@ const sectionTabs: Record<string, SettingsTabKey> = {
   profissionais: "registry",
   finalizacao: "autoFinalization",
   pagamentos: "paymentMethods",
+  integracoes: "integrations",
 };
 
 export function settingsTabFromSection(

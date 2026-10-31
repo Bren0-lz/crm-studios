@@ -128,7 +128,7 @@ describe("application shell", () => {
       },
       trials,
       plans: { active: 0, availableSessions: 0, consumedInPeriod: 0 },
-      finance: { openInCents: 0, overdueInCents: 0, paidInPeriodInCents: 0 },
+      finance: { openInCents: 0, overdueInCents: 0 },
       commercial: {
         leadsCreated: 0,
         won: 0,
@@ -140,27 +140,13 @@ describe("application shell", () => {
       byService: [],
       bySource: [],
       profitability: {
-        dre: {
-          serviceRevenueInCents: 0,
-          productRevenueInCents: 0,
-          grossRevenueInCents: 0,
-          productCostInCents: 0,
-          grossProfitInCents: 0,
-          operatingExpensesInCents: 0,
-          commissionsInCents: 0,
-          netResultInCents: 0,
-          netMargin: 0,
-        },
         byService: [],
-        byProduct: [],
         operational: {
           groupOccupancyRate: 0,
           activeGroupSeats: 0,
           totalGroupCapacity: 0,
           waitlistCount: 0,
           lowStockCount: 0,
-          productUnitsSold: 0,
-          averageReceiptInCents: 0,
         },
       },
     });
@@ -335,7 +321,6 @@ describe("application shell", () => {
           from: "2026-01-01",
           to: "2026-01-31",
           topBySessions: [],
-          topByRevenue: [],
           activeClients: 0,
           ageDistribution: bands([0, 0, 0, 0, 0, 0]),
         });
@@ -355,13 +340,6 @@ describe("application shell", () => {
               patientId: "p-2",
               patientName: "Bruno Costa",
               completedSessions: 7,
-            },
-          ],
-          topByRevenue: [
-            {
-              patientId: "p-3",
-              patientName: "Carla Souza",
-              receivedInCents: 120000,
             },
           ],
           activeClients: 4,
@@ -407,11 +385,10 @@ describe("application shell", () => {
     ).toBeInTheDocument();
     expect(within(sessions).getByText("12 sessões")).toBeInTheDocument();
     expect(within(sessions).getByText("2. Bruno Costa")).toBeInTheDocument();
-    const revenue = screen
-      .getByRole("heading", { name: "Mais recebimentos" })
-      .closest("section") as HTMLElement;
-    expect(within(revenue).getByText("1. Carla Souza")).toBeInTheDocument();
-    expect(within(revenue).getByText(/R\$\s1\.200,00/)).toBeInTheDocument();
+    // Receita por cliente fica em Vendas › Maiores compradores.
+    expect(
+      screen.queryByRole("heading", { name: "Mais recebimentos" }),
+    ).not.toBeInTheDocument();
     const ages = screen
       .getByRole("heading", { name: "Faixa etária" })
       .closest("section") as HTMLElement;
@@ -463,9 +440,6 @@ describe("application shell", () => {
       await screen.findByText(
         "Nenhum cliente com sessão concluída no período.",
       ),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText("Nenhum recebimento de cliente no período."),
     ).toBeInTheDocument();
     expect(
       screen.getByText("Nenhum cliente ativo no período."),

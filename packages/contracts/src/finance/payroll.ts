@@ -68,6 +68,8 @@ export interface PayrollEmployee {
   role?: string;
   professionalId?: string;
   professionalName?: string;
+  /** Usuário dono do salário (cadastro em Administração › Usuários); ausente = anterior. */
+  userId?: string;
   baseSalaryInCents: number;
   active: boolean;
   createdAt: string;

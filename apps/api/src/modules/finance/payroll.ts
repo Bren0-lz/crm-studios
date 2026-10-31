@@ -80,3 +80,12 @@ export function payrollOnlyError() {
     409,
   );
 }
+
+/** O colaborador ligado a um usuário só muda pelo cadastro do usuário (Administração). */
+export function userManagedEmployeeError() {
+  return new DomainError(
+    "PAYROLL_EMPLOYEE_MANAGED_BY_USER",
+    "O salário deste colaborador é definido no cadastro do usuário (Administração › Usuários).",
+    409,
+  );
+}

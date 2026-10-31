@@ -164,5 +164,13 @@ describe("relatório financeiro", () => {
     expect(
       financialEntryFiltersSchema.safeParse({ origin: "payroll" }).success,
     ).toBe(true);
+    // Venda não é origem: o extrato separa produtos e serviços avulsos.
+    for (const origin of ["product_sale", "service_sale"])
+      expect(financialEntryFiltersSchema.safeParse({ origin }).success).toBe(
+        true,
+      );
+    expect(
+      financialEntryFiltersSchema.safeParse({ origin: "tab" }).success,
+    ).toBe(false);
   });
 });

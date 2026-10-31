@@ -534,13 +534,10 @@
 
 .patient-row {
   cursor: pointer;
-  transition:
-    background-color 0.15s ease,
-    box-shadow 0.15s ease;
+  transition: background-color 0.15s ease;
 }
 .patient-row:hover {
   background: #f3f8f5;
-  box-shadow: inset 3px 0 0 var(--green-2);
 }
 .patient-row:hover .row-chevron {
   color: var(--green);

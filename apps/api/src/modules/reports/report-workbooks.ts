@@ -37,7 +37,6 @@ export async function managementReportToXlsx(
 ): Promise<Buffer> {
   const workbook = createWorkbook(new Date(report.generatedAt));
   const { appointments, plans, finance, commercial, profitability } = report;
-  const dre = profitability.dre;
   const indicators: Indicator[] = [
     {
       section: "Período",
@@ -112,12 +111,6 @@ export async function managementReportToXlsx(
       value: money(finance.overdueInCents),
     },
     {
-      section: "Financeiro",
-      label: "Recebido no período",
-      kind: "currency",
-      value: money(finance.paidInPeriodInCents),
-    },
-    {
       section: "Comercial",
       label: "Leads criados",
       kind: "integer",
@@ -146,48 +139,6 @@ export async function managementReportToXlsx(
       label: "Tempo médio da primeira resposta (min)",
       kind: "integer",
       value: commercial.averageFirstResponseMinutes,
-    },
-    {
-      section: "DRE",
-      label: "Receita de serviços",
-      kind: "currency",
-      value: money(dre.serviceRevenueInCents),
-    },
-    {
-      section: "DRE",
-      label: "Receita de produtos",
-      kind: "currency",
-      value: money(dre.productRevenueInCents),
-    },
-    {
-      section: "DRE",
-      label: "Custo dos produtos vendidos",
-      kind: "currency",
-      value: -money(dre.productCostInCents),
-    },
-    {
-      section: "DRE",
-      label: "Despesas operacionais",
-      kind: "currency",
-      value: -money(dre.operatingExpensesInCents),
-    },
-    {
-      section: "DRE",
-      label: "Comissões",
-      kind: "currency",
-      value: -money(dre.commissionsInCents),
-    },
-    {
-      section: "DRE",
-      label: "Resultado líquido",
-      kind: "currency",
-      value: money(dre.netResultInCents),
-    },
-    {
-      section: "DRE",
-      label: "Margem líquida",
-      kind: "percent",
-      value: rate(dre.netMargin),
     },
   ];
   addTableSheet(
@@ -289,43 +240,6 @@ export async function managementReportToXlsx(
       },
     ],
     profitability.byService,
-  );
-  addTableSheet(
-    workbook,
-    "Rentabilidade produtos",
-    [
-      {
-        header: "Produto",
-        value: (item: ManagementReport["profitability"]["byProduct"][number]) =>
-          item.name,
-      },
-      {
-        header: "Unidades vendidas",
-        kind: "integer",
-        value: (item) => item.unitsSold,
-      },
-      {
-        header: "Receita (R$)",
-        kind: "currency",
-        value: (item) => money(item.revenueInCents),
-      },
-      {
-        header: "Custo (R$)",
-        kind: "currency",
-        value: (item) => money(item.costInCents),
-      },
-      {
-        header: "Lucro bruto (R$)",
-        kind: "currency",
-        value: (item) => money(item.grossProfitInCents),
-      },
-      {
-        header: "Margem bruta",
-        kind: "percent",
-        value: (item) => rate(item.grossMargin),
-      },
-    ],
-    profitability.byProduct,
   );
   return workbookBuffer(workbook);
 }

@@ -3,6 +3,7 @@ import type { PayrollLine, PayrollSummary } from "@crm/contracts";
 import { describe, expect, it } from "vitest";
 import type { ClinicRepository } from "../repository.js";
 import { nextTestCpf } from "./cpf.js";
+import { createSalariedUser } from "./payroll-users.js";
 
 const clinic = "11111111-1111-4111-8111-111111111111";
 const actor = "22222222-2222-4222-8222-222222222222";
@@ -64,12 +65,11 @@ async function scenario(repo: ClinicRepository, days: string[]) {
   };
   const commissions = [];
   for (const day of days) commissions.push(await complete(day));
-  const employee = await repo.createPayrollEmployee(clinic, actor, {
+  const { user, employee } = await createSalariedUser(repo, clinic, actor, {
     name: `Colaboradora ${randomUUID().slice(0, 6)}`,
     role: "Instrutora",
     professionalId: professional.id,
-    baseSalaryInCents: 150000,
-    active: true,
+    salaryInCents: 150000,
   });
   const commission = async (id: string) =>
     (await repo.generateCommissions(clinic, competence)).find(
@@ -86,6 +86,7 @@ async function scenario(repo: ClinicRepository, days: string[]) {
     professional,
     service,
     category,
+    user,
     employee,
     commissions,
     complete,
@@ -107,11 +108,12 @@ export function payrollSuite(repository: () => ClinicRepository) {
         launch,
         percent,
       } = await scenario(repo, ["10", "12"]);
-      const reception = await repo.createPayrollEmployee(clinic, actor, {
-        name: `Recepção ${randomUUID().slice(0, 6)}`,
-        baseSalaryInCents: 200000,
-        active: true,
-      });
+      const { employee: reception } = await createSalariedUser(
+        repo,
+        clinic,
+        actor,
+        { name: `Recepção ${randomUUID().slice(0, 6)}`, salaryInCents: 200000 },
+      );
       // Ajuste de comissão de março: regra nova de 30% conciliada na primeira comissão.
       await repo.createCommissionRule(clinic, {
         professionalId: professional.id,
@@ -311,20 +313,22 @@ export function payrollSuite(repository: () => ClinicRepository) {
 
     it("separa por filial e aponta comissão sem colaborador", async () => {
       const repo = repository();
-      const { professional, employee, category, percent } = await scenario(
-        repo,
-        ["16"],
-      );
+      const { professional, user, employee, category, percent } =
+        await scenario(repo, ["16"]);
       const [matriz] = await repo.listBranches(clinic);
       const other = (await repo.saveBranch(clinic, actor, {
         name: `Filial ${randomUUID().slice(0, 6)}`,
       }))!;
-      const remote = await repo.createPayrollEmployee(clinic, actor, {
-        name: `Remota ${randomUUID().slice(0, 6)}`,
-        branchId: other.id,
-        baseSalaryInCents: 90000,
-        active: true,
-      });
+      const { employee: remote } = await createSalariedUser(
+        repo,
+        clinic,
+        actor,
+        {
+          name: `Remota ${randomUUID().slice(0, 6)}`,
+          branchId: other.id,
+          salaryInCents: 90000,
+        },
+      );
       const onlyOther = await repo.getPayroll(clinic, competence, [other.id]);
       expect(onlyOther.branches.map((item) => item.branchId)).toEqual([
         other.id,
@@ -345,37 +349,17 @@ export function payrollSuite(repository: () => ClinicRepository) {
       await expect(
         repo.getPayroll(clinic, competence, [randomUUID()]),
       ).rejects.toMatchObject({ code: "BRANCH_ACCESS_DENIED" });
+      // O colaborador do usuário não se edita pela folha.
       await expect(
-        repo.createPayrollEmployee(clinic, actor, {
-          name: "Repetida",
-          professionalId: professional.id,
-          baseSalaryInCents: 0,
+        repo.updatePayrollEmployee(clinic, actor, employee.id, {
+          name: employee.name,
+          baseSalaryInCents: 1,
           active: true,
         }),
-      ).rejects.toMatchObject({ code: "PAYROLL_PROFESSIONAL_TAKEN" });
-      await expect(
-        repo.createPayrollEmployee(clinic, actor, {
-          name: "Filial errada",
-          professionalId: (
-            await repo.createProfessional(clinic, {
-              fullName: "Sem colaborador",
-              crefito: randomUUID().slice(0, 12),
-              specialty: "Pilates",
-              color: "#547A6B",
-            })
-          ).id,
-          branchId: other.id,
-          baseSalaryInCents: 0,
-          active: true,
-        }),
-      ).rejects.toMatchObject({ code: "BRANCH_MISMATCH" });
+      ).rejects.toMatchObject({ code: "PAYROLL_EMPLOYEE_MANAGED_BY_USER" });
 
-      // Profissional com comissão e sem colaborador aparece para cadastro.
-      await repo.updatePayrollEmployee(clinic, actor, employee.id, {
-        name: employee.name,
-        baseSalaryInCents: 150000,
-        active: true,
-      });
+      // Profissional com comissão e sem colaborador aparece no aviso.
+      await repo.setAdminUserProfessional(clinic, actor, user.id, null);
       const unassigned = await repo.getPayroll(clinic, competence);
       expect(
         unassigned.unassigned.find(
@@ -391,6 +375,87 @@ export function payrollSuite(repository: () => ClinicRepository) {
       expect(launched.payables[0]).toMatchObject({
         amountInCents: 150000,
         payroll: { commissionInCents: 0 },
+      });
+    });
+
+    it("leva à folha só quem recebe salário no cadastro do usuário", async () => {
+      const repo = repository();
+      const name = `Salário ${randomUUID().slice(0, 6)}`;
+      const lineFor = async (userId: string) =>
+        (await repo.getPayroll(clinic, competence)).branches
+          .flatMap((branch) => branch.lines)
+          .find((line) => line.employee.userId === userId);
+
+      // Sem salário e sem profissional: não entra na folha.
+      const unpaid = await repo.createAdminUser(
+        clinic,
+        actor,
+        {
+          fullName: `Sem salário ${randomUUID().slice(0, 6)}`,
+          email: `sem-salario-${randomUUID()}@studios.test`,
+          role: "user",
+          password: "senha-de-teste",
+        },
+        "hash-de-teste",
+      );
+      expect(unpaid.salaryInCents).toBeUndefined();
+      expect(await lineFor(unpaid.id)).toBeUndefined();
+
+      const { user, employee } = await createSalariedUser(repo, clinic, actor, {
+        name,
+        role: "Recepção",
+        salaryInCents: 180000,
+      });
+      expect(user.salaryInCents).toBe(180000);
+      expect(employee).toMatchObject({
+        name,
+        role: "Recepção",
+        baseSalaryInCents: 180000,
+        active: true,
+      });
+      expect(await lineFor(user.id)).toMatchObject({ salaryInCents: 180000 });
+
+      // Salário, nome e cargo mudam pelo cadastro do usuário.
+      const update = {
+        fullName: `${name} Silva`,
+        role: "user" as const,
+        active: true,
+        jobTitle: "Gerente",
+      };
+      const raised = await repo.updateAdminUser(clinic, actor, user.id, {
+        ...update,
+        salaryInCents: 210000,
+      });
+      expect(raised?.salaryInCents).toBe(210000);
+      expect(await lineFor(user.id)).toMatchObject({
+        salaryInCents: 210000,
+        employee: { id: employee.id, name: `${name} Silva`, role: "Gerente" },
+      });
+      // Ausente mantém o salário.
+      await repo.updateAdminUser(clinic, actor, user.id, update);
+      expect(await lineFor(user.id)).toMatchObject({ salaryInCents: 210000 });
+
+      // Deixa de receber: sai da folha (o cadastro do colaborador fica, inativo).
+      const removed = await repo.updateAdminUser(clinic, actor, user.id, {
+        ...update,
+        salaryInCents: null,
+      });
+      expect(removed?.salaryInCents).toBeUndefined();
+      expect(await lineFor(user.id)).toBeUndefined();
+      expect(
+        (await repo.listPayrollEmployees(clinic)).find(
+          (item) => item.id === employee.id,
+        ),
+      ).toMatchObject({ active: false, baseSalaryInCents: 0 });
+
+      // Volta a receber: o mesmo colaborador.
+      await repo.updateAdminUser(clinic, actor, user.id, {
+        ...update,
+        salaryInCents: 100000,
+      });
+      expect(await lineFor(user.id)).toMatchObject({
+        salaryInCents: 100000,
+        employee: { id: employee.id, active: true },
       });
     });
   });

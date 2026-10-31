@@ -17,7 +17,6 @@
     "lint": "npm run lint:architecture && eslint apps/api/src apps/api/vitest.config.ts apps/web/src apps/web/vite.config.ts packages/contracts/src packages/contracts/vitest.config.ts e2e playwright.config.ts scripts --max-warnings=0",
     "format:check": "prettier --check .",
     "format": "prettier --write .",
-    "vercel-build": "node scripts/vercel-build.mjs",
     "hostinger-build": "node scripts/hostinger-build.mjs",
     "start": "node apps/api/dist/site-server.mjs",
     "test:unit": "npm run test:unit -w @crm/contracts && npm run test:unit -w @crm/api && npm run test:unit -w @crm/web",

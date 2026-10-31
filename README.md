@@ -132,54 +132,6 @@ TEST_DATABASE_URL=postgresql://crm:crm@localhost:5432/crm_test npm run test:post
 
 Nunca aponte `TEST_DATABASE_URL` para um banco de produção: o teste cria e remove registros próprios.
 
-## Banco no Supabase
-
-O Supabase pode hospedar o PostgreSQL; a API continua a mesma. No painel do projeto, em
-**Connect**, copie a URL do **Session pooler** (porta 5432, usuário `postgres.<ref-do-projeto>`).
-A conexão direta (`db.<ref>.supabase.co`) também funciona, mas no plano gratuito só aceita IPv6.
-Não use o **Transaction pooler** (porta 6543): as migrações usam trava de sessão e a API recusa
-essa porta ao migrar.
-
-```text
-STORAGE_MODE=postgres
-DATABASE_URL=postgresql://postgres.<ref>:<senha>@aws-0-<região>.pooler.supabase.com:5432/postgres
-DATABASE_SSL=auto
-```
-
-Com `DATABASE_SSL=auto`, a conexão com hosts do Supabase usa TLS sem verificar a CA. Para
-verificar o certificado, baixe a CA em **Settings › Database › SSL Configuration** e use
-`DATABASE_SSL=verify` com `DATABASE_SSL_CA=<caminho do .crt>`. As extensões `pgcrypto` e
-`btree_gist` usadas pelas migrações já estão disponíveis no Supabase.
-
-Depois, `npm run db:setup` aplica as migrações (e o seed demo se `SEED_DEMO_DATA=true`). Para os
-testes de integração, use um projeto **só de teste** em `TEST_DATABASE_URL` e rode
-`npm run test:postgres`.
-
-## Publicação na Vercel
-
-O projeto publica site e API no mesmo domínio: `npm run vercel-build` gera `.vercel/output`
-(Build Output API) com o site estático e a API Fastify como função em `/api/*`. O
-`vercel.json` já define o comando de build; no painel, deixe **Framework Preset = Other** e não
-preencha Output Directory.
-
-Variáveis de ambiente no painel da Vercel (Settings › Environment Variables):
-
-| Variável       | Valor                                                            |
-| -------------- | ---------------------------------------------------------------- |
-| `STORAGE_MODE` | `postgres`                                                       |
-| `DATABASE_URL` | URL do **Transaction pooler** do Supabase (porta **6543**)       |
-| `JWT_SECRET`   | 32+ caracteres aleatórios (a função não sobe com o valor padrão) |
-| `NODE_ENV`     | `production`                                                     |
-| `WEB_ORIGIN`   | o endereço do site, ex. `https://seu-projeto.vercel.app`         |
-
-No deploy de produção (`VERCEL_ENV=production` com `STORAGE_MODE=postgres`), o build roda
-`npm run db:migrate` antes de compilar: aplica só as migrações pendentes, sem seed, trocando a
-porta 6543 pela 5432 do Session pooler. Se uma migração falhar, o build falha e a versão anterior
-continua no ar. Deploys de prévia não aplicam migrações. A função em si não roda migrações nem seed; para
-aplicá-las da sua máquina, use `npm run db:migrate` (ou `npm run db:setup`, que também aplica o
-seed demo se `SEED_DEMO_DATA=true`) com a URL do **Session pooler** no `.env`.
-A Vercel publica o que está no GitHub: faça o push dos commits antes.
-
 ## Estrutura
 
 ```text

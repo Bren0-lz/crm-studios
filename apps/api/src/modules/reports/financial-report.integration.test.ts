@@ -1,5 +1,9 @@
 import ExcelJS from "exceljs";
-import type { FinancialReport } from "@crm/contracts";
+import {
+  saoPauloToday,
+  type FinancialReport,
+  type PayrollEmployee,
+} from "@crm/contracts";
 import { describe, expect, it, vi } from "vitest";
 import {
   authenticatedApp,
@@ -9,6 +13,7 @@ import {
   tokenRole,
 } from "../../test-support/legacy-fixtures.js";
 import "../../test-support/legacy-setup.js";
+import { salariedEmployeeViaApi } from "../../test-support/payroll-users.js";
 
 const clinicId = "11111111-1111-4111-8111-111111111111";
 
@@ -138,24 +143,18 @@ describe("relatório financeiro", () => {
         })
       ).json();
       // Comissão é paga pela folha: colaborador ligado ao profissional, sem salário fixo.
-      const employee = await app.inject({
-        method: "POST",
-        url: "/finance/payroll/employees",
-        headers: as("owner"),
-        payload: {
-          name: professionals[0].fullName,
-          professionalId: professionals[0].id,
-          baseSalaryInCents: 0,
-        },
+      const employeeId = await salariedEmployeeViaApi(app, as("owner"), {
+        name: professionals[0].fullName,
+        professionalId: professionals[0].id,
+        salaryInCents: null,
       });
-      expect(employee.statusCode).toBe(201);
       const launch = await app.inject({
         method: "POST",
         url: "/finance/payroll/launch",
         headers: as("owner"),
         payload: {
           competence: "2031-03",
-          employeeIds: [employee.json().id],
+          employeeIds: [employeeId],
           dueDate: "2031-03-12",
           categoryId: category.id,
         },
@@ -170,24 +169,37 @@ describe("relatório financeiro", () => {
       });
       expect(paid.statusCode).toBe(200);
       // Colaborador sem profissional ligado: recebe só o salário fixo pela folha.
-      const reception = await app.inject({
+      // A folha não cadastra colaborador: ele nasce do usuário com salário.
+      const receptionAccount = await app.inject({
         method: "POST",
-        url: "/finance/payroll/employees",
+        url: "/admin/users",
         headers: as("owner"),
         payload: {
-          name: "Carla Recepção",
-          role: "Recepcionista",
-          baseSalaryInCents: 250_000,
+          fullName: "Carla Recepção",
+          email: "carla.recepcao@studios.test",
+          role: "user",
+          password: "senha-de-teste",
+          jobTitle: "Recepcionista",
+          salaryInCents: 250_000,
         },
       });
-      expect(reception.statusCode).toBe(201);
+      expect(receptionAccount.statusCode).toBe(201);
+      const receptionEmployee = (
+        await app.inject({
+          method: "GET",
+          url: "/finance/payroll/employees",
+          headers: as("owner"),
+        })
+      )
+        .json<PayrollEmployee[]>()
+        .find((item) => item.userId === receptionAccount.json().id)!;
       const salary = await app.inject({
         method: "POST",
         url: "/finance/payroll/launch",
         headers: as("owner"),
         payload: {
           competence: "2031-03",
-          employeeIds: [reception.json().id],
+          employeeIds: [receptionEmployee.id],
           dueDate: "2031-03-12",
           categoryId: category.id,
         },
@@ -256,12 +268,12 @@ describe("relatório financeiro", () => {
       });
       expect(report.entries.every((item) => item.branchId)).toBe(true);
       expect(report.entries[3]).toMatchObject({
-        professionalId: `employee:${reception.json().id}`,
+        professionalId: `employee:${receptionEmployee.id}`,
         professionalName: "Carla Recepção",
       });
       expect(report.professionals).toEqual([
         expect.objectContaining({
-          id: `employee:${reception.json().id}`,
+          id: `employee:${receptionEmployee.id}`,
           name: "Carla Recepção",
           role: "Recepcionista",
           paidInCents: 0,
@@ -389,6 +401,89 @@ describe("relatório financeiro", () => {
       ).toBe(403);
     } finally {
       vi.useRealTimers();
+      await app.close();
+    }
+  });
+
+  it("quebra a venda em uma linha por produto, sem a origem de comanda", async () => {
+    const { app, token } = await authenticatedApp();
+    const headers = { authorization: `Bearer ${token}` };
+    try {
+      const patientId = (
+        await app.inject({ method: "GET", url: "/patients", headers })
+      ).json()[0].id as string;
+      const product = async (sku: string) =>
+        (
+          await app.inject({
+            method: "POST",
+            url: "/inventory/products",
+            headers,
+            payload: {
+              name: `Produto ${sku}`,
+              sku,
+              unit: "un",
+              costInCents: 2_000,
+              salePriceInCents: 4_500,
+              initialStock: 5,
+            },
+          })
+        ).json().id as string;
+      const cream = await product("CRM-1");
+      const oil = await product("OIL-1");
+      const sale = await app.inject({
+        method: "POST",
+        url: "/product-sales",
+        headers,
+        payload: {
+          patientId,
+          items: [
+            { productId: cream, quantity: 2 },
+            { productId: oil, quantity: 1, unitPriceInCents: 3_000 },
+          ],
+          settlement: "paid",
+          paymentMethod: "pix",
+          dueDate: saoPauloToday(),
+        },
+      });
+      expect(sale.statusCode).toBe(201);
+      const today = saoPauloToday();
+      const report = (
+        await app.inject({
+          method: "GET",
+          url: `/reports/financial?from=${today}&to=${today}`,
+          headers,
+        })
+      ).json<FinancialReport>();
+      const lines = report.entries.filter(
+        (entry) =>
+          entry.origin === "product_sale" || entry.origin === "service_sale",
+      );
+      expect(
+        lines.map(({ origin, description, amountInCents, paymentMethod }) => ({
+          origin,
+          description,
+          amountInCents,
+          paymentMethod,
+        })),
+      ).toEqual([
+        {
+          origin: "product_sale",
+          description: "Produto CRM-1 × 2",
+          amountInCents: 9_000,
+          paymentMethod: "pix",
+        },
+        {
+          origin: "product_sale",
+          description: "Produto OIL-1 × 1",
+          amountInCents: 3_000,
+          paymentMethod: "pix",
+        },
+      ]);
+      expect(new Set(lines.map((entry) => entry.id)).size).toBe(2);
+      expect(
+        report.entries.map((entry) => entry.origin as string),
+      ).not.toContain("tab");
+    } finally {
       await app.close();
     }
   });

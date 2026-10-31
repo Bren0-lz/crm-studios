@@ -25,7 +25,7 @@ const configSchema = z.object({
   DATABASE_SSL: z.enum(["disable", "require", "verify"]).default("disable"),
   DATABASE_SSL_CA: z.string().optional(),
   // Quantos proxies à frente da API são confiáveis para ler o IP do cliente em
-  // X-Forwarded-For (1 atrás do proxy da Hostinger ou da Vercel). 0 ignora o cabeçalho, que o próprio cliente pode forjar.
+  // X-Forwarded-For (1 atrás do proxy da Hostinger). 0 ignora o cabeçalho, que o próprio cliente pode forjar.
   TRUST_PROXY: z.coerce.number().int().min(0).max(10).default(0),
   SEED_DEMO_DATA: z
     .enum(["true", "false"])
