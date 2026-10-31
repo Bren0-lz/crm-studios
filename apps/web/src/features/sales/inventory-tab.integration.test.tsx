@@ -530,8 +530,17 @@ describe("aba Estoque de Vendas de produtos (QM9)", () => {
         "Adicione ao menos um tamanho ou desmarque a opção.",
       ),
     ).toBeNull();
-    fireEvent.click(
-      within(dialog).getByRole("button", { name: "Mover 38 para antes" }),
+    // Reordena pelo teclado na alça de arrastar (o mesmo caminho do arrastar com o mouse).
+    fireEvent.keyDown(
+      within(dialog).getByRole("button", { name: /^Reordenar 38,/ }),
+      { key: "ArrowLeft" },
+    );
+    expect(
+      within(dialog).getByText("38 agora é o 2º de 3."),
+    ).toBeInTheDocument();
+    fireEvent.keyDown(
+      within(dialog).getByRole("button", { name: /^Reordenar 38,/ }),
+      { key: "Home" },
     );
     fireEvent.click(within(dialog).getByRole("button", { name: "Remover 36" }));
     // Tamanho digitado sem clicar em Adicionar também entra ao salvar.
