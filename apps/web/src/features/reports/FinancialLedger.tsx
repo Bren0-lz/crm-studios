@@ -94,14 +94,14 @@ export function FinancialLedger({
   async function download() {
     setExporting(true);
     try {
-      const blob = await api.financialReportCsv({
+      const blob = await api.financialReportXlsx({
         ...exportPeriod,
         ...filters,
       });
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.download = `extrato-financeiro-${exportPeriod.periodFrom}-${exportPeriod.periodTo}.csv`;
+      link.download = `extrato-financeiro-${exportPeriod.periodFrom}-${exportPeriod.periodTo}.xlsx`;
       link.click();
       URL.revokeObjectURL(url);
     } catch (cause) {

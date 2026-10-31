@@ -27,6 +27,31 @@ export function formatPhone(value: string): string {
   return `(${area}) ${number.slice(0, split)}-${number.slice(split)}`;
 }
 
+/**
+ * Separa DDD e número para planilhas: `11999998888` → `{ ddd: "11", number: "99999-8888" }`.
+ * Aceita o prefixo 55. Número fora do padrão brasileiro com DDD (10 ou 11 dígitos) volta
+ * como foi cadastrado, com o DDD vazio.
+ */
+export function splitPhone(value: string | undefined | null): {
+  ddd: string;
+  number: string;
+} {
+  const text = (value ?? "").trim();
+  let digits = text.replace(/\D/g, "");
+  if (digits.startsWith("55") && (digits.length === 12 || digits.length === 13))
+    digits = digits.slice(2);
+  if (/^\+/.test(text) && !text.startsWith("+55"))
+    return { ddd: "", number: text };
+  if (digits.length !== 10 && digits.length !== 11)
+    return { ddd: "", number: text };
+  const number = digits.slice(2),
+    split = number.length === 9 ? 5 : 4;
+  return {
+    ddd: digits.slice(0, 2),
+    number: `${number.slice(0, split)}-${number.slice(split)}`,
+  };
+}
+
 export function cpfDigits(value: string): string {
   return value.replace(/\D/g, "").slice(0, 11);
 }

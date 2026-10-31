@@ -283,14 +283,19 @@ export function validatePatientImport(
     );
 
   const columns = new Map<ImportField, number>();
+  // A planilha exportada separa o telefone em "DDD (Telefone)" + "Telefone".
+  const dddColumns = new Map<ImportField, number>();
   header.forEach((title, index) => {
     const normalized = normalizeHeader(title);
+    const ddd = normalized.startsWith("ddd") ? normalized.slice(3) : undefined;
     for (const [field, synonyms] of Object.entries(headerSynonyms) as [
       ImportField,
       readonly string[],
     ][]) {
       if (!columns.has(field) && synonyms.includes(normalized))
         columns.set(field, index);
+      if (ddd && !dddColumns.has(field) && synonyms.includes(ddd))
+        dddColumns.set(field, index);
     }
   });
   const missing = (["fullName", "phone"] as const).filter(
@@ -321,7 +326,12 @@ export function validatePatientImport(
     const line = index + 1;
     const value = (field: ImportField): string => {
       const column = columns.get(field);
-      return column === undefined ? "" : (row[column] ?? "").trim();
+      const text = column === undefined ? "" : (row[column] ?? "").trim();
+      const dddColumn = dddColumns.get(field);
+      const ddd = digitsOnly(dddColumn === undefined ? "" : row[dddColumn]);
+      return ddd.length === 2 && /^\d{8,9}$/.test(digitsOnly(text))
+        ? ddd + digitsOnly(text)
+        : text;
     };
 
     const fullName = value("fullName");

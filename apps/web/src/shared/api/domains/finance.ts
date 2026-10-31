@@ -77,7 +77,7 @@ import type {
   PaymentProofEntity,
   PaymentProofInput,
 } from "@crm/contracts";
-import { request } from "../transport";
+import { request, requestBlob } from "../transport";
 
 const proofPath: Record<PaymentProofEntity, string> = {
   receivable: "receivables",
@@ -256,6 +256,11 @@ export const financeApi = {
   ) =>
     request<DreReport>(
       `/reports/dre${exporting ? "/export" : ""}?from=${from}&to=${to}${costCenterId ? `&costCenterId=${costCenterId}` : ""}`,
+    ),
+  /** Planilha Excel da DRE por competência. */
+  dreReportXlsx: (from: string, to: string) =>
+    requestBlob(
+      `/reports/dre/export.xlsx?${new URLSearchParams({ from, to })}`,
     ),
   setUserCommission: (
     id: string,

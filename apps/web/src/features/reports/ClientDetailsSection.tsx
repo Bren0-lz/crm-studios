@@ -128,44 +128,25 @@ export function ClientDetailsSection({ period }: { period: ReportPeriod }) {
     setBusy(true);
     setExportError({ period, message: "" });
     try {
-      const data = await api.clientDetailsReport(
-        {
-          ...applied,
-          from: period.from,
-          to: period.to,
-          columns: selectedColumns,
-        },
-        true,
-      );
+      const input = {
+        ...applied,
+        from: period.from,
+        to: period.to,
+        columns: selectedColumns,
+      };
       if (print) {
+        const data = await api.clientDetailsReport(input, true);
         setPrinted(data);
         requestAnimationFrame(() => {
           window.print();
           setPrinted(null);
         });
       } else {
-        const escape = (value: unknown) => {
-            let text = String(value ?? "");
-            if (/^[=+@-]/.test(text)) text = "'" + text;
-            return `"${text.replaceAll('"', '""')}"`;
-          },
-          rows = [
-            data.columns.map((column) => clientDetailsColumnLabels[column]),
-            ...data.rows.map((row) =>
-              data.columns.map((column) => display(row.values[column])),
-            ),
-          ],
-          blob = new Blob(
-            [
-              "\ufeff" +
-                rows.map((row) => row.map(escape).join(";")).join("\r\n"),
-            ],
-            { type: "text/csv;charset=utf-8" },
-          ),
+        const blob = await api.clientDetailsReportXlsx(input),
           url = URL.createObjectURL(blob),
           link = document.createElement("a");
         link.href = url;
-        link.download = `clientes-${data.from}-${data.to}.csv`;
+        link.download = `clientes-${period.from}-${period.to}.xlsx`;
         link.click();
         URL.revokeObjectURL(url);
       }

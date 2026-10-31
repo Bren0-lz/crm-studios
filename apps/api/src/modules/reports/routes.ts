@@ -6,7 +6,6 @@ import {
   clientReportFilterSchema,
   entryBranch,
   filterFinancialEntries,
-  financialEntriesCsv,
   financialExportFilterSchema,
   financialReportFilterSchema,
   inBranch,
@@ -18,7 +17,7 @@ import {
   saoPauloToday,
 } from "@crm/contracts";
 import type { RouteContext } from "../../infrastructure/route-context.js";
-import { reportToCsv } from "../../infrastructure/route-utils.js";
+import { xlsxContentType } from "../../infrastructure/spreadsheet.js";
 import {
   DEFAULT_CLINIC_TIMEZONE,
   clinicDateOf,
@@ -32,6 +31,11 @@ import {
   resolveRetentionPeriod,
 } from "./retention-report.js";
 import { salesReportToXlsx } from "./sales-workbook.js";
+import {
+  clientDetailsToXlsx,
+  financialEntriesToXlsx,
+  managementReportToXlsx,
+} from "./report-workbooks.js";
 import {
   buildCampaignReport,
   manualCampaignsInPeriod,
@@ -47,8 +51,9 @@ export function registerReportsRoutes(context: RouteContext) {
   for (const path of [
     "/reports/clients/details",
     "/reports/clients/details/export",
+    "/reports/clients/details/export.xlsx",
   ] as const)
-    app.get(path, { preHandler: authenticate }, async (request) => {
+    app.get(path, { preHandler: authenticate }, async (request, reply) => {
       const input = clientDetailsFilterSchema.parse(request.query),
         permissions = requestAccess.get(request)?.permissions ?? [];
       if (
@@ -61,7 +66,7 @@ export function registerReportsRoutes(context: RouteContext) {
         assertPermissions(request, "finance.view");
       if (input.columns?.includes("equipment"))
         assertPermissions(request, "clinical.view");
-      const exporting = path.endsWith("/export"),
+      const exporting = path !== "/reports/clients/details",
         report = await buildClientDetails(
           repository,
           request.user.clinicId,
@@ -79,6 +84,14 @@ export function registerReportsRoutes(context: RouteContext) {
           "report",
           { filters: input, count: report.rows.length },
         );
+      if (path.endsWith(".xlsx"))
+        return reply
+          .header("Content-Type", xlsxContentType)
+          .header(
+            "Content-Disposition",
+            `attachment; filename="clientes-${input.from}-${input.to}.xlsx"`,
+          )
+          .send(await clientDetailsToXlsx(report));
       return report;
     });
 
@@ -195,13 +208,13 @@ export function registerReportsRoutes(context: RouteContext) {
         filters,
       );
       return reply
-        .header("Content-Type", "text/csv; charset=utf-8")
+        .header("Content-Type", xlsxContentType)
         .header(
           "Content-Disposition",
-          `attachment; filename="extrato-financeiro-${periodFrom}-${periodTo}.csv"`,
+          `attachment; filename="extrato-financeiro-${periodFrom}-${periodTo}.xlsx"`,
         )
         .send(
-          financialEntriesCsv(
+          await financialEntriesToXlsx(
             entries,
             (entry) => names.get(entryBranch(entry)) ?? "Sem filial",
           ),
@@ -284,10 +297,7 @@ export function registerReportsRoutes(context: RouteContext) {
       );
       if (path.endsWith(".xlsx"))
         return reply
-          .header(
-            "Content-Type",
-            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-          )
+          .header("Content-Type", xlsxContentType)
           .header(
             "Content-Disposition",
             'attachment; filename="vendas-' + from + "-" + to + '.xlsx"',
@@ -392,10 +402,7 @@ export function registerReportsRoutes(context: RouteContext) {
         month,
       );
       return reply
-        .header(
-          "Content-Type",
-          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        )
+        .header("Content-Type", xlsxContentType)
         .header(
           "Content-Disposition",
           `attachment; filename="vendas-${month}.xlsx"`,
@@ -405,7 +412,7 @@ export function registerReportsRoutes(context: RouteContext) {
   );
 
   app.get(
-    "/reports/management.csv",
+    "/reports/management.xlsx",
     { preHandler: authenticate },
     async (request, reply) => {
       const filter = managementReportFilterSchema.parse(request.query);
@@ -415,12 +422,12 @@ export function registerReportsRoutes(context: RouteContext) {
         filter.to,
       );
       return reply
-        .header("Content-Type", "text/csv; charset=utf-8")
+        .header("Content-Type", xlsxContentType)
         .header(
           "Content-Disposition",
-          `attachment; filename="relatorio-${filter.from}-${filter.to}.csv"`,
+          `attachment; filename="relatorio-${filter.from}-${filter.to}.xlsx"`,
         )
-        .send(reportToCsv(report));
+        .send(await managementReportToXlsx(report));
     },
   );
 }

@@ -109,7 +109,7 @@ test("reports share a custom period across tabs, charts and downloads", async ({
   const dreDownloadEvent = page.waitForEvent("download");
   await page.getByRole("button", { name: "Exportar DRE", exact: true }).click();
   expect((await dreDownloadEvent).suggestedFilename()).toBe(
-    `dre-${today}-${today}.csv`,
+    `dre-${today}-${today}.xlsx`,
   );
   await page.screenshot({
     path: testInfo.outputPath("reports-dre.png"),

@@ -61,6 +61,7 @@ import {
   patientFirstName,
   formatCpf,
   formatPhone,
+  splitPhone,
   groupClassInputSchema,
   groupClassName,
   groupClassUpdateSchema,
@@ -492,6 +493,27 @@ describe("shared contracts", () => {
     expect(formatPhone("11999998888")).toBe("(11) 99999-8888");
     expect(formatPhone("(11) 99999-88887")).toBe("(11) 99999-8888");
     expect(phoneDigits("(11) 3333-4444")).toBe("1133334444");
+  });
+
+  it("splits area code and number for spreadsheets", () => {
+    expect(splitPhone("11999998888")).toEqual({
+      ddd: "11",
+      number: "99999-8888",
+    });
+    expect(splitPhone("(21) 3333-4444")).toEqual({
+      ddd: "21",
+      number: "3333-4444",
+    });
+    expect(splitPhone("+55 31 98888-7777")).toEqual({
+      ddd: "31",
+      number: "98888-7777",
+    });
+    expect(splitPhone("99998888")).toEqual({ ddd: "", number: "99998888" });
+    expect(splitPhone("+351 912 345 678")).toEqual({
+      ddd: "",
+      number: "+351 912 345 678",
+    });
+    expect(splitPhone(undefined)).toEqual({ ddd: "", number: "" });
   });
 
   it("fills supplier hiring and payment defaults", () => {
