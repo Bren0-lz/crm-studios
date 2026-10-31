@@ -49,6 +49,15 @@ function mockApi(
         init?.method === "PUT" ? JSON.parse(String(init.body)) : preferences,
       );
     if (url.includes("/notifications")) return notifications();
+    if (url.includes("/inventory/workspace"))
+      return json({
+        products: [],
+        movements: [],
+        tabs: [],
+        lowStockCount: 0,
+        inventoryCostInCents: 0,
+        openTabsInCents: 0,
+      });
     return {
       ok: true,
       status: 200,
@@ -253,6 +262,29 @@ describe("header menus", () => {
     expect(screen.getByTestId("location")).toHaveTextContent("/planos");
   });
 
+  it("asks to restock products and opens the stock tab", async () => {
+    login();
+    mockApi(() =>
+      json({
+        date: "2026-10-16",
+        pendingFinalization: 0,
+        lowStockProducts: 4,
+      }),
+    );
+    renderApp();
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Notificações: 4 pendências",
+      }),
+    );
+    const restock = within(
+      screen.getByRole("dialog", { name: "Notificações" }),
+    ).getByRole("button", { name: /Estoque para repor/ });
+    expect(restock).toHaveTextContent("4");
+    fireEvent.click(restock);
+    expect(await screen.findByTestId("location")).toHaveTextContent("/vendas");
+  });
+
   it("only shows the groups of the modules the user can see", async () => {
     login({ modules: ["agenda"] });
     // Mesmo que a resposta traga outros grupos, a tela mostra só o da agenda.
@@ -265,6 +297,7 @@ describe("header menus", () => {
         overdueLeadTasks: 4,
         snoozedContactsDue: 2,
         pauseReturnsDue: 6,
+        lowStockProducts: 3,
       }),
     );
     renderApp();
