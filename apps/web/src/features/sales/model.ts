@@ -7,6 +7,7 @@ import type {
 import {
   legacyProductSizeLabels,
   productItemName,
+  productRestockSizes,
   productSizeLabel,
 } from "@crm/contracts";
 import { localIsoDate } from "../../shared/lib/formatting";
@@ -185,6 +186,18 @@ export function soldOutSizes(product: Product): string[] {
           0) <= 0,
     )
     .map((size) => productSizeLabel(size));
+}
+
+/**
+ * Tamanhos no aviso de reposição que ainda têm saldo ("Repor: M"); os zerados já aparecem em
+ * "Esgotado". Vazio sem aviso de reposição ou com o produto todo sem estoque.
+ */
+export function restockSizes(product: Product): string[] {
+  if (product.currentStock <= 0) return [];
+  const soldOut = new Set(soldOutSizes(product));
+  return productRestockSizes(product)
+    .map((size) => productSizeLabel(size))
+    .filter((label) => !soldOut.has(label));
 }
 
 /** Saldo que pode ser vendido no tamanho (ou sem tamanho, para produto sem tamanhos). */
