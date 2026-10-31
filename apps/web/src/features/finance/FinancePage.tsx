@@ -1,6 +1,7 @@
 import { CommissionReconciliationModal } from "./CommissionReconciliationModal";
 import {
   matchesFinancialEntry,
+  saoPauloToday,
   settlementBreakdown,
   type SettlementAdjustments,
   type FinancialEntryFilter,
@@ -39,7 +40,8 @@ import { PayrollSection } from "./PayrollSection";
 import { FinanceForecastSection } from "./FinanceForecastSection";
 import { FinanceRegistryModal } from "./FinanceRegistryModal";
 import { PayableAmountModal } from "./PayableAmountModal";
-import { PayableModal } from "./PayableModal";
+import { NewExpenseModal } from "./NewExpenseModal";
+import type { ExpenseKind } from "./expense-kind";
 import { PayablesList } from "./PayablesList";
 import { ReceiptModal } from "./ReceiptModal";
 import { ReceivableAdjustModal } from "./ReceivableAdjustModal";
@@ -110,6 +112,8 @@ export function FinancePage() {
     subtitle: string;
   } | null>(null);
   const [payableModal, setPayableModal] = useState(false);
+  // Despesa fixa criada pelo "Nova despesa": a lista de despesas fixas recarrega.
+  const [recurringVersion, setRecurringVersion] = useState(0);
   const [informingPayable, setInformingPayable] = useState<Payable | null>(
     null,
   );
@@ -129,6 +133,13 @@ export function FinancePage() {
   const [receipt, setReceipt] = useState<PaymentReceipt | null>(null);
   const [error, setError] = useState("");
   const canManage = canEdit("finance");
+  // Tipos do "Nova despesa" que o perfil pode cadastrar (pontual e/ou fixa).
+  const expenseKinds: ExpenseKind[] = canManage
+    ? [
+        ...(can("finance.payables_create") ? (["single"] as const) : []),
+        ...(can("finance.recurring_create") ? (["recurring"] as const) : []),
+      ]
+    : [];
   async function reload() {
     setData(await api.financialWorkspace());
   }
@@ -321,7 +332,7 @@ export function FinancePage() {
                   <Building2 size={18} /> Novo centro de custo
                 </button>
               )}
-              {can("finance.payables_create") && (
+              {expenseKinds.length > 0 && (
                 <button
                   className="primary-button"
                   onClick={() => setPayableModal(true)}
@@ -619,6 +630,7 @@ export function FinancePage() {
           )}
           {tab === "payables" && (
             <RecurringPayablesSection
+              refreshKey={recurringVersion}
               editable={canManage}
               workspace={data}
               onGenerated={reload}
@@ -634,13 +646,24 @@ export function FinancePage() {
         />
       )}
       {payableModal && data && (
-        <PayableModal
+        <NewExpenseModal
           workspace={data}
+          currentMonth={saoPauloToday().slice(0, 7)}
+          kinds={expenseKinds}
           onClose={() => setPayableModal(false)}
-          onCreated={() => {
-            toast.success("Despesa registrada.");
+          onCreated={(kind) => {
+            toast.success(
+              kind === "single"
+                ? "Despesa registrada."
+                : "Despesa fixa criada.",
+            );
             setPayableModal(false);
-            void reload();
+            // O workspace gera as contas do mês da despesa fixa; a lista vem depois.
+            void reload()
+              .then(() => {
+                if (kind === "recurring") setRecurringVersion((v) => v + 1);
+              })
+              .catch((cause: Error) => setError(cause.message));
           }}
         />
       )}
