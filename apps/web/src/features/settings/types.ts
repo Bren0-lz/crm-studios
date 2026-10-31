@@ -17,7 +17,8 @@ export type SettingsTabKey =
   | "tags"
   | "relationship"
   | "autoFinalization"
-  | "paymentMethods";
+  | "paymentMethods"
+  | "integrations";
 
 /** Linha do formulário de formas de pagamento: o máximo é digitado como texto. */
 export type PaymentMethodDraft = {
