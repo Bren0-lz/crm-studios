@@ -898,6 +898,17 @@
     minmax(210px, 1.4fr) minmax(180px, 1fr) minmax(170px, 1fr)
     100px calc(var(--space-8) + var(--space-5));
 }
+/* Contato, etiquetas e situação centralizados na coluna (título e valor); o cliente fica à
+   esquerda e "Editar" à direita. No celular a linha empilha e tudo volta à esquerda. */
+@media (min-width: 701px) {
+  .patient-table .table-row > :nth-child(n + 2):not(:last-child) {
+    justify-self: center;
+    text-align: center;
+  }
+  .patient-table .tags-cell {
+    justify-content: center;
+  }
+}
 .table-actions-head,
 .table-actions {
   justify-self: end;
