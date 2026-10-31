@@ -199,6 +199,7 @@ export function createAdministrationRepository(
         customModules: false,
         passwordHash,
         active: true,
+        dashboardAccess: input.dashboardAccess ?? false,
         createdAt: timestamp,
         updatedAt: timestamp,
       };
@@ -242,6 +243,15 @@ export function createAdministrationRepository(
         },
         clinicId,
       );
+      if (user.dashboardAccess)
+        repositoryContext.addAdminAudit(
+          actorUserId,
+          "users.dashboard_access_updated",
+          "user",
+          user.id,
+          { dashboardAccess: true, previousDashboardAccess: false },
+          clinicId,
+        );
       if (user.customModules)
         repositoryContext.addAdminAudit(
           actorUserId,
@@ -352,6 +362,8 @@ export function createAdministrationRepository(
           input.branchAccess,
           actorUserId,
         );
+      const previousDashboardAccess = user.dashboardAccess ?? false;
+      user.dashboardAccess = input.dashboardAccess ?? previousDashboardAccess;
       user.fullName = input.fullName;
       user.role = input.role;
       user.active = input.active;
@@ -385,6 +397,18 @@ export function createAdministrationRepository(
         },
         clinicId,
       );
+      if (user.dashboardAccess !== previousDashboardAccess)
+        repositoryContext.addAdminAudit(
+          actorUserId,
+          "users.dashboard_access_updated",
+          "user",
+          user.id,
+          {
+            dashboardAccess: user.dashboardAccess,
+            previousDashboardAccess,
+          },
+          clinicId,
+        );
       if (
         JSON.stringify(previousPermissions) !== JSON.stringify(user.permissions)
       )

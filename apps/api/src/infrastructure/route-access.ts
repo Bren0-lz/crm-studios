@@ -367,6 +367,7 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
   "POST /public/document-signatures/:token": "public",
   // API externa de vendas (chave de integração; ver `modules/external/endpoints.ts`).
   "GET /external/v1": external("sales:read"),
+  "POST /external/v1/auth/login": external("sales:read"),
   "GET /external/v1/groups": external("sales:read", view("groups", "plans")),
   "GET /external/v1/groups/:id": external(
     "sales:read",

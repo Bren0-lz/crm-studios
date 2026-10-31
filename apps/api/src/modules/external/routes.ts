@@ -6,15 +6,18 @@ import {
   type ExternalGroupMember,
   type ExternalGroupRow,
   type ExternalGroupsOverview,
+  type ExternalLoginResult,
   type ExternalPatientSummary,
   externalGroupsQuerySchema,
   externalPatientsQuerySchema,
   type GroupEnrollment,
   type GroupRevenueRow,
   groupRevenueOverview,
+  loginSchema,
   type Patient,
   saoPauloToday,
 } from "@crm/contracts";
+import { compare } from "bcryptjs";
 import type { FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 import type { RouteContext } from "../../infrastructure/route-context.js";
@@ -90,6 +93,8 @@ export function registerExternalRoutes({
   authenticate,
   repository,
   integrationKeys,
+  loginAttempts,
+  dashboardAccessDenied,
 }: RouteContext) {
   /** Turmas com ocupação e faturamento, pelo mesmo cálculo da aba "Visão geral" de Turmas. */
   async function groupsOverview(
@@ -122,6 +127,73 @@ export function registerExternalRoutes({
       ),
     };
   }
+
+  /** Validade do token do painel de vendas (o mesmo das sessões do CRM). */
+  const DASHBOARD_TOKEN_HOURS = 8;
+
+  /**
+   * Login do painel de vendas: a chave identifica o painel e o e-mail/senha, a pessoa. Só entra
+   * quem tem o acesso ao painel marcado no cadastro — permissão especial que nem o admin recebe
+   * sozinho. O token devolvido vai no cabeçalho `X-CRM-User-Token` das chamadas seguintes.
+   */
+  app.post("/external/v1/auth/login", async (request, reply) => {
+    const input = loginSchema.parse(request.body);
+    const clinicId = request.user.clinicId;
+    // Todas as pessoas chegam pelo IP do servidor do painel: a trava conta por e-mail.
+    const attemptKey = `external:${clinicId}:${input.email}`;
+    const attempt = loginAttempts.get(attemptKey);
+    const blocked = {
+      code: "LOGIN_TEMPORARILY_BLOCKED",
+      message: "Muitas tentativas inválidas. Tente novamente em 15 minutos.",
+    };
+    if (attempt?.blockedUntil && attempt.blockedUntil > Date.now())
+      return reply.status(429).send(blocked);
+    const user = await repository.findUserByEmail(input.email);
+    if (
+      !user ||
+      user.clinicId !== clinicId ||
+      !(await compare(input.password, user.passwordHash))
+    ) {
+      const failures = (attempt?.failures ?? 0) + 1;
+      loginAttempts.set(attemptKey, {
+        failures,
+        ...(failures >= 5 ? { blockedUntil: Date.now() + 15 * 60 * 1000 } : {}),
+      });
+      if (failures >= 5) return reply.status(429).send(blocked);
+      return reply.status(401).send({
+        code: "INVALID_CREDENTIALS",
+        message: "E-mail ou senha inválidos.",
+      });
+    }
+    loginAttempts.delete(attemptKey);
+    if (!user.dashboardAccess)
+      return reply.status(403).send(dashboardAccessDenied);
+    const token = app.jwt.sign(
+      {
+        sub: user.id,
+        clinicId,
+        role: user.role,
+        sessionVersion: user.sessionVersion ?? 0,
+        kind: "dashboard",
+      },
+      { expiresIn: `${DASHBOARD_TOKEN_HOURS}h` },
+    );
+    const result: ExternalLoginResult = {
+      token,
+      expiresAt: new Date(
+        Date.now() + DASHBOARD_TOKEN_HOURS * 3_600_000,
+      ).toISOString(),
+      user: {
+        id: user.id,
+        fullName: user.fullName,
+        email: user.email,
+        role: user.role,
+        modules: user.modules,
+        permissions: user.permissions,
+      },
+    };
+    return result;
+  });
 
   app.get(
     "/external/v1",

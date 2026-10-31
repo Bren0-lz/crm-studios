@@ -96,6 +96,13 @@ export function formatAuditEvent(event: AdminAuditEvent) {
       if (typeof metadata.active === "boolean")
         add("Situação", metadata.active ? "Ativo" : "Desativado");
       break;
+    case "users.dashboard_access_updated":
+      if (typeof metadata.dashboardAccess === "boolean")
+        add(
+          "Painel de vendas",
+          metadata.dashboardAccess ? "Acesso liberado" : "Acesso removido",
+        );
+      break;
     case "users.permissions_updated": {
       const current = strings(metadata.permissions);
       const previous = strings(metadata.previousPermissions);

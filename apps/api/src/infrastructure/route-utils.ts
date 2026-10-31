@@ -24,12 +24,16 @@ declare module "@fastify/jwt" {
       clinicId: string;
       role: UserSummary["role"];
       sessionVersion?: number;
+      /** `dashboard`: token do painel de vendas, só vale na API externa com a chave. */
+      kind?: "dashboard";
     };
     user: {
       sub: string;
       clinicId: string;
       role: UserSummary["role"];
       sessionVersion?: number;
+      /** `dashboard`: token do painel de vendas, só vale na API externa com a chave. */
+      kind?: "dashboard";
     };
   }
 }
