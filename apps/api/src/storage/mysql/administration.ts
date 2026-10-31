@@ -368,7 +368,8 @@ export function createAdministrationRepository(
         const result = await writeAndRead<UserRow>(
           client,
           `INSERT INTO users (clinic_id, full_name, email, role, password_hash, job_title, modules,
-           edit_modules, permissions, whatsapp, id) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10, $11)`,
+           edit_modules, permissions, whatsapp, id, dashboard_access)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10, $11, $12)`,
           [
             clinicId,
             input.fullName,
@@ -381,6 +382,7 @@ export function createAdministrationRepository(
             input.role === "admin" ? [] : permissions,
             input.whatsapp || null,
             randomUUID(),
+            input.dashboardAccess ?? false,
           ],
           `SELECT ${userColumns} FROM users WHERE id = $11`,
         );
@@ -394,6 +396,16 @@ export function createAdministrationRepository(
           { email: input.email, role: input.role },
         );
         const created = mapAdminUser(result.rows[0]!);
+        if (created.dashboardAccess)
+          await repositoryContext.addAdminAudit(
+            client,
+            clinicId,
+            actorUserId,
+            "users.dashboard_access_updated",
+            "user",
+            created.id,
+            { dashboardAccess: true, previousDashboardAccess: false },
+          );
         if (created.customModules)
           await repositoryContext.addAdminAudit(
             client,
@@ -543,10 +555,16 @@ export function createAdministrationRepository(
           input.whatsapp === undefined
             ? current.rows[0].whatsapp
             : input.whatsapp || null;
+        const previousDashboardAccess = Boolean(
+          current.rows[0].dashboardAccess,
+        );
+        const dashboardAccess =
+          input.dashboardAccess ?? previousDashboardAccess;
         const result = await writeAndRead<UserRow>(
           client,
           `UPDATE users SET full_name = $3, role = $4, active = $5, job_title = $6,
-           modules = $7, edit_modules = $8, permissions = $9, whatsapp = $10, updated_at = NOW(6)
+           modules = $7, edit_modules = $8, permissions = $9, whatsapp = $10,
+           dashboard_access = $11, updated_at = NOW(6)
          WHERE clinic_id = $1 AND id = $2`,
           [
             clinicId,
@@ -559,6 +577,7 @@ export function createAdministrationRepository(
             nextEditModules,
             input.role === "admin" ? [] : nextPermissions,
             whatsapp,
+            dashboardAccess,
           ],
           `SELECT ${userColumns} FROM users WHERE clinic_id = $1 AND id = $2`,
         );
@@ -567,6 +586,16 @@ export function createAdministrationRepository(
           return null;
         }
         const updated = mapAdminUser(result.rows[0]);
+        if (dashboardAccess !== previousDashboardAccess)
+          await repositoryContext.addAdminAudit(
+            client,
+            clinicId,
+            actorUserId,
+            "users.dashboard_access_updated",
+            "user",
+            userId,
+            { dashboardAccess, previousDashboardAccess },
+          );
         if (
           JSON.stringify(previousPermissions) !==
           JSON.stringify(nextPermissions)

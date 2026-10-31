@@ -577,6 +577,7 @@ export class MemoryRepositoryContext {
       customModules: false,
       passwordHash: hashSync("Admin@123", 10),
       active: true,
+      dashboardAccess: false,
       createdAt: now(),
       updatedAt: now(),
     },
@@ -878,6 +879,7 @@ export class MemoryRepositoryContext {
       ...(whatsapp ? { whatsapp } : {}),
       allBranches,
       branchIds: allBranches ? [] : [...(user.branchIds ?? [])],
+      dashboardAccess: user.dashboardAccess ?? false,
       ...(professional
         ? {
             professional: {

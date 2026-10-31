@@ -18,6 +18,13 @@ export const nativeEndpoints: ExternalEndpoint[] = [
     description: "Índice: clínica, chave usada e rotas disponíveis.",
   },
   {
+    method: "POST",
+    path: "/external/v1/auth/login",
+    scope: "sales:read",
+    description:
+      "Login do painel de vendas (email, password). Só entra quem tem o acesso ao painel marcado no cadastro (nem o admin, sem ele). Devolve o token para o cabeçalho X-CRM-User-Token: com ele, as chamadas agem como essa pessoa.",
+  },
+  {
     method: "GET",
     path: "/external/v1/groups",
     scope: "sales:read",

@@ -80,6 +80,9 @@ export function UserFormModal({
   const [branches, setBranches] = useState<Branch[]>([]);
   const [allBranches, setAllBranches] = useState(user?.allBranches ?? true);
   const [branchIds, setBranchIds] = useState<string[]>(user?.branchIds ?? []);
+  const [dashboardAccess, setDashboardAccess] = useState(
+    user?.dashboardAccess ?? false,
+  );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   // Prévia do recálculo das comissões já lançadas e as regras que ela descreve.
@@ -272,6 +275,9 @@ export function UserFormModal({
             // Ausente mantém o número gravado; vazio remove.
             ...(whatsapp !== (current.whatsapp ?? "") ? { whatsapp } : {}),
             ...permissions,
+            ...(dashboardAccess !== (current.dashboardAccess ?? false)
+              ? { dashboardAccess }
+              : {}),
             ...salaryInput,
             ...(commission ? { commission } : {}),
             ...services,
@@ -286,6 +292,7 @@ export function UserFormModal({
             ...(title ? { jobTitle: title } : {}),
             ...(whatsapp ? { whatsapp } : {}),
             ...permissions,
+            ...(dashboardAccess ? { dashboardAccess } : {}),
             ...salaryInput,
             ...(commission ? { commission } : {}),
             ...services,
@@ -459,6 +466,22 @@ export function UserFormModal({
               ))}
           </fieldset>
         )}
+        <fieldset className="form-fieldset span-2">
+          <legend>Painel de vendas</legend>
+          <label className="checkbox-field">
+            <input
+              type="checkbox"
+              checked={dashboardAccess}
+              onChange={(event) => setDashboardAccess(event.target.checked)}
+            />
+            Acessa o painel de vendas
+          </label>
+          <p className="muted-copy">
+            Permissão especial: vale também para o admin, que só entra no painel
+            com ela marcada. No painel, a pessoa vê e faz só o que as permissões
+            acima permitem.
+          </p>
+        </fieldset>
         <UserAgendaFields agenda={agenda} />
         <fieldset className="form-fieldset span-2">
           <legend>Folha de pagamento</legend>

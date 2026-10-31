@@ -452,6 +452,54 @@ describe("users and permissions", () => {
     expect(lastCall("PATCH").body).not.toHaveProperty("whatsapp");
   });
 
+  it("grants the sales dashboard access, also to an admin, sending it only when it changes", async () => {
+    localStorage.setItem("crm.auth.token", "test-token");
+    localStorage.setItem("crm.auth.user", storedUser(ownerSession));
+    mockAdmin(
+      (_url, init) =>
+        init?.method === "PATCH"
+          ? { ...adminUser, dashboardAccess: true }
+          : undefined,
+      [adminUser],
+    );
+    render(
+      <MemoryRouter initialEntries={["/configuracoes"]}>
+        <App />
+      </MemoryRouter>,
+    );
+    await openSettingsSection("Usuários");
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Editar Aryana Dutra" }),
+    );
+    const edit = screen.getByRole("dialog", { name: "Editar Aryana Dutra" });
+    // Admin tem acesso total ao CRM, mas o painel de vendas começa desmarcado.
+    const access = within(edit).getByRole("checkbox", {
+      name: "Acessa o painel de vendas",
+    });
+    expect(access).not.toBeChecked();
+    fireEvent.submit(access.closest("form")!);
+    expect(
+      await screen.findByText("Alterações de Aryana Dutra salvas."),
+    ).toBeInTheDocument();
+    expect(lastCall("PATCH").body).not.toHaveProperty("dashboardAccess");
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Editar Aryana Dutra" }),
+    );
+    const again = screen.getByRole("dialog", { name: "Editar Aryana Dutra" });
+    fireEvent.click(
+      within(again).getByRole("checkbox", { name: "Acessa o painel de vendas" }),
+    );
+    fireEvent.submit(
+      within(again)
+        .getByRole("checkbox", { name: "Acessa o painel de vendas" })
+        .closest("form")!,
+    );
+    await waitFor(() =>
+      expect(lastCall("PATCH").body).toMatchObject({ dashboardAccess: true }),
+    );
+  });
+
   it("marks on the user who receives a salary and how much, sending it only when it changes", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
     localStorage.setItem("crm.auth.user", storedUser(ownerSession));

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { UserSummary } from "../administration/types.js";
 import type { GroupEnrollment, GroupWeeklySlot } from "../agenda/types.js";
 import type { IntegrationScope } from "./types.js";
 
@@ -96,6 +97,22 @@ export interface ExternalPatientSummary {
   tags: string[];
   activePlans: { id: string; name: string; validUntil?: string }[];
   activeGroups: { groupId: string; groupName: string; status: GroupEnrollment["status"] }[];
+}
+
+/**
+ * Cabeçalho com o token de usuário do painel de vendas (`POST /external/v1/auth/login`): com
+ * ele, a chamada da API externa age como esse usuário (permissões, filiais e histórico dele).
+ */
+export const EXTERNAL_USER_TOKEN_HEADER = "x-crm-user-token";
+
+/** Login do painel de vendas: só entra quem tem `dashboardAccess` (nem o admin, sem ela). */
+export interface ExternalLoginResult {
+  token: string;
+  expiresAt: string;
+  user: Pick<
+    UserSummary,
+    "id" | "fullName" | "email" | "role" | "modules" | "permissions"
+  >;
 }
 
 export interface ExternalEndpoint {
