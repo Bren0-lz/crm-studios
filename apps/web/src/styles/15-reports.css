@@ -385,6 +385,9 @@
 .reports-page .dre-table tbody tr:last-child > * {
   border-bottom: 0;
 }
+.reports-campaigns .filter-group {
+  justify-self: start;
+}
 .reports-cell-detail {
   display: block;
   margin-top: var(--space-1);

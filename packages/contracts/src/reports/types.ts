@@ -113,6 +113,63 @@ export interface SalesPeriodReport {
   returnReference: { from: string; to: string };
 }
 
+export type CampaignReportKind = "manual" | "automatic";
+
+/** Uma campanha no relatório de campanhas (`GET /reports/campaigns`). */
+export interface CampaignReportRow {
+  campaignId: string;
+  kind: CampaignReportKind;
+  name: string;
+  /** Modelo de mensagem (manual) ou evento que dispara a campanha (automática). */
+  origin: string;
+  createdAt: string;
+  createdByName: string;
+  /** Automática: ligada agora. Manual: ainda em andamento (sem data de conclusão). */
+  active: boolean;
+  /** Manual: destinatários da campanha. Automática: mensagens tratadas no período. */
+  total: number;
+  sent: number;
+  skipped: number;
+  /** Só campanhas manuais; nas automáticas a fila do dia fica em Comunicação. */
+  pending: number;
+  /** Agendamentos com a promoção da campanha no período, sem os cancelados. */
+  redemptions: number;
+}
+
+/**
+ * Campanhas do período: manuais criadas entre as datas (com a situação atual de cada
+ * destinatário) e automáticas com mensagens marcadas ou promoções usadas nas datas,
+ * além das automáticas ligadas.
+ */
+export interface CampaignReport {
+  from: string;
+  to: string;
+  generatedAt: string;
+  summary: {
+    manualCampaigns: number;
+    automaticCampaigns: number;
+    sent: number;
+    skipped: number;
+    pending: number;
+    redemptions: number;
+  };
+  campaigns: CampaignReportRow[];
+}
+
+/** Uma mensagem da planilha do relatório de campanhas. */
+export interface CampaignReportMessage {
+  campaignId: string;
+  campaignName: string;
+  kind: CampaignReportKind;
+  patientName: string;
+  phone: string;
+  status: "pending" | "sent" | "skipped";
+  /** Etapa da campanha automática ou motivo de não envio. */
+  detail: string;
+  handledAt?: string | undefined;
+  handledByName?: string | undefined;
+}
+
 export type DashboardViewSummary = Pick<DashboardSummary, "date"> &
   Partial<Omit<DashboardSummary, "date">> & {
     /** Atendimentos passados ainda agendados/confirmados (qualquer data). */

@@ -58,6 +58,11 @@ export const historyActions: {
   },
   { action: "reports.dre_exported", module: "reports", label: "DRE exportada" },
   {
+    action: "reports.campaigns_exported",
+    module: "reports",
+    label: "Relatório de campanhas exportado",
+  },
+  {
     action: "user.sessions_revoked",
     module: "settings",
     label: "Acessos do usuário encerrados",
