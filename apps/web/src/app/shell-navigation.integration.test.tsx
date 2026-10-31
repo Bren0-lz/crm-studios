@@ -127,10 +127,9 @@ describe("shell navigation", () => {
       expect(
         within(nav).getByRole("group", { name: "Gestão" }),
       ).toBeInTheDocument();
-      expect(within(nav).getByRole("link", { name: "Meu perfil" })).toHaveAttribute(
-        "href",
-        "/perfil",
-      );
+      expect(
+        within(nav).getByRole("link", { name: "Meu perfil" }),
+      ).toHaveAttribute("href", "/perfil");
       expect(within(nav).getAllByRole("link")).toHaveLength(modules.length + 2);
       expect(screen.queryByRole("button", { name: "SOS" }) !== null).toBe(
         modules.includes("agenda"),
@@ -140,18 +139,16 @@ describe("shell navigation", () => {
   );
 
   it.each([false, true])(
-    "keeps navigation available without collapse controls when guarded=%s",
+    "keeps navigation available without opening the phone menu when guarded=%s",
     async (block) => {
       renderShell(["agenda"], block);
       const nav = screen.getByRole("navigation", {
         name: "Navegação principal",
       });
+      // O botão de abrir/fechar existe, mas o CSS só o mostra no celular (até 700px).
       expect(
-        screen.queryByRole("button", { name: "Abrir menu" }),
-      ).not.toBeInTheDocument();
-      expect(
-        screen.queryByRole("button", { name: "Fechar menu" }),
-      ).not.toBeInTheDocument();
+        screen.getByRole("button", { name: "Abrir menu" }),
+      ).toHaveAttribute("aria-expanded", "false");
       fireEvent.click(screen.getByRole("link", { name: "Agenda" }));
       expect(screen.getByLabelText("Rota atual")).toHaveTextContent(
         block ? /^\/$/ : /^\/agenda$/,
