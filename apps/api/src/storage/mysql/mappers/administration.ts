@@ -31,12 +31,14 @@ export interface UserRow {
   updatedAt: Date;
   allBranches: boolean;
   branchIds: string[];
+  dashboardAccess: boolean;
 }
 
 export const userColumns = `id, clinic_id AS "clinicId", full_name AS "fullName", email, role,
   job_title AS "jobTitle", whatsapp, modules, edit_modules AS "editModules", permissions,
   password_hash AS "passwordHash", session_version AS "sessionVersion", active,
   created_at AS "createdAt", updated_at AS "updatedAt", all_branches AS "allBranches",
+  dashboard_access AS "dashboardAccess",
   (SELECT JSON_ARRAYAGG(ub.branch_id) FROM user_branches ub WHERE ub.user_id = users.id) AS "branchIds"`;
 
 /** Normaliza as colunas JSON/booleanas da linha de usuário (vindas de subconsulta, chegam como texto). */
@@ -48,6 +50,7 @@ export function normalizeUserRow<T extends UserRow>(row: T): T {
     permissions: json<string[] | null>(row.permissions) ?? [],
     active: Boolean(row.active),
     allBranches: Boolean(row.allBranches),
+    dashboardAccess: Boolean(row.dashboardAccess),
     branchIds: [...(json<string[] | null>(row.branchIds) ?? [])].sort(),
   };
 }
@@ -116,6 +119,7 @@ export function mapAdminUser(raw: UserRow): AdminUser {
     customModules: row.role !== "admin" && row.permissions.length > 0,
     allBranches: row.role === "admin" || row.allBranches,
     branchIds: row.role === "admin" || row.allBranches ? [] : row.branchIds,
+    dashboardAccess: row.dashboardAccess,
     active: row.active,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),

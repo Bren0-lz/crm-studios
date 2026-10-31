@@ -107,6 +107,11 @@ export interface AdminUser extends UserSummary {
   allBranches?: boolean;
   /** Filiais do usuário quando `allBranches` é `false`. */
   branchIds?: string[];
+  /**
+   * Acesso ao painel de vendas (dashboard externo). Permissão especial, fora do catálogo:
+   * vale também para o admin, que não a recebe sozinho.
+   */
+  dashboardAccess?: boolean;
   /** Profissional da agenda ligado ao usuário (`professionals.user_id`). */
   professionalId?: string;
   professionalName?: string;
