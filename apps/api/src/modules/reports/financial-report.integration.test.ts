@@ -1,4 +1,4 @@
-import type { FinancialReport } from "@crm/contracts";
+import { saoPauloToday, type FinancialReport } from "@crm/contracts";
 import { describe, expect, it, vi } from "vitest";
 import {
   authenticatedApp,
@@ -374,6 +374,89 @@ describe("relatório financeiro", () => {
       ).toBe(403);
     } finally {
       vi.useRealTimers();
+      await app.close();
+    }
+  });
+
+  it("quebra a venda em uma linha por produto, sem a origem de comanda", async () => {
+    const { app, token } = await authenticatedApp();
+    const headers = { authorization: `Bearer ${token}` };
+    try {
+      const patientId = (
+        await app.inject({ method: "GET", url: "/patients", headers })
+      ).json()[0].id as string;
+      const product = async (sku: string) =>
+        (
+          await app.inject({
+            method: "POST",
+            url: "/inventory/products",
+            headers,
+            payload: {
+              name: `Produto ${sku}`,
+              sku,
+              unit: "un",
+              costInCents: 2_000,
+              salePriceInCents: 4_500,
+              initialStock: 5,
+            },
+          })
+        ).json().id as string;
+      const cream = await product("CRM-1");
+      const oil = await product("OIL-1");
+      const sale = await app.inject({
+        method: "POST",
+        url: "/product-sales",
+        headers,
+        payload: {
+          patientId,
+          items: [
+            { productId: cream, quantity: 2 },
+            { productId: oil, quantity: 1, unitPriceInCents: 3_000 },
+          ],
+          settlement: "paid",
+          paymentMethod: "pix",
+          dueDate: saoPauloToday(),
+        },
+      });
+      expect(sale.statusCode).toBe(201);
+      const today = saoPauloToday();
+      const report = (
+        await app.inject({
+          method: "GET",
+          url: `/reports/financial?from=${today}&to=${today}`,
+          headers,
+        })
+      ).json<FinancialReport>();
+      const lines = report.entries.filter(
+        (entry) =>
+          entry.origin === "product_sale" || entry.origin === "service_sale",
+      );
+      expect(
+        lines.map(({ origin, description, amountInCents, paymentMethod }) => ({
+          origin,
+          description,
+          amountInCents,
+          paymentMethod,
+        })),
+      ).toEqual([
+        {
+          origin: "product_sale",
+          description: "Produto CRM-1 × 2",
+          amountInCents: 9_000,
+          paymentMethod: "pix",
+        },
+        {
+          origin: "product_sale",
+          description: "Produto OIL-1 × 1",
+          amountInCents: 3_000,
+          paymentMethod: "pix",
+        },
+      ]);
+      expect(new Set(lines.map((entry) => entry.id)).size).toBe(2);
+      expect(
+        report.entries.map((entry) => entry.origin as string),
+      ).not.toContain("tab");
+    } finally {
       await app.close();
     }
   });

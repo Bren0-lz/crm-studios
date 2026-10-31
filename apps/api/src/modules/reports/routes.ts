@@ -119,6 +119,7 @@ export function registerReportsRoutes(context: RouteContext) {
     const [
       movements,
       workspace,
+      inventory,
       professionals,
       employees,
       branches,
@@ -127,6 +128,7 @@ export function registerReportsRoutes(context: RouteContext) {
     ] = await Promise.all([
       repository.listCashMovements(clinicId, from, to),
       repository.getFinancialWorkspace(clinicId),
+      repository.getInventoryWorkspace(clinicId),
       repository.listProfessionals(clinicId),
       repository.listPayrollEmployees(clinicId),
       repository.listBranches(clinicId),
@@ -140,6 +142,7 @@ export function registerReportsRoutes(context: RouteContext) {
         movements,
         receivables: workspace.summary.receivables,
         payables: workspace.payables,
+        tabs: inventory.tabs,
         categories: workspace.categories,
         costCenters: workspace.costCenters,
         commissions: workspace.commissions,

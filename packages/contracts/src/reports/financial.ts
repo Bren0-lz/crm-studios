@@ -38,14 +38,24 @@ export const proLaboreBaseLabels: Record<ProLaboreSettings["base"], string> = {
   revenue: "das entradas",
 };
 
-/** Por onde o dinheiro entrou ou saiu. */
+/**
+ * Por onde o dinheiro entrou ou saiu. A venda (comanda) não é origem: cada pagamento dela
+ * vira uma linha por produto (`product_sale`) e por serviço avulso (`service_sale`).
+ */
 export type FinancialEntryOrigin =
-  "plan" | "tab" | "manual_receivable" | "expense" | "payroll" | "commission";
+  | "plan"
+  | "product_sale"
+  | "service_sale"
+  | "manual_receivable"
+  | "expense"
+  | "payroll"
+  | "commission";
 
 export const financialEntryOriginLabels: Record<FinancialEntryOrigin, string> =
   {
     plan: "Venda de planos",
-    tab: "Comandas",
+    product_sale: "Venda de produtos",
+    service_sale: "Serviços avulsos",
     manual_receivable: "Receitas avulsas",
     expense: "Despesas",
     payroll: "Folha de pagamento",
@@ -54,7 +64,10 @@ export const financialEntryOriginLabels: Record<FinancialEntryOrigin, string> =
 
 /** Um movimento do caixa no período, com tudo o que permite filtrá-lo. */
 export interface FinancialEntry {
-  /** `<tipo>:<id da origem>`, igual ao caixa do dia. */
+  /**
+   * `<tipo>:<id da origem>`, igual ao caixa do dia; na venda quebrada por item,
+   * `<id do movimento>#<id do item>`.
+   */
   id: string;
   direction: "in" | "out";
   kind: DailyCashMovementKind;
@@ -172,7 +185,8 @@ export const financialEntryFiltersSchema = z.object({
     .enum([
       "",
       "plan",
-      "tab",
+      "product_sale",
+      "service_sale",
       "manual_receivable",
       "expense",
       "payroll",
