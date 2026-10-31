@@ -544,6 +544,11 @@ export const historyActions: {
     label: "Comissão conciliada com a origem",
   },
   {
+    action: "commission.auto_reconciled",
+    module: "finance",
+    label: "Comissão conciliada automaticamente após mudança na origem",
+  },
+  {
     action: "commission.recalculated",
     module: "finance",
     label: "Comissões recalculadas pela regra nova",
