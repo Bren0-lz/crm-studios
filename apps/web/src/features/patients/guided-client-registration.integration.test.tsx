@@ -262,6 +262,23 @@ describe("guided client registration", () => {
     fireEvent.change(await within(productBlock).findByLabelText("Produto"), {
       target: { value: bottle.id },
     });
+    // O preço vem do cadastro do produto e não muda neste modal.
+    const price =
+      within(productBlock).getByLabelText<HTMLInputElement>("Preço unitário");
+    expect(price).toHaveAttribute("readonly");
+    expect(price.value).toMatch(/^R\$\s50,00$/);
+    // O menu de adicionar fica depois do último item, logo acima da sacola.
+    const menu = within(dialog).getByRole("group", {
+      name: "O que o cliente vai fazer?",
+    });
+    const bag = within(dialog).getByRole("group", { name: "Sacola" });
+    expect(
+      productBlock.compareDocumentPosition(menu) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+      menu.compareDocumentPosition(bag) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
     fireEvent.click(
       within(dialog).getByRole("button", { name: "Salvar e registrar venda" }),
     );
