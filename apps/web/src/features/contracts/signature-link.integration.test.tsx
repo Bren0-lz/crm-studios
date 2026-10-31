@@ -92,10 +92,17 @@ describe("contract signature link", () => {
     ).toContain("Olá Breno");
     fireEvent.click(within(dialog).getByRole("button", { name: "Fechar" }));
     expect(
-      await screen.findByText("Aguardando assinatura"),
+      await screen.findByText("Aguardando assinatura", {
+        selector: ".status-pill",
+      }),
     ).toBeInTheDocument();
-    expect(screen.getByText(/Ainda não visualizado/)).toBeInTheDocument();
-    expect(screen.getByText(/Vale até/)).toBeInTheDocument();
+    // O registro do link fica nos detalhes do documento.
+    fireEvent.click(screen.getByRole("button", { name: /Ver detalhes/ }));
+    const details = await screen.findByRole("dialog");
+    expect(
+      within(details).getByText(/Ainda não visualizado/),
+    ).toBeInTheDocument();
+    expect(within(details).getByText(/Vale até/)).toBeInTheDocument();
   });
 
   it("opens the contract without login, records the view and the drawn signature", async () => {

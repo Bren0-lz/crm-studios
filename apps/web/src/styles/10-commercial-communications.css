@@ -731,6 +731,90 @@
   gap: calc(var(--space-2) - 1px);
 }
 
+/* Lista de emissões: cliente, data, situação e "Ver detalhes"; o resto fica no modal. */
+.issued-document-list > article {
+  grid-template-columns: minmax(0, 1fr) auto auto auto;
+}
+
+.document-date {
+  color: var(--muted);
+  font-size: var(--text-xs);
+  white-space: nowrap;
+}
+
+.documents-toolbar {
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.documents-toolbar > label:not(.search-box) {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+
+.documents-toolbar > .search-box {
+  flex: 1 1 calc(var(--space-8) * 4);
+}
+
+.documents-toolbar select {
+  width: auto;
+  min-width: calc(var(--space-8) * 2 + var(--space-6));
+}
+
+/* Modal "Ver detalhes" do documento. */
+.document-details {
+  display: grid;
+  gap: var(--space-5);
+}
+
+.document-details-facts {
+  grid-template-columns: repeat(
+    auto-fill,
+    minmax(calc(var(--space-8) * 3), 1fr)
+  );
+  gap: var(--space-4);
+}
+
+.document-details-section h3 {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-md);
+  font-weight: 600;
+}
+
+.document-details-section > .signature-link-record {
+  margin-top: 0;
+  margin-bottom: var(--space-2);
+}
+
+.document-details-section > .muted-copy {
+  margin: 0 0 var(--space-2);
+}
+
+.document-details-content summary {
+  cursor: pointer;
+  color: var(--green-2);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.document-details-content > summary + * {
+  margin-top: var(--space-3);
+}
+
+.document-details-actions {
+  flex-wrap: wrap;
+  margin-top: 0;
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--line);
+}
+
+.document-details-actions > .danger-button {
+  margin-right: auto;
+}
+
 .report-filter {
   display: flex;
   align-items: end;
