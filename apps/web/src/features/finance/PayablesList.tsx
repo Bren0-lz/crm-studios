@@ -33,13 +33,19 @@ export function PayablesList({
       <div className="finance-filter-empty">
         <EmptyState
           title="Nenhuma conta a pagar"
-          copy="Lance a primeira despesa em “Nova despesa” ou cadastre uma despesa fixa logo abaixo."
+          copy="Lance a primeira despesa em “Nova despesa”: pontual ou fixa (todo mês)."
         />
-        {canManage && can("finance.payables_create") && (
-          <button type="button" className="secondary-button" onClick={onCreate}>
-            <Plus size={18} /> Nova despesa
-          </button>
-        )}
+        {canManage &&
+          (can("finance.payables_create") ||
+            can("finance.recurring_create")) && (
+            <button
+              type="button"
+              className="secondary-button"
+              onClick={onCreate}
+            >
+              <Plus size={18} /> Nova despesa
+            </button>
+          )}
       </div>
     );
   }

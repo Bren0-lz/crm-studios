@@ -6,7 +6,7 @@ import {
   type RecurringPayable,
   type RecurringPayableInput,
 } from "@crm/contracts";
-import { BellRing, Plus } from "lucide-react";
+import { BellRing } from "lucide-react";
 import { useEffect, useState } from "react";
 import { api } from "../../api";
 import { useToast } from "../../shared/feedback/toast-context";
@@ -30,18 +30,20 @@ export function RecurringPayablesSection({
   workspace,
   onGenerated,
   editable,
+  refreshKey = 0,
 }: {
   workspace: FinancialWorkspace;
   onGenerated: () => Promise<void>;
   /** Sem edição do Financeiro: lista só para consulta. */
   editable: boolean;
+  /** Muda quando uma despesa fixa é criada fora da seção ("Nova despesa"). */
+  refreshKey?: number;
 }) {
   const { can } = useAuthorization();
   const toast = useToast();
   const [items, setItems] = useState<RecurringPayable[] | null>(null);
   const [error, setError] = useState("");
   const [busyId, setBusyId] = useState("");
-  const [modal, setModal] = useState(false);
   const [editing, setEditing] = useState<RecurringPayable | null>(null);
   const [ending, setEnding] = useState<RecurringPayable | null>(null);
   const [informing, setInforming] = useState<Payable | null>(null);
@@ -60,7 +62,7 @@ export function RecurringPayablesSection({
     return () => {
       active = false;
     };
-  }, []);
+  }, [refreshKey]);
   async function refresh() {
     // O workspace gera as contas do mês; a lista vem depois, já com a última competência.
     await onGenerated();
@@ -95,14 +97,10 @@ export function RecurringPayablesSection({
             <p className="panel-help">
               Contas que se repetem todo mês, de valor fixo (aluguel, internet)
               ou variável (água, luz). Cada mês vira uma conta a pagar no dia do
-              vencimento; com aviso, o sino lembra alguns dias antes.
+              vencimento; com aviso, o sino lembra alguns dias antes. Para
+              cadastrar, use “Nova despesa” e escolha “Fixa (todo mês)”.
             </p>
           </div>
-          {editable && can("finance.recurring_create") && (
-            <button className="primary-button" onClick={() => setModal(true)}>
-              <Plus size={18} /> Nova despesa fixa
-            </button>
-          )}
         </div>
         {reminders.length > 0 && (
           <div
@@ -156,7 +154,7 @@ export function RecurringPayablesSection({
         ) : items.length === 0 ? (
           <EmptyState
             title="Nenhuma despesa fixa"
-            copy="Cadastre aluguel, internet e outras contas mensais para gerá-las automaticamente."
+            copy="Cadastre aluguel, internet e outras contas mensais em “Nova despesa”, como despesa fixa, para gerá-las automaticamente."
           />
         ) : (
           <div className="finance-table finance-list recurring-table">
@@ -310,18 +308,6 @@ export function RecurringPayablesSection({
           </div>
         )}
       </section>
-      {modal && (
-        <RecurringPayableModal
-          workspace={workspace}
-          currentMonth={currentMonth}
-          onClose={() => setModal(false)}
-          onCreated={() => {
-            toast.success("Despesa fixa criada.");
-            setModal(false);
-            void refresh().catch((cause: Error) => setError(cause.message));
-          }}
-        />
-      )}
       {editing && (
         <RecurringPayableModal
           workspace={workspace}

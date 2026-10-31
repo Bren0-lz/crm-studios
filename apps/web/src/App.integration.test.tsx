@@ -6111,12 +6111,19 @@ describe("application shell", () => {
     closeRecurringMenu(lastMonthRow);
 
     // Criar: só categorias de despesa no select; depois recarrega o workspace (que gera as contas).
+    // "Nova despesa" é um botão só; a despesa fixa é escolhida no modal.
     fireEvent.click(
-      within(section).getByRole("button", { name: "Nova despesa fixa" }),
+      screen.getAllByRole("button", { name: "Nova despesa" })[0]!,
     );
-    const dialog = await screen.findByRole("dialog", {
-      name: "Nova despesa fixa",
-    });
+    fireEvent.click(
+      within(
+        await screen.findByRole("dialog", { name: "Nova despesa" }),
+      ).getByRole("radio", { name: "Fixa (todo mês)" }),
+    );
+    const dialog = await screen.findByRole("dialog", { name: "Nova despesa" });
+    expect(
+      within(dialog).getByRole("radio", { name: "Fixa (todo mês)" }),
+    ).toBeChecked();
     expect(
       within(dialog).queryByRole("option", { name: "Mensalidades" }),
     ).not.toBeInTheDocument();
@@ -6159,7 +6166,7 @@ describe("application shell", () => {
       ).findByText("Contador"),
     ).toBeInTheDocument();
     expect(
-      screen.queryByRole("dialog", { name: "Nova despesa fixa" }),
+      screen.queryByRole("dialog", { name: "Nova despesa" }),
     ).not.toBeInTheDocument();
     expect(bodies[0]).toMatchObject({ method: "POST" });
     expect(bodies[0]!.body).toEqual({
@@ -7484,7 +7491,7 @@ describe("application shell", () => {
         within(section).getByRole("button", { name: "Nova despesa" }),
       );
       expect(
-        await screen.findByRole("dialog", { name: "Nova conta a pagar" }),
+        await screen.findByRole("dialog", { name: "Nova despesa" }),
       ).toBeInTheDocument();
     });
 
