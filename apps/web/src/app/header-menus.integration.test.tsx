@@ -516,4 +516,31 @@ describe("notification banner, alerts and settings", () => {
     ).toBeVisible();
     expect(screen.queryByText("Nova pendência")).not.toBeInTheDocument();
   });
+
+  it("opens and closes the collapsible side menu used on phones", async () => {
+    login();
+    vi.mocked(fetch).mockImplementation(
+      async () => ({ ok: true, status: 200, json: async () => [] }) as Response,
+    );
+    const { container } = renderApp();
+    const toggle = await screen.findByRole("button", { name: "Abrir menu" });
+    const shell = container.querySelector(".app-shell");
+    expect(toggle).toHaveAttribute("aria-controls", "main-sidebar");
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    expect(shell).toHaveClass("menu-open");
+    fireEvent.click(screen.getByRole("button", { name: "Fechar menu" }));
+    expect(shell).not.toHaveClass("menu-open");
+
+    fireEvent.click(toggle);
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(shell).not.toHaveClass("menu-open");
+
+    fireEvent.click(toggle);
+    const sidebar = screen.getByRole("complementary");
+    fireEvent.click(within(sidebar).getByRole("link", { name: "Agenda" }));
+    expect(shell).not.toHaveClass("menu-open");
+  });
 });
