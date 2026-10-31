@@ -196,6 +196,12 @@
   gap: var(--space-3);
 }
 
+/* Item do pedido: linha do produto e, abaixo, a quantidade de cada tamanho. */
+.supplier-order-item {
+  display: grid;
+  gap: var(--space-3);
+}
+
 .supplier-order-line {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr)) var(--space-7);
@@ -464,5 +470,11 @@
 /* Estoque: tamanhos configurados que zeraram (o produto ainda tem saldo em outros). */
 .inventory-product .inventory-sold-out {
   color: var(--terracotta);
+  font-weight: 600;
+}
+
+/* Estoque: tamanhos com saldo no aviso de reposição (mesmo tom da situação "Repor estoque"). */
+.inventory-product .inventory-restock-sizes {
+  color: #886b29;
   font-weight: 600;
 }

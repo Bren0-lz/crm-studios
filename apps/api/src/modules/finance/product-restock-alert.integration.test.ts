@@ -127,4 +127,48 @@ describe("product restock alert", () => {
     expect(await lowStockCount()).toBe(baseline);
     await app.close();
   });
+
+  it("asks for restock when any single size reaches the chosen quantity", async () => {
+    const { app, headers, fields, product, lowStockCount } = await setup();
+    const created = await app.inject({
+      method: "POST",
+      url: "/inventory/products",
+      headers,
+      payload: {
+        ...fields,
+        sku: "FAIXA-TAM",
+        initialStock: 0,
+        sizes: ["P", "M"],
+        initialSizeStock: [
+          { size: "P", quantity: 6 },
+          { size: "M", quantity: 10 },
+        ],
+        restockAlertAt: 5,
+      },
+    });
+    expect(created.statusCode).toBe(201);
+    expect(created.json()).toMatchObject({ currentStock: 16, lowStock: false });
+    const id = created.json().id as string;
+    const baseline = await lowStockCount();
+
+    // Total 15 está bem acima do aviso, mas P ficou com 5.
+    await app.inject({
+      method: "POST",
+      url: "/inventory/movements",
+      headers,
+      payload: {
+        productId: id,
+        size: "P",
+        kind: "loss",
+        quantity: 1,
+        notes: "Rasgou",
+      },
+    });
+    expect(await product(id)).toMatchObject({
+      currentStock: 15,
+      lowStock: true,
+    });
+    expect(await lowStockCount()).toBe(baseline + 1);
+    await app.close();
+  });
 });

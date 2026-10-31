@@ -1699,10 +1699,6 @@ export class MemoryRepositoryContext {
   refreshProductStock(product: Product) {
     const rows = [...(this.productStocks.get(product.id) ?? new Map())];
     product.currentStock = rows.reduce((sum, [, stock]) => sum + stock, 0);
-    product.lowStock = productNeedsRestock(
-      product.currentStock,
-      product.restockAlertAt,
-    );
     product.sizeStock = productSizeStock(
       product.sizes,
       rows.map(([size, currentStock]) => ({
@@ -1710,6 +1706,7 @@ export class MemoryRepositoryContext {
         currentStock,
       })),
     );
+    product.lowStock = productNeedsRestock(product);
   }
 
   /** Soma `delta` ao saldo do tamanho (recusa saldo negativo) e devolve o novo saldo dele. */

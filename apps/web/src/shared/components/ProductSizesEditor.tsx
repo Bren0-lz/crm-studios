@@ -3,11 +3,30 @@ import { ChevronLeft, X } from "lucide-react";
 import { useId, useState, type KeyboardEvent } from "react";
 import { maxSizeLength, parseSizes, sizeKey } from "../lib/product-sizes";
 
+const scopeText = {
+  category: {
+    toggle: "Os itens desta categoria têm tamanhos",
+    legend: "Tamanhos da categoria",
+    owner: "A categoria",
+    order:
+      "Os tamanhos aparecem nesta ordem no cadastro do produto, no estoque e na venda.",
+  },
+  product: {
+    toggle: "Este produto tem distinção de tamanho",
+    legend: "Tamanhos do produto",
+    owner: "O produto",
+    order:
+      "Os tamanhos aparecem nesta ordem no estoque, nos pedidos e na venda.",
+  },
+};
+
 /**
- * Pergunta se os itens da categoria se distinguem por tamanho e, se sim, monta a lista de tamanhos
- * do jeito que esses itens são medidos (letras, números, volumes…), na ordem de exibição.
+ * Pergunta se os itens da categoria (ou o produto) se distinguem por tamanho e, se sim, monta a
+ * lista de tamanhos do jeito que esses itens são medidos (letras, números, volumes…), na ordem de
+ * exibição.
  */
 export function ProductSizesEditor({
+  scope = "category",
   enabled,
   sizes,
   draft,
@@ -15,6 +34,7 @@ export function ProductSizesEditor({
   onSizesChange,
   onDraftChange,
 }: {
+  scope?: "category" | "product";
   enabled: boolean;
   sizes: string[];
   draft: string;
@@ -22,6 +42,7 @@ export function ProductSizesEditor({
   onSizesChange: (sizes: string[]) => void;
   onDraftChange: (draft: string) => void;
 }) {
+  const text = scopeText[scope];
   const hintId = useId();
   const [message, setMessage] = useState("");
   function add() {
@@ -36,7 +57,7 @@ export function ProductSizesEditor({
     }
     const next = sortProductSizes([...sizes, ...typed]);
     if (next.length > maxProductSizes) {
-      setMessage(`A categoria pode ter até ${maxProductSizes} tamanhos.`);
+      setMessage(`${text.owner} pode ter até ${maxProductSizes} tamanhos.`);
       return;
     }
     const added = new Set(sizes.map(sizeKey));
@@ -57,7 +78,7 @@ export function ProductSizesEditor({
     onDraftChange("");
   }
   function keyDown(event: KeyboardEvent<HTMLInputElement>) {
-    // Enter adiciona o tamanho em vez de enviar o formulário da categoria.
+    // Enter adiciona o tamanho em vez de enviar o formulário.
     if (event.key !== "Enter") return;
     event.preventDefault();
     add();
@@ -75,11 +96,11 @@ export function ProductSizesEditor({
           checked={enabled}
           onChange={(event) => onEnabledChange(event.target.checked)}
         />
-        Os itens desta categoria têm tamanhos
+        {text.toggle}
       </label>
       {enabled && (
         <fieldset className="form-fieldset size-editor">
-          <legend>Tamanhos da categoria</legend>
+          <legend>{text.legend}</legend>
           <p className="field-hint" id={hintId}>
             Escreva cada tamanho do jeito que esses itens são medidos e clique
             em Adicionar. Exemplos: P, M, G · 36, 38, 40 · 250 ml, 500 ml ·
@@ -141,10 +162,7 @@ export function ProductSizesEditor({
           ) : (
             <p className="field-hint">Nenhum tamanho adicionado ainda.</p>
           )}
-          <p className="field-hint">
-            Os tamanhos aparecem nesta ordem no cadastro do produto, no estoque
-            e na venda.
-          </p>
+          <p className="field-hint">{text.order}</p>
         </fieldset>
       )}
     </>

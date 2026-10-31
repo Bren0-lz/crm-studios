@@ -17,10 +17,21 @@ import {
   emptyFinancialFilters,
   entryEffect,
   filterFinancialEntries,
+  ledgerSortLabels,
+  sortLedger,
   type FinancialFilters,
+  type LedgerSort,
 } from "./financial-model";
 
 const PAGE = 100;
+/** Só dígitos e uma vírgula com até duas casas (o filtro aceita "150" ou "150,50"). */
+const amountInput = (value: string) => {
+  const [integer = "", ...decimals] = value.replace(/[^\d,]/g, "").split(",");
+  const whole = integer.slice(0, 9);
+  return decimals.length
+    ? `${whole || "0"},${decimals.join("").slice(0, 2)}`
+    : whole;
+};
 const money = (value: number) => currency.format(value / 100);
 const distinct = (values: Array<string | undefined>) =>
   [...new Set(values.filter((value): value is string => !!value))].sort(
@@ -53,7 +64,9 @@ export function FinancialLedger({
   const toast = useToast();
   const [limit, setLimit] = useState(PAGE);
   const [exporting, setExporting] = useState(false);
+  const [sort, setSort] = useState<LedgerSort>("date-asc");
   const visible = filterFinancialEntries(entries, filters);
+  const rows = sortLedger(visible, sort);
   const inflow = visible
     .filter((entry) => entry.direction === "in")
     .reduce((sum, entry) => sum + entry.amountInCents, 0);
@@ -235,6 +248,44 @@ export function FinancialLedger({
           </select>
         </label>
         <label>
+          Valor mínimo (R$)
+          <input
+            inputMode="decimal"
+            placeholder="0,00"
+            value={filters.minAmount}
+            onChange={(event) =>
+              set("minAmount", amountInput(event.target.value))
+            }
+          />
+        </label>
+        <label>
+          Valor máximo (R$)
+          <input
+            inputMode="decimal"
+            placeholder="Sem limite"
+            value={filters.maxAmount}
+            onChange={(event) =>
+              set("maxAmount", amountInput(event.target.value))
+            }
+          />
+        </label>
+        <label>
+          Ordenar
+          <select
+            value={sort}
+            onChange={(event) => {
+              setLimit(PAGE);
+              setSort(event.target.value as LedgerSort);
+            }}
+          >
+            {Object.entries(ledgerSortLabels).map(([key, label]) => (
+              <option key={key} value={key}>
+                {label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
           De
           <input
             type="date"
@@ -302,10 +353,15 @@ export function FinancialLedger({
                   <th scope="col" className="numeric-value">
                     Valor
                   </th>
+                  {sort === "date-asc" && (
+                    <th scope="col" className="numeric-value">
+                      Saldo
+                    </th>
+                  )}
                 </tr>
               </thead>
               <tbody>
-                {visible.slice(0, limit).map((entry) => {
+                {rows.slice(0, limit).map(({ entry, balance }) => {
                   const effect = entryEffect(entry);
                   return (
                     <tr key={entry.id}>
@@ -333,7 +389,17 @@ export function FinancialLedger({
                         className={`numeric-value ${effect < 0 ? "negative" : "positive"}`}
                       >
                         {money(effect)}
+                        {entry.kind.endsWith("reversal") && (
+                          <span className="reports-cell-detail">Estorno</span>
+                        )}
                       </td>
+                      {balance !== undefined && (
+                        <td
+                          className={`numeric-value${balance < 0 ? " negative" : ""}`}
+                        >
+                          {money(balance)}
+                        </td>
+                      )}
                     </tr>
                   );
                 })}

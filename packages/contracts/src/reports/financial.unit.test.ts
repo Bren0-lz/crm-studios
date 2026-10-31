@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  amountFilterInCents,
+  emptyFinancialFilters,
+  filterFinancialEntries,
+  financialEntryFiltersSchema,
   financialExportFilterSchema,
   financialReportFilterSchema,
   financialTotals,
@@ -142,5 +146,23 @@ describe("relatório financeiro", () => {
         origin: "salário",
       }).success,
     ).toBe(false);
+  });
+
+  it("filtra pela faixa do valor absoluto, em reais", () => {
+    expect(amountFilterInCents("150,5")).toBe(15_050);
+    expect(amountFilterInCents("")).toBeNull();
+    expect(
+      filterFinancialEntries(entries, {
+        ...emptyFinancialFilters,
+        minAmount: "100",
+        maxAmount: "500",
+      }).map((item) => item.id),
+    ).toEqual(["b", "c", "d", "e"]);
+    expect(
+      financialEntryFiltersSchema.safeParse({ minAmount: "12,345" }).success,
+    ).toBe(false);
+    expect(
+      financialEntryFiltersSchema.safeParse({ origin: "payroll" }).success,
+    ).toBe(true);
   });
 });
