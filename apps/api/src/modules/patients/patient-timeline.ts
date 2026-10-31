@@ -26,6 +26,11 @@ export interface PatientTimelineSources {
   surveys: SatisfactionSurvey[];
 }
 
+const refundCurrency = new Intl.NumberFormat("pt-BR", {
+  style: "currency",
+  currency: "BRL",
+});
+
 const appointmentStatusLabels: Record<AppointmentStatus, string> = {
   scheduled: "Agendado",
   confirmed: "Confirmado",
@@ -125,7 +130,9 @@ export function buildPatientTimeline(
         kind: "plan_cancelled",
         occurredAt: plan.cancelledAt,
         title: `Plano cancelado: ${plan.name}`,
-        detail: plan.serviceName,
+        detail: plan.refundedInCents
+          ? `${plan.serviceName} · estornado ao cliente ${refundCurrency.format(plan.refundedInCents / 100)}`
+          : plan.serviceName,
         amountInCents: -(plan.cancelledValueInCents ?? plan.totalValueInCents),
       });
   }

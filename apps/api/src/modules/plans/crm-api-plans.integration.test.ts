@@ -647,6 +647,52 @@ describe("CRM API", () => {
       payload: renewal,
     });
     expect(cancelled.statusCode).toBe(409);
+
+    // Cancelamento com estorno ao cliente: o valor fica registrado no plano.
+    const refunded = await app.inject({
+      method: "POST",
+      url: "/plans",
+      headers,
+      payload: await configuredPlan(app, payload),
+    });
+    const tooHigh = await app.inject({
+      method: "PATCH",
+      url: `/plans/${refunded.json().id}/status`,
+      headers,
+      payload: {
+        status: "cancelled",
+        cancellation: {
+          refundedInCents: refunded.json().totalValueInCents + 1,
+        },
+      },
+    });
+    expect(tooHigh.statusCode).toBe(400);
+    expect(tooHigh.json().code).toBe("PLAN_REFUND_TOO_HIGH");
+    const withRefund = await app.inject({
+      method: "PATCH",
+      url: `/plans/${refunded.json().id}/status`,
+      headers,
+      payload: {
+        status: "cancelled",
+        cancellation: { refundedInCents: 5000, refundNote: "Pix" },
+      },
+    });
+    expect(withRefund.statusCode).toBe(200);
+    expect(withRefund.json()).toMatchObject({
+      status: "cancelled",
+      refundedInCents: 5000,
+      refundNote: "Pix",
+    });
+    const timeline = await app.inject({
+      method: "GET",
+      url: `/patients/${refunded.json().patientId}/timeline`,
+      headers,
+    });
+    expect(
+      (timeline.json() as { id: string; detail?: string }[]).find(
+        (entry) => entry.id === `plan_cancelled:${refunded.json().id}`,
+      )?.detail,
+    ).toMatch(/estornado ao cliente R\$\s50,00/);
     await app.close();
   });
 

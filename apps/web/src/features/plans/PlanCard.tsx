@@ -89,6 +89,18 @@ export function PlanCard({
           </strong>
         </div>
       )}
+      {plan.status === "cancelled" && plan.cancelledAt && (
+        <div className="plan-meta plan-cancellation">
+          <span>Cancelamento</span>
+          <strong>
+            {shortDate.format(new Date(plan.cancelledAt))}
+            {plan.refundedInCents
+              ? ` · estornado ao cliente ${currency.format(plan.refundedInCents / 100)}`
+              : " · sem estorno"}
+            {plan.refundNote ? ` · ${plan.refundNote}` : ""}
+          </strong>
+        </div>
+      )}
       {!plan.sourceTabId && plan.status !== "cancelled" && (
         <div className="plan-meta plan-renewal">
           <span>Renovação</span>

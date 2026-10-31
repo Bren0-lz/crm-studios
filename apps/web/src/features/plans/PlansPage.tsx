@@ -16,7 +16,11 @@ import { EmptyState } from "../../shared/components/EmptyState";
 import { ErrorBanner } from "../../shared/components/ErrorBanner";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
 import { PageHeader } from "../../shared/components/PageHeader";
-import { clinicIsoDate, formatIsoDate } from "../../shared/lib/formatting";
+import {
+  clinicIsoDate,
+  currency,
+  formatIsoDate,
+} from "../../shared/lib/formatting";
 import {
   planListFilterLabels,
   planMatchesFilter,
@@ -385,9 +389,19 @@ export function PlansPage({ canManage }: { canManage: boolean }) {
         <PlanCancelModal
           plan={cancellingPlan}
           onClose={() => setCancellingPlan(null)}
-          onConfirm={async () => {
+          onConfirm={async (cancellation) => {
             replacePlan(
-              await api.updatePlanStatus(cancellingPlan.id, "cancelled"),
+              await api.updatePlanStatus(
+                cancellingPlan.id,
+                "cancelled",
+                undefined,
+                cancellation,
+              ),
+            );
+            toast.success(
+              cancellation.refundedInCents
+                ? `Plano cancelado. Estorno de ${currency.format(cancellation.refundedInCents / 100)} registrado.`
+                : "Plano cancelado.",
             );
             setCancellingPlan(null);
           }}
