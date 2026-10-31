@@ -99,11 +99,11 @@ function Totals({ totals, label }: { totals: PayrollTotals; label: string }) {
         <dt>Ajustes</dt>
         <dd>{money(totals.adjustmentInCents)}</dd>
       </div>
-      <div>
+      <div className="is-total">
         <dt>Total</dt>
         <dd>{money(totals.totalInCents)}</dd>
       </div>
-      <div>
+      <div className={totals.pendingInCents > 0 ? "is-pending" : undefined}>
         <dt>A lançar</dt>
         <dd>{money(totals.pendingInCents)}</dd>
       </div>
