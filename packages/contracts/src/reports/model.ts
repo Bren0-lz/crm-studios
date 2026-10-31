@@ -73,6 +73,7 @@ export const notificationKinds = [
   "overdueLeadTasks",
   "snoozedContacts",
   "pauseReturns",
+  "lowStock",
   "autoCampaigns",
 ] as const;
 
