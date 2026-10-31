@@ -18,7 +18,12 @@ import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
 import { useToast } from "../../shared/feedback/toast-context";
 import { useDataVersion } from "../../shared/hooks/useDataVersion";
 import { currency, shortDate } from "../../shared/lib/formatting";
-import { sizeChoiceValue, soldOutSizes, stockChoices } from "./model";
+import {
+  restockSizes,
+  sizeChoiceValue,
+  soldOutSizes,
+  stockChoices,
+} from "./model";
 import { ProductModal } from "./ProductModal";
 
 const emptyAdjustment: StockMovementInput = {
@@ -207,6 +212,11 @@ export function InventorySection({
                         {soldOutSizes(product).length > 0 && (
                           <small className="inventory-sold-out">
                             Esgotado: {soldOutSizes(product).join(", ")}
+                          </small>
+                        )}
+                        {restockSizes(product).length > 0 && (
+                          <small className="inventory-restock-sizes">
+                            Repor: {restockSizes(product).join(", ")}
                           </small>
                         )}
                       </span>

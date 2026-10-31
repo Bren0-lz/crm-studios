@@ -17,6 +17,9 @@ export const salesReportFilterSchema = z.object({
 
 export const salesPeriodReportFilterSchema = managementReportFilterSchema;
 
+/** Query de `GET /reports/campaigns` e da planilha `/reports/campaigns.xlsx`. */
+export const campaignReportFilterSchema = managementReportFilterSchema;
+
 /**
  * Query de `GET /reports/retention`. Parâmetros vazios contam como ausentes:
  * `to` ausente = hoje (fuso da clínica); `from` ausente = 1º dia do mês cinco

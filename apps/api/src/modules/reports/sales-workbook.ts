@@ -6,9 +6,9 @@ import {
 import ExcelJS from "exceljs";
 
 const currencyFormat = '"R$" #,##0.00;[Red]("R$" #,##0.00)';
-const dateFormat = "dd/mm/yyyy hh:mm";
+export const dateFormat = "dd/mm/yyyy hh:mm";
 
-function heading(sheet: ExcelJS.Worksheet) {
+export function heading(sheet: ExcelJS.Worksheet) {
   sheet.getRow(1).font = { bold: true, color: { argb: "FFFFFFFF" } };
   sheet.getRow(1).fill = {
     type: "pattern",

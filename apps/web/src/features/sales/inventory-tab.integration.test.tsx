@@ -180,6 +180,41 @@ describe("aba Estoque de Vendas de produtos (QM9)", () => {
     ).toBeInTheDocument();
   });
 
+  it("avisa a reposição pelo tamanho que chegou ao limite, não só pelo total", async () => {
+    const { repository } = await setupApi();
+    await repository.createProduct(clinicId, actorId, {
+      name: "Camiseta do estúdio",
+      sku: "CAM",
+      unit: "un",
+      costInCents: 2000,
+      salePriceInCents: 5000,
+      initialStock: 0,
+      sizes: ["P", "M", "G"],
+      initialSizeStock: [
+        { size: "P", quantity: 0 },
+        { size: "M", quantity: 3 },
+        { size: "G", quantity: 20 },
+      ],
+      restockAlertAt: 5,
+    });
+    const panel = await openInventoryTab();
+    const row = (
+      await within(panel).findByText("Camiseta do estúdio", { exact: true })
+    ).closest<HTMLElement>("tr")!;
+    // Total 23 está acima do aviso (5), mas P zerou e M tem 3.
+    expect(within(row).getByText("Repor estoque")).toBeInTheDocument();
+    expect(within(row).getByText("Esgotado: P")).toBeInTheDocument();
+    expect(within(row).getByText("Repor: M")).toBeInTheDocument();
+
+    fireEvent.click(
+      within(panel).getByRole("button", { name: "Editar Camiseta do estúdio" }),
+    );
+    const dialog = screen.getByRole("dialog", { name: "Editar produto" });
+    expect(
+      within(dialog).getByText(/Vale para cada tamanho/),
+    ).toBeInTheDocument();
+  });
+
   it("usa os tamanhos definidos na categoria do produto", async () => {
     const { repository } = await setupApi();
     const category = await repository.saveClinicCatalog(

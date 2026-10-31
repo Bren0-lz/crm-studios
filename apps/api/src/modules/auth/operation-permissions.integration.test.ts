@@ -224,6 +224,7 @@ describe("per-operation API authorization", () => {
       "reports.sales",
       "reports.management",
       "reports.clients",
+      "reports.campaigns",
       "patients.view",
     ]);
     const range = "from=2025-01-01&to=2025-01-31";
@@ -232,6 +233,7 @@ describe("per-operation API authorization", () => {
       ["/reports/sales.xlsx?month=2025-01", "reports.sales_export"],
       [`/reports/management.csv?${range}`, "reports.management_export"],
       [`/reports/clients/details/export?${range}`, "reports.clients_export"],
+      [`/reports/campaigns.xlsx?${range}`, "reports.campaigns_export"],
       ["/patients/export?format=csv&columns=fullName", "patients.export"],
       [`/reports/dre/export?${range}`, "reports.dre_export"],
       [
@@ -261,6 +263,7 @@ describe("per-operation API authorization", () => {
             "reports.sales",
             "reports.management",
             "reports.clients",
+            "reports.campaigns",
             "patients.view",
           ],
           [permission],

@@ -2,6 +2,7 @@ import { z } from "zod";
 import { buildClientDetails } from "./client-details.js";
 import { clientDetailsFilterSchema } from "@crm/contracts";
 import {
+  campaignReportFilterSchema,
   clientReportFilterSchema,
   entryBranch,
   filterFinancialEntries,
@@ -31,6 +32,11 @@ import {
   resolveRetentionPeriod,
 } from "./retention-report.js";
 import { salesReportToXlsx } from "./sales-workbook.js";
+import {
+  buildCampaignReport,
+  manualCampaignsInPeriod,
+} from "./campaign-report.js";
+import { campaignReportToXlsx } from "./campaign-workbook.js";
 import { buildTeamFinanceReport } from "./team-finance.js";
 import { buildFinancialReport } from "./financial-report.js";
 
@@ -287,6 +293,58 @@ export function registerReportsRoutes(context: RouteContext) {
       return report;
     });
   }
+
+  // Campanhas automáticas e manuais do período; a planilha exige `reports.campaigns_export`.
+  for (const path of ["/reports/campaigns", "/reports/campaigns.xlsx"] as const)
+    app.get(path, { preHandler: authenticate }, async (request, reply) => {
+      const { from, to } = campaignReportFilterSchema.parse(request.query);
+      const { clinicId } = request.user;
+      const [settings, manual, automatic, deliveries, redemptions, patients] =
+        await Promise.all([
+          repository.getClinicSettings(clinicId),
+          repository.listWhatsappCampaigns(clinicId),
+          repository.listAutoCampaigns(clinicId),
+          repository.listAutoCampaignDeliveries(clinicId),
+          repository.listAutoCampaignRedemptions(clinicId),
+          repository.listPatients(clinicId),
+        ]);
+      const timeZone = settings?.timezone || DEFAULT_CLINIC_TIMEZONE;
+      const details = await Promise.all(
+        manualCampaignsInPeriod(manual, from, to, timeZone).map((campaign) =>
+          repository.getWhatsappCampaign(clinicId, campaign.id),
+        ),
+      );
+      const { report, messages } = buildCampaignReport(
+        from,
+        to,
+        {
+          manual: details.filter((item) => item !== null),
+          automatic,
+          deliveries,
+          redemptions,
+          patients,
+        },
+        timeZone,
+      );
+      if (!path.endsWith(".xlsx")) return report;
+      await repository.recordAdminAuditEvent(
+        clinicId,
+        request.user.sub,
+        "reports.campaigns_exported",
+        "report",
+        { from, to, count: report.campaigns.length },
+      );
+      return reply
+        .header(
+          "Content-Type",
+          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+        .header(
+          "Content-Disposition",
+          `attachment; filename="campanhas-${from}-${to}.xlsx"`,
+        )
+        .send(await campaignReportToXlsx(report, messages));
+    });
 
   app.get("/reports/sales", { preHandler: authenticate }, async (request) => {
     const { month } = salesReportFilterSchema.parse(request.query);
