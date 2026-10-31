@@ -1,7 +1,7 @@
 import { EmergencyButton } from "../shared/components/EmergencyButton";
 import { RevokeSessionsButton } from "../shared/auth/RevokeSessionsButton";
 import type { NavTab, NavTabLabel, UserSummary } from "@crm/contracts";
-import { LogOut } from "lucide-react";
+import { LogOut, Menu, X } from "lucide-react";
 import {
   type ReactNode,
   useCallback,
@@ -94,6 +94,20 @@ export function Shell({
     }))
     .filter((group) => group.items.length > 0);
   const notifications = useNotificationCenter();
+  // Menu lateral recolhível: o botão e a gaveta só aparecem no celular (CSS, até 700px).
+  // Guarda a tela em que foi aberto: trocar de página ou de filial fecha sozinho.
+  const screenKey = `${pathname}|${branchKey}`;
+  const [menuOpenAt, setMenuOpenAt] = useState<string | null>(null);
+  const menuOpen = menuOpenAt === screenKey;
+  const setMenuOpen = (open: boolean) => setMenuOpenAt(open ? screenKey : null);
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setMenuOpenAt(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [menuOpen]);
   const guards = useRef(new Set<NavigationGuard>());
   const registerGuard = useCallback((guard: NavigationGuard) => {
     const set = guards.current;
@@ -110,10 +124,18 @@ export function Shell({
   }
 
   return (
-    <div className="app-shell">
+    <div className={`app-shell${menuOpen ? " menu-open" : ""}`}>
       <aside id="main-sidebar" className="sidebar">
         <div className="sidebar-head">
           <Logo compactMark />
+          <button
+            type="button"
+            className="icon-button sidebar-close"
+            aria-label="Fechar menu"
+            onClick={() => setMenuOpen(false)}
+          >
+            <X size={20} aria-hidden="true" />
+          </button>
         </div>
         <nav className="main-nav" aria-label="Navegação principal">
           {visibleGroups.map((group) => (
@@ -156,6 +178,7 @@ export function Shell({
                           return;
                         }
                       }
+                      setMenuOpen(false);
                     }}
                   >
                     <Icon size={19} aria-hidden="true" />
@@ -185,9 +208,26 @@ export function Shell({
           <RevokeSessionsButton onLogout={onLogout} />
         </div>
       </aside>
+      {menuOpen && (
+        <div
+          className="sidebar-scrim"
+          aria-hidden="true"
+          onClick={() => setMenuOpen(false)}
+        />
+      )}
       <section className="app-main">
         <header className="topbar" role="banner">
-          <div>
+          <button
+            type="button"
+            className="icon-button menu-toggle"
+            aria-label="Abrir menu"
+            aria-controls="main-sidebar"
+            aria-expanded={menuOpen}
+            onClick={() => setMenuOpen(true)}
+          >
+            <Menu size={20} aria-hidden="true" />
+          </button>
+          <div className="topbar-context">
             <span className="clinic-label">Studios Aryana</span>
             <span className="environment-dot">Demonstração</span>
           </div>
