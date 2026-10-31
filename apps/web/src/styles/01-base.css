@@ -90,6 +90,11 @@ html {
 ::-webkit-scrollbar-corner {
   background: transparent;
 }
+/* O menu lateral não pode ter scrollbar-width: no Chrome 121+ essa propriedade faz o
+   navegador ignorar os ::-webkit-scrollbar e voltar à barra cinza padrão (com setas). */
+.main-nav::-webkit-scrollbar {
+  width: var(--space-2);
+}
 .main-nav::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.18) padding-box;
 }
