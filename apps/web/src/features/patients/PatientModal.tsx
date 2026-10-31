@@ -23,6 +23,7 @@ import {
 } from "@crm/contracts";
 import {
   CalendarPlus,
+  CheckCircle2,
   Layers,
   MessageCircle,
   ShoppingBag,
@@ -59,6 +60,7 @@ import { planKindLabels } from "../plans/index";
 import { sellableStock } from "../sales/index";
 import { GuidedDemonstrationFields } from "./GuidedDemonstrationFields";
 import { GuidedGroupField } from "./GuidedGroupField";
+import { GuidedItemFieldset } from "./GuidedItemFieldset";
 import { GuidedOrderSummary } from "./GuidedOrderSummary";
 import { GuidedPlanFields } from "./GuidedPlanFields";
 import {
@@ -690,13 +692,35 @@ export function PatientModal({
       setLoading(false);
     }
   }
+  // Aviso do último item adicionado ou removido; `id` reinicia a animação a cada aviso.
+  const [itemNotice, setItemNotice] = useState<{ id: number; text: string }>();
+  function announce(text: string) {
+    setItemNotice((current) => ({ id: (current?.id ?? 0) + 1, text }));
+  }
+  const planLabelFor = (count: number) =>
+    count > 1 ? `Plano ${count}` : "Plano";
+  const singleLabelFor = (count: number) =>
+    count > 1 ? `Serviço avulso ${count}` : "Serviço avulso";
   function addItem(key: "demonstration" | "plan" | "single" | "product") {
-    if (key === "demonstration") return setDemonstrationAdded(true);
-    if (key === "product") return addProductLine();
+    if (key === "demonstration") {
+      setDemonstrationAdded(true);
+      return announce("Aula experimental adicionada logo abaixo.");
+    }
+    if (key === "product") {
+      addProductLine();
+      return announce(
+        `${productLines.length ? `Produto ${productLines.length + 1}` : "Produto"} adicionado logo abaixo.`,
+      );
+    }
     const id = nextPlanId.current++;
-    if (key === "plan")
-      return setPlans((current) => [...current, defaultGuidedPlanEntry(id)]);
+    if (key === "plan") {
+      setPlans((current) => [...current, defaultGuidedPlanEntry(id)]);
+      return announce(
+        `${planLabelFor(plans.length + 1)} adicionado logo abaixo.`,
+      );
+    }
     setSingles((current) => [...current, { id, form: defaultSingleForm() }]);
+    announce(`${singleLabelFor(singles.length + 1)} adicionado logo abaixo.`);
   }
   // Itens que podem entrar no cadastro, cada um com o seu botão "Adicionar".
   const sellsItems = plans.length + singles.length;
@@ -775,41 +799,45 @@ export function PatientModal({
     </div>
   );
   const productBlocks = productLines.map((line, index) => (
-    <fieldset className="form-fieldset span-2" key={`product-${line.key}`}>
-      <legend>
-        {productLines.length > 1 ? `Produto ${index + 1}` : "Produto"}
-      </legend>
-      {productsError ? (
-        <p className="form-error">{`Não foi possível carregar os produtos: ${productsError}`}</p>
-      ) : products === null ? (
-        <LoadingBlock />
-      ) : !products.length ? (
-        <p className="muted-copy">
-          Nenhum produto ativo. Cadastre produtos em Vendas › Estoque.
-        </p>
-      ) : (
-        <GuidedProductFields
-          line={line}
-          lines={productLines}
-          products={products}
-          disabled={!editable || loading}
-          onChange={(patch) => updateProductLine(line.key, patch)}
-          onRemove={() =>
-            setProductLines((current) =>
-              current.filter((item) => item.key !== line.key),
-            )
-          }
-          onEditDiscount={() =>
-            setDiscountTarget({
-              target: "product",
-              discount: line.discount,
-              apply: (next) =>
-                updateProductLine(line.key, { discount: next ?? undefined }),
-            })
-          }
-        />
-      )}
-    </fieldset>
+    <GuidedItemFieldset
+      key={`product-${line.key}`}
+      legend={productLines.length > 1 ? `Produto ${index + 1}` : "Produto"}
+      onRemoved={() => {
+        setProductLines((current) =>
+          current.filter((item) => item.key !== line.key),
+        );
+        announce("Produto removido da sacola.");
+      }}
+    >
+      {(remove) =>
+        productsError ? (
+          <p className="form-error">{`Não foi possível carregar os produtos: ${productsError}`}</p>
+        ) : products === null ? (
+          <LoadingBlock />
+        ) : !products.length ? (
+          <p className="muted-copy">
+            Nenhum produto ativo. Cadastre produtos em Vendas › Estoque.
+          </p>
+        ) : (
+          <GuidedProductFields
+            line={line}
+            lines={productLines}
+            products={products}
+            disabled={!editable || loading}
+            onChange={(patch) => updateProductLine(line.key, patch)}
+            onRemove={remove}
+            onEditDiscount={() =>
+              setDiscountTarget({
+                target: "product",
+                discount: line.discount,
+                apply: (next) =>
+                  updateProductLine(line.key, { discount: next ?? undefined }),
+              })
+            }
+          />
+        )
+      }
+    </GuidedItemFieldset>
   ));
   if (pixCharge) {
     const finish = () =>
@@ -1000,10 +1028,169 @@ export function PatientModal({
             </label>
           </div>
         </details>
+        {demonstrationAdded && (
+          <GuidedItemFieldset
+            legend="Aula experimental"
+            onRemoved={() => {
+              setDemonstrationAdded(false);
+              announce("Aula experimental removida.");
+            }}
+          >
+            {(remove) => (
+              <>
+                <GuidedDemonstrationFields
+                  value={demonstration}
+                  setValue={setDemonstration}
+                />
+                {removeButton("aula experimental", remove)}
+              </>
+            )}
+          </GuidedItemFieldset>
+        )}
+        {plans.map((entry, index) => (
+          <GuidedItemFieldset
+            key={entry.id}
+            legend={planLabel(index)}
+            onRemoved={() => {
+              setPlans((current) =>
+                current.filter((item) => item.id !== entry.id),
+              );
+              announce(`${entry.form.name || planLabel(index)} removido.`);
+            }}
+          >
+            {(remove) => (
+              <>
+                <GuidedPlanFields
+                  form={entry.form}
+                  setForm={planFormSetter(entry.id)}
+                  onServiceChange={() => updatePlan(entry.id, { groupId: "" })}
+                  groupSlots={slotsOf(entry.groupId)}
+                  patientName={form.fullName}
+                  pixKey={pixKey}
+                  pixTemplate={pixTemplate}
+                  kindField={
+                    <label>
+                      Modelo
+                      <select
+                        value={entry.form.kind}
+                        onChange={(e) => {
+                          const kind = e.target.value as GuidedPlanForm["kind"];
+                          updatePlan(entry.id, {
+                            form: {
+                              ...entry.form,
+                              kind,
+                              // Recorrente: uma cobrança por ciclo.
+                              installments:
+                                kind === "recurring"
+                                  ? 1
+                                  : entry.form.installments,
+                              autoRenew:
+                                kind === "recurring" &&
+                                Boolean(entry.form.validUntil),
+                            },
+                          });
+                        }}
+                      >
+                        {guidedPlanKinds.map((kind) => (
+                          <option value={kind} key={kind}>
+                            {planKindLabels[kind]}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  }
+                >
+                  <GuidedGroupField
+                    serviceIds={entry.form.services.map(
+                      (service) => service.serviceId,
+                    )}
+                    value={entry.groupId}
+                    onChange={(groupId) => updatePlan(entry.id, { groupId })}
+                    groups={groups}
+                    setGroups={setGroups}
+                  />
+                </GuidedPlanFields>
+                {entry.form.planTemplateId && (
+                  <PlanDiscountSummary
+                    discount={entry.form.discount}
+                    emptyLabel="Sem desconto neste plano."
+                    disabled={!editable || loading}
+                    onEdit={() =>
+                      editDiscount(
+                        entry.form.discount,
+                        planFormSetter(entry.id),
+                      )
+                    }
+                  />
+                )}
+                {removeButton(planLabel(index).toLowerCase(), remove)}
+              </>
+            )}
+          </GuidedItemFieldset>
+        ))}
+        {singles.map((entry, index) => (
+          <GuidedItemFieldset
+            key={entry.id}
+            legend={singleLabel(index)}
+            onRemoved={() => {
+              setSingles((current) =>
+                current.filter((item) => item.id !== entry.id),
+              );
+              announce(`${entry.form.name || singleLabel(index)} removido.`);
+            }}
+          >
+            {(remove) => (
+              <>
+                <GuidedPlanFields
+                  form={entry.form}
+                  setForm={singleFormSetter(entry.id)}
+                  patientName={form.fullName}
+                  pixKey={pixKey}
+                  pixTemplate={pixTemplate}
+                />
+                {entry.form.planTemplateId && (
+                  <PlanDiscountSummary
+                    discount={entry.form.discount}
+                    emptyLabel="Sem desconto neste serviço."
+                    disabled={!editable || loading}
+                    onEdit={() =>
+                      editDiscount(
+                        entry.form.discount,
+                        singleFormSetter(entry.id),
+                      )
+                    }
+                  />
+                )}
+                {removeButton(singleLabel(index).toLowerCase(), remove)}
+              </>
+            )}
+          </GuidedItemFieldset>
+        ))}
+        {productBlocks}
+        {productLines.length > 0 && (
+          <fieldset className="form-fieldset span-2">
+            <legend>Pagamento dos produtos</legend>
+            <GuidedProductPaymentFields
+              value={productPayment}
+              onChange={(patch) =>
+                setProductPayment((current) => ({ ...current, ...patch }))
+              }
+            />
+          </fieldset>
+        )}
+        {/* Menu de adicionar sempre depois do último item, logo acima da sacola. */}
         {addOptions.length > 0 && (
           <fieldset className="form-fieldset guided-add span-2">
             <legend>O que o cliente vai fazer?</legend>
             <p className="field-hint">{addedSummary}</p>
+            <p className="guided-item-notice" role="status">
+              {itemNotice && (
+                <span key={itemNotice.id}>
+                  <CheckCircle2 size={16} aria-hidden="true" />
+                  {itemNotice.text}
+                </span>
+              )}
+            </p>
             <div className="guided-add-grid">
               {addOptions.map(
                 ({ key, label, detail, icon: Icon, disabled }) => (
@@ -1027,125 +1214,6 @@ export function PatientModal({
                 ),
               )}
             </div>
-          </fieldset>
-        )}
-        {demonstrationAdded && (
-          <fieldset className="form-fieldset span-2">
-            <legend>Aula experimental</legend>
-            <GuidedDemonstrationFields
-              value={demonstration}
-              setValue={setDemonstration}
-            />
-            {removeButton("aula experimental", () =>
-              setDemonstrationAdded(false),
-            )}
-          </fieldset>
-        )}
-        {plans.map((entry, index) => (
-          <fieldset className="form-fieldset span-2" key={entry.id}>
-            <legend>{planLabel(index)}</legend>
-            <GuidedPlanFields
-              form={entry.form}
-              setForm={planFormSetter(entry.id)}
-              onServiceChange={() => updatePlan(entry.id, { groupId: "" })}
-              groupSlots={slotsOf(entry.groupId)}
-              patientName={form.fullName}
-              pixKey={pixKey}
-              pixTemplate={pixTemplate}
-              kindField={
-                <label>
-                  Modelo
-                  <select
-                    value={entry.form.kind}
-                    onChange={(e) => {
-                      const kind = e.target.value as GuidedPlanForm["kind"];
-                      updatePlan(entry.id, {
-                        form: {
-                          ...entry.form,
-                          kind,
-                          // Recorrente: uma cobrança por ciclo.
-                          installments:
-                            kind === "recurring" ? 1 : entry.form.installments,
-                          autoRenew:
-                            kind === "recurring" &&
-                            Boolean(entry.form.validUntil),
-                        },
-                      });
-                    }}
-                  >
-                    {guidedPlanKinds.map((kind) => (
-                      <option value={kind} key={kind}>
-                        {planKindLabels[kind]}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              }
-            >
-              <GuidedGroupField
-                serviceIds={entry.form.services.map(
-                  (service) => service.serviceId,
-                )}
-                value={entry.groupId}
-                onChange={(groupId) => updatePlan(entry.id, { groupId })}
-                groups={groups}
-                setGroups={setGroups}
-              />
-            </GuidedPlanFields>
-            {entry.form.planTemplateId && (
-              <PlanDiscountSummary
-                discount={entry.form.discount}
-                emptyLabel="Sem desconto neste plano."
-                disabled={!editable || loading}
-                onEdit={() =>
-                  editDiscount(entry.form.discount, planFormSetter(entry.id))
-                }
-              />
-            )}
-            {removeButton(planLabel(index).toLowerCase(), () =>
-              setPlans((current) =>
-                current.filter((item) => item.id !== entry.id),
-              ),
-            )}
-          </fieldset>
-        ))}
-        {singles.map((entry, index) => (
-          <fieldset className="form-fieldset span-2" key={entry.id}>
-            <legend>{singleLabel(index)}</legend>
-            <GuidedPlanFields
-              form={entry.form}
-              setForm={singleFormSetter(entry.id)}
-              patientName={form.fullName}
-              pixKey={pixKey}
-              pixTemplate={pixTemplate}
-            />
-            {entry.form.planTemplateId && (
-              <PlanDiscountSummary
-                discount={entry.form.discount}
-                emptyLabel="Sem desconto neste serviço."
-                disabled={!editable || loading}
-                onEdit={() =>
-                  editDiscount(entry.form.discount, singleFormSetter(entry.id))
-                }
-              />
-            )}
-            {removeButton(singleLabel(index).toLowerCase(), () =>
-              setSingles((current) =>
-                current.filter((item) => item.id !== entry.id),
-              ),
-            )}
-          </fieldset>
-        ))}
-        {productBlocks}
-        {productLines.length > 0 && (
-          <fieldset className="form-fieldset span-2">
-            <legend>Pagamento dos produtos</legend>
-            <GuidedProductPaymentFields
-              value={productPayment}
-              onChange={(patch) =>
-                setProductPayment((current) => ({ ...current, ...patch }))
-              }
-            />
           </fieldset>
         )}
         {(sellsItems > 0 || productLines.length > 0) && (

@@ -8,9 +8,9 @@ import {
   type ProductSize,
 } from "@crm/contracts";
 import { Trash2 } from "lucide-react";
-import { MoneyInput } from "../../shared/components/MoneyInput";
 import { PaymentInstallmentsSelect } from "../../shared/components/PaymentInstallmentsSelect";
 import { usePaymentMethodSettings } from "../../shared/hooks/usePaymentMethodSettings";
+import { currency } from "../../shared/lib/formatting";
 import { sellableStock, stockChoices } from "../sales/index";
 import type { GuidedProductLine } from "./order";
 import { PlanDiscountSummary } from "./PlanDiscountSummary";
@@ -128,12 +128,10 @@ export function GuidedProductFields({
           </span>
         )}
       </label>
+      {/* Preço do cadastro do produto: aqui só se dá desconto, não se muda o preço. */}
       <label>
-        Preço unitário (R$)
-        <MoneyInput
-          valueInCents={line.unitPriceInCents}
-          onChange={(cents) => onChange({ unitPriceInCents: cents ?? 0 })}
-        />
+        Preço unitário
+        <input readOnly value={currency.format(line.unitPriceInCents / 100)} />
       </label>
       {product && (
         <div className="span-2">
