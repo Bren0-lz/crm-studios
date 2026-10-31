@@ -337,11 +337,12 @@ export const financeApi = {
     ),
   payrollEmployees: (options?: RequestInit) =>
     request<PayrollEmployee[]>("/finance/payroll/employees", options),
-  savePayrollEmployee: (input: PayrollEmployeeInput, id?: string) =>
-    request<PayrollEmployee>(
-      id ? `/finance/payroll/employees/${id}` : "/finance/payroll/employees",
-      { method: id ? "PUT" : "POST", body: JSON.stringify(input) },
-    ),
+  /** Só colaboradores anteriores ao salário no usuário; não há cadastro direto na folha. */
+  savePayrollEmployee: (input: PayrollEmployeeInput, id: string) =>
+    request<PayrollEmployee>(`/finance/payroll/employees/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(input),
+    }),
   launchPayroll: (input: PayrollLaunchInput, options?: RequestInit) =>
     request<PayrollLaunchResult>("/finance/payroll/launch", {
       ...options,

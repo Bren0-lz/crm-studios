@@ -133,6 +133,8 @@ export interface AdminUserRow extends UserRow {
   /** Regras por serviço ativas e não encerradas (o mapper filtra com `serviceCommissionsInForce`). */
   serviceCommissions?: AdminUserServiceCommission[] | null;
   today?: string;
+  /** Salário do colaborador da folha ligado ao usuário (0 = não recebe). */
+  salaryInCents?: number | null;
 }
 
 /**
@@ -152,6 +154,8 @@ export const adminUserSelect = `SELECT u.*, p.id AS "professionalId", p.full_nam
       WHERE r.clinic_id = u."clinicId" AND r.user_id = u.id AND r.active
         AND (r.effective_until IS NULL OR r.effective_until >= ${localToday()})) AS "serviceCommissions",
     ${localToday()} AS today,
+    (SELECT pe.base_salary_in_cents FROM payroll_employees pe
+      WHERE pe.clinic_id = u."clinicId" AND pe.user_id = u.id) AS "salaryInCents",
     cr.kind AS "commissionKind", cr.fixed_amount_in_cents AS "commissionFixedAmountInCents",
     cr.percentage AS "commissionPercentage", cr.effective_from AS "commissionEffectiveFrom"
   FROM (SELECT ${userColumns} FROM users WHERE clinic_id = $1) u

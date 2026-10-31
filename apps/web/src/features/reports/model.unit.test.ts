@@ -7,23 +7,18 @@ import {
   satisfactionLabel,
 } from "./model";
 import type { SalesPeriodReport } from "@crm/contracts/reports";
+import { salesSummary } from "../../test-support/sales-report";
 
 function report(from: string, to: string): SalesPeriodReport {
   return {
     from,
     to,
     generatedAt: "2026-01-01T12:00:00Z",
-    summary: {
-      from,
-      to,
-      grossSalesInCents: 0,
-      cancelledSalesInCents: 0,
-      netSalesInCents: 0,
-      receivedInCents: 0,
-      attendedPatients: 0,
-    },
+    summary: salesSummary({ from, to }),
+    previous: salesSummary(),
+    changeInCents: 0,
+    changePercent: null,
     sales: [],
-    payments: [],
     patientsWithoutReturn: [],
     returnReference: { from, to },
   };
@@ -38,18 +33,28 @@ describe("sales chart aggregation", () => {
     expect(chart.grouping).toBe(grouping);
     expect(chart.points).toHaveLength(length);
   });
-  it("preserves negative values and assigns local midnight to the right bin", () => {
+  it("nets own cancellations, skips cancellations of earlier sales and assigns local midnight to the right bin", () => {
     const data = report("2026-01-01", "2026-01-02");
     data.sales = [
-      { occurredAt: "2026-01-02T02:00:00Z", amountInCents: -1000 },
-      { occurredAt: "2026-01-02T03:00:00Z", amountInCents: 5000 },
+      { kind: "sale", occurredAt: "2026-01-01T12:00:00Z", amountInCents: 3000 },
+      {
+        kind: "cancellation",
+        occurredAt: "2026-01-02T02:00:00Z",
+        saleOccurredAt: "2026-01-01T12:00:00Z",
+        amountInCents: -1000,
+      },
+      { kind: "sale", occurredAt: "2026-01-02T03:00:00Z", amountInCents: 5000 },
+      // Venda de dezembro cancelada em janeiro: fora do líquido do período.
+      {
+        kind: "cancellation",
+        occurredAt: "2026-01-02T12:00:00Z",
+        saleOccurredAt: "2025-12-10T12:00:00Z",
+        amountInCents: -8000,
+      },
     ] as SalesPeriodReport["sales"];
-    data.payments = [
-      { occurredAt: "2026-01-02T03:00:00Z", amountInCents: -300 },
-    ] as SalesPeriodReport["payments"];
     expect(salesChartPoints(data).points.map((p) => p.values)).toEqual([
-      [-1000, 0],
-      [5000, -300],
+      [2000],
+      [5000],
     ]);
   });
 });

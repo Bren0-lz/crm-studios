@@ -114,13 +114,15 @@ export function createFinanceOperationsRepository(
         (item) => item.clinicId === clinicId && item.id === id,
       );
       if (!item) return null;
+      const { sku } = input;
       if (
+        sku &&
         context.products.some(
           (entry) =>
             entry.clinicId === clinicId &&
             entry.id !== id &&
             context.branchOf(entry) === context.branchOf(item) &&
-            entry.sku.toLocaleLowerCase() === input.sku.toLocaleLowerCase(),
+            entry.sku.toLocaleLowerCase() === sku.toLocaleLowerCase(),
         )
       )
         throw new DomainError(
@@ -152,6 +154,7 @@ export function createFinanceOperationsRepository(
           400,
         );
       Object.assign(item, fields, {
+        sku: sku ?? item.sku,
         ...(sizes ? { sizes } : {}),
         ...(restockAlertAt !== undefined ? { restockAlertAt } : {}),
         updatedAt: now(),

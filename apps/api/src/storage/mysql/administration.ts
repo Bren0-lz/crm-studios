@@ -1,4 +1,5 @@
 import { saveUserAgenda, userSaveError } from "./user-agenda.js";
+import { syncUserPayroll } from "./user-payroll.js";
 import {
   type AutoFinalizationSettings,
   defaultProLaboreSettings,
@@ -14,6 +15,9 @@ import {
   type HistoryActor,
   type NavTabLabel,
   type NavTabLabelsInput,
+  type IntegrationKey,
+  type IntegrationKeyInput,
+  type IntegrationScope,
   type NotificationPreferences,
   type OwnProfile,
   type OwnProfileUpdate,
@@ -324,6 +328,14 @@ export function createAdministrationRepository(
               userId,
               { professionalId, previousProfessionalId },
             );
+            await syncUserPayroll(
+              repositoryContext,
+              client,
+              clinicId,
+              actorUserId,
+              userId,
+              undefined,
+            );
           }
           return repositoryContext.findAdminUser(client, clinicId, userId);
         });
@@ -430,6 +442,14 @@ export function createAdministrationRepository(
           created.id,
           input,
         );
+        await syncUserPayroll(
+          repositoryContext,
+          client,
+          clinicId,
+          actorUserId,
+          created.id,
+          input.salaryInCents ?? null,
+        );
         // Usuário novo ligado a um profissional que já tem comissões: recalcula pelas regras novas.
         if (recalculation)
           await commissions.apply(
@@ -444,7 +464,8 @@ export function createAdministrationRepository(
           input.commission ||
           input.serviceCommissions?.length ||
           input.branchAccess ||
-          input.professional
+          input.professional ||
+          input.salaryInCents
             ? await repositoryContext.findAdminUser(
                 client,
                 clinicId,
@@ -605,6 +626,14 @@ export function createAdministrationRepository(
           actorUserId,
           userId,
           input,
+        );
+        await syncUserPayroll(
+          repositoryContext,
+          client,
+          clinicId,
+          actorUserId,
+          userId,
+          input.salaryInCents,
         );
         if (recalculation)
           await commissions.apply(
@@ -1164,5 +1193,108 @@ export function createAdministrationRepository(
       );
       return preferences;
     },
+
+    async listIntegrationKeys(clinicId: string) {
+      const result = await repositoryContext.pool.query<IntegrationKeyRow>(
+        `${integrationKeySelect} WHERE k.clinic_id = $1
+         ORDER BY (k.revoked_at IS NULL) DESC, k.created_at DESC`,
+        [clinicId],
+      );
+      return result.rows.map(mapIntegrationKey);
+    },
+
+    async createIntegrationKey(
+      clinicId: string,
+      actorUserId: string,
+      input: IntegrationKeyInput,
+      secret: { prefix: string; tokenHash: string },
+    ) {
+      const id = randomUUID();
+      await repositoryContext.pool.query(
+        `INSERT INTO integration_api_keys
+           (id, clinic_id, name, prefix, token_hash, scopes, created_by_user_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        [
+          id,
+          clinicId,
+          input.name,
+          secret.prefix,
+          secret.tokenHash,
+          JSON.stringify(input.scopes),
+          actorUserId,
+        ],
+      );
+      const result = await repositoryContext.pool.query<IntegrationKeyRow>(
+        `${integrationKeySelect} WHERE k.clinic_id = $1 AND k.id = $2`,
+        [clinicId, id],
+      );
+      return mapIntegrationKey(result.rows[0]!);
+    },
+
+    async revokeIntegrationKey(clinicId: string, id: string) {
+      await repositoryContext.pool.query(
+        `UPDATE integration_api_keys SET revoked_at = NOW(6)
+         WHERE clinic_id = $1 AND id = $2 AND revoked_at IS NULL`,
+        [clinicId, id],
+      );
+      const result = await repositoryContext.pool.query<IntegrationKeyRow>(
+        `${integrationKeySelect} WHERE k.clinic_id = $1 AND k.id = $2`,
+        [clinicId, id],
+      );
+      const row = result.rows[0];
+      return row ? mapIntegrationKey(row) : null;
+    },
+
+    async findIntegrationKeyByTokenHash(tokenHash: string) {
+      const result = await repositoryContext.pool.query<
+        IntegrationKeyRow & { clinicId: string }
+      >(
+        `${integrationKeySelect.replace("SELECT", "SELECT k.clinic_id AS clinicId,")}
+         WHERE k.token_hash = $1 AND k.revoked_at IS NULL`,
+        [tokenHash],
+      );
+      const row = result.rows[0];
+      return row ? { clinicId: row.clinicId, key: mapIntegrationKey(row) } : null;
+    },
+
+    async touchIntegrationKey(clinicId: string, id: string) {
+      await repositoryContext.pool.query(
+        `UPDATE integration_api_keys SET last_used_at = NOW(6)
+         WHERE clinic_id = $1 AND id = $2`,
+        [clinicId, id],
+      );
+    },
+  };
+}
+
+interface IntegrationKeyRow {
+  id: string;
+  name: string;
+  prefix: string;
+  scopes: unknown;
+  createdByUserId: string;
+  createdByName: string | null;
+  createdAt: Date;
+  lastUsedAt: Date | null;
+  revokedAt: Date | null;
+}
+
+const integrationKeySelect = `SELECT k.id, k.name, k.prefix, k.scopes,
+    k.created_by_user_id AS createdByUserId, u.full_name AS createdByName,
+    k.created_at AS createdAt, k.last_used_at AS lastUsedAt, k.revoked_at AS revokedAt
+  FROM integration_api_keys k
+  LEFT JOIN users u ON u.clinic_id = k.clinic_id AND u.id = k.created_by_user_id`;
+
+function mapIntegrationKey(row: IntegrationKeyRow): IntegrationKey {
+  return {
+    id: row.id,
+    name: row.name,
+    prefix: row.prefix,
+    scopes: json<IntegrationScope[]>(row.scopes),
+    createdByUserId: row.createdByUserId,
+    createdByName: row.createdByName ?? "",
+    createdAt: row.createdAt.toISOString(),
+    ...(row.lastUsedAt ? { lastUsedAt: row.lastUsedAt.toISOString() } : {}),
+    ...(row.revokedAt ? { revokedAt: row.revokedAt.toISOString() } : {}),
   };
 }

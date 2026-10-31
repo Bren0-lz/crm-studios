@@ -1,11 +1,12 @@
 import { nextTestCpf } from "../../../../api/src/test-support/cpf.js";
+import { createSalariedUser } from "../../../../api/src/test-support/payroll-users.js";
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { actorId, clinicId, setupApi } from "../../test-support/api-server";
 import { change, open, save } from "../../test-support/workflow-ui";
 
 describe("folha de pagamento pela API real", () => {
-  it("cadastra o colaborador da comissão, separa por filial, lança e desfaz a folha", async () => {
+  it("mostra quem recebe salário no cadastro do usuário, separa por filial, lança e desfaz a folha", async () => {
     const { repository } = await setupApi();
     const professional = await repository.createProfessional(clinicId, {
         fullName: "Marina Folha",
@@ -50,11 +51,10 @@ describe("folha de pagamento pela API real", () => {
     const centro = (await repository.saveBranch(clinicId, actorId, {
       name: "Centro",
     }))!;
-    await repository.createPayrollEmployee(clinicId, actorId, {
+    await createSalariedUser(repository, clinicId, actorId, {
       name: "Recepção Centro",
       branchId: centro.id,
-      baseSalaryInCents: 90000,
-      active: true,
+      salaryInCents: 90000,
     });
 
     open("/financeiro");
@@ -65,20 +65,32 @@ describe("folha de pagamento pela API real", () => {
     change("Competência", "2025-03", panel);
     await within(panel).findByText("Competência 03/2025");
 
-    // Profissional com comissão e sem colaborador: cadastro a partir do aviso.
+    // Profissional com comissão e sem usuário com salário: só o aviso, sem cadastro na folha.
     await within(panel).findByText(/Marina Folha · 1 lançamento/);
-    fireEvent.click(
-      within(panel).getByRole("button", { name: "Cadastrar na folha" }),
-    );
-    const dialog = await screen.findByRole("dialog", {
-      name: "Novo colaborador",
+    expect(
+      within(panel).getByText(/ligue o profissional a um usuário/),
+    ).toBeInTheDocument();
+    expect(
+      within(panel).queryByRole("button", { name: "Cadastrar na folha" }),
+    ).not.toBeInTheDocument();
+    expect(
+      within(panel).queryByRole("button", { name: /Novo colaborador/ }),
+    ).not.toBeInTheDocument();
+    await createSalariedUser(repository, clinicId, actorId, {
+      name: "Marina Folha",
+      professionalId: professional.id,
+      salaryInCents: 150000,
     });
-    expect(within(dialog).getByLabelText("Nome")).toHaveValue("Marina Folha");
-    expect(within(dialog).getByLabelText("Profissional da agenda")).toHaveValue(
-      professional.id,
+    // Recarrega a folha (desmarca e volta a marcar as filiais).
+    fireEvent.click(within(panel).getByRole("checkbox", { name: "Matriz" }));
+    await waitFor(() =>
+      expect(
+        within(panel).queryByRole("region", { name: "Folha de Matriz" }),
+      ).not.toBeInTheDocument(),
     );
-    change("Salário fixo (R$)", "1500,00", dialog);
-    await save("Novo colaborador");
+    fireEvent.click(
+      within(panel).getByRole("button", { name: "Selecionar todas" }),
+    );
 
     const matriz = await within(panel).findByRole("region", {
       name: "Folha de Matriz",
@@ -96,6 +108,11 @@ describe("folha de pagamento pela API real", () => {
       within(items).getByText(`Comissão · ${service.name}`),
     ).toBeInTheDocument();
     expect(within(items).getAllByText("A lançar")).toHaveLength(2);
+    // O salário muda no cadastro do usuário, não na folha.
+    expect(
+      within(matriz).queryByRole("button", { name: "Editar Marina Folha" }),
+    ).not.toBeInTheDocument();
+    expect(within(panel).queryByText(/Marina Folha · 1 lançamento/)).toBeNull();
     expect(
       within(panel).getByRole("region", { name: "Folha de Centro" }),
     ).toBeInTheDocument();

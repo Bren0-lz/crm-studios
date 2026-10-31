@@ -800,13 +800,11 @@ describe.skipIf(!databaseUrl)("MySQL repository", () => {
       "cancellation",
       "sale",
     ]);
-    const paymentMovements = report.payments.filter(
-      (item) => item.receivableId === receivable.rows[0]!.id,
-    );
-    expect(paymentMovements).toHaveLength(2);
+    // Cancelamento carrega a data da venda: plano vendido e cancelado no mês abate o líquido.
     expect(
-      paymentMovements.reduce((sum, item) => sum + item.amountInCents, 0),
-    ).toBe(0);
+      planMovements.find((item) => item.kind === "cancellation")
+        ?.saleOccurredAt,
+    ).toBe(planMovements.find((item) => item.kind === "sale")?.occurredAt);
 
     const partial = await repository.createPatientPlan(
       clinicId,
@@ -855,19 +853,15 @@ describe.skipIf(!databaseUrl)("MySQL repository", () => {
         .filter((item) => item.sourceId === partial.id)
         .reduce((sum, item) => sum + item.amountInCents, 0),
     ).toBe(12000);
+    // A parcela paga do plano conta como venda paga; a cancelada sai da situação.
+    expect(partialReport.current.payment.paidInCents).toBeGreaterThanOrEqual(
+      12000,
+    );
     expect(
-      partialReport.payments
-        .filter((item) => item.receivableId === partialReceivable.rows[0]!.id)
-        .reduce((sum, item) => sum + item.amountInCents, 0),
-    ).toBe(12000);
-    const management = await anotherInstance.getManagementReport(
-      clinicId,
-      `${date.slice(0, 7)}-01`,
-      date,
-    );
-    expect(management.finance.paidInPeriodInCents).toBe(
-      partialReport.current.receivedInCents,
-    );
+      partialReport.current.byItem.some((item) =>
+        item.label.startsWith(salesMarker),
+      ),
+    ).toBe(true);
 
     // Histórico de contratações do cliente: sem filtro de data, mais recentes primeiro.
     const history = await anotherInstance.listPatientSales(

@@ -7,13 +7,13 @@ import {
   type PayrollLaunchInput,
 } from "@crm/contracts";
 import { randomUUID } from "node:crypto";
-import type {
-  Pool,
-  PoolClient,
-} from "../../infrastructure/mysql-client.js";
+import type { Pool, PoolClient } from "../../infrastructure/mysql-client.js";
 import { DomainError } from "../../repository.js";
 import { clinicDateOf } from "../../modules/finance/daily-cash.js";
-import { payrollLaunchTotals } from "../../modules/finance/payroll.js";
+import {
+  payrollLaunchTotals,
+  userManagedEmployeeError,
+} from "../../modules/finance/payroll.js";
 import { loadCommissionAdjustments } from "./commission-reconciliation.js";
 import type { MysqlRepositoryContext } from "./context.js";
 import { inJsonArray } from "./sql.js";
@@ -33,17 +33,21 @@ type EmployeeRow = {
   role: string | null;
   professionalId: string | null;
   professionalName: string | null;
+  userId: string | null;
   baseSalaryInCents: number;
   active: boolean;
   createdAt: Date;
   updatedAt: Date;
 };
-const employeeSelect = `SELECT pe.id,pe.clinic_id AS "clinicId",pe.branch_id AS "branchId",b.name AS "branchName",pe.name,pe.role,
-  pe.professional_id AS "professionalId",pr.full_name AS "professionalName",pe.base_salary_in_cents AS "baseSalaryInCents",
-  pe.active,pe.created_at AS "createdAt",pe.updated_at AS "updatedAt"
+// Colaborador do usuário: o nome é sempre o atual do cadastro (o perfil também o muda).
+const employeeSelect = `SELECT pe.id,pe.clinic_id AS "clinicId",pe.branch_id AS "branchId",b.name AS "branchName",
+  COALESCE(pu.full_name,pe.name) AS name,pe.role,
+  pe.professional_id AS "professionalId",pr.full_name AS "professionalName",pe.user_id AS "userId",
+  pe.base_salary_in_cents AS "baseSalaryInCents",pe.active,pe.created_at AS "createdAt",pe.updated_at AS "updatedAt"
   FROM payroll_employees pe
   LEFT JOIN branches b ON b.id=pe.branch_id
-  LEFT JOIN professionals pr ON pr.id=pe.professional_id`;
+  LEFT JOIN professionals pr ON pr.id=pe.professional_id
+  LEFT JOIN users pu ON pu.id=pe.user_id`;
 const mapEmployee = (row: EmployeeRow): PayrollEmployee => ({
   id: row.id,
   clinicId: row.clinicId,
@@ -53,6 +57,7 @@ const mapEmployee = (row: EmployeeRow): PayrollEmployee => ({
   ...(row.role ? { role: row.role } : {}),
   ...(row.professionalId ? { professionalId: row.professionalId } : {}),
   ...(row.professionalName ? { professionalName: row.professionalName } : {}),
+  ...(row.userId ? { userId: row.userId } : {}),
   baseSalaryInCents: row.baseSalaryInCents,
   active: Boolean(row.active),
   createdAt: row.createdAt.toISOString(),
@@ -248,43 +253,6 @@ export function createPayrollRepository(context: MysqlRepositoryContext) {
       );
       return result.rows.map(mapEmployee);
     },
-    async createPayrollEmployee(
-      clinicId: string,
-      actorId: string,
-      input: PayrollEmployeeInput,
-    ) {
-      return context
-        .inTransaction(async (client) => {
-          const branchId = await employeeBranch(client, clinicId, input);
-          const id = randomUUID();
-          await client.query(
-            `INSERT INTO payroll_employees(clinic_id,branch_id,name,role,professional_id,base_salary_in_cents,active,created_by_user_id,id)
-             VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
-            [
-              clinicId,
-              branchId,
-              input.name,
-              input.role || null,
-              input.professionalId ?? null,
-              input.baseSalaryInCents,
-              input.active,
-              actorId,
-              id,
-            ],
-          );
-          await context.addAdminAudit(
-            client,
-            clinicId,
-            actorId,
-            "payroll.employee_created",
-            "payroll_employee",
-            id,
-            { name: input.name, baseSalaryInCents: input.baseSalaryInCents },
-          );
-          return (await findEmployee(client, clinicId, id))!;
-        })
-        .catch(takenProfessional);
-    },
     async updatePayrollEmployee(
       clinicId: string,
       actorId: string,
@@ -295,6 +263,7 @@ export function createPayrollRepository(context: MysqlRepositoryContext) {
         .inTransaction(async (client) => {
           const previous = await findEmployee(client, clinicId, id);
           if (!previous) return null;
+          if (previous.userId) throw userManagedEmployeeError();
           assertBranchInScope(previous.branchId);
           const branchId = await employeeBranch(client, clinicId, input);
           await client.query(

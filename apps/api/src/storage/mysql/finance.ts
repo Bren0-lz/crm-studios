@@ -2,6 +2,7 @@ import {
   receiptInstallments,
   receiptWithClinic,
 } from "../../modules/finance/receipt.js";
+import { generatedProductSku } from "../../modules/finance/product-sku.js";
 import { assertPayableAmountEditable } from "../../modules/finance/payable-amount.js";
 import { loadFinancialMonth, loadFinancialSummary } from "./financial-month.js";
 import { clinicDateOf } from "../../modules/finance/daily-cash.js";
@@ -566,7 +567,7 @@ export function createFinanceRepository(
           [
             clinicId,
             input.name,
-            input.sku,
+            input.sku ?? generatedProductSku(randomUUID()),
             input.unit,
             input.costInCents,
             input.salePriceInCents,
@@ -640,15 +641,11 @@ export function createFinanceRepository(
             404,
           );
         const out = isStockOut(input.kind);
-        assertStockSize(
-          { sizes: json<ProductSize[]>(row.sizes) },
-          input.size,
-          {
-            leftoverStock: out
-              ? await productStockOf(client, row.id, input.size)
-              : 0,
-          },
-        );
+        assertStockSize({ sizes: json<ProductSize[]>(row.sizes) }, input.size, {
+          leftoverStock: out
+            ? await productStockOf(client, row.id, input.size)
+            : 0,
+        });
         const quantity = out ? -input.quantity : input.quantity;
         const balance = await changeProductStock(
           client,
@@ -905,18 +902,21 @@ export function createFinanceRepository(
     },
 
     async getFinancialSummary(clinicId: string): Promise<FinancialSummary> {
-      return repositoryContext.inTransaction(async (client) => {
-        const settings = await client.query<{ timezone: string }>(
-          "SELECT timezone FROM clinics WHERE id=$1",
-          [clinicId],
-        );
-        return loadFinancialSummary(
-          client,
-          clinicId,
-          settings.rows[0]?.timezone ?? "America/Sao_Paulo",
-          repositoryContext.branchReadIds(),
-        );
-      }, { snapshot: true });
+      return repositoryContext.inTransaction(
+        async (client) => {
+          const settings = await client.query<{ timezone: string }>(
+            "SELECT timezone FROM clinics WHERE id=$1",
+            [clinicId],
+          );
+          return loadFinancialSummary(
+            client,
+            clinicId,
+            settings.rows[0]?.timezone ?? "America/Sao_Paulo",
+            repositoryContext.branchReadIds(),
+          );
+        },
+        { snapshot: true },
+      );
     },
 
     async settleReceivable(
@@ -1088,21 +1088,28 @@ export function createFinanceRepository(
     },
 
     async getFinancialWorkspace(clinicId: string): Promise<FinancialWorkspace> {
-      return repositoryContext.inTransaction(async (client) => {
-        const settings = await client.query<{ timezone: string }>(
-            "SELECT timezone FROM clinics WHERE id=$1",
-            [clinicId],
-          ),
-          timezone = settings.rows[0]?.timezone ?? "America/Sao_Paulo";
-        const branchIds = repositoryContext.branchReadIds();
-        const totals = await loadFinancialMonth(
-          client,
-          clinicId,
-          timezone,
-          branchIds,
-        );
-        const [summary, categories, costCenters, payables, rules, commissions] =
-          await Promise.all([
+      return repositoryContext.inTransaction(
+        async (client) => {
+          const settings = await client.query<{ timezone: string }>(
+              "SELECT timezone FROM clinics WHERE id=$1",
+              [clinicId],
+            ),
+            timezone = settings.rows[0]?.timezone ?? "America/Sao_Paulo";
+          const branchIds = repositoryContext.branchReadIds();
+          const totals = await loadFinancialMonth(
+            client,
+            clinicId,
+            timezone,
+            branchIds,
+          );
+          const [
+            summary,
+            categories,
+            costCenters,
+            payables,
+            rules,
+            commissions,
+          ] = await Promise.all([
             loadFinancialSummary(client, clinicId, timezone, branchIds, totals),
             client.query<FinancialCategoryRow>(
               `SELECT id, clinic_id AS "clinicId", name, kind, active, dre_group AS "dreGroup"
@@ -1144,97 +1151,103 @@ export function createFinanceRepository(
               [clinicId, branchIds],
             ),
           ]);
-        const mapped = payables.rows.map(mapPayable).map((item) => ({
-          ...item,
-          overdue:
-            item.status === "open" &&
-            item.dueDate < clinicDateOf(new Date(), timezone),
-        }));
-        const paidExpensesThisMonthInCents = totals.expensePaidInCents;
-        const mappedCommissions = commissions.rows.map(mapCommissionEntry);
-        const clinicMonth = clinicDateOf(new Date(), timezone).slice(0, 7);
-        const commissionEvents = (
-            await client.query<{
-              commissionId: string;
-              occurredAt: Date;
-              amountInCents: number;
-            }>(
-              `SELECT e.commission_id AS "commissionId",e.occurred_at AS "occurredAt",e.amount_in_cents AS "amountInCents" FROM commission_payment_events e JOIN commission_entries ce ON ce.id=e.commission_id JOIN professionals p ON p.id=ce.professional_id WHERE e.clinic_id=$1 AND ${branchClause("p.branch_id", 2)}`,
-              [clinicId, branchIds],
-            )
-          ).rows,
-          tracked = new Set(commissionEvents.map((item) => item.commissionId));
-        const paidCommissionsThisMonthInCents =
-          commissionEvents
-            .filter(
-              (item) =>
-                clinicDateOf(item.occurredAt, timezone).slice(0, 7) ===
-                clinicMonth,
-            )
-            .reduce((sum, item) => sum + item.amountInCents, 0) +
-          mappedCommissions
-            .filter(
-              (item) =>
-                item.status === "paid" &&
-                item.paidAt &&
-                clinicDateOf(new Date(item.paidAt), timezone).slice(0, 7) ===
-                  clinicMonth &&
-                !tracked.has(item.id) &&
-                !item.payrollPayableId &&
-                !mapped.some(
-                  (expense) =>
-                    expense.commissionId === item.id &&
-                    expense.status !== "cancelled",
-                ),
-            )
-            .reduce((sum, item) => sum + item.amountInCents, 0);
-        // Acertos de comissão seguem a filial do profissional.
-        const scopedProfessionals = new Set(
-          (
-            await client.query<{ id: string }>(
-              `SELECT id FROM professionals WHERE clinic_id=$1 AND ${branchClause("branch_id", 2)}`,
-              [clinicId, branchIds],
-            )
-          ).rows.map((row) => row.id),
-        );
-        const adjustments = (
-            await loadCommissionAdjustments(client, clinicId)
-          ).filter((item) => scopedProfessionals.has(item.professionalId)),
-          accountPayments = (
-            await loadCommissionAccountPayments(client, clinicId)
-          ).filter((item) => scopedProfessionals.has(item.professionalId));
-        return {
-          ...(adjustments.length ? { commissionAdjustments: adjustments } : {}),
-          ...(accountPayments.length
-            ? { commissionAccountPayments: accountPayments }
-            : {}),
-          summary,
-          categories: categories.rows,
-          costCenters: costCenters.rows,
-          payables: mapped,
-          payableOpenInCents: mapped
-            .filter((item) => item.status === "open")
-            .reduce((sum, item) => sum + item.amountInCents, 0),
-          payableOverdueInCents: mapped
-            .filter((item) => item.overdue)
-            .reduce((sum, item) => sum + item.amountInCents, 0),
-          paidExpensesThisMonthInCents,
-          cashBalanceThisMonthInCents:
-            totals.receiptCashInCents -
-            totals.expenseCashOutInCents -
-            paidCommissionsThisMonthInCents,
-          commissionRules: rules.rows.map(mapCommissionRule),
-          commissions: mappedCommissions,
-          commissionOpenInCents:
-            commissions.rows
-              .filter((item) => item.status === "open")
+          const mapped = payables.rows.map(mapPayable).map((item) => ({
+            ...item,
+            overdue:
+              item.status === "open" &&
+              item.dueDate < clinicDateOf(new Date(), timezone),
+          }));
+          const paidExpensesThisMonthInCents = totals.expensePaidInCents;
+          const mappedCommissions = commissions.rows.map(mapCommissionEntry);
+          const clinicMonth = clinicDateOf(new Date(), timezone).slice(0, 7);
+          const commissionEvents = (
+              await client.query<{
+                commissionId: string;
+                occurredAt: Date;
+                amountInCents: number;
+              }>(
+                `SELECT e.commission_id AS "commissionId",e.occurred_at AS "occurredAt",e.amount_in_cents AS "amountInCents" FROM commission_payment_events e JOIN commission_entries ce ON ce.id=e.commission_id JOIN professionals p ON p.id=ce.professional_id WHERE e.clinic_id=$1 AND ${branchClause("p.branch_id", 2)}`,
+                [clinicId, branchIds],
+              )
+            ).rows,
+            tracked = new Set(
+              commissionEvents.map((item) => item.commissionId),
+            );
+          const paidCommissionsThisMonthInCents =
+            commissionEvents
+              .filter(
+                (item) =>
+                  clinicDateOf(item.occurredAt, timezone).slice(0, 7) ===
+                  clinicMonth,
+              )
               .reduce((sum, item) => sum + item.amountInCents, 0) +
-            adjustments
+            mappedCommissions
+              .filter(
+                (item) =>
+                  item.status === "paid" &&
+                  item.paidAt &&
+                  clinicDateOf(new Date(item.paidAt), timezone).slice(0, 7) ===
+                    clinicMonth &&
+                  !tracked.has(item.id) &&
+                  !item.payrollPayableId &&
+                  !mapped.some(
+                    (expense) =>
+                      expense.commissionId === item.id &&
+                      expense.status !== "cancelled",
+                  ),
+              )
+              .reduce((sum, item) => sum + item.amountInCents, 0);
+          // Acertos de comissão seguem a filial do profissional.
+          const scopedProfessionals = new Set(
+            (
+              await client.query<{ id: string }>(
+                `SELECT id FROM professionals WHERE clinic_id=$1 AND ${branchClause("branch_id", 2)}`,
+                [clinicId, branchIds],
+              )
+            ).rows.map((row) => row.id),
+          );
+          const adjustments = (
+              await loadCommissionAdjustments(client, clinicId)
+            ).filter((item) => scopedProfessionals.has(item.professionalId)),
+            accountPayments = (
+              await loadCommissionAccountPayments(client, clinicId)
+            ).filter((item) => scopedProfessionals.has(item.professionalId));
+          return {
+            ...(adjustments.length
+              ? { commissionAdjustments: adjustments }
+              : {}),
+            ...(accountPayments.length
+              ? { commissionAccountPayments: accountPayments }
+              : {}),
+            summary,
+            categories: categories.rows,
+            costCenters: costCenters.rows,
+            payables: mapped,
+            payableOpenInCents: mapped
               .filter((item) => item.status === "open")
               .reduce((sum, item) => sum + item.amountInCents, 0),
-          paidCommissionsThisMonthInCents,
-        };
-      }, { snapshot: true });
+            payableOverdueInCents: mapped
+              .filter((item) => item.overdue)
+              .reduce((sum, item) => sum + item.amountInCents, 0),
+            paidExpensesThisMonthInCents,
+            cashBalanceThisMonthInCents:
+              totals.receiptCashInCents -
+              totals.expenseCashOutInCents -
+              paidCommissionsThisMonthInCents,
+            commissionRules: rules.rows.map(mapCommissionRule),
+            commissions: mappedCommissions,
+            commissionOpenInCents:
+              commissions.rows
+                .filter((item) => item.status === "open")
+                .reduce((sum, item) => sum + item.amountInCents, 0) +
+              adjustments
+                .filter((item) => item.status === "open")
+                .reduce((sum, item) => sum + item.amountInCents, 0),
+            paidCommissionsThisMonthInCents,
+          };
+        },
+        { snapshot: true },
+      );
     },
 
     async createFinancialCategory(
@@ -1721,27 +1734,27 @@ export function createFinanceRepository(
             const payableId = randomUUID();
             const payable = await client
               .query(
-              `INSERT INTO payables
+                `INSERT INTO payables
                (clinic_id, description, supplier, category_id, cost_center_id,
                 due_date, amount_in_cents, created_by_user_id,
                 recurring_payable_id, competence, branch_id, id, amount_pending)
              VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,
                (SELECT branch_id FROM recurring_payables WHERE clinic_id=$1 AND id=$9), $11, $12)`,
-              [
-                clinicId,
-                model.description,
-                model.supplier,
-                model.categoryId,
-                model.costCenterId,
-                recurringPayableDueDate(competence, model.dayOfMonth),
-                model.amountInCents,
-                actorUserId,
-                row.id,
-                competence,
-                payableId,
-                model.amountType === "variable",
-              ],
-            )
+                [
+                  clinicId,
+                  model.description,
+                  model.supplier,
+                  model.categoryId,
+                  model.costCenterId,
+                  recurringPayableDueDate(competence, model.dayOfMonth),
+                  model.amountInCents,
+                  actorUserId,
+                  row.id,
+                  competence,
+                  payableId,
+                  model.amountType === "variable",
+                ],
+              )
               .catch((error: unknown) => {
                 if (hasDatabaseCode(error, "23505")) return { rowCount: 0 };
                 throw error;
@@ -2035,7 +2048,10 @@ export function createFinanceRepository(
             "Registre o pagamento ou estorno na despesa vinculada à comissão.",
             409,
           );
-        const result = await writeAndRead<{ id: string; amount_in_cents: number }>(
+        const result = await writeAndRead<{
+          id: string;
+          amount_in_cents: number;
+        }>(
           client,
           "UPDATE commission_entries SET status='open',paid_at=NULL,paid_by_user_id=NULL WHERE clinic_id=$1 AND id=$2 AND status='paid'",
           [clinicId, commissionId],

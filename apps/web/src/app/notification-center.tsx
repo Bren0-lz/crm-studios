@@ -208,28 +208,12 @@ export function playNotificationSound() {
   }
 }
 
-/** Faixa dispensada: contagem de cada grupo no momento em que foi fechada (por sessão). */
-const BANNER_DISMISSED_KEY = "crm.notifications.bannerDismissed";
-
-function readDismissed(): Record<string, number> {
-  try {
-    const value: unknown = JSON.parse(
-      sessionStorage.getItem(BANNER_DISMISSED_KEY) ?? "{}",
-    );
-    return value && typeof value === "object"
-      ? (value as Record<string, number>)
-      : {};
-  } catch {
-    return {};
-  }
-}
-
 /** Tempo do aviso flutuante na tela. */
 const ALERT_DURATION = 12_000;
 
 /**
  * Estado das notificações do cabeçalho: contagens, preferências do usuário, conferência
- * automática no intervalo escolhido, avisos de pendência nova e a faixa de alertas.
+ * automática no intervalo escolhido, avisos de pendência nova e os alertas do cabeçalho.
  */
 export function useNotificationCenter() {
   const { canView } = useAuthorization();
@@ -255,7 +239,6 @@ export function useNotificationCenter() {
   const [error, setError] = useState("");
   const [attempt, setAttempt] = useState(0);
   const [alerts, setAlerts] = useState<NotificationAlert[]>([]);
-  const [dismissed, setDismissed] = useState(readDismissed);
   // Valores atuais para a conferência, sem refazer a busca quando mudam.
   const preferencesRef = useRef(preferences);
   const canViewRef = useRef(canView);
@@ -357,22 +340,8 @@ export function useNotificationCenter() {
   const highlighted = groups.filter((group) =>
     preferences.highlightedKinds.includes(group.kind),
   );
-  const bannerGroups =
-    preferences.showBanner &&
-    highlighted.some((group) => group.count > (dismissed[group.key] ?? 0))
-      ? highlighted
-      : [];
-  function dismissBanner() {
-    const counts = Object.fromEntries(
-      highlighted.map((group) => [group.key, group.count]),
-    );
-    setDismissed(counts);
-    try {
-      sessionStorage.setItem(BANNER_DISMISSED_KEY, JSON.stringify(counts));
-    } catch {
-      // Sem armazenamento da sessão: a faixa só fica fechada até recarregar a página.
-    }
-  }
+  // Alertas fixos no cabeçalho: sem dispensa, ficam enquanto houver pendência destacada.
+  const bannerGroups = preferences.showBanner ? highlighted : [];
 
   return {
     watched,
@@ -382,7 +351,6 @@ export function useNotificationCenter() {
     groups,
     highlighted,
     bannerGroups,
-    dismissBanner,
     alerts,
     dismissAlert,
     loading: watched && summary === null && !error,

@@ -1,8 +1,10 @@
-import {
-  salesChangePercent,
-  type SalesReport,
-  type SalesPeriodReport,
+import type {
+  SaleMovement,
+  SalesReport,
+  SalesPeriodReport,
+  SalesReportPeriod,
 } from "@crm/contracts";
+import type ExcelJS from "exceljs";
 import {
   addTableSheet,
   createWorkbook,
@@ -11,7 +13,6 @@ import {
   type SheetCell,
   type SheetColumnKind,
 } from "../../infrastructure/spreadsheet.js";
-import type ExcelJS from "exceljs";
 
 // Usados pela planilha de campanhas (campaign-workbook.ts).
 export const dateFormat = "dd/mm/yyyy hh:mm";
@@ -30,8 +31,14 @@ export function heading(sheet: ExcelJS.Worksheet) {
   };
 }
 
-type PaymentMovement = SalesReport["payments"][number];
-type SaleMovement = SalesReport["sales"][number];
+const typeLabels: Record<SaleMovement["sourceType"], string> = {
+  plan: "Plano",
+  service: "Serviço avulso",
+  product: "Produto",
+};
+
+type ItemSummary = SalesReportPeriod["byItem"][number];
+type TopBuyer = SalesReportPeriod["topBuyers"][number];
 type WithoutReturn = SalesReport["patientsWithoutReturn"][number];
 
 interface SummaryLine {
@@ -42,164 +49,133 @@ interface SummaryLine {
 }
 
 const money = (cents: number) => cents / 100;
+const optionalMoney = (cents: number | undefined) =>
+  cents === undefined ? null : cents / 100;
 
 export async function salesReportToXlsx(
   report: SalesReport | SalesPeriodReport,
 ): Promise<Buffer> {
   const workbook = createWorkbook(new Date(report.generatedAt));
 
-  if ("summary" in report) {
-    const lines: SummaryLine[] = [
-      {
-        label: "Período",
-        kind: "text",
-        current: `${report.from} a ${report.to}`,
-      },
-      {
-        label: "Vendas brutas",
-        kind: "currency",
-        current: money(report.summary.grossSalesInCents),
-      },
-      {
-        label: "Cancelamentos",
-        kind: "currency",
-        current: money(report.summary.cancelledSalesInCents),
-      },
-      {
-        label: "Vendas líquidas",
-        kind: "currency",
-        current: money(report.summary.netSalesInCents),
-      },
-      {
-        label: "Recebido",
-        kind: "currency",
-        current: money(report.summary.receivedInCents),
-      },
-      {
-        label: "Clientes atendidos",
-        kind: "integer",
-        current: report.summary.attendedPatients,
-      },
-      {
-        label: "Clientes sem retorno",
-        kind: "integer",
-        current: report.patientsWithoutReturn.length,
-      },
-      {
-        label: "Descontos concedidos a clientes",
-        kind: "currency",
-        current: money(report.summary.customerDiscountInCents ?? 0),
-      },
-    ];
-    addTableSheet(
-      workbook,
-      "Resumo",
-      [
-        {
-          header: "Indicador",
-          width: 42,
-          value: (line: SummaryLine) => line.label,
+  const isPeriod = "summary" in report;
+  const current = isPeriod ? report.summary : report.current;
+  const previous = isPeriod ? report.previous : report.previousComparable;
+  const changePercent = report.changePercent;
+
+  const compare = (
+    label: string,
+    kind: SheetColumnKind,
+    value: (item: SalesReportPeriod) => number,
+  ): SummaryLine => {
+    const scale = kind === "currency" ? money : (item: number) => item;
+    return {
+      label,
+      kind,
+      current: scale(value(current)),
+      previous: scale(value(previous)),
+    };
+  };
+  const lines: SummaryLine[] = [
+    {
+      label: "Período",
+      kind: "text",
+      current: `${current.from} a ${current.to}`,
+      previous: `${previous.from} a ${previous.to}`,
+    },
+    compare("Vendas brutas", "currency", (item) => item.grossSalesInCents),
+    compare(
+      "Cancelamentos das vendas do período",
+      "currency",
+      (item) => item.cancelledInPeriodSalesInCents,
+    ),
+    compare("Vendas líquidas", "currency", (item) => item.netSalesInCents),
+    compare(
+      "Descontos concedidos a clientes",
+      "currency",
+      (item) => item.customerDiscountInCents ?? 0,
+    ),
+    compare("Número de vendas", "integer", (item) => item.salesCount),
+    compare(
+      "Valor médio por venda",
+      "currency",
+      (item) => item.averageTicketInCents,
+    ),
+    compare("Clientes compradores", "integer", (item) => item.buyers),
+    compare(
+      "Novos compradores (primeira compra)",
+      "integer",
+      (item) => item.newBuyers,
+    ),
+    compare(
+      "Vendas do período já pagas",
+      "currency",
+      (item) => item.payment.paidInCents,
+    ),
+    compare(
+      "Vendas do período em aberto",
+      "currency",
+      (item) => item.payment.openInCents,
+    ),
+    compare(
+      "Vendas do período em atraso",
+      "currency",
+      (item) => item.payment.overdueInCents,
+    ),
+    compare(
+      "Cancelamentos de vendas anteriores (fora do líquido)",
+      "currency",
+      (item) => item.cancelledPriorSalesInCents,
+    ),
+    {
+      label: "Variação das vendas líquidas (R$)",
+      kind: "currency",
+      current: money(report.changeInCents),
+    },
+    changePercent === null
+      ? {
+          label: "Variação das vendas líquidas (%)",
+          kind: "text",
+          current: "Sem base de comparação",
+        }
+      : {
+          label: "Variação das vendas líquidas (%)",
+          kind: "percent",
+          current: changePercent / 100,
         },
-        {
-          header: "Período selecionado",
-          width: 30,
-          kind: (line) => line.kind,
-          value: (line) => line.current,
-        },
-      ],
-      lines,
-    );
-  } else {
-    const changePercent = salesChangePercent(
-      report.current.netSalesInCents,
-      report.previousComparable.netSalesInCents,
-    );
-    const { current, previousComparable: previous } = report;
-    const lines: SummaryLine[] = [
+    {
+      label: "Clientes sem retorno",
+      kind: "integer",
+      current: report.patientsWithoutReturn.length,
+    },
+  ];
+  const summary = addTableSheet(
+    workbook,
+    "Resumo",
+    [
       {
-        label: "Período",
-        kind: "text",
-        current: `${current.from} a ${current.to}`,
-        previous: `${previous.from} a ${previous.to}`,
+        header: "Indicador",
+        width: 46,
+        value: (line: SummaryLine) => line.label,
       },
       {
-        label: "Vendas brutas",
-        kind: "currency",
-        current: money(current.grossSalesInCents),
-        previous: money(previous.grossSalesInCents),
+        header: isPeriod ? "Período selecionado" : "Mês selecionado",
+        width: 26,
+        kind: (line) => line.kind,
+        value: (line) => line.current,
       },
       {
-        label: "Cancelamentos",
-        kind: "currency",
-        current: money(current.cancelledSalesInCents),
-        previous: money(previous.cancelledSalesInCents),
+        header: isPeriod ? "Período anterior" : "Mês anterior comparável",
+        width: 28,
+        kind: (line) => line.kind,
+        value: (line) => line.previous,
       },
-      {
-        label: "Vendas líquidas",
-        kind: "currency",
-        current: money(current.netSalesInCents),
-        previous: money(previous.netSalesInCents),
-      },
-      {
-        label: "Recebido",
-        kind: "currency",
-        current: money(current.receivedInCents),
-        previous: money(previous.receivedInCents),
-      },
-      {
-        label: "Clientes atendidos",
-        kind: "integer",
-        current: current.attendedPatients,
-        previous: previous.attendedPatients,
-      },
-      {
-        label: "Variação de vendas (R$)",
-        kind: "currency",
-        current: money(report.changeInCents),
-      },
-      changePercent === null
-        ? {
-            label: "Variação de vendas (%)",
-            kind: "text",
-            current: "Sem base de comparação",
-          }
-        : {
-            label: "Variação de vendas (%)",
-            kind: "percent",
-            current: changePercent / 100,
-          },
-      {
-        label: "Clientes do mês anterior sem retorno",
-        kind: "integer",
-        current: report.patientsWithoutReturn.length,
-      },
-    ];
-    const summary = addTableSheet(
-      workbook,
-      "Resumo",
-      [
-        {
-          header: "Indicador",
-          width: 42,
-          value: (line: SummaryLine) => line.label,
-        },
-        {
-          header: "Mês selecionado",
-          width: 24,
-          kind: (line) => line.kind,
-          value: (line) => line.current,
-        },
-        {
-          header: "Mês anterior comparável",
-          width: 28,
-          kind: (line) => line.kind,
-          value: (line) => line.previous,
-        },
-      ],
-      lines,
-    );
-    summary.getRow(5).font = { bold: true };
-  }
+    ],
+    lines,
+  );
+  // Linha 1 é o cabeçalho: a linha da planilha é o índice + 2.
+  summary.getRow(
+    lines.findIndex((line) => line.label === "Vendas líquidas") + 2,
+  ).font = { bold: true };
 
   addTableSheet(
     workbook,
@@ -214,11 +190,7 @@ export async function salesReportToXlsx(
         header: "Movimento",
         value: (item) => (item.kind === "sale" ? "Venda" : "Cancelamento"),
       },
-      {
-        header: "Tipo",
-        value: (item) =>
-          item.sourceType === "product" ? "Produto" : "Plano/serviço",
-      },
+      { header: "Tipo", value: (item) => typeLabels[item.sourceType] },
       { header: "Cliente", value: (item) => item.patientName },
       { header: "Item", value: (item) => item.itemName },
       { header: "Quantidade", kind: "decimal", value: (item) => item.quantity },
@@ -226,6 +198,16 @@ export async function salesReportToXlsx(
         header: "Valor (R$)",
         kind: "currency",
         value: (item) => money(item.amountInCents),
+      },
+      {
+        header: "Custo (R$)",
+        kind: "currency",
+        value: (item) => optionalMoney(item.costInCents),
+      },
+      {
+        header: "Data da venda original",
+        kind: "datetime",
+        value: (item) => sheetDateTime(item.saleOccurredAt),
       },
       { header: "ID do movimento", value: (item) => item.id },
       { header: "ID da origem", value: (item) => item.sourceId },
@@ -237,33 +219,70 @@ export async function salesReportToXlsx(
 
   addTableSheet(
     workbook,
-    "Recebimentos",
+    "Por item",
     [
       {
-        header: "Data da baixa",
-        kind: "datetime",
-        value: (item: PaymentMovement) => sheetDateTime(item.occurredAt),
+        header: "Tipo",
+        value: (item: ItemSummary) => typeLabels[item.sourceType],
       },
+      { header: "Item", width: 40, value: (item) => item.label },
+      { header: "Vendas", kind: "integer", value: (item) => item.salesCount },
+      { header: "Quantidade", kind: "decimal", value: (item) => item.quantity },
       {
-        header: "Movimento",
-        value: (item) => (item.kind === "payment" ? "Pagamento" : "Estorno"),
-      },
-      { header: "Cliente", value: (item) => item.patientName },
-      { header: "Descrição", value: (item) => item.description },
-      {
-        header: "Valor (R$)",
+        header: "Bruto (R$)",
         kind: "currency",
-        value: (item) => money(item.amountInCents),
+        value: (item) => money(item.grossInCents),
       },
       {
-        header: "Forma de pagamento",
-        value: (item) => item.paymentMethod ?? "",
+        header: "Cancelado (R$)",
+        kind: "currency",
+        value: (item) => money(item.cancelledInCents),
       },
-      { header: "ID da conta", value: (item) => item.receivableId },
-      { header: "ID da origem", value: (item) => item.sourceId ?? "" },
+      {
+        header: "Desconto a clientes (R$)",
+        kind: "currency",
+        value: (item) => money(item.customerDiscountInCents),
+      },
+      {
+        header: "Líquido (R$)",
+        kind: "currency",
+        value: (item) => money(item.netInCents),
+      },
+      {
+        header: "Custo (R$)",
+        kind: "currency",
+        value: (item) => optionalMoney(item.costInCents),
+      },
+      {
+        header: "Margem",
+        kind: "percent",
+        value: (item) =>
+          item.costInCents === undefined || item.netInCents <= 0
+            ? null
+            : (item.netInCents - item.costInCents) / item.netInCents,
+      },
+    ],
+    current.byItem,
+  );
+
+  addTableSheet(
+    workbook,
+    "Maiores compradores",
+    [
+      { header: "Cliente", value: (item: TopBuyer) => item.patientName },
+      { header: "Vendas", kind: "integer", value: (item) => item.salesCount },
+      {
+        header: "Líquido (R$)",
+        kind: "currency",
+        value: (item) => money(item.netInCents),
+      },
+      {
+        header: "Primeira compra no período",
+        value: (item) => (item.firstPurchase ? "Sim" : "Não"),
+      },
       { header: "ID do cliente", value: (item) => item.patientId },
     ],
-    report.payments,
+    current.topBuyers,
   );
 
   addTableSheet(
@@ -289,27 +308,43 @@ export async function salesReportToXlsx(
   let definitions: [string, string][] = [
     [
       "Vendas brutas",
-      "Valor dos planos criados e dos itens das comandas fechadas no período, pela data local do movimento.",
+      "Valor dos planos criados e dos itens das comandas fechadas no período, pela data local da venda.",
     ],
     [
-      "Cancelamentos",
-      "Valor negativo das parcelas abertas canceladas em planos e do valor total das comandas canceladas. O movimento aparece na data do cancelamento.",
+      "Cancelamentos das vendas do período",
+      "Parcelas abertas canceladas em planos e valor total das comandas canceladas, quando a venda e o cancelamento caem no período. Abatem as vendas líquidas.",
+    ],
+    [
+      "Cancelamentos de vendas anteriores",
+      "Cancelamentos registrados no período de vendas feitas antes dele. Ficam fora das vendas líquidas para o período não ficar negativo; aparecem na aba Vendas com a data da venda original.",
     ],
     [
       "Vendas líquidas",
-      "Vendas brutas menos cancelamentos. Uma venda pode ocorrer em mês diferente do pagamento.",
+      "Vendas brutas menos os cancelamentos das vendas do período. Uma venda pode ser paga em outro mês: o dinheiro recebido fica no relatório Financeiro.",
     ],
     [
-      "Recebido",
-      "Soma dos movimentos de pagamento e estorno no período, pela data local do evento. Um estorno posterior aparece no mês em que ocorreu.",
+      "Valor médio por venda",
+      "Vendas brutas ÷ número de vendas (cada plano ou comanda conta uma vez).",
     ],
     [
-      "Clientes atendidos",
-      "Número de clientes distintos com pelo menos um atendimento concluído no período.",
+      "Novos compradores",
+      "Clientes cuja primeira compra da história (plano ou comanda) foi no período.",
+    ],
+    [
+      "Vendas pagas, em aberto e em atraso",
+      "Contas a receber ligadas às vendas do período, sem as canceladas; em atraso = em aberto com vencimento antes de hoje.",
+    ],
+    [
+      "Custo e margem",
+      "Só produtos: custo unitário gravado na comanda × quantidade; margem = (líquido − custo) ÷ líquido.",
     ],
     [
       "Mês anterior comparável",
       "Quando o mês atual está em andamento, o mês anterior é comparado somente até o mesmo dia; meses encerrados usam o mês anterior completo.",
+    ],
+    [
+      "Período anterior",
+      "Intervalo com o mesmo número de dias imediatamente antes do período selecionado.",
     ],
     [
       "Sem retorno",
@@ -321,25 +356,23 @@ export async function salesReportToXlsx(
       "IDs nas abas de detalhe apontam para plano, comanda, conta e cliente no CRM.",
     ],
   ];
+  const monthOnly = ["Mês anterior comparável", "Sem retorno"];
+  definitions = definitions.filter(([label]) =>
+    isPeriod ? !monthOnly.includes(label) : label !== "Período anterior",
+  );
   if ("summary" in report)
-    definitions = [
-      ...definitions.filter(
-        ([label]) =>
-          label !== "Mês anterior comparável" && label !== "Sem retorno",
-      ),
-      [
-        "Sem retorno",
-        "Clientes atendidos de " +
-          report.returnReference.from +
-          " a " +
-          report.returnReference.to +
-          ", sem atendimento concluído de " +
-          report.from +
-          " a " +
-          report.to +
-          ".",
-      ],
-    ];
+    definitions.push([
+      "Sem retorno",
+      "Clientes atendidos de " +
+        report.returnReference.from +
+        " a " +
+        report.returnReference.to +
+        ", sem atendimento concluído de " +
+        report.from +
+        " a " +
+        report.to +
+        ".",
+    ]);
   addTableSheet(
     workbook,
     "Definições",

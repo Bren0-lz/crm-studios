@@ -195,15 +195,15 @@
     gap: var(--space-1);
   }
 
-  /* Faixa de alertas: o X fica no canto, sem disputar linha com os atalhos. */
+  /* Alertas do cabeçalho: linha inteira abaixo da marca e das ações. */
   .notification-banner {
-    position: relative;
-    padding-right: var(--space-8);
+    flex-basis: 100%;
+    flex-wrap: wrap;
+    order: 3;
   }
-  .notification-banner-close {
-    position: absolute;
-    top: var(--space-2);
-    right: var(--space-2);
+  .notification-banner ul {
+    flex-basis: 100%;
+    flex-wrap: wrap;
   }
 
   .topbar .header-popover-panel {

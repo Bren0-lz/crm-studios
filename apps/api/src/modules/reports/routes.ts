@@ -41,6 +41,7 @@ import {
   manualCampaignsInPeriod,
 } from "./campaign-report.js";
 import { campaignReportToXlsx } from "./campaign-workbook.js";
+import { loadAutoCampaignQueue } from "../communications/auto-campaigns.js";
 import { buildTeamFinanceReport } from "./team-finance.js";
 import { buildFinancialReport } from "./financial-report.js";
 
@@ -138,6 +139,7 @@ export function registerReportsRoutes(context: RouteContext) {
     const [
       movements,
       workspace,
+      inventory,
       professionals,
       employees,
       branches,
@@ -146,6 +148,7 @@ export function registerReportsRoutes(context: RouteContext) {
     ] = await Promise.all([
       repository.listCashMovements(clinicId, from, to),
       repository.getFinancialWorkspace(clinicId),
+      repository.getInventoryWorkspace(clinicId),
       repository.listProfessionals(clinicId),
       repository.listPayrollEmployees(clinicId),
       repository.listBranches(clinicId),
@@ -159,6 +162,7 @@ export function registerReportsRoutes(context: RouteContext) {
         movements,
         receivables: workspace.summary.receivables,
         payables: workspace.payables,
+        tabs: inventory.tabs,
         categories: workspace.categories,
         costCenters: workspace.costCenters,
         commissions: workspace.commissions,
@@ -260,7 +264,7 @@ export function registerReportsRoutes(context: RouteContext) {
     // Janela folgada de um dia em cada ponta; o relatório filtra pela data
     // no fuso da clínica.
     const day = 24 * 60 * 60 * 1000;
-    const [patients, appointments, plans, payments] = await Promise.all([
+    const [patients, appointments, plans] = await Promise.all([
       repository.listPatients(clinicId),
       repository.listAppointments(
         clinicId,
@@ -272,11 +276,10 @@ export function registerReportsRoutes(context: RouteContext) {
         ).toISOString(),
       ),
       repository.listPatientPlans(clinicId),
-      repository.listReceivedPayments(clinicId, period.from, period.to),
     ]);
     return buildClientReport(
       period,
-      { patients, appointments, plans, payments },
+      { patients, appointments, plans },
       timeZone,
     );
   });
@@ -324,6 +327,16 @@ export function registerReportsRoutes(context: RouteContext) {
           repository.getWhatsappCampaign(clinicId, campaign.id),
         ),
       );
+      // Na planilha, a fila de hoje mostra quem ainda vai receber (se hoje está no período).
+      const today = clinicDateOf(new Date(), timeZone);
+      const queue =
+        path.endsWith(".xlsx") && today >= from && today <= to
+          ? await loadAutoCampaignQueue(
+              repository,
+              clinicId,
+              requestAccess.get(request)?.modules ?? [],
+            )
+          : undefined;
       const { report, messages } = buildCampaignReport(
         from,
         to,
@@ -333,6 +346,7 @@ export function registerReportsRoutes(context: RouteContext) {
           deliveries,
           redemptions,
           patients,
+          queue: queue?.items,
         },
         timeZone,
       );

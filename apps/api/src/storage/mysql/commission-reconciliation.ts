@@ -5,12 +5,14 @@ import {
   type CommissionExpectation,
   type CommissionReconciliation,
   type CommissionReconciliationInput,
+  type CommissionEntry,
 } from "@crm/contracts";
 import type { Pool, PoolClient } from "../../infrastructure/mysql-client.js";
-import { DomainError } from "../../repository.js";
+import { DomainError, type CommissionSourceScope } from "../../repository.js";
 import {
   commissionReconciliationDigest,
   commissionReconciliationChanges,
+  commissionAdjustmentsWithinLimit as withinLimit,
 } from "../../modules/finance/commission-reconciliation.js";
 import type { MysqlRepositoryContext } from "./context.js";
 import { markPaymentProofsReversed } from "./payment-proofs.js";
@@ -18,6 +20,7 @@ import {
   commissionAmount,
   commissionRuleJoin,
   commissionRuleSnapshot,
+  inJsonArray,
   localMonth,
   writeAndRead,
 } from "./sql.js";
@@ -126,9 +129,8 @@ export function createCommissionReconciliationRepository(
   async function expectation(
     client: PoolClient,
     clinicId: string,
-    id: string,
+    row: CommissionEntry,
   ): Promise<CommissionExpectation | null> {
-    const row = await original(client, clinicId, id);
     const result = await client.query<CommissionExpectation>(
       `WITH sources AS (
       SELECT a.professional_id,a.service_id,a.starts_at FROM appointments a WHERE a.clinic_id=$1 AND a.id=$2 AND a.status='completed' AND a.patient_id IS NOT NULL
@@ -142,16 +144,21 @@ export function createCommissionReconciliationRepository(
       ? {
           ...expected,
           ruleSnapshot: Object.fromEntries(
-            Object.entries(json<Record<string, unknown>>(expected.ruleSnapshot)).filter(
-              ([, value]) => value !== null,
-            ),
+            Object.entries(
+              json<Record<string, unknown>>(expected.ruleSnapshot),
+            ).filter(([, value]) => value !== null),
           ) as CommissionExpectation["ruleSnapshot"],
         }
       : null;
   }
-  async function preview(client: PoolClient, clinicId: string, id: string) {
-    const commission = await original(client, clinicId, id),
-      expected = await expectation(client, clinicId, id),
+  async function preview(
+    client: PoolClient,
+    clinicId: string,
+    id: string,
+    loaded?: CommissionEntry,
+  ) {
+    const commission = loaded ?? (await original(client, clinicId, id)),
+      expected = await expectation(client, clinicId, commission),
       adjustments = await loadCommissionAdjustments(client, clinicId, id);
     const history = await client.query<
       Omit<CommissionReconciliation, "adjustments" | "createdAt"> & {
@@ -181,6 +188,103 @@ export function createCommissionReconciliationRepository(
       ),
       originalManagedByExpense: await managedByExpense(client, clinicId, id),
     };
+  }
+  // Grava a conciliação (manual ou automática) com os ajustes e a auditoria de quem fez.
+  async function apply(
+    client: PoolClient,
+    clinicId: string,
+    actorId: string,
+    id: string,
+    comparison: Awaited<ReturnType<typeof preview>>,
+    input: { idempotencyKey: string; reason: string; automatic?: boolean },
+  ): Promise<CommissionReconciliation> {
+    const reconciliationId = randomUUID();
+    const record = (
+      await writeAndRead<{ id: string; createdAt: Date }>(
+        client,
+        `INSERT INTO commission_reconciliations(clinic_id,commission_id,idempotency_key,reason,expected,actor_id,expected_digest,actor_name,id) VALUES($1,$2,$3,$4,$5,$6,$7,(SELECT full_name FROM users WHERE clinic_id=$1 AND id=$6),$8)`,
+        [
+          clinicId,
+          id,
+          input.idempotencyKey,
+          input.reason,
+          comparison.expected ? JSON.stringify(comparison.expected) : null,
+          actorId,
+          comparison.digest,
+          reconciliationId,
+        ],
+        `SELECT id,created_at AS "createdAt" FROM commission_reconciliations WHERE id=$8`,
+      )
+    ).rows[0]!;
+    for (const change of comparison.changes)
+      await client.query(
+        `INSERT INTO commission_adjustments(clinic_id,commission_id,reconciliation_id,professional_id,professional_name,competence,amount_in_cents,reason,actor_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+        [
+          clinicId,
+          id,
+          record.id,
+          change.professionalId,
+          change.professionalName,
+          change.competence,
+          change.amountInCents,
+          input.reason,
+          actorId,
+        ],
+      );
+    await context.addAdminAudit(
+      client,
+      clinicId,
+      actorId,
+      input.automatic ? "commission.auto_reconciled" : "commission.reconciled",
+      "commission",
+      id,
+      {
+        reason: input.reason,
+        reconciliationId: record.id,
+        changes: comparison.changes,
+      },
+    );
+    return {
+      actorName: (
+        await client.query<{ fullName: string }>(
+          'SELECT full_name AS "fullName" FROM users WHERE clinic_id=$1 AND id=$2',
+          [clinicId, actorId],
+        )
+      ).rows[0]!.fullName,
+      expectedDigest: comparison.digest,
+      id: record.id,
+      clinicId,
+      commissionId: id,
+      idempotencyKey: input.idempotencyKey,
+      reason: input.reason,
+      actorId,
+      createdAt: record.createdAt.toISOString(),
+      expected: comparison.expected,
+      adjustments: (
+        await loadCommissionAdjustments(client, clinicId, id)
+      ).filter((entry) => entry.reconciliationId === record.id),
+    };
+  }
+  async function scopedCommissionIds(
+    client: PoolClient,
+    clinicId: string,
+    scope: CommissionSourceScope,
+  ) {
+    const list = (values?: string[]) => values ?? [];
+    const result = await client.query<{ id: string }>(
+      `SELECT ce.id FROM commission_entries ce
+       LEFT JOIN group_attendance ga ON ga.clinic_id=ce.clinic_id AND ga.id=ce.group_attendance_id
+       LEFT JOIN group_sessions gs ON gs.clinic_id=ga.clinic_id AND gs.id=ga.session_id
+       WHERE ce.clinic_id=$1 AND (${inJsonArray("ce.appointment_id", "$2")}
+         OR ${inJsonArray("ce.group_attendance_id", "$3")} OR ${inJsonArray("gs.id", "$4")})`,
+      [
+        clinicId,
+        list(scope.appointmentIds),
+        list(scope.groupAttendanceIds),
+        list(scope.groupSessionIds),
+      ],
+    );
+    return result.rows.map((row) => row.id);
   }
   return {
     async getCommissionReconciliationPreview(clinicId: string, id: string) {
@@ -238,84 +342,48 @@ export function createCommissionReconciliationRepository(
             "A comissão já está conciliada com sua origem.",
             409,
           );
-        if (
-          comparison.changes.some(
-            (entry) =>
-              !Number.isSafeInteger(entry.amountInCents) ||
-              Math.abs(entry.amountInCents) > 2147483647,
-          )
-        )
+        if (!withinLimit(comparison.changes))
           throw new DomainError(
             "COMMISSION_AMOUNT_LIMIT",
             "O ajuste excede o limite financeiro permitido.",
             409,
           );
-        const reconciliationId = randomUUID();
-        const record = (
-          await writeAndRead<{ id: string; createdAt: Date }>(
-            client,
-            `INSERT INTO commission_reconciliations(clinic_id,commission_id,idempotency_key,reason,expected,actor_id,expected_digest,actor_name,id) VALUES($1,$2,$3,$4,$5,$6,$7,(SELECT full_name FROM users WHERE clinic_id=$1 AND id=$6),$8)`,
-            [
-              clinicId,
-              id,
-              input.idempotencyKey,
-              input.reason,
-              comparison.expected ? JSON.stringify(comparison.expected) : null,
-              actorId,
-              input.expectedDigest,
-              reconciliationId,
-            ],
-            `SELECT id,created_at AS "createdAt" FROM commission_reconciliations WHERE id=$8`,
-          )
-        ).rows[0]!;
-        for (const change of comparison.changes)
-          await client.query(
-            `INSERT INTO commission_adjustments(clinic_id,commission_id,reconciliation_id,professional_id,professional_name,competence,amount_in_cents,reason,actor_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
-            [
-              clinicId,
-              id,
-              record.id,
-              change.professionalId,
-              change.professionalName,
-              change.competence,
-              change.amountInCents,
-              input.reason,
-              actorId,
-            ],
-          );
-        await context.addAdminAudit(
-          client,
-          clinicId,
-          actorId,
-          "commission.reconciled",
-          "commission",
-          id,
-          {
-            reason: input.reason,
-            reconciliationId: record.id,
-            changes: comparison.changes,
-          },
-        );
-        return {
-          actorName: (
-            await client.query<{ fullName: string }>(
-              'SELECT full_name AS "fullName" FROM users WHERE clinic_id=$1 AND id=$2',
-              [clinicId, actorId],
-            )
-          ).rows[0]!.fullName,
-          expectedDigest: input.expectedDigest,
-          id: record.id,
-          clinicId,
-          commissionId: id,
+        return apply(client, clinicId, actorId, id, comparison, {
           idempotencyKey: input.idempotencyKey,
           reason: input.reason,
-          actorId,
-          createdAt: record.createdAt.toISOString(),
-          expected: comparison.expected,
-          adjustments: (
-            await loadCommissionAdjustments(client, clinicId, id)
-          ).filter((entry) => entry.reconciliationId === record.id),
-        };
+        });
+      });
+    },
+    async autoReconcileCommissions(
+      clinicId: string,
+      actorId: string,
+      scope: CommissionSourceScope,
+      reason: string,
+    ) {
+      return context.inTransaction(async (client) => {
+        await lock(client, clinicId, actorId);
+        const ids = new Set(await scopedCommissionIds(client, clinicId, scope));
+        if (!ids.size) return 0;
+        let reconciled = 0;
+        for (const commission of (
+          await context.listCommissions(clinicId, undefined, client)
+        ).filter((entry) => ids.has(entry.id))) {
+          const comparison = await preview(
+            client,
+            clinicId,
+            commission.id,
+            commission,
+          );
+          if (!comparison.changes.length || !withinLimit(comparison.changes))
+            continue;
+          await apply(client, clinicId, actorId, commission.id, comparison, {
+            idempotencyKey: randomUUID(),
+            reason,
+            automatic: true,
+          });
+          reconciled += 1;
+        }
+        return reconciled;
       });
     },
     async settleCommissionAccount(

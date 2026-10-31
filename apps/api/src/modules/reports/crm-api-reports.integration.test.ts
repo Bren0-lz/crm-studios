@@ -127,7 +127,8 @@ describe("CRM API", () => {
         await periodWorkbook.xlsx.load(
           response.rawPayload as unknown as ExcelJS.Buffer,
         );
-        expect(periodWorkbook.getWorksheet("Resumo")!.columnCount).toBe(2);
+        // Período selecionado e o anterior de mesmo tamanho.
+        expect(periodWorkbook.getWorksheet("Resumo")!.columnCount).toBe(3);
         expect(response.headers["content-disposition"]).toContain(
           "vendas-" + date + "-" + date + ".xlsx",
         );

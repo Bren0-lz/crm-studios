@@ -38,7 +38,7 @@ function report(): ManagementReport {
     },
     trials: { scheduled: 0, completed: 0, converted: 0, conversionRate: 0 },
     plans: { active: 0, availableSessions: 0, consumedInPeriod: 0 },
-    finance: { openInCents: 0, overdueInCents: 0, paidInPeriodInCents: 10000 },
+    finance: { openInCents: 0, overdueInCents: 2500 },
     commercial: {
       leadsCreated: 0,
       won: 0,
@@ -50,27 +50,13 @@ function report(): ManagementReport {
     byService: [],
     bySource: [],
     profitability: {
-      dre: {
-        serviceRevenueInCents: 10000,
-        productRevenueInCents: 0,
-        grossRevenueInCents: 10000,
-        productCostInCents: 1000,
-        grossProfitInCents: 9000,
-        operatingExpensesInCents: 0,
-        commissionsInCents: 0,
-        netResultInCents: 9000,
-        netMargin: 90,
-      },
       byService: [],
-      byProduct: [],
       operational: {
         groupOccupancyRate: 0,
         activeGroupSeats: 0,
         totalGroupCapacity: 0,
         waitlistCount: 0,
         lowStockCount: 0,
-        productUnitsSold: 0,
-        averageReceiptInCents: 0,
       },
     },
   };
@@ -96,20 +82,21 @@ describe("planilha do relatório gerencial", () => {
       "Serviços",
       "Origens",
       "Rentabilidade serviços",
-      "Rentabilidade produtos",
     ]);
     const summary = workbook.getWorksheet("Resumo")!;
     expect(headers(summary)).toEqual(["Seção", "Indicador", "Valor"]);
-    const received = summary
+    const overdue = summary
       .getColumn(2)
-      .values.findIndex((value) => value === "Recebido no período");
-    expect(summary.getCell(received, 3).value).toBe(100);
-    expect(summary.getCell(received, 3).numFmt).toContain("R$");
-    const margin = summary
+      .values.findIndex((value) => value === "Em atraso");
+    expect(summary.getCell(overdue, 3).value).toBe(25);
+    expect(summary.getCell(overdue, 3).numFmt).toContain("R$");
+    // Caixa e vendas ficam nos próprios relatórios (Financeiro e Vendas).
+    expect(summary.getColumn(2).values).not.toContain("Recebido no período");
+    expect(summary.getColumn(1).values).not.toContain("DRE");
+    const attendance = summary
       .getColumn(2)
-      .values.findIndex((value) => value === "Margem líquida");
-    expect(summary.getCell(margin, 3).value).toBe(0.9);
-    expect(summary.getCell(margin, 3).numFmt).toBe("0.0%");
+      .values.findIndex((value) => value === "Taxa de presença");
+    expect(summary.getCell(attendance, 3).numFmt).toBe("0.0%");
     const services = workbook.getWorksheet("Serviços")!;
     expect(services.getCell("A2").value).toBe('Pilates; "duo"\nmanhã');
     expect(services.getCell("E2").value).toBe(0.75);

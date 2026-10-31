@@ -1,4 +1,5 @@
 import { prepareUserAgenda } from "./user-agenda.js";
+import { syncUserPayroll } from "./user-payroll.js";
 import {
   defaultAutoFinalizationSettings,
   resolveNavTabLabels,
@@ -18,6 +19,8 @@ import {
   type AuditHistoryFilters,
   type ClinicSettingsInput,
   type HistoryActor,
+  type IntegrationKey,
+  type IntegrationKeyInput,
   type NavTabLabelsInput,
   type NotificationPreferences,
   type OwnProfile,
@@ -157,6 +160,7 @@ export function createAdministrationRepository(
           { professionalId, previousProfessionalId },
           clinicId,
         );
+        syncUserPayroll(repositoryContext, actorUserId, user, undefined);
       }
       return repositoryContext.toAdminUser(user);
     },
@@ -268,6 +272,12 @@ export function createAdministrationRepository(
           item,
         );
       saveAgenda();
+      syncUserPayroll(
+        repositoryContext,
+        actorUserId,
+        user,
+        input.salaryInCents ?? null,
+      );
       // Usuário novo ligado a um profissional que já tem comissões: recalcula pelas regras novas.
       if (recalculation)
         commissions.apply(
@@ -407,6 +417,12 @@ export function createAdministrationRepository(
           item,
         );
       saveAgenda();
+      syncUserPayroll(
+        repositoryContext,
+        actorUserId,
+        user,
+        input.salaryInCents,
+      );
       if (recalculation)
         commissions.apply(
           clinicId,
@@ -817,5 +833,82 @@ export function createAdministrationRepository(
       );
       return preferences;
     },
+
+    async listIntegrationKeys(clinicId: string) {
+      return repositoryContext.integrationKeys
+        .filter((item) => item.clinicId === clinicId)
+        .sort(
+          (left, right) =>
+            Number(Boolean(left.revokedAt)) - Number(Boolean(right.revokedAt)) ||
+            right.createdAt.localeCompare(left.createdAt),
+        )
+        .map(publicIntegrationKey);
+    },
+
+    async createIntegrationKey(
+      clinicId: string,
+      actorUserId: string,
+      input: IntegrationKeyInput,
+      secret: { prefix: string; tokenHash: string },
+    ) {
+      const actor = repositoryContext.users.find(
+        (user) => user.clinicId === clinicId && user.id === actorUserId,
+      );
+      const key = {
+        id: uuid(),
+        clinicId,
+        tokenHash: secret.tokenHash,
+        name: input.name,
+        prefix: secret.prefix,
+        scopes: [...input.scopes],
+        createdByUserId: actorUserId,
+        createdByName: actor?.fullName ?? "",
+        createdAt: now(),
+      };
+      repositoryContext.integrationKeys.push(key);
+      return publicIntegrationKey(key);
+    },
+
+    async revokeIntegrationKey(clinicId: string, id: string) {
+      const key = repositoryContext.integrationKeys.find(
+        (item) => item.clinicId === clinicId && item.id === id,
+      );
+      if (!key) return null;
+      key.revokedAt ??= now();
+      return publicIntegrationKey(key);
+    },
+
+    async findIntegrationKeyByTokenHash(tokenHash: string) {
+      const key = repositoryContext.integrationKeys.find(
+        (item) => item.tokenHash === tokenHash && !item.revokedAt,
+      );
+      return key
+        ? { clinicId: key.clinicId, key: publicIntegrationKey(key) }
+        : null;
+    },
+
+    async touchIntegrationKey(clinicId: string, id: string) {
+      const key = repositoryContext.integrationKeys.find(
+        (item) => item.clinicId === clinicId && item.id === id,
+      );
+      if (key) key.lastUsedAt = now();
+    },
+  };
+}
+
+/** Chave sem o hash do token nem a clínica (formato público da API). */
+function publicIntegrationKey(
+  key: IntegrationKey & { clinicId: string; tokenHash: string },
+): IntegrationKey {
+  return {
+    id: key.id,
+    name: key.name,
+    prefix: key.prefix,
+    scopes: [...key.scopes],
+    createdByUserId: key.createdByUserId,
+    createdByName: key.createdByName,
+    createdAt: key.createdAt,
+    ...(key.lastUsedAt ? { lastUsedAt: key.lastUsedAt } : {}),
+    ...(key.revokedAt ? { revokedAt: key.revokedAt } : {}),
   };
 }

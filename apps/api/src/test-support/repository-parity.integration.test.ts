@@ -140,7 +140,7 @@ for (const storage of ["memory", "mysql"] as const) {
           "2063-01-01",
         );
         expect(foreign.sales).toEqual([]);
-        expect(foreign.payments).toEqual([]);
+        expect(foreign.summary.payment.paidInCents).toBe(0);
         expect(foreign.patientsWithoutReturn).toEqual([]);
       });
 
@@ -1021,6 +1021,36 @@ for (const storage of ["memory", "mysql"] as const) {
         expect(numbers).not.toContain(created.recordNumber);
       });
 
+      it("generates the product code when it is not informed and keeps it on update", async () => {
+        const fields = {
+          unit: "un",
+          costInCents: 500,
+          salePriceInCents: 1000,
+          initialStock: 0,
+        };
+        const first = await repository.createProduct(clinicId, actorId, {
+          ...fields,
+          name: "Produto sem código",
+        });
+        const second = await repository.createProduct(clinicId, actorId, {
+          ...fields,
+          name: "Outro produto sem código",
+        });
+        expect(first.sku).toMatch(/^PRD-[0-9A-F]{8}$/);
+        expect(second.sku).toMatch(/^PRD-[0-9A-F]{8}$/);
+        expect(second.sku).not.toBe(first.sku);
+        const updated = await repository.updateProduct(
+          clinicId,
+          actorId,
+          first.id,
+          { ...fields, name: "Produto renomeado", active: true },
+        );
+        expect(updated).toMatchObject({
+          name: "Produto renomeado",
+          sku: first.sku,
+        });
+      });
+
       it("closes one mixed tab charge, consumes only its linked service and reverses the credit before cancellation", async () => {
         const created = await patient("Comanda integrada");
         const tab = await repository.openPatientTab(clinicId, actorId, {
@@ -1651,6 +1681,116 @@ for (const storage of ["memory", "mysql"] as const) {
         ).rejects.toMatchObject({
           code: "COMMISSION_ACCOUNT_PAYMENT_REVERSED",
         });
+      });
+      it("reconciles commissions automatically when their origin changes, in the name of who changed it", async () => {
+        const client = await patient("Parity Commission Auto Reconciliation"),
+          professional = await repository.createProfessional(
+            clinicId,
+            professionalInputSchema.parse({
+              fullName: "Paridade Conciliação " + randomUUID(),
+              crefito: "PARITY-54321",
+              specialty: "Pilates",
+              color: "#8b5cf6",
+            }),
+          ),
+          room = await repository.createRoom(clinicId, {
+            name: "Paridade conciliação " + randomUUID().slice(0, 8),
+            capacity: 1,
+          });
+        await repository.createCommissionRule(clinicId, {
+          professionalId: professional.id,
+          serviceId,
+          kind: "fixed",
+          percentage: 0,
+          fixedAmountInCents: 1500,
+          effectiveFrom: "2058-01-01",
+        });
+        const appointment = await repository.createAppointment(
+          clinicId,
+          appointmentInputSchema.parse({
+            patientId: client.id,
+            professionalId: professional.id,
+            roomId: room.id,
+            serviceId,
+            startsAt: "2058-04-13T15:00:00Z",
+            visitType: "trial",
+          }),
+        );
+        await atInstant("2058-04-14T12:00:00Z", () =>
+          repository.updateAppointmentStatus(
+            clinicId,
+            appointment.id,
+            "completed",
+          ),
+        );
+        const commission = (
+          await repository.generateCommissions(clinicId, "2058-04")
+        ).find((entry) => entry.appointmentId === appointment.id)!;
+        const scope = { appointmentIds: [appointment.id] },
+          reason = "Conciliação automática: situação do atendimento alterada.";
+        expect(
+          await repository.autoReconcileCommissions(
+            clinicId,
+            actorId,
+            scope,
+            reason,
+          ),
+        ).toBe(0);
+        await atInstant("2058-04-14T12:00:00Z", () =>
+          repository.updateAppointmentStatus(
+            clinicId,
+            appointment.id,
+            "confirmed",
+          ),
+        );
+        expect(
+          await repository.autoReconcileCommissions(
+            clinicId,
+            actorId,
+            { groupSessionIds: [randomUUID()] },
+            reason,
+          ),
+        ).toBe(0);
+        expect(
+          await repository.autoReconcileCommissions(
+            clinicId,
+            actorId,
+            scope,
+            reason,
+          ),
+        ).toBe(1);
+        expect(
+          await repository.autoReconcileCommissions(
+            clinicId,
+            actorId,
+            scope,
+            reason,
+          ),
+        ).toBe(0);
+        const preview = await repository.getCommissionReconciliationPreview(
+          clinicId,
+          commission.id,
+        );
+        expect(preview.changes).toEqual([]);
+        expect(preview.reconciliations).toHaveLength(1);
+        expect(preview.reconciliations[0]).toMatchObject({ actorId, reason });
+        expect(preview.reconciliations[0]!.actorName).not.toBe("");
+        expect(preview.adjustments).toMatchObject([
+          { amountInCents: -1500, actorId, reason, status: "open" },
+        ]);
+        expect(
+          (await repository.listAdminAuditEvents(clinicId)).filter(
+            (event) =>
+              event.action === "commission.auto_reconciled" &&
+              event.entityId === commission.id,
+          ),
+        ).toMatchObject([
+          {
+            actorUserId: actorId,
+            module: "finance",
+            metadata: { reason },
+          },
+        ]);
       });
       it("rolls back a guided registration when the subsequent plan cannot be created", async () => {
         const name = `Parity Rollback ${randomUUID()}`;
