@@ -1,5 +1,5 @@
 import type { Pool, PoolClient } from "../../infrastructure/mysql-client.js";
-import type { FinancialSummary } from "@crm/contracts";
+import type { FinancialSummary, Receivable } from "@crm/contracts";
 import { clinicDateOf } from "../../modules/finance/daily-cash.js";
 import {
   branchClause,
@@ -51,6 +51,7 @@ export async function loadFinancialSummary(
       month ??
       (await loadFinancialMonth(client, clinicId, timezone, branchIds)),
     today = clinicDateOf(new Date(), timezone);
+  const origins = await loadReceivableOrigins(client, clinicId, branchIds);
   const receivables = (
     await client.query<ReceivableRow>(
       `SELECT ${receivableColumns} FROM receivables r JOIN patients p ON p.id=r.patient_id AND p.clinic_id=r.clinic_id WHERE r.clinic_id=$1 AND ${branchClause("r.branch_id", 2)} ORDER BY r.due_date,r.created_at`,
@@ -60,6 +61,7 @@ export async function loadFinancialSummary(
     .map(mapReceivable)
     .map((item) => ({
       ...item,
+      ...origins.get(item.id),
       overdue: item.status === "open" && item.dueDate < today,
     }));
   return {
@@ -72,4 +74,44 @@ export async function loadFinancialSummary(
       .reduce((sum, item) => sum + item.amountInCents, 0),
     paidThisMonthInCents: period.receiptPaidInCents,
   };
+}
+
+/** Plano vendido e serviços (do plano ou da comanda) de cada conta a receber. */
+async function loadReceivableOrigins(
+  client: Pool | PoolClient,
+  clinicId: string,
+  branchIds: string[] | null,
+) {
+  const rows = await client.query<{
+    receivableId: string;
+    planName: string | null;
+    serviceId: string;
+    serviceName: string;
+  }>(
+    `SELECT r.id AS "receivableId",pp.name AS "planName",coalesce(pps.service_id,pp.service_id) AS "serviceId",coalesce(pps.service_name,s.name) AS "serviceName"
+     FROM receivables r
+     JOIN patient_plans pp ON pp.clinic_id=r.clinic_id AND pp.id=r.plan_id
+     LEFT JOIN patient_plan_services pps ON pps.clinic_id=pp.clinic_id AND pps.plan_id=pp.id
+     LEFT JOIN services s ON s.id=pp.service_id
+     WHERE r.clinic_id=$1 AND ${branchClause("r.branch_id", 2)}
+     UNION ALL
+     SELECT t.receivable_id,NULL,ts.service_id,ts.service_name
+     FROM patient_tabs t
+     JOIN patient_tab_services ts ON ts.clinic_id=t.clinic_id AND ts.tab_id=t.id
+     JOIN receivables r ON r.clinic_id=t.clinic_id AND r.id=t.receivable_id
+     WHERE t.clinic_id=$1 AND r.plan_id IS NULL AND ${branchClause("r.branch_id", 2)}`,
+    [clinicId, branchIds],
+  );
+  const origins = new Map<
+    string,
+    Required<Pick<Receivable, "services">> & Pick<Receivable, "planName">
+  >();
+  for (const row of rows.rows) {
+    const origin = origins.get(row.receivableId) ?? { services: [] };
+    if (row.planName) origin.planName = row.planName;
+    if (!origin.services.some((service) => service.id === row.serviceId))
+      origin.services.push({ id: row.serviceId, name: row.serviceName });
+    origins.set(row.receivableId, origin);
+  }
+  return origins;
 }
