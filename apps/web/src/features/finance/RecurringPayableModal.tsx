@@ -9,6 +9,13 @@ import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
 import { MoneyInput } from "../../shared/components/MoneyInput";
 import { FinanceRegistryModal } from "./FinanceRegistryModal";
 import { CREATE_OPTION_VALUE } from "./InlineClassificationCreate";
+import { ExpenseKindPicker } from "./ExpenseKindPicker";
+import {
+  carriedId,
+  EXPENSE_KIND_FOCUS,
+  hasCarriedDraft,
+  type ExpenseKindSwitch,
+} from "./expense-kind";
 
 /** "2026-10" → "outubro de 2026". */
 function monthLabel(value: string) {
@@ -27,13 +34,17 @@ export function RecurringPayableModal({
   item,
   onClose,
   onCreated,
+  kindSwitch,
 }: {
   workspace: FinancialWorkspace;
   currentMonth: string;
   item?: RecurringPayable | undefined;
   onClose: () => void;
   onCreated: () => void;
+  /** No modal único de "Nova despesa": escolha entre pontual e fixa. */
+  kindSwitch?: ExpenseKindSwitch | undefined;
 }) {
+  const draft = item ? undefined : kindSwitch?.draft;
   const toast = useToast();
   const { can } = useAuthorization();
   // Na edição, a categoria e o centro atuais continuam na lista mesmo se inativados.
@@ -50,12 +61,20 @@ export function RecurringPayableModal({
     ),
   );
   const [form, setForm] = useState({
-    description: item?.description ?? "",
-    supplier: item?.supplier ?? "",
-    categoryId: item?.categoryId ?? expenseCategories[0]?.id ?? "",
-    costCenterId: item?.costCenterId ?? costCenters[0]?.id ?? "",
+    description: item?.description ?? draft?.description ?? "",
+    supplier: item?.supplier ?? draft?.supplier ?? "",
+    categoryId:
+      item?.categoryId ??
+      carriedId(draft?.categoryId, expenseCategories) ??
+      expenseCategories[0]?.id ??
+      "",
+    costCenterId:
+      item?.costCenterId ??
+      carriedId(draft?.costCenterId, costCenters) ??
+      costCenters[0]?.id ??
+      "",
     amountType: item?.amountType ?? "fixed",
-    amountInCents: item?.amountInCents ?? 0,
+    amountInCents: item?.amountInCents ?? draft?.amountInCents ?? 0,
     dayOfMonth: item?.dayOfMonth ?? Math.min(new Date().getDate(), 28),
     remind: item ? item.reminderDaysBefore !== undefined : true,
     reminderDaysBefore: item?.reminderDaysBefore ?? 3,
@@ -68,7 +87,8 @@ export function RecurringPayableModal({
     null,
   );
   const [loading, setLoading] = useState(false);
-  const dirty = useFormDirty(form);
+  const dirty = useFormDirty(form) || hasCarriedDraft(draft);
+  const picking = !item && kindSwitch !== undefined;
   const missing = useMissingFields(
     [
       form.description.trim().length < 3 &&
@@ -131,12 +151,19 @@ export function RecurringPayableModal({
   return (
     <>
       <Modal
-        title={item ? "Editar despesa fixa" : "Nova despesa fixa"}
+        title={
+          item
+            ? "Editar despesa fixa"
+            : picking
+              ? "Nova despesa"
+              : "Nova despesa fixa"
+        }
         subtitle={
           item
             ? "As mudanças valem para as contas dos próximos meses."
             : "A conta a pagar é gerada todo mês, do mês inicial até o final."
         }
+        {...(picking ? { initialFocus: EXPENSE_KIND_FOCUS } : {})}
         busy={loading}
         inactive={creating !== null}
         dirty={dirty}
@@ -146,6 +173,19 @@ export function RecurringPayableModal({
           item ? "finance.recurring_update" : "finance.recurring_create",
         ) && (
           <form className="form-grid" onSubmit={submit}>
+            {!item && (
+              <ExpenseKindPicker
+                value="recurring"
+                kindSwitch={kindSwitch}
+                draft={{
+                  description: form.description,
+                  supplier: form.supplier,
+                  categoryId: form.categoryId,
+                  costCenterId: form.costCenterId,
+                  amountInCents: form.amountInCents,
+                }}
+              />
+            )}
             <fieldset className="form-fieldset span-2">
               <legend>Conta</legend>
               <div className="form-fieldset-grid">

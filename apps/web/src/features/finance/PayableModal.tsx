@@ -18,16 +18,27 @@ import {
 } from "./InlineClassificationCreate";
 import { HelpTip } from "../../shared/components/HelpTip";
 import { financeTermHelp } from "./model";
+import { ExpenseKindPicker } from "./ExpenseKindPicker";
+import {
+  carriedId,
+  EXPENSE_KIND_FOCUS,
+  hasCarriedDraft,
+  type ExpenseKindSwitch,
+} from "./expense-kind";
 
 export function PayableModal({
   workspace,
   onClose,
   onCreated,
+  kindSwitch,
 }: {
   workspace: FinancialWorkspace;
   onClose: () => void;
   onCreated: () => void;
+  /** No modal único de "Nova despesa": escolha entre pontual e fixa. */
+  kindSwitch?: ExpenseKindSwitch | undefined;
 }) {
+  const draft = kindSwitch?.draft;
   const toast = useToast();
   const { can } = useAuthorization();
   const [expenseCategories, setExpenseCategories] = useState(() =>
@@ -35,12 +46,18 @@ export function PayableModal({
   );
   const [costCenters, setCostCenters] = useState(workspace.costCenters);
   const [form, setForm] = useState<PayableInput>({
-    description: "",
-    supplier: "",
-    categoryId: expenseCategories[0]?.id ?? "",
-    costCenterId: workspace.costCenters[0]?.id ?? "",
+    description: draft?.description ?? "",
+    supplier: draft?.supplier ?? "",
+    categoryId:
+      carriedId(draft?.categoryId, expenseCategories) ??
+      expenseCategories[0]?.id ??
+      "",
+    costCenterId:
+      carriedId(draft?.costCenterId, workspace.costCenters) ??
+      workspace.costCenters[0]?.id ??
+      "",
     dueDate: localIsoDate(),
-    amountInCents: 0,
+    amountInCents: draft?.amountInCents ?? 0,
     notes: "",
   });
   const [error, setError] = useState("");
@@ -63,7 +80,7 @@ export function PayableModal({
     };
   }, []);
   const [loading, setLoading] = useState(false);
-  const dirty = useFormDirty(form);
+  const dirty = useFormDirty(form) || hasCarriedDraft(draft);
   const missing = useMissingFields(
     [
       form.description.trim().length < 3 &&
@@ -92,14 +109,26 @@ export function PayableModal({
   }
   return (
     <Modal
-      title="Nova conta a pagar"
+      title={kindSwitch ? "Nova despesa" : "Nova conta a pagar"}
       subtitle="Classifique a despesa para compor o fluxo de caixa."
+      {...(kindSwitch ? { initialFocus: EXPENSE_KIND_FOCUS } : {})}
       busy={loading}
       dirty={dirty}
       onClose={onClose}
     >
       {can("finance.payables_create") && (
         <form className="form-grid" onSubmit={submit}>
+          <ExpenseKindPicker
+            value="single"
+            kindSwitch={kindSwitch}
+            draft={{
+              description: form.description,
+              supplier: form.supplier ?? "",
+              categoryId: form.categoryId,
+              costCenterId: form.costCenterId ?? "",
+              amountInCents: form.amountInCents,
+            }}
+          />
           <label className="span-2">
             Descrição
             <input
