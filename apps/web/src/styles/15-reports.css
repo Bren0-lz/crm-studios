@@ -149,6 +149,16 @@
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: var(--space-4);
 }
+/* Vendas: quatro cartões que quebram sozinhos em telas menores. */
+.reports-kpis.sales-kpis {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+}
+.sales-prior-cancellations {
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+}
 .reports-kpis article {
   display: flex;
   flex-direction: column;
@@ -202,13 +212,6 @@
 }
 .reports-page .clinic-indicators {
   grid-template-columns: repeat(3, minmax(0, 1fr));
-}
-.reports-page .clinic-indicators-panels {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--space-5);
-  align-items: start;
-  min-width: 0;
 }
 .indicator-card > .panel-head strong {
   font-size: var(--text-2xl);
@@ -381,6 +384,9 @@
 }
 .reports-page .dre-table tbody tr:last-child > * {
   border-bottom: 0;
+}
+.reports-campaigns .filter-group {
+  justify-self: start;
 }
 .reports-cell-detail {
   display: block;
@@ -646,9 +652,6 @@
   .reports-page .clinic-indicators {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-  .reports-page .clinic-indicators-panels {
-    grid-template-columns: 1fr;
-  }
 }
 @media (max-width: 700px) {
   .reports-page {
@@ -668,7 +671,6 @@
   }
   .reports-kpis,
   .reports-page .clinic-indicators,
-  .reports-page .clinic-indicators-panels,
   .reports-page .dre-section,
   .reports-page .profit-grid,
   .reports-page .report-grid,

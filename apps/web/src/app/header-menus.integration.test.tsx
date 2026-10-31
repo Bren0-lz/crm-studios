@@ -341,7 +341,7 @@ describe("notification banner, alerts and settings", () => {
     pendingFinalization: 1,
   };
 
-  it("highlights the chosen groups in a banner that can be dismissed", async () => {
+  it("highlights the chosen groups in a fixed header alert without a close button", async () => {
     sessionStorage.clear();
     login();
     mockApi(() => json(summary));
@@ -364,14 +364,11 @@ describe("notification banner, alerts and settings", () => {
       "/agenda/a-finalizar",
     );
 
-    fireEvent.click(
-      within(screen.getByRole("region", { name: "Alertas" })).getByRole(
-        "button",
-        { name: "Dispensar alertas" },
-      ),
-    );
+    // Fica fixo no cabeçalho, sem botão de fechar.
+    const fixed = screen.getByRole("region", { name: "Alertas" });
+    expect(screen.getByRole("banner")).toContainElement(fixed);
     expect(
-      screen.queryByRole("region", { name: "Alertas" }),
+      within(fixed).queryByRole("button", { name: "Dispensar alertas" }),
     ).not.toBeInTheDocument();
     sessionStorage.clear();
   });

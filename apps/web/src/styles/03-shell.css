@@ -51,6 +51,7 @@
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior-y: contain;
+  scrollbar-width: thin;
   margin-top: var(--space-6);
   padding: var(--space-1);
   margin-inline: calc(-1 * var(--space-1));
@@ -96,6 +97,9 @@
 
 .nav-item > span {
   min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .nav-item small {
@@ -515,46 +519,65 @@
   color: #963f35;
 }
 
-/* Faixa de alertas abaixo do cabeçalho: grupos destacados nas preferências do sino. */
+/* Alertas fixos no cabeçalho: grupos destacados nas preferências do sino. Sem botão de
+   fechar; o ícone pulsa e o contorno respira para lembrar das pendências o tempo todo. */
 .notification-banner {
   display: flex;
-  flex-wrap: wrap;
+  flex: 1;
   align-items: center;
-  gap: var(--space-2) var(--space-3);
-  margin-bottom: var(--space-4);
-  padding: var(--space-3) var(--space-3) var(--space-3) var(--space-4);
+  gap: var(--space-2);
+  min-width: 0;
+  padding: var(--space-1) var(--space-2);
   border: 1px solid #e6c3bd;
   border-radius: var(--radius-md);
   background: #fff5f2;
   color: #963f35;
-  font-size: var(--text-md);
-  box-shadow: var(--shadow-sm);
+  font-size: var(--text-sm);
+  animation: notification-banner-breathe 2.4s ease-in-out infinite;
 }
 .notification-banner > strong {
+  flex-shrink: 0;
   font-weight: 600;
+  white-space: nowrap;
+}
+.notification-banner-icon {
+  display: inline-grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: calc(var(--space-6) + var(--space-1));
+  height: calc(var(--space-6) + var(--space-1));
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--red) 80%, #000);
+  color: #fff;
+  animation: notification-banner-ring 2.4s ease-out infinite;
+}
+.notification-banner-icon svg {
+  animation: notification-banner-shake 2.4s ease-in-out infinite;
 }
 .notification-banner ul {
   display: flex;
   flex: 1;
-  flex-wrap: wrap;
   gap: var(--space-2);
+  min-width: 0;
   margin: 0;
   padding: 0;
+  overflow-x: auto;
   list-style: none;
+  scrollbar-width: thin;
 }
 .notification-banner-item {
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
   min-height: calc(var(--space-6) + var(--space-1));
-  padding: 0 var(--space-2) 0 var(--space-3);
+  padding: 0 var(--space-1) 0 var(--space-2);
   border: 1px solid #e6c3bd;
   border-radius: var(--radius-sm);
   background: #fff;
   color: inherit;
   font-size: var(--text-sm);
   font-weight: 600;
-  text-align: left;
+  white-space: nowrap;
   cursor: pointer;
 }
 .notification-banner-item:hover,
@@ -576,9 +599,46 @@
   line-height: var(--space-5);
   text-align: center;
 }
-.notification-banner-close {
-  margin-left: auto;
-  color: inherit;
+@keyframes notification-banner-ring {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--red) 55%, transparent);
+  }
+  70%,
+  100% {
+    box-shadow: 0 0 0 var(--space-2)
+      color-mix(in srgb, var(--red) 0%, transparent);
+  }
+}
+@keyframes notification-banner-shake {
+  0%,
+  60%,
+  100% {
+    transform: rotate(0);
+  }
+  65%,
+  75% {
+    transform: rotate(-14deg);
+  }
+  70%,
+  80% {
+    transform: rotate(14deg);
+  }
+}
+@keyframes notification-banner-breathe {
+  0%,
+  100% {
+    border-color: #e6c3bd;
+  }
+  50% {
+    border-color: #963f35;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .notification-banner,
+  .notification-banner-icon,
+  .notification-banner-icon svg {
+    animation: none;
+  }
 }
 
 /* Avisos de pendência nova: canto superior direito, abaixo do cabeçalho. Com o sino aberto
@@ -601,7 +661,6 @@
   gap: var(--space-2);
   padding: var(--space-3) var(--space-2) var(--space-3) var(--space-4);
   border: 1px solid #e6c3bd;
-  border-left: var(--space-1) solid #963f35;
   border-radius: var(--radius-md);
   background: #fff;
   color: #963f35;

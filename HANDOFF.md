@@ -11,7 +11,7 @@ está em `PLAN.md` (tarefas) e `STATE.md` (tarefa atual + diário). As regras pe
 - **Próxima tarefa:** QM15 (sem "movimenta", UUID ou código de seed na interface).
 - **Faltam:** QM15–QM17, a Fase 3 (QV1–QV9), QR1 (e2e dos críticos) e QR2 (revisão manual).
 - **Gates nesta máquina:** rode com `TEST_DATABASE_URL` vazia (`export TEST_DATABASE_URL=`). O
-  `.env` local aponta para um banco que não responde, e as variáveis reais ficam na Vercel.
+  `.env` local aponta para um banco que não responde, e as variáveis reais ficam no hPanel da Hostinger.
 
 ## Preparar a máquina nova
 
@@ -79,5 +79,3 @@ está em `PLAN.md` (tarefas) e `STATE.md` (tarefa atual + diário). As regras pe
   só com foco (QC10).
 - Use as ferramentas de edição, não scripts que reescrevem arquivos inteiros; um script assim já
   corrompeu a `AgendaPage.tsx`. Os avisos "LF will be replaced by CRLF" nos commits são normais.
-- Com o Session pooler do Supabase, `EMAXCONNSESSION` aparece quando há API local ou `tsx watch`
-  segurando conexões. Encerre esses processos e espere uns 3 minutos antes de rodar o gate.

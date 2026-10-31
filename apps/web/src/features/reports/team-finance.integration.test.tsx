@@ -30,7 +30,7 @@ function report(withValues: boolean): ManagementReport {
     },
     trials: { scheduled: 0, completed: 0, converted: 0, conversionRate: 0 },
     plans: { active: 0, availableSessions: 0, consumedInPeriod: 0 },
-    finance: { openInCents: 0, overdueInCents: 0, paidInPeriodInCents: 0 },
+    finance: { openInCents: 0, overdueInCents: 0 },
     commercial: {
       leadsCreated: 0,
       won: 0,
@@ -87,17 +87,6 @@ function report(withValues: boolean): ManagementReport {
         }
       : {}),
     profitability: {
-      dre: {
-        serviceRevenueInCents: 0,
-        productRevenueInCents: 0,
-        grossRevenueInCents: 0,
-        productCostInCents: 0,
-        grossProfitInCents: 0,
-        operatingExpensesInCents: 0,
-        commissionsInCents: 0,
-        netResultInCents: 0,
-        netMargin: 0,
-      },
       byService: [
         {
           id: "s1",
@@ -109,15 +98,12 @@ function report(withValues: boolean): ManagementReport {
           contributionMargin: 100,
         },
       ],
-      byProduct: [],
       operational: {
         groupOccupancyRate: 0,
         activeGroupSeats: 0,
         totalGroupCapacity: 0,
         waitlistCount: 0,
         lowStockCount: 0,
-        productUnitsSold: 0,
-        averageReceiptInCents: 0,
       },
     },
   };
@@ -173,14 +159,17 @@ describe("team finance report", () => {
     });
     expect(money(row.textContent ?? "")).toContain("R$ 1.234,00");
     expect(money(row.textContent ?? "")).toContain("R$ 123,40");
-    expect(money(row.textContent ?? "")).toContain(
-      "pago R$ 100,00 · a pagar R$ 20,00 · previsto R$ 3,40",
-    );
+    // Pago e a pagar de cada profissional ficam no Financeiro.
+    expect(money(row.textContent ?? "")).not.toContain("a pagar");
     expect(screen.getByText("Comissão de jan. de 2026.")).toBeInTheDocument();
     const services = screen.getByRole("table", {
-      name: "Produção e recebimento por serviço no período",
+      name: "Produção por serviço no período",
     });
-    expect(money(services.textContent ?? "")).toContain("R$ 999,00");
+    // O recebido por serviço fica em Rentabilidade.
+    expect(money(services.textContent ?? "")).not.toContain("R$ 999,00");
+    expect(
+      within(services).queryByRole("columnheader", { name: "Recebido" }),
+    ).not.toBeInTheDocument();
     const groups = screen.getByRole("table", {
       name: "Rendimento mensal e potencial por turma",
     });
@@ -260,9 +249,9 @@ describe("team finance report", () => {
     expect(
       names(
         screen.getByRole("table", {
-          name: "Produção e recebimento por serviço no período",
+          name: "Produção por serviço no período",
         }),
       ),
-    ).toEqual(["Pilates individual", "Avaliação", "Depilação"]);
+    ).toEqual(["Pilates individual", "Avaliação"]);
   });
 });

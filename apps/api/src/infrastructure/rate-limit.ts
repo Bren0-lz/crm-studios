@@ -1,7 +1,7 @@
 /**
  * Limite de requisições em memória com janela deslizante, no mesmo espírito do bloqueio de
- * tentativas de login. Vale por instância da API: em ambiente serverless (Vercel) cada
- * instância conta à parte, então é uma proteção parcial; um limite global exigiria banco/Redis.
+ * tentativas de login. Vale por processo da API: com mais de uma instância, cada uma conta à
+ * parte, então é uma proteção parcial; um limite global exigiria banco/Redis.
  */
 export function createRateLimiter({
   limit,

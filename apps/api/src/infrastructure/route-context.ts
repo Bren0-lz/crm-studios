@@ -13,6 +13,9 @@ import {
   historyAction,
   installmentsIssue,
   installmentsLimit,
+  INTEGRATION_TOKEN_PREFIX,
+  type IntegrationKey,
+  type IntegrationScope,
   type PaymentMethod,
   type PatientImportAnalysis,
   patientImportFileSchema,
@@ -35,6 +38,7 @@ import Fastify from "fastify";
 import { z } from "zod";
 import { config } from "../config.js";
 import { createAutoFinalizer } from "../modules/agenda/auto-finalization.js";
+import { hashIntegrationToken } from "../modules/integrations/tokens.js";
 import { buildBroadcast } from "../modules/communications/broadcast.js";
 import {
   decodeCsvText,
@@ -48,6 +52,9 @@ import {
   type ModuleRequirement,
   ROUTE_ACCESS,
 } from "./route-access.js";
+
+/** Requisições por minuto de cada chave de integração (API externa). */
+export const INTEGRATION_RATE_LIMIT = 120;
 import { type BuildAppOptions } from "./route-utils.js";
 
 // Regras padrão do zod em pt-BR: a resposta 400 diz ao usuário o que corrigir.
@@ -192,6 +199,92 @@ export async function createRouteContext({
     }
   }
 
+  /** Chave de integração da requisição da API externa (gravada no `authenticateApiKey`). */
+  const integrationKeys = new WeakMap<FastifyRequest, IntegrationKey>();
+  /** Janela de 1 minuto de requisições e último registro de uso de cada chave. */
+  const integrationUsage = new Map<
+    string,
+    { windowStartedAt: number; count: number; touchedAt: number }
+  >();
+
+  /**
+   * API externa (`/external/v1`): valida a chave de integração (`Authorization: Bearer crm_…`)
+   * pelo hash, o escopo e o limite por minuto. A requisição segue como o admin que criou a
+   * chave: permissões, filiais e histórico dele; criador desativado invalida a chave.
+   */
+  function authenticateApiKey(scope: IntegrationScope) {
+    return async (request: FastifyRequest, reply: FastifyReply) => {
+      const header = request.headers.authorization ?? "";
+      const token = header.startsWith("Bearer ") ? header.slice(7).trim() : "";
+      const found = token.startsWith(INTEGRATION_TOKEN_PREFIX)
+        ? await repository.findIntegrationKeyByTokenHash(
+            hashIntegrationToken(token),
+          )
+        : null;
+      const invalid = {
+        code: "INTEGRATION_KEY_INVALID",
+        message: "Chave de integração inválida ou revogada.",
+      } satisfies ApiError;
+      if (!found) return reply.status(401).send(invalid);
+      const { clinicId, key } = found;
+      const nowMs = Date.now();
+      const usage = integrationUsage.get(key.id) ?? {
+        windowStartedAt: nowMs,
+        count: 0,
+        touchedAt: 0,
+      };
+      if (nowMs - usage.windowStartedAt >= 60_000) {
+        usage.windowStartedAt = nowMs;
+        usage.count = 0;
+      }
+      usage.count += 1;
+      integrationUsage.set(key.id, usage);
+      if (usage.count > INTEGRATION_RATE_LIMIT) {
+        const retryAfter = Math.ceil(
+          (usage.windowStartedAt + 60_000 - nowMs) / 1000,
+        );
+        return reply
+          .status(429)
+          .header("retry-after", String(retryAfter))
+          .send({
+            code: "RATE_LIMITED",
+            message: `Limite de ${INTEGRATION_RATE_LIMIT} requisições por minuto atingido. Tente novamente em ${retryAfter}s.`,
+          } satisfies ApiError);
+      }
+      if (!key.scopes.includes(scope))
+        return reply.status(403).send({
+          code: "INTEGRATION_SCOPE_DENIED",
+          message: `Esta chave não tem o escopo ${scope}.`,
+          details: { scope },
+        } satisfies ApiError);
+      const user = await repository.findUserById(clinicId, key.createdByUserId);
+      if (!user) return reply.status(401).send(invalid);
+      request.user = {
+        sub: user.id,
+        clinicId,
+        role: user.role,
+        sessionVersion: user.sessionVersion ?? 0,
+      };
+      integrationKeys.set(request, key);
+      requestAccess.set(request, {
+        modules: user.modules,
+        permissions: user.permissions,
+      });
+      const branchScope = await resolveBranchScope(request, user);
+      if ("code" in branchScope) return reply.status(403).send(branchScope);
+      repository.branchScope.set(branchScope);
+      // Último uso: no máximo uma gravação por minuto; falha não derruba a chamada.
+      if (nowMs - usage.touchedAt >= 60_000) {
+        usage.touchedAt = nowMs;
+        try {
+          await repository.touchIntegrationKey(clinicId, key.id);
+        } catch (error) {
+          request.log.error(error);
+        }
+      }
+    };
+  }
+
   /** Filiais ativas que o usuário acessa (admin e "todas as filiais": todas as ativas). */
   async function accessibleBranches(user: AuthenticatedUser) {
     const branches = (await repository.listBranches(user.clinicId)).filter(
@@ -334,6 +427,13 @@ export async function createRouteContext({
     if (!access)
       throw new Error(`Rota sem acesso definido em ROUTE_ACCESS: ${key}`);
     if (access === "public") return;
+    if (typeof access === "object" && "apiKey" in access) {
+      routeOptions.preHandler = [
+        authenticateApiKey(access.apiKey),
+        requireModules(access.requires),
+      ];
+      return;
+    }
     routeOptions.preHandler = [
       authenticate,
       ...(access === "admin"
@@ -356,6 +456,8 @@ export async function createRouteContext({
       !["POST", "PUT", "PATCH", "DELETE"].includes(request.method) ||
       reply.statusCode < 200 ||
       reply.statusCode >= 300 ||
+      // API externa: a gravação repassada à rota interna já entra no histórico por lá.
+      route.startsWith("/external/") ||
       route.startsWith("/agenda-notes") ||
       route.startsWith("/admin/users") ||
       route.startsWith("/admin/branches") ||
@@ -652,6 +754,7 @@ export async function createRouteContext({
     authenticate,
     autoFinalizer,
     requestAccess,
+    integrationKeys,
     accessibleBranches,
     visibleHistory,
     withConfiguredTags,

@@ -23,6 +23,7 @@ import type {
   ClinicCatalogEntry,
   NavTabLabel,
   NotificationPreferences,
+  IntegrationKey,
   AutoFinalizationSettings,
   PaymentMethodSettings,
   ProLaboreSettings,
@@ -554,6 +555,12 @@ export class MemoryRepositoryContext {
   /** Preferências do sino por usuário (`user_notification_preferences` no PostgreSQL). */
   readonly notificationPreferences = new Map<string, NotificationPreferences>();
 
+  /** Chaves da API externa (`integration_api_keys` no MySQL), com o hash do token. */
+  readonly integrationKeys: (IntegrationKey & {
+    clinicId: string;
+    tokenHash: string;
+  })[] = [];
+
   /** WhatsApp por usuário (`users.whatsapp` no PostgreSQL). */
   readonly userWhatsapps = new Map<string, string>();
 
@@ -863,6 +870,9 @@ export class MemoryRepositoryContext {
       user.id,
       today,
     );
+    const salaryInCents = this.payrollEmployees.find(
+      (item) => item.clinicId === user.clinicId && item.userId === user.id,
+    )?.baseSalaryInCents;
     return {
       ...summary,
       ...(whatsapp ? { whatsapp } : {}),
@@ -889,6 +899,7 @@ export class MemoryRepositoryContext {
           }
         : {}),
       ...(serviceCommissions.length ? { serviceCommissions } : {}),
+      ...(salaryInCents ? { salaryInCents } : {}),
     };
   }
 
@@ -1699,10 +1710,6 @@ export class MemoryRepositoryContext {
   refreshProductStock(product: Product) {
     const rows = [...(this.productStocks.get(product.id) ?? new Map())];
     product.currentStock = rows.reduce((sum, [, stock]) => sum + stock, 0);
-    product.lowStock = productNeedsRestock(
-      product.currentStock,
-      product.restockAlertAt,
-    );
     product.sizeStock = productSizeStock(
       product.sizes,
       rows.map(([size, currentStock]) => ({
@@ -1710,6 +1717,7 @@ export class MemoryRepositoryContext {
         currentStock,
       })),
     );
+    product.lowStock = productNeedsRestock(product);
   }
 
   /** Soma `delta` ao saldo do tamanho (recusa saldo negativo) e devolve o novo saldo dele. */

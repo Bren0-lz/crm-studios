@@ -11,7 +11,7 @@ import {
   type PayrollTotals,
   type Professional,
 } from "@crm/contracts";
-import { ChevronDown, ChevronUp, UserPlus, Wallet } from "lucide-react";
+import { ChevronDown, ChevronUp, Wallet } from "lucide-react";
 import { useEffect, useState } from "react";
 import { allBranches, api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
@@ -132,10 +132,8 @@ export function PayrollSection({
   const [employees, setEmployees] = useState<PayrollEmployee[]>([]);
   const [error, setError] = useState("");
   const [open, setOpen] = useState<string[]>([]);
-  const [editing, setEditing] = useState<{
-    employee: PayrollEmployee | null;
-    initial?: PayrollUnassignedInitial;
-  } | null>(null);
+  // Só os colaboradores cadastrados antes do salário no usuário se editam aqui.
+  const [editing, setEditing] = useState<PayrollEmployee | null>(null);
   const [launching, setLaunching] = useState(false);
   const [undoing, setUndoing] = useState<PayrollPayableSummary | null>(null);
   const [attempt, setAttempt] = useState(0);
@@ -200,9 +198,10 @@ export function PayrollSection({
             Competência {formatCompetence(competence)}
           </p>
           <p className="panel-help">
-            Salário fixo, comissões e ajustes de cada colaborador. Lançar a
-            folha cria uma despesa por colaborador em Contas a pagar; pagar a
-            despesa paga as comissões incluídas.
+            Salário fixo, comissões e ajustes de cada colaborador. Entram na
+            folha os usuários que recebem salário (Administração › Usuários).
+            Lançar a folha cria uma despesa por colaborador em Contas a pagar;
+            pagar a despesa paga as comissões incluídas.
           </p>
         </div>
         <div className="page-actions">
@@ -214,15 +213,6 @@ export function PayrollSection({
               onChange={(event) => changeCompetence(event.target.value)}
             />
           </label>
-          {canManage && (
-            <button
-              type="button"
-              className="secondary-button"
-              onClick={() => setEditing({ employee: null })}
-            >
-              <UserPlus size={18} /> Novo colaborador
-            </button>
-          )}
           {canManage && (
             <button
               type="button"
@@ -290,7 +280,8 @@ export function PayrollSection({
               <div className="payroll-unassigned" role="status">
                 <p>
                   Comissões a pagar de profissionais que ainda não estão na
-                  folha. Cadastre o colaborador para incluí-las.
+                  folha. Para incluí-las, ligue o profissional a um usuário em
+                  Administração › Usuários.
                 </p>
                 <ul>
                   {summary.unassigned.map((row) => (
@@ -300,26 +291,6 @@ export function PayrollSection({
                         {row.count === 1 ? "lançamento" : "lançamentos"} ·{" "}
                         {money(row.pendingInCents)}
                       </span>
-                      {canManage && (
-                        <button
-                          type="button"
-                          className="secondary-button button-sm"
-                          onClick={() =>
-                            setEditing({
-                              employee: null,
-                              initial: {
-                                name: row.professionalName,
-                                professionalId: row.professionalId,
-                                ...(row.branchId
-                                  ? { branchId: row.branchId }
-                                  : {}),
-                              },
-                            })
-                          }
-                        >
-                          Cadastrar na folha
-                        </button>
-                      )}
                     </li>
                   ))}
                 </ul>
@@ -329,7 +300,7 @@ export function PayrollSection({
               <EmptyState
                 icon={Wallet}
                 title="Nenhum colaborador na folha"
-                copy="Cadastre os colaboradores com o salário fixo e, para quem atende, o profissional da agenda."
+                copy="Marque “Recebe salário” e informe o valor no cadastro do usuário (Administração › Usuários)."
               />
             ) : (
               <>
@@ -442,19 +413,18 @@ export function PayrollSection({
                                     )}
                                     {expanded ? "Ocultar" : "Detalhes"}
                                   </button>
-                                  {canManage && (
+                                  {canManage && !line.employee.userId && (
                                     <button
                                       type="button"
                                       className="secondary-button button-sm"
                                       aria-label={`Editar ${line.employee.name}`}
                                       onClick={() =>
-                                        setEditing({
-                                          employee:
-                                            employees.find(
-                                              (item) =>
-                                                item.id === line.employee.id,
-                                            ) ?? line.employee,
-                                        })
+                                        setEditing(
+                                          employees.find(
+                                            (item) =>
+                                              item.id === line.employee.id,
+                                          ) ?? line.employee,
+                                        )
                                       }
                                     >
                                       Editar
@@ -560,23 +530,18 @@ export function PayrollSection({
       </div>
       {editing && (
         <PayrollEmployeeModal
-          employee={editing.employee}
-          {...(editing.initial ? { initial: editing.initial } : {})}
+          employee={editing}
           professionals={professionals}
           branches={branches ?? []}
           takenProfessionalIds={employees.flatMap((item) =>
-            item.professionalId && item.id !== editing.employee?.id
+            item.professionalId && item.id !== editing.id
               ? [item.professionalId]
               : [],
           )}
           onClose={() => setEditing(null)}
           onSave={async (input) => {
-            await api.savePayrollEmployee(input, editing.employee?.id);
-            toast.success(
-              editing.employee
-                ? "Colaborador atualizado."
-                : "Colaborador cadastrado na folha.",
-            );
+            await api.savePayrollEmployee(input, editing.id);
+            toast.success("Colaborador atualizado.");
             setEditing(null);
             reload();
           }}
@@ -621,9 +586,3 @@ export function PayrollSection({
     </section>
   );
 }
-
-type PayrollUnassignedInitial = {
-  name: string;
-  professionalId: string;
-  branchId?: string;
-};

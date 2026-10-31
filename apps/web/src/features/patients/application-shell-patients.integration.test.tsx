@@ -627,7 +627,6 @@ describe("application shell", () => {
                 completedSessions: 30,
               },
             ],
-            topByRevenue: [],
             activeClients: 1,
             ageDistribution: [
               { band: "0-17", label: "0 a 17 anos", clients: 0 },

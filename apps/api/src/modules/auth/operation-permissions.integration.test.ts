@@ -126,7 +126,9 @@ describe("per-operation API authorization", () => {
   it("denies every protected route to a user without permissions, including HEAD", async () => {
     const { app, headers } = await setup();
     for (const [key, policy] of Object.entries(ROUTE_ACCESS)) {
-      if (policy === "public" || policy === "login") continue;
+      // API externa: só chave de integração (JWT recebe 401; ver external-api.integration.test.ts).
+      if (policy === "public" || policy === "login" || "apiKey" in Object(policy))
+        continue;
       const [method, pattern] = key.split(" ") as [string, string];
       const url = pattern.replace(/:[\w]+/g, ownerId);
       const response = await app.inject({
@@ -145,7 +147,7 @@ describe("per-operation API authorization", () => {
   it("each route requires its exact operation rather than legacy edit flags", async () => {
     const { app, headers, update } = await setup();
     for (const [key, policy] of Object.entries(ROUTE_ACCESS)) {
-      if (typeof policy === "string") continue;
+      if (typeof policy === "string" || "apiKey" in policy) continue;
       const requirements = Array.isArray(policy) ? policy : policy.anyOf;
       const operations = requirements.filter(
         (item) => !item.permission!.endsWith(".view"),
@@ -224,6 +226,7 @@ describe("per-operation API authorization", () => {
       "reports.sales",
       "reports.management",
       "reports.clients",
+      "reports.campaigns",
       "patients.view",
     ]);
     const range = "from=2025-01-01&to=2025-01-31";
@@ -232,6 +235,7 @@ describe("per-operation API authorization", () => {
       ["/reports/sales.xlsx?month=2025-01", "reports.sales_export"],
       [`/reports/management.csv?${range}`, "reports.management_export"],
       [`/reports/clients/details/export?${range}`, "reports.clients_export"],
+      [`/reports/campaigns.xlsx?${range}`, "reports.campaigns_export"],
       ["/patients/export?format=csv&columns=fullName", "patients.export"],
       [`/reports/dre/export?${range}`, "reports.dre_export"],
       [
@@ -261,6 +265,7 @@ describe("per-operation API authorization", () => {
             "reports.sales",
             "reports.management",
             "reports.clients",
+            "reports.campaigns",
             "patients.view",
           ],
           [permission],

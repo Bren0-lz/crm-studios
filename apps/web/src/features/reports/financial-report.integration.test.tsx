@@ -57,8 +57,8 @@ function report(): FinancialReport {
       entry("r2", {
         direction: "in",
         amountInCents: 50_000,
-        origin: "tab",
-        categoryName: "Comandas",
+        origin: "product_sale",
+        categoryName: "Venda de produtos",
         counterpart: "Cliente Bia",
         branchId: norte,
       }),

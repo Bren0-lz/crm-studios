@@ -33,6 +33,11 @@ import type {
   UserSummary,
 } from "@crm/contracts";
 import type { Branch, BranchInput } from "@crm/contracts";
+import type {
+  IntegrationKey,
+  IntegrationKeyCreated,
+  IntegrationKeyInput,
+} from "@crm/contracts";
 import { TOKEN_KEY, storeUser, type Session } from "../session";
 import { request } from "../transport";
 
@@ -150,6 +155,17 @@ export const administrationApi = {
     request<ClinicSettings>("/admin/clinic-settings", {
       method: "PUT",
       body: JSON.stringify(input),
+    }),
+  /** Chaves da API externa (dashboard de vendas); o token só vem na criação. */
+  integrationKeys: () => request<IntegrationKey[]>("/integration-keys"),
+  createIntegrationKey: (input: IntegrationKeyInput) =>
+    request<IntegrationKeyCreated>("/integration-keys", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  revokeIntegrationKey: (id: string) =>
+    request<IntegrationKey>(`/integration-keys/${id}/revoke`, {
+      method: "POST",
     }),
   adminAuditEvents: () => request<AdminAuditEvent[]>("/admin/audit-events"),
   auditHistory: (cursor?: string, filters: AuditHistoryFilters = {}) => {

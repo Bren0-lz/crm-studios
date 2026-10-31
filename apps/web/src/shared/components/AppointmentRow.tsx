@@ -26,6 +26,7 @@ export function AppointmentRow({
     appointment.status === "scheduled" || appointment.status === "confirmed";
   // Realizado só a partir de 15 min antes do início (a API também recusa).
   const started = isAppointmentStarted(appointment);
+  const confirming = appointment.status === "scheduled";
   const items: ActionMenuItem[] = [
     { label: "Ver detalhes", onSelect: () => onAction("details") },
     ...(appointment.status === "scheduled"
@@ -91,17 +92,24 @@ export function AppointmentRow({
       </span>
       <div className="appointment-row-actions">
         {pending && canView("agenda") && can("agenda.attendance") && (
+          // Certinho em dois passos: agendado → confirmado → realizado.
           <button
             type="button"
             className="icon-button appointment-complete-button"
             title={
-              started
-                ? "Marcar como realizado"
-                : appointmentNotStartedMessage(appointment.startsAt)
+              confirming
+                ? "Confirmar atendimento"
+                : started
+                  ? "Marcar como realizado"
+                  : appointmentNotStartedMessage(appointment.startsAt)
             }
-            aria-label={`Marcar ${appointment.patientName} como realizado`}
-            disabled={disabled || !started}
-            onClick={() => onStatus("completed")}
+            aria-label={
+              confirming
+                ? `Confirmar atendimento de ${appointment.patientName}`
+                : `Marcar ${appointment.patientName} como realizado`
+            }
+            disabled={disabled || (!confirming && !started)}
+            onClick={() => onStatus(confirming ? "confirmed" : "completed")}
           >
             <CheckCircle2 size={18} />
           </button>

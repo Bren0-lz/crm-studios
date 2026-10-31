@@ -3,6 +3,7 @@ import { adminUserInputSchema, type CommissionEntry } from "@crm/contracts";
 import { describe, expect, it } from "vitest";
 import type { ClinicRepository } from "../repository.js";
 import { nextTestCpf } from "./cpf.js";
+import { createSalariedUser } from "./payroll-users.js";
 
 const clinic = "11111111-1111-4111-8111-111111111111";
 const actor = "22222222-2222-4222-8222-222222222222";
@@ -317,11 +318,10 @@ export function commissionRecalculationSuite(
         ["10"],
       );
       const [included] = commissions as [CommissionEntry];
-      const employee = await repo.createPayrollEmployee(clinic, actor, {
+      const { employee } = await createSalariedUser(repo, clinic, actor, {
           name: `Colaboradora ${randomUUID().slice(0, 6)}`,
           professionalId: professional.id,
-          baseSalaryInCents: 0,
-          active: true,
+          salaryInCents: null,
         }),
         category = await repo.createFinancialCategory(clinic, {
           name: `Folha ${randomUUID().slice(0, 8)}`,

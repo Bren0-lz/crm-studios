@@ -17,6 +17,7 @@ import {
 import { useEffect, useState, type FormEvent } from "react";
 import { api } from "../../api";
 import { PermissionEditor } from "../../PermissionEditor";
+import { CurrencyField } from "../../shared/components/CurrencyField";
 import { useMissingFields } from "../../shared/components/MissingFields";
 import { PhoneInput } from "../../shared/components/PhoneInput";
 import { Modal, ModalCancelButton } from "../../shared/components/Modal";
@@ -68,6 +69,11 @@ export function UserFormModal({
     percentage: parsePercentage(percentageText(user?.commissionPercentage)),
     effectiveFrom: today,
   });
+  // Folha de pagamento: só quem recebe salário entra nela (a folha não cadastra ninguém).
+  const [receivesSalary, setReceivesSalary] = useState(
+    user?.salaryInCents !== undefined,
+  );
+  const [salary, setSalary] = useState(user?.salaryInCents ?? 0);
   const agenda = useUserAgenda(user, users, fullName);
   const serviceCommissions = useServiceCommissions(user);
   // Filiais: só aparecem quando a rede tem mais de uma (admin sempre acessa todas).
@@ -93,6 +99,8 @@ export function UserFormModal({
     selectedPermissions,
     percentage,
     effectiveFrom,
+    receivesSalary,
+    salary,
     serviceCommissions: serviceCommissions.rows,
     agenda: {
       attends: agenda.attends,
@@ -162,6 +170,7 @@ export function UserFormModal({
       ? ["Comissão (%) — para não pagar comissão, informe 0%"]
       : []),
     ...(commissionChanged && !effectiveFrom ? ["Vale a partir de"] : []),
+    ...(receivesSalary && salary <= 0 ? ["Salário mensal"] : []),
     ...serviceCommissions.missing,
   ]);
 
@@ -223,6 +232,12 @@ export function UserFormModal({
         : {}),
     };
     const title = jobTitle.trim();
+    // Edição: só envia o salário quando muda (ausente mantém o gravado).
+    const nextSalary = receivesSalary ? salary : null;
+    const salaryInput =
+      nextSalary !== (current?.salaryInCents ?? null)
+        ? { salaryInCents: nextSalary }
+        : {};
     const services = serviceCommissions.payload.length
       ? { serviceCommissions: serviceCommissions.payload }
       : {};
@@ -257,6 +272,7 @@ export function UserFormModal({
             // Ausente mantém o número gravado; vazio remove.
             ...(whatsapp !== (current.whatsapp ?? "") ? { whatsapp } : {}),
             ...permissions,
+            ...salaryInput,
             ...(commission ? { commission } : {}),
             ...services,
             ...(agenda.operation ? { professional: agenda.operation } : {}),
@@ -270,6 +286,7 @@ export function UserFormModal({
             ...(title ? { jobTitle: title } : {}),
             ...(whatsapp ? { whatsapp } : {}),
             ...permissions,
+            ...salaryInput,
             ...(commission ? { commission } : {}),
             ...services,
             ...(agenda.operation ? { professional: agenda.operation } : {}),
@@ -443,6 +460,32 @@ export function UserFormModal({
           </fieldset>
         )}
         <UserAgendaFields agenda={agenda} />
+        <fieldset className="form-fieldset span-2">
+          <legend>Folha de pagamento</legend>
+          <label className="checkbox-field">
+            <input
+              type="checkbox"
+              checked={receivesSalary}
+              onChange={(event) => setReceivesSalary(event.target.checked)}
+            />
+            Recebe salário
+          </label>
+          {receivesSalary && (
+            <div className="form-fieldset-grid">
+              <CurrencyField
+                label="Salário mensal"
+                required
+                value={salary}
+                onChange={setSalary}
+              />
+            </div>
+          )}
+          <p className="muted-copy">
+            {receivesSalary
+              ? "Entra na folha de pagamento (Financeiro › Folha) com este salário e, se atende, as comissões."
+              : "Sem salário, a pessoa fica fora da folha de pagamento; só as comissões de quem atende continuam sendo pagas por ela."}
+          </p>
+        </fieldset>
         <fieldset className="form-fieldset span-2">
           <legend>Comissão</legend>
           <div className="commission-editor">

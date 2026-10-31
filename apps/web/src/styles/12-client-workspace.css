@@ -160,8 +160,7 @@
   width: 100%;
   min-width: 0;
   padding: calc(var(--space-1) - 2px) var(--space-1);
-  border: 0;
-  border-left: 3px solid var(--green-2);
+  border: 1px solid var(--green-2);
   border-radius: calc(var(--radius-sm) - 4px);
   background: white;
   color: var(--ink);
@@ -179,10 +178,10 @@
   white-space: nowrap;
 }
 .group-calendar-event.completed {
-  border-left-color: var(--muted);
+  border-color: var(--muted);
 }
 .group-calendar-event.cancelled {
-  border-left-color: var(--red);
+  border-color: var(--red);
   text-decoration: line-through;
 }
 .group-calendar-event:hover:not(:disabled) {

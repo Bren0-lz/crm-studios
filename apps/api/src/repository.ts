@@ -130,6 +130,8 @@ import type {
   NavTabLabel,
   NavTabLabelsInput,
   NotificationPreferences,
+  IntegrationKey,
+  IntegrationKeyInput,
   CommissionEntry,
   CommissionRule,
   CommissionRuleInput,
@@ -278,6 +280,13 @@ export interface CommissionRecalculationRequest {
   expectedDigest?: string;
 }
 
+/** Origens alteradas (atendimentos, presenças ou encontros) cujas comissões serão conferidas. */
+export interface CommissionSourceScope {
+  appointmentIds?: string[];
+  groupAttendanceIds?: string[];
+  groupSessionIds?: string[];
+}
+
 export interface ClinicRepository {
   /** Lista de espera das filiais da leitura, da entrada mais antiga para a mais nova. */
   listWaitlist(clinicId: string): Promise<WaitlistEntry[]>;
@@ -345,6 +354,17 @@ export interface ClinicRepository {
     id: string,
     input: import("@crm/contracts").CommissionReconciliationInput,
   ): Promise<import("@crm/contracts").CommissionReconciliation>;
+  /**
+   * Concilia sozinha as comissões das origens alteradas que divergem do cálculo atual: grava
+   * a conciliação e os ajustes em nome de `actorId` (quem alterou a origem), com auditoria
+   * `commission.auto_reconciled`. Devolve quantas comissões foram ajustadas.
+   */
+  autoReconcileCommissions(
+    clinicId: string,
+    actorId: string,
+    scope: CommissionSourceScope,
+    reason: string,
+  ): Promise<number>;
   settleCommissionAccount(
     clinicId: string,
     actorId: string,
@@ -641,6 +661,29 @@ export interface ClinicRepository {
     userId: string,
     input: NotificationPreferences,
   ): Promise<NotificationPreferences>;
+  /** Chaves da API externa da clínica (sem o segredo), as revogadas por último. */
+  listIntegrationKeys(clinicId: string): Promise<IntegrationKey[]>;
+  /** Grava a chave pelo hash do token; o token em si nunca é guardado. */
+  createIntegrationKey(
+    clinicId: string,
+    actorUserId: string,
+    input: IntegrationKeyInput,
+    secret: { prefix: string; tokenHash: string },
+  ): Promise<IntegrationKey>;
+  /** Revoga a chave (sem volta); null se não existe na clínica. */
+  revokeIntegrationKey(
+    clinicId: string,
+    id: string,
+  ): Promise<IntegrationKey | null>;
+  /**
+   * Chave ativa (não revogada) pelo hash do token, em qualquer clínica: é o token que diz a
+   * clínica, como o link público de assinatura.
+   */
+  findIntegrationKeyByTokenHash(
+    tokenHash: string,
+  ): Promise<{ clinicId: string; key: IntegrationKey } | null>;
+  /** Registra o último uso da chave. */
+  touchIntegrationKey(clinicId: string, id: string): Promise<void>;
   listAdminAuditEvents(clinicId: string): Promise<AdminAuditEvent[]>;
   listAdminAuditPage(
     clinicId: string,
@@ -1295,11 +1338,10 @@ export interface ClinicRepository {
   listPayrollEmployees(
     clinicId: string,
   ): Promise<import("@crm/contracts").PayrollEmployee[]>;
-  createPayrollEmployee(
-    clinicId: string,
-    actorId: string,
-    input: import("@crm/contracts").PayrollEmployeeInput,
-  ): Promise<import("@crm/contracts").PayrollEmployee>;
+  /**
+   * Edita um colaborador cadastrado antes do salário no usuário. O de um usuário só muda pelo
+   * cadastro dele: PAYROLL_EMPLOYEE_MANAGED_BY_USER (409). Não há cadastro direto na folha.
+   */
   updatePayrollEmployee(
     clinicId: string,
     actorId: string,

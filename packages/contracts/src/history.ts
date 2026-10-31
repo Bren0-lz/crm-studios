@@ -58,6 +58,11 @@ export const historyActions: {
   },
   { action: "reports.dre_exported", module: "reports", label: "DRE exportada" },
   {
+    action: "reports.campaigns_exported",
+    module: "reports",
+    label: "Relatório de campanhas exportado",
+  },
+  {
     action: "user.sessions_revoked",
     module: "settings",
     label: "Acessos do usuário encerrados",
@@ -537,6 +542,11 @@ export const historyActions: {
     action: "commission.reconciled",
     module: "finance",
     label: "Comissão conciliada com a origem",
+  },
+  {
+    action: "commission.auto_reconciled",
+    module: "finance",
+    label: "Comissão conciliada automaticamente após mudança na origem",
   },
   {
     action: "commission.recalculated",
