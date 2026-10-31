@@ -1,12 +1,18 @@
-import {
-  salesChangePercent,
-  type SalesReport,
-  type SalesPeriodReport,
+import type {
+  SaleMovement,
+  SalesReport,
+  SalesPeriodReport,
+  SalesReportPeriod,
 } from "@crm/contracts";
 import ExcelJS from "exceljs";
 
 const currencyFormat = '"R$" #,##0.00;[Red]("R$" #,##0.00)';
 export const dateFormat = "dd/mm/yyyy hh:mm";
+const typeLabels: Record<SaleMovement["sourceType"], string> = {
+  plan: "Plano",
+  service: "Serviço avulso",
+  product: "Produto",
+};
 
 export function heading(sheet: ExcelJS.Worksheet) {
   sheet.getRow(1).font = { bold: true, color: { argb: "FFFFFFFF" } };
@@ -29,91 +35,84 @@ export async function salesReportToXlsx(
   workbook.creator = "Studios Aryana";
   workbook.created = new Date(report.generatedAt);
 
+  const isPeriod = "summary" in report;
+  const current = isPeriod ? report.summary : report.current;
+  const previous = isPeriod ? report.previous : report.previousComparable;
+  const changeInCents = report.changeInCents;
+  const changePercent = report.changePercent;
+
   const summary = workbook.addWorksheet("Resumo");
-  if ("summary" in report) {
-    summary.columns = [
-      { header: "Indicador", width: 42 },
-      { header: "Período selecionado", width: 30 },
-    ];
-    heading(summary);
-    summary.addRows([
-      ["Período", report.from + " a " + report.to],
-      ["Vendas brutas", report.summary.grossSalesInCents / 100],
-      ["Cancelamentos", report.summary.cancelledSalesInCents / 100],
-      ["Vendas líquidas", report.summary.netSalesInCents / 100],
-      ["Recebido", report.summary.receivedInCents / 100],
-      ["Clientes atendidos", report.summary.attendedPatients],
-      ["Clientes sem retorno", report.patientsWithoutReturn.length],
-      [
-        "Descontos concedidos a clientes",
-        (report.summary.customerDiscountInCents ?? 0) / 100,
-      ],
+  summary.columns = [
+    { header: "Indicador", key: "metric", width: 46 },
+    {
+      header: isPeriod ? "Período selecionado" : "Mês selecionado",
+      key: "current",
+      width: 26,
+    },
+    {
+      header: isPeriod ? "Período anterior" : "Mês anterior comparável",
+      key: "previous",
+      width: 28,
+    },
+  ];
+  heading(summary);
+  summary.addRow([
+    "Período",
+    `${current.from} a ${current.to}`,
+    `${previous.from} a ${previous.to}`,
+  ]);
+  const money = (label: string, value: (item: SalesReportPeriod) => number) => {
+    const row = summary.addRow([
+      label,
+      value(current) / 100,
+      value(previous) / 100,
     ]);
-    for (const row of [3, 4, 5, 6, 9])
-      summary.getCell("B" + row).numFmt = currencyFormat;
-  } else {
-    summary.columns = [
-      { header: "Indicador", key: "metric", width: 42 },
-      { header: "Mês selecionado", key: "current", width: 24 },
-      { header: "Mês anterior comparável", key: "previous", width: 28 },
-    ];
-    heading(summary);
-    summary.addRow([
-      "Período",
-      `${report.current.from} a ${report.current.to}`,
-      `${report.previousComparable.from} a ${report.previousComparable.to}`,
-    ]);
-    summary.addRow([
-      "Vendas brutas",
-      report.current.grossSalesInCents / 100,
-      report.previousComparable.grossSalesInCents / 100,
-    ]);
-    summary.addRow([
-      "Cancelamentos",
-      report.current.cancelledSalesInCents / 100,
-      report.previousComparable.cancelledSalesInCents / 100,
-    ]);
-    summary.addRow([
-      "Vendas líquidas",
-      report.current.netSalesInCents / 100,
-      report.previousComparable.netSalesInCents / 100,
-    ]);
-    summary.addRow([
-      "Recebido",
-      report.current.receivedInCents / 100,
-      report.previousComparable.receivedInCents / 100,
-    ]);
-    summary.addRow([
-      "Clientes atendidos",
-      report.current.attendedPatients,
-      report.previousComparable.attendedPatients,
-    ]);
-    summary.addRow([
-      "Variação de vendas (R$)",
-      report.changeInCents / 100,
-      null,
-    ]);
-    const changePercent = salesChangePercent(
-      report.current.netSalesInCents,
-      report.previousComparable.netSalesInCents,
-    );
-    summary.addRow([
-      "Variação de vendas (%)",
-      changePercent === null ? "Sem base de comparação" : changePercent / 100,
-      null,
-    ]);
-    summary.addRow([
-      "Clientes do mês anterior sem retorno",
-      report.patientsWithoutReturn.length,
-      null,
-    ]);
-    for (const rowNumber of [3, 4, 5, 6, 8]) {
-      summary.getCell(`B${rowNumber}`).numFmt = currencyFormat;
-      summary.getCell(`C${rowNumber}`).numFmt = currencyFormat;
-    }
-    summary.getCell("B9").numFmt = "0.0%";
-    summary.getRow(5).font = { bold: true };
-  }
+    row.getCell(2).numFmt = currencyFormat;
+    row.getCell(3).numFmt = currencyFormat;
+    return row;
+  };
+  const count = (label: string, value: (item: SalesReportPeriod) => number) =>
+    summary.addRow([label, value(current), value(previous)]);
+  money("Vendas brutas", (item) => item.grossSalesInCents);
+  money(
+    "Cancelamentos das vendas do período",
+    (item) => item.cancelledInPeriodSalesInCents,
+  );
+  money("Vendas líquidas", (item) => item.netSalesInCents).font = {
+    bold: true,
+  };
+  money(
+    "Descontos concedidos a clientes",
+    (item) => item.customerDiscountInCents ?? 0,
+  );
+  count("Número de vendas", (item) => item.salesCount);
+  money("Valor médio por venda", (item) => item.averageTicketInCents);
+  count("Clientes compradores", (item) => item.buyers);
+  count("Novos compradores (primeira compra)", (item) => item.newBuyers);
+  money("Vendas do período já pagas", (item) => item.payment.paidInCents);
+  money("Vendas do período em aberto", (item) => item.payment.openInCents);
+  money("Vendas do período em atraso", (item) => item.payment.overdueInCents);
+  money(
+    "Cancelamentos de vendas anteriores (fora do líquido)",
+    (item) => item.cancelledPriorSalesInCents,
+  );
+  summary.getCell(
+    `B${summary.addRow(["Variação das vendas líquidas (R$)", changeInCents / 100, null]).number}`,
+  ).numFmt = currencyFormat;
+  summary.getCell(
+    `B${
+      summary.addRow([
+        "Variação das vendas líquidas (%)",
+        changePercent === null ? "Sem base de comparação" : changePercent / 100,
+        null,
+      ]).number
+    }`,
+  ).numFmt = "0.0%";
+  summary.addRow([
+    "Clientes sem retorno",
+    report.patientsWithoutReturn.length,
+    null,
+  ]);
 
   const sales = workbook.addWorksheet("Vendas");
   sales.columns = [
@@ -124,6 +123,8 @@ export async function salesReportToXlsx(
     { header: "Item", key: "item", width: 36 },
     { header: "Quantidade", key: "quantity", width: 15 },
     { header: "Valor (R$)", key: "amount", width: 20 },
+    { header: "Custo (R$)", key: "cost", width: 16 },
+    { header: "Data da venda original", key: "saleDate", width: 24 },
     { header: "ID do movimento", key: "id", width: 45 },
     { header: "ID da origem", key: "sourceId", width: 40 },
     { header: "ID do cliente", key: "patientId", width: 40 },
@@ -134,11 +135,13 @@ export async function salesReportToXlsx(
     const row = sales.addRow({
       date: new Date(item.occurredAt),
       kind: item.kind === "sale" ? "Venda" : "Cancelamento",
-      type: item.sourceType === "product" ? "Produto" : "Plano/serviço",
+      type: typeLabels[item.sourceType],
       patient: item.patientName,
       item: item.itemName,
       quantity: item.quantity,
       amount: item.amountInCents / 100,
+      cost: item.costInCents === undefined ? null : item.costInCents / 100,
+      saleDate: item.saleOccurredAt ? new Date(item.saleOccurredAt) : null,
       id: item.id,
       sourceId: item.sourceId,
       patientId: item.patientId,
@@ -146,35 +149,64 @@ export async function salesReportToXlsx(
     });
     row.getCell(1).numFmt = dateFormat;
     row.getCell(7).numFmt = currencyFormat;
+    row.getCell(8).numFmt = currencyFormat;
+    row.getCell(9).numFmt = dateFormat;
   }
 
-  const payments = workbook.addWorksheet("Recebimentos");
-  payments.columns = [
-    { header: "Data da baixa", key: "date", width: 22 },
-    { header: "Movimento", key: "kind", width: 18 },
-    { header: "Cliente", key: "patient", width: 28 },
-    { header: "Descrição", key: "description", width: 36 },
-    { header: "Valor (R$)", key: "amount", width: 20 },
-    { header: "Forma de pagamento", key: "method", width: 22 },
-    { header: "ID da conta", key: "receivableId", width: 40 },
-    { header: "ID da origem", key: "sourceId", width: 40 },
-    { header: "ID do cliente", key: "patientId", width: 40 },
+  const items = workbook.addWorksheet("Por item");
+  items.columns = [
+    { header: "Tipo", key: "type", width: 16 },
+    { header: "Item", key: "item", width: 40 },
+    { header: "Vendas", key: "sales", width: 10 },
+    { header: "Quantidade", key: "quantity", width: 12 },
+    { header: "Bruto (R$)", key: "gross", width: 16 },
+    { header: "Cancelado (R$)", key: "cancelled", width: 16 },
+    { header: "Desconto a clientes (R$)", key: "discount", width: 24 },
+    { header: "Líquido (R$)", key: "net", width: 16 },
+    { header: "Custo (R$)", key: "cost", width: 14 },
+    { header: "Margem", key: "margin", width: 10 },
   ];
-  heading(payments);
-  for (const item of report.payments) {
-    const row = payments.addRow({
-      date: new Date(item.occurredAt),
-      kind: item.kind === "payment" ? "Pagamento" : "Estorno",
-      patient: item.patientName,
-      description: item.description,
-      amount: item.amountInCents / 100,
-      method: item.paymentMethod ?? "",
-      receivableId: item.receivableId,
-      sourceId: item.sourceId ?? "",
-      patientId: item.patientId,
+  heading(items);
+  for (const item of current.byItem) {
+    const row = items.addRow({
+      type: typeLabels[item.sourceType],
+      item: item.label,
+      sales: item.salesCount,
+      quantity: item.quantity,
+      gross: item.grossInCents / 100,
+      cancelled: item.cancelledInCents / 100,
+      discount: item.customerDiscountInCents / 100,
+      net: item.netInCents / 100,
+      cost: item.costInCents === undefined ? null : item.costInCents / 100,
+      margin:
+        item.costInCents === undefined || item.netInCents <= 0
+          ? null
+          : (item.netInCents - item.costInCents) / item.netInCents,
     });
-    row.getCell(1).numFmt = dateFormat;
-    row.getCell(5).numFmt = currencyFormat;
+    for (const cell of [5, 6, 7, 8, 9])
+      row.getCell(cell).numFmt = currencyFormat;
+    row.getCell(10).numFmt = "0.0%";
+  }
+
+  const buyers = workbook.addWorksheet("Maiores compradores");
+  buyers.columns = [
+    { header: "Cliente", key: "patient", width: 30 },
+    { header: "Vendas", key: "sales", width: 10 },
+    { header: "Líquido (R$)", key: "net", width: 16 },
+    { header: "Primeira compra no período", key: "first", width: 26 },
+    { header: "ID do cliente", key: "id", width: 40 },
+  ];
+  heading(buyers);
+  for (const item of current.topBuyers) {
+    buyers
+      .addRow({
+        patient: item.patientName,
+        sales: item.salesCount,
+        net: item.netInCents / 100,
+        first: item.firstPurchase ? "Sim" : "Não",
+        id: item.patientId,
+      })
+      .getCell(3).numFmt = currencyFormat;
   }
 
   const withoutReturn = workbook.addWorksheet("Sem retorno");
@@ -205,27 +237,43 @@ export async function salesReportToXlsx(
   definitions.addRows([
     [
       "Vendas brutas",
-      "Valor dos planos criados e dos itens das comandas fechadas no período, pela data local do movimento.",
+      "Valor dos planos criados e dos itens das comandas fechadas no período, pela data local da venda.",
     ],
     [
-      "Cancelamentos",
-      "Valor negativo das parcelas abertas canceladas em planos e do valor total das comandas canceladas. O movimento aparece na data do cancelamento.",
+      "Cancelamentos das vendas do período",
+      "Parcelas abertas canceladas em planos e valor total das comandas canceladas, quando a venda e o cancelamento caem no período. Abatem as vendas líquidas.",
+    ],
+    [
+      "Cancelamentos de vendas anteriores",
+      "Cancelamentos registrados no período de vendas feitas antes dele. Ficam fora das vendas líquidas para o período não ficar negativo; aparecem na aba Vendas com a data da venda original.",
     ],
     [
       "Vendas líquidas",
-      "Vendas brutas menos cancelamentos. Uma venda pode ocorrer em mês diferente do pagamento.",
+      "Vendas brutas menos os cancelamentos das vendas do período. Uma venda pode ser paga em outro mês: o dinheiro recebido fica no relatório Financeiro.",
     ],
     [
-      "Recebido",
-      "Soma dos movimentos de pagamento e estorno no período, pela data local do evento. Um estorno posterior aparece no mês em que ocorreu.",
+      "Valor médio por venda",
+      "Vendas brutas ÷ número de vendas (cada plano ou comanda conta uma vez).",
     ],
     [
-      "Clientes atendidos",
-      "Número de clientes distintos com pelo menos um atendimento concluído no período.",
+      "Novos compradores",
+      "Clientes cuja primeira compra da história (plano ou comanda) foi no período.",
+    ],
+    [
+      "Vendas pagas, em aberto e em atraso",
+      "Contas a receber ligadas às vendas do período, sem as canceladas; em atraso = em aberto com vencimento antes de hoje.",
+    ],
+    [
+      "Custo e margem",
+      "Só produtos: custo unitário gravado na comanda × quantidade; margem = (líquido − custo) ÷ líquido.",
     ],
     [
       "Mês anterior comparável",
       "Quando o mês atual está em andamento, o mês anterior é comparado somente até o mesmo dia; meses encerrados usam o mês anterior completo.",
+    ],
+    [
+      "Período anterior",
+      "Intervalo com o mesmo número de dias imediatamente antes do período selecionado.",
     ],
     [
       "Sem retorno",
@@ -238,12 +286,13 @@ export async function salesReportToXlsx(
     ],
   ]);
 
+  const monthOnly = ["Mês anterior comparável", "Sem retorno"];
+  for (let row = definitions.rowCount; row >= 2; row--) {
+    const label = String(definitions.getCell(row, 1).value);
+    if (isPeriod ? monthOnly.includes(label) : label === "Período anterior")
+      definitions.spliceRows(row, 1);
+  }
   if ("summary" in report) {
-    for (let row = definitions.rowCount; row >= 2; row--) {
-      const label = definitions.getCell(row, 1).value;
-      if (label === "Mês anterior comparável" || label === "Sem retorno")
-        definitions.spliceRows(row, 1);
-    }
     definitions.addRow([
       "Sem retorno",
       "Clientes atendidos de " +

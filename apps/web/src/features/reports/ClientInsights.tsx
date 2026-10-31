@@ -157,32 +157,6 @@ export function ClientInsights({
           <section className="panel report-table">
             <div className="panel-head">
               <div>
-                <h2>Mais recebimentos</h2>
-              </div>
-            </div>
-            {clientsBody((report) =>
-              report.topByRevenue.length === 0 ? (
-                <EmptyState
-                  title="Sem recebimentos"
-                  copy="Nenhum recebimento de cliente no período."
-                />
-              ) : (
-                <div className="report-rows ranking-rows">
-                  {report.topByRevenue.map((item, index) => (
-                    <div key={item.patientId}>
-                      <strong>
-                        {index + 1}. {item.patientName}
-                      </strong>
-                      <b>{currency.format(item.receivedInCents / 100)}</b>
-                    </div>
-                  ))}
-                </div>
-              ),
-            )}
-          </section>
-          <section className="panel report-table source-report">
-            <div className="panel-head">
-              <div>
                 <h2>Faixa etária</h2>
               </div>
             </div>

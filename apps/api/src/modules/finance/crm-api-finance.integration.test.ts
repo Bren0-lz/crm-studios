@@ -1816,7 +1816,7 @@ describe("CRM API", () => {
     expect(soldReport.json().current).toMatchObject({
       grossSalesInCents: 9000,
       netSalesInCents: 9000,
-      receivedInCents: 9000,
+      payment: { paidInCents: 9000, openInCents: 0, overdueInCents: 0 },
     });
     const paidCancellation = await app.inject({
       method: "POST",
@@ -1861,8 +1861,10 @@ describe("CRM API", () => {
     expect(cancelledReport.json().current).toMatchObject({
       grossSalesInCents: 9000,
       cancelledSalesInCents: 9000,
+      cancelledInPeriodSalesInCents: 9000,
       netSalesInCents: 0,
-      receivedInCents: 0,
+      // Conta da comanda cancelada sai da situação de pagamento.
+      payment: { paidInCents: 0, openInCents: 0, overdueInCents: 0 },
     });
     const duplicateCancellation = await app.inject({
       method: "POST",

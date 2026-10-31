@@ -5,11 +5,9 @@ import {
   type ClientAgeBand,
   type ClientReport,
   type ClientReportFilter,
-  type ClientRevenueRankingEntry,
   type ClientSessionsRankingEntry,
   type Patient,
   type PatientPlan,
-  type ReceivedPayment,
 } from "@crm/contracts";
 import { DomainError } from "../../repository.js";
 import {
@@ -28,11 +26,6 @@ export interface ClientReportSources {
   plans: Pick<
     PatientPlan,
     "patientId" | "status" | "validFrom" | "validUntil" | "cancelledAt"
-  >[];
-  /** Eventos de recebimento (`payment`) e estorno (`reversal`). */
-  payments: Pick<
-    ReceivedPayment,
-    "patientId" | "patientName" | "kind" | "occurredAt" | "amountInCents"
   >[];
 }
 
@@ -139,20 +132,6 @@ export function buildClientReport(
       active.add(plan.patientId);
   }
 
-  const received = new Map<string, number>();
-  for (const payment of sources.payments) {
-    if (!inPeriod(dateOf(payment.occurredAt))) continue;
-    names.set(payment.patientId, payment.patientName);
-    const amount =
-      payment.kind === "reversal"
-        ? -Math.abs(payment.amountInCents)
-        : payment.amountInCents;
-    received.set(
-      payment.patientId,
-      (received.get(payment.patientId) ?? 0) + amount,
-    );
-  }
-
   const rank = <T extends { patientName: string; patientId: string }>(
     entries: T[],
     value: (entry: T) => number,
@@ -174,17 +153,6 @@ export function buildClientReport(
     })),
     (entry) => entry.completedSessions,
   );
-  const topByRevenue = rank<ClientRevenueRankingEntry>(
-    [...received]
-      .filter(([, amount]) => amount > 0)
-      .map(([patientId, receivedInCents]) => ({
-        patientId,
-        patientName: nameOf(patientId),
-        receivedInCents,
-      })),
-    (entry) => entry.receivedInCents,
-  );
-
   const bands = new Map<ClientAgeBand, number>();
   for (const patientId of active) {
     const band = ageBandOf(
@@ -198,7 +166,6 @@ export function buildClientReport(
     from: period.from,
     to: period.to,
     topBySessions,
-    topByRevenue,
     activeClients: active.size,
     ageDistribution: clientAgeBandSchema.options.map((band) => ({
       band,
