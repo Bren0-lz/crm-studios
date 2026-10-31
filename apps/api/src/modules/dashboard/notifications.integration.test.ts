@@ -36,18 +36,17 @@ async function setup() {
     expect(response.statusCode).toBe(200);
     return response.json<NotificationsSummary>();
   }
-  async function userWith(modules: string[]) {
+  async function userWith(modules: string[], permissions?: string[]) {
     const created = await app.inject({
       method: "POST",
       url: "/admin/users",
       headers,
       payload: {
         fullName: "Usuária restrita",
-        email: `restrita.${modules.join("-") || "nenhum"}@teste.local`,
+        email: `restrita.${[...modules, ...(permissions ?? [])].join("-") || "nenhum"}@teste.local`,
         role: "user",
         password: "SenhaForte123",
-        modules,
-        editModules: [],
+        ...(permissions ? { permissions } : { modules, editModules: [] }),
       },
     });
     expect(created.statusCode).toBe(201);
@@ -131,6 +130,7 @@ describe("GET /notifications", () => {
       overdueLeadTasks: before.overdueLeadTasks,
       snoozedContactsDue: before.snoozedContactsDue,
       pauseReturnsDue: before.pauseReturnsDue,
+      lowStockProducts: before.lowStockProducts,
       autoCampaigns: [],
     });
 
@@ -661,6 +661,58 @@ describe("GET /notifications", () => {
     expect(
       Object.keys(await notifications(await userWith(["patients"]))),
     ).toEqual(["date"]);
+    expect(
+      Object.keys(
+        await notifications(
+          await userWith([], ["patients.view", "patients.inventory_view"]),
+        ),
+      ),
+    ).toEqual(["date", "lowStockProducts"]);
+  });
+
+  it("counts active products that need restock", async () => {
+    const { app, headers, notifications } = await setup();
+    const before = (await notifications()).lowStockProducts ?? 0;
+    const create = (sku: string, initialStock: number, restockAlertAt?: number) =>
+      app
+        .inject({
+          method: "POST",
+          url: "/inventory/products",
+          headers,
+          payload: {
+            name: `Produto ${sku}`,
+            sku,
+            unit: "un",
+            costInCents: 500,
+            salePriceInCents: 1_500,
+            initialStock,
+            ...(restockAlertAt ? { restockAlertAt } : {}),
+          },
+        })
+        .then((response) => {
+          expect(response.statusCode).toBe(201);
+          return response.json<{ id: string }>().id;
+        });
+    await create("SINO-OK", 10, 3);
+    await create("SINO-AVISO", 2, 3);
+    const empty = await create("SINO-ZERO", 0);
+    expect((await notifications()).lowStockProducts).toBe(before + 2);
+
+    // Produto desativado não pede reposição no sino.
+    const deactivated = await app.inject({
+      method: "PUT",
+      url: `/inventory/products/${empty}`,
+      headers,
+      payload: {
+        name: "Produto SINO-ZERO",
+        unit: "un",
+        costInCents: 500,
+        salePriceInCents: 1_500,
+        active: false,
+      },
+    });
+    expect(deactivated.statusCode).toBe(200);
+    expect((await notifications()).lowStockProducts).toBe(before + 1);
   });
 
   it("requires login", async () => {
