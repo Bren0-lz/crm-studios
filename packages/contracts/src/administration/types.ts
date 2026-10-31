@@ -123,6 +123,8 @@ export interface AdminUser extends UserSummary {
   commissionEffectiveFrom?: string;
   /** Comissões por serviço vigentes hoje ou agendadas (`serviceCommissionsInForce`). */
   serviceCommissions?: AdminUserServiceCommission[];
+  /** Salário mensal (ausente = não recebe salário e não entra na folha). */
+  salaryInCents?: number;
 }
 
 /** Dados públicos da clínica para qualquer usuário logado (logo, cabeçalho de documentos). */

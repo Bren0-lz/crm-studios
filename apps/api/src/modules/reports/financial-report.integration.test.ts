@@ -8,6 +8,7 @@ import {
   tokenRole,
 } from "../../test-support/legacy-fixtures.js";
 import "../../test-support/legacy-setup.js";
+import { salariedEmployeeViaApi } from "../../test-support/payroll-users.js";
 
 const clinicId = "11111111-1111-4111-8111-111111111111";
 
@@ -137,24 +138,18 @@ describe("relatório financeiro", () => {
         })
       ).json();
       // Comissão é paga pela folha: colaborador ligado ao profissional, sem salário fixo.
-      const employee = await app.inject({
-        method: "POST",
-        url: "/finance/payroll/employees",
-        headers: as("owner"),
-        payload: {
-          name: professionals[0].fullName,
-          professionalId: professionals[0].id,
-          baseSalaryInCents: 0,
-        },
+      const employeeId = await salariedEmployeeViaApi(app, as("owner"), {
+        name: professionals[0].fullName,
+        professionalId: professionals[0].id,
+        salaryInCents: null,
       });
-      expect(employee.statusCode).toBe(201);
       const launch = await app.inject({
         method: "POST",
         url: "/finance/payroll/launch",
         headers: as("owner"),
         payload: {
           competence: "2031-03",
-          employeeIds: [employee.json().id],
+          employeeIds: [employeeId],
           dueDate: "2031-03-12",
           categoryId: category.id,
         },

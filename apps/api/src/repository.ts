@@ -1338,11 +1338,10 @@ export interface ClinicRepository {
   listPayrollEmployees(
     clinicId: string,
   ): Promise<import("@crm/contracts").PayrollEmployee[]>;
-  createPayrollEmployee(
-    clinicId: string,
-    actorId: string,
-    input: import("@crm/contracts").PayrollEmployeeInput,
-  ): Promise<import("@crm/contracts").PayrollEmployee>;
+  /**
+   * Edita um colaborador cadastrado antes do salário no usuário. O de um usuário só muda pelo
+   * cadastro dele: PAYROLL_EMPLOYEE_MANAGED_BY_USER (409). Não há cadastro direto na folha.
+   */
   updatePayrollEmployee(
     clinicId: string,
     actorId: string,
