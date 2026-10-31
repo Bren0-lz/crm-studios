@@ -321,13 +321,12 @@ describe("dashboard appointment actions", () => {
     // 08:00 em São Paulo: o atendimento das 09:00 só libera às 08:45.
     vi.setSystemTime(new Date("2026-10-12T11:00:00.000Z"));
     const { controls } = setup();
-    const complete = await screen.findByRole("button", {
-      name: "Marcar Ana 0 como realizado",
-    });
-    expect(complete).toBeDisabled();
-    expect(complete).toHaveAccessibleDescription(
-      "Disponível a partir de 12/10 às 08:45",
-    );
+    // Agendado: o certinho confirma, e confirmar não depende do horário.
+    expect(
+      await screen.findByRole("button", {
+        name: "Confirmar atendimento de Ana 0",
+      }),
+    ).toBeEnabled();
     const { menu } = await openMenu();
     expect(
       within(menu)
@@ -342,6 +341,44 @@ describe("dashboard appointment actions", () => {
       "Histórico de reagendamentos",
     ]);
     expect(controls.writes).toEqual([]);
+  });
+
+  it("keeps the check button disabled for a confirmed appointment before it starts (QC3)", async () => {
+    vi.setSystemTime(new Date("2026-10-12T11:00:00.000Z"));
+    const { controls } = setup({ status: "confirmed" });
+    const complete = await screen.findByRole("button", {
+      name: "Marcar Ana 0 como realizado",
+    });
+    expect(complete).toBeDisabled();
+    expect(complete).toHaveAccessibleDescription(
+      "Disponível a partir de 12/10 às 08:45",
+    );
+    expect(controls.writes).toEqual([]);
+  });
+
+  it("confirms a scheduled appointment on the first check and finalizes it on the second", async () => {
+    const { controls } = setup();
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Confirmar atendimento de Ana 0",
+      }),
+    );
+    expect(await screen.findByText("Confirmado")).toBeInTheDocument();
+    expect(controls.writes.map((write) => write.body)).toEqual([
+      { status: "confirmed" },
+    ]);
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Marcar Ana 0 como realizado",
+      }),
+    );
+    await waitFor(() =>
+      expect(screen.queryByText("Ana 0")).not.toBeInTheDocument(),
+    );
+    expect(controls.writes.map((write) => write.body)).toEqual([
+      { status: "confirmed" },
+      { status: "completed" },
+    ]);
   });
 
   it("offers only consultation actions for view-only access and does not fetch patient records", async () => {
