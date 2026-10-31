@@ -21,20 +21,6 @@ const byRevenue = (
   b.generatedInCents - a.generatedInCents ||
   a.name.localeCompare(b.name, "pt-BR");
 
-function commissionDetail(
-  commission: TeamFinanceReport["byProfessional"][number]["commission"],
-) {
-  return [
-    commission.paidInCents ? `pago ${money(commission.paidInCents)}` : "",
-    commission.openInCents ? `a pagar ${money(commission.openInCents)}` : "",
-    commission.pendingInCents
-      ? `previsto ${money(commission.pendingInCents)}`
-      : "",
-  ]
-    .filter(Boolean)
-    .join(" · ");
-}
-
 export function TeamFinanceTables({
   report,
   team,
@@ -60,33 +46,8 @@ export function TeamFinanceTables({
         },
       })),
   ].sort(byRevenue);
-  const received = new Map(
-    report.profitability.byService.map((item) => [
-      item.id,
-      item.revenueInCents,
-    ]),
-  );
-  const services = [
-    ...team.byService,
-    ...report.profitability.byService
-      .filter(
-        (item) =>
-          item.revenueInCents > 0 &&
-          !team.byService.some((row) => row.id === item.id),
-      )
-      .map((item) => ({
-        id: item.id,
-        name: item.name,
-        completedSessions: 0,
-        generatedInCents: 0,
-        averageTicketInCents: 0,
-      })),
-  ].sort(
-    (a, b) =>
-      b.generatedInCents - a.generatedInCents ||
-      (received.get(b.id) ?? 0) - (received.get(a.id) ?? 0) ||
-      byRevenue(a, b),
-  );
+  // Recebido por serviço fica em Rentabilidade; aqui só a produção.
+  const services = [...team.byService].sort(byRevenue);
   const months = competences(team.commissionMonths);
 
   return (
@@ -127,7 +88,6 @@ export function TeamFinanceTables({
               <tbody>
                 {professionals.map((item) => {
                   const count = counts.get(item.id);
-                  const detail = commissionDetail(item.commission);
                   return (
                     <tr key={item.id}>
                       <th scope="row">
@@ -149,11 +109,6 @@ export function TeamFinanceTables({
                       </td>
                       <td className="numeric-value">
                         {money(item.commission.totalInCents)}
-                        {detail && (
-                          <small className="reports-cell-detail">
-                            {detail}
-                          </small>
-                        )}
                       </td>
                     </tr>
                   );
@@ -175,7 +130,7 @@ export function TeamFinanceTables({
         ) : (
           <div className="table-scroll">
             <table className="dre-table">
-              <caption>Produção e recebimento por serviço no período</caption>
+              <caption>Produção por serviço no período</caption>
               <thead>
                 <tr>
                   <th scope="col">Serviço</th>
@@ -184,9 +139,6 @@ export function TeamFinanceTables({
                   </th>
                   <th scope="col" className="numeric-value">
                     Gerado
-                  </th>
-                  <th scope="col" className="numeric-value">
-                    Recebido
                   </th>
                   <th scope="col" className="numeric-value">
                     Valor médio
@@ -200,9 +152,6 @@ export function TeamFinanceTables({
                     <td className="numeric-value">{item.completedSessions}</td>
                     <td className="numeric-value">
                       {money(item.generatedInCents)}
-                    </td>
-                    <td className="numeric-value">
-                      {money(received.get(item.id) ?? 0)}
                     </td>
                     <td className="numeric-value">
                       {money(item.averageTicketInCents)}

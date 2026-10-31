@@ -16,6 +16,7 @@ import {
   withPermissions,
 } from "../../test-support/legacy-fixtures";
 import "../../test-support/legacy-setup";
+import { salesSummary } from "../../test-support/sales-report";
 
 function session(permissions?: PermissionKey[]) {
   localStorage.setItem("crm.auth.token", "test-token");
@@ -51,15 +52,18 @@ function sales(from: string, to: string, value = 120000): SalesPeriodReport {
     from,
     to,
     generatedAt: new Date().toISOString(),
-    summary: {
+    summary: salesSummary({
       from,
       to,
       grossSalesInCents: value,
       netSalesInCents: value,
-      cancelledSalesInCents: 0,
-      receivedInCents: value,
-      attendedPatients: 14,
-    },
+      salesCount: value ? 1 : 0,
+      averageTicketInCents: value,
+      buyers: value ? 1 : 0,
+    }),
+    previous: salesSummary(),
+    changeInCents: value,
+    changePercent: null,
     sales: [
       {
         id: "sale-1",
@@ -74,7 +78,6 @@ function sales(from: string, to: string, value = 120000): SalesPeriodReport {
         quantity: 1,
       },
     ],
-    payments: [],
     patientsWithoutReturn: [
       {
         patientId: "p2",
@@ -146,6 +149,142 @@ describe("management reports redesign", () => {
     fireEvent.keyDown(financeTab, { key: "ArrowLeft" });
     expect(screen.getByRole("tab", { name: "DRE" })).toHaveFocus();
     await waitFor(() => expect(dre).toHaveBeenCalledTimes(1));
+  });
+  it("details sales without repeating money received and keeps cancellations of earlier sales apart", async () => {
+    session();
+    vi.spyOn(api, "salesPeriodReport").mockImplementation(async (from, to) => ({
+      ...sales(from, to),
+      summary: salesSummary({
+        from,
+        to,
+        grossSalesInCents: 370000,
+        cancelledInPeriodSalesInCents: 20000,
+        cancelledPriorSalesInCents: 798400,
+        cancelledSalesInCents: 818400,
+        netSalesInCents: 350000,
+        salesCount: 4,
+        averageTicketInCents: 92500,
+        buyers: 3,
+        newBuyers: 1,
+        payment: {
+          paidInCents: 200000,
+          openInCents: 150000,
+          overdueInCents: 50000,
+        },
+        byType: [
+          {
+            key: "plan",
+            label: "Planos",
+            sourceType: "plan",
+            salesCount: 3,
+            quantity: 3,
+            grossInCents: 360000,
+            cancelledInCents: 20000,
+            customerDiscountInCents: 0,
+            netInCents: 340000,
+          },
+          {
+            key: "product",
+            label: "Produtos",
+            sourceType: "product",
+            salesCount: 1,
+            quantity: 2,
+            grossInCents: 10000,
+            cancelledInCents: 0,
+            customerDiscountInCents: 0,
+            netInCents: 10000,
+            costInCents: 4000,
+          },
+        ],
+        byItem: [
+          {
+            key: "product:Faixa elástica",
+            label: "Faixa elástica",
+            sourceType: "product",
+            salesCount: 1,
+            quantity: 2,
+            grossInCents: 10000,
+            cancelledInCents: 0,
+            customerDiscountInCents: 0,
+            netInCents: 10000,
+            costInCents: 4000,
+          },
+        ],
+        topBuyers: [
+          {
+            patientId: "p9",
+            patientName: "Marina Souza",
+            salesCount: 2,
+            netInCents: 250000,
+            firstPurchase: true,
+          },
+        ],
+      }),
+      sales: [
+        {
+          id: "old:cancellation",
+          sourceId: "old",
+          sourceType: "plan",
+          patientId: "p8",
+          patientName: "Paula Reis",
+          itemName: "Plano anual (Pilates)",
+          kind: "cancellation",
+          occurredAt: `${from}T12:00:00Z`,
+          saleOccurredAt: "2025-09-12T12:00:00Z",
+          amountInCents: -798400,
+          quantity: 1,
+        },
+      ],
+    }));
+    open();
+    const kpi = (label: string) =>
+      screen
+        .getByText(label, { selector: ".reports-kpis span" })
+        .closest("article")!;
+    await screen.findByText("Vendido líquido");
+    expect(
+      within(kpi("Vendido líquido")).getByText(/^R\$\s3\.500,00$/),
+    ).toBeInTheDocument();
+    expect(within(kpi("Vendas")).getByText("4")).toBeInTheDocument();
+    expect(
+      within(kpi("Vendas")).getByText(/R\$\s925,00 por venda/),
+    ).toBeInTheDocument();
+    expect(
+      within(kpi("Clientes compradores")).getByText(
+        /1 comprou pela primeira vez · 2 já eram clientes/,
+      ),
+    ).toBeInTheDocument();
+    expect(
+      within(kpi("Vendas já pagas")).getByText(/R\$\s500,00 em atraso/),
+    ).toBeInTheDocument();
+    // Dinheiro recebido e atendimentos ficam no Financeiro e em Indicadores.
+    expect(screen.queryByText("Dinheiro recebido")).not.toBeInTheDocument();
+    expect(screen.queryByText("Clientes atendidos")).not.toBeInTheDocument();
+    expect(
+      screen.getByText(
+        /R\$\s7\.984,00 em cancelamentos de vendas de períodos anteriores/,
+      ),
+    ).toBeInTheDocument();
+    const items = screen.getByRole("table", {
+      name: "Vendas por item no período",
+    });
+    const product = within(items).getByRole("row", { name: /Faixa elástica/ });
+    expect(within(product).getByText(/^R\$\s40,00$/)).toBeInTheDocument();
+    expect(within(product).getByText("60%")).toBeInTheDocument();
+    expect(
+      within(
+        screen.getByRole("table", {
+          name: "Clientes que mais compraram no período",
+        }),
+      ).getByText("Primeira compra"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Ver compras de Marina Souza" }),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByText("Ver movimentos do período"));
+    expect(
+      screen.getByText("Cancelamento · venda de 12 de set."),
+    ).toBeInTheDocument();
   });
   it("keeps edits pending until Apply and ignores late results from the previous range", async () => {
     session();
@@ -443,7 +582,7 @@ describe("management reports redesign", () => {
       ) as HTMLElement;
       expect(
         within(readout).getByRole("list", {
-          name: /01\/01\/2026: Vendas líquidas: R\$\s1\.200,00 · Recebimentos:/,
+          name: /01\/01\/2026: Vendas líquidas: R\$\s1\.200,00$/,
         }),
       ).toBeInTheDocument();
       expect(within(readout).getByText("01/01/2026")).toBeInTheDocument();
@@ -490,19 +629,18 @@ describe("management reports redesign", () => {
       .mockImplementation(async (from, to) => ({
         ...sales(from, to, 0),
         sales: [],
-        payments: [],
       }));
     open();
     await screen.findByText("Vendas indisponíveis");
     fireEvent.click(screen.getByRole("button", { name: "Atualizar" }));
-    await screen.findByText("Sem movimentações no período");
+    await screen.findByText("Sem vendas no período");
     expect(screen.queryByText("Vendas indisponíveis")).not.toBeInTheDocument();
     const panel = screen
-      .getByRole("heading", { name: "Vendas e recebimentos" })
+      .getByRole("heading", { name: "Vendas", level: 2 })
       .closest("section")!;
     expect(
       within(panel).queryByRole("group", {
-        name: "Vendas líquidas e recebimentos no período",
+        name: "Vendas líquidas no período",
       }),
     ).not.toBeInTheDocument();
   });

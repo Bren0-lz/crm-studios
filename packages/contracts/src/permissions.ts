@@ -21,6 +21,8 @@ const additionalPermissions = new Set([
   "patients.products_update",
   "reports.dre",
   "reports.team_finance",
+  "reports.campaigns",
+  "reports.campaigns_export",
   "communications.templates",
   "communications.campaigns",
   "finance.payroll_view",
@@ -33,6 +35,7 @@ const reportSpreadsheetExports: Partial<Record<string, PermissionKey>> = {
   "reports.management_export": "reports.management",
   "reports.clients_export": "reports.clients",
   "reports.sales_export": "reports.sales",
+  "reports.campaigns_export": "reports.campaigns",
 };
 const operations = {
   agenda: {
@@ -164,11 +167,13 @@ const operations = {
     retention: "Consultar retenção",
     clients: "Consultar relatório de clientes",
     sales: "Consultar vendas",
+    campaigns: "Consultar relatório de campanhas automáticas e manuais",
     dre_export: "Exportar planilha da DRE",
     financial_export: "Exportar planilha do relatório financeiro",
     management_export: "Exportar planilha do relatório gerencial",
     clients_export: "Exportar planilha do relatório de clientes",
     sales_export: "Exportar planilha de vendas",
+    campaigns_export: "Exportar planilha do relatório de campanhas",
   },
   settings: {
     registry_manage: "Editar e desativar cadastros administrativos",

@@ -10,6 +10,7 @@ import {
 } from "../../test-support/legacy-fixtures.js";
 import "../../test-support/legacy-setup.js";
 import { patchStatusAt } from "../../test-support/clock.js";
+import { salariedEmployeeViaApi } from "../../test-support/payroll-users.js";
 
 describe("CRM API", () => {
   it("links users to agenda professionals and sets their commission rule, owner only", async () => {
@@ -1010,24 +1011,18 @@ describe("CRM API", () => {
       expect(reversed.statusCode).toBe(200);
       // A comissão é paga pela folha: a despesa da folha sai em dinheiro.
       at("2031-03-11T02:40:00.000Z");
-      const employee = await app.inject({
-        method: "POST",
-        url: "/finance/payroll/employees",
-        headers,
-        payload: {
-          name: "Profissional do caixa",
-          professionalId: professionals.json()[0].id,
-          baseSalaryInCents: 0,
-        },
+      const employeeId = await salariedEmployeeViaApi(app, headers, {
+        name: "Profissional do caixa",
+        professionalId: professionals.json()[0].id,
+        salaryInCents: null,
       });
-      expect(employee.statusCode).toBe(201);
       const launched = await app.inject({
         method: "POST",
         url: "/finance/payroll/launch",
         headers,
         payload: {
           competence: "2031-03",
-          employeeIds: [employee.json().id],
+          employeeIds: [employeeId],
           dueDate: "2031-03-10",
           categoryId: workspace
             .json()
@@ -1816,7 +1811,7 @@ describe("CRM API", () => {
     expect(soldReport.json().current).toMatchObject({
       grossSalesInCents: 9000,
       netSalesInCents: 9000,
-      receivedInCents: 9000,
+      payment: { paidInCents: 9000, openInCents: 0, overdueInCents: 0 },
     });
     const paidCancellation = await app.inject({
       method: "POST",
@@ -1861,8 +1856,10 @@ describe("CRM API", () => {
     expect(cancelledReport.json().current).toMatchObject({
       grossSalesInCents: 9000,
       cancelledSalesInCents: 9000,
+      cancelledInPeriodSalesInCents: 9000,
       netSalesInCents: 0,
-      receivedInCents: 0,
+      // Conta da comanda cancelada sai da situação de pagamento.
+      payment: { paidInCents: 0, openInCents: 0, overdueInCents: 0 },
     });
     const duplicateCancellation = await app.inject({
       method: "POST",

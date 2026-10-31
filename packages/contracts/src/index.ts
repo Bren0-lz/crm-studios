@@ -8,6 +8,7 @@ export * from "./communications/index.js";
 export * from "./contracts/index.js";
 export * from "./finance/index.js";
 export * from "./history.js";
+export * from "./integrations/index.js";
 export * from "./patients/index.js";
 export * from "./permissions.js";
 export * from "./plans/index.js";

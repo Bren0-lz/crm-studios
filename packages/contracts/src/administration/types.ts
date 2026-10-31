@@ -73,6 +73,10 @@ export interface SaleMovement {
   receivableId?: string;
   /** Venda de plano: desconto do cliente nas cobranças do plano (`amountInCents` é o valor do plano). */
   customerDiscountInCents?: number;
+  /** Venda de produto: custo da linha (quantidade × custo unitário gravado na comanda). */
+  costInCents?: number;
+  /** Cancelamento: data da venda original (separa o cancelamento de venda de outro período). */
+  saleOccurredAt?: string;
 }
 
 export interface UserSummary {
@@ -119,6 +123,8 @@ export interface AdminUser extends UserSummary {
   commissionEffectiveFrom?: string;
   /** Comissões por serviço vigentes hoje ou agendadas (`serviceCommissionsInForce`). */
   serviceCommissions?: AdminUserServiceCommission[];
+  /** Salário mensal (ausente = não recebe salário e não entra na folha). */
+  salaryInCents?: number;
 }
 
 /** Dados públicos da clínica para qualquer usuário logado (logo, cabeçalho de documentos). */
@@ -209,13 +215,6 @@ export interface ClientSessionsRankingEntry {
   patientName: string;
   /** Atendimentos concluídos no período (data no fuso da clínica). */
   completedSessions: number;
-}
-
-export interface ClientRevenueRankingEntry {
-  patientId: string;
-  patientName: string;
-  /** Pagamentos menos estornos no período (data do evento no fuso da clínica). */
-  receivedInCents: number;
 }
 
 export interface ApiError {

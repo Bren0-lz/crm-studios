@@ -7,10 +7,8 @@ import { useMissingFields } from "../../shared/components/MissingFields";
 import { Modal, ModalCancelButton } from "../../shared/components/Modal";
 import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
 import { MoneyInput } from "../../shared/components/MoneyInput";
-import {
-  CREATE_OPTION_VALUE,
-  InlineClassificationCreate,
-} from "./InlineClassificationCreate";
+import { FinanceRegistryModal } from "./FinanceRegistryModal";
+import { CREATE_OPTION_VALUE } from "./InlineClassificationCreate";
 
 /** "2026-10" → "outubro de 2026". */
 function monthLabel(value: string) {
@@ -77,7 +75,6 @@ export function RecurringPayableModal({
         "Descrição (pelo menos 3 caracteres)",
       !form.categoryId && "Categoria",
       !form.costCenterId && "Centro de custo",
-      !variable && form.amountInCents <= 0 && "Valor mensal",
       form.remind &&
         !(
           Number.isInteger(form.reminderDaysBefore) &&
@@ -112,6 +109,9 @@ export function RecurringPayableModal({
     const { supplier, endMonth, remind, reminderDaysBefore, ...rest } = form;
     const input = {
       ...rest,
+      // Sem valor, cada conta do mês pede o valor quando chegar (valor variável).
+      amountType:
+        rest.amountInCents > 0 ? rest.amountType : ("variable" as const),
       description: rest.description.trim(),
       ...(supplier.trim() ? { supplier: supplier.trim() } : {}),
       ...(remind ? { reminderDaysBefore } : {}),
@@ -129,244 +129,213 @@ export function RecurringPayableModal({
     }
   }
   return (
-    <Modal
-      title={item ? "Editar despesa fixa" : "Nova despesa fixa"}
-      subtitle={
-        item
-          ? "As mudanças valem para as contas dos próximos meses."
-          : "A conta a pagar é gerada todo mês, do mês inicial até o final."
-      }
-      busy={loading}
-      dirty={dirty}
-      onClose={onClose}
-    >
-      {can(item ? "finance.recurring_update" : "finance.recurring_create") && (
-        <form className="form-grid" onSubmit={submit}>
-          <fieldset className="form-fieldset span-2">
-            <legend>Conta</legend>
-            <div className="form-fieldset-grid">
-              <label>
-                Descrição
-                <input
-                  required
-                  minLength={3}
-                  value={form.description}
-                  onChange={(event) =>
-                    setForm({ ...form, description: event.target.value })
-                  }
-                />
-              </label>
-              <label>
-                Fornecedor
-                <input
-                  value={form.supplier}
-                  onChange={(event) =>
-                    setForm({ ...form, supplier: event.target.value })
-                  }
-                />
-              </label>
-              <div className="field-with-hint">
+    <>
+      <Modal
+        title={item ? "Editar despesa fixa" : "Nova despesa fixa"}
+        subtitle={
+          item
+            ? "As mudanças valem para as contas dos próximos meses."
+            : "A conta a pagar é gerada todo mês, do mês inicial até o final."
+        }
+        busy={loading}
+        inactive={creating !== null}
+        dirty={dirty}
+        onClose={onClose}
+      >
+        {can(
+          item ? "finance.recurring_update" : "finance.recurring_create",
+        ) && (
+          <form className="form-grid" onSubmit={submit}>
+            <fieldset className="form-fieldset span-2">
+              <legend>Conta</legend>
+              <div className="form-fieldset-grid">
                 <label>
-                  Categoria
-                  <select
+                  Descrição
+                  <input
                     required
-                    value={form.categoryId}
-                    className="select-opens-down"
-                    onChange={(event) => {
-                      if (event.target.value === CREATE_OPTION_VALUE)
-                        setCreating("category");
-                      else setForm({ ...form, categoryId: event.target.value });
-                    }}
+                    minLength={3}
+                    value={form.description}
+                    onChange={(event) =>
+                      setForm({ ...form, description: event.target.value })
+                    }
+                  />
+                </label>
+                <label>
+                  Fornecedor
+                  <input
+                    value={form.supplier}
+                    onChange={(event) =>
+                      setForm({ ...form, supplier: event.target.value })
+                    }
+                  />
+                </label>
+                <div className="field-with-hint">
+                  <label>
+                    Categoria
+                    <select
+                      required
+                      value={form.categoryId}
+                      className="select-opens-down"
+                      onChange={(event) => {
+                        if (event.target.value === CREATE_OPTION_VALUE)
+                          setCreating("category");
+                        else
+                          setForm({ ...form, categoryId: event.target.value });
+                      }}
+                    >
+                      {expenseCategories.length === 0 && (
+                        <option value="">Nenhuma categoria cadastrada</option>
+                      )}
+                      {expenseCategories.map((item) => (
+                        <option value={item.id} key={item.id}>
+                          {item.name}
+                        </option>
+                      ))}
+                      {can("finance.categories_create") && (
+                        <option value={CREATE_OPTION_VALUE}>
+                          + Nova categoria
+                        </option>
+                      )}
+                    </select>
+                  </label>
+                  {expenseCategories.length === 0 &&
+                    !can("finance.categories_create") && (
+                      <span className="field-hint">
+                        Peça a quem administra o financeiro para cadastrar.
+                      </span>
+                    )}
+                </div>
+                <div className="field-with-hint">
+                  <label>
+                    Centro de custo
+                    <select
+                      required
+                      value={form.costCenterId}
+                      className="select-opens-down"
+                      onChange={(event) => {
+                        if (event.target.value === CREATE_OPTION_VALUE)
+                          setCreating("costCenter");
+                        else
+                          setForm({
+                            ...form,
+                            costCenterId: event.target.value,
+                          });
+                      }}
+                    >
+                      {costCenters.length === 0 && (
+                        <option value="">
+                          Nenhum centro de custo cadastrado
+                        </option>
+                      )}
+                      {costCenters.map((item) => (
+                        <option value={item.id} key={item.id}>
+                          {item.name}
+                        </option>
+                      ))}
+                      {can("finance.cost_centers_create") && (
+                        <option value={CREATE_OPTION_VALUE}>
+                          + Novo centro de custo
+                        </option>
+                      )}
+                    </select>
+                  </label>
+                  {costCenters.length === 0 &&
+                    !can("finance.cost_centers_create") && (
+                      <span className="field-hint">
+                        Peça a quem administra o financeiro para cadastrar.
+                      </span>
+                    )}
+                </div>
+              </div>
+            </fieldset>
+            <fieldset className="form-fieldset span-2">
+              <legend>Valor</legend>
+              <div className="form-fieldset-grid">
+                <label>
+                  Tipo de valor
+                  <select
+                    value={form.amountType}
+                    onChange={(event) =>
+                      setForm({
+                        ...form,
+                        amountType:
+                          event.target.value === "variable"
+                            ? "variable"
+                            : "fixed",
+                      })
+                    }
                   >
-                    {expenseCategories.length === 0 && (
-                      <option value="">Nenhuma categoria cadastrada</option>
-                    )}
-                    {expenseCategories.map((item) => (
-                      <option value={item.id} key={item.id}>
-                        {item.name}
-                      </option>
-                    ))}
-                    {can("finance.categories_create") && (
-                      <option value={CREATE_OPTION_VALUE}>
-                        + Nova categoria
-                      </option>
-                    )}
+                    <option value="fixed">Valor fixo</option>
+                    <option value="variable">Valor variável</option>
                   </select>
                 </label>
-                <InlineClassificationCreate
-                  open={creating === "category"}
-                  onOpenChange={(open) => setCreating(open ? "category" : null)}
-                  emptyLabel={
-                    expenseCategories.length === 0
-                      ? "Nenhuma categoria de despesa"
-                      : undefined
-                  }
-                  createLabel="Criar categoria"
-                  canCreate={can("finance.categories_create")}
-                  onCreate={async (name) => {
-                    const created = await api.createFinancialCategory({
-                      name,
-                      kind: "expense",
-                    });
-                    setExpenseCategories((items) => [...items, created]);
-                    toast.success(`Categoria “${created.name}” criada.`);
-                    setForm((current) => ({
-                      ...current,
-                      categoryId: created.id,
-                    }));
-                  }}
-                />
-              </div>
-              <div className="field-with-hint">
                 <label>
-                  Centro de custo
-                  <select
-                    required
-                    value={form.costCenterId}
-                    className="select-opens-down"
-                    onChange={(event) => {
-                      if (event.target.value === CREATE_OPTION_VALUE)
-                        setCreating("costCenter");
-                      else
-                        setForm({ ...form, costCenterId: event.target.value });
-                    }}
-                  >
-                    {costCenters.length === 0 && (
-                      <option value="">
-                        Nenhum centro de custo cadastrado
-                      </option>
-                    )}
-                    {costCenters.map((item) => (
-                      <option value={item.id} key={item.id}>
-                        {item.name}
-                      </option>
-                    ))}
-                    {can("finance.cost_centers_create") && (
-                      <option value={CREATE_OPTION_VALUE}>
-                        + Novo centro de custo
-                      </option>
-                    )}
-                  </select>
+                  {variable
+                    ? "Valor estimado (opcional)"
+                    : "Valor mensal (opcional)"}
+                  <MoneyInput
+                    valueInCents={form.amountInCents}
+                    onChange={(cents) =>
+                      setForm({ ...form, amountInCents: cents ?? 0 })
+                    }
+                  />
                 </label>
-                <InlineClassificationCreate
-                  open={creating === "costCenter"}
-                  onOpenChange={(open) =>
-                    setCreating(open ? "costCenter" : null)
-                  }
-                  emptyLabel={
-                    costCenters.length === 0
-                      ? "Nenhum centro de custo"
-                      : undefined
-                  }
-                  createLabel="Criar centro de custo"
-                  canCreate={can("finance.cost_centers_create")}
-                  onCreate={async (name) => {
-                    const created = await api.createCostCenter({ name });
-                    setCostCenters((items) => [...items, created]);
-                    toast.success(`Centro de custo “${created.name}” criado.`);
-                    setForm((current) => ({
-                      ...current,
-                      costCenterId: created.id,
-                    }));
-                  }}
-                />
+                <span className="field-hint span-2">
+                  {variable
+                    ? "Muda todo mês, como água e luz: informe o valor de cada conta quando ela chegar. Se souber, a estimativa já entra na previsão do caixa."
+                    : form.amountInCents > 0
+                      ? "O mesmo valor todo mês, como internet e aluguel."
+                      : "O mesmo valor todo mês, como internet e aluguel. Sem valor, informe o de cada conta quando ela chegar."}
+                </span>
               </div>
-            </div>
-          </fieldset>
-          <fieldset className="form-fieldset span-2">
-            <legend>Valor</legend>
-            <div className="form-fieldset-grid">
-              <label>
-                Tipo de valor
-                <select
-                  value={form.amountType}
-                  onChange={(event) =>
-                    setForm({
-                      ...form,
-                      amountType:
-                        event.target.value === "variable"
-                          ? "variable"
-                          : "fixed",
-                    })
-                  }
-                >
-                  <option value="fixed">Valor fixo</option>
-                  <option value="variable">Valor variável</option>
-                </select>
-              </label>
-              <label>
-                {variable ? "Valor estimado (opcional)" : "Valor mensal"}
-                <MoneyInput
-                  required={!variable}
-                  valueInCents={form.amountInCents}
-                  onChange={(cents) =>
-                    setForm({ ...form, amountInCents: cents ?? 0 })
-                  }
-                />
-              </label>
-              <span className="field-hint span-2">
-                {variable
-                  ? "Muda todo mês, como água e luz: informe o valor de cada conta quando ela chegar. Se souber, a estimativa já entra na previsão do caixa."
-                  : "O mesmo valor todo mês, como internet e aluguel."}
-              </span>
-            </div>
-          </fieldset>
-          <fieldset className="form-fieldset recurring-schedule span-2">
-            <legend>Vencimento</legend>
-            <div className="recurring-schedule-dates">
-              <label>
-                Dia do vencimento
-                <input
-                  required
-                  type="number"
-                  min="1"
-                  max="28"
-                  step="1"
-                  value={form.dayOfMonth}
-                  onChange={(event) =>
-                    setForm({ ...form, dayOfMonth: Number(event.target.value) })
-                  }
-                />
-              </label>
-              <label>
-                Mês inicial
-                <input
-                  required
-                  type="month"
-                  value={form.startMonth}
-                  onChange={(event) =>
-                    setForm({ ...form, startMonth: event.target.value })
-                  }
-                />
-              </label>
-              <label>
-                Mês final (opcional)
-                <input
-                  type="month"
-                  min={form.startMonth}
-                  value={form.endMonth}
-                  onChange={(event) =>
-                    setForm({ ...form, endMonth: event.target.value })
-                  }
-                />
-              </label>
-            </div>
-            <div className="form-fieldset-grid">
-              <label className="checkbox-field">
-                <input
-                  type="checkbox"
-                  checked={form.remind}
-                  onChange={(event) =>
-                    setForm({ ...form, remind: event.target.checked })
-                  }
-                />
-                Avisar antes do vencimento
-              </label>
-              {form.remind && (
+            </fieldset>
+            <fieldset className="form-fieldset recurring-schedule span-2">
+              <legend>Vencimento</legend>
+              <div className="form-fieldset-grid">
+                <label>
+                  Mês inicial
+                  <input
+                    required
+                    type="month"
+                    value={form.startMonth}
+                    onChange={(event) =>
+                      setForm({ ...form, startMonth: event.target.value })
+                    }
+                  />
+                </label>
+                <label>
+                  Mês final (opcional)
+                  <input
+                    type="month"
+                    min={form.startMonth}
+                    value={form.endMonth}
+                    onChange={(event) =>
+                      setForm({ ...form, endMonth: event.target.value })
+                    }
+                  />
+                </label>
+                <label>
+                  Dia do vencimento
+                  <input
+                    required
+                    type="number"
+                    min="1"
+                    max="28"
+                    step="1"
+                    value={form.dayOfMonth}
+                    onChange={(event) =>
+                      setForm({
+                        ...form,
+                        dayOfMonth: Number(event.target.value),
+                      })
+                    }
+                  />
+                </label>
                 <label>
                   Dias de antecedência do aviso
                   <input
-                    required
+                    required={form.remind}
+                    disabled={!form.remind}
                     type="number"
                     min="0"
                     max="30"
@@ -380,30 +349,63 @@ export function RecurringPayableModal({
                     }
                   />
                 </label>
-              )}
+                <label className="checkbox-field span-2">
+                  <input
+                    type="checkbox"
+                    checked={form.remind}
+                    onChange={(event) =>
+                      setForm({ ...form, remind: event.target.checked })
+                    }
+                  />
+                  Avisar antes do vencimento
+                </label>
+              </div>
+              <p className="field-hint" aria-live="polite">
+                {scheduleSummary}
+              </p>
+            </fieldset>
+            {error && <div className="form-error span-2">{error}</div>}
+            {missing.hint}
+            <div className="modal-actions span-2">
+              <ModalCancelButton disabled={loading}>Voltar</ModalCancelButton>
+              <button
+                className="primary-button"
+                disabled={loading || missing.blocked}
+                aria-describedby={missing.describedBy}
+              >
+                {loading
+                  ? "Salvando…"
+                  : item
+                    ? "Salvar alterações"
+                    : "Cadastrar despesa fixa"}
+              </button>
             </div>
-            <p className="field-hint" aria-live="polite">
-              {scheduleSummary}
-            </p>
-          </fieldset>
-          {error && <div className="form-error span-2">{error}</div>}
-          {missing.hint}
-          <div className="modal-actions span-2">
-            <ModalCancelButton disabled={loading}>Voltar</ModalCancelButton>
-            <button
-              className="primary-button"
-              disabled={loading || missing.blocked}
-              aria-describedby={missing.describedBy}
-            >
-              {loading
-                ? "Salvando…"
-                : item
-                  ? "Salvar alterações"
-                  : "Cadastrar despesa fixa"}
-            </button>
-          </div>
-        </form>
+          </form>
+        )}
+      </Modal>
+      {creating && (
+        <FinanceRegistryModal
+          kind={creating}
+          onClose={() => setCreating(null)}
+          onConfirm={async (name) => {
+            if (creating === "category") {
+              const created = await api.createFinancialCategory({
+                name,
+                kind: "expense",
+              });
+              setExpenseCategories((items) => [...items, created]);
+              setForm((current) => ({ ...current, categoryId: created.id }));
+              toast.success(`Categoria “${created.name}” criada.`);
+            } else {
+              const created = await api.createCostCenter({ name });
+              setCostCenters((items) => [...items, created]);
+              setForm((current) => ({ ...current, costCenterId: created.id }));
+              toast.success(`Centro de custo “${created.name}” criado.`);
+            }
+            setCreating(null);
+          }}
+        />
       )}
-    </Modal>
+    </>
   );
 }

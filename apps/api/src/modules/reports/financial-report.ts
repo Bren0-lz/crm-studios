@@ -1,6 +1,7 @@
 import {
   financialEntryOriginLabels,
   PAYROLL_EMPLOYEE_PREFIX,
+  productItemName,
   type Branch,
   type CashMovement,
   type CommissionAdjustment,
@@ -11,6 +12,7 @@ import {
   type FinancialEntryOrigin,
   type FinancialProfessional,
   type FinancialReport,
+  type PatientTab,
   type Payable,
   type PayrollEmployee,
   type Professional,
@@ -23,6 +25,8 @@ export interface FinancialReportSources {
   movements: CashMovement[];
   receivables: Receivable[];
   payables: Payable[];
+  /** Vendas (comandas), para quebrar cada recebimento por produto e serviço. */
+  tabs: PatientTab[];
   categories: FinancialCategory[];
   costCenters: CostCenter[];
   commissions: CommissionEntry[];
@@ -53,11 +57,70 @@ function monthsBetween(from: string, to: string) {
   return months;
 }
 
-function receivableOrigin(receivable: Receivable | undefined) {
+function receivableOrigin(
+  receivable: Receivable | undefined,
+  tab: PatientTab | undefined,
+) {
   if (receivable?.planId || receivable?.source === "plan")
     return "plan" as const;
-  if (receivable?.source === "tab") return "tab" as const;
+  if (tab || receivable?.source === "tab") return "product_sale" as const;
   return "manual_receivable" as const;
+}
+
+/**
+ * Divide `total` (centavos, com sinal) na proporção dos pesos; a soma das partes é sempre
+ * `total`. Os centavos que sobram do arredondamento vão para os maiores restos. Sem peso,
+ * divide em partes iguais.
+ */
+export function splitProportionally(total: number, weights: readonly number[]) {
+  const sign = total < 0 ? -1 : 1,
+    amount = Math.abs(total),
+    sum = weights.reduce((acc, weight) => acc + Math.max(0, weight), 0),
+    shares = weights.map((weight) =>
+      sum > 0 ? (amount * Math.max(0, weight)) / sum : amount / weights.length,
+    ),
+    parts = shares.map(Math.floor);
+  let left = amount - parts.reduce((acc, part) => acc + part, 0);
+  const byRemainder = shares
+    .map((share, index) => ({ index, remainder: share - Math.floor(share) }))
+    .sort((a, b) => b.remainder - a.remainder || a.index - b.index);
+  for (let i = 0; left > 0; i++, left--)
+    parts[byRemainder[i % byRemainder.length]!.index]! += 1;
+  return parts.map((part) => sign * part || 0);
+}
+
+/** Recebimento de uma venda em uma linha por produto e por serviço avulso. */
+function splitTabEntry(entry: FinancialEntry, tab: PatientTab | undefined) {
+  const lines = [
+    ...(tab?.items ?? []).map((item) => ({
+      id: item.id,
+      origin: "product_sale" as const,
+      description: `${productItemName(item)} × ${item.quantity}`,
+      weight: item.totalInCents,
+    })),
+    ...(tab?.services ?? []).map((service) => ({
+      id: service.id,
+      origin: "service_sale" as const,
+      description: `${service.serviceName} com ${service.professionalName}`,
+      weight: service.amountInCents,
+    })),
+  ];
+  if (!lines.length) return [entry];
+  const amounts = splitProportionally(
+    entry.amountInCents,
+    lines.map((line) => line.weight),
+  );
+  return lines.map((line, index): FinancialEntry => ({
+    ...entry,
+    id: `${entry.id}#${line.id}`,
+    origin: line.origin,
+    description: line.description,
+    amountInCents: amounts[index]!,
+    // Sem categoria no recebimento, a categoria é o tipo do item.
+    ...(entry.categoryId
+      ? {}
+      : { categoryName: financialEntryOriginLabels[line.origin] }),
+  }));
 }
 
 /**
@@ -76,6 +139,11 @@ export function buildFinancialReport(
     sources.receivables.map((item) => [item.id, item]),
   );
   const payables = new Map(sources.payables.map((item) => [item.id, item]));
+  const tabsByReceivable = new Map(
+    sources.tabs.flatMap((tab) =>
+      tab.receivableId ? [[tab.receivableId, tab] as const] : [],
+    ),
+  );
   const commissions = new Map(
     sources.commissions.map((item) => [item.id, item]),
   );
@@ -104,7 +172,7 @@ export function buildFinancialReport(
   const categoryName = (id: string | undefined, origin: FinancialEntryOrigin) =>
     (id && categories.get(id)?.name) || financialEntryOriginLabels[origin];
 
-  const entries = sources.movements.map((movement): FinancialEntry => {
+  const entries = sources.movements.flatMap((movement): FinancialEntry[] => {
     const base = {
       id: movement.id,
       direction: movement.direction,
@@ -118,8 +186,9 @@ export function buildFinancialReport(
     };
     if (movement.receivableId) {
       const receivable = receivables.get(movement.receivableId),
-        origin = receivableOrigin(receivable);
-      return {
+        tab = tabsByReceivable.get(movement.receivableId),
+        origin = receivableOrigin(receivable, tab);
+      const entry: FinancialEntry = {
         ...base,
         origin,
         ...(receivable?.categoryId
@@ -131,6 +200,7 @@ export function buildFinancialReport(
           : {}),
         ...(receivable?.branchId ? { branchId: receivable.branchId } : {}),
       };
+      return origin === "product_sale" ? splitTabEntry(entry, tab) : [entry];
     }
     if (movement.payableId) {
       const payable = payables.get(movement.payableId),
@@ -171,23 +241,25 @@ export function buildFinancialReport(
         );
         salaryShare.set(movement.id, sign * payable.payroll.salaryInCents);
       }
-      return {
-        ...base,
-        origin,
-        ...(payable?.categoryId ? { categoryId: payable.categoryId } : {}),
-        categoryName:
-          payable?.categoryName || categoryName(payable?.categoryId, origin),
-        ...(payable?.costCenterName
-          ? { costCenterName: payable.costCenterName }
-          : {}),
-        ...(payable?.branchId ? { branchId: payable.branchId } : {}),
-        ...(paidTo
-          ? {
-              professionalId: paidTo.professionalId,
-              professionalName: paidTo.professionalName,
-            }
-          : {}),
-      };
+      return [
+        {
+          ...base,
+          origin,
+          ...(payable?.categoryId ? { categoryId: payable.categoryId } : {}),
+          categoryName:
+            payable?.categoryName || categoryName(payable?.categoryId, origin),
+          ...(payable?.costCenterName
+            ? { costCenterName: payable.costCenterName }
+            : {}),
+          ...(payable?.branchId ? { branchId: payable.branchId } : {}),
+          ...(paidTo
+            ? {
+                professionalId: paidTo.professionalId,
+                professionalName: paidTo.professionalName,
+              }
+            : {}),
+        },
+      ];
     }
     const commission = movement.commissionId
         ? commissions.get(movement.commissionId)
@@ -197,18 +269,20 @@ export function buildFinancialReport(
         : undefined,
       // Profissional sem filial pertence à filial padrão.
       branchId = professional?.branchId ?? defaultBranchId;
-    return {
-      ...base,
-      origin: "commission",
-      categoryName: financialEntryOriginLabels.commission,
-      ...(branchId ? { branchId } : {}),
-      ...(commission
-        ? {
-            professionalId: commission.professionalId,
-            professionalName: commission.professionalName,
-          }
-        : {}),
-    };
+    return [
+      {
+        ...base,
+        origin: "commission",
+        categoryName: financialEntryOriginLabels.commission,
+        ...(branchId ? { branchId } : {}),
+        ...(commission
+          ? {
+              professionalId: commission.professionalId,
+              professionalName: commission.professionalName,
+            }
+          : {}),
+      },
+    ];
   });
   const commissionMonths = monthsBetween(from, to);
   const people = new Map<string, FinancialProfessional>();

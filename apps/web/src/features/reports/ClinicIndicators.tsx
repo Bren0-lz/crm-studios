@@ -1,4 +1,5 @@
 import type { ManagementReport, SatisfactionReport } from "@crm/contracts";
+import { Link } from "react-router-dom";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
 import { currency } from "../../shared/lib/formatting";
 import { plural, responseTimeLabel, satisfactionLabel } from "./model";
@@ -75,10 +76,7 @@ export function ClinicIndicators({
         (loading ? (
           <LoadingBlock />
         ) : report ? (
-          <section className="clinic-indicators-panels">
-            <CashPanel data={report} />
-            <OperationPanel data={report} />
-          </section>
+          <OperationPanel data={report} />
         ) : null)}
     </>
   );
@@ -88,15 +86,6 @@ function ManagementCards({ data }: { data: ManagementReport }) {
   const { appointments, plans, finance, commercial } = data;
   return (
     <>
-      <article>
-        <span>Dinheiro recebido</span>
-        <strong>{money(finance.paidInPeriodInCents)}</strong>
-        <small>
-          {finance.overdueInCents
-            ? `${money(finance.overdueInCents)} em pagamentos atrasados`
-            : "Nenhum pagamento atrasado"}
-        </small>
-      </article>
       <article>
         <span>Atendimentos</span>
         <strong>{appointments.total}</strong>
@@ -110,6 +99,17 @@ function ManagementCards({ data }: { data: ManagementReport }) {
         </small>
       </article>
       <article>
+        <span>Pagamentos atrasados</span>
+        <strong>{money(finance.overdueInCents)}</strong>
+        <small>
+          {finance.overdueInCents ? (
+            <Link to="/financeiro">Ver no Financeiro</Link>
+          ) : (
+            "Nenhum pagamento atrasado"
+          )}
+        </small>
+      </article>
+      <article>
         <span>Novos interessados</span>
         <strong>{commercial.leadsCreated}</strong>
         <small>
@@ -119,64 +119,6 @@ function ManagementCards({ data }: { data: ManagementReport }) {
         </small>
       </article>
     </>
-  );
-}
-
-function CashPanel({ data }: { data: ManagementReport }) {
-  const dre = data.profitability.dre;
-  const expenses =
-    dre.productCostInCents +
-    dre.operatingExpensesInCents +
-    dre.commissionsInCents;
-  const net = dre.netResultInCents;
-  return (
-    <div className="panel indicator-card">
-      <div className="panel-head">
-        <div>
-          <h2>
-            {net >= 0 ? "Quanto sobrou no caixa" : "Quanto faltou no caixa"}
-          </h2>
-          <p className="panel-context">
-            Tudo o que entrou menos tudo o que saiu no período.
-          </p>
-        </div>
-        <strong className={net >= 0 ? "positive" : "negative"}>
-          {money(net)}
-        </strong>
-      </div>
-      <div className="cash-body">
-        <dl className="indicator-lines">
-          <div className="indicator-group">
-            <dt>Entrou</dt>
-            <dd>{money(dre.grossRevenueInCents)}</dd>
-          </div>
-          <div>
-            <dt>Sessões e planos</dt>
-            <dd>{money(dre.serviceRevenueInCents)}</dd>
-          </div>
-          <div>
-            <dt>Venda de produtos</dt>
-            <dd>{money(dre.productRevenueInCents)}</dd>
-          </div>
-          <div className="indicator-group">
-            <dt>Saiu</dt>
-            <dd>{money(expenses)}</dd>
-          </div>
-          <div>
-            <dt>Compra dos produtos vendidos</dt>
-            <dd>{money(dre.productCostInCents)}</dd>
-          </div>
-          <div>
-            <dt>Despesas da clínica</dt>
-            <dd>{money(dre.operatingExpensesInCents)}</dd>
-          </div>
-          <div>
-            <dt>Comissões da equipe</dt>
-            <dd>{money(dre.commissionsInCents)}</dd>
-          </div>
-        </dl>
-      </div>
-    </div>
   );
 }
 
@@ -232,14 +174,6 @@ function OperationPanel({ data }: { data: ManagementReport }) {
           <div>
             <dt>Produtos para repor</dt>
             <dd>{operational.lowStockCount}</dd>
-          </div>
-          <div>
-            <dt>Produtos vendidos</dt>
-            <dd>{operational.productUnitsSold}</dd>
-          </div>
-          <div>
-            <dt>Valor médio de cada pagamento</dt>
-            <dd>{money(operational.averageReceiptInCents)}</dd>
           </div>
         </dl>
       </div>

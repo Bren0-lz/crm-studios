@@ -62,6 +62,13 @@ describe("operation permissions", () => {
       if (!item.key.endsWith(".view"))
         expect(item.dependencies).toContain(`${item.module}.view`);
     }
+    expect(
+      permissionCatalog.find((item) => item.key === "reports.campaigns_export")
+        ?.dependencies,
+    ).toEqual(["reports.view", "reports.campaigns"]);
+    expect(
+      normalizePermissions(["reports.view", "reports.campaigns_export"]),
+    ).toEqual(["reports.view"]);
   });
   it("denies missing prerequisites and normalizes duplicates in catalog order", () => {
     expect(normalizePermissions(["finance.receive"])).toEqual([]);
@@ -101,6 +108,8 @@ describe("operation permissions", () => {
       ]),
     );
     expect(view).not.toContain("reports.dre_export");
+    expect(view).not.toContain("reports.campaigns");
+    expect(view).not.toContain("reports.campaigns_export");
     expect(view).not.toContain("patients.export");
     expect(view).not.toContain("patients.inventory_view");
     const edit = legacyPermissions("user", ["agenda"], ["agenda"]);

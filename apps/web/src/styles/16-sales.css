@@ -196,6 +196,12 @@
   gap: var(--space-3);
 }
 
+/* Item do pedido: linha do produto e, abaixo, a quantidade de cada tamanho. */
+.supplier-order-item {
+  display: grid;
+  gap: var(--space-3);
+}
+
 .supplier-order-line {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr)) var(--space-7);
@@ -430,6 +436,35 @@
   flex: 1 1 calc(var(--space-8) * 3);
 }
 
+/* Lista de tamanhos: caixa própria com contador; cada item se arrasta pela alça ou pelo corpo. */
+.size-editor-box {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: white;
+}
+
+.size-editor-box-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.size-editor-empty {
+  margin: 0;
+  padding: var(--space-3);
+  border: 1px dashed var(--line);
+  border-radius: var(--radius-sm);
+  color: var(--muted);
+  font-size: var(--text-sm);
+  text-align: center;
+}
+
 .size-editor-list {
   display: flex;
   flex-wrap: wrap;
@@ -439,16 +474,84 @@
   list-style: none;
 }
 
+.size-editor-list.is-sorting {
+  cursor: grabbing;
+  user-select: none;
+}
+
 .size-editor-item {
   display: inline-flex;
   align-items: center;
   gap: var(--space-1);
-  padding: var(--space-1) var(--space-1) var(--space-1) var(--space-3);
+  padding: var(--space-1);
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
+  background: #f7f8f5;
+  box-shadow: var(--shadow-sm);
+  cursor: grab;
+  touch-action: none;
+  transition:
+    border-color 120ms ease,
+    box-shadow 120ms ease;
+}
+
+.size-editor-item:only-child {
+  cursor: default;
+}
+
+.size-editor-item:hover {
+  border-color: var(--green-2);
+}
+
+.size-editor-item.is-dragging {
+  border-color: var(--green-2);
+  border-style: dashed;
   background: white;
+  box-shadow: var(--shadow);
+  opacity: 0.85;
+}
+
+.size-editor-label {
+  padding: 0 var(--space-1);
   font-size: var(--text-md);
   font-weight: 600;
+}
+
+.size-editor-handle,
+.size-editor-remove {
+  display: inline-grid;
+  place-items: center;
+  width: var(--space-5);
+  height: var(--space-5);
+  padding: 0;
+  border: 0;
+  border-radius: calc(var(--radius-sm) - 2px);
+  background: transparent;
+  color: var(--muted);
+}
+
+.size-editor-handle {
+  cursor: inherit;
+}
+
+.size-editor-handle:disabled {
+  cursor: default;
+  opacity: 0.4;
+}
+
+.size-editor-remove {
+  cursor: pointer;
+}
+
+.size-editor-handle:focus-visible,
+.size-editor-remove:focus-visible {
+  outline: 2px solid var(--green-2);
+  outline-offset: 1px;
+}
+
+.size-editor-remove:hover {
+  background: #fbf2ef;
+  color: var(--red);
 }
 
 /* Aviso de reposição: caixa, quantidade e explicação empilhadas no mesmo bloco. */
@@ -464,5 +567,11 @@
 /* Estoque: tamanhos configurados que zeraram (o produto ainda tem saldo em outros). */
 .inventory-product .inventory-sold-out {
   color: var(--terracotta);
+  font-weight: 600;
+}
+
+/* Estoque: tamanhos com saldo no aviso de reposição (mesmo tom da situação "Repor estoque"). */
+.inventory-product .inventory-restock-sizes {
+  color: #886b29;
   font-weight: 600;
 }

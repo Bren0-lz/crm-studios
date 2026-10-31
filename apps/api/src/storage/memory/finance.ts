@@ -3,6 +3,7 @@ import {
   assertStockSize,
   isStockOut,
 } from "../../modules/finance/product-stock.js";
+import { generatedProductSku } from "../../modules/finance/product-sku.js";
 import {
   receiptInstallments,
   receiptWithClinic,
@@ -182,19 +183,21 @@ export function createFinanceRepository(
       input: ProductInput,
     ) {
       const branchId = repositoryContext.writeBranchId(clinicId);
-      if (
+      const skuTaken = (sku: string) =>
         repositoryContext.products.some(
           (item) =>
             item.clinicId === clinicId &&
             repositoryContext.branchOf(item) === branchId &&
-            item.sku.toLocaleLowerCase() === input.sku.toLocaleLowerCase(),
-        )
-      )
+            item.sku.toLocaleLowerCase() === sku.toLocaleLowerCase(),
+        );
+      if (input.sku && skuTaken(input.sku))
         throw new DomainError(
           "PRODUCT_SKU_EXISTS",
           "Já existe um produto com este SKU.",
           409,
         );
+      let sku = input.sku ?? generatedProductSku(uuid());
+      while (!input.sku && skuTaken(sku)) sku = generatedProductSku(uuid());
       for (const [key, kind] of [
         ["categoryId", "product_category"],
         ["brandId", "product_brand"],
@@ -217,7 +220,7 @@ export function createFinanceRepository(
           : {}),
         ...(input.brandId !== undefined ? { brandId: input.brandId } : {}),
         name: input.name,
-        sku: input.sku,
+        sku,
         unit: input.unit,
         costInCents: input.costInCents,
         salePriceInCents: input.salePriceInCents,
@@ -566,6 +569,42 @@ export function createFinanceRepository(
     },
 
     async getFinancialSummary(clinicId: string): Promise<FinancialSummary> {
+      // Plano e serviços de origem saem do que já foi vendido (plano ou comanda).
+      const receivableOrigin = (
+        item: Receivable,
+      ): Pick<Receivable, "source" | "planName" | "services"> => {
+        const plan = item.planId
+          ? repositoryContext.patientPlans.find(
+              (candidate) =>
+                candidate.clinicId === item.clinicId &&
+                candidate.id === item.planId,
+            )
+          : undefined;
+        if (plan)
+          return {
+            source: "plan",
+            planName: plan.name,
+            services: plan.services.length
+              ? plan.services.map((service) => ({
+                  id: service.serviceId,
+                  name: service.serviceName,
+                }))
+              : [{ id: plan.serviceId, name: plan.serviceName }],
+          };
+        const tab = repositoryContext.patientTabs.find(
+          (candidate) =>
+            candidate.clinicId === item.clinicId &&
+            candidate.receivableId === item.id,
+        );
+        if (!tab) return { source: item.planId ? "plan" : "manual" };
+        const services = new Map(
+          (tab.services ?? []).map((service) => [
+            service.serviceId,
+            { id: service.serviceId, name: service.serviceName },
+          ]),
+        );
+        return { source: "tab", services: [...services.values()] };
+      };
       const currentDate = clinicDateOf(
         new Date(),
         repositoryContext.clinicSettings.timezone,
@@ -578,6 +617,7 @@ export function createFinanceRepository(
         )
         .map((item) => ({
           ...item,
+          ...receivableOrigin(item),
           overdue: item.status === "open" && item.dueDate < currentDate,
         }))
         .sort((a, b) => a.dueDate.localeCompare(b.dueDate));

@@ -318,10 +318,21 @@ export function mapAdminUserWithCommission(raw: AdminUserRow): AdminUser {
           ),
         }
       : {}),
+    ...(row.salaryInCents ? { salaryInCents: Number(row.salaryInCents) } : {}),
   };
 }
 
 export function mapProduct(row: ProductRow): Product {
+  const sizes = sortProductSizes(json<ProductSize[]>(row.sizes));
+  const sizeStock = productSizeStock(
+    json<ProductSize[]>(row.sizes),
+    (
+      json<{ size: string; currentStock: number }[] | null>(row.stockRows) ?? []
+    ).map((item) => ({
+      size: (item.size || null) as ProductSize | null,
+      currentStock: item.currentStock,
+    })),
+  );
   return {
     ...(row.categoryId ? { categoryId: row.categoryId } : {}),
     ...(row.brandId ? { brandId: row.brandId } : {}),
@@ -335,18 +346,14 @@ export function mapProduct(row: ProductRow): Product {
     salePriceInCents: row.salePriceInCents,
     currentStock: row.currentStock,
     restockAlertAt: row.restockAlertAt,
-    sizes: sortProductSizes(json<ProductSize[]>(row.sizes)),
-    sizeStock: productSizeStock(
-      json<ProductSize[]>(row.sizes),
-      (
-        json<{ size: string; currentStock: number }[] | null>(row.stockRows) ??
-        []
-      ).map((item) => ({
-        size: (item.size || null) as ProductSize | null,
-        currentStock: item.currentStock,
-      })),
-    ),
-    lowStock: productNeedsRestock(row.currentStock, row.restockAlertAt),
+    sizes,
+    sizeStock,
+    lowStock: productNeedsRestock({
+      currentStock: row.currentStock,
+      restockAlertAt: row.restockAlertAt,
+      sizes,
+      sizeStock,
+    }),
     active: row.active,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),

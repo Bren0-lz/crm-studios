@@ -1,16 +1,15 @@
 import { z } from "zod";
 import type {
-  ClientRevenueRankingEntry,
   ClientSessionsRankingEntry,
   SaleMovement,
 } from "../administration/types.js";
 import type {
   Appointment,
   AppointmentReportBreakdown,
+  AppointmentStatus,
   AppointmentVisitType,
 } from "../agenda/types.js";
 import type { CommercialSourceBreakdown } from "../commercial/types.js";
-import type { ReceivedPayment } from "../finance/types.js";
 import type {
   ClientAgeBandCount,
   PatientWithoutReturn,
@@ -29,14 +28,61 @@ export type ManagementReportFilter = z.infer<
 
 export type SalesReportFilter = z.infer<typeof salesReportFilterSchema>;
 
+/** Linha das tabelas de vendas por tipo e por item (só vendas feitas no período). */
+export interface SalesBreakdownRow {
+  key: string;
+  label: string;
+  sourceType: SaleMovement["sourceType"];
+  /** Planos e comandas distintos. */
+  salesCount: number;
+  quantity: number;
+  grossInCents: number;
+  /** Cancelamentos (até o fim do período) dessas mesmas vendas. */
+  cancelledInCents: number;
+  customerDiscountInCents: number;
+  netInCents: number;
+  /** Só produto: custo das unidades não canceladas. */
+  costInCents?: number;
+}
+
+export interface SalesBuyer {
+  patientId: string;
+  patientName: string;
+  salesCount: number;
+  netInCents: number;
+  /** Primeira compra da história do cliente caiu no período. */
+  firstPurchase: boolean;
+}
+
 export interface SalesReportPeriod {
   from: string;
   to: string;
   grossSalesInCents: number;
+  /** Todos os cancelamentos registrados no período (planilha). */
   cancelledSalesInCents: number;
+  /** Cancelamentos de vendas feitas no próprio período: abatem o líquido. */
+  cancelledInPeriodSalesInCents: number;
+  /** Cancelamentos de vendas de períodos anteriores: informativo, fora do líquido. */
+  cancelledPriorSalesInCents: number;
+  /** Vendas brutas menos os cancelamentos das vendas do próprio período. */
   netSalesInCents: number;
-  receivedInCents: number;
-  attendedPatients: number;
+  /** Planos e comandas vendidos no período. */
+  salesCount: number;
+  /** Vendas brutas ÷ número de vendas (0 sem vendas). */
+  averageTicketInCents: number;
+  buyers: number;
+  /** Compradores cuja primeira compra da história foi no período. */
+  newBuyers: number;
+  byType: SalesBreakdownRow[];
+  byItem: SalesBreakdownRow[];
+  /** Até 10 clientes com maior valor líquido comprado no período. */
+  topBuyers: SalesBuyer[];
+  /** Contas a receber das vendas do período (sem as canceladas). */
+  payment: {
+    paidInCents: number;
+    openInCents: number;
+    overdueInCents: number;
+  };
   /** Descontos do cliente nas vendas de plano do período (informativo). */
   customerDiscountInCents?: number;
 }
@@ -49,21 +95,100 @@ export interface SalesReport {
   changeInCents: number;
   changePercent: number | null;
   sales: SaleMovement[];
-  payments: ReceivedPayment[];
   patientsWithoutReturn: PatientWithoutReturn[];
 }
 
-/** Vendas entre datas inclusivas, sem comparação financeira. */
+/** Vendas entre datas inclusivas, comparadas ao intervalo de mesmo tamanho anterior. */
 export interface SalesPeriodReport {
   from: string;
   to: string;
   generatedAt: string;
   summary: SalesReportPeriod;
+  /** Intervalo de mesmo tamanho imediatamente anterior. */
+  previous: SalesReportPeriod;
+  changeInCents: number;
+  changePercent: number | null;
   sales: SaleMovement[];
-  payments: ReceivedPayment[];
   patientsWithoutReturn: PatientWithoutReturn[];
   /** Base exclusiva da lista de clientes sem retorno. */
   returnReference: { from: string; to: string };
+}
+
+export type CampaignReportKind = "manual" | "automatic";
+
+/** Uma campanha no relatório de campanhas (`GET /reports/campaigns`). */
+export interface CampaignReportRow {
+  campaignId: string;
+  kind: CampaignReportKind;
+  name: string;
+  /** Modelo de mensagem (manual) ou evento que dispara a campanha (automática). */
+  origin: string;
+  createdAt: string;
+  createdByName: string;
+  /** Automática: ligada agora. Manual: ainda em andamento (sem data de conclusão). */
+  active: boolean;
+  /** Manual: destinatários da campanha. Automática: mensagens tratadas no período. */
+  total: number;
+  sent: number;
+  skipped: number;
+  /** Só campanhas manuais; nas automáticas a fila do dia fica em Comunicação. */
+  pending: number;
+  /** Agendamentos com a promoção da campanha no período, sem os cancelados. */
+  redemptions: number;
+  /** Campanha automática promocional (tem promoção para usar ao agendar). */
+  promotional?: boolean | undefined;
+}
+
+/**
+ * Campanhas do período: manuais criadas entre as datas (com a situação atual de cada
+ * destinatário) e automáticas com mensagens marcadas ou promoções usadas nas datas,
+ * além das automáticas ligadas.
+ */
+export interface CampaignReport {
+  from: string;
+  to: string;
+  generatedAt: string;
+  summary: {
+    manualCampaigns: number;
+    automaticCampaigns: number;
+    sent: number;
+    skipped: number;
+    pending: number;
+    redemptions: number;
+  };
+  campaigns: CampaignReportRow[];
+}
+
+/** Uma mensagem da planilha do relatório de campanhas. */
+export interface CampaignReportMessage {
+  campaignId: string;
+  campaignName: string;
+  kind: CampaignReportKind;
+  patientName: string;
+  phone: string;
+  status: "pending" | "sent" | "skipped";
+  /** Etapa da campanha automática ou motivo de não envio. */
+  detail: string;
+  handledAt?: string | undefined;
+  handledByName?: string | undefined;
+  /** Mensagem da campanha automática ("No dia", "2 dias antes"…). */
+  step?: string | undefined;
+  /** Data do evento (aaaa-mm-dd), quando houver. */
+  eventDate?: string | undefined;
+  /** Motivo de não envio (escolhido pela equipe ou apontado pelo sistema) e observação. */
+  reason?: string | undefined;
+  /** Texto da mensagem (personalizado para o cliente). */
+  message?: string | undefined;
+  /** Ainda não marcada e prevista na fila de hoje (campanha automática). */
+  upcoming?: boolean | undefined;
+  /** Só campanhas promocionais: validade e uso da promoção por este cliente. */
+  promotion?:
+    | {
+        validUntil?: string | undefined;
+        redeemedOn?: string | undefined;
+        appointmentStatus?: AppointmentStatus | undefined;
+      }
+    | undefined;
 }
 
 export type DashboardViewSummary = Pick<DashboardSummary, "date"> &
@@ -167,8 +292,6 @@ export interface ClientReport {
   to: string;
   /** Até 20 clientes com mais sessões concluídas no período. */
   topBySessions: ClientSessionsRankingEntry[];
-  /** Até 20 clientes com mais recebimentos líquidos (positivos) no período. */
-  topByRevenue: ClientRevenueRankingEntry[];
   /**
    * Clientes ativos no período (atendimento concluído ou plano vigente em
    * algum dia do período) por faixa etária, com a idade na data `to`.
@@ -284,7 +407,6 @@ export interface ManagementReport {
   finance: {
     openInCents: number;
     overdueInCents: number;
-    paidInPeriodInCents: number;
   };
   commercial: {
     leadsCreated: number;
@@ -298,18 +420,8 @@ export interface ManagementReport {
   bySource: CommercialSourceBreakdown[];
   /** Só para quem tem `reports.team_finance`. */
   teamFinance?: TeamFinanceReport;
+  /** Recebimento e caixa ficam no Financeiro; vendas de produto, em Vendas. */
   profitability: {
-    dre: {
-      serviceRevenueInCents: number;
-      productRevenueInCents: number;
-      grossRevenueInCents: number;
-      productCostInCents: number;
-      grossProfitInCents: number;
-      operatingExpensesInCents: number;
-      commissionsInCents: number;
-      netResultInCents: number;
-      netMargin: number;
-    };
     byService: Array<{
       id: string;
       name: string;
@@ -319,23 +431,12 @@ export interface ManagementReport {
       contributionInCents: number;
       contributionMargin: number;
     }>;
-    byProduct: Array<{
-      id: string;
-      name: string;
-      unitsSold: number;
-      revenueInCents: number;
-      costInCents: number;
-      grossProfitInCents: number;
-      grossMargin: number;
-    }>;
     operational: {
       groupOccupancyRate: number;
       activeGroupSeats: number;
       totalGroupCapacity: number;
       waitlistCount: number;
       lowStockCount: number;
-      productUnitsSold: number;
-      averageReceiptInCents: number;
     };
   };
 }

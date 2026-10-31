@@ -9,6 +9,7 @@ import {
 } from "@crm/contracts";
 import type { RouteContext } from "../../infrastructure/route-context.js";
 import { DomainError } from "../../repository.js";
+import { reconcileChangedCommissions } from "../finance/commission-reconciliation.js";
 import {
   agendaProfessionalScope,
   inProfessionalScope,
@@ -33,12 +34,19 @@ export function registerGroupsRoutes(context: RouteContext) {
           status: z.enum(["present", "absent", "excused_absence", "cancelled"]),
         })
         .parse(request.body);
-      return repository.recordReplacementAttendance(
+      const attendance = await repository.recordReplacementAttendance(
         request.user.clinicId,
         request.user.sub,
         id,
         status,
       );
+      await reconcileChangedCommissions(
+        repository,
+        request,
+        { groupAttendanceIds: [attendance.id] },
+        "presença da reposição alterada.",
+      );
+      return attendance;
     },
   );
   app.put(
@@ -49,12 +57,19 @@ export function registerGroupsRoutes(context: RouteContext) {
       const { professionalId } = z
         .object({ professionalId: z.uuid() })
         .parse(request.body);
-      return repository.updateGroupSessionProfessional(
+      const session = await repository.updateGroupSessionProfessional(
         request.user.clinicId,
         request.user.sub,
         id,
         professionalId,
       );
+      await reconcileChangedCommissions(
+        repository,
+        request,
+        { groupSessionIds: [id] },
+        "profissional do encontro alterado.",
+      );
+      return session;
     },
   );
 
@@ -184,13 +199,20 @@ export function registerGroupsRoutes(context: RouteContext) {
         sessionId: string;
         patientId: string;
       };
-      return repository.recordGroupAttendance(
+      const attendance = await repository.recordGroupAttendance(
         request.user.clinicId,
         request.user.sub,
         sessionId,
         patientId,
         groupAttendanceInputSchema.parse(request.body),
       );
+      await reconcileChangedCommissions(
+        repository,
+        request,
+        { groupAttendanceIds: [attendance.id] },
+        "presença na turma alterada.",
+      );
+      return attendance;
     },
   );
 
@@ -208,6 +230,12 @@ export function registerGroupsRoutes(context: RouteContext) {
           code: "GROUP_SESSION_NOT_FOUND",
           message: "Sessão não encontrada.",
         });
+      await reconcileChangedCommissions(
+        repository,
+        request,
+        { groupSessionIds: [id] },
+        "encontro concluído.",
+      );
       return session;
     },
   );

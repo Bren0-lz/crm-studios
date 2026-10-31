@@ -146,12 +146,39 @@ export const productSizesSchema = z
     message: "Cada tamanho entra uma vez só.",
   });
 
-/** Produto pede reposição: sem estoque ou, com aviso de reposição, saldo total no limite ou abaixo. */
-export function productNeedsRestock(
-  currentStock: number,
-  restockAlertAt: number | null | undefined,
-) {
-  return currentStock <= Math.max(0, restockAlertAt ?? 0);
+/** Campos do produto usados pelo aviso de reposição. */
+interface RestockFields {
+  currentStock: number;
+  restockAlertAt: number | null | undefined;
+  sizes: readonly ProductSize[];
+  sizeStock: readonly ProductSizeStock[];
+}
+
+/**
+ * Tamanhos configurados com saldo no aviso de reposição ou abaixo, na ordem do produto. Cada
+ * tamanho conta sozinho: com aviso em 5, P com 2 entra mesmo que M tenha 10.
+ */
+export function productRestockSizes(
+  product: Omit<RestockFields, "currentStock">,
+): ProductSize[] {
+  const limit = product.restockAlertAt;
+  if (!limit) return [];
+  return product.sizes.filter(
+    (size) =>
+      (product.sizeStock.find((entry) => entry.size === size)?.currentStock ??
+        0) <= limit,
+  );
+}
+
+/**
+ * Produto pede reposição: sem estoque ou, com aviso de reposição, saldo total no limite ou
+ * abaixo — ou algum tamanho no limite ou abaixo (ver `productRestockSizes`).
+ */
+export function productNeedsRestock(product: RestockFields) {
+  return (
+    product.currentStock <= Math.max(0, product.restockAlertAt ?? 0) ||
+    productRestockSizes(product).length > 0
+  );
 }
 
 /** Saldo de uma chave de estoque do produto: um tamanho, ou `null` para o estoque sem tamanho. */
@@ -205,7 +232,8 @@ const productBaseSchema = z.object({
   categoryId: z.uuid().nullable().optional(),
   brandId: z.uuid().nullable().optional(),
   name: z.string().trim().min(2).max(160),
-  sku: z.string().trim().min(1).max(60),
+  /** Ausente = gerado automaticamente (cadastro) ou mantém o atual (edição). */
+  sku: z.string().trim().min(1).max(60).optional(),
   unit: z.string().trim().min(1).max(20).default("un"),
   costInCents: z.number().int().min(0),
   /** `null` = preço ainda não definido: o produto fica cadastrado, mas não pode ser vendido. */
