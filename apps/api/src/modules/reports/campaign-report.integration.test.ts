@@ -1,4 +1,7 @@
+import { nextTestCpf } from "../../test-support/cpf.js";
 import type {
+  AutoCampaign,
+  AutoCampaignQueue,
   CampaignReport,
   MessageTemplate,
   WhatsappCampaignDetail,
@@ -163,7 +166,33 @@ describe("relatório de campanhas", () => {
       "Resumo",
       "Campanhas",
       "Mensagens",
+      // Mesma ordem da aba Campanhas (mais recentes primeiro, depois por nome).
+      "Aniversários",
+      "Junho",
     ]);
+    // Cada campanha tem a própria aba, com filtro em todas as colunas e link na lista.
+    const junho = workbook.getWorksheet("Junho")!;
+    expect(junho.autoFilter).toBeTruthy();
+    expect(junho.getRow(1).values).toEqual([
+      undefined,
+      "Cliente",
+      "WhatsApp",
+      "Situação",
+      "Marcada em",
+      "Marcada por",
+      "Texto enviado",
+    ]);
+    const junhoStatus = junho
+      .getSheetValues()
+      .slice(2)
+      .map((row) => (row as unknown[])[3]);
+    expect(junhoStatus).toContain("Enviada");
+    expect(junhoStatus).toContain("Pendente");
+    expect(workbook.getWorksheet("Campanhas")!.getColumn(13).values).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ text: "Junho", hyperlink: "#'Junho'!A1" }),
+      ]),
+    );
     const messages = workbook.getWorksheet("Mensagens")!;
     const values = messages
       .getSheetValues()
@@ -196,6 +225,137 @@ describe("relatório de campanhas", () => {
         }),
       ]),
     );
+  });
+
+  it("detalha na aba da campanha promocional quem recebeu, quem está previsto e quem usou a promoção", async () => {
+    const { app, headers } = await setup();
+    const createPatient = async (fullName: string, birthDate: string) => {
+      const response = await app.inject({
+        method: "POST",
+        url: "/patients",
+        headers,
+        payload: {
+          cpf: nextTestCpf(),
+          fullName,
+          phone: "11955554444",
+          birthDate,
+          tags: [],
+        },
+      });
+      expect(response.statusCode).toBe(201);
+      return response.json<{ id: string }>();
+    };
+    // Hoje é 10/06: os dois estão na mensagem de 7 dias antes do aniversário.
+    const lara = await createPatient("Lara Promo", "1990-06-15");
+    await createPatient("Rita Prevista", "1991-06-16");
+    const campaign = (
+      await app.inject({
+        method: "POST",
+        url: "/communications/auto-campaigns",
+        headers,
+        payload: {
+          name: "Promo: junho/julho",
+          trigger: "birthday",
+          steps: [{ offset: 7, message: "Olá, {{nome}}" }],
+          promotion: { validDays: 10 },
+        },
+      })
+    ).json<AutoCampaign>();
+    const queue = (
+      await app.inject({
+        method: "GET",
+        url: "/communications/auto-campaigns/queue",
+        headers,
+      })
+    ).json<AutoCampaignQueue>();
+    const item = queue.items.find(
+      (entry) =>
+        entry.campaignId === campaign.id && entry.patientId === lara.id,
+    )!;
+    expect(
+      (
+        await app.inject({
+          method: "POST",
+          url: "/communications/auto-campaigns/deliveries",
+          headers,
+          payload: {
+            campaignId: campaign.id,
+            stepId: item.stepId,
+            patientId: lara.id,
+            occurrenceKey: item.occurrenceKey,
+            status: "sent",
+          },
+        })
+      ).statusCode,
+    ).toBe(201);
+    const [professionals, rooms, services] = await Promise.all(
+      ["/professionals", "/rooms", "/services"].map((url) =>
+        app.inject({ method: "GET", url, headers }),
+      ),
+    );
+    expect(
+      (
+        await app.inject({
+          method: "POST",
+          url: "/appointments",
+          headers,
+          payload: {
+            patientId: lara.id,
+            professionalId: professionals!.json()[0].id,
+            roomId: rooms!.json()[0].id,
+            serviceId: services!.json()[0].id,
+            startsAt: "2039-06-20T13:00:00.000Z",
+            promotion: {
+              campaignId: campaign.id,
+              occurrenceKey: item.occurrenceKey,
+            },
+          },
+        })
+      ).statusCode,
+    ).toBe(201);
+
+    const response = await app.inject({
+      method: "GET",
+      url: "/reports/campaigns.xlsx?from=2039-06-01&to=2039-06-30",
+      headers,
+    });
+    expect(response.statusCode).toBe(200);
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(response.rawPayload as unknown as ArrayBuffer);
+    // Caracteres proibidos no nome da aba viram espaço.
+    const sheet = workbook.getWorksheet("Promo junho julho")!;
+    const header = sheet.getRow(1).values as unknown[];
+    expect(header).toEqual([
+      undefined,
+      "Cliente",
+      "WhatsApp",
+      "Situação",
+      "Mensagem da campanha",
+      "Data do evento",
+      "Motivo ou observação",
+      "Marcada em",
+      "Marcada por",
+      "Promoção válida até",
+      "Usou a promoção",
+      "Agendou com a promoção em",
+      "Situação do agendamento",
+      "Texto enviado",
+    ]);
+    const column = (name: string) => header.indexOf(name);
+    const rows = sheet.getSheetValues().slice(2) as unknown[][];
+    const laraRow = rows.find((row) => row[1] === "Lara Promo")!;
+    expect(laraRow[column("Situação")]).toBe("Enviada");
+    expect(laraRow[column("Marcada por")]).toBeTruthy();
+    expect(laraRow[column("Usou a promoção")]).toBe("Sim");
+    expect(laraRow[column("Situação do agendamento")]).toBe("Agendado");
+    expect(laraRow[column("Promoção válida até")]).toEqual(
+      new Date("2039-06-25T12:00:00Z"),
+    );
+    const ritaRow = rows.find((row) => row[1] === "Rita Prevista")!;
+    expect(ritaRow[column("Situação")]).toBe("Prevista (fila de hoje)");
+    expect(ritaRow[column("Mensagem da campanha")]).toBe("7 dias antes");
+    expect(ritaRow[column("Usou a promoção")]).toBe("Não");
+    expect(ritaRow[column("Marcada por")]).toBeFalsy();
   });
 
   it("exige a consulta para ver e a permissão de planilha para baixar", async () => {
