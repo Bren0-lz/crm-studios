@@ -31,7 +31,6 @@ type ProductForm = ProductInput & { sizes: ProductSize[] };
 
 const emptyProduct: ProductForm = {
   name: "",
-  sku: "",
   unit: "un",
   costInCents: 0,
   salePriceInCents: null,
@@ -244,16 +243,6 @@ export function ProductModal({
                 value={form.name}
                 onChange={(event) =>
                   setForm({ ...form, name: event.target.value })
-                }
-              />
-            </label>
-            <label>
-              Código do produto
-              <input
-                required
-                value={form.sku}
-                onChange={(event) =>
-                  setForm({ ...form, sku: event.target.value })
                 }
               />
             </label>

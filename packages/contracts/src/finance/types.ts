@@ -199,8 +199,9 @@ export interface ReceivedPayment {
 
 export interface Product extends Omit<
   ProductInput,
-  "initialStock" | "initialSizeStock" | "sizes" | "restockAlertAt"
+  "initialStock" | "initialSizeStock" | "sizes" | "restockAlertAt" | "sku"
 > {
+  sku: string;
   /** Aviso de reposição; `null` = sem aviso. */
   restockAlertAt: number | null;
   /** Vazio = produto sem distinção por tamanhos. */

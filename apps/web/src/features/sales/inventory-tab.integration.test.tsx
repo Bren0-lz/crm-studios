@@ -36,7 +36,7 @@ describe("aba Estoque de Vendas de produtos (QM9)", () => {
     );
     let dialog = screen.getByRole("dialog", { name: "Novo produto" });
     change("Nome", "Faixa terapêutica", dialog);
-    change("Código do produto", "FAIXA", dialog);
+    expect(within(dialog).queryByLabelText(/Código do produto/)).toBeNull();
     change("Custo (R$)", "10,00", dialog);
     change("Preço de venda (R$)", "20,00", dialog);
     change("Estoque inicial", "10", dialog);
@@ -55,7 +55,9 @@ describe("aba Estoque de Vendas de produtos (QM9)", () => {
     await save("Novo produto", "Salvar produto");
     const product = (
       await repository.getInventoryWorkspace(clinicId)
-    ).products.find((item) => item.sku === "FAIXA")!;
+    ).products.find((item) => item.name === "Faixa terapêutica")!;
+    // O código do produto é gerado automaticamente.
+    expect(product.sku).toMatch(/^PRD-[0-9A-F]{8}$/);
     expect(product).toMatchObject({
       salePriceInCents: 2000,
       currentStock: 10,
@@ -234,7 +236,6 @@ describe("aba Estoque de Vendas de produtos (QM9)", () => {
       within(dialog).queryByRole("group", { name: "Tamanhos deste produto" }),
     ).not.toBeInTheDocument();
     change("Nome", "Tênis do estúdio", dialog);
-    change("Código do produto", "TEN", dialog);
     await within(dialog).findByRole("option", { name: "Calçados" });
     change("Categoria", category!.id, dialog);
     // A categoria traz todos os seus tamanhos marcados; o usuário desmarca os que faltam.
@@ -260,7 +261,7 @@ describe("aba Estoque de Vendas de produtos (QM9)", () => {
     await save("Novo produto", "Salvar produto");
     const product = (
       await repository.getInventoryWorkspace(clinicId)
-    ).products.find((item) => item.sku === "TEN")!;
+    ).products.find((item) => item.name === "Tênis do estúdio")!;
     expect(product).toMatchObject({ sizes: ["37", "38"], currentStock: 2 });
     expect(await within(panel).findByText("37: 2 · 38: 0")).toBeInTheDocument();
     expect(within(panel).getByText("Esgotado: 38")).toBeInTheDocument();
@@ -439,7 +440,6 @@ describe("aba Estoque de Vendas de produtos (QM9)", () => {
         within(dialog).getByRole("option", { name: "Toesox" }),
       ).toHaveProperty("selected", true),
     );
-    change("Código do produto", "MEIA", dialog);
     await save("Novo produto", "Salvar produto");
     const [meias] = await repository.listClinicCatalog(
       clinicId,
