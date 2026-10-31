@@ -44,7 +44,7 @@ function mockApi(extra: (url: string) => unknown = () => undefined) {
 
 async function chooseSingleService(dialog: HTMLElement) {
   fireEvent.click(
-    within(dialog).getByRole("radio", { name: "Serviço avulso" }),
+    within(dialog).getByRole("button", { name: "Adicionar serviço avulso" }),
   );
   fireEvent.change(await within(dialog).findByLabelText("Plano cadastrado"), {
     target: { value: singleTemplate.id },
