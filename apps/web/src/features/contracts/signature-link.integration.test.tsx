@@ -134,6 +134,9 @@ describe("contract signature link", () => {
     expect(screen.getByLabelText("Nome completo")).toHaveValue(
       patient.fullName,
     );
+    const cpf = screen.getByLabelText("CPF (opcional)");
+    fireEvent.change(cpf, { target: { value: "52998224725" } });
+    expect(cpf).toHaveValue("529.982.247-25");
     const sign = screen.getByRole("button", { name: "Assinar documento" });
     expect(sign).toBeDisabled();
     const pad = screen.getByRole("img", { name: "Área de assinatura" });
@@ -156,6 +159,7 @@ describe("contract signature link", () => {
     expect(details).toMatchObject({
       viewCount: 1,
       signerName: patient.fullName,
+      signerCpf: "52998224725",
       signatureImage: "data:image/png;base64,cG5n",
     });
   });
