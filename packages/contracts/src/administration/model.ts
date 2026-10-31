@@ -133,6 +133,17 @@ export const adminUserAgendaInputSchema = z.discriminatedUnion("mode", [
   z.object({ mode: z.literal("deactivate") }),
 ]);
 
+/**
+ * Salário fixo mensal do usuário (centavos, maior que zero); `null` = não recebe salário.
+ * Só quem recebe salário entra na folha de pagamento: a folha não cadastra ninguém.
+ */
+export const userSalarySchema = z
+  .number("Informe o salário.")
+  .int("Informe o salário.")
+  .positive("Informe o salário (maior que zero).")
+  .max(2147483647, "Salário acima do limite permitido.")
+  .nullable();
+
 export const adminUserInputSchema = z
   .object({
     fullName: z.string().trim().min(3).max(160),
@@ -155,6 +166,8 @@ export const adminUserInputSchema = z
     professional: adminUserAgendaInputSchema.optional(),
     /** Filiais que o usuário acessa; ausente = todas. */
     branchAccess: userBranchAccessSchema.optional(),
+    /** Salário mensal; ausente ou `null` = não recebe (fica fora da folha). */
+    salaryInCents: userSalarySchema.optional(),
   })
   .superRefine(validatePermissionInput);
 
@@ -178,6 +191,8 @@ export const adminUserUpdateSchema = z
     commission: adminUserCommissionInputSchema.optional(),
     /** Novas vigências por serviço; as regras já gravadas continuam (histórico mantido). */
     serviceCommissions: adminUserServiceCommissionsSchema.optional(),
+    /** Ausente = mantém; `null` = deixa de receber salário (sai da folha). */
+    salaryInCents: userSalarySchema.optional(),
   })
   .superRefine(validatePermissionInput);
 

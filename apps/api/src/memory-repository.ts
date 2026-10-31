@@ -361,7 +361,6 @@ export class MemoryClinicRepository implements ClinicRepository {
       this.finance.previewCommissionRecalculation;
     const payroll = createPayrollRepository(this.context);
     this.listPayrollEmployees = payroll.listPayrollEmployees;
-    this.createPayrollEmployee = payroll.createPayrollEmployee;
     this.updatePayrollEmployee = payroll.updatePayrollEmployee;
     this.getPayroll = payroll.getPayroll;
     this.launchPayroll = payroll.launchPayroll;
@@ -736,7 +735,6 @@ export class MemoryClinicRepository implements ClinicRepository {
   >["renegotiateReceivables"];
 
   readonly listPayrollEmployees: ClinicRepository["listPayrollEmployees"];
-  readonly createPayrollEmployee: ClinicRepository["createPayrollEmployee"];
   readonly updatePayrollEmployee: ClinicRepository["updatePayrollEmployee"];
   readonly getPayroll: ClinicRepository["getPayroll"];
   readonly launchPayroll: ClinicRepository["launchPayroll"];

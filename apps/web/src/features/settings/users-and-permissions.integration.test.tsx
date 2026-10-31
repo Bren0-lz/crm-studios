@@ -452,6 +452,88 @@ describe("users and permissions", () => {
     expect(lastCall("PATCH").body).not.toHaveProperty("whatsapp");
   });
 
+  it("marks on the user who receives a salary and how much, sending it only when it changes", async () => {
+    localStorage.setItem("crm.auth.token", "test-token");
+    localStorage.setItem("crm.auth.user", storedUser(ownerSession));
+    const salaried = { ...customUser, salaryInCents: 180000 };
+    mockAdmin(
+      (url, init) =>
+        init?.method === "POST" && url.endsWith("/admin/users")
+          ? {
+              ...salaried,
+              id: "66666666-6666-4666-8666-666666666666",
+              fullName: "Breno Luiz",
+            }
+          : init?.method === "PATCH"
+            ? { ...customUser }
+            : undefined,
+      [adminUser, salaried],
+    );
+    render(
+      <MemoryRouter initialEntries={["/configuracoes"]}>
+        <App />
+      </MemoryRouter>,
+    );
+    await openSettingsSection("Usuários");
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Novo usuário" }),
+    );
+    const dialog = screen.getByRole("dialog", { name: "Novo usuário" });
+    fireEvent.change(within(dialog).getByLabelText("Nome completo"), {
+      target: { value: "Breno Luiz" },
+    });
+    fireEvent.change(within(dialog).getByLabelText("E-mail de acesso"), {
+      target: { value: "breno@movimenta.local" },
+    });
+    fireEvent.change(within(dialog).getByLabelText("Senha inicial"), {
+      target: { value: "senha" },
+    });
+    const receives = within(dialog).getByRole("checkbox", {
+      name: "Recebe salário",
+    });
+    expect(receives).not.toBeChecked();
+    expect(
+      within(dialog).queryByLabelText("Salário mensal (R$)"),
+    ).not.toBeInTheDocument();
+    fireEvent.click(receives);
+    // Marcado sem valor: o salário falta.
+    expect(
+      within(dialog).getByRole("button", { name: "Criar usuário" }),
+    ).toBeDisabled();
+    fireEvent.change(within(dialog).getByLabelText("Salário mensal (R$)"), {
+      target: { value: "1800,00" },
+    });
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Criar usuário" }),
+    );
+    expect(
+      await screen.findByText("Usuário Breno Luiz criado."),
+    ).toBeInTheDocument();
+    expect(lastCall("POST").body).toMatchObject({ salaryInCents: 180000 });
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Editar Maria Souza" }),
+    );
+    const edit = screen.getByRole("dialog", { name: "Editar Maria Souza" });
+    expect(
+      within(edit).getByRole("checkbox", { name: "Recebe salário" }),
+    ).toBeChecked();
+    expect(within(edit).getByLabelText("Salário mensal (R$)")).toHaveValue(
+      "1.800,00",
+    );
+    // Desmarcar tira da folha: envia `null`.
+    fireEvent.click(
+      within(edit).getByRole("checkbox", { name: "Recebe salário" }),
+    );
+    fireEvent.click(
+      within(edit).getByRole("button", { name: "Salvar alterações" }),
+    );
+    expect(
+      await screen.findByText("Alterações de Maria Souza salvas."),
+    ).toBeInTheDocument();
+    expect(lastCall("PATCH").body).toMatchObject({ salaryInCents: null });
+  });
+
   it("copies permissions from another common user when creating, still editable before saving", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
     localStorage.setItem("crm.auth.user", storedUser(ownerSession));
