@@ -37,6 +37,7 @@ import {
   manualCampaignsInPeriod,
 } from "./campaign-report.js";
 import { campaignReportToXlsx } from "./campaign-workbook.js";
+import { loadAutoCampaignQueue } from "../communications/auto-campaigns.js";
 import { buildTeamFinanceReport } from "./team-finance.js";
 import { buildFinancialReport } from "./financial-report.js";
 
@@ -314,6 +315,16 @@ export function registerReportsRoutes(context: RouteContext) {
           repository.getWhatsappCampaign(clinicId, campaign.id),
         ),
       );
+      // Na planilha, a fila de hoje mostra quem ainda vai receber (se hoje está no período).
+      const today = clinicDateOf(new Date(), timeZone);
+      const queue =
+        path.endsWith(".xlsx") && today >= from && today <= to
+          ? await loadAutoCampaignQueue(
+              repository,
+              clinicId,
+              requestAccess.get(request)?.modules ?? [],
+            )
+          : undefined;
       const { report, messages } = buildCampaignReport(
         from,
         to,
@@ -323,6 +334,7 @@ export function registerReportsRoutes(context: RouteContext) {
           deliveries,
           redemptions,
           patients,
+          queue: queue?.items,
         },
         timeZone,
       );
