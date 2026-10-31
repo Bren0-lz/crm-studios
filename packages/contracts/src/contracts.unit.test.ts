@@ -6,6 +6,7 @@ import {
   productInputSchema,
   productItemName,
   productNeedsRestock,
+  productRestockSizes,
   productSizeStock,
   productSizeLabel,
   sortProductSizes,
@@ -892,10 +893,40 @@ describe("shared contracts", () => {
     expect(() =>
       productInputSchema.parse({ ...product, restockAlertAt: 0 }),
     ).toThrow();
-    expect(productNeedsRestock(0, null)).toBe(true);
-    expect(productNeedsRestock(1, null)).toBe(false);
-    expect(productNeedsRestock(5, 5)).toBe(true);
-    expect(productNeedsRestock(6, 5)).toBe(false);
+    const stock = (currentStock: number, restockAlertAt: number | null) => ({
+      currentStock,
+      restockAlertAt,
+      sizes: [],
+      sizeStock: [],
+    });
+    expect(productNeedsRestock(stock(0, null))).toBe(true);
+    expect(productNeedsRestock(stock(1, null))).toBe(false);
+    expect(productNeedsRestock(stock(5, 5))).toBe(true);
+    expect(productNeedsRestock(stock(6, 5))).toBe(false);
+  });
+
+  it("avisa a reposição por tamanho, não só pelo total", () => {
+    const shirt = {
+      currentStock: 12,
+      restockAlertAt: 5 as number | null,
+      sizes: ["P", "M", "G"],
+      sizeStock: [
+        { size: "P", currentStock: 2 },
+        { size: "M", currentStock: 10 },
+        { size: null, currentStock: 0 },
+      ],
+    };
+    // G não tem linha de estoque: conta como zerado.
+    expect(productRestockSizes(shirt)).toEqual(["P", "G"]);
+    expect(productNeedsRestock(shirt)).toBe(true);
+    expect(
+      productNeedsRestock({
+        ...shirt,
+        sizes: ["M"],
+      }),
+    ).toBe(false);
+    expect(productRestockSizes({ ...shirt, restockAlertAt: null })).toEqual([]);
+    expect(productNeedsRestock({ ...shirt, restockAlertAt: null })).toBe(false);
   });
 
   it("lists the stock per size with leftovers outside the configured sizes", () => {

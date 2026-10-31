@@ -461,7 +461,8 @@ export function ProductModal({
                 Opcional. Quando o estoque chegar à quantidade escolhida, o
                 produto aparece como “Repor estoque” na lista e entra em
                 “Produtos para repor” nos Indicadores.
-                {hasSizes && " Vale o total somando todos os tamanhos."}
+                {hasSizes &&
+                  " Vale para cada tamanho: basta um deles chegar à quantidade."}
               </p>
             </fieldset>
             {!isNew && (

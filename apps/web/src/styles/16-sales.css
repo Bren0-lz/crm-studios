@@ -472,3 +472,9 @@
   color: var(--terracotta);
   font-weight: 600;
 }
+
+/* Estoque: tamanhos com saldo no aviso de reposição (mesmo tom da situação "Repor estoque"). */
+.inventory-product .inventory-restock-sizes {
+  color: #886b29;
+  font-weight: 600;
+}
