@@ -3,6 +3,7 @@ import {
   notificationKinds,
   resolveNotificationPreferences,
   type NotificationKind,
+  type PermissionKey,
   type NotificationPreferences,
   type NotificationsSummary,
 } from "@crm/contracts";
@@ -11,6 +12,7 @@ import {
   Cake,
   CalendarClock,
   ListTodo,
+  PackageOpen,
   PauseCircle,
   PhoneCall,
   Receipt,
@@ -28,12 +30,26 @@ import { useAuthorization } from "../authorization-context";
 import { useDataVersion } from "../shared/hooks/useDataVersion";
 
 type NotificationModule =
-  "relationship" | "finance" | "agenda" | "crm" | "plans" | "communications";
+  | "relationship"
+  | "finance"
+  | "agenda"
+  | "crm"
+  | "plans"
+  | "patients"
+  | "communications";
 
-/** Nome, explicação e módulo de cada grupo (também usados nas configurações). */
+/**
+ * Nome, explicação, módulo e, quando o módulo não basta, a permissão de cada grupo (também
+ * usados nas configurações).
+ */
 export const notificationKindDetails: Record<
   NotificationKind,
-  { label: string; detail: string; module: NotificationModule }
+  {
+    label: string;
+    detail: string;
+    module: NotificationModule;
+    permission?: PermissionKey;
+  }
 > = {
   birthdays: {
     label: "Aniversariantes de hoje",
@@ -70,6 +86,12 @@ export const notificationKindDetails: Record<
     detail: "Planos pausados com retorno previsto até hoje",
     module: "plans",
   },
+  lowStock: {
+    label: "Estoque para repor",
+    detail: "Produtos sem estoque ou no aviso de reposição",
+    module: "patients",
+    permission: "patients.inventory_view",
+  },
   autoCampaigns: {
     label: "Campanhas automáticas",
     detail: "Mensagens do dia ainda não enviadas",
@@ -99,20 +121,20 @@ const iconProps = { size: 16, "aria-hidden": true } as const;
  * Grupos do sino (QM13), cada um só para quem vê o módulo: aniversariantes de hoje
  * (Relacionamento), parcelas vencidas e despesas fixas a vencer (Financeiro), atendimentos a
  * finalizar (Agenda) e os retornos combinados: tarefas comerciais vencidas (Comercial),
- * contatos adiados que voltaram (Relacionamento), pausas com retorno previsto (Planos) e uma
+ * contatos adiados que voltaram (Relacionamento), pausas com retorno previsto (Planos), produtos
+ * a repor (Vendas, com permissão de ver estoque) e uma
  * linha por campanha automática com mensagens pendentes (Comunicações). Grupos zerados e os
  * desligados nas preferências não aparecem.
  */
 export function notificationGroups(
   summary: NotificationsSummary | null,
-  canView: (module: NotificationModule) => boolean,
+  canViewKind: (kind: NotificationKind) => boolean,
   hiddenKinds: readonly NotificationKind[] = [],
 ): NotificationGroup[] {
   if (!summary) return [];
   const groups: NotificationGroup[] = [];
   const visible = (kind: NotificationKind) =>
-    canView(notificationKindDetails[kind].module) &&
-    !hiddenKinds.includes(kind);
+    canViewKind(kind) && !hiddenKinds.includes(kind);
   function add(
     kind: Exclude<NotificationKind, "autoCampaigns">,
     count: number | undefined,
@@ -172,6 +194,12 @@ export function notificationGroups(
     "/planos",
     <PauseCircle {...iconProps} />,
   );
+  add(
+    "lowStock",
+    summary.lowStockProducts,
+    "/vendas?aba=estoque",
+    <PackageOpen {...iconProps} />,
+  );
   if (visible("autoCampaigns"))
     for (const campaign of summary.autoCampaigns ?? [])
       if (campaign.pending > 0)
@@ -216,13 +244,15 @@ const ALERT_DURATION = 12_000;
  * automática no intervalo escolhido, avisos de pendência nova e os alertas do cabeçalho.
  */
 export function useNotificationCenter() {
-  const { canView } = useAuthorization();
-  const availableKinds = notificationKinds.filter((kind) =>
-    canView(notificationKindDetails[kind].module),
-  );
+  const { can, canView: canViewModule } = useAuthorization();
+  const canView = (kind: NotificationKind) => {
+    const { module, permission } = notificationKindDetails[kind];
+    return canViewModule(module) && (!permission || can(permission));
+  };
+  const availableKinds = notificationKinds.filter(canView);
   const watched = availableKinds.length > 0;
-  // Recarga silenciosa quando agenda, financeiro, clientes, contatos, leads ou planos
-  // mudam (QC6).
+  // Recarga silenciosa quando agenda, financeiro, clientes, contatos, leads, planos ou
+  // estoque mudam (QC6).
   const version = useDataVersion(
     "agenda",
     "finance",
@@ -230,6 +260,7 @@ export function useNotificationCenter() {
     "relationship",
     "crm",
     "plans",
+    "inventory",
     "communications",
   );
   const [summary, setSummary] = useState<NotificationsSummary | null>(null);

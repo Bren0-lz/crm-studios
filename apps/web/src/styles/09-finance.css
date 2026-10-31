@@ -1125,6 +1125,10 @@
   gap: var(--space-1);
   font-size: var(--text-sm);
 }
+/* Competência e "Lançar folha" com a base alinhada (o rótulo fica acima do campo). */
+.payroll-panel .panel-head .page-actions {
+  align-items: flex-end;
+}
 .payroll-branches {
   display: flex;
   flex-wrap: wrap;
@@ -1182,9 +1186,22 @@
   gap: var(--space-3);
   margin: 0;
 }
+/* Cada total num bloco próprio; "Total" e "A lançar" (quando há valor) se destacam. */
 .payroll-totals div {
   display: grid;
   gap: var(--space-1);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--paper);
+}
+.payroll-totals div.is-total {
+  border-color: var(--mint);
+  background: var(--mint);
+}
+.payroll-totals div.is-pending {
+  border-color: #f2d9ad;
+  background: #fdf1dc;
 }
 .payroll-totals dt {
   color: var(--muted);
@@ -1192,19 +1209,25 @@
 }
 .payroll-totals dd {
   margin: 0;
-  font-size: var(--text-md);
+  font-size: var(--text-lg);
   font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.payroll-totals div.is-pending dd {
+  color: #8a5a12;
 }
 .payroll-branch {
   display: grid;
-  gap: var(--space-3);
+  overflow: hidden;
   border: 1px solid var(--line);
   border-radius: var(--radius-md);
 }
+/* Mesmo respiro lateral das linhas da tabela: título, totais e colunas alinhados. */
 .payroll-branch-head {
   display: grid;
   gap: var(--space-3);
-  padding: var(--space-4) var(--space-4) 0;
+  padding: var(--space-4) calc(var(--space-5) - 1px);
 }
 .payroll-branch-head h3 {
   margin: 0;
@@ -1213,27 +1236,58 @@
 }
 .payroll-branch-empty {
   margin: 0;
-  padding: 0 var(--space-4) var(--space-4);
+  padding: 0 calc(var(--space-5) - 1px) var(--space-4);
   color: var(--muted);
 }
-/* audit: mobile-ok no celular (≤ 700px) a linha vira cartão de 1 coluna (.finance-list) */
+/* Todas as colunas com largura fixa (só o nome estica): com "Ações" em `auto`, cada linha
+   e o cabeçalho tinham larguras próprias e os valores saíam da coluna do título.
+   audit: mobile-ok no celular (≤ 700px) a linha vira cartão de 1 coluna (.finance-list) */
 .payroll-table .finance-row {
   grid-template-columns:
-    minmax(160px, 1fr) 100px 100px 90px 110px 100px
-    minmax(150px, auto);
+    minmax(0, 1fr) repeat(4, calc(var(--space-8) * 2))
+    calc(var(--space-8) + var(--space-6))
+    calc(var(--space-8) * 3);
+  column-gap: var(--space-4);
+}
+.payroll-table .finance-head {
+  border-top: 1px solid var(--line);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.payroll-table .finance-row > .finance-number,
+.payroll-table .finance-row > .finance-amount {
+  font-size: var(--text-md);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.payroll-table .finance-head > .finance-number,
+.payroll-table .finance-head > .finance-amount {
+  font-size: inherit;
+}
+.payroll-table .finance-row > .finance-amount {
+  font-weight: 700;
+}
+.payroll-table .finance-actions .secondary-button {
+  justify-content: center;
+}
+.payroll-table .finance-actions .secondary-button:first-child {
+  min-width: calc(var(--space-8) + var(--space-6) + var(--space-2));
+}
+.payroll-line:last-child > .finance-row,
+.payroll-line:last-child > .payroll-detail {
+  border-bottom: 0;
 }
 /* Detalhe aberto: bloco recuado com fundo próprio, colado à linha do colaborador. */
 .payroll-line.is-open > .finance-row {
+  border-bottom: 0;
   background: var(--cream);
 }
 .payroll-detail {
   display: grid;
   gap: var(--space-4);
-  margin: 0 calc(var(--space-5) - 1px) var(--space-3);
-  padding: var(--space-3) var(--space-4) var(--space-4);
-  border: 1px solid var(--line);
-  border-top: 0;
-  border-radius: 0 0 var(--radius-sm) var(--radius-sm);
+  margin: 0;
+  padding: 0 calc(var(--space-5) - 1px) var(--space-4);
+  border-bottom: 1px solid var(--line);
   background: var(--cream);
   font-size: var(--text-sm);
 }

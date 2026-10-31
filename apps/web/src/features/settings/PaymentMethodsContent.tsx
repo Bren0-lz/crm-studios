@@ -134,6 +134,12 @@ export function PaymentMethodsContent() {
               venda de produtos no cartão parcelado. Cada plano do catálogo
               também pode ter um limite próprio em Configurações › Planos.
             </p>
+            <div className="payment-method-head" aria-hidden="true">
+              <span>Forma</span>
+              <span>Parcelamento</span>
+              <span>Até quantas parcelas</span>
+              <span>Resumo</span>
+            </div>
             <div className="payment-method-list" role="list">
               {drafts.map((item) => {
                 const label = paymentMethodLabels[item.method];
@@ -162,8 +168,10 @@ export function PaymentMethodsContent() {
                       />
                       Aceita parcelamento
                     </label>
-                    <label>
-                      Até quantas parcelas
+                    <label className="payment-method-max">
+                      <span className="payment-method-field-label">
+                        Até quantas parcelas
+                      </span>
                       <input
                         type="number"
                         inputMode="numeric"

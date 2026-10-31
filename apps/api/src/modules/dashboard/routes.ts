@@ -126,6 +126,7 @@ export function registerDashboardRoutes(context: RouteContext) {
       leads,
       snoozed,
       plans,
+      inventory,
       autoQueue,
     ] = await Promise.all([
       modules.includes("relationship")
@@ -175,6 +176,11 @@ export function registerDashboardRoutes(context: RouteContext) {
       modules.includes("plans")
         ? repository.listPatientPlans(clinicId)
         : undefined,
+      requestAccess
+        .get(request)
+        ?.permissions.includes("patients.inventory_view")
+        ? repository.getInventoryWorkspace(clinicId)
+        : undefined,
       modules.includes("communications")
         ? loadAutoCampaignQueue(repository, clinicId, modules)
         : undefined,
@@ -214,6 +220,13 @@ export function registerDashboardRoutes(context: RouteContext) {
                 plan.status === "paused" &&
                 plan.pauseExpectedReturn !== undefined &&
                 plan.pauseExpectedReturn <= date,
+            ).length,
+          }
+        : {}),
+      ...(inventory
+        ? {
+            lowStockProducts: inventory.products.filter(
+              (product) => product.active && product.lowStock,
             ).length,
           }
         : {}),

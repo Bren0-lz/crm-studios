@@ -312,6 +312,94 @@
   margin-top: var(--space-4);
 }
 
+/*
+ * Item do cadastro guiado (plano, avulso, produto, aula): entra deslizando com a borda
+ * realçada e, ao ser removido, recolhe antes de sair — para ficar claro o que mudou.
+ */
+.guided-item {
+  animation: guided-item-enter 0.9s ease-out;
+}
+.guided-item-leaving {
+  overflow: hidden;
+  pointer-events: none;
+  animation: guided-item-leave 0.32s ease-in forwards;
+}
+@keyframes guided-item-enter {
+  0% {
+    opacity: 0;
+    transform: translateY(calc(var(--space-3) * -1));
+    border-color: var(--green-2);
+    box-shadow: 0 0 0 var(--space-1) rgb(38 112 95 / 35%);
+  }
+  30% {
+    opacity: 1;
+    transform: none;
+    border-color: var(--green-2);
+    box-shadow: 0 0 0 var(--space-1) rgb(38 112 95 / 35%);
+  }
+  100% {
+    border-color: var(--line);
+    box-shadow: 0 0 0 0 rgb(38 112 95 / 0%);
+  }
+}
+@keyframes guided-item-leave {
+  0% {
+    max-height: 200vh;
+    opacity: 1;
+    transform: none;
+    border-color: var(--red);
+  }
+  60% {
+    opacity: 0;
+    transform: translateX(var(--space-6));
+  }
+  100% {
+    max-height: 0;
+    padding-block: 0;
+    margin-block: 0;
+    border-width: 0;
+    opacity: 0;
+    transform: translateX(var(--space-6));
+  }
+}
+
+/* Aviso "Plano 2 adicionado logo abaixo." / "Produto removido da sacola.". */
+.guided-item-notice {
+  min-height: 0;
+  margin: 0;
+}
+.guided-item-notice > span {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--mint);
+  color: var(--green);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  animation: guided-item-notice 0.35s ease-out;
+}
+@keyframes guided-item-notice {
+  from {
+    opacity: 0;
+    transform: translateY(calc(var(--space-1) * -1));
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .guided-item,
+  .guided-item-leaving,
+  .guided-item-notice > span {
+    animation: none;
+  }
+}
+
 /* "O que o cliente vai fazer?": um botão "Adicionar" para cada item do cadastro guiado. */
 .guided-add > .field-hint {
   margin: 0 0 var(--space-3);
@@ -1051,6 +1139,32 @@ p.field-hint {
   margin: 0;
   padding: 0;
   list-style: none;
+}
+
+/* Item novo na sacola: entra com fundo realçado que some aos poucos. */
+.order-lines > li {
+  border-radius: var(--radius-sm);
+  animation: order-line-enter 1.2s ease-out;
+}
+@keyframes order-line-enter {
+  0% {
+    opacity: 0;
+    background: var(--mint);
+    transform: translateY(calc(var(--space-2) * -1));
+  }
+  25% {
+    opacity: 1;
+    background: var(--mint);
+    transform: none;
+  }
+  100% {
+    background: transparent;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .order-lines > li {
+    animation: none;
+  }
 }
 
 .order-line,

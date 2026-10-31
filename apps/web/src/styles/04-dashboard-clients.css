@@ -890,11 +890,13 @@
   color: var(--green-2);
 }
 
-/* Clientes: coluna Ações à direita (a linha abre a ficha). */
+/* Clientes: coluna Ações à direita (a linha abre a ficha). Cada linha é um grid próprio:
+   a coluna Ações tem largura fixa (a do botão "Editar") para o cabeçalho e as linhas
+   repartirem as colunas igual — com "auto", o cabeçalho ficava deslocado. */
 .patient-table .table-row {
   grid-template-columns:
     minmax(210px, 1.4fr) minmax(180px, 1fr) minmax(170px, 1fr)
-    100px auto;
+    100px calc(var(--space-8) + var(--space-5));
 }
 .table-actions-head,
 .table-actions {

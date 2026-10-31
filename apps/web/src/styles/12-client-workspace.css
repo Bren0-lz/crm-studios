@@ -368,6 +368,10 @@
 .inventory-table tbody tr:last-child > * {
   border-bottom: 0;
 }
+/* Linha alta (produto com tamanhos): valores alinhados ao nome do produto, não ao meio. */
+.inventory-table tbody > tr > * {
+  vertical-align: top;
+}
 .inventory-product {
   display: grid;
   gap: var(--space-1);
