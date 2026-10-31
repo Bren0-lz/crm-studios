@@ -758,6 +758,24 @@
     grid-column: 1 / -1;
   }
 
+  .issued-document-list > article > .document-summary,
+  .issued-document-list > article > button {
+    grid-column: 1 / -1;
+  }
+
+  .documents-toolbar > label:not(.search-box) {
+    justify-content: space-between;
+  }
+
+  .documents-toolbar > .search-box {
+    flex: none;
+    width: 100%;
+  }
+
+  .documents-toolbar select {
+    flex: 1;
+  }
+
   .report-filter {
     align-items: stretch;
     flex-direction: column;
