@@ -687,7 +687,7 @@ export function createReportsRepository(
              (SELECT count(*) FROM group_enrollments e JOIN group_classes g ON g.id=e.group_id WHERE e.clinic_id=$1 AND e.status='active' AND g.active AND ${branchClause("g.branch_id", 4)}) AS "activeGroupSeats",
              (SELECT CAST(coalesce(sum(capacity),0) AS SIGNED) FROM group_classes WHERE clinic_id=$1 AND active AND ${branchClause("branch_id", 4)}) AS "totalGroupCapacity",
              (SELECT count(*) FROM group_enrollments e JOIN group_classes g ON g.id=e.group_id WHERE e.clinic_id=$1 AND e.status='waitlisted' AND g.active AND ${branchClause("g.branch_id", 4)}) AS "waitlistCount",
-             (SELECT count(*) FROM products WHERE clinic_id=$1 AND active AND current_stock<=COALESCE(restock_alert_at,0) AND ${branchClause("branch_id", 4)}) AS "lowStockCount"`,
+             (SELECT count(*) FROM products p WHERE p.clinic_id=$1 AND p.active AND ${branchClause("p.branch_id", 4)} AND (p.current_stock<=COALESCE(p.restock_alert_at,0) OR (p.restock_alert_at IS NOT NULL AND JSON_LENGTH(p.sizes) > (SELECT count(*) FROM product_stock s WHERE s.product_id=p.id AND s.current_stock>p.restock_alert_at AND JSON_CONTAINS(p.sizes, JSON_QUOTE(s.size)))))) AS "lowStockCount"`,
           [clinicId, from, to, branchIds],
         ),
       ]);

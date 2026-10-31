@@ -675,7 +675,7 @@ export function createReportsRepository(
               .filter(
                 (item) =>
                   item.clinicId === clinicId &&
-                  productNeedsRestock(item.currentStock, item.restockAlertAt),
+                  productNeedsRestock(item),
               ).length,
           },
         },
