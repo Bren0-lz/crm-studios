@@ -1,4 +1,8 @@
-import { saoPauloToday, type FinancialReport } from "@crm/contracts";
+import {
+  saoPauloToday,
+  type FinancialReport,
+  type PayrollEmployee,
+} from "@crm/contracts";
 import { describe, expect, it, vi } from "vitest";
 import {
   authenticatedApp,
@@ -164,24 +168,37 @@ describe("relatório financeiro", () => {
       });
       expect(paid.statusCode).toBe(200);
       // Colaborador sem profissional ligado: recebe só o salário fixo pela folha.
-      const reception = await app.inject({
+      // A folha não cadastra colaborador: ele nasce do usuário com salário.
+      const receptionAccount = await app.inject({
         method: "POST",
-        url: "/finance/payroll/employees",
+        url: "/admin/users",
         headers: as("owner"),
         payload: {
-          name: "Carla Recepção",
-          role: "Recepcionista",
-          baseSalaryInCents: 250_000,
+          fullName: "Carla Recepção",
+          email: "carla.recepcao@studios.test",
+          role: "user",
+          password: "senha-de-teste",
+          jobTitle: "Recepcionista",
+          salaryInCents: 250_000,
         },
       });
-      expect(reception.statusCode).toBe(201);
+      expect(receptionAccount.statusCode).toBe(201);
+      const receptionEmployee = (
+        await app.inject({
+          method: "GET",
+          url: "/finance/payroll/employees",
+          headers: as("owner"),
+        })
+      )
+        .json<PayrollEmployee[]>()
+        .find((item) => item.userId === receptionAccount.json().id)!;
       const salary = await app.inject({
         method: "POST",
         url: "/finance/payroll/launch",
         headers: as("owner"),
         payload: {
           competence: "2031-03",
-          employeeIds: [reception.json().id],
+          employeeIds: [receptionEmployee.id],
           dueDate: "2031-03-12",
           categoryId: category.id,
         },
@@ -250,12 +267,12 @@ describe("relatório financeiro", () => {
       });
       expect(report.entries.every((item) => item.branchId)).toBe(true);
       expect(report.entries[3]).toMatchObject({
-        professionalId: `employee:${reception.json().id}`,
+        professionalId: `employee:${receptionEmployee.id}`,
         professionalName: "Carla Recepção",
       });
       expect(report.professionals).toEqual([
         expect.objectContaining({
-          id: `employee:${reception.json().id}`,
+          id: `employee:${receptionEmployee.id}`,
           name: "Carla Recepção",
           role: "Recepcionista",
           paidInCents: 0,

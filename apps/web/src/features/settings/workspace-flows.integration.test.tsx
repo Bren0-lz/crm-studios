@@ -171,7 +171,6 @@ describe("settings workflows through real HTTP handlers", () => {
       within(productDialog).queryByLabelText("Estoque inicial"),
     ).not.toBeInTheDocument();
     change("Nome", "Óleo de massagem", productDialog);
-    change("Código do produto", "OLEO", productDialog);
     fireEvent.click(
       within(productDialog).getByLabelText(
         "Este produto tem distinção de tamanho",

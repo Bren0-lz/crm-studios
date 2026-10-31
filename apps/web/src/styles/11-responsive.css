@@ -310,6 +310,21 @@
     align-items: stretch;
   }
 
+  .payroll-detail {
+    margin-inline: 0;
+  }
+
+  .payroll-detail-list li {
+    grid-template-columns: 1fr;
+    gap: var(--space-1);
+  }
+
+  .payroll-detail-list li > strong,
+  .payroll-detail-list .status-pill {
+    justify-self: start;
+    text-align: left;
+  }
+
   /* Prontuários: lista ou prontuário, um de cada vez. */
   .clinical-records-layout {
     grid-template-columns: 1fr;
