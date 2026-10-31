@@ -262,6 +262,23 @@ describe("guided client registration", () => {
     fireEvent.change(await within(productBlock).findByLabelText("Produto"), {
       target: { value: bottle.id },
     });
+    // O preço vem do cadastro do produto e não muda neste modal.
+    const price =
+      within(productBlock).getByLabelText<HTMLInputElement>("Preço unitário");
+    expect(price).toHaveAttribute("readonly");
+    expect(price.value).toMatch(/^R\$\s50,00$/);
+    // O menu de adicionar fica depois do último item, logo acima da sacola.
+    const menu = within(dialog).getByRole("group", {
+      name: "O que o cliente vai fazer?",
+    });
+    const bag = within(dialog).getByRole("group", { name: "Sacola" });
+    expect(
+      productBlock.compareDocumentPosition(menu) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+      menu.compareDocumentPosition(bag) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
     fireEvent.click(
       within(dialog).getByRole("button", { name: "Salvar e registrar venda" }),
     );
@@ -301,6 +318,39 @@ describe("guided client registration", () => {
     expect(
       within(dialog).getByRole("button", { name: "Salvar cliente" }),
     ).toBeInTheDocument();
+  });
+
+  it("announces each item added or removed and animates the removal", async () => {
+    mockApi(() => jsonResponse({ patient: created }, 201));
+    renderAs(storedUser(admin));
+    const dialog = await openNewClient();
+    const status = within(dialog).getByRole("status");
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Adicionar plano" }),
+    );
+    expect(status).toHaveTextContent("Plano adicionado logo abaixo.");
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Adicionar plano" }),
+    );
+    expect(status).toHaveTextContent("Plano 2 adicionado logo abaixo.");
+    // Sem movimento reduzido, o bloco recolhe antes de sair.
+    const original = window.matchMedia;
+    window.matchMedia = ((query: string) =>
+      ({ matches: true, media: query }) as MediaQueryList) as typeof original;
+    try {
+      const second = within(dialog).getByRole("group", { name: "Plano 2" });
+      fireEvent.click(
+        within(second).getByRole("button", { name: "Remover plano 2" }),
+      );
+      expect(second).toHaveClass("guided-item-leaving");
+      fireEvent.animationEnd(second);
+      expect(
+        within(dialog).queryByRole("group", { name: "Plano 2" }),
+      ).not.toBeInTheDocument();
+      expect(status).toHaveTextContent("Plano 2 removido.");
+    } finally {
+      window.matchMedia = original;
+    }
   });
 
   it("books a demonstration class with service, professional, room and time", async () => {
