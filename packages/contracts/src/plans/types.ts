@@ -2,6 +2,7 @@ import { z } from "zod";
 import {
   patientPlanInputSchema,
   planCatalogInputSchema,
+  planCancellationDetailsSchema,
   planPauseDetailsSchema,
   planRenewalInputSchema,
   planServiceInputSchema,
@@ -75,6 +76,9 @@ export interface PatientPlan extends Omit<
   updatedAt: string;
   cancelledAt?: string;
   cancelledValueInCents?: number;
+  /** Valor devolvido ao cliente no cancelamento (estorno), quando houve. */
+  refundedInCents?: number;
+  refundNote?: string;
   /** Pausa em andamento: início, motivo e previsão de retorno. */
   pausedAt?: string;
   pauseReason?: string;
@@ -94,6 +98,9 @@ export interface PlanPaymentSummary {
 }
 
 export type PlanPauseDetails = z.infer<typeof planPauseDetailsSchema>;
+export type PlanCancellationDetails = z.infer<
+  typeof planCancellationDetailsSchema
+>;
 
 export interface SessionMovement {
   groupAttendanceId?: string;

@@ -51,3 +51,16 @@ export function formatPlanServices(
     )
     .join("; ");
 }
+
+/** O estorno do cancelamento não pode passar do valor do plano. */
+export function assertRefundWithinPlan(
+  plan: { totalValueInCents: number },
+  refundedInCents: number | undefined,
+) {
+  if (refundedInCents && refundedInCents > plan.totalValueInCents)
+    throw new DomainError(
+      "PLAN_REFUND_TOO_HIGH",
+      "O valor estornado não pode passar do valor do plano.",
+      400,
+    );
+}

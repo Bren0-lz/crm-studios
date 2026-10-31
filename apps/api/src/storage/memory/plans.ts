@@ -9,13 +9,17 @@ import {
   type PlanCatalogEntry,
   type PlanCatalogInput,
   type PlanRenewalInput,
+  type PlanCancellationDetails,
   type PlanPauseDetails,
   type PlanStatus,
   type PlanTemplate,
   type PlanTemplateInput,
   type PlanTemplateUpdate,
 } from "@crm/contracts";
-import { validatePlanComposition } from "../../modules/plans/plan-services.js";
+import {
+  assertRefundWithinPlan,
+  validatePlanComposition,
+} from "../../modules/plans/plan-services.js";
 import { DomainError } from "../../repository.js";
 import type { MemoryRepositoryContext } from "./context.js";
 import { CLINIC_ID, now, today, uuid } from "./helpers.js";
@@ -427,6 +431,7 @@ export function createPlansRepository(
       planId: string,
       status: PlanStatus,
       pause: PlanPauseDetails = {},
+      cancellation: PlanCancellationDetails = {},
     ) {
       const plan = repositoryContext.patientPlans.find(
         (item) => item.clinicId === clinicId && item.id === planId,
@@ -446,6 +451,8 @@ export function createPlansRepository(
         );
       }
       if (plan.status === status) return plan;
+      if (status === "cancelled")
+        assertRefundWithinPlan(plan, cancellation.refundedInCents);
       const previous = plan.status;
       plan.status = status;
       plan.updatedAt = now();
@@ -476,6 +483,10 @@ export function createPlansRepository(
         plan.cancelledValueInCents = repositoryContext.receivables
           .filter((item) => item.planId === plan.id && item.status === "open")
           .reduce((sum, item) => sum + item.amountInCents, 0);
+        if (cancellation.refundedInCents)
+          plan.refundedInCents = cancellation.refundedInCents;
+        if (cancellation.refundedInCents && cancellation.refundNote)
+          plan.refundNote = cancellation.refundNote;
         for (const receivable of repositoryContext.receivables) {
           if (receivable.planId === plan.id && receivable.status === "open") {
             receivable.status = "cancelled";

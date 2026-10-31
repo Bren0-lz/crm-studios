@@ -117,6 +117,86 @@ describe("client record", () => {
     ).toHaveAttribute("href", `/planos?patientId=${patient.id}`);
   });
 
+  it("cancels a running plan from the Plans tab registering the refund", async () => {
+    localStorage.setItem("crm.auth.token", "test-token");
+    localStorage.setItem(
+      "crm.auth.user",
+      storedUser({
+        id: "22222222-2222-4222-8222-222222222222",
+        fullName: "Aryana Dutra",
+        email: "admin@movimenta.local",
+        role: "owner",
+      }),
+    );
+    const patient = {
+      id: "99999999-9999-4999-8999-999999999999",
+      clinicId: "11111111-1111-4111-8111-111111111111",
+      recordNumber: "PAC-00001",
+      fullName: "Helena Almeida",
+      phone: "11987654321",
+      tags: [],
+      status: "active",
+      createdAt: "2026-01-01T12:00:00.000Z",
+      updatedAt: "2026-01-01T12:00:00.000Z",
+    };
+    const plan = {
+      id: "p1",
+      patientId: patient.id,
+      patientName: patient.fullName,
+      name: "Pilates 2x",
+      kind: "fixed_package",
+      status: "active",
+      remainingSessions: 5,
+      totalSessions: 8,
+      totalValueInCents: 40000,
+      validFrom: "2026-01-01",
+      services: [],
+    };
+    const patches: unknown[] = [];
+    vi.mocked(fetch).mockImplementation(async (input, init) => {
+      const url = String(input);
+      if (init?.method === "PATCH") {
+        patches.push(JSON.parse(String(init.body)));
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ ...plan, status: "cancelled" }),
+        } as Response;
+      }
+      const body = url.endsWith(`/patients/${patient.id}`)
+        ? patient
+        : url.includes("/plans?patientId=")
+          ? [plan]
+          : [];
+      return { ok: true, status: 200, json: async () => body } as Response;
+    });
+    render(
+      <MemoryRouter initialEntries={[`/clientes/${patient.id}`]}>
+        <App />
+      </MemoryRouter>,
+    );
+    fireEvent.click(await screen.findByRole("tab", { name: "Planos" }));
+    const panel = screen.getByRole("tabpanel");
+    fireEvent.click(
+      await within(panel).findByRole("button", { name: "Cancelar plano" }),
+    );
+    const dialog = screen.getByRole("dialog", { name: "Cancelar plano" });
+    fireEvent.click(
+      within(dialog).getByLabelText("Houve estorno de valor ao cliente"),
+    );
+    fireEvent.change(
+      within(dialog).getByLabelText("Valor estornado ao cliente (R$)"),
+      { target: { value: "12000" } },
+    );
+    fireEvent.click(within(dialog).getByRole("button", { name: "Confirmar" }));
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+    );
+    expect(patches).toEqual([
+      { status: "cancelled", cancellation: { refundedInCents: 12000 } },
+    ]);
+  });
+
   it("lists every current plan in the summary, the one expiring first on top", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
     localStorage.setItem(

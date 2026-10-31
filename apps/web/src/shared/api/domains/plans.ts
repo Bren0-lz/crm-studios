@@ -6,6 +6,7 @@ import type {
   PlanCatalogEntry,
   PlanCatalogInput,
   PlanRenewalInput,
+  PlanCancellationDetails,
   PlanPauseDetails,
   PlanStatus,
   PlanTemplate,
@@ -56,10 +57,15 @@ export const plansApi = {
     id: string,
     status: PlanStatus,
     pause?: PlanPauseDetails,
+    cancellation?: PlanCancellationDetails,
   ) =>
     request<PatientPlan>(`/plans/${id}/status`, {
       method: "PATCH",
-      body: JSON.stringify(pause ? { status, pause } : { status }),
+      body: JSON.stringify({
+        status,
+        ...(pause ? { pause } : {}),
+        ...(cancellation?.refundedInCents ? { cancellation } : {}),
+      }),
     }),
   renewPlan: (id: string, input: PlanRenewalInput) =>
     request<PatientPlan>(`/plans/${id}/renew`, {
