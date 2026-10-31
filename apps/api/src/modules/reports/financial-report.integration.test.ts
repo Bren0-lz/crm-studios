@@ -1,10 +1,10 @@
-import ExcelJS from "exceljs";
 import {
   saoPauloToday,
   type FinancialReport,
   type PayrollEmployee,
 } from "@crm/contracts";
 import { describe, expect, it, vi } from "vitest";
+import ExcelJS from "exceljs";
 import {
   authenticatedApp,
   configuredPlan,
