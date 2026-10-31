@@ -251,6 +251,16 @@ export const planPauseDetailsSchema = z.object({
   expectedReturn: z.iso.date().optional().or(z.literal("")),
 });
 
+/** Dados opcionais ao cancelar: valor devolvido ao cliente (estorno) e observação. */
+export const planCancellationDetailsSchema = z.object({
+  refundedInCents: z
+    .number()
+    .int("Informe o valor estornado em centavos.")
+    .min(0, "O valor estornado não pode ser negativo.")
+    .optional(),
+  refundNote: z.string().trim().max(500).optional().or(z.literal("")),
+});
+
 /** Dias inteiros entre duas datas AAAA-MM-DD (fim − início). */
 export function daysBetweenIsoDates(from: string, to: string) {
   return Math.round(

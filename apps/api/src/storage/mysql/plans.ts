@@ -4,6 +4,7 @@ import {
   type PlanCatalogInput,
   type PlanPaymentSummary,
   type PlanRenewalInput,
+  type PlanCancellationDetails,
   type PlanPauseDetails,
   type PlanStatus,
   type PlanTemplateInput,
@@ -11,7 +12,10 @@ import {
   type PlanTemplateUpdate,
   type SessionMovement,
 } from "@crm/contracts";
-import { validatePlanComposition } from "../../modules/plans/plan-services.js";
+import {
+  assertRefundWithinPlan,
+  validatePlanComposition,
+} from "../../modules/plans/plan-services.js";
 import { DomainError } from "../../repository.js";
 import { randomUUID } from "node:crypto";
 import type { MysqlRepositoryContext } from "./context.js";
@@ -489,6 +493,7 @@ export function createPlansRepository(
       planId: string,
       status: PlanStatus,
       pause: PlanPauseDetails = {},
+      cancellation: PlanCancellationDetails = {},
     ) {
       const client = await repositoryContext.pool.connect();
       try {
@@ -496,8 +501,9 @@ export function createPlansRepository(
         const current = await client.query<{
           status: PlanStatus;
           sourceTabId: string | null;
+          totalValueInCents: number;
         }>(
-          'SELECT status, source_tab_id AS "sourceTabId" FROM patient_plans WHERE clinic_id = $1 AND id = $2 FOR UPDATE',
+          'SELECT status, source_tab_id AS "sourceTabId", total_value_in_cents AS "totalValueInCents" FROM patient_plans WHERE clinic_id = $1 AND id = $2 FOR UPDATE',
           [clinicId, planId],
         );
         if (!current.rows[0]) {
@@ -526,6 +532,10 @@ export function createPlansRepository(
           await client.query("COMMIT");
           return unchanged;
         }
+        if (status === "cancelled")
+          assertRefundWithinPlan(current.rows[0], cancellation.refundedInCents);
+        const refundedInCents =
+          status === "cancelled" ? (cancellation.refundedInCents ?? 0) : 0;
         const cancellationValue =
           status === "cancelled"
             ? (
@@ -550,6 +560,8 @@ export function createPlansRepository(
              status = $3, updated_at = NOW(6),
              cancelled_at = CASE WHEN $3 = 'cancelled' THEN NOW(6) ELSE cancelled_at END,
              cancelled_value_in_cents = CASE WHEN $3 = 'cancelled' THEN $4 ELSE cancelled_value_in_cents END,
+             refunded_in_cents = CASE WHEN $3 = 'cancelled' THEN $7 ELSE refunded_in_cents END,
+             refund_note = CASE WHEN $3 = 'cancelled' THEN NULLIF($8, '') ELSE refund_note END,
              paused_at = CASE WHEN $3 = 'paused' THEN NOW(6) ELSE NULL END,
              pause_reason = CASE WHEN $3 = 'paused' THEN NULLIF($5, '') ELSE NULL END,
              pause_expected_return = CASE WHEN $3 = 'paused' THEN NULLIF($6, '') ELSE NULL END
@@ -561,6 +573,8 @@ export function createPlansRepository(
             cancellationValue,
             pause.reason ?? "",
             pause.expectedReturn ?? "",
+            refundedInCents,
+            refundedInCents ? (cancellation.refundNote ?? "") : "",
           ],
         );
         if (status === "cancelled") {

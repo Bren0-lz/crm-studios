@@ -101,6 +101,65 @@ describe.skipIf(!databaseUrl)("MySQL repository", () => {
     }
   });
 
+  it("records the refund to the client when cancelling a plan", async () => {
+    const [patients, services] = await Promise.all([
+      repository.listPatients(clinicId),
+      repository.listServices(clinicId),
+    ]);
+    const date = saoPauloToday();
+    const plan = await repository.createPatientPlan(
+      clinicId,
+      ownerId,
+      await configuredPlan({
+        services: [
+          {
+            serviceId: services[0]!.id,
+            totalSessions: 4,
+            totalValueInCents: 20000,
+          },
+        ],
+        patientId: patients[0]!.id,
+        serviceId: services[0]!.id,
+        name: "Integration refund plan",
+        kind: "fixed_package",
+        totalSessions: 4,
+        validFrom: date,
+        totalValueInCents: 20000,
+        installments: 1,
+        firstDueDate: date,
+      }),
+    );
+    await expect(
+      repository.updatePatientPlanStatus(
+        clinicId,
+        ownerId,
+        plan.id,
+        "cancelled",
+        {},
+        { refundedInCents: 20001 },
+      ),
+    ).rejects.toMatchObject({ code: "PLAN_REFUND_TOO_HIGH" });
+    const cancelled = await repository.updatePatientPlanStatus(
+      clinicId,
+      ownerId,
+      plan.id,
+      "cancelled",
+      {},
+      { refundedInCents: 7500, refundNote: "Devolvido via Pix" },
+    );
+    expect(cancelled).toMatchObject({
+      status: "cancelled",
+      refundedInCents: 7500,
+      refundNote: "Devolvido via Pix",
+    });
+    const another = new MysqlClinicRepository(pool);
+    expect(
+      (await another.listPatientPlans(clinicId)).find(
+        (item) => item.id === plan.id,
+      ),
+    ).toMatchObject({ refundedInCents: 7500, refundNote: "Devolvido via Pix" });
+  });
+
   it("persists the plan period and weekly frequency across repository instances", async () => {
     const template = await repository.createPlanTemplate(clinicId, ownerId, {
       name: "Integration periodic plan",

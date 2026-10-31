@@ -7,6 +7,7 @@ import {
   planTemplateInputSchema,
   planTemplateUpdateSchema,
   planTransitionSchema,
+  planCancellationDetailsSchema,
   planPauseDetailsSchema,
   isRecurringChargeValid,
   recurringSingleChargeIssue,
@@ -219,6 +220,9 @@ export function registerPlansRoutes(context: RouteContext) {
       const pause = planPauseDetailsSchema.parse(
         (request.body as { pause?: unknown }).pause ?? {},
       );
+      const cancellation = planCancellationDetailsSchema.parse(
+        (request.body as { cancellation?: unknown }).cancellation ?? {},
+      );
 
       assertPermissions(
         request,
@@ -230,6 +234,7 @@ export function registerPlansRoutes(context: RouteContext) {
         id,
         status,
         pause,
+        cancellation,
       );
       if (!plan)
         return reply.status(404).send({
