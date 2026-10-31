@@ -233,11 +233,16 @@ describe("per-operation API authorization", () => {
     const routes: [string, PermissionKey][] = [
       [`/reports/sales/period.xlsx?${range}`, "reports.sales_export"],
       ["/reports/sales.xlsx?month=2025-01", "reports.sales_export"],
-      [`/reports/management.csv?${range}`, "reports.management_export"],
+      [`/reports/management.xlsx?${range}`, "reports.management_export"],
       [`/reports/clients/details/export?${range}`, "reports.clients_export"],
+      [
+        `/reports/clients/details/export.xlsx?${range}`,
+        "reports.clients_export",
+      ],
       [`/reports/campaigns.xlsx?${range}`, "reports.campaigns_export"],
       ["/patients/export?format=csv&columns=fullName", "patients.export"],
       [`/reports/dre/export?${range}`, "reports.dre_export"],
+      [`/reports/dre/export.xlsx?${range}`, "reports.dre_export"],
       [
         "/reports/financial/export?periodFrom=2025-01-01&periodTo=2025-01-31",
         "reports.financial_export",

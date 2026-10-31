@@ -499,6 +499,22 @@ export const categoryDreInputSchema = z.object({
     "financial_result",
   ]),
 });
+/** Nome de cada grupo da DRE (tela, impressão e planilha). */
+export const dreGroupLabels: Record<
+  z.infer<typeof categoryDreInputSchema>["dreGroup"],
+  string
+> = {
+  unclassified: "Não classificado",
+  service_revenue: "Receita de serviços",
+  product_revenue: "Receita de produtos",
+  tax: "Impostos e deduções",
+  service_cost: "Custos de serviços",
+  product_cost: "Custos de produtos",
+  variable_cost: "Custos variáveis",
+  fixed_expense: "Despesas fixas",
+  depreciation: "Depreciação",
+  financial_result: "Resultado financeiro",
+};
 export const dreFilterSchema = z
   .object({
     from: z.iso.date(),

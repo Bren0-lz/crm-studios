@@ -247,19 +247,19 @@ export const patientDefaultExportColumns = patientExportColumns.filter(
 /** Cabeçalho pt-BR de cada coluna (coerente com o modelo de importação). */
 export const patientExportColumnLabels: Record<PatientExportColumn, string> = {
   ...patientProfileLabels,
-  fullName: "nome",
-  recordNumber: "prontuário",
-  cpf: "cpf",
-  phone: "telefone",
-  whatsapp: "whatsapp",
-  email: "email",
-  birthDate: "nascimento",
-  tags: "etiquetas",
-  status: "situação",
-  emergencyContactName: "contato de emergência",
-  emergencyContactPhone: "telefone de emergência",
-  notes: "observações",
-  createdAt: "cadastrado em",
+  fullName: "Nome",
+  recordNumber: "Prontuário",
+  cpf: "CPF",
+  phone: "Telefone",
+  whatsapp: "WhatsApp",
+  email: "E-mail",
+  birthDate: "Nascimento",
+  tags: "Etiquetas",
+  status: "Situação",
+  emergencyContactName: "Contato de emergência",
+  emergencyContactPhone: "Telefone de emergência",
+  notes: "Observações",
+  createdAt: "Cadastrado em",
 };
 
 /**

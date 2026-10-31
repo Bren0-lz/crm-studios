@@ -10,7 +10,7 @@ import {
 import { open, change } from "../../test-support/workflow-ui";
 
 describe("client reports through real HTTP handlers", () => {
-  it("filters a client report, selects export columns and downloads a CSV", async () => {
+  it("filters a client report, selects export columns and downloads a spreadsheet", async () => {
     const { repository } = await setupApi();
     await repository.createPatient(clinicId, {
       cpf: nextTestCpf(),
@@ -67,11 +67,11 @@ describe("client reports through real HTTP handlers", () => {
     );
     fireEvent.click(exportButton);
     await waitFor(() => expect(downloads).toHaveLength(1));
-    expect(downloads[0]!.type).toContain("text/csv");
+    expect(downloads[0]!.size).toBeGreaterThan(0);
     const exportCall = vi
       .mocked(fetch)
       .mock.calls.find(([input]) =>
-        String(input).includes("/reports/clients/details/export?"),
+        String(input).includes("/reports/clients/details/export.xlsx?"),
       );
     expect(
       new URL(String(exportCall?.[0]), "http://localhost").searchParams

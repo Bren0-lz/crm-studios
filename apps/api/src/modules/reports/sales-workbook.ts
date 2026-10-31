@@ -4,15 +4,18 @@ import type {
   SalesPeriodReport,
   SalesReportPeriod,
 } from "@crm/contracts";
-import ExcelJS from "exceljs";
+import type ExcelJS from "exceljs";
+import {
+  addTableSheet,
+  createWorkbook,
+  sheetDateTime,
+  workbookBuffer,
+  type SheetCell,
+  type SheetColumnKind,
+} from "../../infrastructure/spreadsheet.js";
 
-const currencyFormat = '"R$" #,##0.00;[Red]("R$" #,##0.00)';
+// Usados pela planilha de campanhas (campaign-workbook.ts).
 export const dateFormat = "dd/mm/yyyy hh:mm";
-const typeLabels: Record<SaleMovement["sourceType"], string> = {
-  plan: "Plano",
-  service: "Serviço avulso",
-  product: "Produto",
-};
 
 export function heading(sheet: ExcelJS.Worksheet) {
   sheet.getRow(1).font = { bold: true, color: { argb: "FFFFFFFF" } };
@@ -28,213 +31,281 @@ export function heading(sheet: ExcelJS.Worksheet) {
   };
 }
 
+const typeLabels: Record<SaleMovement["sourceType"], string> = {
+  plan: "Plano",
+  service: "Serviço avulso",
+  product: "Produto",
+};
+
+type ItemSummary = SalesReportPeriod["byItem"][number];
+type TopBuyer = SalesReportPeriod["topBuyers"][number];
+type WithoutReturn = SalesReport["patientsWithoutReturn"][number];
+
+interface SummaryLine {
+  label: string;
+  kind: SheetColumnKind;
+  current: SheetCell;
+  previous?: SheetCell;
+}
+
+const money = (cents: number) => cents / 100;
+const optionalMoney = (cents: number | undefined) =>
+  cents === undefined ? null : cents / 100;
+
 export async function salesReportToXlsx(
   report: SalesReport | SalesPeriodReport,
 ): Promise<Buffer> {
-  const workbook = new ExcelJS.Workbook();
-  workbook.creator = "Studios Aryana";
-  workbook.created = new Date(report.generatedAt);
+  const workbook = createWorkbook(new Date(report.generatedAt));
 
   const isPeriod = "summary" in report;
   const current = isPeriod ? report.summary : report.current;
   const previous = isPeriod ? report.previous : report.previousComparable;
-  const changeInCents = report.changeInCents;
   const changePercent = report.changePercent;
 
-  const summary = workbook.addWorksheet("Resumo");
-  summary.columns = [
-    { header: "Indicador", key: "metric", width: 46 },
-    {
-      header: isPeriod ? "Período selecionado" : "Mês selecionado",
-      key: "current",
-      width: 26,
-    },
-    {
-      header: isPeriod ? "Período anterior" : "Mês anterior comparável",
-      key: "previous",
-      width: 28,
-    },
-  ];
-  heading(summary);
-  summary.addRow([
-    "Período",
-    `${current.from} a ${current.to}`,
-    `${previous.from} a ${previous.to}`,
-  ]);
-  const money = (label: string, value: (item: SalesReportPeriod) => number) => {
-    const row = summary.addRow([
+  const compare = (
+    label: string,
+    kind: SheetColumnKind,
+    value: (item: SalesReportPeriod) => number,
+  ): SummaryLine => {
+    const scale = kind === "currency" ? money : (item: number) => item;
+    return {
       label,
-      value(current) / 100,
-      value(previous) / 100,
-    ]);
-    row.getCell(2).numFmt = currencyFormat;
-    row.getCell(3).numFmt = currencyFormat;
-    return row;
+      kind,
+      current: scale(value(current)),
+      previous: scale(value(previous)),
+    };
   };
-  const count = (label: string, value: (item: SalesReportPeriod) => number) =>
-    summary.addRow([label, value(current), value(previous)]);
-  money("Vendas brutas", (item) => item.grossSalesInCents);
-  money(
-    "Cancelamentos das vendas do período",
-    (item) => item.cancelledInPeriodSalesInCents,
+  const lines: SummaryLine[] = [
+    {
+      label: "Período",
+      kind: "text",
+      current: `${current.from} a ${current.to}`,
+      previous: `${previous.from} a ${previous.to}`,
+    },
+    compare("Vendas brutas", "currency", (item) => item.grossSalesInCents),
+    compare(
+      "Cancelamentos das vendas do período",
+      "currency",
+      (item) => item.cancelledInPeriodSalesInCents,
+    ),
+    compare("Vendas líquidas", "currency", (item) => item.netSalesInCents),
+    compare(
+      "Descontos concedidos a clientes",
+      "currency",
+      (item) => item.customerDiscountInCents ?? 0,
+    ),
+    compare("Número de vendas", "integer", (item) => item.salesCount),
+    compare(
+      "Valor médio por venda",
+      "currency",
+      (item) => item.averageTicketInCents,
+    ),
+    compare("Clientes compradores", "integer", (item) => item.buyers),
+    compare(
+      "Novos compradores (primeira compra)",
+      "integer",
+      (item) => item.newBuyers,
+    ),
+    compare(
+      "Vendas do período já pagas",
+      "currency",
+      (item) => item.payment.paidInCents,
+    ),
+    compare(
+      "Vendas do período em aberto",
+      "currency",
+      (item) => item.payment.openInCents,
+    ),
+    compare(
+      "Vendas do período em atraso",
+      "currency",
+      (item) => item.payment.overdueInCents,
+    ),
+    compare(
+      "Cancelamentos de vendas anteriores (fora do líquido)",
+      "currency",
+      (item) => item.cancelledPriorSalesInCents,
+    ),
+    {
+      label: "Variação das vendas líquidas (R$)",
+      kind: "currency",
+      current: money(report.changeInCents),
+    },
+    changePercent === null
+      ? {
+          label: "Variação das vendas líquidas (%)",
+          kind: "text",
+          current: "Sem base de comparação",
+        }
+      : {
+          label: "Variação das vendas líquidas (%)",
+          kind: "percent",
+          current: changePercent / 100,
+        },
+    {
+      label: "Clientes sem retorno",
+      kind: "integer",
+      current: report.patientsWithoutReturn.length,
+    },
+  ];
+  const summary = addTableSheet(
+    workbook,
+    "Resumo",
+    [
+      {
+        header: "Indicador",
+        width: 46,
+        value: (line: SummaryLine) => line.label,
+      },
+      {
+        header: isPeriod ? "Período selecionado" : "Mês selecionado",
+        width: 26,
+        kind: (line) => line.kind,
+        value: (line) => line.current,
+      },
+      {
+        header: isPeriod ? "Período anterior" : "Mês anterior comparável",
+        width: 28,
+        kind: (line) => line.kind,
+        value: (line) => line.previous,
+      },
+    ],
+    lines,
   );
-  money("Vendas líquidas", (item) => item.netSalesInCents).font = {
-    bold: true,
-  };
-  money(
-    "Descontos concedidos a clientes",
-    (item) => item.customerDiscountInCents ?? 0,
+  // Linha 1 é o cabeçalho: a linha da planilha é o índice + 2.
+  summary.getRow(
+    lines.findIndex((line) => line.label === "Vendas líquidas") + 2,
+  ).font = { bold: true };
+
+  addTableSheet(
+    workbook,
+    "Vendas",
+    [
+      {
+        header: "Data movimento",
+        kind: "datetime",
+        value: (item: SaleMovement) => sheetDateTime(item.occurredAt),
+      },
+      {
+        header: "Movimento",
+        value: (item) => (item.kind === "sale" ? "Venda" : "Cancelamento"),
+      },
+      { header: "Tipo", value: (item) => typeLabels[item.sourceType] },
+      { header: "Cliente", value: (item) => item.patientName },
+      { header: "Item", value: (item) => item.itemName },
+      { header: "Quantidade", kind: "decimal", value: (item) => item.quantity },
+      {
+        header: "Valor (R$)",
+        kind: "currency",
+        value: (item) => money(item.amountInCents),
+      },
+      {
+        header: "Custo (R$)",
+        kind: "currency",
+        value: (item) => optionalMoney(item.costInCents),
+      },
+      {
+        header: "Data da venda original",
+        kind: "datetime",
+        value: (item) => sheetDateTime(item.saleOccurredAt),
+      },
+      { header: "ID do movimento", value: (item) => item.id },
+      { header: "ID da origem", value: (item) => item.sourceId },
+      { header: "ID do cliente", value: (item) => item.patientId },
+      { header: "ID da conta", value: (item) => item.receivableId ?? "" },
+    ],
+    report.sales,
   );
-  count("Número de vendas", (item) => item.salesCount);
-  money("Valor médio por venda", (item) => item.averageTicketInCents);
-  count("Clientes compradores", (item) => item.buyers);
-  count("Novos compradores (primeira compra)", (item) => item.newBuyers);
-  money("Vendas do período já pagas", (item) => item.payment.paidInCents);
-  money("Vendas do período em aberto", (item) => item.payment.openInCents);
-  money("Vendas do período em atraso", (item) => item.payment.overdueInCents);
-  money(
-    "Cancelamentos de vendas anteriores (fora do líquido)",
-    (item) => item.cancelledPriorSalesInCents,
+
+  addTableSheet(
+    workbook,
+    "Por item",
+    [
+      {
+        header: "Tipo",
+        value: (item: ItemSummary) => typeLabels[item.sourceType],
+      },
+      { header: "Item", width: 40, value: (item) => item.label },
+      { header: "Vendas", kind: "integer", value: (item) => item.salesCount },
+      { header: "Quantidade", kind: "decimal", value: (item) => item.quantity },
+      {
+        header: "Bruto (R$)",
+        kind: "currency",
+        value: (item) => money(item.grossInCents),
+      },
+      {
+        header: "Cancelado (R$)",
+        kind: "currency",
+        value: (item) => money(item.cancelledInCents),
+      },
+      {
+        header: "Desconto a clientes (R$)",
+        kind: "currency",
+        value: (item) => money(item.customerDiscountInCents),
+      },
+      {
+        header: "Líquido (R$)",
+        kind: "currency",
+        value: (item) => money(item.netInCents),
+      },
+      {
+        header: "Custo (R$)",
+        kind: "currency",
+        value: (item) => optionalMoney(item.costInCents),
+      },
+      {
+        header: "Margem",
+        kind: "percent",
+        value: (item) =>
+          item.costInCents === undefined || item.netInCents <= 0
+            ? null
+            : (item.netInCents - item.costInCents) / item.netInCents,
+      },
+    ],
+    current.byItem,
   );
-  summary.getCell(
-    `B${summary.addRow(["Variação das vendas líquidas (R$)", changeInCents / 100, null]).number}`,
-  ).numFmt = currencyFormat;
-  summary.getCell(
-    `B${
-      summary.addRow([
-        "Variação das vendas líquidas (%)",
-        changePercent === null ? "Sem base de comparação" : changePercent / 100,
-        null,
-      ]).number
-    }`,
-  ).numFmt = "0.0%";
-  summary.addRow([
-    "Clientes sem retorno",
-    report.patientsWithoutReturn.length,
-    null,
-  ]);
 
-  const sales = workbook.addWorksheet("Vendas");
-  sales.columns = [
-    { header: "Data movimento", key: "date", width: 22 },
-    { header: "Movimento", key: "kind", width: 18 },
-    { header: "Tipo", key: "type", width: 16 },
-    { header: "Cliente", key: "patient", width: 28 },
-    { header: "Item", key: "item", width: 36 },
-    { header: "Quantidade", key: "quantity", width: 15 },
-    { header: "Valor (R$)", key: "amount", width: 20 },
-    { header: "Custo (R$)", key: "cost", width: 16 },
-    { header: "Data da venda original", key: "saleDate", width: 24 },
-    { header: "ID do movimento", key: "id", width: 45 },
-    { header: "ID da origem", key: "sourceId", width: 40 },
-    { header: "ID do cliente", key: "patientId", width: 40 },
-    { header: "ID da conta", key: "receivableId", width: 40 },
-  ];
-  heading(sales);
-  for (const item of report.sales) {
-    const row = sales.addRow({
-      date: new Date(item.occurredAt),
-      kind: item.kind === "sale" ? "Venda" : "Cancelamento",
-      type: typeLabels[item.sourceType],
-      patient: item.patientName,
-      item: item.itemName,
-      quantity: item.quantity,
-      amount: item.amountInCents / 100,
-      cost: item.costInCents === undefined ? null : item.costInCents / 100,
-      saleDate: item.saleOccurredAt ? new Date(item.saleOccurredAt) : null,
-      id: item.id,
-      sourceId: item.sourceId,
-      patientId: item.patientId,
-      receivableId: item.receivableId ?? "",
-    });
-    row.getCell(1).numFmt = dateFormat;
-    row.getCell(7).numFmt = currencyFormat;
-    row.getCell(8).numFmt = currencyFormat;
-    row.getCell(9).numFmt = dateFormat;
-  }
+  addTableSheet(
+    workbook,
+    "Maiores compradores",
+    [
+      { header: "Cliente", value: (item: TopBuyer) => item.patientName },
+      { header: "Vendas", kind: "integer", value: (item) => item.salesCount },
+      {
+        header: "Líquido (R$)",
+        kind: "currency",
+        value: (item) => money(item.netInCents),
+      },
+      {
+        header: "Primeira compra no período",
+        value: (item) => (item.firstPurchase ? "Sim" : "Não"),
+      },
+      { header: "ID do cliente", value: (item) => item.patientId },
+    ],
+    current.topBuyers,
+  );
 
-  const items = workbook.addWorksheet("Por item");
-  items.columns = [
-    { header: "Tipo", key: "type", width: 16 },
-    { header: "Item", key: "item", width: 40 },
-    { header: "Vendas", key: "sales", width: 10 },
-    { header: "Quantidade", key: "quantity", width: 12 },
-    { header: "Bruto (R$)", key: "gross", width: 16 },
-    { header: "Cancelado (R$)", key: "cancelled", width: 16 },
-    { header: "Desconto a clientes (R$)", key: "discount", width: 24 },
-    { header: "Líquido (R$)", key: "net", width: 16 },
-    { header: "Custo (R$)", key: "cost", width: 14 },
-    { header: "Margem", key: "margin", width: 10 },
-  ];
-  heading(items);
-  for (const item of current.byItem) {
-    const row = items.addRow({
-      type: typeLabels[item.sourceType],
-      item: item.label,
-      sales: item.salesCount,
-      quantity: item.quantity,
-      gross: item.grossInCents / 100,
-      cancelled: item.cancelledInCents / 100,
-      discount: item.customerDiscountInCents / 100,
-      net: item.netInCents / 100,
-      cost: item.costInCents === undefined ? null : item.costInCents / 100,
-      margin:
-        item.costInCents === undefined || item.netInCents <= 0
-          ? null
-          : (item.netInCents - item.costInCents) / item.netInCents,
-    });
-    for (const cell of [5, 6, 7, 8, 9])
-      row.getCell(cell).numFmt = currencyFormat;
-    row.getCell(10).numFmt = "0.0%";
-  }
+  addTableSheet(
+    workbook,
+    "Sem retorno",
+    [
+      { header: "Cliente", value: (item: WithoutReturn) => item.patientName },
+      {
+        header: "Último atendimento concluído",
+        kind: "datetime",
+        value: (item) => sheetDateTime(item.lastCompletedAt),
+      },
+      {
+        header: "Próximo agendamento",
+        kind: "datetime",
+        value: (item) => sheetDateTime(item.nextAppointmentAt),
+      },
+      { header: "ID do cliente", value: (item) => item.patientId },
+    ],
+    report.patientsWithoutReturn,
+  );
 
-  const buyers = workbook.addWorksheet("Maiores compradores");
-  buyers.columns = [
-    { header: "Cliente", key: "patient", width: 30 },
-    { header: "Vendas", key: "sales", width: 10 },
-    { header: "Líquido (R$)", key: "net", width: 16 },
-    { header: "Primeira compra no período", key: "first", width: 26 },
-    { header: "ID do cliente", key: "id", width: 40 },
-  ];
-  heading(buyers);
-  for (const item of current.topBuyers) {
-    buyers
-      .addRow({
-        patient: item.patientName,
-        sales: item.salesCount,
-        net: item.netInCents / 100,
-        first: item.firstPurchase ? "Sim" : "Não",
-        id: item.patientId,
-      })
-      .getCell(3).numFmt = currencyFormat;
-  }
-
-  const withoutReturn = workbook.addWorksheet("Sem retorno");
-  withoutReturn.columns = [
-    { header: "Cliente", key: "patient", width: 30 },
-    { header: "Último atendimento concluído", key: "last", width: 29 },
-    { header: "Próximo agendamento", key: "next", width: 25 },
-    { header: "ID do cliente", key: "id", width: 40 },
-  ];
-  heading(withoutReturn);
-  for (const item of report.patientsWithoutReturn) {
-    const row = withoutReturn.addRow({
-      patient: item.patientName,
-      last: new Date(item.lastCompletedAt),
-      next: item.nextAppointmentAt ? new Date(item.nextAppointmentAt) : null,
-      id: item.patientId,
-    });
-    row.getCell(2).numFmt = dateFormat;
-    row.getCell(3).numFmt = dateFormat;
-  }
-
-  const definitions = workbook.addWorksheet("Definições");
-  definitions.columns = [
-    { header: "Indicador", key: "metric", width: 35 },
-    { header: "Definição", key: "definition", width: 105 },
-  ];
-  heading(definitions);
-  definitions.addRows([
+  let definitions: [string, string][] = [
     [
       "Vendas brutas",
       "Valor dos planos criados e dos itens das comandas fechadas no período, pela data local da venda.",
@@ -284,16 +355,13 @@ export async function salesReportToXlsx(
       "Fonte",
       "IDs nas abas de detalhe apontam para plano, comanda, conta e cliente no CRM.",
     ],
-  ]);
-
+  ];
   const monthOnly = ["Mês anterior comparável", "Sem retorno"];
-  for (let row = definitions.rowCount; row >= 2; row--) {
-    const label = String(definitions.getCell(row, 1).value);
-    if (isPeriod ? monthOnly.includes(label) : label === "Período anterior")
-      definitions.spliceRows(row, 1);
-  }
-  if ("summary" in report) {
-    definitions.addRow([
+  definitions = definitions.filter(([label]) =>
+    isPeriod ? !monthOnly.includes(label) : label !== "Período anterior",
+  );
+  if ("summary" in report)
+    definitions.push([
       "Sem retorno",
       "Clientes atendidos de " +
         report.returnReference.from +
@@ -305,8 +373,19 @@ export async function salesReportToXlsx(
         report.to +
         ".",
     ]);
-  }
+  addTableSheet(
+    workbook,
+    "Definições",
+    [
+      {
+        header: "Indicador",
+        width: 35,
+        value: ([label]: [string, string]) => label,
+      },
+      { header: "Definição", width: 105, value: ([, text]) => text },
+    ],
+    definitions,
+  );
 
-  const output = await workbook.xlsx.writeBuffer();
-  return Buffer.from(output);
+  return workbookBuffer(workbook);
 }

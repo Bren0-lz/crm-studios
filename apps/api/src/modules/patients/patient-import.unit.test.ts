@@ -257,6 +257,29 @@ describe("validatePatientImport", () => {
     });
   });
 
+  it("junta DDD e número da planilha exportada pelo CRM", () => {
+    const analysis = validatePatientImport(
+      [
+        [
+          "Nome",
+          "DDD (Telefone)",
+          "Telefone",
+          "DDD (WhatsApp)",
+          "WhatsApp",
+          "CPF",
+        ],
+        ["Célia Rocha", "11", "98888-0000", "21", "97777-0000", "52998224725"],
+      ],
+      [],
+    );
+    expect(analysis.errors).toEqual([]);
+    expect(analysis.rows[0]?.status).toBe("valid");
+    expect(analysis.rows[0]?.input).toMatchObject({
+      phone: "11988880000",
+      whatsapp: "21977770000",
+    });
+  });
+
   it("gera erro geral quando falta nome ou telefone no cabeçalho", () => {
     const semTelefone = validatePatientImport(
       [

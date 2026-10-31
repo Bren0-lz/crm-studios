@@ -1,4 +1,4 @@
-import { financialEntriesCsv, type FinancialEntry } from "@crm/contracts";
+import type { FinancialEntry } from "@crm/contracts";
 import { describe, expect, it } from "vitest";
 import {
   cashFlowColumns,
@@ -82,16 +82,6 @@ describe("modelo do relatório financeiro", () => {
       ["Sem filial", -5_000],
     ]);
     expect(rows[1]!.id).toBe(NO_BRANCH);
-  });
-
-  it("gera o CSV com sinal, aspas escapadas e BOM", () => {
-    const csv = financialEntriesCsv(entries, () => "Centro");
-    expect(csv.startsWith("﻿")).toBe(true);
-    const lines = csv.slice(1).split("\r\n");
-    expect(lines[1]).toContain('"05/10/2026";"Entrada";"Plano mensal"');
-    expect(lines[1]).toContain('"123,45"');
-    expect(lines[2]).toContain('"Conta ""luz"""');
-    expect(lines[2]).toContain('"-50,00"');
   });
 
   it("compara meses inteiros com os meses anteriores e o resto com os dias antes", () => {

@@ -28,6 +28,8 @@ import {
 } from "@crm/contracts";
 import { z } from "zod";
 import type { RouteContext } from "../../infrastructure/route-context.js";
+import { xlsxContentType } from "../../infrastructure/spreadsheet.js";
+import { dreReportToXlsx } from "../reports/report-workbooks.js";
 import { payrollOnlyError } from "./payroll.js";
 export function registerFinanceOperationRoutes({
   app,
@@ -461,10 +463,8 @@ export function registerFinanceOperationRoutes({
       costCenterId,
     );
   });
-  app.get(
-    "/reports/dre/export",
-    { preHandler: authenticate },
-    async (request) => {
+  for (const path of ["/reports/dre/export", "/reports/dre/export.xlsx"])
+    app.get(path, { preHandler: authenticate }, async (request, reply) => {
       const { from, to, costCenterId } = dreFilterSchema.parse(request.query);
       const report = await repository.getDreReport(
         request.user.clinicId,
@@ -479,9 +479,16 @@ export function registerFinanceOperationRoutes({
         "report",
         { from, to, costCenterId },
       );
+      if (path.endsWith(".xlsx"))
+        return reply
+          .header("Content-Type", xlsxContentType)
+          .header(
+            "Content-Disposition",
+            `attachment; filename="dre-${from}-${to}.xlsx"`,
+          )
+          .send(await dreReportToXlsx(report));
       return report;
-    },
-  );
+    });
   app.get("/finance/dre", { preHandler: authenticate }, async (request) => {
     const { from, to, costCenterId } = dreFilterSchema.parse(request.query);
     return repository.getDreReport(
