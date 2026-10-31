@@ -233,13 +233,6 @@ export function missingPlanFields(plan: GuidedSingleForm) {
   ].filter((item): item is string => Boolean(item));
 }
 
-export const guidedStepLabels: Record<GuidedPatientNext, string> = {
-  demonstration: "Aula experimental",
-  plan: "Assinar um plano",
-  single: "Serviço avulso",
-  none: "Só cadastrar por enquanto",
-};
-
 export const guidedStepOrder = ["demonstration", "plan", "single"] as const;
 
 export const guidedStepPermissions: Record<

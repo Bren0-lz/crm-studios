@@ -21,7 +21,15 @@ import {
   type Product,
   withoutAutomaticPatientTags,
 } from "@crm/contracts";
-import { MessageCircle, Plus, Trash2 } from "lucide-react";
+import {
+  CalendarPlus,
+  Layers,
+  MessageCircle,
+  ShoppingBag,
+  Ticket,
+  Trash2,
+  type LucideIcon,
+} from "lucide-react";
 import {
   type Dispatch,
   type FormEvent,
@@ -69,7 +77,6 @@ import {
   defaultSingleForm,
   guidedNotice,
   guidedPlanKinds,
-  guidedStepLabels,
   guidedStepOrder,
   guidedStepPermissions,
   guidedSubmitLabels,
@@ -166,15 +173,17 @@ export function PatientModal({
   const guidedSteps = patient
     ? []
     : guidedStepOrder.filter((step) => can(guidedStepPermissions[step]));
-  const [step, setStep] = useState<GuidedPatientNext>("none");
+  const canBookDemonstration = guidedSteps.includes("demonstration");
+  const canSellPlans = guidedSteps.includes("plan");
+  const canSellSingles = guidedSteps.includes("single");
+  // Aula experimental adicionada: é agendada sozinha (sem planos nem avulsos).
+  const [demonstrationAdded, setDemonstrationAdded] = useState(false);
   const [demonstration, setDemonstration] = useState(
     defaultGuidedDemonstration,
   );
-  // Planos do passo "Assinar um plano": o cliente pode assinar vários de uma vez.
+  // Planos adicionados no cadastro: o cliente pode assinar vários de uma vez.
   const nextPlanId = useRef(1);
-  const [plans, setPlans] = useState<GuidedPlanEntry[]>(() => [
-    defaultGuidedPlanEntry(0),
-  ]);
+  const [plans, setPlans] = useState<GuidedPlanEntry[]>([]);
   function updatePlan(id: number, patch: Partial<GuidedPlanEntry>) {
     setPlans((current) =>
       current.map((entry) =>
@@ -198,8 +207,19 @@ export function PatientModal({
         ),
       );
   }
-  // Serviços avulsos comprados junto com os planos (passo "Assinar um plano").
+  // Serviços avulsos adicionados (sozinhos ou junto com os planos).
   const [singles, setSingles] = useState<GuidedSingleEntry[]>([]);
+  // Próximo passo enviado à API, derivado do que foi adicionado: um avulso sozinho é
+  // `single`; planos (com ou sem avulsos) são `plan`; nada (ou só produtos) é `none`.
+  const step: GuidedPatientNext = demonstrationAdded
+    ? "demonstration"
+    : plans.length
+      ? "plan"
+      : singles.length === 1
+        ? "single"
+        : singles.length
+          ? "plan"
+          : "none";
   function singleFormSetter(
     id: number,
   ): Dispatch<SetStateAction<GuidedSingleForm>> {
@@ -216,8 +236,6 @@ export function PatientModal({
         ),
       );
   }
-  const [singleForm, setSingleForm] =
-    useState<GuidedSingleForm>(defaultSingleForm);
   function editDiscount<T extends { discount?: PatientDiscount | undefined }>(
     discount: PatientDiscount | undefined,
     setForm: Dispatch<SetStateAction<T>>,
@@ -316,11 +334,10 @@ export function PatientModal({
     canEnroll && planGroupMissing(groups, plan.services, groupId);
   const dirty = useFormDirty({
     form,
-    step,
+    demonstrationAdded,
     demonstration,
     plans,
     singles,
-    singleForm,
     productLines,
     orderDiscount,
   });
@@ -330,37 +347,21 @@ export function PatientModal({
   const singleLabel = (index: number) =>
     singles.length > 1 ? `Serviço avulso ${index + 1}` : "Serviço avulso";
   const productOf = (id: string) => products?.find((item) => item.id === id);
-  // Produtos só entram junto com plano ou serviço avulso.
-  const soldProducts =
-    step === "plan" || step === "single"
-      ? productLines.filter((line) => productOf(line.productId))
-      : [];
+  // Produtos vendidos depois do cadastro, junto com o que mais foi adicionado.
+  const soldProducts = productLines.filter((line) => productOf(line.productId));
   const orderPlans: (OrderPlanItem & { form: GuidedSingleForm })[] = [
-    ...(step === "plan"
-      ? [
-          ...plans.map((entry, index) => ({
-            key: `plan-${entry.id}`,
-            label: planLabel(index),
-            form: entry.form,
-            terms: withPlanFirstCharge(entry.form, slotsOf(entry.groupId)),
-          })),
-          ...singles.map((entry, index) => ({
-            key: `plan-${entry.id}`,
-            label: singleLabel(index),
-            form: entry.form,
-            terms: entry.form,
-          })),
-        ]
-      : step === "single"
-        ? [
-            {
-              key: "single",
-              label: "Serviço avulso",
-              form: singleForm,
-              terms: singleForm,
-            },
-          ]
-        : []),
+    ...plans.map((entry, index) => ({
+      key: `plan-${entry.id}`,
+      label: planLabel(index),
+      form: entry.form,
+      terms: withPlanFirstCharge(entry.form, slotsOf(entry.groupId)),
+    })),
+    ...singles.map((entry, index) => ({
+      key: `plan-${entry.id}`,
+      label: singleLabel(index),
+      form: entry.form,
+      terms: entry.form,
+    })),
   ]
     .filter((item) => item.form.planTemplateId)
     .map((item) => ({
@@ -407,25 +408,24 @@ export function PatientModal({
           !demonstration.startsAt && "Data e horário",
         ].filter((item): item is string => Boolean(item))
       : []),
-    ...(step === "plan"
-      ? plans.flatMap(({ form: plan, groupId }, index) =>
-          [
-            ...missingPlanFields(plan),
-            ...(groupMissing(plan, groupId) ? ["Turma"] : []),
-          ].map((item) =>
-            plans.length > 1 ? `${planLabel(index)}: ${item}` : item,
-          ),
-        )
+    ...plans.flatMap(({ form: plan, groupId }, index) =>
+      [
+        ...missingPlanFields(plan),
+        ...(groupMissing(plan, groupId) ? ["Turma"] : []),
+      ].map((item) =>
+        plans.length > 1 ? `${planLabel(index)}: ${item}` : item,
+      ),
+    ),
+    ...singles.flatMap(({ form: single }, index) =>
+      missingPlanFields(single).map((item) =>
+        step === "single" ? item : `${singleLabel(index)}: ${item}`,
+      ),
+    ),
+    // A API só junta vários avulsos quando há um plano principal.
+    ...(!plans.length && singles.length > 1
+      ? ["Plano (para vender mais de um serviço avulso)"]
       : []),
-    ...(step === "plan"
-      ? singles.flatMap(({ form: single }, index) =>
-          missingPlanFields(single).map(
-            (item) => `${singleLabel(index)}: ${item}`,
-          ),
-        )
-      : []),
-    ...(step === "single" ? missingPlanFields(singleForm) : []),
-    ...((step === "plan" || step === "single") && productLines.length
+    ...(productLines.length
       ? productLines.flatMap((line, index) => {
           const label =
             productLines.length > 1 ? `Produto ${index + 1}` : "Produto";
@@ -454,12 +454,16 @@ export function PatientModal({
         },
       };
     }
-    if (
-      (step === "plan" &&
-        [...plans, ...singles].some((entry) => !entry.form.planTemplateId)) ||
-      (step === "single" && !singleForm.planTemplateId)
-    )
+    if ([...plans, ...singles].some((entry) => !entry.form.planTemplateId))
       return "Selecione um plano cadastrado.";
+    if (step === "single")
+      return {
+        next: "single",
+        patient: form,
+        plan: withOrderShare(singles[0]!.form, `plan-${singles[0]!.id}`),
+      };
+    if (step === "plan" && !plans.length)
+      return "Para vender mais de um serviço avulso, adicione também um plano.";
     if (step === "plan") {
       if (plans.some((entry) => groupMissing(entry.form, entry.groupId)))
         return "Selecione a turma do plano de aulas em grupo.";
@@ -496,12 +500,6 @@ export function PatientModal({
           : {}),
       };
     }
-    if (step === "single")
-      return {
-        next: "single",
-        patient: form,
-        plan: withOrderShare(singleForm, "single"),
-      };
     return { next: "none", patient: form };
   }
   /**
@@ -587,8 +585,9 @@ export function PatientModal({
     try {
       if (input.next === "none") {
         const created = await api.createPatient(form);
+        const soldNotice = await sellProducts(created.id);
         toast.success(
-          `Cadastro de ${patientFirstName(created.fullName)} criado.`,
+          `Cadastro de ${patientFirstName(created.fullName)} criado.${soldNotice}`,
         );
         onSaved(created);
         return;
@@ -691,11 +690,89 @@ export function PatientModal({
       setLoading(false);
     }
   }
-  const addProductButton = sellsProducts && (
-    <button type="button" className="secondary-button" onClick={addProductLine}>
-      <Plus size={16} aria-hidden="true" />
-      Adicionar produto
-    </button>
+  function addItem(key: "demonstration" | "plan" | "single" | "product") {
+    if (key === "demonstration") return setDemonstrationAdded(true);
+    if (key === "product") return addProductLine();
+    const id = nextPlanId.current++;
+    if (key === "plan")
+      return setPlans((current) => [...current, defaultGuidedPlanEntry(id)]);
+    setSingles((current) => [...current, { id, form: defaultSingleForm() }]);
+  }
+  // Itens que podem entrar no cadastro, cada um com o seu botão "Adicionar".
+  const sellsItems = plans.length + singles.length;
+  const addOptions: {
+    key: "demonstration" | "plan" | "single" | "product";
+    label: string;
+    detail: string;
+    icon: LucideIcon;
+    disabled: boolean;
+  }[] = [
+    ...(canBookDemonstration
+      ? [
+          {
+            key: "demonstration" as const,
+            label: "Agendar aula experimental",
+            detail: "Reserva um horário na agenda",
+            icon: CalendarPlus,
+            disabled: demonstrationAdded || sellsItems > 0,
+          },
+        ]
+      : []),
+    ...(canSellPlans
+      ? [
+          {
+            key: "plan" as const,
+            label: "Adicionar plano",
+            detail: "Pacote ou mensalidade, com turma",
+            icon: Layers,
+            disabled: demonstrationAdded || sellsItems >= maxGuidedPlans,
+          },
+        ]
+      : []),
+    ...(canSellSingles
+      ? [
+          {
+            key: "single" as const,
+            label: "Adicionar serviço avulso",
+            detail: "Sessão ou procedimento pago à parte",
+            icon: Ticket,
+            disabled:
+              demonstrationAdded ||
+              sellsItems >= maxGuidedPlans ||
+              // Mais de um avulso só junto com um plano.
+              (!plans.length && singles.length > 0),
+          },
+        ]
+      : []),
+    ...(sellsProducts
+      ? [
+          {
+            key: "product" as const,
+            label: "Adicionar produto",
+            detail: "Item do estoque vendido na hora",
+            icon: ShoppingBag,
+            disabled: false,
+          },
+        ]
+      : []),
+  ];
+  const addedSummary = demonstrationAdded
+    ? "A aula experimental é agendada sozinha; para vender planos ou serviços, remova-a."
+    : sellsItems || productLines.length
+      ? "Os itens adicionados aparecem abaixo e podem ser removidos."
+      : "Nada adicionado: só o cadastro do cliente será salvo.";
+  const removeButton = (label: string, onRemove: () => void) => (
+    <div className="guided-plan-actions">
+      <button
+        type="button"
+        className="secondary-button"
+        disabled={loading}
+        onClick={onRemove}
+      >
+        <Trash2 size={16} aria-hidden="true" />
+        {`Remover ${label}`}
+      </button>
+    </div>
   );
   const productBlocks = productLines.map((line, index) => (
     <fieldset className="form-fieldset span-2" key={`product-${line.key}`}>
@@ -923,218 +1000,144 @@ export function PatientModal({
             </label>
           </div>
         </details>
-        {guidedSteps.length > 0 && (
-          <fieldset className="form-fieldset span-2">
+        {addOptions.length > 0 && (
+          <fieldset className="form-fieldset guided-add span-2">
             <legend>O que o cliente vai fazer?</legend>
-            <div className="form-fieldset-grid">
-              {[...guidedSteps, "none" as const].map((value) => (
-                <label className="checkbox-field" key={value}>
-                  <input
-                    type="radio"
-                    name="guided-next-step"
-                    value={value}
-                    checked={step === value}
-                    onChange={() => setStep(value)}
-                  />
-                  {guidedStepLabels[value]}
-                </label>
-              ))}
+            <p className="field-hint">{addedSummary}</p>
+            <div className="guided-add-grid">
+              {addOptions.map(
+                ({ key, label, detail, icon: Icon, disabled }) => (
+                  <button
+                    type="button"
+                    key={key}
+                    className="guided-add-option"
+                    aria-label={label}
+                    aria-describedby={`guided-add-${key}`}
+                    disabled={disabled || !editable || loading}
+                    onClick={() => addItem(key)}
+                  >
+                    <span className="guided-add-icon" aria-hidden="true">
+                      <Icon size={18} />
+                    </span>
+                    <span className="guided-add-text">
+                      <strong>{label}</strong>
+                      <small id={`guided-add-${key}`}>{detail}</small>
+                    </span>
+                  </button>
+                ),
+              )}
             </div>
           </fieldset>
         )}
-        {step === "demonstration" && (
+        {demonstrationAdded && (
           <fieldset className="form-fieldset span-2">
             <legend>Aula experimental</legend>
             <GuidedDemonstrationFields
               value={demonstration}
               setValue={setDemonstration}
             />
+            {removeButton("aula experimental", () =>
+              setDemonstrationAdded(false),
+            )}
           </fieldset>
         )}
-        {step === "plan" &&
-          plans.map((entry, index) => (
-            <fieldset className="form-fieldset span-2" key={entry.id}>
-              <legend>{planLabel(index)}</legend>
-              <GuidedPlanFields
-                form={entry.form}
-                setForm={planFormSetter(entry.id)}
-                onServiceChange={() => updatePlan(entry.id, { groupId: "" })}
-                groupSlots={slotsOf(entry.groupId)}
-                patientName={form.fullName}
-                pixKey={pixKey}
-                pixTemplate={pixTemplate}
-                kindField={
-                  <label>
-                    Modelo
-                    <select
-                      value={entry.form.kind}
-                      onChange={(e) => {
-                        const kind = e.target.value as GuidedPlanForm["kind"];
-                        updatePlan(entry.id, {
-                          form: {
-                            ...entry.form,
-                            kind,
-                            // Recorrente: uma cobrança por ciclo.
-                            installments:
-                              kind === "recurring"
-                                ? 1
-                                : entry.form.installments,
-                            autoRenew:
-                              kind === "recurring" &&
-                              Boolean(entry.form.validUntil),
-                          },
-                        });
-                      }}
-                    >
-                      {guidedPlanKinds.map((kind) => (
-                        <option value={kind} key={kind}>
-                          {planKindLabels[kind]}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                }
-              >
-                <GuidedGroupField
-                  serviceIds={entry.form.services.map(
-                    (service) => service.serviceId,
-                  )}
-                  value={entry.groupId}
-                  onChange={(groupId) => updatePlan(entry.id, { groupId })}
-                  groups={groups}
-                  setGroups={setGroups}
-                />
-              </GuidedPlanFields>
-              {entry.form.planTemplateId && (
-                <PlanDiscountSummary
-                  discount={entry.form.discount}
-                  emptyLabel="Sem desconto neste plano."
-                  disabled={!editable || loading}
-                  onEdit={() =>
-                    editDiscount(entry.form.discount, planFormSetter(entry.id))
-                  }
-                />
-              )}
-              {plans.length > 1 && (
-                <div className="guided-plan-actions">
-                  <button
-                    type="button"
-                    className="secondary-button"
-                    onClick={() =>
-                      setPlans((current) =>
-                        current.filter((item) => item.id !== entry.id),
-                      )
-                    }
-                  >
-                    <Trash2 size={16} aria-hidden="true" />
-                    {`Remover ${planLabel(index).toLowerCase()}`}
-                  </button>
-                </div>
-              )}
-            </fieldset>
-          ))}
-        {step === "plan" &&
-          singles.map((entry, index) => (
-            <fieldset className="form-fieldset span-2" key={entry.id}>
-              <legend>{singleLabel(index)}</legend>
-              <GuidedPlanFields
-                form={entry.form}
-                setForm={singleFormSetter(entry.id)}
-                patientName={form.fullName}
-                pixKey={pixKey}
-                pixTemplate={pixTemplate}
-              />
-              {entry.form.planTemplateId && (
-                <PlanDiscountSummary
-                  discount={entry.form.discount}
-                  emptyLabel="Sem desconto neste serviço."
-                  disabled={!editable || loading}
-                  onEdit={() =>
-                    editDiscount(
-                      entry.form.discount,
-                      singleFormSetter(entry.id),
-                    )
-                  }
-                />
-              )}
-              <div className="guided-plan-actions">
-                <button
-                  type="button"
-                  className="secondary-button"
-                  onClick={() =>
-                    setSingles((current) =>
-                      current.filter((item) => item.id !== entry.id),
-                    )
-                  }
-                >
-                  <Trash2 size={16} aria-hidden="true" />
-                  {`Remover ${singleLabel(index).toLowerCase()}`}
-                </button>
-              </div>
-            </fieldset>
-          ))}
-        {step === "plan" && productBlocks}
-        {step === "plan" &&
-          (plans.length + singles.length < maxGuidedPlans || sellsProducts) && (
-            <div className="page-actions span-2">
-              {plans.length + singles.length < maxGuidedPlans && (
-                <>
-                  <button
-                    type="button"
-                    className="secondary-button"
-                    onClick={() =>
-                      setPlans((current) => [
-                        ...current,
-                        defaultGuidedPlanEntry(nextPlanId.current++),
-                      ])
-                    }
-                  >
-                    <Plus size={16} aria-hidden="true" />
-                    Adicionar outro plano
-                  </button>
-                  <button
-                    type="button"
-                    className="secondary-button"
-                    onClick={() =>
-                      setSingles((current) => [
-                        ...current,
-                        { id: nextPlanId.current++, form: defaultSingleForm() },
-                      ])
-                    }
-                  >
-                    <Plus size={16} aria-hidden="true" />
-                    Adicionar serviço avulso
-                  </button>
-                </>
-              )}
-              {addProductButton}
-            </div>
-          )}
-        {step === "single" && (
-          <fieldset className="form-fieldset span-2">
-            <legend>Serviço avulso</legend>
+        {plans.map((entry, index) => (
+          <fieldset className="form-fieldset span-2" key={entry.id}>
+            <legend>{planLabel(index)}</legend>
             <GuidedPlanFields
-              form={singleForm}
-              setForm={setSingleForm}
+              form={entry.form}
+              setForm={planFormSetter(entry.id)}
+              onServiceChange={() => updatePlan(entry.id, { groupId: "" })}
+              groupSlots={slotsOf(entry.groupId)}
+              patientName={form.fullName}
+              pixKey={pixKey}
+              pixTemplate={pixTemplate}
+              kindField={
+                <label>
+                  Modelo
+                  <select
+                    value={entry.form.kind}
+                    onChange={(e) => {
+                      const kind = e.target.value as GuidedPlanForm["kind"];
+                      updatePlan(entry.id, {
+                        form: {
+                          ...entry.form,
+                          kind,
+                          // Recorrente: uma cobrança por ciclo.
+                          installments:
+                            kind === "recurring" ? 1 : entry.form.installments,
+                          autoRenew:
+                            kind === "recurring" &&
+                            Boolean(entry.form.validUntil),
+                        },
+                      });
+                    }}
+                  >
+                    {guidedPlanKinds.map((kind) => (
+                      <option value={kind} key={kind}>
+                        {planKindLabels[kind]}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              }
+            >
+              <GuidedGroupField
+                serviceIds={entry.form.services.map(
+                  (service) => service.serviceId,
+                )}
+                value={entry.groupId}
+                onChange={(groupId) => updatePlan(entry.id, { groupId })}
+                groups={groups}
+                setGroups={setGroups}
+              />
+            </GuidedPlanFields>
+            {entry.form.planTemplateId && (
+              <PlanDiscountSummary
+                discount={entry.form.discount}
+                emptyLabel="Sem desconto neste plano."
+                disabled={!editable || loading}
+                onEdit={() =>
+                  editDiscount(entry.form.discount, planFormSetter(entry.id))
+                }
+              />
+            )}
+            {removeButton(planLabel(index).toLowerCase(), () =>
+              setPlans((current) =>
+                current.filter((item) => item.id !== entry.id),
+              ),
+            )}
+          </fieldset>
+        ))}
+        {singles.map((entry, index) => (
+          <fieldset className="form-fieldset span-2" key={entry.id}>
+            <legend>{singleLabel(index)}</legend>
+            <GuidedPlanFields
+              form={entry.form}
+              setForm={singleFormSetter(entry.id)}
               patientName={form.fullName}
               pixKey={pixKey}
               pixTemplate={pixTemplate}
             />
-            {singleForm.planTemplateId && (
+            {entry.form.planTemplateId && (
               <PlanDiscountSummary
-                discount={singleForm.discount}
+                discount={entry.form.discount}
                 emptyLabel="Sem desconto neste serviço."
                 disabled={!editable || loading}
-                onEdit={() => editDiscount(singleForm.discount, setSingleForm)}
+                onEdit={() =>
+                  editDiscount(entry.form.discount, singleFormSetter(entry.id))
+                }
               />
             )}
+            {removeButton(singleLabel(index).toLowerCase(), () =>
+              setSingles((current) =>
+                current.filter((item) => item.id !== entry.id),
+              ),
+            )}
           </fieldset>
-        )}
-        {step === "single" && productBlocks}
-        {step === "single" && sellsProducts && (
-          <div className="page-actions span-2">{addProductButton}</div>
-        )}
-        {(step === "plan" || step === "single") && productLines.length > 0 && (
+        ))}
+        {productBlocks}
+        {productLines.length > 0 && (
           <fieldset className="form-fieldset span-2">
             <legend>Pagamento dos produtos</legend>
             <GuidedProductPaymentFields
@@ -1145,7 +1148,7 @@ export function PatientModal({
             />
           </fieldset>
         )}
-        {(step === "plan" || step === "single") && (
+        {(sellsItems > 0 || productLines.length > 0) && (
           <GuidedOrderSummary
             order={order}
             orderDiscount={orderDiscount}
@@ -1181,7 +1184,9 @@ export function PatientModal({
                 ? "Salvando…"
                 : patient
                   ? "Salvar alterações"
-                  : guidedSubmitLabels[step]}
+                  : step === "none" && productLines.length
+                    ? "Salvar e registrar venda"
+                    : guidedSubmitLabels[step]}
             </button>
           )}
         </div>
