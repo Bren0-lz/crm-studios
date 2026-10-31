@@ -21,6 +21,8 @@ import { currency, shortDate } from "../../shared/lib/formatting";
 import {
   restockSizes,
   sizeChoiceValue,
+  sizeStockSummary,
+  sizeStockText,
   soldOutSizes,
   stockChoices,
 } from "./model";
@@ -200,14 +202,20 @@ export function InventorySection({
                         <strong>{product.name}</strong>
                         <small>{product.sku}</small>
                         {product.sizeStock.length > 0 && (
-                          <small>
-                            {product.sizeStock
-                              .map(
-                                (entry) =>
-                                  `${productSizeLabel(entry.size)}: ${entry.currentStock}`,
-                              )
-                              .join(" · ")}
-                          </small>
+                          <ul
+                            className="inventory-size-stock"
+                            aria-label={`Estoque por tamanho: ${sizeStockText(product)}`}
+                          >
+                            {sizeStockSummary(product).map((entry) => (
+                              <li
+                                key={entry.key}
+                                className={`inventory-size-chip ${entry.state.replace("_", "-")}`}
+                              >
+                                <span>{entry.label}</span>
+                                <strong>{entry.stock}</strong>
+                              </li>
+                            ))}
+                          </ul>
                         )}
                         {soldOutSizes(product).length > 0 && (
                           <small className="inventory-sold-out">
