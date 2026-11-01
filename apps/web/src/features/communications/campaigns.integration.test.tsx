@@ -404,6 +404,92 @@ describe("campanhas de WhatsApp", () => {
     });
   });
 
+  it("cria campanha promocional com data final e mostra a promoção no envio", async () => {
+    const created = {
+      ...campaign([
+        recipient({
+          id: "r1",
+          patientId: "p1",
+          patientName: "Ana Lima",
+          message: "Olá, Ana! Temos turma nova.",
+        }),
+      ]),
+      promotion: { validUntil: "2099-12-31" },
+    };
+    const { calls } = setup("/comunicacoes", (url, init) => {
+      if (url.includes("/communications/campaigns/preview"))
+        return {
+          matched: 1,
+          recipients: 1,
+          included: [
+            { patientId: "p1", patientName: "Ana Lima", phone: "11999990000" },
+          ],
+          skipped: [],
+          sample: {
+            patientName: "Ana Lima",
+            message: "Olá, Ana! Temos turma nova.",
+          },
+        };
+      if (url.endsWith("/communications/campaigns") && init?.method === "POST")
+        return created;
+      if (url.includes(`/communications/campaigns/${created.id}`))
+        return created;
+      if (url.endsWith("/communications/campaigns")) return [];
+      if (url.endsWith("/communications/templates")) return [template];
+      if (url.includes("/patients/options"))
+        return url.includes("search=")
+          ? [{ id: "p1", fullName: "Ana Lima", tags: [] }]
+          : [];
+      return undefined;
+    });
+    await screen.findByText("Nenhuma campanha ainda");
+    fireEvent.click(
+      screen.getAllByRole("button", { name: "Nova campanha" }).at(0)!,
+    );
+    const dialog = await screen.findByRole("dialog", { name: "Nova campanha" });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Continuar" }));
+    fireEvent.change(within(dialog).getByRole("combobox"), {
+      target: { value: "Ana" },
+    });
+    fireEvent.click(
+      await within(dialog).findByRole("option", { name: /Ana Lima/ }),
+    );
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Conferir quem recebe" }),
+    );
+    const promotional = await within(dialog).findByRole("checkbox", {
+      name: /Campanha promocional/,
+    });
+    const submit = within(dialog).getByRole("button", {
+      name: "Criar e começar a enviar",
+    });
+    fireEvent.click(promotional);
+    expect(
+      within(dialog).getByLabelText(/Validade da promoção \(dias/),
+    ).toHaveValue(7);
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Até uma data" }),
+    );
+    // Sem a data final, ainda não dá para criar.
+    expect(submit).toBeDisabled();
+    fireEvent.change(within(dialog).getByLabelText(/Promoção válida até/), {
+      target: { value: "2099-12-31" },
+    });
+    expect(submit).toBeEnabled();
+    fireEvent.click(submit);
+    expect(
+      await screen.findByText(/Promocional \(válida até 31 de dez/),
+    ).toBeInTheDocument();
+    const create = calls.find(
+      (call) =>
+        call.method === "POST" &&
+        call.url.endsWith("/communications/campaigns"),
+    );
+    expect(create?.body).toMatchObject({
+      promotion: { validUntil: "2099-12-31" },
+    });
+  });
+
   it("por filtros, lista na hora quem a etiqueta encontrou", async () => {
     const previews: unknown[] = [];
     setup("/comunicacoes", (url, init) => {

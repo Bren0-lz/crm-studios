@@ -33,6 +33,12 @@ describe("promoção de campanha automática ao agendar", () => {
       campaignId: "a1111111-1111-4111-8111-111111111111",
       occurrenceKey: `${patient.id}:2026`,
     };
+    // Campanha manual com o mesmo id de evento não se confunde com a automática.
+    const manual = {
+      source: "manual",
+      campaignId: "b2222222-2222-4222-8222-222222222222",
+      occurrenceKey: "c3333333-3333-4333-8333-333333333333",
+    };
     vi.mocked(fetch).mockImplementation(async (input, init) => {
       const url = String(input);
       if (init?.method === "POST")
@@ -45,6 +51,11 @@ describe("promoção de campanha automática ao agendar", () => {
                   ...promotion,
                   campaignName: "Aniversariantes",
                   validUntil: "2026-11-03",
+                },
+                {
+                  ...manual,
+                  campaignName: "Novembro azul",
+                  validUntil: "2026-11-30",
                 },
               ]
             : [],
@@ -104,6 +115,34 @@ describe("promoção de campanha automática ao agendar", () => {
       patientId: patient.id,
       promotion,
     });
+
+    // Trocar para a campanha manual envia a origem junto.
+    const manualQuestion = within(dialog).getByRole("checkbox", {
+      name: /Esse atendimento é referente à campanha “Novembro azul”\?/,
+    });
+    fireEvent.click(manualQuestion);
+    expect(question).not.toBeChecked();
+    expect(manualQuestion).toBeChecked();
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Confirmar atendimento" }),
+    );
+    await vi.waitFor(() =>
+      expect(
+        vi
+          .mocked(fetch)
+          .mock.calls.filter(
+            ([url, init]) =>
+              String(url).endsWith("/appointments") && init?.method === "POST",
+          ),
+      ).toHaveLength(2),
+    );
+    const second = vi
+      .mocked(fetch)
+      .mock.calls.filter(
+        ([url, init]) =>
+          String(url).endsWith("/appointments") && init?.method === "POST",
+      )[1];
+    expect(JSON.parse(second![1]!.body as string).promotion).toEqual(manual);
   });
   it("shows the order summary with each session, the campaign discount and the total", async () => {
     localStorage.setItem("crm.auth.token", "test-token");

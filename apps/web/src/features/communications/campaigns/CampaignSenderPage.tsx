@@ -36,7 +36,12 @@ import {
   shareFiles,
 } from "./clipboard";
 import { useTemplateImages } from "./images";
-import { campaignDateTime, campaignHandled, nextPendingIndex } from "./model";
+import {
+  campaignDateTime,
+  campaignHandled,
+  campaignPromotionLabel,
+  nextPendingIndex,
+} from "./model";
 import { WhatsappBubble } from "./WhatsappBubble";
 
 type ListFilter = CampaignRecipientStatus | "all";
@@ -220,7 +225,7 @@ export function CampaignSenderPage() {
     <>
       <PageHeader
         title={campaign.name}
-        description={`Mensagem “${campaign.templateTitle}” · criada em ${campaignDateTime.format(new Date(campaign.createdAt))} por ${campaign.createdByName}`}
+        description={`${campaign.promotion ? `Promocional (válida ${campaignPromotionLabel(campaign.promotion)}) · ` : ""}Mensagem “${campaign.templateTitle}” · criada em ${campaignDateTime.format(new Date(campaign.createdAt))} por ${campaign.createdByName}`}
         back={campaignsBack}
       />
       <section className="campaign-progress" aria-label="Progresso da campanha">
