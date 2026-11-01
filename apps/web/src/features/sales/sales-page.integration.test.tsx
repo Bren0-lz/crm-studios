@@ -119,6 +119,86 @@ describe("página Vendas de produtos", () => {
     );
   });
 
+  it("aplica desconto por produto e desconto geral, como no cadastro do cliente", async () => {
+    const { repository, patient, cream, oil } = await seed();
+    open("/vendas");
+    const panel = await screen.findByRole("region", { name: "Nova venda" });
+    await choosePatient(patient.fullName, panel);
+    fireEvent.change(within(panel).getByLabelText("Produto 1"), {
+      target: { value: cream.id },
+    });
+    fireEvent.change(within(panel).getByLabelText("Quantidade 1"), {
+      target: { value: "2" },
+    });
+    fireEvent.click(
+      within(panel).getByRole("button", { name: "Adicionar produto" }),
+    );
+    fireEvent.change(within(panel).getByLabelText("Produto 2"), {
+      target: { value: oil.id },
+    });
+    expect(within(panel).getByText("Total").textContent).toMatch(/110,00/);
+
+    // Desconto de 10% só no creme (2 × R$ 40,00).
+    fireEvent.click(
+      within(panel).getByRole("button", {
+        name: "Configurar desconto do produto 1",
+      }),
+    );
+    let dialog = await screen.findByRole("dialog", {
+      name: "Desconto do produto",
+    });
+    fireEvent.change(
+      within(dialog).getByLabelText("Porcentagem de desconto (%)"),
+      { target: { value: "10" } },
+    );
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Aplicar desconto" }),
+    );
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+    );
+    expect(within(panel).getByText(/10% de desconto · − R\$\s8,00/));
+    expect(within(panel).getByText("Total").textContent).toMatch(/102,00/);
+
+    // Desconto geral de R$ 10,00, dividido entre os dois produtos.
+    fireEvent.click(
+      within(panel).getByRole("button", { name: "Configurar desconto geral" }),
+    );
+    dialog = await screen.findByRole("dialog", { name: "Desconto geral" });
+    fireEvent.click(within(dialog).getByLabelText("Valor (R$)"));
+    fireEvent.change(within(dialog).getByLabelText("Valor do desconto (R$)"), {
+      target: { value: "10,00" },
+    });
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Aplicar desconto" }),
+    );
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+    );
+    const summary = within(panel).getByLabelText("Resumo dos descontos");
+    expect(summary).toHaveTextContent(/Subtotal\s*R\$\s110,00/);
+    expect(summary).toHaveTextContent(/Descontos dos produtos\s*− R\$\s8,00/);
+    expect(summary).toHaveTextContent(/Desconto geral\s*− R\$\s10,00/);
+    expect(within(panel).getByText("Total").textContent).toMatch(/92,00/);
+
+    fireEvent.click(
+      within(panel).getByRole("button", { name: "Registrar venda" }),
+    );
+    expect(
+      await screen.findByText(/Venda de R\$\s92,00 registrada para Bianca\./),
+    ).toBeInTheDocument();
+    const inventory = await repository.getInventoryWorkspace(clinicId);
+    const sale = inventory.tabs.find((tab) => tab.patientId === patient.id)!;
+    expect(sale.totalInCents).toBe(9_200);
+    expect(sale.notes).toBe("Venda com R$\u00a018,00 de desconto.");
+    // O formulário volta sem descontos para a próxima venda.
+    await waitFor(() =>
+      expect(
+        within(panel).getByText("Sem desconto geral."),
+      ).toBeInTheDocument(),
+    );
+  });
+
   it("mostra as parcelas da venda e quanto de cada produto entra em cada uma", async () => {
     const { patient, cream, oil } = await seed();
     open("/vendas");
