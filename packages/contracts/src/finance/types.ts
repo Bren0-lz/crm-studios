@@ -319,6 +319,10 @@ export interface Receivable {
   planName?: string;
   /** Modelo do plano vendido (avulso, pacote, recorrente…); só nas cobranças de plano. */
   planKind?: "single" | "fixed_package" | "recurring" | "custom";
+  /** Valor total contratado do plano; só nas cobranças de plano. */
+  planTotalInCents?: number;
+  /** Forma de pagamento combinada na venda do plano (ausente = a combinar). */
+  planPaymentMethod?: PaymentMethod;
   /** Serviços de origem: os do plano ou os atendimentos da comanda. */
   services?: ReceivableService[];
   competence?: string;

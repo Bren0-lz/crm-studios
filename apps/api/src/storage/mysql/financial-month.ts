@@ -1,5 +1,9 @@
 import type { Pool, PoolClient } from "../../infrastructure/mysql-client.js";
-import type { FinancialSummary, Receivable } from "@crm/contracts";
+import type {
+  FinancialSummary,
+  PaymentMethod,
+  Receivable,
+} from "@crm/contracts";
 import { clinicDateOf } from "../../modules/finance/daily-cash.js";
 import {
   branchClause,
@@ -86,17 +90,19 @@ async function loadReceivableOrigins(
     receivableId: string;
     planName: string | null;
     planKind: Receivable["planKind"] | null;
+    planTotalInCents: number | string | null;
+    planPaymentMethod: PaymentMethod | null;
     serviceId: string;
     serviceName: string;
   }>(
-    `SELECT r.id AS "receivableId",pp.name AS "planName",pp.kind AS "planKind",coalesce(pps.service_id,pp.service_id) AS "serviceId",coalesce(pps.service_name,s.name) AS "serviceName"
+    `SELECT r.id AS "receivableId",pp.name AS "planName",pp.kind AS "planKind",pp.total_value_in_cents AS "planTotalInCents",pp.payment_method AS "planPaymentMethod",coalesce(pps.service_id,pp.service_id) AS "serviceId",coalesce(pps.service_name,s.name) AS "serviceName"
      FROM receivables r
      JOIN patient_plans pp ON pp.clinic_id=r.clinic_id AND pp.id=r.plan_id
      LEFT JOIN patient_plan_services pps ON pps.clinic_id=pp.clinic_id AND pps.plan_id=pp.id
      LEFT JOIN services s ON s.id=pp.service_id
      WHERE r.clinic_id=$1 AND ${branchClause("r.branch_id", 2)}
      UNION ALL
-     SELECT t.receivable_id,NULL,NULL,ts.service_id,ts.service_name
+     SELECT t.receivable_id,NULL,NULL,NULL,NULL,ts.service_id,ts.service_name
      FROM patient_tabs t
      JOIN patient_tab_services ts ON ts.clinic_id=t.clinic_id AND ts.tab_id=t.id
      JOIN receivables r ON r.clinic_id=t.clinic_id AND r.id=t.receivable_id
@@ -106,12 +112,18 @@ async function loadReceivableOrigins(
   const origins = new Map<
     string,
     Required<Pick<Receivable, "services">> &
-      Pick<Receivable, "planName" | "planKind">
+      Pick<
+        Receivable,
+        "planName" | "planKind" | "planTotalInCents" | "planPaymentMethod"
+      >
   >();
   for (const row of rows.rows) {
     const origin = origins.get(row.receivableId) ?? { services: [] };
     if (row.planName) origin.planName = row.planName;
     if (row.planKind) origin.planKind = row.planKind;
+    if (row.planTotalInCents !== null)
+      origin.planTotalInCents = Number(row.planTotalInCents);
+    if (row.planPaymentMethod) origin.planPaymentMethod = row.planPaymentMethod;
     if (!origin.services.some((service) => service.id === row.serviceId))
       origin.services.push({ id: row.serviceId, name: row.serviceName });
     origins.set(row.receivableId, origin);
