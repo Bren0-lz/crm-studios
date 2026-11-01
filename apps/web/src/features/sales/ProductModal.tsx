@@ -102,8 +102,9 @@ export function ProductModal({
     ...categorySizes,
     ...(product === "new" ? [] : product.sizes),
   ]);
-  // Sem tamanhos na categoria (nem antigos), o próprio produto pode definir os seus.
-  const ownSizes = sizeOptions.length === 0;
+  // Só o produto sem categoria (e sem tamanhos antigos) define os seus: numa categoria sem
+  // tamanhos os itens não se distinguem por tamanho, então a opção nem aparece.
+  const ownSizes = sizeOptions.length === 0 && !form.categoryId;
   const hasSizes = ownSizes
     ? ownSizesEnabled && form.sizes.length > 0
     : sizeOptions.length > 0;
@@ -146,11 +147,11 @@ export function ProductModal({
   /** Trocar a categoria marca todos os tamanhos dela (o usuário desmarca os que faltam). */
   function changeCategory(categoryId: string | null) {
     const sizes = productCategorySizes(categories, categoryId);
-    // Categoria sem tamanhos mantém os que o usuário definiu para o produto.
+    // Ao tirar a categoria, mantém os tamanhos que o usuário já definiu para o produto.
     setForm({
       ...form,
       categoryId,
-      sizes: sizes.length || !ownSizes ? sizes : form.sizes,
+      sizes: categoryId || !ownSizes ? sizes : form.sizes,
     });
   }
   function toggleSize(size: ProductSize, checked: boolean) {
@@ -352,7 +353,7 @@ export function ProductModal({
                 />
               </div>
             )}
-            {!ownSizes && (
+            {sizeOptions.length > 0 && (
               <fieldset className="form-fieldset span-2">
                 <legend>Tamanhos deste produto</legend>
                 <p className="field-hint">
