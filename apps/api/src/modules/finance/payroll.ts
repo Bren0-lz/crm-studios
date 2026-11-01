@@ -7,6 +7,7 @@ export interface PayrollLaunchEntry {
   /** Itens pendentes incluídos na despesa. */
   items: PayrollItem[];
   amountInCents: number;
+  /** Salário + recompensas − descontos (custo de pessoal na DRE). */
   salaryInCents: number;
   /** Comissões + ajustes incluídos. */
   commissionInCents: number;
@@ -37,7 +38,13 @@ export function payrollLaunchTotals(
       items
         .filter((item) => kinds.includes(item.kind))
         .reduce((total, item) => total + item.amountInCents, 0);
-    const amountInCents = sum(["salary", "commission", "adjustment"]);
+    const amountInCents = sum([
+      "salary",
+      "commission",
+      "adjustment",
+      "bonus",
+      "discount",
+    ]);
     if (amountInCents <= 0) {
       skipped.push({
         employeeId: line.employee.id,
@@ -56,7 +63,7 @@ export function payrollLaunchTotals(
       line,
       items,
       amountInCents,
-      salaryInCents: sum(["salary"]),
+      salaryInCents: sum(["salary", "bonus", "discount"]),
       commissionInCents: sum(["commission", "adjustment"]),
       complement: line.payables.length > 0,
     });
@@ -86,6 +93,39 @@ export function userManagedEmployeeError() {
   return new DomainError(
     "PAYROLL_EMPLOYEE_MANAGED_BY_USER",
     "O salário deste colaborador é definido no cadastro do usuário (Administração › Usuários).",
+    409,
+  );
+}
+
+/** O salário fixo não muda pela folha: diferenças entram como desconto ou recompensa. */
+export function payrollSalaryImmutableError() {
+  return new DomainError(
+    "PAYROLL_SALARY_IMMUTABLE",
+    "O salário fixo não muda pela folha. Use um desconto ou uma recompensa.",
+    409,
+  );
+}
+
+export function payrollEntryNoSalaryError() {
+  return new DomainError(
+    "PAYROLL_ENTRY_NO_SALARY",
+    "Este colaborador não tem salário fixo para calcular a porcentagem. Informe o valor em reais.",
+    409,
+  );
+}
+
+export function payrollEntryLaunchedError() {
+  return new DomainError(
+    "PAYROLL_ENTRY_LAUNCHED",
+    "Este lançamento já está numa despesa da folha. Desfaça o lançamento antes de removê-lo.",
+    409,
+  );
+}
+
+export function payrollEntryLimitError() {
+  return new DomainError(
+    "PAYROLL_AMOUNT_LIMIT",
+    "O valor excede o limite financeiro permitido.",
     409,
   );
 }
