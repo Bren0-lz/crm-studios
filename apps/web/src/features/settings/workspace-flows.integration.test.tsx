@@ -46,15 +46,8 @@ describe("settings workflows through real HTTP handlers", () => {
   });
   it("creates and deactivates a supplier without losing its contact details", async () => {
     const { repository } = await setupApi();
-    open("/configuracoes");
-    fireEvent.click(await screen.findByRole("tab", { name: "Cadastros" }));
-    const catalogs = screen.getByRole("tabpanel", { name: "Cadastros" });
-    fireEvent.click(
-      within(catalogs).getByRole("tab", { name: "Fornecedores" }),
-    );
-    const panel = within(catalogs).getByRole("tabpanel", {
-      name: "Fornecedores",
-    });
+    open("/vendas?aba=fornecedores");
+    const panel = await screen.findByRole("region", { name: "Fornecedores" });
     fireEvent.click(
       await within(panel).findByRole("button", { name: "Novo fornecedor" }),
     );
@@ -125,15 +118,8 @@ describe("settings workflows through real HTTP handlers", () => {
       notes: "",
       active: true,
     });
-    open("/configuracoes");
-    fireEvent.click(await screen.findByRole("tab", { name: "Cadastros" }));
-    const catalogs = screen.getByRole("tabpanel", { name: "Cadastros" });
-    fireEvent.click(
-      within(catalogs).getByRole("tab", { name: "Fornecedores" }),
-    );
-    const panel = within(catalogs).getByRole("tabpanel", {
-      name: "Fornecedores",
-    });
+    open("/vendas?aba=fornecedores");
+    const panel = await screen.findByRole("region", { name: "Fornecedores" });
     fireEvent.click(
       await within(panel).findByRole("button", { name: "Editar" }),
     );
@@ -178,15 +164,8 @@ describe("settings workflows through real HTTP handlers", () => {
       salePriceInCents: 2_500,
       initialStock: 1,
     });
-    open("/configuracoes");
-    fireEvent.click(await screen.findByRole("tab", { name: "Cadastros" }));
-    const catalogs = screen.getByRole("tabpanel", { name: "Cadastros" });
-    fireEvent.click(
-      within(catalogs).getByRole("tab", { name: "Fornecedores" }),
-    );
-    const panel = within(catalogs).getByRole("tabpanel", {
-      name: "Fornecedores",
-    });
+    open("/vendas?aba=fornecedores");
+    const panel = await screen.findByRole("region", { name: "Fornecedores" });
     fireEvent.click(
       await within(panel).findByRole("button", {
         name: "Pedidos de Distribuidora Bem-Estar",

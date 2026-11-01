@@ -267,6 +267,12 @@ export function registerFinanceOperationRoutes({
   app.get("/finance/suppliers", { preHandler: authenticate }, async (request) =>
     repository.listSuppliers(request.user.clinicId),
   );
+  // Mesma lista para Vendas de produtos › Fornecedores, sem exigir o Financeiro.
+  app.get(
+    "/inventory/suppliers",
+    { preHandler: authenticate },
+    async (request) => repository.listSuppliers(request.user.clinicId),
+  );
   app.post(
     "/finance/suppliers",
     { preHandler: authenticate },
