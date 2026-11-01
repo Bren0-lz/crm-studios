@@ -497,6 +497,12 @@ export function listPromotionOffers(
         campaignName: campaign.name,
         occurrenceKey: delivery.occurrenceKey,
         validUntil: delivery.promotionValidUntil,
+        ...(campaign.promotion.discount
+          ? {
+              discount: campaign.promotion.discount,
+              planTemplateIds: campaign.promotion.planTemplateIds ?? [],
+            }
+          : {}),
       });
     }
   }
@@ -507,7 +513,10 @@ export function listPromotionOffers(
   );
 }
 
-async function clinicToday(repository: ClinicRepository, clinicId: string) {
+export async function clinicToday(
+  repository: ClinicRepository,
+  clinicId: string,
+) {
   const settings = await repository.getClinicSettings(clinicId);
   return clinicDateOf(
     new Date(),

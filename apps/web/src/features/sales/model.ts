@@ -12,7 +12,13 @@ import {
 } from "@crm/contracts";
 import { localIsoDate } from "../../shared/lib/formatting";
 
-export type SalesTab = "new" | "history" | "summary" | "inventory" | "catalogs";
+export type SalesTab =
+  | "new"
+  | "history"
+  | "summary"
+  | "inventory"
+  | "catalogs"
+  | "suppliers";
 
 export const salesTabLabels: Record<SalesTab, string> = {
   new: "Nova venda",
@@ -20,6 +26,7 @@ export const salesTabLabels: Record<SalesTab, string> = {
   summary: "Resumo",
   inventory: "Estoque",
   catalogs: "Categorias e marcas",
+  suppliers: "Fornecedores",
 };
 
 const tabKeys: Record<string, SalesTab> = {
@@ -28,6 +35,7 @@ const tabKeys: Record<string, SalesTab> = {
   resumo: "summary",
   estoque: "inventory",
   categorias: "catalogs",
+  fornecedores: "suppliers",
 };
 
 /** Sub-aba pedida por `?aba=` (links diretos); desconhecida cai no padrão. */

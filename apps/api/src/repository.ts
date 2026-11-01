@@ -67,7 +67,6 @@ import type {
 import type {
   ProductUpdateInput,
   PatientTabItemUpdate,
-  PatientTabServiceInput,
   Supplier,
   SupplierInput,
   SupplierOrder,
@@ -394,23 +393,11 @@ export interface ClinicRepository {
     itemId: string,
     input: PatientTabItemUpdate | null,
   ): Promise<PatientTab>;
-  addPatientTabService(
-    clinicId: string,
-    actorUserId: string,
-    tabId: string,
-    input: PatientTabServiceInput,
-  ): Promise<PatientTab>;
   removePatientTabService(
     clinicId: string,
     actorUserId: string,
     tabId: string,
     itemId: string,
-  ): Promise<PatientTab>;
-  createPatientTabAppointment(
-    clinicId: string,
-    actorUserId: string,
-    tabId: string,
-    input: Omit<AppointmentInput, "patientId">,
   ): Promise<PatientTab>;
   listSuppliers(clinicId: string): Promise<Supplier[]>;
   saveSupplier(
