@@ -118,6 +118,21 @@
   color: #4e6975;
 }
 
+/* Extrato do plano cancelado: data do cancelamento e estorno ao cliente. */
+.plan-refund-summary {
+  display: grid;
+  gap: var(--space-1);
+  margin-bottom: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  font-size: var(--text-md);
+}
+
+.plan-refund-summary p {
+  margin: 0;
+}
+
 .movement-list {
   display: grid;
   gap: 9px;
@@ -1219,6 +1234,7 @@
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
   background: var(--paper);
+  text-align: center;
 }
 .payroll-totals div.is-total {
   border-color: var(--mint);
@@ -1269,10 +1285,19 @@
    audit: mobile-ok no celular (≤ 700px) a linha vira cartão de 1 coluna (.finance-list) */
 .payroll-table .finance-row {
   grid-template-columns:
-    minmax(0, 1fr) repeat(4, calc(var(--space-8) * 2))
-    calc(var(--space-8) + var(--space-6))
+    minmax(calc(var(--space-8) * 2 + var(--space-6)), 1fr)
+    repeat(5, calc(var(--space-8) + var(--space-7)))
     calc(var(--space-8) * 3);
   column-gap: var(--space-4);
+}
+/* Tela média (menu lateral aberto): a tabela rola na horizontal em vez de espremer o nome.
+   A largura mínima é a soma das colunas fixas, igual em todas as linhas. */
+.payroll-table {
+  overflow-x: auto;
+}
+.payroll-table > .finance-head,
+.payroll-table > .payroll-line {
+  min-width: calc(var(--space-8) * 16 + var(--space-6));
 }
 .payroll-table .finance-head {
   border-top: 1px solid var(--line);
@@ -1291,6 +1316,17 @@
 }
 .payroll-table .finance-row > .finance-amount {
   font-weight: 700;
+}
+/* Colunas centralizadas (como em Contas a pagar): cabeçalho e valores no mesmo eixo. */
+.payroll-table .finance-row > :not(:first-child) {
+  text-align: center;
+}
+.payroll-table .finance-actions {
+  justify-content: center;
+}
+/* Situação: a etiqueta é um bloco próprio, centralizado na coluna. */
+.payroll-table .finance-row > :nth-child(6) {
+  justify-self: center;
 }
 .payroll-table .finance-actions .secondary-button {
   justify-content: center;
