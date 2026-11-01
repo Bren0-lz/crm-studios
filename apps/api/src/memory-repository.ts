@@ -328,6 +328,7 @@ export class MemoryClinicRepository implements ClinicRepository {
     this.addPatientTabItem = this.finance.addPatientTabItem;
     this.closePatientTab = this.finance.closePatientTab;
     this.cancelPatientTab = this.finance.cancelPatientTab;
+    this.patientTabPayment = this.finance.patientTabPayment;
     this.createProductSale = createProductSalesRepository(this.context, {
       openPatientTab: this.finance.openPatientTab,
       addPatientTabItem: this.finance.addPatientTabItem,
@@ -660,6 +661,10 @@ export class MemoryClinicRepository implements ClinicRepository {
   readonly cancelPatientTab: ReturnType<
     typeof createFinanceRepository
   >["cancelPatientTab"];
+
+  readonly patientTabPayment: ReturnType<
+    typeof createFinanceRepository
+  >["patientTabPayment"];
 
   readonly getFinancialSummary: ReturnType<
     typeof createFinanceRepository
