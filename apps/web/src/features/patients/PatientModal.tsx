@@ -43,6 +43,7 @@ import { createPortal } from "react-dom";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
 import { useToast } from "../../shared/feedback/toast-context";
+import { ChangeReasonField } from "../../shared/components/ChangeReasonField";
 import { CpfInput } from "../../shared/components/CpfInput";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
 import { useMissingFields } from "../../shared/components/MissingFields";
@@ -140,6 +141,7 @@ export function PatientModal({
   const editable = patient ? can("patients.update") : can("patients.create");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [changeReason, setChangeReason] = useState("");
   // Desconto (de plano, produto ou geral) em edição no modal: o atual e onde gravá-lo.
   const [discountTarget, setDiscountTarget] = useState<{
     target: DiscountTarget;
@@ -580,7 +582,7 @@ export function PatientModal({
     if (patient) {
       setLoading(true);
       try {
-        const saved = await api.updatePatient(patient.id, form);
+        const saved = await api.updatePatient(patient.id, form, changeReason);
         toast.success(
           `Cadastro de ${patientFirstName(saved.fullName)} atualizado.`,
         );
@@ -1246,6 +1248,13 @@ export function PatientModal({
                 apply: (next) => setOrderDiscount(next ?? undefined),
               })
             }
+          />
+        )}
+        {patient && editable && (
+          <ChangeReasonField
+            value={changeReason}
+            onChange={setChangeReason}
+            disabled={loading}
           />
         )}
         {error && <div className="form-error span-2">{error}</div>}

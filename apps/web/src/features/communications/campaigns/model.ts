@@ -3,8 +3,10 @@ import {
   type WhatsappCampaignSegment,
   type MessageTemplate,
   type WhatsappCampaign,
+  type WhatsappCampaignPromotion,
   type WhatsappCampaignRecipient,
 } from "@crm/contracts";
+import { shortDate } from "../../../shared/lib/formatting";
 
 /** Pedaço do texto: normal, código `{{nome}}` ou trecho com a formatação do WhatsApp. */
 export type MessagePart =
@@ -219,3 +221,49 @@ export const filterGroupLabels: Record<CampaignFilterGroup, string> = {
   plans: "Planos e financeiro",
   repeat: "Evitar repetição",
 };
+
+/** Promoção da campanha manual como o formulário edita. */
+export interface CampaignPromotionDraft {
+  promotional: boolean;
+  /** `days` = dias depois do envio; `date` = até uma data final. */
+  validity: "days" | "date";
+  validDays: string;
+  validUntil: string;
+}
+
+export const emptyCampaignPromotion = (): CampaignPromotionDraft => ({
+  promotional: false,
+  validity: "days",
+  validDays: "7",
+  validUntil: "",
+});
+
+/** Promoção para a API; `undefined` quando a campanha não é promocional. */
+export function campaignPromotionInput(
+  draft: CampaignPromotionDraft,
+): WhatsappCampaignPromotion | undefined {
+  if (!draft.promotional) return undefined;
+  return draft.validity === "date"
+    ? { validUntil: draft.validUntil }
+    : { validDays: Number(draft.validDays) };
+}
+
+/** Falta algo para criar a campanha promocional? */
+export function campaignPromotionIncomplete(
+  draft: CampaignPromotionDraft,
+  today: string,
+) {
+  if (!draft.promotional) return false;
+  if (draft.validity === "date")
+    return !draft.validUntil || draft.validUntil < today;
+  const days = Number(draft.validDays);
+  return !Number.isInteger(days) || days < 1 || days > 365;
+}
+
+/** Validade da promoção em texto ("até 30 de nov." ou "7 dias depois do envio"). */
+export function campaignPromotionLabel(promotion: WhatsappCampaignPromotion) {
+  if (promotion.validUntil)
+    return `até ${shortDate.format(new Date(`${promotion.validUntil}T12:00:00`))}`;
+  const days = promotion.validDays ?? 0;
+  return `${days} ${days === 1 ? "dia" : "dias"} depois do envio`;
+}

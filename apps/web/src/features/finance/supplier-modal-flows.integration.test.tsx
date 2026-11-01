@@ -13,11 +13,9 @@ vi.mock("../contracts/document-pdf", () => ({
 }));
 
 async function suppliersPanel() {
-  open("/configuracoes");
-  fireEvent.click(await screen.findByRole("tab", { name: "Cadastros" }));
-  const catalogs = screen.getByRole("tabpanel", { name: "Cadastros" });
-  fireEvent.click(within(catalogs).getByRole("tab", { name: "Fornecedores" }));
-  return within(catalogs).getByRole("tabpanel", { name: "Fornecedores" });
+  // Desde o #228 os fornecedores ficam em Vendas de produtos › Fornecedores.
+  open("/vendas?aba=fornecedores");
+  return screen.findByRole("region", { name: "Fornecedores" });
 }
 
 async function newSupplierDialog() {
