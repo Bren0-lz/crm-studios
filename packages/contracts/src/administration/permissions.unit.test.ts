@@ -15,6 +15,19 @@ import {
 } from "../permissions.js";
 
 describe("operation permissions", () => {
+  it("grants the sales suppliers tab only explicitly and on top of the clients view", () => {
+    expect(effectivePermissions("admin")).toContain(
+      "patients.suppliers_manage",
+    );
+    expect(legacyPermissions("user", ["patients"], ["patients"])).not.toContain(
+      "patients.suppliers_manage",
+    );
+    expect(normalizePermissions(["patients.suppliers_manage"])).toEqual([]);
+    expect(togglePermissions([], ["patients.suppliers_manage"], true)).toEqual([
+      "patients.view",
+      "patients.suppliers_manage",
+    ]);
+  });
   it("grants group renaming independently and only explicitly", () => {
     expect(effectivePermissions("admin")).toContain("groups.rename");
     expect(legacyPermissions("user", ["groups"], ["groups"])).not.toContain(

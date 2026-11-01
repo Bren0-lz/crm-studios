@@ -405,6 +405,10 @@
   padding: 0 calc(var(--space-5) - 1px) calc(var(--space-5) - 1px);
 }
 
+.sales-suppliers {
+  padding: calc(var(--space-5) - 1px);
+}
+
 .sales-ranking-body {
   padding: var(--space-4) var(--space-5);
 }

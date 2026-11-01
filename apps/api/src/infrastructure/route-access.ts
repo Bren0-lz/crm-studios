@@ -241,6 +241,7 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
     "finance.external_records_manage",
   ),
   "GET /inventory/workspace": operation("patients.inventory_view"),
+  "GET /inventory/suppliers": operation("patients.suppliers_manage"),
   "POST /inventory/products": operation("patients.products_create"),
   "POST /inventory/movements": operation("patients.stock_move"),
   "POST /patient-tabs": operation("patients.tabs_create"),
@@ -472,9 +473,15 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
     "patients.tabs_items",
     "agenda.create",
   ),
+  // Fornecedores também ficam em Vendas de produtos › Fornecedores (patients.suppliers_manage);
+  // a lista dessa aba sai de GET /inventory/suppliers.
   "GET /finance/suppliers": view("finance"),
-  "POST /finance/suppliers": operation("finance.suppliers_manage"),
-  "PUT /finance/suppliers/:id": operation("finance.suppliers_manage"),
+  "POST /finance/suppliers": {
+    anyOf: operation("finance.suppliers_manage", "patients.suppliers_manage"),
+  },
+  "PUT /finance/suppliers/:id": {
+    anyOf: operation("finance.suppliers_manage", "patients.suppliers_manage"),
+  },
   "GET /finance/suppliers/:id/orders": view("finance"),
   "POST /finance/suppliers/:id/orders": operation("finance.suppliers_manage"),
   "POST /finance/receivables": operation("finance.receivables_create"),

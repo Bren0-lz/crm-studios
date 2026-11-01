@@ -12,15 +12,8 @@ vi.mock("../contracts/document-pdf", () => ({
 }));
 
 function suppliersPanel() {
-  open("/configuracoes");
-  return (async () => {
-    fireEvent.click(await screen.findByRole("tab", { name: "Cadastros" }));
-    const catalogs = screen.getByRole("tabpanel", { name: "Cadastros" });
-    fireEvent.click(
-      within(catalogs).getByRole("tab", { name: "Fornecedores" }),
-    );
-    return within(catalogs).getByRole("tabpanel", { name: "Fornecedores" });
-  })();
+  open("/vendas?aba=fornecedores");
+  return screen.findByRole("region", { name: "Fornecedores" });
 }
 
 describe("supplier contract signature", () => {
