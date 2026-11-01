@@ -106,7 +106,16 @@ test("prepares, edits, reviews, downloads and issues a visual contract", async (
     .locator(".modal-actions")
     .getByRole("button", { name: "Fechar", exact: true })
     .click();
+  // A lista mostra o resumo; as ações do documento ficam em "Ver detalhes".
   await page
+    .locator(".issued-document-list > article")
+    .first()
+    .getByRole("button", { name: /^Ver detalhes/ })
+    .click();
+  const details = page.getByRole("dialog").filter({
+    has: page.locator(".document-details"),
+  });
+  await details
     .getByRole("button", { name: "Revisar rascunho", exact: true })
     .click();
   await expect(
@@ -123,8 +132,11 @@ test("prepares, edits, reviews, downloads and issues a visual contract", async (
     .getByRole("dialog", { name: "Emitir contrato", exact: true })
     .getByRole("button", { name: "Emitir contrato", exact: true })
     .click();
-  await expect(page.getByRole("dialog")).toHaveCount(0);
-  await expect(page.getByText("Emitido", { exact: true })).toBeVisible();
+  // Só os detalhes continuam abertos, já com o documento emitido.
+  await expect(page.getByRole("dialog")).toHaveCount(1);
+  await expect(
+    details.locator(".status-pill").getByText("Emitido", { exact: true }),
+  ).toBeVisible();
   await expect(
     page.getByRole("button", { name: "Revisar rascunho", exact: true }),
   ).toHaveCount(0);
@@ -137,9 +149,8 @@ test("prepares, edits, reviews, downloads and issues a visual contract", async (
   expect(documents[0].snapshotBody).toContain("Condição exclusiva");
   const templates = await (await api.get("/document-templates")).json();
   expect(templates[0].body).not.toContain("Condição exclusiva");
-  const row = page.locator(".issued-document-list > article").first();
-  await row.getByText("Ver conteúdo", { exact: true }).click();
-  const paper = row.locator(".document-paper");
+  await details.getByText("Ver conteúdo", { exact: true }).click();
+  const paper = details.locator(".document-paper");
   await expect(paper).toHaveCSS("display", "block");
   await expect(paper).toContainText("Condição exclusiva");
   await paper.screenshot({
