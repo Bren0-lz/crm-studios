@@ -7,6 +7,7 @@ import { insertRows } from "./storage/mysql/sql.js";
 import {
   buildDemoScenarios,
   demoMessageTemplates,
+  demoPlanTemplates,
   demoProfessionals,
   demoRooms,
   demoServices,
@@ -63,6 +64,37 @@ export async function seedDemoScenarios(client: PoolClient, branchId: string) {
       room_ids: item.roomIds ?? [],
       active: item.active,
     })),
+    ignore,
+  );
+  await insertRows(
+    client,
+    "plan_templates",
+    demoPlanTemplates.map((item) => ({
+      id: item.id,
+      clinic_id: item.clinicId,
+      name: item.name,
+      total_value_in_cents: item.totalValueInCents,
+      service_id: item.services[0]!.serviceId,
+      kind: item.kind,
+      total_sessions: item.services[0]!.totalSessions,
+      plan_type: item.planType,
+      active: item.active,
+    })),
+    ignore,
+  );
+  await insertRows(
+    client,
+    "plan_template_services",
+    demoPlanTemplates.flatMap((item) =>
+      item.services.map((entry, position) => ({
+        clinic_id: item.clinicId,
+        template_id: item.id,
+        service_id: entry.serviceId,
+        position,
+        total_sessions: entry.totalSessions,
+        total_value_in_cents: entry.totalValueInCents,
+      })),
+    ),
     ignore,
   );
   await insertRows(

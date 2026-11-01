@@ -105,6 +105,85 @@
   container-type: inline-size;
 }
 
+/* Preço de tabela no cadastro de plano: serviço à esquerda, valor à direita e a soma. */
+.plan-table-price {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--paper);
+  font-size: var(--text-md);
+}
+
+.plan-table-price-head,
+.plan-table-price li,
+.plan-table-price dl > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.plan-table-price-head {
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+
+.plan-table-price-head strong {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.plan-table-price ul,
+.plan-table-price dl {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.plan-table-price li > span:first-child {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.plan-table-price li small {
+  display: block;
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+
+.plan-table-price li > span:last-child,
+.plan-table-price dd {
+  margin: 0;
+  text-align: right;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.plan-table-price dl {
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--line);
+}
+
+.plan-table-price-total {
+  font-weight: 600;
+}
+
+.plan-table-price-discount dd {
+  color: var(--green);
+}
+
+.plan-table-price-surcharge dd {
+  color: var(--red);
+}
+
+.plan-table-price > .field-hint {
+  margin: 0;
+}
+
 .admin-user-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;

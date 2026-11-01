@@ -279,6 +279,7 @@ export const serviceInputSchema = z.object({
   name: z.string().trim().min(2).max(120),
   durationMinutes: z.number().int().min(15).max(480),
   priceInCents: z.number().int().min(0),
+  /** Preço de tabela de uma sessão: só referência no cadastro de planos, não cobra nada. */
   color: z.string().regex(/^#[0-9a-fA-F]{6}$/),
   /** Profissionais e salas que atendem o serviço; vazio ou ausente = todos. */
   professionalIds: z.array(z.uuid()).max(200).optional(),

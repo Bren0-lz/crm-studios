@@ -463,7 +463,10 @@ export function AppointmentForm({
                 <option value="">Selecione</option>
                 {availableServices.map((item) => (
                   <option value={item.id} key={item.id}>
-                    {item.name} · {currency.format(item.priceInCents / 100)}
+                    {item.name}
+                    {item.singleSessionPriceInCents
+                      ? ` · ${currency.format(item.singleSessionPriceInCents / 100)}`
+                      : ""}
                   </option>
                 ))}
               </select>

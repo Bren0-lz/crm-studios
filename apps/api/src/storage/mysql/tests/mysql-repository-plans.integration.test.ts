@@ -530,12 +530,14 @@ describe.skipIf(!databaseUrl)("MySQL repository", () => {
         "DELETE FROM plan_templates WHERE JSON_CONTAINS($1, JSON_QUOTE(clinic_id))",
         [ids],
       );
-      await pool.query("DELETE FROM patients WHERE JSON_CONTAINS($1, JSON_QUOTE(clinic_id))", [
-        ids,
-      ]);
-      await pool.query("DELETE FROM services WHERE JSON_CONTAINS($1, JSON_QUOTE(clinic_id))", [
-        ids,
-      ]);
+      await pool.query(
+        "DELETE FROM patients WHERE JSON_CONTAINS($1, JSON_QUOTE(clinic_id))",
+        [ids],
+      );
+      await pool.query(
+        "DELETE FROM services WHERE JSON_CONTAINS($1, JSON_QUOTE(clinic_id))",
+        [ids],
+      );
       await pool.query(
         "DELETE FROM audit_events WHERE JSON_CONTAINS($1, JSON_QUOTE(clinic_id))",
         [ids],
@@ -545,7 +547,10 @@ describe.skipIf(!databaseUrl)("MySQL repository", () => {
         "DELETE FROM clinic_sequences WHERE JSON_CONTAINS($1, JSON_QUOTE(clinic_id))",
         [ids],
       );
-      await pool.query("DELETE FROM clinics WHERE JSON_CONTAINS($1, JSON_QUOTE(id))", [ids]);
+      await pool.query(
+        "DELETE FROM clinics WHERE JSON_CONTAINS($1, JSON_QUOTE(id))",
+        [ids],
+      );
     }
   });
 

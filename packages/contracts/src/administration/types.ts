@@ -213,6 +213,11 @@ export interface Service extends ServiceInput {
   id: string;
   clinicId: string;
   active: boolean;
+  /**
+   * Valor de uma sessão avulsa: o do plano avulso ativo do serviço (`singlePlanSessionPrices`).
+   * Vem só na lista `GET /services`; `null` quando o serviço não tem plano avulso.
+   */
+  singleSessionPriceInCents?: number | null;
 }
 
 export interface ClientSessionsRankingEntry {
