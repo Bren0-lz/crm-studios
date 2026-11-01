@@ -130,6 +130,31 @@ for (const storage of ["memory", "mysql"] as const) {
             { paymentInstallments: 3 },
           ),
         ).rejects.toMatchObject({ code: "INSTALLMENT_PAYMENT_SPLIT" });
+        // Nem no pagamento misto, e nada da parcela é baixado.
+        await expect(
+          repository.settleReceivable(
+            clinicId,
+            actorId,
+            receivables[0]!.id,
+            "card",
+            undefined,
+            {
+              payments: [
+                { paymentMethod: "pix", amountInCents: 4000 },
+                {
+                  paymentMethod: "card",
+                  amountInCents: 6000,
+                  paymentInstallments: 2,
+                },
+              ],
+            },
+          ),
+        ).rejects.toMatchObject({ code: "INSTALLMENT_PAYMENT_SPLIT" });
+        expect(
+          (await repository.getFinancialSummary(clinicId)).receivables.filter(
+            (item) => item.planId === plan.id,
+          ),
+        ).toHaveLength(3);
         await repository.settleReceivable(
           clinicId,
           actorId,
