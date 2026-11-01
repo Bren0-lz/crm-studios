@@ -124,6 +124,7 @@ import {
   publicDocumentSignInputSchema,
   signatureLinkExpiresAt,
   signatureLinkExpired,
+  patientImportFileSchema,
 } from "./index.js";
 
 describe("shared contracts", () => {
@@ -2322,5 +2323,34 @@ describe("campanhas automáticas promocionais", () => {
         promotion: { campaignId: "x", occurrenceKey: "" },
       }).success,
     ).toBe(false);
+  });
+});
+
+describe("patientImportFileSchema", () => {
+  const file = { fileName: "clientes.csv", contentBase64: "bm9tZQ==" };
+
+  it("aceita mapeamento de colunas com colunas ignoradas e sem mapeamento", () => {
+    expect(patientImportFileSchema.parse(file).mapping).toBeUndefined();
+    expect(
+      patientImportFileSchema.parse({
+        ...file,
+        mapping: ["fullName", null, "phoneAreaCode", "phone", "city"],
+      }).mapping,
+    ).toEqual(["fullName", null, "phoneAreaCode", "phone", "city"]);
+  });
+
+  it("recusa campo desconhecido e o mesmo campo em duas colunas", () => {
+    expect(
+      patientImportFileSchema.safeParse({ ...file, mapping: ["recordNumber"] })
+        .success,
+    ).toBe(false);
+    const repeated = patientImportFileSchema.safeParse({
+      ...file,
+      mapping: ["phone", null, "phone"],
+    });
+    expect(repeated.success).toBe(false);
+    expect(repeated.error?.issues[0]?.message).toBe(
+      "O campo Telefone foi escolhido em mais de uma coluna.",
+    );
   });
 });

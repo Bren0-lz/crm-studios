@@ -758,7 +758,7 @@ export async function createRouteContext({
       repository.listPatients(clinicId),
       repository.listPatientTags(clinicId),
     ]);
-    return validatePatientImport(rows, patients, tags);
+    return validatePatientImport(rows, patients, tags, file.mapping);
   }
 
   // Comunicado segmentado: a prévia não grava nada; o envio só enfileira

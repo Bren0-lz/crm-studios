@@ -875,6 +875,55 @@
 .patient-import-table small {
   color: var(--muted);
 }
+.patient-import-mapping {
+  display: grid;
+  gap: var(--space-2);
+}
+.patient-import-mapping-head {
+  display: grid;
+  gap: var(--space-1);
+}
+.patient-import-mapping-head h3 {
+  margin: 0;
+  font-size: var(--text-lg);
+  font-weight: 600;
+}
+.patient-import-mapping-list {
+  max-height: 320px;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+}
+.patient-import-mapping-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(180px, 240px);
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) calc(var(--space-3) + 2px);
+  border-bottom: 1px solid var(--line);
+}
+.patient-import-mapping-row:last-child {
+  border-bottom: 0;
+}
+.patient-import-mapping-column {
+  display: grid;
+  gap: calc(var(--space-1) - 2px);
+  min-width: 0;
+  font-size: var(--text-sm);
+}
+.patient-import-mapping-column small {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: var(--text-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+@media (max-width: 700px) {
+  .patient-import-mapping-row {
+    grid-template-columns: 1fr;
+    gap: var(--space-1);
+  }
+}
 .status-pill.import-valid {
   background: #dceee7;
   color: #31715e;

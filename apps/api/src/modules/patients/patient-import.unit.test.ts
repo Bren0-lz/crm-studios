@@ -3,6 +3,7 @@ import ExcelJS from "exceljs";
 import { describe, expect, it } from "vitest";
 import {
   decodeCsvText,
+  detectPatientImportMapping,
   parseCsv,
   readXlsxRows,
   validatePatientImport,
@@ -381,5 +382,116 @@ describe("validatePatientImport", () => {
       line: 4,
     });
     expect(analysis.rows[3]?.input?.fullName).toBe("Pedro Segundo");
+  });
+
+  it("usa o mapeamento escolhido para colunas com títulos que o sistema não reconhece", () => {
+    const rows = [
+      ["Aluno", "Documento", "Cel.", "Código interno", "Bairro onde mora"],
+      ["Célia Rocha", "529.982.247-25", "(11) 98888-0000", "X-12", "Centro"],
+      ["Rui Barbosa", "111.444.777-35", "(21) 97777-0000", "X-13", "Lapa"],
+    ];
+    const automatic = validatePatientImport(rows, []);
+    expect(automatic.rows).toEqual([]);
+    expect(automatic.errors).toEqual([
+      "Escolha a coluna de nome e telefone da planilha.",
+    ]);
+    expect(automatic.mapping).toEqual([null, null, null, null, null]);
+    expect(automatic.columns[2]).toEqual({
+      index: 2,
+      title: "Cel.",
+      samples: ["(11) 98888-0000", "(21) 97777-0000"],
+    });
+
+    const analysis = validatePatientImport(rows, [], undefined, [
+      "fullName",
+      "cpf",
+      "phone",
+      null,
+      "neighborhood",
+    ]);
+    expect(analysis.errors).toEqual([]);
+    expect(analysis.totals).toEqual({ valid: 2, error: 0, duplicate: 0 });
+    expect(analysis.mapping).toEqual([
+      "fullName",
+      "cpf",
+      "phone",
+      null,
+      "neighborhood",
+    ]);
+    expect(analysis.rows[0]?.input).toMatchObject({
+      fullName: "Célia Rocha",
+      cpf: "52998224725",
+      phone: "11988880000",
+      neighborhood: "Centro",
+    });
+    expect(JSON.stringify(analysis.rows[0]?.input)).not.toContain("X-12");
+  });
+
+  it("junta o DDD mapeado em coluna separada e completa mapeamento curto com colunas ignoradas", () => {
+    const analysis = validatePatientImport(
+      [
+        [
+          "Cliente",
+          "CPF",
+          "Prefixo",
+          "Número",
+          "Contato urgente",
+          "Fone urgente",
+        ],
+        [
+          "Célia Rocha",
+          "52998224725",
+          "11",
+          "98888-0000",
+          "Paulo",
+          "21977770000",
+        ],
+      ],
+      [],
+      undefined,
+      ["fullName", "cpf", "phoneAreaCode", "phone"],
+    );
+    expect(analysis.errors).toEqual([]);
+    expect(analysis.mapping).toEqual([
+      "fullName",
+      "cpf",
+      "phoneAreaCode",
+      "phone",
+      null,
+      null,
+    ]);
+    expect(analysis.rows[0]?.input).toMatchObject({ phone: "11988880000" });
+    expect(analysis.rows[0]?.input?.emergencyContactName).toBeUndefined();
+
+    const withEmergency = validatePatientImport(
+      [
+        [
+          "Nome",
+          "CPF",
+          "Telefone",
+          "Contato de emergência",
+          "Telefone de emergência",
+        ],
+        ["Célia Rocha", "52998224725", "11988880000", "Paulo", "21977770000"],
+      ],
+      [],
+    );
+    expect(withEmergency.rows[0]?.input).toMatchObject({
+      emergencyContactName: "Paulo",
+      emergencyContactPhone: "21977770000",
+    });
+  });
+
+  it("detecta o mapeamento pelos títulos, inclusive o DDD separado", () => {
+    expect(
+      detectPatientImportMapping([
+        "Nome",
+        "DDD (Telefone)",
+        "Telefone",
+        "Celular",
+        "Coluna extra",
+        "Cidade",
+      ]),
+    ).toEqual(["fullName", "phoneAreaCode", "phone", null, null, "city"]);
   });
 });
