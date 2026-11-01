@@ -8,7 +8,6 @@ import {
   type PayrollPayableSummary,
   type PayrollSummary,
   type PayrollTotals,
-  type Professional,
 } from "@crm/contracts";
 import { ChevronDown, ChevronUp, Wallet } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -22,7 +21,7 @@ import { useToast } from "../../shared/feedback/toast-context";
 import { useDataVersion } from "../../shared/hooks/useDataVersion";
 import { currency, formatIsoDate } from "../../shared/lib/formatting";
 import { formatCompetence } from "./model";
-import { PayrollEmployeeModal } from "./PayrollEmployeeModal";
+import { PayrollEntryModal } from "./PayrollEntryModal";
 import { PayrollLaunchModal } from "./PayrollLaunchModal";
 
 const statusLabels: Record<PayrollItemStatus, string> = {
@@ -43,13 +42,16 @@ const statusTones: Record<PayrollItemStatus, string> = {
 
 /**
  * Itens iguais (mesmo tipo, descrição e situação) somados numa linha. A descrição é separada
- * no primeiro " · ": "Comissão" como título e "Pilates individual" como detalhe.
+ * no primeiro " · ": "Comissão" como título e "Pilates individual" como detalhe. Desconto e
+ * recompensa ficam cada um na sua linha (podem ser removidos um a um).
  */
 function groupItems(items: PayrollItem[]) {
   const groups = new Map<
     string,
     {
       key: string;
+      kind: PayrollItem["kind"];
+      id: string | undefined;
       title: string;
       detail: string;
       status: PayrollItemStatus;
@@ -58,10 +60,15 @@ function groupItems(items: PayrollItem[]) {
     }
   >();
   for (const item of items) {
-    const key = `${item.kind}|${item.description}|${item.status}`;
+    const single = item.kind === "bonus" || item.kind === "discount";
+    const key = single
+      ? `${item.kind}|${item.id}`
+      : `${item.kind}|${item.description}|${item.status}`;
     const [title = item.description, ...rest] = item.description.split(" · ");
     const group = groups.get(key) ?? {
       key,
+      kind: item.kind,
+      id: item.id,
       title,
       detail: rest.join(" · "),
       status: item.status,
@@ -96,7 +103,7 @@ function Totals({ totals, label }: { totals: PayrollTotals; label: string }) {
       </div>
       <div>
         <dt>Ajustes</dt>
-        <dd>{money(totals.adjustmentInCents)}</dd>
+        <dd>{money(totals.adjustmentInCents + totals.extraInCents)}</dd>
       </div>
       <div className="is-total">
         <dt>Total</dt>
@@ -114,11 +121,7 @@ function Totals({ totals, label }: { totals: PayrollTotals; label: string }) {
  * Folha de pagamento: por competência e por filial (uma ou várias, com "Selecionar todas"),
  * cada colaborador com salário, comissões e ajustes. É o único lugar que paga comissão.
  */
-export function PayrollSection({
-  professionals,
-}: {
-  professionals: Professional[];
-}) {
+export function PayrollSection() {
   const { can } = useAuthorization();
   const toast = useToast();
   const canManage = can("finance.payroll_manage");
@@ -126,11 +129,16 @@ export function PayrollSection({
   const [branches, setBranches] = useState<Branch[] | null>(null);
   const [selected, setSelected] = useState<string[]>([]);
   const [summary, setSummary] = useState<PayrollSummary | null>(null);
-  const [employees, setEmployees] = useState<PayrollEmployee[]>([]);
   const [error, setError] = useState("");
   const [open, setOpen] = useState<string[]>([]);
-  // Só os colaboradores cadastrados antes do salário no usuário se editam aqui.
-  const [editing, setEditing] = useState<PayrollEmployee | null>(null);
+  // Desconto ou recompensa do mês (o salário fixo não muda pela folha).
+  const [adjusting, setAdjusting] = useState<PayrollEmployee | null>(null);
+  const [removing, setRemoving] = useState<{
+    id: string;
+    title: string;
+    detail: string;
+    employeeName: string;
+  } | null>(null);
   const [launching, setLaunching] = useState(false);
   const [undoing, setUndoing] = useState<PayrollPayableSummary | null>(null);
   const [attempt, setAttempt] = useState(0);
@@ -153,14 +161,11 @@ export function PayrollSection({
   useEffect(() => {
     if (!branches || !selected.length) return;
     let active = true;
-    Promise.all([
-      api.payroll(competence, selected, allBranches),
-      api.payrollEmployees(allBranches),
-    ])
-      .then(([data, list]) => {
+    api
+      .payroll(competence, selected, allBranches)
+      .then((data) => {
         if (!active) return;
         setSummary(data);
-        setEmployees(list);
         setError("");
       })
       .catch((cause: Error) => active && setError(cause.message));
@@ -196,9 +201,10 @@ export function PayrollSection({
           </p>
           <p className="panel-help">
             Salário fixo, comissões e ajustes de cada colaborador. Entram na
-            folha os usuários que recebem salário (Administração › Usuários).
-            Lançar a folha cria uma despesa por colaborador em Contas a pagar;
-            pagar a despesa paga as comissões incluídas.
+            folha os usuários que recebem salário (Administração › Usuários). O
+            salário fixo não muda aqui: use “Ajustar” para descontos e
+            recompensas do mês. Lançar a folha cria uma despesa por colaborador
+            em Contas a pagar; pagar a despesa paga as comissões incluídas.
           </p>
         </div>
         <div className="page-actions">
@@ -375,7 +381,9 @@ export function PayrollSection({
                                   <span className="finance-label">
                                     Ajustes{" "}
                                   </span>
-                                  {money(line.adjustmentInCents)}
+                                  {money(
+                                    line.adjustmentInCents + line.extraInCents,
+                                  )}
                                 </span>
                                 <strong className="finance-amount">
                                   {money(line.totalInCents)}
@@ -410,21 +418,16 @@ export function PayrollSection({
                                     )}
                                     {expanded ? "Ocultar" : "Detalhes"}
                                   </button>
-                                  {canManage && !line.employee.userId && (
+                                  {canManage && (
                                     <button
                                       type="button"
                                       className="secondary-button button-sm"
-                                      aria-label={`Editar ${line.employee.name}`}
+                                      aria-label={`Desconto ou recompensa de ${line.employee.name}`}
                                       onClick={() =>
-                                        setEditing(
-                                          employees.find(
-                                            (item) =>
-                                              item.id === line.employee.id,
-                                          ) ?? line.employee,
-                                        )
+                                        setAdjusting(line.employee)
                                       }
                                     >
-                                      Editar
+                                      Ajustar
                                     </button>
                                   )}
                                 </div>
@@ -449,6 +452,29 @@ export function PayrollSection({
                                               {group.detail && (
                                                 <small>{group.detail}</small>
                                               )}
+                                              {canManage &&
+                                                group.id &&
+                                                group.status === "pending" &&
+                                                (group.kind === "bonus" ||
+                                                  group.kind ===
+                                                    "discount") && (
+                                                  <button
+                                                    type="button"
+                                                    className="secondary-button button-sm"
+                                                    aria-label={`Remover ${group.title.toLowerCase()} de ${line.employee.name}`}
+                                                    onClick={() =>
+                                                      setRemoving({
+                                                        id: group.id!,
+                                                        title: group.title,
+                                                        detail: group.detail,
+                                                        employeeName:
+                                                          line.employee.name,
+                                                      })
+                                                    }
+                                                  >
+                                                    Remover
+                                                  </button>
+                                                )}
                                             </span>
                                             <span className="payroll-detail-meta">
                                               {group.count > 1
@@ -525,21 +551,36 @@ export function PayrollSection({
           </>
         )}
       </div>
-      {editing && (
-        <PayrollEmployeeModal
-          employee={editing}
-          professionals={professionals}
-          branches={branches ?? []}
-          takenProfessionalIds={employees.flatMap((item) =>
-            item.professionalId && item.id !== editing.id
-              ? [item.professionalId]
-              : [],
-          )}
-          onClose={() => setEditing(null)}
+      {adjusting && (
+        <PayrollEntryModal
+          employee={adjusting}
+          competence={competence}
+          onClose={() => setAdjusting(null)}
           onSave={async (input) => {
-            await api.savePayrollEmployee(input, editing.id);
-            toast.success("Colaborador atualizado.");
-            setEditing(null);
+            await api.createPayrollEntry(input, allBranches);
+            toast.success(
+              input.kind === "discount"
+                ? "Desconto adicionado à folha."
+                : "Recompensa adicionada à folha.",
+            );
+            setAdjusting(null);
+            reload();
+          }}
+        />
+      )}
+      {removing && (
+        <ActionModal
+          eyebrow="Folha de pagamento"
+          title={`Remover ${removing.title.toLowerCase()}`}
+          subtitle={`${removing.employeeName} · ${removing.detail}`}
+          effect="O valor deixa de entrar no pagamento deste mês."
+          confirmLabel="Remover"
+          danger
+          onClose={() => setRemoving(null)}
+          onConfirm={async () => {
+            await api.deletePayrollEntry(removing.id, allBranches);
+            toast.success("Removido da folha.");
+            setRemoving(null);
             reload();
           }}
         />
@@ -566,7 +607,7 @@ export function PayrollSection({
           eyebrow="Folha de pagamento"
           title="Desfazer lançamento"
           subtitle={undoing.description}
-          effect="A despesa é cancelada e o salário, as comissões e os ajustes dela voltam a ficar a lançar."
+          effect="A despesa é cancelada e o salário, as comissões, os ajustes, os descontos e as recompensas dela voltam a ficar a lançar."
           confirmLabel="Desfazer lançamento"
           danger
           onClose={() => setUndoing(null)}
