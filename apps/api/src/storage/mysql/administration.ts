@@ -1142,7 +1142,7 @@ export function createAdministrationRepository(
       const result = await repositoryContext.pool.query<ServiceRow>(
         `
         SELECT id, clinic_id AS "clinicId", name, duration_minutes AS "durationMinutes",
-               price_in_cents AS "priceInCents", color, active,
+               price_in_cents AS "priceInCents", active,
                professional_ids AS "professionalIds", room_ids AS "roomIds"
         FROM services WHERE clinic_id = $1 AND active = true ORDER BY name
       `,

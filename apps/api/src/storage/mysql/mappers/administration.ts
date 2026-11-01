@@ -81,7 +81,6 @@ export interface ServiceRow {
   name: string;
   durationMinutes: number;
   priceInCents: number;
-  color: string;
   active: boolean;
   professionalIds: string[];
   roomIds: string[];
