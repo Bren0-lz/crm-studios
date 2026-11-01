@@ -1,6 +1,7 @@
 import type {
   PayrollEmployee,
-  PayrollEmployeeInput,
+  PayrollEntry,
+  PayrollEntryInput,
   PayrollLaunchInput,
   PayrollLaunchResult,
   PayrollSummary,
@@ -330,11 +331,17 @@ export const financeApi = {
     ),
   payrollEmployees: (options?: RequestInit) =>
     request<PayrollEmployee[]>("/finance/payroll/employees", options),
-  /** Só colaboradores anteriores ao salário no usuário; não há cadastro direto na folha. */
-  savePayrollEmployee: (input: PayrollEmployeeInput, id: string) =>
-    request<PayrollEmployee>(`/finance/payroll/employees/${id}`, {
-      method: "PUT",
+  /** Desconto ou recompensa do mês; o salário fixo não muda pela folha. */
+  createPayrollEntry: (input: PayrollEntryInput, options?: RequestInit) =>
+    request<PayrollEntry>("/finance/payroll/entries", {
+      ...options,
+      method: "POST",
       body: JSON.stringify(input),
+    }),
+  deletePayrollEntry: (id: string, options?: RequestInit) =>
+    request<void>(`/finance/payroll/entries/${id}`, {
+      ...options,
+      method: "DELETE",
     }),
   launchPayroll: (input: PayrollLaunchInput, options?: RequestInit) =>
     request<PayrollLaunchResult>("/finance/payroll/launch", {
