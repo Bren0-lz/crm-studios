@@ -348,15 +348,35 @@ export const planPauseDetailsSchema = z.object({
   expectedReturn: z.iso.date().optional().or(z.literal("")),
 });
 
-/** Dados opcionais ao cancelar: valor devolvido ao cliente (estorno) e observação. */
-export const planCancellationDetailsSchema = z.object({
-  refundedInCents: z
-    .number()
-    .int("Informe o valor estornado em centavos.")
-    .min(0, "O valor estornado não pode ser negativo.")
-    .optional(),
-  refundNote: z.string().trim().max(500).optional().or(z.literal("")),
-});
+/**
+ * Dados opcionais ao cancelar: valor devolvido ao cliente (estorno), forma de pagamento e
+ * observação. Com estorno, a forma é obrigatória: o valor sai do caixa como conta paga.
+ */
+export const planCancellationDetailsSchema = z
+  .object({
+    refundedInCents: z
+      .number()
+      .int("Informe o valor estornado em centavos.")
+      .min(0, "O valor estornado não pode ser negativo.")
+      .optional(),
+    refundPaymentMethod: paymentMethodSchema.optional(),
+    refundNote: z.string().trim().max(500).optional().or(z.literal("")),
+  })
+  .refine((value) => !value.refundedInCents || value.refundPaymentMethod, {
+    message: "Informe a forma de pagamento do estorno.",
+    path: ["refundPaymentMethod"],
+  });
+
+/** Categoria de despesa em que o estorno do cancelamento entra no Financeiro. */
+export const planRefundCategoryName = "Estornos a clientes";
+
+/** Descrição da conta paga que registra o estorno do cancelamento. */
+export function planRefundPayableDescription(
+  patientName: string,
+  planName: string,
+) {
+  return `Estorno ao cliente · ${patientName} · ${planName}`.slice(0, 200);
+}
 
 /** Dias inteiros entre duas datas AAAA-MM-DD (fim − início). */
 export function daysBetweenIsoDates(from: string, to: string) {

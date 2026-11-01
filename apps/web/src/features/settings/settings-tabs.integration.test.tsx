@@ -505,7 +505,7 @@ describe("settings tabs", () => {
       within(toolbar).getByRole("button", { name: "Inserir chave pix" }),
     );
     expect(
-      screen.getByText("Prévia: Oi Marina! R$ 60,00financeiro@aryana.com.br"),
+      screen.getByText("Prévia: Oi Marina! R$ 60,00 financeiro@aryana.com.br"),
     ).toBeInTheDocument();
     fireEvent.click(
       screen.getByRole("button", { name: "Salvar configurações" }),
@@ -516,7 +516,7 @@ describe("settings tabs", () => {
         .mock.calls.find(([, init]) => init?.method === "PUT");
       expect(JSON.parse(String(put?.[1]?.body))).toMatchObject({
         pixKey: "financeiro@aryana.com.br",
-        pixMessageTemplate: "Oi {{nome}}! {{valor_sessao}}{{chave_pix}}",
+        pixMessageTemplate: "Oi {{nome}}! {{valor_sessao}} {{chave_pix}}",
       });
     });
   });
