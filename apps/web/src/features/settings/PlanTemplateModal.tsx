@@ -2,6 +2,7 @@ import {
   maxInstallmentsLimit,
   planPeriodMonths,
   planSessionsForPeriod,
+  planTablePriceSummary,
   planTemplateInputSchema,
   planTypeKind,
   planTypeLabels,
@@ -86,6 +87,22 @@ export function PlanTemplateModal({
         )
       : Number(entry.sessions);
   const total = reaisToCents(form.value);
+  // Preço de tabela das sessões avulsas: só referência para definir o valor do plano.
+  const tablePrice = planTablePriceSummary(
+    form.services.map((entry) => ({
+      serviceId: entry.serviceId,
+      sessions: months
+        ? entry.sessionsPerWeek
+          ? periodSessions(entry)
+          : 0
+        : Number(entry.sessions),
+    })),
+    services,
+  );
+  const tableDifference =
+    total !== null && tablePrice.totalInCents > 0
+      ? tablePrice.totalInCents - total
+      : null;
   const sum = form.services.reduce(
     (value, entry) => value + (reaisToCents(entry.value) ?? 0),
     0,
@@ -429,6 +446,88 @@ export function PlanTemplateModal({
               Soma dos serviços: {currency.format(sum / 100)} · Diferença:{" "}
               {currency.format(((total ?? 0) - sum) / 100)}
             </p>
+          )}
+          {tablePrice.lines.length > 0 && (
+            <section
+              className="span-2 plan-table-price"
+              aria-label="Preço de tabela dos serviços"
+            >
+              <div className="plan-table-price-head">
+                <strong>Serviços inclusos</strong>
+                <span>Preço de tabela</span>
+              </div>
+              <ul>
+                {tablePrice.lines.map((line, position) => {
+                  const service = services.find(
+                    (item) => item.id === line.serviceId,
+                  );
+                  return (
+                    <li key={`${line.serviceId}-${position}`}>
+                      <span>
+                        {service?.name ?? "Serviço"}
+                        <small>
+                          {line.sessions}{" "}
+                          {line.sessions === 1 ? "sessão" : "sessões"}
+                          {line.unitPriceInCents !== null &&
+                            ` × ${currency.format(line.unitPriceInCents / 100)}`}
+                        </small>
+                      </span>
+                      <span>
+                        {line.totalInCents === null
+                          ? "sem preço de tabela"
+                          : currency.format(line.totalInCents / 100)}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+              <dl>
+                <div className="plan-table-price-total">
+                  <dt>Total avulso</dt>
+                  <dd>{currency.format(tablePrice.totalInCents / 100)}</dd>
+                </div>
+                {total !== null && (
+                  <div>
+                    <dt>Valor do plano</dt>
+                    <dd>{currency.format(total / 100)}</dd>
+                  </div>
+                )}
+                {tableDifference !== null && tableDifference !== 0 && (
+                  <div
+                    className={
+                      tableDifference > 0
+                        ? "plan-table-price-discount"
+                        : "plan-table-price-surcharge"
+                    }
+                  >
+                    <dt>
+                      {tableDifference > 0
+                        ? "Desconto para o cliente"
+                        : "Acréscimo sobre o avulso"}
+                    </dt>
+                    <dd>
+                      {currency.format(Math.abs(tableDifference) / 100)} (
+                      {Math.round(
+                        (Math.abs(tableDifference) / tablePrice.totalInCents) *
+                          100,
+                      )}
+                      %)
+                    </dd>
+                  </div>
+                )}
+              </dl>
+              {tablePrice.missingPrices > 0 && (
+                <p className="field-hint">
+                  {tablePrice.missingPrices === 1
+                    ? "1 serviço sem preço de tabela: o total está incompleto."
+                    : `${tablePrice.missingPrices} serviços sem preço de tabela: o total está incompleto.`}
+                </p>
+              )}
+              <p className="field-hint">
+                Só referência: quanto o cliente pagaria pelas sessões avulsas.
+                Não muda o valor do plano.
+              </p>
+            </section>
           )}
           {error && (
             <div className="form-error span-2" role="alert">
