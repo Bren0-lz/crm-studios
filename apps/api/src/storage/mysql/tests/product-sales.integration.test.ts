@@ -79,6 +79,8 @@ for (const storage of ["memory", "mysql"] as const) {
           status: "closed",
           paymentStatus: "paid",
           totalInCents: 6_000,
+          soldByUserId: actorId,
+          soldByName: expect.any(String),
         });
         expect(sale.items[0]).toMatchObject({
           quantity: 3,
@@ -86,6 +88,10 @@ for (const storage of ["memory", "mysql"] as const) {
           totalInCents: 6_000,
         });
         const inventory = await repository.getInventoryWorkspace(clinicId);
+        // Quem registrou a venda aparece na lista de vendas realizadas.
+        expect(
+          inventory.tabs.find((tab) => tab.id === sale.id)?.soldByUserId,
+        ).toBe(actorId);
         expect(
           inventory.products.find((item) => item.id === product.id)
             ?.currentStock,
