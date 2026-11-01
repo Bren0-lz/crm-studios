@@ -1,8 +1,10 @@
 import {
   buildPayroll,
+  PAYROLL_CATEGORY_NAME,
   payrollEntryAmount,
   payrollPayableDescription,
   payrollPayableNotes,
+  type FinancialCategory,
   type Payable,
   type PayrollEmployee,
   type PayrollEmployeeInput,
@@ -242,6 +244,30 @@ export function createPayrollRepository(context: MemoryRepositoryContext) {
         })),
     });
   };
+  /** Categoria "Folha de pagamento": reaproveita (e reativa) a existente ou cria. */
+  const defaultCategory = (clinicId: string) => {
+    const name = PAYROLL_CATEGORY_NAME.toLocaleLowerCase();
+    const existing = context.financialCategories.find(
+      (item) =>
+        item.clinicId === clinicId &&
+        item.kind === "expense" &&
+        item.name.toLocaleLowerCase() === name,
+    );
+    if (existing) {
+      existing.active = true;
+      return existing;
+    }
+    const category: FinancialCategory = {
+      id: uuid(),
+      clinicId,
+      name: PAYROLL_CATEGORY_NAME,
+      kind: "expense",
+      dreGroup: "fixed_expense",
+      active: true,
+    };
+    context.financialCategories.push(category);
+    return category;
+  };
   return {
     async listPayrollEmployees(clinicId: string) {
       const readIds = context.branchScope.readIds();
@@ -306,13 +332,15 @@ export function createPayrollRepository(context: MemoryRepositoryContext) {
       actorId: string,
       input: PayrollLaunchInput,
     ) {
-      const category = context.financialCategories.find(
-          (item) =>
-            item.clinicId === clinicId &&
-            item.id === input.categoryId &&
-            item.kind === "expense" &&
-            item.active,
-        ),
+      const category = input.categoryId
+          ? context.financialCategories.find(
+              (item) =>
+                item.clinicId === clinicId &&
+                item.id === input.categoryId &&
+                item.kind === "expense" &&
+                item.active,
+            )
+          : defaultCategory(clinicId),
         costCenter = input.costCenterId
           ? context.costCenters.find(
               (item) =>
