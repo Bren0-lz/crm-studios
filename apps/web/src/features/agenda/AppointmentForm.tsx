@@ -34,6 +34,7 @@ import { PatientPicker } from "../../PatientPicker";
 import { FixedPatient } from "../../shared/components/FixedPatient";
 import {
   appointmentVisitTypes,
+  currency,
   localIsoDate,
   toLocalDateTimeInput,
   visitTypeLabels,
@@ -493,6 +494,9 @@ export function AppointmentForm({
                 {availableServices.map((item) => (
                   <option value={item.id} key={item.id}>
                     {item.name}
+                    {item.singleSessionPriceInCents
+                      ? ` · ${currency.format(item.singleSessionPriceInCents / 100)}`
+                      : ""}
                   </option>
                 ))}
               </select>

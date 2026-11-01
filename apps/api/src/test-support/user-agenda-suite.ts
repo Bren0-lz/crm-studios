@@ -354,6 +354,7 @@ export function userAgendaSuite(repository: () => ClinicRepository) {
         repo.createService(clinic, {
           name,
           durationMinutes: 50,
+          priceInCents: 10000,
           color: "#547A6B",
         });
       const pilates = await service(`Pilates ${randomUUID()}`);

@@ -218,6 +218,7 @@ describe("dashboard appointment actions", () => {
             id: "service",
             name: "Avaliação funcional",
             durationMinutes: 60,
+            priceInCents: 12000,
           },
         ]);
       }

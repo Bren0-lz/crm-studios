@@ -364,7 +364,7 @@ describe("CRM API", () => {
       app.inject({ method: "GET", url: "/services", headers }),
     ]);
     const service = services.json()[0] as { id: string };
-    // Serviço não tem preço: a base da comissão sem plano é a sessão do plano avulso.
+    // O preço de tabela do serviço é só referência: a base da comissão sem plano é a sessão do plano avulso.
     const singlePlan = await app.inject({
       method: "POST",
       url: "/plan-templates",

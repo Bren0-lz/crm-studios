@@ -44,6 +44,7 @@ async function openNewAppointment() {
                 {
                   id: "77777777-7777-4777-8777-777777777777",
                   name: "Pilates",
+                  priceInCents: 10000,
                 },
               ]
             : [],
