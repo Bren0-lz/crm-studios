@@ -17,7 +17,10 @@ export function AppointmentPromotionField({
 }: {
   patientId: string;
   value: AppointmentPromotion | undefined;
-  onChange: (promotion: AppointmentPromotion | undefined) => void;
+  onChange: (
+    promotion: AppointmentPromotion | undefined,
+    offer?: AutoCampaignPromotionOffer | undefined,
+  ) => void;
 }) {
   const [offers, setOffers] = useState<{
     patientId: string;
@@ -41,25 +44,28 @@ export function AppointmentPromotionField({
   if (!patientId || offers?.patientId !== patientId) return null;
   return offers.items.map((offer) => {
     const checked =
+      value?.source === offer.source &&
       value?.campaignId === offer.campaignId &&
       value.occurrenceKey === offer.occurrenceKey;
     return (
       <label
         className="checkbox-field span-2"
-        key={`${offer.campaignId}:${offer.occurrenceKey}`}
+        key={`${offer.source ?? "auto"}:${offer.campaignId}:${offer.occurrenceKey}`}
       >
         <input
           type="checkbox"
           checked={checked}
           onChange={(event) =>
-            onChange(
-              event.target.checked
-                ? {
+            event.target.checked
+              ? onChange(
+                  {
+                    ...(offer.source ? { source: offer.source } : {}),
                     campaignId: offer.campaignId,
                     occurrenceKey: offer.occurrenceKey,
-                  }
-                : undefined,
-            )
+                  },
+                  offer,
+                )
+              : onChange(undefined)
           }
         />
         <span>

@@ -88,7 +88,7 @@ export function PlanModal({
           registerCloseGuard={registerCloseGuard}
           additionalDirty={Boolean(signature || options.appointments.length)}
           onBusyChange={setBusy}
-          renderAdditional={(input) => (
+          renderAdditional={(input, groupId) => (
             <>
               {canSign && (
                 <SignatureTemplateField
@@ -102,6 +102,7 @@ export function PlanModal({
                   plan={input}
                   patients={patients}
                   services={services}
+                  group={groups?.items?.find((item) => item.id === groupId)}
                   value={options}
                   onChange={setOptions}
                   onNestedChange={setNested}

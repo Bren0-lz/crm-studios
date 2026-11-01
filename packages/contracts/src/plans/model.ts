@@ -5,6 +5,11 @@ import {
   paymentMethodSchema,
 } from "../common/model.js";
 import { patientDiscountSchema } from "./discount.js";
+import {
+  type PlanPaymentPart,
+  paymentPartsTotal,
+  planPaymentPartsSchema,
+} from "../finance/payment-parts.js";
 import type {
   PatientPlan,
   PlanPaymentSummary,
@@ -224,16 +229,113 @@ export function allocatePlanRevenue(
 
 /**
  * Valor de uma sessão: o do serviço no plano do cliente (valor ÷ sessões contratadas) ou,
- * sem plano, o preço de tabela do serviço.
+ * sem plano, o valor de referência (`fallbackInCents`, em geral o do plano avulso do serviço).
  */
 export function sessionValueInCents(
   planService:
     Pick<PlanServiceInput, "totalSessions" | "totalValueInCents"> | undefined,
-  priceInCents: number,
+  fallbackInCents: number,
 ): number {
   return planService && planService.totalSessions > 0
     ? Math.round(planService.totalValueInCents / planService.totalSessions)
-    : priceInCents;
+    : fallbackInCents;
+}
+
+/** Modelo de plano avulso: `planType` "single" ou, sem tipo, `kind` "single". */
+export function isSinglePlanTemplate(template: {
+  planType?: PlanType | null | undefined;
+  kind?: z.infer<typeof planKindSchema> | null | undefined;
+}): boolean {
+  return template.planType
+    ? template.planType === "single"
+    : template.kind === "single";
+}
+
+/**
+ * O preço de tabela do serviço não cobra nada: o valor de referência de uma sessão avulsa vem do plano avulso
+ * ativo que inclui o serviço (valor ÷ sessões). Com mais de um, vale o cadastrado primeiro.
+ */
+export function singlePlanSessionPrices(
+  templates: readonly {
+    id: string;
+    active: boolean;
+    createdAt: string;
+    planType?: PlanType | null | undefined;
+    kind?: z.infer<typeof planKindSchema> | null | undefined;
+    services: readonly Pick<
+      PlanServiceInput,
+      "serviceId" | "totalSessions" | "totalValueInCents"
+    >[];
+  }[],
+): Map<string, number> {
+  const prices = new Map<string, number>();
+  [...templates]
+    .filter((template) => template.active && isSinglePlanTemplate(template))
+    .sort(
+      (a, b) =>
+        a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id),
+    )
+    .forEach((template) =>
+      template.services.forEach((item) => {
+        if (item.totalSessions > 0 && !prices.has(item.serviceId))
+          prices.set(
+            item.serviceId,
+            Math.round(item.totalValueInCents / item.totalSessions),
+          );
+      }),
+    );
+  return prices;
+}
+
+/** Linha do resumo "preço de tabela" do cadastro de plano. */
+export interface PlanTablePriceLine {
+  serviceId: string;
+  sessions: number;
+  /** Preço de tabela de uma sessão; `null` quando o serviço não tem preço (0 ou ausente). */
+  unitPriceInCents: number | null;
+  /** Preço de tabela × sessões; `null` quando o serviço não tem preço. */
+  totalInCents: number | null;
+}
+
+/**
+ * Quanto as sessões do plano custariam avulsas, pelo preço de tabela de cada serviço. É só
+ * referência para quem define o valor do plano: não muda o valor cobrado, a comissão nem os
+ * relatórios. Linha sem serviço escolhido fica de fora; serviço sem preço não entra na soma.
+ */
+export function planTablePriceSummary(
+  rows: readonly { serviceId: string; sessions: number }[],
+  services: readonly { id: string; priceInCents: number }[],
+): {
+  lines: PlanTablePriceLine[];
+  totalInCents: number;
+  missingPrices: number;
+} {
+  const lines = rows
+    .filter((row) => row.serviceId)
+    .map((row) => {
+      const price = services.find(
+        (service) => service.id === row.serviceId,
+      )?.priceInCents;
+      const sessions =
+        Number.isFinite(row.sessions) && row.sessions > 0 ? row.sessions : 0;
+      const unitPriceInCents = price && price > 0 ? price : null;
+      return {
+        serviceId: row.serviceId,
+        sessions,
+        unitPriceInCents,
+        totalInCents:
+          unitPriceInCents === null ? null : unitPriceInCents * sessions,
+      };
+    });
+  return {
+    lines,
+    totalInCents: lines.reduce(
+      (sum, line) => sum + (line.totalInCents ?? 0),
+      0,
+    ),
+    missingPrices: lines.filter((line) => line.unitPriceInCents === null)
+      .length,
+  };
 }
 
 export const planStatusSchema = z.enum([
@@ -251,15 +353,35 @@ export const planPauseDetailsSchema = z.object({
   expectedReturn: z.iso.date().optional().or(z.literal("")),
 });
 
-/** Dados opcionais ao cancelar: valor devolvido ao cliente (estorno) e observação. */
-export const planCancellationDetailsSchema = z.object({
-  refundedInCents: z
-    .number()
-    .int("Informe o valor estornado em centavos.")
-    .min(0, "O valor estornado não pode ser negativo.")
-    .optional(),
-  refundNote: z.string().trim().max(500).optional().or(z.literal("")),
-});
+/**
+ * Dados opcionais ao cancelar: valor devolvido ao cliente (estorno), forma de pagamento e
+ * observação. Com estorno, a forma é obrigatória: o valor sai do caixa como conta paga.
+ */
+export const planCancellationDetailsSchema = z
+  .object({
+    refundedInCents: z
+      .number()
+      .int("Informe o valor estornado em centavos.")
+      .min(0, "O valor estornado não pode ser negativo.")
+      .optional(),
+    refundPaymentMethod: paymentMethodSchema.optional(),
+    refundNote: z.string().trim().max(500).optional().or(z.literal("")),
+  })
+  .refine((value) => !value.refundedInCents || value.refundPaymentMethod, {
+    message: "Informe a forma de pagamento do estorno.",
+    path: ["refundPaymentMethod"],
+  });
+
+/** Categoria de despesa em que o estorno do cancelamento entra no Financeiro. */
+export const planRefundCategoryName = "Estornos a clientes";
+
+/** Descrição da conta paga que registra o estorno do cancelamento. */
+export function planRefundPayableDescription(
+  patientName: string,
+  planName: string,
+) {
+  return `Estorno ao cliente · ${patientName} · ${planName}`.slice(0, 200);
+}
 
 /** Dias inteiros entre duas datas AAAA-MM-DD (fim − início). */
 export function daysBetweenIsoDates(from: string, to: string) {
@@ -321,8 +443,60 @@ export const recurringSingleChargeIssue =
 export function isRecurringChargeValid(plan: {
   kind?: z.infer<typeof planKindSchema> | null | undefined;
   installments: number;
+  paymentParts?: readonly { installments: number }[] | undefined;
 }) {
-  return plan.kind !== "recurring" || plan.installments === 1;
+  if (plan.kind !== "recurring") return true;
+  // Picado: cada forma gera uma cobrança por ciclo.
+  if (plan.paymentParts && plan.paymentParts.length > 1)
+    return plan.paymentParts.every((part) => part.installments === 1);
+  return plan.installments === 1;
+}
+
+/** As formas do plano picado precisam somar o valor total. */
+export function planPaymentPartsMatch(plan: {
+  totalValueInCents: number;
+  paymentParts?: readonly { amountInCents: number }[] | undefined;
+}) {
+  return (
+    !plan.paymentParts?.length ||
+    paymentPartsTotal(plan.paymentParts) === plan.totalValueInCents
+  );
+}
+
+export const planPaymentPartsIssue = {
+  message: "As formas de pagamento precisam somar o valor total do plano.",
+  path: ["paymentParts"],
+};
+
+/**
+ * Termos do plano com as formas aplicadas: forma única vira `paymentMethod`/`installments`
+ * de sempre (sem lista); picado mantém a lista e deriva os dois campos dela.
+ */
+export function withPlanPaymentParts<
+  T extends {
+    installments: number;
+    kind?: z.infer<typeof planKindSchema> | null | undefined;
+    paymentMethod?: z.infer<typeof paymentMethodSchema> | undefined;
+    paymentParts?: PlanPaymentPart[] | undefined;
+  },
+>(plan: T): T {
+  const parts = plan.paymentParts;
+  if (!parts?.length) return plan;
+  const next = { ...plan, paymentMethod: parts[0]!.paymentMethod };
+  if (parts.length === 1) {
+    delete next.paymentParts;
+    return {
+      ...next,
+      installments: plan.kind === "recurring" ? 1 : parts[0]!.installments,
+    };
+  }
+  return {
+    ...next,
+    installments:
+      plan.kind === "recurring"
+        ? 1
+        : parts.reduce((sum, part) => sum + part.installments, 0),
+  };
 }
 
 /**
@@ -443,6 +617,12 @@ export const planTermsSchema = z.object({
   /** Forma de pagamento combinada na venda (ausente = a combinar). */
   paymentMethod: paymentMethodSchema.optional(),
   /**
+   * Plano picado: cada forma com o valor e a quantidade de cobranças dela (ex.: R$ 100 no
+   * Pix em 1 + R$ 200 no cartão em 2). A soma é o valor total; com ela, `paymentMethod` é a
+   * da 1ª forma e `installments` a soma das cobranças (no recorrente, 1 por forma e ciclo).
+   */
+  paymentParts: planPaymentPartsSchema.optional(),
+  /**
    * Valor da 1ª parcela quando proporcional às aulas até o primeiro vencimento
    * (`planFirstChargeProration`); ausente = divisão normal do valor total.
    */
@@ -487,6 +667,7 @@ export const patientPlanInputSchema = planTermsSchema
     path: ["installments"],
   })
   .refine(renewablePlanPeriod, autoRenewIssue)
+  .refine(planPaymentPartsMatch, planPaymentPartsIssue)
   .refine(
     (value) =>
       value.services.reduce((sum, item) => sum + item.totalValueInCents, 0) ===
@@ -500,6 +681,7 @@ export const patientPlanInputSchema = planTermsSchema
 export const planRenewalInputSchema = planTermsSchema
   .refine(validPlanPeriod, planPeriodIssue)
   .refine(renewablePlanPeriod, autoRenewIssue)
+  .refine(planPaymentPartsMatch, planPaymentPartsIssue)
   .refine(
     (value) =>
       value.services.reduce((sum, item) => sum + item.totalValueInCents, 0) ===

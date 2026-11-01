@@ -13,9 +13,25 @@ import {
   assertTabCreditsReversible,
   cancelTabCredits,
 } from "./tab-service-credits.js";
-import type { PaymentTiming, SettlementAdjustments } from "@crm/contracts";
+import type {
+  PaymentPart,
+  PaymentTiming,
+  SettlementAdjustments,
+} from "@crm/contracts";
 import {
+  isSplitPayment,
+  paymentPartsTotal,
+  resolvePaymentParts,
+} from "@crm/contracts";
+import {
+  latestPaymentBatch,
+  storedPaymentParts,
+  tabPaymentParts,
+} from "../../modules/finance/payment-parts.js";
+import {
+  acceptsPaymentInstallments,
   formatSequenceNumber,
+  installmentPaymentSplitIssue,
   recurringPayableCompetences,
   recurringPayableDueDate,
   saoPauloToday,
@@ -34,6 +50,7 @@ import {
   type InventoryWorkspace,
   type PatientTab,
   type PatientTabCloseInput,
+  type PatientTabPayment,
   type PatientTabInput,
   type PatientTabItemInput,
   type Payable,
@@ -67,6 +84,12 @@ import { addMonths, now, today, uuid } from "./helpers.js";
 export function createFinanceRepository(
   repositoryContext: MemoryRepositoryContext,
 ) {
+  /** Vendedor da comanda: o usuário que a abriu (omitido se não for encontrado). */
+  function soldBy(userId: string) {
+    const user = repositoryContext.users.find((item) => item.id === userId);
+    return user ? { soldByUserId: user.id, soldByName: user.fullName } : {};
+  }
+
   /** Fontes do caixa (todo o histórico) no escopo de filial da requisição. */
   function cashSources(clinicId: string): DailyCashSources {
     const payables = repositoryContext.payables.filter(
@@ -113,6 +136,58 @@ export function createFinanceRepository(
       payables,
       commissions,
     };
+  }
+
+  /**
+   * Estorna a baixa de um recebível pago: volta a "open" sem o desconto/juros da baixa. No
+   * pagamento picado, estorna forma por forma, cada uma no caixa da sua forma.
+   */
+  function reversePaidReceivable(receivable: Receivable) {
+    const receivableId = receivable.id;
+    const clinicId = receivable.clinicId;
+    receivable.status = "open";
+    const batch = latestPaymentBatch(
+      repositoryContext.receiptEvents.filter(
+        (item) => item.receivableId === receivableId,
+      ),
+    );
+    // Picado: estorna forma por forma, cada uma no caixa da sua forma.
+    const reversed = batch.length
+      ? batch.map((item) => ({
+          amountInCents: item.amountInCents,
+          paymentMethod: item.paymentMethod,
+        }))
+      : [
+          {
+            amountInCents: receivable.amountInCents,
+            paymentMethod: undefined,
+          },
+        ];
+    const occurredAt = now();
+    for (const item of reversed)
+      repositoryContext.receiptEvents.push({
+        id: uuid(),
+        receivableId,
+        kind: "reversal",
+        occurredAt,
+        amountInCents: -item.amountInCents,
+        ...(item.paymentMethod ? { paymentMethod: item.paymentMethod } : {}),
+      });
+    // Estorno de baixa com desconto/juros: a parcela volta a valer sem eles.
+    const payment = batch.at(-1);
+    receivable.amountInCents +=
+      (payment?.discountInCents ?? 0) - (payment?.interestInCents ?? 0);
+    delete receivable.paidAt;
+    delete receivable.paymentMethod;
+    delete receivable.paymentInstallments;
+    delete receivable.paymentParts;
+    receivable.overdue = receivable.dueDate < today();
+    receivable.updatedAt = now();
+    repositoryContext.markPaymentProofsReversed(
+      clinicId,
+      "receivable",
+      receivableId,
+    );
   }
 
   return {
@@ -293,7 +368,7 @@ export function createFinanceRepository(
 
     async openPatientTab(
       clinicId: string,
-      _actorUserId: string,
+      actorUserId: string,
       input: PatientTabInput,
     ) {
       const patient = repositoryContext.patients.find(
@@ -314,6 +389,7 @@ export function createFinanceRepository(
         id: uuid(),
         clinicId,
         patientName: patient.fullName,
+        ...soldBy(actorUserId),
         status: "open",
         paymentStatus: "pending",
         totalInCents: 0,
@@ -433,6 +509,7 @@ export function createFinanceRepository(
           "Categoria ou centro de custo não encontrado.",
           404,
         );
+      const parts = tabPaymentParts(input, tab.totalInCents);
       const plans = prepareTabServiceCredits(repositoryContext, tab);
       const timestamp = now();
       const receivable: Receivable = {
@@ -466,12 +543,13 @@ export function createFinanceRepository(
         ...(input.settlement === "paid"
           ? {
               paidAt: timestamp,
-              paymentMethod: input.paymentMethod!,
-              ...(input.paymentInstallments && input.paymentInstallments > 1
-                ? { paymentInstallments: input.paymentInstallments }
+              paymentMethod: parts[0]!.paymentMethod,
+              ...(!isSplitPayment(parts) && parts[0]!.paymentInstallments
+                ? { paymentInstallments: parts[0]!.paymentInstallments }
                 : {}),
             }
           : {}),
+        ...(isSplitPayment(parts) ? { paymentParts: parts } : {}),
         overdue: input.settlement === "receivable" && input.dueDate < today(),
         createdAt: timestamp,
         updatedAt: timestamp,
@@ -490,14 +568,15 @@ export function createFinanceRepository(
         });
       repositoryContext.receivables.push(receivable);
       if (receivable.status === "paid")
-        repositoryContext.receiptEvents.push({
-          id: uuid(),
-          receivableId: receivable.id,
-          kind: "payment",
-          occurredAt: timestamp,
-          amountInCents: receivable.amountInCents,
-          paymentMethod: input.paymentMethod!,
-        });
+        for (const part of parts)
+          repositoryContext.receiptEvents.push({
+            id: uuid(),
+            receivableId: receivable.id,
+            kind: "payment",
+            occurredAt: timestamp,
+            amountInCents: part.amountInCents,
+            paymentMethod: part.paymentMethod,
+          });
       tab.status = "closed";
       tab.paymentStatus = input.settlement;
       tab.receivableId = receivable.id;
@@ -509,6 +588,7 @@ export function createFinanceRepository(
       clinicId: string,
       _actorUserId: string,
       tabId: string,
+      options: { refundPayment?: boolean; reason?: string | undefined } = {},
     ) {
       const tab = repositoryContext.patientTabs.find(
         (item) => item.clinicId === clinicId && item.id === tabId,
@@ -520,21 +600,21 @@ export function createFinanceRepository(
           "A comanda já foi cancelada.",
           409,
         );
-      if (
-        tab.receivableId &&
-        repositoryContext.receivables.some(
-          (item) =>
-            item.clinicId === clinicId &&
-            item.id === tab.receivableId &&
-            item.status === "paid",
-        )
-      )
+      const paidReceivable = repositoryContext.receivables.find(
+        (item) =>
+          item.clinicId === clinicId &&
+          item.id === tab.receivableId &&
+          item.status === "paid",
+      );
+      if (paidReceivable && !options.refundPayment)
         throw new DomainError(
           "PATIENT_TAB_PAYMENT_REVERSAL_REQUIRED",
           "Estorne o pagamento no Financeiro antes de cancelar a comanda.",
           409,
         );
       assertTabCreditsReversible(repositoryContext, tab);
+      // Estorno pelo próprio cancelamento: validado acima, antes de qualquer mudança.
+      if (paidReceivable) reversePaidReceivable(paidReceivable);
       cancelTabCredits(repositoryContext, tab);
       for (const item of tab.items) {
         const product = repositoryContext.products.find(
@@ -565,6 +645,7 @@ export function createFinanceRepository(
       tab.status = "cancelled";
       tab.paymentStatus = "cancelled";
       tab.cancelledAt = now();
+      if (options.reason) tab.cancellationReason = options.reason;
       return tab;
     },
 
@@ -572,7 +653,15 @@ export function createFinanceRepository(
       // Plano e serviços de origem saem do que já foi vendido (plano ou comanda).
       const receivableOrigin = (
         item: Receivable,
-      ): Pick<Receivable, "source" | "planName" | "services"> => {
+      ): Pick<
+        Receivable,
+        | "source"
+        | "planName"
+        | "planKind"
+        | "planTotalInCents"
+        | "planPaymentMethod"
+        | "services"
+      > => {
         const plan = item.planId
           ? repositoryContext.patientPlans.find(
               (candidate) =>
@@ -584,6 +673,11 @@ export function createFinanceRepository(
           return {
             source: "plan",
             planName: plan.name,
+            planKind: plan.kind,
+            planTotalInCents: plan.totalValueInCents,
+            ...(plan.paymentMethod
+              ? { planPaymentMethod: plan.paymentMethod }
+              : {}),
             services: plan.services.length
               ? plan.services.map((service) => ({
                   id: service.serviceId,
@@ -676,12 +770,37 @@ export function createFinanceRepository(
           409,
         );
       }
+      // Plano já parcelado não se parcela de novo na forma de pagamento (nem no misto).
+      if (
+        [adjustments, ...(adjustments.payments ?? [])].some(
+          (part) => (part.paymentInstallments ?? 1) > 1,
+        ) &&
+        !acceptsPaymentInstallments(receivable)
+      )
+        throw new DomainError(
+          "INSTALLMENT_PAYMENT_SPLIT",
+          installmentPaymentSplitIssue,
+          400,
+        );
+      // Picado: o valor recebido é a soma das formas.
+      const settlement = adjustments.payments?.length
+        ? {
+            ...adjustments,
+            receivedInCents: paymentPartsTotal(adjustments.payments),
+          }
+        : adjustments;
       const breakdown = settlementBreakdown(
         receivable.amountInCents,
-        adjustments,
+        settlement,
       );
       if (breakdown.error)
         throw new DomainError("INVALID_SETTLEMENT", breakdown.error, 400);
+      const parts = resolvePaymentParts({
+        payments: adjustments.payments,
+        paymentMethod,
+        paymentInstallments: adjustments.paymentInstallments,
+        amountInCents: breakdown.receivedInCents,
+      });
       // Pagamento parcial: o saldo vira uma nova parcela aberta do mesmo plano.
       let balanceReceivableId: string | undefined;
       if (breakdown.balanceInCents > 0) {
@@ -689,11 +808,13 @@ export function createFinanceRepository(
           paidAt: _paidAt,
           paymentMethod: _method,
           cashAvailableAt: _available,
+          paymentParts: _parts,
           ...base
         } = receivable;
         void _paidAt;
         void _method;
         void _available;
+        void _parts;
         const dueDate = adjustments.balanceDueDate ?? receivable.dueDate;
         const balance: Receivable = {
           ...base,
@@ -721,30 +842,62 @@ export function createFinanceRepository(
       receivable.status = "paid";
       receivable.paidAt = timing?.paidAt ?? now();
       if (timing?.availableAt) receivable.cashAvailableAt = timing.availableAt;
-      receivable.paymentMethod = paymentMethod;
-      if (
-        adjustments.paymentInstallments &&
-        adjustments.paymentInstallments > 1
-      )
-        receivable.paymentInstallments = adjustments.paymentInstallments;
+      const [firstPart] = parts as [PaymentPart];
+      receivable.paymentMethod = firstPart.paymentMethod;
+      if (!isSplitPayment(parts) && firstPart.paymentInstallments)
+        receivable.paymentInstallments = firstPart.paymentInstallments;
       else delete receivable.paymentInstallments;
+      const stored = storedPaymentParts(parts);
+      if (stored) receivable.paymentParts = stored;
+      else delete receivable.paymentParts;
       receivable.overdue = false;
       receivable.updatedAt = now();
-      repositoryContext.receiptEvents.push({
-        id: uuid(),
-        receivableId,
-        kind: "payment",
-        occurredAt: receivable.paidAt,
-        ...((timing?.availableAt ?? receivable.cashAvailableAt)
-          ? { availableAt: timing?.availableAt ?? receivable.cashAvailableAt }
-          : {}),
-        amountInCents: receivable.amountInCents,
-        paymentMethod,
-        discountInCents: adjustments.discountInCents ?? 0,
-        interestInCents: adjustments.interestInCents ?? 0,
-        ...(balanceReceivableId ? { balanceReceivableId } : {}),
+      // Um evento por forma; desconto, juros e saldo ficam no último (o "mais recente").
+      parts.forEach((part, index) => {
+        const last = index === parts.length - 1;
+        repositoryContext.receiptEvents.push({
+          id: uuid(),
+          receivableId,
+          kind: "payment",
+          occurredAt: receivable.paidAt!,
+          ...((timing?.availableAt ?? receivable.cashAvailableAt)
+            ? {
+                availableAt: timing?.availableAt ?? receivable.cashAvailableAt,
+              }
+            : {}),
+          amountInCents: part.amountInCents,
+          paymentMethod: part.paymentMethod,
+          discountInCents: last ? (adjustments.discountInCents ?? 0) : 0,
+          interestInCents: last ? (adjustments.interestInCents ?? 0) : 0,
+          ...(last && balanceReceivableId ? { balanceReceivableId } : {}),
+        });
       });
       return receivable;
+    },
+
+    async patientTabPayment(clinicId: string, tabId: string) {
+      const tab = repositoryContext.patientTabs.find(
+        (item) => item.clinicId === clinicId && item.id === tabId,
+      );
+      if (!tab) return undefined;
+      const receivable = repositoryContext.receivables.find(
+        (item) => item.clinicId === clinicId && item.id === tab.receivableId,
+      );
+      if (!receivable) return null;
+      const payment: PatientTabPayment = {
+        receivableId: receivable.id,
+        status: receivable.status,
+        amountInCents: receivable.amountInCents,
+        dueDate: receivable.dueDate,
+        ...(receivable.paidAt ? { paidAt: receivable.paidAt } : {}),
+        ...(receivable.paymentMethod
+          ? { paymentMethod: receivable.paymentMethod }
+          : {}),
+        ...(receivable.paymentInstallments
+          ? { paymentInstallments: receivable.paymentInstallments }
+          : {}),
+      };
+      return payment;
     },
 
     async reverseReceivablePayment(
@@ -763,33 +916,7 @@ export function createFinanceRepository(
           409,
         );
       }
-      receivable.status = "open";
-      repositoryContext.receiptEvents.push({
-        id: uuid(),
-        receivableId,
-        kind: "reversal",
-        occurredAt: now(),
-        amountInCents: -receivable.amountInCents,
-      });
-      // Estorno de baixa com desconto/juros: a parcela volta a valer sem eles.
-      const payment = repositoryContext.receiptEvents
-        .filter(
-          (item) =>
-            item.receivableId === receivableId && item.kind === "payment",
-        )
-        .at(-1);
-      receivable.amountInCents +=
-        (payment?.discountInCents ?? 0) - (payment?.interestInCents ?? 0);
-      delete receivable.paidAt;
-      delete receivable.paymentMethod;
-      delete receivable.paymentInstallments;
-      receivable.overdue = receivable.dueDate < today();
-      receivable.updatedAt = now();
-      repositoryContext.markPaymentProofsReversed(
-        clinicId,
-        "receivable",
-        receivableId,
-      );
+      reversePaidReceivable(receivable);
       return receivable;
     },
 
@@ -875,6 +1002,9 @@ export function createFinanceRepository(
         amountInCents: receivable.amountInCents,
         paymentMethod: receivable.paymentMethod,
         ...receiptInstallments(receivable),
+        ...(receivable.paymentParts
+          ? { paymentParts: receivable.paymentParts }
+          : {}),
         paidAt: receivable.paidAt,
         clinicName: clinic.name,
         clinicLegalName: clinic.legalName ?? "",
@@ -1233,6 +1363,7 @@ export function createFinanceRepository(
       payableId: string,
       paymentMethod: PaymentMethod,
       timing?: PaymentTiming,
+      payments?: PaymentPart[],
     ) {
       return repositoryContext.changePayable(
         clinicId,
@@ -1240,6 +1371,7 @@ export function createFinanceRepository(
         "payment",
         paymentMethod,
         timing,
+        payments,
       );
     },
 
@@ -1413,7 +1545,8 @@ export function createFinanceRepository(
         const costCenter = repositoryContext.costCenters.find(
           (item) => item.id === model.costCenterId,
         );
-        if (!category || !costCenter) continue;
+        // Sem centro de custo é válido; com ele, precisa ainda existir.
+        if (!category || (model.costCenterId && !costCenter)) continue;
         for (const competence of recurringPayableCompetences(
           model,
           currentMonth,
@@ -1428,9 +1561,10 @@ export function createFinanceRepository(
             description: model.description,
             ...(model.supplier ? { supplier: model.supplier } : {}),
             categoryId: model.categoryId,
-            costCenterId: model.costCenterId,
+            ...(costCenter
+              ? { costCenterId: costCenter.id, costCenterName: costCenter.name }
+              : {}),
             categoryName: category.name,
-            costCenterName: costCenter.name,
             dueDate,
             amountInCents: model.amountInCents,
             status: "open",
@@ -1560,66 +1694,6 @@ export function createFinanceRepository(
       };
       repositoryContext.commissionRules.push(rule);
       return rule;
-    },
-
-    async generateCommissions(clinicId: string, competence: string) {
-      // Atendimento de lead (experimental/avaliação sem cliente) não gera comissão.
-      for (const appointment of repositoryContext.appointments.filter(
-        (item) =>
-          item.clinicId === clinicId &&
-          item.patientId !== undefined &&
-          item.status === "completed" &&
-          item.startsAt.slice(0, 7) === competence,
-      )) {
-        if (
-          repositoryContext.commissions.some(
-            (item) => item.appointmentId === appointment.id,
-          )
-        )
-          continue;
-        // Regra do usuário ligado ao profissional, vigente na data; sem ela, a do profissional.
-        const linkedUserId = repositoryContext.professionalUsers.get(
-          appointment.professionalId,
-        );
-        const rule =
-          (linkedUserId
-            ? repositoryContext.userCommissionRuleOn(
-                clinicId,
-                linkedUserId,
-                appointment.startsAt.slice(0, 10),
-              )
-            : undefined) ??
-          repositoryContext.commissionRules
-            .filter(
-              (item) =>
-                item.professionalId === appointment.professionalId &&
-                item.effectiveFrom <= appointment.startsAt.slice(0, 10),
-            )
-            .sort((a, b) => b.effectiveFrom.localeCompare(a.effectiveFrom))[0];
-        const service = repositoryContext.services.find(
-          (item) => item.id === appointment.serviceId,
-        );
-        if (!rule || !service) continue;
-        repositoryContext.commissionEntryRuleIds.add(rule.id);
-        repositoryContext.commissions.push({
-          id: uuid(),
-          clinicId,
-          professionalId: appointment.professionalId,
-          professionalName: appointment.professionalName,
-          appointmentId: appointment.id,
-          competence,
-          baseAmountInCents: service.priceInCents,
-          percentage: rule.percentage,
-          amountInCents: Math.round(
-            (service.priceInCents * rule.percentage) / 100,
-          ),
-          status: "open",
-          createdAt: now(),
-        });
-      }
-      return repositoryContext.commissions.filter(
-        (item) => item.clinicId === clinicId && item.competence === competence,
-      );
     },
 
     async settleCommission(

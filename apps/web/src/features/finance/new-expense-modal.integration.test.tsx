@@ -120,4 +120,36 @@ describe("Nova despesa: pontual ou fixa no mesmo modal", () => {
       within(dialog()).getByRole("button", { name: "Cadastrar despesa fixa" }),
     ).toBeInTheDocument();
   });
+
+  it("saves a fixed expense without cost center, like the one-off one", async () => {
+    mount();
+    const bodies: unknown[] = [];
+    vi.mocked(fetch).mockImplementation(async (_input, options) => {
+      if (options?.method === "POST") {
+        bodies.push(JSON.parse(String(options.body)));
+        return jsonResponse({ id: "rp-1" }, 201);
+      }
+      return jsonResponse([]);
+    });
+    fireEvent.click(
+      within(dialog()).getByRole("radio", { name: "Fixa (todo mês)" }),
+    );
+    fireEvent.change(within(dialog()).getByLabelText("Descrição"), {
+      target: { value: "Faxina" },
+    });
+    // Mesmo bloco "Conta" nos dois tipos: centro de custo opcional.
+    fireEvent.change(
+      within(dialog()).getByRole("combobox", { name: /Centro de custo/ }),
+      { target: { value: "" } },
+    );
+    fireEvent.click(
+      within(dialog()).getByRole("button", { name: "Cadastrar despesa fixa" }),
+    );
+    await vi.waitFor(() => expect(bodies).toHaveLength(1));
+    expect(bodies[0]).toMatchObject({
+      description: "Faxina",
+      categoryId: "cat-1",
+    });
+    expect(bodies[0]).not.toHaveProperty("costCenterId");
+  });
 });

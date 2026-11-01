@@ -160,6 +160,27 @@ describe("comprovantes de pagamento", () => {
     );
     fireEvent.click(within(row()).getByRole("button", { name: "Estornar" }));
     await within(row()).findByRole("button", { name: "Dar baixa" });
+    // Parcela reaberta: o comprovante segue acessível, com o selo e sem anexar novos.
+    fireEvent.click(
+      within(row()).getByRole("button", {
+        name: "Comprovantes de Mensalidade no cartão",
+      }),
+    );
+    proofs = await screen.findByRole("dialog", { name: "Comprovantes" });
+    const reopened = await within(proofs).findByRole("list", {
+      name: "Comprovantes da baixa estornada",
+    });
+    expect(within(reopened).getByText("certo.pdf")).toBeInTheDocument();
+    expect(
+      within(reopened).getByText("Pagamento estornado"),
+    ).toBeInTheDocument();
+    expect(within(proofs).queryByLabelText("Arquivos")).not.toBeInTheDocument();
+    expect(
+      within(proofs).queryByRole("group", { name: "Anexar comprovantes" }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(
+      within(proofs).getAllByRole("button", { name: "Fechar" }).at(-1)!,
+    );
     fireEvent.click(within(row()).getByRole("button", { name: "Dar baixa" }));
     await save("Dar baixa na parcela", "Confirmar baixa");
     fireEvent.click(
@@ -172,6 +193,9 @@ describe("comprovantes de pagamento", () => {
       name: "Comprovantes da baixa estornada",
     });
     expect(within(history).getByText("certo.pdf")).toBeInTheDocument();
-    expect(within(history).getByText(/baixa estornada em/)).toBeInTheDocument();
+    expect(within(history).getByText(/estornado em/)).toBeInTheDocument();
+    expect(
+      within(history).getByText("Pagamento estornado"),
+    ).toBeInTheDocument();
   });
 });

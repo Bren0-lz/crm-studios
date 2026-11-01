@@ -2,17 +2,15 @@ import { useUnsavedChangesPrompt } from "../../shared/workflows/useUnsavedChange
 import type { CloseGuard } from "../../shared/workflows/types";
 import {
   nextPlanPeriod,
-  paymentMethodLabels,
-  paymentMethodSchema,
   planPeriodEnd,
   planPeriodMonths,
+  planInstallmentPreview,
   planServiceValueForSessions,
   planTypeKind,
   planTypeLabels,
   type PatientOption,
   type PatientPlan,
   type PatientPlanInput,
-  type PaymentMethod,
   type PlanTemplate,
   type Service,
   withPlanFirstCharge,
@@ -26,11 +24,12 @@ import {
 } from "react";
 import { NavLink } from "react-router-dom";
 import { PlanFirstChargeNote } from "./PlanFirstChargeNote";
-import { PlanInstallmentsField } from "./PlanInstallmentsField";
+import { PlanPaymentFields } from "./PlanPaymentFields";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
 import { PatientPicker } from "../../PatientPicker";
 import { FixedPatient } from "../../shared/components/FixedPatient";
+import { InstallmentsPreview } from "../../shared/components/InstallmentsPreview";
 import { useMissingFields } from "../../shared/components/MissingFields";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
 import { PlanGroupPicker } from "../../shared/components/PlanGroupPicker";
@@ -70,7 +69,10 @@ export function PlanForm({
   onCancel: () => void;
   onBusyChange: (busy: boolean) => void;
   onSubmit: (input: PatientPlanInput, groupId?: string) => Promise<void>;
-  renderAdditional?: ((input: PatientPlanInput) => ReactNode) | undefined;
+  /** `groupId`: turma escolhida no formulário (vazia sem turma). */
+  renderAdditional?:
+    | ((input: PatientPlanInput, groupId: string) => ReactNode)
+    | undefined;
   additionalDirty?: boolean;
   registerCloseGuard?: ((guard: CloseGuard) => () => void) | undefined;
   /** Restringe os planos cadastrados a avulsos ou recorrentes (atalho da ficha do cliente). */
@@ -94,6 +96,8 @@ export function PlanForm({
         installments: 3,
         firstDueDate: currentDate,
         autoRenew: false,
+        // Nunca sem forma de pagamento: começa no Pix.
+        paymentMethod: "pix",
       };
     }
     const period = nextPlanPeriod(renewing) ?? {
@@ -115,9 +119,9 @@ export function PlanForm({
       ),
       totalValueInCents: renewing.totalValueInCents,
       installments: renewing.kind === "recurring" ? 1 : renewing.installments,
-      ...(renewing.paymentMethod
-        ? { paymentMethod: renewing.paymentMethod }
-        : {}),
+      // A renovação segue as formas combinadas (Pix quando o plano antigo não tinha).
+      paymentMethod: renewing.paymentMethod ?? "pix",
+      ...(renewing.paymentParts ? { paymentParts: renewing.paymentParts } : {}),
       autoRenew: renewing.autoRenew && Boolean(period.validUntil),
       ...period,
     };
@@ -181,7 +185,7 @@ export function PlanForm({
       );
     if (
       !renewing &&
-      !templates?.some((item) => item.id === form.planTemplateId)
+      !shownTemplates?.some((item) => item.id === form.planTemplateId)
     ) {
       setError("Selecione um plano cadastrado.");
       throw new Error("Selecione um plano cadastrado.");
@@ -218,6 +222,12 @@ export function PlanForm({
     ? renewing.services
     : (templates?.find((item) => item.id === form.planTemplateId)?.services ??
       []);
+  // A lista de planos cadastrados acompanha o Modelo escolhido (avulso ou recorrente).
+  const shownCatalogKind: PlanCatalogKind =
+    catalogKind ?? (form.kind === "single" ? "single" : "recurring");
+  const shownTemplates = templates?.filter(
+    (item) => planTemplateCatalogKind(item) === shownCatalogKind,
+  );
   const sessionsEditable = form.kind === "single";
   const servicesTotal = (entries: PatientPlanInput["services"]) =>
     entries.reduce((sum, item) => sum + item.totalValueInCents, 0);
@@ -277,6 +287,29 @@ export function PlanForm({
                       value={form.kind}
                       onChange={(e) => {
                         const kind = e.target.value as PatientPlan["kind"];
+                        const selected = templates?.find(
+                          (item) => item.id === form.planTemplateId,
+                        );
+                        // Plano escolhido de outro modelo sai da seleção.
+                        if (
+                          selected &&
+                          planTemplateCatalogKind(selected) !==
+                            (kind === "single" ? "single" : "recurring")
+                        ) {
+                          setForm({
+                            ...form,
+                            kind,
+                            planTemplateId: "",
+                            name: "",
+                            services: [],
+                            totalValueInCents: 0,
+                            installments:
+                              kind === "recurring" ? 1 : form.installments,
+                            autoRenew: kind === "recurring",
+                          });
+                          setGroupId("");
+                          return;
+                        }
                         const entries =
                           kind === "single"
                             ? form.services
@@ -333,7 +366,7 @@ export function PlanForm({
                     required
                     autoFocus={Boolean(catalogKind)}
                     value={form.planTemplateId}
-                    disabled={!templates?.length || loading}
+                    disabled={!shownTemplates?.length || loading}
                     onChange={(event) => {
                       const template = templates?.find(
                         (item) => item.id === event.target.value,
@@ -361,6 +394,8 @@ export function PlanForm({
                         planTemplateId: template?.id ?? "",
                         name: template?.name ?? "",
                         totalValueInCents: template?.totalValueInCents ?? 0,
+                        // Valor novo: as formas picadas voltam a uma.
+                        paymentParts: undefined,
                         services:
                           template?.services.map((entry) => ({ ...entry })) ??
                           [],
@@ -382,7 +417,7 @@ export function PlanForm({
                     }}
                   >
                     <option value="">Selecione um plano</option>
-                    {templates?.map((item) => (
+                    {shownTemplates?.map((item) => (
                       <option key={item.id} value={item.id}>
                         {item.name} ·{" "}
                         {currency.format(item.totalValueInCents / 100)}
@@ -407,10 +442,10 @@ export function PlanForm({
                   </div>
                 ) : templates === null ? (
                   <LoadingBlock />
-                ) : templates.length === 0 ? (
+                ) : !shownTemplates?.length ? (
                   <p className="muted-copy">
-                    {catalogKind
-                      ? `Nenhum plano ${catalogKind === "single" ? "avulso" : "recorrente"} ativo cadastrado.`
+                    {catalogKind || templates.length
+                      ? `Nenhum plano ${shownCatalogKind === "single" ? "avulso" : "recorrente"} ativo cadastrado.`
                       : "Nenhum plano ativo cadastrado."}{" "}
                     Cadastre um plano em Configurações › Planos.
                     {canView("settings") && (
@@ -558,39 +593,15 @@ export function PlanForm({
                 }
               />
             </label>
-            <label>
-              Forma de pagamento
-              <select
-                value={form.paymentMethod ?? ""}
-                onChange={(event) => {
-                  const paymentMethod = event.target.value as
-                    PaymentMethod | "";
-                  const next = { ...form };
-                  if (paymentMethod) next.paymentMethod = paymentMethod;
-                  else delete next.paymentMethod;
-                  setForm(next);
-                }}
-              >
-                <option value="">A combinar</option>
-                {paymentMethodSchema.options.map((method) => (
-                  <option value={method} key={method}>
-                    {paymentMethodLabels[method]}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <PlanInstallmentsField
-              kind={form.kind}
-              installments={form.installments}
-              firstDueDate={form.firstDueDate}
-              validUntil={form.validUntil}
-              paymentMethod={form.paymentMethod}
+            <PlanPaymentFields
+              plan={form}
               settings={paymentSettings}
               template={templates?.find(
                 (item) =>
                   item.id === (renewing?.planTemplateId ?? form.planTemplateId),
               )}
-              onChange={(installments) => setForm({ ...form, installments })}
+              disabled={loading}
+              onChange={(fields) => setForm({ ...form, ...fields })}
             />
             <label>
               Primeiro vencimento
@@ -605,6 +616,20 @@ export function PlanForm({
             </label>
             {!renewing && (
               <PlanFirstChargeNote plan={form} slots={firstChargeSlots} />
+            )}
+            {form.totalValueInCents > 0 && (
+              <InstallmentsPreview
+                className="span-2"
+                rows={planInstallmentPreview({
+                  ...withPlanFirstCharge(form, firstChargeSlots),
+                  previousDiscount: renewing?.discount,
+                })}
+                note={
+                  form.kind === "recurring"
+                    ? "Plano recorrente: as próximas cobranças são geradas a cada renovação."
+                    : undefined
+                }
+              />
             )}
             <label className="checkbox-field span-2">
               <input
@@ -629,7 +654,7 @@ export function PlanForm({
                 required
               />
             )}
-            {renderAdditional?.(form)}
+            {renderAdditional?.(form, groupId)}
           </fieldset>
           {error && (
             <div className="form-error span-2" role="alert">

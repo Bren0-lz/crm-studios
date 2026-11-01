@@ -5,6 +5,7 @@ import {
   type PlanCatalogEntry,
   type PlanStatus,
   type PlanTemplate,
+  type PlanPaymentPart,
   type SessionMovement,
 } from "@crm/contracts";
 import { json } from "./common.js";
@@ -66,6 +67,8 @@ export interface PatientPlanRow {
   installments: number;
   firstDueDate: string;
   paymentMethod: PatientPlan["paymentMethod"] | null;
+  /** Plano picado (JSON); vazio = forma única. */
+  paymentParts?: unknown;
   discount: PatientPlan["discount"] | null;
   patientName: string;
   serviceName: string;
@@ -77,6 +80,8 @@ export interface PatientPlanRow {
   cancelledValueInCents: number;
   refundedInCents: number;
   refundNote: string | null;
+  refundPayableId: string | null;
+  refundPaymentMethod: PatientPlan["refundPaymentMethod"] | null;
   pausedAt: Date | null;
   pauseReason: string | null;
   pauseExpectedReturn: string | null;
@@ -104,7 +109,7 @@ export const patientPlanColumns = `
   pp.total_sessions AS "totalSessions", pp.remaining_sessions AS "remainingSessions",
   pp.valid_from AS "validFrom", pp.valid_until AS "validUntil",
   pp.total_value_in_cents AS "totalValueInCents", pp.installments,
-  pp.first_due_date AS "firstDueDate", pp.status, pp.payment_method AS "paymentMethod", pp.discount,
+  pp.first_due_date AS "firstDueDate", pp.status, pp.payment_method AS "paymentMethod", pp.payment_parts AS "paymentParts", pp.discount,
   pp.plan_template_id AS "planTemplateId", pp.auto_renew AS "autoRenew", pp.renewed_from_plan_id AS "renewedFromPlanId",
   (SELECT n.id FROM patient_plans n WHERE n.renewed_from_plan_id = pp.id) AS "renewedByPlanId",
   p.full_name AS "patientName",
@@ -113,6 +118,8 @@ export const patientPlanColumns = `
     FROM patient_plan_services x WHERE x.plan_id=pp.id) AS services,
   pp.cancelled_at AS "cancelledAt", pp.cancelled_value_in_cents AS "cancelledValueInCents",
   pp.refunded_in_cents AS "refundedInCents", pp.refund_note AS "refundNote",
+  pp.refund_payable_id AS "refundPayableId",
+  (SELECT rp.payment_method FROM payables rp WHERE rp.id = pp.refund_payable_id) AS "refundPaymentMethod",
   pp.paused_at AS "pausedAt", pp.pause_reason AS "pauseReason", pp.pause_expected_return AS "pauseExpectedReturn",
   pp.created_at AS "createdAt", pp.updated_at AS "updatedAt"
 `;
@@ -143,6 +150,7 @@ export function mapPatientPlan(row: PatientPlanRow): PatientPlan {
     installments: row.installments,
     firstDueDate: row.firstDueDate,
     ...(row.paymentMethod ? { paymentMethod: row.paymentMethod } : {}),
+    ...planPaymentPartsOf(row.paymentParts),
     ...(row.discount ? { discount: row.discount } : {}),
     patientName: row.patientName,
     serviceName: row.serviceName,
@@ -163,6 +171,10 @@ export function mapPatientPlan(row: PatientPlanRow): PatientPlan {
     ...(row.refundedInCents && row.refundNote
       ? { refundNote: row.refundNote }
       : {}),
+    ...(row.refundPaymentMethod
+      ? { refundPaymentMethod: row.refundPaymentMethod }
+      : {}),
+    ...(row.refundPayableId ? { refundPayableId: row.refundPayableId } : {}),
     ...(row.pausedAt ? { pausedAt: row.pausedAt.toISOString() } : {}),
     ...(row.pauseReason ? { pauseReason: row.pauseReason } : {}),
     ...(row.pauseExpectedReturn
@@ -189,4 +201,14 @@ export function mapPlanCatalog(row: PlanCatalogRow): PlanCatalogEntry {
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };
+}
+
+/** Coluna `payment_parts` do plano: lista vazia (ou ausente) = forma única, sem o campo. */
+function planPaymentPartsOf(value: unknown): {
+  paymentParts?: PlanPaymentPart[];
+} {
+  const parts = json<PlanPaymentPart[] | null>(value);
+  return Array.isArray(parts) && parts.length > 1
+    ? { paymentParts: parts }
+    : {};
 }

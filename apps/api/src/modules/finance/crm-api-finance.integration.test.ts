@@ -363,7 +363,23 @@ describe("CRM API", () => {
       app.inject({ method: "GET", url: "/rooms", headers }),
       app.inject({ method: "GET", url: "/services", headers }),
     ]);
-    const service = services.json()[0] as { id: string; priceInCents: number };
+    const service = services.json()[0] as { id: string };
+    // O preço de tabela do serviço é só referência: a base da comissão sem plano é a sessão do plano avulso.
+    const singlePlan = await app.inject({
+      method: "POST",
+      url: "/plan-templates",
+      headers,
+      payload: {
+        name: "Sessão avulsa",
+        totalValueInCents: 18000,
+        planType: "single",
+        kind: "single",
+        services: [
+          { serviceId: service.id, totalSessions: 1, totalValueInCents: 18000 },
+        ],
+      },
+    });
+    expect(singlePlan.statusCode).toBe(201);
     const completedAppointment = async (
       professionalId: string,
       startsAt: string,
@@ -478,7 +494,7 @@ describe("CRM API", () => {
     expect(entries.get(withUserRule)).toMatchObject({
       professionalId: ana,
       percentage: 35,
-      amountInCents: Math.round((service.priceInCents * 35) / 100),
+      amountInCents: Math.round((18000 * 35) / 100),
     });
     expect(entries.get(unlinkedProfessional)).toMatchObject({
       professionalId: other,
@@ -497,7 +513,7 @@ describe("CRM API", () => {
     expect(second.json()).toHaveLength(3);
     expect(byAppointment(second.json()).get(beforeUserRule)).toMatchObject({
       percentage: 50,
-      amountInCents: Math.round((service.priceInCents * 50) / 100),
+      amountInCents: Math.round((18000 * 50) / 100),
     });
     expect(byAppointment(second.json()).get(withUserRule)).toMatchObject({
       percentage: 35,
@@ -1313,6 +1329,84 @@ describe("CRM API", () => {
       });
       expect(denied.statusCode).toBe(403);
       await app.close();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("accepts a fixed expense without cost center and generates its bills without one", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-10T15:00:00.000Z"));
+    try {
+      const { app, token } = await authenticatedApp();
+      const headers = { authorization: `Bearer ${token}` };
+      const workspace = async () =>
+        (
+          await app.inject({
+            method: "GET",
+            url: "/finance/workspace",
+            headers,
+          })
+        ).json();
+      const before = await workspace();
+      const category = before.categories.find(
+        (item: { kind: string }) => item.kind === "expense",
+      );
+      const base = {
+        description: "Faxina mensal",
+        categoryId: category.id,
+        amountInCents: 30_000,
+        dayOfMonth: 15,
+        startMonth: "2026-10",
+      };
+      const created = await app.inject({
+        method: "POST",
+        url: "/finance/recurring-payables",
+        headers,
+        payload: base,
+      });
+      expect(created.statusCode).toBe(201);
+      expect(created.json()).not.toHaveProperty("costCenterId");
+      expect(created.json().costCenterName).toBe("");
+      const model = created.json() as { id: string };
+
+      const bill = (await workspace()).payables.find(
+        (item: { recurringPayableId?: string }) =>
+          item.recurringPayableId === model.id,
+      );
+      expect(bill).toMatchObject({
+        competence: "2026-10",
+        amountInCents: 30_000,
+      });
+      expect(bill).not.toHaveProperty("costCenterId");
+
+      // Informado, o centro precisa existir; e dá para tirá-lo de novo na edição.
+      const unknown = await app.inject({
+        method: "PUT",
+        url: `/finance/recurring-payables/${model.id}`,
+        headers,
+        payload: {
+          ...base,
+          costCenterId: "99999999-9999-4999-8999-999999999999",
+        },
+      });
+      expect(unknown.statusCode).toBe(404);
+      const withCenter = await app.inject({
+        method: "PUT",
+        url: `/finance/recurring-payables/${model.id}`,
+        headers,
+        payload: { ...base, costCenterId: before.costCenters[0].id },
+      });
+      expect(withCenter.statusCode).toBe(200);
+      expect(withCenter.json().costCenterId).toBe(before.costCenters[0].id);
+      const without = await app.inject({
+        method: "PUT",
+        url: `/finance/recurring-payables/${model.id}`,
+        headers,
+        payload: base,
+      });
+      expect(without.statusCode).toBe(200);
+      expect(without.json()).not.toHaveProperty("costCenterId");
     } finally {
       vi.useRealTimers();
     }

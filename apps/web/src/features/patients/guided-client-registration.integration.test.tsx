@@ -1032,8 +1032,9 @@ describe("guided client registration", () => {
       fireEvent.change(await within(dialog).findByLabelText("Turma"), {
         target: { value: groups[0]!.id },
       });
+      // Nunca sem forma de pagamento: o plano já começa no Pix.
       const method = within(dialog).getByLabelText("Forma de pagamento");
-      expect(method).toHaveValue("");
+      expect(method).toHaveValue("pix");
       fireEvent.change(method, { target: { value: "pix" } });
       return dialog;
     }

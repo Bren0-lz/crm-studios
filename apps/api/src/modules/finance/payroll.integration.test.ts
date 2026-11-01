@@ -5,6 +5,7 @@ import { MemoryClinicRepository } from "../../memory-repository.js";
 import { nextTestCpf } from "../../test-support/cpf.js";
 import { payrollSuite } from "../../test-support/payroll-suite.js";
 import { salariedEmployeeViaApi } from "../../test-support/payroll-users.js";
+import { serviceWithSinglePlan } from "../../test-support/single-plan-service.js";
 
 const clinicId = "11111111-1111-4111-8111-111111111111",
   actorId = "22222222-2222-4222-8222-222222222222";
@@ -18,9 +19,12 @@ describe("rotas da folha de pagamento", () => {
     try {
       const [professional] = await repository.listProfessionals(clinicId),
         [room] = await repository.listRooms(clinicId),
-        service = (await repository.listServices(clinicId)).find(
-          (item) => item.priceInCents >= 1000,
-        )!,
+        service = await serviceWithSinglePlan(
+          repository,
+          clinicId,
+          "22222222-2222-4222-8222-222222222222",
+          18000,
+        ),
         patient = await repository.createPatient(clinicId, {
           cpf: nextTestCpf(),
           fullName: "Cliente das rotas da folha",
@@ -106,15 +110,58 @@ describe("rotas da folha de pagamento", () => {
       });
       expect(edit.statusCode).toBe(409);
       expect(edit.json().code).toBe("PAYROLL_EMPLOYEE_MANAGED_BY_USER");
+      // Desconto/recompensa do mês: o salário fixo não muda.
+      const invalid = await app.inject({
+        method: "POST",
+        url: "/finance/payroll/entries",
+        headers: admin,
+        payload: {
+          employeeId,
+          competence: "2025-02",
+          kind: "discount",
+          mode: "percent",
+          value: 10001,
+          reason: "Acima de 100%",
+        },
+      });
+      expect(invalid.statusCode).toBe(400);
+      const created = await app.inject({
+        method: "POST",
+        url: "/finance/payroll/entries",
+        headers: admin,
+        payload: {
+          employeeId,
+          competence: "2025-02",
+          kind: "discount",
+          mode: "percent",
+          value: 1000,
+          reason: "Faltas",
+        },
+      });
+      expect(created.statusCode).toBe(201);
+      expect(created.json()).toMatchObject({ amountInCents: 10000 });
+      const removed = await app.inject({
+        method: "DELETE",
+        url: `/finance/payroll/entries/${created.json().id}`,
+        headers: admin,
+      });
+      expect(removed.statusCode).toBe(204);
+      expect(
+        (
+          await app.inject({
+            method: "DELETE",
+            url: `/finance/payroll/entries/${created.json().id}`,
+            headers: admin,
+          })
+        ).statusCode,
+      ).toBe(404);
       const summary = await app.inject({
         method: "GET",
         url: "/finance/payroll?competence=2025-02",
         headers: admin,
       });
       expect(summary.statusCode).toBe(200);
-      const expenseCategory = (
-        await repository.getFinancialWorkspace(clinicId)
-      ).categories.find((item) => item.kind === "expense")!;
+      // Sem categoria: usa "Folha de pagamento", criada no primeiro lançamento.
       const launch = await app.inject({
         method: "POST",
         url: "/finance/payroll/launch",
@@ -123,10 +170,18 @@ describe("rotas da folha de pagamento", () => {
           competence: "2025-02",
           employeeIds: [employeeId],
           dueDate: "2025-03-05",
-          categoryId: expenseCategory.id,
         },
       });
       expect(launch.statusCode).toBe(201);
+      expect(launch.json().payables[0].categoryName).toBe(
+        "Folha de pagamento",
+      );
+      const payrollCategories = (
+        await repository.getFinancialWorkspace(clinicId)
+      ).categories.filter((item) => item.name === "Folha de pagamento");
+      expect(payrollCategories).toMatchObject([
+        { kind: "expense", active: true },
+      ]);
       expect(launch.json().payables[0].amountInCents).toBe(
         100000 + commission.amountInCents,
       );
@@ -161,6 +216,23 @@ describe("rotas da folha de pagamento", () => {
             method: "GET",
             url: "/finance/payroll",
             headers: finance,
+          })
+        ).statusCode,
+      ).toBe(403);
+      expect(
+        (
+          await app.inject({
+            method: "POST",
+            url: "/finance/payroll/entries",
+            headers: finance,
+            payload: {
+              employeeId,
+              competence: "2025-02",
+              kind: "bonus",
+              mode: "amount",
+              value: 100,
+              reason: "Sem permissão",
+            },
           })
         ).statusCode,
       ).toBe(403);

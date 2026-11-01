@@ -131,11 +131,14 @@ export interface CampaignReportRow {
   total: number;
   sent: number;
   skipped: number;
-  /** Só campanhas manuais; nas automáticas a fila do dia fica em Comunicação. */
+  /**
+   * Manual: destinatários ainda não marcados. Automática: clientes na fila de hoje ainda
+   * sem envio (0 quando hoje está fora do período; veja `CampaignReport.queueDate`).
+   */
   pending: number;
   /** Agendamentos com a promoção da campanha no período, sem os cancelados. */
   redemptions: number;
-  /** Campanha automática promocional (tem promoção para usar ao agendar). */
+  /** Campanha promocional (tem promoção para usar ao agendar). */
   promotional?: boolean | undefined;
 }
 
@@ -148,6 +151,9 @@ export interface CampaignReport {
   from: string;
   to: string;
   generatedAt: string;
+  /** Dia (aaaa-mm-dd) da fila usada nas pendentes das automáticas; ausente quando hoje
+   *  está fora do período. */
+  queueDate?: string | undefined;
   summary: {
     manualCampaigns: number;
     automaticCampaigns: number;

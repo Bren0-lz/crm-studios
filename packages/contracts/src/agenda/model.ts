@@ -4,6 +4,7 @@ import {
   addMonthsToIsoDate,
   clockTimeSchema,
   joinWithAnd,
+  paymentMethodSchema,
 } from "../common/model.js";
 import type {
   Appointment,
@@ -11,6 +12,8 @@ import type {
   GroupSession,
   GroupWeeklySlot,
 } from "./types.js";
+
+type PaymentMethod = z.infer<typeof paymentMethodSchema>;
 
 export const appointmentStatusSchema = z.enum([
   "scheduled",
@@ -41,6 +44,8 @@ export const appointmentInputSchema = z.object({
 
 /** Promoção escolhida ao agendar: a campanha e o evento em que o cliente recebeu a mensagem. */
 export const appointmentPromotionSchema = z.object({
+  /** `manual` = campanha manual (WhatsApp); ausente = campanha automática. */
+  source: z.literal("manual").optional(),
   campaignId: z.uuid(),
   occurrenceKey: z.string().trim().min(1).max(200),
 });
@@ -488,7 +493,24 @@ export function planInstallmentSchedule(plan: {
   installments: number;
   firstDueDate: string;
   firstInstallmentInCents?: number | undefined;
-}): { installmentNumber: number; dueDate: string; amountInCents: number }[] {
+  paymentMethod?: PaymentMethod | undefined;
+  paymentParts?:
+    | readonly {
+        paymentMethod: PaymentMethod;
+        amountInCents: number;
+        installments: number;
+      }[]
+    | undefined;
+}): {
+  installmentNumber: number;
+  dueDate: string;
+  amountInCents: number;
+  /** Forma prevista da cobrança (a da parte, no plano picado). */
+  paymentMethod?: PaymentMethod;
+}[] {
+  const parts = plan.paymentParts;
+  if (parts && parts.length > 1) return splitPlanSchedule({ ...plan, parts });
+  const method = parts?.[0]?.paymentMethod ?? plan.paymentMethod;
   const baseAmount = Math.floor(plan.totalValueInCents / plan.installments);
   const remainder = plan.totalValueInCents % plan.installments;
   return Array.from({ length: plan.installments }, (_, index) => ({
@@ -498,7 +520,67 @@ export function planInstallmentSchedule(plan: {
       index === 0 && plan.firstInstallmentInCents !== undefined
         ? plan.firstInstallmentInCents
         : baseAmount + (index < remainder ? 1 : 0),
+    ...(method ? { paymentMethod: method } : {}),
   }));
+}
+
+/**
+ * Plano picado: cada forma divide o próprio valor nas cobranças dela, mês a mês a partir do
+ * 1º vencimento. Com 1ª cobrança proporcional, as primeiras de cada forma somam o valor
+ * proporcional, repartido na mesma proporção. Ordem: vencimento e depois a ordem das formas.
+ */
+function splitPlanSchedule(plan: {
+  firstDueDate: string;
+  firstInstallmentInCents?: number | undefined;
+  parts: readonly {
+    paymentMethod: PaymentMethod;
+    amountInCents: number;
+    installments: number;
+  }[];
+}) {
+  const charges = plan.parts.flatMap((part, partIndex) => {
+    const count = Math.max(1, part.installments);
+    const base = Math.floor(part.amountInCents / count);
+    const remainder = part.amountInCents % count;
+    return Array.from({ length: count }, (_, index) => ({
+      partIndex,
+      index,
+      dueDate: addMonthsToIsoDate(plan.firstDueDate, index),
+      amountInCents: base + (index < remainder ? 1 : 0),
+      paymentMethod: part.paymentMethod,
+    }));
+  });
+  if (plan.firstInstallmentInCents !== undefined) {
+    const first = charges.filter((charge) => charge.index === 0);
+    const firstTotal = first.reduce((sum, item) => sum + item.amountInCents, 0);
+    let used = 0;
+    first.forEach((charge, position) => {
+      const amount =
+        position === first.length - 1
+          ? plan.firstInstallmentInCents! - used
+          : firstTotal > 0
+            ? Math.floor(
+                (charge.amountInCents * plan.firstInstallmentInCents!) /
+                  firstTotal,
+              )
+            : 0;
+      used += amount;
+      charge.amountInCents = amount;
+    });
+  }
+  return charges
+    .sort(
+      (a, b) =>
+        a.dueDate.localeCompare(b.dueDate) ||
+        a.index - b.index ||
+        a.partIndex - b.partIndex,
+    )
+    .map((charge, position) => ({
+      installmentNumber: position + 1,
+      dueDate: charge.dueDate,
+      amountInCents: charge.amountInCents,
+      paymentMethod: charge.paymentMethod,
+    }));
 }
 
 export const holidayInputSchema = z.object({

@@ -17,6 +17,13 @@ import type {
   FinancialDateCorrection,
 } from "@crm/contracts";
 import type { PaymentTiming } from "@crm/contracts";
+import type { PaymentPart } from "@crm/contracts";
+import { resolvePaymentParts } from "@crm/contracts";
+import {
+  assertPaymentParts,
+  latestPaymentBatch,
+  storedPaymentParts,
+} from "../../modules/finance/payment-parts.js";
 import type { Supplier, SupplierOrder } from "@crm/contracts";
 import type {
   ClinicalResource,
@@ -88,6 +95,7 @@ import {
   type PlanCatalogEntry,
   discountedPlanInstallments,
   planInstallmentSchedule,
+  withPlanPaymentParts,
   type PlanTemplate,
   type PlanTemplateInput,
   type Product,
@@ -119,6 +127,7 @@ import {
   demoProfessionals,
   demoRooms,
   demoServices,
+  demoPlanTemplates,
 } from "../../demo-scenarios.js";
 import { clinicDateOf } from "../../modules/finance/daily-cash.js";
 import {
@@ -328,6 +337,10 @@ export class MemoryRepositoryContext {
   readonly commissionAccountPayments: import("@crm/contracts").CommissionAccountPayment[] =
     [];
   readonly commissionPaymentEvents: CommissionPaymentEvent[] = [];
+  /** Descontos e recompensas da folha (`payroll_entries`). */
+  readonly payrollEntries: (import("@crm/contracts").PayrollEntry & {
+    createdByUserId: string;
+  })[] = [];
   /** Colaboradores da folha de pagamento (`payroll_employees`). */
   readonly payrollEmployees: import("./payroll.js").PayrollEmployeeRecord[] =
     [];
@@ -628,7 +641,6 @@ export class MemoryRepositoryContext {
       name: "Fisioterapia individual",
       durationMinutes: 50,
       priceInCents: 18000,
-      color: "#d96f4b",
       active: true,
     },
     {
@@ -637,7 +649,6 @@ export class MemoryRepositoryContext {
       name: "Avaliação funcional",
       durationMinutes: 60,
       priceInCents: 22000,
-      color: "#3d7c78",
       active: true,
     },
   ];
@@ -762,6 +773,7 @@ export class MemoryRepositoryContext {
     this.professionals.push(...demoProfessionals);
     this.rooms.push(...demoRooms);
     this.services.push(...demoServices);
+    this.planTemplates.push(...demoPlanTemplates);
     this.appointments.push(...data.appointments);
     this.patientPlans.push(...data.plans);
     this.sessionMovements.push(...data.movements);
@@ -1867,12 +1879,14 @@ export class MemoryRepositoryContext {
   insertPatientPlan(
     clinicId: string,
     patient: Patient,
-    input: Omit<PatientPlanInput, "planTemplateId"> & {
+    rawInput: Omit<PatientPlanInput, "planTemplateId"> & {
       planTemplateId?: string | undefined;
     },
     creditReason: string,
     renewedFrom?: PatientPlan,
   ) {
+    // Plano picado: forma e parcelas derivadas das formas; forma única dispensa a lista.
+    const input = withPlanPaymentParts(rawInput);
     const totals = validatePlanComposition(
       input.services,
       input.totalValueInCents,
@@ -1942,7 +1956,7 @@ export class MemoryRepositoryContext {
         patientId: patient.id,
         planId: plan.id,
         patientName: patient.fullName,
-        description: `${plan.name} · ${installment.installmentNumber}/${input.installments}`,
+        description: `${plan.name} · ${installment.installmentNumber}/${discounted.installments.length}`,
         postedOn: clinicDateOf(
           new Date(timestamp),
           this.clinicSettings.timezone,
@@ -1952,9 +1966,20 @@ export class MemoryRepositoryContext {
           this.clinicSettings.timezone,
         ).slice(0, 7),
         installmentNumber: installment.installmentNumber,
-        installmentCount: input.installments,
+        installmentCount: discounted.installments.length,
         dueDate: installment.dueDate,
         amountInCents: installment.amountInCents,
+        // Plano picado: a forma prevista desta cobrança (sugerida na baixa).
+        ...(input.paymentParts && installment.paymentMethod
+          ? {
+              paymentParts: [
+                {
+                  paymentMethod: installment.paymentMethod,
+                  amountInCents: installment.amountInCents,
+                },
+              ],
+            }
+          : {}),
         ...(installment.customerDiscountInCents
           ? { customerDiscountInCents: installment.customerDiscountInCents }
           : {}),
@@ -2010,7 +2035,7 @@ export class MemoryRepositoryContext {
   findExpenseClassification(
     clinicId: string,
     categoryId: string,
-    costCenterId: string,
+    costCenterId: string | undefined,
   ) {
     const category = this.financialCategories.find(
       (item) =>
@@ -2019,11 +2044,16 @@ export class MemoryRepositoryContext {
         item.kind === "expense" &&
         item.active,
     );
-    const costCenter = this.costCenters.find(
-      (item) =>
-        item.clinicId === clinicId && item.id === costCenterId && item.active,
-    );
-    if (!category || !costCenter)
+    // Centro de custo é opcional; informado, precisa existir e estar ativo.
+    const costCenter = costCenterId
+      ? this.costCenters.find(
+          (item) =>
+            item.clinicId === clinicId &&
+            item.id === costCenterId &&
+            item.active,
+        )
+      : undefined;
+    if (!category || (costCenterId && !costCenter))
       throw new DomainError(
         "FINANCIAL_CLASSIFICATION_NOT_FOUND",
         "Categoria de despesa ou centro de custo não encontrado.",
@@ -2037,7 +2067,7 @@ export class MemoryRepositoryContext {
       description: input.description,
       ...(input.supplier ? { supplier: input.supplier } : {}),
       categoryId: input.categoryId,
-      costCenterId: input.costCenterId,
+      ...(input.costCenterId ? { costCenterId: input.costCenterId } : {}),
       amountType: input.amountType,
       amountInCents: input.amountInCents,
       dayOfMonth: input.dayOfMonth,
@@ -2074,6 +2104,7 @@ export class MemoryRepositoryContext {
     operation: "payment" | "payment_reversal",
     paymentMethod?: PaymentMethod,
     timing?: PaymentTiming,
+    payments?: PaymentPart[],
   ) {
     const payable = this.payables.find(
       (item) => item.clinicId === clinicId && item.id === payableId,
@@ -2125,6 +2156,26 @@ export class MemoryRepositoryContext {
         "Uma comissão desta folha mudou de situação; revise a folha antes de continuar.",
         409,
       );
+    // Picado: as formas somam o valor da conta; o estorno devolve forma por forma.
+    const parts =
+      operation === "payment"
+        ? resolvePaymentParts({
+            payments,
+            paymentMethod,
+            amountInCents: payable.amountInCents,
+          })
+        : [];
+    if (operation === "payment")
+      assertPaymentParts(parts, payable.amountInCents);
+    const reversedParts =
+      operation === "payment_reversal"
+        ? latestPaymentBatch(
+            this.payablePaymentEvents.filter(
+              (item) =>
+                item.clinicId === clinicId && item.payableId === payableId,
+            ),
+          )
+        : [];
     const previousMethod = payable.paymentMethod;
     payable.status = operation === "payment" ? "paid" : "open";
     if (operation === "payment_reversal")
@@ -2133,11 +2184,15 @@ export class MemoryRepositoryContext {
     if (operation === "payment") {
       payable.paidAt = timing?.paidAt ?? payable.updatedAt;
       if (timing?.availableAt) payable.cashAvailableAt = timing.availableAt;
-      payable.paymentMethod = paymentMethod!;
+      payable.paymentMethod = parts[0]!.paymentMethod;
+      const stored = storedPaymentParts(parts);
+      if (stored) payable.paymentParts = stored;
+      else delete payable.paymentParts;
       payable.overdue = false;
     } else {
       delete payable.paidAt;
       delete payable.paymentMethod;
+      delete payable.paymentParts;
       payable.overdue = payable.dueDate < today();
     }
     for (const item of [
@@ -2149,23 +2204,39 @@ export class MemoryRepositoryContext {
       if (payable.paidAt) item.paidAt = payable.paidAt;
       else delete item.paidAt;
     }
-    this.payablePaymentEvents.push({
-      id: uuid(),
-      clinicId,
-      payableId,
-      kind: operation === "payment" ? "payment" : "reversal",
-      occurredAt: timing?.paidAt ?? now(),
-      ...(operation === "payment" && payable.cashAvailableAt
-        ? { availableAt: payable.cashAvailableAt }
-        : {}),
-      amountInCents:
-        operation === "payment"
-          ? payable.amountInCents
-          : -payable.amountInCents,
-      ...((paymentMethod ?? previousMethod)
-        ? { paymentMethod: paymentMethod ?? previousMethod }
-        : {}),
-    });
+    const occurredAt = timing?.paidAt ?? now();
+    const movements =
+      operation === "payment"
+        ? parts.map((part) => ({
+            amountInCents: part.amountInCents,
+            paymentMethod: part.paymentMethod as PaymentMethod | undefined,
+          }))
+        : reversedParts.length
+          ? reversedParts.map((item) => ({
+              amountInCents: -item.amountInCents,
+              paymentMethod: item.paymentMethod,
+            }))
+          : [
+              {
+                amountInCents: -payable.amountInCents,
+                paymentMethod: previousMethod,
+              },
+            ];
+    for (const movement of movements)
+      this.payablePaymentEvents.push({
+        id: uuid(),
+        clinicId,
+        payableId,
+        kind: operation === "payment" ? "payment" : "reversal",
+        occurredAt,
+        ...(operation === "payment" && payable.cashAvailableAt
+          ? { availableAt: payable.cashAvailableAt }
+          : {}),
+        amountInCents: movement.amountInCents,
+        ...(movement.paymentMethod
+          ? { paymentMethod: movement.paymentMethod }
+          : {}),
+      });
     return payable;
   }
 

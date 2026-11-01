@@ -63,7 +63,7 @@ describe("document template editor", () => {
     fireEvent.click(screen.getByText("Inserir campo automático"));
     const fields = await screen.findByRole("group", { name: "Inserir campo" });
     const form = fields.closest("form") as HTMLFormElement;
-    const name = within(form).getByLabelText("Nome");
+    const name = within(form).getByLabelText("Nome do modelo");
     const body = within(form).getByLabelText("Conteúdo");
     // O editor abre com o contrato padrão; "Começar em branco" limpa nome e conteúdo.
     expect(name).toHaveValue("Contrato de prestação de serviços");
@@ -79,7 +79,7 @@ describe("document template editor", () => {
     });
     expect(createTemplate).toBeDisabled();
     expect(createTemplate).toHaveAccessibleDescription(
-      "Falta: Nome, Conteúdo.",
+      "Falta: Nome do modelo, Conteúdo do modelo.",
     );
 
     fireEvent.change(name, { target: { value: "Termo de adesão" } });
@@ -135,6 +135,55 @@ describe("document template editor", () => {
         body: "Eu, {{paciente_nome}}, aceito os termos da clínica{{clinica_nome}}.",
       }),
     ]);
+  });
+
+  it("shows the create error next to the button, not at the top of the page", async () => {
+    localStorage.setItem("crm.auth.token", "test-token");
+    localStorage.setItem(
+      "crm.auth.user",
+      storedUser({
+        id: "22222222-2222-4222-8222-222222222222",
+        fullName: "Aryana Dutra",
+        email: "admin@movimenta.local",
+        role: "owner",
+      }),
+    );
+    vi.mocked(fetch).mockImplementation(async (input, init) => {
+      const url = String(input);
+      if (url.endsWith("/document-templates") && init?.method === "POST") {
+        return {
+          ok: false,
+          status: 409,
+          json: async () => ({
+            message: "Já existe um modelo ativo com este nome.",
+          }),
+        } as Response;
+      }
+      return { ok: true, status: 200, json: async () => [] } as Response;
+    });
+    render(
+      <MemoryRouter initialEntries={["/contratos"]}>
+        <App />
+      </MemoryRouter>,
+    );
+    fireEvent.click(await screen.findByRole("tab", { name: "Criar modelo" }));
+    installDocumentBrowserMocks();
+    const submit = screen.getByRole("button", { name: "Criar modelo" });
+    const form = submit.closest("form") as HTMLFormElement;
+    fireEvent.click(submit);
+
+    const alert = await within(form).findByRole("alert");
+    expect(alert).toHaveTextContent("Já existe um modelo ativo com este nome.");
+    expect(alert.nextElementSibling).toContainElement(submit);
+    expect(
+      screen.getAllByText("Já existe um modelo ativo com este nome."),
+    ).toHaveLength(1);
+
+    // Ao trocar o nome, o aviso antigo some.
+    fireEvent.change(within(form).getByLabelText("Nome do modelo"), {
+      target: { value: "Outro nome" },
+    });
+    expect(within(form).queryByRole("alert")).not.toBeInTheDocument();
   });
 
   it("opens with the standard contract and previews it with the clinic data", async () => {

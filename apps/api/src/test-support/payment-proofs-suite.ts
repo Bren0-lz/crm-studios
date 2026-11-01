@@ -115,6 +115,16 @@ export async function verifyPaymentProofsRepository(
       input,
     ),
   ).rejects.toMatchObject({ code: "PAYMENT_PROOF_NOT_SETTLED" });
+  // A parcela reaberta continua listada como "com comprovante" (os da baixa estornada).
+  expect(
+    await repository.listPaymentProofEntityIds(clinicId, "receivable"),
+  ).toContain(receivable.id);
+  expect(
+    await repository.listPaymentProofEntityIds(clinicId, "payable"),
+  ).not.toContain(receivable.id);
+  expect(
+    await repository.listPaymentProofEntityIds(otherClinicId, "receivable"),
+  ).toEqual([]);
   await repository.settleReceivable(clinicId, actor, receivable.id, "card");
   const third = await repository.createPaymentProof(
     clinicId,
@@ -169,6 +179,11 @@ export async function verifyPaymentProofsRepository(
       repository.listPaymentProofs(clinicId, "receivable", receivable.id),
     ),
   ).toEqual([]);
+  expect(
+    await inCentro(() =>
+      repository.listPaymentProofEntityIds(clinicId, "receivable"),
+    ),
+  ).not.toContain(receivable.id);
   expect(
     await inCentro(() =>
       repository.getPaymentProofContent(clinicId, actor, third.id),
