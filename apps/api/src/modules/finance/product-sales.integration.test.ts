@@ -310,12 +310,13 @@ describe("product sales", () => {
       method: "POST",
       url: `/patient-tabs/${sale.id}/cancel`,
       headers: refunder,
-      payload: { refundPayment: true },
+      payload: { refundPayment: true, reason: " Cliente desistiu " },
     });
     expect(cancelled.statusCode).toBe(200);
     expect(cancelled.json()).toMatchObject({
       status: "cancelled",
       paymentStatus: "cancelled",
+      cancellationReason: "Cliente desistiu",
     });
     expect(await receivable(sale.receivableId!)).toMatchObject({
       status: "cancelled",
