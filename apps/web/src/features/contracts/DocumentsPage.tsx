@@ -133,8 +133,9 @@ export function DocumentsPage() {
   // O que falta para criar o modelo e o documento (QM14).
   const templateMissing = useMissingFields(
     missingLabels([
-      ["Nome", templateForm.name],
-      ["Conteúdo", templateForm.body],
+      // Rótulos explícitos: o editor também mostra "Nome do cliente", "Nome da clínica"…
+      ["Nome do modelo", templateForm.name],
+      ["Conteúdo do modelo", templateForm.body],
     ]),
     "field-hint",
   );
@@ -590,7 +591,7 @@ export function DocumentsPage() {
                 >
                   <div className="template-studio-meta">
                     <label>
-                      Nome
+                      Nome do modelo
                       <input
                         required
                         value={templateForm.name}
