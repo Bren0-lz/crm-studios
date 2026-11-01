@@ -54,9 +54,13 @@ export const payrollLaunchInputSchema = z.object({
   /** Só estes colaboradores; ausente = todos com valor pendente. */
   employeeIds: z.array(z.uuid()).min(1).max(500).optional(),
   dueDate: z.iso.date(),
-  categoryId: z.uuid(),
+  /** Ausente = categoria de despesa padrão "Folha de pagamento" (criada se faltar). */
+  categoryId: z.uuid().optional(),
   costCenterId: z.uuid().optional(),
 });
+
+/** Nome da categoria de despesa usada por padrão no lançamento da folha. */
+export const PAYROLL_CATEGORY_NAME = "Folha de pagamento";
 export type PayrollLaunchInput = z.infer<typeof payrollLaunchInputSchema>;
 
 export interface PayrollEmployee {

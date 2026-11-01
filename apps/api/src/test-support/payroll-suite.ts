@@ -311,6 +311,29 @@ export function payrollSuite(repository: () => ClinicRepository) {
       expect(again.payables.map((item) => item.id)).toEqual([first.id]);
     });
 
+    it("sem categoria, lança em \"Folha de pagamento\" e reaproveita a mesma", async () => {
+      const repo = repository();
+      const { employee, complete } = await scenario(repo, ["14"]);
+      const launchDefault = () =>
+        repo.launchPayroll(clinic, actor, {
+          competence,
+          employeeIds: [employee.id],
+          dueDate: "2025-04-05",
+        });
+      const first = (await launchDefault()).payables[0]!;
+      await complete("20");
+      const complement = (await launchDefault()).payables[0]!;
+      const categories = (
+        await repo.getFinancialWorkspace(clinic)
+      ).categories.filter((item) => item.name === "Folha de pagamento");
+      expect(categories).toMatchObject([{ kind: "expense", active: true }]);
+      for (const payable of [first, complement])
+        expect(payable).toMatchObject({
+          categoryId: categories[0]!.id,
+          categoryName: "Folha de pagamento",
+        });
+    });
+
     it("separa por filial e aponta comissão sem colaborador", async () => {
       const repo = repository();
       const { professional, user, employee, category, percent } =

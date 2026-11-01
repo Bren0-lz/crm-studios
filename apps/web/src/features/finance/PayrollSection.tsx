@@ -1,7 +1,6 @@
 import {
   saoPauloToday,
   type Branch,
-  type FinancialWorkspace,
   type PayrollEmployee,
   type PayrollItem,
   type PayrollItemStatus,
@@ -116,10 +115,8 @@ function Totals({ totals, label }: { totals: PayrollTotals; label: string }) {
  * cada colaborador com salário, comissões e ajustes. É o único lugar que paga comissão.
  */
 export function PayrollSection({
-  workspace,
   professionals,
 }: {
-  workspace: FinancialWorkspace;
   professionals: Professional[];
 }) {
   const { can } = useAuthorization();
@@ -551,8 +548,6 @@ export function PayrollSection({
         <PayrollLaunchModal
           summary={summary}
           branchIds={allSelected ? [] : selected}
-          categories={workspace.categories}
-          costCenters={workspace.costCenters}
           onClose={() => setLaunching(false)}
           onLaunch={async (input) => {
             const result = await api.launchPayroll(input, allBranches);
