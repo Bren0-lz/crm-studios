@@ -1,6 +1,7 @@
 import {
   formatTaxId,
   paymentMethodWithInstallments,
+  paymentPartsLabel,
   whatsappLink,
   type PaymentReceipt,
 } from "@crm/contracts";
@@ -19,10 +20,13 @@ export function ReceiptModal({
   receipt: PaymentReceipt;
   onClose: () => void;
 }) {
-  const method = paymentMethodWithInstallments(
-    receipt.paymentMethod,
-    receipt.paymentInstallments,
-  );
+  // Picado: todas as formas com o valor de cada uma.
+  const method = receipt.paymentParts
+    ? paymentPartsLabel(receipt.paymentParts, money)
+    : paymentMethodWithInstallments(
+        receipt.paymentMethod,
+        receipt.paymentInstallments,
+      );
   const message = receiptMessage(receipt);
   const whatsapp = receipt.patientPhone
     ? whatsappLink(receipt.patientPhone, message)

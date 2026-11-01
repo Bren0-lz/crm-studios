@@ -7,12 +7,13 @@ import {
   dailyCashFilterSchema,
   financeForecastFilterSchema,
   financialCategoryInputSchema,
+  patientTabCancelInputSchema,
   patientTabCloseInputSchema,
   patientTabInputSchema,
   patientTabItemInputSchema,
   payableAmountInputSchema,
   payableInputSchema,
-  paymentInputSchema,
+  payableSettlementSchema,
   receivableSettlementSchema,
   productInputSchema,
   productSaleInputSchema,
@@ -22,6 +23,7 @@ import {
   saoPauloToday,
   stockMovementInputSchema,
   type PaymentMethod,
+  type PaymentPart,
   type ReceivableContact,
 } from "@crm/contracts";
 import type { RouteContext } from "../../infrastructure/route-context.js";
@@ -45,12 +47,14 @@ export function registerFinanceRoutes(context: RouteContext) {
       settlement: "paid" | "receivable";
       paymentMethod?: PaymentMethod | undefined;
       paymentInstallments?: number | undefined;
+      payments?: PaymentPart[] | undefined;
     },
   ) =>
     input.settlement === "paid"
       ? assertInstallmentsAllowed(clinicId, {
           installments: input.paymentInstallments,
           paymentMethod: input.paymentMethod,
+          payments: input.payments,
         })
       : Promise.resolve();
 
@@ -165,15 +169,40 @@ export function registerFinanceRoutes(context: RouteContext) {
     },
   );
 
+  app.get(
+    "/patient-tabs/:id/payment",
+    { preHandler: authenticate },
+    async (request, reply) => {
+      const { id } = request.params as { id: string };
+      const payment = await repository.patientTabPayment(
+        request.user.clinicId,
+        id,
+      );
+      if (payment === undefined)
+        return reply.status(404).send({
+          code: "PATIENT_TAB_NOT_FOUND",
+          message: "Comanda não encontrada.",
+        });
+      return { payment };
+    },
+  );
+
   app.post(
     "/patient-tabs/:id/cancel",
     { preHandler: authenticate },
     async (request, reply) => {
       const { id } = request.params as { id: string };
+      const input = patientTabCancelInputSchema.parse(
+        request.body ?? undefined,
+      );
+      // Estornar pelo cancelamento da venda dispensa as permissões do Financeiro.
+      if (input.refundPayment)
+        assertPermissions(request, "patients.tabs_refund");
       const tab = await repository.cancelPatientTab(
         request.user.clinicId,
         request.user.sub,
         id,
+        input,
       );
       if (!tab)
         return reply.status(404).send({
@@ -202,18 +231,20 @@ export function registerFinanceRoutes(context: RouteContext) {
         receivedInCents,
         balanceDueDate,
         paymentInstallments,
+        payments,
         ...timing
       } = receivableSettlementSchema.parse(request.body ?? {});
       const { id } = request.params as { id: string };
       await assertInstallmentsAllowed(request.user.clinicId, {
         installments: paymentInstallments,
         paymentMethod: timing.paymentMethod,
+        payments,
       });
       const receivable = await repository.settleReceivable(
         request.user.clinicId,
         request.user.sub,
         id,
-        timing.paymentMethod,
+        payments?.[0]?.paymentMethod ?? timing.paymentMethod,
         timing,
         {
           discountInCents,
@@ -221,6 +252,7 @@ export function registerFinanceRoutes(context: RouteContext) {
           ...(receivedInCents === undefined ? {} : { receivedInCents }),
           ...(balanceDueDate === undefined ? {} : { balanceDueDate }),
           ...(paymentInstallments === undefined ? {} : { paymentInstallments }),
+          ...(payments?.length ? { payments } : {}),
         },
       );
       if (!receivable)
@@ -308,7 +340,17 @@ export function registerFinanceRoutes(context: RouteContext) {
         request.user.clinicId,
         request.user.sub,
       );
-      return repository.getFinancialWorkspace(request.user.clinicId);
+      const clinicId = request.user.clinicId;
+      const [workspace, receivables, payables] = await Promise.all([
+        repository.getFinancialWorkspace(clinicId),
+        repository.listPaymentProofEntityIds(clinicId, "receivable"),
+        repository.listPaymentProofEntityIds(clinicId, "payable"),
+      ]);
+      // Comprovantes de baixa estornada continuam acessíveis na parcela/despesa reaberta.
+      return {
+        ...workspace,
+        paymentProofEntityIds: { receivables, payables },
+      };
     },
   );
 
@@ -560,7 +602,9 @@ export function registerFinanceRoutes(context: RouteContext) {
     { preHandler: authenticate },
     async (request, reply) => {
       const { id } = request.params as { id: string };
-      const input = paymentInputSchema.parse(request.body ?? {});
+      const { payments, ...input } = payableSettlementSchema.parse(
+        request.body ?? {},
+      );
       const current = (
         await repository.getFinancialWorkspace(request.user.clinicId)
       ).payables.find((item) => item.id === id);
@@ -570,8 +614,9 @@ export function registerFinanceRoutes(context: RouteContext) {
         request.user.clinicId,
         request.user.sub,
         id,
-        input.paymentMethod,
+        payments?.[0]?.paymentMethod ?? input.paymentMethod,
         input,
+        payments,
       );
       if (!payable)
         return reply.status(404).send({

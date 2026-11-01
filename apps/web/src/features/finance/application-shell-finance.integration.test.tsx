@@ -231,6 +231,9 @@ describe("application shell", () => {
     fireEvent.click(
       await screen.findByRole("button", { name: "Contas a pagar (0)" }),
     );
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Despesas fixas" }),
+    );
     const section = (
       await screen.findByRole("heading", { name: "Despesas fixas" })
     ).closest("section")!;
@@ -501,6 +504,9 @@ describe("application shell", () => {
       await screen.findByRole("button", { name: "Contas a pagar (0)" }),
     );
     fireEvent.click(
+      await screen.findByRole("button", { name: "Despesas fixas" }),
+    );
+    fireEvent.click(
       await screen.findByRole("button", {
         name: "Mais ações de Aluguel da sala",
       }),
@@ -581,6 +587,9 @@ describe("application shell", () => {
     fireEvent.click(
       await screen.findByRole("button", { name: "Contas a pagar (0)" }),
     );
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Despesas fixas" }),
+    );
     const section = (
       await screen.findByRole("heading", { name: "Despesas fixas" })
     ).closest("section")!;
@@ -597,6 +606,9 @@ describe("application shell", () => {
     );
     fireEvent.click(
       await screen.findByRole("button", { name: "Contas a pagar (0)" }),
+    );
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Despesas fixas" }),
     );
     await screen.findByRole("heading", { name: "Despesas fixas" });
     expect(
@@ -1849,7 +1861,9 @@ describe("application shell", () => {
         await screen.findByRole("heading", { name: "Contas a pagar" })
       ).closest("section")!;
       expect(
-        within(section).getByText(/Despesas da clínica pelo vencimento/),
+        within(section).getByText(
+          /Despesas da clínica por situação e vencimento/,
+        ),
       ).toBeInTheDocument();
 
       const rent = rowOf("Aluguel da sala");
@@ -1926,18 +1940,21 @@ describe("application shell", () => {
         name: "Nova despesa",
       });
       // Ajuda acessível nos termos técnicos (U41), sem tirar o rótulo do campo.
-      for (const term of ["Lançamento", "Competência", "Centro de custo"])
+      for (const term of ["Lançamento", "Centro de custo"])
         expect(
           within(dialog).getByRole("button", { name: `Ajuda: ${term}` }),
         ).toHaveAttribute("tabindex", "0");
-      expect(within(dialog).getByLabelText(/^Lançamento/)).toHaveAttribute(
-        "type",
-        "date",
+      // Uma data só: o vencimento por padrão, ou o lançamento.
+      expect(within(dialog).queryByLabelText(/^Competência/)).toBeNull();
+      expect(
+        within(dialog).getByLabelText("Data do vencimento"),
+      ).toHaveAttribute("type", "date");
+      fireEvent.click(
+        within(dialog).getByRole("radio", { name: "Lançamento" }),
       );
-      expect(within(dialog).getByLabelText(/^Competência/)).toHaveAttribute(
-        "type",
-        "month",
-      );
+      expect(
+        within(dialog).getByLabelText("Data do lançamento"),
+      ).toHaveAttribute("type", "date");
     });
 
     it("shows commissions with full labels, signed values aligned right and clear actions", async () => {

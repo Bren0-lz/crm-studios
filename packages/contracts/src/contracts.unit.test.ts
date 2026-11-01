@@ -1,6 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  auditChangesOf,
+  changeReasonSchema,
+  diffAuditFields,
+  patientAuditLabels,
   appointmentCreateInputSchema,
+  appointmentPromotionSchema,
+  whatsappCampaignInputSchema,
   autoCampaignInputSchema,
   recurringAppointmentCreateInputSchema,
   productInputSchema,
@@ -89,6 +95,7 @@ import {
   patientListQuerySchema,
   patientPlanInputSchema,
   patientTabCloseInputSchema,
+  patientTabCancelInputSchema,
   productSaleInputSchema,
   patientTagInputSchema,
   patientTagKey,
@@ -124,6 +131,7 @@ import {
   publicDocumentSignInputSchema,
   signatureLinkExpiresAt,
   signatureLinkExpired,
+  patientImportFileSchema,
 } from "./index.js";
 
 describe("shared contracts", () => {
@@ -311,6 +319,13 @@ describe("shared contracts", () => {
       startMonth: "2026-10",
     };
     expect(recurringPayableInputSchema.parse(base).amountType).toBe("fixed");
+    // Centro de custo é opcional, como na despesa pontual.
+    expect(
+      recurringPayableInputSchema.safeParse({
+        ...base,
+        costCenterId: undefined,
+      }).success,
+    ).toBe(true);
     expect(
       recurringPayableInputSchema.safeParse({ ...base, reminderDaysBefore: 31 })
         .success,
@@ -1813,6 +1828,47 @@ describe("textos de interface sem nome antigo nem código interno (QM15)", () =>
     expect(effectivePermissions("admin")).toContain("agenda.view_all");
   });
 
+  it("só concede o estorno da venda por escolha explícita, com o cancelamento", () => {
+    expect(
+      permissionCatalog.find((entry) => entry.key === "patients.tabs_refund"),
+    ).toMatchObject({
+      name: "Estornar pagamento da venda ao cancelar",
+      dependencies: ["patients.view", "patients.tabs_cancel"],
+      explicitGrantOnly: true,
+    });
+    expect(
+      legacyPermissions("user", ["patients"], ["patients"]),
+    ).not.toContain("patients.tabs_refund");
+    expect(
+      normalizePermissions(["patients.view", "patients.tabs_refund"]),
+    ).toEqual(["patients.view"]);
+    expect(effectivePermissions("admin")).toContain("patients.tabs_refund");
+  });
+
+  it("cancela a comanda sem estorno quando o corpo vem vazio", () => {
+    expect(patientTabCancelInputSchema.parse(undefined)).toEqual({
+      refundPayment: false,
+    });
+    expect(patientTabCancelInputSchema.parse({})).toEqual({
+      refundPayment: false,
+    });
+    expect(
+      patientTabCancelInputSchema.parse({ refundPayment: true }),
+    ).toEqual({ refundPayment: true });
+    expect(() =>
+      patientTabCancelInputSchema.parse({ refundPayment: "sim" }),
+    ).toThrow();
+  });
+
+  it("aceita o motivo do cancelamento da comanda, sem espaços nas pontas", () => {
+    expect(
+      patientTabCancelInputSchema.parse({ reason: "  Cliente desistiu " }),
+    ).toEqual({ refundPayment: false, reason: "Cliente desistiu" });
+    expect(() =>
+      patientTabCancelInputSchema.parse({ reason: "x".repeat(501) }),
+    ).toThrow();
+  });
+
   it("formata e lê números sequenciais de prontuário e recibo", () => {
     expect(formatSequenceNumber("PAC", 7)).toBe("PAC-00007");
     expect(formatSequenceNumber("REC", 123456)).toBe("REC-123456");
@@ -2267,6 +2323,59 @@ describe("comissões por serviço do usuário", () => {
   });
 });
 
+describe("campanhas manuais promocionais", () => {
+  const campaign = {
+    templateId: "11111111-1111-4111-8111-111111111111",
+    name: "Junho",
+    audience: {
+      mode: "patients",
+      patientIds: ["22222222-2222-4222-8222-222222222222"],
+    },
+  };
+
+  it("aceita promoção por dias depois do envio ou até uma data final", () => {
+    expect(
+      whatsappCampaignInputSchema.parse(campaign).promotion,
+    ).toBeUndefined();
+    expect(
+      whatsappCampaignInputSchema.parse({
+        ...campaign,
+        promotion: { validDays: 7 },
+      }).promotion,
+    ).toEqual({ validDays: 7 });
+    expect(
+      whatsappCampaignInputSchema.parse({
+        ...campaign,
+        promotion: { validUntil: "2039-06-30" },
+      }).promotion,
+    ).toEqual({ validUntil: "2039-06-30" });
+    for (const promotion of [
+      {},
+      { validDays: 0 },
+      { validDays: 366 },
+      { validUntil: "30/06/2039" },
+      { validDays: 7, validUntil: "2039-06-30" },
+    ])
+      expect(
+        whatsappCampaignInputSchema.safeParse({ ...campaign, promotion })
+          .success,
+      ).toBe(false);
+  });
+
+  it("marca a promoção manual ao agendar", () => {
+    const promotion = {
+      source: "manual",
+      campaignId: "55555555-5555-4555-8555-555555555555",
+      occurrenceKey: "66666666-6666-4666-8666-666666666666",
+    };
+    expect(appointmentPromotionSchema.parse(promotion)).toEqual(promotion);
+    expect(
+      appointmentPromotionSchema.safeParse({ ...promotion, source: "auto" })
+        .success,
+    ).toBe(false);
+  });
+});
+
 describe("campanhas automáticas promocionais", () => {
   const campaign = {
     name: "Aniversariantes",
@@ -2287,10 +2396,29 @@ describe("campanhas automáticas promocionais", () => {
       { validDays: 366 },
       { validDays: 10, cooldown: { amount: 0, unit: "days" } },
       { validDays: 10, cooldown: { amount: 1, unit: "years" } },
+      {},
+      { validDays: 10, validUntil: "2039-12-20" },
+      { validUntil: "2039-12-20" },
     ])
       expect(
         autoCampaignInputSchema.safeParse({ ...campaign, promotion }).success,
       ).toBe(false);
+  });
+
+  it("accepts a fixed end date outside birthday campaigns", () => {
+    const upcoming = { ...campaign, trigger: "appointment_upcoming" };
+    expect(
+      autoCampaignInputSchema.parse({
+        ...upcoming,
+        promotion: { validUntil: "2039-12-20" },
+      }).promotion,
+    ).toEqual({ validUntil: "2039-12-20" });
+    expect(
+      autoCampaignInputSchema.safeParse({
+        ...upcoming,
+        promotion: { validUntil: "20/12/2039" },
+      }).success,
+    ).toBe(false);
   });
 
   it("takes the promotion used when scheduling", () => {
@@ -2322,5 +2450,106 @@ describe("campanhas automáticas promocionais", () => {
         promotion: { campaignId: "x", occurrenceKey: "" },
       }).success,
     ).toBe(false);
+  });
+});
+
+describe("patientImportFileSchema", () => {
+  const file = { fileName: "clientes.csv", contentBase64: "bm9tZQ==" };
+
+  it("aceita mapeamento de colunas com colunas ignoradas e sem mapeamento", () => {
+    expect(patientImportFileSchema.parse(file).mapping).toBeUndefined();
+    expect(
+      patientImportFileSchema.parse({
+        ...file,
+        mapping: ["fullName", null, "phoneAreaCode", "phone", "city"],
+      }).mapping,
+    ).toEqual(["fullName", null, "phoneAreaCode", "phone", "city"]);
+  });
+
+  it("recusa campo desconhecido e o mesmo campo em duas colunas", () => {
+    expect(
+      patientImportFileSchema.safeParse({ ...file, mapping: ["recordNumber"] })
+        .success,
+    ).toBe(false);
+    const repeated = patientImportFileSchema.safeParse({
+      ...file,
+      mapping: ["phone", null, "phone"],
+    });
+    expect(repeated.success).toBe(false);
+    expect(repeated.error?.issues[0]?.message).toBe(
+      "O campo Telefone foi escolhido em mais de uma coluna.",
+    );
+  });
+});
+
+describe("edit history changes", () => {
+  it("lists only the labeled fields that changed, in readable pt-BR", () => {
+    expect(
+      diffAuditFields(
+        {
+          fullName: "Ana",
+          phone: "1199",
+          tags: ["VIP"],
+          birthDate: "",
+          imageConsent: false,
+          secret: "a",
+        },
+        {
+          fullName: "Ana",
+          phone: "1188",
+          tags: [],
+          birthDate: "1990-05-20",
+          imageConsent: true,
+          secret: "b",
+        },
+        patientAuditLabels,
+      ),
+    ).toEqual([
+      { field: "phone", label: "Telefone", before: "1199", after: "1188" },
+      {
+        field: "birthDate",
+        label: "Data de nascimento",
+        before: null,
+        after: "20/05/1990",
+      },
+      { field: "tags", label: "Etiquetas", before: "VIP", after: null },
+      {
+        field: "imageConsent",
+        label: "Autoriza uso de imagem",
+        before: "Não",
+        after: "Sim",
+      },
+    ]);
+    expect(diffAuditFields({ notes: "" }, {}, patientAuditLabels)).toEqual([]);
+    expect(
+      diffAuditFields(
+        { gender: "female" },
+        {
+          gender: "male",
+          discount: { type: "percentage", percent: 10, scope: "permanent" },
+        },
+        patientAuditLabels,
+      ),
+    ).toEqual([
+      {
+        field: "gender",
+        label: "Gênero",
+        before: "Feminino",
+        after: "Masculino",
+      },
+      {
+        field: "discount",
+        label: "Desconto",
+        before: null,
+        after: "10% de desconto · permanente",
+      },
+    ]);
+  });
+
+  it("trims the reason and limits it to 500 characters", () => {
+    expect(changeReasonSchema.parse("  motivo  ")).toBe("motivo");
+    expect(changeReasonSchema.parse(undefined)).toBeUndefined();
+    expect(changeReasonSchema.safeParse("x".repeat(501)).success).toBe(false);
+    expect(auditChangesOf({ changes: [{ field: "a" }] })).toEqual([]);
   });
 });

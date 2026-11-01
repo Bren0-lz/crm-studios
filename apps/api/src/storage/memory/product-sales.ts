@@ -5,6 +5,7 @@ import {
   assertStockSize,
 } from "../../modules/finance/product-stock.js";
 import type { MemoryRepositoryContext } from "./context.js";
+import { tabPaymentParts } from "../../modules/finance/payment-parts.js";
 
 type TabOperations = Pick<
   ClinicRepository,
@@ -77,6 +78,8 @@ export function createProductSalesRepository(
           "A venda precisa ter valor maior que zero.",
           409,
         );
+      // As formas precisam somar o total antes de abrir a comanda (tudo ou nada).
+      tabPaymentParts(input, totalInCents);
       if (totalInCents > 2147483647)
         throw new DomainError(
           "TAB_TOTAL_TOO_LARGE",
@@ -141,6 +144,7 @@ export function createProductSalesRepository(
         ...(input.paymentInstallments
           ? { paymentInstallments: input.paymentInstallments }
           : {}),
+        ...(input.payments?.length ? { payments: input.payments } : {}),
         ...(input.categoryId ? { categoryId: input.categoryId } : {}),
         ...(input.costCenterId ? { costCenterId: input.costCenterId } : {}),
       });

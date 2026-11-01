@@ -6,6 +6,7 @@ import {
   paymentMethodSchema,
 } from "../common/model.js";
 import { maxInstallmentsLimit } from "./installments.js";
+import { paymentPartsSchema } from "./payment-parts.js";
 import {
   fillMessageTemplate,
   patientFirstName,
@@ -327,6 +328,11 @@ export const paymentInputSchema = z.object({
   paymentMethod: paymentMethodSchema.default("pix"),
 });
 
+/** Pagamento de conta a pagar: uma forma ou várias (picado), somando o valor da conta. */
+export const payableSettlementSchema = paymentInputSchema.extend({
+  payments: paymentPartsSchema.optional(),
+});
+
 export const patientTabCloseInputSchema = z
   .object({
     costCenterId: z.uuid().optional(),
@@ -334,12 +340,29 @@ export const patientTabCloseInputSchema = z
     settlement: z.enum(["paid", "receivable"]),
     paymentMethod: paymentMethodSchema.optional(),
     paymentInstallments: paymentInstallmentsSchema,
+    /**
+     * Pagamento picado: as formas e o valor de cada uma, somando o total. Pago agora, são as
+     * formas recebidas; a receber, as previstas (sugeridas na baixa).
+     */
+    payments: paymentPartsSchema.optional(),
     dueDate: z.iso.date(),
   })
   .refine(
-    (value) => value.settlement !== "paid" || Boolean(value.paymentMethod),
+    (value) =>
+      value.settlement !== "paid" ||
+      Boolean(value.paymentMethod) ||
+      Boolean(value.payments?.length),
     { message: "Informe a forma de pagamento.", path: ["paymentMethod"] },
   );
+
+/** Cancelamento de comanda: `refundPayment` estorna antes o pagamento já recebido. */
+/** `reason`: motivo do cancelamento, guardado na venda (texto livre, opcional na API). */
+export const patientTabCancelInputSchema = z
+  .object({
+    refundPayment: z.boolean().default(false),
+    reason: z.string().trim().max(500).optional(),
+  })
+  .default({ refundPayment: false });
 
 export const productUpdateSchema = productBaseSchema
   .omit({ initialStock: true })
@@ -404,16 +427,20 @@ export const productSaleInputSchema = z
     settlement: z.enum(["paid", "receivable"]),
     paymentMethod: paymentMethodSchema.optional(),
     paymentInstallments: paymentInstallmentsSchema,
+    /**
+     * Pagamento picado: as formas e o valor de cada uma, somando o total. Pago agora, são as
+     * formas recebidas; a receber, as previstas (sugeridas na baixa).
+     */
+    payments: paymentPartsSchema.optional(),
     dueDate: z.iso.date(),
   })
   .refine(
-    (value) => value.settlement !== "paid" || Boolean(value.paymentMethod),
+    (value) =>
+      value.settlement !== "paid" ||
+      Boolean(value.paymentMethod) ||
+      Boolean(value.payments?.length),
     { message: "Informe a forma de pagamento.", path: ["paymentMethod"] },
   );
-export const patientTabServiceInputSchema = z.object({
-  appointmentId: z.uuid(),
-  amountInCents: z.number().int().min(0).max(2147483647).optional(),
-});
 /** Recorrência do valor contratado com o fornecedor. */
 export const supplierBillingCycleSchema = z.enum([
   "one_time",
@@ -592,7 +619,8 @@ export const recurringPayableInputSchema = z
     description: z.string().trim().min(3).max(200),
     supplier: z.string().trim().max(160).optional().or(z.literal("")),
     categoryId: z.uuid(),
-    costCenterId: z.uuid(),
+    /** Opcional, como na despesa pontual. */
+    costCenterId: z.uuid().optional(),
     /**
      * Na variável, `amountInCents` é a estimativa (0 = sem estimativa); o valor de cada mês é
      * informado na conta.
@@ -788,6 +816,11 @@ export const financeForecastFilterSchema = z.object({
 /** Baixa de parcela (U39): desconto, juros e valor recebido (parcial gera nova parcela). */
 export const receivableSettlementSchema = paymentInputSchema.extend({
   paymentInstallments: paymentInstallmentsSchema,
+  /**
+   * Pagamento picado: formas e valores recebidos nesta baixa. A soma é o valor recebido
+   * (`receivedInCents` é ignorado); faltando, o saldo vira nova parcela como no parcial.
+   */
+  payments: paymentPartsSchema.optional(),
   discountInCents: z.number().int().min(0).default(0),
   interestInCents: z.number().int().min(0).default(0),
   /** Sem valor = recebe o valor final inteiro. */

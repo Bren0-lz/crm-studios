@@ -33,6 +33,7 @@ import type {
   MessageTemplateImageContent,
   WhatsappCampaign,
   WhatsappCampaignDetail,
+  WhatsappCampaignPromotion,
   WhatsappCampaignRecipientDraft,
 } from "@crm/contracts";
 import type { BranchScopeStore } from "./storage/branch-scope.js";
@@ -67,7 +68,6 @@ import type {
 import type {
   ProductUpdateInput,
   PatientTabItemUpdate,
-  PatientTabServiceInput,
   Supplier,
   SupplierInput,
   SupplierOrder,
@@ -203,6 +203,7 @@ import type {
   PatientPlanInput,
   PatientTab,
   PatientTabCloseInput,
+  PatientTabPayment,
   PatientTabInput,
   PatientTabItemInput,
   PatientTag,
@@ -212,6 +213,7 @@ import type {
   Payable,
   PayableInput,
   PaymentMethod,
+  PaymentPart,
   PaymentReceipt,
   PlanCatalogEntry,
   PlanCatalogInput,
@@ -393,23 +395,11 @@ export interface ClinicRepository {
     itemId: string,
     input: PatientTabItemUpdate | null,
   ): Promise<PatientTab>;
-  addPatientTabService(
-    clinicId: string,
-    actorUserId: string,
-    tabId: string,
-    input: PatientTabServiceInput,
-  ): Promise<PatientTab>;
   removePatientTabService(
     clinicId: string,
     actorUserId: string,
     tabId: string,
     itemId: string,
-  ): Promise<PatientTab>;
-  createPatientTabAppointment(
-    clinicId: string,
-    actorUserId: string,
-    tabId: string,
-    input: Omit<AppointmentInput, "patientId">,
   ): Promise<PatientTab>;
   listSuppliers(clinicId: string): Promise<Supplier[]>;
   saveSupplier(
@@ -1021,11 +1011,21 @@ export interface ClinicRepository {
     tabId: string,
     input: PatientTabCloseInput,
   ): Promise<PatientTab | null>;
+  /**
+   * `refundPayment`: estorna antes o pagamento já recebido, na mesma operação.
+   * `reason`: motivo do cancelamento, guardado na comanda.
+   */
   cancelPatientTab(
     clinicId: string,
     actorUserId: string,
     tabId: string,
+    options?: { refundPayment?: boolean; reason?: string | undefined },
   ): Promise<PatientTab | null>;
+  /** Pagamento da comanda: `undefined` = comanda inexistente; `null` = sem cobrança. */
+  patientTabPayment(
+    clinicId: string,
+    tabId: string,
+  ): Promise<PatientTabPayment | null | undefined>;
   /** Venda de produtos em uma etapa: abre, preenche e fecha a comanda de forma atômica. */
   createProductSale(
     clinicId: string,
@@ -1174,6 +1174,14 @@ export interface ClinicRepository {
     entityType: PaymentProofEntity,
     entityId: string,
   ): Promise<PaymentProof[]>;
+  /**
+   * Parcelas ou despesas (nas filiais da leitura) com algum comprovante não excluído, inclusive
+   * os de baixa estornada — a tela usa para manter o acesso aos comprovantes após o estorno.
+   */
+  listPaymentProofEntityIds(
+    clinicId: string,
+    entityType: "receivable" | "payable",
+  ): Promise<string[]>;
   /** Anexa um comprovante a um registro já pago/recebido. */
   createPaymentProof(
     clinicId: string,
@@ -1283,6 +1291,8 @@ export interface ClinicRepository {
     payableId: string,
     paymentMethod: PaymentMethod,
     timing?: PaymentTiming,
+    /** Pagamento picado: as formas somam o valor da conta. */
+    payments?: PaymentPart[],
   ): Promise<Payable | null>;
   reversePayablePayment(
     clinicId: string,
@@ -1345,6 +1355,7 @@ export interface ClinicRepository {
   /**
    * Edita um colaborador cadastrado antes do salário no usuário. O de um usuário só muda pelo
    * cadastro dele: PAYROLL_EMPLOYEE_MANAGED_BY_USER (409). Não há cadastro direto na folha.
+   * O salário fixo não muda por aqui: PAYROLL_SALARY_IMMUTABLE (409).
    */
   updatePayrollEmployee(
     clinicId: string,
@@ -1371,6 +1382,24 @@ export interface ClinicRepository {
     actorId: string,
     input: import("@crm/contracts").PayrollLaunchInput,
   ): Promise<import("@crm/contracts").PayrollLaunchResult>;
+  /**
+   * Desconto ou recompensa do colaborador na competência (entra a lançar). Porcentagem sem
+   * salário fixo: PAYROLL_ENTRY_NO_SALARY (409). `null` = colaborador não encontrado.
+   */
+  createPayrollEntry(
+    clinicId: string,
+    actorId: string,
+    input: import("@crm/contracts").PayrollEntryInput,
+  ): Promise<import("@crm/contracts").PayrollEntry | null>;
+  /**
+   * Remove um desconto/recompensa ainda a lançar. Já numa despesa da folha:
+   * PAYROLL_ENTRY_LAUNCHED (409). `false` = não encontrado.
+   */
+  deletePayrollEntry(
+    clinicId: string,
+    actorId: string,
+    entryId: string,
+  ): Promise<boolean>;
   /** Desfaz o lançamento de uma despesa da folha em aberto (os itens voltam a pendentes). */
   cancelPayrollLaunch(
     clinicId: string,
@@ -1534,6 +1563,7 @@ export interface ClinicRepository {
       templateId: string;
       name: string;
       recipients: WhatsappCampaignRecipientDraft[];
+      promotion?: WhatsappCampaignPromotion | undefined;
     },
   ): Promise<WhatsappCampaignDetail>;
   /** Marca enviado/pulado (ou volta a pendente); conclui a campanha quando não sobra pendente. */
@@ -1544,6 +1574,10 @@ export interface ClinicRepository {
     recipientId: string,
     status: CampaignRecipientStatus,
   ): Promise<CampaignRecipientUpdate | null>;
+  /** Usos das promoções das campanhas manuais (com o status atual do atendimento). */
+  listWhatsappCampaignRedemptions(
+    clinicId: string,
+  ): Promise<AutoCampaignRedemption[]>;
   /** Campanhas automáticas não excluídas, da mais recente para a mais antiga. */
   listAutoCampaigns(clinicId: string): Promise<AutoCampaign[]>;
   getAutoCampaign(
@@ -1757,6 +1791,8 @@ export type AutoCampaignDeliveryWrite = AutoCampaignDeliveryInput & {
 
 /** Uso de promoção já validado pela rota (oferta vigente para o cliente). */
 export interface AutoCampaignRedemptionWrite {
+  /** `manual` = promoção de campanha manual (WhatsApp); ausente = automática. */
+  source?: "manual" | undefined;
   campaignId: string;
   occurrenceKey: string;
   redeemedOn: string;

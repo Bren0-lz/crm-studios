@@ -4,6 +4,8 @@ import type {
   DailyCashMovementKind,
   DailyCashPaymentMethod,
   FinanceForecast,
+  FinancialEntryFilter,
+  Payable,
   PaymentMethod,
   Receivable,
   RecurringPayable,
@@ -14,7 +16,9 @@ import {
   cashPaymentMethodLabels,
   patientFirstName,
   paymentMethodWithInstallments,
+  paymentPartsLabel,
   type PaymentReceipt,
+  saoPauloToday,
 } from "@crm/contracts";
 import { currency, shortDate } from "../../shared/lib/formatting";
 import type { ReceivableFilter } from "./types";
@@ -138,6 +142,137 @@ export function receivableSituation(
   return { key: "open", label: "Em aberto", pill: "open" };
 }
 
+/** Algum critério do modal de filtros está ativo ("Data considerada" sozinha não filtra). */
+export function hasEntryFilter(filter: FinancialEntryFilter) {
+  return Object.entries(filter).some(
+    ([key, value]) => key !== "dateField" && Boolean(value),
+  );
+}
+
+/** Busca rápida das contas a pagar: descrição, fornecedor, categoria ou centro de custo. */
+export function matchesPayableSearch(
+  item: Pick<
+    Payable,
+    "description" | "supplier" | "categoryName" | "costCenterName"
+  >,
+  search: string,
+) {
+  const fold = (text: string) =>
+    text
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase();
+  const term = fold(search.trim());
+  if (!term) return true;
+  return [
+    item.description,
+    item.supplier,
+    item.categoryName,
+    item.costCenterName,
+  ]
+    .filter(Boolean)
+    .some((text) => fold(text!).includes(term));
+}
+
+export type PayableGroupKey = "overdue" | "upcoming" | "paid" | "cancelled";
+
+const payableGroupLabels: Record<PayableGroupKey, string> = {
+  overdue: "Em atraso",
+  upcoming: "A vencer",
+  paid: "Pagas",
+  cancelled: "Canceladas",
+};
+
+/** Mês (AAAA-MM) da baixa de uma conta paga; sem data de baixa, vale o vencimento. */
+function payablePaidMonth(item: Pick<Payable, "paidAt" | "dueDate">) {
+  return item.paidAt
+    ? saoPauloToday(new Date(item.paidAt)).slice(0, 7)
+    : item.dueDate.slice(0, 7);
+}
+
+function payableGroupKey(
+  item: Pick<Payable, "status" | "overdue">,
+): PayableGroupKey {
+  if (item.status === "paid") return "paid";
+  if (item.status === "cancelled") return "cancelled";
+  return item.overdue ? "overdue" : "upcoming";
+}
+
+function sumAmounts(items: Pick<Payable, "amountInCents">[]) {
+  return items.reduce((sum, item) => sum + item.amountInCents, 0);
+}
+
+/**
+ * Resumo do topo das contas a pagar: em atraso, vencendo nos próximos 7 dias, tudo em
+ * aberto e o que foi pago no mês corrente (quantidade e total de cada um).
+ */
+export function payablesSummary(payables: Payable[], today: string) {
+  const limit = new Date(Date.parse(`${today}T12:00:00Z`) + 7 * 86_400_000)
+    .toISOString()
+    .slice(0, 10);
+  const month = today.slice(0, 7);
+  const open = payables.filter((item) => item.status === "open");
+  const overdue = open.filter((item) => item.overdue);
+  const dueSoon = open.filter((item) => !item.overdue && item.dueDate <= limit);
+  const paid = payables.filter(
+    (item) => item.status === "paid" && payablePaidMonth(item) === month,
+  );
+  const total = (items: Payable[]) => ({
+    count: items.length,
+    totalInCents: sumAmounts(items),
+  });
+  return {
+    overdue: total(overdue),
+    dueSoon: total(dueSoon),
+    open: total(open),
+    paidThisMonth: total(paid),
+  };
+}
+
+/**
+ * Contas a pagar agrupadas por situação, na ordem em atraso → a vencer → pagas → canceladas
+ * (só os grupos com contas). Atrasadas e a vencer pelo vencimento mais próximo; pagas e
+ * canceladas da mais recente para a mais antiga. Sem `showAllPaid`, as pagas ficam só as do
+ * mês corrente e `hiddenPaid` diz quantas ficaram de fora.
+ */
+export function payableGroups(
+  payables: Payable[],
+  today: string,
+  showAllPaid = true,
+) {
+  const month = today.slice(0, 7);
+  const byKey = new Map<PayableGroupKey, Payable[]>();
+  let hiddenPaid = 0;
+  for (const item of payables) {
+    const key = payableGroupKey(item);
+    if (key === "paid" && !showAllPaid && payablePaidMonth(item) !== month) {
+      hiddenPaid += 1;
+      continue;
+    }
+    byKey.set(key, [...(byKey.get(key) ?? []), item]);
+  }
+  const ascending = (a: Payable, b: Payable) =>
+    a.dueDate.localeCompare(b.dueDate) ||
+    a.description.localeCompare(b.description, "pt-BR");
+  const descending = (a: Payable, b: Payable) =>
+    (b.paidAt ?? b.dueDate).localeCompare(a.paidAt ?? a.dueDate) ||
+    a.description.localeCompare(b.description, "pt-BR");
+  const groups = (Object.keys(payableGroupLabels) as PayableGroupKey[])
+    .filter((key) => byKey.has(key))
+    .map((key) => {
+      const items = [...byKey.get(key)!].sort(
+        key === "overdue" || key === "upcoming" ? ascending : descending,
+      );
+      return {
+        key,
+        label: payableGroupLabels[key],
+        items,
+        totalInCents: sumAmounts(items),
+      };
+    });
+  return { groups, hiddenPaid };
+}
+
 export function recurringPayableInput(
   item: RecurringPayable,
   changes: Partial<RecurringPayableInput> = {},
@@ -211,9 +346,11 @@ export function receiptMessage(receipt: PaymentReceipt) {
     receipt.installmentCount && receipt.installmentCount > 1
       ? ` (parcela ${receipt.installmentNumber} de ${receipt.installmentCount})`
       : "";
-  const method = receipt.paymentInstallments
-    ? `, ${paymentMethodWithInstallments(receipt.paymentMethod, receipt.paymentInstallments)}`
-    : "";
+  const method = receipt.paymentParts
+    ? `, ${paymentPartsLabel(receipt.paymentParts, (cents) => currency.format(cents / 100))}`
+    : receipt.paymentInstallments
+      ? `, ${paymentMethodWithInstallments(receipt.paymentMethod, receipt.paymentInstallments)}`
+      : "";
   const discount = receipt.customerDiscountInCents
     ? ` (com desconto de ${currency.format(receipt.customerDiscountInCents / 100)})`
     : "";
@@ -242,8 +379,10 @@ export function receivableInstallmentLine(
     | "paymentMethod"
     | "paymentInstallments"
     | "customerDiscountInCents"
+    | "paymentParts"
   >,
 ) {
+  const money = (cents: number) => currency.format(cents / 100);
   return [
     item.installmentCount > 1
       ? `Parcela ${item.installmentNumber} de ${item.installmentCount}`
@@ -251,8 +390,14 @@ export function receivableInstallmentLine(
     item.customerDiscountInCents
       ? `Desconto do cliente: ${currency.format(item.customerDiscountInCents / 100)}`
       : "",
-    item.status === "paid" && item.paymentMethod
-      ? `Pago: ${paymentMethodWithInstallments(item.paymentMethod, item.paymentInstallments)}`
+    item.status === "paid" && item.paymentParts
+      ? `Pago: ${paymentPartsLabel(item.paymentParts, money)}`
+      : item.status === "paid" && item.paymentMethod
+        ? `Pago: ${paymentMethodWithInstallments(item.paymentMethod, item.paymentInstallments)}`
+        : "",
+    // Aberta: as formas previstas na venda (sugeridas na baixa).
+    item.status === "open" && item.paymentParts
+      ? `Previsto: ${paymentPartsLabel(item.paymentParts, money)}`
       : "",
   ]
     .filter(Boolean)

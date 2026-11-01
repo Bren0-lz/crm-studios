@@ -55,6 +55,18 @@ describe("guidedOrder", () => {
       orderDiscountInCents: 5_500,
       totalInCents: 49_500,
     });
+    // Parcelas do plano: desconto do plano na 1ª, desconto geral da 1ª em diante.
+    const installments = order.lines[0]!.installments!;
+    expect(installments.map((item) => item.amountInCents)).toEqual([
+      9_400, 16_000, 16_000,
+    ]);
+    expect(installments[0]!.parts.map((part) => part.amountInCents)).toEqual([
+      16_000, -2_000, -4_600,
+    ]);
+    expect(
+      installments.reduce((sum, item) => sum + item.amountInCents, 0),
+    ).toBe(order.lines[0]!.netInCents);
+    expect(order.lines[1]!.installments).toBeUndefined();
   });
 
   it("rounds the product unit price up, never giving more than agreed", () => {

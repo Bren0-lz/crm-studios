@@ -8,6 +8,7 @@ import {
   leadStageSchema,
   patientExportColumnSchema,
   patientExportFilterSchema,
+  patientImportFieldSchema,
   patientImportFileSchema,
   patientInputSchema,
   patientDiscountSchema,
@@ -187,7 +188,21 @@ export interface PatientImportRow {
   duplicateOf?: PatientImportDuplicate;
 }
 
+export type PatientImportField = z.infer<typeof patientImportFieldSchema>;
+
+/** Coluna da planilha enviada: título do cabeçalho e até 3 valores de exemplo. */
+export interface PatientImportColumn {
+  /** Posição da coluna (0 = primeira). */
+  index: number;
+  title: string;
+  samples: string[];
+}
+
 export interface PatientImportAnalysis {
+  /** Colunas do cabeçalho, para a tela de mapeamento (vazio se o arquivo não tem cabeçalho). */
+  columns: PatientImportColumn[];
+  /** Mapeamento aplicado: `mapping[i]` é o campo da coluna `i` (`null` = não importada). */
+  mapping: (PatientImportField | null)[];
   rows: PatientImportRow[];
   /** Problemas gerais do arquivo (ex.: coluna obrigatória ausente); quando há algum, `rows` fica vazio. */
   errors: string[];

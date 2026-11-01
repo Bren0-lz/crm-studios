@@ -5,21 +5,26 @@ import {
   autoCampaignTriggerDescriptions,
   autoCampaignTriggerLabels,
   type AutoCampaign,
+  type PlanTemplate,
 } from "@crm/contracts";
 import { Plus, Trash2 } from "lucide-react";
-import { useId, useState, type FormEvent } from "react";
+import { useEffect, useId, useState, type FormEvent } from "react";
 import { api } from "../../../api";
 import { Modal, ModalCancelButton } from "../../../shared/components/Modal";
+import { MoneyInput } from "../../../shared/components/MoneyInput";
 import { useFormDirty } from "../../../shared/workflows/useDirtyGuard";
 import { MessageBodyEditor } from "../campaigns/MessageBodyEditor";
+import { DiscountScopeFields } from "./DiscountScopeFields";
 import {
   autoCampaignDraft,
   autoCampaignEditorVariables,
   autoCampaignInput,
   autoCampaignTriggers,
+  discountScopeError,
   cooldownUnits,
   newStepKey,
   offsetUnit,
+  promotionAllowsFixedDate,
   promotionValidityHint,
   type AutoCampaignDraft,
   type StepDraft,
@@ -44,6 +49,12 @@ export function AutoCampaignEditorModal({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const dirty = useFormDirty(draft);
+  const plans = usePlanTemplates(
+    draft.promotional &&
+      draft.discount &&
+      draft.discountOnPlans &&
+      draft.planScope === "selected",
+  );
   const triggers = autoCampaignTriggers.filter(
     (trigger) =>
       trigger !== "overdue_payment" ||
@@ -51,6 +62,8 @@ export function AutoCampaignEditorModal({
       campaign?.trigger === trigger,
   );
   const variables = autoCampaignEditorVariables[draft.trigger];
+  const fixedDateAllowed = promotionAllowsFixedDate(draft.trigger);
+  const validityMode = fixedDateAllowed ? draft.validityMode : "days";
   const offsets = draft.steps
     .filter((step) => step.offset !== "")
     .map((step) => Number(step.offset));
@@ -67,6 +80,11 @@ export function AutoCampaignEditorModal({
   async function submit(event: FormEvent) {
     event.preventDefault();
     setError("");
+    const scopeError = discountScopeError(draft);
+    if (scopeError) {
+      setError(scopeError);
+      return;
+    }
     const parsed = autoCampaignInputSchema.safeParse(autoCampaignInput(draft));
     if (!parsed.success) {
       setError(parsed.error.issues[0]?.message ?? "Revise os campos.");
@@ -167,31 +185,178 @@ export function AutoCampaignEditorModal({
         </label>
         {draft.promotional && (
           <>
-            <label className="span-2">
-              Validade da promoção (dias após o evento)
+            {fixedDateAllowed && (
+              <fieldset className="form-fieldset span-2">
+                <legend>Validade da promoção</legend>
+                <div className="form-fieldset-grid">
+                  <label className="checkbox-field">
+                    <input
+                      type="radio"
+                      name={`${formId}-validity`}
+                      checked={validityMode === "days"}
+                      onChange={() =>
+                        setDraft((current) => ({
+                          ...current,
+                          validityMode: "days",
+                        }))
+                      }
+                    />
+                    Dias após o evento
+                  </label>
+                  <label className="checkbox-field">
+                    <input
+                      type="radio"
+                      name={`${formId}-validity`}
+                      checked={validityMode === "date"}
+                      onChange={() =>
+                        setDraft((current) => ({
+                          ...current,
+                          validityMode: "date",
+                        }))
+                      }
+                    />
+                    Até uma data
+                  </label>
+                </div>
+              </fieldset>
+            )}
+            {validityMode === "date" ? (
+              <label className="span-2">
+                Promoção válida até
+                <input
+                  type="date"
+                  required
+                  value={draft.validUntil}
+                  onChange={(event) =>
+                    setDraft((current) => ({
+                      ...current,
+                      validUntil: event.target.value,
+                    }))
+                  }
+                />
+                <span className="field-hint">
+                  Vale para todos que receberem a mensagem, até essa data.
+                </span>
+              </label>
+            ) : (
+              <label className="span-2">
+                {draft.trigger === "birthday"
+                  ? "Validade da promoção (dias após o aniversário)"
+                  : "Validade da promoção (dias após o evento)"}
+                <input
+                  type="number"
+                  min={1}
+                  max={365}
+                  required
+                  value={draft.validDays}
+                  onChange={(event) =>
+                    setDraft((current) => ({
+                      ...current,
+                      validDays: event.target.value,
+                    }))
+                  }
+                />
+                {Number(draft.validDays) > 0 && (
+                  <span className="field-hint">
+                    {promotionValidityHint(
+                      draft.trigger,
+                      offsets,
+                      Number(draft.validDays),
+                    )}
+                  </span>
+                )}
+              </label>
+            )}
+            <label className="checkbox-field span-2">
               <input
-                type="number"
-                min={1}
-                max={365}
-                required
-                value={draft.validDays}
+                type="checkbox"
+                checked={draft.discount}
                 onChange={(event) =>
                   setDraft((current) => ({
                     ...current,
-                    validDays: event.target.value,
+                    discount: event.target.checked,
                   }))
                 }
               />
-              {Number(draft.validDays) > 0 && (
-                <span className="field-hint">
-                  {promotionValidityHint(
-                    draft.trigger,
-                    offsets,
-                    Number(draft.validDays),
-                  )}
-                </span>
-              )}
+              Dar desconto nesta campanha
             </label>
+            {draft.discount && (
+              <>
+                <fieldset className="form-fieldset span-2">
+                  <legend>Tipo de desconto</legend>
+                  <div className="form-fieldset-grid">
+                    <label className="checkbox-field">
+                      <input
+                        type="radio"
+                        name={`${formId}-discount-type`}
+                        checked={draft.discountType === "percentage"}
+                        onChange={() =>
+                          setDraft((current) => ({
+                            ...current,
+                            discountType: "percentage",
+                          }))
+                        }
+                      />
+                      Porcentagem (%)
+                    </label>
+                    <label className="checkbox-field">
+                      <input
+                        type="radio"
+                        name={`${formId}-discount-type`}
+                        checked={draft.discountType === "amount"}
+                        onChange={() =>
+                          setDraft((current) => ({
+                            ...current,
+                            discountType: "amount",
+                          }))
+                        }
+                      />
+                      Valor (R$)
+                    </label>
+                  </div>
+                </fieldset>
+                {draft.discountType === "percentage" ? (
+                  <label className="span-2">
+                    Porcentagem de desconto (%)
+                    <input
+                      inputMode="decimal"
+                      autoComplete="off"
+                      required
+                      placeholder="Ex.: 10"
+                      value={draft.discountPercent}
+                      onChange={(event) =>
+                        setDraft((current) => ({
+                          ...current,
+                          discountPercent: event.target.value.replace(
+                            /[^\d.,]/g,
+                            "",
+                          ),
+                        }))
+                      }
+                    />
+                  </label>
+                ) : (
+                  <label className="span-2">
+                    Valor do desconto (R$)
+                    <MoneyInput
+                      valueInCents={draft.discountAmountInCents}
+                      onChange={(discountAmountInCents) =>
+                        setDraft((current) => ({
+                          ...current,
+                          discountAmountInCents,
+                        }))
+                      }
+                    />
+                  </label>
+                )}
+                <DiscountScopeFields
+                  formId={formId}
+                  draft={draft}
+                  setDraft={setDraft}
+                  plans={plans}
+                />
+              </>
+            )}
             <label className="checkbox-field span-2">
               <input
                 type="checkbox"
@@ -351,4 +516,32 @@ export function AutoCampaignEditorModal({
       </div>
     </Modal>
   );
+}
+
+/** Modelos de plano para escolher onde o desconto da promoção vale (só ao ligar o desconto). */
+function usePlanTemplates(enabled: boolean) {
+  const [state, setState] = useState<
+    | { status: "loading" }
+    | { status: "error" }
+    | { status: "ready"; items: PlanTemplate[] }
+  >({ status: "loading" });
+  useEffect(() => {
+    if (!enabled) return;
+    let active = true;
+    api
+      .planTemplates()
+      .then(
+        (items) =>
+          active &&
+          setState({
+            status: "ready",
+            items: Array.isArray(items) ? items : [],
+          }),
+      )
+      .catch(() => active && setState({ status: "error" }));
+    return () => {
+      active = false;
+    };
+  }, [enabled]);
+  return state;
 }

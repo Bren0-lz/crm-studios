@@ -1,10 +1,10 @@
 import { paymentTimingSchema, financialDatesSchema } from "./model.js";
 import { z } from "zod";
+import type { PaymentPart } from "./payment-parts.js";
 import type { ProductSize, ProductSizeStock } from "./model.js";
 import {
   productUpdateSchema,
   patientTabItemUpdateSchema,
-  patientTabServiceInputSchema,
   productSaleInputSchema,
   supplierInputSchema,
   supplierBillingCycleSchema,
@@ -16,9 +16,6 @@ import {
 export type ProductUpdateInput = z.infer<typeof productUpdateSchema>;
 export type PatientTabItemUpdate = z.infer<typeof patientTabItemUpdateSchema>;
 export type ProductSaleInput = z.infer<typeof productSaleInputSchema>;
-export type PatientTabServiceInput = z.infer<
-  typeof patientTabServiceInputSchema
->;
 export type SupplierInput = z.infer<typeof supplierInputSchema>;
 export type SupplierBillingCycle = z.infer<typeof supplierBillingCycleSchema>;
 export type SupplierOrderInput = z.infer<typeof supplierOrderInputSchema>;
@@ -93,6 +90,7 @@ import {
   financeForecastFilterSchema,
   financialCategoryInputSchema,
   patientTabCloseInputSchema,
+  patientTabCancelInputSchema,
   patientTabInputSchema,
   patientTabItemInputSchema,
   payableAmountInputSchema,
@@ -139,6 +137,8 @@ export type ReceivableStatus = z.infer<typeof receivableStatusSchema>;
 export type PaymentMethod = z.infer<typeof paymentMethodSchema>;
 
 export type PatientTabCloseInput = z.infer<typeof patientTabCloseInputSchema>;
+
+export type PatientTabCancelInput = z.input<typeof patientTabCancelInputSchema>;
 
 export type ReceivableRenegotiationInput = z.infer<
   typeof receivableRenegotiationInputSchema
@@ -271,6 +271,9 @@ export interface PatientTab extends PatientTabInput {
   id: string;
   clinicId: string;
   patientName: string;
+  /** Usuário que registrou a venda (abriu a comanda); ausente se o usuário não existe mais. */
+  soldByUserId?: string;
+  soldByName?: string;
   status: "open" | "closed" | "cancelled";
   paymentStatus: "pending" | "paid" | "receivable" | "cancelled";
   totalInCents: number;
@@ -279,6 +282,20 @@ export interface PatientTab extends PatientTabInput {
   openedAt: string;
   closedAt?: string;
   cancelledAt?: string;
+  /** Motivo informado ao cancelar a venda. */
+  cancellationReason?: string;
+}
+
+/** Pagamento da comanda (cobrança gerada no fechamento), visto sem acesso ao Financeiro. */
+export interface PatientTabPayment {
+  receivableId: string;
+  status: ReceivableStatus;
+  amountInCents: number;
+  dueDate: string;
+  paidAt?: string;
+  paymentMethod?: PaymentMethod;
+  /** Parcelas na própria forma (ex.: cartão em 3x); ausente = à vista. */
+  paymentInstallments?: number;
 }
 
 export interface InventoryWorkspace {
@@ -302,7 +319,12 @@ export type SettlementAdjustments = Pick<
   | "receivedInCents"
   | "balanceDueDate"
   | "paymentInstallments"
+  | "payments"
 >;
+/** Uma forma de pagamento dentro da baixa mista. */
+export type SettlementPaymentPart = NonNullable<
+  SettlementAdjustments["payments"]
+>[number];
 export type FinancialDatesInput = z.infer<typeof financialDatesSchema>;
 export interface ReceivableService {
   id: string;
@@ -317,6 +339,12 @@ export interface Receivable {
   source?: "plan" | "tab" | "manual";
   /** Nome do plano como foi vendido; só nas cobranças de plano. */
   planName?: string;
+  /** Modelo do plano vendido (avulso, pacote, recorrente…); só nas cobranças de plano. */
+  planKind?: "single" | "fixed_package" | "recurring" | "custom";
+  /** Valor total contratado do plano; só nas cobranças de plano. */
+  planTotalInCents?: number;
+  /** Forma de pagamento combinada na venda do plano (ausente = a combinar). */
+  planPaymentMethod?: PaymentMethod;
   /** Serviços de origem: os do plano ou os atendimentos da comanda. */
   services?: ReceivableService[];
   competence?: string;
@@ -340,6 +368,11 @@ export interface Receivable {
   paymentMethod?: PaymentMethod;
   /** Parcelas na própria forma de pagamento (ex.: cartão em 3x); ausente = à vista. */
   paymentInstallments?: number;
+  /**
+   * Pagamento picado: paga, as formas recebidas (a soma é `amountInCents`); aberta, as
+   * previstas na venda. Ausente = uma forma só (`paymentMethod`).
+   */
+  paymentParts?: PaymentPart[];
   /**
    * Desconto do cliente aplicado ao gerar a cobrança do plano (`amountInCents` já é o
    * valor com desconto; o valor cheio é a soma dos dois). Ausente = sem desconto.
@@ -380,6 +413,8 @@ export interface Payable extends PayableInput {
   costCenterName?: string;
   status: "open" | "paid" | "cancelled";
   paymentMethod?: PaymentMethod;
+  /** Pagamento picado: as formas usadas (a soma é `amountInCents`). */
+  paymentParts?: PaymentPart[];
   paidAt?: string;
   overdue: boolean;
   createdAt: string;
@@ -414,8 +449,9 @@ export interface RecurringPayable {
   description: string;
   supplier?: string;
   categoryId: string;
-  costCenterId: string;
+  costCenterId?: string | undefined;
   categoryName: string;
+  /** Vazio quando a despesa fixa não tem centro de custo. */
   costCenterName: string;
   amountType: RecurringPayableAmountType;
   /** Valor mensal (fixa) ou estimativa usada até o valor do mês ser informado (variável). */
@@ -441,6 +477,8 @@ export interface FinancialWorkspace {
   categories: FinancialCategory[];
   costCenters: CostCenter[];
   payables: Payable[];
+  /** Parcelas e despesas com comprovante (inclusive de baixa estornada). */
+  paymentProofEntityIds?: { receivables: string[]; payables: string[] };
   payableOpenInCents: number;
   payableOverdueInCents: number;
   paidExpensesThisMonthInCents: number;
@@ -613,6 +651,8 @@ export interface PaymentReceipt {
   paymentMethod: PaymentMethod;
   /** Parcelas na própria forma de pagamento (ex.: cartão em 3x). */
   paymentInstallments?: number;
+  /** Pagamento picado: as formas e valores recebidos. */
+  paymentParts?: PaymentPart[];
   /** Parcela do plano/venda: "2 de 3" quando há mais de uma. */
   installmentNumber?: number;
   installmentCount?: number;
@@ -627,13 +667,6 @@ export interface PaymentReceipt {
   interestInCents?: number;
   /** Desconto do cliente já aplicado na cobrança (valor cheio = valor + desconto). */
   customerDiscountInCents?: number;
-}
-
-export interface TabAppointmentOption {
-  id: string;
-  serviceName: string;
-  professionalName: string;
-  startsAt: string;
 }
 
 export interface CommissionPaymentEvent {

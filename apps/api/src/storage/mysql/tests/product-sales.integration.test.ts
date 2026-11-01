@@ -38,8 +38,8 @@ for (const storage of ["memory", "mysql"] as const) {
         if (storage === "memory") repository = new MemoryClinicRepository();
       });
       afterAll(async () => {
-      await database?.drop();
-    });
+        await database?.drop();
+      });
 
       async function fixtures(stock: number) {
         const patient = await repository.createPatient(
@@ -79,6 +79,8 @@ for (const storage of ["memory", "mysql"] as const) {
           status: "closed",
           paymentStatus: "paid",
           totalInCents: 6_000,
+          soldByUserId: actorId,
+          soldByName: expect.any(String),
         });
         expect(sale.items[0]).toMatchObject({
           quantity: 3,
@@ -86,6 +88,10 @@ for (const storage of ["memory", "mysql"] as const) {
           totalInCents: 6_000,
         });
         const inventory = await repository.getInventoryWorkspace(clinicId);
+        // Quem registrou a venda aparece na lista de vendas realizadas.
+        expect(
+          inventory.tabs.find((tab) => tab.id === sale.id)?.soldByUserId,
+        ).toBe(actorId);
         expect(
           inventory.products.find((item) => item.id === product.id)
             ?.currentStock,
@@ -487,8 +493,19 @@ for (const storage of ["memory", "mysql"] as const) {
           size: "baby_look_g",
           currentStock: 0,
         });
-        await repository.cancelPatientTab(clinicId, actorId, tab.id);
-        await repository.cancelPatientTab(clinicId, actorId, sale.id);
+        expect(
+          await repository.cancelPatientTab(clinicId, actorId, tab.id),
+        ).not.toHaveProperty("cancellationReason");
+        expect(
+          await repository.cancelPatientTab(clinicId, actorId, sale.id, {
+            reason: "Tamanho errado",
+          }),
+        ).toMatchObject({ cancellationReason: "Tamanho errado" });
+        expect(
+          (await repository.getInventoryWorkspace(clinicId)).tabs.find(
+            (item) => item.id === sale.id,
+          ),
+        ).toMatchObject({ cancellationReason: "Tamanho errado" });
         expect(await stockOf()).toMatchObject({
           currentStock: 9,
           sizeStock: [

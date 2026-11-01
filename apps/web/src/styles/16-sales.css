@@ -66,6 +66,40 @@
   padding-left: calc(var(--space-6) + var(--space-3));
 }
 
+/* Filtros das vendas realizadas: vendedor, produto, tamanho, situação e faixa de valor. */
+.sales-filters {
+  display: grid;
+  grid-template-columns: repeat(
+    auto-fill,
+    minmax(calc(var(--space-8) * 2 + var(--space-5)), 1fr)
+  );
+  align-items: end;
+  gap: var(--space-3);
+  min-width: 0;
+  margin: 0;
+  padding: 0 var(--space-5) var(--space-4);
+  border: 0;
+}
+
+.sales-filters label {
+  display: grid;
+  gap: var(--space-1);
+  font-size: var(--text-sm);
+}
+
+.sales-filters select,
+.sales-filters input {
+  width: 100%;
+}
+
+.sales-filters-clear {
+  justify-self: start;
+}
+
+.sales-filters-error {
+  margin: 0 var(--space-5) var(--space-4);
+}
+
 .sales-history-table {
   font-size: var(--text-md);
 }
@@ -164,6 +198,27 @@
     minmax(0, 1fr) auto;
 }
 
+/* Produto da venda: a linha com os campos e, abaixo, o desconto só desse produto. */
+.sale-item {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.sale-line-discount {
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid var(--line);
+}
+
+.sale-line-discount > .muted-copy {
+  font-size: var(--text-sm);
+}
+
+/* Desconto geral da venda e o resumo dos descontos, acima do total. */
+.sale-discount {
+  display: grid;
+  gap: var(--space-3);
+}
+
 /* Produto escolhido sem preço de venda: bloqueia a venda e oferece cadastrar o preço. */
 .sale-price-alert {
   display: flex;
@@ -250,6 +305,67 @@
   font-weight: 400;
 }
 
+/* Cadastro do fornecedor em abas (Dados, Pedidos, Documentos). */
+.supplier-tab-panel {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.supplier-tab-panel[hidden] {
+  display: none;
+}
+
+.supplier-contract-fields {
+  display: grid;
+  gap: var(--space-3);
+  padding: 0 var(--space-4) var(--space-4);
+}
+
+.supplier-contract-fields > .field-hint {
+  margin: 0;
+}
+
+/* Conferência do modelo escolhido com os dados preenchidos no cadastro. */
+.supplier-document-check {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+}
+
+.supplier-document-check p {
+  margin: 0;
+}
+
+.supplier-document-check ul {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.supplier-document-check li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.supplier-documents {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.supplier-documents h3 {
+  margin: 0;
+  font-size: var(--text-md);
+  font-weight: 600;
+}
+
 .sale-actions {
   align-items: center;
 }
@@ -262,6 +378,32 @@
 .sale-total strong {
   margin-left: var(--space-2);
   font-size: var(--text-xl);
+}
+
+.sale-payment h3 {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-md);
+  font-weight: 600;
+}
+
+.sale-payment dl {
+  display: grid;
+  grid-template-columns: repeat(
+    auto-fit,
+    minmax(calc(var(--space-8) * 2 + var(--space-3)), 1fr)
+  );
+  gap: var(--space-3);
+  margin: 0;
+}
+
+.sale-payment dt {
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+
+.sale-payment dd {
+  margin: var(--space-1) 0 0;
+  font-size: var(--text-md);
 }
 
 @media (max-width: 700px) {
@@ -403,6 +545,10 @@
 
 .product-catalogs {
   padding: 0 calc(var(--space-5) - 1px) calc(var(--space-5) - 1px);
+}
+
+.sales-suppliers {
+  padding: calc(var(--space-5) - 1px);
 }
 
 .sales-ranking-body {
