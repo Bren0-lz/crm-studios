@@ -1,6 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  auditChangesOf,
+  changeReasonSchema,
+  diffAuditFields,
+  patientAuditLabels,
   appointmentCreateInputSchema,
+  appointmentPromotionSchema,
+  whatsappCampaignInputSchema,
   autoCampaignInputSchema,
   recurringAppointmentCreateInputSchema,
   productInputSchema,
@@ -2274,6 +2280,59 @@ describe("comissões por serviço do usuário", () => {
   });
 });
 
+describe("campanhas manuais promocionais", () => {
+  const campaign = {
+    templateId: "11111111-1111-4111-8111-111111111111",
+    name: "Junho",
+    audience: {
+      mode: "patients",
+      patientIds: ["22222222-2222-4222-8222-222222222222"],
+    },
+  };
+
+  it("aceita promoção por dias depois do envio ou até uma data final", () => {
+    expect(
+      whatsappCampaignInputSchema.parse(campaign).promotion,
+    ).toBeUndefined();
+    expect(
+      whatsappCampaignInputSchema.parse({
+        ...campaign,
+        promotion: { validDays: 7 },
+      }).promotion,
+    ).toEqual({ validDays: 7 });
+    expect(
+      whatsappCampaignInputSchema.parse({
+        ...campaign,
+        promotion: { validUntil: "2039-06-30" },
+      }).promotion,
+    ).toEqual({ validUntil: "2039-06-30" });
+    for (const promotion of [
+      {},
+      { validDays: 0 },
+      { validDays: 366 },
+      { validUntil: "30/06/2039" },
+      { validDays: 7, validUntil: "2039-06-30" },
+    ])
+      expect(
+        whatsappCampaignInputSchema.safeParse({ ...campaign, promotion })
+          .success,
+      ).toBe(false);
+  });
+
+  it("marca a promoção manual ao agendar", () => {
+    const promotion = {
+      source: "manual",
+      campaignId: "55555555-5555-4555-8555-555555555555",
+      occurrenceKey: "66666666-6666-4666-8666-666666666666",
+    };
+    expect(appointmentPromotionSchema.parse(promotion)).toEqual(promotion);
+    expect(
+      appointmentPromotionSchema.safeParse({ ...promotion, source: "auto" })
+        .success,
+    ).toBe(false);
+  });
+});
+
 describe("campanhas automáticas promocionais", () => {
   const campaign = {
     name: "Aniversariantes",
@@ -2348,5 +2407,77 @@ describe("campanhas automáticas promocionais", () => {
         promotion: { campaignId: "x", occurrenceKey: "" },
       }).success,
     ).toBe(false);
+  });
+});
+
+describe("edit history changes", () => {
+  it("lists only the labeled fields that changed, in readable pt-BR", () => {
+    expect(
+      diffAuditFields(
+        {
+          fullName: "Ana",
+          phone: "1199",
+          tags: ["VIP"],
+          birthDate: "",
+          imageConsent: false,
+          secret: "a",
+        },
+        {
+          fullName: "Ana",
+          phone: "1188",
+          tags: [],
+          birthDate: "1990-05-20",
+          imageConsent: true,
+          secret: "b",
+        },
+        patientAuditLabels,
+      ),
+    ).toEqual([
+      { field: "phone", label: "Telefone", before: "1199", after: "1188" },
+      {
+        field: "birthDate",
+        label: "Data de nascimento",
+        before: null,
+        after: "20/05/1990",
+      },
+      { field: "tags", label: "Etiquetas", before: "VIP", after: null },
+      {
+        field: "imageConsent",
+        label: "Autoriza uso de imagem",
+        before: "Não",
+        after: "Sim",
+      },
+    ]);
+    expect(diffAuditFields({ notes: "" }, {}, patientAuditLabels)).toEqual([]);
+    expect(
+      diffAuditFields(
+        { gender: "female" },
+        {
+          gender: "male",
+          discount: { type: "percentage", percent: 10, scope: "permanent" },
+        },
+        patientAuditLabels,
+      ),
+    ).toEqual([
+      {
+        field: "gender",
+        label: "Gênero",
+        before: "Feminino",
+        after: "Masculino",
+      },
+      {
+        field: "discount",
+        label: "Desconto",
+        before: null,
+        after: "10% de desconto · permanente",
+      },
+    ]);
+  });
+
+  it("trims the reason and limits it to 500 characters", () => {
+    expect(changeReasonSchema.parse("  motivo  ")).toBe("motivo");
+    expect(changeReasonSchema.parse(undefined)).toBeUndefined();
+    expect(changeReasonSchema.safeParse("x".repeat(501)).success).toBe(false);
+    expect(auditChangesOf({ changes: [{ field: "a" }] })).toEqual([]);
   });
 });

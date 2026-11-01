@@ -1,4 +1,5 @@
 import {
+  acceptsPaymentInstallments,
   maxSettlementPayments,
   settlementBreakdown,
   settlementPaymentsTotal,
@@ -38,8 +39,12 @@ export function SettleModal({
   const [pastPayment, setPastPayment] = useState(false),
     [paidAt, setPaidAt] = useState(nowForInput),
     [availableAt, setAvailableAt] = useState("");
-  const [method, setMethod] = useState<PaymentMethod>("pix");
-  // Parcelas na própria forma (cartão em 3x); só nas parcelas a receber.
+  // A forma combinada na venda (plano) já vem marcada; dá para trocar se o cliente mudou.
+  const [method, setMethod] = useState<PaymentMethod>(
+    target.paymentMethod ?? "pix",
+  );
+  // Parcelas na própria forma (cartão em 3x); só em conta a receber que não é parcela
+  // de um parcelamento (não faz sentido parcelar uma parcela).
   const [paymentInstallments, setPaymentInstallments] = useState(1);
   const paymentSettings = usePaymentMethodSettings();
   // Baixa de parcela (U39): desconto, juros e valor recebido; vazio = valor final inteiro.
@@ -68,6 +73,7 @@ export function SettleModal({
   });
   const dirty = formDirty || proofs.length > 0;
   const isReceivable = target.kind === "receivable";
+  const canSplitPayment = isReceivable && acceptsPaymentInstallments(target);
   const mixedPayment = isReceivable && mixed;
   const finalInCents = settlementBreakdown(target.amountInCents, {
     discountInCents: discount ?? 0,
@@ -82,7 +88,7 @@ export function SettleModal({
     paymentMethod: part.method,
     amountInCents:
       part.amount ?? (index === parts.length - 1 ? restInCents : 0),
-    ...(part.installments > 1
+    ...(canSplitPayment && part.installments > 1
       ? { paymentInstallments: part.installments }
       : {}),
   }));
@@ -116,7 +122,7 @@ export function SettleModal({
     ...values,
     ...(mixedPayment
       ? { payments }
-      : paymentInstallments > 1
+      : canSplitPayment && paymentInstallments > 1
         ? { paymentInstallments }
         : {}),
     ...(breakdown.balanceInCents > 0 && balanceDueDate
@@ -195,6 +201,24 @@ export function SettleModal({
       onClose={onClose}
     >
       <form className="form-grid settle-form" onSubmit={submit}>
+        {isReceivable && target.plan && (
+          <dl className="payroll-totals span-2" aria-label="Resumo do plano">
+            <div>
+              <dt>Valor total do plano</dt>
+              <dd>{money(target.plan.totalInCents)}</dd>
+            </div>
+            <div>
+              <dt>Valor da parcela</dt>
+              <dd>{money(target.amountInCents)}</dd>
+            </div>
+            <div>
+              <dt>Parcelas pagas</dt>
+              <dd>
+                {target.plan.paidCount} de {target.plan.installmentCount}
+              </dd>
+            </div>
+          </dl>
+        )}
         {isReceivable && (
           <label className="checkbox-field span-2">
             <input
@@ -266,16 +290,18 @@ export function SettleModal({
                         }
                       />
                     </label>
-                    <div className="settle-part-installments">
-                      <PaymentInstallmentsSelect
-                        method={part.method}
-                        settings={paymentSettings}
-                        value={part.installments}
-                        onChange={(installments) =>
-                          updatePart(part.key, { installments })
-                        }
-                      />
-                    </div>
+                    {canSplitPayment && (
+                      <div className="settle-part-installments">
+                        <PaymentInstallmentsSelect
+                          method={part.method}
+                          settings={paymentSettings}
+                          value={part.installments}
+                          onChange={(installments) =>
+                            updatePart(part.key, { installments })
+                          }
+                        />
+                      </div>
+                    )}
                     <button
                       type="button"
                       className="secondary-button"
@@ -313,7 +339,7 @@ export function SettleModal({
         )}
         {isReceivable && (
           <>
-            {!mixedPayment && (
+            {!mixedPayment && canSplitPayment && (
               <PaymentInstallmentsSelect
                 className="span-2"
                 method={method}

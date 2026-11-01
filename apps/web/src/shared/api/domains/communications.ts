@@ -3,6 +3,7 @@ import type {
   AutoCampaignDelivery,
   AutoCampaignDeliveryInput,
   AutoCampaignInput,
+  AutoCampaignProductOption,
   AutoCampaignQueue,
   CampaignFilterOptions,
   CampaignRecipientStatus,
@@ -25,6 +26,11 @@ export const communicationsApi = {
     request<AutoCampaign[]>("/communications/auto-campaigns"),
   autoCampaignQueue: () =>
     request<AutoCampaignQueue>("/communications/auto-campaigns/queue"),
+  /** Produtos para escolher onde o desconto da promoção vale. */
+  autoCampaignProducts: () =>
+    request<AutoCampaignProductOption[]>(
+      "/communications/auto-campaigns/products",
+    ),
   createAutoCampaign: (input: AutoCampaignInput) =>
     request<AutoCampaign>("/communications/auto-campaigns", {
       method: "POST",

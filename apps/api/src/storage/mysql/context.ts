@@ -1,6 +1,8 @@
 import { markPaymentProofsReversed } from "./payment-proofs.js";
 import {
+  acceptsPaymentInstallments,
   formatSequenceNumber,
+  installmentPaymentSplitIssue,
   settlementBreakdown,
   settlementSteps,
   type PaymentTiming,
@@ -1381,7 +1383,7 @@ export class MysqlRepositoryContext {
   ) {
     const [tab, items] = await Promise.all([
       client.query<PatientTabRow>(
-        `SELECT t.id,t.clinic_id AS "clinicId",t.patient_id AS "patientId",p.full_name AS "patientName",t.notes,t.status,t.payment_status AS "paymentStatus",t.total_in_cents AS "totalInCents",t.receivable_id AS "receivableId",t.opened_at AS "openedAt",t.closed_at AS "closedAt",t.cancelled_at AS "cancelledAt" FROM patient_tabs t JOIN patients p ON p.id=t.patient_id WHERE t.clinic_id=$1 AND t.id=$2`,
+        `SELECT t.id,t.clinic_id AS "clinicId",t.patient_id AS "patientId",p.full_name AS "patientName",u.id AS "soldByUserId",u.full_name AS "soldByName",t.notes,t.status,t.payment_status AS "paymentStatus",t.total_in_cents AS "totalInCents",t.receivable_id AS "receivableId",t.opened_at AS "openedAt",t.closed_at AS "closedAt",t.cancelled_at AS "cancelledAt" FROM patient_tabs t JOIN patients p ON p.id=t.patient_id LEFT JOIN users u ON u.id=t.opened_by_user_id AND u.clinic_id=t.clinic_id WHERE t.clinic_id=$1 AND t.id=$2`,
         [clinicId, tabId],
       ),
       client.query<PatientTabItemRow>(
@@ -1556,10 +1558,11 @@ export class MysqlRepositoryContext {
     const current = await client.query<{
       status: ReceivableStatus;
       amountInCents: number;
+      installmentCount: number;
       paymentMethod: PaymentMethod | null;
       cashAvailableAt: Date | null;
     }>(
-      `SELECT status,payment_method AS "paymentMethod",cash_available_at AS "cashAvailableAt", amount_in_cents AS "amountInCents"
+      `SELECT status,payment_method AS "paymentMethod",cash_available_at AS "cashAvailableAt", amount_in_cents AS "amountInCents", installment_count AS "installmentCount"
          FROM receivables WHERE clinic_id = $1 AND id = $2 FOR UPDATE`,
       [clinicId, receivableId],
     );
@@ -1574,6 +1577,20 @@ export class MysqlRepositoryContext {
         409,
       );
     }
+    // Plano já parcelado não se parcela de novo na forma de pagamento (nem no misto: cada
+    // parte passa por aqui dentro da mesma transação).
+    if (
+      operation === "payment" &&
+      (adjustments.paymentInstallments ?? 1) > 1 &&
+      !acceptsPaymentInstallments({
+        installmentCount: Number(current.rows[0].installmentCount),
+      })
+    )
+      throw new DomainError(
+        "INSTALLMENT_PAYMENT_SPLIT",
+        installmentPaymentSplitIssue,
+        400,
+      );
     // U39: desconto, juros e pagamento parcial (o saldo vira nova parcela).
     let receivedInCents = current.rows[0].amountInCents;
     let balanceReceivableId: string | null = null;
