@@ -7,6 +7,7 @@ import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
 import { useToast } from "../../shared/feedback/toast-context";
 import { Modal } from "../../shared/components/Modal";
+import { CurrencyField } from "../../shared/components/CurrencyField";
 import { ErrorBanner } from "../../shared/components/ErrorBanner";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
 import { EmptyState } from "../../shared/components/EmptyState";
@@ -65,6 +66,7 @@ export function AdministrativeRegistrySection() {
                 data: {
                   name: "",
                   durationMinutes: 60,
+                  priceInCents: 0,
                   color: "#547A6B",
                   active: true,
                 },
@@ -296,6 +298,11 @@ function RegistryEditor({
                     }
                   />
                 </label>
+                <CurrencyField
+                  label="Preço de tabela"
+                  value={form.data.priceInCents}
+                  onChange={(value) => patch({ priceInCents: value })}
+                />
                 <ResourceChecklist
                   legend="Profissionais que atendem"
                   items={professionals

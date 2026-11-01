@@ -39,6 +39,7 @@ describe.skipIf(!databaseUrl)("MySQL repository", () => {
       const created = await repository.createService(clinicId, {
         name,
         durationMinutes: 50,
+        priceInCents: 9000,
         color: "#547A6B",
         professionalIds: [professional!.id],
         roomIds: [room!.id],

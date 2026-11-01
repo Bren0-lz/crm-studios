@@ -21,6 +21,7 @@ import { PatientTagBadge } from "../../shared/components/PatientTagBadge";
 import { VisitTypeBadge } from "../../shared/components/VisitTypeBadge";
 import { usePatientTags } from "../../shared/hooks/usePatientTags";
 import {
+  currency,
   formatIsoDate,
   localIsoDate,
   statusLabel,
@@ -290,8 +291,18 @@ export function AppointmentDetailsModal({
             </div>
             {service && (
               <div>
-                <small>Duração</small>
-                <strong>{service.durationMinutes} min</strong>
+                {/* Valor da sessão avulsa: o do plano avulso do serviço, quando houver. */}
+                <small>
+                  {service.singleSessionPriceInCents
+                    ? "Duração e valor avulso"
+                    : "Duração"}
+                </small>
+                <strong>
+                  {service.durationMinutes} min
+                  {service.singleSessionPriceInCents
+                    ? ` · ${currency.format(service.singleSessionPriceInCents / 100)}`
+                    : ""}
+                </strong>
               </div>
             )}
             {appointment.absenceReason && (

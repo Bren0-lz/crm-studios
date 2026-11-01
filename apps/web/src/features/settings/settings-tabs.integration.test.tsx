@@ -234,6 +234,7 @@ describe("settings tabs", () => {
                 id: "s1",
                 name: "Pilates em grupo",
                 durationMinutes: 60,
+                priceInCents: 0,
                 color: "#547A6B",
                 active: true,
               },

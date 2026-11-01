@@ -65,6 +65,7 @@ describe("application shell", () => {
                     {
                       id: appointment.serviceId,
                       durationMinutes: 50,
+                      priceInCents: 12000,
                     },
                   ]
                 : [];

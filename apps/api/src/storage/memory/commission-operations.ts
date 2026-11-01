@@ -16,7 +16,7 @@ import { now, uuid } from "./helpers.js";
 import { createMemoryCommissionRecalculation } from "./commission-recalculation.js";
 import type { CommissionRecalculationRequest } from "../../repository.js";
 /**
- * Base da comissão percentual (serviço não tem preço): o valor por sessão do serviço no
+ * Base da comissão percentual (o preço de tabela do serviço não entra): o valor por sessão do serviço no
  * plano consumido pelo atendimento/presença; sem consumo de plano, o valor por sessão do
  * plano avulso do serviço; sem nenhum, 0.
  */
