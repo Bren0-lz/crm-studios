@@ -534,6 +534,16 @@ export const historyActions: {
     label: "Colaborador da folha atualizado",
   },
   {
+    action: "payroll.entry_created",
+    module: "finance",
+    label: "Desconto ou recompensa adicionado na folha",
+  },
+  {
+    action: "payroll.entry_deleted",
+    module: "finance",
+    label: "Desconto ou recompensa removido da folha",
+  },
+  {
     action: "payroll.launched",
     module: "finance",
     label: "Folha de pagamento lançada",
