@@ -695,6 +695,7 @@ export function createFinanceRepository(
         Receivable,
         | "source"
         | "planName"
+        | "planKind"
         | "planTotalInCents"
         | "planPaymentMethod"
         | "services"
@@ -710,6 +711,7 @@ export function createFinanceRepository(
           return {
             source: "plan",
             planName: plan.name,
+            planKind: plan.kind,
             planTotalInCents: plan.totalValueInCents,
             ...(plan.paymentMethod
               ? { planPaymentMethod: plan.paymentMethod }
