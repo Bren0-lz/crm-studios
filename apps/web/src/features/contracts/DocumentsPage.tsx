@@ -149,6 +149,8 @@ export function DocumentsPage() {
       : []),
   ];
   const [creatingTemplate, setCreatingTemplate] = useState(false);
+  // Erro ao criar modelo: aparece junto do botão "Criar modelo", não no topo da página.
+  const [templateError, setTemplateError] = useState("");
   const creatingTemplateRef = useRef(false);
   const [templateBaseline, setTemplateBaseline] = useState(
     JSON.stringify(defaultTemplateForm),
@@ -159,8 +161,9 @@ export function DocumentsPage() {
   // O que falta para criar o modelo e o documento (QM14).
   const templateMissing = useMissingFields(
     missingLabels([
-      ["Nome", templateForm.name],
-      ["Conteúdo", templateForm.body],
+      // Rótulos explícitos: o editor também mostra "Nome do cliente", "Nome da clínica"…
+      ["Nome do modelo", templateForm.name],
+      ["Conteúdo do modelo", templateForm.body],
     ]),
     "field-hint",
   );
@@ -249,7 +252,7 @@ export function DocumentsPage() {
       );
     creatingTemplateRef.current = true;
     setCreatingTemplate(true);
-    setError("");
+    setTemplateError("");
     setNotice("");
     try {
       const created = await api.createDocumentTemplate(parsed.data);
@@ -266,7 +269,9 @@ export function DocumentsPage() {
   function createTemplate(event: FormEvent) {
     event.preventDefault();
     if (!creatingTemplateRef.current)
-      void saveTemplate().catch((cause: Error) => setError(cause.message));
+      void saveTemplate().catch((cause: Error) =>
+        setTemplateError(cause.message),
+      );
   }
   const templateDirty = JSON.stringify(templateForm) !== templateBaseline;
   const templatePrompt = useUnsavedChangesPrompt({
@@ -639,17 +644,18 @@ export function DocumentsPage() {
                 >
                   <div className="template-studio-meta">
                     <label>
-                      Nome
+                      Nome do modelo
                       <input
                         required
                         value={templateForm.name}
                         disabled={creatingTemplate}
-                        onChange={(event) =>
+                        onChange={(event) => {
+                          setTemplateError("");
                           setTemplateForm({
                             ...templateForm,
                             name: event.target.value,
-                          })
-                        }
+                          });
+                        }}
                       />
                     </label>
                     <label>
@@ -718,6 +724,11 @@ export function DocumentsPage() {
                       }))
                     }
                   />
+                  {templateError && (
+                    <p className="form-error" role="alert">
+                      {templateError}
+                    </p>
+                  )}
                   {templateMissing.hint}
                   <div className="modal-actions">
                     <button

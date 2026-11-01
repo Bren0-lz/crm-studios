@@ -982,10 +982,13 @@
   gap: var(--space-4);
 }
 
+/* min-width: 0 impede que uma palavra longa ou a barra de ferramentas alarguem a coluna
+   e joguem o editor por cima da prévia (no modal de nova versão). */
 .template-body-input {
   display: grid;
   gap: var(--space-2);
   align-content: start;
+  min-width: 0;
 }
 
 .template-body-input[hidden] {
@@ -1133,7 +1136,6 @@
 }
 
 .template-studio > .template-body-input {
-  min-width: 0;
   padding: var(--space-3);
   border: 1px solid var(--line);
   border-radius: var(--radius-md);
@@ -1382,7 +1384,13 @@
   font-weight: 400;
   line-height: 1.7;
 }
+/* O CSS do tiptap usa word-wrap: break-word, que não quebra palavra longa ao medir a
+   coluna: sem anywhere, um texto sem espaços alarga o editor por cima da prévia. */
+.rich-document-editor > * {
+  min-width: 0;
+}
 .rich-document-editor .tiptap {
+  overflow-wrap: anywhere;
   min-height: 45vh;
   padding: var(--space-5);
   border: 1px solid var(--line);
