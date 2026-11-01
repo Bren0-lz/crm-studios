@@ -349,6 +349,13 @@ export interface AutoCampaignRedemption {
   blockedUntil?: string | undefined;
 }
 
+/** `GET /communications/auto-campaigns/products`: produtos para o desconto da promoção. */
+export interface AutoCampaignProductOption {
+  id: string;
+  name: string;
+  active: boolean;
+}
+
 /** `GET /appointments/promotions`: promoções que o cliente pode usar ao agendar hoje. */
 export interface AutoCampaignPromotionOffer {
   campaignId: string;
@@ -360,6 +367,12 @@ export interface AutoCampaignPromotionOffer {
   discount?: AutoCampaignPromotionDiscount | undefined;
   /** Planos em que o desconto vale; ausente ou vazio = qualquer plano. */
   planTemplateIds?: string[] | undefined;
+  /** `false` = o desconto não vale em plano nenhum (ver `promotionAppliesToPlan`). */
+  appliesToPlans?: boolean | undefined;
+  /** `true` = o desconto vale também em produtos (ver `promotionAppliesToProduct`). */
+  appliesToProducts?: boolean | undefined;
+  /** Produtos em que o desconto vale; ausente ou vazio = qualquer produto. */
+  productIds?: string[] | undefined;
 }
 
 /** `GET /communications/auto-campaigns/queue`: a fila de hoje. */

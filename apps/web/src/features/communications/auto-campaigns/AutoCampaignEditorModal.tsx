@@ -10,16 +10,17 @@ import {
 import { Plus, Trash2 } from "lucide-react";
 import { useEffect, useId, useState, type FormEvent } from "react";
 import { api } from "../../../api";
-import { LoadingBlock } from "../../../shared/components/LoadingBlock";
 import { Modal, ModalCancelButton } from "../../../shared/components/Modal";
 import { MoneyInput } from "../../../shared/components/MoneyInput";
 import { useFormDirty } from "../../../shared/workflows/useDirtyGuard";
 import { MessageBodyEditor } from "../campaigns/MessageBodyEditor";
+import { DiscountScopeFields } from "./DiscountScopeFields";
 import {
   autoCampaignDraft,
   autoCampaignEditorVariables,
   autoCampaignInput,
   autoCampaignTriggers,
+  discountScopeError,
   cooldownUnits,
   newStepKey,
   offsetUnit,
@@ -47,7 +48,12 @@ export function AutoCampaignEditorModal({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const dirty = useFormDirty(draft);
-  const plans = usePlanTemplates(draft.promotional && draft.discount);
+  const plans = usePlanTemplates(
+    draft.promotional &&
+      draft.discount &&
+      draft.discountOnPlans &&
+      draft.planScope === "selected",
+  );
   const triggers = autoCampaignTriggers.filter(
     (trigger) =>
       trigger !== "overdue_payment" ||
@@ -71,6 +77,11 @@ export function AutoCampaignEditorModal({
   async function submit(event: FormEvent) {
     event.preventDefault();
     setError("");
+    const scopeError = discountScopeError(draft);
+    if (scopeError) {
+      setError(scopeError);
+      return;
+    }
     const parsed = autoCampaignInputSchema.safeParse(autoCampaignInput(draft));
     if (!parsed.success) {
       setError(parsed.error.issues[0]?.message ?? "Revise os campos.");
@@ -207,7 +218,7 @@ export function AutoCampaignEditorModal({
                   }))
                 }
               />
-              Dar desconto no atendimento desta campanha
+              Dar desconto nesta campanha
             </label>
             {draft.discount && (
               <>
@@ -278,47 +289,12 @@ export function AutoCampaignEditorModal({
                     />
                   </label>
                 )}
-                <fieldset className="form-fieldset span-2">
-                  <legend>Planos em que o desconto vale</legend>
-                  <p className="field-hint">
-                    Sem nenhum plano marcado, o desconto vale em qualquer plano
-                    e no avulso.
-                  </p>
-                  {plans.status === "loading" ? (
-                    <LoadingBlock />
-                  ) : plans.status === "error" ? (
-                    <p className="form-error" role="alert">
-                      Não foi possível carregar os planos.
-                    </p>
-                  ) : plans.items.length === 0 &&
-                    draft.planTemplateIds.length === 0 ? (
-                    <p className="field-hint">Nenhum plano cadastrado.</p>
-                  ) : (
-                    <div className="form-fieldset-grid">
-                      {planChoices(plans.items, draft.planTemplateIds).map(
-                        (plan) => (
-                          <label className="checkbox-field" key={plan.id}>
-                            <input
-                              type="checkbox"
-                              checked={draft.planTemplateIds.includes(plan.id)}
-                              onChange={(event) =>
-                                setDraft((current) => ({
-                                  ...current,
-                                  planTemplateIds: event.target.checked
-                                    ? [...current.planTemplateIds, plan.id]
-                                    : current.planTemplateIds.filter(
-                                        (id) => id !== plan.id,
-                                      ),
-                                }))
-                              }
-                            />
-                            {plan.name}
-                          </label>
-                        ),
-                      )}
-                    </div>
-                  )}
-                </fieldset>
+                <DiscountScopeFields
+                  formId={formId}
+                  draft={draft}
+                  setDraft={setDraft}
+                  plans={plans}
+                />
               </>
             )}
             <label className="checkbox-field span-2">
@@ -508,11 +484,4 @@ function usePlanTemplates(enabled: boolean) {
     };
   }, [enabled]);
   return state;
-}
-
-/** Planos ativos e, mesmo inativos, os já escolhidos na campanha. */
-function planChoices(templates: PlanTemplate[], selected: string[]) {
-  return templates
-    .filter((template) => template.active || selected.includes(template.id))
-    .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
 }
