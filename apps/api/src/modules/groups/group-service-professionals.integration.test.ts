@@ -22,14 +22,12 @@ async function setup() {
     name: "Pilates restrito",
     durationMinutes: 60,
     priceInCents: 0,
-    color: "#336699",
     professionalIds: [first!.id],
   });
   const open = await repository.createService(clinicId, {
     name: "Pilates livre",
     durationMinutes: 60,
     priceInCents: 0,
-    color: "#336699",
   });
   const input = {
     serviceId: service.id,

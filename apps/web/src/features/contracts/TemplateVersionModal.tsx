@@ -65,18 +65,21 @@ export function TemplateVersionModal({
       subtitle={`${template.name} · versão ${template.version + 1}`}
       eyebrow="Modelos"
       wide
+      className="template-version-modal"
       busy={saving}
       dirty={dirty}
       onClose={onClose}
     >
       {can("contracts.templates_version") && (
-        <form className="form-grid" onSubmit={(event) => void submit(event)}>
-          <div className="span-2">
+        <form
+          className="form-grid template-version-form"
+          onSubmit={(event) => void submit(event)}>
+          <div className="span-2 template-version-editor">
             <TemplateBodyEditor
               value={body}
               content={content}
-              rows={12}
               disabled={saving}
+              studio
               branding={branding}
               onChange={(body, content) => {
                 setBody(body);

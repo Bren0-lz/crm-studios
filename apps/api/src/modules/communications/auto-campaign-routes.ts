@@ -51,10 +51,30 @@ export function registerAutoCampaignRoutes(context: RouteContext) {
       campaign.id,
     );
 
-  function parseCampaign(request: FastifyRequest) {
+  async function parseCampaign(request: FastifyRequest) {
     const input = autoCampaignInputSchema.parse(request.body);
     if (input.trigger === "overdue_payment")
       assertPermissions(request, "finance.view");
+    const promotion = input.promotion;
+    if (promotion) {
+      // Os planos só valem com desconto; sem desconto, a lista é descartada.
+      if (!promotion.discount) delete promotion.planTemplateIds;
+      const planIds = [...new Set(promotion.planTemplateIds ?? [])];
+      if (planIds.length) {
+        const known = new Set(
+          (await repository.listPlanTemplates(request.user.clinicId)).map(
+            (template) => template.id,
+          ),
+        );
+        if (planIds.some((id) => !known.has(id)))
+          throw new DomainError(
+            "AUTO_CAMPAIGN_PLAN_NOT_FOUND",
+            "Um dos planos escolhidos para o desconto não existe mais.",
+            400,
+          );
+      }
+      if (promotion.planTemplateIds) promotion.planTemplateIds = planIds;
+    }
     return input;
   }
 
@@ -82,7 +102,7 @@ export function registerAutoCampaignRoutes(context: RouteContext) {
       const campaign = await repository.createAutoCampaign(
         request.user.clinicId,
         request.user.sub,
-        parseCampaign(request),
+        await parseCampaign(request),
       );
       await audit(request, "created", campaign);
       return reply.status(201).send(campaign);
@@ -97,7 +117,7 @@ export function registerAutoCampaignRoutes(context: RouteContext) {
       const campaign = await repository.updateAutoCampaign(
         request.user.clinicId,
         id,
-        parseCampaign(request),
+        await parseCampaign(request),
       );
       if (!campaign) throw campaignNotFound();
       await audit(request, "updated", campaign);
