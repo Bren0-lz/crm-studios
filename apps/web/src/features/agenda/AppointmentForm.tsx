@@ -148,6 +148,17 @@ export function AppointmentForm({
   const availableServices = services.filter((item) =>
     serviceAvailableFor(item, form.professionalId, form.roomId),
   );
+  // E vice-versa: com um serviço escolhido, só as salas que o atendem.
+  const selectedService = services.find((item) => item.id === form.serviceId);
+  const availableRooms = selectedService
+    ? rooms.filter((item) => serviceAvailableFor(selectedService, "", item.id))
+    : rooms;
+  function keepAvailableRoom(next: typeof form) {
+    const service = services.find((item) => item.id === next.serviceId);
+    return service && !serviceAvailableFor(service, "", next.roomId)
+      ? { ...next, roomId: "" }
+      : next;
+  }
   function keepAvailableService(next: typeof form) {
     const service = services.find((item) => item.id === next.serviceId);
     return service &&
@@ -444,7 +455,7 @@ export function AppointmentForm({
                 }
               >
                 <option value="">Selecione</option>
-                {rooms.map((item) => (
+                {availableRooms.map((item) => (
                   <option value={item.id} key={item.id}>
                     {item.name}
                   </option>
@@ -457,7 +468,9 @@ export function AppointmentForm({
                 required
                 value={form.serviceId}
                 onChange={(e) =>
-                  setForm({ ...form, serviceId: e.target.value })
+                  setForm(
+                    keepAvailableRoom({ ...form, serviceId: e.target.value }),
+                  )
                 }
               >
                 <option value="">Selecione</option>
