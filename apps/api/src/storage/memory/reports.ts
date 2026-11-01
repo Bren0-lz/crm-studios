@@ -249,10 +249,10 @@ export function createReportsRepository(
                 source.professionalId,
               ),
             )
-            .map(({ source, rule, service }) => ({
+            .map(({ source, rule, baseAmountInCents }) => ({
               professionalId: source.professionalId,
               professionalName: source.professionalName,
-              amountInCents: commissionAmount(rule, service.priceInCents),
+              amountInCents: commissionAmount(rule, baseAmountInCents),
             })),
         ),
       };
@@ -674,8 +674,7 @@ export function createReportsRepository(
               .scoped(repositoryContext.products)
               .filter(
                 (item) =>
-                  item.clinicId === clinicId &&
-                  productNeedsRestock(item),
+                  item.clinicId === clinicId && productNeedsRestock(item),
               ).length,
           },
         },

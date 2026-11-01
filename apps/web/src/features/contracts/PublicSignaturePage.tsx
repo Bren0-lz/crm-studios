@@ -6,6 +6,7 @@ import { FileSignature } from "lucide-react";
 import { useEffect, useRef, useState, type PointerEvent } from "react";
 import { useParams } from "react-router-dom";
 import { api, ApiClientError } from "../../api";
+import { CpfInput } from "../../shared/components/CpfInput";
 import { EmptyState } from "../../shared/components/EmptyState";
 import { ErrorBanner } from "../../shared/components/ErrorBanner";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
@@ -234,12 +235,7 @@ export function PublicSignaturePage() {
                   </label>
                   <label>
                     CPF (opcional)
-                    <input
-                      inputMode="numeric"
-                      maxLength={14}
-                      value={signerCpf}
-                      onChange={(event) => setSignerCpf(event.target.value)}
-                    />
+                    <CpfInput value={signerCpf} onChange={setSignerCpf} />
                   </label>
                   <div className="span-2">
                     <span className="signature-pad-label">

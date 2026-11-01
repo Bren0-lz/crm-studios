@@ -77,6 +77,8 @@ export interface PatientPlanRow {
   cancelledValueInCents: number;
   refundedInCents: number;
   refundNote: string | null;
+  refundPayableId: string | null;
+  refundPaymentMethod: PatientPlan["refundPaymentMethod"] | null;
   pausedAt: Date | null;
   pauseReason: string | null;
   pauseExpectedReturn: string | null;
@@ -113,6 +115,8 @@ export const patientPlanColumns = `
     FROM patient_plan_services x WHERE x.plan_id=pp.id) AS services,
   pp.cancelled_at AS "cancelledAt", pp.cancelled_value_in_cents AS "cancelledValueInCents",
   pp.refunded_in_cents AS "refundedInCents", pp.refund_note AS "refundNote",
+  pp.refund_payable_id AS "refundPayableId",
+  (SELECT rp.payment_method FROM payables rp WHERE rp.id = pp.refund_payable_id) AS "refundPaymentMethod",
   pp.paused_at AS "pausedAt", pp.pause_reason AS "pauseReason", pp.pause_expected_return AS "pauseExpectedReturn",
   pp.created_at AS "createdAt", pp.updated_at AS "updatedAt"
 `;
@@ -163,6 +167,10 @@ export function mapPatientPlan(row: PatientPlanRow): PatientPlan {
     ...(row.refundedInCents && row.refundNote
       ? { refundNote: row.refundNote }
       : {}),
+    ...(row.refundPaymentMethod
+      ? { refundPaymentMethod: row.refundPaymentMethod }
+      : {}),
+    ...(row.refundPayableId ? { refundPayableId: row.refundPayableId } : {}),
     ...(row.pausedAt ? { pausedAt: row.pausedAt.toISOString() } : {}),
     ...(row.pauseReason ? { pauseReason: row.pauseReason } : {}),
     ...(row.pauseExpectedReturn

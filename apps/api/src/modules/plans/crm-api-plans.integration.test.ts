@@ -663,26 +663,67 @@ describe("CRM API", () => {
         status: "cancelled",
         cancellation: {
           refundedInCents: refunded.json().totalValueInCents + 1,
+          refundPaymentMethod: "pix",
         },
       },
     });
     expect(tooHigh.statusCode).toBe(400);
     expect(tooHigh.json().code).toBe("PLAN_REFUND_TOO_HIGH");
+    const withoutMethod = await app.inject({
+      method: "PATCH",
+      url: `/plans/${refunded.json().id}/status`,
+      headers,
+      payload: {
+        status: "cancelled",
+        cancellation: { refundedInCents: 5000 },
+      },
+    });
+    expect(withoutMethod.statusCode).toBe(400);
     const withRefund = await app.inject({
       method: "PATCH",
       url: `/plans/${refunded.json().id}/status`,
       headers,
       payload: {
         status: "cancelled",
-        cancellation: { refundedInCents: 5000, refundNote: "Pix" },
+        cancellation: {
+          refundedInCents: 5000,
+          refundPaymentMethod: "pix",
+          refundNote: "Pix",
+        },
       },
     });
     expect(withRefund.statusCode).toBe(200);
     expect(withRefund.json()).toMatchObject({
       status: "cancelled",
       refundedInCents: 5000,
+      refundPaymentMethod: "pix",
       refundNote: "Pix",
     });
+    // O estorno sai do caixa: conta paga na categoria de estornos, ligada ao plano.
+    const summary = await app.inject({
+      method: "GET",
+      url: "/finance/workspace",
+      headers,
+    });
+    const refundPayable = (
+      summary.json() as {
+        payables: {
+          id: string;
+          status: string;
+          amountInCents: number;
+          paymentMethod?: string;
+          categoryName: string;
+          description: string;
+        }[];
+      }
+    ).payables.find((item) => item.id === withRefund.json().refundPayableId);
+    expect(refundPayable).toMatchObject({
+      status: "paid",
+      amountInCents: 5000,
+      paymentMethod: "pix",
+      categoryName: "Estornos a clientes",
+    });
+    expect(refundPayable?.description).toContain("Estorno ao cliente");
     const timeline = await app.inject({
       method: "GET",
       url: `/patients/${refunded.json().patientId}/timeline`,
