@@ -1,8 +1,9 @@
 import {
   type GroupWorkspace,
   type PatientPlan,
-  type Service,
+  type PlanTemplate,
   saoPauloToday,
+  singlePlanSessionPrices,
 } from "@crm/contracts";
 import { ChevronDown, UsersRound } from "lucide-react";
 import { Fragment, useEffect, useState } from "react";
@@ -27,19 +28,19 @@ export function GroupsOverviewTab({
   id,
   labelledBy,
   workspace,
-  services,
   weekDayNames,
   showRevenue,
 }: {
   id: string;
   labelledBy: string;
   workspace: GroupWorkspace;
-  services: Service[];
   weekDayNames: string[];
   /** Valores dos planos só para quem consulta planos. */
   showRevenue: boolean;
 }) {
   const [plans, setPlans] = useState<PatientPlan[] | null>(null);
+  // Vagas livres sem matriculado com plano valem a sessão do plano avulso do serviço.
+  const [templates, setTemplates] = useState<PlanTemplate[]>([]);
   const [error, setError] = useState("");
   const [attempt, setAttempt] = useState(0);
   // Turmas com a lista de matriculados aberta logo abaixo da linha.
@@ -53,9 +54,11 @@ export function GroupsOverviewTab({
   useEffect(() => {
     if (!showRevenue) return;
     let active = true;
-    api.plans().then(
-      (data) => {
-        if (active) setPlans(data);
+    Promise.all([api.plans(), api.planTemplates()]).then(
+      ([data, models]) => {
+        if (!active) return;
+        setTemplates(models);
+        setPlans(data);
       },
       (cause: unknown) => {
         if (active) setError((cause as Error).message);
@@ -69,7 +72,7 @@ export function GroupsOverviewTab({
     workspace.groups,
     workspace.enrollments,
     plans ?? [],
-    services,
+    singlePlanSessionPrices(templates),
     saoPauloToday(),
   );
   const revenueReady = showRevenue && plans !== null;
