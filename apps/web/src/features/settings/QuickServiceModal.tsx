@@ -9,7 +9,6 @@ const initial = {
   name: "",
   durationMinutes: "60",
   priceInCents: 0,
-  color: "#547A6B",
 };
 
 /**
@@ -35,7 +34,6 @@ export function QuickServiceModal({
       name: form.name,
       durationMinutes: Number(form.durationMinutes),
       priceInCents: form.priceInCents,
-      color: form.color,
     });
     if (!parsed.success) {
       setError(
@@ -89,16 +87,6 @@ export function QuickServiceModal({
           value={form.priceInCents}
           onChange={(priceInCents) => setForm({ ...form, priceInCents })}
         />
-        <label>
-          Cor
-          <input
-            type="color"
-            value={form.color}
-            onChange={(event) =>
-              setForm({ ...form, color: event.target.value })
-            }
-          />
-        </label>
         {error && (
           <div className="form-error span-2" role="alert">
             {error}
