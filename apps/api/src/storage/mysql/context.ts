@@ -266,20 +266,6 @@ export class MysqlRepositoryContext {
     // Chamado dentro de transação: um erro aqui desfaz tudo (o chamador faz ROLLBACK).
     // Mesma vigência: é uma correção do percentual. O FOR UPDATE trava a regra e também a
     // geração de lançamentos que a referenciam (a FK pede LOCK IN SHARE MODE, que conflita).
-    if (
-      input.serviceId &&
-      !(
-        await client.query(
-          "SELECT id FROM services WHERE clinic_id=$1 AND id=$2",
-          [clinicId, input.serviceId],
-        )
-      ).rowCount
-    )
-      throw new DomainError(
-        "SERVICE_NOT_FOUND",
-        "Serviço não encontrado.",
-        404,
-      );
     const existing = await client.query<{
       id: string;
       percentage: string;
@@ -288,9 +274,9 @@ export class MysqlRepositoryContext {
       effectiveUntil: string | null;
     }>(
       `SELECT id, percentage,kind,fixed_amount_in_cents AS "fixedAmountInCents",effective_until AS "effectiveUntil" FROM commission_rules
-       WHERE clinic_id = $1 AND user_id = $2 AND effective_from = $3 AND service_id <=> $4
+       WHERE clinic_id = $1 AND user_id = $2 AND effective_from = $3 AND service_id IS NULL
        FOR UPDATE`,
-      [clinicId, userId, input.effectiveFrom, input.serviceId ?? null],
+      [clinicId, userId, input.effectiveFrom],
     );
     const current = existing.rows[0];
     if (current) {
@@ -298,8 +284,7 @@ export class MysqlRepositoryContext {
       if (
         Math.round(previousPercentage * 100) ===
           Math.round(input.percentage * 100) &&
-        current.kind === (input.kind ?? "percentage") &&
-        current.fixedAmountInCents === (input.fixedAmountInCents ?? null) &&
+        current.kind === "percentage" &&
         current.effectiveUntil === (input.effectiveUntil ?? null)
       )
         return;
@@ -314,16 +299,9 @@ export class MysqlRepositoryContext {
           409,
         );
       await client.query(
-        `UPDATE commission_rules SET percentage = $3,kind=$4,fixed_amount_in_cents=$5,effective_until=$6
+        `UPDATE commission_rules SET percentage = $3,kind='percentage',fixed_amount_in_cents=NULL,effective_until=$4,active=1
          WHERE clinic_id = $1 AND id = $2`,
-        [
-          clinicId,
-          current.id,
-          input.percentage,
-          input.kind ?? "percentage",
-          input.fixedAmountInCents ?? null,
-          input.effectiveUntil ?? null,
-        ],
+        [clinicId, current.id, input.percentage, input.effectiveUntil ?? null],
       );
       const updated = await client.query<{ percentage: string }>(
         "SELECT percentage FROM commission_rules WHERE id = $1",
@@ -349,16 +327,13 @@ export class MysqlRepositoryContext {
     try {
       const ruleId = randomUUID();
       await client.query(
-        `INSERT INTO commission_rules (clinic_id, user_id, percentage, effective_from,kind,fixed_amount_in_cents,service_id,effective_until,id)
-         VALUES ($1, $2, $3, $4,$5,$6,$7,$8,$9)`,
+        `INSERT INTO commission_rules (clinic_id, user_id, percentage, effective_from,kind,effective_until,id)
+         VALUES ($1, $2, $3, $4,'percentage',$5,$6)`,
         [
           clinicId,
           userId,
           input.percentage,
           input.effectiveFrom,
-          input.kind ?? "percentage",
-          input.fixedAmountInCents ?? null,
-          input.serviceId ?? null,
           input.effectiveUntil ?? null,
           ruleId,
         ],
@@ -1189,33 +1164,16 @@ export class MysqlRepositoryContext {
     clinicId: string,
     input: CommissionRuleInput,
   ) {
-    if (
-      input.serviceId &&
-      !(
-        await client.query(
-          "SELECT id FROM services WHERE clinic_id=$1 AND id=$2",
-          [clinicId, input.serviceId],
-        )
-      ).rowCount
-    )
-      throw new DomainError(
-        "SERVICE_NOT_FOUND",
-        "Serviço não encontrado.",
-        404,
-      );
     try {
       const ruleId = randomUUID();
       await client.query(
-        `INSERT INTO commission_rules (clinic_id, professional_id, percentage, effective_from,kind,fixed_amount_in_cents,service_id,effective_until,id)
-          SELECT $1,id,$3,$4,$5,$6,$7,$8,$9 FROM professionals WHERE clinic_id = $1 AND id = $2`,
+        `INSERT INTO commission_rules (clinic_id, professional_id, percentage, effective_from,kind,effective_until,id)
+          SELECT $1,id,$3,$4,'percentage',$5,$6 FROM professionals WHERE clinic_id = $1 AND id = $2`,
         [
           clinicId,
           input.professionalId,
           input.percentage,
           input.effectiveFrom,
-          input.kind ?? "percentage",
-          input.fixedAmountInCents ?? null,
-          input.serviceId ?? null,
           input.effectiveUntil ?? null,
           ruleId,
         ],

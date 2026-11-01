@@ -143,7 +143,8 @@ export function createCommissionReconciliationRepository(
       SELECT a.professional_id,a.service_id,a.starts_at FROM appointments a WHERE a.clinic_id=$1 AND a.id=$2 AND a.status='completed' AND a.patient_id IS NOT NULL
       UNION ALL SELECT coalesce(gs.professional_id,g.professional_id),g.service_id,gs.starts_at FROM group_attendance ga JOIN group_sessions gs ON gs.id=ga.session_id AND gs.clinic_id=ga.clinic_id JOIN group_classes g ON g.id=gs.group_id AND g.clinic_id=gs.clinic_id WHERE ga.clinic_id=$1 AND ga.id=$3 AND gs.status<>'cancelled' AND (ga.status='present' OR ga.outcome='present')
     ) SELECT a.professional_id AS "professionalId",pr.full_name AS "professionalName",${localMonth("a.starts_at")} AS competence,${commissionAmount(base)} AS "amountInCents",${base} AS "baseAmountInCents",s.id AS "serviceId",rule.id AS "ruleId",${commissionRuleSnapshot} AS "ruleSnapshot"
-      FROM sources a JOIN services s ON s.id=a.service_id AND s.clinic_id=$1 JOIN professionals pr ON pr.id=a.professional_id AND pr.clinic_id=$1 ${commissionRuleJoin("$1")}`,
+      FROM sources a JOIN services s ON s.id=a.service_id AND s.clinic_id=$1 JOIN professionals pr ON pr.id=a.professional_id AND pr.clinic_id=$1 ${commissionRuleJoin("$1")}
+      WHERE ${base}>0`,
       [clinicId, row.appointmentId ?? null, row.groupAttendanceId ?? null],
     );
     const expected = result.rows[0];
@@ -154,7 +155,7 @@ export function createCommissionReconciliationRepository(
             Object.entries(
               json<Record<string, unknown>>(expected.ruleSnapshot),
             ).filter(([, value]) => value !== null),
-          ) as CommissionExpectation["ruleSnapshot"],
+          ) as unknown as CommissionExpectation["ruleSnapshot"],
         }
       : null;
   }

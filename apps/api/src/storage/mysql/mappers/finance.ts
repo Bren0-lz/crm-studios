@@ -17,7 +17,6 @@ import type {
 } from "@crm/contracts";
 import {
   productSizeStock,
-  serviceCommissionsInForce,
   productNeedsRestock,
   sortProductSizes,
 } from "@crm/contracts";
@@ -298,13 +297,6 @@ export function mapAdminUserWithCommission(raw: AdminUserRow): AdminUser {
   const row = {
     ...raw,
     professional: json<AdminUserRow["professional"]>(raw.professional),
-    serviceCommissions: json<AdminUserRow["serviceCommissions"]>(
-      raw.serviceCommissions,
-    )?.map((item) =>
-      Object.fromEntries(
-        Object.entries(item).filter(([, value]) => value !== null),
-      ),
-    ) as AdminUserRow["serviceCommissions"],
   };
   return {
     ...(row.professional ? { professional: row.professional } : {}),
@@ -317,24 +309,8 @@ export function mapAdminUserWithCommission(raw: AdminUserRow): AdminUser {
       : {}),
     ...(row.commissionPercentage !== null && row.commissionEffectiveFrom
       ? {
-          ...(row.commissionKind ? { commissionKind: row.commissionKind } : {}),
-          ...(row.commissionFixedAmountInCents !== undefined &&
-          row.commissionFixedAmountInCents !== null
-            ? { commissionFixedAmountInCents: row.commissionFixedAmountInCents }
-            : {}),
           commissionPercentage: Number(row.commissionPercentage),
           commissionEffectiveFrom: row.commissionEffectiveFrom,
-        }
-      : {}),
-    ...(row.serviceCommissions?.length && row.today
-      ? {
-          serviceCommissions: serviceCommissionsInForce(
-            row.serviceCommissions.map((item) => ({
-              ...item,
-              percentage: Number(item.percentage),
-            })),
-            row.today,
-          ),
         }
       : {}),
     ...(row.salaryInCents ? { salaryInCents: Number(row.salaryInCents) } : {}),
