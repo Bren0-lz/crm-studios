@@ -63,7 +63,7 @@ describe("document template editor", () => {
     fireEvent.click(screen.getByText("Inserir campo automático"));
     const fields = await screen.findByRole("group", { name: "Inserir campo" });
     const form = fields.closest("form") as HTMLFormElement;
-    const name = within(form).getByLabelText("Nome");
+    const name = within(form).getByLabelText("Nome do modelo");
     const body = within(form).getByLabelText("Conteúdo");
     // O editor abre com o contrato padrão; "Começar em branco" limpa nome e conteúdo.
     expect(name).toHaveValue("Contrato de prestação de serviços");
@@ -79,7 +79,7 @@ describe("document template editor", () => {
     });
     expect(createTemplate).toBeDisabled();
     expect(createTemplate).toHaveAccessibleDescription(
-      "Falta: Nome, Conteúdo.",
+      "Falta: Nome do modelo, Conteúdo do modelo.",
     );
 
     fireEvent.change(name, { target: { value: "Termo de adesão" } });
