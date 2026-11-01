@@ -11,7 +11,12 @@ import { useAuthorization } from "../../../authorization-context";
 import { EmptyState } from "../../../shared/components/EmptyState";
 import { ErrorBanner } from "../../../shared/components/ErrorBanner";
 import { LoadingBlock } from "../../../shared/components/LoadingBlock";
-import { campaignDateTime, campaignHandled, campaignPath } from "./model";
+import {
+  campaignDateTime,
+  campaignHandled,
+  campaignPath,
+  campaignPromotionLabel,
+} from "./model";
 import { NewCampaignModal } from "./NewCampaignModal";
 
 function CampaignRow({ campaign }: { campaign: WhatsappCampaign }) {
@@ -21,11 +26,18 @@ function CampaignRow({ campaign }: { campaign: WhatsappCampaign }) {
   return (
     <li className="campaign-row">
       <div className="campaign-row-main">
-        <span className={`status-pill ${done ? "completed" : "in_progress"}`}>
-          {done ? "Concluída" : "Em andamento"}
+        <span className="campaign-row-tags">
+          <span className={`status-pill ${done ? "completed" : "in_progress"}`}>
+            {done ? "Concluída" : "Em andamento"}
+          </span>
+          {campaign.promotion && (
+            <span className="status-pill scheduled">Promocional</span>
+          )}
         </span>
         <h3>{campaign.name}</h3>
         <small>
+          {campaign.promotion &&
+            `Promoção válida ${campaignPromotionLabel(campaign.promotion)} · `}
           {campaign.templateTitle} · criada em{" "}
           {campaignDateTime.format(new Date(campaign.createdAt))} por{" "}
           {campaign.createdByName}

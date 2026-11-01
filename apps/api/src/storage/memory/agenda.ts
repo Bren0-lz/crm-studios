@@ -64,6 +64,7 @@ export function createAgendaRepository(
     repositoryContext.autoCampaignRedemptions.push({
       id: uuid(),
       clinicId,
+      ...(promotion.source === "manual" ? { source: "manual" as const } : {}),
       campaignId: promotion.campaignId,
       patientId,
       occurrenceKey: promotion.occurrenceKey,
