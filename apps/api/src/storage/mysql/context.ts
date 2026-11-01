@@ -1,6 +1,8 @@
 import { markPaymentProofsReversed } from "./payment-proofs.js";
 import {
+  acceptsPaymentInstallments,
   formatSequenceNumber,
+  installmentPaymentSplitIssue,
   settlementBreakdown,
   settlementSteps,
   type PaymentTiming,
@@ -1556,10 +1558,11 @@ export class MysqlRepositoryContext {
     const current = await client.query<{
       status: ReceivableStatus;
       amountInCents: number;
+      installmentCount: number;
       paymentMethod: PaymentMethod | null;
       cashAvailableAt: Date | null;
     }>(
-      `SELECT status,payment_method AS "paymentMethod",cash_available_at AS "cashAvailableAt", amount_in_cents AS "amountInCents"
+      `SELECT status,payment_method AS "paymentMethod",cash_available_at AS "cashAvailableAt", amount_in_cents AS "amountInCents", installment_count AS "installmentCount"
          FROM receivables WHERE clinic_id = $1 AND id = $2 FOR UPDATE`,
       [clinicId, receivableId],
     );
@@ -1574,6 +1577,20 @@ export class MysqlRepositoryContext {
         409,
       );
     }
+    // Plano já parcelado não se parcela de novo na forma de pagamento (nem no misto: cada
+    // parte passa por aqui dentro da mesma transação).
+    if (
+      operation === "payment" &&
+      (adjustments.paymentInstallments ?? 1) > 1 &&
+      !acceptsPaymentInstallments({
+        installmentCount: Number(current.rows[0].installmentCount),
+      })
+    )
+      throw new DomainError(
+        "INSTALLMENT_PAYMENT_SPLIT",
+        installmentPaymentSplitIssue,
+        400,
+      );
     // U39: desconto, juros e pagamento parcial (o saldo vira nova parcela).
     let receivedInCents = current.rows[0].amountInCents;
     let balanceReceivableId: string | null = null;
