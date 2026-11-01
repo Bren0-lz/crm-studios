@@ -350,7 +350,17 @@ export function registerFinanceRoutes(context: RouteContext) {
         request.user.clinicId,
         request.user.sub,
       );
-      return repository.getFinancialWorkspace(request.user.clinicId);
+      const clinicId = request.user.clinicId;
+      const [workspace, receivables, payables] = await Promise.all([
+        repository.getFinancialWorkspace(clinicId),
+        repository.listPaymentProofEntityIds(clinicId, "receivable"),
+        repository.listPaymentProofEntityIds(clinicId, "payable"),
+      ]);
+      // Comprovantes de baixa estornada continuam acessíveis na parcela/despesa reaberta.
+      return {
+        ...workspace,
+        paymentProofEntityIds: { receivables, payables },
+      };
     },
   );
 
