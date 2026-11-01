@@ -405,6 +405,75 @@ describe("aba Estoque de Vendas de produtos (QM9)", () => {
     ).toBeInTheDocument();
   });
 
+  it("adiciona tamanhos novos ao editar o produto", async () => {
+    const { repository } = await setupApi();
+    const category = await repository.saveClinicCatalog(
+      clinicId,
+      actorId,
+      "product_category",
+      { name: "Camisetas", active: true, sizes: ["P", "M"] },
+    );
+    const product = await repository.createProduct(clinicId, actorId, {
+      name: "Camiseta do estúdio",
+      sku: "CAM",
+      unit: "un",
+      categoryId: category!.id,
+      costInCents: 2000,
+      salePriceInCents: 5000,
+      initialStock: 0,
+      sizes: ["P", "M"],
+      initialSizeStock: [{ size: "P", quantity: 2 }],
+    });
+    const panel = await openInventoryTab();
+    fireEvent.click(
+      await within(panel).findByRole("button", {
+        name: "Editar Camiseta do estúdio",
+      }),
+    );
+    const dialog = screen.getByRole("dialog", { name: "Editar produto" });
+    const sizes = await within(dialog).findByRole("group", {
+      name: "Tamanhos deste produto",
+    });
+    await within(sizes).findByLabelText("M");
+    // Tamanho digitado sem clicar em Adicionar não se perde em silêncio.
+    change("Novo tamanho", "GG", sizes);
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Salvar produto" }),
+    );
+    expect(
+      await within(dialog).findByText(/Adicionar tamanho/, {
+        selector: ".form-error",
+      }),
+    ).toBeInTheDocument();
+    change("Novo tamanho", "G, GG, m", sizes);
+    fireEvent.keyDown(within(sizes).getByLabelText("Novo tamanho"), {
+      key: "Enter",
+    });
+    // Os novos entram marcados; o repetido ("m") só reaproveita o que já existe.
+    expect(within(sizes).getByLabelText<HTMLInputElement>("G").checked).toBe(
+      true,
+    );
+    expect(within(sizes).getByLabelText<HTMLInputElement>("GG").checked).toBe(
+      true,
+    );
+    expect(within(sizes).getAllByRole("checkbox")).toHaveLength(4);
+    expect(
+      within(sizes).getByLabelText<HTMLInputElement>("Novo tamanho").value,
+    ).toBe("");
+    change("Quantidade GG", "4", dialog);
+    await save("Editar produto", "Salvar produto");
+    expect(
+      (await repository.getInventoryWorkspace(clinicId)).products.find(
+        (item) => item.id === product.id,
+      ),
+    ).toMatchObject({ sizes: ["P", "M", "G", "GG"], currentStock: 6 });
+    expect(
+      await within(panel).findByRole("list", {
+        name: "Estoque por tamanho: P: 2 · M: 0 · G: 0 · GG: 4",
+      }),
+    ).toBeInTheDocument();
+  });
+
   it("mostra os tamanhos antigos (escala fixa) de um produto sem categoria", async () => {
     const { repository } = await setupApi();
     await repository.createProduct(clinicId, actorId, {
