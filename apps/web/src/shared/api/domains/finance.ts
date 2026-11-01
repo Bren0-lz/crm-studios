@@ -35,11 +35,8 @@ import type {
   PatientTabInput,
   PatientTabItemInput,
   PatientTabItemUpdate,
-  PatientTabServiceInput,
   PatientTabCloseInput,
   ProductSaleInput,
-  TabAppointmentOption,
-  AppointmentInput,
   Supplier,
   SupplierInput,
   SupplierOrder,
@@ -182,26 +179,9 @@ export const financeApi = {
     request<PatientTab>(`/patient-tabs/${id}/items/${itemId}`, {
       method: "DELETE",
     }),
-  tabAppointmentOptions: (id: string, from: string, to: string) =>
-    request<TabAppointmentOption[]>(
-      `/patient-tabs/${id}/appointment-options?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
-    ),
-  addPatientTabService: (id: string, input: PatientTabServiceInput) =>
-    request<PatientTab>(`/patient-tabs/${id}/services`, {
-      method: "POST",
-      body: JSON.stringify(input),
-    }),
   removePatientTabService: (id: string, itemId: string) =>
     request<PatientTab>(`/patient-tabs/${id}/services/${itemId}`, {
       method: "DELETE",
-    }),
-  createPatientTabAppointment: (
-    id: string,
-    input: Omit<AppointmentInput, "patientId">,
-  ) =>
-    request<PatientTab>(`/patient-tabs/${id}/appointments`, {
-      method: "POST",
-      body: JSON.stringify(input),
     }),
   closePatientTab: (id: string, input: PatientTabCloseInput) =>
     request<PatientTab>(`/patient-tabs/${id}/close`, {

@@ -178,5 +178,28 @@ export const commissionRuleJoin = (clinicExpression: string) =>
 /** Cópia da regra aplicada, gravada no lançamento de comissão. */
 export const commissionRuleSnapshot = `JSON_OBJECT('percentage',rule.percentage,'kind',rule.kind,'fixedAmountInCents',rule.fixed_amount_in_cents,'serviceId',rule.service_id,'effectiveFrom',rule.effective_from,'effectiveUntil',rule.effective_until)`;
 
-/** Valor da comissão: fixo ou percentual arredondado do preço do serviço `s`. */
-export const commissionAmount = `CASE WHEN rule.kind='fixed' THEN rule.fixed_amount_in_cents ELSE CAST(ROUND(s.price_in_cents*rule.percentage/100) AS SIGNED) END`;
+/**
+ * Base da comissão percentual (o preço de tabela do serviço não entra): o valor por sessão do serviço no
+ * plano consumido pelo atendimento/presença; sem consumo de plano, o valor por sessão do
+ * plano avulso ativo do serviço (o cadastrado primeiro); sem nenhum, 0. Mesma regra de
+ * `commissionBaseInCents` (memória) e `singlePlanSessionPrices` (contratos).
+ */
+export function commissionBase(source: {
+  clinic: string;
+  appointmentId: string;
+  attendanceId: string;
+  serviceId: string;
+}) {
+  return `COALESCE((SELECT CAST(ROUND(pps.total_value_in_cents/pps.total_sessions) AS SIGNED) FROM session_movements sm JOIN patient_plan_services pps ON pps.clinic_id=sm.clinic_id AND pps.plan_id=sm.plan_id AND pps.service_id=COALESCE(sm.service_id,${source.serviceId})
+      WHERE sm.clinic_id=${source.clinic} AND sm.kind='consumption' AND (sm.appointment_id=${source.appointmentId} OR sm.group_attendance_id=${source.attendanceId}) AND pps.total_sessions>0
+      ORDER BY sm.created_at,sm.id LIMIT 1),
+    (SELECT CAST(ROUND(pts.total_value_in_cents/pts.total_sessions) AS SIGNED) FROM plan_template_services pts JOIN plan_templates pt ON pt.id=pts.template_id AND pt.clinic_id=pts.clinic_id
+      WHERE pts.clinic_id=${source.clinic} AND pts.service_id=${source.serviceId} AND pt.active AND pts.total_sessions>0 AND (pt.plan_type='single' OR (pt.plan_type IS NULL AND pt.kind='single'))
+      ORDER BY pt.created_at,pt.id LIMIT 1),
+    0)`;
+}
+
+/** Valor da comissão: fixo ou percentual arredondado da base (`commissionBase`). */
+export function commissionAmount(base: string) {
+  return `CASE WHEN rule.kind='fixed' THEN rule.fixed_amount_in_cents ELSE CAST(ROUND(${base}*rule.percentage/100) AS SIGNED) END`;
+}

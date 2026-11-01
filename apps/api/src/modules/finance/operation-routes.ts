@@ -17,14 +17,12 @@ import { financialDatesSchema } from "@crm/contracts";
 import {
   productUpdateSchema,
   patientTabItemUpdateSchema,
-  patientTabServiceInputSchema,
   supplierInputSchema,
   supplierOrderInputSchema,
   manualReceivableInputSchema,
   financialClassificationSchema,
   categoryDreInputSchema,
   dreFilterSchema,
-  appointmentInputSchema,
 } from "@crm/contracts";
 import { z } from "zod";
 import type { RouteContext } from "../../infrastructure/route-context.js";
@@ -35,8 +33,6 @@ export function registerFinanceOperationRoutes({
   app,
   authenticate,
   repository,
-  assertNoHoliday,
-  assertServiceAvailable,
   assertPermissions,
 }: RouteContext) {
   app.get(
@@ -255,67 +251,6 @@ export function registerFinanceOperationRoutes({
       );
     },
   );
-  app.get(
-    "/patient-tabs/:id/appointment-options",
-    { preHandler: authenticate },
-    async (request, reply) => {
-      const { id } = ids.parse(request.params),
-        { from, to } = z
-          .object({
-            from: z.iso.datetime({ offset: true }),
-            to: z.iso.datetime({ offset: true }),
-          })
-          .refine(
-            (value) =>
-              value.to >= value.from &&
-              Date.parse(value.to) - Date.parse(value.from) <= 366 * 86400000,
-            "Escolha um período de até um ano.",
-          )
-          .parse(request.query);
-      const workspace = await repository.getInventoryWorkspace(
-          request.user.clinicId,
-        ),
-        tab = workspace.tabs.find((item) => item.id === id);
-      if (!tab)
-        return reply.status(404).send({
-          code: "PATIENT_TAB_NOT_FOUND",
-          message: "Comanda não encontrada.",
-        });
-      const appointments = await repository.listAppointments(
-        request.user.clinicId,
-        from,
-        to,
-      );
-      return appointments
-        .filter(
-          (item) =>
-            item.patientId === tab.patientId &&
-            item.status !== "cancelled" &&
-            !workspace.tabs.some((other) =>
-              other.services?.some(
-                (service) => service.appointmentId === item.id,
-              ),
-            ),
-        )
-        .map((item) => ({
-          id: item.id,
-          serviceName: item.serviceName,
-          professionalName: item.professionalName,
-          startsAt: item.startsAt,
-        }));
-    },
-  );
-  app.post(
-    "/patient-tabs/:id/services",
-    { preHandler: authenticate },
-    async (request) =>
-      repository.addPatientTabService(
-        request.user.clinicId,
-        request.user.sub,
-        ids.parse(request.params).id,
-        patientTabServiceInputSchema.parse(request.body),
-      ),
-  );
   app.delete(
     "/patient-tabs/:id/services/:itemId",
     { preHandler: authenticate },
@@ -326,23 +261,6 @@ export function registerFinanceOperationRoutes({
         request.user.sub,
         id,
         itemId!,
-      );
-    },
-  );
-  app.post(
-    "/patient-tabs/:id/appointments",
-    { preHandler: authenticate },
-    async (request) => {
-      const input = appointmentInputSchema
-        .omit({ patientId: true })
-        .parse(request.body);
-      await assertNoHoliday(request.user.clinicId, [input.startsAt]);
-      await assertServiceAvailable(request.user.clinicId, [input]);
-      return repository.createPatientTabAppointment(
-        request.user.clinicId,
-        request.user.sub,
-        ids.parse(request.params).id,
-        input,
       );
     },
   );

@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { buildApp } from "../../app.js";
 import { MemoryClinicRepository } from "../../memory-repository.js";
 import { atInstant } from "../../test-support/clock.js";
+import { addLegacyTabService } from "../../test-support/legacy-tab-service.js";
 const clinicId = "11111111-1111-4111-8111-111111111111",
   actorId = "22222222-2222-4222-8222-222222222222";
 const apps: Awaited<ReturnType<typeof buildApp>>[] = [];
@@ -95,7 +96,7 @@ describe("mixed tabs and financial classification", () => {
       ),
     ).toHaveLength(1);
   });
-  it("adds a service in the same operation as scheduling and rolls back a conflicting reservation", async () => {
+  it("closes a legacy tab with a service into a managed session credit", async () => {
     const { repository } = await setup();
     const patient = await repository.createPatient(clinicId, {
       cpf: nextTestCpf(),
@@ -117,14 +118,16 @@ describe("mixed tabs and financial classification", () => {
       visitType: "regular" as const,
       notes: "",
     };
-    const updated = await repository.createPatientTabAppointment(
+    const updated = await addLegacyTabService(
+      repository,
+      undefined,
       clinicId,
-      actorId,
       tab.id,
       input,
+      15000,
     );
     expect(updated.services).toHaveLength(1);
-    expect(updated.totalInCents).toBe(service!.priceInCents);
+    expect(updated.totalInCents).toBe(15000);
     const appointmentId = updated.services![0]!.appointmentId;
     await expect(
       atInstant("2039-02-12T12:00:00Z", () =>
@@ -135,14 +138,6 @@ describe("mixed tabs and financial classification", () => {
         ),
       ),
     ).rejects.toMatchObject({ code: "NO_SESSION_BALANCE" });
-    await expect(
-      repository.createPatientTabAppointment(clinicId, actorId, tab.id, input),
-    ).rejects.toMatchObject({ code: "APPOINTMENT_CONFLICT" });
-    await expect(
-      repository.addPatientTabService(clinicId, actorId, tab.id, {
-        appointmentId: updated.services![0]!.appointmentId,
-      }),
-    ).rejects.toMatchObject({ code: "APPOINTMENT_ALREADY_BILLED" });
     expect(
       (
         await repository.listAppointments(
