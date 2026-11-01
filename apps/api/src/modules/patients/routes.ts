@@ -8,6 +8,7 @@ import {
   isAutomaticPatientTag,
   OVERDUE_PAYMENT_TAG,
   patientExportFilterSchema,
+  patientAuditLabels,
   patientInputSchema,
   patientListQuerySchema,
   patientTagInputSchema,
@@ -64,6 +65,7 @@ export function registerPatientsRoutes(context: RouteContext) {
     withServerFirstCharge,
     patientTagNotFound,
     analyzePatientImport,
+    recordChanges,
     requestAccess,
   } = context;
 
@@ -107,13 +109,13 @@ export function registerPatientsRoutes(context: RouteContext) {
     const patients = (await repository.listPatients(clinicId, query.search))
       .map(tag)
       .filter(
-      (patient) =>
-        matchesPatientProfile(patient, query) &&
-        matchesPatientSegment(
-          summary.find((item) => item.patientId === patient.id),
-          query.segment,
-        ),
-    );
+        (patient) =>
+          matchesPatientProfile(patient, query) &&
+          matchesPatientSegment(
+            summary.find((item) => item.patientId === patient.id),
+            query.segment,
+          ),
+      );
     if (!query.withoutGroup) return patients;
     const ids = new Set(
       await repository.listSubscriberIdsWithoutGroup(clinicId),
@@ -395,17 +397,16 @@ export function registerPatientsRoutes(context: RouteContext) {
     async (request, reply) => {
       const { id } = request.params as { id: string };
       const input = patientInputSchema.parse(request.body);
+      // Cadastro anterior: base do desconto já usado e do "antes → depois" no histórico.
+      const previous = z.uuid().safeParse(id).success
+        ? await repository.getPatient(request.user.clinicId, id)
+        : null;
       const patient = await repository.updatePatient(
         request.user.clinicId,
         id,
         await withConfiguredTags(
           request.user.clinicId,
-          withDiscountUsage(
-            input,
-            input.discount && z.uuid().safeParse(id).success
-              ? await repository.getPatient(request.user.clinicId, id)
-              : null,
-          ),
+          withDiscountUsage(input, input.discount ? previous : null),
         ),
       );
       if (!patient)
@@ -413,6 +414,7 @@ export function registerPatientsRoutes(context: RouteContext) {
           code: "PATIENT_NOT_FOUND",
           message: "Cliente não encontrado.",
         });
+      recordChanges(request, previous, patient, patientAuditLabels);
       return (await taggerFor(request))(patient);
     },
   );

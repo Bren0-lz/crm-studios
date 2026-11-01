@@ -19,6 +19,7 @@ import {
   patientExportQuery,
 } from "../patient-export";
 import { request, requestBlob } from "../transport";
+import { withChangeReason } from "../change-reason";
 
 export const patientsApi = {
   patientSegments: () => request<PatientSegmentSummary[]>("/patients/segments"),
@@ -91,10 +92,10 @@ export const patientsApi = {
       method: "POST",
       body: JSON.stringify(input),
     }),
-  updatePatient: (id: string, input: PatientInput) =>
+  updatePatient: (id: string, input: PatientInput, changeReason?: string) =>
     request<Patient>(`/patients/${id}`, {
       method: "PUT",
-      body: JSON.stringify(input),
+      body: JSON.stringify(withChangeReason(input, changeReason)),
     }),
   previewPatientImport: (input: PatientImportFileInput) =>
     request<PatientImportAnalysis>("/patients/import/preview", {
