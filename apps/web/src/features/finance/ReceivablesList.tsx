@@ -28,6 +28,7 @@ export function ReceivablesList({
   onReceipt,
   onProofs,
   onContact,
+  proofIds,
 }: {
   receivables: Receivable[];
   canManage: boolean;
@@ -44,6 +45,8 @@ export function ReceivablesList({
   onReceipt: (id: string) => void;
   onProofs: (item: Receivable) => void;
   onContact: (item: Receivable, overdue: boolean) => void;
+  /** Parcelas com comprovante: os da baixa estornada seguem acessíveis. */
+  proofIds?: ReadonlySet<string>;
 }) {
   const { can } = useAuthorization();
   if (receivables.length === 0) {
@@ -269,7 +272,7 @@ export function ReceivablesList({
                     Recibo
                   </button>
                 )}
-                {item.status === "paid" && (
+                {(item.status === "paid" || proofIds?.has(item.id)) && (
                   <button
                     className="secondary-button button-sm"
                     aria-label={`Comprovantes de ${item.description}`}
