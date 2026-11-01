@@ -19,6 +19,9 @@ export type ExpenseKindSwitch = {
   onSwitch: (kind: ExpenseKind, draft: ExpenseDraft) => void;
 };
 
+/** Valor da opção "+ Nova …" no fim do select: abre o cadastro por cima em vez de selecionar. */
+export const CREATE_OPTION_VALUE = "__create__";
+
 /** Seletor focado ao abrir (ou trocar) o tipo: a opção marcada. */
 export const EXPENSE_KIND_FOCUS = "input[data-expense-kind]:checked";
 
