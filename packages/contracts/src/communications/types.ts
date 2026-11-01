@@ -25,6 +25,7 @@ import {
   whatsappCampaignAudienceSchema,
   whatsappCampaignInputSchema,
   whatsappCampaignPreviewInputSchema,
+  whatsappCampaignPromotionSchema,
   whatsappCampaignSegmentSchema,
 } from "./model.js";
 
@@ -151,6 +152,10 @@ export type WhatsappCampaignPreviewInput = z.input<
 
 export type WhatsappCampaignInput = z.input<typeof whatsappCampaignInputSchema>;
 
+export type WhatsappCampaignPromotion = z.infer<
+  typeof whatsappCampaignPromotionSchema
+>;
+
 export type CampaignRecipientStatus = z.infer<
   typeof campaignRecipientStatusSchema
 >;
@@ -185,6 +190,8 @@ export interface WhatsappCampaign {
   createdAt: string;
   createdByName: string;
   completedAt?: string;
+  /** Presente só nas campanhas promocionais. */
+  promotion?: WhatsappCampaignPromotion | undefined;
 }
 
 export interface WhatsappCampaignDetail extends WhatsappCampaign {
@@ -351,6 +358,8 @@ export interface AutoCampaignRedemption {
 
 /** `GET /appointments/promotions`: promoções que o cliente pode usar ao agendar hoje. */
 export interface AutoCampaignPromotionOffer {
+  /** `manual` = campanha manual (WhatsApp); ausente = campanha automática. */
+  source?: "manual" | undefined;
   campaignId: string;
   campaignName: string;
   occurrenceKey: string;
