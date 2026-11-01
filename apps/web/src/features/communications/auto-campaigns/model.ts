@@ -108,9 +108,18 @@ export interface AutoCampaignDraft {
   discountType: "percentage" | "amount";
   discountPercent: string;
   discountAmountInCents: number | null;
-  /** Vazio = o desconto vale em qualquer plano. */
+  /** O desconto vale em planos: em todos ou só nos de `planTemplateIds`. */
+  discountOnPlans: boolean;
+  planScope: DiscountScope;
   planTemplateIds: string[];
+  /** O desconto vale em produtos: em todos ou só nos de `productIds`. */
+  discountOnProducts: boolean;
+  productScope: DiscountScope;
+  productIds: string[];
 }
+
+/** `all` = em qualquer plano/produto; `selected` = só nos marcados. */
+export type DiscountScope = "all" | "selected";
 
 export const cooldownUnits = Object.keys(
   autoCampaignCooldownUnitLabels,
@@ -174,7 +183,12 @@ export function autoCampaignDraft(campaign?: AutoCampaign): AutoCampaignDraft {
       promotion?.discount?.type === "amount"
         ? promotion.discount.amountInCents
         : null,
+    discountOnPlans: promotion?.appliesToPlans !== false,
+    planScope: promotion?.planTemplateIds?.length ? "selected" : "all",
     planTemplateIds: promotion?.planTemplateIds ?? [],
+    discountOnProducts: promotion?.appliesToProducts === true,
+    productScope: promotion?.productIds?.length ? "selected" : "all",
+    productIds: promotion?.productIds ?? [],
   } satisfies Partial<AutoCampaignDraft>;
   if (!campaign)
     return {
@@ -233,7 +247,7 @@ export function autoCampaignInput(draft: AutoCampaignDraft): AutoCampaignInput {
                           type: "amount" as const,
                           amountInCents: draft.discountAmountInCents ?? 0,
                         },
-                  planTemplateIds: draft.planTemplateIds,
+                  ...discountScopeInput(draft),
                 }
               : {}),
             ...(draft.cooldown
@@ -248,4 +262,40 @@ export function autoCampaignInput(draft: AutoCampaignDraft): AutoCampaignInput {
         }
       : {}),
   };
+}
+
+/** Onde o desconto vale, no formato da promoção (planos e/ou produtos, todos ou só os marcados). */
+function discountScopeInput(draft: AutoCampaignDraft) {
+  return {
+    ...(draft.discountOnPlans
+      ? {
+          planTemplateIds:
+            draft.planScope === "selected" ? draft.planTemplateIds : [],
+        }
+      : { appliesToPlans: false }),
+    ...(draft.discountOnProducts
+      ? {
+          appliesToProducts: true,
+          productIds: draft.productScope === "selected" ? draft.productIds : [],
+        }
+      : {}),
+  };
+}
+
+/** Escolheu "só nos marcados" e não marcou nenhum: mensagem para o formulário. */
+export function discountScopeError(draft: AutoCampaignDraft): string {
+  if (!draft.promotional || !draft.discount) return "";
+  if (
+    draft.discountOnPlans &&
+    draft.planScope === "selected" &&
+    draft.planTemplateIds.length === 0
+  )
+    return "Marque pelo menos um plano em que o desconto vale.";
+  if (
+    draft.discountOnProducts &&
+    draft.productScope === "selected" &&
+    draft.productIds.length === 0
+  )
+    return "Marque pelo menos um produto em que o desconto vale.";
+  return "";
 }

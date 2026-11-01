@@ -501,6 +501,15 @@ export function listPromotionOffers(
           ? {
               discount: campaign.promotion.discount,
               planTemplateIds: campaign.promotion.planTemplateIds ?? [],
+              ...(campaign.promotion.appliesToPlans === false
+                ? { appliesToPlans: false }
+                : {}),
+              ...(campaign.promotion.appliesToProducts
+                ? {
+                    appliesToProducts: true,
+                    productIds: campaign.promotion.productIds ?? [],
+                  }
+                : {}),
             }
           : {}),
       });
