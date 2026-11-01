@@ -20,16 +20,20 @@ const template = (
   ...extra,
 });
 
-describe("serviço sem preço", () => {
-  it("descarta o preço enviado no cadastro do serviço", () => {
+describe("preço da sessão avulsa", () => {
+  it("guarda o preço de tabela no cadastro do serviço", () => {
+    const input = {
+      name: "Pilates",
+      durationMinutes: 50,
+      color: "#547A6B",
+      priceInCents: 9000,
+    };
+    expect(serviceInputSchema.parse(input)).toMatchObject({
+      priceInCents: 9000,
+    });
     expect(
-      serviceInputSchema.parse({
-        name: "Pilates",
-        durationMinutes: 50,
-        color: "#547A6B",
-        priceInCents: 9000,
-      }),
-    ).not.toHaveProperty("priceInCents");
+      serviceInputSchema.safeParse({ ...input, priceInCents: -1 }).success,
+    ).toBe(false);
   });
 
   it("reconhece o plano avulso pelo tipo ou, sem tipo, pelo modelo", () => {

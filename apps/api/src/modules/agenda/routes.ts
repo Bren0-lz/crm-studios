@@ -14,6 +14,7 @@ import {
   roomInputSchema,
   scheduleBlockInputSchema,
   serviceInputSchema,
+  singlePlanSessionPrices,
   type ApiError,
   type ClinicalAppointmentOption,
 } from "@crm/contracts";
@@ -126,9 +127,18 @@ export function registerAgendaRoutes(context: RouteContext) {
       ),
   );
 
-  app.get("/services", { preHandler: authenticate }, async (request) =>
-    repository.listServices(request.user.clinicId),
-  );
+  // O valor da sessão avulsa (plano avulso do serviço) acompanha a lista para a agenda.
+  app.get("/services", { preHandler: authenticate }, async (request) => {
+    const [services, templates] = await Promise.all([
+      repository.listServices(request.user.clinicId),
+      repository.listPlanTemplates(request.user.clinicId),
+    ]);
+    const prices = singlePlanSessionPrices(templates);
+    return services.map((service) => ({
+      ...service,
+      singleSessionPriceInCents: prices.get(service.id) ?? null,
+    }));
+  });
 
   app.post("/services", { preHandler: authenticate }, async (request, reply) =>
     reply
