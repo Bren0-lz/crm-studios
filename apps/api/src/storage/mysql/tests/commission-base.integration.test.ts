@@ -58,7 +58,6 @@ for (const storage of ["memory", "mysql"] as const) {
             durationMinutes: 50,
             // Preço de tabela é só referência: a comissão sem plano não usa este valor.
             priceInCents: 9000,
-            color: "#547A6B",
           });
         const patient = async (name: string) =>
           repository.createPatient(clinicId, {
