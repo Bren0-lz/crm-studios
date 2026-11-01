@@ -34,6 +34,7 @@ import {
   type InventoryWorkspace,
   type PatientTab,
   type PatientTabCloseInput,
+  type PatientTabPayment,
   type PatientTabInput,
   type PatientTabItemInput,
   type Payable,
@@ -113,6 +114,38 @@ export function createFinanceRepository(
       payables,
       commissions,
     };
+  }
+
+  /** Estorna a baixa de um recebível pago: volta a "open" sem o desconto/juros da baixa. */
+  function reversePaidReceivable(receivable: Receivable) {
+    const receivableId = receivable.id;
+    const clinicId = receivable.clinicId;
+    receivable.status = "open";
+    repositoryContext.receiptEvents.push({
+      id: uuid(),
+      receivableId,
+      kind: "reversal",
+      occurredAt: now(),
+      amountInCents: -receivable.amountInCents,
+    });
+    // Estorno de baixa com desconto/juros: a parcela volta a valer sem eles.
+    const payment = repositoryContext.receiptEvents
+      .filter(
+        (item) => item.receivableId === receivableId && item.kind === "payment",
+      )
+      .at(-1);
+    receivable.amountInCents +=
+      (payment?.discountInCents ?? 0) - (payment?.interestInCents ?? 0);
+    delete receivable.paidAt;
+    delete receivable.paymentMethod;
+    delete receivable.paymentInstallments;
+    receivable.overdue = receivable.dueDate < today();
+    receivable.updatedAt = now();
+    repositoryContext.markPaymentProofsReversed(
+      clinicId,
+      "receivable",
+      receivableId,
+    );
   }
 
   return {
@@ -509,6 +542,7 @@ export function createFinanceRepository(
       clinicId: string,
       _actorUserId: string,
       tabId: string,
+      options: { refundPayment?: boolean } = {},
     ) {
       const tab = repositoryContext.patientTabs.find(
         (item) => item.clinicId === clinicId && item.id === tabId,
@@ -520,21 +554,21 @@ export function createFinanceRepository(
           "A comanda já foi cancelada.",
           409,
         );
-      if (
-        tab.receivableId &&
-        repositoryContext.receivables.some(
-          (item) =>
-            item.clinicId === clinicId &&
-            item.id === tab.receivableId &&
-            item.status === "paid",
-        )
-      )
+      const paidReceivable = repositoryContext.receivables.find(
+        (item) =>
+          item.clinicId === clinicId &&
+          item.id === tab.receivableId &&
+          item.status === "paid",
+      );
+      if (paidReceivable && !options.refundPayment)
         throw new DomainError(
           "PATIENT_TAB_PAYMENT_REVERSAL_REQUIRED",
           "Estorne o pagamento no Financeiro antes de cancelar a comanda.",
           409,
         );
       assertTabCreditsReversible(repositoryContext, tab);
+      // Estorno pelo próprio cancelamento: validado acima, antes de qualquer mudança.
+      if (paidReceivable) reversePaidReceivable(paidReceivable);
       cancelTabCredits(repositoryContext, tab);
       for (const item of tab.items) {
         const product = repositoryContext.products.find(
@@ -747,6 +781,31 @@ export function createFinanceRepository(
       return receivable;
     },
 
+    async patientTabPayment(clinicId: string, tabId: string) {
+      const tab = repositoryContext.patientTabs.find(
+        (item) => item.clinicId === clinicId && item.id === tabId,
+      );
+      if (!tab) return undefined;
+      const receivable = repositoryContext.receivables.find(
+        (item) => item.clinicId === clinicId && item.id === tab.receivableId,
+      );
+      if (!receivable) return null;
+      const payment: PatientTabPayment = {
+        receivableId: receivable.id,
+        status: receivable.status,
+        amountInCents: receivable.amountInCents,
+        dueDate: receivable.dueDate,
+        ...(receivable.paidAt ? { paidAt: receivable.paidAt } : {}),
+        ...(receivable.paymentMethod
+          ? { paymentMethod: receivable.paymentMethod }
+          : {}),
+        ...(receivable.paymentInstallments
+          ? { paymentInstallments: receivable.paymentInstallments }
+          : {}),
+      };
+      return payment;
+    },
+
     async reverseReceivablePayment(
       clinicId: string,
       _actorUserId: string,
@@ -763,33 +822,7 @@ export function createFinanceRepository(
           409,
         );
       }
-      receivable.status = "open";
-      repositoryContext.receiptEvents.push({
-        id: uuid(),
-        receivableId,
-        kind: "reversal",
-        occurredAt: now(),
-        amountInCents: -receivable.amountInCents,
-      });
-      // Estorno de baixa com desconto/juros: a parcela volta a valer sem eles.
-      const payment = repositoryContext.receiptEvents
-        .filter(
-          (item) =>
-            item.receivableId === receivableId && item.kind === "payment",
-        )
-        .at(-1);
-      receivable.amountInCents +=
-        (payment?.discountInCents ?? 0) - (payment?.interestInCents ?? 0);
-      delete receivable.paidAt;
-      delete receivable.paymentMethod;
-      delete receivable.paymentInstallments;
-      receivable.overdue = receivable.dueDate < today();
-      receivable.updatedAt = now();
-      repositoryContext.markPaymentProofsReversed(
-        clinicId,
-        "receivable",
-        receivableId,
-      );
+      reversePaidReceivable(receivable);
       return receivable;
     },
 

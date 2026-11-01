@@ -330,6 +330,7 @@ export class MysqlClinicRepository implements ClinicRepository {
     this.addPatientTabItem = this.finance.addPatientTabItem;
     this.closePatientTab = this.finance.closePatientTab;
     this.cancelPatientTab = this.finance.cancelPatientTab;
+    this.patientTabPayment = this.finance.patientTabPayment;
     this.createProductSale = this.finance.createProductSale;
     this.getFinancialSummary = this.finance.getFinancialSummary;
     this.settleReceivable = this.finance.settleReceivable;
@@ -643,6 +644,10 @@ export class MysqlClinicRepository implements ClinicRepository {
   readonly cancelPatientTab: ReturnType<
     typeof createFinanceRepository
   >["cancelPatientTab"];
+
+  readonly patientTabPayment: ReturnType<
+    typeof createFinanceRepository
+  >["patientTabPayment"];
 
   readonly getFinancialSummary: ReturnType<
     typeof createFinanceRepository

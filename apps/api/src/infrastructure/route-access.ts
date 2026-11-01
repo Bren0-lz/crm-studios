@@ -247,6 +247,7 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
   "POST /patient-tabs/:id/items": operation("patients.tabs_items"),
   "POST /patient-tabs/:id/close": operation("patients.tabs_close"),
   "POST /patient-tabs/:id/cancel": operation("patients.tabs_cancel"),
+  "GET /patient-tabs/:id/payment": operation("patients.inventory_view"),
   "POST /product-sales": operation(
     "patients.tabs_create",
     "patients.tabs_items",

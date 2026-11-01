@@ -341,6 +341,11 @@ export const patientTabCloseInputSchema = z
     { message: "Informe a forma de pagamento.", path: ["paymentMethod"] },
   );
 
+/** Cancelamento de comanda: `refundPayment` estorna antes o pagamento já recebido. */
+export const patientTabCancelInputSchema = z
+  .object({ refundPayment: z.boolean().default(false) })
+  .default({ refundPayment: false });
+
 export const productUpdateSchema = productBaseSchema
   .omit({ initialStock: true })
   .extend({
