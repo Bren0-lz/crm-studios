@@ -495,32 +495,45 @@ export function autoCampaignDiscountInCents(
 }
 
 /**
- * Campanha promocional: a promoção vale até `validDays` dias depois do evento; quem usar
- * fica fora desta campanha pelo `cooldown`, se houver. O `discount`, quando houver, vale
- * nos planos de `planTemplateIds` (lista vazia ou ausente = em qualquer plano).
+ * Campanha promocional. Validade: `validDays` dias depois do evento (no aniversário, depois
+ * do aniversário do cliente) ou até a data fixa `validUntil` (só fora do aniversário).
+ * Quem usar fica fora desta campanha pelo `cooldown`, se houver. O `discount`, quando houver,
+ * vale nos planos de `planTemplateIds` (lista vazia ou ausente = em qualquer plano).
  */
-export const autoCampaignPromotionSchema = z.object({
-  validDays: z
-    .number()
-    .int()
-    .min(1, "A promoção precisa valer pelo menos 1 dia.")
-    .max(365, "Use no máximo 365 dias de validade."),
-  cooldown: z
-    .object({
-      amount: z
-        .number()
-        .int()
-        .min(1, "O bloqueio precisa ser de pelo menos 1.")
-        .max(365, "Use no máximo 365 no bloqueio."),
-      unit: autoCampaignCooldownUnitSchema,
-    })
-    .optional(),
-  discount: autoCampaignPromotionDiscountSchema.optional(),
-  planTemplateIds: z
-    .array(z.uuid())
-    .max(100, "Escolha no máximo 100 planos.")
-    .optional(),
-});
+export const autoCampaignPromotionSchema = z
+  .object({
+    validDays: z
+      .number()
+      .int()
+      .min(1, "A promoção precisa valer pelo menos 1 dia.")
+      .max(365, "Use no máximo 365 dias de validade.")
+      .optional(),
+    validUntil: z.iso.date("Informe até quando a promoção vale.").optional(),
+    cooldown: z
+      .object({
+        amount: z
+          .number()
+          .int()
+          .min(1, "O bloqueio precisa ser de pelo menos 1.")
+          .max(365, "Use no máximo 365 no bloqueio."),
+        unit: autoCampaignCooldownUnitSchema,
+      })
+      .optional(),
+    discount: autoCampaignPromotionDiscountSchema.optional(),
+    planTemplateIds: z
+      .array(z.uuid())
+      .max(100, "Escolha no máximo 100 planos.")
+      .optional(),
+  })
+  .refine(
+    (value) =>
+      (value.validDays === undefined) !== (value.validUntil === undefined),
+    {
+      message:
+        "Escolha a validade da promoção: dias depois do evento ou uma data final.",
+      path: ["validDays"],
+    },
+  );
 
 export const autoCampaignInputSchema = z
   .object({
@@ -541,6 +554,15 @@ export const autoCampaignInputSchema = z
     {
       message: "Cada mensagem precisa de um momento diferente.",
       path: ["steps"],
+    },
+  )
+  .refine(
+    (value) =>
+      value.trigger !== "birthday" || value.promotion?.validUntil === undefined,
+    {
+      message:
+        "No aniversário a promoção vale por dias contados do aniversário do cliente.",
+      path: ["promotion", "validUntil"],
     },
   )
   .refine(
