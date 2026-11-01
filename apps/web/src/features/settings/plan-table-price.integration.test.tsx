@@ -14,19 +14,16 @@ describe("preço de tabela no cadastro de plano", () => {
       name: "Pilates tabela",
       durationMinutes: 50,
       priceInCents: 9000,
-      color: "#547A6B",
     });
     const danca = await repository.createService(clinicId, {
       name: "Dança tabela",
       durationMinutes: 60,
       priceInCents: 7000,
-      color: "#336699",
     });
     const semPreco = await repository.createService(clinicId, {
       name: "Avaliação tabela",
       durationMinutes: 30,
       priceInCents: 0,
-      color: "#996633",
     });
     open("/configuracoes?secao=planos");
     fireEvent.click(
@@ -99,7 +96,6 @@ describe("preço de tabela no cadastro de plano", () => {
       name: "Pilates mensal",
       durationMinutes: 50,
       priceInCents: 9000,
-      color: "#547A6B",
     });
     open("/configuracoes?secao=planos");
     fireEvent.click(

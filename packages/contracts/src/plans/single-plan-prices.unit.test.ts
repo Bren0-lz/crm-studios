@@ -25,7 +25,6 @@ describe("preço da sessão avulsa", () => {
     const input = {
       name: "Pilates",
       durationMinutes: 50,
-      color: "#547A6B",
       priceInCents: 9000,
     };
     expect(serviceInputSchema.parse(input)).toMatchObject({
