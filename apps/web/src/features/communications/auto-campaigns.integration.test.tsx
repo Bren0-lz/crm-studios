@@ -487,4 +487,102 @@ describe("configuração das campanhas automáticas", () => {
       }),
     );
   });
+
+  it("sets the promotion discount in reais or percent and the plans where it applies", async () => {
+    login();
+    const created: unknown[] = [];
+    const planId = "e1111111-1111-4111-8111-111111111111";
+    vi.mocked(fetch).mockImplementation(async (input, init) => {
+      const url = String(input);
+      if (url.endsWith("/communications/auto-campaigns") && init?.method) {
+        const body = JSON.parse(String(init.body)) as { name: string };
+        created.push(body);
+        return json(
+          {
+            id: campaignId,
+            ...body,
+            steps: [],
+            createdAt: "2026-10-25T12:00:00Z",
+            updatedAt: "2026-10-25T12:00:00Z",
+            createdByName: "Aryana Dutra",
+          },
+          201,
+        );
+      }
+      if (url.includes("/plan-templates"))
+        return json([
+          {
+            id: planId,
+            name: "Pilates (avulso)",
+            active: true,
+            services: [],
+            totalValueInCents: 9000,
+          },
+          {
+            id: "e2222222-2222-4222-8222-222222222222",
+            name: "Plano antigo",
+            active: false,
+            services: [],
+            totalValueInCents: 1000,
+          },
+        ]);
+      if (url.includes("/communications/auto-campaigns/queue"))
+        return json({ date: "2026-10-25", items: [], campaigns: [] });
+      if (url.includes("/notifications")) return json({ date: "2026-10-25" });
+      return json([]);
+    });
+    render(
+      <MemoryRouter initialEntries={["/comunicacoes?aba=automaticas"]}>
+        <App />
+      </MemoryRouter>,
+    );
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Nova campanha automática" }),
+    );
+    const dialog = await screen.findByRole("dialog", {
+      name: "Nova campanha automática",
+    });
+    fireEvent.change(within(dialog).getByLabelText("Nome da campanha"), {
+      target: { value: "Aniversário com desconto" },
+    });
+    fireEvent.change(within(dialog).getByLabelText("Momento da mensagem 1"), {
+      target: { value: "7" },
+    });
+    installDocumentBrowserMocks();
+    setDocumentText(
+      within(dialog).getByRole("textbox", { name: "Mensagem 1" }),
+      "Ganhe desconto no seu aniversário!",
+    );
+    fireEvent.click(within(dialog).getByLabelText(/Campanha promocional/));
+    fireEvent.change(
+      within(dialog).getByLabelText(
+        "Validade da promoção (dias após o aniversário)",
+      ),
+      { target: { value: "10" } },
+    );
+    fireEvent.click(
+      within(dialog).getByLabelText(
+        "Dar desconto no atendimento desta campanha",
+      ),
+    );
+    fireEvent.change(
+      within(dialog).getByLabelText("Porcentagem de desconto (%)"),
+      { target: { value: "12,5" } },
+    );
+    const plan = await within(dialog).findByLabelText("Pilates (avulso)");
+    expect(within(dialog).queryByLabelText("Plano antigo")).toBeNull();
+    fireEvent.click(plan);
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Salvar campanha" }),
+    );
+    await waitFor(() =>
+      expect(created[0]).toMatchObject({
+        promotion: {
+          validDays: 10,
+          discount: { type: "percentage", percent: 12.5 },
+          planTemplateIds: [planId],
+        },
+      }),
+    );
+  });
 });

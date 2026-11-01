@@ -107,6 +107,13 @@ export interface AutoCampaignDraft {
   cooldown: boolean;
   cooldownAmount: string;
   cooldownUnit: AutoCampaignCooldownUnit;
+  /** Promoção com desconto (em % ou R$) e os planos em que ele vale. */
+  discount: boolean;
+  discountType: "percentage" | "amount";
+  discountPercent: string;
+  discountAmountInCents: number | null;
+  /** Vazio = o desconto vale em qualquer plano. */
+  planTemplateIds: string[];
 }
 
 export type PromotionValidityMode = "days" | "date";
@@ -175,6 +182,17 @@ export function autoCampaignDraft(campaign?: AutoCampaign): AutoCampaignDraft {
       ? String(promotion.cooldown.amount)
       : "",
     cooldownUnit: promotion?.cooldown?.unit ?? "days",
+    discount: Boolean(promotion?.discount),
+    discountType: promotion?.discount?.type ?? "percentage",
+    discountPercent:
+      promotion?.discount?.type === "percentage"
+        ? String(promotion.discount.percent).replace(".", ",")
+        : "",
+    discountAmountInCents:
+      promotion?.discount?.type === "amount"
+        ? promotion.discount.amountInCents
+        : null,
+    planTemplateIds: promotion?.planTemplateIds ?? [],
   } satisfies Partial<AutoCampaignDraft>;
   if (!campaign)
     return {
@@ -222,6 +240,23 @@ export function autoCampaignInput(draft: AutoCampaignDraft): AutoCampaignInput {
             promotionAllowsFixedDate(draft.trigger)
               ? { validUntil: draft.validUntil }
               : { validDays: Number(draft.validDays) }),
+            ...(draft.discount
+              ? {
+                  discount:
+                    draft.discountType === "percentage"
+                      ? {
+                          type: "percentage" as const,
+                          percent: Number(
+                            draft.discountPercent.replace(",", "."),
+                          ),
+                        }
+                      : {
+                          type: "amount" as const,
+                          amountInCents: draft.discountAmountInCents ?? 0,
+                        },
+                  planTemplateIds: draft.planTemplateIds,
+                }
+              : {}),
             ...(draft.cooldown
               ? {
                   cooldown: {
