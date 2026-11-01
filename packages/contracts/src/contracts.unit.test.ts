@@ -2320,10 +2320,29 @@ describe("campanhas automáticas promocionais", () => {
       { validDays: 366 },
       { validDays: 10, cooldown: { amount: 0, unit: "days" } },
       { validDays: 10, cooldown: { amount: 1, unit: "years" } },
+      {},
+      { validDays: 10, validUntil: "2039-12-20" },
+      { validUntil: "2039-12-20" },
     ])
       expect(
         autoCampaignInputSchema.safeParse({ ...campaign, promotion }).success,
       ).toBe(false);
+  });
+
+  it("accepts a fixed end date outside birthday campaigns", () => {
+    const upcoming = { ...campaign, trigger: "appointment_upcoming" };
+    expect(
+      autoCampaignInputSchema.parse({
+        ...upcoming,
+        promotion: { validUntil: "2039-12-20" },
+      }).promotion,
+    ).toEqual({ validUntil: "2039-12-20" });
+    expect(
+      autoCampaignInputSchema.safeParse({
+        ...upcoming,
+        promotion: { validUntil: "20/12/2039" },
+      }).success,
+    ).toBe(false);
   });
 
   it("takes the promotion used when scheduling", () => {

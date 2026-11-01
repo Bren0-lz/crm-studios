@@ -66,13 +66,27 @@ describe("issued document sharing", () => {
         <App />
       </MemoryRouter>,
     );
-    const issued = (await screen.findByText("Contrato Pilates")).closest(
-      "article",
-    ) as HTMLElement;
+    const issued = (
+      await screen.findByRole("button", {
+        name: /Ver detalhes de Contrato Pilates/,
+      })
+    ).closest("article") as HTMLElement;
     const draft = screen
-      .getByText("Declaração de março")
+      .getByRole("button", { name: /Ver detalhes de Declaração de março/ })
       .closest("article") as HTMLElement;
-    fireEvent.click(within(issued).getByRole("button", { name: /WhatsApp/ }));
+    // A lista mostra só o resumo; WhatsApp e PDF ficam nos detalhes.
+    expect(
+      within(issued).queryByRole("button", { name: /WhatsApp/ }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(
+      within(issued).getByRole("button", { name: /Ver detalhes/ }),
+    );
+    const issuedDetails = await screen.findByRole("dialog", {
+      name: "Contrato Pilates",
+    });
+    fireEvent.click(
+      within(issuedDetails).getByRole("button", { name: /WhatsApp/ }),
+    );
     const sharing = screen.getByRole("dialog", {
       name: "Enviar para assinatura",
     });
@@ -92,14 +106,35 @@ describe("issued document sharing", () => {
     );
     expect(whatsapp).toHaveAttribute("target", "_blank");
     fireEvent.click(within(sharing).getByRole("button", { name: "Fechar" }));
+    fireEvent.click(
+      within(
+        await screen.findByRole("dialog", { name: "Contrato Pilates" }),
+      ).getByRole("button", { name: "Fechar" }),
+    );
+    fireEvent.click(
+      within(draft).getByRole("button", { name: /Ver detalhes/ }),
+    );
+    const draftDetails = await screen.findByRole("dialog", {
+      name: "Declaração de março",
+    });
     expect(
-      within(draft).queryByRole("button", { name: /WhatsApp/ }),
+      within(draftDetails).queryByRole("button", { name: /WhatsApp/ }),
     ).not.toBeInTheDocument();
     expect(
-      within(draft).queryByRole("button", { name: /Salvar PDF/ }),
+      within(draftDetails).queryByRole("button", { name: /Salvar PDF/ }),
     ).not.toBeInTheDocument();
+    fireEvent.click(
+      within(draftDetails).getByRole("button", { name: "Fechar" }),
+    );
 
-    fireEvent.click(within(issued).getByRole("button", { name: /Salvar PDF/ }));
+    fireEvent.click(
+      within(issued).getByRole("button", { name: /Ver detalhes/ }),
+    );
+    fireEvent.click(
+      within(
+        await screen.findByRole("dialog", { name: "Contrato Pilates" }),
+      ).getByRole("button", { name: /Salvar PDF/ }),
+    );
     const dialog = screen.getByRole("dialog", { name: "Contrato Pilates" });
     const link = await within(dialog).findByRole("link", {
       name: "Salvar PDF",
