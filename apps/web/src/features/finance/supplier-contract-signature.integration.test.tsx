@@ -33,6 +33,7 @@ describe("supplier contract signature", () => {
     change("Nome", "Equipamentos Pilates", dialog);
     change("WhatsApp", "19988887777", dialog);
     change("Valor contratado (R$)", "2400,00", dialog);
+    fireEvent.click(within(dialog).getByRole("tab", { name: "Documentos" }));
     const field = within(dialog).getByLabelText(
       "Documento para o fornecedor assinar",
     );
@@ -108,6 +109,7 @@ describe("supplier contract signature", () => {
       await within(panel).findByRole("button", { name: "Editar" }),
     );
     const dialog = screen.getByRole("dialog", { name: "Editar fornecedor" });
+    fireEvent.click(within(dialog).getByRole("tab", { name: "Documentos" }));
     expect(
       await within(dialog).findByText("Assinado pelo link"),
     ).toBeInTheDocument();
