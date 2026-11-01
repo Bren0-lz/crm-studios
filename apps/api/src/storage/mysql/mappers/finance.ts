@@ -68,6 +68,8 @@ export interface PatientTabRow {
   clinicId: string;
   patientId: string;
   patientName: string;
+  soldByUserId?: string | null;
+  soldByName?: string | null;
   notes: string | null;
   status: PatientTab["status"];
   paymentStatus: PatientTab["paymentStatus"];
@@ -401,6 +403,9 @@ export function mapPatientTab(
     clinicId: row.clinicId,
     patientId: row.patientId,
     patientName: row.patientName,
+    ...(row.soldByUserId && row.soldByName
+      ? { soldByUserId: row.soldByUserId, soldByName: row.soldByName }
+      : {}),
     ...(row.notes ? { notes: row.notes } : {}),
     status: row.status,
     paymentStatus: row.paymentStatus,

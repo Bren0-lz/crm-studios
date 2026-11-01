@@ -1,8 +1,12 @@
 import type { PatientTab, Product } from "@crm/contracts";
 import { describe, expect, it } from "vitest";
 import {
+  emptySalesHistoryFilters,
+  filterSalesHistory,
+  hasSalesHistoryFilters,
   monthPeriod,
   productSales,
+  salesHistoryOptions,
   salesTabFromParam,
   sizeStockSummary,
   sizeStockText,
@@ -140,5 +144,70 @@ describe("estoque por tamanho", () => {
     expect(sizeStockSummary(empty).every((entry) => entry.state === "ok")).toBe(
       true,
     );
+  });
+
+  it("filtra vendas por vendedor, produto e tamanho, situação e faixa de valor", () => {
+    const sized = (size: "p" | "m") => ({ ...item("b", 1, 2000), size });
+    const sales = [
+      tab({
+        id: "1",
+        soldByUserId: "u1",
+        soldByName: "Carla",
+        items: [item("a", 2, 1000)],
+      }),
+      tab({
+        id: "2",
+        soldByUserId: "u2",
+        soldByName: "Bruno",
+        paymentStatus: "receivable",
+        items: [sized("p")],
+      }),
+      tab({
+        id: "3",
+        status: "cancelled",
+        paymentStatus: "cancelled",
+        items: [sized("m")],
+      }),
+    ];
+    const ids = (filters: Partial<typeof emptySalesHistoryFilters>) =>
+      filterSalesHistory(sales, {
+        ...emptySalesHistoryFilters,
+        ...filters,
+      }).map((sale) => sale.id);
+    expect(ids({})).toEqual(["1", "2", "3"]);
+    expect(ids({ seller: "u1" })).toEqual(["1"]);
+    expect(ids({ seller: "none" })).toEqual(["3"]);
+    expect(ids({ status: "receivable" })).toEqual(["2"]);
+    expect(ids({ status: "cancelled" })).toEqual(["3"]);
+    expect(ids({ product: "b" })).toEqual(["2", "3"]);
+    expect(ids({ product: "b", size: "m" })).toEqual(["3"]);
+    expect(ids({ minInCents: 2000, maxInCents: 2000 })).toEqual([
+      "1",
+      "2",
+      "3",
+    ]);
+    expect(ids({ minInCents: 2001 })).toEqual([]);
+    expect(hasSalesHistoryFilters(emptySalesHistoryFilters)).toBe(false);
+    expect(
+      hasSalesHistoryFilters({ ...emptySalesHistoryFilters, minInCents: 0 }),
+    ).toBe(true);
+
+    const product = { id: "b", sizes: ["p", "m", "g"] } as unknown as Product;
+    const options = salesHistoryOptions(sales, [product], "b");
+    expect(options.sellers.map((option) => option.label)).toEqual([
+      "Bruno",
+      "Carla",
+      "Sem registro",
+    ]);
+    expect(options.products.map((option) => option.label)).toEqual([
+      "Creme",
+      "Óleo",
+    ]);
+    expect(options.sizes.map((option) => option.label)).toEqual([
+      "P",
+      "M",
+      "G",
+    ]);
+    expect(salesHistoryOptions(sales, [product], "").sizes).toEqual([]);
   });
 });
