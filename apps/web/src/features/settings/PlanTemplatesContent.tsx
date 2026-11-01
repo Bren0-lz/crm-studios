@@ -183,6 +183,9 @@ export function PlanTemplatesContent() {
         <PlanTemplateModal
           item={editing === "new" ? null : editing}
           services={services}
+          onServiceCreated={(service) =>
+            setServices((current) => [...current, service])
+          }
           onClose={() => setEditing(null)}
           onSaved={(item) => {
             replace(item);

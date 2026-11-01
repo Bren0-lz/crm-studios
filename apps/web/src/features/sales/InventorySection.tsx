@@ -174,7 +174,7 @@ export function InventorySection({
           </div>
         ) : (
           <div className="table-scroll">
-            <table className="dre-table inventory-table">
+            <table className="dre-table inventory-table inventory-products-table">
               <caption className="sr-only">Produtos em estoque</caption>
               <thead>
                 <tr>
