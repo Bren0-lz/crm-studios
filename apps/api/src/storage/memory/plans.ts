@@ -9,6 +9,10 @@ import {
   type PlanCatalogEntry,
   type PlanCatalogInput,
   type PlanRenewalInput,
+  planRefundCategoryName,
+  planRefundPayableDescription,
+  type Payable,
+  type PaymentMethod,
   type PlanCancellationDetails,
   type PlanPauseDetails,
   type PlanStatus,
@@ -27,6 +31,64 @@ import { CLINIC_ID, now, today, uuid } from "./helpers.js";
 export function createPlansRepository(
   repositoryContext: MemoryRepositoryContext,
 ) {
+  /** Categoria de despesa dos estornos; criada na primeira vez (grupo "Impostos e deduções"). */
+  function refundCategory(clinicId: string) {
+    const found = repositoryContext.financialCategories.find(
+      (item) =>
+        item.clinicId === clinicId &&
+        item.kind === "expense" &&
+        item.name === planRefundCategoryName,
+    );
+    if (found) return found;
+    const created = {
+      id: uuid(),
+      clinicId,
+      name: planRefundCategoryName,
+      kind: "expense" as const,
+      active: true,
+      dreGroup: "tax" as const,
+    };
+    repositoryContext.financialCategories.push(created);
+    return created;
+  }
+
+  /** Lança o estorno do cancelamento como conta já paga (saída de caixa) e devolve o id. */
+  function recordRefundPayable(
+    plan: PatientPlan,
+    amountInCents: number,
+    paymentMethod: PaymentMethod,
+    note: string | undefined,
+  ) {
+    const category = refundCategory(plan.clinicId);
+    const timestamp = plan.updatedAt;
+    const postedOn = clinicDateOf(
+      new Date(timestamp),
+      repositoryContext.clinicSettings.timezone,
+    );
+    const payable: Payable = {
+      id: uuid(),
+      clinicId: plan.clinicId,
+      branchId: plan.branchId ?? repositoryContext.writeBranchId(plan.clinicId),
+      description: planRefundPayableDescription(plan.patientName, plan.name),
+      supplier: plan.patientName,
+      ...(note ? { notes: note } : {}),
+      categoryId: category.id,
+      categoryName: category.name,
+      dueDate: postedOn,
+      amountInCents,
+      postedOn,
+      dreCompetence: postedOn.slice(0, 7),
+      status: "paid",
+      paymentMethod,
+      paidAt: timestamp,
+      overdue: false,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    };
+    repositoryContext.payables.push(payable);
+    return payable.id;
+  }
+
   return {
     async listPlanTemplates(clinicId: string) {
       return repositoryContext.planTemplates
@@ -483,10 +545,18 @@ export function createPlansRepository(
         plan.cancelledValueInCents = repositoryContext.receivables
           .filter((item) => item.planId === plan.id && item.status === "open")
           .reduce((sum, item) => sum + item.amountInCents, 0);
-        if (cancellation.refundedInCents)
+        if (cancellation.refundedInCents) {
           plan.refundedInCents = cancellation.refundedInCents;
-        if (cancellation.refundedInCents && cancellation.refundNote)
-          plan.refundNote = cancellation.refundNote;
+          plan.refundPaymentMethod = cancellation.refundPaymentMethod!;
+          if (cancellation.refundNote)
+            plan.refundNote = cancellation.refundNote;
+          plan.refundPayableId = recordRefundPayable(
+            plan,
+            cancellation.refundedInCents,
+            cancellation.refundPaymentMethod!,
+            cancellation.refundNote,
+          );
+        }
         for (const receivable of repositoryContext.receivables) {
           if (receivable.planId === plan.id && receivable.status === "open") {
             receivable.status = "cancelled";

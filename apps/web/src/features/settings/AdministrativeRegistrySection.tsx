@@ -67,7 +67,6 @@ export function AdministrativeRegistrySection() {
                   name: "",
                   durationMinutes: 60,
                   priceInCents: 0,
-                  color: "#547A6B",
                   active: true,
                 },
               },
@@ -336,7 +335,7 @@ function RegistryEditor({
                 />
               </>
             )}
-            {form.kind !== "room" && (
+            {form.kind === "professional" && (
               <label>
                 Cor
                 <input

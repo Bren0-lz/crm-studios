@@ -129,8 +129,7 @@ describe("dashboard appointment actions", () => {
             500,
           );
         const index = appointments.findIndex(
-          (item) =>
-            url.includes(`/${item.id}/`) || url.endsWith(`/${item.id}`),
+          (item) => url.includes(`/${item.id}/`) || url.endsWith(`/${item.id}`),
         );
         const original = appointments[index]!;
         // PATCH sem status é a edição de serviço, sala e observação (QM6/QM7).
@@ -138,15 +137,15 @@ describe("dashboard appointment actions", () => {
           init.method === "PATCH" && !("status" in body)
             ? { ...original, ...body }
             : init.method === "PATCH"
-            ? { ...original, status: body.status as Appointment["status"] }
-            : {
-                ...original,
-                ...body,
-                startsAt: String(body.startsAt),
-                endsAt: new Date(
-                  new Date(String(body.startsAt)).getTime() + 60 * 60_000,
-                ).toISOString(),
-              };
+              ? { ...original, status: body.status as Appointment["status"] }
+              : {
+                  ...original,
+                  ...body,
+                  startsAt: String(body.startsAt),
+                  endsAt: new Date(
+                    new Date(String(body.startsAt)).getTime() + 60 * 60_000,
+                  ).toISOString(),
+                };
         return response(appointments[index]);
       }
       if (url.includes("/dashboard")) {
@@ -343,16 +342,20 @@ describe("dashboard appointment actions", () => {
     expect(controls.writes).toEqual([]);
   });
 
-  it("keeps the check button disabled for a confirmed appointment before it starts (QC3)", async () => {
+  it("shows an X with the reason while a confirmed appointment cannot be finalized yet (QC3)", async () => {
     vi.setSystemTime(new Date("2026-10-12T11:00:00.000Z"));
     const { controls } = setup({ status: "confirmed" });
     const complete = await screen.findByRole("button", {
       name: "Marcar Ana 0 como realizado",
     });
-    expect(complete).toBeDisabled();
+    expect(complete).toHaveAttribute("aria-disabled", "true");
+    expect(
+      complete.querySelector(".lucide-circle-x, .lucide-x-circle"),
+    ).not.toBeNull();
     expect(complete).toHaveAccessibleDescription(
-      "Disponível a partir de 12/10 às 08:45",
+      "Ainda não é possível finalizar: o atendimento só pode ser finalizado a partir de 15 min antes do início. Disponível a partir de 12/10 às 08:45.",
     );
+    fireEvent.click(complete);
     expect(controls.writes).toEqual([]);
   });
 
