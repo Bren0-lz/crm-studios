@@ -1,8 +1,9 @@
-import type { PatientPlan } from "@crm/contracts";
+import { type PatientPlan, paymentMethodLabels } from "@crm/contracts";
 import { useEffect, useState } from "react";
 import { api } from "../../api";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
 import { Modal } from "../../shared/components/Modal";
+import { currency, shortDate } from "../../shared/lib/formatting";
 
 export function SessionMovementsModal({
   plan,
@@ -35,6 +36,25 @@ export function SessionMovementsModal({
           {entry.totalSessions} sessões restantes
         </p>
       ))}
+      {plan.status === "cancelled" && plan.cancelledAt && (
+        <div className="plan-refund-summary">
+          <p>
+            Plano cancelado em {shortDate.format(new Date(plan.cancelledAt))}.
+          </p>
+          {plan.refundedInCents ? (
+            <p>
+              Valor estornado ao cliente:{" "}
+              <strong>{currency.format(plan.refundedInCents / 100)}</strong>
+              {plan.refundPaymentMethod
+                ? ` · ${paymentMethodLabels[plan.refundPaymentMethod]}`
+                : ""}
+              {plan.refundNote ? ` · ${plan.refundNote}` : ""}
+            </p>
+          ) : (
+            <p>Sem estorno ao cliente.</p>
+          )}
+        </div>
+      )}
       <div className="movement-list">
         {movements.length === 0 ? (
           <LoadingBlock />

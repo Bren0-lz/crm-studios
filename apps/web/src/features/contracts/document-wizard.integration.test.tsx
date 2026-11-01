@@ -82,7 +82,10 @@ describe("individual document preparation", () => {
       )?.body,
     ).toBe(template.body);
     fireEvent.click(screen.getByText("Fechar", { selector: "button" }));
-    fireEvent.click(screen.getByRole("button", { name: "Revisar rascunho" }));
+    fireEvent.click(screen.getByRole("button", { name: /Ver detalhes/ }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Revisar rascunho" }),
+    );
     expect(
       await screen.findByRole("textbox", { name: "Conteúdo" }),
     ).toHaveTextContent(changed);
