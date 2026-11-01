@@ -890,6 +890,16 @@
   color: var(--green-2);
 }
 
+/* Ainda não dá para finalizar: X apagado; o motivo fica no tooltip (title). */
+.appointment-complete-button[aria-disabled="true"] {
+  color: var(--muted);
+  cursor: not-allowed;
+}
+
+.appointment-complete-button[aria-disabled="true"]:hover {
+  background: transparent;
+}
+
 /* Clientes: coluna Ações à direita (a linha abre a ficha). Cada linha é um grid próprio:
    a coluna Ações tem largura fixa (a do botão "Editar") para o cabeçalho e as linhas
    repartirem as colunas igual — com "auto", o cabeçalho ficava deslocado. */
