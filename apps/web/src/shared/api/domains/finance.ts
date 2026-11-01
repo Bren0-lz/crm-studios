@@ -36,6 +36,8 @@ import type {
   PatientTabItemInput,
   PatientTabItemUpdate,
   PatientTabCloseInput,
+  PatientTabCancelInput,
+  PatientTabPayment,
   ProductSaleInput,
   Supplier,
   SupplierInput,
@@ -188,8 +190,17 @@ export const financeApi = {
       method: "POST",
       body: JSON.stringify(input),
     }),
-  cancelPatientTab: (id: string) =>
-    request<PatientTab>(`/patient-tabs/${id}/cancel`, { method: "POST" }),
+  /** `refundPayment`: estorna o pagamento recebido no mesmo cancelamento. */
+  cancelPatientTab: (id: string, input?: PatientTabCancelInput) =>
+    request<PatientTab>(`/patient-tabs/${id}/cancel`, {
+      method: "POST",
+      ...(input ? { body: JSON.stringify(input) } : {}),
+    }),
+  /** Pagamento da venda (cobrança do fechamento), sem exigir acesso ao Financeiro. */
+  patientTabPayment: (id: string) =>
+    request<{ payment: PatientTabPayment | null }>(
+      `/patient-tabs/${id}/payment`,
+    ),
   /** Venda de produtos em uma etapa (abre, preenche e fecha a comanda). */
   createProductSale: (input: ProductSaleInput) =>
     request<PatientTab>("/product-sales", {
