@@ -7,8 +7,10 @@ import { useMissingFields } from "../../shared/components/MissingFields";
 import { Modal, ModalCancelButton } from "../../shared/components/Modal";
 import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
 import { MoneyInput } from "../../shared/components/MoneyInput";
-import { FinanceRegistryModal } from "./FinanceRegistryModal";
-import { CREATE_OPTION_VALUE } from "./InlineClassificationCreate";
+import {
+  CREATE_OPTION_VALUE,
+  FinanceRegistryModal,
+} from "./FinanceRegistryModal";
 import { ExpenseKindPicker } from "./ExpenseKindPicker";
 import {
   carriedId,
