@@ -336,6 +336,8 @@ export interface Receivable {
   source?: "plan" | "tab" | "manual";
   /** Nome do plano como foi vendido; só nas cobranças de plano. */
   planName?: string;
+  /** Modelo do plano vendido (avulso, pacote, recorrente…); só nas cobranças de plano. */
+  planKind?: "single" | "fixed_package" | "recurring" | "custom";
   /** Valor total contratado do plano; só nas cobranças de plano. */
   planTotalInCents?: number;
   /** Forma de pagamento combinada na venda do plano (ausente = a combinar). */
