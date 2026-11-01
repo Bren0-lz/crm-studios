@@ -82,6 +82,7 @@ function block(overrides: Partial<ScheduleBlock> = {}): ScheduleBlock {
     id: "block",
     clinicId: "clinic",
     professionalId: "ana",
+    professionalName: "Ana",
     reason: "Motivo privado",
     startsAt: at("2026-10-07", "12:00"),
     endsAt: at("2026-10-07", "13:00"),
@@ -246,7 +247,7 @@ describe("appointment calendar", () => {
     );
   });
 
-  it("shows chronological anonymous intervals, holidays and markers", async () => {
+  it("shows chronological intervals with activity, professional and room, without client names or block reasons", async () => {
     vi.mocked(api.appointments).mockResolvedValue([
       appointment("visit", "10:00"),
     ]);
@@ -271,16 +272,15 @@ describe("appointment calendar", () => {
         .getAllByRole("listitem")
         .map((item) => item.textContent),
     ).toEqual([
-      "08:00–09:00Turma",
-      "10:00–11:00Atendimento",
-      "12:00–13:00Bloqueio",
+      "08:00–09:00Nome da turmaAna · Sala 1Turma",
+      "10:00–11:00ServiçoAna · Sala 1Atendimento",
+      "12:00–13:00Horário bloqueadoAnaBloqueio",
     ]);
     expect(day("2026-10-07")).toHaveAccessibleName(
       /3 compromissos, feriado: Feriado local/,
     );
     expect(screen.getByText("Feriado: Feriado local")).toBeInTheDocument();
     expect(screen.queryByText("Nome confidencial")).not.toBeInTheDocument();
-    expect(screen.queryByText("Nome da turma")).not.toBeInTheDocument();
     expect(screen.queryByText("Motivo privado")).not.toBeInTheDocument();
   });
 
