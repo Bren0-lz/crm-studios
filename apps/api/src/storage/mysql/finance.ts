@@ -42,6 +42,7 @@ import {
   type ReceivableRenegotiation,
   type ReceivableRenegotiationInput,
   type ReceivableStatus,
+  type PaymentPart,
   type ReceivedPayment,
   recurringPayableCompetences,
   recurringPayableDueDate,
@@ -49,6 +50,7 @@ import {
   saoPauloToday,
   type StockMovementInput,
   tabReceivableDescription,
+  isSplitPayment,
 } from "@crm/contracts";
 import {
   buildDailyCash,
@@ -100,6 +102,10 @@ import {
   writeAndRead,
 } from "./sql.js";
 import { changeProductStock, productStockOf } from "./product-stock.js";
+import {
+  storedPaymentParts,
+  tabPaymentParts,
+} from "../../modules/finance/payment-parts.js";
 import {
   assertSalePrice,
   assertStockSize,
@@ -237,11 +243,13 @@ async function closeTab(
       "Categoria ou centro de custo não encontrado.",
       404,
     );
+  // Formas do pagamento (picado ou não) somando o total, antes de gravar.
+  const parts = tabPaymentParts(input, row.totalInCents);
   await createTabServiceCredits(client, clinicId, actorUserId, tabId);
   const paid = input.settlement === "paid";
   const receivable = await writeAndRead<{ id: string }>(
     client,
-    `INSERT INTO receivables(clinic_id,patient_id,description,installment_number,installment_count,due_date,amount_in_cents,status,paid_at,payment_method,branch_id, id,payment_installments) VALUES ($1,$2,$3,1,1,$4,$5,$6,$7,$8,(SELECT branch_id FROM patient_tabs WHERE clinic_id=$1 AND id=$9), $10,$11)`,
+    `INSERT INTO receivables(clinic_id,patient_id,description,installment_number,installment_count,due_date,amount_in_cents,status,paid_at,payment_method,branch_id, id,payment_installments,payment_parts) VALUES ($1,$2,$3,1,1,$4,$5,$6,$7,$8,(SELECT branch_id FROM patient_tabs WHERE clinic_id=$1 AND id=$9), $10,$11,$12)`,
     [
       clinicId,
       row.patientId,
@@ -250,10 +258,13 @@ async function closeTab(
       row.totalInCents,
       paid ? "paid" : "open",
       paid ? new Date() : null,
-      paid ? input.paymentMethod : null,
+      paid ? parts[0]!.paymentMethod : null,
       tabId,
       randomUUID(),
-      paid ? paymentInstallmentsValue(input.paymentInstallments) : null,
+      paid && !isSplitPayment(parts)
+        ? paymentInstallmentsValue(parts[0]!.paymentInstallments)
+        : null,
+      storedPaymentParts(parts) ?? [],
     ],
     `SELECT id FROM receivables WHERE id = $10`,
   );
@@ -278,22 +289,23 @@ async function closeTab(
     ],
   );
   if (paid)
-    await client.query(
-      `INSERT INTO financial_events(clinic_id,receivable_id,actor_user_id,kind,amount_in_cents,metadata) VALUES($1,$2,$3,'payment',$4,$5)`,
-      [
-        clinicId,
-        receivableId,
-        actorUserId,
-        row.totalInCents,
-        JSON.stringify({
-          paymentMethod: input.paymentMethod,
-          ...(paymentInstallmentsValue(input.paymentInstallments)
-            ? { paymentInstallments: input.paymentInstallments }
-            : {}),
-          source: "patient_tab",
-        }),
-      ],
-    );
+    for (const part of parts)
+      await client.query(
+        `INSERT INTO financial_events(clinic_id,receivable_id,actor_user_id,kind,amount_in_cents,metadata) VALUES($1,$2,$3,'payment',$4,$5)`,
+        [
+          clinicId,
+          receivableId,
+          actorUserId,
+          part.amountInCents,
+          JSON.stringify({
+            paymentMethod: part.paymentMethod,
+            ...(part.paymentInstallments
+              ? { paymentInstallments: part.paymentInstallments }
+              : {}),
+            source: "patient_tab",
+          }),
+        ],
+      );
   await client.query(
     `UPDATE patient_tabs SET status='closed',payment_status=$2,receivable_id=$3,closed_at=NOW(6) WHERE id=$1`,
     [tabId, input.settlement, receivableId],
@@ -778,6 +790,7 @@ export function createFinanceRepository(
           ...(input.paymentInstallments
             ? { paymentInstallments: input.paymentInstallments }
             : {}),
+          ...(input.payments?.length ? { payments: input.payments } : {}),
           ...(input.categoryId ? { categoryId: input.categoryId } : {}),
           ...(input.costCenterId ? { costCenterId: input.costCenterId } : {}),
         });
@@ -1091,11 +1104,18 @@ export function createFinanceRepository(
          FROM receivables r
          JOIN clinics c ON c.id = r.clinic_id
          JOIN patients p ON p.id = r.patient_id AND p.clinic_id = r.clinic_id
-         LEFT JOIN financial_events fe ON fe.id = (
-           SELECT x.id FROM financial_events x
-           WHERE x.clinic_id = r.clinic_id AND x.receivable_id = r.id AND x.kind = 'payment'
-           ORDER BY x.created_at DESC LIMIT 1
-         )
+         LEFT JOIN (
+           -- Última baixa: pagamentos depois do último estorno (no picado, um por forma).
+           SELECT x.receivable_id, CAST(SUM(x.discount_in_cents) AS SIGNED) AS discount_in_cents,
+                  CAST(SUM(x.interest_in_cents) AS SIGNED) AS interest_in_cents
+           FROM financial_events x
+           WHERE x.clinic_id = $1 AND x.receivable_id = $2 AND x.kind = 'payment'
+             AND x.created_at > coalesce((
+               SELECT max(y.created_at) FROM financial_events y
+               WHERE y.clinic_id = $1 AND y.receivable_id = $2 AND y.kind = 'payment_reversal'
+             ), CAST('1000-01-01' AS DATETIME(6)))
+           GROUP BY x.receivable_id
+         ) fe ON fe.receivable_id = r.id
          WHERE r.clinic_id = $1 AND r.id = $2`,
         [clinicId, receivableId],
       );
@@ -1125,6 +1145,9 @@ export function createFinanceRepository(
         amountInCents: receivable.amountInCents,
         paymentMethod: receivable.paymentMethod,
         ...receiptInstallments(receivable),
+        ...(receivable.paymentParts
+          ? { paymentParts: receivable.paymentParts }
+          : {}),
         paidAt: receivable.paidAt,
         clinicName: row?.clinicName ?? "",
         clinicLegalName: row?.clinicLegalName ?? "",
@@ -1468,6 +1491,7 @@ export function createFinanceRepository(
       payableId: string,
       paymentMethod: PaymentMethod,
       timing?: PaymentTiming,
+      payments?: PaymentPart[],
     ) {
       return repositoryContext.changePayablePayment(
         clinicId,
@@ -1476,6 +1500,7 @@ export function createFinanceRepository(
         "payment",
         paymentMethod,
         timing,
+        payments,
       );
     },
 

@@ -2,6 +2,7 @@ export { planBadgeLabel, planKindLabels, planSubtitle } from "./model";
 export { PlanForm } from "./PlanForm";
 export { PlanFirstChargeNote } from "./PlanFirstChargeNote";
 export { PlanInstallmentsField } from "./PlanInstallmentsField";
+export { PlanPaymentFields } from "./PlanPaymentFields";
 export { PlanCancelModal } from "./PlanCancelModal";
 export { PlanCard } from "./PlanCard";
 export type { PlanCatalogKind } from "./model";

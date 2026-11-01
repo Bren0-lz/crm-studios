@@ -2,6 +2,7 @@ import type { FinancialDatesInput } from "@crm/contracts";
 import type { MysqlRepositoryContext } from "./context.js";
 import { DomainError } from "../../repository.js";
 import { latestDateCorrection } from "./sql.js";
+import { latestPaymentBatch } from "../../modules/finance/payment-parts.js";
 export function createFinancialDatesRepository(
   context: MysqlRepositoryContext,
 ) {
@@ -44,31 +45,35 @@ export function createFinancialDatesRepository(
             409,
           );
         if (entry.status === "paid" && (input.paidAt || input.availableAt)) {
-          const event = await client.query<{
+          // Pagamento picado: um evento por forma; a correção vale para todos da última baixa.
+          const history = await client.query<{
             id: string;
+            kind: "payment" | "payment_reversal";
             occurredAt: Date;
             availableAt: Date;
           }>(
-            `SELECT e.id,coalesce(c.occurred_at,e.occurred_at,e.created_at) AS "occurredAt",coalesce(c.cash_available_at,e.cash_available_at,e.occurred_at,e.created_at) AS "availableAt" FROM ${events} e ${latestDateCorrection("c", "e", correctionColumn)} WHERE e.clinic_id=$1 AND e.${eventColumn}=$2 AND e.kind='payment' ORDER BY e.created_at DESC,e.id DESC LIMIT 1`,
+            `SELECT e.id,e.kind,coalesce(c.occurred_at,e.occurred_at,e.created_at) AS "occurredAt",coalesce(c.cash_available_at,e.cash_available_at,e.occurred_at,e.created_at) AS "availableAt" FROM ${events} e ${latestDateCorrection("c", "e", correctionColumn)} WHERE e.clinic_id=$1 AND e.${eventColumn}=$2 AND e.kind IN ('payment','payment_reversal') ORDER BY e.created_at,e.id`,
             [clinicId, id],
           );
+          const event = { rows: latestPaymentBatch(history.rows) };
           if (!event.rows[0])
             throw new DomainError(
               "FINANCIAL_EVENT_NOT_FOUND",
               "O evento de pagamento precisa ser conciliado antes da alteração.",
               409,
             );
-          await client.query(
-            `INSERT INTO financial_date_corrections(clinic_id,${correctionColumn},occurred_at,cash_available_at,reason,actor_user_id) VALUES($1,$2,$3,$4,$5,$6)`,
-            [
-              clinicId,
-              event.rows[0].id,
-              input.paidAt ?? event.rows[0].occurredAt,
-              input.availableAt ?? event.rows[0].availableAt,
-              input.reason,
-              actorUserId,
-            ],
-          );
+          for (const row of event.rows)
+            await client.query(
+              `INSERT INTO financial_date_corrections(clinic_id,${correctionColumn},occurred_at,cash_available_at,reason,actor_user_id) VALUES($1,$2,$3,$4,$5,$6)`,
+              [
+                clinicId,
+                row.id,
+                input.paidAt ?? row.occurredAt,
+                input.availableAt ?? row.availableAt,
+                input.reason,
+                actorUserId,
+              ],
+            );
         }
         await client.query(
           `UPDATE ${table} SET posted_on=coalesce($3,posted_on),due_date=coalesce($4,due_date),paid_at=coalesce($5,paid_at),cash_available_at=coalesce($6,cash_available_at),updated_at=NOW(6) WHERE clinic_id=$1 AND id=$2`,

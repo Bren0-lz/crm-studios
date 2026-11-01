@@ -5,6 +5,11 @@ import {
   paymentMethodSchema,
 } from "../common/model.js";
 import { patientDiscountSchema } from "./discount.js";
+import {
+  type PlanPaymentPart,
+  paymentPartsTotal,
+  planPaymentPartsSchema,
+} from "../finance/payment-parts.js";
 import type {
   PatientPlan,
   PlanPaymentSummary,
@@ -438,8 +443,60 @@ export const recurringSingleChargeIssue =
 export function isRecurringChargeValid(plan: {
   kind?: z.infer<typeof planKindSchema> | null | undefined;
   installments: number;
+  paymentParts?: readonly { installments: number }[] | undefined;
 }) {
-  return plan.kind !== "recurring" || plan.installments === 1;
+  if (plan.kind !== "recurring") return true;
+  // Picado: cada forma gera uma cobrança por ciclo.
+  if (plan.paymentParts && plan.paymentParts.length > 1)
+    return plan.paymentParts.every((part) => part.installments === 1);
+  return plan.installments === 1;
+}
+
+/** As formas do plano picado precisam somar o valor total. */
+export function planPaymentPartsMatch(plan: {
+  totalValueInCents: number;
+  paymentParts?: readonly { amountInCents: number }[] | undefined;
+}) {
+  return (
+    !plan.paymentParts?.length ||
+    paymentPartsTotal(plan.paymentParts) === plan.totalValueInCents
+  );
+}
+
+export const planPaymentPartsIssue = {
+  message: "As formas de pagamento precisam somar o valor total do plano.",
+  path: ["paymentParts"],
+};
+
+/**
+ * Termos do plano com as formas aplicadas: forma única vira `paymentMethod`/`installments`
+ * de sempre (sem lista); picado mantém a lista e deriva os dois campos dela.
+ */
+export function withPlanPaymentParts<
+  T extends {
+    installments: number;
+    kind?: z.infer<typeof planKindSchema> | null | undefined;
+    paymentMethod?: z.infer<typeof paymentMethodSchema> | undefined;
+    paymentParts?: PlanPaymentPart[] | undefined;
+  },
+>(plan: T): T {
+  const parts = plan.paymentParts;
+  if (!parts?.length) return plan;
+  const next = { ...plan, paymentMethod: parts[0]!.paymentMethod };
+  if (parts.length === 1) {
+    delete next.paymentParts;
+    return {
+      ...next,
+      installments: plan.kind === "recurring" ? 1 : parts[0]!.installments,
+    };
+  }
+  return {
+    ...next,
+    installments:
+      plan.kind === "recurring"
+        ? 1
+        : parts.reduce((sum, part) => sum + part.installments, 0),
+  };
 }
 
 /**
@@ -560,6 +617,12 @@ export const planTermsSchema = z.object({
   /** Forma de pagamento combinada na venda (ausente = a combinar). */
   paymentMethod: paymentMethodSchema.optional(),
   /**
+   * Plano picado: cada forma com o valor e a quantidade de cobranças dela (ex.: R$ 100 no
+   * Pix em 1 + R$ 200 no cartão em 2). A soma é o valor total; com ela, `paymentMethod` é a
+   * da 1ª forma e `installments` a soma das cobranças (no recorrente, 1 por forma e ciclo).
+   */
+  paymentParts: planPaymentPartsSchema.optional(),
+  /**
    * Valor da 1ª parcela quando proporcional às aulas até o primeiro vencimento
    * (`planFirstChargeProration`); ausente = divisão normal do valor total.
    */
@@ -604,6 +667,7 @@ export const patientPlanInputSchema = planTermsSchema
     path: ["installments"],
   })
   .refine(renewablePlanPeriod, autoRenewIssue)
+  .refine(planPaymentPartsMatch, planPaymentPartsIssue)
   .refine(
     (value) =>
       value.services.reduce((sum, item) => sum + item.totalValueInCents, 0) ===
@@ -617,6 +681,7 @@ export const patientPlanInputSchema = planTermsSchema
 export const planRenewalInputSchema = planTermsSchema
   .refine(validPlanPeriod, planPeriodIssue)
   .refine(renewablePlanPeriod, autoRenewIssue)
+  .refine(planPaymentPartsMatch, planPaymentPartsIssue)
   .refine(
     (value) =>
       value.services.reduce((sum, item) => sum + item.totalValueInCents, 0) ===

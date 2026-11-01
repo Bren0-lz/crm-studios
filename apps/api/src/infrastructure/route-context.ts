@@ -708,8 +708,36 @@ export async function createRouteContext({
       installments: number | undefined;
       paymentMethod?: PaymentMethod | undefined;
       planTemplateId?: string | undefined;
+      /** Plano picado: cada forma com as cobranças dela. */
+      paymentParts?:
+        | readonly { paymentMethod: PaymentMethod; installments: number }[]
+        | undefined;
+      /** Pagamento picado: cada forma com o parcelamento nela. */
+      payments?:
+        | readonly {
+            paymentMethod: PaymentMethod;
+            paymentInstallments?: number | undefined;
+          }[]
+        | undefined;
     },
-  ) {
+  ): Promise<void> {
+    const parts =
+      input.paymentParts?.map((part) => ({
+        installments: part.installments,
+        paymentMethod: part.paymentMethod,
+      })) ??
+      input.payments?.map((part) => ({
+        installments: part.paymentInstallments,
+        paymentMethod: part.paymentMethod,
+      }));
+    if (parts?.length) {
+      for (const part of parts)
+        await assertInstallmentsAllowed(clinicId, {
+          ...part,
+          planTemplateId: input.planTemplateId,
+        });
+      return;
+    }
     if (!input.installments || input.installments <= 1) return;
     const [settings, templates] = await Promise.all([
       repository.getPaymentMethodSettings(clinicId),

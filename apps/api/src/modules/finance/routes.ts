@@ -13,9 +13,8 @@ import {
   patientTabItemInputSchema,
   payableAmountInputSchema,
   payableInputSchema,
-  paymentInputSchema,
+  payableSettlementSchema,
   receivableSettlementSchema,
-  settlementPaymentsTotal,
   productInputSchema,
   productSaleInputSchema,
   receivableAdjustmentInputSchema,
@@ -24,6 +23,7 @@ import {
   saoPauloToday,
   stockMovementInputSchema,
   type PaymentMethod,
+  type PaymentPart,
   type ReceivableContact,
 } from "@crm/contracts";
 import type { RouteContext } from "../../infrastructure/route-context.js";
@@ -47,12 +47,14 @@ export function registerFinanceRoutes(context: RouteContext) {
       settlement: "paid" | "receivable";
       paymentMethod?: PaymentMethod | undefined;
       paymentInstallments?: number | undefined;
+      payments?: PaymentPart[] | undefined;
     },
   ) =>
     input.settlement === "paid"
       ? assertInstallmentsAllowed(clinicId, {
           installments: input.paymentInstallments,
           paymentMethod: input.paymentMethod,
+          payments: input.payments,
         })
       : Promise.resolve();
 
@@ -233,37 +235,25 @@ export function registerFinanceRoutes(context: RouteContext) {
         ...timing
       } = receivableSettlementSchema.parse(request.body ?? {});
       const { id } = request.params as { id: string };
-      // Pagamento misto: cada forma respeita o próprio limite de parcelas.
-      for (const part of payments ?? [
-        { paymentMethod: timing.paymentMethod, paymentInstallments },
-      ])
-        await assertInstallmentsAllowed(request.user.clinicId, {
-          installments: part.paymentInstallments,
-          paymentMethod: part.paymentMethod,
-        });
+      await assertInstallmentsAllowed(request.user.clinicId, {
+        installments: paymentInstallments,
+        paymentMethod: timing.paymentMethod,
+        payments,
+      });
       const receivable = await repository.settleReceivable(
         request.user.clinicId,
         request.user.sub,
         id,
         payments?.[0]?.paymentMethod ?? timing.paymentMethod,
         timing,
-        payments
-          ? {
-              discountInCents,
-              interestInCents,
-              receivedInCents: settlementPaymentsTotal(payments),
-              ...(balanceDueDate === undefined ? {} : { balanceDueDate }),
-              payments,
-            }
-          : {
-              discountInCents,
-              interestInCents,
-              ...(receivedInCents === undefined ? {} : { receivedInCents }),
-              ...(balanceDueDate === undefined ? {} : { balanceDueDate }),
-              ...(paymentInstallments === undefined
-                ? {}
-                : { paymentInstallments }),
-            },
+        {
+          discountInCents,
+          interestInCents,
+          ...(receivedInCents === undefined ? {} : { receivedInCents }),
+          ...(balanceDueDate === undefined ? {} : { balanceDueDate }),
+          ...(paymentInstallments === undefined ? {} : { paymentInstallments }),
+          ...(payments?.length ? { payments } : {}),
+        },
       );
       if (!receivable)
         return reply.status(404).send({
@@ -612,7 +602,9 @@ export function registerFinanceRoutes(context: RouteContext) {
     { preHandler: authenticate },
     async (request, reply) => {
       const { id } = request.params as { id: string };
-      const input = paymentInputSchema.parse(request.body ?? {});
+      const { payments, ...input } = payableSettlementSchema.parse(
+        request.body ?? {},
+      );
       const current = (
         await repository.getFinancialWorkspace(request.user.clinicId)
       ).payables.find((item) => item.id === id);
@@ -622,8 +614,9 @@ export function registerFinanceRoutes(context: RouteContext) {
         request.user.clinicId,
         request.user.sub,
         id,
-        input.paymentMethod,
+        payments?.[0]?.paymentMethod ?? input.paymentMethod,
         input,
+        payments,
       );
       if (!payable)
         return reply.status(404).send({

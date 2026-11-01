@@ -17,6 +17,13 @@ import type {
   FinancialDateCorrection,
 } from "@crm/contracts";
 import type { PaymentTiming } from "@crm/contracts";
+import type { PaymentPart } from "@crm/contracts";
+import { resolvePaymentParts } from "@crm/contracts";
+import {
+  assertPaymentParts,
+  latestPaymentBatch,
+  storedPaymentParts,
+} from "../../modules/finance/payment-parts.js";
 import type { Supplier, SupplierOrder } from "@crm/contracts";
 import type {
   ClinicalResource,
@@ -88,6 +95,7 @@ import {
   type PlanCatalogEntry,
   discountedPlanInstallments,
   planInstallmentSchedule,
+  withPlanPaymentParts,
   type PlanTemplate,
   type PlanTemplateInput,
   type Product,
@@ -1871,12 +1879,14 @@ export class MemoryRepositoryContext {
   insertPatientPlan(
     clinicId: string,
     patient: Patient,
-    input: Omit<PatientPlanInput, "planTemplateId"> & {
+    rawInput: Omit<PatientPlanInput, "planTemplateId"> & {
       planTemplateId?: string | undefined;
     },
     creditReason: string,
     renewedFrom?: PatientPlan,
   ) {
+    // Plano picado: forma e parcelas derivadas das formas; forma única dispensa a lista.
+    const input = withPlanPaymentParts(rawInput);
     const totals = validatePlanComposition(
       input.services,
       input.totalValueInCents,
@@ -1946,7 +1956,7 @@ export class MemoryRepositoryContext {
         patientId: patient.id,
         planId: plan.id,
         patientName: patient.fullName,
-        description: `${plan.name} · ${installment.installmentNumber}/${input.installments}`,
+        description: `${plan.name} · ${installment.installmentNumber}/${discounted.installments.length}`,
         postedOn: clinicDateOf(
           new Date(timestamp),
           this.clinicSettings.timezone,
@@ -1956,9 +1966,20 @@ export class MemoryRepositoryContext {
           this.clinicSettings.timezone,
         ).slice(0, 7),
         installmentNumber: installment.installmentNumber,
-        installmentCount: input.installments,
+        installmentCount: discounted.installments.length,
         dueDate: installment.dueDate,
         amountInCents: installment.amountInCents,
+        // Plano picado: a forma prevista desta cobrança (sugerida na baixa).
+        ...(input.paymentParts && installment.paymentMethod
+          ? {
+              paymentParts: [
+                {
+                  paymentMethod: installment.paymentMethod,
+                  amountInCents: installment.amountInCents,
+                },
+              ],
+            }
+          : {}),
         ...(installment.customerDiscountInCents
           ? { customerDiscountInCents: installment.customerDiscountInCents }
           : {}),
@@ -2083,6 +2104,7 @@ export class MemoryRepositoryContext {
     operation: "payment" | "payment_reversal",
     paymentMethod?: PaymentMethod,
     timing?: PaymentTiming,
+    payments?: PaymentPart[],
   ) {
     const payable = this.payables.find(
       (item) => item.clinicId === clinicId && item.id === payableId,
@@ -2134,6 +2156,26 @@ export class MemoryRepositoryContext {
         "Uma comissão desta folha mudou de situação; revise a folha antes de continuar.",
         409,
       );
+    // Picado: as formas somam o valor da conta; o estorno devolve forma por forma.
+    const parts =
+      operation === "payment"
+        ? resolvePaymentParts({
+            payments,
+            paymentMethod,
+            amountInCents: payable.amountInCents,
+          })
+        : [];
+    if (operation === "payment")
+      assertPaymentParts(parts, payable.amountInCents);
+    const reversedParts =
+      operation === "payment_reversal"
+        ? latestPaymentBatch(
+            this.payablePaymentEvents.filter(
+              (item) =>
+                item.clinicId === clinicId && item.payableId === payableId,
+            ),
+          )
+        : [];
     const previousMethod = payable.paymentMethod;
     payable.status = operation === "payment" ? "paid" : "open";
     if (operation === "payment_reversal")
@@ -2142,11 +2184,15 @@ export class MemoryRepositoryContext {
     if (operation === "payment") {
       payable.paidAt = timing?.paidAt ?? payable.updatedAt;
       if (timing?.availableAt) payable.cashAvailableAt = timing.availableAt;
-      payable.paymentMethod = paymentMethod!;
+      payable.paymentMethod = parts[0]!.paymentMethod;
+      const stored = storedPaymentParts(parts);
+      if (stored) payable.paymentParts = stored;
+      else delete payable.paymentParts;
       payable.overdue = false;
     } else {
       delete payable.paidAt;
       delete payable.paymentMethod;
+      delete payable.paymentParts;
       payable.overdue = payable.dueDate < today();
     }
     for (const item of [
@@ -2158,23 +2204,39 @@ export class MemoryRepositoryContext {
       if (payable.paidAt) item.paidAt = payable.paidAt;
       else delete item.paidAt;
     }
-    this.payablePaymentEvents.push({
-      id: uuid(),
-      clinicId,
-      payableId,
-      kind: operation === "payment" ? "payment" : "reversal",
-      occurredAt: timing?.paidAt ?? now(),
-      ...(operation === "payment" && payable.cashAvailableAt
-        ? { availableAt: payable.cashAvailableAt }
-        : {}),
-      amountInCents:
-        operation === "payment"
-          ? payable.amountInCents
-          : -payable.amountInCents,
-      ...((paymentMethod ?? previousMethod)
-        ? { paymentMethod: paymentMethod ?? previousMethod }
-        : {}),
-    });
+    const occurredAt = timing?.paidAt ?? now();
+    const movements =
+      operation === "payment"
+        ? parts.map((part) => ({
+            amountInCents: part.amountInCents,
+            paymentMethod: part.paymentMethod as PaymentMethod | undefined,
+          }))
+        : reversedParts.length
+          ? reversedParts.map((item) => ({
+              amountInCents: -item.amountInCents,
+              paymentMethod: item.paymentMethod,
+            }))
+          : [
+              {
+                amountInCents: -payable.amountInCents,
+                paymentMethod: previousMethod,
+              },
+            ];
+    for (const movement of movements)
+      this.payablePaymentEvents.push({
+        id: uuid(),
+        clinicId,
+        payableId,
+        kind: operation === "payment" ? "payment" : "reversal",
+        occurredAt,
+        ...(operation === "payment" && payable.cashAvailableAt
+          ? { availableAt: payable.cashAvailableAt }
+          : {}),
+        amountInCents: movement.amountInCents,
+        ...(movement.paymentMethod
+          ? { paymentMethod: movement.paymentMethod }
+          : {}),
+      });
     return payable;
   }
 

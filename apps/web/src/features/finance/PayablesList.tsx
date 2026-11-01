@@ -1,6 +1,7 @@
 import {
   type Payable,
   paymentMethodWithInstallments,
+  paymentPartsLabel,
   saoPauloToday,
 } from "@crm/contracts";
 import { Plus } from "lucide-react";
@@ -169,7 +170,12 @@ function PayablesTable({
               <span title={detail}>{detail}</span>
               {item.status === "paid" && item.paymentMethod && (
                 <span className="finance-installment">
-                  Pago: {paymentMethodWithInstallments(item.paymentMethod)}
+                  Pago:{" "}
+                  {item.paymentParts
+                    ? paymentPartsLabel(item.paymentParts, (cents) =>
+                        currency.format(cents / 100),
+                      )
+                    : paymentMethodWithInstallments(item.paymentMethod)}
                 </span>
               )}
             </div>

@@ -213,6 +213,7 @@ import type {
   Payable,
   PayableInput,
   PaymentMethod,
+  PaymentPart,
   PaymentReceipt,
   PlanCatalogEntry,
   PlanCatalogInput,
@@ -1290,6 +1291,8 @@ export interface ClinicRepository {
     payableId: string,
     paymentMethod: PaymentMethod,
     timing?: PaymentTiming,
+    /** Pagamento picado: as formas somam o valor da conta. */
+    payments?: PaymentPart[],
   ): Promise<Payable | null>;
   reversePayablePayment(
     clinicId: string,

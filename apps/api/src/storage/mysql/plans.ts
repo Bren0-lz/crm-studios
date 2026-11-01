@@ -555,6 +555,13 @@ export function createPlansRepository(
                   ),
                   totalValueInCents: plan.totalValueInCents,
                   installments: plan.installments,
+                  // A renovação segue as formas de pagamento combinadas.
+                  ...(plan.paymentMethod
+                    ? { paymentMethod: plan.paymentMethod }
+                    : {}),
+                  ...(plan.paymentParts
+                    ? { paymentParts: plan.paymentParts }
+                    : {}),
                   autoRenew: true,
                   ...period,
                 },
