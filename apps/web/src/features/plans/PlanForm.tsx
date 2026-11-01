@@ -6,6 +6,7 @@ import {
   paymentMethodSchema,
   planPeriodEnd,
   planPeriodMonths,
+  planInstallmentPreview,
   planServiceValueForSessions,
   planTypeKind,
   planTypeLabels,
@@ -31,6 +32,7 @@ import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
 import { PatientPicker } from "../../PatientPicker";
 import { FixedPatient } from "../../shared/components/FixedPatient";
+import { InstallmentsPreview } from "../../shared/components/InstallmentsPreview";
 import { useMissingFields } from "../../shared/components/MissingFields";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
 import { PlanGroupPicker } from "../../shared/components/PlanGroupPicker";
@@ -637,6 +639,20 @@ export function PlanForm({
             </label>
             {!renewing && (
               <PlanFirstChargeNote plan={form} slots={firstChargeSlots} />
+            )}
+            {form.totalValueInCents > 0 && (
+              <InstallmentsPreview
+                className="span-2"
+                rows={planInstallmentPreview({
+                  ...withPlanFirstCharge(form, firstChargeSlots),
+                  previousDiscount: renewing?.discount,
+                })}
+                note={
+                  form.kind === "recurring"
+                    ? "Plano recorrente: as próximas cobranças são geradas a cada renovação."
+                    : undefined
+                }
+              />
             )}
             <label className="checkbox-field span-2">
               <input

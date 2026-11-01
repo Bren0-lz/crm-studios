@@ -18,11 +18,13 @@ import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
 import { PatientPicker } from "../../PatientPicker";
 import { EmptyState } from "../../shared/components/EmptyState";
+import { InstallmentsPreview } from "../../shared/components/InstallmentsPreview";
 import { MoneyInput } from "../../shared/components/MoneyInput";
 import { PaymentInstallmentsSelect } from "../../shared/components/PaymentInstallmentsSelect";
 import { usePaymentMethodSettings } from "../../shared/hooks/usePaymentMethodSettings";
 import { useToast } from "../../shared/feedback/toast-context";
 import { currency, localIsoDate } from "../../shared/lib/formatting";
+import { productSaleInstallments } from "../../shared/lib/product-installments";
 import { sellableStock, stockChoices } from "./model";
 import { ProductModal } from "./ProductModal";
 
@@ -111,6 +113,19 @@ export function NewSaleSection({
       product.salePriceInCents === null &&
       filled.some((line) => line.productId === product.id),
   );
+  const installments = productSaleInstallments({
+    items: filled.map((line) => {
+      const product = productOf(line.productId);
+      return {
+        label: `${product?.name ?? "Produto"}${line.size ? ` · ${productSizeLabel(line.size)}` : ""} · ${line.quantity} ${product?.unit ?? "un."}`,
+        grossInCents: line.quantity * line.unitPriceInCents,
+      };
+    }),
+    settlement,
+    paymentMethod,
+    paymentInstallments,
+    dueDate,
+  });
   const missing = [
     ...(!patientId ? ["cliente"] : []),
     ...(unpriced.length ? ["preço de venda do produto"] : []),
@@ -410,6 +425,13 @@ export function NewSaleSection({
                   onChange={(event) => setDueDate(event.target.value)}
                 />
               </label>
+            )}
+            {totalInCents > 0 && (
+              <InstallmentsPreview
+                className="span-2"
+                rows={installments.rows}
+                dueLabel={installments.dueLabel}
+              />
             )}
             <label className="span-2">
               Observações
