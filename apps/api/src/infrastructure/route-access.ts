@@ -249,6 +249,7 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
   "POST /patient-tabs/:id/items": operation("patients.tabs_items"),
   "POST /patient-tabs/:id/close": operation("patients.tabs_close"),
   "POST /patient-tabs/:id/cancel": operation("patients.tabs_cancel"),
+  "GET /patient-tabs/:id/payment": operation("patients.inventory_view"),
   "POST /product-sales": operation(
     "patients.tabs_create",
     "patients.tabs_items",
@@ -507,6 +508,8 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
   "GET /finance/payroll": operation("finance.payroll_view"),
   "GET /finance/payroll/employees": operation("finance.payroll_view"),
   "PUT /finance/payroll/employees/:id": operation("finance.payroll_manage"),
+  "POST /finance/payroll/entries": operation("finance.payroll_manage"),
+  "DELETE /finance/payroll/entries/:id": operation("finance.payroll_manage"),
   "POST /finance/payroll/launch": operation("finance.payroll_manage"),
   "POST /finance/payroll/payables/:id/cancel": operation(
     "finance.payroll_manage",
