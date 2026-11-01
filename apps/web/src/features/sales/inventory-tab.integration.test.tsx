@@ -217,6 +217,35 @@ describe("aba Estoque de Vendas de produtos (QM9)", () => {
     ).toBeInTheDocument();
   });
 
+  it("não oferece tamanhos próprios ao produto de categoria sem tamanhos", async () => {
+    const { repository } = await setupApi();
+    const category = await repository.saveClinicCatalog(
+      clinicId,
+      actorId,
+      "product_category",
+      { name: "Óleos", active: true, sizes: [] },
+    );
+    const panel = await openInventoryTab();
+    await within(panel).findByText("Nenhum produto");
+
+    fireEvent.click(
+      within(panel).getByRole("button", { name: "Novo produto" }),
+    );
+    const dialog = screen.getByRole("dialog", { name: "Novo produto" });
+    const toggle = "Este produto tem distinção de tamanho";
+    // Sem categoria, o produto ainda pode definir os seus tamanhos.
+    expect(within(dialog).getByLabelText(toggle)).toBeInTheDocument();
+    await within(dialog).findByRole("option", { name: "Óleos" });
+    change("Categoria", category!.id, dialog);
+    expect(within(dialog).queryByLabelText(toggle)).not.toBeInTheDocument();
+    expect(
+      within(dialog).queryByRole("group", { name: "Tamanhos deste produto" }),
+    ).not.toBeInTheDocument();
+    expect(
+      within(dialog).getByLabelText("Estoque inicial"),
+    ).toBeInTheDocument();
+  });
+
   it("usa os tamanhos definidos na categoria do produto", async () => {
     const { repository } = await setupApi();
     const category = await repository.saveClinicCatalog(
