@@ -862,6 +862,19 @@
   gap: var(--space-4);
 }
 
+.campaign-promotion {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+.campaign-promotion > .campaign-segmented {
+  justify-self: start;
+}
+
 .campaign-review-numbers {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
@@ -967,6 +980,12 @@
   display: grid;
   gap: var(--space-1);
   min-width: 0;
+}
+
+.campaign-row-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
 }
 
 .campaign-row-main h3 {
