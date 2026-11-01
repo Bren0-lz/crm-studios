@@ -104,12 +104,16 @@ describe("relatório de campanhas", () => {
     });
     expect(response.statusCode).toBe(200);
     const report = response.json<CampaignReport>();
+    const automaticPending = report.campaigns.find(
+      (item) => item.campaignId === automatic.id,
+    )!.pending;
     expect(report.summary).toEqual({
       manualCampaigns: 1,
       automaticCampaigns: 1,
       sent: 2,
       skipped: 1,
-      pending: manual.recipients.length - 1,
+      // Manuais sem marcação + fila de hoje das automáticas.
+      pending: manual.recipients.length - 1 + automaticPending,
       redemptions: 0,
     });
     expect(report.campaigns).toEqual(
@@ -147,6 +151,106 @@ describe("relatório de campanhas", () => {
     expect(before.campaigns).toEqual([
       expect.objectContaining({ campaignId: automatic.id, total: 0 }),
     ]);
+  });
+
+  it("conta nas pendentes da automática quem está na fila de hoje sem envio", async () => {
+    const { app, headers } = await setup();
+    const patientIds: string[] = [];
+    // Hoje é 10/06: os dois estão na mensagem de 7 dias antes do aniversário.
+    for (const [fullName, birthDate] of [
+      ["Lia Pendente", "1990-06-15"],
+      ["Rui Pendente", "1991-06-16"],
+    ] as const) {
+      const response = await app.inject({
+        method: "POST",
+        url: "/patients",
+        headers,
+        payload: {
+          cpf: nextTestCpf(),
+          fullName,
+          phone: "11955554444",
+          birthDate,
+          tags: [],
+        },
+      });
+      expect(response.statusCode).toBe(201);
+      patientIds.push(response.json<{ id: string }>().id);
+    }
+    const campaign = (
+      await app.inject({
+        method: "POST",
+        url: "/communications/auto-campaigns",
+        headers,
+        payload: {
+          name: "Semana do aniversário",
+          trigger: "birthday",
+          steps: [{ offset: 7, message: "Olá, {{nome}}" }],
+        },
+      })
+    ).json<AutoCampaign>();
+    const row = async (from: string, to: string) => {
+      const report = (
+        await app.inject({
+          method: "GET",
+          url: `/reports/campaigns?from=${from}&to=${to}`,
+          headers,
+        })
+      ).json<CampaignReport>();
+      return {
+        report,
+        row: report.campaigns.find((item) => item.campaignId === campaign.id)!,
+      };
+    };
+
+    const queue = (
+      await app.inject({
+        method: "GET",
+        url: "/communications/auto-campaigns/queue",
+        headers,
+      })
+    ).json<AutoCampaignQueue>();
+    const waiting = queue.items.filter(
+      (entry) => entry.campaignId === campaign.id && entry.status === "pending",
+    );
+    expect(waiting.map((entry) => entry.patientId)).toEqual(
+      expect.arrayContaining(patientIds),
+    );
+    const first = await row("2039-06-01", "2039-06-30");
+    expect(first.report.queueDate).toBe("2039-06-10");
+    expect(first.row).toMatchObject({
+      pending: waiting.length,
+      sent: 0,
+      promotional: false,
+    });
+    const item = queue.items.find(
+      (entry) =>
+        entry.campaignId === campaign.id && entry.patientId === patientIds[0],
+    )!;
+    expect(
+      (
+        await app.inject({
+          method: "POST",
+          url: "/communications/auto-campaigns/deliveries",
+          headers,
+          payload: {
+            campaignId: campaign.id,
+            stepId: item.stepId,
+            patientId: item.patientId,
+            occurrenceKey: item.occurrenceKey,
+            status: "sent",
+          },
+        })
+      ).statusCode,
+    ).toBe(201);
+    expect((await row("2039-06-01", "2039-06-30")).row).toMatchObject({
+      pending: waiting.length - 1,
+      sent: 1,
+    });
+
+    // Período sem o dia de hoje: a fila não entra.
+    const past = await row("2039-05-01", "2039-05-31");
+    expect(past.report.queueDate).toBeUndefined();
+    expect(past.row.pending).toBe(0);
   });
 
   it("exporta a planilha com resumo, campanhas e mensagens e registra no histórico", async () => {
