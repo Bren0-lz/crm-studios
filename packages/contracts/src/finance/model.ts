@@ -342,8 +342,12 @@ export const patientTabCloseInputSchema = z
   );
 
 /** Cancelamento de comanda: `refundPayment` estorna antes o pagamento já recebido. */
+/** `reason`: motivo do cancelamento, guardado na venda (texto livre, opcional na API). */
 export const patientTabCancelInputSchema = z
-  .object({ refundPayment: z.boolean().default(false) })
+  .object({
+    refundPayment: z.boolean().default(false),
+    reason: z.string().trim().max(500).optional(),
+  })
   .default({ refundPayment: false });
 
 export const productUpdateSchema = productBaseSchema
