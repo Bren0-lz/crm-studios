@@ -242,6 +242,7 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
     "finance.external_records_manage",
   ),
   "GET /inventory/workspace": operation("patients.inventory_view"),
+  "GET /inventory/suppliers": operation("patients.suppliers_manage"),
   "POST /inventory/products": operation("patients.products_create"),
   "POST /inventory/movements": operation("patients.stock_move"),
   "POST /patient-tabs": operation("patients.tabs_create"),
@@ -328,6 +329,7 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
   ),
   "GET /communications/auto-campaigns": view("communications"),
   "GET /communications/auto-campaigns/queue": view("communications"),
+  "GET /communications/auto-campaigns/products": view("communications"),
   "POST /communications/auto-campaigns": operation("communications.campaigns"),
   "PUT /communications/auto-campaigns/:id": operation(
     "communications.campaigns",
@@ -467,9 +469,15 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
   "PUT /patient-tabs/:id/items/:itemId": operation("patients.tabs_items"),
   "DELETE /patient-tabs/:id/items/:itemId": operation("patients.tabs_items"),
   "DELETE /patient-tabs/:id/services/:itemId": operation("patients.tabs_items"),
+  // Fornecedores também ficam em Vendas de produtos › Fornecedores (patients.suppliers_manage);
+  // a lista dessa aba sai de GET /inventory/suppliers.
   "GET /finance/suppliers": view("finance"),
-  "POST /finance/suppliers": operation("finance.suppliers_manage"),
-  "PUT /finance/suppliers/:id": operation("finance.suppliers_manage"),
+  "POST /finance/suppliers": {
+    anyOf: operation("finance.suppliers_manage", "patients.suppliers_manage"),
+  },
+  "PUT /finance/suppliers/:id": {
+    anyOf: operation("finance.suppliers_manage", "patients.suppliers_manage"),
+  },
   "GET /finance/suppliers/:id/orders": view("finance"),
   "POST /finance/suppliers/:id/orders": operation("finance.suppliers_manage"),
   "POST /finance/receivables": operation("finance.receivables_create"),

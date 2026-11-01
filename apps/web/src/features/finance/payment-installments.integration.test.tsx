@@ -109,7 +109,7 @@ describe("installments by payment method", () => {
     ).toBeInTheDocument();
   });
 
-  it("settles an installment with the card in installments and shows it in receivables", async () => {
+  it("settles a plan installment with the sale method, plan total and paid installments", async () => {
     const { repository } = await setupApi();
     await repository.updatePaymentMethodSettings(clinicId, actorId, {
       methods: restricted,
@@ -129,7 +129,7 @@ describe("installments by payment method", () => {
         { serviceId: service!.id, totalSessions: 3, totalValueInCents: 30000 },
       ],
     });
-    await repository.createPatientPlan(clinicId, actorId, {
+    const plan = await repository.createPatientPlan(clinicId, actorId, {
       planTemplateId: template.id,
       patientId: patient.id,
       name: template.name,
@@ -141,10 +141,82 @@ describe("installments by payment method", () => {
       firstDueDate: "2040-06-10",
       paymentMethod: "card",
     });
+    const [first] = (
+      await repository.getFinancialSummary(clinicId)
+    ).receivables.filter(
+      (item) => item.planId === plan.id && item.installmentNumber === 1,
+    );
+    await repository.settleReceivable(clinicId, actorId, first!.id, "card");
     open("/financeiro");
-    const description = await screen.findByText("Pacote do cartão · 1/3");
+    // Cada parcela aparece no mês do próprio vencimento.
+    const description = await screen.findByText("Pacote do cartão · 2/3");
     const row = description.closest<HTMLElement>(".finance-row")!;
-    expect(within(row).getByText("Parcela 1 de 3")).toBeInTheDocument();
+    expect(within(row).getByText("Parcela 2 de 3")).toBeInTheDocument();
+    fireEvent.click(within(row).getByRole("button", { name: "Dar baixa" }));
+    const dialog = screen.getByRole("dialog", { name: "Dar baixa na parcela" });
+    const summary = within(dialog)
+      .getByText("Valor total do plano")
+      .closest("dl")!;
+    expect(summary).toHaveTextContent("Valor total do planoR$ 300,00");
+    expect(summary).toHaveTextContent("Valor da parcelaR$ 100,00");
+    expect(summary).toHaveTextContent("Parcelas pagas1 de 3");
+    // A forma combinada na venda já vem marcada.
+    expect(
+      within(dialog).getByLabelText<HTMLSelectElement>(
+        "Forma de pagamento recebida",
+      ).value,
+    ).toBe("card");
+    // Parcela de um parcelamento não se parcela de novo na forma.
+    expect(
+      within(dialog).queryByLabelText("Parcelamento (Cartão)"),
+    ).not.toBeInTheDocument();
+    await save("Dar baixa na parcela", "Confirmar baixa");
+    await waitFor(async () =>
+      expect(
+        (await repository.getFinancialSummary(clinicId)).receivables.find(
+          (item) => item.description === "Pacote do cartão · 2/3",
+        ),
+      ).toMatchObject({ status: "paid", paymentMethod: "card" }),
+    );
+    expect(
+      await screen.findByText("Parcela 2 de 3 · Pago: Cartão"),
+    ).toBeInTheDocument();
+  });
+
+  it("splits a single charge on the card when settling it", async () => {
+    const { repository } = await setupApi();
+    await repository.updatePaymentMethodSettings(clinicId, actorId, {
+      methods: restricted,
+    });
+    const patient = await repository.createPatient(clinicId, {
+      cpf: nextTestCpf(),
+      fullName: "Cliente à vista",
+      phone: "11988887776",
+      tags: [],
+    });
+    const [service] = await repository.listServices(clinicId);
+    const template = await repository.createPlanTemplate(clinicId, actorId, {
+      name: "Pacote à vista",
+      kind: "fixed_package",
+      totalValueInCents: 30000,
+      services: [
+        { serviceId: service!.id, totalSessions: 3, totalValueInCents: 30000 },
+      ],
+    });
+    await repository.createPatientPlan(clinicId, actorId, {
+      planTemplateId: template.id,
+      patientId: patient.id,
+      name: template.name,
+      kind: "fixed_package",
+      services: template.services,
+      validFrom: "2040-06-01",
+      totalValueInCents: 30000,
+      installments: 1,
+      firstDueDate: "2040-06-10",
+    });
+    open("/financeiro");
+    const description = await screen.findByText("Pacote à vista · 1/1");
+    const row = description.closest<HTMLElement>(".finance-row")!;
     fireEvent.click(within(row).getByRole("button", { name: "Dar baixa" }));
     const dialog = screen.getByRole("dialog", { name: "Dar baixa na parcela" });
     // Pix só à vista: sem escolha de parcelas.
@@ -168,7 +240,7 @@ describe("installments by payment method", () => {
     await waitFor(async () =>
       expect(
         (await repository.getFinancialSummary(clinicId)).receivables.find(
-          (item) => item.description === "Pacote do cartão · 1/3",
+          (item) => item.description === "Pacote à vista · 1/1",
         ),
       ).toMatchObject({
         status: "paid",
@@ -176,8 +248,5 @@ describe("installments by payment method", () => {
         paymentInstallments: 3,
       }),
     );
-    expect(
-      await screen.findByText("Parcela 1 de 3 · Pago: Cartão · 3x"),
-    ).toBeInTheDocument();
   });
 });

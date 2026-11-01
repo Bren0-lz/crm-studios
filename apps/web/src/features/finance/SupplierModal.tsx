@@ -121,7 +121,9 @@ export function SupplierModal({
   onSaved: (saved: Supplier) => Promise<void>;
 }) {
   const toast = useToast();
-  const { canView } = useAuthorization();
+  const { can, canView } = useAuthorization();
+  // Pedidos usam as rotas do Financeiro: quem cadastra só por Vendas de produtos não os vê.
+  const canOrders = can("finance.suppliers_manage");
   const canSign = useCanRequestSignature();
   const templates = useSignatureTemplates(canSign);
   const id = useId();
@@ -145,7 +147,10 @@ export function SupplierModal({
   const [orderError, setOrderError] = useState("");
   const draft = useSupplierOrderDraft(orderOpen);
   const [ordersVersion, setOrdersVersion] = useState(0);
-  const history = useSupplierOrders(current?.id ?? null, ordersVersion);
+  const history = useSupplierOrders(
+    canOrders ? (current?.id ?? null) : null,
+    ordersVersion,
+  );
   const [signature, setSignature] = useState<SignatureRequest | null>(null);
   // Fornecedor salvo com documento: o modal passa para o envio do link de assinatura.
   const [sending, setSending] = useState<{
@@ -168,9 +173,11 @@ export function SupplierModal({
         )}`
       : "";
   const showDocuments = canSign || (!isNew && canView("contracts"));
-  const tabs: SupplierModalTab[] = showDocuments
-    ? ["dados", "pedidos", "documentos"]
-    : ["dados", "pedidos"];
+  const tabs: SupplierModalTab[] = [
+    "dados",
+    ...(canOrders ? (["pedidos"] as const) : []),
+    ...(showDocuments ? (["documentos"] as const) : []),
+  ];
   const selectedTemplate = signature
     ? templates.templates?.find((item) => item.id === signature.templateId)
     : undefined;
