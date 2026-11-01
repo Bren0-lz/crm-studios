@@ -35,10 +35,11 @@ export interface StoredAutoCampaignDelivery extends Omit<
   handledBy: string;
 }
 
+/** `source: "manual"` = uso de promoção de campanha manual (WhatsApp). */
 export type StoredAutoCampaignRedemption = Omit<
   AutoCampaignRedemption,
   "appointmentStatus"
-> & { clinicId: string };
+> & { clinicId: string; source?: "manual" };
 
 export function createAutoCampaignsRepository(
   repositoryContext: MemoryRepositoryContext,
@@ -215,7 +216,9 @@ export function createAutoCampaignsRepository(
       return repositoryContext.autoCampaignRedemptions
         .filter(
           (item) =>
-            item.clinicId === clinicId && find(clinicId, item.campaignId),
+            item.clinicId === clinicId &&
+            item.source !== "manual" &&
+            find(clinicId, item.campaignId),
         )
         .flatMap((redemption): AutoCampaignRedemption[] => {
           const appointment = repositoryContext.appointments.find(

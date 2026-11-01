@@ -561,14 +561,13 @@ describe("configuração das campanhas automáticas", () => {
       { target: { value: "10" } },
     );
     fireEvent.click(
-      within(dialog).getByLabelText(
-        "Dar desconto no atendimento desta campanha",
-      ),
+      within(dialog).getByLabelText("Dar desconto nesta campanha"),
     );
     fireEvent.change(
       within(dialog).getByLabelText("Porcentagem de desconto (%)"),
       { target: { value: "12,5" } },
     );
+    fireEvent.click(within(dialog).getByLabelText("Só nos planos marcados"));
     const plan = await within(dialog).findByLabelText("Pilates (avulso)");
     expect(within(dialog).queryByLabelText("Plano antigo")).toBeNull();
     fireEvent.click(plan);
@@ -584,5 +583,107 @@ describe("configuração das campanhas automáticas", () => {
         },
       }),
     );
+  });
+  it("marks the discount as valid only on chosen products, or on all of them", async () => {
+    login();
+    const created: unknown[] = [];
+    const productId = "f1111111-1111-4111-8111-111111111111";
+    vi.mocked(fetch).mockImplementation(async (input, init) => {
+      const url = String(input);
+      if (url.endsWith("/communications/auto-campaigns") && init?.method) {
+        const body = JSON.parse(String(init.body)) as { name: string };
+        created.push(body);
+        return json(
+          {
+            id: campaignId,
+            ...body,
+            steps: [],
+            createdAt: "2026-10-25T12:00:00Z",
+            updatedAt: "2026-10-25T12:00:00Z",
+            createdByName: "Aryana Dutra",
+          },
+          201,
+        );
+      }
+      if (url.includes("/communications/auto-campaigns/products"))
+        return json([
+          { id: productId, name: "Camiseta do estúdio", active: true },
+          {
+            id: "f2222222-2222-4222-8222-222222222222",
+            name: "Produto parado",
+            active: false,
+          },
+        ]);
+      if (url.includes("/communications/auto-campaigns/queue"))
+        return json({ date: "2026-10-25", items: [], campaigns: [] });
+      if (url.includes("/notifications")) return json({ date: "2026-10-25" });
+      return json([]);
+    });
+    render(
+      <MemoryRouter initialEntries={["/comunicacoes?aba=automaticas"]}>
+        <App />
+      </MemoryRouter>,
+    );
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Nova campanha automática" }),
+    );
+    const dialog = await screen.findByRole("dialog", {
+      name: "Nova campanha automática",
+    });
+    fireEvent.change(within(dialog).getByLabelText("Nome da campanha"), {
+      target: { value: "Camiseta no aniversário" },
+    });
+    fireEvent.change(within(dialog).getByLabelText("Momento da mensagem 1"), {
+      target: { value: "7" },
+    });
+    installDocumentBrowserMocks();
+    setDocumentText(
+      within(dialog).getByRole("textbox", { name: "Mensagem 1" }),
+      "Desconto na camiseta!",
+    );
+    fireEvent.click(within(dialog).getByLabelText(/Campanha promocional/));
+    fireEvent.change(
+      within(dialog).getByLabelText(
+        "Validade da promoção (dias após o aniversário)",
+      ),
+      { target: { value: "10" } },
+    );
+    fireEvent.click(
+      within(dialog).getByLabelText("Dar desconto nesta campanha"),
+    );
+    fireEvent.change(
+      within(dialog).getByLabelText("Porcentagem de desconto (%)"),
+      { target: { value: "10" } },
+    );
+    // Só em produtos: desliga planos e liga produtos, escolhendo os marcados.
+    fireEvent.click(within(dialog).getByLabelText("Planos"));
+    fireEvent.click(within(dialog).getByLabelText("Produtos"));
+    fireEvent.click(within(dialog).getByLabelText("Só nos produtos marcados"));
+    const save = within(dialog).getByRole("button", {
+      name: "Salvar campanha",
+    });
+    fireEvent.click(save);
+    expect(
+      await within(dialog).findByText(
+        "Marque pelo menos um produto em que o desconto vale.",
+      ),
+    ).toBeTruthy();
+    expect(created).toHaveLength(0);
+    const product = await within(dialog).findByLabelText("Camiseta do estúdio");
+    expect(within(dialog).queryByLabelText("Produto parado")).toBeNull();
+    fireEvent.click(product);
+    fireEvent.click(save);
+    await waitFor(() =>
+      expect(created[0]).toMatchObject({
+        promotion: {
+          validDays: 10,
+          discount: { type: "percentage", percent: 10 },
+          appliesToPlans: false,
+          appliesToProducts: true,
+          productIds: [productId],
+        },
+      }),
+    );
+    expect(created[0]).not.toHaveProperty("promotion.planTemplateIds");
   });
 });

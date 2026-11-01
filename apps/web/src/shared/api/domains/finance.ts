@@ -198,6 +198,8 @@ export const financeApi = {
       body: JSON.stringify(input),
     }),
   suppliers: () => request<Supplier[]>("/finance/suppliers"),
+  /** Lista da aba Fornecedores de Vendas de produtos (permissão própria). */
+  salesSuppliers: () => request<Supplier[]>("/inventory/suppliers"),
   saveSupplier: (input: SupplierInput, id?: string) =>
     request<Supplier>(id ? `/finance/suppliers/${id}` : "/finance/suppliers", {
       method: id ? "PUT" : "POST",
