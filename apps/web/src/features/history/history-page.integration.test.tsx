@@ -52,6 +52,50 @@ describe("history page", () => {
       </MemoryRouter>,
     );
   }
+  it("shows the changed client fields and the edit reason", async () => {
+    session();
+    vi.spyOn(api, "auditHistory").mockResolvedValue({
+      items: [
+        {
+          ...event,
+          id: "event-edit",
+          action: "operation.patients.update",
+          module: "patients",
+          entityType: "patients",
+          metadata: {
+            subjectName: "Helena Almeida",
+            reason: "Cliente trocou de número",
+            changes: [
+              {
+                field: "phone",
+                label: "Telefone",
+                before: "11987654321",
+                after: "11911112222",
+              },
+            ],
+          },
+        },
+      ],
+      nextCursor: null,
+    });
+    open();
+    const entry = (await screen.findByText("Telefone")).closest("article")!;
+    expect(
+      within(entry).getByText("11987654321 → 11911112222"),
+    ).toBeInTheDocument();
+    expect(
+      within(entry).getByText("Cliente trocou de número"),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      within(entry).getByRole("button", { name: "Ver detalhes" }),
+    );
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByText("Motivo da alteração")).toBeInTheDocument();
+    expect(
+      within(dialog).getByText("11987654321 → 11911112222"),
+    ).toBeInTheDocument();
+  });
+
   it("shows loading and the independent history menu, then the empty state", async () => {
     session();
     let resolve!: (value: import("@crm/contracts").AdminAuditPage) => void;
