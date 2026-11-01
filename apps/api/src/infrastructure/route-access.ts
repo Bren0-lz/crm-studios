@@ -361,6 +361,9 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
   "POST /document-templates/:id/versions": operation(
     "contracts.templates_version",
   ),
+  "POST /document-templates/:id/restore": operation(
+    "contracts.templates_version",
+  ),
   "DELETE /document-templates/:id": operation("contracts.templates_delete"),
   "POST /documents/:id/signature": operation("contracts.status"),
   "GET /documents/:id/signature/content": view("contracts"),
