@@ -110,6 +110,51 @@ describe("rotas da folha de pagamento", () => {
       });
       expect(edit.statusCode).toBe(409);
       expect(edit.json().code).toBe("PAYROLL_EMPLOYEE_MANAGED_BY_USER");
+      // Desconto/recompensa do mês: o salário fixo não muda.
+      const invalid = await app.inject({
+        method: "POST",
+        url: "/finance/payroll/entries",
+        headers: admin,
+        payload: {
+          employeeId,
+          competence: "2025-02",
+          kind: "discount",
+          mode: "percent",
+          value: 10001,
+          reason: "Acima de 100%",
+        },
+      });
+      expect(invalid.statusCode).toBe(400);
+      const created = await app.inject({
+        method: "POST",
+        url: "/finance/payroll/entries",
+        headers: admin,
+        payload: {
+          employeeId,
+          competence: "2025-02",
+          kind: "discount",
+          mode: "percent",
+          value: 1000,
+          reason: "Faltas",
+        },
+      });
+      expect(created.statusCode).toBe(201);
+      expect(created.json()).toMatchObject({ amountInCents: 10000 });
+      const removed = await app.inject({
+        method: "DELETE",
+        url: `/finance/payroll/entries/${created.json().id}`,
+        headers: admin,
+      });
+      expect(removed.statusCode).toBe(204);
+      expect(
+        (
+          await app.inject({
+            method: "DELETE",
+            url: `/finance/payroll/entries/${created.json().id}`,
+            headers: admin,
+          })
+        ).statusCode,
+      ).toBe(404);
       const summary = await app.inject({
         method: "GET",
         url: "/finance/payroll?competence=2025-02",
@@ -165,6 +210,23 @@ describe("rotas da folha de pagamento", () => {
             method: "GET",
             url: "/finance/payroll",
             headers: finance,
+          })
+        ).statusCode,
+      ).toBe(403);
+      expect(
+        (
+          await app.inject({
+            method: "POST",
+            url: "/finance/payroll/entries",
+            headers: finance,
+            payload: {
+              employeeId,
+              competence: "2025-02",
+              kind: "bonus",
+              mode: "amount",
+              value: 100,
+              reason: "Sem permissão",
+            },
           })
         ).statusCode,
       ).toBe(403);
