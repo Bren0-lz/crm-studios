@@ -40,7 +40,7 @@ function mount(onCreated = vi.fn()) {
 }
 
 describe("PayableModal without categories", () => {
-  it("explains what is missing and creates the category inline", async () => {
+  it("explains what is missing and creates the category in a stacked modal", async () => {
     const bodies: { url: string; body: unknown }[] = [];
     vi.mocked(fetch).mockImplementation(async (input, options) => {
       const url = String(input);
@@ -181,6 +181,9 @@ describe("PayableModal with existing classifications", () => {
       screen.getByRole("option", { name: "+ Nova categoria" }),
     ).toBeInTheDocument();
 
+    fireEvent.change(screen.getByLabelText("Descrição"), {
+      target: { value: "Cera" },
+    });
     fireEvent.change(
       screen.getByRole("combobox", { name: /Centro de custo/ }),
       {
@@ -190,6 +193,8 @@ describe("PayableModal with existing classifications", () => {
     const centerDialog = await screen.findByRole("dialog", {
       name: "Novo centro de custo",
     });
+    // A despesa continua aberta por trás, com o que já foi digitado.
+    expect(screen.getByLabelText("Descrição")).toHaveValue("Cera");
     fireEvent.change(within(centerDialog).getByLabelText("Nome"), {
       target: { value: "Depilação" },
     });
@@ -202,6 +207,9 @@ describe("PayableModal with existing classifications", () => {
     expect(
       screen.getByRole("combobox", { name: /Centro de custo/ }),
     ).toHaveValue("d2d2d2d2-d2d2-4d2d-8d2d-d2d2d2d2d2d2");
+    expect(
+      screen.queryByRole("dialog", { name: "Novo centro de custo" }),
+    ).toBeNull();
 
     // Voltar no cadastro mantém a categoria escolhida.
     fireEvent.change(screen.getByLabelText("Categoria"), {
@@ -221,7 +229,7 @@ describe("PayableModal with existing classifications", () => {
 });
 
 describe("PayableModal supplier and date", () => {
-  it("links a registered supplier typed in the single field and posts on the chosen date", async () => {
+  it("links the registered supplier chosen in the single field and posts on the chosen date", async () => {
     const bodies: unknown[] = [];
     vi.mocked(fetch).mockImplementation(async (input, options) => {
       if (options?.method === "POST") {
@@ -252,7 +260,7 @@ describe("PayableModal supplier and date", () => {
       payables: [],
     } as unknown as FinancialWorkspace;
     const onCreated = vi.fn();
-    const { container } = render(
+    render(
       <AuthorizationContext.Provider value={authorization}>
         <PayableModal
           workspace={workspace}
@@ -261,19 +269,18 @@ describe("PayableModal supplier and date", () => {
         />
       </AuthorizationContext.Provider>,
     );
-    // Só os fornecedores ativos aparecem como sugestão.
-    await vi.waitFor(() =>
-      expect(
-        container.ownerDocument.querySelectorAll("datalist option"),
-      ).toHaveLength(1),
-    );
+    // Fornecedor num campo só, entre os cadastrados ativos (#242).
+    expect(
+      await screen.findByRole("option", { name: "Casa do Pilates" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: "Antigo" })).toBeNull();
     expect(screen.queryByLabelText("Fornecedor cadastrado")).toBeNull();
     expect(screen.queryByLabelText(/^Competência/)).toBeNull();
     fireEvent.change(screen.getByLabelText("Descrição"), {
       target: { value: "Molas do reformer" },
     });
     fireEvent.change(screen.getByLabelText("Fornecedor"), {
-      target: { value: "  casa do pilates " },
+      target: { value: "f4f4f4f4-f4f4-4f4f-8f4f-f4f4f4f4f4f4" },
     });
     fireEvent.change(screen.getByLabelText("Valor"), {
       target: { value: "120,00" },
@@ -289,7 +296,7 @@ describe("PayableModal supplier and date", () => {
     await vi.waitFor(() => expect(onCreated).toHaveBeenCalled());
     expect(bodies[0]).toMatchObject({
       description: "Molas do reformer",
-      supplier: "casa do pilates",
+      supplier: "Casa do Pilates",
       supplierId: "f4f4f4f4-f4f4-4f4f-8f4f-f4f4f4f4f4f4",
       postedOn: "2026-09-15",
       dueDate: "2026-09-15",

@@ -1,5 +1,5 @@
 import type { CostCenter, FinancialCategory } from "@crm/contracts";
-import { useId } from "react";
+import { useId, type ReactNode } from "react";
 import { useAuthorization } from "../../authorization-context";
 import { HelpTip } from "../../shared/components/HelpTip";
 import { CREATE_OPTION_VALUE } from "./expense-kind";
@@ -15,7 +15,8 @@ export type ExpenseAccountValue = {
 /**
  * Bloco "Conta" da despesa (pontual e fixa): descrição, fornecedor, categoria e centro de
  * custo, na mesma ordem nos dois tipos. O fornecedor é um campo só, com os cadastrados
- * como sugestão.
+ * como sugestão; `supplierField` troca esse campo (a pontual escolhe entre os cadastrados e
+ * cadastra um novo no mesmo fluxo).
  */
 export function ExpenseAccountFields({
   value,
@@ -24,6 +25,7 @@ export function ExpenseAccountFields({
   costCenters,
   onCreate,
   supplierNames = [],
+  supplierField,
 }: {
   value: ExpenseAccountValue;
   onChange: (patch: Partial<ExpenseAccountValue>) => void;
@@ -31,6 +33,7 @@ export function ExpenseAccountFields({
   costCenters: CostCenter[];
   onCreate: (kind: "category" | "costCenter") => void;
   supplierNames?: string[];
+  supplierField?: ReactNode;
 }) {
   const { can } = useAuthorization();
   const suggestionsId = useId();
@@ -49,21 +52,23 @@ export function ExpenseAccountFields({
             onChange={(event) => onChange({ description: event.target.value })}
           />
         </label>
-        <label>
-          Fornecedor
-          <input
-            list={supplierNames.length > 0 ? suggestionsId : undefined}
-            value={value.supplier}
-            onChange={(event) => onChange({ supplier: event.target.value })}
-          />
-          {supplierNames.length > 0 && (
-            <datalist id={suggestionsId}>
-              {supplierNames.map((name) => (
-                <option key={name} value={name} />
-              ))}
-            </datalist>
-          )}
-        </label>
+        {supplierField ?? (
+          <label>
+            Fornecedor
+            <input
+              list={supplierNames.length > 0 ? suggestionsId : undefined}
+              value={value.supplier}
+              onChange={(event) => onChange({ supplier: event.target.value })}
+            />
+            {supplierNames.length > 0 && (
+              <datalist id={suggestionsId}>
+                {supplierNames.map((name) => (
+                  <option key={name} value={name} />
+                ))}
+              </datalist>
+            )}
+          </label>
+        )}
         <div className="field-with-hint">
           <label>
             Categoria
