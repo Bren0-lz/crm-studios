@@ -58,7 +58,6 @@ export async function seedDemoScenarios(client: PoolClient, branchId: string) {
       name: item.name,
       duration_minutes: item.durationMinutes,
       price_in_cents: item.priceInCents,
-      color: item.color,
       professional_ids: item.professionalIds ?? [],
       room_ids: item.roomIds ?? [],
       active: item.active,
