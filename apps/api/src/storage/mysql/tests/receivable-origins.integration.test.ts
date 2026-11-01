@@ -8,6 +8,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { MemoryClinicRepository } from "../../../memory-repository.js";
 import { MysqlClinicRepository } from "../../../mysql-repository.js";
 import type { ClinicRepository } from "../../../repository.js";
+import { addLegacyTabService } from "../../../test-support/legacy-tab-service.js";
 
 const clinicId = "11111111-1111-4111-8111-111111111111";
 const actorId = "22222222-2222-4222-8222-222222222222";
@@ -50,9 +51,10 @@ for (const storage of ["memory", "mysql"] as const) {
         const tab = await repository.openPatientTab(clinicId, actorId, {
           patientId: patient.id,
         });
-        await repository.createPatientTabAppointment(
+        await addLegacyTabService(
+          repository,
+          database?.pool,
           clinicId,
-          actorId,
           tab.id,
           {
             professionalId,
@@ -62,6 +64,7 @@ for (const storage of ["memory", "mysql"] as const) {
             visitType: "regular",
             notes: "",
           },
+          18000,
         );
         await repository.closePatientTab(clinicId, actorId, tab.id, {
           settlement: "receivable",
