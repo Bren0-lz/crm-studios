@@ -102,6 +102,16 @@ function messageVariableNode(
   });
 }
 
+/** Caractere antes do código pede espaço? Não no início, após espaço ou abertura (`(`, `*`…). */
+function needsSpaceBefore(previous: string) {
+  return previous !== "" && !/[\s([{"'“‘*_~]/u.test(previous);
+}
+
+/** Caractere depois do código pede espaço? Só letra, número ou outro código (não pontuação). */
+function needsSpaceAfter(next: string) {
+  return /[\p{L}\p{N}￼]/u.test(next);
+}
+
 /** Texto da mensagem: um parágrafo por linha, com os códigos no lugar das etiquetas. */
 function messageText(doc: ProseMirrorNode) {
   const lines: string[] = [];
@@ -245,12 +255,32 @@ export function MessageBodyEditor({
     editor?.setEditable(!disabled, false);
   }, [editor, disabled]);
 
+  /**
+   * Insere o código separado das palavras vizinhas: "promoção" + nome vira
+   * "promoção {{nome}}", e não "promoção{{nome}}" (que sairia "promoçãoMaria").
+   */
   function insertCode(code: string) {
-    editor
-      ?.chain()
-      .focus()
-      .insertContent({ type: "messageVariable", attrs: { code } })
-      .run();
+    if (!editor) return;
+    const { $from, $to } = editor.state.selection;
+    const before = $from.parent.textBetween(
+      0,
+      $from.parentOffset,
+      "\n",
+      "￼",
+    );
+    const after = $to.parent.textBetween(
+      $to.parentOffset,
+      $to.parent.content.size,
+      "\n",
+      "￼",
+    );
+    const content: JSONContent[] = [];
+    if (needsSpaceBefore(before.slice(-1)))
+      content.push({ type: "text", text: " " });
+    content.push({ type: "messageVariable", attrs: { code } });
+    if (needsSpaceAfter(after.charAt(0)))
+      content.push({ type: "text", text: " " });
+    editor.chain().focus().insertContent(content).run();
   }
 
   function format(marker: string) {
