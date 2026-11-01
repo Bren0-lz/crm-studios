@@ -730,20 +730,30 @@ describe("página Vendas de produtos", () => {
     const confirm = await screen.findByRole("dialog", {
       name: "Cancelar venda",
     });
-    fireEvent.submit(
-      within(confirm)
-        .getByRole("button", { name: "Cancelar venda" })
-        .closest("form")!,
-    );
+    const submit = within(confirm).getByRole("button", {
+      name: "Cancelar venda",
+    });
+    expect(submit).toBeDisabled();
+    expect(
+      within(confirm).getByText(/Falta: Motivo do cancelamento/),
+    ).toBeInTheDocument();
+    fireEvent.change(within(confirm).getByLabelText("Motivo do cancelamento"), {
+      target: { value: "  Cliente desistiu da compra " },
+    });
+    expect(submit).toBeEnabled();
+    fireEvent.submit(submit.closest("form")!);
     await within(details).findByText("Venda cancelada; estoque restituído.");
     expect(
       within(details).queryByRole("button", { name: "Cancelar venda" }),
     ).not.toBeInTheDocument();
+    const workspace = await repository.getInventoryWorkspace(clinicId);
     expect(
-      (await repository.getInventoryWorkspace(clinicId)).products.find(
-        (item) => item.id === cream.id,
-      )?.currentStock,
+      workspace.products.find((item) => item.id === cream.id)?.currentStock,
     ).toBe(5);
+    expect(workspace.tabs[0]).toMatchObject({
+      status: "cancelled",
+      cancellationReason: "Cliente desistiu da compra",
+    });
   });
 
   it("mostra o pagamento e estorna ao cancelar uma venda paga", async () => {
@@ -783,6 +793,10 @@ describe("página Vendas de produtos", () => {
       name: "Estornar e cancelar",
     });
     expect(submit).toBeDisabled();
+    fireEvent.change(within(confirm).getByLabelText("Motivo do cancelamento"), {
+      target: { value: "Produto com defeito" },
+    });
+    expect(submit).toBeDisabled();
     fireEvent.click(
       within(confirm).getByRole("checkbox", {
         name: /Estornar o pagamento de/,
@@ -794,7 +808,10 @@ describe("página Vendas de produtos", () => {
       "Venda cancelada; pagamento estornado e estoque restituído.",
     );
     const [tab] = (await repository.getInventoryWorkspace(clinicId)).tabs;
-    expect(tab).toMatchObject({ status: "cancelled" });
+    expect(tab).toMatchObject({
+      status: "cancelled",
+      cancellationReason: "Produto com defeito",
+    });
     expect(
       (await repository.getFinancialSummary(clinicId)).receivables.find(
         (item) => item.id === tab!.receivableId,

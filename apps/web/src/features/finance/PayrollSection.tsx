@@ -1,7 +1,6 @@
 import {
   saoPauloToday,
   type Branch,
-  type FinancialWorkspace,
   type PayrollEmployee,
   type PayrollItem,
   type PayrollItemStatus,
@@ -122,11 +121,7 @@ function Totals({ totals, label }: { totals: PayrollTotals; label: string }) {
  * Folha de pagamento: por competência e por filial (uma ou várias, com "Selecionar todas"),
  * cada colaborador com salário, comissões e ajustes. É o único lugar que paga comissão.
  */
-export function PayrollSection({
-  workspace,
-}: {
-  workspace: FinancialWorkspace;
-}) {
+export function PayrollSection() {
   const { can } = useAuthorization();
   const toast = useToast();
   const canManage = can("finance.payroll_manage");
@@ -594,8 +589,6 @@ export function PayrollSection({
         <PayrollLaunchModal
           summary={summary}
           branchIds={allSelected ? [] : selected}
-          categories={workspace.categories}
-          costCenters={workspace.costCenters}
           onClose={() => setLaunching(false)}
           onLaunch={async (input) => {
             const result = await api.launchPayroll(input, allBranches);

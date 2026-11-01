@@ -19,6 +19,7 @@ import {
 import { HelpTip } from "../../shared/components/HelpTip";
 import { financeTermHelp } from "./model";
 import { ExpenseKindPicker } from "./ExpenseKindPicker";
+import { SupplierModal } from "./SupplierModal";
 import {
   carriedId,
   EXPENSE_KIND_FOCUS,
@@ -47,7 +48,8 @@ export function PayableModal({
   const [costCenters, setCostCenters] = useState(workspace.costCenters);
   const [form, setForm] = useState<PayableInput>({
     description: draft?.description ?? "",
-    supplier: draft?.supplier ?? "",
+    // Só fornecedor cadastrado: o nome vindo da despesa fixa é casado ao carregar a lista.
+    supplier: "",
     categoryId:
       carriedId(draft?.categoryId, expenseCategories) ??
       expenseCategories[0]?.id ??
@@ -65,12 +67,42 @@ export function PayableModal({
     null,
   );
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [suppliersLoaded, setSuppliersLoaded] = useState(false);
+  const [creatingSupplier, setCreatingSupplier] = useState(false);
+  const canCreateSupplier = can("finance.suppliers_manage");
+  function selectSupplier(item: Supplier | undefined) {
+    setForm((current) => ({
+      ...current,
+      supplierId: item?.id,
+      supplier: item?.name ?? "",
+    }));
+  }
   useEffect(() => {
     let alive = true;
     api
       .suppliers()
       .then((items) => {
-        if (alive) setSuppliers(items);
+        if (!alive) return;
+        setSuppliers(items);
+        setSuppliersLoaded(true);
+        // A despesa fixa só guarda o nome: reaproveita o cadastro com o mesmo nome.
+        const carried = draft?.supplier?.trim().toLocaleLowerCase("pt-BR");
+        const match = carried
+          ? items.find(
+              (item) =>
+                item.active &&
+                item.name.trim().toLocaleLowerCase("pt-BR") === carried,
+            )
+          : undefined;
+        setForm((current) =>
+          current.supplierId
+            ? current
+            : {
+                ...current,
+                supplierId: match?.id,
+                supplier: match?.name ?? "",
+              },
+        );
       })
       .catch((cause: Error) => {
         if (alive) setError(cause.message);
@@ -78,6 +110,8 @@ export function PayableModal({
     return () => {
       alive = false;
     };
+    // O rascunho só vale na abertura do modal.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const [loading, setLoading] = useState(false);
   const dirty = useFormDirty(form) || hasCarriedDraft(draft);
@@ -108,241 +142,269 @@ export function PayableModal({
     }
   }
   return (
-    <Modal
-      title={kindSwitch ? "Nova despesa" : "Nova conta a pagar"}
-      subtitle="Classifique a despesa para compor o fluxo de caixa."
-      {...(kindSwitch ? { initialFocus: EXPENSE_KIND_FOCUS } : {})}
-      busy={loading}
-      dirty={dirty}
-      onClose={onClose}
-    >
-      {can("finance.payables_create") && (
-        <form className="form-grid" onSubmit={submit}>
-          <ExpenseKindPicker
-            value="single"
-            kindSwitch={kindSwitch}
-            draft={{
-              description: form.description,
-              supplier: form.supplier ?? "",
-              categoryId: form.categoryId,
-              costCenterId: form.costCenterId ?? "",
-              amountInCents: form.amountInCents,
-            }}
-          />
-          <label className="span-2">
-            Descrição
-            <input
-              required
-              value={form.description}
-              onChange={(event) =>
-                setForm({ ...form, description: event.target.value })
-              }
-            />
-          </label>
-          <label>
-            Fornecedor cadastrado
-            <select
-              value={form.supplierId ?? ""}
-              onChange={(event) => {
-                const item = suppliers.find(
-                  (item) => item.id === event.target.value,
-                );
-                setForm({
-                  ...form,
-                  supplierId: item?.id,
-                  supplier: item?.name ?? form.supplier,
-                });
+    <>
+      <Modal
+        title={kindSwitch ? "Nova despesa" : "Nova conta a pagar"}
+        subtitle="Classifique a despesa para compor o fluxo de caixa."
+        {...(kindSwitch ? { initialFocus: EXPENSE_KIND_FOCUS } : {})}
+        busy={loading}
+        dirty={dirty}
+        inactive={creatingSupplier}
+        onClose={onClose}
+      >
+        {can("finance.payables_create") && (
+          <form className="form-grid" onSubmit={submit}>
+            <ExpenseKindPicker
+              value="single"
+              kindSwitch={kindSwitch}
+              draft={{
+                description: form.description,
+                supplier: form.supplier || (draft?.supplier ?? ""),
+                categoryId: form.categoryId,
+                costCenterId: form.costCenterId ?? "",
+                amountInCents: form.amountInCents,
               }}
-            >
-              <option value="">Informar manualmente</option>
-              {suppliers
-                .filter((item) => item.active || item.id === form.supplierId)
-                .map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.name}
-                  </option>
-                ))}
-            </select>
-          </label>
-          <label>
-            Fornecedor
-            <input
-              value={form.supplier}
-              onChange={(event) =>
-                setForm({ ...form, supplier: event.target.value })
-              }
             />
-          </label>
-          <label>
-            <span className="label-with-help">
-              Lançamento
-              <HelpTip term="Lançamento" text={financeTermHelp.posted} />
-            </span>
-            <input
-              type="date"
-              value={form.postedOn ?? localIsoDate()}
-              onChange={(event) =>
-                setForm({ ...form, postedOn: event.target.value })
-              }
-            />
-          </label>
-          <label>
-            <span className="label-with-help">
-              Competência
-              <HelpTip term="Competência" text={financeTermHelp.competence} />
-            </span>
-            <input
-              type="month"
-              value={form.dreCompetence ?? localIsoDate().slice(0, 7)}
-              onChange={(event) =>
-                setForm({ ...form, dreCompetence: event.target.value })
-              }
-            />
-          </label>
-          <label>
-            Vencimento
-            <input
-              required
-              type="date"
-              value={form.dueDate}
-              onChange={(event) =>
-                setForm({ ...form, dueDate: event.target.value })
-              }
-            />
-          </label>
-          <div className="field-with-hint">
-            <label>
-              Categoria
-              <select
+            <label className="span-2">
+              Descrição
+              <input
                 required
-                value={form.categoryId}
-                className="select-opens-down"
-                onChange={(event) => {
-                  if (event.target.value === CREATE_OPTION_VALUE)
-                    setCreating("category");
-                  else setForm({ ...form, categoryId: event.target.value });
-                }}
-              >
-                {expenseCategories.length === 0 && (
-                  <option value="">Nenhuma categoria cadastrada</option>
-                )}
-                {expenseCategories.map((item) => (
-                  <option value={item.id} key={item.id}>
-                    {item.name}
-                  </option>
-                ))}
-                {can("finance.categories_create") && (
-                  <option value={CREATE_OPTION_VALUE}>+ Nova categoria</option>
-                )}
-              </select>
+                value={form.description}
+                onChange={(event) =>
+                  setForm({ ...form, description: event.target.value })
+                }
+              />
             </label>
-            <InlineClassificationCreate
-              open={creating === "category"}
-              onOpenChange={(open) => setCreating(open ? "category" : null)}
-              emptyLabel={
-                expenseCategories.length === 0
-                  ? "Nenhuma categoria de despesa"
-                  : undefined
-              }
-              createLabel="Criar categoria"
-              canCreate={can("finance.categories_create")}
-              onCreate={async (name) => {
-                const created = await api.createFinancialCategory({
-                  name,
-                  kind: "expense",
-                });
-                setExpenseCategories((items) => [...items, created]);
-                toast.success(`Categoria “${created.name}” criada.`);
-                setForm((current) => ({
-                  ...current,
-                  categoryId: created.id,
-                }));
-              }}
-            />
-          </div>
-          <div className="field-with-hint">
+            <div className="field-with-hint">
+              <label>
+                Fornecedor
+                <select
+                  value={form.supplierId ?? ""}
+                  className="select-opens-down"
+                  onChange={(event) => {
+                    if (event.target.value === CREATE_OPTION_VALUE) {
+                      setCreatingSupplier(true);
+                      return;
+                    }
+                    selectSupplier(
+                      suppliers.find((item) => item.id === event.target.value),
+                    );
+                  }}
+                >
+                  <option value="">Sem fornecedor</option>
+                  {suppliers
+                    .filter(
+                      (item) => item.active || item.id === form.supplierId,
+                    )
+                    .map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.name}
+                      </option>
+                    ))}
+                  {canCreateSupplier && (
+                    <option value={CREATE_OPTION_VALUE}>
+                      + Novo fornecedor
+                    </option>
+                  )}
+                </select>
+              </label>
+              {suppliersLoaded && suppliers.length === 0 && (
+                <span className="field-hint">
+                  {canCreateSupplier
+                    ? "Nenhum fornecedor cadastrado."
+                    : "Nenhum fornecedor cadastrado. Peça a quem administra o financeiro para cadastrar."}
+                </span>
+              )}
+            </div>
             <label>
               <span className="label-with-help">
-                Centro de custo (opcional)
-                <HelpTip
-                  term="Centro de custo"
-                  text={financeTermHelp.costCenter}
-                />
+                Lançamento
+                <HelpTip term="Lançamento" text={financeTermHelp.posted} />
               </span>
-              <select
-                value={form.costCenterId ?? ""}
-                className="select-opens-down"
-                onChange={(event) => {
-                  if (event.target.value === CREATE_OPTION_VALUE)
-                    setCreating("costCenter");
-                  else setForm({ ...form, costCenterId: event.target.value });
-                }}
-              >
-                <option value="">Sem centro de custo</option>
-                {costCenters.map((item) => (
-                  <option value={item.id} key={item.id}>
-                    {item.name}
-                  </option>
-                ))}
-                {can("finance.cost_centers_create") && (
-                  <option value={CREATE_OPTION_VALUE}>
-                    + Novo centro de custo
-                  </option>
-                )}
-              </select>
+              <input
+                type="date"
+                value={form.postedOn ?? localIsoDate()}
+                onChange={(event) =>
+                  setForm({ ...form, postedOn: event.target.value })
+                }
+              />
             </label>
-            <InlineClassificationCreate
-              open={creating === "costCenter"}
-              onOpenChange={(open) => setCreating(open ? "costCenter" : null)}
-              emptyLabel={
-                costCenters.length === 0 ? "Nenhum centro de custo" : undefined
-              }
-              createLabel="Criar centro de custo"
-              canCreate={can("finance.cost_centers_create")}
-              onCreate={async (name) => {
-                const created = await api.createCostCenter({ name });
-                setCostCenters((items) => [...items, created]);
-                toast.success(`Centro de custo “${created.name}” criado.`);
-                setForm((current) => ({
-                  ...current,
-                  costCenterId: created.id,
-                }));
-              }}
-            />
-          </div>
-          <label>
-            Valor
-            <MoneyInput
-              required
-              valueInCents={form.amountInCents}
-              onChange={(cents) =>
-                setForm({ ...form, amountInCents: cents ?? 0 })
-              }
-            />
-          </label>
-          <label>
-            Observações
-            <input
-              value={form.notes}
-              onChange={(event) =>
-                setForm({ ...form, notes: event.target.value })
-              }
-            />
-          </label>
-          {error && <div className="form-error span-2">{error}</div>}
-          {missing.hint}
-          <div className="modal-actions span-2">
-            <ModalCancelButton disabled={loading}>Voltar</ModalCancelButton>
-            <button
-              className="primary-button"
-              disabled={loading || missing.blocked}
-              aria-describedby={missing.describedBy}
-            >
-              {loading ? "Salvando…" : "Cadastrar despesa"}
-            </button>
-          </div>
-        </form>
+            <label>
+              <span className="label-with-help">
+                Competência
+                <HelpTip term="Competência" text={financeTermHelp.competence} />
+              </span>
+              <input
+                type="month"
+                value={form.dreCompetence ?? localIsoDate().slice(0, 7)}
+                onChange={(event) =>
+                  setForm({ ...form, dreCompetence: event.target.value })
+                }
+              />
+            </label>
+            <label>
+              Vencimento
+              <input
+                required
+                type="date"
+                value={form.dueDate}
+                onChange={(event) =>
+                  setForm({ ...form, dueDate: event.target.value })
+                }
+              />
+            </label>
+            <div className="field-with-hint">
+              <label>
+                Categoria
+                <select
+                  required
+                  value={form.categoryId}
+                  className="select-opens-down"
+                  onChange={(event) => {
+                    if (event.target.value === CREATE_OPTION_VALUE)
+                      setCreating("category");
+                    else setForm({ ...form, categoryId: event.target.value });
+                  }}
+                >
+                  {expenseCategories.length === 0 && (
+                    <option value="">Nenhuma categoria cadastrada</option>
+                  )}
+                  {expenseCategories.map((item) => (
+                    <option value={item.id} key={item.id}>
+                      {item.name}
+                    </option>
+                  ))}
+                  {can("finance.categories_create") && (
+                    <option value={CREATE_OPTION_VALUE}>
+                      + Nova categoria
+                    </option>
+                  )}
+                </select>
+              </label>
+              <InlineClassificationCreate
+                open={creating === "category"}
+                onOpenChange={(open) => setCreating(open ? "category" : null)}
+                emptyLabel={
+                  expenseCategories.length === 0
+                    ? "Nenhuma categoria de despesa"
+                    : undefined
+                }
+                createLabel="Criar categoria"
+                canCreate={can("finance.categories_create")}
+                onCreate={async (name) => {
+                  const created = await api.createFinancialCategory({
+                    name,
+                    kind: "expense",
+                  });
+                  setExpenseCategories((items) => [...items, created]);
+                  toast.success(`Categoria “${created.name}” criada.`);
+                  setForm((current) => ({
+                    ...current,
+                    categoryId: created.id,
+                  }));
+                }}
+              />
+            </div>
+            <div className="field-with-hint">
+              <label>
+                <span className="label-with-help">
+                  Centro de custo (opcional)
+                  <HelpTip
+                    term="Centro de custo"
+                    text={financeTermHelp.costCenter}
+                  />
+                </span>
+                <select
+                  value={form.costCenterId ?? ""}
+                  className="select-opens-down"
+                  onChange={(event) => {
+                    if (event.target.value === CREATE_OPTION_VALUE)
+                      setCreating("costCenter");
+                    else setForm({ ...form, costCenterId: event.target.value });
+                  }}
+                >
+                  <option value="">Sem centro de custo</option>
+                  {costCenters.map((item) => (
+                    <option value={item.id} key={item.id}>
+                      {item.name}
+                    </option>
+                  ))}
+                  {can("finance.cost_centers_create") && (
+                    <option value={CREATE_OPTION_VALUE}>
+                      + Novo centro de custo
+                    </option>
+                  )}
+                </select>
+              </label>
+              <InlineClassificationCreate
+                open={creating === "costCenter"}
+                onOpenChange={(open) => setCreating(open ? "costCenter" : null)}
+                emptyLabel={
+                  costCenters.length === 0
+                    ? "Nenhum centro de custo"
+                    : undefined
+                }
+                createLabel="Criar centro de custo"
+                canCreate={can("finance.cost_centers_create")}
+                onCreate={async (name) => {
+                  const created = await api.createCostCenter({ name });
+                  setCostCenters((items) => [...items, created]);
+                  toast.success(`Centro de custo “${created.name}” criado.`);
+                  setForm((current) => ({
+                    ...current,
+                    costCenterId: created.id,
+                  }));
+                }}
+              />
+            </div>
+            <label>
+              Valor
+              <MoneyInput
+                required
+                valueInCents={form.amountInCents}
+                onChange={(cents) =>
+                  setForm({ ...form, amountInCents: cents ?? 0 })
+                }
+              />
+            </label>
+            <label>
+              Observações
+              <input
+                value={form.notes}
+                onChange={(event) =>
+                  setForm({ ...form, notes: event.target.value })
+                }
+              />
+            </label>
+            {error && <div className="form-error span-2">{error}</div>}
+            {missing.hint}
+            <div className="modal-actions span-2">
+              <ModalCancelButton disabled={loading}>Voltar</ModalCancelButton>
+              <button
+                className="primary-button"
+                disabled={loading || missing.blocked}
+                aria-describedby={missing.describedBy}
+              >
+                {loading ? "Salvando…" : "Cadastrar despesa"}
+              </button>
+            </div>
+          </form>
+        )}
+      </Modal>
+      {creatingSupplier && (
+        <SupplierModal
+          supplier="new"
+          onClose={() => setCreatingSupplier(false)}
+          onSaved={async (saved) => {
+            setSuppliers((items) => [
+              ...items.filter((item) => item.id !== saved.id),
+              saved,
+            ]);
+            setSuppliersLoaded(true);
+            selectSupplier(saved);
+          }}
+        />
       )}
-    </Modal>
+    </>
   );
 }
