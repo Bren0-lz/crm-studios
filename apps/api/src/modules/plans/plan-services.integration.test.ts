@@ -113,7 +113,6 @@ for (const backend of ["memory", "mysql"] as const) {
               name: `${marker}-${name}`,
               durationMinutes: 30,
               priceInCents: 100,
-              color: "#64748b",
             });
             serviceIds.push(service.id);
             return service;

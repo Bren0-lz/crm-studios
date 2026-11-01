@@ -1,4 +1,8 @@
-import { type PatientPlan, planDisplayStatus } from "@crm/contracts";
+import {
+  type PatientPlan,
+  paymentMethodLabels,
+  planDisplayStatus,
+} from "@crm/contracts";
 import type { ReactNode } from "react";
 import { currency, shortDate } from "../../shared/lib/formatting";
 import {
@@ -95,7 +99,7 @@ export function PlanCard({
           <strong>
             {shortDate.format(new Date(plan.cancelledAt))}
             {plan.refundedInCents
-              ? ` · estornado ao cliente ${currency.format(plan.refundedInCents / 100)}`
+              ? ` · estornado ao cliente ${currency.format(plan.refundedInCents / 100)}${plan.refundPaymentMethod ? ` (${paymentMethodLabels[plan.refundPaymentMethod]})` : ""}`
               : " · sem estorno"}
             {plan.refundNote ? ` · ${plan.refundNote}` : ""}
           </strong>

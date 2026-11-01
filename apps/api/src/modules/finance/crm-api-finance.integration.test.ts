@@ -363,7 +363,23 @@ describe("CRM API", () => {
       app.inject({ method: "GET", url: "/rooms", headers }),
       app.inject({ method: "GET", url: "/services", headers }),
     ]);
-    const service = services.json()[0] as { id: string; priceInCents: number };
+    const service = services.json()[0] as { id: string };
+    // O preço de tabela do serviço é só referência: a base da comissão sem plano é a sessão do plano avulso.
+    const singlePlan = await app.inject({
+      method: "POST",
+      url: "/plan-templates",
+      headers,
+      payload: {
+        name: "Sessão avulsa",
+        totalValueInCents: 18000,
+        planType: "single",
+        kind: "single",
+        services: [
+          { serviceId: service.id, totalSessions: 1, totalValueInCents: 18000 },
+        ],
+      },
+    });
+    expect(singlePlan.statusCode).toBe(201);
     const completedAppointment = async (
       professionalId: string,
       startsAt: string,
@@ -478,7 +494,7 @@ describe("CRM API", () => {
     expect(entries.get(withUserRule)).toMatchObject({
       professionalId: ana,
       percentage: 35,
-      amountInCents: Math.round((service.priceInCents * 35) / 100),
+      amountInCents: Math.round((18000 * 35) / 100),
     });
     expect(entries.get(unlinkedProfessional)).toMatchObject({
       professionalId: other,
@@ -497,7 +513,7 @@ describe("CRM API", () => {
     expect(second.json()).toHaveLength(3);
     expect(byAppointment(second.json()).get(beforeUserRule)).toMatchObject({
       percentage: 50,
-      amountInCents: Math.round((service.priceInCents * 50) / 100),
+      amountInCents: Math.round((18000 * 50) / 100),
     });
     expect(byAppointment(second.json()).get(withUserRule)).toMatchObject({
       percentage: 35,
