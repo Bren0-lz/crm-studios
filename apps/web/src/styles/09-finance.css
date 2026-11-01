@@ -803,16 +803,6 @@
   font-size: var(--text-xs);
 }
 
-/* Cadastro rápido de categoria/centro de custo dentro da despesa. */
-.inline-create {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-2);
-}
-.inline-create input {
-  flex: 1 1 140px;
-}
 .status-pill.exhausted {
   background: #fdf1dc;
   color: #8a5a12;
@@ -1513,7 +1503,20 @@
   gap: var(--space-1);
 }
 
+/* Nome e selo (ex.: "Pagamento estornado") na mesma linha; o nome cede espaço. */
+.proof-name {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: var(--space-2);
+}
+
+.proof-name .status-pill {
+  flex: 0 0 auto;
+}
+
 .proof-list strong {
+  min-width: 0;
   overflow: hidden;
   font-size: var(--text-md);
   text-overflow: ellipsis;

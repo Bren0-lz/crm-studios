@@ -121,11 +121,14 @@ function ProofRow({
   name,
   mimeType,
   details,
+  tag,
   children,
 }: {
   name: string;
   mimeType: string;
   details: string;
+  /** Selo ao lado do nome (ex.: comprovante de pagamento estornado). */
+  tag?: ReactNode;
   children: ReactNode;
 }) {
   const Icon = mimeType.startsWith("image/") ? Image : FileText;
@@ -135,7 +138,10 @@ function ProofRow({
         <Icon size={18} />
       </span>
       <div className="proof-info">
-        <strong title={name}>{name}</strong>
+        <div className="proof-name">
+          <strong title={name}>{name}</strong>
+          {tag}
+        </div>
         <small>{details}</small>
       </div>
       <div className="proof-actions">{children}</div>
@@ -168,9 +174,14 @@ function ProofList({
           mimeType={proof.mimeType}
           details={`${proofSizeLabel(proof.sizeInBytes)} · ${proof.authorName} em ${shortDate.format(new Date(proof.createdAt))}${
             proof.reversedAt
-              ? ` · baixa estornada em ${shortDate.format(new Date(proof.reversedAt))}`
+              ? ` · estornado em ${shortDate.format(new Date(proof.reversedAt))}`
               : ""
           }`}
+          tag={
+            proof.reversedAt ? (
+              <span className="status-pill cancelled">Pagamento estornado</span>
+            ) : undefined
+          }
         >
           <button
             type="button"
@@ -202,22 +213,27 @@ function ProofList({
 
 /**
  * Comprovantes de uma baixa: os da baixa atual e, separados, os de baixas estornadas (ficam
- * no histórico). Quem pode anexar também pode excluir um enviado por engano, com motivo.
+ * no histórico, com o selo "Pagamento estornado"). Quem pode anexar também pode excluir um
+ * enviado por engano, com motivo. Sem baixa vigente (`settled` falso) não há como anexar.
  */
 export function PaymentProofsModal({
   entity,
   entityId,
   subtitle,
-  canAttach,
+  settled = true,
+  canAttach: canAttachToEntity,
   onClose,
 }: {
   entity: PaymentProofEntity;
   entityId: string;
   subtitle: string;
+  /** A baixa está vigente (não estornada): só então aceita novos comprovantes. */
+  settled?: boolean;
   canAttach: boolean;
   onClose: () => void;
 }) {
   const toast = useToast();
+  const canAttach = canAttachToEntity && settled;
   const [proofs, setProofs] = useState<PaymentProof[] | null>(null);
   const [files, setFiles] = useState<File[]>([]);
   const [error, setError] = useState("");
@@ -292,7 +308,7 @@ export function PaymentProofsModal({
                   label="Comprovantes anexados"
                   proofs={current}
                   busy={busy}
-                  canDelete={canAttach}
+                  canDelete={canAttachToEntity}
                   onDownload={(id) => void download(id)}
                   onDelete={setDeleting}
                 />
@@ -307,7 +323,7 @@ export function PaymentProofsModal({
                   label="Comprovantes da baixa estornada"
                   proofs={reversed}
                   busy={busy}
-                  canDelete={canAttach}
+                  canDelete={canAttachToEntity}
                   onDownload={(id) => void download(id)}
                   onDelete={setDeleting}
                 />
