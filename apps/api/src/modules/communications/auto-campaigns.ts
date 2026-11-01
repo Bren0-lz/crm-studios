@@ -403,9 +403,9 @@ export function autoCampaignTriggerAllowed(
 }
 
 /**
- * Último dia da promoção para quem recebeu a mensagem: conta `validDays` a partir da data
- * do evento (aniversário, consulta, vencimento…). Sem data do evento (sessões restantes),
- * conta a partir de hoje, o dia do envio.
+ * Último dia da promoção para quem recebeu a mensagem. Com data final na campanha, é ela.
+ * Senão, conta `validDays` a partir da data do evento (aniversário, consulta, vencimento…);
+ * sem data do evento (sessões restantes), conta a partir de hoje, o dia do envio.
  */
 export function promotionValidUntil(
   campaign: Pick<AutoCampaign, "trigger">,
@@ -413,10 +413,35 @@ export function promotionValidUntil(
   eventDate: string | undefined,
   today: string,
 ) {
+  if (promotion.validUntil) return promotion.validUntil;
+  const validDays = promotion.validDays ?? 0;
   const timing = autoCampaignTriggerTiming[campaign.trigger];
-  if (!eventDate || timing === "sessions")
-    return addDays(today, promotion.validDays);
-  return addDays(eventDate, promotion.validDays);
+  if (!eventDate || timing === "sessions") return addDays(today, validDays);
+  return addDays(eventDate, validDays);
+}
+
+/**
+ * Prazo vigente da promoção de uma mensagem enviada, pela configuração atual da campanha:
+ * data final da campanha; no aniversário, `validDays` depois do aniversário do cadastro do
+ * cliente (ano do evento); nos demais, o prazo calculado no envio.
+ */
+export function deliveryPromotionValidUntil(
+  campaign: Pick<AutoCampaign, "trigger" | "promotion">,
+  delivery: Pick<AutoCampaignDelivery, "occurrenceKey" | "promotionValidUntil">,
+  patient: Pick<Patient, "birthDate"> | null | undefined,
+): string | undefined {
+  const promotion = campaign.promotion;
+  if (!promotion) return delivery.promotionValidUntil;
+  if (promotion.validUntil) return promotion.validUntil;
+  if (campaign.trigger === "birthday" && patient?.birthDate) {
+    const year = Number(delivery.occurrenceKey.split(":").at(-1));
+    if (Number.isInteger(year) && year > 0)
+      return addDays(
+        birthdayIn(year, patient.birthDate),
+        promotion.validDays ?? 0,
+      );
+  }
+  return delivery.promotionValidUntil;
 }
 
 /** Último dia em que quem usou a promoção fica fora da campanha. */
@@ -467,6 +492,7 @@ export function listPromotionOffers(
   redemptions: readonly AutoCampaignRedemption[],
   patientId: string,
   today: string,
+  patient?: Pick<Patient, "birthDate"> | null,
 ): AutoCampaignPromotionOffer[] {
   const active = activeRedemptions(redemptions);
   const offers = new Map<string, AutoCampaignPromotionOffer>();
@@ -476,9 +502,17 @@ export function listPromotionOffers(
       if (
         delivery.campaignId !== campaign.id ||
         delivery.patientId !== patientId ||
-        delivery.status !== "sent" ||
-        !delivery.promotionValidUntil ||
-        delivery.promotionValidUntil < today ||
+        delivery.status !== "sent"
+      )
+        continue;
+      const validUntil = deliveryPromotionValidUntil(
+        campaign,
+        delivery,
+        patient,
+      );
+      if (
+        !validUntil ||
+        validUntil < today ||
         usedPromotion(
           active,
           campaign.id,
@@ -490,13 +524,12 @@ export function listPromotionOffers(
         continue;
       const key = `${campaign.id}:${delivery.occurrenceKey}`;
       const current = offers.get(key);
-      if (current && current.validUntil >= delivery.promotionValidUntil)
-        continue;
+      if (current && current.validUntil >= validUntil) continue;
       offers.set(key, {
         campaignId: campaign.id,
         campaignName: campaign.name,
         occurrenceKey: delivery.occurrenceKey,
-        validUntil: delivery.promotionValidUntil,
+        validUntil,
         ...(campaign.promotion.discount
           ? {
               discount: campaign.promotion.discount,
@@ -543,9 +576,10 @@ export async function loadPromotionOffers(
   const campaigns = await repository.listAutoCampaigns(clinicId);
   if (!campaigns.some((campaign) => campaign.active && campaign.promotion))
     return { today, campaigns, offers: [] };
-  const [deliveries, redemptions] = await Promise.all([
+  const [deliveries, redemptions, patient] = await Promise.all([
     repository.listAutoCampaignDeliveries(clinicId),
     repository.listAutoCampaignRedemptions(clinicId),
+    repository.getPatient(clinicId, patientId),
   ]);
   return {
     today,
@@ -556,6 +590,7 @@ export async function loadPromotionOffers(
       redemptions,
       patientId,
       today,
+      patient,
     ),
   };
 }
