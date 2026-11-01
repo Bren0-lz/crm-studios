@@ -345,7 +345,9 @@ describe("página Vendas de produtos", () => {
     const rows = within(history).getAllByRole("row").slice(1);
     expect(rows).toHaveLength(2);
     expect(within(history).getByText("2× Creme relaxante")).toBeInTheDocument();
-    expect(within(history).getAllByText("A receber")).toHaveLength(2);
+    expect(
+      within(within(history).getByRole("table")).getAllByText("A receber"),
+    ).toHaveLength(2);
     fireEvent.change(within(history).getByLabelText("Cliente"), {
       target: { value: "outra pessoa" },
     });
@@ -385,6 +387,128 @@ describe("página Vendas de produtos", () => {
     const top = screen.getByRole("region", { name: "Produtos mais vendidos" });
     const [first] = within(top).getAllByRole("row").slice(1);
     expect(within(first!).getByText("Creme relaxante")).toBeInTheDocument();
+  });
+
+  it("filtra as vendas realizadas por vendedor, produto, tamanho, situação e valor", async () => {
+    const { repository, patient, cream, oil } = await seed();
+    const seller = await repository.createAdminUser(
+      clinicId,
+      actorId,
+      {
+        fullName: "Carla Vendedora",
+        email: "carla.vendas@example.com",
+        role: "user",
+        password: "SenhaForte123",
+        permissions: ["patients.view", "patients.inventory_view"],
+      },
+      "hash-de-teste",
+    );
+    const shirt = await repository.createProduct(clinicId, actorId, {
+      name: "Camiseta",
+      sku: "CAM",
+      unit: "un",
+      costInCents: 2_000,
+      salePriceInCents: 5_000,
+      initialStock: 0,
+      sizes: ["p", "m", "g"],
+      initialSizeStock: [
+        { size: "p", quantity: 3 },
+        { size: "m", quantity: 3 },
+      ],
+    });
+    await sell(repository, patient.id, cream.id, 2); // R$ 80, Aryana, a receber
+    await repository.createProductSale(clinicId, seller.id, {
+      patientId: patient.id,
+      items: [{ productId: oil.id, quantity: 1 }],
+      settlement: "paid",
+      paymentMethod: "pix",
+      dueDate: "2099-01-10",
+    }); // R$ 30, Carla, paga
+    await repository.createProductSale(clinicId, seller.id, {
+      patientId: patient.id,
+      items: [{ productId: shirt.id, size: "m", quantity: 1 }],
+      settlement: "receivable",
+      dueDate: "2099-01-10",
+    }); // R$ 50, Carla, a receber
+    await repository.createProductSale(clinicId, actorId, {
+      patientId: patient.id,
+      items: [{ productId: shirt.id, size: "p", quantity: 2 }],
+      settlement: "receivable",
+      dueDate: "2099-01-10",
+    }); // R$ 100, Aryana, a receber
+    open("/vendas?aba=vendas");
+
+    const history = await screen.findByRole("region", {
+      name: "Vendas realizadas",
+    });
+    const rows = () => within(history).getAllByRole("row").slice(1);
+    expect(rows()).toHaveLength(4);
+    expect(
+      within(within(history).getByRole("table")).getAllByText(
+        "Carla Vendedora",
+      ),
+    ).toHaveLength(2);
+
+    const sellerFilter = within(history).getByLabelText("Vendedor");
+    fireEvent.change(sellerFilter, { target: { value: seller.id } });
+    expect(rows()).toHaveLength(2);
+    expect(within(history).getByText(/2 vendas de 4 no período/));
+
+    fireEvent.change(within(history).getByLabelText("Situação"), {
+      target: { value: "paid" },
+    });
+    expect(rows()).toHaveLength(1);
+    expect(
+      within(history).getByText("1× Óleo de massagem"),
+    ).toBeInTheDocument();
+
+    fireEvent.click(
+      within(history).getByRole("button", { name: "Limpar filtros" }),
+    );
+    expect(rows()).toHaveLength(4);
+    expect(
+      within(history).queryByRole("button", { name: "Limpar filtros" }),
+    ).toBeNull();
+
+    // Tamanho só aparece com um produto que tem tamanhos, e lista os tamanhos dele.
+    expect(within(history).queryByLabelText("Tamanho")).toBeNull();
+    const productFilter = within(history).getByLabelText("Produto");
+    fireEvent.change(productFilter, { target: { value: cream.id } });
+    expect(rows()).toHaveLength(1);
+    expect(within(history).queryByLabelText("Tamanho")).toBeNull();
+    fireEvent.change(productFilter, { target: { value: shirt.id } });
+    expect(rows()).toHaveLength(2);
+    const size = within(history).getByLabelText("Tamanho");
+    expect(
+      within(size)
+        .getAllByRole("option")
+        .map((option) => option.textContent),
+    ).toEqual(["Todos", "P", "M", "G"]);
+    fireEvent.change(size, { target: { value: "p" } });
+    expect(rows()).toHaveLength(1);
+    expect(within(history).getByText("2× Camiseta · P")).toBeInTheDocument();
+    fireEvent.change(size, { target: { value: "g" } });
+    expect(
+      within(history).getByText("Nenhuma venda com esses filtros"),
+    ).toBeInTheDocument();
+
+    fireEvent.click(
+      within(history).getByRole("button", { name: "Limpar filtros" }),
+    );
+    fireEvent.change(within(history).getByLabelText("Valor mínimo (R$)"), {
+      target: { value: "5000" },
+    });
+    expect(rows()).toHaveLength(3);
+    fireEvent.change(within(history).getByLabelText("Valor máximo (R$)"), {
+      target: { value: "8000" },
+    });
+    expect(rows()).toHaveLength(2);
+    fireEvent.change(within(history).getByLabelText("Valor mínimo (R$)"), {
+      target: { value: "9000" },
+    });
+    expect(within(history).getByRole("alert")).toHaveTextContent(
+      "O valor mínimo é maior que o máximo.",
+    );
   });
 
   it("vende produto com tamanho e baixa o estoque do tamanho escolhido", async () => {
