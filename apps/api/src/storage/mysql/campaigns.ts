@@ -1,9 +1,12 @@
 import type {
+  AppointmentStatus,
+  AutoCampaignRedemption,
   CampaignRecipientStatus,
   MessageImageMimeType,
   MessageTemplate,
   MessageTemplateImage,
   WhatsappCampaign,
+  WhatsappCampaignPromotion,
   WhatsappCampaignRecipient,
   WhatsappCampaignRecipientDraft,
 } from "@crm/contracts";
@@ -11,6 +14,7 @@ import type { Pool, PoolClient } from "../../infrastructure/mysql-client.js";
 import { DomainError, type MessageTemplateWrite } from "../../repository.js";
 import { randomUUID } from "node:crypto";
 import type { MysqlRepositoryContext } from "./context.js";
+import { json } from "./mappers/common.js";
 import { insertRows, writeAndRead } from "./sql.js";
 
 interface TemplateRow {
@@ -43,6 +47,7 @@ interface CampaignRow {
   createdAt: Date;
   createdByName: string | null;
   completedAt: Date | null;
+  promotion: WhatsappCampaignPromotion | null;
 }
 
 interface RecipientRow {
@@ -61,7 +66,7 @@ const imageColumns = `id, template_id AS "templateId", file_name AS "fileName",
 
 const campaignColumns = `c.id, c.name, c.template_id AS "templateId",
   c.template_title AS "templateTitle", c.body, c.image_ids AS "imageIds",
-  c.created_at AS "createdAt", c.completed_at AS "completedAt",
+  c.created_at AS "createdAt", c.completed_at AS "completedAt", c.promotion,
   u.full_name AS "createdByName",
   (SELECT count(*) FROM whatsapp_campaign_recipients r WHERE r.clinic_id=c.clinic_id AND r.campaign_id=c.id) AS total,
   (SELECT count(*) FROM whatsapp_campaign_recipients r WHERE r.clinic_id=c.clinic_id AND r.campaign_id=c.id AND r.status='sent') AS sent,
@@ -182,6 +187,9 @@ export function createCampaignsRepository(
       createdByName: row.createdByName ?? "Usuário removido",
       ...(row.completedAt
         ? { completedAt: row.completedAt.toISOString() }
+        : {}),
+      ...(row.promotion
+        ? { promotion: json<WhatsappCampaignPromotion>(row.promotion) }
         : {}),
     }));
   }
@@ -373,6 +381,7 @@ export function createCampaignsRepository(
         templateId: string;
         name: string;
         recipients: WhatsappCampaignRecipientDraft[];
+        promotion?: WhatsappCampaignPromotion | undefined;
       },
     ) {
       return repositoryContext.inTransaction(async (client) => {
@@ -399,8 +408,8 @@ export function createCampaignsRepository(
         const campaignId = randomUUID();
         await client.query(
           `INSERT INTO whatsapp_campaigns
-             (clinic_id, template_id, template_title, name, body, image_ids, created_by, id)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+             (clinic_id, template_id, template_title, name, body, image_ids, created_by, id, promotion)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
           [
             clinicId,
             input.templateId,
@@ -410,6 +419,7 @@ export function createCampaignsRepository(
             images.map((image) => image.id),
             actorUserId,
             campaignId,
+            input.promotion ?? null,
           ],
         );
         await insertRows(
@@ -432,7 +442,11 @@ export function createCampaignsRepository(
           "campaign.created",
           "whatsapp_campaign",
           campaignId,
-          { name: input.name, recipients: input.recipients.length },
+          {
+            name: input.name,
+            recipients: input.recipients.length,
+            promotional: Boolean(input.promotion),
+          },
         );
         const [campaign] = await loadCampaigns(client, clinicId, campaignId);
         return {
@@ -481,6 +495,29 @@ export function createCampaignsRepository(
         );
         return { campaign: campaign!, recipient: recipient! };
       });
+    },
+
+    async listWhatsappCampaignRedemptions(
+      clinicId: string,
+    ): Promise<AutoCampaignRedemption[]> {
+      const result = await pool.query<{
+        id: string;
+        campaignId: string;
+        patientId: string;
+        occurrenceKey: string;
+        appointmentId: string;
+        appointmentStatus: AppointmentStatus;
+        redeemedOn: string;
+      }>(
+        `SELECT r.id, r.campaign_id AS "campaignId", r.patient_id AS "patientId",
+           r.occurrence_key AS "occurrenceKey", r.appointment_id AS "appointmentId",
+           a.status AS "appointmentStatus", r.redeemed_on AS "redeemedOn"
+         FROM whatsapp_campaign_redemptions r
+         JOIN appointments a ON a.clinic_id = r.clinic_id AND a.id = r.appointment_id
+         WHERE r.clinic_id = $1`,
+        [clinicId],
+      );
+      return result.rows;
     },
   };
 }

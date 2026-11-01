@@ -202,37 +202,45 @@ describe("payment method installments", () => {
     expect((await sellPlan(limited.id, 5, "card")).statusCode).toBe(201);
   });
 
-  it("shows which plan installments were paid and records card installments on payment", async () => {
+  it("shows which plan installments were paid and does not split an installment again", async () => {
     const { app, headers, template, sellPlan, saveSettings, receivables } =
       await setup();
     await saveSettings([
       { method: "pix", acceptsInstallments: false, maxInstallments: 1 },
       { method: "card", acceptsInstallments: true, maxInstallments: 6 },
     ]);
-    const sold = await sellPlan((await template()).id, 3, "boleto");
+    const sold = await sellPlan((await template()).id, 3, "card");
     const plan = sold.json<PatientPlan>();
     const [first, second] = await receivables(plan.id);
     expect(first!.description).toBe("Pacote livre · 1/3");
-
-    const pixInParts = await app.inject({
-      method: "POST",
-      url: `/finance/receivables/${first!.id}/pay`,
-      headers,
-      payload: { paymentMethod: "pix", paymentInstallments: 2 },
+    // A baixa recebe o total do plano e a forma combinada na venda.
+    expect(first).toMatchObject({
+      planTotalInCents: 60000,
+      planPaymentMethod: "card",
     });
-    expect(pixInParts.statusCode).toBe(400);
-    const paid = await app.inject({
+
+    const cardInParts = await app.inject({
       method: "POST",
       url: `/finance/receivables/${first!.id}/pay`,
       headers,
       payload: { paymentMethod: "card", paymentInstallments: 3 },
     });
+    expect(cardInParts.statusCode).toBe(400);
+    expect(cardInParts.json()).toMatchObject({
+      code: "INSTALLMENT_PAYMENT_SPLIT",
+    });
+    const paid = await app.inject({
+      method: "POST",
+      url: `/finance/receivables/${first!.id}/pay`,
+      headers,
+      payload: { paymentMethod: "card" },
+    });
     expect(paid.statusCode).toBe(200);
     expect(paid.json<Receivable>()).toMatchObject({
       status: "paid",
       paymentMethod: "card",
-      paymentInstallments: 3,
     });
+    expect(paid.json<Receivable>().paymentInstallments).toBeUndefined();
     const receipt = (
       await app.inject({
         method: "GET",
@@ -242,7 +250,6 @@ describe("payment method installments", () => {
     ).json<PaymentReceipt>();
     expect(receipt).toMatchObject({
       paymentMethod: "card",
-      paymentInstallments: 3,
       installmentNumber: 1,
       installmentCount: 3,
     });
@@ -264,11 +271,54 @@ describe("payment method installments", () => {
       paidInCents: 40000,
       openInCents: 20000,
     });
+  });
+
+  it("records card installments when a plan paid in one charge is settled", async () => {
+    const { app, headers, template, sellPlan, saveSettings, receivables } =
+      await setup();
+    await saveSettings([
+      { method: "pix", acceptsInstallments: false, maxInstallments: 1 },
+      { method: "card", acceptsInstallments: true, maxInstallments: 6 },
+    ]);
+    const plan = (await sellPlan((await template()).id, 1)).json<PatientPlan>();
+    const [charge] = await receivables(plan.id);
+    expect(charge!.planPaymentMethod).toBeUndefined();
+
+    const pixInParts = await app.inject({
+      method: "POST",
+      url: `/finance/receivables/${charge!.id}/pay`,
+      headers,
+      payload: { paymentMethod: "pix", paymentInstallments: 2 },
+    });
+    expect(pixInParts.statusCode).toBe(400);
+    const paid = await app.inject({
+      method: "POST",
+      url: `/finance/receivables/${charge!.id}/pay`,
+      headers,
+      payload: { paymentMethod: "card", paymentInstallments: 3 },
+    });
+    expect(paid.statusCode).toBe(200);
+    expect(paid.json<Receivable>()).toMatchObject({
+      status: "paid",
+      paymentMethod: "card",
+      paymentInstallments: 3,
+    });
+    const receipt = (
+      await app.inject({
+        method: "GET",
+        url: `/finance/receivables/${charge!.id}/receipt`,
+        headers,
+      })
+    ).json<PaymentReceipt>();
+    expect(receipt).toMatchObject({
+      paymentMethod: "card",
+      paymentInstallments: 3,
+    });
 
     // Estorno apaga as parcelas do cartão junto com a forma.
     const reversed = await app.inject({
       method: "POST",
-      url: `/finance/receivables/${first!.id}/reverse`,
+      url: `/finance/receivables/${charge!.id}/reverse`,
       headers,
     });
     expect(reversed.json<Receivable>().paymentInstallments).toBeUndefined();

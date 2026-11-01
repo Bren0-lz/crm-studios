@@ -323,11 +323,16 @@ export function registerReportsRoutes(context: RouteContext) {
           repository.listPatients(clinicId),
         ]);
       const timeZone = settings?.timezone || DEFAULT_CLINIC_TIMEZONE;
-      const details = await Promise.all(
-        manualCampaignsInPeriod(manual, from, to, timeZone).map((campaign) =>
-          repository.getWhatsappCampaign(clinicId, campaign.id),
+      const [details, manualRedemptions] = await Promise.all([
+        Promise.all(
+          manualCampaignsInPeriod(manual, from, to, timeZone).map((campaign) =>
+            repository.getWhatsappCampaign(clinicId, campaign.id),
+          ),
         ),
-      );
+        manual.some((campaign) => campaign.promotion)
+          ? repository.listWhatsappCampaignRedemptions(clinicId)
+          : [],
+      ]);
       // A fila de hoje (se hoje está no período) dá as pendentes das automáticas; na
       // planilha, também lista quem ainda vai receber.
       const today = clinicDateOf(new Date(), timeZone);
@@ -347,6 +352,7 @@ export function registerReportsRoutes(context: RouteContext) {
           automatic,
           deliveries,
           redemptions,
+          manualRedemptions,
           patients,
           queue: queue?.items,
           queueDate: queue?.date,
