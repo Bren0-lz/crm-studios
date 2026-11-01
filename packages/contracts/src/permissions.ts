@@ -19,6 +19,7 @@ const additionalPermissions = new Set([
   "finance.receivables_create",
   "finance.suppliers_manage",
   "patients.products_update",
+  "patients.tabs_refund",
   "patients.suppliers_manage",
   "reports.dre",
   "reports.team_finance",
@@ -79,6 +80,7 @@ const operations = {
     tabs_items: "Adicionar itens à comanda",
     tabs_close: "Fechar comanda",
     tabs_cancel: "Cancelar comanda",
+    tabs_refund: "Estornar pagamento da venda ao cancelar",
   },
   plans: {
     purchase: "Contratar plano com agenda e contrato",
@@ -236,6 +238,9 @@ export const permissionCatalog: readonly PermissionDefinition[] =
             dependencies.push("reports.management");
           if (key === "finance.payroll_manage")
             dependencies.push("finance.payroll_view");
+          // Estorno pelo cancelamento da venda, sem acesso ao Financeiro.
+          if (key === "patients.tabs_refund")
+            dependencies.push("patients.tabs_cancel");
           // Cada planilha de relatório exige consultar o próprio relatório.
           const exportedReport = reportSpreadsheetExports[key];
           if (exportedReport) dependencies.push(exportedReport);

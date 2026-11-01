@@ -203,6 +203,7 @@ import type {
   PatientPlanInput,
   PatientTab,
   PatientTabCloseInput,
+  PatientTabPayment,
   PatientTabInput,
   PatientTabItemInput,
   PatientTag,
@@ -1009,11 +1010,18 @@ export interface ClinicRepository {
     tabId: string,
     input: PatientTabCloseInput,
   ): Promise<PatientTab | null>;
+  /** `refundPayment`: estorna antes o pagamento já recebido, na mesma operação. */
   cancelPatientTab(
     clinicId: string,
     actorUserId: string,
     tabId: string,
+    options?: { refundPayment?: boolean },
   ): Promise<PatientTab | null>;
+  /** Pagamento da comanda: `undefined` = comanda inexistente; `null` = sem cobrança. */
+  patientTabPayment(
+    clinicId: string,
+    tabId: string,
+  ): Promise<PatientTabPayment | null | undefined>;
   /** Venda de produtos em uma etapa: abre, preenche e fecha a comanda de forma atômica. */
   createProductSale(
     clinicId: string,
