@@ -212,4 +212,124 @@ describe("product sales", () => {
     expect(denied.statusCode).toBe(403);
     await app.close();
   });
+
+  it("shows the sale payment and refunds it when cancelling, without finance access", async () => {
+    const { app, headers, patientId, createProduct, workspace, receivable } =
+      await setup();
+    const cream = await createProduct("CRM-REF", 5);
+    const sold = await app.inject({
+      method: "POST",
+      url: "/product-sales",
+      headers,
+      payload: {
+        patientId,
+        items: [{ productId: cream, quantity: 2 }],
+        settlement: "paid",
+        paymentMethod: "card",
+        paymentInstallments: 3,
+        dueDate: saoPauloToday(),
+      },
+    });
+    expect(sold.statusCode).toBe(201);
+    const sale = sold.json<Tab>();
+    const userAs = async (email: string, permissions: string[]) => {
+      const created = await app.inject({
+        method: "POST",
+        url: "/admin/users",
+        headers,
+        payload: {
+          fullName: email,
+          email,
+          role: "user",
+          password: "SenhaForte123",
+          permissions,
+        },
+      });
+      expect(created.statusCode).toBe(201);
+      const login = await app.inject({
+        method: "POST",
+        url: "/auth/login",
+        payload: { email, password: "SenhaForte123" },
+      });
+      return { authorization: `Bearer ${login.json().token as string}` };
+    };
+    const cancelOnly = await userAs("cancela@teste.local", [
+      "patients.view",
+      "patients.inventory_view",
+      "patients.tabs_cancel",
+    ]);
+    const refunder = await userAs("estorna@teste.local", [
+      "patients.view",
+      "patients.inventory_view",
+      "patients.tabs_cancel",
+      "patients.tabs_refund",
+    ]);
+
+    const payment = await app.inject({
+      method: "GET",
+      url: `/patient-tabs/${sale.id}/payment`,
+      headers: cancelOnly,
+    });
+    expect(payment.statusCode).toBe(200);
+    expect(payment.json().payment).toMatchObject({
+      receivableId: sale.receivableId,
+      status: "paid",
+      amountInCents: 9_000,
+      paymentMethod: "card",
+      paymentInstallments: 3,
+    });
+    expect(
+      (
+        await app.inject({
+          method: "GET",
+          url: "/patient-tabs/99999999-9999-4999-8999-999999999999/payment",
+          headers,
+        })
+      ).statusCode,
+    ).toBe(404);
+
+    const required = await app.inject({
+      method: "POST",
+      url: `/patient-tabs/${sale.id}/cancel`,
+      headers: cancelOnly,
+    });
+    expect(required.statusCode).toBe(409);
+    expect(required.json().code).toBe("PATIENT_TAB_PAYMENT_REVERSAL_REQUIRED");
+    const forbidden = await app.inject({
+      method: "POST",
+      url: `/patient-tabs/${sale.id}/cancel`,
+      headers: cancelOnly,
+      payload: { refundPayment: true },
+    });
+    expect(forbidden.statusCode).toBe(403);
+    expect(await receivable(sale.receivableId!)).toMatchObject({
+      status: "paid",
+    });
+
+    const cancelled = await app.inject({
+      method: "POST",
+      url: `/patient-tabs/${sale.id}/cancel`,
+      headers: refunder,
+      payload: { refundPayment: true },
+    });
+    expect(cancelled.statusCode).toBe(200);
+    expect(cancelled.json()).toMatchObject({
+      status: "cancelled",
+      paymentStatus: "cancelled",
+    });
+    expect(await receivable(sale.receivableId!)).toMatchObject({
+      status: "cancelled",
+    });
+    const inventory = await workspace();
+    expect(
+      inventory.products.find((item) => item.id === cream)?.currentStock,
+    ).toBe(5);
+    const history = await app.inject({
+      method: "GET",
+      url: `/patient-tabs/${sale.id}/payment`,
+      headers: refunder,
+    });
+    expect(history.json().payment).toMatchObject({ status: "cancelled" });
+    await app.close();
+  });
 });
