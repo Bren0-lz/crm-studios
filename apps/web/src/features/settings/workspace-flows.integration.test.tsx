@@ -72,8 +72,10 @@ describe("settings workflows through real HTTP handlers", () => {
     change("Parcelas", "3", dialog);
     await within(dialog).findByText(/3× de R\$\s?400,00/);
     change("Condições de pagamento", "Vencimento todo dia 10", dialog);
-    change("Pedidos", "Pedido 123: 20 faixas elásticas", dialog);
-    change("Contratos", "Contrato 2026/01, vigência de 12 meses", dialog);
+    // Pedidos e contratos não são mais texto livre: ficam nas abas Pedidos e Documentos.
+    expect(
+      within(dialog).queryByRole("textbox", { name: "Pedidos" }),
+    ).not.toBeInTheDocument();
     change("Observações", "Contato comercial", dialog);
     await save("Novo fornecedor", "Salvar fornecedor");
     fireEvent.click(within(panel).getByRole("button", { name: "Editar" }));
@@ -95,9 +97,54 @@ describe("settings workflows through real HTTP handlers", () => {
         paymentMethod: "boleto",
         installments: 3,
         paymentTerms: "Vencimento todo dia 10",
-        orders: "Pedido 123: 20 faixas elásticas",
-        contracts: "Contrato 2026/01, vigência de 12 meses",
+        orders: "",
+        contracts: "",
       },
+    ]);
+  });
+  it("keeps the old free-text orders and contracts read-only until someone clears them", async () => {
+    const { repository } = await setupApi();
+    await repository.saveSupplier(clinicId, actorId, {
+      name: "Fornecedor antigo",
+      kind: "company",
+      document: "",
+      phone: "",
+      whatsapp: "",
+      billingCycle: "one_time",
+      installments: 1,
+      paymentTerms: "",
+      orders: "Pedido 99: 10 bolas",
+      contracts: "Contrato em papel na pasta azul",
+      notes: "",
+      active: true,
+    });
+    open("/configuracoes");
+    fireEvent.click(await screen.findByRole("tab", { name: "Cadastros" }));
+    const catalogs = screen.getByRole("tabpanel", { name: "Cadastros" });
+    fireEvent.click(
+      within(catalogs).getByRole("tab", { name: "Fornecedores" }),
+    );
+    const panel = within(catalogs).getByRole("tabpanel", {
+      name: "Fornecedores",
+    });
+    fireEvent.click(
+      await within(panel).findByRole("button", { name: "Editar" }),
+    );
+    const dialog = screen.getByRole("dialog", { name: "Editar fornecedor" });
+    expect(
+      within(dialog).getByLabelText("Pedidos (anotação antiga)"),
+    ).toHaveAttribute("readonly");
+    expect(
+      within(dialog).getByLabelText("Contratos (anotação antiga)"),
+    ).toHaveValue("Contrato em papel na pasta azul");
+    fireEvent.click(
+      within(dialog).getByRole("button", {
+        name: "Apagar anotação de pedidos",
+      }),
+    );
+    await save("Editar fornecedor", "Salvar fornecedor");
+    expect(await repository.listSuppliers(clinicId)).toMatchObject([
+      { orders: "", contracts: "Contrato em papel na pasta azul" },
     ]);
   });
   it("records a supplier order whose new item becomes a product without sale price", async () => {
@@ -131,14 +178,16 @@ describe("settings workflows through real HTTP handlers", () => {
         name: "Pedidos de Distribuidora Bem-Estar",
       }),
     );
-    const history = screen.getByRole("dialog", {
-      name: "Pedidos de Distribuidora Bem-Estar",
-    });
+    // Quem edita abre o cadastro do fornecedor direto na aba Pedidos.
+    const dialog = screen.getByRole("dialog", { name: "Editar fornecedor" });
+    const history = within(dialog).getByRole("tabpanel", { name: "Pedidos" });
+    expect(
+      within(dialog).getByRole("tab", { name: "Pedidos" }),
+    ).toHaveAttribute("aria-selected", "true");
     await within(history).findByText("Nenhum pedido");
     fireEvent.click(
       within(history).getByRole("button", { name: "Novo pedido" }),
     );
-    const dialog = screen.getByRole("dialog", { name: "Novo pedido" });
     await within(dialog).findByRole("option", { name: "Faixa elástica" });
     change("Data do pedido", "2026-10-20", dialog);
     change("Nº do pedido", "123", dialog);
@@ -179,7 +228,9 @@ describe("settings workflows through real HTTP handlers", () => {
     change("Quantidade 250 ml do item 2", "3", dialog);
     change("Custo unitário 2", "3000", dialog);
     expect(within(dialog).getByText(/Soma dos itens: R\$\s?180,00/));
-    await save("Novo pedido", "Registrar pedido");
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Registrar pedido" }),
+    );
 
     expect(
       await within(history).findByText("2× Óleo de massagem · 100 ml"),

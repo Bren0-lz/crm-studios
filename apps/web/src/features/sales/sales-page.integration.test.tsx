@@ -570,6 +570,13 @@ describe("página Vendas de produtos", () => {
       await within(panel).findByRole("button", { name: "Novo fornecedor" }),
     );
     const dialog = screen.getByRole("dialog", { name: "Novo fornecedor" });
+    // Pedidos usam as rotas do Financeiro: sem essa permissão, a aba não aparece.
+    expect(
+      within(dialog).getByRole("tab", { name: "Dados" }),
+    ).toBeInTheDocument();
+    expect(
+      within(dialog).queryByRole("tab", { name: "Pedidos" }),
+    ).not.toBeInTheDocument();
     fireEvent.change(within(dialog).getByLabelText("Nome"), {
       target: { value: "Cosméticos Aryana" },
     });
