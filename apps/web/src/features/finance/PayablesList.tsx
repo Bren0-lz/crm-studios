@@ -19,6 +19,7 @@ export function PayablesList({
   onProofs,
   onSetAmount,
   filtered = false,
+  proofIds,
 }: {
   payables: Payable[];
   canManage: boolean;
@@ -30,6 +31,8 @@ export function PayablesList({
   onSetAmount: (item: Payable) => void;
   /** Filtro ou busca ativos: mostra todas as pagas que batem, de qualquer mês. */
   filtered?: boolean;
+  /** Despesas com comprovante: os da baixa estornada seguem acessíveis. */
+  proofIds?: ReadonlySet<string>;
 }) {
   const { can } = useAuthorization();
   const [showAllPaid, setShowAllPaid] = useState(false);
@@ -99,6 +102,7 @@ export function PayablesList({
             onReverse={onReverse}
             onProofs={onProofs}
             onSetAmount={onSetAmount}
+            proofIds={proofIds}
           />
         </section>
       ))}
@@ -125,6 +129,7 @@ function PayablesTable({
   onReverse,
   onProofs,
   onSetAmount,
+  proofIds,
 }: {
   payables: Payable[];
   today: string;
@@ -133,6 +138,7 @@ function PayablesTable({
   onReverse: (id: string) => void;
   onProofs: (item: Payable) => void;
   onSetAmount: (item: Payable) => void;
+  proofIds?: ReadonlySet<string> | undefined;
 }) {
   const { can } = useAuthorization();
   return (
@@ -182,7 +188,7 @@ function PayablesTable({
                 : signedCurrency(-item.amountInCents)}
             </strong>
             <div className="finance-actions">
-              {item.status === "paid" && (
+              {(item.status === "paid" || proofIds?.has(item.id)) && (
                 <button
                   className="secondary-button button-sm"
                   aria-label={`Comprovantes de ${item.description}`}
