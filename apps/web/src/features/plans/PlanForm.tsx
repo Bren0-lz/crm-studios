@@ -6,6 +6,7 @@ import {
   paymentMethodSchema,
   planPeriodEnd,
   planPeriodMonths,
+  planInstallmentPreview,
   planServiceValueForSessions,
   planTypeKind,
   planTypeLabels,
@@ -31,6 +32,7 @@ import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
 import { PatientPicker } from "../../PatientPicker";
 import { FixedPatient } from "../../shared/components/FixedPatient";
+import { InstallmentsPreview } from "../../shared/components/InstallmentsPreview";
 import { useMissingFields } from "../../shared/components/MissingFields";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
 import { PlanGroupPicker } from "../../shared/components/PlanGroupPicker";
@@ -70,7 +72,10 @@ export function PlanForm({
   onCancel: () => void;
   onBusyChange: (busy: boolean) => void;
   onSubmit: (input: PatientPlanInput, groupId?: string) => Promise<void>;
-  renderAdditional?: ((input: PatientPlanInput) => ReactNode) | undefined;
+  /** `groupId`: turma escolhida no formulário (vazia sem turma). */
+  renderAdditional?:
+    | ((input: PatientPlanInput, groupId: string) => ReactNode)
+    | undefined;
   additionalDirty?: boolean;
   registerCloseGuard?: ((guard: CloseGuard) => () => void) | undefined;
   /** Restringe os planos cadastrados a avulsos ou recorrentes (atalho da ficha do cliente). */
@@ -181,7 +186,7 @@ export function PlanForm({
       );
     if (
       !renewing &&
-      !templates?.some((item) => item.id === form.planTemplateId)
+      !shownTemplates?.some((item) => item.id === form.planTemplateId)
     ) {
       setError("Selecione um plano cadastrado.");
       throw new Error("Selecione um plano cadastrado.");
@@ -218,6 +223,12 @@ export function PlanForm({
     ? renewing.services
     : (templates?.find((item) => item.id === form.planTemplateId)?.services ??
       []);
+  // A lista de planos cadastrados acompanha o Modelo escolhido (avulso ou recorrente).
+  const shownCatalogKind: PlanCatalogKind =
+    catalogKind ?? (form.kind === "single" ? "single" : "recurring");
+  const shownTemplates = templates?.filter(
+    (item) => planTemplateCatalogKind(item) === shownCatalogKind,
+  );
   const sessionsEditable = form.kind === "single";
   const servicesTotal = (entries: PatientPlanInput["services"]) =>
     entries.reduce((sum, item) => sum + item.totalValueInCents, 0);
@@ -277,6 +288,29 @@ export function PlanForm({
                       value={form.kind}
                       onChange={(e) => {
                         const kind = e.target.value as PatientPlan["kind"];
+                        const selected = templates?.find(
+                          (item) => item.id === form.planTemplateId,
+                        );
+                        // Plano escolhido de outro modelo sai da seleção.
+                        if (
+                          selected &&
+                          planTemplateCatalogKind(selected) !==
+                            (kind === "single" ? "single" : "recurring")
+                        ) {
+                          setForm({
+                            ...form,
+                            kind,
+                            planTemplateId: "",
+                            name: "",
+                            services: [],
+                            totalValueInCents: 0,
+                            installments:
+                              kind === "recurring" ? 1 : form.installments,
+                            autoRenew: kind === "recurring",
+                          });
+                          setGroupId("");
+                          return;
+                        }
                         const entries =
                           kind === "single"
                             ? form.services
@@ -333,7 +367,7 @@ export function PlanForm({
                     required
                     autoFocus={Boolean(catalogKind)}
                     value={form.planTemplateId}
-                    disabled={!templates?.length || loading}
+                    disabled={!shownTemplates?.length || loading}
                     onChange={(event) => {
                       const template = templates?.find(
                         (item) => item.id === event.target.value,
@@ -382,7 +416,7 @@ export function PlanForm({
                     }}
                   >
                     <option value="">Selecione um plano</option>
-                    {templates?.map((item) => (
+                    {shownTemplates?.map((item) => (
                       <option key={item.id} value={item.id}>
                         {item.name} ·{" "}
                         {currency.format(item.totalValueInCents / 100)}
@@ -407,10 +441,10 @@ export function PlanForm({
                   </div>
                 ) : templates === null ? (
                   <LoadingBlock />
-                ) : templates.length === 0 ? (
+                ) : !shownTemplates?.length ? (
                   <p className="muted-copy">
-                    {catalogKind
-                      ? `Nenhum plano ${catalogKind === "single" ? "avulso" : "recorrente"} ativo cadastrado.`
+                    {catalogKind || templates.length
+                      ? `Nenhum plano ${shownCatalogKind === "single" ? "avulso" : "recorrente"} ativo cadastrado.`
                       : "Nenhum plano ativo cadastrado."}{" "}
                     Cadastre um plano em Configurações › Planos.
                     {canView("settings") && (
@@ -606,6 +640,20 @@ export function PlanForm({
             {!renewing && (
               <PlanFirstChargeNote plan={form} slots={firstChargeSlots} />
             )}
+            {form.totalValueInCents > 0 && (
+              <InstallmentsPreview
+                className="span-2"
+                rows={planInstallmentPreview({
+                  ...withPlanFirstCharge(form, firstChargeSlots),
+                  previousDiscount: renewing?.discount,
+                })}
+                note={
+                  form.kind === "recurring"
+                    ? "Plano recorrente: as próximas cobranças são geradas a cada renovação."
+                    : undefined
+                }
+              />
+            )}
             <label className="checkbox-field span-2">
               <input
                 type="checkbox"
@@ -629,7 +677,7 @@ export function PlanForm({
                 required
               />
             )}
-            {renderAdditional?.(form)}
+            {renderAdditional?.(form, groupId)}
           </fieldset>
           {error && (
             <div className="form-error span-2" role="alert">

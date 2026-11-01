@@ -1,4 +1,5 @@
 import type {
+  GroupClass,
   PatientPlanInput,
   PlanPurchaseInput,
   PatientOption,
@@ -6,7 +7,10 @@ import type {
   Room,
   Service,
 } from "@crm/contracts";
-import { recurringOccurrenceStarts } from "@crm/contracts";
+import {
+  describeGroupSchedule,
+  recurringOccurrenceStarts,
+} from "@crm/contracts";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { api } from "../../api";
@@ -15,6 +19,15 @@ import { AppointmentForm } from "../agenda/index";
 import { Modal } from "../../shared/components/Modal";
 import { ErrorBanner } from "../../shared/components/ErrorBanner";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
+const weekdayNames = [
+  "Domingo",
+  "Segunda-feira",
+  "Terça-feira",
+  "Quarta-feira",
+  "Quinta-feira",
+  "Sexta-feira",
+  "Sábado",
+];
 /**
  * A turma é escolhida no próprio formulário do plano (`PlanForm`) e o documento para
  * assinatura no `PlanModal`.
@@ -24,11 +37,14 @@ export function PlanPurchaseOptions({
   plan,
   patients,
   services,
+  group,
   value,
   onChange,
   onNestedChange,
 }: {
   plan: PatientPlanInput;
+  /** Turma escolhida no plano: seus horários fixos entram na contratação. */
+  group?: GroupClass | undefined;
   patients: PatientOption[];
   services: Service[];
   value: PurchaseOptions;
@@ -46,6 +62,17 @@ export function PlanPurchaseOptions({
     [busy, setBusy] = useState(false),
     [nested, setNested] = useState(false);
   const canAgenda = can("agenda.create");
+  const groupSlots = [...(group?.weeklySlots ?? [])].sort(
+    (a, b) =>
+      ((a.weekday + 6) % 7) - ((b.weekday + 6) % 7) ||
+      a.startTime.localeCompare(b.startTime),
+  );
+  // Turma com horários fixos: a seção abre já preenchida com eles.
+  const [shownGroupId, setShownGroupId] = useState(group?.id);
+  if (shownGroupId !== group?.id) {
+    setShownGroupId(group?.id);
+    if (group?.weeklySlots.length) setExpanded(true);
+  }
   useEffect(() => {
     if (!expanded || !canAgenda) return;
     let alive = true;
@@ -69,13 +96,15 @@ export function PlanPurchaseOptions({
     setScheduling(open);
     onNestedChange(open);
   }
-  if (!canAgenda) return null;
+  if (!canAgenda && !group) return null;
   return (
     <div className="span-2">
       <details
         open={expanded}
         onToggle={(event) => {
           const open = event.currentTarget.open;
+          // Aberto pela turma (já carregando): o evento só confirma o estado.
+          if (open === expanded) return;
           setExpanded(open);
           if (open) {
             setLoaded(false);
@@ -86,7 +115,34 @@ export function PlanPurchaseOptions({
         <summary>Horários da contratação</summary>
         {expanded && (
           <div className="clinical-form">
-            {error && (
+            {group && groupSlots.length > 0 && (
+              <section
+                className="group-details"
+                aria-label={`Horários fixos da turma ${group.name}`}
+              >
+                <header>
+                  <div>
+                    <strong>{`Turma ${group.name}`}</strong>
+                    <small>{describeGroupSchedule(groupSlots)}</small>
+                  </div>
+                </header>
+                <ul className="group-details-slots">
+                  {groupSlots.map((slot) => (
+                    <li key={`${slot.weekday}-${slot.startTime}`}>
+                      <span>{weekdayNames[slot.weekday]}</span>
+                      <span>
+                        {`${slot.startTime} às ${slot.endTime} · ${group.professionalName}`}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+                <p className="muted-copy">
+                  Horários fixos da turma: a matrícula reserva estes horários ao
+                  confirmar o plano.
+                </p>
+              </section>
+            )}
+            {canAgenda && error && (
               <>
                 <ErrorBanner error={error} />
                 <button
@@ -98,8 +154,8 @@ export function PlanPurchaseOptions({
                 </button>
               </>
             )}
-            {!loaded && !error && <LoadingBlock />}
-            {loaded && (
+            {canAgenda && !loaded && !error && <LoadingBlock />}
+            {canAgenda && loaded && (
               <>
                 <button
                   type="button"
