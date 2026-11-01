@@ -91,6 +91,11 @@ import {
   type DiscountTarget,
 } from "./PatientDiscountModal";
 import { PlanDiscountSummary } from "./PlanDiscountSummary";
+import {
+  effectiveDrafts,
+  paymentDraftsIssue,
+  toPaymentParts,
+} from "../../shared/lib/payment-parts";
 import { PatientTimelineSection } from "./PatientTimelineSection";
 import { PatientProfileFields } from "./PatientProfileFields";
 import type {
@@ -259,8 +264,7 @@ export function PatientModal({
   const [productPayment, setProductPayment] = useState<GuidedProductPayment>(
     () => ({
       settlement: "paid",
-      paymentMethod: "pix",
-      paymentInstallments: 1,
+      parts: [{ paymentMethod: "pix", amountInCents: null, installments: 1 }],
       dueDate: localIsoDate(),
     }),
   );
@@ -391,6 +395,19 @@ export function PatientModal({
   );
   const orderLine = (key: string) =>
     order.lines.find((line) => line.key === key);
+  // Total da venda dos produtos (preço já descontado), dividido entre as formas.
+  const productsTotalInCents = soldProducts.reduce(
+    (sum, line) =>
+      sum +
+      line.quantity *
+        (orderLine(`product-${line.key}`)?.unitNetInCents ??
+          line.unitPriceInCents),
+    0,
+  );
+  const productParts = effectiveDrafts(
+    productPayment.parts,
+    productsTotalInCents,
+  );
   /** Termos do plano com a parte do desconto geral que coube a ele. */
   function withOrderShare<T extends GuidedSingleForm>(form: T, key: string): T {
     const terms = { ...form };
@@ -438,6 +455,11 @@ export function PatientModal({
             ? [`${label}: quantidade dentro do estoque`]
             : [];
         })
+      : []),
+    ...(soldProducts.length &&
+    productsTotalInCents > 0 &&
+    paymentDraftsIssue(productPayment.parts, productsTotalInCents)
+      ? ["Formas de pagamento dos produtos somando o total"]
       : []),
   ]);
   function guidedInput(): GuidedPatientInput | string {
@@ -532,14 +554,15 @@ export function PatientModal({
             line.unitPriceInCents,
         })),
         settlement: productPayment.settlement,
-        ...(productPayment.settlement === "paid"
-          ? {
-              paymentMethod: productPayment.paymentMethod,
-              ...(productPayment.paymentInstallments > 1
-                ? { paymentInstallments: productPayment.paymentInstallments }
+        // Pago agora: as formas recebidas; a receber: as previstas.
+        ...(productParts.length > 1
+          ? { payments: toPaymentParts(productParts) }
+          : {
+              paymentMethod: productParts[0]!.paymentMethod,
+              ...(productParts[0]!.installments > 1
+                ? { paymentInstallments: productParts[0]!.installments }
                 : {}),
-            }
-          : {}),
+            }),
         dueDate: productPayment.dueDate,
       });
       return ` Venda de produtos de ${currency.format(sale.totalInCents / 100)} registrada.`;
@@ -617,8 +640,9 @@ export function PatientModal({
         ...(result.plan ? [result.plan] : []),
         ...(result.additionalPlans ?? []).map((entry) => entry.plan),
       ];
+      // Cobrança Pix pelo WhatsApp: só nos planos de forma única no Pix.
       const pixPlans = createdPlans.filter(
-        (plan) => plan.paymentMethod === "pix",
+        (plan) => plan.paymentMethod === "pix" && !plan.paymentParts,
       );
       // 1º pagamento de cada item no Pix (proporcional à turma e com o desconto do plano),
       // somado.
@@ -632,7 +656,7 @@ export function PatientModal({
           sentPlans[index]?.orderDiscountInCents,
         );
         const first = discounted.installments[0];
-        return plan.paymentMethod === "pix" && first
+        return plan.paymentMethod === "pix" && !plan.paymentParts && first
           ? [
               {
                 prorated: firstInstallmentInCents !== undefined,
@@ -1172,6 +1196,8 @@ export function PatientModal({
             <legend>Pagamento dos produtos</legend>
             <GuidedProductPaymentFields
               value={productPayment}
+              totalInCents={productsTotalInCents}
+              disabled={!editable || loading}
               onChange={(patch) =>
                 setProductPayment((current) => ({ ...current, ...patch }))
               }

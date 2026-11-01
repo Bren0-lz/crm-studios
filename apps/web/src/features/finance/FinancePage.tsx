@@ -3,6 +3,8 @@ import {
   matchesFinancialEntry,
   saoPauloToday,
   settlementBreakdown,
+  paymentPartsTotal,
+  scalePaymentParts,
   type SettlementAdjustments,
   type FinancialEntryFilter,
 } from "@crm/contracts";
@@ -16,6 +18,7 @@ import type {
   Payable,
   PaymentTiming,
   PaymentMethod,
+  PaymentPart,
   PaymentReceipt,
   Professional,
   Receivable,
@@ -195,17 +198,24 @@ export function FinancePage() {
     timing?: PaymentTiming,
     adjustments?: SettlementAdjustments,
     proofs: File[] = [],
+    payments?: PaymentPart[],
   ) {
     if (target.kind === "receivable")
       await api.settleReceivable(target.id, method, timing, adjustments);
-    else await api.settlePayable(target.id, method, timing);
+    else await api.settlePayable(target.id, method, timing, payments);
     // A baixa já está registrada: falha de envio só avisa (dá para anexar depois).
     const failedProofs = proofs.length
       ? await uploadPaymentProofs(target.kind, target.id, proofs)
       : [];
     const balance =
       target.kind === "receivable" && adjustments
-        ? settlementBreakdown(target.amountInCents, adjustments).balanceInCents
+        ? settlementBreakdown(target.amountInCents, {
+            ...adjustments,
+            // Picado: o recebido é a soma das formas.
+            ...(adjustments.payments
+              ? { receivedInCents: paymentPartsTotal(adjustments.payments) }
+              : {}),
+          }).balanceInCents
         : 0;
     toast.success(
       target.kind !== "receivable"
@@ -503,6 +513,15 @@ export function FinancePage() {
                     description: item.description,
                     amountInCents: item.amountInCents,
                     dueDate: item.dueDate,
+                    // Formas previstas na venda, ajustadas ao valor atual da parcela.
+                    ...(item.paymentParts
+                      ? {
+                          paymentParts: scalePaymentParts(
+                            item.paymentParts,
+                            item.amountInCents,
+                          ),
+                        }
+                      : {}),
                   })
                 }
                 onReverse={(id) => void reverseReceivable(id)}

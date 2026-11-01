@@ -6,6 +6,7 @@ import {
   paymentMethodSchema,
 } from "../common/model.js";
 import { maxInstallmentsLimit } from "./installments.js";
+import { paymentPartsSchema } from "./payment-parts.js";
 import {
   fillMessageTemplate,
   patientFirstName,
@@ -327,6 +328,11 @@ export const paymentInputSchema = z.object({
   paymentMethod: paymentMethodSchema.default("pix"),
 });
 
+/** Pagamento de conta a pagar: uma forma ou várias (picado), somando o valor da conta. */
+export const payableSettlementSchema = paymentInputSchema.extend({
+  payments: paymentPartsSchema.optional(),
+});
+
 export const patientTabCloseInputSchema = z
   .object({
     costCenterId: z.uuid().optional(),
@@ -334,10 +340,18 @@ export const patientTabCloseInputSchema = z
     settlement: z.enum(["paid", "receivable"]),
     paymentMethod: paymentMethodSchema.optional(),
     paymentInstallments: paymentInstallmentsSchema,
+    /**
+     * Pagamento picado: as formas e o valor de cada uma, somando o total. Pago agora, são as
+     * formas recebidas; a receber, as previstas (sugeridas na baixa).
+     */
+    payments: paymentPartsSchema.optional(),
     dueDate: z.iso.date(),
   })
   .refine(
-    (value) => value.settlement !== "paid" || Boolean(value.paymentMethod),
+    (value) =>
+      value.settlement !== "paid" ||
+      Boolean(value.paymentMethod) ||
+      Boolean(value.payments?.length),
     { message: "Informe a forma de pagamento.", path: ["paymentMethod"] },
   );
 
@@ -404,10 +418,18 @@ export const productSaleInputSchema = z
     settlement: z.enum(["paid", "receivable"]),
     paymentMethod: paymentMethodSchema.optional(),
     paymentInstallments: paymentInstallmentsSchema,
+    /**
+     * Pagamento picado: as formas e o valor de cada uma, somando o total. Pago agora, são as
+     * formas recebidas; a receber, as previstas (sugeridas na baixa).
+     */
+    payments: paymentPartsSchema.optional(),
     dueDate: z.iso.date(),
   })
   .refine(
-    (value) => value.settlement !== "paid" || Boolean(value.paymentMethod),
+    (value) =>
+      value.settlement !== "paid" ||
+      Boolean(value.paymentMethod) ||
+      Boolean(value.payments?.length),
     { message: "Informe a forma de pagamento.", path: ["paymentMethod"] },
   );
 export const patientTabServiceInputSchema = z.object({
@@ -788,6 +810,11 @@ export const financeForecastFilterSchema = z.object({
 /** Baixa de parcela (U39): desconto, juros e valor recebido (parcial gera nova parcela). */
 export const receivableSettlementSchema = paymentInputSchema.extend({
   paymentInstallments: paymentInstallmentsSchema,
+  /**
+   * Pagamento picado: formas e valores recebidos nesta baixa. A soma é o valor recebido
+   * (`receivedInCents` é ignorado); faltando, o saldo vira nova parcela como no parcial.
+   */
+  payments: paymentPartsSchema.optional(),
   discountInCents: z.number().int().min(0).default(0),
   interestInCents: z.number().int().min(0).default(0),
   /** Sem valor = recebe o valor final inteiro. */

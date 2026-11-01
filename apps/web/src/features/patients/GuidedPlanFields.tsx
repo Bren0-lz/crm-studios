@@ -1,7 +1,5 @@
 import {
   type PatientPlan,
-  type PaymentMethod,
-  paymentMethodSchema,
   planFirstChargeProration,
   planPeriodEnd,
   planPixChargeMessage,
@@ -27,8 +25,7 @@ import { LoadingBlock } from "../../shared/components/LoadingBlock";
 import { usePaymentMethodSettings } from "../../shared/hooks/usePaymentMethodSettings";
 import { currency } from "../../shared/lib/formatting";
 import type { GuidedSingleForm } from "./types";
-import { PlanFirstChargeNote, PlanInstallmentsField } from "../plans/index";
-import { dailyCashMethodLabels } from "../finance/index";
+import { PlanFirstChargeNote, PlanPaymentFields } from "../plans/index";
 
 export function GuidedPlanFields<T extends GuidedSingleForm>({
   form,
@@ -140,6 +137,8 @@ export function GuidedPlanFields<T extends GuidedSingleForm>({
               name: template?.name ?? "",
               services: template?.services.map((entry) => ({ ...entry })) ?? [],
               totalValueInCents: template?.totalValueInCents ?? 0,
+              // Valor novo: as formas picadas voltam a uma (a forma escolhida fica).
+              paymentParts: undefined,
               ...("kind" in form
                 ? (() => {
                     const kind = template?.planType
@@ -277,16 +276,6 @@ export function GuidedPlanFields<T extends GuidedSingleForm>({
           }
         />
       </label>
-      <PlanInstallmentsField
-        kind={"kind" in form ? (form.kind as PatientPlan["kind"]) : undefined}
-        installments={form.installments}
-        firstDueDate={form.firstDueDate}
-        validUntil={form.validUntil}
-        paymentMethod={form.paymentMethod}
-        settings={paymentSettings}
-        template={templates.find((item) => item.id === form.planTemplateId)}
-        onChange={(installments) => setForm({ ...form, installments })}
-      />
       <label>
         Primeiro vencimento
         <input
@@ -315,27 +304,17 @@ export function GuidedPlanFields<T extends GuidedSingleForm>({
         />
         Renovar automaticamente ao fim da validade, com as mesmas condições
       </label>
-      <label className="span-2">
-        Forma de pagamento
-        <select
-          value={form.paymentMethod ?? ""}
-          onChange={(event) =>
-            setForm({
-              ...form,
-              paymentMethod:
-                (event.target.value as PaymentMethod | "") || undefined,
-            })
-          }
-        >
-          <option value="">A combinar</option>
-          {paymentMethodSchema.options.map((method) => (
-            <option value={method} key={method}>
-              {dailyCashMethodLabels[method]}
-            </option>
-          ))}
-        </select>
-      </label>
+      <PlanPaymentFields
+        plan={{
+          ...form,
+          kind: "kind" in form ? (form.kind as PatientPlan["kind"]) : undefined,
+        }}
+        settings={paymentSettings}
+        template={templates.find((item) => item.id === form.planTemplateId)}
+        onChange={(fields) => setForm({ ...form, ...fields })}
+      />
       {form.paymentMethod === "pix" &&
+        !form.paymentParts &&
         (pixKey === null ? (
           <LoadingBlock />
         ) : pixKey ? (

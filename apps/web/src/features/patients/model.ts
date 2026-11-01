@@ -107,6 +107,8 @@ export function defaultPlanTerms(): GuidedSingleForm {
     installments: 3,
     firstDueDate: today,
     autoRenew: false,
+    // Nunca sem forma de pagamento: começa no Pix.
+    paymentMethod: "pix",
   };
 }
 

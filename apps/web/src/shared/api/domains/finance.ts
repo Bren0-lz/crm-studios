@@ -67,6 +67,7 @@ import type {
   Payable,
   PayableInput,
   PaymentMethod,
+  PaymentPart,
   PaymentReceipt,
   ReceivableRenegotiation,
   ReceivableRenegotiationInput,
@@ -373,10 +374,16 @@ export const financeApi = {
     id: string,
     paymentMethod: PaymentMethod = "pix",
     timing?: PaymentTiming,
+    /** Pagamento picado: as formas somam o valor da conta. */
+    payments?: PaymentPart[],
   ) =>
     request<Payable>(`/finance/payables/${id}/pay`, {
       method: "POST",
-      body: JSON.stringify({ paymentMethod, ...timing }),
+      body: JSON.stringify({
+        paymentMethod,
+        ...timing,
+        ...(payments?.length ? { payments } : {}),
+      }),
     }),
   setPayableAmount: (id: string, amountInCents: number) =>
     request<Payable>(`/finance/payables/${id}/amount`, {

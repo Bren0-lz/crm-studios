@@ -1,5 +1,6 @@
 import { paymentTimingSchema, financialDatesSchema } from "./model.js";
 import { z } from "zod";
+import type { PaymentPart } from "./payment-parts.js";
 import type { ProductSize, ProductSizeStock } from "./model.js";
 import {
   productUpdateSchema,
@@ -302,6 +303,7 @@ export type SettlementAdjustments = Pick<
   | "receivedInCents"
   | "balanceDueDate"
   | "paymentInstallments"
+  | "payments"
 >;
 export type FinancialDatesInput = z.infer<typeof financialDatesSchema>;
 export interface ReceivableService {
@@ -340,6 +342,11 @@ export interface Receivable {
   paymentMethod?: PaymentMethod;
   /** Parcelas na própria forma de pagamento (ex.: cartão em 3x); ausente = à vista. */
   paymentInstallments?: number;
+  /**
+   * Pagamento picado: paga, as formas recebidas (a soma é `amountInCents`); aberta, as
+   * previstas na venda. Ausente = uma forma só (`paymentMethod`).
+   */
+  paymentParts?: PaymentPart[];
   /**
    * Desconto do cliente aplicado ao gerar a cobrança do plano (`amountInCents` já é o
    * valor com desconto; o valor cheio é a soma dos dois). Ausente = sem desconto.
@@ -380,6 +387,8 @@ export interface Payable extends PayableInput {
   costCenterName?: string;
   status: "open" | "paid" | "cancelled";
   paymentMethod?: PaymentMethod;
+  /** Pagamento picado: as formas usadas (a soma é `amountInCents`). */
+  paymentParts?: PaymentPart[];
   paidAt?: string;
   overdue: boolean;
   createdAt: string;
@@ -613,6 +622,8 @@ export interface PaymentReceipt {
   paymentMethod: PaymentMethod;
   /** Parcelas na própria forma de pagamento (ex.: cartão em 3x). */
   paymentInstallments?: number;
+  /** Pagamento picado: as formas e valores recebidos. */
+  paymentParts?: PaymentPart[];
   /** Parcela do plano/venda: "2 de 3" quando há mais de uma. */
   installmentNumber?: number;
   installmentCount?: number;

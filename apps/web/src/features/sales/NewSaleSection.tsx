@@ -1,17 +1,11 @@
 import type {
   InventoryWorkspace,
   PatientOption,
-  PaymentMethod,
   Product,
   ProductSaleInput,
   ProductSize,
 } from "@crm/contracts";
-import {
-  patientFirstName,
-  paymentMethodLabels,
-  paymentMethodSchema,
-  productSizeLabel,
-} from "@crm/contracts";
+import { patientFirstName, productSizeLabel } from "@crm/contracts";
 import { CircleAlert, Plus, Trash2 } from "lucide-react";
 import { useEffect, useId, useState, type FormEvent } from "react";
 import { api } from "../../api";
@@ -19,7 +13,13 @@ import { useAuthorization } from "../../authorization-context";
 import { PatientPicker } from "../../PatientPicker";
 import { EmptyState } from "../../shared/components/EmptyState";
 import { MoneyInput } from "../../shared/components/MoneyInput";
-import { PaymentInstallmentsSelect } from "../../shared/components/PaymentInstallmentsSelect";
+import { PaymentPartsField } from "../../shared/components/PaymentPartsField";
+import {
+  type PaymentPartDraft,
+  effectiveDrafts,
+  paymentDraftsIssue,
+  toPaymentParts,
+} from "../../shared/lib/payment-parts";
 import { usePaymentMethodSettings } from "../../shared/hooks/usePaymentMethodSettings";
 import { useToast } from "../../shared/feedback/toast-context";
 import { currency, localIsoDate } from "../../shared/lib/formatting";
@@ -45,6 +45,10 @@ const emptyLine = (): SaleLine => ({
 });
 
 /** Sub-aba "Nova venda": cliente, produtos e pagamento, registrados de uma vez. */
+const defaultParts = (): PaymentPartDraft[] => [
+  { paymentMethod: "pix", amountInCents: null, installments: 1 },
+];
+
 export function NewSaleSection({
   workspace,
 }: {
@@ -60,8 +64,8 @@ export function NewSaleSection({
   const [lines, setLines] = useState<SaleLine[]>(() => [emptyLine()]);
   const [settlement, setSettlement] =
     useState<ProductSaleInput["settlement"]>("paid");
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("pix");
-  const [paymentInstallments, setPaymentInstallments] = useState(1);
+  // Formas de pagamento: uma (o total) ou várias, picando o valor da venda.
+  const [parts, setParts] = useState<PaymentPartDraft[]>(defaultParts);
   const paymentSettings = usePaymentMethodSettings();
   const [dueDate, setDueDate] = useState(() => localIsoDate());
   const [notes, setNotes] = useState("");
@@ -120,7 +124,11 @@ export function NewSaleSection({
       ? ["quantidade dentro do estoque"]
       : []),
     ...(filled.length && totalInCents <= 0 ? ["valor maior que zero"] : []),
+    ...(totalInCents > 0 && paymentDraftsIssue(parts, totalInCents)
+      ? ["formas de pagamento somando o total"]
+      : []),
   ];
+  const effectiveParts = effectiveDrafts(parts, totalInCents);
   function update(key: number, patch: Partial<SaleLine>) {
     setLines((current) =>
       current.map((line) => (line.key === key ? { ...line, ...patch } : line)),
@@ -130,8 +138,7 @@ export function NewSaleSection({
     setPatientId("");
     setLines([emptyLine()]);
     setSettlement("paid");
-    setPaymentMethod("pix");
-    setPaymentInstallments(1);
+    setParts(defaultParts());
     setDueDate(localIsoDate());
     setNotes("");
   }
@@ -151,12 +158,15 @@ export function NewSaleSection({
           unitPriceInCents: line.unitPriceInCents,
         })),
         settlement,
-        ...(settlement === "paid"
-          ? {
-              paymentMethod,
-              ...(paymentInstallments > 1 ? { paymentInstallments } : {}),
-            }
-          : {}),
+        // Pago agora: as formas recebidas; a receber: as previstas (sugeridas na baixa).
+        ...(effectiveParts.length > 1
+          ? { payments: toPaymentParts(effectiveParts) }
+          : {
+              paymentMethod: effectiveParts[0]!.paymentMethod,
+              ...(effectiveParts[0]!.installments > 1
+                ? { paymentInstallments: effectiveParts[0]!.installments }
+                : {}),
+            }),
         dueDate,
       });
       toast.success(
@@ -376,31 +386,7 @@ export function NewSaleSection({
                 <option value="receivable">A receber</option>
               </select>
             </label>
-            {settlement === "paid" ? (
-              <>
-                <label>
-                  Forma de pagamento
-                  <select
-                    value={paymentMethod}
-                    onChange={(event) =>
-                      setPaymentMethod(event.target.value as PaymentMethod)
-                    }
-                  >
-                    {paymentMethodSchema.options.map((value) => (
-                      <option key={value} value={value}>
-                        {paymentMethodLabels[value]}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <PaymentInstallmentsSelect
-                  method={paymentMethod}
-                  settings={paymentSettings}
-                  value={paymentInstallments}
-                  onChange={setPaymentInstallments}
-                />
-              </>
-            ) : (
+            {settlement === "receivable" && (
               <label>
                 Vencimento
                 <input
@@ -411,6 +397,24 @@ export function NewSaleSection({
                 />
               </label>
             )}
+            <PaymentPartsField
+              className="span-2"
+              parts={parts}
+              onChange={setParts}
+              totalInCents={totalInCents}
+              settings={paymentSettings}
+              disabled={busy}
+              legend={
+                settlement === "paid"
+                  ? "Formas de pagamento"
+                  : "Formas de pagamento previstas"
+              }
+              hint={
+                settlement === "paid"
+                  ? "Pagou em mais de uma forma? Adicione as outras e informe o valor de cada uma."
+                  : "Ficam sugeridas na baixa da conta a receber."
+              }
+            />
             <label className="span-2">
               Observações
               <textarea

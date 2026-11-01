@@ -2,8 +2,6 @@ import { useUnsavedChangesPrompt } from "../../shared/workflows/useUnsavedChange
 import type { CloseGuard } from "../../shared/workflows/types";
 import {
   nextPlanPeriod,
-  paymentMethodLabels,
-  paymentMethodSchema,
   planPeriodEnd,
   planPeriodMonths,
   planServiceValueForSessions,
@@ -12,7 +10,6 @@ import {
   type PatientOption,
   type PatientPlan,
   type PatientPlanInput,
-  type PaymentMethod,
   type PlanTemplate,
   type Service,
   withPlanFirstCharge,
@@ -26,7 +23,7 @@ import {
 } from "react";
 import { NavLink } from "react-router-dom";
 import { PlanFirstChargeNote } from "./PlanFirstChargeNote";
-import { PlanInstallmentsField } from "./PlanInstallmentsField";
+import { PlanPaymentFields } from "./PlanPaymentFields";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
 import { PatientPicker } from "../../PatientPicker";
@@ -94,6 +91,8 @@ export function PlanForm({
         installments: 3,
         firstDueDate: currentDate,
         autoRenew: false,
+        // Nunca sem forma de pagamento: começa no Pix.
+        paymentMethod: "pix",
       };
     }
     const period = nextPlanPeriod(renewing) ?? {
@@ -115,9 +114,9 @@ export function PlanForm({
       ),
       totalValueInCents: renewing.totalValueInCents,
       installments: renewing.kind === "recurring" ? 1 : renewing.installments,
-      ...(renewing.paymentMethod
-        ? { paymentMethod: renewing.paymentMethod }
-        : {}),
+      // A renovação segue as formas combinadas (Pix quando o plano antigo não tinha).
+      paymentMethod: renewing.paymentMethod ?? "pix",
+      ...(renewing.paymentParts ? { paymentParts: renewing.paymentParts } : {}),
       autoRenew: renewing.autoRenew && Boolean(period.validUntil),
       ...period,
     };
@@ -361,6 +360,8 @@ export function PlanForm({
                         planTemplateId: template?.id ?? "",
                         name: template?.name ?? "",
                         totalValueInCents: template?.totalValueInCents ?? 0,
+                        // Valor novo: as formas picadas voltam a uma.
+                        paymentParts: undefined,
                         services:
                           template?.services.map((entry) => ({ ...entry })) ??
                           [],
@@ -558,39 +559,15 @@ export function PlanForm({
                 }
               />
             </label>
-            <label>
-              Forma de pagamento
-              <select
-                value={form.paymentMethod ?? ""}
-                onChange={(event) => {
-                  const paymentMethod = event.target.value as
-                    PaymentMethod | "";
-                  const next = { ...form };
-                  if (paymentMethod) next.paymentMethod = paymentMethod;
-                  else delete next.paymentMethod;
-                  setForm(next);
-                }}
-              >
-                <option value="">A combinar</option>
-                {paymentMethodSchema.options.map((method) => (
-                  <option value={method} key={method}>
-                    {paymentMethodLabels[method]}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <PlanInstallmentsField
-              kind={form.kind}
-              installments={form.installments}
-              firstDueDate={form.firstDueDate}
-              validUntil={form.validUntil}
-              paymentMethod={form.paymentMethod}
+            <PlanPaymentFields
+              plan={form}
               settings={paymentSettings}
               template={templates?.find(
                 (item) =>
                   item.id === (renewing?.planTemplateId ?? form.planTemplateId),
               )}
-              onChange={(installments) => setForm({ ...form, installments })}
+              disabled={loading}
+              onChange={(fields) => setForm({ ...form, ...fields })}
             />
             <label>
               Primeiro vencimento

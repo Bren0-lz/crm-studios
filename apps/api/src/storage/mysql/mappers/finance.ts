@@ -7,6 +7,7 @@ import type {
   PatientTabItem,
   Payable,
   PaymentMethod,
+  PaymentPart,
   Product,
   ProductSize,
   Receivable,
@@ -90,6 +91,8 @@ export interface PatientTabItemRow {
 }
 
 export interface ReceivableRow {
+  /** Pagamento picado (JSON); vazio = forma única. */
+  paymentParts?: unknown;
   branchId?: string;
   postedOn?: string | null;
   cashAvailableAt?: Date | null;
@@ -134,6 +137,8 @@ export interface CostCenterRow {
 }
 
 export interface PayableRow {
+  /** Pagamento picado (JSON); vazio = forma única. */
+  paymentParts?: unknown;
   payrollEmployeeId?: string | null;
   payrollEmployeeName?: string | null;
   payrollCompetence?: string | null;
@@ -225,6 +230,14 @@ export interface CommissionEntryRow {
   payrollPayableId?: string | null;
 }
 
+/** Coluna `payment_parts`: lista vazia (ou ausente) = forma única, sem o campo. */
+export function paymentPartsOf(value: unknown): {
+  paymentParts?: PaymentPart[];
+} {
+  const parts = json<PaymentPart[] | null>(value);
+  return Array.isArray(parts) && parts.length ? { paymentParts: parts } : {};
+}
+
 /** Parcelas do pagamento gravadas só quando há parcelamento (1 = à vista = NULL). */
 export function paymentInstallmentsValue(value: number | undefined) {
   return value && value > 1 ? value : null;
@@ -241,6 +254,7 @@ export const receivableColumns = `
   (r.status = 'open' AND r.due_date < ${localToday()}) AS overdue,
   r.created_at AS "createdAt", r.updated_at AS "updatedAt"
   , r.payment_method AS "paymentMethod", r.payment_installments AS "paymentInstallments"
+  , r.payment_parts AS "paymentParts"
   , r.customer_discount_in_cents AS "customerDiscountInCents"
 `;
 
@@ -252,6 +266,7 @@ export const payableColumns = `
   fc.name AS "categoryName", cc.name AS "costCenterName",
   py.due_date AS "dueDate", py.amount_in_cents AS "amountInCents",
   py.notes, py.status, py.payment_method AS "paymentMethod",
+  py.payment_parts AS "paymentParts",
   py.paid_at AS "paidAt",
   (py.status = 'open' AND py.due_date < ${localToday()}) AS overdue,
   py.created_at AS "createdAt", py.updated_at AS "updatedAt",
@@ -442,6 +457,7 @@ export function mapReceivable(row: ReceivableRow): Receivable {
     ...(row.paymentInstallments && row.paymentInstallments > 1
       ? { paymentInstallments: row.paymentInstallments }
       : {}),
+    ...paymentPartsOf(row.paymentParts),
     ...(row.customerDiscountInCents
       ? { customerDiscountInCents: row.customerDiscountInCents }
       : {}),
@@ -472,6 +488,7 @@ export function mapPayable(row: PayableRow): Payable {
     ...(row.notes ? { notes: row.notes } : {}),
     status: row.status,
     ...(row.paymentMethod ? { paymentMethod: row.paymentMethod } : {}),
+    ...paymentPartsOf(row.paymentParts),
     ...(row.paidAt ? { paidAt: row.paidAt.toISOString() } : {}),
     overdue: bool(row.overdue),
     createdAt: row.createdAt.toISOString(),

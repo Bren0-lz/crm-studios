@@ -1,12 +1,13 @@
 import {
   type Payable,
   paymentMethodWithInstallments,
+  paymentPartsLabel,
   saoPauloToday,
 } from "@crm/contracts";
 import { Plus } from "lucide-react";
 import { useAuthorization } from "../../authorization-context";
 import { EmptyState } from "../../shared/components/EmptyState";
-import { shortDate } from "../../shared/lib/formatting";
+import { currency, shortDate } from "../../shared/lib/formatting";
 import { receivableSituation, signedCurrency } from "./model";
 
 export function PayablesList({
@@ -78,7 +79,12 @@ export function PayablesList({
               <span title={detail}>{detail}</span>
               {item.status === "paid" && item.paymentMethod && (
                 <span className="finance-installment">
-                  Pago: {paymentMethodWithInstallments(item.paymentMethod)}
+                  Pago:{" "}
+                  {item.paymentParts
+                    ? paymentPartsLabel(item.paymentParts, (cents) =>
+                        currency.format(cents / 100),
+                      )
+                    : paymentMethodWithInstallments(item.paymentMethod)}
                 </span>
               )}
             </div>
