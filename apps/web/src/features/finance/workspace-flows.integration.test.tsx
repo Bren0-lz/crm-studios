@@ -35,16 +35,12 @@ describe("finance workflows through real HTTP handlers", () => {
     );
     // O modal abre assim que o workspace carrega.
     let dialog = await screen.findByRole("dialog", { name: "Nova despesa" });
-    // Fornecedor num campo só: os cadastrados aparecem como sugestão.
-    await vi.waitFor(() =>
-      expect(
-        dialog.querySelector(`datalist option[value="${supplier!.name}"]`),
-      ).not.toBeNull(),
-    );
+    // Fornecedor num campo só, entre os cadastrados.
+    await within(dialog).findByRole("option", { name: supplier!.name });
     fireEvent.click(within(dialog).getByRole("radio", { name: "Lançamento" }));
     for (const [label, value] of [
       ["Descrição", "Compra de faixas"],
-      ["Fornecedor", supplier!.name.toUpperCase()],
+      ["Fornecedor", supplier!.id],
       ["Data do lançamento", "2040-06-10"],
       ["Categoria", category.id],
       ["Centro de custo (opcional)", center.id],
@@ -121,7 +117,7 @@ describe("finance workflows through real HTTP handlers", () => {
       status: "paid",
       amountInCents: 7550,
       supplierId: supplier!.id,
-      supplier: supplier!.name.toUpperCase(),
+      supplier: supplier!.name,
       // Uma data só: no lançamento, vence no mesmo dia e a DRE usa o mês dela.
       postedOn: "2040-06-10",
       dueDate: "2040-06-10",
