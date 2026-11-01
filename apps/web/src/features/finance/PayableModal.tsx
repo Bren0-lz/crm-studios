@@ -19,6 +19,7 @@ import {
 import { HelpTip } from "../../shared/components/HelpTip";
 import { financeTermHelp } from "./model";
 import { ExpenseKindPicker } from "./ExpenseKindPicker";
+import { SupplierModal } from "./SupplierModal";
 import {
   carriedId,
   EXPENSE_KIND_FOCUS,
@@ -47,7 +48,8 @@ export function PayableModal({
   const [costCenters, setCostCenters] = useState(workspace.costCenters);
   const [form, setForm] = useState<PayableInput>({
     description: draft?.description ?? "",
-    supplier: draft?.supplier ?? "",
+    // Só fornecedor cadastrado: o nome vindo da despesa fixa é casado ao carregar a lista.
+    supplier: "",
     categoryId:
       carriedId(draft?.categoryId, expenseCategories) ??
       expenseCategories[0]?.id ??
@@ -65,12 +67,42 @@ export function PayableModal({
     null,
   );
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [suppliersLoaded, setSuppliersLoaded] = useState(false);
+  const [creatingSupplier, setCreatingSupplier] = useState(false);
+  const canCreateSupplier = can("finance.suppliers_manage");
+  function selectSupplier(item: Supplier | undefined) {
+    setForm((current) => ({
+      ...current,
+      supplierId: item?.id,
+      supplier: item?.name ?? "",
+    }));
+  }
   useEffect(() => {
     let alive = true;
     api
       .suppliers()
       .then((items) => {
-        if (alive) setSuppliers(items);
+        if (!alive) return;
+        setSuppliers(items);
+        setSuppliersLoaded(true);
+        // A despesa fixa só guarda o nome: reaproveita o cadastro com o mesmo nome.
+        const carried = draft?.supplier?.trim().toLocaleLowerCase("pt-BR");
+        const match = carried
+          ? items.find(
+              (item) =>
+                item.active &&
+                item.name.trim().toLocaleLowerCase("pt-BR") === carried,
+            )
+          : undefined;
+        setForm((current) =>
+          current.supplierId
+            ? current
+            : {
+                ...current,
+                supplierId: match?.id,
+                supplier: match?.name ?? "",
+              },
+        );
       })
       .catch((cause: Error) => {
         if (alive) setError(cause.message);
@@ -78,6 +110,8 @@ export function PayableModal({
     return () => {
       alive = false;
     };
+    // O rascunho só vale na abertura do modal.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const [loading, setLoading] = useState(false);
   const dirty = useFormDirty(form) || hasCarriedDraft(draft);
@@ -115,6 +149,7 @@ export function PayableModal({
         {...(kindSwitch ? { initialFocus: EXPENSE_KIND_FOCUS } : {})}
         busy={loading}
         dirty={dirty}
+        inactive={creatingSupplier}
         onClose={onClose}
       >
         {can("finance.payables_create") && (
@@ -124,7 +159,7 @@ export function PayableModal({
               kindSwitch={kindSwitch}
               draft={{
                 description: form.description,
-                supplier: form.supplier ?? "",
+                supplier: form.supplier || (draft?.supplier ?? ""),
                 categoryId: form.categoryId,
                 costCenterId: form.costCenterId ?? "",
                 amountInCents: form.amountInCents,
@@ -140,40 +175,47 @@ export function PayableModal({
                 }
               />
             </label>
-            <label>
-              Fornecedor cadastrado
-              <select
-                value={form.supplierId ?? ""}
-                onChange={(event) => {
-                  const item = suppliers.find(
-                    (item) => item.id === event.target.value,
-                  );
-                  setForm({
-                    ...form,
-                    supplierId: item?.id,
-                    supplier: item?.name ?? form.supplier,
-                  });
-                }}
-              >
-                <option value="">Informar manualmente</option>
-                {suppliers
-                  .filter((item) => item.active || item.id === form.supplierId)
-                  .map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {item.name}
+            <div className="field-with-hint">
+              <label>
+                Fornecedor
+                <select
+                  value={form.supplierId ?? ""}
+                  className="select-opens-down"
+                  onChange={(event) => {
+                    if (event.target.value === CREATE_OPTION_VALUE) {
+                      setCreatingSupplier(true);
+                      return;
+                    }
+                    selectSupplier(
+                      suppliers.find((item) => item.id === event.target.value),
+                    );
+                  }}
+                >
+                  <option value="">Sem fornecedor</option>
+                  {suppliers
+                    .filter(
+                      (item) => item.active || item.id === form.supplierId,
+                    )
+                    .map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.name}
+                      </option>
+                    ))}
+                  {canCreateSupplier && (
+                    <option value={CREATE_OPTION_VALUE}>
+                      + Novo fornecedor
                     </option>
-                  ))}
-              </select>
-            </label>
-            <label>
-              Fornecedor
-              <input
-                value={form.supplier}
-                onChange={(event) =>
-                  setForm({ ...form, supplier: event.target.value })
-                }
-              />
-            </label>
+                  )}
+                </select>
+              </label>
+              {suppliersLoaded && suppliers.length === 0 && (
+                <span className="field-hint">
+                  {canCreateSupplier
+                    ? "Nenhum fornecedor cadastrado."
+                    : "Nenhum fornecedor cadastrado. Peça a quem administra o financeiro para cadastrar."}
+                </span>
+              )}
+            </div>
             <label>
               <span className="label-with-help">
                 Lançamento
@@ -332,6 +374,20 @@ export function PayableModal({
               toast.success(`Centro de custo “${created.name}” criado.`);
             }
             setCreating(null);
+          }}
+        />
+      )}
+      {creatingSupplier && (
+        <SupplierModal
+          supplier="new"
+          onClose={() => setCreatingSupplier(false)}
+          onSaved={async (saved) => {
+            setSuppliers((items) => [
+              ...items.filter((item) => item.id !== saved.id),
+              saved,
+            ]);
+            setSuppliersLoaded(true);
+            selectSupplier(saved);
           }}
         />
       )}
