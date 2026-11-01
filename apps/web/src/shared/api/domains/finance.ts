@@ -1,6 +1,7 @@
 import type {
   PayrollEmployee,
-  PayrollEmployeeInput,
+  PayrollEntry,
+  PayrollEntryInput,
   PayrollLaunchInput,
   PayrollLaunchResult,
   PayrollSummary,
@@ -36,6 +37,8 @@ import type {
   PatientTabItemInput,
   PatientTabItemUpdate,
   PatientTabCloseInput,
+  PatientTabCancelInput,
+  PatientTabPayment,
   ProductSaleInput,
   Supplier,
   SupplierInput,
@@ -188,8 +191,17 @@ export const financeApi = {
       method: "POST",
       body: JSON.stringify(input),
     }),
-  cancelPatientTab: (id: string) =>
-    request<PatientTab>(`/patient-tabs/${id}/cancel`, { method: "POST" }),
+  /** `refundPayment`: estorna o pagamento recebido no mesmo cancelamento. */
+  cancelPatientTab: (id: string, input?: PatientTabCancelInput) =>
+    request<PatientTab>(`/patient-tabs/${id}/cancel`, {
+      method: "POST",
+      ...(input ? { body: JSON.stringify(input) } : {}),
+    }),
+  /** Pagamento da venda (cobrança do fechamento), sem exigir acesso ao Financeiro. */
+  patientTabPayment: (id: string) =>
+    request<{ payment: PatientTabPayment | null }>(
+      `/patient-tabs/${id}/payment`,
+    ),
   /** Venda de produtos em uma etapa (abre, preenche e fecha a comanda). */
   createProductSale: (input: ProductSaleInput) =>
     request<PatientTab>("/product-sales", {
@@ -319,11 +331,17 @@ export const financeApi = {
     ),
   payrollEmployees: (options?: RequestInit) =>
     request<PayrollEmployee[]>("/finance/payroll/employees", options),
-  /** Só colaboradores anteriores ao salário no usuário; não há cadastro direto na folha. */
-  savePayrollEmployee: (input: PayrollEmployeeInput, id: string) =>
-    request<PayrollEmployee>(`/finance/payroll/employees/${id}`, {
-      method: "PUT",
+  /** Desconto ou recompensa do mês; o salário fixo não muda pela folha. */
+  createPayrollEntry: (input: PayrollEntryInput, options?: RequestInit) =>
+    request<PayrollEntry>("/finance/payroll/entries", {
+      ...options,
+      method: "POST",
       body: JSON.stringify(input),
+    }),
+  deletePayrollEntry: (id: string, options?: RequestInit) =>
+    request<void>(`/finance/payroll/entries/${id}`, {
+      ...options,
+      method: "DELETE",
     }),
   launchPayroll: (input: PayrollLaunchInput, options?: RequestInit) =>
     request<PayrollLaunchResult>("/finance/payroll/launch", {

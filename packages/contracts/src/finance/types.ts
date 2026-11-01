@@ -89,6 +89,7 @@ import {
   financeForecastFilterSchema,
   financialCategoryInputSchema,
   patientTabCloseInputSchema,
+  patientTabCancelInputSchema,
   patientTabInputSchema,
   patientTabItemInputSchema,
   payableAmountInputSchema,
@@ -135,6 +136,8 @@ export type ReceivableStatus = z.infer<typeof receivableStatusSchema>;
 export type PaymentMethod = z.infer<typeof paymentMethodSchema>;
 
 export type PatientTabCloseInput = z.infer<typeof patientTabCloseInputSchema>;
+
+export type PatientTabCancelInput = z.input<typeof patientTabCancelInputSchema>;
 
 export type ReceivableRenegotiationInput = z.infer<
   typeof receivableRenegotiationInputSchema
@@ -280,6 +283,18 @@ export interface PatientTab extends PatientTabInput {
   cancelledAt?: string;
 }
 
+/** Pagamento da comanda (cobrança gerada no fechamento), visto sem acesso ao Financeiro. */
+export interface PatientTabPayment {
+  receivableId: string;
+  status: ReceivableStatus;
+  amountInCents: number;
+  dueDate: string;
+  paidAt?: string;
+  paymentMethod?: PaymentMethod;
+  /** Parcelas na própria forma (ex.: cartão em 3x); ausente = à vista. */
+  paymentInstallments?: number;
+}
+
 export interface InventoryWorkspace {
   products: Product[];
   movements: StockMovement[];
@@ -321,6 +336,8 @@ export interface Receivable {
   source?: "plan" | "tab" | "manual";
   /** Nome do plano como foi vendido; só nas cobranças de plano. */
   planName?: string;
+  /** Modelo do plano vendido (avulso, pacote, recorrente…); só nas cobranças de plano. */
+  planKind?: "single" | "fixed_package" | "recurring" | "custom";
   /** Valor total contratado do plano; só nas cobranças de plano. */
   planTotalInCents?: number;
   /** Forma de pagamento combinada na venda do plano (ausente = a combinar). */

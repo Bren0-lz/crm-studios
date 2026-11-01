@@ -1468,6 +1468,89 @@ export class MysqlRepositoryContext {
     return result.rows[0] ? mapPayable(result.rows[0]) : null;
   }
 
+  /**
+   * Estorna a baixa de um recebível pago, dentro da transação de quem chama (a linha já
+   * travada com `FOR UPDATE`): a parcela volta a "open" sem o desconto e sem os juros da baixa.
+   */
+  async reversePaidReceivableWith(
+    client: PoolClient,
+    clinicId: string,
+    actorUserId: string,
+    receivableId: string,
+  ) {
+    const current = await client.query<{
+      amountInCents: number;
+      paymentMethod: PaymentMethod | null;
+    }>(
+      `SELECT amount_in_cents AS "amountInCents", payment_method AS "paymentMethod"
+       FROM receivables WHERE clinic_id = $1 AND id = $2 AND status = 'paid' FOR UPDATE`,
+      [clinicId, receivableId],
+    );
+    const paid = current.rows[0];
+    if (!paid)
+      throw new DomainError(
+        "RECEIVABLE_NOT_PAID",
+        "Somente pagamentos confirmados podem ser estornados.",
+        409,
+      );
+    // Estorno: a parcela volta a valer sem o desconto e sem os juros da baixa.
+    const payment = await client.query<{
+      discountInCents: number;
+      interestInCents: number;
+    }>(
+      `SELECT discount_in_cents AS "discountInCents", interest_in_cents AS "interestInCents"
+       FROM financial_events WHERE clinic_id = $1 AND receivable_id = $2 AND kind = 'payment'
+       ORDER BY created_at DESC LIMIT 1`,
+      [clinicId, receivableId],
+    );
+    const restore =
+      (payment.rows[0]?.discountInCents ?? 0) -
+      (payment.rows[0]?.interestInCents ?? 0);
+    if (restore !== 0) {
+      await client.query(
+        `UPDATE receivables SET amount_in_cents = amount_in_cents + $3
+         WHERE clinic_id = $1 AND id = $2`,
+        [clinicId, receivableId, restore],
+      );
+      await client.query(
+        `INSERT INTO financial_events
+           (clinic_id, receivable_id, actor_user_id, kind, amount_in_cents, metadata)
+         VALUES ($1,$2,$3,'adjustment',$4,$5)`,
+        [
+          clinicId,
+          receivableId,
+          actorUserId,
+          restore,
+          { reason: "Estorno de baixa com desconto/juros" },
+        ],
+      );
+    }
+    await client.query(
+      `UPDATE receivables SET status = 'open', paid_at = NULL, payment_method = NULL, payment_installments = NULL, updated_at = NOW(6)
+       WHERE clinic_id = $1 AND id = $2`,
+      [clinicId, receivableId],
+    );
+    await client.query(
+      `INSERT INTO financial_events
+         (clinic_id, receivable_id, actor_user_id, kind, amount_in_cents, metadata,occurred_at,cash_available_at,
+          discount_in_cents, interest_in_cents, balance_receivable_id)
+       VALUES ($1, $2, $3, 'payment_reversal', $4, $5, NOW(6), NOW(6), 0, 0, NULL)`,
+      [
+        clinicId,
+        receivableId,
+        actorUserId,
+        -paid.amountInCents,
+        { paymentMethod: paid.paymentMethod },
+      ],
+    );
+    await markPaymentProofsReversed(
+      client,
+      clinicId,
+      "receivable",
+      receivableId,
+    );
+  }
+
   async changeReceivablePayment(
     clinicId: string,
     actorUserId: string,

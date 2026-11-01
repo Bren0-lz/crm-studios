@@ -1,9 +1,12 @@
 import {
   buildPayroll,
+  payrollEntryAmount,
   payrollPayableDescription,
   payrollPayableNotes,
   type PayrollEmployee,
   type PayrollEmployeeInput,
+  type PayrollEntry,
+  type PayrollEntryInput,
   type PayrollLaunchInput,
 } from "@crm/contracts";
 import { randomUUID } from "node:crypto";
@@ -11,7 +14,11 @@ import type { Pool, PoolClient } from "../../infrastructure/mysql-client.js";
 import { DomainError } from "../../repository.js";
 import { clinicDateOf } from "../../modules/finance/daily-cash.js";
 import {
+  payrollEntryLaunchedError,
+  payrollEntryLimitError,
+  payrollEntryNoSalaryError,
   payrollLaunchTotals,
+  payrollSalaryImmutableError,
   userManagedEmployeeError,
 } from "../../modules/finance/payroll.js";
 import { loadCommissionAdjustments } from "./commission-reconciliation.js";
@@ -62,6 +69,36 @@ const mapEmployee = (row: EmployeeRow): PayrollEmployee => ({
   active: Boolean(row.active),
   createdAt: row.createdAt.toISOString(),
   updatedAt: row.updatedAt.toISOString(),
+});
+
+type EntryRow = {
+  id: string;
+  clinicId: string;
+  employeeId: string;
+  competence: string;
+  kind: PayrollEntry["kind"];
+  mode: PayrollEntry["mode"];
+  value: number;
+  amountInCents: number;
+  reason: string;
+  payrollPayableId: string | null;
+  createdAt: Date;
+};
+const entrySelect = `SELECT id,clinic_id AS "clinicId",employee_id AS "employeeId",competence,kind,mode,value,
+  amount_in_cents AS "amountInCents",reason,payroll_payable_id AS "payrollPayableId",created_at AS "createdAt"
+  FROM payroll_entries`;
+const mapEntry = (row: EntryRow): PayrollEntry => ({
+  id: row.id,
+  clinicId: row.clinicId,
+  employeeId: row.employeeId,
+  competence: row.competence,
+  kind: row.kind,
+  mode: row.mode,
+  value: Number(row.value),
+  amountInCents: Number(row.amountInCents),
+  reason: row.reason,
+  ...(row.payrollPayableId ? { payrollPayableId: row.payrollPayableId } : {}),
+  createdAt: row.createdAt.toISOString(),
 });
 
 /**
@@ -178,29 +215,39 @@ export function createPayrollRepository(context: MysqlRepositoryContext) {
   ) {
     const branches = await selectedBranches(client, clinicId, branchIds),
       selected = branches.map((item) => item.id);
-    const [allEmployees, professionals, services, commissions, payables] =
-      await Promise.all([
-        client.query<EmployeeRow>(`${employeeSelect} WHERE pe.clinic_id=$1`, [
-          clinicId,
-        ]),
-        client.query<{ id: string; fullName: string; branchId: string }>(
-          `SELECT id,full_name AS "fullName",branch_id AS "branchId" FROM professionals WHERE clinic_id=$1`,
-          [clinicId],
-        ),
-        client.query<{ id: string; name: string }>(
-          "SELECT id,name FROM services WHERE clinic_id=$1",
-          [clinicId],
-        ),
-        context.listCommissions(clinicId, competence, client),
-        client.query<PayableRow>(
-          `SELECT ${payableColumns} FROM payables py
+    const [
+      allEmployees,
+      professionals,
+      services,
+      commissions,
+      payables,
+      entries,
+    ] = await Promise.all([
+      client.query<EmployeeRow>(`${employeeSelect} WHERE pe.clinic_id=$1`, [
+        clinicId,
+      ]),
+      client.query<{ id: string; fullName: string; branchId: string }>(
+        `SELECT id,full_name AS "fullName",branch_id AS "branchId" FROM professionals WHERE clinic_id=$1`,
+        [clinicId],
+      ),
+      client.query<{ id: string; name: string }>(
+        "SELECT id,name FROM services WHERE clinic_id=$1",
+        [clinicId],
+      ),
+      context.listCommissions(clinicId, competence, client),
+      client.query<PayableRow>(
+        `SELECT ${payableColumns} FROM payables py
            JOIN financial_categories fc ON fc.id = py.category_id
            LEFT JOIN cost_centers cc ON cc.id = py.cost_center_id
            WHERE py.clinic_id=$1 AND py.status<>'cancelled'
              AND (py.payroll_competence=$2 OR py.commission_id IS NOT NULL)`,
-          [clinicId, competence],
-        ),
-      ]);
+        [clinicId, competence],
+      ),
+      client.query<EntryRow>(
+        `${entrySelect} WHERE clinic_id=$1 AND competence=$2 ORDER BY created_at,id`,
+        [clinicId, competence],
+      ),
+    ]);
     const employees = allEmployees.rows.map(mapEmployee);
     const inSelection = (professionalId: string) => {
       const employee = employees.find(
@@ -232,6 +279,11 @@ export function createPayrollRepository(context: MysqlRepositoryContext) {
         (item) =>
           item.competence === competence && inSelection(item.professionalId),
       ),
+      entries: entries.rows
+        .map(mapEntry)
+        .filter((item) =>
+          visible.some((employee) => employee.id === item.employeeId),
+        ),
       payables: mapped.filter(
         (item) =>
           item.payroll?.competence === competence &&
@@ -265,6 +317,8 @@ export function createPayrollRepository(context: MysqlRepositoryContext) {
           if (!previous) return null;
           if (previous.userId) throw userManagedEmployeeError();
           assertBranchInScope(previous.branchId);
+          if (input.baseSalaryInCents !== previous.baseSalaryInCents)
+            throw payrollSalaryImmutableError();
           const branchId = await employeeBranch(client, clinicId, input);
           await client.query(
             `UPDATE payroll_employees SET branch_id=$3,name=$4,role=$5,professional_id=$6,base_salary_in_cents=$7,active=$8,updated_at=NOW(6)
@@ -380,6 +434,16 @@ export function createPayrollRepository(context: MysqlRepositoryContext) {
             `INSERT INTO payable_events(clinic_id,payable_id,actor_user_id,kind,amount_in_cents) VALUES($1,$2,$3,'created',$4)`,
             [clinicId, payableId, actorId, entry.amountInCents],
           );
+          const entryIds = entry.items
+            .filter((item) => item.kind === "bonus" || item.kind === "discount")
+            .map((item) => item.id!);
+          const extras = entryIds.length
+            ? await client.query(
+                `UPDATE payroll_entries SET payroll_payable_id=$3
+                 WHERE clinic_id=$1 AND ${inJsonArray("id", "$2")} AND payroll_payable_id IS NULL`,
+                [clinicId, entryIds, payableId],
+              )
+            : { rowCount: 0 };
           const commissionIds = entry.items
               .filter((item) => item.kind === "commission")
               .map((item) => item.id!),
@@ -398,7 +462,8 @@ export function createPayrollRepository(context: MysqlRepositoryContext) {
           );
           if (
             commissions.rowCount !== commissionIds.length ||
-            adjustments.rowCount !== adjustmentIds.length
+            adjustments.rowCount !== adjustmentIds.length ||
+            extras.rowCount !== entryIds.length
           )
             throw new DomainError(
               "PAYROLL_STALE",
@@ -427,6 +492,111 @@ export function createPayrollRepository(context: MysqlRepositoryContext) {
           },
         );
         return { payables, skipped: plan.skipped };
+      });
+    },
+    async createPayrollEntry(
+      clinicId: string,
+      actorId: string,
+      input: PayrollEntryInput,
+    ) {
+      return context.inTransaction(async (client) => {
+        // Mesmo lock do lançamento: o desconto não entra no meio de um lançamento.
+        await client.lock(clinicId);
+        const employee = await findEmployee(client, clinicId, input.employeeId);
+        if (!employee) return null;
+        assertBranchInScope(employee.branchId);
+        if (input.mode === "percent" && employee.baseSalaryInCents <= 0)
+          throw payrollEntryNoSalaryError();
+        const amountInCents = payrollEntryAmount(
+          input.mode,
+          input.value,
+          employee.baseSalaryInCents,
+        );
+        if (amountInCents < 1) throw payrollEntryNoSalaryError();
+        if (amountInCents > 2147483647) throw payrollEntryLimitError();
+        const id = randomUUID();
+        await client.query(
+          `INSERT INTO payroll_entries(id,clinic_id,employee_id,competence,kind,mode,value,amount_in_cents,reason,created_by_user_id)
+           VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+          [
+            id,
+            clinicId,
+            employee.id,
+            input.competence,
+            input.kind,
+            input.mode,
+            input.value,
+            amountInCents,
+            input.reason,
+            actorId,
+          ],
+        );
+        await context.addAdminAudit(
+          client,
+          clinicId,
+          actorId,
+          "payroll.entry_created",
+          "payroll_employee",
+          employee.id,
+          {
+            entryId: id,
+            competence: input.competence,
+            kind: input.kind,
+            mode: input.mode,
+            value: input.value,
+            amountInCents,
+            reason: input.reason,
+          },
+        );
+        const row = (
+          await client.query<EntryRow>(
+            `${entrySelect} WHERE clinic_id=$1 AND id=$2`,
+            [clinicId, id],
+          )
+        ).rows[0]!;
+        return mapEntry(row);
+      });
+    },
+    async deletePayrollEntry(
+      clinicId: string,
+      actorId: string,
+      entryId: string,
+    ) {
+      return context.inTransaction(async (client) => {
+        await client.lock(clinicId);
+        const row = (
+          await client.query<EntryRow & { branchId: string }>(
+            `SELECT pe.id,pe.clinic_id AS "clinicId",pe.employee_id AS "employeeId",pe.competence,pe.kind,pe.mode,
+               pe.value,pe.amount_in_cents AS "amountInCents",pe.reason,pe.payroll_payable_id AS "payrollPayableId",
+               pe.created_at AS "createdAt",em.branch_id AS "branchId"
+             FROM payroll_entries pe JOIN payroll_employees em ON em.id=pe.employee_id
+             WHERE pe.clinic_id=$1 AND pe.id=$2 FOR UPDATE`,
+            [clinicId, entryId],
+          )
+        ).rows[0];
+        if (!row) return false;
+        assertBranchInScope(row.branchId);
+        if (row.payrollPayableId) throw payrollEntryLaunchedError();
+        await client.query(
+          "DELETE FROM payroll_entries WHERE clinic_id=$1 AND id=$2",
+          [clinicId, entryId],
+        );
+        await context.addAdminAudit(
+          client,
+          clinicId,
+          actorId,
+          "payroll.entry_deleted",
+          "payroll_employee",
+          row.employeeId,
+          {
+            entryId,
+            competence: row.competence,
+            kind: row.kind,
+            amountInCents: Number(row.amountInCents),
+            reason: row.reason,
+          },
+        );
+        return true;
       });
     },
     async cancelPayrollLaunch(
@@ -466,6 +636,10 @@ export function createPayrollRepository(context: MysqlRepositoryContext) {
         );
         await client.query(
           "UPDATE commission_adjustments SET payroll_payable_id=NULL WHERE clinic_id=$1 AND payroll_payable_id=$2",
+          [clinicId, payableId],
+        );
+        await client.query(
+          "UPDATE payroll_entries SET payroll_payable_id=NULL WHERE clinic_id=$1 AND payroll_payable_id=$2",
           [clinicId, payableId],
         );
         await context.addAdminAudit(
