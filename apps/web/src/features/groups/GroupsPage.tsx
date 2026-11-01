@@ -733,7 +733,6 @@ export function GroupsPage() {
               id={`${tabsId}-visao-geral-panel`}
               labelledBy={`${tabsId}-visao-geral-tab`}
               workspace={workspace}
-              services={services}
               weekDayNames={weekDayNames}
               showRevenue={canView("plans")}
             />

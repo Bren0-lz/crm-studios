@@ -36,6 +36,7 @@ describe("new appointment services", () => {
                   name: "Pilates",
                   durationMinutes: 50,
                   priceInCents: 9000,
+                  singleSessionPriceInCents: 8500,
                   professionalIds: [ana],
                   roomIds: [],
                 },
@@ -62,6 +63,12 @@ describe("new appointment services", () => {
     const dialog = await screen.findByRole("dialog");
     const service = within(dialog).getByLabelText("Serviço");
     expect(within(service).getAllByRole("option")).toHaveLength(3);
+    // O valor mostrado é o da sessão do plano avulso, não o preço de tabela.
+    expect(
+      within(service)
+        .getAllByRole("option")
+        .map((option) => option.textContent?.replace(/\u00a0/g, " ")),
+    ).toEqual(["Selecione", "Pilates · R$ 85,00", "Avaliação"]);
     fireEvent.change(within(dialog).getByLabelText("Profissional"), {
       target: { value: ana },
     });
@@ -141,23 +148,33 @@ describe("new appointment services", () => {
       within(dialog).getByRole("combobox", { name: "Cliente" }),
     ).toBeRequired();
     const service = within(dialog).getByLabelText("Serviço");
-    // Escolher o serviço antes e depois a sala incompatível limpa o serviço.
+    const room = within(dialog).getByLabelText("Sala");
+    // Escolher o serviço filtra as salas: só as que atendem esse serviço.
+    expect(within(room).getAllByRole("option")).toHaveLength(3);
     fireEvent.change(service, { target: { value: "s1" } });
-    fireEvent.change(within(dialog).getByLabelText("Sala"), {
-      target: { value: pilatesRoom },
-    });
-    expect(service).toHaveValue("");
+    expect(
+      within(room).queryByRole("option", { name: "Sala Pilates" }),
+    ).not.toBeInTheDocument();
+    expect(
+      within(room).getByRole("option", { name: "Sala Estética" }),
+    ).toBeInTheDocument();
+    fireEvent.change(room, { target: { value: aestheticsRoom } });
+    expect(room).toHaveValue(aestheticsRoom);
+    // Voltar a "Selecione" no serviço libera todas as salas de novo.
+    fireEvent.change(service, { target: { value: "" } });
+    expect(within(room).getAllByRole("option")).toHaveLength(3);
+    // E vice-versa: escolher a sala filtra os serviços.
+    fireEvent.change(room, { target: { value: pilatesRoom } });
     expect(
       within(service).queryByRole("option", { name: /Depilação/ }),
     ).not.toBeInTheDocument();
     expect(
       within(service).getByRole("option", { name: /Pilates individual/ }),
     ).toBeInTheDocument();
-    fireEvent.change(within(dialog).getByLabelText("Sala"), {
-      target: { value: aestheticsRoom },
-    });
+    fireEvent.change(service, { target: { value: "s2" } });
+    expect(room).toHaveValue(pilatesRoom);
     expect(
-      within(service).getByRole("option", { name: /Depilação/ }),
-    ).toBeInTheDocument();
+      within(room).queryByRole("option", { name: "Sala Estética" }),
+    ).not.toBeInTheDocument();
   });
 });

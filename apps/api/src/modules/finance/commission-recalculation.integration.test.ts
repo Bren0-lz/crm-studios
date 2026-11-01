@@ -3,6 +3,7 @@ import { MemoryClinicRepository } from "../../memory-repository.js";
 import { buildApp } from "../../app.js";
 import { commissionRecalculationSuite } from "../../test-support/commission-recalculation-suite.js";
 import { nextTestCpf } from "../../test-support/cpf.js";
+import { serviceWithSinglePlan } from "../../test-support/single-plan-service.js";
 
 const clinicId = "11111111-1111-4111-8111-111111111111",
   actorId = "22222222-2222-4222-8222-222222222222";
@@ -16,9 +17,12 @@ describe("rotas do recálculo retroativo de comissões", () => {
     try {
       const [professional] = await repository.listProfessionals(clinicId),
         [room] = await repository.listRooms(clinicId),
-        service = (await repository.listServices(clinicId)).find(
-          (item) => item.priceInCents >= 1000,
-        )!,
+        service = await serviceWithSinglePlan(
+          repository,
+          clinicId,
+          "22222222-2222-4222-8222-222222222222",
+          18000,
+        ),
         patient = await repository.createPatient(clinicId, {
           cpf: nextTestCpf(),
           fullName: "Cliente da prévia",
@@ -98,7 +102,7 @@ describe("rotas do recálculo retroativo de comissões", () => {
         (await repository.generateCommissions(clinicId, "2025-02")).find(
           (item) => item.id === commission.id,
         )?.amountInCents,
-      ).toBe(Math.round(service.priceInCents * 0.2));
+      ).toBe(Math.round(18000 * 0.2));
 
       const user = await repository.createAdminUser(
         clinicId,
