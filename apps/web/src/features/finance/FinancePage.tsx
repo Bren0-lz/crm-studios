@@ -1,6 +1,7 @@
 import { CommissionReconciliationModal } from "./CommissionReconciliationModal";
 import {
   matchesFinancialEntry,
+  planPaymentSummary,
   saoPauloToday,
   settlementBreakdown,
   type SettlementAdjustments,
@@ -503,14 +504,9 @@ export function FinancePage() {
                 onSelectedChange={setSelectedReceivables}
                 onRenegotiate={() => setRenegotiating(true)}
                 onSettle={(item) =>
-                  setSettling({
-                    kind: "receivable",
-                    id: item.id,
-                    title: item.patientName,
-                    description: item.description,
-                    amountInCents: item.amountInCents,
-                    dueDate: item.dueDate,
-                  })
+                  setSettling(
+                    receivableSettleTarget(item, data.summary.receivables),
+                  )
                 }
                 onReverse={(id) => void reverseReceivable(id)}
                 onAdjust={(item) => setAdjusting(item)}
@@ -754,4 +750,39 @@ export function FinancePage() {
       )}
     </>
   );
+}
+
+/**
+ * Baixa de uma conta a receber: a forma combinada na venda do plano vem marcada e, nas
+ * cobranças de plano, o modal mostra o total contratado e quantas parcelas já foram pagas.
+ */
+function receivableSettleTarget(
+  item: Receivable,
+  receivables: readonly Receivable[],
+): SettleTarget {
+  const method = item.planPaymentMethod ?? item.paymentMethod;
+  const summary = item.planId
+    ? planPaymentSummary(
+        receivables.filter((entry) => entry.planId === item.planId),
+      )
+    : null;
+  return {
+    kind: "receivable",
+    id: item.id,
+    title: item.patientName,
+    description: item.description,
+    amountInCents: item.amountInCents,
+    dueDate: item.dueDate,
+    installmentCount: item.installmentCount,
+    ...(method ? { paymentMethod: method } : {}),
+    ...(summary && item.planTotalInCents !== undefined
+      ? {
+          plan: {
+            totalInCents: item.planTotalInCents,
+            installmentCount: summary.installmentCount,
+            paidCount: summary.paidCount,
+          },
+        }
+      : {}),
+  };
 }

@@ -228,3 +228,92 @@ describe("supplier orders", () => {
     expect(invalid.statusCode).toBe(400);
   });
 });
+
+describe("suppliers from Vendas de produtos", () => {
+  async function userWith(
+    app: Awaited<ReturnType<typeof authenticatedApp>>["app"],
+    adminHeaders: Record<string, string>,
+    email: string,
+    permissions: string[],
+  ) {
+    const created = await app.inject({
+      method: "POST",
+      url: "/admin/users",
+      headers: adminHeaders,
+      payload: {
+        fullName: "Equipe de vendas",
+        email,
+        password: "Password123",
+        role: "user",
+        permissions,
+      },
+    });
+    expect(created.statusCode).toBe(201);
+    const login = await app.inject({
+      method: "POST",
+      url: "/auth/login",
+      payload: { email, password: "Password123" },
+    });
+    return { authorization: `Bearer ${login.json<{ token: string }>().token}` };
+  }
+
+  it("lets the sales permission list and register suppliers without opening finance", async () => {
+    const { app, headers, supplierId } = await setup();
+    const sales = await userWith(app, headers, "vendas@test.local", [
+      "patients.view",
+      "patients.suppliers_manage",
+    ]);
+    const list = await app.inject({
+      method: "GET",
+      url: "/inventory/suppliers",
+      headers: sales,
+    });
+    expect(list.statusCode).toBe(200);
+    expect(list.json<{ name: string }[]>().map((item) => item.name)).toEqual([
+      "Distribuidora Bem-Estar",
+    ]);
+    const created = await app.inject({
+      method: "POST",
+      url: "/finance/suppliers",
+      headers: sales,
+      payload: { name: "Cosméticos Aryana", kind: "company" },
+    });
+    expect(created.statusCode).toBe(201);
+    const edited = await app.inject({
+      method: "PUT",
+      url: `/finance/suppliers/${supplierId}`,
+      headers: sales,
+      payload: { name: "Distribuidora Bem-Estar Ltda", kind: "company" },
+    });
+    expect(edited.statusCode).toBe(200);
+    // Financeiro continua fechado: lista completa e pedidos exigem finance.view.
+    for (const url of [
+      "/finance/suppliers",
+      `/finance/suppliers/${supplierId}/orders`,
+    ])
+      expect(
+        (await app.inject({ method: "GET", url, headers: sales })).statusCode,
+      ).toBe(403);
+  });
+
+  it("denies suppliers to sales users without the permission", async () => {
+    const { app, headers } = await setup();
+    const seller = await userWith(app, headers, "vendedor@test.local", [
+      "patients.view",
+      "patients.inventory_view",
+    ]);
+    const list = await app.inject({
+      method: "GET",
+      url: "/inventory/suppliers",
+      headers: seller,
+    });
+    expect(list.statusCode).toBe(403);
+    const created = await app.inject({
+      method: "POST",
+      url: "/finance/suppliers",
+      headers: seller,
+      payload: { name: "X", kind: "company" },
+    });
+    expect(created.statusCode).toBe(403);
+  });
+});
