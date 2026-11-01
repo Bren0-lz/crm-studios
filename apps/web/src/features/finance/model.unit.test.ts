@@ -1,6 +1,102 @@
-import type { DailyCash } from "@crm/contracts";
+import type { DailyCash, Payable } from "@crm/contracts";
 import { describe, expect, it } from "vitest";
-import { dailyCashGroups, receivableSituation } from "./model";
+import {
+  dailyCashGroups,
+  hasEntryFilter,
+  matchesPayableSearch,
+  payableGroups,
+  payablesSummary,
+  receivableSituation,
+} from "./model";
+
+function payable(overrides: Partial<Payable>): Payable {
+  return {
+    id: overrides.description ?? "id",
+    clinicId: "clinic",
+    description: "Conta",
+    categoryId: "category",
+    categoryName: "Operacional",
+    dueDate: "2040-06-15",
+    amountInCents: 1000,
+    notes: "",
+    status: "open",
+    overdue: false,
+    createdAt: "2040-06-01T12:00:00Z",
+    updatedAt: "2040-06-01T12:00:00Z",
+    ...overrides,
+  } as Payable;
+}
+
+describe("payables overview", () => {
+  const today = "2040-06-15";
+  const items = [
+    payable({ description: "Atrasada", dueDate: "2040-06-10", overdue: true }),
+    payable({ description: "Em 7 dias", dueDate: "2040-06-22" }),
+    payable({ description: "Hoje", dueDate: "2040-06-15", amountInCents: 500 }),
+    payable({ description: "Depois", dueDate: "2040-06-23" }),
+    payable({
+      description: "Paga no mês",
+      status: "paid",
+      // 00:30 de 01/06 em São Paulo; a de baixo é 23:30 de 31/05 (o mês é o da clínica).
+      paidAt: "2040-06-01T03:30:00Z",
+    }),
+    payable({
+      description: "Paga antes",
+      status: "paid",
+      paidAt: "2040-06-01T02:30:00Z",
+    }),
+    payable({ description: "Cancelada", status: "cancelled" }),
+  ];
+
+  it("sums overdue, the next 7 days, everything open and the clinic month payments", () => {
+    expect(payablesSummary(items, today)).toEqual({
+      overdue: { count: 1, totalInCents: 1000 },
+      dueSoon: { count: 2, totalInCents: 1500 },
+      open: { count: 4, totalInCents: 3500 },
+      paidThisMonth: { count: 1, totalInCents: 1000 },
+    });
+  });
+
+  it("groups by situation in a fixed order and hides payments of other months on request", () => {
+    const all = payableGroups(items, today);
+    expect(
+      all.groups.map((group) => [group.label, group.items.length]),
+    ).toEqual([
+      ["Em atraso", 1],
+      ["A vencer", 3],
+      ["Pagas", 2],
+      ["Canceladas", 1],
+    ]);
+    expect(all.groups[1]!.items.map((item) => item.description)).toEqual([
+      "Hoje",
+      "Em 7 dias",
+      "Depois",
+    ]);
+    expect(all.groups[1]!.totalInCents).toBe(2500);
+    expect(all.hiddenPaid).toBe(0);
+    const month = payableGroups(items, today, false);
+    expect(month.hiddenPaid).toBe(1);
+    expect(
+      month.groups
+        .find((group) => group.key === "paid")!
+        .items.map((item) => item.description),
+    ).toEqual(["Paga no mês"]);
+  });
+
+  it("searches without accents or case and ignores a lone date field", () => {
+    const item = payable({
+      description: "Conta de água",
+      supplier: "Águas do Vale",
+    });
+    expect(matchesPayableSearch(item, "  AGUA ")).toBe(true);
+    expect(matchesPayableSearch(item, "vale")).toBe(true);
+    expect(matchesPayableSearch(item, "operacional")).toBe(true);
+    expect(matchesPayableSearch(item, "luz")).toBe(false);
+    expect(matchesPayableSearch(item, "")).toBe(true);
+    expect(hasEntryFilter({ dateField: "paidAt" })).toBe(false);
+    expect(hasEntryFilter({ dateField: "dueDate", status: "open" })).toBe(true);
+  });
+});
 
 describe("daily cash grouping", () => {
   it("counts overdue days across a month boundary without losing the singular form", () => {
