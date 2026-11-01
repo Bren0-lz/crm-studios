@@ -6,6 +6,7 @@ import {
   autoCampaignCooldownUnitSchema,
   autoCampaignDeliveryInputSchema,
   autoCampaignInputSchema,
+  autoCampaignPromotionDiscountSchema,
   autoCampaignPromotionSchema,
   autoCampaignSkipReasonSchema,
   autoCampaignTriggerSchema,
@@ -248,6 +249,10 @@ export type AutoCampaignCooldownUnit = z.infer<
 
 export type AutoCampaignPromotion = z.infer<typeof autoCampaignPromotionSchema>;
 
+export type AutoCampaignPromotionDiscount = z.infer<
+  typeof autoCampaignPromotionDiscountSchema
+>;
+
 export type AutoCampaignSkipReason = z.infer<
   typeof autoCampaignSkipReasonSchema
 >;
@@ -360,6 +365,10 @@ export interface AutoCampaignPromotionOffer {
   occurrenceKey: string;
   /** Último dia (aaaa-mm-dd) para agendar com a promoção. */
   validUntil: string;
+  /** Desconto da promoção, quando a campanha tem. */
+  discount?: AutoCampaignPromotionDiscount | undefined;
+  /** Planos em que o desconto vale; ausente ou vazio = qualquer plano. */
+  planTemplateIds?: string[] | undefined;
 }
 
 /** `GET /communications/auto-campaigns/queue`: a fila de hoje. */

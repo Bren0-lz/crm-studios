@@ -481,9 +481,49 @@ export const autoCampaignCooldownUnitLabels: Record<
   months: { singular: "mês", plural: "meses" },
 };
 
+/** Desconto da promoção: porcentagem (até 100%) ou valor fixo em centavos. */
+export const autoCampaignPromotionDiscountSchema = z.discriminatedUnion(
+  "type",
+  [
+    z.object({
+      type: z.literal("percentage"),
+      percent: z
+        .number()
+        .gt(0, "Informe uma porcentagem de desconto maior que zero.")
+        .max(100, "A porcentagem de desconto pode ser de até 100%.")
+        .refine(
+          (value) => Math.abs(Math.round(value * 100) - value * 100) < 1e-6,
+          "Use no máximo duas casas decimais na porcentagem.",
+        ),
+    }),
+    z.object({
+      type: z.literal("amount"),
+      amountInCents: z
+        .number()
+        .int()
+        .positive("Informe um valor de desconto maior que zero.")
+        .max(2147483647),
+    }),
+  ],
+);
+
+/** Quanto o desconto da promoção abate de um valor (nunca mais que o próprio valor). */
+export function autoCampaignDiscountInCents(
+  discount: z.infer<typeof autoCampaignPromotionDiscountSchema> | undefined,
+  valueInCents: number,
+): number {
+  if (!discount || valueInCents <= 0) return 0;
+  const amount =
+    discount.type === "percentage"
+      ? Math.round((valueInCents * discount.percent) / 100)
+      : discount.amountInCents;
+  return Math.min(valueInCents, amount);
+}
+
 /**
  * Campanha promocional: a promoção vale até `validDays` dias depois do evento; quem usar
- * fica fora desta campanha pelo `cooldown`, se houver.
+ * fica fora desta campanha pelo `cooldown`, se houver. O `discount`, quando houver, vale
+ * nos planos de `planTemplateIds` (lista vazia ou ausente = em qualquer plano).
  */
 export const autoCampaignPromotionSchema = z.object({
   validDays: z
@@ -500,6 +540,11 @@ export const autoCampaignPromotionSchema = z.object({
         .max(365, "Use no máximo 365 no bloqueio."),
       unit: autoCampaignCooldownUnitSchema,
     })
+    .optional(),
+  discount: autoCampaignPromotionDiscountSchema.optional(),
+  planTemplateIds: z
+    .array(z.uuid())
+    .max(100, "Escolha no máximo 100 planos.")
     .optional(),
 });
 
