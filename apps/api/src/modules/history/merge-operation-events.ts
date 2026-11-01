@@ -6,6 +6,9 @@ const PAIR_WINDOW_MS = 10_000;
 const isOperation = (event: AdminAuditEvent) =>
   event.action.startsWith("operation.");
 
+const isEdit = (event: AdminAuditEvent) =>
+  event.metadata.method === "PUT" || event.metadata.method === "PATCH";
+
 /**
  * Cada comando gera dois registros: o da operação na API ("Ação realizada: …", com o
  * responsável) e o do domínio ("Cliente cadastrado", gravado pelo banco sem responsável).
@@ -28,7 +31,9 @@ export function mergeOperationEvents(
         isOperation(item) ||
         paired.has(item.id) ||
         item.entityId !== operation.entityId ||
-        (item.actorUserId && item.actorUserId !== operation.actorUserId)
+        (item.actorUserId && item.actorUserId !== operation.actorUserId) ||
+        // Edição feita logo após o cadastro não vira o registro "… cadastrado".
+        (isEdit(operation) && item.action.endsWith(".created"))
       )
         continue;
       const gap = Math.abs(Date.parse(item.createdAt) - time);
@@ -51,6 +56,13 @@ export function mergeOperationEvents(
           ? { subjectName: operation.metadata.subjectName }
           : {}),
         ...metadata,
+        // Campos alterados e motivo informados na edição ficam no registro exibido.
+        ...(operation.metadata.changes === undefined
+          ? {}
+          : { changes: operation.metadata.changes }),
+        ...(typeof operation.metadata.reason === "string"
+          ? { reason: operation.metadata.reason }
+          : {}),
       },
     });
   }
