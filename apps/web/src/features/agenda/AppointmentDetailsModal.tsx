@@ -291,10 +291,17 @@ export function AppointmentDetailsModal({
             </div>
             {service && (
               <div>
-                <small>Duração e valor</small>
+                {/* Valor da sessão avulsa: o do plano avulso do serviço, quando houver. */}
+                <small>
+                  {service.singleSessionPriceInCents
+                    ? "Duração e valor avulso"
+                    : "Duração"}
+                </small>
                 <strong>
-                  {service.durationMinutes} min ·{" "}
-                  {currency.format(service.priceInCents / 100)}
+                  {service.durationMinutes} min
+                  {service.singleSessionPriceInCents
+                    ? ` · ${currency.format(service.singleSessionPriceInCents / 100)}`
+                    : ""}
                 </strong>
               </div>
             )}
