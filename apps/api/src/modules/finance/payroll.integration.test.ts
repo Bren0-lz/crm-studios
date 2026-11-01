@@ -112,9 +112,7 @@ describe("rotas da folha de pagamento", () => {
         headers: admin,
       });
       expect(summary.statusCode).toBe(200);
-      const expenseCategory = (
-        await repository.getFinancialWorkspace(clinicId)
-      ).categories.find((item) => item.kind === "expense")!;
+      // Sem categoria: usa "Folha de pagamento", criada no primeiro lançamento.
       const launch = await app.inject({
         method: "POST",
         url: "/finance/payroll/launch",
@@ -123,10 +121,18 @@ describe("rotas da folha de pagamento", () => {
           competence: "2025-02",
           employeeIds: [employeeId],
           dueDate: "2025-03-05",
-          categoryId: expenseCategory.id,
         },
       });
       expect(launch.statusCode).toBe(201);
+      expect(launch.json().payables[0].categoryName).toBe(
+        "Folha de pagamento",
+      );
+      const payrollCategories = (
+        await repository.getFinancialWorkspace(clinicId)
+      ).categories.filter((item) => item.name === "Folha de pagamento");
+      expect(payrollCategories).toMatchObject([
+        { kind: "expense", active: true },
+      ]);
       expect(launch.json().payables[0].amountInCents).toBe(
         100000 + commission.amountInCents,
       );

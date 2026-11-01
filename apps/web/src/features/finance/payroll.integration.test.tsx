@@ -23,10 +23,6 @@ describe("folha de pagamento pela API real", () => {
         fullName: "Cliente da folha",
         phone: "11988887777",
         tags: [],
-      }),
-      category = await repository.createFinancialCategory(clinicId, {
-        name: "Folha de pagamento",
-        kind: "expense",
       });
     await repository.createCommissionRule(clinicId, {
       professionalId: professional.id,
@@ -138,7 +134,10 @@ describe("folha de pagamento pela API real", () => {
     const launch = await screen.findByRole("dialog", {
       name: "Lançar folha de 03/2025",
     });
-    change("Categoria da despesa", category.id, launch);
+    // Só o vencimento: categoria "Folha de pagamento" e sem centro de custo.
+    expect(within(launch).getByLabelText(/Vencimento/)).toBeInTheDocument();
+    expect(within(launch).queryByLabelText(/Categoria/)).toBeNull();
+    expect(within(launch).queryByLabelText(/Centro de custo/)).toBeNull();
     await save("Lançar folha de 03/2025", "Lançar folha");
     await waitFor(async () => {
       const payables = (await repository.getFinancialWorkspace(clinicId))
@@ -146,11 +145,19 @@ describe("folha de pagamento pela API real", () => {
       expect(
         payables
           .filter((item) => item.payroll)
-          .map((item) => [item.description, item.amountInCents]),
+          .map((item) => [
+            item.description,
+            item.amountInCents,
+            item.categoryName,
+          ]),
       ).toEqual(
         expect.arrayContaining([
-          ["Folha 03/2025 · Marina Folha", 150000 + commission],
-          ["Folha 03/2025 · Recepção Centro", 90000],
+          [
+            "Folha 03/2025 · Marina Folha",
+            150000 + commission,
+            "Folha de pagamento",
+          ],
+          ["Folha 03/2025 · Recepção Centro", 90000, "Folha de pagamento"],
         ]),
       );
     });
