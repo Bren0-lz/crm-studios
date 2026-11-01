@@ -81,7 +81,6 @@ beforeEach(() => {
       active: true,
       durationMinutes: 50,
       priceInCents: 16000,
-      color: "#000000",
     },
   ]);
   vi.spyOn(api, "planTemplates").mockResolvedValue([template]);
