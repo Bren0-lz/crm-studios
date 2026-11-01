@@ -1,5 +1,6 @@
 import { nextTestCpf } from "../../../../api/src/test-support/cpf.js";
 import { createSalariedUser } from "../../../../api/src/test-support/payroll-users.js";
+import { serviceWithSinglePlan } from "../../../../api/src/test-support/single-plan-service.js";
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { actorId, clinicId, setupApi } from "../../test-support/api-server";
@@ -14,9 +15,12 @@ describe("folha de pagamento pela API real", () => {
         specialty: "Pilates",
         color: "#547A6B",
       }),
-      service = (await repository.listServices(clinicId)).find(
-        (item) => item.priceInCents >= 1000,
-      )!,
+      service = await serviceWithSinglePlan(
+        repository,
+        clinicId,
+        actorId,
+        18000,
+      ),
       [room] = await repository.listRooms(clinicId),
       patient = await repository.createPatient(clinicId, {
         cpf: nextTestCpf(),
@@ -43,7 +47,7 @@ describe("folha de pagamento pela API real", () => {
       "completed",
     );
     await repository.generateCommissions(clinicId, "2025-03");
-    const commission = Math.round(service.priceInCents * 0.1);
+    const commission = Math.round(18000 * 0.1);
     const centro = (await repository.saveBranch(clinicId, actorId, {
       name: "Centro",
     }))!;

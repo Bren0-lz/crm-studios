@@ -6,14 +6,17 @@ import { useAuthorization } from "../../authorization-context";
 import { EmptyState } from "../../shared/components/EmptyState";
 import { ErrorBanner } from "../../shared/components/ErrorBanner";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
-import { SupplierModal } from "./SupplierModal";
+import { SupplierModal, type SupplierModalTab } from "./SupplierModal";
 import { SupplierOrdersModal } from "./SupplierOrdersModal";
 /** `embedded` mostra a lista aberta (sub-aba de Cadastros) em vez do bloco recolhível. */
 export function SuppliersSection({ embedded = false }: { embedded?: boolean }) {
   const { can } = useAuthorization();
   const [items, setItems] = useState<Supplier[] | null>(null),
     [opened, setOpened] = useState(embedded),
-    [editor, setEditor] = useState<Supplier | "new" | null>(null),
+    [editor, setEditor] = useState<{
+      supplier: Supplier | "new";
+      tab?: SupplierModalTab;
+    } | null>(null),
     [ordersOf, setOrdersOf] = useState<Supplier | null>(null),
     [error, setError] = useState("");
   async function load() {
@@ -38,7 +41,7 @@ export function SuppliersSection({ embedded = false }: { embedded?: boolean }) {
   const create = can("finance.suppliers_manage") && (
     <button
       className={embedded ? "secondary-button" : "primary-button"}
-      onClick={() => setEditor("new")}
+      onClick={() => setEditor({ supplier: "new" })}
     >
       {embedded && <Plus size={16} aria-hidden="true" />}
       Novo fornecedor
@@ -72,14 +75,19 @@ export function SuppliersSection({ embedded = false }: { embedded?: boolean }) {
               <button
                 className="secondary-button"
                 aria-label={`Pedidos de ${item.name}`}
-                onClick={() => setOrdersOf(item)}
+                onClick={() =>
+                  // Quem edita registra pedidos no próprio cadastro; os demais só consultam.
+                  can("finance.suppliers_manage")
+                    ? setEditor({ supplier: item, tab: "pedidos" })
+                    : setOrdersOf(item)
+                }
               >
                 Pedidos
               </button>
               {can("finance.suppliers_manage") && (
                 <button
                   className="secondary-button"
-                  onClick={() => setEditor(item)}
+                  onClick={() => setEditor({ supplier: item })}
                 >
                   Editar
                 </button>
@@ -124,7 +132,8 @@ export function SuppliersSection({ embedded = false }: { embedded?: boolean }) {
       )}
       {editor && (
         <SupplierModal
-          supplier={editor}
+          supplier={editor.supplier}
+          {...(editor.tab ? { initialTab: editor.tab } : {})}
           onClose={() => setEditor(null)}
           onSaved={load}
         />
