@@ -1,10 +1,4 @@
-import {
-  act,
-  fireEvent,
-  render,
-  screen,
-  within,
-} from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import App from "../../App";
@@ -186,9 +180,10 @@ const json = (body: unknown, status = 200) =>
 
 async function openSession(name: RegExp) {
   fireEvent.click(
-    within(
-      await screen.findByRole("table", { name: /^Aulas de / }),
-    ).getByRole("button", { name }),
+    within(await screen.findByRole("table", { name: /^Aulas de / })).getByRole(
+      "button",
+      { name },
+    ),
   );
 }
 
@@ -202,11 +197,12 @@ afterEach(() => vi.useRealTimers());
 describe("group sessions overview", () => {
   it("shows only the groups outside the modal, with clear seat counts", async () => {
     renderGroups();
-    const card = (
+    const row = (
       await screen.findByRole("button", { name: "Abrir turma" })
-    ).closest("article")!;
-    expect(card).toHaveTextContent("3 matriculados · 2 vagas livres");
-    expect(card).not.toHaveTextContent("3/5 vagas");
+    ).closest("tr")!;
+    expect(row).toHaveTextContent("3 de 5");
+    expect(within(row).getAllByRole("cell")[2]).toHaveTextContent("2");
+    expect(row).not.toHaveTextContent("3/5 vagas");
     expect(
       screen.queryByRole("heading", {
         name: "Frequência e reposições",
@@ -363,7 +359,9 @@ describe("group sessions overview", () => {
     await screen.findByRole("table", { name: "Aulas de Outubro de 2026" });
     fireEvent.click(screen.getByRole("button", { name: "Mês anterior" }));
     expect(
-      screen.getByRole("status", { name: "Carregando aulas de Setembro de 2026" }),
+      screen.getByRole("status", {
+        name: "Carregando aulas de Setembro de 2026",
+      }),
     ).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Mês anterior" }));
     expect(

@@ -171,8 +171,8 @@ function setup({
 }
 
 async function openGroup(name: string) {
-  const card = (await screen.findByText(name)).closest("article")!;
-  fireEvent.click(within(card).getByRole("button", { name: "Abrir turma" }));
+  const row = (await screen.findByText(name)).closest("tr")!;
+  fireEvent.click(within(row).getByRole("button", { name: "Abrir turma" }));
   return screen.getByRole("dialog", { name });
 }
 
@@ -240,7 +240,9 @@ describe("group modal tabs", () => {
     await openGroup(groupA.name);
     openOperations();
     expect(
-      within(calendarGrid()).getAllByRole("button", { name: /Pilates Turma A/ }),
+      within(calendarGrid()).getAllByRole("button", {
+        name: /Pilates Turma A/,
+      }),
     ).toHaveLength(7);
     expect(
       within(calendarGrid()).queryByRole("button", { name: /Pilates Turma B/ }),
@@ -256,9 +258,7 @@ describe("group modal tabs", () => {
       }),
     );
     expect(
-      within(
-        screen.getByRole("region", { name: "Terça-feira, 20 de outubro" }),
-      )
+      within(screen.getByRole("region", { name: "Terça-feira, 20 de outubro" }))
         .getAllByRole("button")
         .map((item) => item.textContent),
     ).toEqual([
@@ -282,13 +282,17 @@ describe("group modal tabs", () => {
         .map((option) => (option as HTMLOptionElement).value),
     ).toEqual(["", data.replacementCredits[1]!.id]);
     expect(
-      within(calendarGrid()).getByRole("button", { name: /^Domingo, 18 de outubro, hoje/ }),
+      within(calendarGrid()).getByRole("button", {
+        name: /^Domingo, 18 de outubro, hoje/,
+      }),
     ).toHaveAttribute("aria-pressed", "true");
     fireEvent.keyDown(window, { key: "Escape" });
     await openGroup(groupA.name);
     openOperations();
     expect(
-      within(calendarGrid()).getByRole("button", { name: /^Domingo, 18 de outubro, hoje/ }),
+      within(calendarGrid()).getByRole("button", {
+        name: /^Domingo, 18 de outubro, hoje/,
+      }),
     ).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByLabelText("Crédito de reposição")).toHaveValue("");
   });
@@ -320,7 +324,9 @@ describe("group modal tabs", () => {
       ).not.toBeInTheDocument(),
     );
     await vi.waitFor(() =>
-      expect(screen.getByLabelText("Profissional deste encontro")).toBeEnabled(),
+      expect(
+        screen.getByLabelText("Profissional deste encontro"),
+      ).toBeEnabled(),
     );
     fireEvent.keyDown(window, { key: "Escape" });
     expect(
@@ -391,7 +397,9 @@ describe("group modal tabs", () => {
       ).not.toBeInTheDocument(),
     );
     await vi.waitFor(() =>
-      expect(screen.getByLabelText("Profissional deste encontro")).toBeEnabled(),
+      expect(
+        screen.getByLabelText("Profissional deste encontro"),
+      ).toBeEnabled(),
     );
     fireEvent.keyDown(window, { key: "Escape" });
     const dialog = screen.getByRole("dialog", { name: groupB.name });

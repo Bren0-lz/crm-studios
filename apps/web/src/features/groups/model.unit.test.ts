@@ -3,8 +3,11 @@ import { describe, expect, it } from "vitest";
 import { groupOperationRange } from "../../shared/lib/formatting";
 import {
   calendarMonthDays,
+  emptyGroupTableFilters,
+  filterGroupRows,
   groupCalendarRange,
   groupRevenueOverview,
+  hasGroupTableFilters,
   shiftIsoDate,
   shiftMonth,
 } from "./model";
@@ -133,5 +136,60 @@ describe("group revenue overview", () => {
     );
     expect(row!.currentInCents).toBe(0);
     expect(row!.potentialInCents).toBe(5 * 7000 * 8);
+  });
+});
+
+describe("group table filters", () => {
+  const row = (
+    name: string,
+    professional: string,
+    service: string,
+    weekdays: number[],
+    freeSeats: number,
+  ) => ({
+    group: {
+      name,
+      professionalId: professional,
+      professionalName:
+        professional === "p1" ? "Dra. Ana Martins" : "Clara Mendes",
+      serviceId: service,
+      weeklySlots: weekdays.map((weekday) => ({
+        weekday,
+        startTime: "08:00",
+        endTime: "09:00",
+      })),
+    } as GroupClass,
+    freeSeats,
+  });
+  const rows = [
+    row("Pilates Turma A", "p1", "s1", [1, 3], 2),
+    row("Dançaterapia Turma B", "p2", "s2", [2], 0),
+  ];
+  const names = (filters: Partial<typeof emptyGroupTableFilters>) =>
+    filterGroupRows(rows, { ...emptyGroupTableFilters, ...filters }).map(
+      (item) => item.group.name,
+    );
+
+  it("keeps every row without filters", () => {
+    expect(names({})).toHaveLength(2);
+    expect(hasGroupTableFilters(emptyGroupTableFilters)).toBe(false);
+    expect(
+      hasGroupTableFilters({ ...emptyGroupTableFilters, search: "  " }),
+    ).toBe(false);
+  });
+
+  it("searches group and professional names ignoring accents and case", () => {
+    expect(names({ search: "DANCA" })).toEqual(["Dançaterapia Turma B"]);
+    expect(names({ search: "ana mart" })).toEqual(["Pilates Turma A"]);
+  });
+
+  it("combines professional, service, weekday and occupancy", () => {
+    expect(names({ professionalId: "p2" })).toEqual(["Dançaterapia Turma B"]);
+    expect(names({ serviceId: "s1" })).toEqual(["Pilates Turma A"]);
+    expect(names({ weekday: "3" })).toEqual(["Pilates Turma A"]);
+    expect(names({ weekday: "0" })).toEqual([]);
+    expect(names({ occupancy: "available" })).toEqual(["Pilates Turma A"]);
+    expect(names({ occupancy: "full" })).toEqual(["Dançaterapia Turma B"]);
+    expect(names({ occupancy: "full", serviceId: "s1" })).toEqual([]);
   });
 });

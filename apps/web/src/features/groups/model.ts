@@ -1,4 +1,4 @@
-import type { GroupSession } from "@crm/contracts";
+import type { GroupClass, GroupSession } from "@crm/contracts";
 import { groupOperationRange } from "../../shared/lib/formatting";
 
 /** "Pilates Turma A · 18 de out. · 18:00", com data e hora no fuso da clínica (não no do navegador). */
@@ -66,6 +66,76 @@ export function groupCalendarRange(month: string, now = new Date()) {
     from: from < operation.from ? from : operation.from,
     to: to > operation.to ? to : operation.to,
   };
+}
+
+/** Filtros da tabela de turmas; "" ou "all" deixam o critério de fora. */
+export interface GroupTableFilters {
+  search: string;
+  professionalId: string;
+  serviceId: string;
+  /** Dia da semana (0 = domingo) em texto, como vem do `<select>`. */
+  weekday: string;
+  occupancy: "all" | "available" | "full";
+}
+
+export const emptyGroupTableFilters: GroupTableFilters = {
+  search: "",
+  professionalId: "",
+  serviceId: "",
+  weekday: "",
+  occupancy: "all",
+};
+
+const searchable = (value: string) =>
+  value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+
+export function hasGroupTableFilters(filters: GroupTableFilters) {
+  return (
+    filters.search.trim() !== "" ||
+    filters.professionalId !== "" ||
+    filters.serviceId !== "" ||
+    filters.weekday !== "" ||
+    filters.occupancy !== "all"
+  );
+}
+
+/**
+ * Linhas da tabela de turmas que atendem a todos os filtros. A busca ignora
+ * acentos e caixa e procura no nome da turma e no do profissional; "lotada" é
+ * turma sem vaga disponível.
+ */
+export function filterGroupRows<
+  T extends { group: GroupClass; freeSeats: number },
+>(rows: T[], filters: GroupTableFilters): T[] {
+  const term = searchable(filters.search);
+  return rows.filter(({ group, freeSeats }) => {
+    if (
+      term &&
+      !searchable(`${group.name} ${group.professionalName}`).includes(term)
+    )
+      return false;
+    if (
+      filters.professionalId &&
+      group.professionalId !== filters.professionalId
+    )
+      return false;
+    if (filters.serviceId && group.serviceId !== filters.serviceId)
+      return false;
+    if (
+      filters.weekday !== "" &&
+      !(group.weeklySlots ?? []).some(
+        (slot) => slot.weekday === Number(filters.weekday),
+      )
+    )
+      return false;
+    if (filters.occupancy === "available" && freeSeats === 0) return false;
+    if (filters.occupancy === "full" && freeSeats > 0) return false;
+    return true;
+  });
 }
 
 export {

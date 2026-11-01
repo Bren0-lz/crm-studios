@@ -16,16 +16,8 @@ import {
   serviceAvailableFor,
 } from "@crm/contracts";
 import { useToast } from "../../shared/feedback/toast-context";
-import {
-  LayoutList,
-  Plus,
-  Table2,
-  UserMinus,
-  UserPlus,
-  UsersRound,
-} from "lucide-react";
-import { EmptyState } from "../../shared/components/EmptyState";
-import { type KeyboardEvent, useEffect, useId, useRef, useState } from "react";
+import { Plus, UserMinus, UserPlus } from "lucide-react";
+import { useEffect, useId, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
@@ -39,24 +31,17 @@ import {
   groupEnrollmentToast,
   groupOperationRange,
   groupSeatsLabel,
-  groupSlotLabel,
 } from "../../shared/lib/formatting";
 import { useClinicTimezone } from "../../shared/hooks/useClinicTimezone";
 import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
 import { GroupModal } from "./GroupModal";
 import { GroupSlotsEditor } from "./GroupSlotsEditor";
-import { GroupsOverviewTab } from "./GroupsOverviewTab";
+import { GroupsTable } from "./GroupsTable";
 import { groupCalendarRange } from "./model";
 import {
   missingLabels,
   useMissingFields,
 } from "../../shared/components/MissingFields";
-
-const groupTabs = [
-  { key: "turmas", label: "Turmas", icon: LayoutList },
-  { key: "visao-geral", label: "Visão geral", icon: Table2 },
-] as const;
-type GroupTabKey = (typeof groupTabs)[number]["key"];
 
 /**
  * Consultas independentes: se o workspace falhar, serviços, profissionais, salas e clientes
@@ -76,22 +61,6 @@ function fetchGroupsData(month: string) {
 export function GroupsPage() {
   const { can, canEdit, canView } = useAuthorization();
   const tabsId = useId();
-  const [activeTab, setActiveTab] = useState<GroupTabKey>("turmas");
-  function moveTabFocus(
-    event: KeyboardEvent<HTMLButtonElement>,
-    index: number,
-  ) {
-    let next: number;
-    if (event.key === "ArrowRight") next = (index + 1) % groupTabs.length;
-    else if (event.key === "ArrowLeft")
-      next = (index - 1 + groupTabs.length) % groupTabs.length;
-    else if (event.key === "Home") next = 0;
-    else if (event.key === "End") next = groupTabs.length - 1;
-    else return;
-    event.preventDefault();
-    setActiveTab(groupTabs[next]!.key);
-    document.getElementById(`${tabsId}-${groupTabs[next]!.key}-tab`)?.focus();
-  }
   const toast = useToast();
   const contextPatientId = usePatientContext();
   const weekDayNames = [
@@ -705,105 +674,27 @@ export function GroupsPage() {
             </GroupModal>
           )}
 
-          <div
-            className="settings-tabs groups-tabs"
-            role="tablist"
-            aria-label="Seções de turmas"
-          >
-            {groupTabs.map((tab, index) => (
-              <button
-                key={tab.key}
-                id={`${tabsId}-${tab.key}-tab`}
-                type="button"
-                role="tab"
-                className="text-button settings-tab"
-                aria-selected={activeTab === tab.key}
-                aria-controls={`${tabsId}-${tab.key}-panel`}
-                tabIndex={activeTab === tab.key ? 0 : -1}
-                onClick={() => setActiveTab(tab.key)}
-                onKeyDown={(event) => moveTabFocus(event, index)}
-              >
-                <tab.icon size={18} aria-hidden="true" />
-                {tab.label}
-              </button>
-            ))}
-          </div>
-          {activeTab === "visao-geral" && workspace && (
-            <GroupsOverviewTab
-              id={`${tabsId}-visao-geral-panel`}
-              labelledBy={`${tabsId}-visao-geral-tab`}
+          {workspace && (
+            <GroupsTable
+              id={`${tabsId}-turmas`}
               workspace={workspace}
               services={services}
               weekDayNames={weekDayNames}
               showRevenue={canView("plans")}
+              onOpen={openGroup}
+              emptyAction={
+                can("groups.create") ? (
+                  <button
+                    type="button"
+                    className="primary-button"
+                    onClick={() => setGroupDialog("create")}
+                  >
+                    <Plus size={18} /> Criar primeira turma
+                  </button>
+                ) : undefined
+              }
             />
           )}
-          <section
-            className="panel groups-wide"
-            id={`${tabsId}-turmas-panel`}
-            role="tabpanel"
-            aria-labelledby={`${tabsId}-turmas-tab`}
-            hidden={activeTab !== "turmas"}
-          >
-            <h2>Turmas</h2>
-            <p className="group-panel-copy">
-              Acompanhe ocupação, participantes e lista de espera.
-            </p>
-            {workspace?.groups.length === 0 && (
-              <EmptyState
-                icon={UsersRound}
-                title="Nenhuma turma cadastrada"
-                copy="Crie a primeira turma para matricular clientes e controlar a ocupação."
-                action={
-                  can("groups.create") ? (
-                    <button
-                      type="button"
-                      className="primary-button"
-                      onClick={() => setGroupDialog("create")}
-                    >
-                      <Plus size={18} /> Criar primeira turma
-                    </button>
-                  ) : undefined
-                }
-              />
-            )}
-            <div className="group-card-grid">
-              {workspace?.groups.map((group) => (
-                <article className="group-card" key={group.id}>
-                  <div>
-                    <strong>{group.name}</strong>
-                    <span className="group-card-schedule">
-                      {describeGroupSchedule(group.weeklySlots ?? [])}
-                    </span>
-                    <small>
-                      {group.professionalName} · {group.roomName}
-                    </small>
-                  </div>
-                  <span>
-                    {groupSeatsLabel(group.activeEnrollments, group.capacity)}
-                  </span>
-                  <small>{group.waitlistCount} em espera</small>
-                  <div className="group-slot-summary">
-                    {(group.weeklySlots ?? []).length ? (
-                      group.weeklySlots.map((slot) => (
-                        <span key={`${slot.weekday}-${slot.startTime}`}>
-                          {groupSlotLabel(slot, weekDayNames)}
-                        </span>
-                      ))
-                    ) : (
-                      <small>Horários ainda não definidos</small>
-                    )}
-                  </div>
-                  <button
-                    className="secondary-button button-sm"
-                    onClick={() => openGroup(group)}
-                  >
-                    Abrir turma
-                  </button>
-                </article>
-              ))}
-            </div>
-          </section>
 
           {selectedGroup && workspace && (
             <GroupDetailsModal

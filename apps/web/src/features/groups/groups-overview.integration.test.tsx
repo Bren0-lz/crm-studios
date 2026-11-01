@@ -13,6 +13,7 @@ const group = {
   serviceId,
   serviceName: "Pilates",
   professionalName: "Dra. Ana Martins",
+  professionalId: "ffffffff-ffff-4fff-8fff-fffffffffff1",
   roomName: "Sala Movimento",
   roomId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
   capacity: 4,
@@ -24,9 +25,27 @@ const group = {
   ],
   active: true,
 };
-const enrollment = (id: string, patientId: string, patientName: string) => ({
+const fullGroup = {
+  ...group,
+  id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2",
+  name: "Dançaterapia Turma B",
+  sequence: 2,
+  serviceId: "cccccccc-cccc-4ccc-8ccc-ccccccccccc2",
+  serviceName: "Dançaterapia",
+  professionalId: "ffffffff-ffff-4fff-8fff-fffffffffff2",
+  professionalName: "Clara Mendes",
+  capacity: 1,
+  activeEnrollments: 1,
+  weeklySlots: [{ weekday: 2, startTime: "18:00", endTime: "19:00" }],
+};
+const enrollment = (
+  id: string,
+  patientId: string,
+  patientName: string,
+  groupId = group.id,
+) => ({
   id,
-  groupId: group.id,
+  groupId,
   patientId,
   patientName,
   status: "active",
@@ -53,7 +72,7 @@ const plan = {
   ],
 };
 
-function renderGroups(role: "owner" | "reception" = "owner") {
+function renderGroups(withFullGroup = false) {
   localStorage.setItem("crm.auth.token", "test-token");
   localStorage.setItem(
     "crm.auth.user",
@@ -61,14 +80,14 @@ function renderGroups(role: "owner" | "reception" = "owner") {
       id: "22222222-2222-4222-8222-222222222222",
       fullName: "Aryana Dutra",
       email: "admin@movimenta.local",
-      role,
+      role: "owner",
     }),
   );
   vi.mocked(fetch).mockImplementation(async (input) => {
     const url = String(input);
     const body = url.includes("/groups/workspace?")
       ? {
-          groups: [group],
+          groups: withFullGroup ? [group, fullGroup] : [group],
           enrollments: [
             enrollment(
               "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee1",
@@ -80,6 +99,16 @@ function renderGroups(role: "owner" | "reception" = "owner") {
               "33333333-3333-4333-8333-333333333333",
               "Marina Souza",
             ),
+            ...(withFullGroup
+              ? [
+                  enrollment(
+                    "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee3",
+                    "44444444-4444-4444-8444-444444444444",
+                    "Paula Reis",
+                    fullGroup.id,
+                  ),
+                ]
+              : []),
           ],
           sessions: [],
           attendance: [],
@@ -99,13 +128,11 @@ function renderGroups(role: "owner" | "reception" = "owner") {
   );
 }
 
-describe("groups overview tab", () => {
+describe("groups table", () => {
   it("tabulates schedule, seats and monthly revenue of every group", async () => {
     renderGroups();
-    fireEvent.click(await screen.findByRole("tab", { name: "Visão geral" }));
-    const table = await screen.findByRole("table", {
-      name: "Visão geral das turmas",
-    });
+    const table = await screen.findByRole("table", { name: "Turmas" });
+    expect(screen.queryByRole("tab", { name: "Visão geral" })).toBeNull();
     expect(
       within(table).getByRole("columnheader", { name: "Faturamento atual" }),
     ).toBeInTheDocument();
@@ -123,14 +150,14 @@ describe("groups overview tab", () => {
     expect(screen.queryByText("Marina Souza")).not.toBeInTheDocument();
     expect(cells[3]).toHaveTextContent("R$ 400,00");
     expect(cells[4]).toHaveTextContent("R$ 1.200,00");
+    fireEvent.click(within(row).getByRole("button", { name: "Abrir turma" }));
     expect(
-      screen.queryByRole("button", { name: "Abrir turma" }),
-    ).not.toBeInTheDocument();
+      await screen.findByRole("dialog", { name: /Pilates Turma A/ }),
+    ).toBeInTheDocument();
   });
 
-  it("lists the enrolled clients of a group without leaving the tab", async () => {
+  it("lists the enrolled clients of a group inside the table", async () => {
     renderGroups();
-    fireEvent.click(await screen.findByRole("tab", { name: "Visão geral" }));
     const toggle = await screen.findByRole("button", {
       name: "Ver matriculados de Pilates Turma A: 2 de 4",
     });
@@ -147,15 +174,65 @@ describe("groups overview tab", () => {
     expect(items[0]).toHaveTextContent("R$ 400,00/mês");
     expect(items[1]).toHaveTextContent("Marina Souza");
     expect(items[1]).toHaveTextContent("Sem plano ativo");
-    expect(screen.getByRole("tab", { name: "Visão geral" })).toHaveAttribute(
-      "aria-selected",
-      "true",
-    );
     fireEvent.click(
       screen.getByRole("button", {
         name: "Ocultar matriculados de Pilates Turma A: 2 de 4",
       }),
     );
     expect(screen.queryByText("Marina Souza")).not.toBeInTheDocument();
+  });
+
+  it("filters groups by name, professional, service, weekday and occupancy", async () => {
+    renderGroups(true);
+    const table = await screen.findByRole("table", { name: "Turmas" });
+    const groupRows = () =>
+      within(table)
+        .getAllByRole("rowheader")
+        .map((cell) => cell.textContent)
+        .filter((text) => text !== "Total");
+    expect(groupRows()).toHaveLength(2);
+
+    fireEvent.change(
+      screen.getByRole("searchbox", { name: "Buscar turma ou profissional" }),
+      { target: { value: "danca" } },
+    );
+    expect(groupRows()).toEqual(["Dançaterapia Turma BClara Mendes"]);
+    fireEvent.click(screen.getByRole("button", { name: "Limpar filtros" }));
+    expect(groupRows()).toHaveLength(2);
+
+    fireEvent.change(screen.getByRole("combobox", { name: "Profissional" }), {
+      target: { value: group.professionalId },
+    });
+    expect(groupRows()).toEqual(["Pilates Turma ADra. Ana Martins"]);
+    fireEvent.click(screen.getByRole("button", { name: "Limpar filtros" }));
+
+    fireEvent.change(screen.getByRole("combobox", { name: "Serviço" }), {
+      target: { value: fullGroup.serviceId },
+    });
+    expect(groupRows()).toEqual(["Dançaterapia Turma BClara Mendes"]);
+    fireEvent.click(screen.getByRole("button", { name: "Limpar filtros" }));
+
+    fireEvent.change(screen.getByRole("combobox", { name: "Dia da semana" }), {
+      target: { value: "3" },
+    });
+    expect(groupRows()).toEqual(["Pilates Turma ADra. Ana Martins"]);
+    fireEvent.click(screen.getByRole("button", { name: "Limpar filtros" }));
+
+    fireEvent.change(screen.getByRole("combobox", { name: "Ocupação" }), {
+      target: { value: "full" },
+    });
+    expect(groupRows()).toEqual(["Dançaterapia Turma BClara Mendes"]);
+    // Os totais acompanham o filtro.
+    expect(
+      within(table).getByRole("rowheader", { name: "Total" }).closest("tr"),
+    ).toHaveTextContent("1 de 1");
+
+    fireEvent.change(screen.getByRole("combobox", { name: "Dia da semana" }), {
+      target: { value: "0" },
+    });
+    expect(screen.getByText("Nenhuma turma encontrada")).toBeInTheDocument();
+    expect(screen.queryByRole("table", { name: "Turmas" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Limpar filtros" }));
+    expect(screen.getByRole("table", { name: "Turmas" })).toBeInTheDocument();
   });
 });

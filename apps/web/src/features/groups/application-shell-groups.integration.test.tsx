@@ -59,12 +59,14 @@ describe("application shell", () => {
     );
     fireEvent.click(await screen.findByRole("button", { name: "Nova turma" }));
     expect(screen.getByLabelText(/Nome da turma/)).toBeInTheDocument();
-    fireEvent.change(await screen.findByLabelText("Serviço"), {
-      target: { value: group.serviceId },
-    });
+    fireEvent.change(
+      await within(screen.getByRole("dialog")).findByLabelText("Serviço"),
+      {
+        target: { value: group.serviceId },
+      },
+    );
     expect(screen.getByText("Pilates Turma B")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Fechar" }));
-    expect(screen.getByText("Turma de terça da noite")).toBeInTheDocument();
     expect(screen.getByText("Terça · 18:00–19:00")).toBeInTheDocument();
     fireEvent.click(await screen.findByRole("button", { name: "Abrir turma" }));
     const dialog = screen.getByRole("dialog", { name: "Pilates Turma A" });

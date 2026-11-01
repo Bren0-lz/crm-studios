@@ -4,8 +4,8 @@ import {
   type Service,
   saoPauloToday,
 } from "@crm/contracts";
-import { ChevronDown, UsersRound } from "lucide-react";
-import { Fragment, useEffect, useState } from "react";
+import { ChevronDown, Search, UsersRound } from "lucide-react";
+import { Fragment, type ReactNode, useEffect, useState } from "react";
 import { api } from "../../api";
 import { EmptyState } from "../../shared/components/EmptyState";
 import { ErrorBanner } from "../../shared/components/ErrorBanner";
@@ -15,30 +15,54 @@ import {
   groupSlotLabel,
   shortDate,
 } from "../../shared/lib/formatting";
-import { groupRevenueOverview } from "./model";
+import {
+  type GroupTableFilters,
+  emptyGroupTableFilters,
+  filterGroupRows,
+  groupRevenueOverview,
+  hasGroupTableFilters,
+} from "./model";
 
 const money = (cents: number) => currency.format(cents / 100);
 /** "AAAA-MM-DD" → "05 de jan.", ao meio-dia UTC para não mudar de dia com o fuso. */
 const isoDayLabel = (date: string) =>
   shortDate.format(new Date(`${date}T12:00:00Z`));
 
-/** Visão geral tabelada das turmas: horários, ocupação e faturamento mensal. */
-export function GroupsOverviewTab({
+/** Opções únicas (id + nome) tiradas das próprias turmas, em ordem alfabética. */
+function uniqueOptions(entries: { id: string; name: string }[]) {
+  const byId = new Map(entries.map((entry) => [entry.id, entry.name]));
+  return [...byId]
+    .map(([id, name]) => ({ id, name }))
+    .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
+}
+
+/** Tabela das turmas com filtros: horários, ocupação e faturamento mensal. */
+export function GroupsTable({
   id,
-  labelledBy,
   workspace,
   services,
   weekDayNames,
   showRevenue,
+  onOpen,
+  emptyAction,
 }: {
   id: string;
-  labelledBy: string;
   workspace: GroupWorkspace;
   services: Service[];
   weekDayNames: string[];
   /** Valores dos planos só para quem consulta planos. */
   showRevenue: boolean;
+  onOpen: (group: GroupWorkspace["groups"][number]) => void;
+  /** Ação do estado vazio (ex.: "Criar primeira turma"). */
+  emptyAction?: ReactNode;
 }) {
+  const [filters, setFilters] = useState<GroupTableFilters>(
+    emptyGroupTableFilters,
+  );
+  const updateFilter = <K extends keyof GroupTableFilters>(
+    key: K,
+    value: GroupTableFilters[K],
+  ) => setFilters((current) => ({ ...current, [key]: value }));
   const [plans, setPlans] = useState<PatientPlan[] | null>(null);
   const [error, setError] = useState("");
   const [attempt, setAttempt] = useState(0);
@@ -65,24 +89,38 @@ export function GroupsOverviewTab({
       active = false;
     };
   }, [showRevenue, attempt]);
-  const rows = groupRevenueOverview(
+  const revenueReady = showRevenue && plans !== null;
+  const allRows = groupRevenueOverview(
     workspace.groups,
     workspace.enrollments,
     plans ?? [],
     services,
     saoPauloToday(),
   );
-  const revenueReady = showRevenue && plans !== null;
+  const rows = filterGroupRows(allRows, filters);
+  const filtered = hasGroupTableFilters(filters);
+  const professionalOptions = uniqueOptions(
+    workspace.groups.map((group) => ({
+      id: group.professionalId,
+      name: group.professionalName,
+    })),
+  );
+  const serviceOptions = uniqueOptions(
+    workspace.groups.map((group) => ({
+      id: group.serviceId,
+      name: group.serviceName,
+    })),
+  );
+  const columns = revenueReady ? 7 : 5;
   const total = (pick: (row: (typeof rows)[number]) => number) =>
     rows.reduce((sum, row) => sum + pick(row), 0);
   return (
     <section
       className="panel groups-wide"
       id={id}
-      role="tabpanel"
-      aria-labelledby={labelledBy}
+      aria-labelledby={`${id}-title`}
     >
-      <h2>Visão geral</h2>
+      <h2 id={`${id}-title`}>Turmas</h2>
       <p className="group-panel-copy">
         Horários, ocupação e faturamento mensal de cada turma.
       </p>
@@ -90,10 +128,100 @@ export function GroupsOverviewTab({
         <EmptyState
           icon={UsersRound}
           title="Nenhuma turma cadastrada"
-          copy="As turmas criadas aparecem aqui com ocupação e faturamento."
+          copy="Crie a primeira turma para matricular clientes e controlar a ocupação."
+          action={emptyAction}
         />
       ) : (
         <>
+          <div
+            className="groups-filters"
+            role="search"
+            aria-label="Filtrar turmas"
+          >
+            <label className="search-box groups-filters-search">
+              <Search size={18} aria-hidden="true" />
+              <input
+                type="search"
+                aria-label="Buscar turma ou profissional"
+                placeholder="Buscar turma ou profissional"
+                value={filters.search}
+                onChange={(event) => updateFilter("search", event.target.value)}
+              />
+            </label>
+            <label className="filter-group">
+              <span className="filter-label">Profissional</span>
+              <select
+                value={filters.professionalId}
+                onChange={(event) =>
+                  updateFilter("professionalId", event.target.value)
+                }
+              >
+                <option value="">Todos</option>
+                {professionalOptions.map((option) => (
+                  <option key={option.id} value={option.id}>
+                    {option.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="filter-group">
+              <span className="filter-label">Serviço</span>
+              <select
+                value={filters.serviceId}
+                onChange={(event) =>
+                  updateFilter("serviceId", event.target.value)
+                }
+              >
+                <option value="">Todos</option>
+                {serviceOptions.map((option) => (
+                  <option key={option.id} value={option.id}>
+                    {option.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="filter-group">
+              <span className="filter-label">Dia da semana</span>
+              <select
+                value={filters.weekday}
+                onChange={(event) =>
+                  updateFilter("weekday", event.target.value)
+                }
+              >
+                <option value="">Todos</option>
+                {weekDayNames.map((name, weekday) => (
+                  <option key={name} value={String(weekday)}>
+                    {name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="filter-group">
+              <span className="filter-label">Ocupação</span>
+              <select
+                value={filters.occupancy}
+                onChange={(event) =>
+                  updateFilter(
+                    "occupancy",
+                    event.target.value as GroupTableFilters["occupancy"],
+                  )
+                }
+              >
+                <option value="all">Todas</option>
+                <option value="available">Com vagas</option>
+                <option value="full">Lotadas</option>
+              </select>
+            </label>
+            {filtered && (
+              <button
+                type="button"
+                className="secondary-button button-sm groups-filters-clear"
+                onClick={() => setFilters(emptyGroupTableFilters)}
+              >
+                Limpar filtros
+              </button>
+            )}
+          </div>
           {error && (
             <div className="groups-overview-error">
               <ErrorBanner error={error} />
@@ -111,11 +239,17 @@ export function GroupsOverviewTab({
           )}
           {showRevenue && plans === null && !error ? (
             <LoadingBlock />
+          ) : rows.length === 0 ? (
+            <EmptyState
+              icon={UsersRound}
+              title="Nenhuma turma encontrada"
+              copy="Mude a busca ou os filtros para ver outras turmas."
+            />
           ) : (
             <div className="forecast-scroll groups-overview-scroll">
               <table
                 className="forecast-table groups-overview-table"
-                aria-label="Visão geral das turmas"
+                aria-label="Turmas"
               >
                 <thead>
                   <tr>
@@ -129,6 +263,9 @@ export function GroupsOverviewTab({
                         <th scope="col">Potencial (turma cheia)</th>
                       </>
                     )}
+                    <th scope="col">
+                      <span className="sr-only">Ações</span>
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -171,13 +308,22 @@ export function GroupsOverviewTab({
                               <td>{money(row.potentialInCents)}</td>
                             </>
                           )}
+                          <td>
+                            <button
+                              type="button"
+                              className="secondary-button button-sm"
+                              onClick={() => onOpen(row.group)}
+                            >
+                              Abrir turma
+                            </button>
+                          </td>
                         </tr>
                         {open && (
                           <tr
                             id={membersId}
                             className="groups-overview-members-row"
                           >
-                            <td colSpan={revenueReady ? 6 : 4}>
+                            <td colSpan={columns}>
                               {row.members.length === 0 ? (
                                 <p>Nenhum cliente matriculado.</p>
                               ) : (
@@ -228,12 +374,13 @@ export function GroupsOverviewTab({
                         <td>{money(total((row) => row.potentialInCents))}</td>
                       </>
                     )}
+                    <td />
                   </tr>
                 </tfoot>
               </table>
             </div>
           )}
-          {revenueReady && (
+          {revenueReady && rows.length > 0 && (
             <p className="group-panel-copy groups-overview-note">
               Valores por mês. O faturamento atual soma, para cada matriculado,
               o valor por sessão do plano ativo que cobre o serviço da turma
