@@ -24,16 +24,20 @@ import { createPortal } from "react-dom";
 import { api } from "../../../api";
 import { PatientPicker } from "../../../PatientPicker";
 import { Modal, ModalCancelButton } from "../../../shared/components/Modal";
-import { shortDate } from "../../../shared/lib/formatting";
+import { localIsoDate, shortDate } from "../../../shared/lib/formatting";
 import { useFormDirty } from "../../../shared/workflows/useDirtyGuard";
 import { CampaignFiltersModal } from "./CampaignFiltersModal";
 import { useTemplateImages } from "./images";
 import {
   activeFilterCount,
+  campaignPromotionIncomplete,
+  campaignPromotionInput,
+  emptyCampaignPromotion,
   emptyCampaignSegment,
   filterGroupCounts,
   filterGroupLabels,
   type CampaignFilterGroup,
+  type CampaignPromotionDraft,
 } from "./model";
 import { useSegmentPreview } from "./useSegmentPreview";
 import { WhatsappBubble, WhatsappText } from "./WhatsappBubble";
@@ -168,6 +172,102 @@ function FilterResults({
   );
 }
 
+/**
+ * Campanha promocional: ao agendar, dá para marcar que o atendimento é desta campanha. Vale
+ * por alguns dias depois do envio ou até uma data final; cada cliente usa uma vez.
+ */
+function CampaignPromotionFields({
+  value,
+  onChange,
+  disabled,
+}: {
+  value: CampaignPromotionDraft;
+  onChange: (next: CampaignPromotionDraft) => void;
+  disabled: boolean;
+}) {
+  const today = localIsoDate();
+  return (
+    <fieldset className="campaign-promotion" disabled={disabled}>
+      <label className="checkbox-field">
+        <input
+          type="checkbox"
+          checked={value.promotional}
+          onChange={(event) =>
+            onChange({ ...value, promotional: event.target.checked })
+          }
+        />
+        Campanha promocional (ao agendar, dá para marcar que o atendimento é
+        desta campanha)
+      </label>
+      {value.promotional && (
+        <>
+          <div
+            className="campaign-segmented compact"
+            role="group"
+            aria-label="Validade da promoção"
+          >
+            <button
+              type="button"
+              className="text-button"
+              aria-pressed={value.validity === "days"}
+              onClick={() => onChange({ ...value, validity: "days" })}
+            >
+              Dias depois do envio
+            </button>
+            <button
+              type="button"
+              className="text-button"
+              aria-pressed={value.validity === "date"}
+              onClick={() => onChange({ ...value, validity: "date" })}
+            >
+              Até uma data
+            </button>
+          </div>
+          {value.validity === "days" ? (
+            <label>
+              Validade da promoção (dias depois do envio)
+              <input
+                type="number"
+                min={1}
+                max={365}
+                required
+                value={value.validDays}
+                onChange={(event) =>
+                  onChange({ ...value, validDays: event.target.value })
+                }
+              />
+              <span className="field-hint">
+                Conta a partir do dia em que a mensagem de cada cliente for
+                marcada como enviada.
+              </span>
+            </label>
+          ) : (
+            <label>
+              Promoção válida até
+              <input
+                type="date"
+                min={today}
+                required
+                value={value.validUntil}
+                onChange={(event) =>
+                  onChange({ ...value, validUntil: event.target.value })
+                }
+              />
+              <span className="field-hint">
+                Vale para todos que receberem a mensagem, até essa data.
+              </span>
+            </label>
+          )}
+          <p className="field-hint">
+            Cada cliente usa a promoção uma vez; cancelar o atendimento devolve
+            o uso.
+          </p>
+        </>
+      )}
+    </fieldset>
+  );
+}
+
 /** Cria a campanha: escolhe a mensagem padrão, o público e confere quem recebe. */
 export function NewCampaignModal({
   templates,
@@ -197,10 +297,24 @@ export function NewCampaignModal({
     useState<CampaignFilterOptions | null>(null);
   const template = active.find((item) => item.id === templateId);
   const [name, setName] = useState("");
+  const [promotion, setPromotion] = useState<CampaignPromotionDraft>(
+    emptyCampaignPromotion,
+  );
   const [preview, setPreview] = useState<WhatsappCampaignPreview | null>(null);
   const [working, setWorking] = useState(false);
   const [error, setError] = useState("");
-  const dirty = useFormDirty({ templateId, mode, chosen, segment, name });
+  const dirty = useFormDirty({
+    templateId,
+    mode,
+    chosen,
+    segment,
+    name,
+    promotion,
+  });
+  const promotionIncomplete = campaignPromotionIncomplete(
+    promotion,
+    localIsoDate(),
+  );
 
   // Opções reais dos filtros (serviços, profissionais, cidades…), carregadas uma vez.
   const needsOptions = mode === "segment" && !filterOptions;
@@ -271,6 +385,7 @@ export function NewCampaignModal({
           templateId: template.id,
           name: name.trim(),
           audience,
+          promotion: campaignPromotionInput(promotion),
         }),
       );
     } catch (cause) {
@@ -497,6 +612,11 @@ export function NewCampaignModal({
                 onChange={(event) => setName(event.target.value)}
               />
             </label>
+            <CampaignPromotionFields
+              value={promotion}
+              onChange={setPromotion}
+              disabled={working}
+            />
             <dl className="campaign-review-numbers">
               <div>
                 <dt>Vão receber</dt>
@@ -579,7 +699,12 @@ export function NewCampaignModal({
           <button
             type="button"
             className="primary-button"
-            disabled={working || !preview?.recipients || !name.trim()}
+            disabled={
+              working ||
+              !preview?.recipients ||
+              !name.trim() ||
+              promotionIncomplete
+            }
             onClick={() => void create()}
           >
             {working ? "Criando…" : "Criar e começar a enviar"}

@@ -44,12 +44,13 @@ export function AppointmentPromotionField({
   if (!patientId || offers?.patientId !== patientId) return null;
   return offers.items.map((offer) => {
     const checked =
+      value?.source === offer.source &&
       value?.campaignId === offer.campaignId &&
       value.occurrenceKey === offer.occurrenceKey;
     return (
       <label
         className="checkbox-field span-2"
-        key={`${offer.campaignId}:${offer.occurrenceKey}`}
+        key={`${offer.source ?? "auto"}:${offer.campaignId}:${offer.occurrenceKey}`}
       >
         <input
           type="checkbox"
@@ -58,6 +59,7 @@ export function AppointmentPromotionField({
             event.target.checked
               ? onChange(
                   {
+                    ...(offer.source ? { source: offer.source } : {}),
                     campaignId: offer.campaignId,
                     occurrenceKey: offer.occurrenceKey,
                   },

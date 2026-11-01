@@ -1,7 +1,11 @@
 import { patientProfileFilterSchema } from "./segments.js";
 import { z } from "zod";
 import { leadAppointmentInputSchema } from "../agenda/model.js";
-import { patientDiscountSchema } from "../plans/discount.js";
+import type { AuditFieldLabel } from "../history-changes.js";
+import {
+  patientDiscountDescription,
+  patientDiscountSchema,
+} from "../plans/discount.js";
 import {
   cpfDigits,
   emptyQueryToUndefined,
@@ -476,3 +480,35 @@ export const patientProfileValueLabels = {
   other: "Outro",
   undisclosed: "Prefere não informar",
 } as const;
+
+/**
+ * Campos do cadastro comparados ao registrar a edição do cliente no Histórico
+ * (`patients.updated`), com o rótulo exibido em cada mudança.
+ */
+export const patientAuditLabels: Record<string, AuditFieldLabel> = {
+  fullName: "Nome",
+  cpf: "CPF",
+  email: "E-mail",
+  phone: "Telefone",
+  whatsapp: "WhatsApp",
+  birthDate: "Data de nascimento",
+  emergencyContactName: "Contato de emergência",
+  emergencyContactPhone: "Telefone de emergência",
+  notes: "Observações",
+  tags: "Etiquetas",
+  ...patientProfileLabels,
+  gender: {
+    label: patientProfileLabels.gender,
+    format: (value) =>
+      patientProfileValueLabels[
+        value as keyof typeof patientProfileValueLabels
+      ] ?? null,
+  },
+  discount: {
+    label: "Desconto",
+    format: (value) =>
+      patientDiscountDescription(
+        patientDiscountSchema.safeParse(value).data ?? null,
+      ),
+  },
+};

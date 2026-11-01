@@ -25,6 +25,7 @@ import {
   whatsappCampaignAudienceSchema,
   whatsappCampaignInputSchema,
   whatsappCampaignPreviewInputSchema,
+  whatsappCampaignPromotionSchema,
   whatsappCampaignSegmentSchema,
 } from "./model.js";
 
@@ -151,6 +152,10 @@ export type WhatsappCampaignPreviewInput = z.input<
 
 export type WhatsappCampaignInput = z.input<typeof whatsappCampaignInputSchema>;
 
+export type WhatsappCampaignPromotion = z.infer<
+  typeof whatsappCampaignPromotionSchema
+>;
+
 export type CampaignRecipientStatus = z.infer<
   typeof campaignRecipientStatusSchema
 >;
@@ -185,6 +190,8 @@ export interface WhatsappCampaign {
   createdAt: string;
   createdByName: string;
   completedAt?: string;
+  /** Presente só nas campanhas promocionais. */
+  promotion?: WhatsappCampaignPromotion | undefined;
 }
 
 export interface WhatsappCampaignDetail extends WhatsappCampaign {
@@ -349,8 +356,17 @@ export interface AutoCampaignRedemption {
   blockedUntil?: string | undefined;
 }
 
+/** `GET /communications/auto-campaigns/products`: produtos para o desconto da promoção. */
+export interface AutoCampaignProductOption {
+  id: string;
+  name: string;
+  active: boolean;
+}
+
 /** `GET /appointments/promotions`: promoções que o cliente pode usar ao agendar hoje. */
 export interface AutoCampaignPromotionOffer {
+  /** `manual` = campanha manual (WhatsApp); ausente = campanha automática. */
+  source?: "manual" | undefined;
   campaignId: string;
   campaignName: string;
   occurrenceKey: string;
@@ -360,6 +376,12 @@ export interface AutoCampaignPromotionOffer {
   discount?: AutoCampaignPromotionDiscount | undefined;
   /** Planos em que o desconto vale; ausente ou vazio = qualquer plano. */
   planTemplateIds?: string[] | undefined;
+  /** `false` = o desconto não vale em plano nenhum (ver `promotionAppliesToPlan`). */
+  appliesToPlans?: boolean | undefined;
+  /** `true` = o desconto vale também em produtos (ver `promotionAppliesToProduct`). */
+  appliesToProducts?: boolean | undefined;
+  /** Produtos em que o desconto vale; ausente ou vazio = qualquer produto. */
+  productIds?: string[] | undefined;
 }
 
 /** `GET /communications/auto-campaigns/queue`: a fila de hoje. */
