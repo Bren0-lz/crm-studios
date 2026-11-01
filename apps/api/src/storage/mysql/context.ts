@@ -4,6 +4,7 @@ import {
   formatSequenceNumber,
   installmentPaymentSplitIssue,
   settlementBreakdown,
+  settlementSteps,
   type PaymentTiming,
   type SettlementAdjustments,
 } from "@crm/contracts";
@@ -400,13 +401,13 @@ export class MysqlRepositoryContext {
     if (filters.action)
       predicates.push(`ae.action = ${parameter(filters.action)}`);
     if (filters.actorUserId)
-      predicates.push(
-        `ae.actor_user_id = ${parameter(filters.actorUserId)}`,
-      );
+      predicates.push(`ae.actor_user_id = ${parameter(filters.actorUserId)}`);
     // Cada palavra precisa aparecer na ação, na descrição ou nos metadados (exceto os
     // clínicos); a colação do banco ignora maiúsculas e acentos.
     for (const word of (filters.search ?? "").split(/\s+/).filter(Boolean)) {
-      const term = parameter(`%${word.replace(/[\\%_]/g, (char) => `\\${char}`)}%`);
+      const term = parameter(
+        `%${word.replace(/[\\%_]/g, (char) => `\\${char}`)}%`,
+      );
       predicates.push(
         `(ae.action LIKE ${term} OR ae.description LIKE ${term} OR (ae.module <> 'clinical' AND CAST(ae.metadata AS CHAR) LIKE ${term}))`,
       );
@@ -911,7 +912,9 @@ export class MysqlRepositoryContext {
     try {
       if (snapshot) {
         await client.query("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ");
-        await client.query("START TRANSACTION WITH CONSISTENT SNAPSHOT, READ ONLY");
+        await client.query(
+          "START TRANSACTION WITH CONSISTENT SNAPSHOT, READ ONLY",
+        );
       } else await client.query("BEGIN");
       const result = await work(client);
       await client.query("COMMIT");
@@ -1474,211 +1477,279 @@ export class MysqlRepositoryContext {
     timing?: PaymentTiming,
     adjustments: SettlementAdjustments = {},
   ) {
-    const client = await this.pool.connect();
-    try {
-      await client.query("BEGIN");
-      const current = await client.query<{
+    const { payments, ...single } = adjustments;
+    return this.inTransaction(async (client) => {
+      if (operation !== "payment" || !payments?.length)
+        return (
+          (
+            await this.applyReceivablePayment(
+              client,
+              clinicId,
+              actorUserId,
+              receivableId,
+              operation,
+              paymentMethod,
+              timing,
+              single,
+            )
+          )?.receivable ?? null
+        );
+      // Pagamento misto: cada forma baixa uma parte, todas na mesma transação.
+      const original = await client.query<{
         status: ReceivableStatus;
         amountInCents: number;
-        installmentCount: number;
-        paymentMethod: PaymentMethod | null;
-        cashAvailableAt: Date | null;
+        description: string;
       }>(
-        `SELECT status,payment_method AS "paymentMethod",cash_available_at AS "cashAvailableAt", amount_in_cents AS "amountInCents", installment_count AS "installmentCount"
+        `SELECT status, amount_in_cents AS "amountInCents", description
          FROM receivables WHERE clinic_id = $1 AND id = $2 FOR UPDATE`,
         [clinicId, receivableId],
       );
-      if (!current.rows[0]) {
-        await client.query("COMMIT");
-        return null;
-      }
-      const expected = operation === "payment" ? "open" : "paid";
-      if (current.rows[0].status !== expected) {
+      if (!original.rows[0]) return null;
+      if (original.rows[0].status !== "open")
         throw new DomainError(
-          operation === "payment"
-            ? "RECEIVABLE_NOT_OPEN"
-            : "RECEIVABLE_NOT_PAID",
-          operation === "payment"
-            ? "Somente contas abertas podem ser baixadas."
-            : "Somente pagamentos confirmados podem ser estornados.",
+          "RECEIVABLE_NOT_OPEN",
+          "Somente contas abertas podem ser baixadas.",
           409,
         );
+      const plan = settlementSteps(original.rows[0].amountInCents, {
+        ...single,
+        payments,
+      });
+      if (plan.error)
+        throw new DomainError("INVALID_SETTLEMENT", plan.error, 400);
+      let currentId: string | null = receivableId;
+      for (const step of plan.steps) {
+        if (!currentId) break;
+        const result = await this.applyReceivablePayment(
+          client,
+          clinicId,
+          actorUserId,
+          currentId,
+          "payment",
+          step.paymentMethod,
+          timing,
+          step.adjustments,
+          {
+            label: step.balanceLabel,
+            description: original.rows[0].description,
+          },
+        );
+        currentId = result?.balanceReceivableId ?? null;
       }
-      if (
-        operation === "payment" &&
-        (adjustments.paymentInstallments ?? 1) > 1 &&
-        !acceptsPaymentInstallments({
-          installmentCount: Number(current.rows[0].installmentCount),
-        })
-      )
-        throw new DomainError(
-          "INSTALLMENT_PAYMENT_SPLIT",
-          installmentPaymentSplitIssue,
-          400,
-        );
-      // U39: desconto, juros e pagamento parcial (o saldo vira nova parcela).
-      let receivedInCents = current.rows[0].amountInCents;
-      let balanceReceivableId: string | null = null;
-      let discountInCents = 0;
-      let interestInCents = 0;
-      if (operation === "payment") {
-        const breakdown = settlementBreakdown(
-          current.rows[0].amountInCents,
-          adjustments,
-        );
-        if (breakdown.error)
-          throw new DomainError("INVALID_SETTLEMENT", breakdown.error, 400);
-        receivedInCents = breakdown.receivedInCents;
-        discountInCents = adjustments.discountInCents ?? 0;
-        interestInCents = adjustments.interestInCents ?? 0;
-        if (breakdown.balanceInCents > 0) {
-          balanceReceivableId = randomUUID();
-          await client.query(
-            `INSERT INTO receivables
+      return this.findReceivable(client, clinicId, receivableId);
+    });
+  }
+
+  /**
+   * Baixa ou estorno de uma parcela na transação de quem chama. Devolve também a parcela
+   * criada com o restante (pagamento parcial ou parte seguinte do pagamento misto).
+   */
+  private async applyReceivablePayment(
+    client: PoolClient,
+    clinicId: string,
+    actorUserId: string,
+    receivableId: string,
+    operation: "payment" | "payment_reversal",
+    paymentMethod?: PaymentMethod,
+    timing?: PaymentTiming,
+    adjustments: Omit<SettlementAdjustments, "payments"> = {},
+    balance: { label: string; description?: string } = { label: "saldo" },
+  ) {
+    const current = await client.query<{
+      status: ReceivableStatus;
+      amountInCents: number;
+      installmentCount: number;
+      paymentMethod: PaymentMethod | null;
+      cashAvailableAt: Date | null;
+    }>(
+      `SELECT status,payment_method AS "paymentMethod",cash_available_at AS "cashAvailableAt", amount_in_cents AS "amountInCents", installment_count AS "installmentCount"
+         FROM receivables WHERE clinic_id = $1 AND id = $2 FOR UPDATE`,
+      [clinicId, receivableId],
+    );
+    if (!current.rows[0]) return null;
+    const expected = operation === "payment" ? "open" : "paid";
+    if (current.rows[0].status !== expected) {
+      throw new DomainError(
+        operation === "payment" ? "RECEIVABLE_NOT_OPEN" : "RECEIVABLE_NOT_PAID",
+        operation === "payment"
+          ? "Somente contas abertas podem ser baixadas."
+          : "Somente pagamentos confirmados podem ser estornados.",
+        409,
+      );
+    }
+    // Plano já parcelado não se parcela de novo na forma de pagamento (nem no misto: cada
+    // parte passa por aqui dentro da mesma transação).
+    if (
+      operation === "payment" &&
+      (adjustments.paymentInstallments ?? 1) > 1 &&
+      !acceptsPaymentInstallments({
+        installmentCount: Number(current.rows[0].installmentCount),
+      })
+    )
+      throw new DomainError(
+        "INSTALLMENT_PAYMENT_SPLIT",
+        installmentPaymentSplitIssue,
+        400,
+      );
+    // U39: desconto, juros e pagamento parcial (o saldo vira nova parcela).
+    let receivedInCents = current.rows[0].amountInCents;
+    let balanceReceivableId: string | null = null;
+    let discountInCents = 0;
+    let interestInCents = 0;
+    if (operation === "payment") {
+      const breakdown = settlementBreakdown(
+        current.rows[0].amountInCents,
+        adjustments,
+      );
+      if (breakdown.error)
+        throw new DomainError("INVALID_SETTLEMENT", breakdown.error, 400);
+      receivedInCents = breakdown.receivedInCents;
+      discountInCents = adjustments.discountInCents ?? 0;
+      interestInCents = adjustments.interestInCents ?? 0;
+      if (breakdown.balanceInCents > 0) {
+        balanceReceivableId = randomUUID();
+        await client.query(
+          `INSERT INTO receivables
                (id, clinic_id, patient_id, plan_id, description, installment_number,
                 installment_count, due_date, amount_in_cents, competence,
                 category_id, cost_center_id, posted_on, branch_id)
-             SELECT $5, r.clinic_id, r.patient_id, r.plan_id, r.description || ' · saldo',
+             SELECT $5, r.clinic_id, r.patient_id, r.plan_id,
+                    coalesce($6, r.description) || ' · ' || $7,
                     CASE WHEN r.plan_id IS NULL THEN r.installment_number
                          ELSE (SELECT max(x.installment_number) + 1 FROM receivables x
                                WHERE x.plan_id = r.plan_id) END,
                     r.installment_count, coalesce($3, r.due_date), $4,
                     r.competence, r.category_id, r.cost_center_id, r.posted_on, r.branch_id
              FROM receivables r WHERE r.clinic_id = $1 AND r.id = $2`,
-            [
-              clinicId,
-              receivableId,
-              adjustments.balanceDueDate ?? null,
-              breakdown.balanceInCents,
-              balanceReceivableId,
-            ],
-          );
-        }
-      } else {
-        // Estorno: a parcela volta a valer sem o desconto e sem os juros da baixa.
-        const payment = await client.query<{
-          discountInCents: number;
-          interestInCents: number;
-        }>(
-          `SELECT discount_in_cents AS "discountInCents", interest_in_cents AS "interestInCents"
+          [
+            clinicId,
+            receivableId,
+            adjustments.balanceDueDate ?? null,
+            breakdown.balanceInCents,
+            balanceReceivableId,
+            balance.description ?? null,
+            balance.label,
+          ],
+        );
+      }
+    } else {
+      // Estorno: a parcela volta a valer sem o desconto e sem os juros da baixa.
+      const payment = await client.query<{
+        discountInCents: number;
+        interestInCents: number;
+      }>(
+        `SELECT discount_in_cents AS "discountInCents", interest_in_cents AS "interestInCents"
            FROM financial_events WHERE clinic_id = $1 AND receivable_id = $2 AND kind = 'payment'
            ORDER BY created_at DESC LIMIT 1`,
-          [clinicId, receivableId],
-        );
-        const restore =
-          (payment.rows[0]?.discountInCents ?? 0) -
-          (payment.rows[0]?.interestInCents ?? 0);
-        if (restore !== 0) {
-          await client.query(
-            `UPDATE receivables SET amount_in_cents = amount_in_cents + $3
-             WHERE clinic_id = $1 AND id = $2`,
-            [clinicId, receivableId, restore],
-          );
-          await client.query(
-            `INSERT INTO financial_events
-               (clinic_id, receivable_id, actor_user_id, kind, amount_in_cents, metadata)
-             VALUES ($1,$2,$3,'adjustment',$4,$5)`,
-            [
-              clinicId,
-              receivableId,
-              actorUserId,
-              restore,
-              { reason: "Estorno de baixa com desconto/juros" },
-            ],
-          );
-        }
-      }
-      if (
-        operation === "payment" &&
-        receivedInCents !== current.rows[0].amountInCents
-      ) {
+        [clinicId, receivableId],
+      );
+      const restore =
+        (payment.rows[0]?.discountInCents ?? 0) -
+        (payment.rows[0]?.interestInCents ?? 0);
+      if (restore !== 0) {
         await client.query(
-          `UPDATE receivables SET amount_in_cents = $3 WHERE clinic_id = $1 AND id = $2`,
-          [clinicId, receivableId, receivedInCents],
+          `UPDATE receivables SET amount_in_cents = amount_in_cents + $3
+             WHERE clinic_id = $1 AND id = $2`,
+          [clinicId, receivableId, restore],
         );
         await client.query(
           `INSERT INTO financial_events
-             (clinic_id, receivable_id, actor_user_id, kind, amount_in_cents, metadata)
-           VALUES ($1,$2,$3,'adjustment',$4,$5)`,
+               (clinic_id, receivable_id, actor_user_id, kind, amount_in_cents, metadata)
+             VALUES ($1,$2,$3,'adjustment',$4,$5)`,
           [
             clinicId,
             receivableId,
             actorUserId,
-            receivedInCents - current.rows[0].amountInCents,
-            {
-              reason: "Baixa com desconto, juros ou pagamento parcial",
-              discountInCents,
-              interestInCents,
-              balanceReceivableId,
-            },
+            restore,
+            { reason: "Estorno de baixa com desconto/juros" },
           ],
         );
       }
+    }
+    if (
+      operation === "payment" &&
+      receivedInCents !== current.rows[0].amountInCents
+    ) {
       await client.query(
-        operation === "payment"
-          ? `UPDATE receivables SET status = 'paid', paid_at = coalesce($4,NOW(6)),cash_available_at=coalesce($5,cash_available_at), payment_method = $3, payment_installments = $6, updated_at = NOW(6)
-             WHERE clinic_id = $1 AND id = $2`
-          : `UPDATE receivables SET status = 'open', paid_at = NULL, payment_method = NULL, payment_installments = NULL, updated_at = NOW(6)
-             WHERE clinic_id = $1 AND id = $2`,
-        operation === "payment"
-          ? [
-              clinicId,
-              receivableId,
-              paymentMethod,
-              timing?.paidAt ?? null,
-              timing?.availableAt ?? null,
-              paymentInstallmentsValue(adjustments.paymentInstallments),
-            ]
-          : [clinicId, receivableId],
+        `UPDATE receivables SET amount_in_cents = $3 WHERE clinic_id = $1 AND id = $2`,
+        [clinicId, receivableId, receivedInCents],
       );
       await client.query(
         `INSERT INTO financial_events
-           (clinic_id, receivable_id, actor_user_id, kind, amount_in_cents, metadata,occurred_at,cash_available_at,
-            discount_in_cents, interest_in_cents, balance_receivable_id)
-         VALUES ($1, $2, $3, $4, $5, $6,coalesce($7,NOW(6)),coalesce($8,$7,NOW(6)),
-                 $9, $10, $11)`,
+             (clinic_id, receivable_id, actor_user_id, kind, amount_in_cents, metadata)
+           VALUES ($1,$2,$3,'adjustment',$4,$5)`,
         [
           clinicId,
           receivableId,
           actorUserId,
-          operation,
-          operation === "payment" ? receivedInCents : -receivedInCents,
-          operation === "payment"
-            ? {
-                paymentMethod,
-                ...(paymentInstallmentsValue(adjustments.paymentInstallments)
-                  ? { paymentInstallments: adjustments.paymentInstallments }
-                  : {}),
-              }
-            : { paymentMethod: current.rows[0].paymentMethod },
-          timing?.paidAt ?? null,
-          timing?.availableAt ??
-            (operation === "payment" ? current.rows[0].cashAvailableAt : null),
-          discountInCents,
-          interestInCents,
-          balanceReceivableId,
+          receivedInCents - current.rows[0].amountInCents,
+          {
+            reason: "Baixa com desconto, juros ou pagamento parcial",
+            discountInCents,
+            interestInCents,
+            balanceReceivableId,
+          },
         ],
       );
-      if (operation === "payment_reversal")
-        await markPaymentProofsReversed(
-          client,
-          clinicId,
-          "receivable",
-          receivableId,
-        );
-      const receivable = await this.findReceivable(
-        client,
+    }
+    await client.query(
+      operation === "payment"
+        ? `UPDATE receivables SET status = 'paid', paid_at = coalesce($4,NOW(6)),cash_available_at=coalesce($5,cash_available_at), payment_method = $3, payment_installments = $6, updated_at = NOW(6)
+             WHERE clinic_id = $1 AND id = $2`
+        : `UPDATE receivables SET status = 'open', paid_at = NULL, payment_method = NULL, payment_installments = NULL, updated_at = NOW(6)
+             WHERE clinic_id = $1 AND id = $2`,
+      operation === "payment"
+        ? [
+            clinicId,
+            receivableId,
+            paymentMethod,
+            timing?.paidAt ?? null,
+            timing?.availableAt ?? null,
+            paymentInstallmentsValue(adjustments.paymentInstallments),
+          ]
+        : [clinicId, receivableId],
+    );
+    await client.query(
+      `INSERT INTO financial_events
+           (clinic_id, receivable_id, actor_user_id, kind, amount_in_cents, metadata,occurred_at,cash_available_at,
+            discount_in_cents, interest_in_cents, balance_receivable_id)
+         VALUES ($1, $2, $3, $4, $5, $6,coalesce($7,NOW(6)),coalesce($8,$7,NOW(6)),
+                 $9, $10, $11)`,
+      [
         clinicId,
         receivableId,
+        actorUserId,
+        operation,
+        operation === "payment" ? receivedInCents : -receivedInCents,
+        operation === "payment"
+          ? {
+              paymentMethod,
+              ...(paymentInstallmentsValue(adjustments.paymentInstallments)
+                ? { paymentInstallments: adjustments.paymentInstallments }
+                : {}),
+            }
+          : { paymentMethod: current.rows[0].paymentMethod },
+        timing?.paidAt ?? null,
+        timing?.availableAt ??
+          (operation === "payment" ? current.rows[0].cashAvailableAt : null),
+        discountInCents,
+        interestInCents,
+        balanceReceivableId,
+      ],
+    );
+    if (operation === "payment_reversal")
+      await markPaymentProofsReversed(
+        client,
+        clinicId,
+        "receivable",
+        receivableId,
       );
-      await client.query("COMMIT");
-      return receivable;
-    } catch (error) {
-      await client.query("ROLLBACK");
-      throw error;
-    } finally {
-      client.release();
-    }
+    const receivable = await this.findReceivable(
+      client,
+      clinicId,
+      receivableId,
+    );
+    return receivable ? { receivable, balanceReceivableId } : null;
   }
 
   async changePayablePayment(
