@@ -1173,6 +1173,14 @@ export interface ClinicRepository {
     entityType: PaymentProofEntity,
     entityId: string,
   ): Promise<PaymentProof[]>;
+  /**
+   * Parcelas ou despesas (nas filiais da leitura) com algum comprovante não excluído, inclusive
+   * os de baixa estornada — a tela usa para manter o acesso aos comprovantes após o estorno.
+   */
+  listPaymentProofEntityIds(
+    clinicId: string,
+    entityType: "receivable" | "payable",
+  ): Promise<string[]>;
   /** Anexa um comprovante a um registro já pago/recebido. */
   createPaymentProof(
     clinicId: string,
