@@ -250,6 +250,67 @@
   font-weight: 400;
 }
 
+/* Cadastro do fornecedor em abas (Dados, Pedidos, Documentos). */
+.supplier-tab-panel {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.supplier-tab-panel[hidden] {
+  display: none;
+}
+
+.supplier-contract-fields {
+  display: grid;
+  gap: var(--space-3);
+  padding: 0 var(--space-4) var(--space-4);
+}
+
+.supplier-contract-fields > .field-hint {
+  margin: 0;
+}
+
+/* Conferência do modelo escolhido com os dados preenchidos no cadastro. */
+.supplier-document-check {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+}
+
+.supplier-document-check p {
+  margin: 0;
+}
+
+.supplier-document-check ul {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.supplier-document-check li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.supplier-documents {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.supplier-documents h3 {
+  margin: 0;
+  font-size: var(--text-md);
+  font-weight: 600;
+}
+
 .sale-actions {
   align-items: center;
 }
@@ -262,6 +323,32 @@
 .sale-total strong {
   margin-left: var(--space-2);
   font-size: var(--text-xl);
+}
+
+.sale-payment h3 {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-md);
+  font-weight: 600;
+}
+
+.sale-payment dl {
+  display: grid;
+  grid-template-columns: repeat(
+    auto-fit,
+    minmax(calc(var(--space-8) * 2 + var(--space-3)), 1fr)
+  );
+  gap: var(--space-3);
+  margin: 0;
+}
+
+.sale-payment dt {
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+
+.sale-payment dd {
+  margin: var(--space-1) 0 0;
+  font-size: var(--text-md);
 }
 
 @media (max-width: 700px) {
@@ -403,6 +490,10 @@
 
 .product-catalogs {
   padding: 0 calc(var(--space-5) - 1px) calc(var(--space-5) - 1px);
+}
+
+.sales-suppliers {
+  padding: calc(var(--space-5) - 1px);
 }
 
 .sales-ranking-body {

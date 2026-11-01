@@ -1,4 +1,5 @@
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
+import type { PermissionKey } from "@crm/contracts";
 import { describe, expect, it } from "vitest";
 import { nextTestCpf } from "../../../../api/src/test-support/cpf.js";
 import { actorId, clinicId, setupApi } from "../../test-support/api-server";
@@ -488,6 +489,119 @@ describe("página Vendas de produtos", () => {
     ).toBe(5);
   });
 
+  it("mostra o pagamento e estorna ao cancelar uma venda paga", async () => {
+    const { repository, patient, cream } = await seed();
+    await repository.createProductSale(clinicId, actorId, {
+      patientId: patient.id,
+      items: [{ productId: cream.id, quantity: 2 }],
+      settlement: "paid",
+      paymentMethod: "card",
+      paymentInstallments: 3,
+      dueDate: "2099-01-10",
+    });
+    open("/vendas?aba=vendas");
+    const history = await screen.findByRole("region", {
+      name: "Vendas realizadas",
+    });
+    fireEvent.click(
+      within(history).getByRole("button", {
+        name: `Ver venda de ${patient.fullName}`,
+      }),
+    );
+    const details = await screen.findByRole("dialog", {
+      name: `Venda · ${patient.fullName}`,
+    });
+    const payment = await within(details).findByRole("region", {
+      name: "Pagamento",
+    });
+    expect(within(payment).getByText("Pago")).toBeInTheDocument();
+    expect(within(payment).getByText("Cartão em 3x")).toBeInTheDocument();
+    fireEvent.click(
+      within(details).getByRole("button", { name: "Cancelar venda" }),
+    );
+    const confirm = await screen.findByRole("dialog", {
+      name: "Cancelar venda",
+    });
+    const submit = within(confirm).getByRole("button", {
+      name: "Estornar e cancelar",
+    });
+    expect(submit).toBeDisabled();
+    fireEvent.click(
+      within(confirm).getByRole("checkbox", {
+        name: /Estornar o pagamento de/,
+      }),
+    );
+    expect(submit).toBeEnabled();
+    fireEvent.submit(submit.closest("form")!);
+    await within(details).findByText(
+      "Venda cancelada; pagamento estornado e estoque restituído.",
+    );
+    const [tab] = (await repository.getInventoryWorkspace(clinicId)).tabs;
+    expect(tab).toMatchObject({ status: "cancelled" });
+    expect(
+      (await repository.getFinancialSummary(clinicId)).receivables.find(
+        (item) => item.id === tab!.receivableId,
+      )?.status,
+    ).toBe("cancelled");
+  });
+
+  it("bloqueia o cancelamento da venda paga sem a permissão de estorno", async () => {
+    const { repository, app, patient, cream } = await seed();
+    await repository.createProductSale(clinicId, actorId, {
+      patientId: patient.id,
+      items: [{ productId: cream.id, quantity: 1 }],
+      settlement: "paid",
+      paymentMethod: "pix",
+      dueDate: "2099-01-10",
+    });
+    const user = await repository.createAdminUser(
+      clinicId,
+      actorId,
+      {
+        fullName: "Cancela vendas",
+        email: "cancela.vendas@example.com",
+        role: "user",
+        password: "SenhaForte123",
+        permissions: [
+          "patients.view",
+          "patients.inventory_view",
+          "patients.tabs_cancel",
+        ],
+      },
+      "hash-de-teste",
+    );
+    const token = app.jwt.sign({ sub: user.id, clinicId, role: "user" });
+    const me = await app.inject({
+      url: "/me",
+      headers: { authorization: `Bearer ${token}` },
+    });
+    localStorage.setItem("crm.auth.token", token);
+    localStorage.setItem("crm.auth.user", me.body);
+    open("/vendas?aba=vendas");
+    const history = await screen.findByRole("region", {
+      name: "Vendas realizadas",
+    });
+    fireEvent.click(
+      within(history).getByRole("button", {
+        name: `Ver venda de ${patient.fullName}`,
+      }),
+    );
+    const details = await screen.findByRole("dialog", {
+      name: `Venda · ${patient.fullName}`,
+    });
+    await within(details).findByRole("region", { name: "Pagamento" });
+    fireEvent.click(
+      within(details).getByRole("button", { name: "Cancelar venda" }),
+    );
+    const confirm = await screen.findByRole("dialog", {
+      name: "Cancelar venda",
+    });
+    expect(within(confirm).queryByRole("checkbox")).not.toBeInTheDocument();
+    expect(
+      within(confirm).getByRole("button", { name: "Cancelar venda" }),
+    ).toBeDisabled();
+  });
+
   it("esconde a nova venda de quem não pode fechar comandas", async () => {
     const { repository, app } = await setupApi();
     const user = await repository.createAdminUser(
@@ -519,5 +633,73 @@ describe("página Vendas de produtos", () => {
     expect(
       screen.getByRole("link", { name: /Vendas de produtos/ }),
     ).toBeInTheDocument();
+  });
+  it("mostra a aba Fornecedores só a quem tem a permissão de fornecedores", async () => {
+    const { repository, app } = await setupApi();
+    async function signIn(email: string, permissions: PermissionKey[]) {
+      const user = await repository.createAdminUser(
+        clinicId,
+        actorId,
+        {
+          fullName: "Equipe de vendas",
+          email,
+          role: "user",
+          password: "SenhaForte123",
+          permissions,
+        },
+        "hash-de-teste",
+      );
+      const token = app.jwt.sign({ sub: user.id, clinicId, role: "user" });
+      const me = await app.inject({
+        url: "/me",
+        headers: { authorization: `Bearer ${token}` },
+      });
+      localStorage.setItem("crm.auth.token", token);
+      localStorage.setItem("crm.auth.user", me.body);
+    }
+    await signIn("sem.fornecedores@example.com", [
+      "patients.view",
+      "patients.inventory_view",
+    ]);
+    const first = open("/vendas?aba=fornecedores");
+    expect(
+      await screen.findByRole("region", { name: "Vendas realizadas" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Fornecedores" }),
+    ).not.toBeInTheDocument();
+    first.unmount();
+    await signIn("fornecedores@example.com", [
+      "patients.view",
+      "patients.inventory_view",
+      "patients.suppliers_manage",
+    ]);
+    open("/vendas");
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Fornecedores" }),
+    );
+    const panel = await screen.findByRole("region", { name: "Fornecedores" });
+    fireEvent.click(
+      await within(panel).findByRole("button", { name: "Novo fornecedor" }),
+    );
+    const dialog = screen.getByRole("dialog", { name: "Novo fornecedor" });
+    // Pedidos usam as rotas do Financeiro: sem essa permissão, a aba não aparece.
+    expect(
+      within(dialog).getByRole("tab", { name: "Dados" }),
+    ).toBeInTheDocument();
+    expect(
+      within(dialog).queryByRole("tab", { name: "Pedidos" }),
+    ).not.toBeInTheDocument();
+    fireEvent.change(within(dialog).getByLabelText("Nome"), {
+      target: { value: "Cosméticos Aryana" },
+    });
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Salvar fornecedor" }),
+    );
+    await waitFor(async () =>
+      expect(
+        (await repository.listSuppliers(clinicId)).map((item) => item.name),
+      ).toEqual(["Cosméticos Aryana"]),
+    );
   });
 });

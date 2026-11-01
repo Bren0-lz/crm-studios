@@ -341,6 +341,11 @@ export const patientTabCloseInputSchema = z
     { message: "Informe a forma de pagamento.", path: ["paymentMethod"] },
   );
 
+/** Cancelamento de comanda: `refundPayment` estorna antes o pagamento já recebido. */
+export const patientTabCancelInputSchema = z
+  .object({ refundPayment: z.boolean().default(false) })
+  .default({ refundPayment: false });
+
 export const productUpdateSchema = productBaseSchema
   .omit({ initialStock: true })
   .extend({
@@ -410,10 +415,6 @@ export const productSaleInputSchema = z
     (value) => value.settlement !== "paid" || Boolean(value.paymentMethod),
     { message: "Informe a forma de pagamento.", path: ["paymentMethod"] },
   );
-export const patientTabServiceInputSchema = z.object({
-  appointmentId: z.uuid(),
-  amountInCents: z.number().int().min(0).max(2147483647).optional(),
-});
 /** Recorrência do valor contratado com o fornecedor. */
 export const supplierBillingCycleSchema = z.enum([
   "one_time",

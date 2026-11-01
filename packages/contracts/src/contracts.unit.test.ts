@@ -89,6 +89,7 @@ import {
   patientListQuerySchema,
   patientPlanInputSchema,
   patientTabCloseInputSchema,
+  patientTabCancelInputSchema,
   productSaleInputSchema,
   patientTagInputSchema,
   patientTagKey,
@@ -1811,6 +1812,38 @@ describe("textos de interface sem nome antigo nem código interno (QM15)", () =>
     );
     expect(normalizePermissions(["agenda.view_all"])).toEqual([]);
     expect(effectivePermissions("admin")).toContain("agenda.view_all");
+  });
+
+  it("só concede o estorno da venda por escolha explícita, com o cancelamento", () => {
+    expect(
+      permissionCatalog.find((entry) => entry.key === "patients.tabs_refund"),
+    ).toMatchObject({
+      name: "Estornar pagamento da venda ao cancelar",
+      dependencies: ["patients.view", "patients.tabs_cancel"],
+      explicitGrantOnly: true,
+    });
+    expect(
+      legacyPermissions("user", ["patients"], ["patients"]),
+    ).not.toContain("patients.tabs_refund");
+    expect(
+      normalizePermissions(["patients.view", "patients.tabs_refund"]),
+    ).toEqual(["patients.view"]);
+    expect(effectivePermissions("admin")).toContain("patients.tabs_refund");
+  });
+
+  it("cancela a comanda sem estorno quando o corpo vem vazio", () => {
+    expect(patientTabCancelInputSchema.parse(undefined)).toEqual({
+      refundPayment: false,
+    });
+    expect(patientTabCancelInputSchema.parse({})).toEqual({
+      refundPayment: false,
+    });
+    expect(
+      patientTabCancelInputSchema.parse({ refundPayment: true }),
+    ).toEqual({ refundPayment: true });
+    expect(() =>
+      patientTabCancelInputSchema.parse({ refundPayment: "sim" }),
+    ).toThrow();
   });
 
   it("formata e lê números sequenciais de prontuário e recibo", () => {

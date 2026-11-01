@@ -60,7 +60,8 @@ export const proxiedEndpoints: ProxiedEndpoint[] = [
     path: "/external/v1/services",
     target: "/services",
     scope: "sales:read",
-    description: "Serviços (preço avulso, duração, ativos).",
+    description:
+      "Serviços (preço de tabela, valor da sessão do plano avulso, duração, ativos).",
   },
   {
     method: "GET",

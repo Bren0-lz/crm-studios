@@ -28,6 +28,7 @@ import {
   type FinancialWorkspace,
   type InventoryWorkspace,
   type PatientTab,
+  type PatientTabPayment,
   type PatientTabCloseInput,
   type PatientTabInput,
   type PatientTabItemInput,
@@ -792,6 +793,7 @@ export function createFinanceRepository(
       clinicId: string,
       actorUserId: string,
       tabId: string,
+      options: { refundPayment?: boolean } = {},
     ) {
       const client = await repositoryContext.pool.connect();
       try {
@@ -811,15 +813,16 @@ export function createFinanceRepository(
           await client.query("ROLLBACK");
           return null;
         }
-        if (
+        const paid = Boolean(
           row.receivableId &&
           (
             await client.query(
               "SELECT id FROM receivables WHERE clinic_id=$1 AND id=$2 AND status='paid' FOR UPDATE",
               [clinicId, row.receivableId],
             )
-          ).rowCount
-        )
+          ).rowCount,
+        );
+        if (paid && !options.refundPayment)
           throw new DomainError(
             "PATIENT_TAB_PAYMENT_REVERSAL_REQUIRED",
             "Estorne o pagamento no Financeiro antes de cancelar a comanda.",
@@ -830,6 +833,14 @@ export function createFinanceRepository(
             "PATIENT_TAB_ALREADY_CANCELLED",
             "A comanda já foi cancelada.",
             409,
+          );
+        // Estorno pelo próprio cancelamento: na mesma transação (falhou, nada muda).
+        if (paid)
+          await repositoryContext.reversePaidReceivableWith(
+            client,
+            clinicId,
+            actorUserId,
+            row.receivableId!,
           );
         await cancelTabServiceCredits(client, clinicId, actorUserId, tabId);
         const items = await client.query<{
@@ -936,6 +947,39 @@ export function createFinanceRepository(
         timing,
         adjustments,
       );
+    },
+
+    async patientTabPayment(clinicId: string, tabId: string) {
+      const tab = await repositoryContext.pool.query<{
+        receivableId: string | null;
+      }>(
+        `SELECT receivable_id AS "receivableId" FROM patient_tabs WHERE clinic_id=$1 AND id=$2`,
+        [clinicId, tabId],
+      );
+      const row = tab.rows[0];
+      if (!row) return undefined;
+      const receivable = row.receivableId
+        ? await repositoryContext.findReceivable(
+            repositoryContext.pool,
+            clinicId,
+            row.receivableId,
+          )
+        : null;
+      if (!receivable) return null;
+      const payment: PatientTabPayment = {
+        receivableId: receivable.id,
+        status: receivable.status,
+        amountInCents: receivable.amountInCents,
+        dueDate: receivable.dueDate,
+        ...(receivable.paidAt ? { paidAt: receivable.paidAt } : {}),
+        ...(receivable.paymentMethod
+          ? { paymentMethod: receivable.paymentMethod }
+          : {}),
+        ...(receivable.paymentInstallments
+          ? { paymentInstallments: receivable.paymentInstallments }
+          : {}),
+      };
+      return payment;
     },
 
     async reverseReceivablePayment(
@@ -1926,32 +1970,6 @@ export function createFinanceRepository(
         clinicId,
         input,
       );
-    },
-
-    async generateCommissions(clinicId: string, competence: string) {
-      await repositoryContext.pool.query(
-        `INSERT INTO commission_entries
-        (clinic_id, professional_id, appointment_id, rule_id, competence,
-         base_amount_in_cents, percentage, amount_in_cents)
-       SELECT a.clinic_id, a.professional_id, a.id, rule.id, $2,
-              s.price_in_cents, rule.percentage,
-              CAST(ROUND(s.price_in_cents * rule.percentage / 100.0) AS SIGNED)
-       FROM appointments a JOIN services s ON s.id = a.service_id
-       JOIN professionals pr ON pr.id = a.professional_id
-       -- Regra do usuário ligado ao profissional vigente na data; sem ela, a do profissional.
-       JOIN commission_rules rule ON rule.id = (SELECT cr.id FROM commission_rules cr
-         WHERE cr.clinic_id = a.clinic_id
-           AND (cr.professional_id = a.professional_id
-             OR (pr.user_id IS NOT NULL AND cr.user_id = pr.user_id))
-           AND cr.active AND cr.effective_from <= ${localDate("a.starts_at")}
-         ORDER BY (cr.user_id IS NOT NULL) DESC, cr.effective_from DESC LIMIT 1)
-       WHERE a.clinic_id = $1 AND a.status = 'completed'
-         AND a.patient_id IS NOT NULL -- atendimento de lead não gera comissão
-         AND ${localMonth("a.starts_at")} = $2
-       ON DUPLICATE KEY UPDATE commission_entries.id = commission_entries.id`,
-        [clinicId, competence],
-      );
-      return repositoryContext.listCommissions(clinicId, competence);
     },
 
     async settleCommission(
