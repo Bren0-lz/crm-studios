@@ -111,6 +111,7 @@ export function FinancePage() {
     entity: "receivable" | "payable";
     id: string;
     subtitle: string;
+    settled: boolean;
   } | null>(null);
   const [payableModal, setPayableModal] = useState(false);
   // Despesa fixa criada pelo "Nova despesa": a lista de despesas fixas recarrega.
@@ -513,11 +514,15 @@ export function FinancePage() {
                 onContact={(item, overdue) =>
                   setContacting({ receivable: item, overdue })
                 }
+                proofIds={
+                  new Set(data.paymentProofEntityIds?.receivables ?? [])
+                }
                 onProofs={(item) =>
                   setViewingProofs({
                     entity: "receivable",
                     id: item.id,
                     subtitle: `${item.patientName} · ${item.description}`,
+                    settled: item.status === "paid",
                   })
                 }
                 onReceipt={(id) =>
@@ -563,8 +568,10 @@ export function FinancePage() {
                     ]
                       .filter(Boolean)
                       .join(" · "),
+                    settled: item.status === "paid",
                   })
                 }
+                proofIds={new Set(data.paymentProofEntityIds?.payables ?? [])}
                 onSetAmount={setInformingPayable}
                 onSettle={(item) =>
                   setSettling({
@@ -728,6 +735,7 @@ export function FinancePage() {
           entity={viewingProofs.entity}
           entityId={viewingProofs.id}
           subtitle={viewingProofs.subtitle}
+          settled={viewingProofs.settled}
           canAttach={
             canManage &&
             can(
