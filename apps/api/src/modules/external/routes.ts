@@ -16,6 +16,7 @@ import {
   loginSchema,
   type Patient,
   saoPauloToday,
+  singlePlanSessionPrices,
 } from "@crm/contracts";
 import { compare } from "bcryptjs";
 import type { FastifyReply, FastifyRequest } from "fastify";
@@ -106,10 +107,10 @@ export function registerExternalRoutes({
     const from = `${today}T00:00:00.000Z`;
     const to = new Date(Date.parse(from) + 86_400_000).toISOString();
     await repository.renewDuePatientPlans(clinicId, actorUserId);
-    const [workspace, plans, services] = await Promise.all([
+    const [workspace, plans, templates] = await Promise.all([
       repository.getGroupWorkspace(clinicId, from, to),
       repository.listPatientPlans(clinicId),
-      repository.listServices(clinicId),
+      repository.listPlanTemplates(clinicId),
     ]);
     const groups = workspace.groups
       .filter((group) => includeInactive || group.active)
@@ -122,7 +123,7 @@ export function registerExternalRoutes({
         groups,
         workspace.enrollments,
         plans,
-        services,
+        singlePlanSessionPrices(templates),
         today,
       ),
     };
@@ -274,7 +275,11 @@ export function registerExternalRoutes({
       return {
         ...groupRow(row),
         members: row.members.map(({ enrollment, monthlyInCents }) =>
-          member(enrollment, patients.get(enrollment.patientId), monthlyInCents),
+          member(
+            enrollment,
+            patients.get(enrollment.patientId),
+            monthlyInCents,
+          ),
         ),
         waitlist: workspace.enrollments
           .filter((item) => item.groupId === id && item.status === "waitlisted")

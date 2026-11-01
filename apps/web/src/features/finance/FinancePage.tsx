@@ -220,12 +220,19 @@ export function FinancePage() {
       target.kind === "receivable" && adjustments
         ? settlementBreakdown(target.amountInCents, adjustments).balanceInCents
         : 0;
+    const parts = adjustments?.payments?.length ?? 0;
     toast.success(
       target.kind !== "receivable"
         ? "Conta paga."
-        : balance > 0
-          ? `Pagamento parcial recebido. O saldo de ${currency.format(balance / 100)} virou uma nova parcela.`
-          : "Pagamento recebido.",
+        : parts > 1
+          ? `Pagamento misto recebido em ${parts} formas.${
+              balance > 0
+                ? ` O saldo de ${currency.format(balance / 100)} virou uma nova parcela.`
+                : ""
+            }`
+          : balance > 0
+            ? `Pagamento parcial recebido. O saldo de ${currency.format(balance / 100)} virou uma nova parcela.`
+            : "Pagamento recebido.",
     );
     if (failedProofs.length) toast.error(proofFailureMessage(failedProofs));
     // A baixa foi feita: fecha o modal e, se o recarregamento falhar, avisa na página.

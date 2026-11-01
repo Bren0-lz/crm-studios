@@ -1,4 +1,9 @@
-import type { PatientPlan, PlanCancellationDetails } from "@crm/contracts";
+import {
+  type PatientPlan,
+  type PaymentMethod,
+  type PlanCancellationDetails,
+  paymentMethodLabels,
+} from "@crm/contracts";
 import { useState } from "react";
 import { ActionModal } from "../../shared/components/ActionModal";
 import { MoneyInput } from "../../shared/components/MoneyInput";
@@ -7,7 +12,7 @@ import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
 
 /**
  * Cancelamento do plano em andamento (ex.: o cliente quer trocar de plano), com o
- * registro opcional do valor estornado ao cliente.
+ * registro opcional do valor estornado ao cliente, lançado como saída no Financeiro.
  */
 export function PlanCancelModal({
   plan,
@@ -21,7 +26,14 @@ export function PlanCancelModal({
   const [refunded, setRefunded] = useState(false);
   const [refundedInCents, setRefundedInCents] = useState<number | null>(null);
   const [refundNote, setRefundNote] = useState("");
-  const dirty = useFormDirty({ refunded, refundedInCents, refundNote });
+  const [refundPaymentMethod, setRefundPaymentMethod] =
+    useState<PaymentMethod>("pix");
+  const dirty = useFormDirty({
+    refunded,
+    refundedInCents,
+    refundNote,
+    refundPaymentMethod,
+  });
   return (
     <ActionModal
       eyebrow="Planos"
@@ -43,6 +55,7 @@ export function PlanCancelModal({
           refunded && refundedInCents
             ? {
                 refundedInCents,
+                refundPaymentMethod,
                 ...(refundNote.trim() ? { refundNote: refundNote.trim() } : {}),
               }
             : {},
@@ -59,6 +72,12 @@ export function PlanCancelModal({
         Houve estorno de valor ao cliente
       </label>
       {refunded && (
+        <p className="field-hint span-2">
+          O estorno entra no Financeiro como conta paga (saída de caixa) na
+          categoria "Estornos a clientes".
+        </p>
+      )}
+      {refunded && (
         <>
           <label>
             Valor estornado ao cliente (R$)
@@ -69,6 +88,23 @@ export function PlanCancelModal({
             />
           </label>
           <label>
+            Forma de pagamento do estorno
+            <select
+              value={refundPaymentMethod}
+              onChange={(event) =>
+                setRefundPaymentMethod(event.target.value as PaymentMethod)
+              }
+            >
+              {(
+                Object.entries(paymentMethodLabels) as [PaymentMethod, string][]
+              ).map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="span-2">
             Observação do estorno (opcional)
             <input
               maxLength={500}

@@ -731,6 +731,90 @@
   gap: calc(var(--space-2) - 1px);
 }
 
+/* Lista de emissões: cliente, data, situação e "Ver detalhes"; o resto fica no modal. */
+.issued-document-list > article {
+  grid-template-columns: minmax(0, 1fr) auto auto auto;
+}
+
+.document-date {
+  color: var(--muted);
+  font-size: var(--text-xs);
+  white-space: nowrap;
+}
+
+.documents-toolbar {
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.documents-toolbar > label:not(.search-box) {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+
+.documents-toolbar > .search-box {
+  flex: 1 1 calc(var(--space-8) * 4);
+}
+
+.documents-toolbar select {
+  width: auto;
+  min-width: calc(var(--space-8) * 2 + var(--space-6));
+}
+
+/* Modal "Ver detalhes" do documento. */
+.document-details {
+  display: grid;
+  gap: var(--space-5);
+}
+
+.document-details-facts {
+  grid-template-columns: repeat(
+    auto-fill,
+    minmax(calc(var(--space-8) * 3), 1fr)
+  );
+  gap: var(--space-4);
+}
+
+.document-details-section h3 {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-md);
+  font-weight: 600;
+}
+
+.document-details-section > .signature-link-record {
+  margin-top: 0;
+  margin-bottom: var(--space-2);
+}
+
+.document-details-section > .muted-copy {
+  margin: 0 0 var(--space-2);
+}
+
+.document-details-content summary {
+  cursor: pointer;
+  color: var(--green-2);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.document-details-content > summary + * {
+  margin-top: var(--space-3);
+}
+
+.document-details-actions {
+  flex-wrap: wrap;
+  margin-top: 0;
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--line);
+}
+
+.document-details-actions > .danger-button {
+  margin-right: auto;
+}
+
 .report-filter {
   display: flex;
   align-items: end;
@@ -898,10 +982,13 @@
   gap: var(--space-4);
 }
 
+/* min-width: 0 impede que uma palavra longa ou a barra de ferramentas alarguem a coluna
+   e joguem o editor por cima da prévia (no modal de nova versão). */
 .template-body-input {
   display: grid;
   gap: var(--space-2);
   align-content: start;
+  min-width: 0;
 }
 
 .template-body-input[hidden] {
@@ -1049,7 +1136,6 @@
 }
 
 .template-studio > .template-body-input {
-  min-width: 0;
   padding: var(--space-3);
   border: 1px solid var(--line);
   border-radius: var(--radius-md);
@@ -1099,6 +1185,51 @@
 
 .template-studio .document-paper {
   padding: var(--space-8) var(--space-7);
+}
+
+/* Modal "Nova versão": modal largo da altura da tela, com o editor e a folha lado a lado,
+   cada um rolando por dentro (sincronizados), em vez de rolar o modal inteiro. */
+.modal.template-version-modal {
+  width: min(1440px, 100%);
+  height: calc(100vh - 2 * var(--modal-viewport-gap));
+  height: calc(100dvh - 2 * var(--modal-viewport-gap));
+}
+
+.template-version-modal > .modal-body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  overflow-y: hidden;
+}
+
+.template-version-modal .template-version-form {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-height: 0;
+}
+
+.template-version-editor {
+  flex: 1;
+  min-height: 0;
+}
+
+.template-version-modal .template-studio {
+  height: 100%;
+  align-items: stretch;
+}
+
+.template-version-modal .template-studio > .template-body-input,
+.template-version-modal .template-studio .template-preview,
+.template-version-modal .template-studio.preview-only .template-preview {
+  position: static;
+  height: 100%;
+  min-height: 0;
+}
+
+.template-version-modal .template-studio.preview-only .document-paper-canvas {
+  flex: 1;
 }
 
 /* A folha do editor é o próprio campo de texto. */
@@ -1156,6 +1287,30 @@
   .template-studio .template-preview {
     position: static;
     height: auto;
+  }
+
+  .modal.template-version-modal {
+    height: auto;
+  }
+
+  .template-version-modal > .modal-body {
+    overflow-y: auto;
+  }
+
+  .template-version-modal .template-version-form,
+  .template-version-editor {
+    flex: none;
+  }
+
+  .template-version-modal .template-studio,
+  .template-version-modal .template-studio > .template-body-input,
+  .template-version-modal .template-studio .template-preview,
+  .template-version-modal .template-studio.preview-only .template-preview {
+    height: auto;
+  }
+
+  .template-version-modal .template-studio.preview-only .document-paper-canvas {
+    flex: none;
   }
 
   .template-studio .document-paper-canvas {
@@ -1298,7 +1453,13 @@
   font-weight: 400;
   line-height: 1.7;
 }
+/* O CSS do tiptap usa word-wrap: break-word, que não quebra palavra longa ao medir a
+   coluna: sem anywhere, um texto sem espaços alarga o editor por cima da prévia. */
+.rich-document-editor > * {
+  min-width: 0;
+}
 .rich-document-editor .tiptap {
+  overflow-wrap: anywhere;
   min-height: 45vh;
   padding: var(--space-5);
   border: 1px solid var(--line);

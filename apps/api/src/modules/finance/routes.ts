@@ -14,6 +14,7 @@ import {
   payableInputSchema,
   paymentInputSchema,
   receivableSettlementSchema,
+  settlementPaymentsTotal,
   productInputSchema,
   productSaleInputSchema,
   receivableAdjustmentInputSchema,
@@ -202,26 +203,41 @@ export function registerFinanceRoutes(context: RouteContext) {
         receivedInCents,
         balanceDueDate,
         paymentInstallments,
+        payments,
         ...timing
       } = receivableSettlementSchema.parse(request.body ?? {});
       const { id } = request.params as { id: string };
-      await assertInstallmentsAllowed(request.user.clinicId, {
-        installments: paymentInstallments,
-        paymentMethod: timing.paymentMethod,
-      });
+      // Pagamento misto: cada forma respeita o próprio limite de parcelas.
+      for (const part of payments ?? [
+        { paymentMethod: timing.paymentMethod, paymentInstallments },
+      ])
+        await assertInstallmentsAllowed(request.user.clinicId, {
+          installments: part.paymentInstallments,
+          paymentMethod: part.paymentMethod,
+        });
       const receivable = await repository.settleReceivable(
         request.user.clinicId,
         request.user.sub,
         id,
-        timing.paymentMethod,
+        payments?.[0]?.paymentMethod ?? timing.paymentMethod,
         timing,
-        {
-          discountInCents,
-          interestInCents,
-          ...(receivedInCents === undefined ? {} : { receivedInCents }),
-          ...(balanceDueDate === undefined ? {} : { balanceDueDate }),
-          ...(paymentInstallments === undefined ? {} : { paymentInstallments }),
-        },
+        payments
+          ? {
+              discountInCents,
+              interestInCents,
+              receivedInCents: settlementPaymentsTotal(payments),
+              ...(balanceDueDate === undefined ? {} : { balanceDueDate }),
+              payments,
+            }
+          : {
+              discountInCents,
+              interestInCents,
+              ...(receivedInCents === undefined ? {} : { receivedInCents }),
+              ...(balanceDueDate === undefined ? {} : { balanceDueDate }),
+              ...(paymentInstallments === undefined
+                ? {}
+                : { paymentInstallments }),
+            },
       );
       if (!receivable)
         return reply.status(404).send({
