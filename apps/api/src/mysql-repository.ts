@@ -114,9 +114,7 @@ export class MysqlClinicRepository implements ClinicRepository {
   readonly updateProduct: ClinicRepository["updateProduct"];
   readonly updatePatientTabItem: ClinicRepository["updatePatientTabItem"];
   readonly createProductSale: ClinicRepository["createProductSale"];
-  readonly addPatientTabService: ClinicRepository["addPatientTabService"];
   readonly removePatientTabService: ClinicRepository["removePatientTabService"];
-  readonly createPatientTabAppointment: ClinicRepository["createPatientTabAppointment"];
   readonly listSuppliers: ClinicRepository["listSuppliers"];
   readonly saveSupplier: ClinicRepository["saveSupplier"];
   readonly listSupplierOrders: ClinicRepository["listSupplierOrders"];
@@ -198,10 +196,7 @@ export class MysqlClinicRepository implements ClinicRepository {
     const financeOperations = createFinanceOperationsRepository(this.context);
     this.updateProduct = financeOperations.updateProduct;
     this.updatePatientTabItem = financeOperations.updatePatientTabItem;
-    this.addPatientTabService = financeOperations.addPatientTabService;
     this.removePatientTabService = financeOperations.removePatientTabService;
-    this.createPatientTabAppointment =
-      financeOperations.createPatientTabAppointment;
     this.listSuppliers = financeOperations.listSuppliers;
     this.saveSupplier = financeOperations.saveSupplier;
     const supplierOrders = createSupplierOrdersRepository(this.context);
@@ -310,7 +305,8 @@ export class MysqlClinicRepository implements ClinicRepository {
     this.listIntegrationKeys = this.administration.listIntegrationKeys;
     this.createIntegrationKey = this.administration.createIntegrationKey;
     this.revokeIntegrationKey = this.administration.revokeIntegrationKey;
-    this.findIntegrationKeyByTokenHash = this.administration.findIntegrationKeyByTokenHash;
+    this.findIntegrationKeyByTokenHash =
+      this.administration.findIntegrationKeyByTokenHash;
     this.touchIntegrationKey = this.administration.touchIntegrationKey;
     this.recordAdminAuditEvent = this.administration.recordAdminAuditEvent;
     this.listAdminAuditEvents = this.administration.listAdminAuditEvents;
@@ -726,9 +722,7 @@ export class MysqlClinicRepository implements ClinicRepository {
 
   readonly previewCommissionRecalculation: ClinicRepository["previewCommissionRecalculation"];
 
-  readonly generateCommissions: ReturnType<
-    typeof createFinanceRepository
-  >["generateCommissions"];
+  readonly generateCommissions: ClinicRepository["generateCommissions"];
 
   readonly settleCommission: ReturnType<
     typeof createFinanceRepository
