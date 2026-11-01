@@ -117,6 +117,7 @@ for (const storage of ["memory", "mysql"] as const) {
           expect(item).toMatchObject({
             source: "plan",
             planName: "Combo de origem",
+            planKind: "fixed_package",
           });
         expect(
           planned[0]!.services!.map((service) => service.id).sort(),
@@ -129,6 +130,7 @@ for (const storage of ["memory", "mysql"] as const) {
         ).toBeUndefined();
         const fromTab = receivables.find((item) => item.source === "tab");
         expect(fromTab?.planName).toBeUndefined();
+        expect(fromTab?.planKind).toBeUndefined();
         expect(fromTab?.services).toEqual([
           { id: first!.id, name: first!.name },
         ]);

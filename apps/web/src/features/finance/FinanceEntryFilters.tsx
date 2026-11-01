@@ -31,18 +31,30 @@ function originFilter(
   };
 }
 
-/** Planos e serviços que aparecem nas contas a receber, em ordem alfabética. */
+/**
+ * Planos e serviços que aparecem nas contas a receber, em ordem alfabética. Os planos
+ * avulsos (um por serviço) ficam separados dos recorrentes e pacotes.
+ */
 function receivableOrigins(workspace: FinancialWorkspace) {
-  const plans = new Set<string>(),
+  const singlePlans = new Set<string>(),
+    otherPlans = new Set<string>(),
     services = new Map<string, string>();
   for (const item of workspace.summary.receivables) {
-    if (item.planName) plans.add(item.planName);
+    if (item.planName)
+      (item.planKind === "single" ? singlePlans : otherPlans).add(
+        item.planName,
+      );
     for (const service of item.services ?? [])
       services.set(service.id, service.name);
   }
   const byName = (a: string, b: string) => a.localeCompare(b, "pt-BR");
   return {
-    plans: [...plans].sort(byName),
+    planGroups: [
+      { label: "Planos recorrentes e pacotes", names: [...otherPlans] },
+      { label: "Planos avulsos", names: [...singlePlans] },
+    ]
+      .map((group) => ({ ...group, names: group.names.sort(byName) }))
+      .filter((group) => group.names.length > 0),
     services: [...services]
       .map(([id, name]) => ({ id, name }))
       .sort((a, b) => byName(a.name, b.name)),
@@ -102,27 +114,6 @@ export function FinanceEntryFilters({
     setDraft((current) => ({ ...current, ...filter }));
   const count = activeFilterCount(value);
   const origins = receivableOrigins(workspace);
-  const statusField = (
-    <label>
-      Situação do lançamento
-      <select
-        value={draft.status ?? ""}
-        onChange={(event) =>
-          patch({
-            status:
-              (event.target.value as FinancialEntryFilter["status"]) ||
-              undefined,
-          })
-        }
-      >
-        <option value="">Todas</option>
-        <option value="open">Em aberto</option>
-        <option value="overdue">Em atraso</option>
-        <option value="paid">Pago</option>
-        <option value="cancelled">Cancelado</option>
-      </select>
-    </label>
-  );
   return (
     <div className="finance-filter-bar">
       <button
@@ -204,7 +195,27 @@ export function FinanceEntryFilters({
                 </option>
               </select>
             </label>
-            {!payables && statusField}
+            {/* Contas a receber: De e Até ficam lado a lado logo abaixo. */}
+            {!payables && (
+              <label>
+                Parcelamento
+                <select
+                  value={draft.installments ?? ""}
+                  onChange={(event) =>
+                    patch({
+                      installments:
+                        (event.target
+                          .value as FinancialEntryFilter["installments"]) ||
+                        undefined,
+                    })
+                  }
+                >
+                  <option value="">Todos</option>
+                  <option value="installments">Parceladas</option>
+                  <option value="single">À vista</option>
+                </select>
+              </label>
+            )}
             <label>
               De
               <input
@@ -227,7 +238,28 @@ export function FinanceEntryFilters({
                 }
               />
             </label>
-            {payables && statusField}
+            {payables && (
+              <label>
+                Situação do lançamento
+                <select
+                  value={draft.status ?? ""}
+                  onChange={(event) =>
+                    patch({
+                      status:
+                        (event.target
+                          .value as FinancialEntryFilter["status"]) ||
+                        undefined,
+                    })
+                  }
+                >
+                  <option value="">Todas</option>
+                  <option value="open">Em aberto</option>
+                  <option value="overdue">Em atraso</option>
+                  <option value="paid">Pago</option>
+                  <option value="cancelled">Cancelado</option>
+                </select>
+              </label>
+            )}
             {payables ? (
               <label>
                 Categoria do lançamento
@@ -259,17 +291,17 @@ export function FinanceEntryFilters({
                     }
                   >
                     <option value="">Todos</option>
-                    {origins.plans.length > 0 && (
-                      <optgroup label="Planos vendidos">
-                        {origins.plans.map((name) => (
+                    {origins.planGroups.map((group) => (
+                      <optgroup key={group.label} label={group.label}>
+                        {group.names.map((name) => (
                           <option key={name} value={`plan:${name}`}>
                             {name}
                           </option>
                         ))}
                       </optgroup>
-                    )}
+                    ))}
                     <option value="plan">Qualquer plano</option>
-                    <option value="tab">Comanda</option>
+                    <option value="tab">Comanda (produtos)</option>
                     <option value="manual">Lançamento manual</option>
                   </select>
                 </label>
@@ -354,26 +386,6 @@ export function FinanceEntryFilters({
                 ))}
               </select>
             </label>
-            {!payables && (
-              <label>
-                Parcelamento
-                <select
-                  value={draft.installments ?? ""}
-                  onChange={(event) =>
-                    patch({
-                      installments:
-                        (event.target
-                          .value as FinancialEntryFilter["installments"]) ||
-                        undefined,
-                    })
-                  }
-                >
-                  <option value="">Todos</option>
-                  <option value="installments">Parceladas</option>
-                  <option value="single">À vista</option>
-                </select>
-              </label>
-            )}
             {error && <ErrorBanner error={error} />}
             <div className="modal-actions span-2">
               <button
