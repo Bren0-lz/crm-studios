@@ -524,7 +524,10 @@ export function autoCampaignDiscountInCents(
  * Campanha promocional. Validade: `validDays` dias depois do evento (no aniversário, depois
  * do aniversário do cliente) ou até a data fixa `validUntil` (só fora do aniversário).
  * Quem usar fica fora desta campanha pelo `cooldown`, se houver. O `discount`, quando houver,
- * vale nos planos de `planTemplateIds` (lista vazia ou ausente = em qualquer plano).
+ * vale nos planos de `planTemplateIds` (lista vazia ou ausente = em qualquer plano), a menos
+ * que `appliesToPlans` seja `false`; e nos produtos de `productIds` (vazia ou ausente = em
+ * qualquer produto) só quando `appliesToProducts` for `true`. Ver
+ * `promotionAppliesToPlan`/`promotionAppliesToProduct` (agenda/pricing).
  */
 export const autoCampaignPromotionSchema = z
   .object({
@@ -549,6 +552,14 @@ export const autoCampaignPromotionSchema = z
     planTemplateIds: z
       .array(z.uuid())
       .max(100, "Escolha no máximo 100 planos.")
+      .optional(),
+    /** `false` = o desconto não vale em plano nenhum. Ausente = vale (campanhas antigas). */
+    appliesToPlans: z.boolean().optional(),
+    /** `true` = o desconto também vale na venda de produtos. Ausente = não vale. */
+    appliesToProducts: z.boolean().optional(),
+    productIds: z
+      .array(z.uuid())
+      .max(100, "Escolha no máximo 100 produtos.")
       .optional(),
   })
   .refine(
@@ -598,6 +609,17 @@ export const autoCampaignInputSchema = z
     {
       message: "Use no máximo 100 sessões restantes.",
       path: ["steps"],
+    },
+  )
+  .refine(
+    (value) =>
+      !value.promotion?.discount ||
+      value.promotion.appliesToPlans !== false ||
+      value.promotion.appliesToProducts === true,
+    {
+      message:
+        "Escolha onde o desconto vale: em planos, em produtos ou nos dois.",
+      path: ["promotion", "appliesToPlans"],
     },
   );
 
