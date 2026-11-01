@@ -1,5 +1,6 @@
 import {
   payrollEmployeeInputSchema,
+  payrollEntryInputSchema,
   payrollLaunchInputSchema,
   payrollQuerySchema,
   saoPauloToday,
@@ -29,7 +30,8 @@ export function registerPayrollRoutes({
   );
 
   // Não há cadastro direto na folha: o colaborador nasce do cadastro do usuário ("recebe
-  // salário"). A edição abaixo vale só para os colaboradores cadastrados antes disso.
+  // salário"). A edição abaixo vale só para os colaboradores cadastrados antes disso, e o
+  // salário fixo não muda por ela (diferenças entram como desconto ou recompensa).
   app.put(
     "/finance/payroll/employees/:id",
     { preHandler: authenticate },
@@ -47,6 +49,44 @@ export function registerPayrollRoutes({
           message: "Colaborador não encontrado.",
         });
       return employee;
+    },
+  );
+
+  // Desconto ou recompensa do mês (o salário fixo não muda pela folha).
+  app.post(
+    "/finance/payroll/entries",
+    { preHandler: authenticate },
+    async (request, reply) => {
+      const entry = await repository.createPayrollEntry(
+        request.user.clinicId,
+        request.user.sub,
+        payrollEntryInputSchema.parse(request.body),
+      );
+      if (!entry)
+        return reply.status(404).send({
+          code: "PAYROLL_EMPLOYEE_NOT_FOUND",
+          message: "Colaborador não encontrado.",
+        });
+      return reply.status(201).send(entry);
+    },
+  );
+
+  app.delete(
+    "/finance/payroll/entries/:id",
+    { preHandler: authenticate },
+    async (request, reply) => {
+      const { id } = z.object({ id: z.uuid() }).parse(request.params);
+      const deleted = await repository.deletePayrollEntry(
+        request.user.clinicId,
+        request.user.sub,
+        id,
+      );
+      if (!deleted)
+        return reply.status(404).send({
+          code: "PAYROLL_ENTRY_NOT_FOUND",
+          message: "Desconto ou recompensa não encontrado.",
+        });
+      return reply.status(204).send();
     },
   );
 
