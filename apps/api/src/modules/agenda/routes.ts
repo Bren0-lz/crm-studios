@@ -1,6 +1,7 @@
 import { registerAgendaNoteRoutes } from "./notes-routes.js";
 import {
   appointmentCreateInputSchema,
+  appointmentPricing,
   appointmentRescheduleInputSchema,
   appointmentStatusInputSchema,
   appointmentUpdateInputSchema,
@@ -14,6 +15,7 @@ import {
   roomInputSchema,
   scheduleBlockInputSchema,
   serviceInputSchema,
+  singlePlanSessionPrices,
   type ApiError,
   type ClinicalAppointmentOption,
 } from "@crm/contracts";
@@ -22,6 +24,7 @@ import type { RouteContext } from "../../infrastructure/route-context.js";
 import { DomainError } from "../../repository.js";
 import { reconcileChangedCommissions } from "../finance/commission-reconciliation.js";
 import {
+  clinicToday,
   loadPromotionOffers,
   resolvePromotionRedemption,
 } from "../communications/auto-campaigns.js";
@@ -126,9 +129,18 @@ export function registerAgendaRoutes(context: RouteContext) {
       ),
   );
 
-  app.get("/services", { preHandler: authenticate }, async (request) =>
-    repository.listServices(request.user.clinicId),
-  );
+  // O valor da sessão avulsa (plano avulso do serviço) acompanha a lista para a agenda.
+  app.get("/services", { preHandler: authenticate }, async (request) => {
+    const [services, templates] = await Promise.all([
+      repository.listServices(request.user.clinicId),
+      repository.listPlanTemplates(request.user.clinicId),
+    ]);
+    const prices = singlePlanSessionPrices(templates);
+    return services.map((service) => ({
+      ...service,
+      singleSessionPriceInCents: prices.get(service.id) ?? null,
+    }));
+  });
 
   app.post("/services", { preHandler: authenticate }, async (request, reply) =>
     reply
@@ -252,6 +264,27 @@ export function registerAgendaRoutes(context: RouteContext) {
       return (
         await loadPromotionOffers(repository, request.user.clinicId, patientId)
       ).offers;
+    },
+  );
+
+  /**
+   * De onde sai o valor de cada sessão do serviço para o cliente (saldo dos planos e plano
+   * avulso): alimenta o resumo do agendamento.
+   */
+  app.get(
+    "/appointments/pricing",
+    { preHandler: authenticate },
+    async (request) => {
+      const { patientId, serviceId } = z
+        .object({ patientId: z.uuid(), serviceId: z.uuid() })
+        .parse(request.query);
+      const clinicId = request.user.clinicId;
+      const [plans, templates, today] = await Promise.all([
+        repository.listPatientPlans(clinicId, patientId),
+        repository.listPlanTemplates(clinicId),
+        clinicToday(repository, clinicId),
+      ]);
+      return appointmentPricing(serviceId, plans, templates, today);
     },
   );
 

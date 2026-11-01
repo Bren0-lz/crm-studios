@@ -5,11 +5,14 @@ import {
   autoCampaignTriggerDescriptions,
   autoCampaignTriggerLabels,
   type AutoCampaign,
+  type PlanTemplate,
 } from "@crm/contracts";
 import { Plus, Trash2 } from "lucide-react";
-import { useId, useState, type FormEvent } from "react";
+import { useEffect, useId, useState, type FormEvent } from "react";
 import { api } from "../../../api";
+import { LoadingBlock } from "../../../shared/components/LoadingBlock";
 import { Modal, ModalCancelButton } from "../../../shared/components/Modal";
+import { MoneyInput } from "../../../shared/components/MoneyInput";
 import { useFormDirty } from "../../../shared/workflows/useDirtyGuard";
 import { MessageBodyEditor } from "../campaigns/MessageBodyEditor";
 import {
@@ -45,6 +48,7 @@ export function AutoCampaignEditorModal({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const dirty = useFormDirty(draft);
+  const plans = usePlanTemplates(draft.promotional && draft.discount);
   const triggers = autoCampaignTriggers.filter(
     (trigger) =>
       trigger !== "overdue_payment" ||
@@ -255,6 +259,131 @@ export function AutoCampaignEditorModal({
             <label className="checkbox-field span-2">
               <input
                 type="checkbox"
+                checked={draft.discount}
+                onChange={(event) =>
+                  setDraft((current) => ({
+                    ...current,
+                    discount: event.target.checked,
+                  }))
+                }
+              />
+              Dar desconto no atendimento desta campanha
+            </label>
+            {draft.discount && (
+              <>
+                <fieldset className="form-fieldset span-2">
+                  <legend>Tipo de desconto</legend>
+                  <div className="form-fieldset-grid">
+                    <label className="checkbox-field">
+                      <input
+                        type="radio"
+                        name={`${formId}-discount-type`}
+                        checked={draft.discountType === "percentage"}
+                        onChange={() =>
+                          setDraft((current) => ({
+                            ...current,
+                            discountType: "percentage",
+                          }))
+                        }
+                      />
+                      Porcentagem (%)
+                    </label>
+                    <label className="checkbox-field">
+                      <input
+                        type="radio"
+                        name={`${formId}-discount-type`}
+                        checked={draft.discountType === "amount"}
+                        onChange={() =>
+                          setDraft((current) => ({
+                            ...current,
+                            discountType: "amount",
+                          }))
+                        }
+                      />
+                      Valor (R$)
+                    </label>
+                  </div>
+                </fieldset>
+                {draft.discountType === "percentage" ? (
+                  <label className="span-2">
+                    Porcentagem de desconto (%)
+                    <input
+                      inputMode="decimal"
+                      autoComplete="off"
+                      required
+                      placeholder="Ex.: 10"
+                      value={draft.discountPercent}
+                      onChange={(event) =>
+                        setDraft((current) => ({
+                          ...current,
+                          discountPercent: event.target.value.replace(
+                            /[^\d.,]/g,
+                            "",
+                          ),
+                        }))
+                      }
+                    />
+                  </label>
+                ) : (
+                  <label className="span-2">
+                    Valor do desconto (R$)
+                    <MoneyInput
+                      valueInCents={draft.discountAmountInCents}
+                      onChange={(discountAmountInCents) =>
+                        setDraft((current) => ({
+                          ...current,
+                          discountAmountInCents,
+                        }))
+                      }
+                    />
+                  </label>
+                )}
+                <fieldset className="form-fieldset span-2">
+                  <legend>Planos em que o desconto vale</legend>
+                  <p className="field-hint">
+                    Sem nenhum plano marcado, o desconto vale em qualquer plano
+                    e no avulso.
+                  </p>
+                  {plans.status === "loading" ? (
+                    <LoadingBlock />
+                  ) : plans.status === "error" ? (
+                    <p className="form-error" role="alert">
+                      Não foi possível carregar os planos.
+                    </p>
+                  ) : plans.items.length === 0 &&
+                    draft.planTemplateIds.length === 0 ? (
+                    <p className="field-hint">Nenhum plano cadastrado.</p>
+                  ) : (
+                    <div className="form-fieldset-grid">
+                      {planChoices(plans.items, draft.planTemplateIds).map(
+                        (plan) => (
+                          <label className="checkbox-field" key={plan.id}>
+                            <input
+                              type="checkbox"
+                              checked={draft.planTemplateIds.includes(plan.id)}
+                              onChange={(event) =>
+                                setDraft((current) => ({
+                                  ...current,
+                                  planTemplateIds: event.target.checked
+                                    ? [...current.planTemplateIds, plan.id]
+                                    : current.planTemplateIds.filter(
+                                        (id) => id !== plan.id,
+                                      ),
+                                }))
+                              }
+                            />
+                            {plan.name}
+                          </label>
+                        ),
+                      )}
+                    </div>
+                  )}
+                </fieldset>
+              </>
+            )}
+            <label className="checkbox-field span-2">
+              <input
+                type="checkbox"
                 checked={draft.cooldown}
                 onChange={(event) =>
                   setDraft((current) => ({
@@ -411,4 +540,39 @@ export function AutoCampaignEditorModal({
       </div>
     </Modal>
   );
+}
+
+/** Modelos de plano para escolher onde o desconto da promoção vale (só ao ligar o desconto). */
+function usePlanTemplates(enabled: boolean) {
+  const [state, setState] = useState<
+    | { status: "loading" }
+    | { status: "error" }
+    | { status: "ready"; items: PlanTemplate[] }
+  >({ status: "loading" });
+  useEffect(() => {
+    if (!enabled) return;
+    let active = true;
+    api
+      .planTemplates()
+      .then(
+        (items) =>
+          active &&
+          setState({
+            status: "ready",
+            items: Array.isArray(items) ? items : [],
+          }),
+      )
+      .catch(() => active && setState({ status: "error" }));
+    return () => {
+      active = false;
+    };
+  }, [enabled]);
+  return state;
+}
+
+/** Planos ativos e, mesmo inativos, os já escolhidos na campanha. */
+function planChoices(templates: PlanTemplate[], selected: string[]) {
+  return templates
+    .filter((template) => template.active || selected.includes(template.id))
+    .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
 }
