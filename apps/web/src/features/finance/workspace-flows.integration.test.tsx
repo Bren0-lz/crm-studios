@@ -38,7 +38,7 @@ describe("finance workflows through real HTTP handlers", () => {
     await within(dialog).findByRole("option", { name: supplier!.name });
     for (const [label, value] of [
       ["Descrição", "Compra de faixas"],
-      ["Fornecedor cadastrado", supplier!.id],
+      ["Fornecedor", supplier!.id],
       ["Lançamento", "2040-06-01"],
       ["Competência", "2040-06"],
       ["Vencimento", "2040-06-10"],
