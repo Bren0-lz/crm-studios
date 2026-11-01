@@ -330,6 +330,7 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
   ),
   "GET /communications/auto-campaigns": view("communications"),
   "GET /communications/auto-campaigns/queue": view("communications"),
+  "GET /communications/auto-campaigns/products": view("communications"),
   "POST /communications/auto-campaigns": operation("communications.campaigns"),
   "PUT /communications/auto-campaigns/:id": operation(
     "communications.campaigns",

@@ -41,6 +41,8 @@ export const appointmentInputSchema = z.object({
 
 /** Promoção escolhida ao agendar: a campanha e o evento em que o cliente recebeu a mensagem. */
 export const appointmentPromotionSchema = z.object({
+  /** `manual` = campanha manual (WhatsApp); ausente = campanha automática. */
+  source: z.literal("manual").optional(),
   campaignId: z.uuid(),
   occurrenceKey: z.string().trim().min(1).max(200),
 });
