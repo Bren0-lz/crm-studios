@@ -8,9 +8,22 @@ import { ErrorBanner } from "../../shared/components/ErrorBanner";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
 import { SupplierModal, type SupplierModalTab } from "./SupplierModal";
 import { SupplierOrdersModal } from "./SupplierOrdersModal";
-/** `embedded` mostra a lista aberta (sub-aba de Cadastros) em vez do bloco recolhível. */
-export function SuppliersSection({ embedded = false }: { embedded?: boolean }) {
+/**
+ * `embedded` mostra a lista aberta em vez do bloco recolhível; `sales` usa a lista de
+ * Vendas de produtos › Fornecedores, que não exige acesso ao Financeiro.
+ */
+export function SuppliersSection({
+  embedded = false,
+  sales = false,
+}: {
+  embedded?: boolean;
+  sales?: boolean;
+}) {
   const { can } = useAuthorization();
+  // Cadastro pelo Financeiro ou pela aba Fornecedores de Vendas de produtos.
+  const canManage =
+    can("finance.suppliers_manage") || can("patients.suppliers_manage");
+  const listSuppliers = () => (sales ? api.salesSuppliers() : api.suppliers());
   const [items, setItems] = useState<Supplier[] | null>(null),
     [opened, setOpened] = useState(embedded),
     [editor, setEditor] = useState<{
@@ -22,7 +35,7 @@ export function SuppliersSection({ embedded = false }: { embedded?: boolean }) {
   async function load() {
     setError("");
     try {
-      setItems(await api.suppliers());
+      setItems(await listSuppliers());
     } catch (cause) {
       setError((cause as Error).message);
     }
@@ -30,15 +43,14 @@ export function SuppliersSection({ embedded = false }: { embedded?: boolean }) {
   useEffect(() => {
     if (!embedded) return;
     let alive = true;
-    api
-      .suppliers()
+    (sales ? api.salesSuppliers() : api.suppliers())
       .then((data) => alive && setItems(data))
       .catch((cause: Error) => alive && setError(cause.message));
     return () => {
       alive = false;
     };
-  }, [embedded]);
-  const create = can("finance.suppliers_manage") && (
+  }, [embedded, sales]);
+  const create = canManage && (
     <button
       className={embedded ? "secondary-button" : "primary-button"}
       onClick={() => setEditor({ supplier: "new" })}
@@ -72,19 +84,21 @@ export function SuppliersSection({ embedded = false }: { embedded?: boolean }) {
                 {(item.whatsapp || item.phone) &&
                   ` · ${formatPhone(item.whatsapp || item.phone)}`}
               </span>
-              <button
-                className="secondary-button"
-                aria-label={`Pedidos de ${item.name}`}
-                onClick={() =>
-                  // Quem edita registra pedidos no próprio cadastro; os demais só consultam.
-                  can("finance.suppliers_manage")
-                    ? setEditor({ supplier: item, tab: "pedidos" })
-                    : setOrdersOf(item)
-                }
-              >
-                Pedidos
-              </button>
-              {can("finance.suppliers_manage") && (
+              {can("finance.view") && (
+                <button
+                  className="secondary-button"
+                  aria-label={`Pedidos de ${item.name}`}
+                  onClick={() =>
+                    // Quem edita registra pedidos no próprio cadastro; os demais só consultam.
+                    can("finance.suppliers_manage")
+                      ? setEditor({ supplier: item, tab: "pedidos" })
+                      : setOrdersOf(item)
+                  }
+                >
+                  Pedidos
+                </button>
+              )}
+              {canManage && (
                 <button
                   className="secondary-button"
                   onClick={() => setEditor({ supplier: item })}
