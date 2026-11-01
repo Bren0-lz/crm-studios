@@ -4,8 +4,11 @@ import { Modal, ModalCancelButton } from "../../shared/components/Modal";
 import { MoneyInput } from "../../shared/components/MoneyInput";
 import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
 
-/** Para quem vale o desconto: plano (com alcance nas cobranças), produto ou o pedido todo. */
-export type DiscountTarget = "plan" | "product" | "order";
+/**
+ * Para quem vale o desconto: plano (com alcance nas cobranças), produto, o pedido todo do
+ * cadastro ou a venda inteira da tela Vendas.
+ */
+export type DiscountTarget = "plan" | "product" | "order" | "sale";
 
 const discountTitles: Record<DiscountTarget, [string, string]> = {
   plan: [
@@ -20,6 +23,10 @@ const discountTitles: Record<DiscountTarget, [string, string]> = {
     "Desconto geral",
     "Desconto sobre a soma dos planos e produtos da sacola, dividido entre eles pelo valor de cada um.",
   ],
+  sale: [
+    "Desconto geral",
+    "Desconto sobre a soma dos produtos da venda, dividido entre eles pelo valor de cada um.",
+  ],
 };
 
 /**
@@ -30,11 +37,14 @@ const discountTitles: Record<DiscountTarget, [string, string]> = {
 export function PatientDiscountModal({
   discount,
   target = "plan",
+  eyebrow = "Clientes",
   onApply,
   onClose,
 }: {
   discount: PatientDiscount | null | undefined;
   target?: DiscountTarget;
+  /** Nome do módulo no topo do modal (o cadastro guiado fica em Clientes). */
+  eyebrow?: string;
   onApply: (discount: PatientDiscount | null) => void;
   onClose: () => void;
 }) {
@@ -84,7 +94,7 @@ export function PatientDiscountModal({
 
   return (
     <Modal
-      eyebrow="Clientes"
+      eyebrow={eyebrow}
       title={title}
       subtitle={subtitle}
       dirty={dirty}
