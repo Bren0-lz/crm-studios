@@ -19,6 +19,7 @@ import {
   legacyPermissions,
   effectiveEditModules,
   effectiveModules,
+  addDaysToIsoDate,
   saoPauloToday,
   type AppModule,
   type DashboardViewSummary,
@@ -7671,8 +7672,10 @@ describe("application shell", () => {
       fireEvent.change(within(dialog).getByLabelText("Percentual (%)"), {
         target: { value: "27.5" },
       });
+      // Início no futuro (data relativa: uma data fixa vira passado e pede o recálculo).
+      const effectiveFrom = addDaysToIsoDate(saoPauloToday(), 30);
       fireEvent.change(within(dialog).getByLabelText("Vale a partir de"), {
-        target: { value: "2026-11-01" },
+        target: { value: effectiveFrom },
       });
       fireEvent.click(within(dialog).getByRole("button", { name: "Salvar" }));
       await vi.waitFor(() =>
@@ -7682,7 +7685,7 @@ describe("application shell", () => {
       expect(JSON.parse(String(posts()[0]![1]?.body))).toEqual({
         professionalId: professionals[1]!.id,
         percentage: 27.5,
-        effectiveFrom: "2026-11-01",
+        effectiveFrom,
       });
     });
   });

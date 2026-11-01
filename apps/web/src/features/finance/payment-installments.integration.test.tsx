@@ -80,6 +80,11 @@ describe("installments by payment method", () => {
       name: new RegExp(template.name),
     });
     change("Plano cadastrado", template.id, dialog);
+    // O plano começa no Pix (nunca sem forma); no cartão o limite é o do plano.
+    expect(within(dialog).getByLabelText("Forma de pagamento")).toHaveValue(
+      "pix",
+    );
+    change("Forma de pagamento", "card", dialog);
     change("Parcelas", "5", dialog);
     // O plano aceita até 3: a quantidade acompanha o limite e a dica explica.
     await waitFor(() =>

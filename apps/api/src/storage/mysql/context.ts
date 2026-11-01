@@ -6,6 +6,19 @@ import {
   type SettlementAdjustments,
 } from "@crm/contracts";
 import type { PatientTabServiceItem } from "@crm/contracts";
+import type { PaymentPart } from "@crm/contracts";
+import {
+  isSplitPayment,
+  paymentPartsTotal,
+  resolvePaymentParts,
+  withPlanPaymentParts,
+} from "@crm/contracts";
+import {
+  assertPaymentParts,
+  type BatchEvent,
+  latestPaymentBatch,
+  storedPaymentParts,
+} from "../../modules/finance/payment-parts.js";
 import {
   type AdminAuditEvent,
   type AdminUserCommissionInput,
@@ -398,13 +411,13 @@ export class MysqlRepositoryContext {
     if (filters.action)
       predicates.push(`ae.action = ${parameter(filters.action)}`);
     if (filters.actorUserId)
-      predicates.push(
-        `ae.actor_user_id = ${parameter(filters.actorUserId)}`,
-      );
+      predicates.push(`ae.actor_user_id = ${parameter(filters.actorUserId)}`);
     // Cada palavra precisa aparecer na ação, na descrição ou nos metadados (exceto os
     // clínicos); a colação do banco ignora maiúsculas e acentos.
     for (const word of (filters.search ?? "").split(/\s+/).filter(Boolean)) {
-      const term = parameter(`%${word.replace(/[\\%_]/g, (char) => `\\${char}`)}%`);
+      const term = parameter(
+        `%${word.replace(/[\\%_]/g, (char) => `\\${char}`)}%`,
+      );
       predicates.push(
         `(ae.action LIKE ${term} OR ae.description LIKE ${term} OR (ae.module <> 'clinical' AND CAST(ae.metadata AS CHAR) LIKE ${term}))`,
       );
@@ -909,7 +922,9 @@ export class MysqlRepositoryContext {
     try {
       if (snapshot) {
         await client.query("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ");
-        await client.query("START TRANSACTION WITH CONSISTENT SNAPSHOT, READ ONLY");
+        await client.query(
+          "START TRANSACTION WITH CONSISTENT SNAPSHOT, READ ONLY",
+        );
       } else await client.query("BEGIN");
       const result = await work(client);
       await client.query("COMMIT");
@@ -932,6 +947,8 @@ export class MysqlRepositoryContext {
     creditReason: string,
     renewedFromPlanId?: string,
   ) {
+    // Plano picado: forma e parcelas derivadas das formas; forma única dispensa a lista.
+    input = withPlanPaymentParts(input);
     await client.lock(`plans:${clinicId}`);
     let allowed: string[];
     if (!renewedFromPlanId) {
@@ -1013,9 +1030,9 @@ export class MysqlRepositoryContext {
          clinic_id, patient_id, service_id, name, kind, total_sessions,
          remaining_sessions, valid_from, valid_until, total_value_in_cents,
          installments, first_due_date, auto_renew, renewed_from_plan_id, plan_template_id,
-         branch_id, payment_method, id, discount, created_at
+         branch_id, payment_method, id, discount, created_at, payment_parts
        ) VALUES ($1,$2,$3,$4,$5,$6,$6,$7,$8,$9,$10,$11,$12,$13,$14,
-         ${branchOrDefault("$15", "$1")}, $16, $17, $18, $19
+         ${branchOrDefault("$15", "$1")}, $16, $17, $18, $19, $20
        )`,
       [
         clinicId,
@@ -1038,6 +1055,7 @@ export class MysqlRepositoryContext {
         discounted.discount ?? null,
         // Hora da venda pelo relógio da aplicação (o mesmo do relatório de vendas por período).
         new Date(),
+        input.paymentParts ?? [],
       ],
     );
     for (const [position, entry] of input.services.entries()) {
@@ -1078,21 +1096,30 @@ export class MysqlRepositoryContext {
         `INSERT INTO receivables (
            clinic_id, patient_id, plan_id, description, installment_number,
            installment_count, due_date, amount_in_cents, branch_id, id,
-           customer_discount_in_cents
+           customer_discount_in_cents, payment_parts
          ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,
-           (SELECT branch_id FROM patient_plans WHERE clinic_id=$1 AND id=$3), $9, $10
+           (SELECT branch_id FROM patient_plans WHERE clinic_id=$1 AND id=$3), $9, $10, $11
          )`,
         [
           clinicId,
           input.patientId,
           planId,
-          `${input.name} · ${installment.installmentNumber}/${input.installments}`,
+          `${input.name} · ${installment.installmentNumber}/${discounted.installments.length}`,
           installment.installmentNumber,
-          input.installments,
+          discounted.installments.length,
           installment.dueDate,
           amount,
           receivableId,
           installment.customerDiscountInCents,
+          // Plano picado: a forma prevista desta cobrança (sugerida na baixa).
+          input.paymentParts && installment.paymentMethod
+            ? [
+                {
+                  paymentMethod: installment.paymentMethod,
+                  amountInCents: amount,
+                },
+              ]
+            : [],
         ],
       );
       await client.query(
@@ -1506,14 +1533,44 @@ export class MysqlRepositoryContext {
       let balanceReceivableId: string | null = null;
       let discountInCents = 0;
       let interestInCents = 0;
+      // Formas desta baixa (pagamento) ou da última baixa (estorno): um evento por forma.
+      let parts: PaymentPart[] = [];
+      let batch: BatchEvent[] = [];
+      if (operation === "payment_reversal")
+        batch = latestPaymentBatch(
+          (
+            await client.query<BatchEvent>(
+              `SELECT kind, amount_in_cents AS "amountInCents",
+                      JSON_VALUE(metadata, '$.paymentMethod') AS "paymentMethod",
+                      discount_in_cents AS "discountInCents", interest_in_cents AS "interestInCents"
+               FROM financial_events
+               WHERE clinic_id = $1 AND receivable_id = $2 AND kind IN ('payment','payment_reversal')
+               ORDER BY created_at, id`,
+              [clinicId, receivableId],
+            )
+          ).rows,
+        );
       if (operation === "payment") {
+        // Picado: o valor recebido é a soma das formas.
+        const settlement = adjustments.payments?.length
+          ? {
+              ...adjustments,
+              receivedInCents: paymentPartsTotal(adjustments.payments),
+            }
+          : adjustments;
         const breakdown = settlementBreakdown(
           current.rows[0].amountInCents,
-          adjustments,
+          settlement,
         );
         if (breakdown.error)
           throw new DomainError("INVALID_SETTLEMENT", breakdown.error, 400);
         receivedInCents = breakdown.receivedInCents;
+        parts = resolvePaymentParts({
+          payments: adjustments.payments,
+          paymentMethod: paymentMethod ?? "pix",
+          paymentInstallments: adjustments.paymentInstallments,
+          amountInCents: receivedInCents,
+        });
         discountInCents = adjustments.discountInCents ?? 0;
         interestInCents = adjustments.interestInCents ?? 0;
         if (breakdown.balanceInCents > 0) {
@@ -1540,19 +1597,13 @@ export class MysqlRepositoryContext {
           );
         }
       } else {
-        // Estorno: a parcela volta a valer sem o desconto e sem os juros da baixa.
-        const payment = await client.query<{
-          discountInCents: number;
-          interestInCents: number;
-        }>(
-          `SELECT discount_in_cents AS "discountInCents", interest_in_cents AS "interestInCents"
-           FROM financial_events WHERE clinic_id = $1 AND receivable_id = $2 AND kind = 'payment'
-           ORDER BY created_at DESC LIMIT 1`,
-          [clinicId, receivableId],
+        // Estorno: a parcela volta a valer sem o desconto e sem os juros da baixa (no
+        // picado, só a última forma da baixa leva os dois; a soma vale para qualquer ordem).
+        const restore = batch.reduce(
+          (sum, item) =>
+            sum + (item.discountInCents ?? 0) - (item.interestInCents ?? 0),
+          0,
         );
-        const restore =
-          (payment.rows[0]?.discountInCents ?? 0) -
-          (payment.rows[0]?.interestInCents ?? 0);
         if (restore !== 0) {
           await client.query(
             `UPDATE receivables SET amount_in_cents = amount_in_cents + $3
@@ -1601,49 +1652,78 @@ export class MysqlRepositoryContext {
       }
       await client.query(
         operation === "payment"
-          ? `UPDATE receivables SET status = 'paid', paid_at = coalesce($4,NOW(6)),cash_available_at=coalesce($5,cash_available_at), payment_method = $3, payment_installments = $6, updated_at = NOW(6)
+          ? `UPDATE receivables SET status = 'paid', paid_at = coalesce($4,NOW(6)),cash_available_at=coalesce($5,cash_available_at), payment_method = $3, payment_installments = $6, payment_parts = $7, updated_at = NOW(6)
              WHERE clinic_id = $1 AND id = $2`
-          : `UPDATE receivables SET status = 'open', paid_at = NULL, payment_method = NULL, payment_installments = NULL, updated_at = NOW(6)
+          : `UPDATE receivables SET status = 'open', paid_at = NULL, payment_method = NULL, payment_installments = NULL, payment_parts = JSON_ARRAY(), updated_at = NOW(6)
              WHERE clinic_id = $1 AND id = $2`,
         operation === "payment"
           ? [
               clinicId,
               receivableId,
-              paymentMethod,
+              parts[0]!.paymentMethod,
               timing?.paidAt ?? null,
               timing?.availableAt ?? null,
-              paymentInstallmentsValue(adjustments.paymentInstallments),
+              isSplitPayment(parts)
+                ? null
+                : paymentInstallmentsValue(parts[0]!.paymentInstallments),
+              storedPaymentParts(parts) ?? [],
             ]
           : [clinicId, receivableId],
       );
-      await client.query(
-        `INSERT INTO financial_events
-           (clinic_id, receivable_id, actor_user_id, kind, amount_in_cents, metadata,occurred_at,cash_available_at,
-            discount_in_cents, interest_in_cents, balance_receivable_id)
-         VALUES ($1, $2, $3, $4, $5, $6,coalesce($7,NOW(6)),coalesce($8,$7,NOW(6)),
-                 $9, $10, $11)`,
-        [
-          clinicId,
-          receivableId,
-          actorUserId,
-          operation,
-          operation === "payment" ? receivedInCents : -receivedInCents,
-          operation === "payment"
-            ? {
-                paymentMethod,
-                ...(paymentInstallmentsValue(adjustments.paymentInstallments)
-                  ? { paymentInstallments: adjustments.paymentInstallments }
+      // Um evento por forma; desconto, juros e saldo ficam na última.
+      const movements =
+        operation === "payment"
+          ? parts.map((part) => ({
+              amountInCents: part.amountInCents,
+              metadata: {
+                paymentMethod: part.paymentMethod,
+                ...(part.paymentInstallments
+                  ? { paymentInstallments: part.paymentInstallments }
                   : {}),
-              }
-            : { paymentMethod: current.rows[0].paymentMethod },
-          timing?.paidAt ?? null,
-          timing?.availableAt ??
-            (operation === "payment" ? current.rows[0].cashAvailableAt : null),
-          discountInCents,
-          interestInCents,
-          balanceReceivableId,
-        ],
-      );
+              } as Record<string, unknown>,
+            }))
+          : batch.length > 1
+            ? batch.map((item) => ({
+                amountInCents: -Math.abs(item.amountInCents),
+                metadata: { paymentMethod: item.paymentMethod } as Record<
+                  string,
+                  unknown
+                >,
+              }))
+            : [
+                {
+                  amountInCents: -receivedInCents,
+                  metadata: {
+                    paymentMethod: current.rows[0].paymentMethod,
+                  } as Record<string, unknown>,
+                },
+              ];
+      for (const [index, movement] of movements.entries()) {
+        const last = index === movements.length - 1;
+        await client.query(
+          `INSERT INTO financial_events
+             (clinic_id, receivable_id, actor_user_id, kind, amount_in_cents, metadata,occurred_at,cash_available_at,
+              discount_in_cents, interest_in_cents, balance_receivable_id)
+           VALUES ($1, $2, $3, $4, $5, $6,coalesce($7,NOW(6)),coalesce($8,$7,NOW(6)),
+                   $9, $10, $11)`,
+          [
+            clinicId,
+            receivableId,
+            actorUserId,
+            operation,
+            movement.amountInCents,
+            movement.metadata,
+            timing?.paidAt ?? null,
+            timing?.availableAt ??
+              (operation === "payment"
+                ? current.rows[0].cashAvailableAt
+                : null),
+            last ? discountInCents : 0,
+            last ? interestInCents : 0,
+            last ? balanceReceivableId : null,
+          ],
+        );
+      }
       if (operation === "payment_reversal")
         await markPaymentProofsReversed(
           client,
@@ -1673,6 +1753,7 @@ export class MysqlRepositoryContext {
     operation: "payment" | "payment_reversal",
     paymentMethod?: PaymentMethod,
     timing?: PaymentTiming,
+    payments?: PaymentPart[],
   ) {
     const client = await this.pool.connect();
     try {
@@ -1709,6 +1790,32 @@ export class MysqlRepositoryContext {
           "Informe o valor do mês antes de pagar esta conta.",
           409,
         );
+      // Picado: as formas somam o valor da conta; o estorno devolve forma por forma.
+      const parts =
+        operation === "payment"
+          ? resolvePaymentParts({
+              payments,
+              paymentMethod: paymentMethod ?? "pix",
+              amountInCents: current.rows[0].amountInCents,
+            })
+          : [];
+      if (operation === "payment")
+        assertPaymentParts(parts, current.rows[0].amountInCents);
+      const batch =
+        operation === "payment_reversal"
+          ? latestPaymentBatch(
+              (
+                await client.query<BatchEvent>(
+                  `SELECT kind, amount_in_cents AS "amountInCents",
+                          JSON_VALUE(metadata, '$.paymentMethod') AS "paymentMethod"
+                   FROM payable_events
+                   WHERE clinic_id = $1 AND payable_id = $2 AND kind IN ('payment','payment_reversal')
+                   ORDER BY created_at, id`,
+                  [clinicId, payableId],
+                )
+              ).rows,
+            )
+          : [];
       if (current.rows[0].commissionId) {
         const commission = await client.query<{ status: string }>(
           "SELECT status FROM commission_entries WHERE clinic_id=$1 AND id=$2 FOR UPDATE",
@@ -1761,42 +1868,60 @@ export class MysqlRepositoryContext {
       await client.query(
         operation === "payment"
           ? `UPDATE payables SET status = 'paid', paid_at = coalesce($5,NOW(6)),cash_available_at=coalesce($6,cash_available_at),
-                 payment_method = $3, paid_by_user_id = $4, updated_at = NOW(6)
+                 payment_method = $3, paid_by_user_id = $4, payment_parts = $7, updated_at = NOW(6)
              WHERE clinic_id = $1 AND id = $2`
           : `UPDATE payables SET status = 'open', paid_at = NULL,
-                 payment_method = NULL, paid_by_user_id = NULL, updated_at = NOW(6)
+                 payment_method = NULL, paid_by_user_id = NULL, payment_parts = JSON_ARRAY(), updated_at = NOW(6)
              WHERE clinic_id = $1 AND id = $2`,
         operation === "payment"
           ? [
               clinicId,
               payableId,
-              paymentMethod,
+              parts[0]!.paymentMethod,
               actorUserId,
               timing?.paidAt ?? null,
               timing?.availableAt ?? null,
+              storedPaymentParts(parts) ?? [],
             ]
           : [clinicId, payableId],
       );
-      await client.query(
-        `INSERT INTO payable_events
-           (clinic_id, payable_id, actor_user_id, kind, amount_in_cents, metadata,occurred_at,cash_available_at)
-         VALUES ($1,$2,$3,$4,$5,$6,coalesce($7,NOW(6)),coalesce($8,$7,NOW(6)))`,
-        [
-          clinicId,
-          payableId,
-          actorUserId,
-          operation,
-          operation === "payment"
-            ? -current.rows[0].amountInCents
-            : current.rows[0].amountInCents,
-          operation === "payment"
-            ? { paymentMethod }
-            : { paymentMethod: current.rows[0].paymentMethod },
-          timing?.paidAt ?? null,
-          timing?.availableAt ??
-            (operation === "payment" ? current.rows[0].cashAvailableAt : null),
-        ],
-      );
+      // Um evento por forma (saída gravada com sinal negativo, estorno positivo).
+      const movements =
+        operation === "payment"
+          ? parts.map((part) => ({
+              amountInCents: -part.amountInCents,
+              paymentMethod: part.paymentMethod as PaymentMethod | null,
+            }))
+          : batch.length > 1
+            ? batch.map((item) => ({
+                amountInCents: Math.abs(item.amountInCents),
+                paymentMethod: item.paymentMethod,
+              }))
+            : [
+                {
+                  amountInCents: current.rows[0].amountInCents,
+                  paymentMethod: current.rows[0].paymentMethod,
+                },
+              ];
+      for (const movement of movements)
+        await client.query(
+          `INSERT INTO payable_events
+             (clinic_id, payable_id, actor_user_id, kind, amount_in_cents, metadata,occurred_at,cash_available_at)
+           VALUES ($1,$2,$3,$4,$5,$6,coalesce($7,NOW(6)),coalesce($8,$7,NOW(6)))`,
+          [
+            clinicId,
+            payableId,
+            actorUserId,
+            operation,
+            movement.amountInCents,
+            { paymentMethod: movement.paymentMethod },
+            timing?.paidAt ?? null,
+            timing?.availableAt ??
+              (operation === "payment"
+                ? current.rows[0].cashAvailableAt
+                : null),
+          ],
+        );
       if (operation === "payment_reversal")
         await markPaymentProofsReversed(client, clinicId, "payable", payableId);
       const payable = await this.findPayable(client, clinicId, payableId);

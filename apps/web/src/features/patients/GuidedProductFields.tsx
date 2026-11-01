@@ -1,14 +1,12 @@
 import {
-  paymentMethodLabels,
-  paymentMethodSchema,
   productSizeLabel,
-  type PaymentMethod,
   type Product,
   type ProductSaleInput,
   type ProductSize,
 } from "@crm/contracts";
 import { Trash2 } from "lucide-react";
-import { PaymentInstallmentsSelect } from "../../shared/components/PaymentInstallmentsSelect";
+import { PaymentPartsField } from "../../shared/components/PaymentPartsField";
+import type { PaymentPartDraft } from "../../shared/lib/payment-parts";
 import { usePaymentMethodSettings } from "../../shared/hooks/usePaymentMethodSettings";
 import { currency } from "../../shared/lib/formatting";
 import { sellableStock, stockChoices } from "../sales/index";
@@ -157,14 +155,19 @@ export function GuidedProductFields({
 export type GuidedProductPayment = Pick<
   ProductSaleInput,
   "settlement" | "dueDate"
-> & { paymentMethod: PaymentMethod; paymentInstallments: number };
+> & { parts: PaymentPartDraft[] };
 
-/** Pagamento dos produtos da sacola (os planos têm a forma de pagamento de cada um). */
+/** Pagamento dos produtos da sacola (os planos têm as formas de pagamento de cada um). */
 export function GuidedProductPaymentFields({
   value,
+  totalInCents,
+  disabled,
   onChange,
 }: {
   value: GuidedProductPayment;
+  /** Total dos produtos (já com descontos): o valor a dividir entre as formas. */
+  totalInCents: number;
+  disabled?: boolean;
   onChange: (patch: Partial<GuidedProductPayment>) => void;
 }) {
   const paymentSettings = usePaymentMethodSettings();
@@ -185,36 +188,7 @@ export function GuidedProductPaymentFields({
           <option value="receivable">A receber</option>
         </select>
       </label>
-      {value.settlement === "paid" ? (
-        <>
-          <label>
-            Forma de pagamento
-            <select
-              value={value.paymentMethod}
-              onChange={(event) =>
-                onChange({
-                  paymentMethod: event.target.value as PaymentMethod,
-                  paymentInstallments: 1,
-                })
-              }
-            >
-              {paymentMethodSchema.options.map((method) => (
-                <option key={method} value={method}>
-                  {paymentMethodLabels[method]}
-                </option>
-              ))}
-            </select>
-          </label>
-          <PaymentInstallmentsSelect
-            method={value.paymentMethod}
-            settings={paymentSettings}
-            value={value.paymentInstallments}
-            onChange={(paymentInstallments) =>
-              onChange({ paymentInstallments })
-            }
-          />
-        </>
-      ) : (
+      {value.settlement === "receivable" && (
         <label>
           Vencimento
           <input
@@ -225,6 +199,24 @@ export function GuidedProductPaymentFields({
           />
         </label>
       )}
+      <PaymentPartsField
+        className="span-2"
+        parts={value.parts}
+        onChange={(parts) => onChange({ parts })}
+        totalInCents={totalInCents}
+        settings={paymentSettings}
+        {...(disabled === undefined ? {} : { disabled })}
+        legend={
+          value.settlement === "paid"
+            ? "Formas de pagamento"
+            : "Formas de pagamento previstas"
+        }
+        hint={
+          value.settlement === "paid"
+            ? "Pagou em mais de uma forma? Adicione as outras e informe o valor de cada uma."
+            : "Ficam sugeridas na baixa da conta a receber."
+        }
+      />
     </div>
   );
 }
