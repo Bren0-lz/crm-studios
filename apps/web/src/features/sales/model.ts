@@ -80,6 +80,113 @@ export function productSales(
     );
 }
 
+export type SaleStatusFilter = "" | "paid" | "receivable" | "cancelled";
+
+export const saleStatusFilterLabels: Record<
+  Exclude<SaleStatusFilter, "">,
+  string
+> = {
+  paid: "Paga",
+  receivable: "A receber",
+  cancelled: "Cancelada",
+};
+
+/** Filtros da lista de vendas realizadas; vazio/null = sem filtro. */
+export type SalesHistoryFilters = {
+  seller: string;
+  product: string;
+  /** Chave de tamanho (`sizeChoiceValue`); só vale com um produto escolhido. */
+  size: string;
+  status: SaleStatusFilter;
+  minInCents: number | null;
+  maxInCents: number | null;
+};
+
+export const emptySalesHistoryFilters: SalesHistoryFilters = {
+  seller: "",
+  product: "",
+  size: "",
+  status: "",
+  minInCents: null,
+  maxInCents: null,
+};
+
+export function saleStatusKey(tab: PatientTab): Exclude<SaleStatusFilter, ""> {
+  if (tab.status === "cancelled") return "cancelled";
+  return tab.paymentStatus === "paid" ? "paid" : "receivable";
+}
+
+/** Chave do vendedor no filtro ("none" = venda sem usuário registrado). */
+export const sellerKey = (tab: PatientTab) => tab.soldByUserId ?? "none";
+
+export function hasSalesHistoryFilters(filters: SalesHistoryFilters) {
+  return (Object.keys(filters) as (keyof SalesHistoryFilters)[]).some(
+    (key) => filters[key] !== emptySalesHistoryFilters[key],
+  );
+}
+
+/** Aplica vendedor, produto (e tamanho), situação e faixa de valor sobre as vendas do período. */
+export function filterSalesHistory(
+  sales: readonly PatientTab[],
+  filters: SalesHistoryFilters,
+) {
+  return sales.filter((tab) => {
+    if (filters.seller && sellerKey(tab) !== filters.seller) return false;
+    if (filters.status && saleStatusKey(tab) !== filters.status) return false;
+    if (
+      filters.product &&
+      !tab.items.some(
+        (item) =>
+          item.productId === filters.product &&
+          (!filters.size || sizeChoiceValue(item.size) === filters.size),
+      )
+    )
+      return false;
+    const total = productsTotalInCents(tab);
+    if (filters.minInCents !== null && total < filters.minInCents) return false;
+    if (filters.maxInCents !== null && total > filters.maxInCents) return false;
+    return true;
+  });
+}
+
+export type FilterOption = { value: string; label: string };
+
+/** Opções dos filtros a partir das vendas do período e do cadastro de produtos. */
+export function salesHistoryOptions(
+  sales: readonly PatientTab[],
+  products: readonly Product[],
+  productId: string,
+) {
+  const sellers = new Map<string, string>();
+  const sold = new Map<string, string>();
+  const sizes = new Map<string, string>();
+  for (const tab of sales) {
+    sellers.set(sellerKey(tab), tab.soldByName ?? "Sem registro");
+    for (const item of tab.items) {
+      sold.set(item.productId, item.productName);
+      if (item.productId === productId)
+        sizes.set(sizeChoiceValue(item.size), productSizeLabel(item.size));
+    }
+  }
+  // Tamanhos configurados no produto também aparecem, mesmo sem venda no período.
+  for (const size of products.find((item) => item.id === productId)?.sizes ??
+    [])
+    sizes.set(sizeChoiceValue(size), productSizeLabel(size));
+  const byLabel = (left: FilterOption, right: FilterOption) =>
+    left.label.localeCompare(right.label, "pt-BR");
+  const toOptions = (map: Map<string, string>) =>
+    [...map].map(([value, label]) => ({ value, label }));
+  return {
+    sellers: toOptions(sellers).sort(byLabel),
+    products: toOptions(sold).sort(byLabel),
+    sizes: toOptions(sizes).sort(
+      (left, right) =>
+        sizeOrder(left.value) - sizeOrder(right.value) ||
+        left.label.localeCompare(right.label, "pt-BR", { numeric: true }),
+    ),
+  };
+}
+
 export function productsTotalInCents(tab: PatientTab) {
   return tab.items.reduce((sum, item) => sum + item.totalInCents, 0);
 }
