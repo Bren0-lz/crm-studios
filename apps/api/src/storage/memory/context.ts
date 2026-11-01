@@ -329,6 +329,10 @@ export class MemoryRepositoryContext {
   readonly commissionAccountPayments: import("@crm/contracts").CommissionAccountPayment[] =
     [];
   readonly commissionPaymentEvents: CommissionPaymentEvent[] = [];
+  /** Descontos e recompensas da folha (`payroll_entries`). */
+  readonly payrollEntries: (import("@crm/contracts").PayrollEntry & {
+    createdByUserId: string;
+  })[] = [];
   /** Colaboradores da folha de pagamento (`payroll_employees`). */
   readonly payrollEmployees: import("./payroll.js").PayrollEmployeeRecord[] =
     [];

@@ -328,6 +328,7 @@ export class MemoryClinicRepository implements ClinicRepository {
     this.addPatientTabItem = this.finance.addPatientTabItem;
     this.closePatientTab = this.finance.closePatientTab;
     this.cancelPatientTab = this.finance.cancelPatientTab;
+    this.patientTabPayment = this.finance.patientTabPayment;
     this.createProductSale = createProductSalesRepository(this.context, {
       openPatientTab: this.finance.openPatientTab,
       addPatientTabItem: this.finance.addPatientTabItem,
@@ -361,6 +362,8 @@ export class MemoryClinicRepository implements ClinicRepository {
     this.updatePayrollEmployee = payroll.updatePayrollEmployee;
     this.getPayroll = payroll.getPayroll;
     this.launchPayroll = payroll.launchPayroll;
+    this.createPayrollEntry = payroll.createPayrollEntry;
+    this.deletePayrollEntry = payroll.deletePayrollEntry;
     this.cancelPayrollLaunch = payroll.cancelPayrollLaunch;
     this.generateCommissions = this.finance.generateCommissions;
     this.settleCommission = this.finance.settleCommission;
@@ -661,6 +664,10 @@ export class MemoryClinicRepository implements ClinicRepository {
     typeof createFinanceRepository
   >["cancelPatientTab"];
 
+  readonly patientTabPayment: ReturnType<
+    typeof createFinanceRepository
+  >["patientTabPayment"];
+
   readonly getFinancialSummary: ReturnType<
     typeof createFinanceRepository
   >["getFinancialSummary"];
@@ -737,6 +744,8 @@ export class MemoryClinicRepository implements ClinicRepository {
   readonly updatePayrollEmployee: ClinicRepository["updatePayrollEmployee"];
   readonly getPayroll: ClinicRepository["getPayroll"];
   readonly launchPayroll: ClinicRepository["launchPayroll"];
+  readonly createPayrollEntry: ClinicRepository["createPayrollEntry"];
+  readonly deletePayrollEntry: ClinicRepository["deletePayrollEntry"];
   readonly cancelPayrollLaunch: ClinicRepository["cancelPayrollLaunch"];
 
   readonly createCommissionRule: ClinicRepository["createCommissionRule"];
