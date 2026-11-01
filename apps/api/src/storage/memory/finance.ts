@@ -15,7 +15,9 @@ import {
 } from "./tab-service-credits.js";
 import type { PaymentTiming, SettlementAdjustments } from "@crm/contracts";
 import {
+  acceptsPaymentInstallments,
   formatSequenceNumber,
+  installmentPaymentSplitIssue,
   recurringPayableCompetences,
   recurringPayableDueDate,
   saoPauloToday,
@@ -68,6 +70,12 @@ import { addMonths, now, today, uuid } from "./helpers.js";
 export function createFinanceRepository(
   repositoryContext: MemoryRepositoryContext,
 ) {
+  /** Vendedor da comanda: o usuário que a abriu (omitido se não for encontrado). */
+  function soldBy(userId: string) {
+    const user = repositoryContext.users.find((item) => item.id === userId);
+    return user ? { soldByUserId: user.id, soldByName: user.fullName } : {};
+  }
+
   /** Fontes do caixa (todo o histórico) no escopo de filial da requisição. */
   function cashSources(clinicId: string): DailyCashSources {
     const payables = repositoryContext.payables.filter(
@@ -369,7 +377,7 @@ export function createFinanceRepository(
 
     async openPatientTab(
       clinicId: string,
-      _actorUserId: string,
+      actorUserId: string,
       input: PatientTabInput,
     ) {
       const patient = repositoryContext.patients.find(
@@ -390,6 +398,7 @@ export function createFinanceRepository(
         id: uuid(),
         clinicId,
         patientName: patient.fullName,
+        ...soldBy(actorUserId),
         status: "open",
         paymentStatus: "pending",
         totalInCents: 0,
@@ -648,7 +657,14 @@ export function createFinanceRepository(
       // Plano e serviços de origem saem do que já foi vendido (plano ou comanda).
       const receivableOrigin = (
         item: Receivable,
-      ): Pick<Receivable, "source" | "planName" | "services"> => {
+      ): Pick<
+        Receivable,
+        | "source"
+        | "planName"
+        | "planTotalInCents"
+        | "planPaymentMethod"
+        | "services"
+      > => {
         const plan = item.planId
           ? repositoryContext.patientPlans.find(
               (candidate) =>
@@ -660,6 +676,10 @@ export function createFinanceRepository(
           return {
             source: "plan",
             planName: plan.name,
+            planTotalInCents: plan.totalValueInCents,
+            ...(plan.paymentMethod
+              ? { planPaymentMethod: plan.paymentMethod }
+              : {}),
             services: plan.services.length
               ? plan.services.map((service) => ({
                   id: service.serviceId,
@@ -752,6 +772,18 @@ export function createFinanceRepository(
           409,
         );
       }
+      // Plano já parcelado não se parcela de novo na forma de pagamento (nem no misto).
+      if (
+        [adjustments, ...(adjustments.payments ?? [])].some(
+          (part) => (part.paymentInstallments ?? 1) > 1,
+        ) &&
+        !acceptsPaymentInstallments(receivable)
+      )
+        throw new DomainError(
+          "INSTALLMENT_PAYMENT_SPLIT",
+          installmentPaymentSplitIssue,
+          400,
+        );
       const { payments, ...single } = adjustments;
       if (!payments?.length) {
         const breakdown = settlementBreakdown(receivable.amountInCents, single);

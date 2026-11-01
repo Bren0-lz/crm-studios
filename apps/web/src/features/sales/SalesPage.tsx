@@ -13,11 +13,12 @@ import { InventorySection } from "./InventorySection";
 import { NewSaleSection } from "./NewSaleSection";
 import { ProductCatalogsSection } from "./ProductCatalogsSection";
 import { SalesHistorySection } from "./SalesHistorySection";
+import { SalesSuppliersSection } from "./SalesSuppliersSection";
 import { SalesSummarySection } from "./SalesSummarySection";
 
 /**
  * Vendas de produtos: registro em uma etapa, histórico, resumo e os cadastros de
- * produtos (estoque, categorias e marcas).
+ * produtos (estoque, categorias e marcas) e de fornecedores (permissão própria).
  */
 export function SalesPage() {
   const { can } = useAuthorization();
@@ -31,6 +32,7 @@ export function SalesPage() {
     "summary",
     "inventory",
     "catalogs",
+    ...(can("patients.suppliers_manage") ? (["suppliers"] as const) : []),
   ];
   const [searchParams] = useSearchParams();
   const requested = salesTabFromParam(searchParams.get("aba"));
@@ -101,6 +103,8 @@ export function SalesPage() {
             />
           ) : tab === "catalogs" ? (
             <ProductCatalogsSection />
+          ) : tab === "suppliers" ? (
+            <SalesSuppliersSection />
           ) : !data ? (
             !error && <LoadingBlock />
           ) : tab === "new" ? (

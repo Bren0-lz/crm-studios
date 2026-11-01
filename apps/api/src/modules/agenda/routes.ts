@@ -24,10 +24,10 @@ import type { RouteContext } from "../../infrastructure/route-context.js";
 import { DomainError } from "../../repository.js";
 import { reconcileChangedCommissions } from "../finance/commission-reconciliation.js";
 import {
-  clinicToday,
-  loadPromotionOffers,
-  resolvePromotionRedemption,
-} from "../communications/auto-campaigns.js";
+  loadAppointmentPromotionOffers,
+  resolveAppointmentPromotion,
+} from "../communications/campaign-promotions.js";
+import { clinicToday } from "../communications/auto-campaigns.js";
 import {
   agendaProfessionalScope,
   inProfessionalScope,
@@ -253,7 +253,7 @@ export function registerAgendaRoutes(context: RouteContext) {
     },
   );
 
-  /** Promoções de campanhas automáticas que o cliente pode usar se agendar hoje. */
+  /** Promoções de campanhas (automáticas e manuais) que o cliente pode usar se agendar hoje. */
   app.get(
     "/appointments/promotions",
     { preHandler: authenticate },
@@ -261,9 +261,11 @@ export function registerAgendaRoutes(context: RouteContext) {
       const { patientId } = z
         .object({ patientId: z.uuid() })
         .parse(request.query);
-      return (
-        await loadPromotionOffers(repository, request.user.clinicId, patientId)
-      ).offers;
+      return loadAppointmentPromotionOffers(
+        repository,
+        request.user.clinicId,
+        patientId,
+      );
     },
   );
 
@@ -298,7 +300,7 @@ export function registerAgendaRoutes(context: RouteContext) {
       await assertNoHoliday(request.user.clinicId, [input.startsAt]);
       await assertServiceAvailable(request.user.clinicId, [input]);
       const redemption = promotion
-        ? await resolvePromotionRedemption(
+        ? await resolveAppointmentPromotion(
             repository,
             request.user.clinicId,
             input.patientId,
@@ -324,7 +326,7 @@ export function registerAgendaRoutes(context: RouteContext) {
       await assertNoHoliday(request.user.clinicId, occurrences);
       await assertServiceAvailable(request.user.clinicId, [input]);
       const redemption = promotion
-        ? await resolvePromotionRedemption(
+        ? await resolveAppointmentPromotion(
             repository,
             request.user.clinicId,
             input.patientId,

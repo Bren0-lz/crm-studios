@@ -267,6 +267,9 @@ export interface PatientTab extends PatientTabInput {
   id: string;
   clinicId: string;
   patientName: string;
+  /** Usuário que registrou a venda (abriu a comanda); ausente se o usuário não existe mais. */
+  soldByUserId?: string;
+  soldByName?: string;
   status: "open" | "closed" | "cancelled";
   paymentStatus: "pending" | "paid" | "receivable" | "cancelled";
   totalInCents: number;
@@ -318,6 +321,10 @@ export interface Receivable {
   source?: "plan" | "tab" | "manual";
   /** Nome do plano como foi vendido; só nas cobranças de plano. */
   planName?: string;
+  /** Valor total contratado do plano; só nas cobranças de plano. */
+  planTotalInCents?: number;
+  /** Forma de pagamento combinada na venda do plano (ausente = a combinar). */
+  planPaymentMethod?: PaymentMethod;
   /** Serviços de origem: os do plano ou os atendimentos da comanda. */
   services?: ReceivableService[];
   competence?: string;
