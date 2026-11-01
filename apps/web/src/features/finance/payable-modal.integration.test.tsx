@@ -1,5 +1,5 @@
 import type { FinancialWorkspace } from "@crm/contracts";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import {
   type Authorization,
@@ -40,7 +40,7 @@ function mount(onCreated = vi.fn()) {
 }
 
 describe("PayableModal without categories", () => {
-  it("explains what is missing and creates the category inline", async () => {
+  it("explains what is missing and creates the category in a stacked modal", async () => {
     const bodies: { url: string; body: unknown }[] = [];
     vi.mocked(fetch).mockImplementation(async (input, options) => {
       const url = String(input);
@@ -57,7 +57,9 @@ describe("PayableModal without categories", () => {
       return jsonResponse([]);
     });
     const onCreated = mount();
-    expect(screen.getByText("Nenhuma categoria de despesa.")).toBeVisible();
+    expect(
+      screen.getByRole("option", { name: "Nenhuma categoria cadastrada" }),
+    ).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Cadastrar despesa" }),
     ).toBeDisabled();
@@ -68,22 +70,29 @@ describe("PayableModal without categories", () => {
       "Falta: Descrição (pelo menos 3 caracteres), Categoria, Valor.",
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Criar categoria" }));
-    expect(screen.getByRole("button", { name: "Criar" })).toBeDisabled();
+    // "+ Nova categoria" abre o cadastro por cima, sem fechar a despesa.
+    fireEvent.change(screen.getByLabelText("Categoria"), {
+      target: { value: "__create__" },
+    });
+    const categoryDialog = await screen.findByRole("dialog", {
+      name: "Nova categoria de despesa",
+    });
     expect(
-      screen.getByRole("button", { name: "Criar" }),
-    ).toHaveAccessibleDescription("Falta: Nome (pelo menos 2 caracteres).");
-    fireEvent.change(screen.getByLabelText("Criar categoria"), {
+      screen.getByRole("dialog", { name: "Nova conta a pagar" }),
+    ).toBeInTheDocument();
+    const save = within(categoryDialog).getByRole("button", { name: "Salvar" });
+    expect(save).toBeDisabled();
+    fireEvent.change(within(categoryDialog).getByLabelText("Nome"), {
       target: { value: "Limpeza" },
     });
-    expect(screen.getByRole("button", { name: "Criar" })).toBeEnabled();
-    expect(screen.getByRole("button", { name: "Criar" })).not.toHaveAttribute(
-      "aria-describedby",
+    expect(save).toBeEnabled();
+    fireEvent.click(save);
+    await vi.waitFor(() =>
+      expect(
+        screen.queryByRole("dialog", { name: "Nova categoria de despesa" }),
+      ).not.toBeInTheDocument(),
     );
-    fireEvent.click(screen.getByRole("button", { name: "Criar" }));
-    expect(
-      await screen.findByRole("option", { name: "Limpeza" }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Limpeza" })).toBeInTheDocument();
     expect(screen.getByLabelText("Categoria")).toHaveValue(categoryId);
 
     fireEvent.change(screen.getByLabelText("Descrição"), {
@@ -166,31 +175,50 @@ describe("PayableModal with existing classifications", () => {
     expect(
       screen.getByRole("option", { name: "+ Nova categoria" }),
     ).toBeInTheDocument();
-    expect(screen.queryByLabelText("Criar centro de custo")).toBeNull();
 
+    fireEvent.change(screen.getByLabelText("Descrição"), {
+      target: { value: "Cera" },
+    });
     fireEvent.change(
       screen.getByRole("combobox", { name: /Centro de custo/ }),
       {
         target: { value: "__create__" },
       },
     );
-    fireEvent.change(screen.getByLabelText("Criar centro de custo"), {
+    const centerDialog = await screen.findByRole("dialog", {
+      name: "Novo centro de custo",
+    });
+    // A despesa continua aberta por trás, com o que já foi digitado.
+    expect(screen.getByLabelText("Descrição")).toHaveValue("Cera");
+    fireEvent.change(within(centerDialog).getByLabelText("Nome"), {
       target: { value: "Depilação" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Criar" }));
+    fireEvent.click(
+      within(centerDialog).getByRole("button", { name: "Salvar" }),
+    );
     expect(
       await screen.findByRole("option", { name: "Depilação" }),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("combobox", { name: /Centro de custo/ }),
     ).toHaveValue("d2d2d2d2-d2d2-4d2d-8d2d-d2d2d2d2d2d2");
-    expect(screen.queryByLabelText("Criar centro de custo")).toBeNull();
+    expect(
+      screen.queryByRole("dialog", { name: "Novo centro de custo" }),
+    ).toBeNull();
 
     fireEvent.change(screen.getByLabelText("Categoria"), {
       target: { value: "__create__" },
     });
     expect(screen.getByLabelText("Categoria")).toHaveValue(categoryId);
-    fireEvent.click(screen.getByRole("button", { name: "Cancelar" }));
-    expect(screen.queryByLabelText("Criar categoria")).toBeNull();
+    const categoryDialog = await screen.findByRole("dialog", {
+      name: "Nova categoria de despesa",
+    });
+    fireEvent.click(
+      within(categoryDialog).getByRole("button", { name: "Voltar" }),
+    );
+    expect(
+      screen.queryByRole("dialog", { name: "Nova categoria de despesa" }),
+    ).toBeNull();
+    expect(screen.getByLabelText("Categoria")).toHaveValue(categoryId);
   });
 });

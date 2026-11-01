@@ -14,8 +14,8 @@ import { localIsoDate } from "../../shared/lib/formatting";
 import { MoneyInput } from "../../shared/components/MoneyInput";
 import {
   CREATE_OPTION_VALUE,
-  InlineClassificationCreate,
-} from "./InlineClassificationCreate";
+  FinanceRegistryModal,
+} from "./FinanceRegistryModal";
 import { HelpTip } from "../../shared/components/HelpTip";
 import { financeTermHelp } from "./model";
 import { ExpenseKindPicker } from "./ExpenseKindPicker";
@@ -281,29 +281,12 @@ export function PayableModal({
                   )}
                 </select>
               </label>
-              <InlineClassificationCreate
-                open={creating === "category"}
-                onOpenChange={(open) => setCreating(open ? "category" : null)}
-                emptyLabel={
-                  expenseCategories.length === 0
-                    ? "Nenhuma categoria de despesa"
-                    : undefined
-                }
-                createLabel="Criar categoria"
-                canCreate={can("finance.categories_create")}
-                onCreate={async (name) => {
-                  const created = await api.createFinancialCategory({
-                    name,
-                    kind: "expense",
-                  });
-                  setExpenseCategories((items) => [...items, created]);
-                  toast.success(`Categoria “${created.name}” criada.`);
-                  setForm((current) => ({
-                    ...current,
-                    categoryId: created.id,
-                  }));
-                }}
-              />
+              {expenseCategories.length === 0 &&
+                !can("finance.categories_create") && (
+                  <span className="field-hint">
+                    Peça a quem administra o financeiro para cadastrar.
+                  </span>
+                )}
             </div>
             <div className="field-with-hint">
               <label>
@@ -336,26 +319,6 @@ export function PayableModal({
                   )}
                 </select>
               </label>
-              <InlineClassificationCreate
-                open={creating === "costCenter"}
-                onOpenChange={(open) => setCreating(open ? "costCenter" : null)}
-                emptyLabel={
-                  costCenters.length === 0
-                    ? "Nenhum centro de custo"
-                    : undefined
-                }
-                createLabel="Criar centro de custo"
-                canCreate={can("finance.cost_centers_create")}
-                onCreate={async (name) => {
-                  const created = await api.createCostCenter({ name });
-                  setCostCenters((items) => [...items, created]);
-                  toast.success(`Centro de custo “${created.name}” criado.`);
-                  setForm((current) => ({
-                    ...current,
-                    costCenterId: created.id,
-                  }));
-                }}
-              />
             </div>
             <label>
               Valor
@@ -391,6 +354,29 @@ export function PayableModal({
           </form>
         )}
       </Modal>
+      {creating && (
+        <FinanceRegistryModal
+          kind={creating}
+          onClose={() => setCreating(null)}
+          onConfirm={async (name) => {
+            if (creating === "category") {
+              const created = await api.createFinancialCategory({
+                name,
+                kind: "expense",
+              });
+              setExpenseCategories((items) => [...items, created]);
+              setForm((current) => ({ ...current, categoryId: created.id }));
+              toast.success(`Categoria “${created.name}” criada.`);
+            } else {
+              const created = await api.createCostCenter({ name });
+              setCostCenters((items) => [...items, created]);
+              setForm((current) => ({ ...current, costCenterId: created.id }));
+              toast.success(`Centro de custo “${created.name}” criado.`);
+            }
+            setCreating(null);
+          }}
+        />
+      )}
       {creatingSupplier && (
         <SupplierModal
           supplier="new"

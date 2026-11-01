@@ -917,16 +917,6 @@
   font-size: var(--text-xs);
 }
 
-/* Cadastro rápido de categoria/centro de custo dentro da despesa. */
-.inline-create {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-2);
-}
-.inline-create input {
-  flex: 1 1 140px;
-}
 .status-pill.exhausted {
   background: #fdf1dc;
   color: #8a5a12;
