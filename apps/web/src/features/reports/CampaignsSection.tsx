@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { CampaignReportKind, CampaignReportRow } from "@crm/contracts";
 import { Download, Megaphone } from "lucide-react";
 import { api } from "../../api";
@@ -6,6 +6,7 @@ import { useAuthorization } from "../../authorization-context";
 import { EmptyState } from "../../shared/components/EmptyState";
 import { ErrorBanner } from "../../shared/components/ErrorBanner";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
+import { useDataVersion } from "../../shared/hooks/useDataVersion";
 import { formatIsoDate, shortDate } from "../../shared/lib/formatting";
 import { useReportQuery, type ReportPeriod } from "./useReportQuery";
 
@@ -21,11 +22,27 @@ function situation(row: CampaignReportRow) {
 
 export function CampaignsSection({ period }: { period: ReportPeriod }) {
   const { can } = useAuthorization();
+  // Envio marcado na fila (ou agendamento com promoção) atualiza os números na hora;
+  // ao voltar para a aba, recarrega o que foi marcado em outra janela.
+  const version = useDataVersion("communications", "agenda");
+  const [focusTick, setFocusTick] = useState(0);
+  useEffect(() => {
+    const refresh = () => {
+      if (document.visibilityState !== "hidden")
+        setFocusTick((value) => value + 1);
+    };
+    window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", refresh);
+    return () => {
+      window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", refresh);
+    };
+  }, []);
   const {
     data: report,
     error,
     loading,
-  } = useReportQuery(period, api.campaignReport);
+  } = useReportQuery(period, api.campaignReport, true, version + focusTick);
   const [kind, setKind] = useState<CampaignReportKind | "">("");
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState({ period, message: "" });
@@ -94,7 +111,7 @@ export function CampaignsSection({ period }: { period: ReportPeriod }) {
               <strong>{report.summary.sent}</strong>
               <small>
                 {report.summary.skipped} não enviadas · {report.summary.pending}{" "}
-                pendentes nas manuais
+                pendentes
               </small>
             </article>
             <article>
@@ -176,7 +193,9 @@ export function CampaignsSection({ period }: { period: ReportPeriod }) {
                           <td className="numeric-value">{row.sent}</td>
                           <td className="numeric-value">{row.skipped}</td>
                           <td className="numeric-value">
-                            {row.kind === "manual" ? row.pending : "—"}
+                            {row.kind === "manual" || report.queueDate
+                              ? row.pending
+                              : "—"}
                           </td>
                           <td className="numeric-value">
                             {row.promotional ? row.redemptions : "—"}

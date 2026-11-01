@@ -27,10 +27,12 @@ export interface CampaignReportSources {
   manualRedemptions?: AutoCampaignRedemption[] | undefined;
   patients: Patient[];
   /**
-   * Fila de hoje das automáticas (só na planilha): as mensagens ainda não marcadas entram
-   * como previstas, sem mudar os totais do relatório.
+   * Fila de hoje das automáticas, quando hoje está no período: as mensagens ainda não
+   * marcadas viram as pendentes de cada campanha e, na planilha, entram como previstas.
    */
   queue?: AutoCampaignItem[] | undefined;
+  /** Dia da fila (aaaa-mm-dd), presente junto com `queue`. */
+  queueDate?: string | undefined;
 }
 
 /** Uso da promoção pelo cliente nesta ocorrência; um uso ativo vale mais que um cancelado. */
@@ -160,6 +162,9 @@ export function buildCampaignReport(
     const redemptions = usedInPeriod(sources.redemptions, campaign.id);
     if (!campaign.active && !deliveries.length && !redemptions) continue;
     const sent = deliveries.filter((item) => item.status === "sent").length;
+    const pending = (sources.queue ?? []).filter(
+      (item) => item.campaignId === campaign.id && item.status === "pending",
+    ).length;
     rows.push({
       campaignId: campaign.id,
       kind: "automatic",
@@ -171,7 +176,7 @@ export function buildCampaignReport(
       total: deliveries.length,
       sent,
       skipped: deliveries.length - sent,
-      pending: 0,
+      pending,
       redemptions,
       promotional: Boolean(campaign.promotion),
     });
@@ -275,6 +280,7 @@ export function buildCampaignReport(
       from,
       to,
       generatedAt,
+      ...(sources.queueDate ? { queueDate: sources.queueDate } : {}),
       summary: {
         manualCampaigns: rows.filter((row) => row.kind === "manual").length,
         automaticCampaigns: rows.filter((row) => row.kind === "automatic")
