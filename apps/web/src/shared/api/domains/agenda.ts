@@ -13,6 +13,7 @@ import type {
 import type {
   Appointment,
   AppointmentInput,
+  AppointmentPricing,
   AppointmentPromotion,
   AutoCampaignPromotionOffer,
   AppointmentRescheduleEvent,
@@ -118,6 +119,11 @@ export const agendaApi = {
   appointmentPromotions: (patientId: string) =>
     request<AutoCampaignPromotionOffer[]>(
       `/appointments/promotions?patientId=${encodeURIComponent(patientId)}`,
+    ),
+  /** Valor de cada sessão do serviço para o cliente (saldo dos planos e plano avulso). */
+  appointmentPricing: (patientId: string, serviceId: string) =>
+    request<AppointmentPricing>(
+      `/appointments/pricing?patientId=${encodeURIComponent(patientId)}&serviceId=${encodeURIComponent(serviceId)}`,
     ),
   createAppointment: (
     input: AppointmentInput & { promotion?: AppointmentPromotion | undefined },
