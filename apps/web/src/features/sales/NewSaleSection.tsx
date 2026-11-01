@@ -1,5 +1,6 @@
 import type {
   InventoryWorkspace,
+  PatientDiscount,
   PatientOption,
   PaymentMethod,
   Product,
@@ -23,6 +24,11 @@ import { PaymentInstallmentsSelect } from "../../shared/components/PaymentInstal
 import { usePaymentMethodSettings } from "../../shared/hooks/usePaymentMethodSettings";
 import { useToast } from "../../shared/feedback/toast-context";
 import { currency, localIsoDate } from "../../shared/lib/formatting";
+import {
+  guidedOrder,
+  patientDiscountLabel,
+  PatientDiscountModal,
+} from "../patients/index";
 import { sellableStock, stockChoices } from "./model";
 import { ProductModal } from "./ProductModal";
 
@@ -33,7 +39,14 @@ type SaleLine = {
   size: ProductSize | "";
   quantity: number;
   unitPriceInCents: number;
+  /** Desconto só deste produto, nesta venda. */
+  discount?: PatientDiscount | undefined;
 };
+
+const money = (cents: number) => currency.format(cents / 100);
+/** Rótulo do desconto sem o alcance nas cobranças: na venda ele vale uma vez só. */
+const discountLabel = (discount: PatientDiscount) =>
+  patientDiscountLabel(discount).split(" · ")[0];
 
 let nextLineKey = 1;
 const emptyLine = (): SaleLine => ({
@@ -65,6 +78,12 @@ export function NewSaleSection({
   const paymentSettings = usePaymentMethodSettings();
   const [dueDate, setDueDate] = useState(() => localIsoDate());
   const [notes, setNotes] = useState("");
+  /** Desconto sobre a venda toda, rateado entre os produtos pelo valor de cada um. */
+  const [saleDiscount, setSaleDiscount] = useState<PatientDiscount>();
+  /** Modal de desconto aberto: de um produto (chave da linha) ou da venda toda. */
+  const [editingDiscount, setEditingDiscount] = useState<
+    { lineKey: number } | "sale" | null
+  >(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const missingId = useId();
@@ -101,10 +120,25 @@ export function NewSaleSection({
   const missingSize = filled.some(
     (line) => productOf(line.productId)?.sizes.length && !line.size,
   );
-  const totalInCents = filled.reduce(
-    (sum, line) => sum + line.quantity * line.unitPriceInCents,
-    0,
+  // Mesmo cálculo da sacola do cadastro: o desconto vira preço unitário arredondado para
+  // cima, então o total exibido é exatamente o que será cobrado.
+  const order = guidedOrder(
+    [],
+    filled.map((line) => ({
+      key: String(line.key),
+      name: productOf(line.productId)?.name ?? "",
+      detail: "",
+      quantity: line.quantity,
+      unitPriceInCents: line.unitPriceInCents,
+      discount: line.discount,
+    })),
+    saleDiscount,
   );
+  const orderLine = (line: SaleLine) =>
+    order.lines.find((item) => item.key === String(line.key));
+  const totalInCents = order.totalInCents;
+  const discountInCents =
+    order.itemDiscountInCents + order.orderDiscountInCents;
   // Venda bloqueada enquanto algum produto escolhido não tem preço de venda definido.
   const unpriced = products.filter(
     (product) =>
@@ -134,6 +168,13 @@ export function NewSaleSection({
     setPaymentInstallments(1);
     setDueDate(localIsoDate());
     setNotes("");
+    setSaleDiscount(undefined);
+  }
+  /** Observação gravada na venda: o desconto dado vem antes do texto digitado. */
+  function saleNotes() {
+    if (!discountInCents) return notes;
+    const note = `Venda com ${money(discountInCents)} de desconto.`;
+    return (notes.trim() ? `${note} ${notes.trim()}` : note).slice(0, 500);
   }
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -143,12 +184,13 @@ export function NewSaleSection({
     try {
       const sale = await api.createProductSale({
         patientId,
-        notes,
+        notes: saleNotes(),
         items: filled.map((line) => ({
           productId: line.productId,
           ...(line.size ? { size: line.size } : {}),
           quantity: line.quantity,
-          unitPriceInCents: line.unitPriceInCents,
+          unitPriceInCents:
+            orderLine(line)?.unitNetInCents ?? line.unitPriceInCents,
         })),
         settlement,
         ...(settlement === "paid"
@@ -198,134 +240,156 @@ export function NewSaleSection({
               const position = index + 1;
               const available = lineStock(line);
               const sized = Boolean(product?.sizes.length);
+              const lineDiscount = orderLine(line)?.itemDiscountInCents ?? 0;
               return (
-                <div
-                  className={`sale-line${sized ? " has-size" : ""}`}
-                  key={line.key}
-                >
-                  <label>
-                    Produto
-                    <select
-                      aria-label={`Produto ${position}`}
-                      value={line.productId}
-                      onChange={(event) => {
-                        const chosen = productOf(event.target.value);
-                        update(line.key, {
-                          productId: event.target.value,
-                          size: "",
-                          unitPriceInCents: chosen?.salePriceInCents ?? 0,
-                        });
-                      }}
-                    >
-                      <option value="">Selecione</option>
-                      {products.map((item) => (
-                        <option
-                          key={item.id}
-                          value={item.id}
-                          disabled={
-                            item.id !== line.productId &&
-                            (totalSellable(item) <= 0 ||
-                              (!item.sizes.length &&
-                                lines.some(
-                                  (other) => other.productId === item.id,
-                                )))
-                          }
-                        >
-                          {item.name} ·{" "}
-                          {totalSellable(item) > 0
-                            ? `${totalSellable(item)} ${item.unit}`
-                            : "sem estoque"}
-                          {item.salePriceInCents === null && " · sem preço"}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  {product && sized && (
+                <div className="sale-item" key={line.key}>
+                  <div className={`sale-line${sized ? " has-size" : ""}`}>
                     <label>
-                      Tamanho
+                      Produto
                       <select
-                        aria-label={`Tamanho ${position}`}
-                        value={line.size}
-                        onChange={(event) =>
+                        aria-label={`Produto ${position}`}
+                        value={line.productId}
+                        onChange={(event) => {
+                          const chosen = productOf(event.target.value);
                           update(line.key, {
-                            size: event.target.value as ProductSize | "",
-                          })
-                        }
+                            productId: event.target.value,
+                            size: "",
+                            unitPriceInCents: chosen?.salePriceInCents ?? 0,
+                            discount: undefined,
+                          });
+                        }}
                       >
                         <option value="">Selecione</option>
-                        {product.sizes.map((size) => {
-                          const stock = sellableStock(product, size);
-                          return (
-                            <option
-                              key={size}
-                              value={size}
-                              disabled={
-                                size !== line.size &&
-                                (stock <= 0 ||
+                        {products.map((item) => (
+                          <option
+                            key={item.id}
+                            value={item.id}
+                            disabled={
+                              item.id !== line.productId &&
+                              (totalSellable(item) <= 0 ||
+                                (!item.sizes.length &&
                                   lines.some(
-                                    (other) =>
-                                      other.productId === product.id &&
-                                      other.size === size,
-                                  ))
-                              }
-                            >
-                              {`${productSizeLabel(size)} · ${stock > 0 ? `${stock} ${product.unit}` : "sem estoque"}`}
-                            </option>
-                          );
-                        })}
+                                    (other) => other.productId === item.id,
+                                  )))
+                            }
+                          >
+                            {item.name} ·{" "}
+                            {totalSellable(item) > 0
+                              ? `${totalSellable(item)} ${item.unit}`
+                              : "sem estoque"}
+                            {item.salePriceInCents === null && " · sem preço"}
+                          </option>
+                        ))}
                       </select>
                     </label>
-                  )}
-                  <label>
-                    Quantidade
-                    <input
-                      aria-label={`Quantidade ${position}`}
-                      type="number"
-                      min={1}
-                      max={available}
-                      value={line.quantity}
-                      onChange={(event) =>
-                        update(line.key, {
-                          quantity: Math.max(1, Number(event.target.value)),
-                        })
-                      }
-                    />
-                  </label>
-                  <label>
-                    Preço unitário (R$)
-                    <MoneyInput
-                      aria-label={`Preço unitário ${position}`}
-                      valueInCents={line.unitPriceInCents}
-                      onChange={(cents) =>
-                        update(line.key, { unitPriceInCents: cents ?? 0 })
-                      }
-                    />
-                  </label>
-                  <p className="sale-line-total numeric-value">
-                    {currency.format(
-                      (line.quantity * line.unitPriceInCents) / 100,
+                    {product && sized && (
+                      <label>
+                        Tamanho
+                        <select
+                          aria-label={`Tamanho ${position}`}
+                          value={line.size}
+                          onChange={(event) =>
+                            update(line.key, {
+                              size: event.target.value as ProductSize | "",
+                            })
+                          }
+                        >
+                          <option value="">Selecione</option>
+                          {product.sizes.map((size) => {
+                            const stock = sellableStock(product, size);
+                            return (
+                              <option
+                                key={size}
+                                value={size}
+                                disabled={
+                                  size !== line.size &&
+                                  (stock <= 0 ||
+                                    lines.some(
+                                      (other) =>
+                                        other.productId === product.id &&
+                                        other.size === size,
+                                    ))
+                                }
+                              >
+                                {`${productSizeLabel(size)} · ${stock > 0 ? `${stock} ${product.unit}` : "sem estoque"}`}
+                              </option>
+                            );
+                          })}
+                        </select>
+                      </label>
                     )}
-                    {product &&
-                      (!sized || line.size) &&
-                      line.quantity > available && (
-                        <span className="field-hint">
-                          Estoque disponível: {available} {product.unit}
-                        </span>
+                    <label>
+                      Quantidade
+                      <input
+                        aria-label={`Quantidade ${position}`}
+                        type="number"
+                        min={1}
+                        max={available}
+                        value={line.quantity}
+                        onChange={(event) =>
+                          update(line.key, {
+                            quantity: Math.max(1, Number(event.target.value)),
+                          })
+                        }
+                      />
+                    </label>
+                    <label>
+                      Preço unitário (R$)
+                      <MoneyInput
+                        aria-label={`Preço unitário ${position}`}
+                        valueInCents={line.unitPriceInCents}
+                        onChange={(cents) =>
+                          update(line.key, { unitPriceInCents: cents ?? 0 })
+                        }
+                      />
+                    </label>
+                    <p className="sale-line-total numeric-value">
+                      {currency.format(
+                        (line.quantity * line.unitPriceInCents) / 100,
                       )}
-                  </p>
-                  <button
-                    type="button"
-                    className="secondary-button"
-                    aria-label={`Remover produto ${position}`}
-                    disabled={lines.length === 1}
-                    onClick={() =>
-                      setLines((current) =>
-                        current.filter((other) => other.key !== line.key),
-                      )
-                    }
-                  >
-                    <Trash2 size={16} />
-                  </button>
+                      {product &&
+                        (!sized || line.size) &&
+                        line.quantity > available && (
+                          <span className="field-hint">
+                            Estoque disponível: {available} {product.unit}
+                          </span>
+                        )}
+                    </p>
+                    <button
+                      type="button"
+                      className="secondary-button"
+                      aria-label={`Remover produto ${position}`}
+                      disabled={lines.length === 1}
+                      onClick={() =>
+                        setLines((current) =>
+                          current.filter((other) => other.key !== line.key),
+                        )
+                      }
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                  {product && (
+                    <div className="discount-summary sale-line-discount">
+                      <p className="muted-copy">
+                        {line.discount
+                          ? `${discountLabel(line.discount)} · − ${money(lineDiscount)}`
+                          : "Sem desconto neste produto."}
+                      </p>
+                      <button
+                        type="button"
+                        className="secondary-button button-sm"
+                        aria-label={`${line.discount ? "Alterar" : "Configurar"} desconto do produto ${position}`}
+                        onClick={() =>
+                          setEditingDiscount({ lineKey: line.key })
+                        }
+                      >
+                        {line.discount
+                          ? "Alterar desconto"
+                          : "Configurar desconto"}
+                      </button>
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -420,6 +484,54 @@ export function NewSaleSection({
               />
             </label>
           </div>
+          <div
+            className="sale-discount"
+            role="group"
+            aria-label="Desconto geral"
+          >
+            <div className="discount-summary">
+              <p className="muted-copy">
+                {saleDiscount
+                  ? `Desconto geral: ${discountLabel(saleDiscount)}`
+                  : "Sem desconto geral."}
+              </p>
+              <button
+                type="button"
+                className="secondary-button"
+                aria-label={`${saleDiscount ? "Alterar" : "Configurar"} desconto geral`}
+                disabled={!filled.length}
+                onClick={() => setEditingDiscount("sale")}
+              >
+                {saleDiscount ? "Alterar desconto" : "Configurar desconto"}
+              </button>
+            </div>
+            {discountInCents > 0 && (
+              <dl className="order-totals" aria-label="Resumo dos descontos">
+                <div>
+                  <dt>Subtotal</dt>
+                  <dd className="numeric-value">
+                    {money(order.subtotalInCents)}
+                  </dd>
+                </div>
+                {order.itemDiscountInCents > 0 && (
+                  <div className="order-discount">
+                    <dt>Descontos dos produtos</dt>
+                    <dd className="numeric-value">
+                      − {money(order.itemDiscountInCents)}
+                    </dd>
+                  </div>
+                )}
+                {order.orderDiscountInCents > 0 && (
+                  <div className="order-discount">
+                    <dt>Desconto geral</dt>
+                    <dd className="numeric-value">
+                      − {money(order.orderDiscountInCents)}
+                    </dd>
+                  </div>
+                )}
+              </dl>
+            )}
+          </div>
         </fieldset>
         <div className="modal-actions sale-actions">
           <p className="sale-total">
@@ -439,6 +551,28 @@ export function NewSaleSection({
           </button>
         </div>
       </form>
+      {editingDiscount && (
+        <PatientDiscountModal
+          eyebrow="Vendas"
+          target={editingDiscount === "sale" ? "sale" : "product"}
+          discount={
+            editingDiscount === "sale"
+              ? saleDiscount
+              : lines.find((line) => line.key === editingDiscount.lineKey)
+                  ?.discount
+          }
+          onClose={() => setEditingDiscount(null)}
+          onApply={(discount) => {
+            if (editingDiscount === "sale")
+              setSaleDiscount(discount ?? undefined);
+            else
+              update(editingDiscount.lineKey, {
+                discount: discount ?? undefined,
+              });
+            setEditingDiscount(null);
+          }}
+        />
+      )}
       {pricing && (
         <ProductModal
           product={pricing}
