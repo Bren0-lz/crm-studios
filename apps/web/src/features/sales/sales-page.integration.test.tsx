@@ -119,6 +119,86 @@ describe("página Vendas de produtos", () => {
     );
   });
 
+  it("aplica desconto por produto e desconto geral, como no cadastro do cliente", async () => {
+    const { repository, patient, cream, oil } = await seed();
+    open("/vendas");
+    const panel = await screen.findByRole("region", { name: "Nova venda" });
+    await choosePatient(patient.fullName, panel);
+    fireEvent.change(within(panel).getByLabelText("Produto 1"), {
+      target: { value: cream.id },
+    });
+    fireEvent.change(within(panel).getByLabelText("Quantidade 1"), {
+      target: { value: "2" },
+    });
+    fireEvent.click(
+      within(panel).getByRole("button", { name: "Adicionar produto" }),
+    );
+    fireEvent.change(within(panel).getByLabelText("Produto 2"), {
+      target: { value: oil.id },
+    });
+    expect(within(panel).getByText("Total").textContent).toMatch(/110,00/);
+
+    // Desconto de 10% só no creme (2 × R$ 40,00).
+    fireEvent.click(
+      within(panel).getByRole("button", {
+        name: "Configurar desconto do produto 1",
+      }),
+    );
+    let dialog = await screen.findByRole("dialog", {
+      name: "Desconto do produto",
+    });
+    fireEvent.change(
+      within(dialog).getByLabelText("Porcentagem de desconto (%)"),
+      { target: { value: "10" } },
+    );
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Aplicar desconto" }),
+    );
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+    );
+    expect(within(panel).getByText(/10% de desconto · − R\$\s8,00/));
+    expect(within(panel).getByText("Total").textContent).toMatch(/102,00/);
+
+    // Desconto geral de R$ 10,00, dividido entre os dois produtos.
+    fireEvent.click(
+      within(panel).getByRole("button", { name: "Configurar desconto geral" }),
+    );
+    dialog = await screen.findByRole("dialog", { name: "Desconto geral" });
+    fireEvent.click(within(dialog).getByLabelText("Valor (R$)"));
+    fireEvent.change(within(dialog).getByLabelText("Valor do desconto (R$)"), {
+      target: { value: "10,00" },
+    });
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Aplicar desconto" }),
+    );
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+    );
+    const summary = within(panel).getByLabelText("Resumo dos descontos");
+    expect(summary).toHaveTextContent(/Subtotal\s*R\$\s110,00/);
+    expect(summary).toHaveTextContent(/Descontos dos produtos\s*− R\$\s8,00/);
+    expect(summary).toHaveTextContent(/Desconto geral\s*− R\$\s10,00/);
+    expect(within(panel).getByText("Total").textContent).toMatch(/92,00/);
+
+    fireEvent.click(
+      within(panel).getByRole("button", { name: "Registrar venda" }),
+    );
+    expect(
+      await screen.findByText(/Venda de R\$\s92,00 registrada para Bianca\./),
+    ).toBeInTheDocument();
+    const inventory = await repository.getInventoryWorkspace(clinicId);
+    const sale = inventory.tabs.find((tab) => tab.patientId === patient.id)!;
+    expect(sale.totalInCents).toBe(9_200);
+    expect(sale.notes).toBe("Venda com R$\u00a018,00 de desconto.");
+    // O formulário volta sem descontos para a próxima venda.
+    await waitFor(() =>
+      expect(
+        within(panel).getByText("Sem desconto geral."),
+      ).toBeInTheDocument(),
+    );
+  });
+
   it("mostra as parcelas da venda e quanto de cada produto entra em cada uma", async () => {
     const { patient, cream, oil } = await seed();
     open("/vendas");
@@ -265,7 +345,9 @@ describe("página Vendas de produtos", () => {
     const rows = within(history).getAllByRole("row").slice(1);
     expect(rows).toHaveLength(2);
     expect(within(history).getByText("2× Creme relaxante")).toBeInTheDocument();
-    expect(within(history).getAllByText("A receber")).toHaveLength(2);
+    expect(
+      within(within(history).getByRole("table")).getAllByText("A receber"),
+    ).toHaveLength(2);
     fireEvent.change(within(history).getByLabelText("Cliente"), {
       target: { value: "outra pessoa" },
     });
@@ -305,6 +387,128 @@ describe("página Vendas de produtos", () => {
     const top = screen.getByRole("region", { name: "Produtos mais vendidos" });
     const [first] = within(top).getAllByRole("row").slice(1);
     expect(within(first!).getByText("Creme relaxante")).toBeInTheDocument();
+  });
+
+  it("filtra as vendas realizadas por vendedor, produto, tamanho, situação e valor", async () => {
+    const { repository, patient, cream, oil } = await seed();
+    const seller = await repository.createAdminUser(
+      clinicId,
+      actorId,
+      {
+        fullName: "Carla Vendedora",
+        email: "carla.vendas@example.com",
+        role: "user",
+        password: "SenhaForte123",
+        permissions: ["patients.view", "patients.inventory_view"],
+      },
+      "hash-de-teste",
+    );
+    const shirt = await repository.createProduct(clinicId, actorId, {
+      name: "Camiseta",
+      sku: "CAM",
+      unit: "un",
+      costInCents: 2_000,
+      salePriceInCents: 5_000,
+      initialStock: 0,
+      sizes: ["p", "m", "g"],
+      initialSizeStock: [
+        { size: "p", quantity: 3 },
+        { size: "m", quantity: 3 },
+      ],
+    });
+    await sell(repository, patient.id, cream.id, 2); // R$ 80, Aryana, a receber
+    await repository.createProductSale(clinicId, seller.id, {
+      patientId: patient.id,
+      items: [{ productId: oil.id, quantity: 1 }],
+      settlement: "paid",
+      paymentMethod: "pix",
+      dueDate: "2099-01-10",
+    }); // R$ 30, Carla, paga
+    await repository.createProductSale(clinicId, seller.id, {
+      patientId: patient.id,
+      items: [{ productId: shirt.id, size: "m", quantity: 1 }],
+      settlement: "receivable",
+      dueDate: "2099-01-10",
+    }); // R$ 50, Carla, a receber
+    await repository.createProductSale(clinicId, actorId, {
+      patientId: patient.id,
+      items: [{ productId: shirt.id, size: "p", quantity: 2 }],
+      settlement: "receivable",
+      dueDate: "2099-01-10",
+    }); // R$ 100, Aryana, a receber
+    open("/vendas?aba=vendas");
+
+    const history = await screen.findByRole("region", {
+      name: "Vendas realizadas",
+    });
+    const rows = () => within(history).getAllByRole("row").slice(1);
+    expect(rows()).toHaveLength(4);
+    expect(
+      within(within(history).getByRole("table")).getAllByText(
+        "Carla Vendedora",
+      ),
+    ).toHaveLength(2);
+
+    const sellerFilter = within(history).getByLabelText("Vendedor");
+    fireEvent.change(sellerFilter, { target: { value: seller.id } });
+    expect(rows()).toHaveLength(2);
+    expect(within(history).getByText(/2 vendas de 4 no período/));
+
+    fireEvent.change(within(history).getByLabelText("Situação"), {
+      target: { value: "paid" },
+    });
+    expect(rows()).toHaveLength(1);
+    expect(
+      within(history).getByText("1× Óleo de massagem"),
+    ).toBeInTheDocument();
+
+    fireEvent.click(
+      within(history).getByRole("button", { name: "Limpar filtros" }),
+    );
+    expect(rows()).toHaveLength(4);
+    expect(
+      within(history).queryByRole("button", { name: "Limpar filtros" }),
+    ).toBeNull();
+
+    // Tamanho só aparece com um produto que tem tamanhos, e lista os tamanhos dele.
+    expect(within(history).queryByLabelText("Tamanho")).toBeNull();
+    const productFilter = within(history).getByLabelText("Produto");
+    fireEvent.change(productFilter, { target: { value: cream.id } });
+    expect(rows()).toHaveLength(1);
+    expect(within(history).queryByLabelText("Tamanho")).toBeNull();
+    fireEvent.change(productFilter, { target: { value: shirt.id } });
+    expect(rows()).toHaveLength(2);
+    const size = within(history).getByLabelText("Tamanho");
+    expect(
+      within(size)
+        .getAllByRole("option")
+        .map((option) => option.textContent),
+    ).toEqual(["Todos", "P", "M", "G"]);
+    fireEvent.change(size, { target: { value: "p" } });
+    expect(rows()).toHaveLength(1);
+    expect(within(history).getByText("2× Camiseta · P")).toBeInTheDocument();
+    fireEvent.change(size, { target: { value: "g" } });
+    expect(
+      within(history).getByText("Nenhuma venda com esses filtros"),
+    ).toBeInTheDocument();
+
+    fireEvent.click(
+      within(history).getByRole("button", { name: "Limpar filtros" }),
+    );
+    fireEvent.change(within(history).getByLabelText("Valor mínimo (R$)"), {
+      target: { value: "5000" },
+    });
+    expect(rows()).toHaveLength(3);
+    fireEvent.change(within(history).getByLabelText("Valor máximo (R$)"), {
+      target: { value: "8000" },
+    });
+    expect(rows()).toHaveLength(2);
+    fireEvent.change(within(history).getByLabelText("Valor mínimo (R$)"), {
+      target: { value: "9000" },
+    });
+    expect(within(history).getByRole("alert")).toHaveTextContent(
+      "O valor mínimo é maior que o máximo.",
+    );
   });
 
   it("vende produto com tamanho e baixa o estoque do tamanho escolhido", async () => {
