@@ -16,6 +16,7 @@ import {
   cashPaymentMethodLabels,
   patientFirstName,
   paymentMethodWithInstallments,
+  paymentPartsLabel,
   type PaymentReceipt,
   saoPauloToday,
 } from "@crm/contracts";
@@ -345,9 +346,11 @@ export function receiptMessage(receipt: PaymentReceipt) {
     receipt.installmentCount && receipt.installmentCount > 1
       ? ` (parcela ${receipt.installmentNumber} de ${receipt.installmentCount})`
       : "";
-  const method = receipt.paymentInstallments
-    ? `, ${paymentMethodWithInstallments(receipt.paymentMethod, receipt.paymentInstallments)}`
-    : "";
+  const method = receipt.paymentParts
+    ? `, ${paymentPartsLabel(receipt.paymentParts, (cents) => currency.format(cents / 100))}`
+    : receipt.paymentInstallments
+      ? `, ${paymentMethodWithInstallments(receipt.paymentMethod, receipt.paymentInstallments)}`
+      : "";
   const discount = receipt.customerDiscountInCents
     ? ` (com desconto de ${currency.format(receipt.customerDiscountInCents / 100)})`
     : "";
@@ -376,8 +379,10 @@ export function receivableInstallmentLine(
     | "paymentMethod"
     | "paymentInstallments"
     | "customerDiscountInCents"
+    | "paymentParts"
   >,
 ) {
+  const money = (cents: number) => currency.format(cents / 100);
   return [
     item.installmentCount > 1
       ? `Parcela ${item.installmentNumber} de ${item.installmentCount}`
@@ -385,8 +390,14 @@ export function receivableInstallmentLine(
     item.customerDiscountInCents
       ? `Desconto do cliente: ${currency.format(item.customerDiscountInCents / 100)}`
       : "",
-    item.status === "paid" && item.paymentMethod
-      ? `Pago: ${paymentMethodWithInstallments(item.paymentMethod, item.paymentInstallments)}`
+    item.status === "paid" && item.paymentParts
+      ? `Pago: ${paymentPartsLabel(item.paymentParts, money)}`
+      : item.status === "paid" && item.paymentMethod
+        ? `Pago: ${paymentMethodWithInstallments(item.paymentMethod, item.paymentInstallments)}`
+        : "",
+    // Aberta: as formas previstas na venda (sugeridas na baixa).
+    item.status === "open" && item.paymentParts
+      ? `Previsto: ${paymentPartsLabel(item.paymentParts, money)}`
       : "",
   ]
     .filter(Boolean)

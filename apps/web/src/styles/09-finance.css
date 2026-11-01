@@ -1047,46 +1047,6 @@
   font-size: var(--text-xl);
 }
 
-/* Baixa com pagamento misto: uma linha por forma (forma, valor, parcelas, remover). */
-.settle-parts {
-  display: grid;
-  gap: var(--space-3);
-}
-
-.settle-part {
-  display: grid;
-  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, 1fr) auto;
-  gap: var(--space-3);
-  align-items: end;
-}
-
-.settle-part-installments {
-  display: grid;
-  min-width: 0;
-}
-
-.settle-parts-footer {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-2) var(--space-4);
-}
-
-.settle-parts-footer .muted-copy {
-  flex: 1 1 calc(var(--space-8) * 3);
-  margin: 0;
-}
-
-@media (max-width: 700px) {
-  .settle-part {
-    grid-template-columns: 1fr;
-  }
-
-  .settle-part > .secondary-button {
-    justify-self: end;
-  }
-}
-
 /* Recibo (U40): identificação da clínica. */
 .receipt-clinic {
   display: grid;

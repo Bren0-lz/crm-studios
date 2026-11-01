@@ -1,22 +1,26 @@
 import {
   acceptsPaymentInstallments,
-  maxSettlementPayments,
   settlementBreakdown,
-  settlementPaymentsTotal,
   type PaymentMethod,
+  type PaymentPart,
   type PaymentTiming,
   type SettlementAdjustments,
 } from "@crm/contracts";
-import { Plus, Trash2 } from "lucide-react";
 import { useState, type FormEvent } from "react";
 import { useMissingFields } from "../../shared/components/MissingFields";
 import { Modal, ModalCancelButton } from "../../shared/components/Modal";
 import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
 import { MoneyInput } from "../../shared/components/MoneyInput";
-import { PaymentInstallmentsSelect } from "../../shared/components/PaymentInstallmentsSelect";
+import { PaymentPartsField } from "../../shared/components/PaymentPartsField";
+import {
+  effectiveDrafts,
+  fromPaymentParts,
+  paymentDraftsIssue,
+  toPaymentParts,
+} from "../../shared/lib/payment-parts";
 import { usePaymentMethodSettings } from "../../shared/hooks/usePaymentMethodSettings";
 import { currency } from "../../shared/lib/formatting";
-import { paymentMethodOptions, financeTermHelp } from "./model";
+import { financeTermHelp } from "./model";
 import type { SettleTarget } from "./types";
 import { HelpTip } from "../../shared/components/HelpTip";
 import { PaymentProofsField } from "./PaymentProofs";
@@ -33,28 +37,29 @@ export function SettleModal({
     timing?: PaymentTiming,
     adjustments?: SettlementAdjustments,
     proofs?: File[],
+    /** Pagamento picado (várias formas); ausente = uma forma só (`method`). */
+    payments?: PaymentPart[],
   ) => Promise<void>;
 }) {
   // Por padrão a baixa é agora; "Pagamento antigo?" libera as datas para edição.
   const [pastPayment, setPastPayment] = useState(false),
     [paidAt, setPaidAt] = useState(nowForInput),
     [availableAt, setAvailableAt] = useState("");
-  // A forma combinada na venda (plano) já vem marcada; dá para trocar se o cliente mudou.
-  const [method, setMethod] = useState<PaymentMethod>(
-    target.paymentMethod ?? "pix",
+  // Formas do pagamento: começa com as previstas na venda, a forma combinada no plano
+  // ou Pix; "Adicionar forma" pica.
+  const [parts, setParts] = useState(() =>
+    fromPaymentParts(
+      target.paymentParts,
+      target.amountInCents,
+      target.paymentMethod ?? "pix",
+    ),
   );
-  // Parcelas na própria forma (cartão em 3x); só em conta a receber que não é parcela
-  // de um parcelamento (não faz sentido parcelar uma parcela).
-  const [paymentInstallments, setPaymentInstallments] = useState(1);
   const paymentSettings = usePaymentMethodSettings();
   // Baixa de parcela (U39): desconto, juros e valor recebido; vazio = valor final inteiro.
   const [discount, setDiscount] = useState<number | null>(null),
     [interest, setInterest] = useState<number | null>(null),
     [received, setReceived] = useState<number | null>(null),
     [balanceDueDate, setBalanceDueDate] = useState(target.dueDate ?? "");
-  // Pagamento misto: o valor recebido dividido entre formas (cada uma com valor e parcelas).
-  const [mixed, setMixed] = useState(false),
-    [parts, setParts] = useState<PaymentPart[]>([]);
   const [proofs, setProofs] = useState<File[]>([]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -62,53 +67,58 @@ export function SettleModal({
     pastPayment,
     paidAt,
     availableAt,
-    method,
-    paymentInstallments,
+    parts,
     discount,
     interest,
     received,
     balanceDueDate,
-    mixed,
-    parts,
   });
   const dirty = formDirty || proofs.length > 0;
   const isReceivable = target.kind === "receivable";
+  // Parcela de um parcelamento (plano parcelado) não se parcela de novo na forma.
   const canSplitPayment = isReceivable && acceptsPaymentInstallments(target);
-  const mixedPayment = isReceivable && mixed;
-  const finalInCents = settlementBreakdown(target.amountInCents, {
-    discountInCents: discount ?? 0,
-    interestInCents: interest ?? 0,
-  }).finalInCents;
-  // Misto: a última forma vazia fica com o que faltar do valor final (como "Valor recebido").
-  const othersInCents = settlementPaymentsTotal(
-    parts.slice(0, -1).map((part) => ({ amountInCents: part.amount ?? 0 })),
-  );
-  const restInCents = Math.max(0, finalInCents - othersInCents);
-  const payments = parts.map((part, index) => ({
-    paymentMethod: part.method,
-    amountInCents:
-      part.amount ?? (index === parts.length - 1 ? restInCents : 0),
-    ...(canSplitPayment && part.installments > 1
-      ? { paymentInstallments: part.installments }
-      : {}),
-  }));
-  // Só os ajustes informados: a baixa simples continua com o mesmo pedido de antes.
+  const split = parts.length > 1;
+  // Valor final da parcela (sem considerar o recebido): base para dividir as formas.
+  const finalInCents = isReceivable
+    ? settlementBreakdown(target.amountInCents, {
+        ...(discount ? { discountInCents: discount } : {}),
+        ...(interest ? { interestInCents: interest } : {}),
+      }).finalInCents
+    : target.amountInCents;
+  const effective = effectiveDrafts(parts, finalInCents);
+  const payments = split
+    ? toPaymentParts(effective).map((part) =>
+        canSplitPayment
+          ? part
+          : {
+              paymentMethod: part.paymentMethod,
+              amountInCents: part.amountInCents,
+            },
+      )
+    : undefined;
+  const [first] = effective;
+  const method = first?.paymentMethod ?? "pix";
+  const paymentInstallments = first?.installments ?? 1;
+  // Só os ajustes informados: a baixa simples continua com o mesmo pedido de antes. No picado,
+  // o valor recebido é a soma das formas.
   const values: SettlementAdjustments = {
     ...(discount ? { discountInCents: discount } : {}),
     ...(interest ? { interestInCents: interest } : {}),
-    ...(mixedPayment
-      ? { receivedInCents: settlementPaymentsTotal(payments) }
+    ...(payments
+      ? {
+          receivedInCents: payments.reduce(
+            (sum, part) => sum + part.amountInCents,
+            0,
+          ),
+        }
       : received === null
         ? {}
         : { receivedInCents: received }),
   };
   const breakdown = settlementBreakdown(target.amountInCents, values);
-  const mixedError =
-    mixedPayment && parts.slice(0, -1).some((part) => !part.amount)
-      ? "Informe o valor de cada forma de pagamento."
-      : mixedPayment && breakdown.receivedInCents > breakdown.finalInCents
-        ? "A soma das formas de pagamento não pode passar do valor final."
-        : "";
+  const partsIssue = split
+    ? paymentDraftsIssue(parts, finalInCents, isReceivable)
+    : null;
   // Pagamento parcial: o saldo precisa de vencimento; sem ele, Confirmar diz o que falta.
   const missing = useMissingFields(
     isReceivable &&
@@ -119,61 +129,35 @@ export function SettleModal({
       : [],
   );
   const adjustments: SettlementAdjustments = {
-    ...values,
-    ...(mixedPayment
-      ? { payments }
-      : canSplitPayment && paymentInstallments > 1
-        ? { paymentInstallments }
-        : {}),
+    ...(payments
+      ? {
+          ...(discount ? { discountInCents: discount } : {}),
+          ...(interest ? { interestInCents: interest } : {}),
+          payments,
+        }
+      : values),
+    ...(!payments && canSplitPayment && paymentInstallments > 1
+      ? { paymentInstallments }
+      : {}),
     ...(breakdown.balanceInCents > 0 && balanceDueDate
       ? { balanceDueDate }
       : {}),
   };
-  function toggleMixed(checked: boolean) {
-    setMixed(checked);
-    if (checked && parts.length === 0)
-      setParts([
-        { key: 1, method, amount: received, installments: paymentInstallments },
-        {
-          key: 2,
-          method:
-            paymentMethodOptions.find((option) => option.value !== method)
-              ?.value ?? method,
-          amount: null,
-          installments: 1,
-        },
-      ]);
-  }
-  function updatePart(key: number, change: Partial<PaymentPart>) {
-    setParts((current) =>
-      current.map((part) => (part.key === key ? { ...part, ...change } : part)),
-    );
-  }
-  function addPart() {
-    setParts((current) => [
-      ...current,
-      {
-        key: Math.max(...current.map((part) => part.key)) + 1,
-        method:
-          paymentMethodOptions.find(
-            (option) => !current.some((part) => part.method === option.value),
-          )?.value ?? "pix",
-        amount: null,
-        installments: 1,
-      },
-    ]);
-  }
   async function submit(event: FormEvent) {
     event.preventDefault();
-    if (mixedError || (isReceivable && breakdown.error)) {
-      setError(mixedError || breakdown.error || "");
+    if (partsIssue) {
+      setError(partsIssue);
+      return;
+    }
+    if (isReceivable && breakdown.error) {
+      setError(breakdown.error);
       return;
     }
     setError("");
     setLoading(true);
     try {
       await onConfirm(
-        mixedPayment ? (parts[0]?.method ?? method) : method,
+        method,
         pastPayment && (paidAt || availableAt)
           ? {
               ...(paidAt ? { paidAt: new Date(paidAt).toISOString() } : {}),
@@ -184,6 +168,7 @@ export function SettleModal({
           : undefined,
         isReceivable ? adjustments : undefined,
         proofs,
+        payments,
       );
     } catch (cause) {
       setError((cause as Error).message);
@@ -219,135 +204,29 @@ export function SettleModal({
             </div>
           </dl>
         )}
-        {isReceivable && (
-          <label className="checkbox-field span-2">
-            <input
-              type="checkbox"
-              checked={mixed}
-              disabled={loading}
-              onChange={(event) => toggleMixed(event.target.checked)}
-            />
-            Pagamento misto (dividir entre formas de pagamento)
-          </label>
-        )}
-        {!mixedPayment && (
-          <label className="span-2">
-            {isReceivable
+        <PaymentPartsField
+          className="span-2"
+          parts={parts}
+          onChange={setParts}
+          totalInCents={finalInCents}
+          methodLabel={
+            isReceivable
               ? "Forma de pagamento recebida"
-              : "Forma de pagamento usada"}
-            <select
-              autoFocus
-              value={method}
-              onChange={(event) =>
-                setMethod(event.target.value as PaymentMethod)
-              }
-            >
-              {paymentMethodOptions.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </label>
-        )}
-        {mixedPayment && (
-          <fieldset className="form-fieldset span-2">
-            <legend>Formas de pagamento</legend>
-            <div className="settle-parts">
-              {parts.map((part, index) => {
-                const position = index + 1;
-                const last = index === parts.length - 1;
-                return (
-                  <div className="settle-part" key={part.key}>
-                    <label>
-                      Forma {position}
-                      <select
-                        aria-label={`Forma de pagamento ${position}`}
-                        value={part.method}
-                        disabled={loading}
-                        onChange={(event) =>
-                          updatePart(part.key, {
-                            method: event.target.value as PaymentMethod,
-                          })
-                        }
-                      >
-                        {paymentMethodOptions.map((option) => (
-                          <option key={option.value} value={option.value}>
-                            {option.label}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <label>
-                      Valor (R$)
-                      <MoneyInput
-                        aria-label={`Valor da forma ${position}`}
-                        valueInCents={part.amount}
-                        placeholder={last ? money(restInCents) : undefined}
-                        disabled={loading}
-                        onChange={(cents) =>
-                          updatePart(part.key, { amount: cents })
-                        }
-                      />
-                    </label>
-                    {canSplitPayment && (
-                      <div className="settle-part-installments">
-                        <PaymentInstallmentsSelect
-                          method={part.method}
-                          settings={paymentSettings}
-                          value={part.installments}
-                          onChange={(installments) =>
-                            updatePart(part.key, { installments })
-                          }
-                        />
-                      </div>
-                    )}
-                    <button
-                      type="button"
-                      className="secondary-button"
-                      aria-label={`Remover forma ${position}`}
-                      disabled={loading || parts.length <= 2}
-                      onClick={() =>
-                        setParts((current) =>
-                          current.filter((other) => other.key !== part.key),
-                        )
-                      }
-                    >
-                      <Trash2 size={16} aria-hidden="true" />
-                    </button>
-                  </div>
-                );
-              })}
-              <div className="settle-parts-footer">
-                <button
-                  type="button"
-                  className="secondary-button"
-                  disabled={loading || parts.length >= maxSettlementPayments}
-                  onClick={addPart}
-                >
-                  <Plus size={16} aria-hidden="true" />
-                  Adicionar forma
-                </button>
-                <p className="muted-copy" aria-live="polite">
-                  Total nas formas: {money(breakdown.receivedInCents)} de{" "}
-                  {money(breakdown.finalInCents)}. A última forma em branco fica
-                  com o restante.
-                </p>
-              </div>
-            </div>
-          </fieldset>
-        )}
+              : "Forma de pagamento usada"
+          }
+          settings={paymentSettings}
+          disabled={loading}
+          allowPartial={isReceivable}
+          // Despesa e parcela de plano parcelado: sem parcelamento na forma.
+          {...(canSplitPayment ? {} : { renderInstallments: () => null })}
+          hint={
+            isReceivable
+              ? "Recebeu em mais de uma forma? Adicione as outras e informe o valor de cada uma."
+              : "Pagou em mais de uma forma? Adicione as outras e informe o valor de cada uma."
+          }
+        />
         {isReceivable && (
           <>
-            {!mixedPayment && canSplitPayment && (
-              <PaymentInstallmentsSelect
-                className="span-2"
-                method={method}
-                settings={paymentSettings}
-                value={paymentInstallments}
-                onChange={setPaymentInstallments}
-              />
-            )}
             <label>
               Desconto (R$)
               <MoneyInput
@@ -366,7 +245,7 @@ export function SettleModal({
                 onChange={setInterest}
               />
             </label>
-            {!mixedPayment && (
+            {!split && (
               <label>
                 Valor recebido (R$)
                 <MoneyInput
@@ -486,12 +365,4 @@ function nowForInput() {
   const now = new Date();
   now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
   return now.toISOString().slice(0, 16);
-}
-
-interface PaymentPart {
-  key: number;
-  method: PaymentMethod;
-  /** Vazio na última forma = o que faltar do valor final. */
-  amount: number | null;
-  installments: number;
 }

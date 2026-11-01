@@ -2,6 +2,7 @@ export * from "./model.js";
 export * from "./types.js";
 
 export * from "./installments.js";
+export * from "./payment-parts.js";
 
 export * from "./external-operations.js";
 

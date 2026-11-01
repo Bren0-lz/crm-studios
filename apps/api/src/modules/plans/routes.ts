@@ -263,6 +263,7 @@ export function registerPlansRoutes(context: RouteContext) {
         !isRecurringChargeValid({
           kind: current.kind,
           installments: input.installments,
+          paymentParts: input.paymentParts,
         })
       )
         throw new DomainError(
@@ -273,6 +274,7 @@ export function registerPlansRoutes(context: RouteContext) {
       await assertInstallmentsAllowed(request.user.clinicId, {
         installments: input.installments,
         paymentMethod: input.paymentMethod,
+        paymentParts: input.paymentParts,
         planTemplateId: current?.planTemplateId,
       });
       const plan = await repository.renewPatientPlan(
