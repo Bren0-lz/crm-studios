@@ -67,6 +67,12 @@ import { addMonths, now, today, uuid } from "./helpers.js";
 export function createFinanceRepository(
   repositoryContext: MemoryRepositoryContext,
 ) {
+  /** Vendedor da comanda: o usuário que a abriu (omitido se não for encontrado). */
+  function soldBy(userId: string) {
+    const user = repositoryContext.users.find((item) => item.id === userId);
+    return user ? { soldByUserId: user.id, soldByName: user.fullName } : {};
+  }
+
   /** Fontes do caixa (todo o histórico) no escopo de filial da requisição. */
   function cashSources(clinicId: string): DailyCashSources {
     const payables = repositoryContext.payables.filter(
@@ -293,7 +299,7 @@ export function createFinanceRepository(
 
     async openPatientTab(
       clinicId: string,
-      _actorUserId: string,
+      actorUserId: string,
       input: PatientTabInput,
     ) {
       const patient = repositoryContext.patients.find(
@@ -314,6 +320,7 @@ export function createFinanceRepository(
         id: uuid(),
         clinicId,
         patientName: patient.fullName,
+        ...soldBy(actorUserId),
         status: "open",
         paymentStatus: "pending",
         totalInCents: 0,
