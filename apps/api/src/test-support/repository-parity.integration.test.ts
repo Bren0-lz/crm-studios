@@ -249,7 +249,6 @@ for (const storage of ["memory", "mysql"] as const) {
             name: "Serviço restrito " + randomUUID(),
             durationMinutes: 60,
             priceInCents: 0,
-            color: "#336699",
             professionalIds: [linked!.id],
           });
           const room = await repository.createRoom(clinicId, {

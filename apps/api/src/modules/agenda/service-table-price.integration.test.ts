@@ -27,7 +27,6 @@ describe("preço do serviço", () => {
         name: "Reformer",
         durationMinutes: 50,
         priceInCents: 12000,
-        color: "#547A6B",
       },
     });
     expect(created.statusCode).toBe(201);
@@ -40,7 +39,6 @@ describe("preço do serviço", () => {
         name: "Preço negativo",
         durationMinutes: 50,
         priceInCents: -1,
-        color: "#547A6B",
       },
     });
     expect(negative.statusCode).toBe(400);
