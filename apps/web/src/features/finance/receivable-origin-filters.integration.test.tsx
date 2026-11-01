@@ -97,6 +97,10 @@ describe("receivable filters by sold plan and service", () => {
       expect(
         within(dialog).queryByLabelText("Categoria do lançamento"),
       ).not.toBeInTheDocument();
+      // A busca por cliente fica na própria lista, não no modal.
+      expect(
+        within(dialog).queryByLabelText("Pesquisar lançamento"),
+      ).not.toBeInTheDocument();
       for (const [label, value] of values) change(label, value, dialog);
       fireEvent.click(
         within(dialog).getByRole("button", { name: "Salvar filtros" }),

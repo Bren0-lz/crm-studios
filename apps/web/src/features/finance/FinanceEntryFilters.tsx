@@ -102,6 +102,27 @@ export function FinanceEntryFilters({
     setDraft((current) => ({ ...current, ...filter }));
   const count = activeFilterCount(value);
   const origins = receivableOrigins(workspace);
+  const statusField = (
+    <label>
+      Situação do lançamento
+      <select
+        value={draft.status ?? ""}
+        onChange={(event) =>
+          patch({
+            status:
+              (event.target.value as FinancialEntryFilter["status"]) ||
+              undefined,
+          })
+        }
+      >
+        <option value="">Todas</option>
+        <option value="open">Em aberto</option>
+        <option value="overdue">Em atraso</option>
+        <option value="paid">Pago</option>
+        <option value="cancelled">Cancelado</option>
+      </select>
+    </label>
+  );
   return (
     <div className="finance-filter-bar">
       <button
@@ -153,14 +174,17 @@ export function FinanceEntryFilters({
               setOpen(false);
             }}
           >
-            <label>
-              Pesquisar lançamento
-              <input
-                maxLength={200}
-                value={draft.search ?? ""}
-                onChange={(event) => patch({ search: event.target.value })}
-              />
-            </label>
+            {/* Contas a receber já têm a busca por cliente na própria lista. */}
+            {payables && (
+              <label>
+                Pesquisar lançamento
+                <input
+                  maxLength={200}
+                  value={draft.search ?? ""}
+                  onChange={(event) => patch({ search: event.target.value })}
+                />
+              </label>
+            )}
             <label>
               Data considerada
               <select
@@ -180,6 +204,7 @@ export function FinanceEntryFilters({
                 </option>
               </select>
             </label>
+            {!payables && statusField}
             <label>
               De
               <input
@@ -202,25 +227,7 @@ export function FinanceEntryFilters({
                 }
               />
             </label>
-            <label>
-              Situação do lançamento
-              <select
-                value={draft.status ?? ""}
-                onChange={(event) =>
-                  patch({
-                    status:
-                      (event.target.value as FinancialEntryFilter["status"]) ||
-                      undefined,
-                  })
-                }
-              >
-                <option value="">Todas</option>
-                <option value="open">Em aberto</option>
-                <option value="overdue">Em atraso</option>
-                <option value="paid">Pago</option>
-                <option value="cancelled">Cancelado</option>
-              </select>
-            </label>
+            {payables && statusField}
             {payables ? (
               <label>
                 Categoria do lançamento
