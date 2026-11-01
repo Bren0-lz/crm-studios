@@ -138,7 +138,7 @@ export interface CampaignReportRow {
   pending: number;
   /** Agendamentos com a promoção da campanha no período, sem os cancelados. */
   redemptions: number;
-  /** Campanha automática promocional (tem promoção para usar ao agendar). */
+  /** Campanha promocional (tem promoção para usar ao agendar). */
   promotional?: boolean | undefined;
 }
 

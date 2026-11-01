@@ -198,6 +198,27 @@
     minmax(0, 1fr) auto;
 }
 
+/* Produto da venda: a linha com os campos e, abaixo, o desconto só desse produto. */
+.sale-item {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.sale-line-discount {
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid var(--line);
+}
+
+.sale-line-discount > .muted-copy {
+  font-size: var(--text-sm);
+}
+
+/* Desconto geral da venda e o resumo dos descontos, acima do total. */
+.sale-discount {
+  display: grid;
+  gap: var(--space-3);
+}
+
 /* Produto escolhido sem preço de venda: bloqueia a venda e oferece cadastrar o preço. */
 .sale-price-alert {
   display: flex;

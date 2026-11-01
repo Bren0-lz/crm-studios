@@ -33,6 +33,7 @@ import type {
   MessageTemplateImageContent,
   WhatsappCampaign,
   WhatsappCampaignDetail,
+  WhatsappCampaignPromotion,
   WhatsappCampaignRecipientDraft,
 } from "@crm/contracts";
 import type { BranchScopeStore } from "./storage/branch-scope.js";
@@ -1532,6 +1533,7 @@ export interface ClinicRepository {
       templateId: string;
       name: string;
       recipients: WhatsappCampaignRecipientDraft[];
+      promotion?: WhatsappCampaignPromotion | undefined;
     },
   ): Promise<WhatsappCampaignDetail>;
   /** Marca enviado/pulado (ou volta a pendente); conclui a campanha quando não sobra pendente. */
@@ -1542,6 +1544,10 @@ export interface ClinicRepository {
     recipientId: string,
     status: CampaignRecipientStatus,
   ): Promise<CampaignRecipientUpdate | null>;
+  /** Usos das promoções das campanhas manuais (com o status atual do atendimento). */
+  listWhatsappCampaignRedemptions(
+    clinicId: string,
+  ): Promise<AutoCampaignRedemption[]>;
   /** Campanhas automáticas não excluídas, da mais recente para a mais antiga. */
   listAutoCampaigns(clinicId: string): Promise<AutoCampaign[]>;
   getAutoCampaign(
@@ -1755,6 +1761,8 @@ export type AutoCampaignDeliveryWrite = AutoCampaignDeliveryInput & {
 
 /** Uso de promoção já validado pela rota (oferta vigente para o cliente). */
 export interface AutoCampaignRedemptionWrite {
+  /** `manual` = promoção de campanha manual (WhatsApp); ausente = automática. */
+  source?: "manual" | undefined;
   campaignId: string;
   occurrenceKey: string;
   redeemedOn: string;
