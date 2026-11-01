@@ -1,6 +1,7 @@
 import { CommissionReconciliationModal } from "./CommissionReconciliationModal";
 import {
   matchesFinancialEntry,
+  planPaymentSummary,
   saoPauloToday,
   settlementBreakdown,
   type SettlementAdjustments,
@@ -207,12 +208,19 @@ export function FinancePage() {
       target.kind === "receivable" && adjustments
         ? settlementBreakdown(target.amountInCents, adjustments).balanceInCents
         : 0;
+    const parts = adjustments?.payments?.length ?? 0;
     toast.success(
       target.kind !== "receivable"
         ? "Conta paga."
-        : balance > 0
-          ? `Pagamento parcial recebido. O saldo de ${currency.format(balance / 100)} virou uma nova parcela.`
-          : "Pagamento recebido.",
+        : parts > 1
+          ? `Pagamento misto recebido em ${parts} formas.${
+              balance > 0
+                ? ` O saldo de ${currency.format(balance / 100)} virou uma nova parcela.`
+                : ""
+            }`
+          : balance > 0
+            ? `Pagamento parcial recebido. O saldo de ${currency.format(balance / 100)} virou uma nova parcela.`
+            : "Pagamento recebido.",
     );
     if (failedProofs.length) toast.error(proofFailureMessage(failedProofs));
     // A baixa foi feita: fecha o modal e, se o recarregamento falhar, avisa na página.
@@ -496,14 +504,9 @@ export function FinancePage() {
                 onSelectedChange={setSelectedReceivables}
                 onRenegotiate={() => setRenegotiating(true)}
                 onSettle={(item) =>
-                  setSettling({
-                    kind: "receivable",
-                    id: item.id,
-                    title: item.patientName,
-                    description: item.description,
-                    amountInCents: item.amountInCents,
-                    dueDate: item.dueDate,
-                  })
+                  setSettling(
+                    receivableSettleTarget(item, data.summary.receivables),
+                  )
                 }
                 onReverse={(id) => void reverseReceivable(id)}
                 onAdjust={(item) => setAdjusting(item)}
@@ -747,4 +750,39 @@ export function FinancePage() {
       )}
     </>
   );
+}
+
+/**
+ * Baixa de uma conta a receber: a forma combinada na venda do plano vem marcada e, nas
+ * cobranças de plano, o modal mostra o total contratado e quantas parcelas já foram pagas.
+ */
+function receivableSettleTarget(
+  item: Receivable,
+  receivables: readonly Receivable[],
+): SettleTarget {
+  const method = item.planPaymentMethod ?? item.paymentMethod;
+  const summary = item.planId
+    ? planPaymentSummary(
+        receivables.filter((entry) => entry.planId === item.planId),
+      )
+    : null;
+  return {
+    kind: "receivable",
+    id: item.id,
+    title: item.patientName,
+    description: item.description,
+    amountInCents: item.amountInCents,
+    dueDate: item.dueDate,
+    installmentCount: item.installmentCount,
+    ...(method ? { paymentMethod: method } : {}),
+    ...(summary && item.planTotalInCents !== undefined
+      ? {
+          plan: {
+            totalInCents: item.planTotalInCents,
+            installmentCount: summary.installmentCount,
+            paidCount: summary.paidCount,
+          },
+        }
+      : {}),
+  };
 }
