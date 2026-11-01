@@ -58,7 +58,6 @@ const service: Service = {
   name: "Pilates",
   active: true,
   durationMinutes: 50,
-  priceInCents: 16000,
   color: "#276749",
 };
 const template: PlanTemplate = {

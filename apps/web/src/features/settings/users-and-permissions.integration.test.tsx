@@ -488,7 +488,9 @@ describe("users and permissions", () => {
     );
     const again = screen.getByRole("dialog", { name: "Editar Aryana Dutra" });
     fireEvent.click(
-      within(again).getByRole("checkbox", { name: "Acessa o painel de vendas" }),
+      within(again).getByRole("checkbox", {
+        name: "Acessa o painel de vendas",
+      }),
     );
     fireEvent.submit(
       within(again)
@@ -1203,7 +1205,6 @@ describe("users and permissions", () => {
           clinicId: customUser.clinicId,
           name: "Pilates",
           durationMinutes: 50,
-          priceInCents: 12000,
           color: "#547A6B",
           active: true,
         },
@@ -1212,7 +1213,6 @@ describe("users and permissions", () => {
           clinicId: customUser.clinicId,
           name: "Dançaterapia",
           durationMinutes: 60,
-          priceInCents: 9000,
           color: "#336699",
           active: true,
         },

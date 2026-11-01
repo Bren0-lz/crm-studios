@@ -80,7 +80,6 @@ beforeEach(() => {
       name: "Dançaterapia",
       active: true,
       durationMinutes: 50,
-      priceInCents: 16000,
       color: "#000000",
     },
   ]);

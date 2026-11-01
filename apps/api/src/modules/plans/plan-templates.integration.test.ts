@@ -237,7 +237,6 @@ describe("plan catalog", () => {
     const foreignService = await repository.createService(foreignClinic, {
       name: "Serviço externo",
       durationMinutes: 60,
-      priceInCents: 0,
       color: "#64748b",
     });
     const foreign = await repository.createPlanTemplate(
