@@ -627,7 +627,7 @@ export function createFinanceRepository(
       clinicId: string,
       _actorUserId: string,
       tabId: string,
-      options: { refundPayment?: boolean } = {},
+      options: { refundPayment?: boolean; reason?: string | undefined } = {},
     ) {
       const tab = repositoryContext.patientTabs.find(
         (item) => item.clinicId === clinicId && item.id === tabId,
@@ -684,6 +684,7 @@ export function createFinanceRepository(
       tab.status = "cancelled";
       tab.paymentStatus = "cancelled";
       tab.cancelledAt = now();
+      if (options.reason) tab.cancellationReason = options.reason;
       return tab;
     },
 
