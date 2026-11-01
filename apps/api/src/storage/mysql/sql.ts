@@ -179,7 +179,7 @@ export const commissionRuleJoin = (clinicExpression: string) =>
 export const commissionRuleSnapshot = `JSON_OBJECT('percentage',rule.percentage,'kind',rule.kind,'fixedAmountInCents',rule.fixed_amount_in_cents,'serviceId',rule.service_id,'effectiveFrom',rule.effective_from,'effectiveUntil',rule.effective_until)`;
 
 /**
- * Base da comissão percentual (serviço não tem preço): o valor por sessão do serviço no
+ * Base da comissão percentual (o preço de tabela do serviço não entra): o valor por sessão do serviço no
  * plano consumido pelo atendimento/presença; sem consumo de plano, o valor por sessão do
  * plano avulso ativo do serviço (o cadastrado primeiro); sem nenhum, 0. Mesma regra de
  * `commissionBaseInCents` (memória) e `singlePlanSessionPrices` (contratos).

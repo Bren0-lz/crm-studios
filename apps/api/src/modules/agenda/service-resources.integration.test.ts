@@ -19,6 +19,7 @@ describe("service professionals and rooms", () => {
       payload: {
         name: "Pilates aparelho",
         durationMinutes: 50,
+        priceInCents: 9_000,
         color: "#547A6B",
         professionalIds: [professionalId],
         roomIds: [roomId],
@@ -46,6 +47,7 @@ describe("service professionals and rooms", () => {
       payload: {
         name: "Avaliação",
         durationMinutes: 30,
+        priceInCents: 0,
         color: "#547A6B",
       },
     });
@@ -69,6 +71,7 @@ describe("service professionals and rooms", () => {
       payload: {
         name: "Depilação",
         durationMinutes: 30,
+        priceInCents: 5_000,
         color: "#db8290",
         professionalIds: [ana!.id],
         roomIds: [movement!.id],
@@ -164,6 +167,7 @@ describe("service professionals and rooms", () => {
       payload: {
         name: "Depilação",
         durationMinutes: 30,
+        priceInCents: 5_000,
         color: "#db8290",
         professionalIds: [ana!.id],
         roomIds: [movement!.id],
