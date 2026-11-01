@@ -48,6 +48,7 @@ import { CpfInput } from "../../shared/components/CpfInput";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
 import { useMissingFields } from "../../shared/components/MissingFields";
 import { planGroupMissing } from "../../shared/lib/plan-groups";
+import { productSaleInstallments } from "../../shared/lib/product-installments";
 import { Modal, ModalCancelButton } from "../../shared/components/Modal";
 import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
 import { PhoneInput } from "../../shared/components/PhoneInput";
@@ -393,6 +394,22 @@ export function PatientModal({
   );
   const orderLine = (key: string) =>
     order.lines.find((line) => line.key === key);
+  const productLinesOfOrder = order.lines.filter(
+    (line) => line.kind === "product",
+  );
+  const productInstallments = productLinesOfOrder.length
+    ? productSaleInstallments({
+        items: productLinesOfOrder.map((line) => ({
+          label: line.name,
+          grossInCents: line.grossInCents,
+        })),
+        discountInCents: productLinesOfOrder.reduce(
+          (sum, line) => sum + line.grossInCents - line.netInCents,
+          0,
+        ),
+        ...productPayment,
+      })
+    : undefined;
   /** Termos do plano com a parte do desconto geral que coube a ele. */
   function withOrderShare<T extends GuidedSingleForm>(form: T, key: string): T {
     const terms = { ...form };
@@ -1221,6 +1238,7 @@ export function PatientModal({
         {(sellsItems > 0 || productLines.length > 0) && (
           <GuidedOrderSummary
             order={order}
+            productInstallments={productInstallments}
             orderDiscount={orderDiscount}
             disabled={!editable || loading}
             onEditOrderDiscount={() =>

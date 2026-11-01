@@ -2,7 +2,9 @@ import {
   allocatePlanRevenue,
   discountedPlanInstallments,
   patientDiscountOff,
+  planInstallmentPreview,
   planInstallmentSchedule,
+  type InstallmentPreview,
   type PatientDiscount,
   type ProductSize,
 } from "@crm/contracts";
@@ -55,6 +57,8 @@ export interface OrderLine {
   netInCents: number;
   /** Produto: preço unitário já com os descontos (o que vai para a venda). */
   unitNetInCents?: number;
+  /** Plano: parcelas geradas na venda, com o desconto do plano e a parte do geral. */
+  installments?: InstallmentPreview[];
 }
 
 export interface GuidedOrder {
@@ -152,6 +156,12 @@ export function guidedOrder(
     line.netInCents -= extra;
     leftover -= extra;
   }
+  for (const [index, { plan }] of planLines.entries())
+    lines[index]!.installments = planInstallmentPreview({
+      ...plan.terms,
+      discount: plan.discount,
+      orderDiscountInCents: lines[index]!.orderDiscountInCents,
+    });
   const sum = (pick: (line: OrderLine) => number) =>
     lines.reduce((total, line) => total + pick(line), 0);
   return {
