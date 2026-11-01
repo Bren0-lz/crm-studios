@@ -144,6 +144,7 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
   "GET /appointments/pending-finalization": viewAny("agenda"),
   "GET /appointments/completed": viewAny("agenda"),
   "GET /appointments/promotions": operation("agenda.create"),
+  "GET /appointments/pricing": operation("agenda.create"),
   "GET /waitlist": view("waitlist"),
   "GET /waitlist/options": view("waitlist"),
   "POST /waitlist": operation("waitlist.manage"),
@@ -466,13 +467,7 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
   "PUT /inventory/products/:id": operation("patients.products_update"),
   "PUT /patient-tabs/:id/items/:itemId": operation("patients.tabs_items"),
   "DELETE /patient-tabs/:id/items/:itemId": operation("patients.tabs_items"),
-  "GET /patient-tabs/:id/appointment-options": operation("patients.tabs_items"),
-  "POST /patient-tabs/:id/services": operation("patients.tabs_items"),
   "DELETE /patient-tabs/:id/services/:itemId": operation("patients.tabs_items"),
-  "POST /patient-tabs/:id/appointments": operation(
-    "patients.tabs_items",
-    "agenda.create",
-  ),
   // Fornecedores também ficam em Vendas de produtos › Fornecedores (patients.suppliers_manage);
   // a lista dessa aba sai de GET /inventory/suppliers.
   "GET /finance/suppliers": view("finance"),

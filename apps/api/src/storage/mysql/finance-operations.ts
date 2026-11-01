@@ -2,13 +2,11 @@ import { loadCommissionAdjustments } from "./commission-reconciliation.js";
 import {
   type ProductUpdateInput,
   type PatientTabItemUpdate,
-  type PatientTabServiceInput,
   type Supplier,
   type SupplierInput,
   type ManualReceivableInput,
   type FinancialClassification,
   type DreGroup,
-  type AppointmentInput,
   type ProductSize,
 } from "@crm/contracts";
 import type { PoolClient } from "../../infrastructure/mysql-client.js";
@@ -18,7 +16,6 @@ import { randomUUID } from "node:crypto";
 import type { MysqlRepositoryContext } from "./context.js";
 import {
   branchOrDefault,
-  localDate,
   localMonth,
   localToday,
   writeAndRead,
@@ -160,96 +157,6 @@ export function createFinanceOperationsRepository(
         "Centro de custo não encontrado.",
         404,
       );
-  }
-  async function covered(
-    client: PoolClient,
-    clinicId: string,
-    patientId: string,
-    serviceId: string,
-    startsAt: string | Date,
-  ) {
-    return Boolean(
-      (
-        await client.query(
-          `SELECT pp.id FROM patient_plans pp JOIN patient_plan_services pps ON pps.plan_id=pp.id AND pps.clinic_id=pp.clinic_id WHERE pp.clinic_id=$1 AND pp.patient_id=$2 AND pps.service_id=$3 AND pp.status='active' AND pp.source_tab_id IS NULL AND pp.valid_from<=${localDate("$4")} AND (pp.valid_until IS NULL OR pp.valid_until>=${localDate("$4")}) FOR UPDATE`,
-          [clinicId, patientId, serviceId, startsAt],
-        )
-      ).rowCount,
-    );
-  }
-  async function addService(
-    client: PoolClient,
-    clinicId: string,
-    actorUserId: string,
-    tabId: string,
-    input: PatientTabServiceInput,
-  ) {
-    await client.lock(clinicId);
-    const current = await tab(client, clinicId, tabId);
-    const result = await client.query<{
-      id: string;
-      serviceId: string;
-      serviceName: string;
-      professionalId: string;
-      professionalName: string;
-      price: number;
-      startsAt: Date;
-      sameBranch: boolean;
-    }>(
-      `SELECT a.id,a.service_id AS "serviceId",s.name AS "serviceName",a.professional_id AS "professionalId",p.full_name AS "professionalName",s.price_in_cents AS price,a.starts_at AS "startsAt",a.branch_id=(SELECT t.branch_id FROM patient_tabs t WHERE t.clinic_id=$1 AND t.id=$4) AS "sameBranch" FROM appointments a JOIN services s ON s.id=a.service_id AND s.clinic_id=a.clinic_id JOIN professionals p ON p.id=a.professional_id AND p.clinic_id=a.clinic_id WHERE a.clinic_id=$1 AND a.id=$2 AND a.patient_id=$3 AND a.status IN ('scheduled','confirmed') FOR UPDATE`,
-      [clinicId, input.appointmentId, current.patientId, tabId],
-    );
-    const appointment = result.rows[0];
-    if (!appointment)
-      throw new DomainError(
-        "APPOINTMENT_NOT_FOUND",
-        "Atendimento do cliente não encontrado.",
-        404,
-      );
-    if (!appointment.sameBranch)
-      throw new DomainError(
-        "BRANCH_MISMATCH",
-        "O atendimento é de outra filial que não a da comanda.",
-        409,
-      );
-    if (
-      await covered(
-        client,
-        clinicId,
-        current.patientId,
-        appointment.serviceId,
-        appointment.startsAt,
-      )
-    )
-      throw new DomainError(
-        "APPOINTMENT_ALREADY_BILLED",
-        "O atendimento pertence a um plano ou outra comanda.",
-        409,
-      );
-    await client.query(
-      `INSERT INTO patient_tab_services(clinic_id,tab_id,appointment_id,service_id,service_name,professional_id,professional_name,amount_in_cents) VALUES($1,$2,$3,$4,$5,$6,$7,$8)`,
-      [
-        clinicId,
-        tabId,
-        appointment.id,
-        appointment.serviceId,
-        appointment.serviceName,
-        appointment.professionalId,
-        appointment.professionalName,
-        input.amountInCents ?? appointment.price,
-      ],
-    );
-    await total(client, clinicId, tabId);
-    await context.addAdminAudit(
-      client,
-      clinicId,
-      actorUserId,
-      "tab.service_added",
-      "patient_tab",
-      tabId,
-      { appointmentId: appointment.id },
-    );
-    return (await context.findPatientTab(clinicId, tabId, client))!;
   }
   return {
     async updateProduct(
@@ -443,26 +350,6 @@ export function createFinanceOperationsRepository(
         return (await context.findPatientTab(clinicId, tabId, client))!;
       });
     },
-    async addPatientTabService(
-      clinicId: string,
-      actorUserId: string,
-      tabId: string,
-      input: PatientTabServiceInput,
-    ) {
-      try {
-        return await context.inTransaction((client) =>
-          addService(client, clinicId, actorUserId, tabId, input),
-        );
-      } catch (error) {
-        if (hasDatabaseCode(error, "23505"))
-          throw new DomainError(
-            "APPOINTMENT_ALREADY_BILLED",
-            "O atendimento pertence a um plano ou outra comanda.",
-            409,
-          );
-        throw error;
-      }
-    },
     async removePatientTabService(
       clinicId: string,
       actorUserId: string,
@@ -492,46 +379,6 @@ export function createFinanceOperationsRepository(
           { itemId },
         );
         return (await context.findPatientTab(clinicId, tabId, client))!;
-      });
-    },
-    async createPatientTabAppointment(
-      clinicId: string,
-      actorUserId: string,
-      tabId: string,
-      input: Omit<AppointmentInput, "patientId">,
-    ) {
-      return context.inTransaction(async (client) => {
-        const current = await tab(client, clinicId, tabId);
-        const service = await client.query<{ duration: number }>(
-          "SELECT duration_minutes AS duration FROM services WHERE clinic_id=$1 AND id=$2 AND active",
-          [clinicId, input.serviceId],
-        );
-        if (!service.rows[0])
-          throw new DomainError(
-            "SERVICE_NOT_FOUND",
-            "Serviço não encontrado.",
-            404,
-          );
-        const related = await client.query(
-          "SELECT pr.id FROM professionals pr,rooms r WHERE pr.clinic_id=$1 AND pr.id=$2 AND pr.active AND r.clinic_id=$1 AND r.id=$3 AND r.active",
-          [clinicId, input.professionalId, input.roomId],
-        );
-        if (!related.rowCount)
-          throw new DomainError(
-            "RELATED_RECORD_NOT_FOUND",
-            "Profissional ou sala não encontrado.",
-            404,
-          );
-        const appointment = await context.insertAppointment(
-          clinicId,
-          input,
-          service.rows[0].duration,
-          { patientId: current.patientId, leadId: null },
-          client,
-        );
-        return addService(client, clinicId, actorUserId, tabId, {
-          appointmentId: appointment.id,
-        });
       });
     },
     async listSuppliers(clinicId: string) {
