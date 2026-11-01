@@ -119,6 +119,7 @@ import {
   demoProfessionals,
   demoRooms,
   demoServices,
+  demoPlanTemplates,
 } from "../../demo-scenarios.js";
 import { clinicDateOf } from "../../modules/finance/daily-cash.js";
 import {
@@ -628,7 +629,6 @@ export class MemoryRepositoryContext {
       name: "Fisioterapia individual",
       durationMinutes: 50,
       priceInCents: 18000,
-      color: "#d96f4b",
       active: true,
     },
     {
@@ -637,7 +637,6 @@ export class MemoryRepositoryContext {
       name: "Avaliação funcional",
       durationMinutes: 60,
       priceInCents: 22000,
-      color: "#3d7c78",
       active: true,
     },
   ];
@@ -762,6 +761,7 @@ export class MemoryRepositoryContext {
     this.professionals.push(...demoProfessionals);
     this.rooms.push(...demoRooms);
     this.services.push(...demoServices);
+    this.planTemplates.push(...demoPlanTemplates);
     this.appointments.push(...data.appointments);
     this.patientPlans.push(...data.plans);
     this.sessionMovements.push(...data.movements);

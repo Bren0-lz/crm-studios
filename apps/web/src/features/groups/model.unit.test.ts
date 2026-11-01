@@ -79,7 +79,8 @@ describe("group revenue overview", () => {
       services: [{ serviceId, totalSessions, totalValueInCents }],
       ...extra,
     }) as PatientPlan;
-  const services = [{ id: serviceId, priceInCents: 7000 }];
+  // Sessão do plano avulso do serviço (sem matriculado com plano).
+  const services = new Map([[serviceId, 7000]]);
 
   it("sums monthly plan values and projects free seats by the average ticket", () => {
     const [row] = groupRevenueOverview(
@@ -123,7 +124,7 @@ describe("group revenue overview", () => {
     ]);
   });
 
-  it("uses the service price when no member has an active plan", () => {
+  it("uses the single plan session price when no member has an active plan", () => {
     const [row] = groupRevenueOverview(
       [{ ...group, activeEnrollments: 0 }],
       [],

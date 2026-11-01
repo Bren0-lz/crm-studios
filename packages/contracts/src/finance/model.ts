@@ -410,10 +410,6 @@ export const productSaleInputSchema = z
     (value) => value.settlement !== "paid" || Boolean(value.paymentMethod),
     { message: "Informe a forma de pagamento.", path: ["paymentMethod"] },
   );
-export const patientTabServiceInputSchema = z.object({
-  appointmentId: z.uuid(),
-  amountInCents: z.number().int().min(0).max(2147483647).optional(),
-});
 /** Recorrência do valor contratado com o fornecedor. */
 export const supplierBillingCycleSchema = z.enum([
   "one_time",
@@ -787,15 +783,53 @@ export const financeForecastFilterSchema = z.object({
 });
 
 /** Baixa de parcela (U39): desconto, juros e valor recebido (parcial gera nova parcela). */
-export const receivableSettlementSchema = paymentInputSchema.extend({
-  paymentInstallments: paymentInstallmentsSchema,
-  discountInCents: z.number().int().min(0).default(0),
-  interestInCents: z.number().int().min(0).default(0),
-  /** Sem valor = recebe o valor final inteiro. */
-  receivedInCents: z.number().int().positive().optional(),
-  /** Vencimento da parcela com o saldo; sem data, mantém o vencimento original. */
-  balanceDueDate: z.iso.date().optional(),
-});
+/** Limite de formas de pagamento numa baixa mista. */
+export const maxSettlementPayments = 6;
+
+export const receivableSettlementSchema = paymentInputSchema
+  .extend({
+    paymentInstallments: paymentInstallmentsSchema,
+    discountInCents: z.number().int().min(0).default(0),
+    interestInCents: z.number().int().min(0).default(0),
+    /** Sem valor = recebe o valor final inteiro. */
+    receivedInCents: z.number().int().positive().optional(),
+    /** Vencimento da parcela com o saldo; sem data, mantém o vencimento original. */
+    balanceDueDate: z.iso.date().optional(),
+    /**
+     * Pagamento misto: o valor recebido dividido entre formas de pagamento (ex.: parte no Pix,
+     * parte no cartão em 3x). Cada parte vira uma baixa própria — a parcela é baixada pela
+     * primeira e as demais viram parcelas pagas na mesma hora. Com partes, `receivedInCents`
+     * é a soma delas (ou ausente) e `paymentMethod`/`paymentInstallments` são ignorados.
+     */
+    payments: z
+      .array(
+        z.object({
+          paymentMethod: paymentMethodSchema,
+          amountInCents: z.number().int().positive().max(2147483647),
+          paymentInstallments: paymentInstallmentsSchema,
+        }),
+      )
+      .min(2, "Informe ao menos duas formas no pagamento misto.")
+      .max(maxSettlementPayments)
+      .optional(),
+  })
+  .refine(
+    (value) =>
+      !value.payments ||
+      value.receivedInCents === undefined ||
+      value.receivedInCents === settlementPaymentsTotal(value.payments),
+    {
+      message: "O valor recebido deve ser a soma das formas de pagamento.",
+      path: ["receivedInCents"],
+    },
+  );
+
+/** Soma das partes de um pagamento misto. */
+export function settlementPaymentsTotal(
+  payments: ReadonlyArray<{ amountInCents: number }>,
+) {
+  return payments.reduce((sum, part) => sum + part.amountInCents, 0);
+}
 
 export interface SettlementBreakdown {
   finalInCents: number;
@@ -837,6 +871,82 @@ export function settlementBreakdown(
       error: "O valor recebido não pode passar do valor final.",
     };
   return result;
+}
+
+export interface SettlementStep {
+  paymentMethod: z.infer<typeof paymentMethodSchema>;
+  /** Ajustes da baixa desta etapa (desconto e juros só na primeira). */
+  adjustments: {
+    discountInCents?: number;
+    interestInCents?: number;
+    receivedInCents: number;
+    balanceDueDate?: string;
+    paymentInstallments?: number;
+  };
+  /** Sufixo da descrição da parcela criada com o restante ("parte 2", "saldo"). */
+  balanceLabel: string;
+}
+
+/**
+ * Pagamento misto em etapas: a parcela é baixada pela primeira forma e o restante vira uma
+ * parcela nova ("· parte 2"), baixada pela forma seguinte, e assim por diante. Só o que faltar
+ * depois da última forma vira saldo em aberto ("· saldo", com `balanceDueDate`). Erro quando a
+ * soma das formas não cabe no valor final.
+ */
+export function settlementSteps(
+  amountInCents: number,
+  input: {
+    discountInCents?: number | undefined;
+    interestInCents?: number | undefined;
+    balanceDueDate?: string | undefined;
+    payments: ReadonlyArray<{
+      paymentMethod: z.infer<typeof paymentMethodSchema>;
+      amountInCents: number;
+      paymentInstallments?: number | undefined;
+    }>;
+  },
+): { steps: SettlementStep[]; error?: string } {
+  const breakdown = settlementBreakdown(amountInCents, {
+    discountInCents: input.discountInCents,
+    interestInCents: input.interestInCents,
+    receivedInCents: settlementPaymentsTotal(input.payments),
+  });
+  if (breakdown.error)
+    return {
+      steps: [],
+      error:
+        breakdown.receivedInCents > breakdown.finalInCents
+          ? "A soma das formas de pagamento não pode passar do valor final."
+          : breakdown.error,
+    };
+  if (input.payments.some((part) => part.amountInCents <= 0))
+    return {
+      steps: [],
+      error: "Informe o valor de cada forma de pagamento.",
+    };
+  const steps = input.payments.map((part, index): SettlementStep => {
+    const last = index === input.payments.length - 1;
+    return {
+      paymentMethod: part.paymentMethod,
+      adjustments: {
+        ...(index === 0
+          ? {
+              discountInCents: input.discountInCents ?? 0,
+              interestInCents: input.interestInCents ?? 0,
+            }
+          : {}),
+        receivedInCents: part.amountInCents,
+        ...(last && input.balanceDueDate
+          ? { balanceDueDate: input.balanceDueDate }
+          : {}),
+        ...(part.paymentInstallments && part.paymentInstallments > 1
+          ? { paymentInstallments: part.paymentInstallments }
+          : {}),
+      },
+      balanceLabel: last ? "saldo" : `parte ${index + 2}`,
+    };
+  });
+  return { steps };
 }
 
 /**

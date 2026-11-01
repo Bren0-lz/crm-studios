@@ -1932,32 +1932,6 @@ export function createFinanceRepository(
       );
     },
 
-    async generateCommissions(clinicId: string, competence: string) {
-      await repositoryContext.pool.query(
-        `INSERT INTO commission_entries
-        (clinic_id, professional_id, appointment_id, rule_id, competence,
-         base_amount_in_cents, percentage, amount_in_cents)
-       SELECT a.clinic_id, a.professional_id, a.id, rule.id, $2,
-              s.price_in_cents, rule.percentage,
-              CAST(ROUND(s.price_in_cents * rule.percentage / 100.0) AS SIGNED)
-       FROM appointments a JOIN services s ON s.id = a.service_id
-       JOIN professionals pr ON pr.id = a.professional_id
-       -- Regra do usuário ligado ao profissional vigente na data; sem ela, a do profissional.
-       JOIN commission_rules rule ON rule.id = (SELECT cr.id FROM commission_rules cr
-         WHERE cr.clinic_id = a.clinic_id
-           AND (cr.professional_id = a.professional_id
-             OR (pr.user_id IS NOT NULL AND cr.user_id = pr.user_id))
-           AND cr.active AND cr.effective_from <= ${localDate("a.starts_at")}
-         ORDER BY (cr.user_id IS NOT NULL) DESC, cr.effective_from DESC LIMIT 1)
-       WHERE a.clinic_id = $1 AND a.status = 'completed'
-         AND a.patient_id IS NOT NULL -- atendimento de lead não gera comissão
-         AND ${localMonth("a.starts_at")} = $2
-       ON DUPLICATE KEY UPDATE commission_entries.id = commission_entries.id`,
-        [clinicId, competence],
-      );
-      return repositoryContext.listCommissions(clinicId, competence);
-    },
-
     async settleCommission(
       clinicId: string,
       actorUserId: string,

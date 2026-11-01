@@ -27,7 +27,6 @@ const depilation = {
   name: "Depilação pernas",
   durationMinutes: 45,
   priceInCents: 12000,
-  color: "#db8290",
   professionalIds: [carolina],
   roomIds: [aestheticsRoom],
 } as Service;
