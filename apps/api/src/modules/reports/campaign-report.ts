@@ -16,12 +16,15 @@ import {
 } from "@crm/contracts";
 import { clinicDateOf } from "../finance/daily-cash.js";
 import { destination } from "../communications/broadcast.js";
+import { manualPromotionValidUntil } from "../communications/campaign-promotions.js";
 
 export interface CampaignReportSources {
   manual: WhatsappCampaignDetail[];
   automatic: AutoCampaign[];
   deliveries: AutoCampaignDelivery[];
   redemptions: AutoCampaignRedemption[];
+  /** Usos das promoções das campanhas manuais. */
+  manualRedemptions?: AutoCampaignRedemption[] | undefined;
   patients: Patient[];
   /**
    * Fila de hoje das automáticas (só na planilha): as mensagens ainda não marcadas entram
@@ -82,9 +85,23 @@ export function buildCampaignReport(
   const rows: CampaignReportRow[] = [];
   const messages: CampaignReportMessage[] = [];
 
+  const usedInPeriod = (
+    redemptions: readonly AutoCampaignRedemption[],
+    campaignId: string,
+  ) =>
+    redemptions.filter(
+      (item) =>
+        item.campaignId === campaignId &&
+        item.appointmentStatus !== "cancelled" &&
+        item.redeemedOn >= from &&
+        item.redeemedOn <= to,
+    ).length;
+
   for (const campaign of sources.manual) {
     const count = (status: string) =>
       campaign.recipients.filter((item) => item.status === status).length;
+    const manualRedemptions = sources.manualRedemptions ?? [];
+    const promotion = campaign.promotion;
     rows.push({
       campaignId: campaign.id,
       kind: "manual",
@@ -97,7 +114,8 @@ export function buildCampaignReport(
       sent: count("sent"),
       skipped: count("skipped"),
       pending: count("pending"),
-      redemptions: 0,
+      redemptions: promotion ? usedInPeriod(manualRedemptions, campaign.id) : 0,
+      ...(promotion ? { promotional: true } : {}),
     });
     for (const recipient of campaign.recipients)
       messages.push({
@@ -111,6 +129,27 @@ export function buildCampaignReport(
         handledAt: recipient.handledAt,
         handledByName: recipient.handledByName,
         message: recipient.message,
+        ...(promotion
+          ? {
+              promotion: (() => {
+                const used = redemptionOf(
+                  manualRedemptions,
+                  campaign.id,
+                  recipient.patientId,
+                  recipient.id,
+                );
+                return {
+                  validUntil: manualPromotionValidUntil(
+                    promotion,
+                    recipient,
+                    timeZone,
+                  ),
+                  redeemedOn: used?.redeemedOn,
+                  appointmentStatus: used?.appointmentStatus,
+                };
+              })(),
+            }
+          : {}),
       });
   }
 
@@ -118,13 +157,7 @@ export function buildCampaignReport(
     const deliveries = sources.deliveries.filter(
       (item) => item.campaignId === campaign.id && inPeriod(item.handledAt),
     );
-    const redemptions = sources.redemptions.filter(
-      (item) =>
-        item.campaignId === campaign.id &&
-        item.appointmentStatus !== "cancelled" &&
-        item.redeemedOn >= from &&
-        item.redeemedOn <= to,
-    ).length;
+    const redemptions = usedInPeriod(sources.redemptions, campaign.id);
     if (!campaign.active && !deliveries.length && !redemptions) continue;
     const sent = deliveries.filter((item) => item.status === "sent").length;
     rows.push({

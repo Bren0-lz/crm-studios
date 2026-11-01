@@ -179,7 +179,7 @@ export function CampaignsSection({ period }: { period: ReportPeriod }) {
                             {row.kind === "manual" ? row.pending : "—"}
                           </td>
                           <td className="numeric-value">
-                            {row.kind === "automatic" ? row.redemptions : "—"}
+                            {row.promotional ? row.redemptions : "—"}
                           </td>
                         </tr>
                       ))}
