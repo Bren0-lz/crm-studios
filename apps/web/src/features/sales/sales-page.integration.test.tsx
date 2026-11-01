@@ -198,6 +198,59 @@ describe("página Vendas de produtos", () => {
     );
   });
 
+  it("mostra as parcelas da venda e quanto de cada produto entra em cada uma", async () => {
+    const { patient, cream, oil } = await seed();
+    open("/vendas");
+    const panel = await screen.findByRole("region", { name: "Nova venda" });
+    await choosePatient(patient.fullName, panel);
+    fireEvent.change(within(panel).getByLabelText("Produto 1"), {
+      target: { value: cream.id },
+    });
+    fireEvent.click(
+      within(panel).getByRole("button", { name: "Adicionar produto" }),
+    );
+    fireEvent.change(within(panel).getByLabelText("Produto 2"), {
+      target: { value: oil.id },
+    });
+    fireEvent.change(within(panel).getByLabelText("Forma de pagamento"), {
+      target: { value: "card" },
+    });
+    fireEvent.change(
+      await within(panel).findByLabelText("Parcelamento (Cartão)"),
+      { target: { value: "2" } },
+    );
+    const preview = within(panel).getByText("Ver parcelas").closest("details")!;
+    expect(within(preview).getByText("2 × R$ 35,00")).toBeInTheDocument();
+    const rows = within(
+      within(preview).getByRole("list", { name: "Parcelas previstas" }),
+    ).getAllByRole("listitem");
+    expect(rows).toHaveLength(2);
+    expect(rows[0]).toHaveTextContent("Parcela 1/2");
+    expect(rows[0]).toHaveTextContent("pago na venda · Cartão");
+    expect(rows[0]).toHaveTextContent(
+      /Creme relaxante · 1 un \(R\$\s40,00\) ÷ 2\s*R\$\s20,00/,
+    );
+    expect(rows[0]).toHaveTextContent(
+      /Óleo de massagem · 1 un \(R\$\s30,00\) ÷ 2\s*R\$\s15,00/,
+    );
+
+    // A receber: uma cobrança só, no vencimento escolhido.
+    fireEvent.change(within(panel).getByLabelText("Pagamento"), {
+      target: { value: "receivable" },
+    });
+    fireEvent.change(within(panel).getByLabelText("Vencimento"), {
+      target: { value: "2099-01-10" },
+    });
+    expect(
+      within(preview).getByText("1 cobrança de R$ 70,00"),
+    ).toBeInTheDocument();
+    expect(
+      within(
+        within(preview).getByRole("list", { name: "Parcelas previstas" }),
+      ).getByRole("listitem"),
+    ).toHaveTextContent("vence 10/01/2099");
+  });
+
   it("bloqueia produto sem preço e cadastra o preço por cima da venda, sem perdê-la", async () => {
     const { repository, patient, cream } = await seed();
     const ball = await repository.createProduct(clinicId, actorId, {
