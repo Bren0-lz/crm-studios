@@ -311,7 +311,7 @@ export function payrollSuite(repository: () => ClinicRepository) {
       expect(again.payables.map((item) => item.id)).toEqual([first.id]);
     });
 
-    it("sem categoria, lança em \"Folha de pagamento\" e reaproveita a mesma", async () => {
+    it('sem categoria, lança em "Folha de pagamento" e reaproveita a mesma', async () => {
       const repo = repository();
       const { employee, complete } = await scenario(repo, ["14"]);
       const launchDefault = () =>
@@ -332,6 +332,162 @@ export function payrollSuite(repository: () => ClinicRepository) {
           categoryId: categories[0]!.id,
           categoryName: "Folha de pagamento",
         });
+    });
+
+    it("soma recompensas e tira descontos do pagamento sem mudar o salário fixo", async () => {
+      const repo = repository();
+      const { employee, launch, percent } = await scenario(repo, ["18"]);
+      const entry = (
+        input: Partial<Parameters<ClinicRepository["createPayrollEntry"]>[2]>,
+      ) =>
+        repo.createPayrollEntry(clinic, actor, {
+          employeeId: employee.id,
+          competence,
+          kind: "discount",
+          mode: "amount",
+          value: 1000,
+          reason: "Motivo de teste",
+          ...input,
+        });
+      // 10% de R$ 1.500,00 = R$ 150,00 de desconto; R$ 50,00 de recompensa.
+      const discount = await entry({
+        mode: "percent",
+        value: 1000,
+        reason: "Faltas sem justificativa",
+      });
+      expect(discount).toMatchObject({
+        kind: "discount",
+        mode: "percent",
+        value: 1000,
+        amountInCents: 15000,
+      });
+      const bonus = await entry({
+        kind: "bonus",
+        value: 5000,
+        reason: "Meta do mês",
+      });
+      expect(
+        await repo.createPayrollEntry(clinic, actor, {
+          employeeId: randomUUID(),
+          competence,
+          kind: "bonus",
+          mode: "amount",
+          value: 100,
+          reason: "Ninguém",
+        }),
+      ).toBeNull();
+      const before = lineOf(
+        await repo.getPayroll(clinic, competence),
+        employee.id,
+      );
+      expect(before).toMatchObject({
+        salaryInCents: 150000,
+        extraInCents: -10000,
+        totalInCents: 150000 + percent(10) - 10000,
+        pendingInCents: 150000 + percent(10) - 10000,
+      });
+      expect(
+        before.items
+          .filter((item) => item.kind === "bonus" || item.kind === "discount")
+          .map((item) => [item.description, item.amountInCents, item.status]),
+      ).toEqual([
+        [
+          "Desconto (10% do salário) · Faltas sem justificativa",
+          -15000,
+          "pending",
+        ],
+        ["Recompensa · Meta do mês", 5000, "pending"],
+      ]);
+
+      const first = (await launch([employee.id])).payables[0]!;
+      expect(first).toMatchObject({
+        amountInCents: 150000 + percent(10) - 10000,
+        payroll: {
+          salaryInCents: 140000,
+          commissionInCents: percent(10),
+        },
+      });
+      expect(first.notes).toContain("Descontos (1)");
+      expect(first.notes).toContain("Recompensas (1)");
+      const launched = lineOf(
+        await repo.getPayroll(clinic, competence),
+        employee.id,
+      );
+      // O salário fixo continua o mesmo; o desconto e a recompensa aparecem à parte.
+      expect(launched).toMatchObject({
+        salaryInCents: 150000,
+        extraInCents: -10000,
+        pendingInCents: 0,
+      });
+      expect(launched.items.every((item) => item.status === "launched")).toBe(
+        true,
+      );
+      await expect(
+        repo.deletePayrollEntry(clinic, actor, discount!.id),
+      ).rejects.toMatchObject({ code: "PAYROLL_ENTRY_LAUNCHED" });
+
+      // Recompensa depois do lançamento: vai num complemento, e o salário segue do primeiro.
+      const late = await entry({
+        kind: "bonus",
+        value: 3000,
+        reason: "Cobriu folga",
+      });
+      const complement = (await launch([employee.id])).payables[0]!;
+      expect(complement).toMatchObject({
+        amountInCents: 3000,
+        payroll: { salaryInCents: 3000, commissionInCents: 0 },
+      });
+      const withComplement = lineOf(
+        await repo.getPayroll(clinic, competence),
+        employee.id,
+      );
+      expect(withComplement.salaryInCents).toBe(150000);
+      expect(
+        withComplement.items.find((item) => item.kind === "salary")?.payableId,
+      ).toBe(first.id);
+      await repo.cancelPayrollLaunch(clinic, actor, complement.id);
+      expect(
+        lineOf(await repo.getPayroll(clinic, competence), employee.id)
+          .pendingInCents,
+      ).toBe(3000);
+      expect(await repo.deletePayrollEntry(clinic, actor, late!.id)).toBe(true);
+      expect(await repo.deletePayrollEntry(clinic, actor, late!.id)).toBe(
+        false,
+      );
+      const after = lineOf(
+        await repo.getPayroll(clinic, competence),
+        employee.id,
+      );
+      expect(after.pendingInCents).toBe(0);
+      expect(after.items.some((item) => item.id === bonus!.id)).toBe(true);
+
+      // Porcentagem precisa de salário fixo (colaborador só de comissões).
+      const other = await repo.createProfessional(clinic, {
+        fullName: `Só comissão ${randomUUID().slice(0, 6)}`,
+        crefito: randomUUID().slice(0, 12),
+        specialty: "Pilates",
+        color: "#547A6B",
+      });
+      const { employee: commissionOnly } = await createSalariedUser(
+        repo,
+        clinic,
+        actor,
+        {
+          name: `Sem salário ${randomUUID().slice(0, 6)}`,
+          salaryInCents: null,
+          professionalId: other.id,
+        },
+      );
+      await expect(
+        repo.createPayrollEntry(clinic, actor, {
+          employeeId: commissionOnly.id,
+          competence,
+          kind: "discount",
+          mode: "percent",
+          value: 1000,
+          reason: "Sem base",
+        }),
+      ).rejects.toMatchObject({ code: "PAYROLL_ENTRY_NO_SALARY" });
     });
 
     it("separa por filial e aponta comissão sem colaborador", async () => {

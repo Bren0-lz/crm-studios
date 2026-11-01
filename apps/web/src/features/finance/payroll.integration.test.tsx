@@ -103,10 +103,57 @@ describe("folha de pagamento pela API real", () => {
     expect(within(items).getByText("Comissão")).toBeInTheDocument();
     expect(within(items).getByText(service.name)).toBeInTheDocument();
     expect(within(items).getAllByText("A lançar")).toHaveLength(2);
-    // O salário muda no cadastro do usuário, não na folha.
+    // O salário fixo não muda na folha; descontos e recompensas entram pelo "Ajustar".
     expect(
       within(matriz).queryByRole("button", { name: "Editar Marina Folha" }),
     ).not.toBeInTheDocument();
+    fireEvent.click(
+      within(matriz).getByRole("button", {
+        name: "Desconto ou recompensa de Marina Folha",
+      }),
+    );
+    const adjust = await screen.findByRole("dialog", {
+      name: "Desconto ou recompensa · Marina Folha",
+    });
+    change("Forma", "percent", adjust);
+    change("Porcentagem (%)", "10", adjust);
+    change("Motivo", "Faltas sem justificativa", adjust);
+    expect(
+      within(adjust).getByText("Sai do pagamento: R$ 150,00"),
+    ).toBeInTheDocument();
+    await save("Desconto ou recompensa · Marina Folha", "Adicionar");
+    const withDiscount = await within(matriz).findByRole("list", {
+      name: "Itens de Marina Folha",
+    });
+    await within(withDiscount).findByText("Desconto (10% do salário)");
+    expect(
+      within(withDiscount).getByText("Faltas sem justificativa"),
+    ).toBeInTheDocument();
+    expect(within(withDiscount).getByText("Salário fixo")).toBeInTheDocument();
+    // Recompensa adicionada por engano: sai antes de lançar.
+    fireEvent.click(
+      within(matriz).getByRole("button", {
+        name: "Desconto ou recompensa de Marina Folha",
+      }),
+    );
+    const bonus = await screen.findByRole("dialog", {
+      name: "Desconto ou recompensa · Marina Folha",
+    });
+    change("Tipo", "bonus", bonus);
+    change("Valor (R$)", "50,00", bonus);
+    change("Motivo", "Lançada por engano", bonus);
+    await save("Desconto ou recompensa · Marina Folha", "Adicionar");
+    fireEvent.click(
+      await within(matriz).findByRole("button", {
+        name: "Remover recompensa de Marina Folha",
+      }),
+    );
+    await save("Remover recompensa", "Remover");
+    await waitFor(() =>
+      expect(
+        within(matriz).queryByText("Lançada por engano"),
+      ).not.toBeInTheDocument(),
+    );
     expect(within(panel).queryByText(/Marina Folha · 1 lançamento/)).toBeNull();
     expect(
       within(panel).getByRole("region", { name: "Folha de Centro" }),
@@ -154,7 +201,7 @@ describe("folha de pagamento pela API real", () => {
         expect.arrayContaining([
           [
             "Folha 03/2025 · Marina Folha",
-            150000 + commission,
+            150000 + commission - 15000,
             "Folha de pagamento",
           ],
           ["Folha 03/2025 · Recepção Centro", 90000, "Folha de pagamento"],
