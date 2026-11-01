@@ -144,6 +144,7 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
   "GET /appointments/pending-finalization": viewAny("agenda"),
   "GET /appointments/completed": viewAny("agenda"),
   "GET /appointments/promotions": operation("agenda.create"),
+  "GET /appointments/pricing": operation("agenda.create"),
   "GET /waitlist": view("waitlist"),
   "GET /waitlist/options": view("waitlist"),
   "POST /waitlist": operation("waitlist.manage"),
@@ -241,12 +242,14 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
     "finance.external_records_manage",
   ),
   "GET /inventory/workspace": operation("patients.inventory_view"),
+  "GET /inventory/suppliers": operation("patients.suppliers_manage"),
   "POST /inventory/products": operation("patients.products_create"),
   "POST /inventory/movements": operation("patients.stock_move"),
   "POST /patient-tabs": operation("patients.tabs_create"),
   "POST /patient-tabs/:id/items": operation("patients.tabs_items"),
   "POST /patient-tabs/:id/close": operation("patients.tabs_close"),
   "POST /patient-tabs/:id/cancel": operation("patients.tabs_cancel"),
+  "GET /patient-tabs/:id/payment": operation("patients.inventory_view"),
   "POST /product-sales": operation(
     "patients.tabs_create",
     "patients.tabs_items",
@@ -465,16 +468,16 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
   "PUT /inventory/products/:id": operation("patients.products_update"),
   "PUT /patient-tabs/:id/items/:itemId": operation("patients.tabs_items"),
   "DELETE /patient-tabs/:id/items/:itemId": operation("patients.tabs_items"),
-  "GET /patient-tabs/:id/appointment-options": operation("patients.tabs_items"),
-  "POST /patient-tabs/:id/services": operation("patients.tabs_items"),
   "DELETE /patient-tabs/:id/services/:itemId": operation("patients.tabs_items"),
-  "POST /patient-tabs/:id/appointments": operation(
-    "patients.tabs_items",
-    "agenda.create",
-  ),
+  // Fornecedores também ficam em Vendas de produtos › Fornecedores (patients.suppliers_manage);
+  // a lista dessa aba sai de GET /inventory/suppliers.
   "GET /finance/suppliers": view("finance"),
-  "POST /finance/suppliers": operation("finance.suppliers_manage"),
-  "PUT /finance/suppliers/:id": operation("finance.suppliers_manage"),
+  "POST /finance/suppliers": {
+    anyOf: operation("finance.suppliers_manage", "patients.suppliers_manage"),
+  },
+  "PUT /finance/suppliers/:id": {
+    anyOf: operation("finance.suppliers_manage", "patients.suppliers_manage"),
+  },
   "GET /finance/suppliers/:id/orders": view("finance"),
   "POST /finance/suppliers/:id/orders": operation("finance.suppliers_manage"),
   "POST /finance/receivables": operation("finance.receivables_create"),

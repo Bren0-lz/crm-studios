@@ -35,11 +35,10 @@ import type {
   PatientTabInput,
   PatientTabItemInput,
   PatientTabItemUpdate,
-  PatientTabServiceInput,
   PatientTabCloseInput,
+  PatientTabCancelInput,
+  PatientTabPayment,
   ProductSaleInput,
-  TabAppointmentOption,
-  AppointmentInput,
   Supplier,
   SupplierInput,
   SupplierOrder,
@@ -182,34 +181,26 @@ export const financeApi = {
     request<PatientTab>(`/patient-tabs/${id}/items/${itemId}`, {
       method: "DELETE",
     }),
-  tabAppointmentOptions: (id: string, from: string, to: string) =>
-    request<TabAppointmentOption[]>(
-      `/patient-tabs/${id}/appointment-options?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
-    ),
-  addPatientTabService: (id: string, input: PatientTabServiceInput) =>
-    request<PatientTab>(`/patient-tabs/${id}/services`, {
-      method: "POST",
-      body: JSON.stringify(input),
-    }),
   removePatientTabService: (id: string, itemId: string) =>
     request<PatientTab>(`/patient-tabs/${id}/services/${itemId}`, {
       method: "DELETE",
-    }),
-  createPatientTabAppointment: (
-    id: string,
-    input: Omit<AppointmentInput, "patientId">,
-  ) =>
-    request<PatientTab>(`/patient-tabs/${id}/appointments`, {
-      method: "POST",
-      body: JSON.stringify(input),
     }),
   closePatientTab: (id: string, input: PatientTabCloseInput) =>
     request<PatientTab>(`/patient-tabs/${id}/close`, {
       method: "POST",
       body: JSON.stringify(input),
     }),
-  cancelPatientTab: (id: string) =>
-    request<PatientTab>(`/patient-tabs/${id}/cancel`, { method: "POST" }),
+  /** `refundPayment`: estorna o pagamento recebido no mesmo cancelamento. */
+  cancelPatientTab: (id: string, input?: PatientTabCancelInput) =>
+    request<PatientTab>(`/patient-tabs/${id}/cancel`, {
+      method: "POST",
+      ...(input ? { body: JSON.stringify(input) } : {}),
+    }),
+  /** Pagamento da venda (cobrança do fechamento), sem exigir acesso ao Financeiro. */
+  patientTabPayment: (id: string) =>
+    request<{ payment: PatientTabPayment | null }>(
+      `/patient-tabs/${id}/payment`,
+    ),
   /** Venda de produtos em uma etapa (abre, preenche e fecha a comanda). */
   createProductSale: (input: ProductSaleInput) =>
     request<PatientTab>("/product-sales", {
@@ -217,6 +208,8 @@ export const financeApi = {
       body: JSON.stringify(input),
     }),
   suppliers: () => request<Supplier[]>("/finance/suppliers"),
+  /** Lista da aba Fornecedores de Vendas de produtos (permissão própria). */
+  salesSuppliers: () => request<Supplier[]>("/inventory/suppliers"),
   saveSupplier: (input: SupplierInput, id?: string) =>
     request<Supplier>(id ? `/finance/suppliers/${id}` : "/finance/suppliers", {
       method: id ? "PUT" : "POST",

@@ -4,7 +4,6 @@ import type { ProductSize, ProductSizeStock } from "./model.js";
 import {
   productUpdateSchema,
   patientTabItemUpdateSchema,
-  patientTabServiceInputSchema,
   productSaleInputSchema,
   supplierInputSchema,
   supplierBillingCycleSchema,
@@ -16,9 +15,6 @@ import {
 export type ProductUpdateInput = z.infer<typeof productUpdateSchema>;
 export type PatientTabItemUpdate = z.infer<typeof patientTabItemUpdateSchema>;
 export type ProductSaleInput = z.infer<typeof productSaleInputSchema>;
-export type PatientTabServiceInput = z.infer<
-  typeof patientTabServiceInputSchema
->;
 export type SupplierInput = z.infer<typeof supplierInputSchema>;
 export type SupplierBillingCycle = z.infer<typeof supplierBillingCycleSchema>;
 export type SupplierOrderInput = z.infer<typeof supplierOrderInputSchema>;
@@ -93,6 +89,7 @@ import {
   financeForecastFilterSchema,
   financialCategoryInputSchema,
   patientTabCloseInputSchema,
+  patientTabCancelInputSchema,
   patientTabInputSchema,
   patientTabItemInputSchema,
   payableAmountInputSchema,
@@ -139,6 +136,8 @@ export type ReceivableStatus = z.infer<typeof receivableStatusSchema>;
 export type PaymentMethod = z.infer<typeof paymentMethodSchema>;
 
 export type PatientTabCloseInput = z.infer<typeof patientTabCloseInputSchema>;
+
+export type PatientTabCancelInput = z.input<typeof patientTabCancelInputSchema>;
 
 export type ReceivableRenegotiationInput = z.infer<
   typeof receivableRenegotiationInputSchema
@@ -279,6 +278,18 @@ export interface PatientTab extends PatientTabInput {
   openedAt: string;
   closedAt?: string;
   cancelledAt?: string;
+}
+
+/** Pagamento da comanda (cobrança gerada no fechamento), visto sem acesso ao Financeiro. */
+export interface PatientTabPayment {
+  receivableId: string;
+  status: ReceivableStatus;
+  amountInCents: number;
+  dueDate: string;
+  paidAt?: string;
+  paymentMethod?: PaymentMethod;
+  /** Parcelas na própria forma (ex.: cartão em 3x); ausente = à vista. */
+  paymentInstallments?: number;
 }
 
 export interface InventoryWorkspace {
@@ -638,13 +649,6 @@ export interface PaymentReceipt {
   interestInCents?: number;
   /** Desconto do cliente já aplicado na cobrança (valor cheio = valor + desconto). */
   customerDiscountInCents?: number;
-}
-
-export interface TabAppointmentOption {
-  id: string;
-  serviceName: string;
-  professionalName: string;
-  startsAt: string;
 }
 
 export interface CommissionPaymentEvent {

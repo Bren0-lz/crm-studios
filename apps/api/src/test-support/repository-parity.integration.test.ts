@@ -27,6 +27,7 @@ import { MemoryClinicRepository } from "../memory-repository.js";
 import { MysqlClinicRepository } from "../mysql-repository.js";
 import type { ClinicRepository } from "../repository.js";
 import { atInstant } from "./clock.js";
+import { addLegacyTabService } from "./legacy-tab-service.js";
 
 const clinicId = "11111111-1111-4111-8111-111111111111";
 const actorId = "22222222-2222-4222-8222-222222222222";
@@ -248,7 +249,6 @@ for (const storage of ["memory", "mysql"] as const) {
             name: "Serviço restrito " + randomUUID(),
             durationMinutes: 60,
             priceInCents: 0,
-            color: "#336699",
             professionalIds: [linked!.id],
           });
           const room = await repository.createRoom(clinicId, {
@@ -1068,9 +1068,10 @@ for (const storage of ["memory", "mysql"] as const) {
           productId: product.id,
           quantity: 1,
         });
-        const scheduled = await repository.createPatientTabAppointment(
+        const scheduled = await addLegacyTabService(
+          repository,
+          pool,
           clinicId,
-          actorId,
           tab.id,
           appointmentInputSchema.omit({ patientId: true }).parse({
             professionalId,
@@ -1078,6 +1079,7 @@ for (const storage of ["memory", "mysql"] as const) {
             serviceId,
             startsAt: "2059-02-02T12:00:00Z",
           }),
+          18000,
         );
         const appointmentId = scheduled.services![0]!.appointmentId;
         await expect(
@@ -1399,6 +1401,78 @@ for (const storage of ["memory", "mysql"] as const) {
             .map((item) => item.quantity)
             .sort(),
         ).toEqual([-1, 1]);
+      });
+
+      it("refunds a paid tab while cancelling it, in one operation", async () => {
+        const created = await patient("Parity Estorno Venda");
+        const tab = await repository.openPatientTab(clinicId, actorId, {
+          patientId: created.id,
+        });
+        const product = await repository.createProduct(clinicId, actorId, {
+          name: "Produto estornado",
+          sku: randomUUID(),
+          unit: "un",
+          costInCents: 500,
+          salePriceInCents: 1000,
+          initialStock: 3,
+        });
+        await repository.addPatientTabItem(clinicId, actorId, tab.id, {
+          productId: product.id,
+          quantity: 2,
+        });
+        const closed = await repository.closePatientTab(
+          clinicId,
+          actorId,
+          tab.id,
+          {
+            settlement: "paid",
+            paymentMethod: "card",
+            paymentInstallments: 2,
+            dueDate: saoPauloToday(),
+          },
+        );
+        expect(
+          await repository.patientTabPayment(clinicId, tab.id),
+        ).toMatchObject({
+          receivableId: closed!.receivableId,
+          status: "paid",
+          amountInCents: 2000,
+          paymentMethod: "card",
+          paymentInstallments: 2,
+        });
+        expect(
+          await repository.patientTabPayment(clinicId, randomUUID()),
+        ).toBeUndefined();
+        await expect(
+          repository.cancelPatientTab(clinicId, actorId, tab.id),
+        ).rejects.toMatchObject({
+          code: "PATIENT_TAB_PAYMENT_REVERSAL_REQUIRED",
+        });
+        const cancelled = await repository.cancelPatientTab(
+          clinicId,
+          actorId,
+          tab.id,
+          { refundPayment: true },
+        );
+        expect(cancelled).toMatchObject({
+          status: "cancelled",
+          paymentStatus: "cancelled",
+        });
+        expect(
+          await repository.patientTabPayment(clinicId, tab.id),
+        ).toMatchObject({ status: "cancelled" });
+        expect(
+          (await repository.getInventoryWorkspace(clinicId)).products.find(
+            (item) => item.id === product.id,
+          )?.currentStock,
+        ).toBe(3);
+        const movements = (
+          await repository.getDailyCash(clinicId, saoPauloToday())
+        ).movements.filter((item) => item.counterpart === created.fullName);
+        expect(movements).toHaveLength(2);
+        expect(
+          movements.reduce((sum, item) => sum + item.amountInCents, 0),
+        ).toBe(0);
       });
 
       it("rejects duplicate payments and reversals while preserving the cash movements", async () => {
