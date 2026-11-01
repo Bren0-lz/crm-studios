@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { planPaymentSummary } from "../plans/model.js";
 import { matchesFinancialEntry } from "./entry-filters.js";
 import {
+  acceptsPaymentInstallments,
   installmentsIssue,
   installmentsLimit,
   paymentMethodSettingsInputSchema,
@@ -148,5 +149,11 @@ describe("payment method installments", () => {
     expect(
       matchesFinancialEntry(base, { ...filter, installments: "single" }),
     ).toBe(true);
+  });
+
+  it("does not split an installment of a plan again on settlement", () => {
+    expect(acceptsPaymentInstallments({ installmentCount: 1 })).toBe(true);
+    expect(acceptsPaymentInstallments({})).toBe(true);
+    expect(acceptsPaymentInstallments({ installmentCount: 3 })).toBe(false);
   });
 });

@@ -317,7 +317,12 @@ export type SettlementAdjustments = Pick<
   | "receivedInCents"
   | "balanceDueDate"
   | "paymentInstallments"
+  | "payments"
 >;
+/** Uma forma de pagamento dentro da baixa mista. */
+export type SettlementPaymentPart = NonNullable<
+  SettlementAdjustments["payments"]
+>[number];
 export type FinancialDatesInput = z.infer<typeof financialDatesSchema>;
 export interface ReceivableService {
   id: string;
@@ -332,6 +337,10 @@ export interface Receivable {
   source?: "plan" | "tab" | "manual";
   /** Nome do plano como foi vendido; só nas cobranças de plano. */
   planName?: string;
+  /** Valor total contratado do plano; só nas cobranças de plano. */
+  planTotalInCents?: number;
+  /** Forma de pagamento combinada na venda do plano (ausente = a combinar). */
+  planPaymentMethod?: PaymentMethod;
   /** Serviços de origem: os do plano ou os atendimentos da comanda. */
   services?: ReceivableService[];
   competence?: string;
