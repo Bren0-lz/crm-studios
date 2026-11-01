@@ -695,6 +695,11 @@ describe("application shell", () => {
     };
     let patients = [existing];
     const analysis = {
+      columns: [
+        { index: 0, title: "nome", samples: ["Ana Lima", "Helena A."] },
+        { index: 1, title: "telefone", samples: ["11999990000", "123"] },
+      ],
+      mapping: ["fullName", "phone"],
       rows: [
         {
           line: 2,
@@ -821,7 +826,10 @@ describe("application shell", () => {
       .mocked(fetch)
       .mock.calls.find(([url]) => String(url).endsWith("/patients/import"));
     expect(importCall?.[1]?.method).toBe("POST");
-    expect(JSON.parse(String(importCall?.[1]?.body))).toEqual(expectedFile);
+    expect(JSON.parse(String(importCall?.[1]?.body))).toEqual({
+      ...expectedFile,
+      mapping: ["fullName", "phone"],
+    });
     expect(
       await screen.findByRole("button", { name: "Editar Ana Lima" }),
     ).toBeInTheDocument();
@@ -831,6 +839,149 @@ describe("application shell", () => {
         .mock.calls.filter(([url]) => String(url).includes("/patients?search="))
         .length,
     ).toBe(2);
+  });
+
+  it("lets the user choose which system field each spreadsheet column fills", async () => {
+    localStorage.setItem("crm.auth.token", "test-token");
+    localStorage.setItem(
+      "crm.auth.user",
+      storedUser({
+        id: "22222222-2222-4222-8222-222222222222",
+        fullName: "Aryana Dutra",
+        email: "admin@movimenta.local",
+        role: "owner",
+      }),
+    );
+    const columns = [
+      { index: 0, title: "Aluno", samples: ["Dora Mapeada"] },
+      { index: 1, title: "Documento", samples: ["529.982.247-25"] },
+      { index: 2, title: "Cel.", samples: ["21988883333"] },
+      { index: 3, title: "", samples: [] },
+    ];
+    const mapped = {
+      columns,
+      mapping: ["fullName", "cpf", "phone", null],
+      rows: [
+        {
+          line: 2,
+          status: "valid",
+          fullName: "Dora Mapeada",
+          phone: "21988883333",
+          input: {
+            fullName: "Dora Mapeada",
+            cpf: "52998224725",
+            phone: "21988883333",
+            tags: [],
+          },
+        },
+      ],
+      errors: [],
+      totals: { valid: 1, error: 0, duplicate: 0 },
+    };
+    const previews: Array<{ mapping?: unknown[] }> = [];
+    vi.mocked(fetch).mockImplementation(async (input, init) => {
+      const url = String(input);
+      let body: unknown = [];
+      if (url.endsWith("/patients/import/preview")) {
+        const request = JSON.parse(String(init?.body)) as {
+          mapping?: (string | null)[];
+        };
+        previews.push(request);
+        const mapping = request.mapping ?? [null, null, null, null];
+        body =
+          mapping.includes("fullName") && mapping.includes("phone")
+            ? { ...mapped, mapping }
+            : {
+                columns,
+                mapping,
+                rows: [],
+                errors: ["Escolha a coluna de nome e telefone da planilha."],
+                totals: { valid: 0, error: 0, duplicate: 0 },
+              };
+      } else if (url.endsWith("/patients/import")) {
+        body = { created: 1, skipped: 0, errors: 0 };
+      }
+      return { ok: true, status: 200, json: async () => body } as Response;
+    });
+    render(
+      <MemoryRouter initialEntries={["/clientes"]}>
+        <App />
+      </MemoryRouter>,
+    );
+    await screen.findByRole("button", { name: "Mais" });
+    clickMoreAction("Importar");
+    const dialog = screen.getByRole("dialog", { name: "Importar clientes" });
+    const content =
+      "Aluno;Documento;Cel.;\nDora Mapeada;529.982.247-25;21988883333;\n";
+    fireEvent.change(within(dialog).getByLabelText("Planilha de clientes"), {
+      target: {
+        files: [new File([content], "minha.csv", { type: "text/csv" })],
+      },
+    });
+    expect(
+      await within(dialog).findByText(
+        "Escolha a coluna de nome e telefone da planilha.",
+      ),
+    ).toBeInTheDocument();
+    expect(within(dialog).getByText("Ex.: 529.982.247-25")).toBeInTheDocument();
+    expect(within(dialog).getByText("Sem valores")).toBeInTheDocument();
+    const nameSelect = within(dialog).getByLabelText(
+      "Dado do sistema para a coluna Aluno",
+    );
+    expect(nameSelect).toHaveValue("");
+    expect(
+      within(dialog).getByLabelText("Dado do sistema para a coluna Coluna 4"),
+    ).toBeInTheDocument();
+
+    fireEvent.change(nameSelect, { target: { value: "fullName" } });
+    await within(dialog).findByText(
+      "Escolha a coluna de nome e telefone da planilha.",
+    );
+    fireEvent.change(
+      within(dialog).getByLabelText("Dado do sistema para a coluna Documento"),
+      { target: { value: "cpf" } },
+    );
+    // Escolher Telefone numa coluna e depois em outra deixa a primeira como "Não importar".
+    fireEvent.change(
+      within(dialog).getByLabelText("Dado do sistema para a coluna Coluna 4"),
+      { target: { value: "phone" } },
+    );
+    expect(
+      await within(dialog).findByText("Pronta para importar"),
+    ).toBeInTheDocument();
+    fireEvent.change(
+      within(dialog).getByLabelText("Dado do sistema para a coluna Cel."),
+      { target: { value: "phone" } },
+    );
+    await vi.waitFor(() => expect(previews).toHaveLength(5));
+    expect(previews.map((preview) => preview.mapping)).toEqual([
+      undefined,
+      ["fullName", null, null, null],
+      ["fullName", "cpf", null, null],
+      ["fullName", "cpf", null, "phone"],
+      ["fullName", "cpf", "phone", null],
+    ]);
+    expect(
+      within(dialog).getByLabelText("Dado do sistema para a coluna Coluna 4"),
+    ).toHaveValue("");
+
+    fireEvent.click(
+      await within(dialog).findByRole("button", { name: "Importar 1 cliente" }),
+    );
+    expect(
+      await within(dialog).findByText(/1 cliente importado/),
+    ).toBeInTheDocument();
+    const importCall = vi
+      .mocked(fetch)
+      .mock.calls.find(([url]) => String(url).endsWith("/patients/import"));
+    expect(JSON.parse(String(importCall?.[1]?.body))).toMatchObject({
+      fileName: "minha.csv",
+      mapping: ["fullName", "cpf", "phone", null],
+    });
+    // O mapeamento fica salvo para a próxima planilha com os mesmos títulos.
+    expect(
+      JSON.parse(localStorage.getItem("crm.patientImportMapping") ?? "{}"),
+    ).toMatchObject({ mapping: ["fullName", "cpf", "phone", null] });
   });
 
   it("shows general spreadsheet errors and keeps import disabled", async () => {
@@ -847,6 +998,8 @@ describe("application shell", () => {
     vi.mocked(fetch).mockImplementation(async (input) => {
       const body = String(input).endsWith("/patients/import/preview")
         ? {
+            columns: [],
+            mapping: [],
             rows: [],
             errors: ["A planilha precisa de uma coluna de nome."],
             totals: { valid: 0, error: 0, duplicate: 0 },

@@ -3167,6 +3167,86 @@ describe("CRM API", () => {
     await app.close();
   });
 
+  it("imports a spreadsheet with custom titles using the chosen column mapping", async () => {
+    const { app, token } = await authenticatedApp();
+    const headers = { authorization: `Bearer ${token}` };
+    const csv = [
+      "Aluno;Documento;Prefixo;Cel.;Cidade natal;Código",
+      "Dora Mapeada;529.982.247-25;21;98888-3333;Niterói;A1",
+    ].join("\n");
+    const file = {
+      fileName: "minha-planilha.csv",
+      contentBase64: Buffer.from(csv, "utf8").toString("base64"),
+    };
+
+    const automatic = await app.inject({
+      method: "POST",
+      url: "/patients/import/preview",
+      headers,
+      payload: file,
+    });
+    expect(automatic.statusCode).toBe(200);
+    expect(automatic.json()).toMatchObject({
+      errors: ["Escolha a coluna de nome e telefone da planilha."],
+      rows: [],
+      mapping: [null, null, null, null, null, null],
+      columns: [
+        { index: 0, title: "Aluno", samples: ["Dora Mapeada"] },
+        { index: 1, title: "Documento" },
+        { index: 2, title: "Prefixo" },
+        { index: 3, title: "Cel." },
+        { index: 4, title: "Cidade natal" },
+        { index: 5, title: "Código" },
+      ],
+    });
+
+    const mapping = ["fullName", "cpf", "phoneAreaCode", "phone", "city", null];
+    const preview = await app.inject({
+      method: "POST",
+      url: "/patients/import/preview",
+      headers,
+      payload: { ...file, mapping },
+    });
+    expect(preview.json()).toMatchObject({
+      errors: [],
+      mapping,
+      totals: { valid: 1, error: 0, duplicate: 0 },
+    });
+
+    const repeated = await app.inject({
+      method: "POST",
+      url: "/patients/import/preview",
+      headers,
+      payload: { ...file, mapping: ["fullName", "phone", null, "phone"] },
+    });
+    expect(repeated.statusCode).toBe(400);
+    expect(JSON.stringify(repeated.json())).toContain(
+      "O campo Telefone foi escolhido em mais de uma coluna.",
+    );
+
+    const imported = await app.inject({
+      method: "POST",
+      url: "/patients/import",
+      headers,
+      payload: { ...file, mapping },
+    });
+    expect(imported.json()).toEqual({ created: 1, skipped: 0, errors: 0 });
+    const listed = await app.inject({
+      method: "GET",
+      url: "/patients?search=Dora",
+      headers,
+    });
+    expect(listed.json()).toMatchObject([
+      {
+        fullName: "Dora Mapeada",
+        phone: "21988883333",
+        cpf: "52998224725",
+        city: "Niterói",
+      },
+    ]);
+    await app.close();
+  });
+
   it("rejects invalid patient import files and non-commercial profiles", async () => {
     const { app, token } = await authenticatedApp();
     const headers = { authorization: `Bearer ${token}` };
