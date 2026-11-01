@@ -1,5 +1,6 @@
 import {
   buildPayroll,
+  PAYROLL_CATEGORY_NAME,
   payrollEntryAmount,
   payrollPayableDescription,
   payrollPayableNotes,
@@ -105,6 +106,30 @@ const mapEntry = (row: EntryRow): PayrollEntry => ({
  * Folha de pagamento (MySQL): colaboradores, a folha da competência por filial, o
  * lançamento (uma despesa por colaborador com o que está pendente) e o desfazer.
  */
+/**
+ * Categoria "Folha de pagamento" da clínica: reaproveita (e reativa) a existente ou
+ * cria. Roda dentro da transação do lançamento, já com o lock da clínica.
+ */
+async function defaultCategoryId(client: PoolClient, clinicId: string) {
+  const existing = await client.query<{ id: string }>(
+    `SELECT id FROM financial_categories WHERE clinic_id=$1 AND kind='expense' AND name=$2 FOR UPDATE`,
+    [clinicId, PAYROLL_CATEGORY_NAME],
+  );
+  if (existing.rows[0]) {
+    await client.query(
+      `UPDATE financial_categories SET active=1 WHERE clinic_id=$1 AND id=$2`,
+      [clinicId, existing.rows[0].id],
+    );
+    return existing.rows[0].id;
+  }
+  const id = randomUUID();
+  await client.query(
+    `INSERT INTO financial_categories (id, clinic_id, name, kind, dre_group) VALUES ($1,$2,$3,'expense','fixed_expense')`,
+    [id, clinicId, PAYROLL_CATEGORY_NAME],
+  );
+  return id;
+}
+
 export function createPayrollRepository(context: MysqlRepositoryContext) {
   async function findEmployee(
     client: Pool | PoolClient,
@@ -367,6 +392,8 @@ export function createPayrollRepository(context: MysqlRepositoryContext) {
       return context.inTransaction(async (client) => {
         // Mesmo lock da geração, da conciliação e dos pagamentos de comissão.
         await client.lock(clinicId);
+        const categoryId =
+          input.categoryId ?? (await defaultCategoryId(client, clinicId));
         const classification = await client.query<{
           categoryId: string;
           costCenterId: string | null;
@@ -375,7 +402,7 @@ export function createPayrollRepository(context: MysqlRepositoryContext) {
            LEFT JOIN cost_centers cc ON cc.clinic_id=$1 AND cc.id=$3 AND cc.active
            WHERE fc.clinic_id=$1 AND fc.id=$2 AND fc.kind='expense' AND fc.active
              AND ($3 IS NULL OR cc.id IS NOT NULL)`,
-          [clinicId, input.categoryId, input.costCenterId ?? null],
+          [clinicId, categoryId, input.costCenterId ?? null],
         );
         if (!classification.rows[0])
           throw new DomainError(
@@ -413,7 +440,7 @@ export function createPayrollRepository(context: MysqlRepositoryContext) {
                 entry.line.employee.name,
                 entry.complement,
               ),
-              input.categoryId,
+              categoryId,
               input.costCenterId ?? null,
               input.dueDate,
               entry.amountInCents,
