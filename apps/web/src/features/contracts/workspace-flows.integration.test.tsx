@@ -30,6 +30,9 @@ describe("manual signature workflows", () => {
     const downloads = captureDownloads();
     open(`/contratos?patientId=${patient!.id}`);
     fireEvent.click(
+      await screen.findByRole("button", { name: /Ver detalhes/ }),
+    );
+    fireEvent.click(
       await screen.findByRole("button", {
         name: "Registrar assinatura manual",
       }),
