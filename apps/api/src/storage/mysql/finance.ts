@@ -1496,7 +1496,7 @@ export function createFinanceRepository(
       const result = await repositoryContext.pool.query<RecurringPayableRow>(
         `SELECT ${recurringPayableColumns} FROM recurring_payables rp
        JOIN financial_categories fc ON fc.id = rp.category_id
-       JOIN cost_centers cc ON cc.id = rp.cost_center_id
+       LEFT JOIN cost_centers cc ON cc.id = rp.cost_center_id
        WHERE rp.clinic_id = $1 AND ${branchClause("rp.branch_id", 2)}
        ORDER BY rp.description, rp.created_at`,
         [clinicId, repositoryContext.branchReadIds()],
@@ -1515,16 +1515,18 @@ export function createFinanceRepository(
          (id, clinic_id, description, supplier, category_id, cost_center_id,
           amount_in_cents, day_of_month, start_month, end_month, active,
           created_by_user_id, branch_id, amount_type, reminder_days_before)
-       SELECT $13,$1,$2,$3,fc.id,cc.id,$6,$7,$8,$9,$10,$11,${branchOrDefault("$12", "$1")},$14,$15
-       FROM financial_categories fc, cost_centers cc
+       SELECT $13,$1,$2,$3,fc.id,$5,$6,$7,$8,$9,$10,$11,${branchOrDefault("$12", "$1")},$14,$15
+       FROM financial_categories fc
        WHERE fc.clinic_id = $1 AND fc.id = $4 AND fc.kind = 'expense' AND fc.active
-         AND cc.clinic_id = $1 AND cc.id = $5 AND cc.active`,
+         AND ($5 IS NULL OR EXISTS (
+           SELECT 1 FROM cost_centers cc
+           WHERE cc.clinic_id = $1 AND cc.id = $5 AND cc.active))`,
         [
           clinicId,
           input.description,
           input.supplier || null,
           input.categoryId,
-          input.costCenterId,
+          input.costCenterId ?? null,
           input.amountInCents,
           input.dayOfMonth,
           input.startMonth,
@@ -1561,7 +1563,7 @@ export function createFinanceRepository(
         const current = await client.query<{
           active: boolean;
           categoryId: string;
-          costCenterId: string;
+          costCenterId: string | null;
           amountType: "fixed" | "variable";
         }>(
           `SELECT active, category_id AS "categoryId", cost_center_id AS "costCenterId",
@@ -1573,13 +1575,15 @@ export function createFinanceRepository(
         if (!model) return null;
         if (
           model.categoryId !== input.categoryId ||
-          model.costCenterId !== input.costCenterId
+          (model.costCenterId ?? undefined) !== input.costCenterId
         ) {
           const valid = await client.query(
-            `SELECT 1 FROM financial_categories fc, cost_centers cc
+            `SELECT 1 FROM financial_categories fc
            WHERE fc.clinic_id = $1 AND fc.id = $2 AND fc.kind = 'expense' AND fc.active
-             AND cc.clinic_id = $1 AND cc.id = $3 AND cc.active`,
-            [clinicId, input.categoryId, input.costCenterId],
+             AND ($3 IS NULL OR EXISTS (
+               SELECT 1 FROM cost_centers cc
+               WHERE cc.clinic_id = $1 AND cc.id = $3 AND cc.active))`,
+            [clinicId, input.categoryId, input.costCenterId ?? null],
           );
           if (!valid.rowCount)
             throw new DomainError(
@@ -1601,7 +1605,7 @@ export function createFinanceRepository(
             input.description,
             input.supplier || null,
             input.categoryId,
-            input.costCenterId,
+            input.costCenterId ?? null,
             input.amountInCents,
             input.dayOfMonth,
             input.startMonth,
@@ -1701,7 +1705,7 @@ export function createFinanceRepository(
             description: string;
             supplier: string | null;
             categoryId: string;
-            costCenterId: string;
+            costCenterId: string | null;
             amountInCents: number;
             dayOfMonth: number;
             startMonth: string;

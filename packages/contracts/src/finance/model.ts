@@ -592,7 +592,8 @@ export const recurringPayableInputSchema = z
     description: z.string().trim().min(3).max(200),
     supplier: z.string().trim().max(160).optional().or(z.literal("")),
     categoryId: z.uuid(),
-    costCenterId: z.uuid(),
+    /** Opcional, como na despesa pontual. */
+    costCenterId: z.uuid().optional(),
     /**
      * Na variável, `amountInCents` é a estimativa (0 = sem estimativa); o valor de cada mês é
      * informado na conta.

@@ -491,6 +491,15 @@
   align-self: end;
 }
 
+/* Despesa pontual: escolha se a data informada é o vencimento ou o lançamento. */
+.expense-date-field {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
+  font-size: var(--text-sm);
+}
+
 .field-with-hint {
   display: grid;
   gap: 5px;
