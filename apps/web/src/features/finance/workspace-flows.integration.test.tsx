@@ -1,4 +1,5 @@
 import { nextTestCpf } from "../../../../api/src/test-support/cpf.js";
+import { sellSessionForAppointment } from "../../../../api/src/test-support/commission-billing.js";
 import { fireEvent, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { api } from "../../api";
@@ -145,10 +146,7 @@ describe("finance workflows through real HTTP handlers", () => {
     const [service] = await repository.listServices(clinicId);
     await repository.createCommissionRule(clinicId, {
       professionalId: professional!.id,
-      serviceId: service!.id,
-      kind: "fixed",
-      percentage: 0,
-      fixedAmountInCents: 1500,
+      percentage: 10,
       effectiveFrom: "2039-01-01",
     });
     const appointment = await repository.createAppointment(clinicId, {
@@ -160,6 +158,8 @@ describe("finance workflows through real HTTP handlers", () => {
       visitType: "trial",
     });
     // Realizado só depois do início do atendimento (QC3): relógio no dia seguinte.
+    // A comissão sai do valor pago: R$ 150 na comanda → 10% = R$ 15.
+    await sellSessionForAppointment(repository, clinicId, actorId, appointment, 15000);
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(new Date("2039-02-11T12:00:00Z"));
     try {

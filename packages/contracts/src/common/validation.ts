@@ -64,7 +64,6 @@ const fieldLabels: Record<string, string> = {
   specialty: "Especialidade",
   color: "Cor",
   percentage: "Comissão (%)",
-  fixedAmountInCents: "Valor fixo",
   effectiveFrom: "Vale a partir de",
   effectiveUntil: "Vale até",
   permissions: "Permissões",

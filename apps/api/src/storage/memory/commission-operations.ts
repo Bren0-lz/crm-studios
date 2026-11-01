@@ -4,7 +4,6 @@ import type {
   AdminUserCommissionInput,
   CommissionRecalculationPreviewInput,
 } from "@crm/contracts";
-import { sessionValueInCents, singlePlanSessionPrices } from "@crm/contracts";
 import { DomainError } from "../../repository.js";
 import { clinicDateOf } from "../../modules/finance/daily-cash.js";
 import {
@@ -13,46 +12,12 @@ import {
 } from "../../modules/finance/commission-calculation.js";
 import type { MemoryRepositoryContext } from "./context.js";
 import { now, uuid } from "./helpers.js";
+import { commissionBaseInCents } from "./commission-base.js";
 import { createMemoryCommissionRecalculation } from "./commission-recalculation.js";
 import type { CommissionRecalculationRequest } from "../../repository.js";
 /**
- * Base da comissão percentual (o preço de tabela do serviço não entra): o valor por sessão do serviço no
- * plano consumido pelo atendimento/presença; sem consumo de plano, o valor por sessão do
- * plano avulso do serviço; sem nenhum, 0.
- */
-export function commissionBaseInCents(
-  context: MemoryRepositoryContext,
-  clinicId: string,
-  source: {
-    appointmentId?: string | undefined;
-    groupAttendanceId?: string | undefined;
-    serviceId: string;
-  },
-): number {
-  const movement = context.sessionMovements.find(
-    (item) =>
-      item.kind === "consumption" &&
-      ((source.appointmentId && item.appointmentId === source.appointmentId) ||
-        (source.groupAttendanceId &&
-          item.groupAttendanceId === source.groupAttendanceId)),
-  );
-  const plan = movement
-    ? context.patientPlans.find(
-        (item) => item.clinicId === clinicId && item.id === movement.planId,
-      )
-    : undefined;
-  const serviceId = movement?.serviceId ?? source.serviceId;
-  return sessionValueInCents(
-    plan?.services.find((item) => item.serviceId === serviceId),
-    singlePlanSessionPrices(
-      context.planTemplates.filter((item) => item.clinicId === clinicId),
-    ).get(source.serviceId) ?? 0,
-  );
-}
-
-/**
- * Sessões concluídas da competência ainda sem comissão, com a regra e o serviço que a
- * geração usaria (mesma seleção de `generateCommissions`).
+ * Sessões concluídas da competência ainda sem comissão, com a regra, o serviço e a base (valor
+ * pago pelo cliente) que a geração usaria (mesma seleção de `generateCommissions`).
  */
 export function commissionCandidates(
   context: MemoryRepositoryContext,
@@ -131,19 +96,14 @@ export function commissionCandidates(
         ],
         source.professionalId,
         userId,
-        source.serviceId,
         date,
       ),
       service = context.services.find(
         (item) => item.clinicId === clinicId && item.id === source.serviceId,
       );
-    if (!rule || !service) continue;
-    candidates.push({
-      source,
-      rule,
-      service,
-      baseAmountInCents: commissionBaseInCents(context, clinicId, source),
-    });
+    const baseAmountInCents = commissionBaseInCents(context, clinicId, source);
+    if (!rule || !service || !baseAmountInCents) continue;
+    candidates.push({ source, rule, service, baseAmountInCents });
   }
   return candidates;
 }
@@ -162,28 +122,17 @@ export function createCommissionOperationsRepository(
         404,
       );
     if (
-      input.serviceId &&
-      !context.services.some(
-        (item) => item.clinicId === clinicId && item.id === input.serviceId,
-      )
-    )
-      throw new DomainError(
-        "SERVICE_NOT_FOUND",
-        "Serviço não encontrado.",
-        404,
-      );
-    if (
       context.commissionRules.some(
         (item) =>
           item.clinicId === clinicId &&
           item.professionalId === input.professionalId &&
-          item.serviceId === input.serviceId &&
+          !item.serviceId &&
           item.effectiveFrom === input.effectiveFrom,
       )
     )
       throw new DomainError(
         "COMMISSION_RULE_DUPLICATE",
-        "Já existe uma regra nesta vigência para este serviço.",
+        "Já existe uma regra nesta vigência para este profissional.",
         409,
       );
     const rule: CommissionRule = {
@@ -236,11 +185,6 @@ export function createCommissionOperationsRepository(
         const snapshot: AdminUserCommissionInput = {
           percentage: rule.percentage,
           effectiveFrom: rule.effectiveFrom,
-          ...(rule.kind ? { kind: rule.kind } : {}),
-          ...(rule.fixedAmountInCents !== undefined
-            ? { fixedAmountInCents: rule.fixedAmountInCents }
-            : {}),
-          ...(rule.serviceId ? { serviceId: rule.serviceId } : {}),
           ...(rule.effectiveUntil
             ? { effectiveUntil: rule.effectiveUntil }
             : {}),
