@@ -1,5 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  auditChangesOf,
+  changeReasonSchema,
+  diffAuditFields,
+  patientAuditLabels,
   appointmentCreateInputSchema,
   autoCampaignInputSchema,
   recurringAppointmentCreateInputSchema,
@@ -2322,5 +2326,77 @@ describe("campanhas automáticas promocionais", () => {
         promotion: { campaignId: "x", occurrenceKey: "" },
       }).success,
     ).toBe(false);
+  });
+});
+
+describe("edit history changes", () => {
+  it("lists only the labeled fields that changed, in readable pt-BR", () => {
+    expect(
+      diffAuditFields(
+        {
+          fullName: "Ana",
+          phone: "1199",
+          tags: ["VIP"],
+          birthDate: "",
+          imageConsent: false,
+          secret: "a",
+        },
+        {
+          fullName: "Ana",
+          phone: "1188",
+          tags: [],
+          birthDate: "1990-05-20",
+          imageConsent: true,
+          secret: "b",
+        },
+        patientAuditLabels,
+      ),
+    ).toEqual([
+      { field: "phone", label: "Telefone", before: "1199", after: "1188" },
+      {
+        field: "birthDate",
+        label: "Data de nascimento",
+        before: null,
+        after: "20/05/1990",
+      },
+      { field: "tags", label: "Etiquetas", before: "VIP", after: null },
+      {
+        field: "imageConsent",
+        label: "Autoriza uso de imagem",
+        before: "Não",
+        after: "Sim",
+      },
+    ]);
+    expect(diffAuditFields({ notes: "" }, {}, patientAuditLabels)).toEqual([]);
+    expect(
+      diffAuditFields(
+        { gender: "female" },
+        {
+          gender: "male",
+          discount: { type: "percentage", percent: 10, scope: "permanent" },
+        },
+        patientAuditLabels,
+      ),
+    ).toEqual([
+      {
+        field: "gender",
+        label: "Gênero",
+        before: "Feminino",
+        after: "Masculino",
+      },
+      {
+        field: "discount",
+        label: "Desconto",
+        before: null,
+        after: "10% de desconto · permanente",
+      },
+    ]);
+  });
+
+  it("trims the reason and limits it to 500 characters", () => {
+    expect(changeReasonSchema.parse("  motivo  ")).toBe("motivo");
+    expect(changeReasonSchema.parse(undefined)).toBeUndefined();
+    expect(changeReasonSchema.safeParse("x".repeat(501)).success).toBe(false);
+    expect(auditChangesOf({ changes: [{ field: "a" }] })).toEqual([]);
   });
 });
