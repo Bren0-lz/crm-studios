@@ -380,6 +380,32 @@
   font-size: var(--text-xl);
 }
 
+.sale-payment h3 {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-md);
+  font-weight: 600;
+}
+
+.sale-payment dl {
+  display: grid;
+  grid-template-columns: repeat(
+    auto-fit,
+    minmax(calc(var(--space-8) * 2 + var(--space-3)), 1fr)
+  );
+  gap: var(--space-3);
+  margin: 0;
+}
+
+.sale-payment dt {
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+
+.sale-payment dd {
+  margin: var(--space-1) 0 0;
+  font-size: var(--text-md);
+}
+
 @media (max-width: 700px) {
   .sale-line,
   .sale-line.has-size,
