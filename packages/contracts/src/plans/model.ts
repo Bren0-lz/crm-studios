@@ -247,7 +247,7 @@ export function isSinglePlanTemplate(template: {
 }
 
 /**
- * Serviço não tem preço: o valor de referência de uma sessão avulsa vem do plano avulso
+ * O preço de tabela do serviço não cobra nada: o valor de referência de uma sessão avulsa vem do plano avulso
  * ativo que inclui o serviço (valor ÷ sessões). Com mais de um, vale o cadastrado primeiro.
  */
 export function singlePlanSessionPrices(
@@ -280,6 +280,57 @@ export function singlePlanSessionPrices(
       }),
     );
   return prices;
+}
+
+/** Linha do resumo "preço de tabela" do cadastro de plano. */
+export interface PlanTablePriceLine {
+  serviceId: string;
+  sessions: number;
+  /** Preço de tabela de uma sessão; `null` quando o serviço não tem preço (0 ou ausente). */
+  unitPriceInCents: number | null;
+  /** Preço de tabela × sessões; `null` quando o serviço não tem preço. */
+  totalInCents: number | null;
+}
+
+/**
+ * Quanto as sessões do plano custariam avulsas, pelo preço de tabela de cada serviço. É só
+ * referência para quem define o valor do plano: não muda o valor cobrado, a comissão nem os
+ * relatórios. Linha sem serviço escolhido fica de fora; serviço sem preço não entra na soma.
+ */
+export function planTablePriceSummary(
+  rows: readonly { serviceId: string; sessions: number }[],
+  services: readonly { id: string; priceInCents: number }[],
+): {
+  lines: PlanTablePriceLine[];
+  totalInCents: number;
+  missingPrices: number;
+} {
+  const lines = rows
+    .filter((row) => row.serviceId)
+    .map((row) => {
+      const price = services.find(
+        (service) => service.id === row.serviceId,
+      )?.priceInCents;
+      const sessions =
+        Number.isFinite(row.sessions) && row.sessions > 0 ? row.sessions : 0;
+      const unitPriceInCents = price && price > 0 ? price : null;
+      return {
+        serviceId: row.serviceId,
+        sessions,
+        unitPriceInCents,
+        totalInCents:
+          unitPriceInCents === null ? null : unitPriceInCents * sessions,
+      };
+    });
+  return {
+    lines,
+    totalInCents: lines.reduce(
+      (sum, line) => sum + (line.totalInCents ?? 0),
+      0,
+    ),
+    missingPrices: lines.filter((line) => line.unitPriceInCents === null)
+      .length,
+  };
 }
 
 export const planStatusSchema = z.enum([

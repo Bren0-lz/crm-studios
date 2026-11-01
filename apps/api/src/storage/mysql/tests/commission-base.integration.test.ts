@@ -13,11 +13,11 @@ import { serviceWithSinglePlan } from "../../../test-support/single-plan-service
 const clinicId = "11111111-1111-4111-8111-111111111111";
 const actorId = "22222222-2222-4222-8222-222222222222";
 
-// Serviço não tem preço: a comissão percentual usa a sessão do plano consumido; sem plano,
+// O preço de tabela do serviço não entra: a comissão percentual usa a sessão do plano consumido; sem plano,
 // a do plano avulso do serviço; sem nenhum, 0.
 for (const storage of ["memory", "mysql"] as const) {
   describe.skipIf(storage === "mysql" && !process.env.TEST_DATABASE_URL)(
-    `${storage}: base da comissão sem preço de serviço`,
+    `${storage}: base da comissão sem o preço de tabela do serviço`,
     () => {
       let repository: ClinicRepository;
       let database: TestDatabase | undefined;
@@ -56,6 +56,8 @@ for (const storage of ["memory", "mysql"] as const) {
           withoutPlan = await repository.createService(clinicId, {
             name: `Sem plano ${randomUUID().slice(0, 8)}`,
             durationMinutes: 50,
+            // Preço de tabela é só referência: a comissão sem plano não usa este valor.
+            priceInCents: 9000,
             color: "#547A6B",
           });
         const patient = async (name: string) =>
