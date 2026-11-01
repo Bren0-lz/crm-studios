@@ -247,9 +247,10 @@ describe("editor da mensagem", () => {
         name: "Inserir hora do atendimento",
       }),
     );
-    // A prévia preenche a hora do atendimento com o exemplo.
+    // Os códigos entram separados do texto e entre si por espaço (antes saía
+    // "nova.Maria Souza09:00"); a prévia preenche a hora com o exemplo.
     expect(dialog.querySelector(".template-editor-preview")).toHaveTextContent(
-      "Olá, Maria! Temos turma nova.Maria Souza09:00",
+      "Olá, Maria! Temos turma nova. Maria Souza 09:00",
     );
     fireEvent.click(
       within(dialog).getByRole("button", { name: "Salvar mensagem" }),
@@ -259,7 +260,7 @@ describe("editor da mensagem", () => {
         calls.find((call) => call.url.includes(`/templates/${template.id}`))
           ?.body,
       ).toMatchObject({
-        body: "Olá, {{nome}}! Temos turma nova.{{nome_completo}}{{hora_atendimento}}",
+        body: "Olá, {{nome}}! Temos turma nova. {{nome_completo}} {{hora_atendimento}}",
       }),
     );
   });

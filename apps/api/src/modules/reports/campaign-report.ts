@@ -15,6 +15,7 @@ import {
   type WhatsappCampaignDetail,
 } from "@crm/contracts";
 import { clinicDateOf } from "../finance/daily-cash.js";
+import { deliveryPromotionValidUntil } from "../communications/auto-campaigns.js";
 import { destination } from "../communications/broadcast.js";
 import { manualPromotionValidUntil } from "../communications/campaign-promotions.js";
 
@@ -230,7 +231,7 @@ export function buildCampaignReport(
         ...promotionOf(
           delivery.patientId,
           delivery.occurrenceKey,
-          delivery.promotionValidUntil,
+          deliveryPromotionValidUntil(campaign, delivery, patient),
         ),
       });
     }

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { paymentMethodSchema } from "../common/model.js";
 import {
   patientPlanInputSchema,
   planCatalogInputSchema,
@@ -78,6 +79,9 @@ export interface PatientPlan extends Omit<
   cancelledValueInCents?: number;
   /** Valor devolvido ao cliente no cancelamento (estorno), quando houve. */
   refundedInCents?: number;
+  /** Forma de pagamento do estorno e a conta paga que o lançou no Financeiro. */
+  refundPaymentMethod?: z.infer<typeof paymentMethodSchema>;
+  refundPayableId?: string;
   refundNote?: string;
   /** Pausa em andamento: início, motivo e previsão de retorno. */
   pausedAt?: string;

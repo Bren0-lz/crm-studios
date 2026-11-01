@@ -208,6 +208,48 @@ describe("plan discount", () => {
     );
   });
 
+  it("shows the installments of the bag with the discount and where each value comes from", async () => {
+    login();
+    mockApi();
+    renderAt("/clientes");
+    const dialog = await openNewClient();
+    const block = await chooseSingleService(dialog);
+    fireEvent.click(
+      within(block).getByRole("button", { name: "Configurar desconto" }),
+    );
+    const discount = await screen.findByRole("dialog", {
+      name: "Desconto do plano",
+    });
+    fireEvent.change(
+      within(discount).getByLabelText("Porcentagem de desconto (%)"),
+      { target: { value: "10" } },
+    );
+    fireEvent.click(
+      within(discount).getByRole("button", { name: "Aplicar desconto" }),
+    );
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("dialog", { name: "Desconto do plano" }),
+      ).toBeNull(),
+    );
+    const preview = within(dialog)
+      .getByText("Ver parcelas de Aula avulsa")
+      .closest("details")!;
+    expect(within(preview).getByText("1 cobrança de R$ 81,00")).toBeVisible();
+    fireEvent.click(within(preview).getByText("Ver parcelas de Aula avulsa"));
+    const [installment] = within(
+      within(preview).getByRole("list", { name: "Parcelas previstas" }),
+    ).getAllByRole("listitem");
+    expect(installment).toHaveTextContent("Cobrança única");
+    expect(installment).toHaveTextContent(/Valor do plano\s*R\$\s90,00/);
+    expect(installment).toHaveTextContent(
+      /Desconto do plano · 10%\s*− R\$\s9,00/,
+    );
+    expect(
+      within(preview).getByText("Total a pagar").nextSibling,
+    ).toHaveTextContent(/81,00/);
+  });
+
   it("removes the plan discount before saving", async () => {
     login();
     mockApi();

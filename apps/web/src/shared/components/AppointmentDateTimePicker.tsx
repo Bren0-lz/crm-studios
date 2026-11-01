@@ -352,15 +352,28 @@ export function AppointmentDateTimePicker({
               item.id !== excludeAppointmentId &&
               matchesResource(item),
           )
-          .map((item) => ({ ...item, kind: "Atendimento" })),
+          .map((item) => ({
+            ...item,
+            kind: "Atendimento",
+            activity: item.serviceName,
+          })),
         ...data.groups
           .filter(
             (item) => item.status !== "cancelled" && matchesResource(item),
           )
-          .map((item) => ({ ...item, kind: "Turma" })),
+          .map((item) => ({
+            ...item,
+            kind: "Turma",
+            activity: item.groupName,
+          })),
         ...data.blocks
           .filter((item) => item.status === "active" && matchesResource(item))
-          .map((item) => ({ ...item, kind: "Bloqueio" })),
+          // O motivo do bloqueio fica fora do resumo (pode ser pessoal).
+          .map((item) => ({
+            ...item,
+            kind: "Bloqueio",
+            activity: "Horário bloqueado",
+          })),
       ].sort(
         (a, b) =>
           a.startsAt.localeCompare(b.startsAt) || a.kind.localeCompare(b.kind),
@@ -595,12 +608,29 @@ export function AppointmentDateTimePicker({
                         // Show the portion occupying this day, including overnight reservations.
                         const startsBefore = dateKey(start) < date;
                         const endsAfter = dateKey(end) > date;
+                        // O nome do cliente não aparece: o resumo mostra só o que ocupa
+                        // o horário (atividade, profissional e sala).
+                        const resources = [item.professionalName, item.roomName]
+                          .filter(Boolean)
+                          .join(" · ");
                         return (
                           <li key={`${item.kind}-${item.id}`}>
-                            <time>
-                              {startsBefore ? "00:00" : timeLabel.format(start)}
-                              –{endsAfter ? "24:00" : timeLabel.format(end)}
-                            </time>
+                            <div className="appointment-calendar-event-main">
+                              <time>
+                                {startsBefore
+                                  ? "00:00"
+                                  : timeLabel.format(start)}
+                                –{endsAfter ? "24:00" : timeLabel.format(end)}
+                              </time>
+                              <span className="appointment-calendar-event-activity">
+                                {item.activity}
+                              </span>
+                              {resources && (
+                                <span className="appointment-calendar-event-resources">
+                                  {resources}
+                                </span>
+                              )}
+                            </div>
                             <span className="appointment-calendar-event-kind">
                               {item.kind}
                             </span>

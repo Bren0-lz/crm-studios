@@ -368,9 +368,14 @@
 .inventory-table tbody tr:last-child > * {
   border-bottom: 0;
 }
-/* Linha alta (produto com tamanhos): valores alinhados ao nome do produto, não ao meio. */
-.inventory-table tbody > tr > * {
-  vertical-align: top;
+/* Produtos: situação, estoque, custo e preço centralizados (título e valor), na altura do
+   meio da linha; o nome do produto fica à esquerda e "Editar" à direita. */
+.inventory-products-table tbody > tr > * {
+  vertical-align: middle;
+}
+.inventory-products-table thead th:not(:first-child):not(:last-child),
+.inventory-products-table tbody td:not(:last-child) {
+  text-align: center;
 }
 .inventory-product {
   display: grid;

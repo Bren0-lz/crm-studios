@@ -1,8 +1,7 @@
 import { usePatientContext } from "../../shared/hooks/usePatientContext";
 import { PatientContextNotice } from "../../shared/components/PatientContextNotice";
-import { DocumentSignatureActions } from "./DocumentSignatureActions";
+import { DocumentDetailsModal } from "./DocumentDetailsModal";
 import { SendForSignatureModal } from "./SendForSignatureModal";
-import { SignatureLinkRecord } from "./SignatureLinkRecord";
 import {
   defaultContractTemplateBody,
   documentContentFromText,
@@ -18,14 +17,15 @@ import {
   type Professional,
 } from "@crm/contracts";
 import {
-  FileDown,
   FilePen,
   FileText,
   Files,
   MessageCircle,
   Plus,
   Printer,
+  Search,
   Trash2,
+  X,
   type LucideIcon,
 } from "lucide-react";
 import {
@@ -51,7 +51,18 @@ import { PageHeader } from "../../shared/components/PageHeader";
 import { ReadOnlyNotice } from "../../shared/components/ReadOnlyNotice";
 import { ActionModal } from "../../shared/components/ActionModal";
 import { CancelDocumentModal } from "./CancelDocumentModal";
-import { documentKindLabels, fetchContractsPageData } from "./model";
+import {
+  documentKindLabels,
+  documentSituation,
+  documentSituationLabels,
+  documentSituationPills,
+  emptyDocumentFilters,
+  fetchContractsPageData,
+  filterDocuments,
+  type DocumentFilters,
+  type DocumentSituation,
+} from "./model";
+import { shortDate } from "../../shared/lib/formatting";
 import { DocumentPaper } from "./DocumentPaper";
 import { DocumentWizard } from "./DocumentWizard";
 import { DocumentPdfPreview } from "./DocumentPdfPreview";
@@ -77,6 +88,19 @@ const defaultTemplateForm: DocumentTemplateInput = {
 
 type ContractsTab = "documentos" | "modelos" | "criar-modelo";
 
+/** Data mais relevante do documento para a lista: cancelamento, emissão ou criação. */
+function documentDateLabel(document: IssuedDocument) {
+  const [label, iso] = document.cancelledAt
+    ? ["Cancelado em", document.cancelledAt]
+    : document.issuedAt
+      ? ["Emitido em", document.issuedAt]
+      : ["Criado em", document.createdAt];
+  const date = new Date(iso ?? "");
+  return Number.isNaN(date.getTime())
+    ? ""
+    : `${label} ${shortDate.format(date)}`;
+}
+
 export function DocumentsPage() {
   const { can, canView, canEdit } = useAuthorization();
   const contextPatientId = usePatientContext();
@@ -101,6 +125,8 @@ export function DocumentsPage() {
   const [deletingTemplate, setDeletingTemplate] =
     useState<DocumentTemplate | null>(null);
   const [cancelling, setCancelling] = useState<IssuedDocument | null>(null);
+  const [detailsId, setDetailsId] = useState<string | null>(null);
+  const [filters, setFilters] = useState<DocumentFilters>(emptyDocumentFilters);
   const [sending, setSending] = useState<{
     document: IssuedDocument | null;
   } | null>(null);
@@ -123,6 +149,8 @@ export function DocumentsPage() {
       : []),
   ];
   const [creatingTemplate, setCreatingTemplate] = useState(false);
+  // Erro ao criar modelo: aparece junto do botão "Criar modelo", não no topo da página.
+  const [templateError, setTemplateError] = useState("");
   const creatingTemplateRef = useRef(false);
   const [templateBaseline, setTemplateBaseline] = useState(
     JSON.stringify(defaultTemplateForm),
@@ -133,8 +161,9 @@ export function DocumentsPage() {
   // O que falta para criar o modelo e o documento (QM14).
   const templateMissing = useMissingFields(
     missingLabels([
-      ["Nome", templateForm.name],
-      ["Conteúdo", templateForm.body],
+      // Rótulos explícitos: o editor também mostra "Nome do cliente", "Nome da clínica"…
+      ["Nome do modelo", templateForm.name],
+      ["Conteúdo do modelo", templateForm.body],
     ]),
     "field-hint",
   );
@@ -223,7 +252,7 @@ export function DocumentsPage() {
       );
     creatingTemplateRef.current = true;
     setCreatingTemplate(true);
-    setError("");
+    setTemplateError("");
     setNotice("");
     try {
       const created = await api.createDocumentTemplate(parsed.data);
@@ -240,7 +269,9 @@ export function DocumentsPage() {
   function createTemplate(event: FormEvent) {
     event.preventDefault();
     if (!creatingTemplateRef.current)
-      void saveTemplate().catch((cause: Error) => setError(cause.message));
+      void saveTemplate().catch((cause: Error) =>
+        setTemplateError(cause.message),
+      );
   }
   const templateDirty = JSON.stringify(templateForm) !== templateBaseline;
   const templatePrompt = useUnsavedChangesPrompt({
@@ -288,6 +319,14 @@ export function DocumentsPage() {
   const visibleDocuments = documents.filter(
     (item) => !contextPatientId || item.patientId === contextPatientId,
   );
+  const filteredDocuments = filterDocuments(visibleDocuments, filters);
+  const filtersActive = Boolean(
+    filters.search.trim() || filters.situation || filters.template,
+  );
+  const documentTemplateNames = [
+    ...new Set(visibleDocuments.map((item) => item.templateName)),
+  ].sort((a, b) => a.localeCompare(b, "pt-BR"));
+  const detailsDocument = documents.find((item) => item.id === detailsId);
   return (
     <>
       <PatientContextNotice patientId={contextPatientId} patients={patients} />
@@ -334,7 +373,11 @@ export function DocumentsPage() {
                   <h2>Emissões e rascunhos</h2>
                 </div>
                 <div className="page-actions">
-                  <span className="list-count">{visibleDocuments.length}</span>
+                  <span className="list-count">
+                    {filtersActive
+                      ? `${filteredDocuments.length} de ${visibleDocuments.length}`
+                      : visibleDocuments.length}
+                  </span>
                   {canSendForSignature && (
                     <button
                       type="button"
@@ -393,105 +436,116 @@ export function DocumentsPage() {
                   copy="Use Novo documento para escolher o cliente, ajustar o texto e conferir o PDF."
                 />
               ) : (
-                <div className="issued-document-list">
-                  {visibleDocuments.map((item) => (
-                    <article key={item.id}>
-                      <div className="document-summary">
-                        <strong>{item.title}</strong>
-                        <span>
-                          {item.patientName}
-                          {item.supplierId ? " (fornecedor)" : ""} ·{" "}
-                          {item.templateName} v{item.templateVersion}
-                        </span>
-                        <details>
-                          <summary>Ver conteúdo</summary>
-                          <DocumentPaper
-                            body={item.snapshotBody}
-                            content={item.snapshotContent}
-                            branding={item.branding ?? branding}
-                          />
-                        </details>
-                        <SignatureLinkRecord document={item} />
-                      </div>
-                      <span className={`status-pill ${item.status}`}>
-                        {item.status === "draft"
-                          ? "Rascunho"
-                          : item.status === "issued"
-                            ? "Emitido"
-                            : "Cancelado"}
-                      </span>
-                      <DocumentSignatureActions
-                        document={item}
-                        onChanged={replaceDocument}
+                <>
+                  <div className="list-toolbar documents-toolbar">
+                    <label className="search-box">
+                      <Search size={18} aria-hidden="true" />
+                      <input
+                        type="search"
+                        aria-label="Buscar documentos"
+                        placeholder="Buscar por cliente, título ou modelo"
+                        value={filters.search}
+                        onChange={(event) =>
+                          setFilters({ ...filters, search: event.target.value })
+                        }
                       />
-                      <div className="document-actions">
-                        {canManage &&
-                          item.status === "draft" &&
-                          can("contracts.issue") && (
+                    </label>
+                    <label>
+                      Situação
+                      <select
+                        value={filters.situation}
+                        onChange={(event) =>
+                          setFilters({
+                            ...filters,
+                            situation: event.target
+                              .value as DocumentFilters["situation"],
+                          })
+                        }
+                      >
+                        <option value="">Todas</option>
+                        {(
+                          Object.keys(
+                            documentSituationLabels,
+                          ) as DocumentSituation[]
+                        ).map((key) => (
+                          <option key={key} value={key}>
+                            {documentSituationLabels[key]}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label>
+                      Modelo
+                      <select
+                        value={filters.template}
+                        onChange={(event) =>
+                          setFilters({
+                            ...filters,
+                            template: event.target.value,
+                          })
+                        }
+                      >
+                        <option value="">Todos</option>
+                        {documentTemplateNames.map((name) => (
+                          <option key={name} value={name}>
+                            {name}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    {filtersActive && (
+                      <button
+                        type="button"
+                        className="text-button button-sm"
+                        onClick={() => setFilters(emptyDocumentFilters)}
+                      >
+                        <X size={15} aria-hidden="true" /> Limpar filtros
+                      </button>
+                    )}
+                  </div>
+                  {filteredDocuments.length === 0 ? (
+                    <EmptyState
+                      title="Nenhum documento encontrado"
+                      copy="Ajuste a busca ou os filtros para ver outros documentos."
+                    />
+                  ) : (
+                    <div className="issued-document-list">
+                      {filteredDocuments.map((item) => {
+                        const situation = documentSituation(item);
+                        return (
+                          <article key={item.id}>
+                            <div className="document-summary">
+                              <strong>{item.patientName}</strong>
+                              <span>
+                                {item.title}
+                                {item.supplierId ? " (fornecedor)" : ""}
+                                {item.templateName === item.title
+                                  ? ` · v${item.templateVersion}`
+                                  : ` · ${item.templateName} v${item.templateVersion}`}
+                              </span>
+                            </div>
+                            <span className="document-date">
+                              {documentDateLabel(item)}
+                            </span>
+                            <span
+                              className={`status-pill ${documentSituationPills[situation]}`}
+                            >
+                              {documentSituationLabels[situation]}
+                            </span>
                             <button
+                              type="button"
                               className="secondary-button button-sm"
-                              onClick={() => setPreparing({ document: item })}
+                              aria-label={`Ver detalhes de ${item.title} · ${item.patientName}`}
+                              onClick={() => setDetailsId(item.id)}
                             >
-                              Revisar rascunho
+                              Ver detalhes
                             </button>
-                          )}
-                        {item.status === "issued" && (
-                          <>
-                            {canManage && can("contracts.status") && (
-                              <button
-                                type="button"
-                                className="whatsapp-button button-sm"
-                                onClick={() => setSending({ document: item })}
-                              >
-                                <MessageCircle size={15} aria-hidden="true" />
-                                WhatsApp
-                              </button>
-                            )}
-                            <button
-                              className="secondary-button button-sm"
-                              onClick={() =>
-                                setPrinting({ document: item, pdf: true })
-                              }
-                            >
-                              <FileDown size={15} /> Salvar PDF
-                            </button>
-                            <button
-                              className="secondary-button button-sm"
-                              onClick={() =>
-                                setPrinting({ document: item, pdf: false })
-                              }
-                            >
-                              <Printer size={15} /> Imprimir
-                            </button>
-                          </>
-                        )}
-                        {canManage &&
-                          item.status === "draft" &&
-                          can("contracts.status") && (
-                            <button
-                              className="primary-button button-sm"
-                              onClick={() => {
-                                setIssueReady(false);
-                                setIssuing(item);
-                              }}
-                            >
-                              Emitir
-                            </button>
-                          )}
-                        {canManage &&
-                          item.status !== "cancelled" &&
-                          can("contracts.cancel") && (
-                            <button
-                              className="danger-button button-sm"
-                              onClick={() => setCancelling(item)}
-                            >
-                              Cancelar
-                            </button>
-                          )}
-                      </div>
-                    </article>
-                  ))}
-                </div>
+                          </article>
+                        );
+                      })}
+                    </div>
+                  )}
+                </>
               )}
             </section>
           </div>
@@ -590,17 +644,18 @@ export function DocumentsPage() {
                 >
                   <div className="template-studio-meta">
                     <label>
-                      Nome
+                      Nome do modelo
                       <input
                         required
                         value={templateForm.name}
                         disabled={creatingTemplate}
-                        onChange={(event) =>
+                        onChange={(event) => {
+                          setTemplateError("");
                           setTemplateForm({
                             ...templateForm,
                             name: event.target.value,
-                          })
-                        }
+                          });
+                        }}
                       />
                     </label>
                     <label>
@@ -669,6 +724,11 @@ export function DocumentsPage() {
                       }))
                     }
                   />
+                  {templateError && (
+                    <p className="form-error" role="alert">
+                      {templateError}
+                    </p>
+                  )}
                   {templateMissing.hint}
                   <div className="modal-actions">
                     <button
@@ -718,6 +778,25 @@ export function DocumentsPage() {
             setDeletingTemplate(null);
             setNotice(`Modelo “${deletingTemplate.name}” excluído.`);
           }}
+        />
+      )}
+      {detailsDocument && (
+        <DocumentDetailsModal
+          document={detailsDocument}
+          branding={branding}
+          inactive={Boolean(
+            preparing || sending || issuing || cancelling || printing,
+          )}
+          onChanged={replaceDocument}
+          onReview={() => setPreparing({ document: detailsDocument })}
+          onIssue={() => {
+            setIssueReady(false);
+            setIssuing(detailsDocument);
+          }}
+          onSend={() => setSending({ document: detailsDocument })}
+          onPrint={(pdf) => setPrinting({ document: detailsDocument, pdf })}
+          onCancel={() => setCancelling(detailsDocument)}
+          onClose={() => setDetailsId(null)}
         />
       )}
       {preparing && (
