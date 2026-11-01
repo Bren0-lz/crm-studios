@@ -271,6 +271,9 @@ export interface PatientTab extends PatientTabInput {
   id: string;
   clinicId: string;
   patientName: string;
+  /** Usuário que registrou a venda (abriu a comanda); ausente se o usuário não existe mais. */
+  soldByUserId?: string;
+  soldByName?: string;
   status: "open" | "closed" | "cancelled";
   paymentStatus: "pending" | "paid" | "receivable" | "cancelled";
   totalInCents: number;
