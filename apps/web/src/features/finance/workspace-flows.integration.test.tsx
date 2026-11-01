@@ -1,5 +1,5 @@
 import { nextTestCpf } from "../../../../api/src/test-support/cpf.js";
-import { fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { api } from "../../api";
 import { actorId, clinicId, setupApi } from "../../test-support/api-server";
@@ -121,11 +121,16 @@ describe("finance workflows through real HTTP handlers", () => {
       paidAt: new Date("2040-06-10T10:00").toISOString(),
       cashAvailableAt: new Date("2040-06-12T08:00").toISOString(),
     });
-    await waitFor(() =>
-      expect(
-        screen.getByText("Compra de faixas", { exact: true }),
-      ).toBeInTheDocument(),
+    // Paga com data de outro mês: sai da lista do mês e fica em "pagas de meses anteriores".
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Ver pagas de meses anteriores (1)",
+      }),
     );
+    const paidGroup = screen.getByRole("region", { name: /^Pagas/ });
+    expect(
+      within(paidGroup).getByText("Compra de faixas", { exact: true }),
+    ).toBeInTheDocument();
   });
   it("reconciles a paid commission and records a recovery while preserving its original payment", async () => {
     const { repository } = await setupApi();

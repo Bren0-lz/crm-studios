@@ -167,7 +167,7 @@ export function notificationGroups(
   add(
     "recurringPayables",
     summary.recurringPayablesDue,
-    "/financeiro?aba=contas-a-pagar",
+    "/financeiro?aba=contas-a-pagar&visao=fixas",
     <Receipt {...iconProps} />,
   );
   add(

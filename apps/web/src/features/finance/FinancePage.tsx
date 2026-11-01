@@ -21,7 +21,7 @@ import type {
   Professional,
   Receivable,
 } from "@crm/contracts";
-import { Building2, Plus, Tags } from "lucide-react";
+import { Building2, Plus, Search, Tags } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useLocation, useSearchParams } from "react-router-dom";
 import { api } from "../../api";
@@ -44,6 +44,8 @@ import { PayableAmountModal } from "./PayableAmountModal";
 import { NewExpenseModal } from "./NewExpenseModal";
 import type { ExpenseKind } from "./expense-kind";
 import { PayablesList } from "./PayablesList";
+import { PayablesSummary } from "./PayablesSummary";
+import { hasEntryFilter, matchesPayableSearch } from "./model";
 import { ReceiptModal } from "./ReceiptModal";
 import { ReceivableAdjustModal } from "./ReceivableAdjustModal";
 import { ReceivableContactModal } from "./ReceivableContactModal";
@@ -97,9 +99,19 @@ export function FinancePage() {
   // Já na página, cada clique no sino é uma navegação nova: volta à aba pedida.
   const location = useLocation();
   const [seenLocation, setSeenLocation] = useState(location.key);
+  // `&visao=fixas` abre direto as despesas fixas (aviso de vencimento no sino).
+  const requestedPayablesView = () =>
+    searchParams.get("visao") === "fixas" ? "recurring" : "bills";
+  const [payablesView, setPayablesView] = useState<"bills" | "recurring">(
+    requestedPayablesView,
+  );
+  const [payableSearch, setPayableSearch] = useState("");
   if (location.key !== seenLocation) {
     setSeenLocation(location.key);
-    if (searchParams.get("aba") === "contas-a-pagar") setTab("payables");
+    if (searchParams.get("aba") === "contas-a-pagar") {
+      setTab("payables");
+      setPayablesView(requestedPayablesView());
+    }
   }
   const [professionals, setProfessionals] = useState<Professional[]>([]);
   const [selectedReceivables, setSelectedReceivables] = useState<string[]>([]);
@@ -534,55 +546,118 @@ export function FinancePage() {
               />
             </section>
           ) : tab === "payables" ? (
-            <section className="panel finance-panel">
+            <section
+              className={`panel finance-panel payables-panel ${payablesView === "recurring" ? "recurring-view" : ""}`}
+            >
               <div className="panel-head">
                 <div>
                   <h2>Contas a pagar</h2>
-                  <p className="panel-help">
-                    Despesas da clínica pelo vencimento, em aberto e já pagas.
-                    As despesas fixas logo abaixo geram uma conta por mês
-                    automaticamente.
+                  <p className="panel-context">
+                    Despesas da clínica por situação e vencimento.
                   </p>
                 </div>
+                <div
+                  className="segmented"
+                  role="group"
+                  aria-label="Visão das contas a pagar"
+                >
+                  <button
+                    type="button"
+                    className="segment-button"
+                    aria-pressed={payablesView === "bills"}
+                    onClick={() => setPayablesView("bills")}
+                  >
+                    Contas
+                  </button>
+                  <button
+                    type="button"
+                    className="segment-button"
+                    aria-pressed={payablesView === "recurring"}
+                    onClick={() => setPayablesView("recurring")}
+                  >
+                    Despesas fixas
+                  </button>
+                </div>
               </div>
-              <FinanceEntryFilters
-                workspace={data}
-                value={expenseFilters}
-                onChange={setExpenseFilters}
-                payables
-              />
-              <PayablesList
-                payables={data.payables.filter((item) =>
-                  matchesFinancialEntry(item, expenseFilters, timezone),
-                )}
-                canManage={canManage}
-                onCreate={() => setPayableModal(true)}
-                onReverse={(id) => void reversePayable(id)}
-                onProofs={(item) =>
-                  setViewingProofs({
-                    entity: "payable",
-                    id: item.id,
-                    subtitle: [
-                      item.description,
-                      item.supplier || item.categoryName,
-                    ]
-                      .filter(Boolean)
-                      .join(" · "),
-                    settled: item.status === "paid",
-                  })
-                }
-                proofIds={new Set(data.paymentProofEntityIds?.payables ?? [])}
-                onSetAmount={setInformingPayable}
-                onSettle={(item) =>
-                  setSettling({
-                    kind: "payable",
-                    id: item.id,
-                    title: item.description,
-                    description: item.supplier || item.categoryName,
-                    amountInCents: item.amountInCents,
-                  })
-                }
-              />
+              {payablesView === "recurring" ? (
+                <RecurringPayablesSection
+                  refreshKey={recurringVersion}
+                  editable={canManage}
+                  workspace={data}
+                  onGenerated={reload}
+                />
+              ) : (
+                <>
+                  {data.payables.length > 0 && (
+                    <>
+                      <PayablesSummary
+                        payables={data.payables}
+                        today={saoPauloToday()}
+                      />
+                      <div className="payables-toolbar">
+                        <div className="search-box">
+                          <Search size={18} />
+                          <input
+                            type="search"
+                            aria-label="Buscar conta a pagar"
+                            placeholder="Buscar por descrição ou fornecedor"
+                            value={payableSearch}
+                            onChange={(event) =>
+                              setPayableSearch(event.target.value)
+                            }
+                          />
+                        </div>
+                        <FinanceEntryFilters
+                          workspace={data}
+                          value={expenseFilters}
+                          onChange={setExpenseFilters}
+                          payables
+                        />
+                      </div>
+                    </>
+                  )}
+                  <PayablesList
+                    payables={data.payables.filter(
+                      (item) =>
+                        matchesFinancialEntry(item, expenseFilters, timezone) &&
+                        matchesPayableSearch(item, payableSearch),
+                    )}
+                    filtered={
+                      payableSearch.trim() !== "" ||
+                      hasEntryFilter(expenseFilters)
+                    }
+                    canManage={canManage}
+                    onCreate={() => setPayableModal(true)}
+                    onReverse={(id) => void reversePayable(id)}
+                    onProofs={(item) =>
+                      setViewingProofs({
+                        entity: "payable",
+                        id: item.id,
+                        subtitle: [
+                          item.description,
+                          item.supplier || item.categoryName,
+                        ]
+                          .filter(Boolean)
+                          .join(" · "),
+                        settled: item.status === "paid",
+                      })
+                    }
+                    proofIds={
+                      new Set(data.paymentProofEntityIds?.payables ?? [])
+                    }
+                    onSetAmount={setInformingPayable}
+                    onSettle={(item) =>
+                      setSettling({
+                        kind: "payable",
+                        id: item.id,
+                        title: item.description,
+                        description: item.supplier || item.categoryName,
+                        amountInCents: item.amountInCents,
+                      })
+                    }
+                  />
+                </>
+              )}
             </section>
           ) : (
             <section className="panel finance-panel">
@@ -637,14 +712,6 @@ export function FinancePage() {
                 commissions={data.commissions}
               />
             </section>
-          )}
-          {tab === "payables" && (
-            <RecurringPayablesSection
-              refreshKey={recurringVersion}
-              editable={canManage}
-              workspace={data}
-              onGenerated={reload}
-            />
           )}
         </>
       )}

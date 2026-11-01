@@ -647,8 +647,26 @@
     justify-content: flex-start;
   }
 
-  .payables-table .finance-row > :not(:first-child) {
-    text-align: left;
+  .payables-toolbar .search-box {
+    max-width: none;
+  }
+
+  .payables-group-head {
+    flex-wrap: wrap;
+  }
+
+  .payables-panel > .panel-head {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-3);
+  }
+
+  .payables-panel > .panel-head .segmented {
+    align-self: flex-start;
+  }
+
+  .payables-panel > .panel-head .segment-button {
+    white-space: nowrap;
   }
 
   .daily-cash-groups {
