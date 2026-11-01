@@ -1187,6 +1187,51 @@
   padding: var(--space-8) var(--space-7);
 }
 
+/* Modal "Nova versão": modal largo da altura da tela, com o editor e a folha lado a lado,
+   cada um rolando por dentro (sincronizados), em vez de rolar o modal inteiro. */
+.modal.template-version-modal {
+  width: min(1440px, 100%);
+  height: calc(100vh - 2 * var(--modal-viewport-gap));
+  height: calc(100dvh - 2 * var(--modal-viewport-gap));
+}
+
+.template-version-modal > .modal-body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  overflow-y: hidden;
+}
+
+.template-version-modal .template-version-form {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-height: 0;
+}
+
+.template-version-editor {
+  flex: 1;
+  min-height: 0;
+}
+
+.template-version-modal .template-studio {
+  height: 100%;
+  align-items: stretch;
+}
+
+.template-version-modal .template-studio > .template-body-input,
+.template-version-modal .template-studio .template-preview,
+.template-version-modal .template-studio.preview-only .template-preview {
+  position: static;
+  height: 100%;
+  min-height: 0;
+}
+
+.template-version-modal .template-studio.preview-only .document-paper-canvas {
+  flex: 1;
+}
+
 /* A folha do editor é o próprio campo de texto. */
 .document-paper-editor:focus-within {
   outline: 2px solid var(--green-2);
@@ -1242,6 +1287,30 @@
   .template-studio .template-preview {
     position: static;
     height: auto;
+  }
+
+  .modal.template-version-modal {
+    height: auto;
+  }
+
+  .template-version-modal > .modal-body {
+    overflow-y: auto;
+  }
+
+  .template-version-modal .template-version-form,
+  .template-version-editor {
+    flex: none;
+  }
+
+  .template-version-modal .template-studio,
+  .template-version-modal .template-studio > .template-body-input,
+  .template-version-modal .template-studio .template-preview,
+  .template-version-modal .template-studio.preview-only .template-preview {
+    height: auto;
+  }
+
+  .template-version-modal .template-studio.preview-only .document-paper-canvas {
+    flex: none;
   }
 
   .template-studio .document-paper-canvas {
