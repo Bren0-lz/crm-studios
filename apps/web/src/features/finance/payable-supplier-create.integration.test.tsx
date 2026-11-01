@@ -2,7 +2,7 @@ import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { clinicId, setupApi } from "../../test-support/api-server";
 import { change, open, save } from "../../test-support/workflow-ui";
-import { CREATE_OPTION_VALUE } from "./InlineClassificationCreate";
+import { CREATE_OPTION_VALUE } from "./FinanceRegistryModal";
 
 describe("Nova despesa com fornecedor", () => {
   it("tem um campo só de fornecedor e cadastra um novo sem sair da despesa", async () => {
