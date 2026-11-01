@@ -23,6 +23,7 @@ import {
   cooldownUnits,
   newStepKey,
   offsetUnit,
+  promotionAllowsFixedDate,
   promotionValidityHint,
   type AutoCampaignDraft,
   type StepDraft,
@@ -55,6 +56,8 @@ export function AutoCampaignEditorModal({
       campaign?.trigger === trigger,
   );
   const variables = autoCampaignEditorVariables[draft.trigger];
+  const fixedDateAllowed = promotionAllowsFixedDate(draft.trigger);
+  const validityMode = fixedDateAllowed ? draft.validityMode : "days";
   const offsets = draft.steps
     .filter((step) => step.offset !== "")
     .map((step) => Number(step.offset));
@@ -171,31 +174,88 @@ export function AutoCampaignEditorModal({
         </label>
         {draft.promotional && (
           <>
-            <label className="span-2">
-              Validade da promoção (dias após o evento)
-              <input
-                type="number"
-                min={1}
-                max={365}
-                required
-                value={draft.validDays}
-                onChange={(event) =>
-                  setDraft((current) => ({
-                    ...current,
-                    validDays: event.target.value,
-                  }))
-                }
-              />
-              {Number(draft.validDays) > 0 && (
+            {fixedDateAllowed && (
+              <fieldset className="form-fieldset span-2">
+                <legend>Validade da promoção</legend>
+                <div className="form-fieldset-grid">
+                  <label className="checkbox-field">
+                    <input
+                      type="radio"
+                      name={`${formId}-validity`}
+                      checked={validityMode === "days"}
+                      onChange={() =>
+                        setDraft((current) => ({
+                          ...current,
+                          validityMode: "days",
+                        }))
+                      }
+                    />
+                    Dias após o evento
+                  </label>
+                  <label className="checkbox-field">
+                    <input
+                      type="radio"
+                      name={`${formId}-validity`}
+                      checked={validityMode === "date"}
+                      onChange={() =>
+                        setDraft((current) => ({
+                          ...current,
+                          validityMode: "date",
+                        }))
+                      }
+                    />
+                    Até uma data
+                  </label>
+                </div>
+              </fieldset>
+            )}
+            {validityMode === "date" ? (
+              <label className="span-2">
+                Promoção válida até
+                <input
+                  type="date"
+                  required
+                  value={draft.validUntil}
+                  onChange={(event) =>
+                    setDraft((current) => ({
+                      ...current,
+                      validUntil: event.target.value,
+                    }))
+                  }
+                />
                 <span className="field-hint">
-                  {promotionValidityHint(
-                    draft.trigger,
-                    offsets,
-                    Number(draft.validDays),
-                  )}
+                  Vale para todos que receberem a mensagem, até essa data.
                 </span>
-              )}
-            </label>
+              </label>
+            ) : (
+              <label className="span-2">
+                {draft.trigger === "birthday"
+                  ? "Validade da promoção (dias após o aniversário)"
+                  : "Validade da promoção (dias após o evento)"}
+                <input
+                  type="number"
+                  min={1}
+                  max={365}
+                  required
+                  value={draft.validDays}
+                  onChange={(event) =>
+                    setDraft((current) => ({
+                      ...current,
+                      validDays: event.target.value,
+                    }))
+                  }
+                />
+                {Number(draft.validDays) > 0 && (
+                  <span className="field-hint">
+                    {promotionValidityHint(
+                      draft.trigger,
+                      offsets,
+                      Number(draft.validDays),
+                    )}
+                  </span>
+                )}
+              </label>
+            )}
             <label className="checkbox-field span-2">
               <input
                 type="checkbox"
