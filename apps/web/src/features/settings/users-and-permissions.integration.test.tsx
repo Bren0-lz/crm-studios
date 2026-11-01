@@ -488,7 +488,9 @@ describe("users and permissions", () => {
     );
     const again = screen.getByRole("dialog", { name: "Editar Aryana Dutra" });
     fireEvent.click(
-      within(again).getByRole("checkbox", { name: "Acessa o painel de vendas" }),
+      within(again).getByRole("checkbox", {
+        name: "Acessa o painel de vendas",
+      }),
     );
     fireEvent.submit(
       within(again)
