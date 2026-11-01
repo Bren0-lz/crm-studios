@@ -1,15 +1,12 @@
 import {
   type ProductUpdateInput,
   type PatientTabItemUpdate,
-  type PatientTabServiceInput,
   type Supplier,
   type SupplierInput,
   type ManualReceivableInput,
   type FinancialClassification,
   type DreGroup,
-  type AppointmentInput,
   type Receivable,
-  type PatientTabServiceItem,
 } from "@crm/contracts";
 import { DomainError } from "../../repository.js";
 import { assertCategoryDreGroup, buildDre } from "../../modules/finance/dre.js";
@@ -81,27 +78,6 @@ export function createFinanceOperationsRepository(
         "Centro de custo não encontrado.",
         404,
       );
-  }
-  function covered(
-    clinicId: string,
-    patientId: string,
-    serviceId: string,
-    startsAt: string,
-  ) {
-    const date = clinicDateOf(
-      new Date(startsAt),
-      context.clinicSettings.timezone,
-    );
-    return context.patientPlans.some(
-      (item) =>
-        item.clinicId === clinicId &&
-        item.patientId === patientId &&
-        item.status === "active" &&
-        !item.sourceTabId &&
-        item.validFrom <= date &&
-        (!item.validUntil || item.validUntil >= date) &&
-        item.services.some((entry) => entry.serviceId === serviceId),
-    );
   }
   const operations = {
     async updateProduct(
@@ -244,92 +220,6 @@ export function createFinanceOperationsRepository(
       );
       return structuredClone(current);
     },
-    async addPatientTabService(
-      clinicId: string,
-      actorUserId: string,
-      tabId: string,
-      input: PatientTabServiceInput,
-    ) {
-      const current = tab(clinicId, tabId),
-        appointment = context.appointments.find(
-          (item) =>
-            item.clinicId === clinicId &&
-            item.id === input.appointmentId &&
-            item.patientId === current.patientId &&
-            item.status !== "cancelled",
-        );
-      if (
-        appointment &&
-        !["scheduled", "confirmed"].includes(appointment.status)
-      )
-        throw new DomainError(
-          "TAB_SERVICE_NOT_SCHEDULED",
-          "Selecione um atendimento agendado para o serviço avulso.",
-          409,
-        );
-      if (!appointment)
-        throw new DomainError(
-          "APPOINTMENT_NOT_FOUND",
-          "Atendimento do cliente não encontrado.",
-          404,
-        );
-      context.sameBranch(
-        "O atendimento é de outra filial que não a da comanda.",
-        current,
-        appointment,
-      );
-      if (
-        covered(
-          clinicId,
-          current.patientId,
-          appointment.serviceId,
-          appointment.startsAt,
-        ) ||
-        context.patientTabs.some(
-          (item) =>
-            item.clinicId === clinicId &&
-            item.services?.some(
-              (entry) => entry.appointmentId === appointment.id,
-            ),
-        )
-      )
-        throw new DomainError(
-          "APPOINTMENT_ALREADY_BILLED",
-          "O atendimento pertence a um plano ou outra comanda.",
-          409,
-        );
-      const service = context.services.find(
-        (item) =>
-          item.clinicId === clinicId && item.id === appointment.serviceId,
-      )!;
-      const entry: PatientTabServiceItem = {
-        id: uuid(),
-        appointmentId: appointment.id,
-        serviceId: service.id,
-        serviceName: service.name,
-        professionalId: appointment.professionalId,
-        professionalName: appointment.professionalName,
-        amountInCents: input.amountInCents ?? service.priceInCents,
-      };
-      if (current.totalInCents + entry.amountInCents > 2147483647)
-        throw new DomainError(
-          "TAB_TOTAL_TOO_LARGE",
-          "O valor da comanda excede o limite permitido.",
-          400,
-        );
-      current.services ??= [];
-      current.services.push(entry);
-      total(current);
-      context.recordAudit(
-        clinicId,
-        actorUserId,
-        "tab.service_added",
-        "patient_tab",
-        { appointmentId: appointment.id },
-        tabId,
-      );
-      return structuredClone(current);
-    },
     async removePatientTabService(
       clinicId: string,
       actorUserId: string,
@@ -357,42 +247,6 @@ export function createFinanceOperationsRepository(
         tabId,
       );
       return structuredClone(current);
-    },
-    async createPatientTabAppointment(
-      clinicId: string,
-      actorUserId: string,
-      tabId: string,
-      input: Omit<AppointmentInput, "patientId">,
-    ) {
-      const current = tab(clinicId, tabId);
-      if (covered(clinicId, current.patientId, input.serviceId, input.startsAt))
-        throw new DomainError(
-          "APPOINTMENT_ALREADY_BILLED",
-          "Este serviço está coberto por um plano vigente.",
-          409,
-        );
-      let insertedId: string | undefined;
-      try {
-        const appointment = await context.operations.createAppointment(
-          clinicId,
-          { ...input, patientId: current.patientId },
-        );
-        insertedId = appointment.id;
-        return await operations.addPatientTabService(
-          clinicId,
-          actorUserId,
-          tabId,
-          { appointmentId: appointment.id },
-        );
-      } catch (error) {
-        if (insertedId) {
-          const index = context.appointments.findIndex(
-            (item) => item.id === insertedId && item.clinicId === clinicId,
-          );
-          if (index >= 0) context.appointments.splice(index, 1);
-        }
-        throw error;
-      }
     },
     async listSuppliers(clinicId: string) {
       return structuredClone(

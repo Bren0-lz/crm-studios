@@ -1659,66 +1659,6 @@ export function createFinanceRepository(
       return rule;
     },
 
-    async generateCommissions(clinicId: string, competence: string) {
-      // Atendimento de lead (experimental/avaliação sem cliente) não gera comissão.
-      for (const appointment of repositoryContext.appointments.filter(
-        (item) =>
-          item.clinicId === clinicId &&
-          item.patientId !== undefined &&
-          item.status === "completed" &&
-          item.startsAt.slice(0, 7) === competence,
-      )) {
-        if (
-          repositoryContext.commissions.some(
-            (item) => item.appointmentId === appointment.id,
-          )
-        )
-          continue;
-        // Regra do usuário ligado ao profissional, vigente na data; sem ela, a do profissional.
-        const linkedUserId = repositoryContext.professionalUsers.get(
-          appointment.professionalId,
-        );
-        const rule =
-          (linkedUserId
-            ? repositoryContext.userCommissionRuleOn(
-                clinicId,
-                linkedUserId,
-                appointment.startsAt.slice(0, 10),
-              )
-            : undefined) ??
-          repositoryContext.commissionRules
-            .filter(
-              (item) =>
-                item.professionalId === appointment.professionalId &&
-                item.effectiveFrom <= appointment.startsAt.slice(0, 10),
-            )
-            .sort((a, b) => b.effectiveFrom.localeCompare(a.effectiveFrom))[0];
-        const service = repositoryContext.services.find(
-          (item) => item.id === appointment.serviceId,
-        );
-        if (!rule || !service) continue;
-        repositoryContext.commissionEntryRuleIds.add(rule.id);
-        repositoryContext.commissions.push({
-          id: uuid(),
-          clinicId,
-          professionalId: appointment.professionalId,
-          professionalName: appointment.professionalName,
-          appointmentId: appointment.id,
-          competence,
-          baseAmountInCents: service.priceInCents,
-          percentage: rule.percentage,
-          amountInCents: Math.round(
-            (service.priceInCents * rule.percentage) / 100,
-          ),
-          status: "open",
-          createdAt: now(),
-        });
-      }
-      return repositoryContext.commissions.filter(
-        (item) => item.clinicId === clinicId && item.competence === competence,
-      );
-    },
-
     async settleCommission(
       clinicId: string,
       _actorUserId: string,
