@@ -15,7 +15,9 @@ import {
 } from "./tab-service-credits.js";
 import type { PaymentTiming, SettlementAdjustments } from "@crm/contracts";
 import {
+  acceptsPaymentInstallments,
   formatSequenceNumber,
+  installmentPaymentSplitIssue,
   recurringPayableCompetences,
   recurringPayableDueDate,
   saoPauloToday,
@@ -572,7 +574,15 @@ export function createFinanceRepository(
       // Plano e serviços de origem saem do que já foi vendido (plano ou comanda).
       const receivableOrigin = (
         item: Receivable,
-      ): Pick<Receivable, "source" | "planName" | "planKind" | "services"> => {
+      ): Pick<
+        Receivable,
+        | "source"
+        | "planName"
+        | "planKind"
+        | "planTotalInCents"
+        | "planPaymentMethod"
+        | "services"
+      > => {
         const plan = item.planId
           ? repositoryContext.patientPlans.find(
               (candidate) =>
@@ -585,6 +595,10 @@ export function createFinanceRepository(
             source: "plan",
             planName: plan.name,
             planKind: plan.kind,
+            planTotalInCents: plan.totalValueInCents,
+            ...(plan.paymentMethod
+              ? { planPaymentMethod: plan.paymentMethod }
+              : {}),
             services: plan.services.length
               ? plan.services.map((service) => ({
                   id: service.serviceId,
@@ -677,6 +691,15 @@ export function createFinanceRepository(
           409,
         );
       }
+      if (
+        (adjustments.paymentInstallments ?? 1) > 1 &&
+        !acceptsPaymentInstallments(receivable)
+      )
+        throw new DomainError(
+          "INSTALLMENT_PAYMENT_SPLIT",
+          installmentPaymentSplitIssue,
+          400,
+        );
       const breakdown = settlementBreakdown(
         receivable.amountInCents,
         adjustments,

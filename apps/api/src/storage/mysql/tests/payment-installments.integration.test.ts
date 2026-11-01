@@ -114,15 +114,28 @@ for (const storage of ["memory", "mysql"] as const) {
           .filter((item) => item.planId === plan.id)
           .sort((a, b) => a.installmentNumber - b.installmentNumber);
         expect(receivables).toHaveLength(3);
-        const paid = await repository.settleReceivable(
+        // A baixa conhece o total do plano e a forma combinada na venda.
+        expect(receivables[0]).toMatchObject({
+          planTotalInCents: 30000,
+          planPaymentMethod: "card",
+        });
+        // Uma parcela do plano não é parcelada de novo na forma.
+        await expect(
+          repository.settleReceivable(
+            clinicId,
+            actorId,
+            receivables[0]!.id,
+            "card",
+            undefined,
+            { paymentInstallments: 3 },
+          ),
+        ).rejects.toMatchObject({ code: "INSTALLMENT_PAYMENT_SPLIT" });
+        await repository.settleReceivable(
           clinicId,
           actorId,
           receivables[0]!.id,
           "card",
-          undefined,
-          { paymentInstallments: 3 },
         );
-        expect(paid).toMatchObject({ status: "paid", paymentInstallments: 3 });
         const listed = (
           await repository.listPatientPlans(clinicId, patient!.id)
         ).find((item) => item.id === plan.id);
@@ -134,10 +147,41 @@ for (const storage of ["memory", "mysql"] as const) {
           paidInCents: 10000,
           openInCents: 20000,
         });
+        // À vista no plano, a cobrança única pode ser paga no cartão em 3x.
+        const single = await repository.createPatientPlan(clinicId, actorId, {
+          planTemplateId: template.id,
+          patientId: patient!.id,
+          name: "Pacote à vista",
+          kind: "fixed_package",
+          services: [
+            {
+              serviceId: service!.id,
+              totalSessions: 3,
+              totalValueInCents: 30000,
+            },
+          ],
+          validFrom: "2039-06-01",
+          totalValueInCents: 30000,
+          installments: 1,
+          firstDueDate: "2039-06-10",
+        });
+        const [charge] = (
+          await repository.getFinancialSummary(clinicId)
+        ).receivables.filter((item) => item.planId === single.id);
+        expect(charge?.planPaymentMethod).toBeUndefined();
+        const paid = await repository.settleReceivable(
+          clinicId,
+          actorId,
+          charge!.id,
+          "card",
+          undefined,
+          { paymentInstallments: 3 },
+        );
+        expect(paid).toMatchObject({ status: "paid", paymentInstallments: 3 });
         const reversed = await repository.reverseReceivablePayment(
           clinicId,
           actorId,
-          receivables[0]!.id,
+          charge!.id,
         );
         expect(reversed?.paymentInstallments).toBeUndefined();
         const cleared = await repository.updatePlanTemplate(
