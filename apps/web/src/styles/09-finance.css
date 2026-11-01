@@ -118,6 +118,21 @@
   color: #4e6975;
 }
 
+/* Extrato do plano cancelado: data do cancelamento e estorno ao cliente. */
+.plan-refund-summary {
+  display: grid;
+  gap: var(--space-1);
+  margin-bottom: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  font-size: var(--text-md);
+}
+
+.plan-refund-summary p {
+  margin: 0;
+}
+
 .movement-list {
   display: grid;
   gap: 9px;
