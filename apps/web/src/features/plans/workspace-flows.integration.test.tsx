@@ -3,7 +3,7 @@ import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { saoPauloToday } from "@crm/contracts";
 import { actorId, clinicId, setupApi } from "../../test-support/api-server";
-import { open, change, expand } from "../../test-support/workflow-ui";
+import { open, change } from "../../test-support/workflow-ui";
 
 describe("integrated plan purchase", () => {
   it("creates one plan, invoice, group enrollment and issued contract and records attendance", async () => {
@@ -67,7 +67,19 @@ describe("integrated plan purchase", () => {
       name: new RegExp(document.name),
     });
     change("Documento para o cliente assinar", document.id, dialog);
-    expand("Horários da contratação");
+    // Turma com horários fixos: a seção de horários já abre preenchida com eles.
+    const fixed = await within(dialog).findByRole("region", {
+      name: `Horários fixos da turma ${group.name}`,
+    });
+    expect(fixed).toHaveTextContent("Domingo");
+    expect(fixed).toHaveTextContent(
+      `20:00 às 21:00 · ${professional!.fullName}`,
+    );
+    expect(
+      screen
+        .getByText("Horários da contratação", { exact: true })
+        .closest("details"),
+    ).toHaveAttribute("open");
     fireEvent.click(
       await within(dialog).findByRole("button", {
         name: "Adicionar horários à contratação",

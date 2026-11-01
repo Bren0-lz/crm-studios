@@ -3,8 +3,25 @@ import {
   autoCampaignTriggerLabels,
   type AutoCampaign,
   type AutoCampaignSummary,
+  type AutoCampaignTrigger,
 } from "@crm/contracts";
-import { Pencil, Plus, Trash2 } from "lucide-react";
+import {
+  BatteryLow,
+  Cake,
+  CalendarClock,
+  CalendarX,
+  CirclePause,
+  Gift,
+  Hourglass,
+  Pencil,
+  Plus,
+  ThumbsDown,
+  Trash2,
+  UserMinus,
+  UserX,
+  Wallet,
+  type LucideIcon,
+} from "lucide-react";
 import { useEffect, useState } from "react";
 import { NavLink } from "react-router-dom";
 import { api } from "../../../api";
@@ -16,6 +33,20 @@ import { Modal } from "../../../shared/components/Modal";
 import { useToast } from "../../../shared/feedback/toast-context";
 import { AutoCampaignEditorModal } from "./AutoCampaignEditorModal";
 import { promotionSummary } from "./model";
+
+/** Ícone do evento que dispara a campanha, ao lado do nome do evento no cartão. */
+const triggerIcons: Record<AutoCampaignTrigger, LucideIcon> = {
+  birthday: Cake,
+  appointment_upcoming: CalendarClock,
+  plan_expiring: Hourglass,
+  low_balance: BatteryLow,
+  overdue_payment: Wallet,
+  expired_with_balance: CalendarX,
+  treatment_paused: CirclePause,
+  single_no_return: UserMinus,
+  former_client: UserX,
+  nps_detractor: ThumbsDown,
+};
 
 /** Configuração das campanhas automáticas (a fila do dia fica na página inicial). */
 export function AutoCampaignsTab() {
@@ -102,75 +133,20 @@ export function AutoCampaignsTab() {
           copy="Ex.: aniversariantes com uma mensagem 7 dias antes, outra 2 dias antes e outra no dia."
         />
       ) : (
-        <div className="plans-grid">
+        <div className="auto-campaign-grid">
           {campaigns.map((campaign) => {
             const summary = summaries.find(
               (item) => item.campaignId === campaign.id,
             );
             return (
-              <article className="plan-card" key={campaign.id}>
-                <div className="plan-card-head">
-                  <span className="status-pill open">
-                    {autoCampaignTriggerLabels[campaign.trigger]}
-                  </span>
-                  <span
-                    className={`status-pill ${campaign.active ? "completed" : "cancelled"}`}
-                  >
-                    {campaign.active ? "Ativa" : "Pausada"}
-                  </span>
-                  {campaign.promotion && (
-                    <span className="status-pill scheduled">Promocional</span>
-                  )}
-                </div>
-                <h3>{campaign.name}</h3>
-                <ul className="auto-campaign-step-summary">
-                  {campaign.steps.map((step) => (
-                    <li key={step.id}>
-                      <strong>
-                        {autoCampaignStepLabel(campaign.trigger, step.offset)}
-                      </strong>
-                      <span>{step.message}</span>
-                    </li>
-                  ))}
-                </ul>
-                {campaign.promotion && (
-                  <div className="plan-meta">
-                    <span>Promoção</span>
-                    <strong>{promotionSummary(campaign.promotion)}</strong>
-                  </div>
-                )}
-                {summary && campaign.active && (
-                  <div className="plan-meta">
-                    <span>Hoje</span>
-                    <strong>
-                      {summary.pending} pendentes · {summary.sent} enviadas ·{" "}
-                      {summary.skipped} não enviadas
-                    </strong>
-                  </div>
-                )}
-                {canManage && (
-                  <div className="page-actions">
-                    <button
-                      type="button"
-                      className="secondary-button"
-                      aria-label={`Editar ${campaign.name}`}
-                      onClick={() => setEditing({ campaign })}
-                    >
-                      <Pencil size={15} aria-hidden="true" />
-                      Editar
-                    </button>
-                    <button
-                      type="button"
-                      className="secondary-button"
-                      aria-label={`Excluir ${campaign.name}`}
-                      onClick={() => setDeleting(campaign)}
-                    >
-                      <Trash2 size={15} aria-hidden="true" />
-                      Excluir
-                    </button>
-                  </div>
-                )}
-              </article>
+              <AutoCampaignCard
+                key={campaign.id}
+                campaign={campaign}
+                summary={summary}
+                canManage={canManage}
+                onEdit={() => setEditing({ campaign })}
+                onDelete={() => setDeleting(campaign)}
+              />
             );
           })}
         </div>
@@ -220,5 +196,121 @@ export function AutoCampaignsTab() {
         </Modal>
       )}
     </section>
+  );
+}
+
+function AutoCampaignCard({
+  campaign,
+  summary,
+  canManage,
+  onEdit,
+  onDelete,
+}: {
+  campaign: AutoCampaign;
+  summary: AutoCampaignSummary | undefined;
+  canManage: boolean;
+  onEdit: () => void;
+  onDelete: () => void;
+}) {
+  const TriggerIcon = triggerIcons[campaign.trigger];
+  const stats =
+    summary && campaign.active
+      ? [
+          { label: "Pendentes", value: summary.pending, tone: "pending" },
+          { label: "Enviadas", value: summary.sent, tone: "sent" },
+          { label: "Não enviadas", value: summary.skipped, tone: "skipped" },
+        ]
+      : null;
+  return (
+    <article
+      className={`auto-campaign-card${campaign.active ? "" : " paused"}`}
+    >
+      <header className="auto-campaign-card-head">
+        <div className="auto-campaign-card-title">
+          <h3>{campaign.name}</h3>
+          <p className="auto-campaign-card-trigger">
+            <TriggerIcon size={15} aria-hidden="true" />
+            {autoCampaignTriggerLabels[campaign.trigger]}
+          </p>
+        </div>
+        <span
+          className={`auto-campaign-state ${campaign.active ? "active" : "paused"}`}
+        >
+          {campaign.active ? "Ativa" : "Pausada"}
+        </span>
+      </header>
+
+      <section className="auto-campaign-card-section">
+        <h4>
+          {campaign.steps.length === 1
+            ? "1 mensagem"
+            : `${campaign.steps.length} mensagens`}
+        </h4>
+        <ol className="auto-campaign-timeline">
+          {campaign.steps.map((step) => (
+            <li key={step.id}>
+              <strong>
+                {autoCampaignStepLabel(campaign.trigger, step.offset)}
+              </strong>
+              <span>{step.message}</span>
+            </li>
+          ))}
+        </ol>
+      </section>
+
+      {campaign.promotion && (
+        <div className="auto-campaign-promo">
+          <Gift size={16} aria-hidden="true" />
+          <div>
+            <strong>Promocional</strong>
+            <span>{promotionSummary(campaign.promotion)}</span>
+          </div>
+        </div>
+      )}
+
+      <footer className="auto-campaign-card-foot">
+        {stats ? (
+          <div className="auto-campaign-today">
+            <span>Hoje</span>
+            <dl className="auto-campaign-stats" aria-label="Envios de hoje">
+              {stats.map((stat) => (
+                <div key={stat.label} className={stat.tone}>
+                  <dt>{stat.label}</dt>
+                  <dd>{stat.value}</dd>
+                </div>
+              ))}
+            </dl>
+          </div>
+        ) : (
+          <p className="auto-campaign-card-note">
+            {campaign.active
+              ? "Ninguém na lista de hoje."
+              : "Pausada: não entra na lista do dia."}
+          </p>
+        )}
+        {canManage && (
+          <div className="auto-campaign-card-actions">
+            <button
+              type="button"
+              className="secondary-button"
+              aria-label={`Editar ${campaign.name}`}
+              onClick={onEdit}
+            >
+              <Pencil size={15} aria-hidden="true" />
+              Editar
+            </button>
+            <button
+              type="button"
+              className="secondary-button danger-text"
+              aria-label={`Excluir ${campaign.name}`}
+              onClick={onDelete}
+            >
+              <Trash2 size={15} aria-hidden="true" />
+              Excluir
+            </button>
+          </div>
+        )}
+      </footer>
+    </article>
   );
 }

@@ -50,6 +50,12 @@ describe("configured plan catalog", () => {
     ],
     active: true,
   };
+  const single = {
+    ...second,
+    id: "aa000000-0000-4000-8000-000000000005",
+    name: "Avaliação avulsa",
+    kind: "single",
+  };
   function setupCatalog(
     options: { empty?: boolean; failOnce?: boolean; role?: string } = {},
   ) {
@@ -71,6 +77,7 @@ describe("configured plan catalog", () => {
       : [
           first,
           second,
+          single,
           {
             ...first,
             id: "aa000000-0000-4000-8000-000000000003",
@@ -201,24 +208,24 @@ describe("configured plan catalog", () => {
       screen.getByRole("group", { name: "Fisioterapia" }),
     ).toBeInTheDocument();
     expect(screen.getByLabelText("Modelo")).toHaveValue("fixed_package");
+    // A lista acompanha o Modelo: recorrente não mostra planos avulsos.
+    expect(
+      screen.queryByRole("option", { name: /Avaliação avulsa/ }),
+    ).not.toBeInTheDocument();
+    // Avulso: o plano recorrente sai da seleção e só os avulsos aparecem.
+    fireEvent.change(screen.getByLabelText("Modelo"), {
+      target: { value: "single" },
+    });
+    expect(selector).toHaveValue("");
+    expect(
+      screen.queryByRole("option", { name: /Pacote básico/ }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("option", { name: /Pilates mensal/ }),
+    ).not.toBeInTheDocument();
+    fireEvent.change(selector, { target: { value: single.id } });
+    expect(screen.getByLabelText("Modelo")).toHaveValue("single");
     // Avulso: as sessões mudam e o valor segue o preço por sessão do plano.
-    fireEvent.change(screen.getByLabelText("Modelo"), {
-      target: { value: "single" },
-    });
-    fireEvent.change(screen.getByLabelText("Sessões do serviço 1"), {
-      target: { value: "8" },
-    });
-    expect(screen.getByLabelText("Valor do serviço 1")).toHaveValue(
-      "R$\u00a096,40",
-    );
-    // Voltar a plano restaura sessões e valor do plano cadastrado.
-    fireEvent.change(screen.getByLabelText("Modelo"), {
-      target: { value: "fixed_package" },
-    });
-    expect(screen.getByLabelText("Sessões do serviço 1")).toHaveValue(10);
-    fireEvent.change(screen.getByLabelText("Modelo"), {
-      target: { value: "single" },
-    });
     fireEvent.change(screen.getByLabelText("Sessões do serviço 1"), {
       target: { value: "8" },
     });
@@ -227,8 +234,8 @@ describe("configured plan catalog", () => {
     );
     await waitFor(() => expect(writes).toHaveLength(1));
     expect(writes[0]).toMatchObject({
-      name: second.name,
-      planTemplateId: second.id,
+      name: single.name,
+      planTemplateId: single.id,
       kind: "single",
       totalValueInCents: 9640,
     });
