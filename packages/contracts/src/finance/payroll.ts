@@ -59,6 +59,74 @@ export const payrollLaunchInputSchema = z.object({
 });
 export type PayrollLaunchInput = z.infer<typeof payrollLaunchInputSchema>;
 
+/** Maior porcentagem aceita num desconto ou recompensa (em centésimos: 10000 = 100%). */
+export const PAYROLL_ENTRY_MAX_PERCENT = 10000;
+
+/**
+ * `POST /finance/payroll/entries`: desconto ou recompensa do colaborador na competência. O
+ * salário fixo não muda; o valor entra (recompensa) ou sai (desconto) do pagamento do mês.
+ * `value` é em centavos (`amount`) ou em centésimos de porcentagem do salário fixo
+ * (`percent`: 1050 = 10,5%). O valor em reais é calculado na hora e não muda depois.
+ */
+export const payrollEntryInputSchema = z
+  .object({
+    employeeId: z.uuid(),
+    competence: competenceMonthSchema,
+    kind: z.enum(["bonus", "discount"], "Escolha desconto ou recompensa."),
+    mode: z.enum(
+      ["amount", "percent"],
+      "Escolha valor em reais ou porcentagem.",
+    ),
+    value: z
+      .number("Informe o valor.")
+      .int("Informe o valor.")
+      .min(1, "Informe um valor maior que zero.")
+      .max(2147483647, "Valor acima do limite permitido."),
+    reason: z
+      .string("Informe o motivo.")
+      .trim()
+      .min(3, "Informe o motivo.")
+      .max(300, "O motivo pode ter até 300 caracteres."),
+  })
+  .refine(
+    (input) =>
+      input.mode !== "percent" || input.value <= PAYROLL_ENTRY_MAX_PERCENT,
+    { message: "A porcentagem vai até 100%.", path: ["value"] },
+  );
+export type PayrollEntryInput = z.infer<typeof payrollEntryInputSchema>;
+
+/** Desconto ou recompensa gravado: `amountInCents` é sempre positivo (o tipo dá o sinal). */
+export interface PayrollEntry {
+  id: string;
+  clinicId: string;
+  employeeId: string;
+  competence: string;
+  kind: "bonus" | "discount";
+  mode: "amount" | "percent";
+  value: number;
+  amountInCents: number;
+  reason: string;
+  /** Despesa da folha que incluiu o lançamento; ausente = a lançar. */
+  payrollPayableId?: string;
+  createdAt: string;
+}
+
+/** Valor em centavos do desconto/recompensa: porcentagem sobre o salário fixo. */
+export function payrollEntryAmount(
+  mode: PayrollEntry["mode"],
+  value: number,
+  baseSalaryInCents: number,
+) {
+  return mode === "amount"
+    ? value
+    : Math.round((baseSalaryInCents * value) / 10000);
+}
+
+/** "10%" / "10,5%" a partir dos centésimos. */
+export function formatPayrollPercent(value: number) {
+  return `${(value / 100).toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%`;
+}
+
 export interface PayrollEmployee {
   id: string;
   clinicId: string;
@@ -85,8 +153,9 @@ export interface PayrollEmployee {
 export type PayrollItemStatus = "pending" | "launched" | "paid" | "outside";
 
 export interface PayrollItem {
-  kind: "salary" | "commission" | "adjustment";
-  /** Id da comissão ou do ajuste (ausente no salário). */
+  /** `bonus`/`discount`: recompensa e desconto da folha (o desconto vem negativo). */
+  kind: "salary" | "commission" | "adjustment" | "bonus" | "discount";
+  /** Id da comissão, do ajuste ou do desconto/recompensa (ausente no salário). */
   id?: string;
   description: string;
   amountInCents: number;
@@ -109,8 +178,10 @@ export interface PayrollLine {
   salaryInCents: number;
   commissionInCents: number;
   adjustmentInCents: number;
+  /** Recompensas menos descontos da competência. */
+  extraInCents: number;
   totalInCents: number;
-  /** O que ainda não foi lançado (salário, comissões e ajustes pendentes). */
+  /** O que ainda não foi lançado (salário, comissões, ajustes, descontos e recompensas). */
   pendingInCents: number;
   payables: PayrollPayableSummary[];
 }
@@ -119,6 +190,7 @@ export interface PayrollTotals {
   salaryInCents: number;
   commissionInCents: number;
   adjustmentInCents: number;
+  extraInCents: number;
   totalInCents: number;
   pendingInCents: number;
 }
@@ -167,6 +239,8 @@ export interface PayrollSources {
   commissions: (CommissionEntry & { serviceName?: string })[];
   /** Ajustes cuja comissão de origem é da competência. */
   adjustments: CommissionAdjustment[];
+  /** Descontos e recompensas da competência. */
+  entries: PayrollEntry[];
   /** Despesas da folha da competência (sem as canceladas). */
   payables: Payable[];
   /** Comissões ligadas a uma despesa avulsa (fluxo anterior à folha). */
@@ -178,6 +252,7 @@ const emptyTotals = (): PayrollTotals => ({
   salaryInCents: 0,
   commissionInCents: 0,
   adjustmentInCents: 0,
+  extraInCents: 0,
   totalInCents: 0,
   pendingInCents: 0,
 });
@@ -186,6 +261,7 @@ function addTotals(target: PayrollTotals, line: PayrollTotals) {
   target.salaryInCents += line.salaryInCents;
   target.commissionInCents += line.commissionInCents;
   target.adjustmentInCents += line.adjustmentInCents;
+  target.extraInCents += line.extraInCents;
   target.totalInCents += line.totalInCents;
   target.pendingInCents += line.pendingInCents;
 }
@@ -198,6 +274,21 @@ export function payrollPayableDescription(
 ) {
   const [year, month] = competence.split("-");
   return `Folha ${month}/${year}${complement ? " (complemento)" : ""} · ${employeeName}`;
+}
+
+const signedEntry = (entry: PayrollEntry) =>
+  entry.kind === "discount" ? -entry.amountInCents : entry.amountInCents;
+
+/** "Desconto (10% do salário) · Faltas" / "Recompensa · Meta batida". */
+export function payrollEntryDescription(
+  entry: Pick<PayrollEntry, "kind" | "mode" | "value" | "reason">,
+) {
+  const label = entry.kind === "discount" ? "Desconto" : "Recompensa";
+  const percent =
+    entry.mode === "percent"
+      ? ` (${formatPayrollPercent(entry.value)} do salário)`
+      : "";
+  return `${label}${percent} · ${entry.reason}`;
 }
 
 /**
@@ -226,13 +317,22 @@ export function buildPayroll(sources: PayrollSources): PayrollSummary {
         item.payroll.competence === sources.competence,
     );
     const items: PayrollItem[] = [];
-    const salaryPayable = own.find((item) => item.payroll!.salaryInCents > 0);
+    const entries = sources.entries.filter(
+      (item) => item.employeeId === employee.id,
+    );
+    // A parte "salário" da despesa inclui descontos e recompensas; o salário é o resto.
+    const salaryOf = (payable: Payable) =>
+      payable.payroll!.salaryInCents -
+      entries
+        .filter((item) => item.payrollPayableId === payable.id)
+        .reduce((total, item) => total + signedEntry(item), 0);
+    const salaryPayable = own.find((item) => salaryOf(item) > 0);
     if (employee.baseSalaryInCents > 0 && (employee.active || salaryPayable))
       items.push({
         kind: "salary",
         description: "Salário fixo",
         amountInCents: salaryPayable
-          ? salaryPayable.payroll!.salaryInCents
+          ? salaryOf(salaryPayable)
           : employee.baseSalaryInCents,
         status: itemStatus(salaryPayable?.id, false),
         ...(salaryPayable ? { payableId: salaryPayable.id } : {}),
@@ -270,20 +370,34 @@ export function buildPayroll(sources: PayrollSources): PayrollSummary {
               : {}),
           });
     }
-    const sum = (kind: PayrollItem["kind"]) =>
+    for (const entry of entries)
+      items.push({
+        kind: entry.kind,
+        id: entry.id,
+        description: payrollEntryDescription(entry),
+        amountInCents: signedEntry(entry),
+        status: itemStatus(entry.payrollPayableId, false),
+        ...(entry.payrollPayableId
+          ? { payableId: entry.payrollPayableId }
+          : {}),
+      });
+    const sum = (...kinds: PayrollItem["kind"][]) =>
       items
-        .filter((item) => item.kind === kind)
+        .filter((item) => kinds.includes(item.kind))
         .reduce((total, item) => total + item.amountInCents, 0);
     const salaryInCents = sum("salary"),
       commissionInCents = sum("commission"),
-      adjustmentInCents = sum("adjustment");
+      adjustmentInCents = sum("adjustment"),
+      extraInCents = sum("bonus", "discount");
     return {
       employee,
       items,
       salaryInCents,
       commissionInCents,
       adjustmentInCents,
-      totalInCents: salaryInCents + commissionInCents + adjustmentInCents,
+      extraInCents,
+      totalInCents:
+        salaryInCents + commissionInCents + adjustmentInCents + extraInCents,
       pendingInCents: items
         .filter((item) => item.status === "pending")
         .reduce((total, item) => total + item.amountInCents, 0),
@@ -368,8 +482,10 @@ export function payrollPayableNotes(items: PayrollItem[]) {
     salary: "Salário fixo",
     commission: "Comissões",
     adjustment: "Ajustes de comissão",
+    bonus: "Recompensas",
+    discount: "Descontos",
   } as const;
-  return (["salary", "commission", "adjustment"] as const)
+  return (["salary", "commission", "adjustment", "bonus", "discount"] as const)
     .map((kind) => {
       const own = items.filter((item) => item.kind === kind);
       if (!own.length) return "";
