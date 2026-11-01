@@ -118,15 +118,8 @@ describe("settings workflows through real HTTP handlers", () => {
       notes: "",
       active: true,
     });
-    open("/configuracoes");
-    fireEvent.click(await screen.findByRole("tab", { name: "Cadastros" }));
-    const catalogs = screen.getByRole("tabpanel", { name: "Cadastros" });
-    fireEvent.click(
-      within(catalogs).getByRole("tab", { name: "Fornecedores" }),
-    );
-    const panel = within(catalogs).getByRole("tabpanel", {
-      name: "Fornecedores",
-    });
+    open("/vendas?aba=fornecedores");
+    const panel = await screen.findByRole("region", { name: "Fornecedores" });
     fireEvent.click(
       await within(panel).findByRole("button", { name: "Editar" }),
     );
