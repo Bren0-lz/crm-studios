@@ -328,10 +328,11 @@ export function registerReportsRoutes(context: RouteContext) {
           repository.getWhatsappCampaign(clinicId, campaign.id),
         ),
       );
-      // Na planilha, a fila de hoje mostra quem ainda vai receber (se hoje está no período).
+      // A fila de hoje (se hoje está no período) dá as pendentes das automáticas; na
+      // planilha, também lista quem ainda vai receber.
       const today = clinicDateOf(new Date(), timeZone);
       const queue =
-        path.endsWith(".xlsx") && today >= from && today <= to
+        today >= from && today <= to
           ? await loadAutoCampaignQueue(
               repository,
               clinicId,
@@ -348,6 +349,7 @@ export function registerReportsRoutes(context: RouteContext) {
           redemptions,
           patients,
           queue: queue?.items,
+          queueDate: queue?.date,
         },
         timeZone,
       );
