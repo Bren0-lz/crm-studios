@@ -317,6 +317,8 @@ export interface Receivable {
   source?: "plan" | "tab" | "manual";
   /** Nome do plano como foi vendido; só nas cobranças de plano. */
   planName?: string;
+  /** Modelo do plano vendido (avulso, pacote, recorrente…); só nas cobranças de plano. */
+  planKind?: "single" | "fixed_package" | "recurring" | "custom";
   /** Serviços de origem: os do plano ou os atendimentos da comanda. */
   services?: ReceivableService[];
   competence?: string;
