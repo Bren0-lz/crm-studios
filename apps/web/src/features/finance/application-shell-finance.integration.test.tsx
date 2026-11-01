@@ -231,6 +231,9 @@ describe("application shell", () => {
     fireEvent.click(
       await screen.findByRole("button", { name: "Contas a pagar (0)" }),
     );
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Despesas fixas" }),
+    );
     const section = (
       await screen.findByRole("heading", { name: "Despesas fixas" })
     ).closest("section")!;
@@ -501,6 +504,9 @@ describe("application shell", () => {
       await screen.findByRole("button", { name: "Contas a pagar (0)" }),
     );
     fireEvent.click(
+      await screen.findByRole("button", { name: "Despesas fixas" }),
+    );
+    fireEvent.click(
       await screen.findByRole("button", {
         name: "Mais ações de Aluguel da sala",
       }),
@@ -581,6 +587,9 @@ describe("application shell", () => {
     fireEvent.click(
       await screen.findByRole("button", { name: "Contas a pagar (0)" }),
     );
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Despesas fixas" }),
+    );
     const section = (
       await screen.findByRole("heading", { name: "Despesas fixas" })
     ).closest("section")!;
@@ -597,6 +606,9 @@ describe("application shell", () => {
     );
     fireEvent.click(
       await screen.findByRole("button", { name: "Contas a pagar (0)" }),
+    );
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Despesas fixas" }),
     );
     await screen.findByRole("heading", { name: "Despesas fixas" });
     expect(
@@ -1849,7 +1861,9 @@ describe("application shell", () => {
         await screen.findByRole("heading", { name: "Contas a pagar" })
       ).closest("section")!;
       expect(
-        within(section).getByText(/Despesas da clínica pelo vencimento/),
+        within(section).getByText(
+          /Despesas da clínica por situação e vencimento/,
+        ),
       ).toBeInTheDocument();
 
       const rent = rowOf("Aluguel da sala");
