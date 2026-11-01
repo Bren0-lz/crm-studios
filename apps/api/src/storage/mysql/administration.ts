@@ -1142,7 +1142,7 @@ export function createAdministrationRepository(
       const result = await repositoryContext.pool.query<ServiceRow>(
         `
         SELECT id, clinic_id AS "clinicId", name, duration_minutes AS "durationMinutes",
-               price_in_cents AS "priceInCents", color, active,
+               color, active,
                professional_ids AS "professionalIds", room_ids AS "roomIds"
         FROM services WHERE clinic_id = $1 AND active = true ORDER BY name
       `,
@@ -1155,20 +1155,19 @@ export function createAdministrationRepository(
       const result = await writeAndRead<ServiceRow>(
         repositoryContext.pool,
         `
-        INSERT INTO services (clinic_id, name, duration_minutes, price_in_cents, color, professional_ids, room_ids, id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+        INSERT INTO services (clinic_id, name, duration_minutes, color, professional_ids, room_ids, id) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
         [
           clinicId,
           input.name,
           input.durationMinutes,
-          input.priceInCents,
           input.color,
           input.professionalIds ?? [],
           input.roomIds ?? [],
           randomUUID(),
         ],
         `SELECT id, clinic_id AS "clinicId", name, duration_minutes AS "durationMinutes",
-                  price_in_cents AS "priceInCents", color, active,
-                  professional_ids AS "professionalIds", room_ids AS "roomIds" FROM services WHERE id = $8`,
+                  color, active,
+                  professional_ids AS "professionalIds", room_ids AS "roomIds" FROM services WHERE id = $7`,
       );
       return result.rows[0]!;
     },
@@ -1283,7 +1282,9 @@ export function createAdministrationRepository(
         [tokenHash],
       );
       const row = result.rows[0];
-      return row ? { clinicId: row.clinicId, key: mapIntegrationKey(row) } : null;
+      return row
+        ? { clinicId: row.clinicId, key: mapIntegrationKey(row) }
+        : null;
     },
 
     async touchIntegrationKey(clinicId: string, id: string) {

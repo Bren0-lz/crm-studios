@@ -704,7 +704,6 @@ describe("appointment client search and creation", () => {
                       {
                         id: "77777777-7777-4777-8777-777777777777",
                         name: "Pilates",
-                        priceInCents: 10000,
                       },
                     ]
                   : [],
@@ -1536,7 +1535,6 @@ describe("application shell", () => {
                     {
                       id: appointment.serviceId,
                       durationMinutes: 50,
-                      priceInCents: 12000,
                     },
                   ]
                 : [];
@@ -5306,7 +5304,6 @@ describe("application shell", () => {
                   {
                     id: "77777777-7777-4777-8777-777777777777",
                     name: "Fisioterapia individual",
-                    priceInCents: 12000,
                   },
                 ]
               : url.includes("/patients")
@@ -5661,7 +5658,6 @@ describe("application shell", () => {
                 {
                   id: "77777777-7777-4777-8777-777777777777",
                   name: "Fisioterapia individual",
-                  priceInCents: 12000,
                 },
               ]
             : url.includes("/patients")
@@ -5803,7 +5799,6 @@ describe("application shell", () => {
                   {
                     id: "77777777-7777-4777-8777-777777777777",
                     name: "Pilates",
-                    priceInCents: 9000,
                   },
                 ]
               : [];
@@ -12620,8 +12615,8 @@ describe("guided client registration", () => {
         ]);
       if (url.includes("/services"))
         return jsonResponse([
-          { id: pilatesId, name: "Pilates", priceInCents: 9000 },
-          { id: physioId, name: "Fisioterapia", priceInCents: 12000 },
+          { id: pilatesId, name: "Pilates" },
+          { id: physioId, name: "Fisioterapia" },
         ]);
       if (url.includes("/groups/workspace?"))
         return jsonResponse({

@@ -5,6 +5,7 @@ import type {
   GroupEnrollment,
   GroupSession,
   PatientPlan,
+  PlanTemplate,
   Professional,
   Receivable,
   Room,
@@ -41,7 +42,6 @@ export const demoServices: Service[] = [
     clinicId: demoClinicId,
     name: "Dançaterapia",
     durationMinutes: 60,
-    priceInCents: 7500,
     color: "#9a6bc4",
     professionalIds: [id(2, 1)],
     roomIds: [id(3, 1)],
@@ -52,7 +52,6 @@ export const demoServices: Service[] = [
     clinicId: demoClinicId,
     name: "Pilates individual",
     durationMinutes: 50,
-    priceInCents: 15000,
     color: "#6699a1",
     professionalIds: [id(2, 2)],
     roomIds: [id(3, 2)],
@@ -63,7 +62,6 @@ export const demoServices: Service[] = [
     clinicId: demoClinicId,
     name: "Depilação pernas",
     durationMinutes: 45,
-    priceInCents: 12000,
     color: "#db8290",
     professionalIds: [id(2, 3)],
     roomIds: [id(3, 3)],
@@ -74,7 +72,6 @@ export const demoServices: Service[] = [
     clinicId: demoClinicId,
     name: "Depilação axilas",
     durationMinutes: 30,
-    priceInCents: 5500,
     color: "#e7a16f",
     professionalIds: [id(2, 3)],
     roomIds: [id(3, 3)],
@@ -85,13 +82,38 @@ export const demoServices: Service[] = [
     clinicId: demoClinicId,
     name: "Massoterapia",
     durationMinutes: 60,
-    priceInCents: 17000,
     color: "#89a96b",
     professionalIds: [id(2, 3)],
     roomIds: [id(3, 3)],
     active: true,
   },
 ];
+/** Serviço não tem preço: a sessão avulsa de cada serviço é vendida como plano avulso. */
+export const demoPlanTemplates: PlanTemplate[] = (
+  [
+    [1, 7500],
+    [2, 15000],
+    [3, 12000],
+    [4, 5500],
+    [5, 17000],
+  ] as const
+).map(([number, value]) => {
+  const service = demoServices[number - 1]!;
+  return {
+    id: id(13, number),
+    clinicId: demoClinicId,
+    name: `${service.name} (avulso)`,
+    totalValueInCents: value,
+    services: [
+      { serviceId: service.id, totalSessions: 1, totalValueInCents: value },
+    ],
+    planType: "single",
+    kind: "single",
+    active: true,
+    createdAt: "2026-01-01T12:00:00.000Z",
+    updatedAt: "2026-01-01T12:00:00.000Z",
+  };
+});
 export const demoProfessionals: Professional[] = [
   {
     id: id(2, 1),

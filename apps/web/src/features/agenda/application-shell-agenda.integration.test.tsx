@@ -760,7 +760,6 @@ describe("application shell", () => {
                   {
                     id: "77777777-7777-4777-8777-777777777777",
                     name: "Fisioterapia individual",
-                    priceInCents: 12000,
                   },
                 ]
               : url.includes("/patients")
@@ -940,7 +939,6 @@ describe("application shell", () => {
                 {
                   id: "77777777-7777-4777-8777-777777777777",
                   name: "Fisioterapia individual",
-                  priceInCents: 12000,
                 },
               ]
             : url.includes("/patients")

@@ -129,8 +129,7 @@ describe("dashboard appointment actions", () => {
             500,
           );
         const index = appointments.findIndex(
-          (item) =>
-            url.includes(`/${item.id}/`) || url.endsWith(`/${item.id}`),
+          (item) => url.includes(`/${item.id}/`) || url.endsWith(`/${item.id}`),
         );
         const original = appointments[index]!;
         // PATCH sem status é a edição de serviço, sala e observação (QM6/QM7).
@@ -138,15 +137,15 @@ describe("dashboard appointment actions", () => {
           init.method === "PATCH" && !("status" in body)
             ? { ...original, ...body }
             : init.method === "PATCH"
-            ? { ...original, status: body.status as Appointment["status"] }
-            : {
-                ...original,
-                ...body,
-                startsAt: String(body.startsAt),
-                endsAt: new Date(
-                  new Date(String(body.startsAt)).getTime() + 60 * 60_000,
-                ).toISOString(),
-              };
+              ? { ...original, status: body.status as Appointment["status"] }
+              : {
+                  ...original,
+                  ...body,
+                  startsAt: String(body.startsAt),
+                  endsAt: new Date(
+                    new Date(String(body.startsAt)).getTime() + 60 * 60_000,
+                  ).toISOString(),
+                };
         return response(appointments[index]);
       }
       if (url.includes("/dashboard")) {
@@ -219,7 +218,6 @@ describe("dashboard appointment actions", () => {
             id: "service",
             name: "Avaliação funcional",
             durationMinutes: 60,
-            priceInCents: 12000,
           },
         ]);
       }

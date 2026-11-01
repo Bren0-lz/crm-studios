@@ -112,7 +112,6 @@ for (const backend of ["memory", "mysql"] as const) {
             const service = await repository.createService(clinicId, {
               name: `${marker}-${name}`,
               durationMinutes: 30,
-              priceInCents: 100,
               color: "#64748b",
             });
             serviceIds.push(service.id);

@@ -21,7 +21,6 @@ import { PatientTagBadge } from "../../shared/components/PatientTagBadge";
 import { VisitTypeBadge } from "../../shared/components/VisitTypeBadge";
 import { usePatientTags } from "../../shared/hooks/usePatientTags";
 import {
-  currency,
   formatIsoDate,
   localIsoDate,
   statusLabel,
@@ -291,11 +290,8 @@ export function AppointmentDetailsModal({
             </div>
             {service && (
               <div>
-                <small>Duração e valor</small>
-                <strong>
-                  {service.durationMinutes} min ·{" "}
-                  {currency.format(service.priceInCents / 100)}
-                </strong>
+                <small>Duração</small>
+                <strong>{service.durationMinutes} min</strong>
               </div>
             )}
             {appointment.absenceReason && (

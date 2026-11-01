@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { buildApp } from "../../app.js";
 import { MemoryClinicRepository } from "../../memory-repository.js";
 import { authenticatedApp } from "../../test-support/legacy-fixtures.js";
+import { addLegacyTabService } from "../../test-support/legacy-tab-service.js";
 import "../../test-support/legacy-setup.js";
 
 const clinicId = "11111111-1111-4111-8111-111111111111";
@@ -30,7 +31,7 @@ async function scenario() {
         method: "POST",
         url: "/services",
         headers,
-        payload: { priceInCents: 5_000, color: "#547A6B", ...payload },
+        payload: { color: "#547A6B", ...payload },
       })
     ).json<{ id: string; name: string }>();
   const free = await createService({ name: "Avaliação", durationMinutes: 30 });
@@ -258,9 +259,10 @@ describe("PATCH /appointments/:id (QM6)", () => {
     const tab = await repository.openPatientTab(clinicId, ownerId, {
       patientId: patients[0]!.id,
     });
-    const updatedTab = await repository.createPatientTabAppointment(
+    const updatedTab = await addLegacyTabService(
+      repository,
+      undefined,
       clinicId,
-      ownerId,
       tab.id,
       {
         professionalId: professionals[0]!.id,
@@ -269,6 +271,7 @@ describe("PATCH /appointments/:id (QM6)", () => {
         startsAt: "2031-05-12T13:00:00.000Z",
         visitType: "regular",
       },
+      15000,
     );
     const appointmentId = updatedTab.services![0]!.appointmentId;
     await expect(
@@ -283,7 +286,10 @@ describe("PATCH /appointments/:id (QM6)", () => {
       appointmentId,
       { serviceId: services[0]!.id, roomId: rooms[1]!.id, notes: "Sala 2" },
     );
-    expect(sameService).toMatchObject({ roomId: rooms[1]!.id, notes: "Sala 2" });
+    expect(sameService).toMatchObject({
+      roomId: rooms[1]!.id,
+      notes: "Sala 2",
+    });
   });
 
   it("requires the reschedule permission", async () => {
