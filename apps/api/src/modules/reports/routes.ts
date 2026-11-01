@@ -15,6 +15,7 @@ import {
   salesReportFilterSchema,
   salesPeriodReportFilterSchema,
   saoPauloToday,
+  singlePlanSessionPrices,
 } from "@crm/contracts";
 import type { RouteContext } from "../../infrastructure/route-context.js";
 import { xlsxContentType } from "../../infrastructure/spreadsheet.js";
@@ -108,10 +109,10 @@ export function registerReportsRoutes(context: RouteContext) {
       );
       const permissions = requestAccess.get(request)?.permissions ?? [];
       if (!permissions.includes("reports.team_finance")) return report;
-      const [sources, plans, services, groups] = await Promise.all([
+      const [sources, plans, templates, groups] = await Promise.all([
         repository.listTeamProduction(clinicId, filter.from, filter.to),
         repository.listPatientPlans(clinicId),
-        repository.listServices(clinicId),
+        repository.listPlanTemplates(clinicId),
         repository.getGroupWorkspace(clinicId, filter.from, filter.to),
       ]);
       return {
@@ -121,7 +122,7 @@ export function registerReportsRoutes(context: RouteContext) {
           to: filter.to,
           sources,
           plans,
-          services,
+          singleSessionPrices: singlePlanSessionPrices(templates),
           groups: groups.groups,
           enrollments: groups.enrollments,
         }),

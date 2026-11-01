@@ -223,7 +223,6 @@ describe.skipIf(!databaseUrl)("MySQL repository", () => {
         name: marker,
         priceInCents: 0,
         durationMinutes: 60,
-        color: "#64748b",
       });
       const patient = await repository.createPatient(isolatedClinic, {
         cpf: nextTestCpf(),
@@ -251,7 +250,6 @@ describe.skipIf(!databaseUrl)("MySQL repository", () => {
         name: marker,
         priceInCents: 0,
         durationMinutes: 60,
-        color: "#64748b",
       });
       const foreign = await repository.createPlanTemplate(
         foreignClinic,
@@ -506,12 +504,14 @@ describe.skipIf(!databaseUrl)("MySQL repository", () => {
         "DELETE FROM plan_templates WHERE JSON_CONTAINS($1, JSON_QUOTE(clinic_id))",
         [ids],
       );
-      await pool.query("DELETE FROM patients WHERE JSON_CONTAINS($1, JSON_QUOTE(clinic_id))", [
-        ids,
-      ]);
-      await pool.query("DELETE FROM services WHERE JSON_CONTAINS($1, JSON_QUOTE(clinic_id))", [
-        ids,
-      ]);
+      await pool.query(
+        "DELETE FROM patients WHERE JSON_CONTAINS($1, JSON_QUOTE(clinic_id))",
+        [ids],
+      );
+      await pool.query(
+        "DELETE FROM services WHERE JSON_CONTAINS($1, JSON_QUOTE(clinic_id))",
+        [ids],
+      );
       await pool.query(
         "DELETE FROM audit_events WHERE JSON_CONTAINS($1, JSON_QUOTE(clinic_id))",
         [ids],
@@ -521,7 +521,10 @@ describe.skipIf(!databaseUrl)("MySQL repository", () => {
         "DELETE FROM clinic_sequences WHERE JSON_CONTAINS($1, JSON_QUOTE(clinic_id))",
         [ids],
       );
-      await pool.query("DELETE FROM clinics WHERE JSON_CONTAINS($1, JSON_QUOTE(id))", [ids]);
+      await pool.query(
+        "DELETE FROM clinics WHERE JSON_CONTAINS($1, JSON_QUOTE(id))",
+        [ids],
+      );
     }
   });
 

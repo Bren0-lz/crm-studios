@@ -34,6 +34,7 @@ import {
 import { orderedItems } from "./mappers/plans.js";
 import {
   commissionAmount,
+  commissionBase,
   commissionRuleJoin,
   localDate,
   localDayStart,
@@ -496,7 +497,14 @@ export function createReportsRepository(
              SELECT a.id AS appointment_id,CAST(NULL AS CHAR(36)) AS group_attendance_id,a.professional_id,a.service_id,a.starts_at FROM appointments a WHERE a.clinic_id=$1 AND a.status='completed' AND a.patient_id IS NOT NULL
              UNION ALL SELECT NULL,ga.id,coalesce(gs.professional_id,g.professional_id),g.service_id,gs.starts_at FROM group_attendance ga JOIN group_sessions gs ON gs.id=ga.session_id AND gs.clinic_id=ga.clinic_id JOIN group_classes g ON g.id=gs.group_id AND g.clinic_id=gs.clinic_id WHERE ga.clinic_id=$1 AND gs.status<>'cancelled' AND (ga.status='present' OR ga.outcome='present')
            )
-           SELECT pr.id AS "professionalId",pr.full_name AS "professionalName",${commissionAmount} AS "amountInCents"
+           SELECT pr.id AS "professionalId",pr.full_name AS "professionalName",${commissionAmount(
+             commissionBase({
+               clinic: "$1",
+               appointmentId: "a.appointment_id",
+               attendanceId: "a.group_attendance_id",
+               serviceId: "a.service_id",
+             }),
+           )} AS "amountInCents"
            FROM sources a JOIN services s ON s.id=a.service_id AND s.clinic_id=$1 JOIN professionals pr ON pr.id=a.professional_id AND pr.clinic_id=$1
            ${commissionRuleJoin("$1")}
            WHERE JSON_CONTAINS($2, JSON_QUOTE(${localMonth("a.starts_at")})) AND ${branchClause("pr.branch_id", 3)}
