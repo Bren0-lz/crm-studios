@@ -441,6 +441,8 @@ export interface FinancialWorkspace {
   categories: FinancialCategory[];
   costCenters: CostCenter[];
   payables: Payable[];
+  /** Parcelas e despesas com comprovante (inclusive de baixa estornada). */
+  paymentProofEntityIds?: { receivables: string[]; payables: string[] };
   payableOpenInCents: number;
   payableOverdueInCents: number;
   paidExpensesThisMonthInCents: number;

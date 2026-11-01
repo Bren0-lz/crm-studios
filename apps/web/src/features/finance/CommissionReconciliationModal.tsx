@@ -394,6 +394,7 @@ export function CommissionReconciliationModal({
           entity="commission_account_payment"
           entityId={viewingProofs.id}
           subtitle={`${viewingProofs.professionalName} · ${currency.format(viewingProofs.amountInCents / 100)}`}
+          settled={!viewingProofs.reversedAt}
           canAttach={
             !viewingProofs.reversedAt && can("finance.commissions_pay")
           }
