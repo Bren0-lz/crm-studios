@@ -308,9 +308,35 @@ export const whatsappCampaignPreviewInputSchema = z.object({
   audience: whatsappCampaignAudienceSchema,
 });
 
+/**
+ * Promoção da campanha manual: vale `validDays` dias contados do dia em que a mensagem foi
+ * marcada como enviada, ou até a data fixa `validUntil`. Cada cliente usa uma vez, ao agendar.
+ */
+export const whatsappCampaignPromotionSchema = z
+  .object({
+    validDays: z
+      .number()
+      .int()
+      .min(1, "A promoção precisa valer pelo menos 1 dia.")
+      .max(365, "Use no máximo 365 dias de validade.")
+      .optional(),
+    validUntil: z.iso.date("Informe até quando a promoção vale.").optional(),
+  })
+  .refine(
+    (value) =>
+      (value.validDays === undefined) !== (value.validUntil === undefined),
+    {
+      message:
+        "Escolha a validade da promoção: dias depois do envio ou uma data final.",
+      path: ["validDays"],
+    },
+  );
+
 export const whatsappCampaignInputSchema =
   whatsappCampaignPreviewInputSchema.extend({
     name: z.string().trim().min(1, "Dê um nome para a campanha.").max(80),
+    /** Sem promoção = campanha só de mensagem. */
+    promotion: whatsappCampaignPromotionSchema.optional(),
   });
 
 export const campaignRecipientStatusSchema = z.enum([
@@ -498,7 +524,10 @@ export function autoCampaignDiscountInCents(
  * Campanha promocional. Validade: `validDays` dias depois do evento (no aniversário, depois
  * do aniversário do cliente) ou até a data fixa `validUntil` (só fora do aniversário).
  * Quem usar fica fora desta campanha pelo `cooldown`, se houver. O `discount`, quando houver,
- * vale nos planos de `planTemplateIds` (lista vazia ou ausente = em qualquer plano).
+ * vale nos planos de `planTemplateIds` (lista vazia ou ausente = em qualquer plano), a menos
+ * que `appliesToPlans` seja `false`; e nos produtos de `productIds` (vazia ou ausente = em
+ * qualquer produto) só quando `appliesToProducts` for `true`. Ver
+ * `promotionAppliesToPlan`/`promotionAppliesToProduct` (agenda/pricing).
  */
 export const autoCampaignPromotionSchema = z
   .object({
@@ -523,6 +552,14 @@ export const autoCampaignPromotionSchema = z
     planTemplateIds: z
       .array(z.uuid())
       .max(100, "Escolha no máximo 100 planos.")
+      .optional(),
+    /** `false` = o desconto não vale em plano nenhum. Ausente = vale (campanhas antigas). */
+    appliesToPlans: z.boolean().optional(),
+    /** `true` = o desconto também vale na venda de produtos. Ausente = não vale. */
+    appliesToProducts: z.boolean().optional(),
+    productIds: z
+      .array(z.uuid())
+      .max(100, "Escolha no máximo 100 produtos.")
       .optional(),
   })
   .refine(
@@ -572,6 +609,17 @@ export const autoCampaignInputSchema = z
     {
       message: "Use no máximo 100 sessões restantes.",
       path: ["steps"],
+    },
+  )
+  .refine(
+    (value) =>
+      !value.promotion?.discount ||
+      value.promotion.appliesToPlans !== false ||
+      value.promotion.appliesToProducts === true,
+    {
+      message:
+        "Escolha onde o desconto vale: em planos, em produtos ou nos dois.",
+      path: ["promotion", "appliesToPlans"],
     },
   );
 

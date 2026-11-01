@@ -198,9 +198,7 @@ export function CampaignsSection({ period }: { period: ReportPeriod }) {
                               : "—"}
                           </td>
                           <td className="numeric-value">
-                            {row.kind === "automatic" && row.promotional
-                              ? row.redemptions
-                              : "—"}
+                            {row.promotional ? row.redemptions : "—"}
                           </td>
                         </tr>
                       ))}
