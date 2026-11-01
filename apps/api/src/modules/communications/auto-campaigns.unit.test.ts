@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   activeStep,
   buildAutoCampaignQueue,
+  deliveryPromotionValidUntil,
   listPromotionOffers,
   promotionBlockedUntil,
   promotionValidUntil,
@@ -275,5 +276,89 @@ describe("promoções", () => {
         "2039-06-10",
       ),
     ).toEqual([]);
+  });
+
+  it("uses the fixed end date when the campaign has one", () => {
+    const upcoming = { trigger: "appointment_upcoming" as const };
+    expect(
+      promotionValidUntil(
+        upcoming,
+        { validUntil: "2039-12-20" },
+        "2039-06-15",
+        "2039-06-13",
+      ),
+    ).toBe("2039-12-20");
+    // Mudar a data na campanha vale também para quem já recebeu.
+    expect(
+      deliveryPromotionValidUntil(
+        {
+          trigger: "appointment_upcoming",
+          promotion: { validUntil: "2039-12-31" },
+        },
+        { occurrenceKey: "a1", promotionValidUntil: "2039-12-20" },
+        null,
+      ),
+    ).toBe("2039-12-31");
+  });
+
+  it("counts birthday promotions from the client's registered birthday", () => {
+    const birthday = {
+      trigger: "birthday" as const,
+      promotion: { validDays: 5 },
+    };
+    const delivery = {
+      occurrenceKey: "p1:2039",
+      promotionValidUntil: "2039-11-02",
+    };
+    expect(
+      deliveryPromotionValidUntil(birthday, delivery, {
+        birthDate: "1990-11-20",
+      }),
+    ).toBe("2039-11-25");
+    // 29/02 em ano não bissexto vira 28/02.
+    expect(
+      deliveryPromotionValidUntil(
+        birthday,
+        { occurrenceKey: "p1:2039", promotionValidUntil: undefined },
+        { birthDate: "2000-02-29" },
+      ),
+    ).toBe("2039-03-05");
+    // Sem data de nascimento, fica o prazo calculado no envio.
+    expect(deliveryPromotionValidUntil(birthday, delivery, {})).toBe(
+      "2039-11-02",
+    );
+    const campaign: AutoCampaign = {
+      id: "c1",
+      name: "Aniversariantes",
+      ...birthday,
+      active: true,
+      steps: [step(7)],
+      createdAt: "2039-01-01T00:00:00.000Z",
+      updatedAt: "2039-01-01T00:00:00.000Z",
+      createdByName: "Equipe",
+    };
+    const sent = {
+      id: "d1",
+      campaignId: "c1",
+      stepId: step(7).id,
+      patientId: "p1",
+      status: "sent" as const,
+      message: "Olá",
+      handledAt: "2039-11-01T12:00:00.000Z",
+      handledByName: "Equipe",
+      ...delivery,
+    };
+    expect(
+      listPromotionOffers([campaign], [sent], [], "p1", "2039-11-10", {
+        birthDate: "1990-11-20",
+      }),
+    ).toEqual([
+      {
+        campaignId: "c1",
+        campaignName: "Aniversariantes",
+        occurrenceKey: "p1:2039",
+        validUntil: "2039-11-25",
+      },
+    ]);
   });
 });

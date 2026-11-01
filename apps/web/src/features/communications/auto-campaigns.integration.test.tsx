@@ -379,14 +379,18 @@ describe("configuração das campanhas automáticas", () => {
       "Ganhe 20% no seu aniversário!",
     );
     fireEvent.click(within(dialog).getByLabelText(/Campanha promocional/));
+    // Aniversário: só dias contados do aniversário do cliente, sem data fixa.
+    expect(within(dialog).queryByLabelText("Até uma data")).toBeNull();
     fireEvent.change(
       within(dialog).getByLabelText(
-        "Validade da promoção (dias após o evento)",
+        "Validade da promoção (dias após o aniversário)",
       ),
       { target: { value: "10" } },
     );
     expect(
-      within(dialog).getByText("A promoção vale até 10 dias depois do evento."),
+      within(dialog).getByText(
+        "A promoção vale até 10 dias depois do aniversário do cliente (data do cadastro).",
+      ),
     ).toBeVisible();
     fireEvent.click(
       within(dialog).getByLabelText(/deixar o cliente fora desta campanha/),
@@ -407,6 +411,79 @@ describe("configuração das campanhas automáticas", () => {
         active: true,
         steps: [{ offset: 7, message: "Ganhe 20% no seu aniversário!" }],
         promotion: { validDays: 10, cooldown: { amount: 2, unit: "months" } },
+      }),
+    );
+  });
+
+  it("creates a promotional campaign valid until a fixed date", async () => {
+    login();
+    const created: unknown[] = [];
+    vi.mocked(fetch).mockImplementation(async (input, init) => {
+      const url = String(input);
+      if (url.endsWith("/communications/auto-campaigns") && init?.method) {
+        const body = JSON.parse(String(init.body)) as { name: string };
+        created.push(body);
+        return json(
+          {
+            id: campaignId,
+            ...body,
+            steps: [],
+            createdAt: "2026-10-25T12:00:00Z",
+            updatedAt: "2026-10-25T12:00:00Z",
+            createdByName: "Aryana Dutra",
+          },
+          201,
+        );
+      }
+      if (url.includes("/communications/auto-campaigns/queue"))
+        return json({ date: "2026-10-25", items: [], campaigns: [] });
+      if (url.includes("/notifications")) return json({ date: "2026-10-25" });
+      return json([]);
+    });
+    render(
+      <MemoryRouter initialEntries={["/comunicacoes?aba=automaticas"]}>
+        <App />
+      </MemoryRouter>,
+    );
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Nova campanha automática" }),
+    );
+    const dialog = await screen.findByRole("dialog", {
+      name: "Nova campanha automática",
+    });
+    fireEvent.change(within(dialog).getByLabelText("Nome da campanha"), {
+      target: { value: "Black Friday" },
+    });
+    fireEvent.change(
+      within(dialog).getByRole("combobox", { name: /^Evento/ }),
+      {
+        target: { value: "former_client" },
+      },
+    );
+    fireEvent.change(within(dialog).getByLabelText("Momento da mensagem 1"), {
+      target: { value: "30" },
+    });
+    installDocumentBrowserMocks();
+    setDocumentText(
+      within(dialog).getByRole("textbox", { name: "Mensagem 1" }),
+      "Volte com 20% de desconto!",
+    );
+    fireEvent.click(within(dialog).getByLabelText(/Campanha promocional/));
+    expect(within(dialog).getByLabelText("Dias após o evento")).toBeChecked();
+    fireEvent.click(within(dialog).getByLabelText("Até uma data"));
+    fireEvent.change(within(dialog).getByLabelText(/^Promoção válida até/), {
+      target: { value: "2026-11-30" },
+    });
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Salvar campanha" }),
+    );
+    await waitFor(() =>
+      expect(created[0]).toEqual({
+        name: "Black Friday",
+        trigger: "former_client",
+        active: true,
+        steps: [{ offset: 30, message: "Volte com 20% de desconto!" }],
+        promotion: { validUntil: "2026-11-30" },
       }),
     );
   });
