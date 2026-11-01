@@ -1,4 +1,5 @@
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
+import type { PermissionKey } from "@crm/contracts";
 import { describe, expect, it } from "vitest";
 import { nextTestCpf } from "../../../../api/src/test-support/cpf.js";
 import { actorId, clinicId, setupApi } from "../../test-support/api-server";
@@ -519,5 +520,66 @@ describe("página Vendas de produtos", () => {
     expect(
       screen.getByRole("link", { name: /Vendas de produtos/ }),
     ).toBeInTheDocument();
+  });
+  it("mostra a aba Fornecedores só a quem tem a permissão de fornecedores", async () => {
+    const { repository, app } = await setupApi();
+    async function signIn(email: string, permissions: PermissionKey[]) {
+      const user = await repository.createAdminUser(
+        clinicId,
+        actorId,
+        {
+          fullName: "Equipe de vendas",
+          email,
+          role: "user",
+          password: "SenhaForte123",
+          permissions,
+        },
+        "hash-de-teste",
+      );
+      const token = app.jwt.sign({ sub: user.id, clinicId, role: "user" });
+      const me = await app.inject({
+        url: "/me",
+        headers: { authorization: `Bearer ${token}` },
+      });
+      localStorage.setItem("crm.auth.token", token);
+      localStorage.setItem("crm.auth.user", me.body);
+    }
+    await signIn("sem.fornecedores@example.com", [
+      "patients.view",
+      "patients.inventory_view",
+    ]);
+    const first = open("/vendas?aba=fornecedores");
+    expect(
+      await screen.findByRole("region", { name: "Vendas realizadas" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Fornecedores" }),
+    ).not.toBeInTheDocument();
+    first.unmount();
+    await signIn("fornecedores@example.com", [
+      "patients.view",
+      "patients.inventory_view",
+      "patients.suppliers_manage",
+    ]);
+    open("/vendas");
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Fornecedores" }),
+    );
+    const panel = await screen.findByRole("region", { name: "Fornecedores" });
+    fireEvent.click(
+      await within(panel).findByRole("button", { name: "Novo fornecedor" }),
+    );
+    const dialog = screen.getByRole("dialog", { name: "Novo fornecedor" });
+    fireEvent.change(within(dialog).getByLabelText("Nome"), {
+      target: { value: "Cosméticos Aryana" },
+    });
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Salvar fornecedor" }),
+    );
+    await waitFor(async () =>
+      expect(
+        (await repository.listSuppliers(clinicId)).map((item) => item.name),
+      ).toEqual(["Cosméticos Aryana"]),
+    );
   });
 });
