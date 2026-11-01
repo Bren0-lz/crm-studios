@@ -137,6 +137,55 @@ describe("document template editor", () => {
     ]);
   });
 
+  it("shows the create error next to the button, not at the top of the page", async () => {
+    localStorage.setItem("crm.auth.token", "test-token");
+    localStorage.setItem(
+      "crm.auth.user",
+      storedUser({
+        id: "22222222-2222-4222-8222-222222222222",
+        fullName: "Aryana Dutra",
+        email: "admin@movimenta.local",
+        role: "owner",
+      }),
+    );
+    vi.mocked(fetch).mockImplementation(async (input, init) => {
+      const url = String(input);
+      if (url.endsWith("/document-templates") && init?.method === "POST") {
+        return {
+          ok: false,
+          status: 409,
+          json: async () => ({
+            message: "Já existe um modelo ativo com este nome.",
+          }),
+        } as Response;
+      }
+      return { ok: true, status: 200, json: async () => [] } as Response;
+    });
+    render(
+      <MemoryRouter initialEntries={["/contratos"]}>
+        <App />
+      </MemoryRouter>,
+    );
+    fireEvent.click(await screen.findByRole("tab", { name: "Criar modelo" }));
+    installDocumentBrowserMocks();
+    const submit = screen.getByRole("button", { name: "Criar modelo" });
+    const form = submit.closest("form") as HTMLFormElement;
+    fireEvent.click(submit);
+
+    const alert = await within(form).findByRole("alert");
+    expect(alert).toHaveTextContent("Já existe um modelo ativo com este nome.");
+    expect(alert.nextElementSibling).toContainElement(submit);
+    expect(
+      screen.getAllByText("Já existe um modelo ativo com este nome."),
+    ).toHaveLength(1);
+
+    // Ao trocar o nome, o aviso antigo some.
+    fireEvent.change(within(form).getByLabelText("Nome do modelo"), {
+      target: { value: "Outro nome" },
+    });
+    expect(within(form).queryByRole("alert")).not.toBeInTheDocument();
+  });
+
   it("opens with the standard contract and previews it with the clinic data", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
     localStorage.setItem(
