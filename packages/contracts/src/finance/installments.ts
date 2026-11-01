@@ -149,6 +149,17 @@ export function installmentsIssue(
     : `${label} aceita no máximo ${limit.max} parcelas.`;
 }
 
+/** Parcela de um parcelamento (plano em N vezes) não é parcelada de novo na baixa. */
+export const installmentPaymentSplitIssue =
+  "Esta cobrança já é uma parcela: receba em 1x, sem parcelar na forma de pagamento.";
+
+/** A cobrança aceita parcelar o pagamento na forma (cartão em 3x) na baixa. */
+export function acceptsPaymentInstallments(entry: {
+  installmentCount?: number | undefined;
+}) {
+  return (entry.installmentCount ?? 1) <= 1;
+}
+
 /** "Cartão · 3x" (ou só "Cartão" à vista). */
 export function paymentMethodWithInstallments(
   method: Method,
