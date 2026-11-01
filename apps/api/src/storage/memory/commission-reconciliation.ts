@@ -17,6 +17,7 @@ import {
   commissionAmount,
 } from "../../modules/finance/commission-calculation.js";
 import { clinicDateOf } from "../../modules/finance/daily-cash.js";
+import { commissionBaseInCents } from "./commission-operations.js";
 import type { MemoryRepositoryContext } from "./context.js";
 import { now, uuid } from "./helpers.js";
 export function createCommissionReconciliationRepository(
@@ -110,6 +111,11 @@ export function createCommissionReconciliationRepository(
         date,
       );
     if (!rule) return null;
+    const baseAmountInCents = commissionBaseInCents(context, clinicId, {
+      appointmentId: item.appointmentId,
+      groupAttendanceId: item.groupAttendanceId,
+      serviceId: service.id,
+    });
     const { id: ruleId, active, userId, professionalId, ...terms } = rule;
     void active;
     void userId;
@@ -118,8 +124,8 @@ export function createCommissionReconciliationRepository(
       professionalId: professional.id,
       professionalName: professional.fullName,
       competence: date.slice(0, 7),
-      amountInCents: commissionAmount(rule, service.priceInCents),
-      baseAmountInCents: service.priceInCents,
+      amountInCents: commissionAmount(rule, baseAmountInCents),
+      baseAmountInCents,
       serviceId: service.id,
       ruleId,
       ruleSnapshot: {

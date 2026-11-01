@@ -27,6 +27,7 @@ import { MemoryClinicRepository } from "../memory-repository.js";
 import { MysqlClinicRepository } from "../mysql-repository.js";
 import type { ClinicRepository } from "../repository.js";
 import { atInstant } from "./clock.js";
+import { addLegacyTabService } from "./legacy-tab-service.js";
 
 const clinicId = "11111111-1111-4111-8111-111111111111";
 const actorId = "22222222-2222-4222-8222-222222222222";
@@ -1067,9 +1068,10 @@ for (const storage of ["memory", "mysql"] as const) {
           productId: product.id,
           quantity: 1,
         });
-        const scheduled = await repository.createPatientTabAppointment(
+        const scheduled = await addLegacyTabService(
+          repository,
+          pool,
           clinicId,
-          actorId,
           tab.id,
           appointmentInputSchema.omit({ patientId: true }).parse({
             professionalId,
@@ -1077,6 +1079,7 @@ for (const storage of ["memory", "mysql"] as const) {
             serviceId,
             startsAt: "2059-02-02T12:00:00Z",
           }),
+          18000,
         );
         const appointmentId = scheduled.services![0]!.appointmentId;
         await expect(

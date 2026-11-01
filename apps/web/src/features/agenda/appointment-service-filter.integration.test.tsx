@@ -36,6 +36,7 @@ describe("new appointment services", () => {
                   name: "Pilates",
                   durationMinutes: 50,
                   priceInCents: 9000,
+                  singleSessionPriceInCents: 8500,
                   professionalIds: [ana],
                   roomIds: [],
                 },
@@ -62,6 +63,12 @@ describe("new appointment services", () => {
     const dialog = await screen.findByRole("dialog");
     const service = within(dialog).getByLabelText("Serviço");
     expect(within(service).getAllByRole("option")).toHaveLength(3);
+    // O valor mostrado é o da sessão do plano avulso, não o preço de tabela.
+    expect(
+      within(service)
+        .getAllByRole("option")
+        .map((option) => option.textContent?.replace(/\u00a0/g, " ")),
+    ).toEqual(["Selecione", "Pilates · R$ 85,00", "Avaliação"]);
     fireEvent.change(within(dialog).getByLabelText("Profissional"), {
       target: { value: ana },
     });

@@ -119,6 +119,7 @@ import {
   demoProfessionals,
   demoRooms,
   demoServices,
+  demoPlanTemplates,
 } from "../../demo-scenarios.js";
 import { clinicDateOf } from "../../modules/finance/daily-cash.js";
 import {
@@ -760,6 +761,7 @@ export class MemoryRepositoryContext {
     this.professionals.push(...demoProfessionals);
     this.rooms.push(...demoRooms);
     this.services.push(...demoServices);
+    this.planTemplates.push(...demoPlanTemplates);
     this.appointments.push(...data.appointments);
     this.patientPlans.push(...data.plans);
     this.sessionMovements.push(...data.movements);
