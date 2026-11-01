@@ -125,15 +125,41 @@ export interface AppointmentSummary {
   discountNotApplicable: boolean;
 }
 
-/** O desconto da promoção vale para o plano? Lista vazia = qualquer plano. */
+/**
+ * O desconto da promoção vale para o plano? Não com `appliesToPlans: false`; lista vazia =
+ * qualquer plano.
+ */
 export function promotionAppliesToPlan(
-  promotion: Pick<AutoCampaignPromotionOffer, "planTemplateIds">,
+  promotion: Pick<
+    AutoCampaignPromotionOffer,
+    "planTemplateIds" | "appliesToPlans"
+  >,
   planTemplateId: string | undefined,
 ): boolean {
+  if (promotion.appliesToPlans === false) return false;
   const allowed = promotion.planTemplateIds ?? [];
   return (
     allowed.length === 0 ||
     (planTemplateId !== undefined && allowed.includes(planTemplateId))
+  );
+}
+
+/**
+ * O desconto da promoção vale para o produto? Só com `appliesToProducts: true`; lista vazia =
+ * qualquer produto.
+ */
+export function promotionAppliesToProduct(
+  promotion: Pick<
+    AutoCampaignPromotionOffer,
+    "productIds" | "appliesToProducts"
+  >,
+  productId: string | undefined,
+): boolean {
+  if (promotion.appliesToProducts !== true) return false;
+  const allowed = promotion.productIds ?? [];
+  return (
+    allowed.length === 0 ||
+    (productId !== undefined && allowed.includes(productId))
   );
 }
 
@@ -150,7 +176,10 @@ export function appointmentSummary({
   starts: readonly string[];
   pricing: AppointmentPricing;
   promotion?:
-    | Pick<AutoCampaignPromotionOffer, "discount" | "planTemplateIds">
+    | Pick<
+        AutoCampaignPromotionOffer,
+        "discount" | "planTemplateIds" | "appliesToPlans"
+      >
     | undefined;
 }): AppointmentSummary {
   const balances = pricing.plans.map((plan) => plan.remainingSessions);
