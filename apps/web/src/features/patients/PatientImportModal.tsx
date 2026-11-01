@@ -1,5 +1,6 @@
 import {
   type PatientImportAnalysis,
+  type PatientImportField,
   type PatientImportFileInput,
   type PatientImportResult,
   formatPhone,
@@ -13,11 +14,17 @@ import { LoadingBlock } from "../../shared/components/LoadingBlock";
 import { useMissingFields } from "../../shared/components/MissingFields";
 import { Modal } from "../../shared/components/Modal";
 import {
+  type PatientImportMapping,
+  assignImportColumn,
   countLabel,
   describeImportDuplicate,
+  patientImportColumnTitle,
+  patientImportFieldOptions,
   patientImportStatusLabels,
   patientImportTemplateHref,
   readFileAsBase64,
+  storeImportMapping,
+  storedImportMapping,
 } from "./model";
 
 export function PatientImportModal({
@@ -31,6 +38,7 @@ export function PatientImportModal({
   const [file, setFile] = useState<PatientImportFileInput | null>(null);
   const [analysis, setAnalysis] = useState<PatientImportAnalysis | null>(null);
   const [result, setResult] = useState<PatientImportResult | null>(null);
+  const [mapping, setMapping] = useState<PatientImportMapping>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -38,6 +46,7 @@ export function PatientImportModal({
     setAnalysis(null);
     setResult(null);
     setFile(null);
+    setMapping([]);
     setError("");
     if (!selected) return;
     setLoading(true);
@@ -46,8 +55,29 @@ export function PatientImportModal({
         fileName: selected.name,
         contentBase64: await readFileAsBase64(selected),
       };
-      setAnalysis(await api.previewPatientImport(input));
+      let preview = await api.previewPatientImport(input);
+      // Mesma planilha de antes (mesmos títulos): reaplica o mapeamento escolhido da última vez.
+      const saved = storedImportMapping(preview.columns);
+      if (saved && saved.join() !== preview.mapping.join())
+        preview = await api.previewPatientImport({ ...input, mapping: saved });
+      setAnalysis(preview);
+      setMapping(preview.mapping);
       setFile(input);
+    } catch (cause) {
+      setError((cause as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function changeColumn(index: number, field: PatientImportField | null) {
+    if (!file) return;
+    const next = assignImportColumn(mapping, index, field);
+    setMapping(next);
+    setLoading(true);
+    setError("");
+    try {
+      setAnalysis(await api.previewPatientImport({ ...file, mapping: next }));
     } catch (cause) {
       setError((cause as Error).message);
     } finally {
@@ -60,9 +90,11 @@ export function PatientImportModal({
     setLoading(true);
     setError("");
     try {
-      setResult(await api.importPatients(file));
+      setResult(await api.importPatients({ ...file, mapping }));
+      if (analysis) storeImportMapping(analysis.columns, mapping);
       setAnalysis(null);
       setFile(null);
+      setMapping([]);
       onImported();
     } catch (cause) {
       setError((cause as Error).message);
@@ -104,9 +136,10 @@ export function PatientImportModal({
               onChange={(event) => void selectFile(event.target.files?.[0])}
             />
             <span className="field-hint" id="patient-import-hint">
-              Colunas obrigatórias: nome, CPF e telefone. Também são aceitas:
-              whatsapp, email, nascimento (dd/mm/aaaa), etiquetas (separadas por
-              vírgula) e observações. Até 2 MB.
+              A primeira linha deve ter os títulos das colunas. Depois de
+              enviar, escolha a que dado do sistema corresponde cada coluna
+              (nome, CPF e telefone são obrigatórios). Datas em dd/mm/aaaa e
+              etiquetas separadas por vírgula. Até 2 MB.
             </span>
           </div>
           <a
@@ -118,6 +151,66 @@ export function PatientImportModal({
             Baixar modelo CSV
           </a>
         </div>
+        {analysis && analysis.columns.length > 0 && (
+          <section
+            className="patient-import-mapping"
+            aria-labelledby="patient-import-mapping-title"
+          >
+            <div className="patient-import-mapping-head">
+              <h3 id="patient-import-mapping-title">Colunas da planilha</h3>
+              <span className="field-hint">
+                Escolha a que dado do sistema corresponde cada coluna. As
+                colunas marcadas como “Não importar” são ignoradas.
+              </span>
+            </div>
+            <div className="patient-import-mapping-list">
+              {analysis.columns.map((column) => {
+                const title = patientImportColumnTitle(column);
+                return (
+                  <div
+                    className="patient-import-mapping-row"
+                    key={column.index}
+                  >
+                    <div className="patient-import-mapping-column">
+                      <strong>{title}</strong>
+                      <small>
+                        {column.samples.length > 0
+                          ? `Ex.: ${column.samples.join(" · ")}`
+                          : "Sem valores"}
+                      </small>
+                    </div>
+                    <select
+                      aria-label={`Dado do sistema para a coluna ${title}`}
+                      value={mapping[column.index] ?? ""}
+                      disabled={loading}
+                      onChange={(event) =>
+                        void changeColumn(
+                          column.index,
+                          (event.target.value ||
+                            null) as PatientImportField | null,
+                        )
+                      }
+                    >
+                      <option value="">Não importar</option>
+                      {patientImportFieldOptions.values.map((option) => (
+                        <option key={option.field} value={option.field}>
+                          {option.label}
+                        </option>
+                      ))}
+                      <optgroup label="DDD em coluna separada">
+                        {patientImportFieldOptions.areaCodes.map((option) => (
+                          <option key={option.field} value={option.field}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </optgroup>
+                    </select>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        )}
         {loading && <LoadingBlock />}
         {analysis && (
           <>
