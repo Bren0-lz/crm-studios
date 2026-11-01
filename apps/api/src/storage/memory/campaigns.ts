@@ -1,10 +1,12 @@
 import type {
+  AutoCampaignRedemption,
   CampaignRecipientStatus,
   MessageImageMimeType,
   MessageTemplate,
   MessageTemplateImage,
   WhatsappCampaign,
   WhatsappCampaignDetail,
+  WhatsappCampaignPromotion,
   WhatsappCampaignRecipient,
   WhatsappCampaignRecipientDraft,
 } from "@crm/contracts";
@@ -41,6 +43,7 @@ export interface StoredWhatsappCampaign {
   createdBy: string;
   createdAt: string;
   completedAt?: string;
+  promotion?: WhatsappCampaignPromotion;
   recipients: Array<
     WhatsappCampaignRecipientDraft & {
       id: string;
@@ -116,6 +119,7 @@ export function createCampaignsRepository(
       createdAt: campaign.createdAt,
       createdByName: userName(campaign.clinicId, campaign.createdBy),
       ...(campaign.completedAt ? { completedAt: campaign.completedAt } : {}),
+      ...(campaign.promotion ? { promotion: campaign.promotion } : {}),
     };
   };
 
@@ -301,6 +305,7 @@ export function createCampaignsRepository(
         templateId: string;
         name: string;
         recipients: WhatsappCampaignRecipientDraft[];
+        promotion?: WhatsappCampaignPromotion | undefined;
       },
     ) {
       const template = findTemplate(clinicId, input.templateId);
@@ -326,6 +331,7 @@ export function createCampaignsRepository(
         imageIds: templateImages(template).map((image) => image.id),
         createdBy: actorUserId,
         createdAt: now(),
+        ...(input.promotion ? { promotion: input.promotion } : {}),
         recipients: input.recipients.map((recipient) => ({
           ...recipient,
           id: uuid(),
@@ -338,7 +344,11 @@ export function createCampaignsRepository(
         actorUserId,
         "campaign.created",
         "whatsapp_campaign",
-        { name: campaign.name, recipients: campaign.recipients.length },
+        {
+          name: campaign.name,
+          recipients: campaign.recipients.length,
+          promotional: Boolean(campaign.promotion),
+        },
         campaign.id,
       );
       return toDetail(campaign);
@@ -373,6 +383,39 @@ export function createCampaignsRepository(
         campaign: toCampaign(campaign),
         recipient: toRecipient(campaign, recipient),
       };
+    },
+
+    async listWhatsappCampaignRedemptions(clinicId: string) {
+      return repositoryContext.autoCampaignRedemptions
+        .filter(
+          (item) =>
+            item.clinicId === clinicId &&
+            item.source === "manual" &&
+            repositoryContext.whatsappCampaigns.some(
+              (campaign) =>
+                campaign.clinicId === clinicId &&
+                campaign.id === item.campaignId,
+            ),
+        )
+        .flatMap((redemption): AutoCampaignRedemption[] => {
+          const appointment = repositoryContext.appointments.find(
+            (item) =>
+              item.clinicId === clinicId &&
+              item.id === redemption.appointmentId,
+          );
+          if (!appointment) return [];
+          return [
+            {
+              id: redemption.id,
+              campaignId: redemption.campaignId,
+              patientId: redemption.patientId,
+              occurrenceKey: redemption.occurrenceKey,
+              appointmentId: redemption.appointmentId,
+              appointmentStatus: appointment.status,
+              redeemedOn: redemption.redeemedOn,
+            },
+          ];
+        });
     },
   };
 }
