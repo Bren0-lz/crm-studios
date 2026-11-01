@@ -52,6 +52,7 @@ describe("plan cancellation with refund", () => {
             cancelledAt: "2026-10-16T12:00:00.000Z",
             cancelledValueInCents: 0,
             refundedInCents: 15000,
+            refundPaymentMethod: "cash",
             refundNote: "Pix",
           }),
         } as Response;
@@ -93,17 +94,36 @@ describe("plan cancellation with refund", () => {
 
     fireEvent.change(amount, { target: { value: "15000" } });
     fireEvent.change(
+      within(dialog).getByLabelText("Forma de pagamento do estorno"),
+      { target: { value: "cash" } },
+    );
+    fireEvent.change(
       within(dialog).getByLabelText("Observação do estorno (opcional)"),
       { target: { value: "Pix" } },
     );
     fireEvent.click(confirm);
     expect(
-      await screen.findByText(/estornado ao cliente R\$\s150,00 · Pix/),
+      await screen.findByText(
+        /estornado ao cliente R\$\s150,00 \(Dinheiro\) · Pix/,
+      ),
     ).toBeInTheDocument();
+
+    // O extrato do plano também mostra o estorno.
+    fireEvent.click(screen.getByRole("button", { name: "Extrato" }));
+    const statement = await screen.findByRole("dialog", {
+      name: /Extrato · Helena Almeida/,
+    });
+    expect(statement).toHaveTextContent(
+      /Valor estornado ao cliente: R\$\s150,00 · Dinheiro · Pix/,
+    );
     expect(patches).toEqual([
       {
         status: "cancelled",
-        cancellation: { refundedInCents: 15000, refundNote: "Pix" },
+        cancellation: {
+          refundedInCents: 15000,
+          refundPaymentMethod: "cash",
+          refundNote: "Pix",
+        },
       },
     ]);
   });

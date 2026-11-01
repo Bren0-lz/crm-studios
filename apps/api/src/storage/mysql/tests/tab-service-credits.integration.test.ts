@@ -16,6 +16,7 @@ import { MemoryClinicRepository } from "../../../memory-repository.js";
 import { MysqlClinicRepository } from "../../../mysql-repository.js";
 import type { ClinicRepository } from "../../../repository.js";
 import { atInstant } from "../../../test-support/clock.js";
+import { addLegacyTabService } from "../../../test-support/legacy-tab-service.js";
 
 const clinicId = "11111111-1111-4111-8111-111111111111";
 const actorId = "22222222-2222-4222-8222-222222222222";
@@ -43,8 +44,8 @@ for (const storage of ["memory", "mysql"] as const) {
         if (storage === "memory") repository = new MemoryClinicRepository();
       });
       afterAll(async () => {
-      await database?.drop();
-    });
+        await database?.drop();
+      });
 
       async function closedTabCredit(startsAt: string) {
         const patient = await repository.createPatient(
@@ -58,9 +59,10 @@ for (const storage of ["memory", "mysql"] as const) {
         const tab = await repository.openPatientTab(clinicId, actorId, {
           patientId: patient.id,
         });
-        const updated = await repository.createPatientTabAppointment(
+        const updated = await addLegacyTabService(
+          repository,
+          pool,
           clinicId,
-          actorId,
           tab.id,
           {
             professionalId,
@@ -70,6 +72,7 @@ for (const storage of ["memory", "mysql"] as const) {
             visitType: "regular",
             notes: "",
           },
+          18000,
         );
         const appointmentId = updated.services![0]!.appointmentId;
         await repository.closePatientTab(clinicId, actorId, tab.id, {
@@ -187,9 +190,7 @@ for (const storage of ["memory", "mysql"] as const) {
 
       // QM15: a cobrança da comanda não mostra trecho do id; a 0084 corrige as antigas.
       it("descreve a cobrança da comanda por data e cliente", async () => {
-        const { patient } = await closedTabCredit(
-          "2061-05-10T12:00:00.000Z",
-        );
+        const { patient } = await closedTabCredit("2061-05-10T12:00:00.000Z");
         const firstName = patient.fullName.split(" ")[0]!;
         const invoice = async () =>
           (await repository.getFinancialSummary(clinicId)).receivables.find(

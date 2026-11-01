@@ -3,6 +3,7 @@ import type { PayrollLine, PayrollSummary } from "@crm/contracts";
 import { describe, expect, it } from "vitest";
 import type { ClinicRepository } from "../repository.js";
 import { nextTestCpf } from "./cpf.js";
+import { serviceWithSinglePlan } from "./single-plan-service.js";
 import { createSalariedUser } from "./payroll-users.js";
 
 const clinic = "11111111-1111-4111-8111-111111111111";
@@ -30,9 +31,7 @@ async function scenario(repo: ClinicRepository, days: string[]) {
       name: `Sala ${randomUUID().slice(0, 8)}`,
       capacity: 1,
     }),
-    service = (await repo.listServices(clinic)).find(
-      (item) => item.priceInCents >= 1000,
-    )!,
+    service = await serviceWithSinglePlan(repo, clinic, actor, 18000),
     patient = await repo.createPatient(clinic, {
       cpf: nextTestCpf(),
       fullName: "Cliente da folha",
@@ -92,7 +91,7 @@ async function scenario(repo: ClinicRepository, days: string[]) {
     complete,
     commission,
     launch,
-    percent: (rate: number) => Math.round((service.priceInCents * rate) / 100),
+    percent: (rate: number) => Math.round((18000 * rate) / 100),
   };
 }
 
