@@ -224,16 +224,113 @@ export function allocatePlanRevenue(
 
 /**
  * Valor de uma sessão: o do serviço no plano do cliente (valor ÷ sessões contratadas) ou,
- * sem plano, o preço de tabela do serviço.
+ * sem plano, o valor de referência (`fallbackInCents`, em geral o do plano avulso do serviço).
  */
 export function sessionValueInCents(
   planService:
     Pick<PlanServiceInput, "totalSessions" | "totalValueInCents"> | undefined,
-  priceInCents: number,
+  fallbackInCents: number,
 ): number {
   return planService && planService.totalSessions > 0
     ? Math.round(planService.totalValueInCents / planService.totalSessions)
-    : priceInCents;
+    : fallbackInCents;
+}
+
+/** Modelo de plano avulso: `planType` "single" ou, sem tipo, `kind` "single". */
+export function isSinglePlanTemplate(template: {
+  planType?: PlanType | null | undefined;
+  kind?: z.infer<typeof planKindSchema> | null | undefined;
+}): boolean {
+  return template.planType
+    ? template.planType === "single"
+    : template.kind === "single";
+}
+
+/**
+ * O preço de tabela do serviço não cobra nada: o valor de referência de uma sessão avulsa vem do plano avulso
+ * ativo que inclui o serviço (valor ÷ sessões). Com mais de um, vale o cadastrado primeiro.
+ */
+export function singlePlanSessionPrices(
+  templates: readonly {
+    id: string;
+    active: boolean;
+    createdAt: string;
+    planType?: PlanType | null | undefined;
+    kind?: z.infer<typeof planKindSchema> | null | undefined;
+    services: readonly Pick<
+      PlanServiceInput,
+      "serviceId" | "totalSessions" | "totalValueInCents"
+    >[];
+  }[],
+): Map<string, number> {
+  const prices = new Map<string, number>();
+  [...templates]
+    .filter((template) => template.active && isSinglePlanTemplate(template))
+    .sort(
+      (a, b) =>
+        a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id),
+    )
+    .forEach((template) =>
+      template.services.forEach((item) => {
+        if (item.totalSessions > 0 && !prices.has(item.serviceId))
+          prices.set(
+            item.serviceId,
+            Math.round(item.totalValueInCents / item.totalSessions),
+          );
+      }),
+    );
+  return prices;
+}
+
+/** Linha do resumo "preço de tabela" do cadastro de plano. */
+export interface PlanTablePriceLine {
+  serviceId: string;
+  sessions: number;
+  /** Preço de tabela de uma sessão; `null` quando o serviço não tem preço (0 ou ausente). */
+  unitPriceInCents: number | null;
+  /** Preço de tabela × sessões; `null` quando o serviço não tem preço. */
+  totalInCents: number | null;
+}
+
+/**
+ * Quanto as sessões do plano custariam avulsas, pelo preço de tabela de cada serviço. É só
+ * referência para quem define o valor do plano: não muda o valor cobrado, a comissão nem os
+ * relatórios. Linha sem serviço escolhido fica de fora; serviço sem preço não entra na soma.
+ */
+export function planTablePriceSummary(
+  rows: readonly { serviceId: string; sessions: number }[],
+  services: readonly { id: string; priceInCents: number }[],
+): {
+  lines: PlanTablePriceLine[];
+  totalInCents: number;
+  missingPrices: number;
+} {
+  const lines = rows
+    .filter((row) => row.serviceId)
+    .map((row) => {
+      const price = services.find(
+        (service) => service.id === row.serviceId,
+      )?.priceInCents;
+      const sessions =
+        Number.isFinite(row.sessions) && row.sessions > 0 ? row.sessions : 0;
+      const unitPriceInCents = price && price > 0 ? price : null;
+      return {
+        serviceId: row.serviceId,
+        sessions,
+        unitPriceInCents,
+        totalInCents:
+          unitPriceInCents === null ? null : unitPriceInCents * sessions,
+      };
+    });
+  return {
+    lines,
+    totalInCents: lines.reduce(
+      (sum, line) => sum + (line.totalInCents ?? 0),
+      0,
+    ),
+    missingPrices: lines.filter((line) => line.unitPriceInCents === null)
+      .length,
+  };
 }
 
 export const planStatusSchema = z.enum([

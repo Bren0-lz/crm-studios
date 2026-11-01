@@ -4,7 +4,6 @@ import type { ProductSize, ProductSizeStock } from "./model.js";
 import {
   productUpdateSchema,
   patientTabItemUpdateSchema,
-  patientTabServiceInputSchema,
   productSaleInputSchema,
   supplierInputSchema,
   supplierBillingCycleSchema,
@@ -16,9 +15,6 @@ import {
 export type ProductUpdateInput = z.infer<typeof productUpdateSchema>;
 export type PatientTabItemUpdate = z.infer<typeof patientTabItemUpdateSchema>;
 export type ProductSaleInput = z.infer<typeof productSaleInputSchema>;
-export type PatientTabServiceInput = z.infer<
-  typeof patientTabServiceInputSchema
->;
 export type SupplierInput = z.infer<typeof supplierInputSchema>;
 export type SupplierBillingCycle = z.infer<typeof supplierBillingCycleSchema>;
 export type SupplierOrderInput = z.infer<typeof supplierOrderInputSchema>;
@@ -627,13 +623,6 @@ export interface PaymentReceipt {
   interestInCents?: number;
   /** Desconto do cliente já aplicado na cobrança (valor cheio = valor + desconto). */
   customerDiscountInCents?: number;
-}
-
-export interface TabAppointmentOption {
-  id: string;
-  serviceName: string;
-  professionalName: string;
-  startsAt: string;
 }
 
 export interface CommissionPaymentEvent {

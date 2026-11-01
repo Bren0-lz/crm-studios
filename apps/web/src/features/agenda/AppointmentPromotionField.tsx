@@ -17,7 +17,10 @@ export function AppointmentPromotionField({
 }: {
   patientId: string;
   value: AppointmentPromotion | undefined;
-  onChange: (promotion: AppointmentPromotion | undefined) => void;
+  onChange: (
+    promotion: AppointmentPromotion | undefined,
+    offer?: AutoCampaignPromotionOffer | undefined,
+  ) => void;
 }) {
   const [offers, setOffers] = useState<{
     patientId: string;
@@ -53,15 +56,16 @@ export function AppointmentPromotionField({
           type="checkbox"
           checked={checked}
           onChange={(event) =>
-            onChange(
-              event.target.checked
-                ? {
+            event.target.checked
+              ? onChange(
+                  {
                     ...(offer.source ? { source: offer.source } : {}),
                     campaignId: offer.campaignId,
                     occurrenceKey: offer.occurrenceKey,
-                  }
-                : undefined,
-            )
+                  },
+                  offer,
+                )
+              : onChange(undefined)
           }
         />
         <span>

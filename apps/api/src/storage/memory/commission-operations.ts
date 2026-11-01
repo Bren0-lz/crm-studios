@@ -4,6 +4,7 @@ import type {
   AdminUserCommissionInput,
   CommissionRecalculationPreviewInput,
 } from "@crm/contracts";
+import { sessionValueInCents, singlePlanSessionPrices } from "@crm/contracts";
 import { DomainError } from "../../repository.js";
 import { clinicDateOf } from "../../modules/finance/daily-cash.js";
 import {
@@ -14,6 +15,41 @@ import type { MemoryRepositoryContext } from "./context.js";
 import { now, uuid } from "./helpers.js";
 import { createMemoryCommissionRecalculation } from "./commission-recalculation.js";
 import type { CommissionRecalculationRequest } from "../../repository.js";
+/**
+ * Base da comissão percentual (o preço de tabela do serviço não entra): o valor por sessão do serviço no
+ * plano consumido pelo atendimento/presença; sem consumo de plano, o valor por sessão do
+ * plano avulso do serviço; sem nenhum, 0.
+ */
+export function commissionBaseInCents(
+  context: MemoryRepositoryContext,
+  clinicId: string,
+  source: {
+    appointmentId?: string | undefined;
+    groupAttendanceId?: string | undefined;
+    serviceId: string;
+  },
+): number {
+  const movement = context.sessionMovements.find(
+    (item) =>
+      item.kind === "consumption" &&
+      ((source.appointmentId && item.appointmentId === source.appointmentId) ||
+        (source.groupAttendanceId &&
+          item.groupAttendanceId === source.groupAttendanceId)),
+  );
+  const plan = movement
+    ? context.patientPlans.find(
+        (item) => item.clinicId === clinicId && item.id === movement.planId,
+      )
+    : undefined;
+  const serviceId = movement?.serviceId ?? source.serviceId;
+  return sessionValueInCents(
+    plan?.services.find((item) => item.serviceId === serviceId),
+    singlePlanSessionPrices(
+      context.planTemplates.filter((item) => item.clinicId === clinicId),
+    ).get(source.serviceId) ?? 0,
+  );
+}
+
 /**
  * Sessões concluídas da competência ainda sem comissão, com a regra e o serviço que a
  * geração usaria (mesma seleção de `generateCommissions`).
@@ -102,7 +138,12 @@ export function commissionCandidates(
         (item) => item.clinicId === clinicId && item.id === source.serviceId,
       );
     if (!rule || !service) continue;
-    candidates.push({ source, rule, service });
+    candidates.push({
+      source,
+      rule,
+      service,
+      baseAmountInCents: commissionBaseInCents(context, clinicId, source),
+    });
   }
   return candidates;
 }
@@ -186,11 +227,12 @@ export function createCommissionOperationsRepository(
       );
     },
     async generateCommissions(clinicId: string, competence: string) {
-      for (const { source, rule, service } of commissionCandidates(
-        context,
-        clinicId,
-        competence,
-      )) {
+      for (const {
+        source,
+        rule,
+        service,
+        baseAmountInCents,
+      } of commissionCandidates(context, clinicId, competence)) {
         const snapshot: AdminUserCommissionInput = {
           percentage: rule.percentage,
           effectiveFrom: rule.effectiveFrom,
@@ -222,9 +264,9 @@ export function createCommissionOperationsRepository(
           ruleId: rule.id,
           ruleSnapshot: snapshot,
           competence,
-          baseAmountInCents: service.priceInCents,
+          baseAmountInCents,
           percentage: rule.percentage,
-          amountInCents: commissionAmount(rule, service.priceInCents),
+          amountInCents: commissionAmount(rule, baseAmountInCents),
           status: "open",
           createdAt: now(),
         });
