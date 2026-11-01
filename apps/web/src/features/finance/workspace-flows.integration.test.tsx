@@ -35,17 +35,21 @@ describe("finance workflows through real HTTP handlers", () => {
     );
     // O modal abre assim que o workspace carrega.
     let dialog = await screen.findByRole("dialog", { name: "Nova despesa" });
-    await within(dialog).findByRole("option", { name: supplier!.name });
+    // Fornecedor num campo só: os cadastrados aparecem como sugestão.
+    await vi.waitFor(() =>
+      expect(
+        dialog.querySelector(`datalist option[value="${supplier!.name}"]`),
+      ).not.toBeNull(),
+    );
+    fireEvent.click(within(dialog).getByRole("radio", { name: "Lançamento" }));
     for (const [label, value] of [
       ["Descrição", "Compra de faixas"],
-      ["Fornecedor cadastrado", supplier!.id],
-      ["Lançamento", "2040-06-01"],
-      ["Competência", "2040-06"],
-      ["Vencimento", "2040-06-10"],
+      ["Fornecedor", supplier!.name.toUpperCase()],
+      ["Data do lançamento", "2040-06-10"],
       ["Categoria", category.id],
       ["Centro de custo (opcional)", center.id],
       ["Valor", "75.50"],
-      ["Observações", "Material terapêutico"],
+      ["Observações (opcional)", "Material terapêutico"],
     ])
       change(label!, value!, dialog);
     await save("Nova despesa", "Cadastrar despesa");
@@ -117,6 +121,11 @@ describe("finance workflows through real HTTP handlers", () => {
       status: "paid",
       amountInCents: 7550,
       supplierId: supplier!.id,
+      supplier: supplier!.name.toUpperCase(),
+      // Uma data só: no lançamento, vence no mesmo dia e a DRE usa o mês dela.
+      postedOn: "2040-06-10",
+      dueDate: "2040-06-10",
+      dreCompetence: "2040-06",
       paymentMethod: "card",
       paidAt: new Date("2040-06-10T10:00").toISOString(),
       cashAvailableAt: new Date("2040-06-12T08:00").toISOString(),

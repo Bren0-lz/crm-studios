@@ -1318,6 +1318,84 @@ describe("CRM API", () => {
     }
   });
 
+  it("accepts a fixed expense without cost center and generates its bills without one", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-10T15:00:00.000Z"));
+    try {
+      const { app, token } = await authenticatedApp();
+      const headers = { authorization: `Bearer ${token}` };
+      const workspace = async () =>
+        (
+          await app.inject({
+            method: "GET",
+            url: "/finance/workspace",
+            headers,
+          })
+        ).json();
+      const before = await workspace();
+      const category = before.categories.find(
+        (item: { kind: string }) => item.kind === "expense",
+      );
+      const base = {
+        description: "Faxina mensal",
+        categoryId: category.id,
+        amountInCents: 30_000,
+        dayOfMonth: 15,
+        startMonth: "2026-10",
+      };
+      const created = await app.inject({
+        method: "POST",
+        url: "/finance/recurring-payables",
+        headers,
+        payload: base,
+      });
+      expect(created.statusCode).toBe(201);
+      expect(created.json()).not.toHaveProperty("costCenterId");
+      expect(created.json().costCenterName).toBe("");
+      const model = created.json() as { id: string };
+
+      const bill = (await workspace()).payables.find(
+        (item: { recurringPayableId?: string }) =>
+          item.recurringPayableId === model.id,
+      );
+      expect(bill).toMatchObject({
+        competence: "2026-10",
+        amountInCents: 30_000,
+      });
+      expect(bill).not.toHaveProperty("costCenterId");
+
+      // Informado, o centro precisa existir; e dá para tirá-lo de novo na edição.
+      const unknown = await app.inject({
+        method: "PUT",
+        url: `/finance/recurring-payables/${model.id}`,
+        headers,
+        payload: {
+          ...base,
+          costCenterId: "99999999-9999-4999-8999-999999999999",
+        },
+      });
+      expect(unknown.statusCode).toBe(404);
+      const withCenter = await app.inject({
+        method: "PUT",
+        url: `/finance/recurring-payables/${model.id}`,
+        headers,
+        payload: { ...base, costCenterId: before.costCenters[0].id },
+      });
+      expect(withCenter.statusCode).toBe(200);
+      expect(withCenter.json().costCenterId).toBe(before.costCenters[0].id);
+      const without = await app.inject({
+        method: "PUT",
+        url: `/finance/recurring-payables/${model.id}`,
+        headers,
+        payload: base,
+      });
+      expect(without.statusCode).toBe(200);
+      expect(without.json()).not.toHaveProperty("costCenterId");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("generates fixed monthly expenses once per month, catching up and respecting pause and end", async () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(new Date("2026-10-10T15:00:00.000Z"));

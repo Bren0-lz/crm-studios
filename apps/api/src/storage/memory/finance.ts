@@ -1413,7 +1413,8 @@ export function createFinanceRepository(
         const costCenter = repositoryContext.costCenters.find(
           (item) => item.id === model.costCenterId,
         );
-        if (!category || !costCenter) continue;
+        // Sem centro de custo é válido; com ele, precisa ainda existir.
+        if (!category || (model.costCenterId && !costCenter)) continue;
         for (const competence of recurringPayableCompetences(
           model,
           currentMonth,
@@ -1428,9 +1429,10 @@ export function createFinanceRepository(
             description: model.description,
             ...(model.supplier ? { supplier: model.supplier } : {}),
             categoryId: model.categoryId,
-            costCenterId: model.costCenterId,
+            ...(costCenter
+              ? { costCenterId: costCenter.id, costCenterName: costCenter.name }
+              : {}),
             categoryName: category.name,
-            costCenterName: costCenter.name,
             dueDate,
             amountInCents: model.amountInCents,
             status: "open",

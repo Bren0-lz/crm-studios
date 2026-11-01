@@ -174,9 +174,9 @@ export interface RecurringPayableRow {
   description: string;
   supplier: string | null;
   categoryId: string;
-  costCenterId: string;
+  costCenterId: string | null;
   categoryName: string;
-  costCenterName: string;
+  costCenterName: string | null;
   amountType: RecurringPayable["amountType"];
   amountInCents: number;
   dayOfMonth: number;
@@ -505,9 +505,9 @@ export function mapRecurringPayable(
     description: row.description,
     ...(row.supplier ? { supplier: row.supplier } : {}),
     categoryId: row.categoryId,
-    costCenterId: row.costCenterId,
+    ...(row.costCenterId ? { costCenterId: row.costCenterId } : {}),
     categoryName: row.categoryName,
-    costCenterName: row.costCenterName,
+    costCenterName: row.costCenterName ?? "",
     amountType: row.amountType,
     amountInCents: row.amountInCents,
     dayOfMonth: row.dayOfMonth,

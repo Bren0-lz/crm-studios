@@ -414,8 +414,9 @@ export interface RecurringPayable {
   description: string;
   supplier?: string;
   categoryId: string;
-  costCenterId: string;
+  costCenterId?: string | undefined;
   categoryName: string;
+  /** Vazio quando a despesa fixa não tem centro de custo. */
   costCenterName: string;
   amountType: RecurringPayableAmountType;
   /** Valor mensal (fixa) ou estimativa usada até o valor do mês ser informado (variável). */

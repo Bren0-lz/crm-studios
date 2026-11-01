@@ -398,13 +398,13 @@ export class MysqlRepositoryContext {
     if (filters.action)
       predicates.push(`ae.action = ${parameter(filters.action)}`);
     if (filters.actorUserId)
-      predicates.push(
-        `ae.actor_user_id = ${parameter(filters.actorUserId)}`,
-      );
+      predicates.push(`ae.actor_user_id = ${parameter(filters.actorUserId)}`);
     // Cada palavra precisa aparecer na ação, na descrição ou nos metadados (exceto os
     // clínicos); a colação do banco ignora maiúsculas e acentos.
     for (const word of (filters.search ?? "").split(/\s+/).filter(Boolean)) {
-      const term = parameter(`%${word.replace(/[\\%_]/g, (char) => `\\${char}`)}%`);
+      const term = parameter(
+        `%${word.replace(/[\\%_]/g, (char) => `\\${char}`)}%`,
+      );
       predicates.push(
         `(ae.action LIKE ${term} OR ae.description LIKE ${term} OR (ae.module <> 'clinical' AND CAST(ae.metadata AS CHAR) LIKE ${term}))`,
       );
@@ -909,7 +909,9 @@ export class MysqlRepositoryContext {
     try {
       if (snapshot) {
         await client.query("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ");
-        await client.query("START TRANSACTION WITH CONSISTENT SNAPSHOT, READ ONLY");
+        await client.query(
+          "START TRANSACTION WITH CONSISTENT SNAPSHOT, READ ONLY",
+        );
       } else await client.query("BEGIN");
       const result = await work(client);
       await client.query("COMMIT");
@@ -1148,7 +1150,7 @@ export class MysqlRepositoryContext {
     const result = await client.query<RecurringPayableRow>(
       `SELECT ${recurringPayableColumns} FROM recurring_payables rp
        JOIN financial_categories fc ON fc.id = rp.category_id
-       JOIN cost_centers cc ON cc.id = rp.cost_center_id
+       LEFT JOIN cost_centers cc ON cc.id = rp.cost_center_id
        WHERE rp.clinic_id = $1 AND rp.id = $2`,
       [clinicId, recurringPayableId],
     );

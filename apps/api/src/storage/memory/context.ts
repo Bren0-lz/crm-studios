@@ -2010,7 +2010,7 @@ export class MemoryRepositoryContext {
   findExpenseClassification(
     clinicId: string,
     categoryId: string,
-    costCenterId: string,
+    costCenterId: string | undefined,
   ) {
     const category = this.financialCategories.find(
       (item) =>
@@ -2019,11 +2019,16 @@ export class MemoryRepositoryContext {
         item.kind === "expense" &&
         item.active,
     );
-    const costCenter = this.costCenters.find(
-      (item) =>
-        item.clinicId === clinicId && item.id === costCenterId && item.active,
-    );
-    if (!category || !costCenter)
+    // Centro de custo é opcional; informado, precisa existir e estar ativo.
+    const costCenter = costCenterId
+      ? this.costCenters.find(
+          (item) =>
+            item.clinicId === clinicId &&
+            item.id === costCenterId &&
+            item.active,
+        )
+      : undefined;
+    if (!category || (costCenterId && !costCenter))
       throw new DomainError(
         "FINANCIAL_CLASSIFICATION_NOT_FOUND",
         "Categoria de despesa ou centro de custo não encontrado.",
@@ -2037,7 +2042,7 @@ export class MemoryRepositoryContext {
       description: input.description,
       ...(input.supplier ? { supplier: input.supplier } : {}),
       categoryId: input.categoryId,
-      costCenterId: input.costCenterId,
+      ...(input.costCenterId ? { costCenterId: input.costCenterId } : {}),
       amountType: input.amountType,
       amountInCents: input.amountInCents,
       dayOfMonth: input.dayOfMonth,

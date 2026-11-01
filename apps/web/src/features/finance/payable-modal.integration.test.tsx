@@ -1,5 +1,5 @@
 import type { FinancialWorkspace } from "@crm/contracts";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import {
   type Authorization,
@@ -57,7 +57,9 @@ describe("PayableModal without categories", () => {
       return jsonResponse([]);
     });
     const onCreated = mount();
-    expect(screen.getByText("Nenhuma categoria de despesa.")).toBeVisible();
+    expect(screen.getByLabelText("Categoria")).toHaveDisplayValue(
+      "Nenhuma categoria cadastrada",
+    );
     expect(
       screen.getByRole("button", { name: "Cadastrar despesa" }),
     ).toBeDisabled();
@@ -68,22 +70,28 @@ describe("PayableModal without categories", () => {
       "Falta: Descrição (pelo menos 3 caracteres), Categoria, Valor.",
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Criar categoria" }));
-    expect(screen.getByRole("button", { name: "Criar" })).toBeDisabled();
+    // "+ Nova categoria" abre o cadastro por cima, sem fechar a despesa.
+    fireEvent.change(screen.getByLabelText("Categoria"), {
+      target: { value: "__create__" },
+    });
+    const categoryDialog = await screen.findByRole("dialog", {
+      name: "Nova categoria de despesa",
+    });
     expect(
-      screen.getByRole("button", { name: "Criar" }),
-    ).toHaveAccessibleDescription("Falta: Nome (pelo menos 2 caracteres).");
-    fireEvent.change(screen.getByLabelText("Criar categoria"), {
+      within(categoryDialog).getByRole("button", { name: "Salvar" }),
+    ).toBeDisabled();
+    fireEvent.change(within(categoryDialog).getByLabelText("Nome"), {
       target: { value: "Limpeza" },
     });
-    expect(screen.getByRole("button", { name: "Criar" })).toBeEnabled();
-    expect(screen.getByRole("button", { name: "Criar" })).not.toHaveAttribute(
-      "aria-describedby",
+    fireEvent.click(
+      within(categoryDialog).getByRole("button", { name: "Salvar" }),
     );
-    fireEvent.click(screen.getByRole("button", { name: "Criar" }));
     expect(
       await screen.findByRole("option", { name: "Limpeza" }),
     ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("dialog", { name: "Nova categoria de despesa" }),
+    ).not.toBeInTheDocument();
     expect(screen.getByLabelText("Categoria")).toHaveValue(categoryId);
 
     fireEvent.change(screen.getByLabelText("Descrição"), {
@@ -118,6 +126,12 @@ describe("PayableModal without categories", () => {
       amountInCents: 4590,
     });
     expect(payable?.body).not.toHaveProperty("costCenterId");
+    // Sem fornecedor cadastrado com o nome, não vai `supplierId`; a data é o vencimento.
+    expect(payable?.body).not.toHaveProperty("supplierId");
+    expect(payable?.body).not.toHaveProperty("postedOn");
+    expect((payable?.body as { dreCompetence: string }).dreCompetence).toBe(
+      (payable?.body as { dueDate: string }).dueDate.slice(0, 7),
+    );
     expect(bodies[0]).toMatchObject({
       url: expect.stringContaining("/finance/categories"),
       body: { name: "Limpeza", kind: "expense" },
@@ -166,7 +180,6 @@ describe("PayableModal with existing classifications", () => {
     expect(
       screen.getByRole("option", { name: "+ Nova categoria" }),
     ).toBeInTheDocument();
-    expect(screen.queryByLabelText("Criar centro de custo")).toBeNull();
 
     fireEvent.change(
       screen.getByRole("combobox", { name: /Centro de custo/ }),
@@ -174,23 +187,115 @@ describe("PayableModal with existing classifications", () => {
         target: { value: "__create__" },
       },
     );
-    fireEvent.change(screen.getByLabelText("Criar centro de custo"), {
+    const centerDialog = await screen.findByRole("dialog", {
+      name: "Novo centro de custo",
+    });
+    fireEvent.change(within(centerDialog).getByLabelText("Nome"), {
       target: { value: "Depilação" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Criar" }));
+    fireEvent.click(
+      within(centerDialog).getByRole("button", { name: "Salvar" }),
+    );
     expect(
       await screen.findByRole("option", { name: "Depilação" }),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("combobox", { name: /Centro de custo/ }),
     ).toHaveValue("d2d2d2d2-d2d2-4d2d-8d2d-d2d2d2d2d2d2");
-    expect(screen.queryByLabelText("Criar centro de custo")).toBeNull();
 
+    // Voltar no cadastro mantém a categoria escolhida.
     fireEvent.change(screen.getByLabelText("Categoria"), {
       target: { value: "__create__" },
     });
+    const categoryDialog = await screen.findByRole("dialog", {
+      name: "Nova categoria de despesa",
+    });
+    fireEvent.click(
+      within(categoryDialog).getByRole("button", { name: "Voltar" }),
+    );
+    expect(
+      screen.queryByRole("dialog", { name: "Nova categoria de despesa" }),
+    ).not.toBeInTheDocument();
     expect(screen.getByLabelText("Categoria")).toHaveValue(categoryId);
-    fireEvent.click(screen.getByRole("button", { name: "Cancelar" }));
-    expect(screen.queryByLabelText("Criar categoria")).toBeNull();
+  });
+});
+
+describe("PayableModal supplier and date", () => {
+  it("links a registered supplier typed in the single field and posts on the chosen date", async () => {
+    const bodies: unknown[] = [];
+    vi.mocked(fetch).mockImplementation(async (input, options) => {
+      if (options?.method === "POST") {
+        bodies.push(JSON.parse(String(options.body)));
+        return jsonResponse({ id: "new-payable" }, 201);
+      }
+      if (String(input).endsWith("/finance/suppliers"))
+        return jsonResponse([
+          {
+            id: "f4f4f4f4-f4f4-4f4f-8f4f-f4f4f4f4f4f4",
+            name: "Casa do Pilates",
+            active: true,
+          },
+          {
+            id: "f5f5f5f5-f5f5-4f5f-8f5f-f5f5f5f5f5f5",
+            name: "Antigo",
+            active: false,
+          },
+        ]);
+      return jsonResponse([]);
+    });
+    const workspace = {
+      categories: [
+        { id: categoryId, name: "Aluguel", kind: "expense", active: true },
+      ],
+      costCenters: [],
+      commissions: [],
+      payables: [],
+    } as unknown as FinancialWorkspace;
+    const onCreated = vi.fn();
+    const { container } = render(
+      <AuthorizationContext.Provider value={authorization}>
+        <PayableModal
+          workspace={workspace}
+          onClose={() => undefined}
+          onCreated={onCreated}
+        />
+      </AuthorizationContext.Provider>,
+    );
+    // Só os fornecedores ativos aparecem como sugestão.
+    await vi.waitFor(() =>
+      expect(
+        container.ownerDocument.querySelectorAll("datalist option"),
+      ).toHaveLength(1),
+    );
+    expect(screen.queryByLabelText("Fornecedor cadastrado")).toBeNull();
+    expect(screen.queryByLabelText(/^Competência/)).toBeNull();
+    fireEvent.change(screen.getByLabelText("Descrição"), {
+      target: { value: "Molas do reformer" },
+    });
+    fireEvent.change(screen.getByLabelText("Fornecedor"), {
+      target: { value: "  casa do pilates " },
+    });
+    fireEvent.change(screen.getByLabelText("Valor"), {
+      target: { value: "120,00" },
+    });
+    fireEvent.click(screen.getByRole("radio", { name: "Lançamento" }));
+    fireEvent.change(screen.getByLabelText("Data do lançamento"), {
+      target: { value: "2026-09-15" },
+    });
+    expect(
+      screen.getByText("A conta é lançada e vence em 15/09/2026."),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Cadastrar despesa" }));
+    await vi.waitFor(() => expect(onCreated).toHaveBeenCalled());
+    expect(bodies[0]).toMatchObject({
+      description: "Molas do reformer",
+      supplier: "casa do pilates",
+      supplierId: "f4f4f4f4-f4f4-4f4f-8f4f-f4f4f4f4f4f4",
+      postedOn: "2026-09-15",
+      dueDate: "2026-09-15",
+      dreCompetence: "2026-09",
+      amountInCents: 12000,
+    });
+    expect(bodies[0]).not.toHaveProperty("costCenterId");
   });
 });

@@ -311,6 +311,13 @@ describe("shared contracts", () => {
       startMonth: "2026-10",
     };
     expect(recurringPayableInputSchema.parse(base).amountType).toBe("fixed");
+    // Centro de custo é opcional, como na despesa pontual.
+    expect(
+      recurringPayableInputSchema.safeParse({
+        ...base,
+        costCenterId: undefined,
+      }).success,
+    ).toBe(true);
     expect(
       recurringPayableInputSchema.safeParse({ ...base, reminderDaysBefore: 31 })
         .success,
