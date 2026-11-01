@@ -17,6 +17,7 @@ export function PayablesList({
   onReverse,
   onProofs,
   onSetAmount,
+  proofIds,
 }: {
   payables: Payable[];
   canManage: boolean;
@@ -26,6 +27,8 @@ export function PayablesList({
   onProofs: (item: Payable) => void;
   /** Despesa fixa variável: informar o valor do mês antes de pagar. */
   onSetAmount: (item: Payable) => void;
+  /** Despesas com comprovante: os da baixa estornada seguem acessíveis. */
+  proofIds?: ReadonlySet<string>;
 }) {
   const { can } = useAuthorization();
   if (payables.length === 0) {
@@ -97,7 +100,7 @@ export function PayablesList({
               </span>
             </span>
             <div className="finance-actions">
-              {item.status === "paid" && (
+              {(item.status === "paid" || proofIds?.has(item.id)) && (
                 <button
                   className="secondary-button button-sm"
                   aria-label={`Comprovantes de ${item.description}`}
