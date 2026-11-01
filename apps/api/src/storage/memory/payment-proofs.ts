@@ -81,6 +81,22 @@ export function createPaymentProofsRepository(
           .map(metadata),
       );
     },
+    async listPaymentProofEntityIds(
+      clinicId: string,
+      entityType: "receivable" | "payable",
+    ) {
+      const ids = new Set(
+        context.paymentProofs
+          .filter(
+            (record) =>
+              record.clinicId === clinicId &&
+              record.entityType === entityType &&
+              !record.deletedAt,
+          )
+          .map((record) => record.entityId),
+      );
+      return [...ids].filter((id) => entityOf(clinicId, entityType, id));
+    },
     async createPaymentProof(
       clinicId: string,
       actorUserId: string,

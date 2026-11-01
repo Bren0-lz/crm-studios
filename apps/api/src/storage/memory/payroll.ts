@@ -1,16 +1,25 @@
 import {
   buildPayroll,
+  PAYROLL_CATEGORY_NAME,
+  payrollEntryAmount,
   payrollPayableDescription,
   payrollPayableNotes,
+  type FinancialCategory,
   type Payable,
   type PayrollEmployee,
   type PayrollEmployeeInput,
+  type PayrollEntry,
+  type PayrollEntryInput,
   type PayrollLaunchInput,
 } from "@crm/contracts";
 import { DomainError } from "../../repository.js";
 import { clinicDateOf } from "../../modules/finance/daily-cash.js";
 import {
+  payrollEntryLaunchedError,
+  payrollEntryLimitError,
+  payrollEntryNoSalaryError,
   payrollLaunchTotals,
+  payrollSalaryImmutableError,
   userManagedEmployeeError,
 } from "../../modules/finance/payroll.js";
 import type { MemoryRepositoryContext } from "./context.js";
@@ -32,6 +41,15 @@ export interface PayrollEmployeeRecord {
   createdAt: string;
   updatedAt: string;
 }
+
+const toEntry = (
+  record: PayrollEntry & { createdByUserId: string },
+): PayrollEntry => {
+  const entry: PayrollEntry & { createdByUserId?: string } =
+    structuredClone(record);
+  delete entry.createdByUserId;
+  return entry;
+};
 
 /**
  * Folha de pagamento (memória): colaboradores, a folha da competência por filial, o
@@ -198,6 +216,14 @@ export function createPayrollRepository(context: MemoryRepositoryContext) {
           item.competence === competence &&
           inSelection(item.professionalId),
       ),
+      entries: context.payrollEntries
+        .filter(
+          (item) =>
+            item.clinicId === clinicId &&
+            item.competence === competence &&
+            employees.some((employee) => employee.id === item.employeeId),
+        )
+        .map(toEntry),
       payables,
       expenseCommissionIds: new Set(
         context.payables
@@ -217,6 +243,30 @@ export function createPayrollRepository(context: MemoryRepositoryContext) {
           branchId: context.branchOf(item),
         })),
     });
+  };
+  /** Categoria "Folha de pagamento": reaproveita (e reativa) a existente ou cria. */
+  const defaultCategory = (clinicId: string) => {
+    const name = PAYROLL_CATEGORY_NAME.toLocaleLowerCase();
+    const existing = context.financialCategories.find(
+      (item) =>
+        item.clinicId === clinicId &&
+        item.kind === "expense" &&
+        item.name.toLocaleLowerCase() === name,
+    );
+    if (existing) {
+      existing.active = true;
+      return existing;
+    }
+    const category: FinancialCategory = {
+      id: uuid(),
+      clinicId,
+      name: PAYROLL_CATEGORY_NAME,
+      kind: "expense",
+      dreGroup: "fixed_expense",
+      active: true,
+    };
+    context.financialCategories.push(category);
+    return category;
   };
   return {
     async listPayrollEmployees(clinicId: string) {
@@ -242,6 +292,8 @@ export function createPayrollRepository(context: MemoryRepositoryContext) {
       if (!record) return null;
       if (record.userId) throw userManagedEmployeeError();
       context.assertBranchInScope(record.branchId);
+      if (input.baseSalaryInCents !== record.baseSalaryInCents)
+        throw payrollSalaryImmutableError();
       const branchId = validateEmployee(clinicId, input, id);
       const previous = toEmployee(record);
       record.branchId = branchId;
@@ -280,13 +332,15 @@ export function createPayrollRepository(context: MemoryRepositoryContext) {
       actorId: string,
       input: PayrollLaunchInput,
     ) {
-      const category = context.financialCategories.find(
-          (item) =>
-            item.clinicId === clinicId &&
-            item.id === input.categoryId &&
-            item.kind === "expense" &&
-            item.active,
-        ),
+      const category = input.categoryId
+          ? context.financialCategories.find(
+              (item) =>
+                item.clinicId === clinicId &&
+                item.id === input.categoryId &&
+                item.kind === "expense" &&
+                item.active,
+            )
+          : defaultCategory(clinicId),
         costCenter = input.costCenterId
           ? context.costCenters.find(
               (item) =>
@@ -342,6 +396,10 @@ export function createPayrollRepository(context: MemoryRepositoryContext) {
         };
         context.payables.push(payable);
         for (const item of entry.items) {
+          if (item.kind === "bonus" || item.kind === "discount")
+            context.payrollEntries.find(
+              (row) => row.id === item.id,
+            )!.payrollPayableId = payable.id;
           if (item.kind === "commission") {
             const commission = context.commissions.find(
               (row) => row.id === item.id,
@@ -368,6 +426,89 @@ export function createPayrollRepository(context: MemoryRepositoryContext) {
       });
       return structuredClone({ payables, skipped: plan.skipped });
     },
+    async createPayrollEntry(
+      clinicId: string,
+      actorId: string,
+      input: PayrollEntryInput,
+    ) {
+      const employee = context.payrollEmployees.find(
+        (item) => item.clinicId === clinicId && item.id === input.employeeId,
+      );
+      if (!employee) return null;
+      context.assertBranchInScope(employee.branchId);
+      if (input.mode === "percent" && employee.baseSalaryInCents <= 0)
+        throw payrollEntryNoSalaryError();
+      const amountInCents = payrollEntryAmount(
+        input.mode,
+        input.value,
+        employee.baseSalaryInCents,
+      );
+      if (amountInCents < 1) throw payrollEntryNoSalaryError();
+      if (amountInCents > 2147483647) throw payrollEntryLimitError();
+      const entry = {
+        id: uuid(),
+        clinicId,
+        employeeId: employee.id,
+        competence: input.competence,
+        kind: input.kind,
+        mode: input.mode,
+        value: input.value,
+        amountInCents,
+        reason: input.reason,
+        createdAt: now(),
+        createdByUserId: actorId,
+      };
+      context.payrollEntries.push(entry);
+      context.recordAudit(
+        clinicId,
+        actorId,
+        "payroll.entry_created",
+        "payroll_employee",
+        {
+          entryId: entry.id,
+          competence: entry.competence,
+          kind: entry.kind,
+          mode: entry.mode,
+          value: entry.value,
+          amountInCents,
+          reason: entry.reason,
+        },
+        employee.id,
+      );
+      return toEntry(entry);
+    },
+    async deletePayrollEntry(
+      clinicId: string,
+      actorId: string,
+      entryId: string,
+    ) {
+      const index = context.payrollEntries.findIndex(
+        (item) => item.clinicId === clinicId && item.id === entryId,
+      );
+      const entry = context.payrollEntries[index];
+      if (!entry) return false;
+      const employee = context.payrollEmployees.find(
+        (item) => item.id === entry.employeeId,
+      )!;
+      context.assertBranchInScope(employee.branchId);
+      if (entry.payrollPayableId) throw payrollEntryLaunchedError();
+      context.payrollEntries.splice(index, 1);
+      context.recordAudit(
+        clinicId,
+        actorId,
+        "payroll.entry_deleted",
+        "payroll_employee",
+        {
+          entryId,
+          competence: entry.competence,
+          kind: entry.kind,
+          amountInCents: entry.amountInCents,
+          reason: entry.reason,
+        },
+        employee.id,
+      );
+      return true;
+    },
     async cancelPayrollLaunch(
       clinicId: string,
       actorId: string,
@@ -390,6 +531,8 @@ export function createPayrollRepository(context: MemoryRepositoryContext) {
       for (const item of context.commissions)
         if (item.payrollPayableId === payable.id) delete item.payrollPayableId;
       for (const item of context.commissionAdjustments)
+        if (item.payrollPayableId === payable.id) delete item.payrollPayableId;
+      for (const item of context.payrollEntries)
         if (item.payrollPayableId === payable.id) delete item.payrollPayableId;
       context.recordAudit(
         clinicId,

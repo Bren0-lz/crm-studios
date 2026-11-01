@@ -3,6 +3,8 @@ import {
   autoCampaignDeliveryInputSchema,
   autoCampaignInputSchema,
   type AutoCampaign,
+  type AutoCampaignInput,
+  type AutoCampaignProductOption,
 } from "@crm/contracts";
 import type { FastifyRequest } from "fastify";
 import type { RouteContext } from "../../infrastructure/route-context.js";
@@ -51,17 +53,90 @@ export function registerAutoCampaignRoutes(context: RouteContext) {
       campaign.id,
     );
 
-  function parseCampaign(request: FastifyRequest) {
+  async function parseCampaign(request: FastifyRequest) {
     const input = autoCampaignInputSchema.parse(request.body);
     if (input.trigger === "overdue_payment")
       assertPermissions(request, "finance.view");
+    const promotion = input.promotion;
+    if (promotion) {
+      // Os planos só valem com desconto; sem desconto, a lista é descartada.
+      if (!promotion.discount) delete promotion.planTemplateIds;
+      const planIds = [...new Set(promotion.planTemplateIds ?? [])];
+      if (planIds.length) {
+        const known = new Set(
+          (await repository.listPlanTemplates(request.user.clinicId)).map(
+            (template) => template.id,
+          ),
+        );
+        if (planIds.some((id) => !known.has(id)))
+          throw new DomainError(
+            "AUTO_CAMPAIGN_PLAN_NOT_FOUND",
+            "Um dos planos escolhidos para o desconto não existe mais.",
+            400,
+          );
+      }
+      if (promotion.planTemplateIds) promotion.planTemplateIds = planIds;
+      await normalizeProductScope(request.user.clinicId, promotion);
+    }
     return input;
+  }
+
+  /**
+   * Onde o desconto vale além dos planos: sem desconto, nada; planos desligados descartam a
+   * lista de planos; produtos só com `appliesToProducts` e todos precisam existir na clínica.
+   */
+  async function normalizeProductScope(
+    clinicId: string,
+    promotion: NonNullable<AutoCampaignInput["promotion"]>,
+  ) {
+    if (!promotion.discount) {
+      delete promotion.appliesToPlans;
+      delete promotion.appliesToProducts;
+      delete promotion.productIds;
+      return;
+    }
+    if (promotion.appliesToPlans !== false) delete promotion.appliesToPlans;
+    else delete promotion.planTemplateIds;
+    if (promotion.appliesToProducts !== true) {
+      delete promotion.appliesToProducts;
+      delete promotion.productIds;
+      return;
+    }
+    const productIds = [...new Set(promotion.productIds ?? [])];
+    if (productIds.length) {
+      const known = new Set(
+        (await repository.getInventoryWorkspace(clinicId)).products.map(
+          (product) => product.id,
+        ),
+      );
+      if (productIds.some((id) => !known.has(id)))
+        throw new DomainError(
+          "AUTO_CAMPAIGN_PRODUCT_NOT_FOUND",
+          "Um dos produtos escolhidos para o desconto não existe mais.",
+          400,
+        );
+    }
+    promotion.productIds = productIds;
   }
 
   app.get(
     "/communications/auto-campaigns",
     { preHandler: authenticate },
     async (request) => repository.listAutoCampaigns(request.user.clinicId),
+  );
+
+  /** Produtos para escolher onde o desconto da promoção vale (só nome e se está ativo). */
+  app.get(
+    "/communications/auto-campaigns/products",
+    { preHandler: authenticate },
+    async (request): Promise<AutoCampaignProductOption[]> =>
+      (await repository.getInventoryWorkspace(request.user.clinicId)).products
+        .map((product) => ({
+          id: product.id,
+          name: product.name,
+          active: product.active,
+        }))
+        .sort((a, b) => a.name.localeCompare(b.name, "pt-BR")),
   );
 
   app.get(
@@ -82,7 +157,7 @@ export function registerAutoCampaignRoutes(context: RouteContext) {
       const campaign = await repository.createAutoCampaign(
         request.user.clinicId,
         request.user.sub,
-        parseCampaign(request),
+        await parseCampaign(request),
       );
       await audit(request, "created", campaign);
       return reply.status(201).send(campaign);
@@ -97,7 +172,7 @@ export function registerAutoCampaignRoutes(context: RouteContext) {
       const campaign = await repository.updateAutoCampaign(
         request.user.clinicId,
         id,
-        parseCampaign(request),
+        await parseCampaign(request),
       );
       if (!campaign) throw campaignNotFound();
       await audit(request, "updated", campaign);

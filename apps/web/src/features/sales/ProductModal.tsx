@@ -6,17 +6,30 @@ import type {
   ProductUpdateInput,
 } from "@crm/contracts";
 import {
+  maxProductSizes,
   productCategorySizes,
   productSizeLabel,
   sortProductSizes,
 } from "@crm/contracts";
-import { useEffect, useId, useState, type FormEvent } from "react";
+import { Plus } from "lucide-react";
+import {
+  useEffect,
+  useId,
+  useState,
+  type FormEvent,
+  type KeyboardEvent,
+} from "react";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
 import { CurrencyField } from "../../shared/components/CurrencyField";
 import { Modal, ModalCancelButton } from "../../shared/components/Modal";
 import { MoneyInput } from "../../shared/components/MoneyInput";
 import { ProductSizesEditor } from "../../shared/components/ProductSizesEditor";
+import {
+  maxSizeLength,
+  parseSizes,
+  sizeKey,
+} from "../../shared/lib/product-sizes";
 import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
 import { useToast } from "../../shared/feedback/toast-context";
 import {
@@ -91,19 +104,26 @@ export function ProductModal({
       null,
     ),
     [ownSizesEnabled, setOwnSizesEnabled] = useState(false),
-    [sizeDraft, setSizeDraft] = useState("");
+    [sizeDraft, setSizeDraft] = useState(""),
+    // Tamanhos que só este produto tem, acrescentados à lista da categoria (ou aos antigos).
+    [extraSizes, setExtraSizes] = useState<ProductSize[]>([]),
+    [sizeMessage, setSizeMessage] = useState("");
+  const sizeHintId = useId();
   const productDirty = useFormDirty(
     { form, active, restockAlert, sizeQuantities, ownSizesEnabled, sizeDraft },
     true,
   );
-  // Os tamanhos vêm da categoria; um produto antigo mantém os seus para poder desmarcá-los.
+  // Os tamanhos vêm da categoria; um produto antigo mantém os seus para poder desmarcá-los, e
+  // o produto pode acrescentar os que só ele tem.
   const categorySizes = productCategorySizes(categories, form.categoryId);
   const sizeOptions = sortProductSizes([
     ...categorySizes,
     ...(product === "new" ? [] : product.sizes),
+    ...extraSizes,
   ]);
-  // Sem tamanhos na categoria (nem antigos), o próprio produto pode definir os seus.
-  const ownSizes = sizeOptions.length === 0;
+  // Só o produto sem categoria (e sem tamanhos antigos) define os seus: numa categoria sem
+  // tamanhos os itens não se distinguem por tamanho, então a opção nem aparece.
+  const ownSizes = sizeOptions.length === 0 && !form.categoryId;
   const hasSizes = ownSizes
     ? ownSizesEnabled && form.sizes.length > 0
     : sizeOptions.length > 0;
@@ -146,11 +166,11 @@ export function ProductModal({
   /** Trocar a categoria marca todos os tamanhos dela (o usuário desmarca os que faltam). */
   function changeCategory(categoryId: string | null) {
     const sizes = productCategorySizes(categories, categoryId);
-    // Categoria sem tamanhos mantém os que o usuário definiu para o produto.
+    // Ao tirar a categoria, mantém os tamanhos que o usuário já definiu para o produto.
     setForm({
       ...form,
       categoryId,
-      sizes: sizes.length || !ownSizes ? sizes : form.sizes,
+      sizes: categoryId || !ownSizes ? sizes : form.sizes,
     });
   }
   function toggleSize(size: ProductSize, checked: boolean) {
@@ -161,10 +181,57 @@ export function ProductModal({
       ),
     });
   }
+  /** Acrescenta ao produto os tamanhos digitados (já marcados); os repetidos só são marcados. */
+  function addSizes() {
+    const typed = parseSizes(sizeDraft);
+    if (!typed.length) {
+      setSizeMessage("Digite um tamanho para adicionar.");
+      return;
+    }
+    if (typed.some((size) => size.length > maxSizeLength)) {
+      setSizeMessage(`Cada tamanho pode ter até ${maxSizeLength} caracteres.`);
+      return;
+    }
+    // Um tamanho já listado (inclusive código antigo, como "baby_look_m") é reaproveitado.
+    const existing = (size: string) =>
+      sizeOptions.find(
+        (item) =>
+          sizeKey(item) === sizeKey(size) ||
+          sizeKey(productSizeLabel(item)) === sizeKey(size),
+      );
+    const chosen = typed.map((size) => existing(size) ?? size);
+    const nextSizes = sortProductSizes([...form.sizes, ...chosen]);
+    if (nextSizes.length > maxProductSizes) {
+      setSizeMessage(`O produto pode ter até ${maxProductSizes} tamanhos.`);
+      return;
+    }
+    const nextOptions = sortProductSizes([...sizeOptions, ...chosen]);
+    setExtraSizes(sortProductSizes([...extraSizes, ...chosen]));
+    setForm({
+      ...form,
+      sizes: nextOptions.filter((item) =>
+        nextSizes.some((size) => sizeKey(size) === sizeKey(item)),
+      ),
+    });
+    setSizeDraft("");
+    setSizeMessage("");
+  }
+  function sizeDraftKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+    // Enter adiciona o tamanho em vez de enviar o formulário.
+    if (event.key !== "Enter") return;
+    event.preventDefault();
+    addSizes();
+  }
   async function save(event: FormEvent) {
     event.preventDefault();
     if (categorySizes.length && !form.sizes.length) {
       setFormError("Marque ao menos um tamanho.");
+      return;
+    }
+    if (!ownSizes && sizeDraft.trim()) {
+      setFormError(
+        "Clique em “Adicionar tamanho” para incluir o tamanho digitado ou apague o campo.",
+      );
       return;
     }
     if (ownSizes && ownSizesEnabled && !form.sizes.length) {
@@ -352,7 +419,7 @@ export function ProductModal({
                 />
               </div>
             )}
-            {!ownSizes && (
+            {sizeOptions.length > 0 && (
               <fieldset className="form-fieldset span-2">
                 <legend>Tamanhos deste produto</legend>
                 <p className="field-hint">
@@ -374,6 +441,39 @@ export function ProductModal({
                     </label>
                   ))}
                 </div>
+                <div className="size-editor-add">
+                  <label>
+                    Novo tamanho
+                    <input
+                      value={sizeDraft}
+                      maxLength={200}
+                      placeholder="Ex.: GG, 42"
+                      aria-describedby={sizeHintId}
+                      onChange={(event) => {
+                        setSizeDraft(event.target.value);
+                        setSizeMessage("");
+                      }}
+                      onKeyDown={sizeDraftKeyDown}
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    onClick={addSizes}
+                  >
+                    <Plus size={16} aria-hidden="true" />
+                    Adicionar tamanho
+                  </button>
+                </div>
+                <p className="field-hint" id={sizeHintId}>
+                  Falta algum? Adicione aqui os tamanhos que só este produto
+                  tem. Separe por vírgula para incluir vários de uma vez.
+                </p>
+                {sizeMessage && (
+                  <p className="field-error" role="alert">
+                    {sizeMessage}
+                  </p>
+                )}
                 {!isNew && (
                   <p className="field-hint">
                     O saldo de um tamanho desmarcado continua no estoque até ser

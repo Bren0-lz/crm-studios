@@ -1,6 +1,8 @@
 import { markPaymentProofsReversed } from "./payment-proofs.js";
 import {
+  acceptsPaymentInstallments,
   formatSequenceNumber,
+  installmentPaymentSplitIssue,
   settlementBreakdown,
   type PaymentTiming,
   type SettlementAdjustments,
@@ -1175,7 +1177,7 @@ export class MysqlRepositoryContext {
     const result = await client.query<RecurringPayableRow>(
       `SELECT ${recurringPayableColumns} FROM recurring_payables rp
        JOIN financial_categories fc ON fc.id = rp.category_id
-       JOIN cost_centers cc ON cc.id = rp.cost_center_id
+       LEFT JOIN cost_centers cc ON cc.id = rp.cost_center_id
        WHERE rp.clinic_id = $1 AND rp.id = $2`,
       [clinicId, recurringPayableId],
     );
@@ -1405,7 +1407,7 @@ export class MysqlRepositoryContext {
   ) {
     const [tab, items] = await Promise.all([
       client.query<PatientTabRow>(
-        `SELECT t.id,t.clinic_id AS "clinicId",t.patient_id AS "patientId",p.full_name AS "patientName",t.notes,t.status,t.payment_status AS "paymentStatus",t.total_in_cents AS "totalInCents",t.receivable_id AS "receivableId",t.opened_at AS "openedAt",t.closed_at AS "closedAt",t.cancelled_at AS "cancelledAt" FROM patient_tabs t JOIN patients p ON p.id=t.patient_id WHERE t.clinic_id=$1 AND t.id=$2`,
+        `SELECT t.id,t.clinic_id AS "clinicId",t.patient_id AS "patientId",p.full_name AS "patientName",u.id AS "soldByUserId",u.full_name AS "soldByName",t.notes,t.status,t.payment_status AS "paymentStatus",t.total_in_cents AS "totalInCents",t.receivable_id AS "receivableId",t.opened_at AS "openedAt",t.closed_at AS "closedAt",t.cancelled_at AS "cancelledAt",t.cancellation_reason AS "cancellationReason" FROM patient_tabs t JOIN patients p ON p.id=t.patient_id LEFT JOIN users u ON u.id=t.opened_by_user_id AND u.clinic_id=t.clinic_id WHERE t.clinic_id=$1 AND t.id=$2`,
         [clinicId, tabId],
       ),
       client.query<PatientTabItemRow>(
@@ -1490,6 +1492,32 @@ export class MysqlRepositoryContext {
     return result.rows[0] ? mapPayable(result.rows[0]) : null;
   }
 
+  /**
+   * Estorna a baixa de um recebível pago, dentro da transação de quem chama (a linha já
+   * travada com `FOR UPDATE`): a parcela volta a "open" sem o desconto e sem os juros da baixa.
+   */
+  async reversePaidReceivableWith(
+    client: PoolClient,
+    clinicId: string,
+    actorUserId: string,
+    receivableId: string,
+  ) {
+    // Mesmo estorno do Financeiro (forma por forma no picado), na transação de quem chama.
+    const reversed = await this.applyReceivablePayment(
+      client,
+      clinicId,
+      actorUserId,
+      receivableId,
+      "payment_reversal",
+    );
+    if (!reversed)
+      throw new DomainError(
+        "RECEIVABLE_NOT_PAID",
+        "Somente pagamentos confirmados podem ser estornados.",
+        409,
+      );
+  }
+
   async changeReceivablePayment(
     clinicId: string,
     actorUserId: string,
@@ -1499,23 +1527,47 @@ export class MysqlRepositoryContext {
     timing?: PaymentTiming,
     adjustments: SettlementAdjustments = {},
   ) {
-    const client = await this.pool.connect();
-    try {
-      await client.query("BEGIN");
+    return this.inTransaction((client) =>
+      this.applyReceivablePayment(
+        client,
+        clinicId,
+        actorUserId,
+        receivableId,
+        operation,
+        paymentMethod,
+        timing,
+        adjustments,
+      ),
+    );
+  }
+
+  /**
+   * Baixa ou estorno de uma parcela na transação de quem chama. No pagamento picado, um
+   * evento de caixa por forma; o estorno desfaz forma por forma a última baixa.
+   */
+  private async applyReceivablePayment(
+    client: PoolClient,
+    clinicId: string,
+    actorUserId: string,
+    receivableId: string,
+    operation: "payment" | "payment_reversal",
+    paymentMethod?: PaymentMethod,
+    timing?: PaymentTiming,
+    adjustments: SettlementAdjustments = {},
+  ) {
+    {
       const current = await client.query<{
         status: ReceivableStatus;
         amountInCents: number;
+        installmentCount: number;
         paymentMethod: PaymentMethod | null;
         cashAvailableAt: Date | null;
       }>(
-        `SELECT status,payment_method AS "paymentMethod",cash_available_at AS "cashAvailableAt", amount_in_cents AS "amountInCents"
+        `SELECT status,payment_method AS "paymentMethod",cash_available_at AS "cashAvailableAt", amount_in_cents AS "amountInCents", installment_count AS "installmentCount"
          FROM receivables WHERE clinic_id = $1 AND id = $2 FOR UPDATE`,
         [clinicId, receivableId],
       );
-      if (!current.rows[0]) {
-        await client.query("COMMIT");
-        return null;
-      }
+      if (!current.rows[0]) return null;
       const expected = operation === "payment" ? "open" : "paid";
       if (current.rows[0].status !== expected) {
         throw new DomainError(
@@ -1528,6 +1580,21 @@ export class MysqlRepositoryContext {
           409,
         );
       }
+      // Plano já parcelado não se parcela de novo na forma de pagamento (nem no picado).
+      if (
+        operation === "payment" &&
+        [adjustments, ...(adjustments.payments ?? [])].some(
+          (part) => (part.paymentInstallments ?? 1) > 1,
+        ) &&
+        !acceptsPaymentInstallments({
+          installmentCount: Number(current.rows[0].installmentCount),
+        })
+      )
+        throw new DomainError(
+          "INSTALLMENT_PAYMENT_SPLIT",
+          installmentPaymentSplitIssue,
+          400,
+        );
       // U39: desconto, juros e pagamento parcial (o saldo vira nova parcela).
       let receivedInCents = current.rows[0].amountInCents;
       let balanceReceivableId: string | null = null;
@@ -1736,13 +1803,7 @@ export class MysqlRepositoryContext {
         clinicId,
         receivableId,
       );
-      await client.query("COMMIT");
       return receivable;
-    } catch (error) {
-      await client.query("ROLLBACK");
-      throw error;
-    } finally {
-      client.release();
     }
   }
 

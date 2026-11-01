@@ -69,6 +69,8 @@ export interface PatientTabRow {
   clinicId: string;
   patientId: string;
   patientName: string;
+  soldByUserId?: string | null;
+  soldByName?: string | null;
   notes: string | null;
   status: PatientTab["status"];
   paymentStatus: PatientTab["paymentStatus"];
@@ -77,6 +79,8 @@ export interface PatientTabRow {
   openedAt: Date;
   closedAt: Date | null;
   cancelledAt: Date | null;
+  /** Só nas consultas que leem a venda inteira (detalhe e histórico). */
+  cancellationReason?: string | null;
 }
 
 export interface PatientTabItemRow {
@@ -179,9 +183,9 @@ export interface RecurringPayableRow {
   description: string;
   supplier: string | null;
   categoryId: string;
-  costCenterId: string;
+  costCenterId: string | null;
   categoryName: string;
-  costCenterName: string;
+  costCenterName: string | null;
   amountType: RecurringPayable["amountType"];
   amountInCents: number;
   dayOfMonth: number;
@@ -414,6 +418,9 @@ export function mapPatientTab(
     clinicId: row.clinicId,
     patientId: row.patientId,
     patientName: row.patientName,
+    ...(row.soldByUserId && row.soldByName
+      ? { soldByUserId: row.soldByUserId, soldByName: row.soldByName }
+      : {}),
     ...(row.notes ? { notes: row.notes } : {}),
     status: row.status,
     paymentStatus: row.paymentStatus,
@@ -423,6 +430,9 @@ export function mapPatientTab(
     openedAt: row.openedAt.toISOString(),
     ...(row.closedAt ? { closedAt: row.closedAt.toISOString() } : {}),
     ...(row.cancelledAt ? { cancelledAt: row.cancelledAt.toISOString() } : {}),
+    ...(row.cancellationReason
+      ? { cancellationReason: row.cancellationReason }
+      : {}),
   };
 }
 
@@ -522,9 +532,9 @@ export function mapRecurringPayable(
     description: row.description,
     ...(row.supplier ? { supplier: row.supplier } : {}),
     categoryId: row.categoryId,
-    costCenterId: row.costCenterId,
+    ...(row.costCenterId ? { costCenterId: row.costCenterId } : {}),
     categoryName: row.categoryName,
-    costCenterName: row.costCenterName,
+    costCenterName: row.costCenterName ?? "",
     amountType: row.amountType,
     amountInCents: row.amountInCents,
     dayOfMonth: row.dayOfMonth,

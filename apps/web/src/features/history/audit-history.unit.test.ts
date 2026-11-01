@@ -30,6 +30,52 @@ describe("readable audit history", () => {
     expect(formatAuditEvent(event({ action })).title).toBe(title);
   });
 
+  it("shows each changed field as before → after and the edit reason", () => {
+    const { details } = formatAuditEvent(
+      event({
+        action: "operation.patients.update",
+        module: "patients",
+        metadata: {
+          subjectName: "Ana Lima",
+          reason: "Cliente trocou de número",
+          changes: [
+            {
+              field: "phone",
+              label: "Telefone",
+              before: "11999998888",
+              after: "11988887777",
+            },
+            { field: "email", label: "E-mail", before: null, after: "a@b.c" },
+            { field: "broken", label: 3 },
+          ],
+        },
+      }),
+    );
+    expect(details).toEqual([
+      { label: "Registro", value: "Ana Lima" },
+      { label: "Motivo da alteração", value: "Cliente trocou de número" },
+    ]);
+    const valid = formatAuditEvent(
+      event({
+        metadata: {
+          changes: [
+            {
+              field: "phone",
+              label: "Telefone",
+              before: "11999998888",
+              after: "11988887777",
+            },
+            { field: "email", label: "E-mail", before: null, after: "a@b.c" },
+          ],
+        },
+      }),
+    );
+    expect(valid.details).toEqual([
+      { label: "Telefone", value: "11999998888 → 11988887777" },
+      { label: "E-mail", value: "(vazio) → a@b.c" },
+    ]);
+  });
+
   it("uses readable fallbacks for future actions, categories and missing actors", () => {
     expect(
       formatAuditEvent(event({ action: "future.action", entityType: "user" })),

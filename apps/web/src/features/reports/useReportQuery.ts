@@ -2,11 +2,15 @@ import { useEffect, useState } from "react";
 
 export type ReportPeriod = { from: string; to: string; version: number };
 
-/** Resultados antigos nunca são exibidos sob um período novo. */
+/**
+ * Resultados antigos nunca são exibidos sob um período novo. Mudar `refresh` recarrega
+ * em silêncio: os dados atuais continuam na tela até a nova resposta chegar.
+ */
 export function useReportQuery<T>(
   period: ReportPeriod,
   loader: (from: string, to: string) => Promise<T>,
   enabled = true,
+  refresh = 0,
 ) {
   const { from, to, version } = period;
   const key = `${from}/${to}/${version}/${enabled}`;
@@ -27,7 +31,7 @@ export function useReportQuery<T>(
     return () => {
       active = false;
     };
-  }, [key, from, to, loader, enabled]);
+  }, [key, from, to, loader, enabled, refresh]);
   const current = result.key === key && result.loader === loader;
   return {
     data: current ? result.data : null,

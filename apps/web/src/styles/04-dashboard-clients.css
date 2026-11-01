@@ -890,6 +890,16 @@
   color: var(--green-2);
 }
 
+/* Ainda não dá para finalizar: X apagado; o motivo fica no tooltip (title). */
+.appointment-complete-button[aria-disabled="true"] {
+  color: var(--muted);
+  cursor: not-allowed;
+}
+
+.appointment-complete-button[aria-disabled="true"]:hover {
+  background: transparent;
+}
+
 /* Clientes: coluna Ações à direita (a linha abre a ficha). Cada linha é um grid próprio:
    a coluna Ações tem largura fixa (a do botão "Editar") para o cabeçalho e as linhas
    repartirem as colunas igual — com "auto", o cabeçalho ficava deslocado. */
@@ -897,6 +907,17 @@
   grid-template-columns:
     minmax(210px, 1.4fr) minmax(180px, 1fr) minmax(170px, 1fr)
     100px calc(var(--space-8) + var(--space-5));
+}
+/* Contato, etiquetas e situação centralizados na coluna (título e valor); o cliente fica à
+   esquerda e "Editar" à direita. No celular a linha empilha e tudo volta à esquerda. */
+@media (min-width: 701px) {
+  .patient-table .table-row > :nth-child(n + 2):not(:last-child) {
+    justify-self: center;
+    text-align: center;
+  }
+  .patient-table .tags-cell {
+    justify-content: center;
+  }
 }
 .table-actions-head,
 .table-actions {

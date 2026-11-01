@@ -1,4 +1,5 @@
-import type { PatientDiscount } from "@crm/contracts";
+import type { InstallmentPreview, PatientDiscount } from "@crm/contracts";
+import { InstallmentsPreview } from "../../shared/components/InstallmentsPreview";
 import { currency } from "../../shared/lib/formatting";
 import type { GuidedOrder } from "./order";
 import { PlanDiscountSummary } from "./PlanDiscountSummary";
@@ -12,10 +13,14 @@ const money = (cents: number) => currency.format(cents / 100);
 export function GuidedOrderSummary({
   order,
   orderDiscount,
+  productInstallments,
   disabled,
   onEditOrderDiscount,
 }: {
   order: GuidedOrder;
+  /** Parcelas dos produtos, no pagamento escolhido para eles. */
+  productInstallments?:
+    { rows: InstallmentPreview[]; dueLabel?: string | undefined } | undefined;
   orderDiscount: PatientDiscount | undefined;
   disabled: boolean;
   onEditOrderDiscount: () => void;
@@ -53,9 +58,22 @@ export function GuidedOrderSummary({
                     </span>
                   </div>
                 )}
+                {line.installments && (
+                  <InstallmentsPreview
+                    rows={line.installments}
+                    label={`Ver parcelas de ${line.name}`}
+                  />
+                )}
               </li>
             ))}
           </ul>
+          {productInstallments && (
+            <InstallmentsPreview
+              rows={productInstallments.rows}
+              label="Ver parcelas dos produtos"
+              dueLabel={productInstallments.dueLabel}
+            />
+          )}
           <PlanDiscountSummary
             discount={orderDiscount}
             emptyLabel="Sem desconto geral."

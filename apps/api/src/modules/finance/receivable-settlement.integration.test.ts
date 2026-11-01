@@ -14,6 +14,8 @@ type Receivable = {
   amountInCents: number;
   status: string;
   installmentNumber: number;
+  paymentMethod?: string;
+  paymentInstallments?: number;
 };
 
 async function setup() {
@@ -191,6 +193,39 @@ describe("receivable settlement with discount, interest and partial payment", ()
         .filter((item) => item.status === "open")
         .reduce((sum, item) => sum + item.amountInCents, 0),
     ).toBe(10_000);
+    await app.close();
+  });
+
+  it("checks the installments limit of each payment method in the mix", async () => {
+    const { app, headers, receivable, receivables } = await setup();
+    const settings = await app.inject({
+      method: "PUT",
+      url: "/admin/payment-methods",
+      headers,
+      payload: {
+        methods: [
+          { method: "pix", acceptsInstallments: false, maxInstallments: 1 },
+        ],
+      },
+    });
+    expect(settings.statusCode).toBe(200);
+    const paid = await app.inject({
+      method: "POST",
+      url: `/finance/receivables/${receivable.id}/pay`,
+      headers,
+      payload: {
+        payments: [
+          { paymentMethod: "card", amountInCents: 5_000 },
+          {
+            paymentMethod: "pix",
+            amountInCents: 5_000,
+            paymentInstallments: 2,
+          },
+        ],
+      },
+    });
+    expect(paid.statusCode).toBe(400);
+    expect((await receivables()).map((item) => item.status)).toEqual(["open"]);
     await app.close();
   });
 });
