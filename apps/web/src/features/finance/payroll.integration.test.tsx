@@ -1,5 +1,6 @@
 import { nextTestCpf } from "../../../../api/src/test-support/cpf.js";
 import { createSalariedUser } from "../../../../api/src/test-support/payroll-users.js";
+import { serviceWithSinglePlan } from "../../../../api/src/test-support/single-plan-service.js";
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { actorId, clinicId, setupApi } from "../../test-support/api-server";
@@ -14,19 +15,18 @@ describe("folha de pagamento pela API real", () => {
         specialty: "Pilates",
         color: "#547A6B",
       }),
-      service = (await repository.listServices(clinicId)).find(
-        (item) => item.priceInCents >= 1000,
-      )!,
+      service = await serviceWithSinglePlan(
+        repository,
+        clinicId,
+        actorId,
+        18000,
+      ),
       [room] = await repository.listRooms(clinicId),
       patient = await repository.createPatient(clinicId, {
         cpf: nextTestCpf(),
         fullName: "Cliente da folha",
         phone: "11988887777",
         tags: [],
-      }),
-      category = await repository.createFinancialCategory(clinicId, {
-        name: "Folha de pagamento",
-        kind: "expense",
       });
     await repository.createCommissionRule(clinicId, {
       professionalId: professional.id,
@@ -47,7 +47,7 @@ describe("folha de pagamento pela API real", () => {
       "completed",
     );
     await repository.generateCommissions(clinicId, "2025-03");
-    const commission = Math.round(service.priceInCents * 0.1);
+    const commission = Math.round(18000 * 0.1);
     const centro = (await repository.saveBranch(clinicId, actorId, {
       name: "Centro",
     }))!;
@@ -107,10 +107,57 @@ describe("folha de pagamento pela API real", () => {
     expect(within(items).getByText("Comissão")).toBeInTheDocument();
     expect(within(items).getByText(service.name)).toBeInTheDocument();
     expect(within(items).getAllByText("A lançar")).toHaveLength(2);
-    // O salário muda no cadastro do usuário, não na folha.
+    // O salário fixo não muda na folha; descontos e recompensas entram pelo "Ajustar".
     expect(
       within(matriz).queryByRole("button", { name: "Editar Marina Folha" }),
     ).not.toBeInTheDocument();
+    fireEvent.click(
+      within(matriz).getByRole("button", {
+        name: "Desconto ou recompensa de Marina Folha",
+      }),
+    );
+    const adjust = await screen.findByRole("dialog", {
+      name: "Desconto ou recompensa · Marina Folha",
+    });
+    change("Forma", "percent", adjust);
+    change("Porcentagem (%)", "10", adjust);
+    change("Motivo", "Faltas sem justificativa", adjust);
+    expect(
+      within(adjust).getByText("Sai do pagamento: R$ 150,00"),
+    ).toBeInTheDocument();
+    await save("Desconto ou recompensa · Marina Folha", "Adicionar");
+    const withDiscount = await within(matriz).findByRole("list", {
+      name: "Itens de Marina Folha",
+    });
+    await within(withDiscount).findByText("Desconto (10% do salário)");
+    expect(
+      within(withDiscount).getByText("Faltas sem justificativa"),
+    ).toBeInTheDocument();
+    expect(within(withDiscount).getByText("Salário fixo")).toBeInTheDocument();
+    // Recompensa adicionada por engano: sai antes de lançar.
+    fireEvent.click(
+      within(matriz).getByRole("button", {
+        name: "Desconto ou recompensa de Marina Folha",
+      }),
+    );
+    const bonus = await screen.findByRole("dialog", {
+      name: "Desconto ou recompensa · Marina Folha",
+    });
+    change("Tipo", "bonus", bonus);
+    change("Valor (R$)", "50,00", bonus);
+    change("Motivo", "Lançada por engano", bonus);
+    await save("Desconto ou recompensa · Marina Folha", "Adicionar");
+    fireEvent.click(
+      await within(matriz).findByRole("button", {
+        name: "Remover recompensa de Marina Folha",
+      }),
+    );
+    await save("Remover recompensa", "Remover");
+    await waitFor(() =>
+      expect(
+        within(matriz).queryByText("Lançada por engano"),
+      ).not.toBeInTheDocument(),
+    );
     expect(within(panel).queryByText(/Marina Folha · 1 lançamento/)).toBeNull();
     expect(
       within(panel).getByRole("region", { name: "Folha de Centro" }),
@@ -138,7 +185,10 @@ describe("folha de pagamento pela API real", () => {
     const launch = await screen.findByRole("dialog", {
       name: "Lançar folha de 03/2025",
     });
-    change("Categoria da despesa", category.id, launch);
+    // Só o vencimento: categoria "Folha de pagamento" e sem centro de custo.
+    expect(within(launch).getByLabelText(/Vencimento/)).toBeInTheDocument();
+    expect(within(launch).queryByLabelText(/Categoria/)).toBeNull();
+    expect(within(launch).queryByLabelText(/Centro de custo/)).toBeNull();
     await save("Lançar folha de 03/2025", "Lançar folha");
     await waitFor(async () => {
       const payables = (await repository.getFinancialWorkspace(clinicId))
@@ -146,11 +196,19 @@ describe("folha de pagamento pela API real", () => {
       expect(
         payables
           .filter((item) => item.payroll)
-          .map((item) => [item.description, item.amountInCents]),
+          .map((item) => [
+            item.description,
+            item.amountInCents,
+            item.categoryName,
+          ]),
       ).toEqual(
         expect.arrayContaining([
-          ["Folha 03/2025 · Marina Folha", 150000 + commission],
-          ["Folha 03/2025 · Recepção Centro", 90000],
+          [
+            "Folha 03/2025 · Marina Folha",
+            150000 + commission - 15000,
+            "Folha de pagamento",
+          ],
+          ["Folha 03/2025 · Recepção Centro", 90000, "Folha de pagamento"],
         ]),
       );
     });

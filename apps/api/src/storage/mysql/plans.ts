@@ -4,6 +4,9 @@ import {
   type PlanCatalogInput,
   type PlanPaymentSummary,
   type PlanRenewalInput,
+  planRefundCategoryName,
+  planRefundPayableDescription,
+  type PaymentMethod,
   type PlanCancellationDetails,
   type PlanPauseDetails,
   type PlanStatus,
@@ -18,8 +21,9 @@ import {
 } from "../../modules/plans/plan-services.js";
 import { DomainError } from "../../repository.js";
 import { randomUUID } from "node:crypto";
+import type { PoolClient } from "../../infrastructure/mysql-client.js";
 import type { MysqlRepositoryContext } from "./context.js";
-import { localDate, localToday, writeAndRead } from "./sql.js";
+import { localDate, localMonth, localToday, writeAndRead } from "./sql.js";
 import {
   mapPatientPlan,
   mapPlanCatalog,
@@ -34,6 +38,85 @@ import {
   branchClause,
   json,
 } from "./helpers.js";
+
+/**
+ * Lança o estorno do cancelamento como conta já paga (saída de caixa) na categoria de
+ * estornos — criada na primeira vez, no grupo "Impostos e deduções" — e liga a conta ao plano.
+ * Roda dentro da transação do cancelamento.
+ */
+async function recordRefundPayable(
+  client: PoolClient,
+  clinicId: string,
+  actorUserId: string,
+  planId: string,
+  amountInCents: number,
+  paymentMethod: PaymentMethod,
+  note: string | undefined,
+) {
+  await client.query(
+    `INSERT INTO financial_categories (id, clinic_id, name, kind, dre_group)
+     VALUES ($1, $2, $3, 'expense', 'tax')
+     ON DUPLICATE KEY UPDATE name = VALUES(name)`,
+    [randomUUID(), clinicId, planRefundCategoryName],
+  );
+  const category = await client.query<{ id: string }>(
+    "SELECT id FROM financial_categories WHERE clinic_id = $1 AND name = $2 AND kind = 'expense'",
+    [clinicId, planRefundCategoryName],
+  );
+  const plan = await client.query<{
+    name: string;
+    patientName: string;
+    branchId: string;
+  }>(
+    `SELECT pp.name, p.full_name AS "patientName", pp.branch_id AS "branchId"
+     FROM patient_plans pp JOIN patients p ON p.id = pp.patient_id
+     WHERE pp.clinic_id = $1 AND pp.id = $2`,
+    [clinicId, planId],
+  );
+  const payableId = randomUUID();
+  await client.query(
+    `INSERT INTO payables
+       (id, clinic_id, description, supplier, category_id, due_date, amount_in_cents, notes,
+        status, payment_method, paid_at, created_by_user_id, paid_by_user_id,
+        posted_on, dre_competence, branch_id)
+     VALUES ($1, $2, $3, $4, $5, ${localToday()}, $6, $7,
+        'paid', $8, NOW(6), $9, $9,
+        ${localToday()}, ${localMonth("NOW(6)")}, $10)`,
+    [
+      payableId,
+      clinicId,
+      planRefundPayableDescription(
+        plan.rows[0]!.patientName,
+        plan.rows[0]!.name,
+      ),
+      plan.rows[0]!.patientName,
+      category.rows[0]!.id,
+      amountInCents,
+      note || null,
+      paymentMethod,
+      actorUserId,
+      plan.rows[0]!.branchId,
+    ],
+  );
+  await client.query(
+    `INSERT INTO payable_events
+       (clinic_id, payable_id, actor_user_id, kind, amount_in_cents, metadata, occurred_at, cash_available_at)
+     VALUES ($1, $2, $3, 'created', $4, '{}', NULL, NULL),
+            ($1, $2, $3, 'payment', $5, $6, NOW(6), NOW(6))`,
+    [
+      clinicId,
+      payableId,
+      actorUserId,
+      amountInCents,
+      -amountInCents,
+      { paymentMethod },
+    ],
+  );
+  await client.query(
+    "UPDATE patient_plans SET refund_payable_id = $3 WHERE clinic_id = $1 AND id = $2",
+    [clinicId, planId, payableId],
+  );
+}
 
 export function createPlansRepository(
   repositoryContext: MysqlRepositoryContext,
@@ -606,6 +689,16 @@ export function createPlansRepository(
               [clinicId, receivable.id, actorUserId, -receivable.amountInCents],
             );
           }
+          if (refundedInCents)
+            await recordRefundPayable(
+              client,
+              clinicId,
+              actorUserId,
+              planId,
+              refundedInCents,
+              cancellation.refundPaymentMethod!,
+              cancellation.refundNote,
+            );
         }
         const plan = await repositoryContext.findPatientPlan(
           client,

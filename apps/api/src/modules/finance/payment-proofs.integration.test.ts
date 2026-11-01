@@ -2,7 +2,7 @@ import { nextTestCpf } from "../../test-support/cpf.js";
 import { afterEach, describe, expect, it } from "vitest";
 import { buildApp } from "../../app.js";
 import { MemoryClinicRepository } from "../../memory-repository.js";
-import type { PaymentProof } from "@crm/contracts";
+import type { FinancialWorkspace, PaymentProof } from "@crm/contracts";
 import { verifyPaymentProofsRepository } from "../../test-support/payment-proofs-suite.js";
 
 const clinicId = "11111111-1111-4111-8111-111111111111";
@@ -184,6 +184,29 @@ describe("comprovantes de pagamento", () => {
     expect(extra.statusCode).toBe(409);
     expect(extra.json().code).toBe("PAYMENT_PROOF_LIMIT");
     expect((await app.inject({ url, headers })).json()).toHaveLength(10);
+    // Estorno: a despesa reaberta segue com os comprovantes, marcados como estornados.
+    expect(
+      (
+        await app.inject({
+          method: "POST",
+          url: `/finance/payables/${payable.id}/reverse`,
+          headers,
+        })
+      ).statusCode,
+    ).toBe(200);
+    const reopened = (
+      await app.inject({ url: "/finance/workspace", headers })
+    ).json<FinancialWorkspace>();
+    expect(
+      reopened.payables.find((item) => item.id === payable.id)?.status,
+    ).toBe("open");
+    expect(reopened.paymentProofEntityIds).toEqual({
+      receivables: [],
+      payables: [payable.id],
+    });
+    const kept = (await app.inject({ url, headers })).json<PaymentProof[]>();
+    expect(kept).toHaveLength(10);
+    expect(kept.every((item) => Boolean(item.reversedAt))).toBe(true);
     expect(
       (
         await app.inject({

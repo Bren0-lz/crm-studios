@@ -1,7 +1,11 @@
 import { patientProfileFilterSchema } from "./segments.js";
 import { z } from "zod";
 import { leadAppointmentInputSchema } from "../agenda/model.js";
-import { patientDiscountSchema } from "../plans/discount.js";
+import type { AuditFieldLabel } from "../history-changes.js";
+import {
+  patientDiscountDescription,
+  patientDiscountSchema,
+} from "../plans/discount.js";
 import {
   cpfDigits,
   emptyQueryToUndefined,
@@ -464,10 +468,96 @@ export const clientAgeBandLabels: Record<ClientAgeBand, string> = {
   unknown: "Sem data de nascimento",
 };
 
-/** Arquivo de clientes enviado para prévia/importação: CSV ou XLSX em base64 (até 2 MB decodificado). */
+/** Telefones que podem vir com o DDD numa coluna separada da planilha. */
+export const patientImportPhoneFields = [
+  "phone",
+  "whatsapp",
+  "emergencyContactPhone",
+  "guardianPhone",
+] as const;
+
+/**
+ * Dado do sistema que uma coluna da planilha pode preencher na importação. Os `*AreaCode` são o
+ * DDD numa coluna própria, juntado ao número do telefone correspondente.
+ */
+export const patientImportFieldSchema = z.enum(
+  [
+    "fullName",
+    "cpf",
+    "phone",
+    "whatsapp",
+    "email",
+    "birthDate",
+    "tags",
+    "notes",
+    "emergencyContactName",
+    "emergencyContactPhone",
+    ...patientProfileSchema.keyof().options,
+    "phoneAreaCode",
+    "whatsappAreaCode",
+    "emergencyContactPhoneAreaCode",
+    "guardianPhoneAreaCode",
+  ],
+  "Campo de importação desconhecido.",
+);
+
+export const patientImportFields = patientImportFieldSchema.options;
+
+/** Campos sem os quais o cliente não é cadastrado (marcados na tela de importação). */
+export const patientImportRequiredFields = [
+  "fullName",
+  "cpf",
+  "phone",
+] as const;
+
+/** Nome pt-BR de cada campo na tela de mapeamento das colunas. */
+export const patientImportFieldLabels: Record<
+  z.infer<typeof patientImportFieldSchema>,
+  string
+> = {
+  fullName: "Nome",
+  cpf: "CPF",
+  phone: "Telefone",
+  whatsapp: "WhatsApp",
+  email: "E-mail",
+  birthDate: "Nascimento",
+  tags: "Etiquetas",
+  notes: "Observações",
+  emergencyContactName: "Contato de emergência",
+  emergencyContactPhone: "Telefone de emergência",
+  ...patientProfileLabels,
+  phoneAreaCode: "DDD do telefone",
+  whatsappAreaCode: "DDD do WhatsApp",
+  emergencyContactPhoneAreaCode: "DDD do telefone de emergência",
+  guardianPhoneAreaCode: "DDD do telefone do responsável",
+};
+
+/**
+ * Arquivo de clientes enviado para prévia/importação: CSV ou XLSX em base64 (até 2 MB decodificado).
+ * `mapping[i]` diz que dado do sistema a coluna `i` da planilha preenche (`null` = não importar);
+ * ausente = colunas reconhecidas pelo título. Um campo não pode estar em duas colunas.
+ */
 export const patientImportFileSchema = z.object({
   fileName: z.string().trim().min(1).max(255),
   contentBase64: z.string().min(1),
+  mapping: z
+    .array(patientImportFieldSchema.nullable())
+    .max(200)
+    .optional()
+    .superRefine((mapping, context) => {
+      const seen = new Set<string>();
+      for (const field of mapping ?? []) {
+        if (!field) continue;
+        if (seen.has(field)) {
+          context.addIssue({
+            code: "custom",
+            message: `O campo ${patientImportFieldLabels[field]} foi escolhido em mais de uma coluna.`,
+          });
+          return;
+        }
+        seen.add(field);
+      }
+    }),
 });
 
 export const patientProfileValueLabels = {
@@ -476,3 +566,35 @@ export const patientProfileValueLabels = {
   other: "Outro",
   undisclosed: "Prefere não informar",
 } as const;
+
+/**
+ * Campos do cadastro comparados ao registrar a edição do cliente no Histórico
+ * (`patients.updated`), com o rótulo exibido em cada mudança.
+ */
+export const patientAuditLabels: Record<string, AuditFieldLabel> = {
+  fullName: "Nome",
+  cpf: "CPF",
+  email: "E-mail",
+  phone: "Telefone",
+  whatsapp: "WhatsApp",
+  birthDate: "Data de nascimento",
+  emergencyContactName: "Contato de emergência",
+  emergencyContactPhone: "Telefone de emergência",
+  notes: "Observações",
+  tags: "Etiquetas",
+  ...patientProfileLabels,
+  gender: {
+    label: patientProfileLabels.gender,
+    format: (value) =>
+      patientProfileValueLabels[
+        value as keyof typeof patientProfileValueLabels
+      ] ?? null,
+  },
+  discount: {
+    label: "Desconto",
+    format: (value) =>
+      patientDiscountDescription(
+        patientDiscountSchema.safeParse(value).data ?? null,
+      ),
+  },
+};

@@ -126,7 +126,10 @@ function writeSteps(input: AutoCampaignWrite, current: StoredStep[] = []) {
   }));
 }
 
-/** Grava o uso da promoção na mesma transação do atendimento. */
+/**
+ * Grava o uso da promoção na mesma transação do atendimento (campanha automática ou, com
+ * `source: "manual"`, campanha manual).
+ */
 export async function insertAutoCampaignRedemption(
   client: PoolClient,
   clinicId: string,
@@ -134,6 +137,22 @@ export async function insertAutoCampaignRedemption(
   appointmentId: string,
   promotion: AutoCampaignRedemptionWrite,
 ) {
+  if (promotion.source === "manual") {
+    await client.query(
+      `INSERT INTO whatsapp_campaign_redemptions (
+         clinic_id, campaign_id, patient_id, occurrence_key, appointment_id, redeemed_on
+       ) VALUES ($1, $2, $3, $4, $5, $6)`,
+      [
+        clinicId,
+        promotion.campaignId,
+        patientId,
+        promotion.occurrenceKey,
+        appointmentId,
+        promotion.redeemedOn,
+      ],
+    );
+    return;
+  }
   await client.query(
     `INSERT INTO auto_campaign_redemptions (
        clinic_id, campaign_id, patient_id, occurrence_key, appointment_id,

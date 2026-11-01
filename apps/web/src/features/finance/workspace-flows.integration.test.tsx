@@ -1,5 +1,5 @@
 import { nextTestCpf } from "../../../../api/src/test-support/cpf.js";
-import { fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { api } from "../../api";
 import { actorId, clinicId, setupApi } from "../../test-support/api-server";
@@ -35,17 +35,17 @@ describe("finance workflows through real HTTP handlers", () => {
     );
     // O modal abre assim que o workspace carrega.
     let dialog = await screen.findByRole("dialog", { name: "Nova despesa" });
+    // Fornecedor num campo só, entre os cadastrados.
     await within(dialog).findByRole("option", { name: supplier!.name });
+    fireEvent.click(within(dialog).getByRole("radio", { name: "Lançamento" }));
     for (const [label, value] of [
       ["Descrição", "Compra de faixas"],
-      ["Fornecedor cadastrado", supplier!.id],
-      ["Lançamento", "2040-06-01"],
-      ["Competência", "2040-06"],
-      ["Vencimento", "2040-06-10"],
+      ["Fornecedor", supplier!.id],
+      ["Data do lançamento", "2040-06-10"],
       ["Categoria", category.id],
       ["Centro de custo (opcional)", center.id],
       ["Valor", "75.50"],
-      ["Observações", "Material terapêutico"],
+      ["Observações (opcional)", "Material terapêutico"],
     ])
       change(label!, value!, dialog);
     await save("Nova despesa", "Cadastrar despesa");
@@ -117,15 +117,25 @@ describe("finance workflows through real HTTP handlers", () => {
       status: "paid",
       amountInCents: 7550,
       supplierId: supplier!.id,
+      supplier: supplier!.name,
+      // Uma data só: no lançamento, vence no mesmo dia e a DRE usa o mês dela.
+      postedOn: "2040-06-10",
+      dueDate: "2040-06-10",
+      dreCompetence: "2040-06",
       paymentMethod: "card",
       paidAt: new Date("2040-06-10T10:00").toISOString(),
       cashAvailableAt: new Date("2040-06-12T08:00").toISOString(),
     });
-    await waitFor(() =>
-      expect(
-        screen.getByText("Compra de faixas", { exact: true }),
-      ).toBeInTheDocument(),
+    // Paga com data de outro mês: sai da lista do mês e fica em "pagas de meses anteriores".
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Ver pagas de meses anteriores (1)",
+      }),
     );
+    const paidGroup = screen.getByRole("region", { name: /^Pagas/ });
+    expect(
+      within(paidGroup).getByText("Compra de faixas", { exact: true }),
+    ).toBeInTheDocument();
   });
   it("reconciles a paid commission and records a recovery while preserving its original payment", async () => {
     const { repository } = await setupApi();

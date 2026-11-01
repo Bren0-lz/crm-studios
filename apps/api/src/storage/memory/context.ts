@@ -127,6 +127,7 @@ import {
   demoProfessionals,
   demoRooms,
   demoServices,
+  demoPlanTemplates,
 } from "../../demo-scenarios.js";
 import { clinicDateOf } from "../../modules/finance/daily-cash.js";
 import {
@@ -336,6 +337,10 @@ export class MemoryRepositoryContext {
   readonly commissionAccountPayments: import("@crm/contracts").CommissionAccountPayment[] =
     [];
   readonly commissionPaymentEvents: CommissionPaymentEvent[] = [];
+  /** Descontos e recompensas da folha (`payroll_entries`). */
+  readonly payrollEntries: (import("@crm/contracts").PayrollEntry & {
+    createdByUserId: string;
+  })[] = [];
   /** Colaboradores da folha de pagamento (`payroll_employees`). */
   readonly payrollEmployees: import("./payroll.js").PayrollEmployeeRecord[] =
     [];
@@ -636,7 +641,6 @@ export class MemoryRepositoryContext {
       name: "Fisioterapia individual",
       durationMinutes: 50,
       priceInCents: 18000,
-      color: "#d96f4b",
       active: true,
     },
     {
@@ -645,7 +649,6 @@ export class MemoryRepositoryContext {
       name: "Avaliação funcional",
       durationMinutes: 60,
       priceInCents: 22000,
-      color: "#3d7c78",
       active: true,
     },
   ];
@@ -770,6 +773,7 @@ export class MemoryRepositoryContext {
     this.professionals.push(...demoProfessionals);
     this.rooms.push(...demoRooms);
     this.services.push(...demoServices);
+    this.planTemplates.push(...demoPlanTemplates);
     this.appointments.push(...data.appointments);
     this.patientPlans.push(...data.plans);
     this.sessionMovements.push(...data.movements);
@@ -2031,7 +2035,7 @@ export class MemoryRepositoryContext {
   findExpenseClassification(
     clinicId: string,
     categoryId: string,
-    costCenterId: string,
+    costCenterId: string | undefined,
   ) {
     const category = this.financialCategories.find(
       (item) =>
@@ -2040,11 +2044,16 @@ export class MemoryRepositoryContext {
         item.kind === "expense" &&
         item.active,
     );
-    const costCenter = this.costCenters.find(
-      (item) =>
-        item.clinicId === clinicId && item.id === costCenterId && item.active,
-    );
-    if (!category || !costCenter)
+    // Centro de custo é opcional; informado, precisa existir e estar ativo.
+    const costCenter = costCenterId
+      ? this.costCenters.find(
+          (item) =>
+            item.clinicId === clinicId &&
+            item.id === costCenterId &&
+            item.active,
+        )
+      : undefined;
+    if (!category || (costCenterId && !costCenter))
       throw new DomainError(
         "FINANCIAL_CLASSIFICATION_NOT_FOUND",
         "Categoria de despesa ou centro de custo não encontrado.",
@@ -2058,7 +2067,7 @@ export class MemoryRepositoryContext {
       description: input.description,
       ...(input.supplier ? { supplier: input.supplier } : {}),
       categoryId: input.categoryId,
-      costCenterId: input.costCenterId,
+      ...(input.costCenterId ? { costCenterId: input.costCenterId } : {}),
       amountType: input.amountType,
       amountInCents: input.amountInCents,
       dayOfMonth: input.dayOfMonth,

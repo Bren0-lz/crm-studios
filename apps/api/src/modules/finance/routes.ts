@@ -7,6 +7,7 @@ import {
   dailyCashFilterSchema,
   financeForecastFilterSchema,
   financialCategoryInputSchema,
+  patientTabCancelInputSchema,
   patientTabCloseInputSchema,
   patientTabInputSchema,
   patientTabItemInputSchema,
@@ -168,15 +169,40 @@ export function registerFinanceRoutes(context: RouteContext) {
     },
   );
 
+  app.get(
+    "/patient-tabs/:id/payment",
+    { preHandler: authenticate },
+    async (request, reply) => {
+      const { id } = request.params as { id: string };
+      const payment = await repository.patientTabPayment(
+        request.user.clinicId,
+        id,
+      );
+      if (payment === undefined)
+        return reply.status(404).send({
+          code: "PATIENT_TAB_NOT_FOUND",
+          message: "Comanda não encontrada.",
+        });
+      return { payment };
+    },
+  );
+
   app.post(
     "/patient-tabs/:id/cancel",
     { preHandler: authenticate },
     async (request, reply) => {
       const { id } = request.params as { id: string };
+      const input = patientTabCancelInputSchema.parse(
+        request.body ?? undefined,
+      );
+      // Estornar pelo cancelamento da venda dispensa as permissões do Financeiro.
+      if (input.refundPayment)
+        assertPermissions(request, "patients.tabs_refund");
       const tab = await repository.cancelPatientTab(
         request.user.clinicId,
         request.user.sub,
         id,
+        input,
       );
       if (!tab)
         return reply.status(404).send({
@@ -218,7 +244,7 @@ export function registerFinanceRoutes(context: RouteContext) {
         request.user.clinicId,
         request.user.sub,
         id,
-        timing.paymentMethod,
+        payments?.[0]?.paymentMethod ?? timing.paymentMethod,
         timing,
         {
           discountInCents,
@@ -314,7 +340,17 @@ export function registerFinanceRoutes(context: RouteContext) {
         request.user.clinicId,
         request.user.sub,
       );
-      return repository.getFinancialWorkspace(request.user.clinicId);
+      const clinicId = request.user.clinicId;
+      const [workspace, receivables, payables] = await Promise.all([
+        repository.getFinancialWorkspace(clinicId),
+        repository.listPaymentProofEntityIds(clinicId, "receivable"),
+        repository.listPaymentProofEntityIds(clinicId, "payable"),
+      ]);
+      // Comprovantes de baixa estornada continuam acessíveis na parcela/despesa reaberta.
+      return {
+        ...workspace,
+        paymentProofEntityIds: { receivables, payables },
+      };
     },
   );
 

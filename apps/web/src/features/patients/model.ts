@@ -4,6 +4,9 @@ import {
   matchesPatientProfile,
   matchesPatientSegment,
   patientDiscountDescription,
+  patientImportFieldLabels,
+  patientImportFields,
+  patientImportRequiredFields,
   patientProfileLabels,
 } from "@crm/contracts/patients";
 import type {
@@ -13,7 +16,9 @@ import type {
   GuidedPatientResult,
   Patient,
   PatientExportColumn,
+  PatientImportColumn,
   PatientImportDuplicate,
+  PatientImportField,
   PatientImportRow,
   PatientTimelineKind,
   PermissionKey,
@@ -278,6 +283,98 @@ export const patientImportStatusLabels: Record<
   error: "Erro",
   duplicate: "Duplicada",
 };
+
+export type PatientImportMapping = (PatientImportField | null)[];
+
+const importMappingStorageKey = "crm.patientImportMapping";
+
+/** Opções do seletor de cada coluna: campos com valor e, à parte, os DDDs separados. */
+export const patientImportFieldOptions = {
+  values: patientImportFields
+    .filter((field) => !field.endsWith("AreaCode"))
+    .map((field) => ({ field, label: patientImportFieldOptionLabel(field) })),
+  areaCodes: patientImportFields
+    .filter((field) => field.endsWith("AreaCode"))
+    .map((field) => ({ field, label: patientImportFieldOptionLabel(field) })),
+};
+
+function patientImportFieldOptionLabel(field: PatientImportField) {
+  const label = patientImportFieldLabels[field];
+  return (patientImportRequiredFields as readonly string[]).includes(field)
+    ? `${label} (obrigatório)`
+    : label;
+}
+
+/** Nome da coluna na tela: o título da planilha ou "Coluna N" quando está em branco. */
+export function patientImportColumnTitle(column: PatientImportColumn) {
+  return column.title || `Coluna ${column.index + 1}`;
+}
+
+/**
+ * Atribui `field` à coluna `index`; se outra coluna já usava o campo, ela passa a
+ * "Não importar" (um campo só pode vir de uma coluna).
+ */
+export function assignImportColumn(
+  mapping: PatientImportMapping,
+  index: number,
+  field: PatientImportField | null,
+): PatientImportMapping {
+  return mapping.map((current, position) =>
+    position === index ? field : field && current === field ? null : current,
+  );
+}
+
+function importHeaderSignature(columns: readonly PatientImportColumn[]) {
+  return columns
+    .map((column) =>
+      column.title
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase()
+        .trim(),
+    )
+    .join("|");
+}
+
+/** Mapeamento salvo neste navegador para planilhas com os mesmos títulos de coluna. */
+export function storedImportMapping(
+  columns: readonly PatientImportColumn[],
+): PatientImportMapping | undefined {
+  try {
+    const saved = JSON.parse(
+      localStorage.getItem(importMappingStorageKey) ?? "null",
+    ) as { signature?: unknown; mapping?: unknown } | null;
+    if (
+      !saved ||
+      saved.signature !== importHeaderSignature(columns) ||
+      !Array.isArray(saved.mapping) ||
+      saved.mapping.length !== columns.length
+    )
+      return undefined;
+    const known = new Set<string>(patientImportFields);
+    return saved.mapping.map((field) =>
+      typeof field === "string" && known.has(field)
+        ? (field as PatientImportField)
+        : null,
+    );
+  } catch {
+    return undefined;
+  }
+}
+
+export function storeImportMapping(
+  columns: readonly PatientImportColumn[],
+  mapping: PatientImportMapping,
+) {
+  try {
+    localStorage.setItem(
+      importMappingStorageKey,
+      JSON.stringify({ signature: importHeaderSignature(columns), mapping }),
+    );
+  } catch {
+    // Sem armazenamento: o mapeamento só não é lembrado na próxima importação.
+  }
+}
 
 export const patientImportTemplate = [
   "nome;cpf;telefone;whatsapp;email;nascimento;etiquetas;observações",

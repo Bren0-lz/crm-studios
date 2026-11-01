@@ -6,10 +6,7 @@ import {
   type PaymentProofInput,
 } from "@crm/contracts";
 import { randomUUID } from "node:crypto";
-import type {
-  Pool,
-  PoolClient,
-} from "../../infrastructure/mysql-client.js";
+import type { Pool, PoolClient } from "../../infrastructure/mysql-client.js";
 import { DomainError } from "../../repository.js";
 import { inspectClinicalAttachment } from "../../modules/clinical/clinical-integrity.js";
 import type { MysqlRepositoryContext } from "./context.js";
@@ -31,8 +28,7 @@ const entityQuery = (entityType: PaymentProofEntity, lock: boolean) =>
     receivable: `SELECT status='paid' AS settled,branch_id AS "branchId" FROM receivables WHERE clinic_id=$1 AND id=$2`,
     payable: `SELECT status='paid' AS settled,branch_id AS "branchId" FROM payables WHERE clinic_id=$1 AND id=$2`,
     commission_account_payment: `SELECT cap.reversed_at IS NULL AS settled,pr.branch_id AS "branchId" FROM commission_account_payments cap JOIN professionals pr ON pr.id=cap.professional_id WHERE cap.clinic_id=$1 AND cap.id=$2`,
-  })[entityType] +
-  (lock ? " FOR UPDATE" : "");
+  })[entityType] + (lock ? " FOR UPDATE" : "");
 
 /** Estorno da baixa: os comprovantes ficam no histórico, marcados como da baixa estornada. */
 export async function markPaymentProofsReversed(
@@ -47,9 +43,7 @@ export async function markPaymentProofsReversed(
   );
 }
 
-export function createPaymentProofsRepository(
-  context: MysqlRepositoryContext,
-) {
+export function createPaymentProofsRepository(context: MysqlRepositoryContext) {
   /** Registro da baixa nas filiais da leitura em curso (fora delas = não encontrado). */
   async function entityOf(
     client: Pool | PoolClient,
@@ -99,6 +93,23 @@ export function createPaymentProofsRepository(
         [clinicId, entityType, entityId],
       );
       return result.rows.map(map);
+    },
+    async listPaymentProofEntityIds(
+      clinicId: string,
+      entityType: "receivable" | "payable",
+    ) {
+      const table = entityType === "receivable" ? "receivables" : "payables";
+      const result = await context.pool.query<{
+        entityId: string;
+        branchId: string;
+      }>(
+        `SELECT DISTINCT pp.entity_id AS "entityId",e.branch_id AS "branchId" FROM payment_proofs pp JOIN ${table} e ON e.clinic_id=pp.clinic_id AND e.id=pp.entity_id WHERE pp.clinic_id=$1 AND pp.entity_type=$2 AND pp.deleted_at IS NULL ORDER BY pp.entity_id`,
+        [clinicId, entityType],
+      );
+      const readIds = context.branchReadIds();
+      return result.rows
+        .filter((row) => !readIds || readIds.includes(row.branchId))
+        .map((row) => row.entityId);
     },
     async createPaymentProof(
       clinicId: string,

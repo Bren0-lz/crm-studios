@@ -43,10 +43,12 @@ import { createPortal } from "react-dom";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
 import { useToast } from "../../shared/feedback/toast-context";
+import { ChangeReasonField } from "../../shared/components/ChangeReasonField";
 import { CpfInput } from "../../shared/components/CpfInput";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
 import { useMissingFields } from "../../shared/components/MissingFields";
 import { planGroupMissing } from "../../shared/lib/plan-groups";
+import { productSaleInstallments } from "../../shared/lib/product-installments";
 import { Modal, ModalCancelButton } from "../../shared/components/Modal";
 import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
 import { PhoneInput } from "../../shared/components/PhoneInput";
@@ -144,6 +146,7 @@ export function PatientModal({
   const editable = patient ? can("patients.update") : can("patients.create");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [changeReason, setChangeReason] = useState("");
   // Desconto (de plano, produto ou geral) em edição no modal: o atual e onde gravá-lo.
   const [discountTarget, setDiscountTarget] = useState<{
     target: DiscountTarget;
@@ -408,6 +411,27 @@ export function PatientModal({
     productPayment.parts,
     productsTotalInCents,
   );
+  const productLinesOfOrder = order.lines.filter(
+    (line) => line.kind === "product",
+  );
+  // Prévia por parcela só com uma forma; no picado, cada forma aparece no próprio campo.
+  const productInstallments =
+    productLinesOfOrder.length && productParts.length <= 1
+    ? productSaleInstallments({
+        items: productLinesOfOrder.map((line) => ({
+          label: line.name,
+          grossInCents: line.grossInCents,
+        })),
+        discountInCents: productLinesOfOrder.reduce(
+          (sum, line) => sum + line.grossInCents - line.netInCents,
+          0,
+        ),
+        settlement: productPayment.settlement,
+        dueDate: productPayment.dueDate,
+        paymentMethod: productParts[0]?.paymentMethod ?? "pix",
+        paymentInstallments: productParts[0]?.installments ?? 1,
+      })
+    : undefined;
   /** Termos do plano com a parte do desconto geral que coube a ele. */
   function withOrderShare<T extends GuidedSingleForm>(form: T, key: string): T {
     const terms = { ...form };
@@ -586,7 +610,7 @@ export function PatientModal({
     if (patient) {
       setLoading(true);
       try {
-        const saved = await api.updatePatient(patient.id, form);
+        const saved = await api.updatePatient(patient.id, form, changeReason);
         toast.success(
           `Cadastro de ${patientFirstName(saved.fullName)} atualizado.`,
         );
@@ -1245,6 +1269,7 @@ export function PatientModal({
         {(sellsItems > 0 || productLines.length > 0) && (
           <GuidedOrderSummary
             order={order}
+            productInstallments={productInstallments}
             orderDiscount={orderDiscount}
             disabled={!editable || loading}
             onEditOrderDiscount={() =>
@@ -1254,6 +1279,13 @@ export function PatientModal({
                 apply: (next) => setOrderDiscount(next ?? undefined),
               })
             }
+          />
+        )}
+        {patient && editable && (
+          <ChangeReasonField
+            value={changeReason}
+            onChange={setChangeReason}
+            disabled={loading}
           />
         )}
         {error && <div className="form-error span-2">{error}</div>}

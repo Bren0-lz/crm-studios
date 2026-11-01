@@ -355,6 +355,15 @@ export const patientTabCloseInputSchema = z
     { message: "Informe a forma de pagamento.", path: ["paymentMethod"] },
   );
 
+/** Cancelamento de comanda: `refundPayment` estorna antes o pagamento já recebido. */
+/** `reason`: motivo do cancelamento, guardado na venda (texto livre, opcional na API). */
+export const patientTabCancelInputSchema = z
+  .object({
+    refundPayment: z.boolean().default(false),
+    reason: z.string().trim().max(500).optional(),
+  })
+  .default({ refundPayment: false });
+
 export const productUpdateSchema = productBaseSchema
   .omit({ initialStock: true })
   .extend({
@@ -432,10 +441,6 @@ export const productSaleInputSchema = z
       Boolean(value.payments?.length),
     { message: "Informe a forma de pagamento.", path: ["paymentMethod"] },
   );
-export const patientTabServiceInputSchema = z.object({
-  appointmentId: z.uuid(),
-  amountInCents: z.number().int().min(0).max(2147483647).optional(),
-});
 /** Recorrência do valor contratado com o fornecedor. */
 export const supplierBillingCycleSchema = z.enum([
   "one_time",
@@ -614,7 +619,8 @@ export const recurringPayableInputSchema = z
     description: z.string().trim().min(3).max(200),
     supplier: z.string().trim().max(160).optional().or(z.literal("")),
     categoryId: z.uuid(),
-    costCenterId: z.uuid(),
+    /** Opcional, como na despesa pontual. */
+    costCenterId: z.uuid().optional(),
     /**
      * Na variável, `amountInCents` é a estimativa (0 = sem estimativa); o valor de cada mês é
      * informado na conta.

@@ -10,7 +10,11 @@ import {
   type BranchScope,
   type AppModule,
   appModuleLabels,
+  type AuditChange,
+  type AuditFieldLabel,
   broadcastInputSchema,
+  changeReasonSchema,
+  diffAuditFields,
   historyAction,
   installmentsIssue,
   installmentsLimit,
@@ -112,6 +116,39 @@ export async function createRouteContext({
   app.addHook("onRequest", (_request, _reply, done) =>
     repository.branchScope.open(done),
   );
+
+  /**
+   * O que mudou em cada edição (PUT/PATCH): o motivo opcional (`changeReason` no corpo) e os
+   * campos alterados informados pela rota (`recordChanges`). Vão para o evento da operação.
+   */
+  const editRecords = new WeakMap<
+    FastifyRequest,
+    { reason?: string; changes?: AuditChange[] }
+  >();
+
+  // Tira o `changeReason` do corpo antes das rotas validarem: os schemas não mudam.
+  app.addHook("preValidation", async (request) => {
+    if (request.method !== "PUT" && request.method !== "PATCH") return;
+    const body = request.body;
+    if (!body || typeof body !== "object" || Array.isArray(body)) return;
+    if (!("changeReason" in body)) return;
+    const { changeReason, ...rest } = body as Record<string, unknown>;
+    const reason = changeReasonSchema.parse(changeReason ?? undefined);
+    request.body = rest;
+    if (reason) editRecords.set(request, { reason });
+  });
+
+  /** Guarda os campos alterados pela edição; o histórico os mostra como "antes → depois". */
+  function recordChanges(
+    request: FastifyRequest,
+    before: object | null | undefined,
+    after: object | null | undefined,
+    labels: Record<string, AuditFieldLabel>,
+  ) {
+    const changes = diffAuditFields(before, after, labels);
+    editRecords.set(request, { ...editRecords.get(request), changes });
+    return changes;
+  }
 
   app.setErrorHandler((error, _request, reply) => {
     if (error instanceof DomainError) {
@@ -538,6 +575,9 @@ export async function createRouteContext({
       params: request.params,
       statusCode: reply.statusCode,
     };
+    const edit = editRecords.get(request);
+    if (edit?.changes) metadata.changes = edit.changes;
+    if (edit?.reason) metadata.reason = edit.reason;
     const params = request.params as Record<string, unknown>;
     let entityId = z.uuid().safeParse(params.id).data;
     if (typeof payload === "string" && payload.startsWith("{")) {
@@ -786,7 +826,7 @@ export async function createRouteContext({
       repository.listPatients(clinicId),
       repository.listPatientTags(clinicId),
     ]);
-    return validatePatientImport(rows, patients, tags);
+    return validatePatientImport(rows, patients, tags, file.mapping);
   }
 
   // Comunicado segmentado: a prévia não grava nada; o envio só enfileira
@@ -836,6 +876,7 @@ export async function createRouteContext({
     dashboardAccessDenied,
     accessibleBranches,
     visibleHistory,
+    recordChanges,
     withConfiguredTags,
     assertPermissions,
     assertNoHoliday,

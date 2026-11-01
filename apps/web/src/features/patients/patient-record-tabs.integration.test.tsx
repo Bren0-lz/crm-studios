@@ -193,7 +193,10 @@ describe("client record", () => {
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
     );
     expect(patches).toEqual([
-      { status: "cancelled", cancellation: { refundedInCents: 12000 } },
+      {
+        status: "cancelled",
+        cancellation: { refundedInCents: 12000, refundPaymentMethod: "pix" },
+      },
     ]);
   });
 

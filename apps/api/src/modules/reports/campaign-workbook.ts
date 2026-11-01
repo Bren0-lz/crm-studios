@@ -159,7 +159,7 @@ export async function campaignReportToXlsx(
     ["Campanhas automáticas", report.summary.automaticCampaigns],
     ["Mensagens enviadas", report.summary.sent],
     ["Mensagens não enviadas", report.summary.skipped],
-    ["Mensagens pendentes (manuais)", report.summary.pending],
+    ["Mensagens pendentes", report.summary.pending],
     ["Promoções usadas", report.summary.redemptions],
   ]);
 
@@ -192,9 +192,10 @@ export async function campaignReportToXlsx(
       total: item.total,
       sent: item.sent,
       skipped: item.skipped,
-      pending: item.kind === "manual" ? item.pending : null,
+      pending:
+        item.kind === "manual" || report.queueDate ? item.pending : null,
       rate: item.total ? item.sent / item.total : null,
-      redemptions: item.kind === "automatic" ? item.redemptions : null,
+      redemptions: item.promotional ? item.redemptions : null,
       sheet: {
         text: target,
         hyperlink: `#'${target.replace(/'/g, "''")}'!A1`,

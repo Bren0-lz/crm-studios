@@ -1,4 +1,5 @@
 import {
+  acceptsPaymentInstallments,
   settlementBreakdown,
   type PaymentMethod,
   type PaymentPart,
@@ -44,9 +45,14 @@ export function SettleModal({
   const [pastPayment, setPastPayment] = useState(false),
     [paidAt, setPaidAt] = useState(nowForInput),
     [availableAt, setAvailableAt] = useState("");
-  // Formas do pagamento: começa com a prevista na venda (ou Pix); "Adicionar forma" pica.
+  // Formas do pagamento: começa com as previstas na venda, a forma combinada no plano
+  // ou Pix; "Adicionar forma" pica.
   const [parts, setParts] = useState(() =>
-    fromPaymentParts(target.paymentParts, target.amountInCents),
+    fromPaymentParts(
+      target.paymentParts,
+      target.amountInCents,
+      target.paymentMethod ?? "pix",
+    ),
   );
   const paymentSettings = usePaymentMethodSettings();
   // Baixa de parcela (U39): desconto, juros e valor recebido; vazio = valor final inteiro.
@@ -69,6 +75,8 @@ export function SettleModal({
   });
   const dirty = formDirty || proofs.length > 0;
   const isReceivable = target.kind === "receivable";
+  // Parcela de um parcelamento (plano parcelado) não se parcela de novo na forma.
+  const canSplitPayment = isReceivable && acceptsPaymentInstallments(target);
   const split = parts.length > 1;
   // Valor final da parcela (sem considerar o recebido): base para dividir as formas.
   const finalInCents = isReceivable
@@ -78,7 +86,16 @@ export function SettleModal({
       }).finalInCents
     : target.amountInCents;
   const effective = effectiveDrafts(parts, finalInCents);
-  const payments = split ? toPaymentParts(effective) : undefined;
+  const payments = split
+    ? toPaymentParts(effective).map((part) =>
+        canSplitPayment
+          ? part
+          : {
+              paymentMethod: part.paymentMethod,
+              amountInCents: part.amountInCents,
+            },
+      )
+    : undefined;
   const [first] = effective;
   const method = first?.paymentMethod ?? "pix";
   const paymentInstallments = first?.installments ?? 1;
@@ -119,7 +136,9 @@ export function SettleModal({
           payments,
         }
       : values),
-    ...(!payments && paymentInstallments > 1 ? { paymentInstallments } : {}),
+    ...(!payments && canSplitPayment && paymentInstallments > 1
+      ? { paymentInstallments }
+      : {}),
     ...(breakdown.balanceInCents > 0 && balanceDueDate
       ? { balanceDueDate }
       : {}),
@@ -167,6 +186,24 @@ export function SettleModal({
       onClose={onClose}
     >
       <form className="form-grid settle-form" onSubmit={submit}>
+        {isReceivable && target.plan && (
+          <dl className="payroll-totals span-2" aria-label="Resumo do plano">
+            <div>
+              <dt>Valor total do plano</dt>
+              <dd>{money(target.plan.totalInCents)}</dd>
+            </div>
+            <div>
+              <dt>Valor da parcela</dt>
+              <dd>{money(target.amountInCents)}</dd>
+            </div>
+            <div>
+              <dt>Parcelas pagas</dt>
+              <dd>
+                {target.plan.paidCount} de {target.plan.installmentCount}
+              </dd>
+            </div>
+          </dl>
+        )}
         <PaymentPartsField
           className="span-2"
           parts={parts}
@@ -180,8 +217,8 @@ export function SettleModal({
           settings={paymentSettings}
           disabled={loading}
           allowPartial={isReceivable}
-          // Despesa: sem parcelamento na forma (como antes).
-          {...(isReceivable ? {} : { renderInstallments: () => null })}
+          // Despesa e parcela de plano parcelado: sem parcelamento na forma.
+          {...(canSplitPayment ? {} : { renderInstallments: () => null })}
           hint={
             isReceivable
               ? "Recebeu em mais de uma forma? Adicione as outras e informe o valor de cada uma."

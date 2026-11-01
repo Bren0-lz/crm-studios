@@ -12,15 +12,8 @@ vi.mock("../contracts/document-pdf", () => ({
 }));
 
 function suppliersPanel() {
-  open("/configuracoes");
-  return (async () => {
-    fireEvent.click(await screen.findByRole("tab", { name: "Cadastros" }));
-    const catalogs = screen.getByRole("tabpanel", { name: "Cadastros" });
-    fireEvent.click(
-      within(catalogs).getByRole("tab", { name: "Fornecedores" }),
-    );
-    return within(catalogs).getByRole("tabpanel", { name: "Fornecedores" });
-  })();
+  open("/vendas?aba=fornecedores");
+  return screen.findByRole("region", { name: "Fornecedores" });
 }
 
 describe("supplier contract signature", () => {
@@ -40,6 +33,7 @@ describe("supplier contract signature", () => {
     change("Nome", "Equipamentos Pilates", dialog);
     change("WhatsApp", "19988887777", dialog);
     change("Valor contratado (R$)", "2400,00", dialog);
+    fireEvent.click(within(dialog).getByRole("tab", { name: "Documentos" }));
     const field = within(dialog).getByLabelText(
       "Documento para o fornecedor assinar",
     );
@@ -115,6 +109,7 @@ describe("supplier contract signature", () => {
       await within(panel).findByRole("button", { name: "Editar" }),
     );
     const dialog = screen.getByRole("dialog", { name: "Editar fornecedor" });
+    fireEvent.click(within(dialog).getByRole("tab", { name: "Documentos" }));
     expect(
       await within(dialog).findByText("Assinado pelo link"),
     ).toBeInTheDocument();
