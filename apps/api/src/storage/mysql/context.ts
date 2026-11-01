@@ -1153,7 +1153,7 @@ export class MysqlRepositoryContext {
     const result = await client.query<RecurringPayableRow>(
       `SELECT ${recurringPayableColumns} FROM recurring_payables rp
        JOIN financial_categories fc ON fc.id = rp.category_id
-       JOIN cost_centers cc ON cc.id = rp.cost_center_id
+       LEFT JOIN cost_centers cc ON cc.id = rp.cost_center_id
        WHERE rp.clinic_id = $1 AND rp.id = $2`,
       [clinicId, recurringPayableId],
     );

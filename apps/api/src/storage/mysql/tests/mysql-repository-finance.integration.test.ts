@@ -1070,6 +1070,55 @@ describe.skipIf(!databaseUrl)("MySQL repository", () => {
     }
   });
 
+  it("stores a fixed expense without cost center and generates its bill without one", async () => {
+    await cleanupRecurringPayables();
+    try {
+      const [category, costCenter] = await testFinanceClassification();
+      const input = {
+        description: recurringPayableMarker,
+        categoryId: category.rows[0]!.id,
+        amountType: "fixed" as const,
+        amountInCents: 30_000,
+        dayOfMonth: 10,
+        startMonth: saoPauloToday().slice(0, 7),
+        active: true,
+      };
+      const model = await repository.createRecurringPayable(
+        clinicId,
+        ownerId,
+        input,
+      );
+      expect(model).not.toHaveProperty("costCenterId");
+      expect(model.costCenterName).toBe("");
+      expect(
+        (await repository.listRecurringPayables(clinicId)).some(
+          (item) => item.id === model.id,
+        ),
+      ).toBe(true);
+      await repository.generateDueRecurringPayables(clinicId, ownerId);
+      const payable = (
+        await repository.getFinancialWorkspace(clinicId)
+      ).payables.find((item) => item.recurringPayableId === model.id)!;
+      expect(payable).not.toHaveProperty("costCenterId");
+      const updated = await repository.updateRecurringPayable(
+        clinicId,
+        ownerId,
+        model.id,
+        { ...input, costCenterId: costCenter.rows[0]!.id },
+      );
+      expect(updated?.costCenterId).toBe(costCenter.rows[0]!.id);
+      const cleared = await repository.updateRecurringPayable(
+        clinicId,
+        ownerId,
+        model.id,
+        input,
+      );
+      expect(cleared).not.toHaveProperty("costCenterId");
+    } finally {
+      await cleanupRecurringPayables();
+    }
+  });
+
   it("accepts a variable fixed expense without estimate and fills it when it turns fixed", async () => {
     await cleanupRecurringPayables();
     try {
