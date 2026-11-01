@@ -311,23 +311,134 @@
   /* Ações com largura fixa (cabe "Comprovantes" + "Estornar"): com `auto`, cada linha
      tinha a própria largura e as colunas do meio saíam do alinhamento com o cabeçalho. */
   grid-template-columns:
-    minmax(0, 1fr) 110px 140px 150px
+    minmax(0, 1fr) 100px 150px 130px
     calc(var(--space-8) * 3 + var(--space-5));
   column-gap: var(--space-5);
 }
 
-/* Contas a pagar: colunas do meio e ações centralizadas, cabeçalho e linhas iguais. */
-.payables-table .finance-row > :not(:first-child) {
-  text-align: center;
-}
-
 .payables-table .finance-head {
+  border-top: 1px solid var(--line);
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
 
+/* Contas a pagar: um painel só, com a troca Contas | Despesas fixas ao lado do título. */
+.payables-panel > .panel-head {
+  align-items: center;
+  border-bottom: 1px solid var(--line);
+}
+
+.payables-view-head {
+  padding: var(--space-5) calc(var(--space-5) - 1px) var(--space-4);
+}
+
+.payables-view-head h3 {
+  margin: 0;
+  font-size: var(--text-lg);
+  font-weight: 600;
+}
+
+/* Resumo: em atraso, próximos 7 dias, em aberto e pago no mês. */
+.payables-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: var(--space-3);
+  margin: 0;
+  padding: var(--space-5) calc(var(--space-5) - 1px) 0;
+  list-style: none;
+}
+
+.payables-summary li {
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--paper);
+}
+
+.payables-summary span,
+.payables-summary small {
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+
+.payables-summary span {
+  font-weight: 600;
+}
+
+.payables-summary strong {
+  font-size: var(--text-xl);
+  font-weight: 600;
+}
+
+.payables-summary li.alert {
+  border-color: rgba(184, 93, 83, 0.4);
+}
+
+.payables-summary li.alert strong {
+  color: var(--red);
+}
+
+/* Busca e filtros na mesma linha, acima dos grupos. */
+.payables-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-4) calc(var(--space-5) - 1px) 0;
+}
+
+.payables-toolbar .search-box {
+  flex: 1 1 260px;
+  max-width: 360px;
+}
+
+.payables-toolbar .finance-filter-bar {
+  padding: 0;
+  border-bottom: 0;
+}
+
+/* Grupos por situação: título, quantidade e subtotal; a tabela ocupa a largura toda. */
+.payables-groups {
+  display: grid;
+  gap: var(--space-6);
+  padding: var(--space-5) 0 var(--space-4);
+}
+
+.payables-groups > .empty-state,
+.payables-more {
+  padding: 0 calc(var(--space-5) - 1px);
+}
+
+.payables-group-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: 0 calc(var(--space-5) - 1px) var(--space-2);
+}
+
+.payables-group-head h3 {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: var(--text-md);
+  font-weight: 600;
+}
+
+.payables-group-total {
+  font-size: var(--text-md);
+  font-weight: 600;
+}
+
+.payables-group.overdue .payables-group-total {
+  color: var(--red);
+}
+
 .payables-table .finance-actions {
-  justify-content: center;
+  justify-content: flex-end;
 }
 
 /* Colunas de largura fixa: cada linha é uma grade própria e precisa bater com o cabeçalho.
@@ -439,8 +550,11 @@
 
 .recurring-payables {
   display: grid;
-  gap: var(--space-3);
-  margin-top: var(--space-4);
+  padding-bottom: var(--space-2);
+}
+
+.recurring-payables > .error-banner {
+  margin: 0 calc(var(--space-5) - 1px) var(--space-3);
 }
 
 .status-pill.ended {
@@ -1529,14 +1643,14 @@
 /* Despesas fixas: o menu "Mais ações" da última linha não pode ser cortado pela tabela.
    Só onde a tabela cabe (> 820px) ou vira cartões (≤ 700px); entre os dois, ela rola. */
 @media (min-width: 821px) {
-  .recurring-payables .finance-panel,
+  .payables-panel.recurring-view,
   .recurring-payables .recurring-table {
     overflow: visible;
   }
 }
 
 @media (max-width: 700px) {
-  .recurring-payables .finance-panel,
+  .payables-panel.recurring-view,
   .recurring-payables .recurring-table {
     min-width: 0;
     overflow: visible;

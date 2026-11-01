@@ -146,6 +146,25 @@ describe("variable fixed expenses", () => {
         <App />
       </MemoryRouter>,
     );
+    // Na lista de contas a pagar, a conta variável pede o valor antes de pagar.
+    const payablesPanel = (
+      await screen.findByRole("heading", { name: "Contas a pagar" })
+    ).closest("section")!;
+    expect(
+      await within(payablesPanel).findByText(
+        /Valor estimado: informe o valor do mês/,
+      ),
+    ).toBeInTheDocument();
+    expect(
+      within(payablesPanel).queryByRole("button", {
+        name: "Pagar Conta de água",
+      }),
+    ).not.toBeInTheDocument();
+
+    // As despesas fixas ficam na outra visão do mesmo painel.
+    fireEvent.click(
+      within(payablesPanel).getByRole("button", { name: "Despesas fixas" }),
+    );
     const section = (
       await screen.findByRole("heading", { name: "Despesas fixas" })
     ).closest("section")!;
@@ -183,19 +202,6 @@ describe("variable fixed expenses", () => {
       within(waterRow).getByText(/vence em 2 dias .* valor do mês a informar$/),
     ).toHaveClass("recurring-reminder");
 
-    // Na lista de contas a pagar, a conta variável pede o valor antes de pagar.
-    const payablesPanel = screen
-      .getByRole("heading", { name: "Contas a pagar" })
-      .closest("section")!;
-    expect(
-      within(payablesPanel).queryByRole("button", {
-        name: "Pagar Conta de água",
-      }),
-    ).not.toBeInTheDocument();
-    expect(
-      within(payablesPanel).getByText(/Valor estimado: informe o valor do mês/),
-    ).toBeInTheDocument();
-
     fireEvent.click(
       within(waterRow).getByRole("button", {
         name: "Informar valor de Conta de água",
@@ -210,22 +216,20 @@ describe("variable fixed expenses", () => {
     fireEvent.click(
       within(amountDialog).getByRole("button", { name: "Salvar valor" }),
     );
-    expect(
-      await within(payablesPanel).findByRole("button", {
-        name: "Pagar Conta de água",
-      }),
-    ).toBeInTheDocument();
+    await vi.waitFor(() => expect(bodies).toHaveLength(1));
     expect(bodies[0]).toEqual({
       url: expect.stringContaining(
         "/finance/payables/f1f1f1f1-f1f1-4f1f-8f1f-f1f1f1f1f1f1/amount",
       ),
       body: { amountInCents: 18790 },
     });
-    expect(
-      within(waterRow).queryByRole("button", {
-        name: "Informar valor de Conta de água",
-      }),
-    ).not.toBeInTheDocument();
+    await vi.waitFor(() =>
+      expect(
+        within(waterRow).queryByRole("button", {
+          name: "Informar valor de Conta de água",
+        }),
+      ).not.toBeInTheDocument(),
+    );
     expect(within(waterRow).getByText(/vence em 2 dias/)).not.toHaveTextContent(
       "valor do mês a informar",
     );
@@ -237,9 +241,20 @@ describe("variable fixed expenses", () => {
       within(remindersBlock).getByText(/vence em 2 dias/),
     ).toHaveTextContent(/187,90$/);
 
+    // De volta às contas: com o valor informado, a conta já pode ser paga.
+    fireEvent.click(within(section).getByRole("button", { name: "Contas" }));
+    expect(
+      await within(payablesPanel).findByRole("button", {
+        name: "Pagar Conta de água",
+      }),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      within(payablesPanel).getByRole("button", { name: "Despesas fixas" }),
+    );
+
     // Editar a internet: passa a variável e sem aviso.
     fireEvent.click(
-      within(section).getByRole("button", { name: "Editar Internet" }),
+      await within(section).findByRole("button", { name: "Editar Internet" }),
     );
     const editDialog = await screen.findByRole("dialog", {
       name: "Editar despesa fixa",
@@ -367,7 +382,7 @@ describe("variable fixed expenses", () => {
         <App />
       </MemoryRouter>,
     );
-    await screen.findByRole("heading", { name: "Despesas fixas" });
+    await screen.findByRole("heading", { name: "Contas a pagar" });
     // "Nova despesa" é um botão só; a despesa fixa é escolhida no modal.
     fireEvent.click(
       screen.getAllByRole("button", { name: "Nova despesa" })[0]!,
