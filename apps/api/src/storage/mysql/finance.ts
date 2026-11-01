@@ -494,7 +494,7 @@ export function createFinanceRepository(
           [clinicId, branchIds],
         ),
         repositoryContext.pool.query<PatientTabRow>(
-          `SELECT t.id,t.clinic_id AS "clinicId",t.branch_id AS "branchId",t.patient_id AS "patientId",p.full_name AS "patientName",u.id AS "soldByUserId",u.full_name AS "soldByName",t.notes,t.status,t.payment_status AS "paymentStatus",t.total_in_cents AS "totalInCents",t.receivable_id AS "receivableId",t.opened_at AS "openedAt",t.closed_at AS "closedAt",t.cancelled_at AS "cancelledAt" FROM patient_tabs t JOIN patients p ON p.id=t.patient_id LEFT JOIN users u ON u.id=t.opened_by_user_id AND u.clinic_id=t.clinic_id WHERE t.clinic_id=$1 AND ${branchClause("t.branch_id", 2)} ORDER BY t.opened_at DESC`,
+          `SELECT t.id,t.clinic_id AS "clinicId",t.branch_id AS "branchId",t.patient_id AS "patientId",p.full_name AS "patientName",u.id AS "soldByUserId",u.full_name AS "soldByName",t.notes,t.status,t.payment_status AS "paymentStatus",t.total_in_cents AS "totalInCents",t.receivable_id AS "receivableId",t.opened_at AS "openedAt",t.closed_at AS "closedAt",t.cancelled_at AS "cancelledAt",t.cancellation_reason AS "cancellationReason" FROM patient_tabs t JOIN patients p ON p.id=t.patient_id LEFT JOIN users u ON u.id=t.opened_by_user_id AND u.clinic_id=t.clinic_id WHERE t.clinic_id=$1 AND ${branchClause("t.branch_id", 2)} ORDER BY t.opened_at DESC`,
           [clinicId, branchIds],
         ),
         repositoryContext.pool.query<PatientTabItemRow>(
@@ -793,7 +793,7 @@ export function createFinanceRepository(
       clinicId: string,
       actorUserId: string,
       tabId: string,
-      options: { refundPayment?: boolean } = {},
+      options: { refundPayment?: boolean; reason?: string | undefined } = {},
     ) {
       const client = await repositoryContext.pool.connect();
       try {
@@ -889,13 +889,17 @@ export function createFinanceRepository(
               row.receivableId,
               actorUserId,
               row.totalInCents,
-              JSON.stringify({ source: "patient_tab", tabId }),
+              JSON.stringify({
+                source: "patient_tab",
+                tabId,
+                ...(options.reason ? { reason: options.reason } : {}),
+              }),
             ],
           );
         }
         await client.query(
-          `UPDATE patient_tabs SET status='cancelled',payment_status='cancelled',cancelled_at=NOW(6) WHERE id=$1`,
-          [tabId],
+          `UPDATE patient_tabs SET status='cancelled',payment_status='cancelled',cancelled_at=NOW(6),cancellation_reason=$2 WHERE id=$1`,
+          [tabId, options.reason || null],
         );
         const updated = await repositoryContext.findPatientTab(
           clinicId,

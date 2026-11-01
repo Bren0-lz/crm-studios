@@ -1010,12 +1010,15 @@ export interface ClinicRepository {
     tabId: string,
     input: PatientTabCloseInput,
   ): Promise<PatientTab | null>;
-  /** `refundPayment`: estorna antes o pagamento já recebido, na mesma operação. */
+  /**
+   * `refundPayment`: estorna antes o pagamento já recebido, na mesma operação.
+   * `reason`: motivo do cancelamento, guardado na comanda.
+   */
   cancelPatientTab(
     clinicId: string,
     actorUserId: string,
     tabId: string,
-    options?: { refundPayment?: boolean },
+    options?: { refundPayment?: boolean; reason?: string | undefined },
   ): Promise<PatientTab | null>;
   /** Pagamento da comanda: `undefined` = comanda inexistente; `null` = sem cobrança. */
   patientTabPayment(
