@@ -770,27 +770,59 @@
   gap: var(--space-5);
 }
 
-.document-details-facts {
-  grid-template-columns: repeat(
-    auto-fill,
-    minmax(calc(var(--space-8) * 3), 1fr)
-  );
-  gap: var(--space-4);
+/* Datas sempre numa linha própria, abaixo de situação, modelo e plano. */
+.document-details-facts > .document-details-dates {
+  grid-column-start: 1;
+}
+
+.document-details-section {
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--line);
+}
+
+.document-details-signature {
+  display: grid;
+  gap: var(--space-3);
 }
 
 .document-details-section h3 {
-  margin: 0 0 var(--space-2);
+  margin: 0;
   font-size: var(--text-md);
   font-weight: 600;
 }
 
-.document-details-section > .signature-link-record {
-  margin-top: 0;
-  margin-bottom: var(--space-2);
+.document-details-section > .muted-copy {
+  margin: 0;
 }
 
-.document-details-section > .muted-copy {
-  margin: 0 0 var(--space-2);
+/* Assinatura no modal: campos em grade e os botões numa linha só, abaixo. */
+.signature-link-record.signature-link-record-detailed,
+.manual-signature-record {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+}
+
+.signature-link-record.signature-link-record-detailed > .muted-copy {
+  margin: 0;
+  font-size: var(--text-sm);
+}
+
+.document-details-facts,
+.signature-link-facts {
+  grid-template-columns: repeat(
+    auto-fill,
+    minmax(calc(var(--space-8) * 4), 1fr)
+  );
+  gap: var(--space-4) var(--space-5);
+}
+
+.document-details-signature .page-actions {
+  justify-content: flex-start;
+}
+
+.document-details-signature .page-actions > .error-banner {
+  flex-basis: 100%;
 }
 
 .document-details-content summary {
