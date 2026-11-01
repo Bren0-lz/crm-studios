@@ -5,6 +5,7 @@ import type {
   GroupEnrollment,
   GroupSession,
   PatientPlan,
+  PlanTemplate,
   Professional,
   Receivable,
   Room,
@@ -92,6 +93,32 @@ export const demoServices: Service[] = [
     active: true,
   },
 ];
+/** O preço do serviço é só de tabela: a sessão avulsa de cada serviço é vendida como plano avulso. */
+export const demoPlanTemplates: PlanTemplate[] = (
+  [
+    [1, 7500],
+    [2, 15000],
+    [3, 12000],
+    [4, 5500],
+    [5, 17000],
+  ] as const
+).map(([number, value]) => {
+  const service = demoServices[number - 1]!;
+  return {
+    id: id(13, number),
+    clinicId: demoClinicId,
+    name: `${service.name} (avulso)`,
+    totalValueInCents: value,
+    services: [
+      { serviceId: service.id, totalSessions: 1, totalValueInCents: value },
+    ],
+    planType: "single",
+    kind: "single",
+    active: true,
+    createdAt: "2026-01-01T12:00:00.000Z",
+    updatedAt: "2026-01-01T12:00:00.000Z",
+  };
+});
 export const demoProfessionals: Professional[] = [
   {
     id: id(2, 1),
