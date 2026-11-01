@@ -45,6 +45,13 @@ export const nativeEndpoints: ExternalEndpoint[] = [
     description:
       "Busca de clientes com planos ativos e turmas. Query: search, limit (até 100).",
   },
+  {
+    method: "GET",
+    path: "/external/v1/overdue",
+    scope: "sales:read",
+    description:
+      "Inadimplência por cliente: parcelas em aberto vencidas (valor, quantidade, vencimento mais antigo, dias e faixa de atraso) e turmas do cliente. Exige acesso ao Financeiro.",
+  },
 ];
 
 export const proxiedEndpoints: ProxiedEndpoint[] = [

@@ -374,6 +374,7 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
     view("groups", "plans"),
   ),
   "GET /external/v1/patients": external("sales:read", view("patients")),
+  "GET /external/v1/overdue": external("sales:read", view("finance")),
   "GET /external/v1/patients/:id/plans": external("sales:read"),
   "GET /external/v1/services": external("sales:read"),
   "GET /external/v1/professionals": external("sales:read"),
