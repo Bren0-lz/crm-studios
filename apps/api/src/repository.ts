@@ -203,6 +203,7 @@ import type {
   PatientPlanInput,
   PatientTab,
   PatientTabCloseInput,
+  PatientTabPayment,
   PatientTabInput,
   PatientTabItemInput,
   PatientTag,
@@ -1009,11 +1010,18 @@ export interface ClinicRepository {
     tabId: string,
     input: PatientTabCloseInput,
   ): Promise<PatientTab | null>;
+  /** `refundPayment`: estorna antes o pagamento já recebido, na mesma operação. */
   cancelPatientTab(
     clinicId: string,
     actorUserId: string,
     tabId: string,
+    options?: { refundPayment?: boolean },
   ): Promise<PatientTab | null>;
+  /** Pagamento da comanda: `undefined` = comanda inexistente; `null` = sem cobrança. */
+  patientTabPayment(
+    clinicId: string,
+    tabId: string,
+  ): Promise<PatientTabPayment | null | undefined>;
   /** Venda de produtos em uma etapa: abre, preenche e fecha a comanda de forma atômica. */
   createProductSale(
     clinicId: string,
@@ -1341,6 +1349,7 @@ export interface ClinicRepository {
   /**
    * Edita um colaborador cadastrado antes do salário no usuário. O de um usuário só muda pelo
    * cadastro dele: PAYROLL_EMPLOYEE_MANAGED_BY_USER (409). Não há cadastro direto na folha.
+   * O salário fixo não muda por aqui: PAYROLL_SALARY_IMMUTABLE (409).
    */
   updatePayrollEmployee(
     clinicId: string,
@@ -1367,6 +1376,24 @@ export interface ClinicRepository {
     actorId: string,
     input: import("@crm/contracts").PayrollLaunchInput,
   ): Promise<import("@crm/contracts").PayrollLaunchResult>;
+  /**
+   * Desconto ou recompensa do colaborador na competência (entra a lançar). Porcentagem sem
+   * salário fixo: PAYROLL_ENTRY_NO_SALARY (409). `null` = colaborador não encontrado.
+   */
+  createPayrollEntry(
+    clinicId: string,
+    actorId: string,
+    input: import("@crm/contracts").PayrollEntryInput,
+  ): Promise<import("@crm/contracts").PayrollEntry | null>;
+  /**
+   * Remove um desconto/recompensa ainda a lançar. Já numa despesa da folha:
+   * PAYROLL_ENTRY_LAUNCHED (409). `false` = não encontrado.
+   */
+  deletePayrollEntry(
+    clinicId: string,
+    actorId: string,
+    entryId: string,
+  ): Promise<boolean>;
   /** Desfaz o lançamento de uma despesa da folha em aberto (os itens voltam a pendentes). */
   cancelPayrollLaunch(
     clinicId: string,

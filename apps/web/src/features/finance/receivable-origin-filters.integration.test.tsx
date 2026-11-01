@@ -33,11 +33,11 @@ describe("receivable filters by sold plan and service", () => {
       ],
     });
     const solo = await repository.createPlanTemplate(clinicId, actorId, {
-      name: "Pilates mensal",
-      kind: "fixed_package",
-      totalValueInCents: 30000,
+      name: "Pilates avulso",
+      kind: "single",
+      totalValueInCents: 10000,
       services: [
-        { serviceId: pilates.id, totalSessions: 8, totalValueInCents: 30000 },
+        { serviceId: pilates.id, totalSessions: 1, totalValueInCents: 10000 },
       ],
     });
     for (const template of [combo, solo])
@@ -45,7 +45,7 @@ describe("receivable filters by sold plan and service", () => {
         planTemplateId: template.id,
         patientId: patient.id,
         name: template.name,
-        kind: "fixed_package",
+        kind: template.kind!,
         services: template.services,
         validFrom: "2040-06-01",
         totalValueInCents: template.totalValueInCents,
@@ -63,6 +63,7 @@ describe("receivable filters by sold plan and service", () => {
       summary.receivables.find((item) => item.planName === combo.name),
     ).toMatchObject({
       source: "plan",
+      planKind: "fixed_package",
       services: [
         { id: pilates.id, name: pilates.name },
         { id: physio.id, name: physio.name },
@@ -75,14 +76,14 @@ describe("receivable filters by sold plan and service", () => {
     open(`/financeiro?patientId=${patient.id}`);
     await screen.findByText("Ajuste avulso");
     const visible = () =>
-      ["Pilates + fisio", "Pilates mensal", "Ajuste avulso"].filter(
+      ["Pilates + fisio", "Pilates avulso", "Ajuste avulso"].filter(
         (text) =>
           screen.queryAllByText((content) => content.startsWith(text)).length >
           0,
       );
     expect(visible()).toEqual([
       "Pilates + fisio",
-      "Pilates mensal",
+      "Pilates avulso",
       "Ajuste avulso",
     ]);
     const filter = async (values: Array<[string, string]>) => {
@@ -95,6 +96,26 @@ describe("receivable filters by sold plan and service", () => {
       expect(
         within(dialog).queryByLabelText("Categoria do lançamento"),
       ).not.toBeInTheDocument();
+      // A busca por cliente e as abas de situação ficam na própria lista, não no modal.
+      for (const label of ["Pesquisar lançamento", "Situação do lançamento"])
+        expect(within(dialog).queryByLabelText(label)).not.toBeInTheDocument();
+      // Planos avulsos separados dos recorrentes e pacotes; comanda só de produtos.
+      expect(
+        within(dialog)
+          .getAllByRole("group")
+          .map((group) => [
+            group.getAttribute("label"),
+            within(group)
+              .getAllByRole("option")
+              .map((option) => option.textContent),
+          ]),
+      ).toEqual([
+        ["Planos recorrentes e pacotes", ["Pilates + fisio"]],
+        ["Planos avulsos", ["Pilates avulso"]],
+      ]);
+      expect(
+        within(dialog).getByRole("option", { name: "Comanda (produtos)" }),
+      ).toBeInTheDocument();
       for (const [label, value] of values) change(label, value, dialog);
       fireEvent.click(
         within(dialog).getByRole("button", { name: "Salvar filtros" }),
@@ -108,13 +129,13 @@ describe("receivable filters by sold plan and service", () => {
       ["Plano do lançamento", `plan:${solo.name}`],
     ]);
     expect(screen.getByText("2 filtros aplicados")).toBeInTheDocument();
-    expect(visible()).toEqual(["Pilates mensal"]);
+    expect(visible()).toEqual(["Pilates avulso"]);
     await filter([
       ["Serviço do lançamento", ""],
       ["Plano do lançamento", "manual"],
     ]);
     expect(visible()).toEqual(["Ajuste avulso"]);
     await filter([["Plano do lançamento", "plan"]]);
-    expect(visible()).toEqual(["Pilates + fisio", "Pilates mensal"]);
+    expect(visible()).toEqual(["Pilates + fisio", "Pilates avulso"]);
   });
 });
