@@ -117,7 +117,8 @@ export function SupplierModal({
   supplier: Supplier | "new";
   initialTab?: SupplierModalTab;
   onClose: () => void;
-  onSaved: () => Promise<void>;
+  /** Recebe o fornecedor salvo (o modal da despesa usa para selecioná-lo). */
+  onSaved: (saved: Supplier) => Promise<void>;
 }) {
   const toast = useToast();
   const { can, canView } = useAuthorization();
@@ -153,7 +154,7 @@ export function SupplierModal({
   const [signature, setSignature] = useState<SignatureRequest | null>(null);
   // Fornecedor salvo com documento: o modal passa para o envio do link de assinatura.
   const [sending, setSending] = useState<{
-    name: string;
+    saved: Supplier;
     prepare: () => ReturnType<typeof issueDocumentForSignature>;
   } | null>(null);
   const isNew = current === null;
@@ -312,7 +313,7 @@ export function SupplierModal({
         );
         setTab("pedidos");
         setBusy(false);
-        void onSaved();
+        void onSaved(saved);
         return;
       }
     }
@@ -320,17 +321,17 @@ export function SupplierModal({
     if (signature) {
       const supplierId = saved.id;
       setSending({
-        name: saved.name,
+        saved,
         prepare: () => issueDocumentForSignature({ ...signature, supplierId }),
       });
       return;
     }
-    await onSaved();
+    await onSaved(saved);
     onClose();
   }
 
-  async function finish() {
-    await onSaved();
+  async function finish(saved: Supplier) {
+    await onSaved(saved);
     onClose();
   }
 
@@ -340,14 +341,14 @@ export function SupplierModal({
     return (
       <Modal
         title={title}
-        subtitle={`${sending.name} salvo. Envie o documento para o fornecedor assinar.`}
+        subtitle={`${sending.saved.name} salvo. Envie o documento para o fornecedor assinar.`}
         busy={busy}
-        onClose={() => void finish()}
+        onClose={() => void finish(sending.saved)}
       >
         <SignatureSendStep
           prepare={sending.prepare}
           onBusyChange={setBusy}
-          onDone={() => void finish()}
+          onDone={() => void finish(sending.saved)}
         />
       </Modal>
     );

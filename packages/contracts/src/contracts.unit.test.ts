@@ -1853,6 +1853,15 @@ describe("textos de interface sem nome antigo nem código interno (QM15)", () =>
     ).toThrow();
   });
 
+  it("aceita o motivo do cancelamento da comanda, sem espaços nas pontas", () => {
+    expect(
+      patientTabCancelInputSchema.parse({ reason: "  Cliente desistiu " }),
+    ).toEqual({ refundPayment: false, reason: "Cliente desistiu" });
+    expect(() =>
+      patientTabCancelInputSchema.parse({ reason: "x".repeat(501) }),
+    ).toThrow();
+  });
+
   it("formata e lê números sequenciais de prontuário e recibo", () => {
     expect(formatSequenceNumber("PAC", 7)).toBe("PAC-00007");
     expect(formatSequenceNumber("REC", 123456)).toBe("REC-123456");
