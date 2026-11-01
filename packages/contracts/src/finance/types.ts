@@ -302,7 +302,12 @@ export type SettlementAdjustments = Pick<
   | "receivedInCents"
   | "balanceDueDate"
   | "paymentInstallments"
+  | "payments"
 >;
+/** Uma forma de pagamento dentro da baixa mista. */
+export type SettlementPaymentPart = NonNullable<
+  SettlementAdjustments["payments"]
+>[number];
 export type FinancialDatesInput = z.infer<typeof financialDatesSchema>;
 export interface ReceivableService {
   id: string;

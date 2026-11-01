@@ -22,6 +22,7 @@ import {
   recurringPayableDueDate,
   saoPauloToday,
   settlementBreakdown,
+  settlementSteps,
   tabReceivableDescription,
   type AdminUserCommissionInput,
   type CommissionRule,
@@ -115,6 +116,81 @@ export function createFinanceRepository(
       payables,
       commissions,
     };
+  }
+
+  /** Baixa uma parcela já validada; devolve o id da parcela criada com o restante. */
+  function payReceivable(
+    receivable: Receivable,
+    paymentMethod: PaymentMethod,
+    timing: PaymentTiming | undefined,
+    adjustments: Omit<SettlementAdjustments, "payments">,
+    balanceLabel: string,
+    baseDescription?: string,
+  ) {
+    const breakdown = settlementBreakdown(
+      receivable.amountInCents,
+      adjustments,
+    );
+    // Pagamento parcial: o saldo vira uma nova parcela aberta do mesmo plano.
+    let balanceReceivableId: string | undefined;
+    if (breakdown.balanceInCents > 0) {
+      const {
+        paidAt: _paidAt,
+        paymentMethod: _method,
+        cashAvailableAt: _available,
+        ...base
+      } = receivable;
+      void _paidAt;
+      void _method;
+      void _available;
+      const dueDate = adjustments.balanceDueDate ?? receivable.dueDate;
+      const balance: Receivable = {
+        ...base,
+        id: uuid(),
+        installmentNumber: receivable.planId
+          ? Math.max(
+              ...repositoryContext.receivables
+                .filter((item) => item.planId === receivable.planId)
+                .map((item) => item.installmentNumber),
+            ) + 1
+          : receivable.installmentNumber,
+        description: `${baseDescription ?? receivable.description} · ${balanceLabel}`,
+        dueDate,
+        amountInCents: breakdown.balanceInCents,
+        status: "open",
+        overdue: dueDate < today(),
+        createdAt: now(),
+        updatedAt: now(),
+      };
+      repositoryContext.receivables.push(balance);
+      balanceReceivableId = balance.id;
+    }
+    // A parcela fica com o valor efetivamente quitado nela (DRE por competência).
+    receivable.amountInCents = breakdown.receivedInCents;
+    receivable.status = "paid";
+    receivable.paidAt = timing?.paidAt ?? now();
+    if (timing?.availableAt) receivable.cashAvailableAt = timing.availableAt;
+    receivable.paymentMethod = paymentMethod;
+    if (adjustments.paymentInstallments && adjustments.paymentInstallments > 1)
+      receivable.paymentInstallments = adjustments.paymentInstallments;
+    else delete receivable.paymentInstallments;
+    receivable.overdue = false;
+    receivable.updatedAt = now();
+    repositoryContext.receiptEvents.push({
+      id: uuid(),
+      receivableId: receivable.id,
+      kind: "payment",
+      occurredAt: receivable.paidAt,
+      ...((timing?.availableAt ?? receivable.cashAvailableAt)
+        ? { availableAt: timing?.availableAt ?? receivable.cashAvailableAt }
+        : {}),
+      amountInCents: receivable.amountInCents,
+      paymentMethod,
+      discountInCents: adjustments.discountInCents ?? 0,
+      interestInCents: adjustments.interestInCents ?? 0,
+      ...(balanceReceivableId ? { balanceReceivableId } : {}),
+    });
+    return balanceReceivableId;
   }
 
   return {
@@ -691,8 +767,11 @@ export function createFinanceRepository(
           409,
         );
       }
+      // Plano já parcelado não se parcela de novo na forma de pagamento (nem no misto).
       if (
-        (adjustments.paymentInstallments ?? 1) > 1 &&
+        [adjustments, ...(adjustments.payments ?? [])].some(
+          (part) => (part.paymentInstallments ?? 1) > 1,
+        ) &&
         !acceptsPaymentInstallments(receivable)
       )
         throw new DomainError(
@@ -700,74 +779,37 @@ export function createFinanceRepository(
           installmentPaymentSplitIssue,
           400,
         );
-      const breakdown = settlementBreakdown(
-        receivable.amountInCents,
-        adjustments,
-      );
-      if (breakdown.error)
-        throw new DomainError("INVALID_SETTLEMENT", breakdown.error, 400);
-      // Pagamento parcial: o saldo vira uma nova parcela aberta do mesmo plano.
-      let balanceReceivableId: string | undefined;
-      if (breakdown.balanceInCents > 0) {
-        const {
-          paidAt: _paidAt,
-          paymentMethod: _method,
-          cashAvailableAt: _available,
-          ...base
-        } = receivable;
-        void _paidAt;
-        void _method;
-        void _available;
-        const dueDate = adjustments.balanceDueDate ?? receivable.dueDate;
-        const balance: Receivable = {
-          ...base,
-          id: uuid(),
-          installmentNumber: receivable.planId
-            ? Math.max(
-                ...repositoryContext.receivables
-                  .filter((item) => item.planId === receivable.planId)
-                  .map((item) => item.installmentNumber),
-              ) + 1
-            : receivable.installmentNumber,
-          description: `${receivable.description} · saldo`,
-          dueDate,
-          amountInCents: breakdown.balanceInCents,
-          status: "open",
-          overdue: dueDate < today(),
-          createdAt: now(),
-          updatedAt: now(),
-        };
-        repositoryContext.receivables.push(balance);
-        balanceReceivableId = balance.id;
+      const { payments, ...single } = adjustments;
+      if (!payments?.length) {
+        const breakdown = settlementBreakdown(receivable.amountInCents, single);
+        if (breakdown.error)
+          throw new DomainError("INVALID_SETTLEMENT", breakdown.error, 400);
+        payReceivable(receivable, paymentMethod, timing, single, "saldo");
+        return receivable;
       }
-      // A parcela fica com o valor efetivamente quitado nela (DRE por competência).
-      receivable.amountInCents = breakdown.receivedInCents;
-      receivable.status = "paid";
-      receivable.paidAt = timing?.paidAt ?? now();
-      if (timing?.availableAt) receivable.cashAvailableAt = timing.availableAt;
-      receivable.paymentMethod = paymentMethod;
-      if (
-        adjustments.paymentInstallments &&
-        adjustments.paymentInstallments > 1
-      )
-        receivable.paymentInstallments = adjustments.paymentInstallments;
-      else delete receivable.paymentInstallments;
-      receivable.overdue = false;
-      receivable.updatedAt = now();
-      repositoryContext.receiptEvents.push({
-        id: uuid(),
-        receivableId,
-        kind: "payment",
-        occurredAt: receivable.paidAt,
-        ...((timing?.availableAt ?? receivable.cashAvailableAt)
-          ? { availableAt: timing?.availableAt ?? receivable.cashAvailableAt }
-          : {}),
-        amountInCents: receivable.amountInCents,
-        paymentMethod,
-        discountInCents: adjustments.discountInCents ?? 0,
-        interestInCents: adjustments.interestInCents ?? 0,
-        ...(balanceReceivableId ? { balanceReceivableId } : {}),
+      // Pagamento misto: tudo validado antes de mexer em qualquer parcela.
+      const plan = settlementSteps(receivable.amountInCents, {
+        ...single,
+        payments,
       });
+      if (plan.error)
+        throw new DomainError("INVALID_SETTLEMENT", plan.error, 400);
+      const description = receivable.description;
+      let current: Receivable | undefined = receivable;
+      for (const step of plan.steps) {
+        if (!current) break;
+        const balanceId = payReceivable(
+          current,
+          step.paymentMethod,
+          timing,
+          step.adjustments,
+          step.balanceLabel,
+          description,
+        );
+        current = repositoryContext.receivables.find(
+          (item) => item.id === balanceId,
+        );
+      }
       return receivable;
     },
 
