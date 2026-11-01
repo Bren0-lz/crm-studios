@@ -284,6 +284,21 @@ export function registerCampaignRoutes(context: RouteContext) {
     { preHandler: authenticate },
     async (request, reply) => {
       const input = whatsappCampaignInputSchema.parse(request.body);
+      if (input.promotion?.validUntil) {
+        const settings = await repository.getClinicSettings(
+          request.user.clinicId,
+        );
+        const today = clinicDateOf(
+          new Date(),
+          settings?.timezone ?? DEFAULT_CLINIC_TIMEZONE,
+        );
+        if (input.promotion.validUntil < today)
+          throw new DomainError(
+            "CAMPAIGN_PROMOTION_EXPIRED",
+            "A data final da promoção já passou.",
+            400,
+          );
+      }
       const plan = await planAudience(request, input);
       const campaign = await repository.createWhatsappCampaign(
         request.user.clinicId,
@@ -292,6 +307,7 @@ export function registerCampaignRoutes(context: RouteContext) {
           templateId: input.templateId,
           name: input.name,
           recipients: plan.drafts,
+          ...(input.promotion ? { promotion: input.promotion } : {}),
         },
       );
       return reply.status(201).send(campaign);
