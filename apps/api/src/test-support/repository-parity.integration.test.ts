@@ -233,6 +233,61 @@ for (const storage of ["memory", "mysql"] as const) {
         });
       });
 
+      it("records who created each template version and restores an old one", async () => {
+        const name = "Contrato histórico " + randomUUID();
+        const first = await repository.createDocumentTemplate(
+          clinicId,
+          { name, kind: "contract", body: "Primeira redação do contrato." },
+          actorId,
+        );
+        const second = await repository.createDocumentTemplateVersion(
+          clinicId,
+          first.id,
+          "Segunda redação do contrato, revisada.",
+          undefined,
+          { actorId },
+        );
+        expect(first).toMatchObject({ createdById: actorId });
+        expect(first.createdByName).toEqual(expect.any(String));
+        expect(second).toMatchObject({ version: 2, createdById: actorId });
+        await expect(
+          repository.restoreDocumentTemplateVersion(
+            clinicId,
+            second!.id,
+            actorId,
+          ),
+        ).rejects.toMatchObject({ code: "DOCUMENT_TEMPLATE_VERSION_ACTIVE" });
+        const restored = await repository.restoreDocumentTemplateVersion(
+          clinicId,
+          first.id,
+          actorId,
+        );
+        expect(restored).toMatchObject({
+          name,
+          version: 3,
+          active: true,
+          body: first.body,
+          restoredFromVersion: 1,
+          previousVersionId: second!.id,
+          createdById: actorId,
+        });
+        const versions = (await repository.listDocumentTemplates(clinicId))
+          .filter((item) => item.name === name)
+          .map((item) => [item.version, item.active]);
+        expect(versions.sort()).toEqual([
+          [1, false],
+          [2, false],
+          [3, true],
+        ]);
+        expect(
+          await repository.restoreDocumentTemplateVersion(
+            "99999999-9999-4999-8999-999999999999",
+            first.id,
+            actorId,
+          ),
+        ).toBeNull();
+      });
+
       it("refuses a meeting professional who does not serve the group's service", async () => {
         await atInstant("2056-01-01T12:00:00Z", async () => {
           const [linked, other] = await Promise.all(

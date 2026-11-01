@@ -496,6 +496,8 @@ export class MysqlClinicRepository implements ClinicRepository {
     this.createDocumentTemplate = this.contracts.createDocumentTemplate;
     this.createDocumentTemplateVersion =
       this.contracts.createDocumentTemplateVersion;
+    this.restoreDocumentTemplateVersion =
+      this.contracts.restoreDocumentTemplateVersion;
     this.deleteDocumentTemplate = this.contracts.deleteDocumentTemplate;
     this.listIssuedDocuments = this.contracts.listIssuedDocuments;
     this.createIssuedDocument = this.contracts.createIssuedDocument;
@@ -1165,6 +1167,9 @@ export class MysqlClinicRepository implements ClinicRepository {
   readonly createDocumentTemplateVersion: ReturnType<
     typeof createContractsRepository
   >["createDocumentTemplateVersion"];
+  readonly restoreDocumentTemplateVersion: ReturnType<
+    typeof createContractsRepository
+  >["restoreDocumentTemplateVersion"];
   readonly deleteDocumentTemplate: ReturnType<
     typeof createContractsRepository
   >["deleteDocumentTemplate"];
