@@ -1,6 +1,7 @@
 import { registerAgendaNoteRoutes } from "./notes-routes.js";
 import {
   appointmentCreateInputSchema,
+  appointmentPricing,
   appointmentRescheduleInputSchema,
   appointmentStatusInputSchema,
   appointmentUpdateInputSchema,
@@ -23,6 +24,7 @@ import type { RouteContext } from "../../infrastructure/route-context.js";
 import { DomainError } from "../../repository.js";
 import { reconcileChangedCommissions } from "../finance/commission-reconciliation.js";
 import {
+  clinicToday,
   loadPromotionOffers,
   resolvePromotionRedemption,
 } from "../communications/auto-campaigns.js";
@@ -262,6 +264,27 @@ export function registerAgendaRoutes(context: RouteContext) {
       return (
         await loadPromotionOffers(repository, request.user.clinicId, patientId)
       ).offers;
+    },
+  );
+
+  /**
+   * De onde sai o valor de cada sessão do serviço para o cliente (saldo dos planos e plano
+   * avulso): alimenta o resumo do agendamento.
+   */
+  app.get(
+    "/appointments/pricing",
+    { preHandler: authenticate },
+    async (request) => {
+      const { patientId, serviceId } = z
+        .object({ patientId: z.uuid(), serviceId: z.uuid() })
+        .parse(request.query);
+      const clinicId = request.user.clinicId;
+      const [plans, templates, today] = await Promise.all([
+        repository.listPatientPlans(clinicId, patientId),
+        repository.listPlanTemplates(clinicId),
+        clinicToday(repository, clinicId),
+      ]);
+      return appointmentPricing(serviceId, plans, templates, today);
     },
   );
 
