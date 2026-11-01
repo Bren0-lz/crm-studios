@@ -2,6 +2,7 @@ import type {
   AppointmentInput,
   AppointmentPromotion,
   AppointmentVisitType,
+  AutoCampaignPromotionOffer,
   PackageWeeklySlot,
   Patient,
   PatientOption,
@@ -10,7 +11,11 @@ import type {
   Room,
   Service,
 } from "@crm/contracts";
-import { packageScheduleStarts, serviceAvailableFor } from "@crm/contracts";
+import {
+  packageScheduleStarts,
+  recurringOccurrenceStarts,
+  serviceAvailableFor,
+} from "@crm/contracts";
 import { X } from "lucide-react";
 import {
   useEffect,
@@ -30,9 +35,11 @@ import { FixedPatient } from "../../shared/components/FixedPatient";
 import {
   appointmentVisitTypes,
   localIsoDate,
+  toLocalDateTimeInput,
   visitTypeLabels,
 } from "../../shared/lib/formatting";
 import { AppointmentPatientWarnings } from "./AppointmentPatientWarnings";
+import { AppointmentOrderSummary } from "./AppointmentOrderSummary";
 import { AppointmentPatientCreateModal } from "./AppointmentPatientCreateModal";
 import { AppointmentPromotionField } from "./AppointmentPromotionField";
 import { initialPackageSlot } from "./model";
@@ -143,6 +150,29 @@ export function AppointmentForm({
       })
     : [];
   const startTime = form.startsAt.split("T")[1] ?? "";
+  const [promotionOffer, setPromotionOffer] = useState<
+    AutoCampaignPromotionOffer | undefined
+  >();
+  const selectedOffer =
+    form.promotion &&
+    promotionOffer?.campaignId === form.promotion.campaignId &&
+    promotionOffer.occurrenceKey === form.promotion.occurrenceKey
+      ? promotionOffer
+      : undefined;
+  const summaryStarts = occurrenceStarts(
+    form.recurring
+      ? form.manualDates
+        ? { kind: "manual", starts: [form.startsAt, ...form.extraStarts] }
+        : form.packageDays
+          ? { kind: "manual", starts: packageStarts }
+          : {
+              kind: "weekly",
+              startsAt: form.startsAt,
+              occurrences: form.occurrences,
+              intervalWeeks: form.intervalWeeks,
+            }
+      : { kind: "manual", starts: [form.startsAt] },
+  );
   // Só os serviços atendidos pelo profissional e pela sala escolhidos (U10).
   const availableServices = services.filter((item) =>
     serviceAvailableFor(item, form.professionalId, form.roomId),
@@ -553,9 +583,10 @@ export function AppointmentForm({
               <AppointmentPromotionField
                 patientId={form.patientId}
                 value={form.promotion}
-                onChange={(promotion) =>
-                  setForm((current) => ({ ...current, promotion }))
-                }
+                onChange={(promotion, offer) => {
+                  setPromotionOffer(offer);
+                  setForm((current) => ({ ...current, promotion }));
+                }}
               />
             )}
             <label className="span-2">
@@ -567,6 +598,18 @@ export function AppointmentForm({
               />
             </label>
             {additional}
+            {offerPromotions && (
+              <AppointmentOrderSummary
+                patientId={form.patientId}
+                serviceId={form.serviceId}
+                serviceName={
+                  services.find((item) => item.id === form.serviceId)?.name ??
+                  ""
+                }
+                starts={summaryStarts}
+                promotion={selectedOffer}
+              />
+            )}
             {/* No fim do formulário: o aviso chega depois da busca dos planos e não desloca os campos. */}
             <AppointmentPatientWarnings
               patient={
@@ -626,6 +669,43 @@ export function AppointmentForm({
         )}
     </>
   );
+}
+
+const completeDateTime = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/;
+
+/**
+ * Datas das ocorrências para o resumo, na ordem em que a API cria os atendimentos (a 1ª
+ * leva a promoção). Data ainda incompleta vira "" (a definir) e vai para o fim.
+ */
+function occurrenceStarts(
+  input:
+    | { kind: "manual"; starts: string[] }
+    | {
+        kind: "weekly";
+        startsAt: string;
+        occurrences: number;
+        intervalWeeks: number;
+      },
+): string[] {
+  if (input.kind === "manual") {
+    const complete = input.starts
+      .filter((value) => completeDateTime.test(value))
+      .sort();
+    return [
+      ...complete,
+      ...input.starts
+        .filter((value) => !completeDateTime.test(value))
+        .map(() => ""),
+    ];
+  }
+  const count = Math.max(1, Math.min(52, input.occurrences || 1));
+  if (!completeDateTime.test(input.startsAt))
+    return Array.from({ length: count }, () => "");
+  return recurringOccurrenceStarts({
+    startsAt: input.startsAt,
+    occurrences: count,
+    intervalWeeks: input.intervalWeeks,
+  }).map((iso) => toLocalDateTimeInput(new Date(iso)));
 }
 
 /**
