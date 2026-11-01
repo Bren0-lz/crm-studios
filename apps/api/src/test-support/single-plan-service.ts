@@ -17,7 +17,6 @@ export async function serviceWithSinglePlan(
     name: `Serviço avulso ${randomUUID().slice(0, 8)}`,
     durationMinutes: 50,
     priceInCents: 0,
-    color: "#547A6B",
   });
   await repository.createPlanTemplate(
     clinicId,

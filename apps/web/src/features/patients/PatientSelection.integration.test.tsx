@@ -59,7 +59,6 @@ const service: Service = {
   active: true,
   durationMinutes: 50,
   priceInCents: 16000,
-  color: "#276749",
 };
 const template: PlanTemplate = {
   id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
