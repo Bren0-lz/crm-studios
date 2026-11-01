@@ -194,7 +194,7 @@ export async function campaignReportToXlsx(
       skipped: item.skipped,
       pending: item.kind === "manual" ? item.pending : null,
       rate: item.total ? item.sent / item.total : null,
-      redemptions: item.kind === "automatic" ? item.redemptions : null,
+      redemptions: item.promotional ? item.redemptions : null,
       sheet: {
         text: target,
         hyperlink: `#'${target.replace(/'/g, "''")}'!A1`,

@@ -98,6 +98,7 @@ export class MemoryClinicRepository implements ClinicRepository {
   readonly getWhatsappCampaign: ClinicRepository["getWhatsappCampaign"];
   readonly createWhatsappCampaign: ClinicRepository["createWhatsappCampaign"];
   readonly setWhatsappCampaignRecipientStatus: ClinicRepository["setWhatsappCampaignRecipientStatus"];
+  readonly listWhatsappCampaignRedemptions: ClinicRepository["listWhatsappCampaignRedemptions"];
   readonly saveAssessmentTemplate: ClinicRepository["saveAssessmentTemplate"];
   readonly listAssessmentTemplates: ClinicRepository["listAssessmentTemplates"];
   readonly setAssessmentTemplateActive: ClinicRepository["setAssessmentTemplateActive"];
@@ -311,7 +312,8 @@ export class MemoryClinicRepository implements ClinicRepository {
     this.listIntegrationKeys = this.administration.listIntegrationKeys;
     this.createIntegrationKey = this.administration.createIntegrationKey;
     this.revokeIntegrationKey = this.administration.revokeIntegrationKey;
-    this.findIntegrationKeyByTokenHash = this.administration.findIntegrationKeyByTokenHash;
+    this.findIntegrationKeyByTokenHash =
+      this.administration.findIntegrationKeyByTokenHash;
     this.touchIntegrationKey = this.administration.touchIntegrationKey;
     this.listAdminAuditEvents = this.administration.listAdminAuditEvents;
     this.listHistoryActors = this.administration.listHistoryActors;
@@ -494,6 +496,8 @@ export class MemoryClinicRepository implements ClinicRepository {
     this.createWhatsappCampaign = this.campaigns.createWhatsappCampaign;
     this.setWhatsappCampaignRecipientStatus =
       this.campaigns.setWhatsappCampaignRecipientStatus;
+    this.listWhatsappCampaignRedemptions =
+      this.campaigns.listWhatsappCampaignRedemptions;
     this.listDocumentTemplates = this.contracts.listDocumentTemplates;
     this.createDocumentTemplate = this.contracts.createDocumentTemplate;
     this.createDocumentTemplateVersion =
