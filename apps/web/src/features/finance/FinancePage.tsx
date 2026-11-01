@@ -456,7 +456,7 @@ export function FinancePage() {
             </div>
           </section>
           {tab === "payroll" ? (
-            <PayrollSection workspace={data} professionals={professionals} />
+            <PayrollSection workspace={data} />
           ) : tab === "dailyCash" ? (
             <DailyCashSection />
           ) : tab === "forecast" ? (
