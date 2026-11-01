@@ -74,6 +74,7 @@ export function SaleDetailsModal({
   const { can } = useAuthorization();
   const [confirming, setConfirming] = useState(false);
   const [refund, setRefund] = useState(false);
+  const [reason, setReason] = useState("");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [payment, setPayment] = useState<PatientTabPayment | null>();
@@ -138,6 +139,11 @@ export function SaleDetailsModal({
           Total <strong>{total}</strong>
         </p>
         {sale.notes && <p className="muted">{sale.notes}</p>}
+        {sale.status === "cancelled" && sale.cancellationReason && (
+          <p className="muted">
+            Motivo do cancelamento: {sale.cancellationReason}
+          </p>
+        )}
         {paymentError ? (
           <ErrorBanner error={paymentError} />
         ) : payment === undefined ? (
@@ -155,6 +161,7 @@ export function SaleDetailsModal({
               disabled={payment === undefined && !paymentError}
               onClick={() => {
                 setRefund(false);
+                setReason("");
                 setConfirming(true);
               }}
             >
@@ -179,22 +186,26 @@ export function SaleDetailsModal({
             paid && canRefund ? "Estornar e cancelar" : "Cancelar venda"
           }
           danger
+          dirty={reason.trim() !== "" || refund}
           missing={
             paid && !canRefund
               ? ["Permissão para estornar o pagamento"]
-              : paid && !refund
-                ? ["Confirme o estorno do pagamento"]
-                : []
+              : [
+                  ...(reason.trim() ? [] : ["Motivo do cancelamento"]),
+                  ...(paid && !refund
+                    ? ["Confirme o estorno do pagamento"]
+                    : []),
+                ]
           }
           onClose={() => setConfirming(false)}
           onConfirm={async () => {
             setError("");
             setNotice("");
             const refundPayment = Boolean(paid) && canRefund && refund;
-            await api.cancelPatientTab(
-              sale.id,
-              refundPayment ? { refundPayment: true } : undefined,
-            );
+            await api.cancelPatientTab(sale.id, {
+              refundPayment,
+              reason: reason.trim(),
+            });
             setConfirming(false);
             try {
               await onChanged();
@@ -208,6 +219,17 @@ export function SaleDetailsModal({
             }
           }}
         >
+          {paid && !canRefund ? undefined : (
+            <label className="span-2">
+              Motivo do cancelamento
+              <textarea
+                rows={3}
+                maxLength={500}
+                value={reason}
+                onChange={(event) => setReason(event.target.value)}
+              />
+            </label>
+          )}
           {paid && canRefund ? (
             <label className="checkbox-field span-2">
               <input

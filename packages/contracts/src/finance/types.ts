@@ -282,6 +282,8 @@ export interface PatientTab extends PatientTabInput {
   openedAt: string;
   closedAt?: string;
   cancelledAt?: string;
+  /** Motivo informado ao cancelar a venda. */
+  cancellationReason?: string;
 }
 
 /** Pagamento da comanda (cobrança gerada no fechamento), visto sem acesso ao Financeiro. */

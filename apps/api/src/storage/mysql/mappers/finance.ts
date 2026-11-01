@@ -76,6 +76,8 @@ export interface PatientTabRow {
   openedAt: Date;
   closedAt: Date | null;
   cancelledAt: Date | null;
+  /** Só nas consultas que leem a venda inteira (detalhe e histórico). */
+  cancellationReason?: string | null;
 }
 
 export interface PatientTabItemRow {
@@ -408,6 +410,9 @@ export function mapPatientTab(
     openedAt: row.openedAt.toISOString(),
     ...(row.closedAt ? { closedAt: row.closedAt.toISOString() } : {}),
     ...(row.cancelledAt ? { cancelledAt: row.cancelledAt.toISOString() } : {}),
+    ...(row.cancellationReason
+      ? { cancellationReason: row.cancellationReason }
+      : {}),
   };
 }
 
