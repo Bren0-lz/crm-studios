@@ -7671,8 +7671,9 @@ describe("application shell", () => {
       fireEvent.change(within(dialog).getByLabelText("Percentual (%)"), {
         target: { value: "27.5" },
       });
+      // Início no futuro (fixo, longe do relógio): sem prévia de recálculo.
       fireEvent.change(within(dialog).getByLabelText("Vale a partir de"), {
-        target: { value: "2026-11-01" },
+        target: { value: "2099-01-01" },
       });
       fireEvent.click(within(dialog).getByRole("button", { name: "Salvar" }));
       await vi.waitFor(() =>
@@ -7682,7 +7683,7 @@ describe("application shell", () => {
       expect(JSON.parse(String(posts()[0]![1]?.body))).toEqual({
         professionalId: professionals[1]!.id,
         percentage: 27.5,
-        effectiveFrom: "2026-11-01",
+        effectiveFrom: "2099-01-01",
       });
     });
   });
