@@ -488,6 +488,119 @@ describe("página Vendas de produtos", () => {
     ).toBe(5);
   });
 
+  it("mostra o pagamento e estorna ao cancelar uma venda paga", async () => {
+    const { repository, patient, cream } = await seed();
+    await repository.createProductSale(clinicId, actorId, {
+      patientId: patient.id,
+      items: [{ productId: cream.id, quantity: 2 }],
+      settlement: "paid",
+      paymentMethod: "card",
+      paymentInstallments: 3,
+      dueDate: "2099-01-10",
+    });
+    open("/vendas?aba=vendas");
+    const history = await screen.findByRole("region", {
+      name: "Vendas realizadas",
+    });
+    fireEvent.click(
+      within(history).getByRole("button", {
+        name: `Ver venda de ${patient.fullName}`,
+      }),
+    );
+    const details = await screen.findByRole("dialog", {
+      name: `Venda · ${patient.fullName}`,
+    });
+    const payment = await within(details).findByRole("region", {
+      name: "Pagamento",
+    });
+    expect(within(payment).getByText("Pago")).toBeInTheDocument();
+    expect(within(payment).getByText("Cartão em 3x")).toBeInTheDocument();
+    fireEvent.click(
+      within(details).getByRole("button", { name: "Cancelar venda" }),
+    );
+    const confirm = await screen.findByRole("dialog", {
+      name: "Cancelar venda",
+    });
+    const submit = within(confirm).getByRole("button", {
+      name: "Estornar e cancelar",
+    });
+    expect(submit).toBeDisabled();
+    fireEvent.click(
+      within(confirm).getByRole("checkbox", {
+        name: /Estornar o pagamento de/,
+      }),
+    );
+    expect(submit).toBeEnabled();
+    fireEvent.submit(submit.closest("form")!);
+    await within(details).findByText(
+      "Venda cancelada; pagamento estornado e estoque restituído.",
+    );
+    const [tab] = (await repository.getInventoryWorkspace(clinicId)).tabs;
+    expect(tab).toMatchObject({ status: "cancelled" });
+    expect(
+      (await repository.getFinancialSummary(clinicId)).receivables.find(
+        (item) => item.id === tab!.receivableId,
+      )?.status,
+    ).toBe("cancelled");
+  });
+
+  it("bloqueia o cancelamento da venda paga sem a permissão de estorno", async () => {
+    const { repository, app, patient, cream } = await seed();
+    await repository.createProductSale(clinicId, actorId, {
+      patientId: patient.id,
+      items: [{ productId: cream.id, quantity: 1 }],
+      settlement: "paid",
+      paymentMethod: "pix",
+      dueDate: "2099-01-10",
+    });
+    const user = await repository.createAdminUser(
+      clinicId,
+      actorId,
+      {
+        fullName: "Cancela vendas",
+        email: "cancela.vendas@example.com",
+        role: "user",
+        password: "SenhaForte123",
+        permissions: [
+          "patients.view",
+          "patients.inventory_view",
+          "patients.tabs_cancel",
+        ],
+      },
+      "hash-de-teste",
+    );
+    const token = app.jwt.sign({ sub: user.id, clinicId, role: "user" });
+    const me = await app.inject({
+      url: "/me",
+      headers: { authorization: `Bearer ${token}` },
+    });
+    localStorage.setItem("crm.auth.token", token);
+    localStorage.setItem("crm.auth.user", me.body);
+    open("/vendas?aba=vendas");
+    const history = await screen.findByRole("region", {
+      name: "Vendas realizadas",
+    });
+    fireEvent.click(
+      within(history).getByRole("button", {
+        name: `Ver venda de ${patient.fullName}`,
+      }),
+    );
+    const details = await screen.findByRole("dialog", {
+      name: `Venda · ${patient.fullName}`,
+    });
+    await within(details).findByRole("region", { name: "Pagamento" });
+    fireEvent.click(
+      within(details).getByRole("button", { name: "Cancelar venda" }),
+    );
+    const confirm = await screen.findByRole("dialog", {
+      name: "Cancelar venda",
+    });
+    expect(within(confirm).queryByRole("checkbox")).not.toBeInTheDocument();
+    expect(
+      within(confirm).getByRole("button", { name: "Cancelar venda" }),
+    ).toBeDisabled();
+  });
+
   it("esconde a nova venda de quem não pode fechar comandas", async () => {
     const { repository, app } = await setupApi();
     const user = await repository.createAdminUser(

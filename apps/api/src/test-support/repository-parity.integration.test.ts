@@ -1401,6 +1401,78 @@ for (const storage of ["memory", "mysql"] as const) {
         ).toEqual([-1, 1]);
       });
 
+      it("refunds a paid tab while cancelling it, in one operation", async () => {
+        const created = await patient("Parity Estorno Venda");
+        const tab = await repository.openPatientTab(clinicId, actorId, {
+          patientId: created.id,
+        });
+        const product = await repository.createProduct(clinicId, actorId, {
+          name: "Produto estornado",
+          sku: randomUUID(),
+          unit: "un",
+          costInCents: 500,
+          salePriceInCents: 1000,
+          initialStock: 3,
+        });
+        await repository.addPatientTabItem(clinicId, actorId, tab.id, {
+          productId: product.id,
+          quantity: 2,
+        });
+        const closed = await repository.closePatientTab(
+          clinicId,
+          actorId,
+          tab.id,
+          {
+            settlement: "paid",
+            paymentMethod: "card",
+            paymentInstallments: 2,
+            dueDate: saoPauloToday(),
+          },
+        );
+        expect(
+          await repository.patientTabPayment(clinicId, tab.id),
+        ).toMatchObject({
+          receivableId: closed!.receivableId,
+          status: "paid",
+          amountInCents: 2000,
+          paymentMethod: "card",
+          paymentInstallments: 2,
+        });
+        expect(
+          await repository.patientTabPayment(clinicId, randomUUID()),
+        ).toBeUndefined();
+        await expect(
+          repository.cancelPatientTab(clinicId, actorId, tab.id),
+        ).rejects.toMatchObject({
+          code: "PATIENT_TAB_PAYMENT_REVERSAL_REQUIRED",
+        });
+        const cancelled = await repository.cancelPatientTab(
+          clinicId,
+          actorId,
+          tab.id,
+          { refundPayment: true },
+        );
+        expect(cancelled).toMatchObject({
+          status: "cancelled",
+          paymentStatus: "cancelled",
+        });
+        expect(
+          await repository.patientTabPayment(clinicId, tab.id),
+        ).toMatchObject({ status: "cancelled" });
+        expect(
+          (await repository.getInventoryWorkspace(clinicId)).products.find(
+            (item) => item.id === product.id,
+          )?.currentStock,
+        ).toBe(3);
+        const movements = (
+          await repository.getDailyCash(clinicId, saoPauloToday())
+        ).movements.filter((item) => item.counterpart === created.fullName);
+        expect(movements).toHaveLength(2);
+        expect(
+          movements.reduce((sum, item) => sum + item.amountInCents, 0),
+        ).toBe(0);
+      });
+
       it("rejects duplicate payments and reversals while preserving the cash movements", async () => {
         const created = await patient("Parity Pagamento");
         await plan(created.id);
