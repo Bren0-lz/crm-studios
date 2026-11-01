@@ -136,7 +136,7 @@ describe.skipIf(!databaseUrl)("MySQL repository", () => {
         plan.id,
         "cancelled",
         {},
-        { refundedInCents: 20001 },
+        { refundedInCents: 20001, refundPaymentMethod: "pix" },
       ),
     ).rejects.toMatchObject({ code: "PLAN_REFUND_TOO_HIGH" });
     const cancelled = await repository.updatePatientPlanStatus(
@@ -145,13 +145,37 @@ describe.skipIf(!databaseUrl)("MySQL repository", () => {
       plan.id,
       "cancelled",
       {},
-      { refundedInCents: 7500, refundNote: "Devolvido via Pix" },
+      {
+        refundedInCents: 7500,
+        refundPaymentMethod: "pix",
+        refundNote: "Devolvido via Pix",
+      },
     );
     expect(cancelled).toMatchObject({
       status: "cancelled",
       refundedInCents: 7500,
+      refundPaymentMethod: "pix",
       refundNote: "Devolvido via Pix",
     });
+    // O estorno sai do caixa: conta paga com evento de pagamento, na categoria de estornos.
+    const payable = (
+      await repository.getFinancialWorkspace(clinicId)
+    ).payables.find((item) => item.id === cancelled?.refundPayableId);
+    expect(payable).toMatchObject({
+      status: "paid",
+      amountInCents: 7500,
+      paymentMethod: "pix",
+      categoryName: "Estornos a clientes",
+    });
+    const events = await pool.query<{ kind: string; amountInCents: number }>(
+      `SELECT kind, amount_in_cents AS "amountInCents" FROM payable_events
+       WHERE payable_id = $1 ORDER BY kind`,
+      [payable!.id],
+    );
+    expect(events.rows).toEqual([
+      { kind: "created", amountInCents: 7500 },
+      { kind: "payment", amountInCents: -7500 },
+    ]);
     const another = new MysqlClinicRepository(pool);
     expect(
       (await another.listPatientPlans(clinicId)).find(
@@ -223,7 +247,6 @@ describe.skipIf(!databaseUrl)("MySQL repository", () => {
         name: marker,
         priceInCents: 0,
         durationMinutes: 60,
-        color: "#64748b",
       });
       const patient = await repository.createPatient(isolatedClinic, {
         cpf: nextTestCpf(),
@@ -251,7 +274,6 @@ describe.skipIf(!databaseUrl)("MySQL repository", () => {
         name: marker,
         priceInCents: 0,
         durationMinutes: 60,
-        color: "#64748b",
       });
       const foreign = await repository.createPlanTemplate(
         foreignClinic,
@@ -506,12 +528,14 @@ describe.skipIf(!databaseUrl)("MySQL repository", () => {
         "DELETE FROM plan_templates WHERE JSON_CONTAINS($1, JSON_QUOTE(clinic_id))",
         [ids],
       );
-      await pool.query("DELETE FROM patients WHERE JSON_CONTAINS($1, JSON_QUOTE(clinic_id))", [
-        ids,
-      ]);
-      await pool.query("DELETE FROM services WHERE JSON_CONTAINS($1, JSON_QUOTE(clinic_id))", [
-        ids,
-      ]);
+      await pool.query(
+        "DELETE FROM patients WHERE JSON_CONTAINS($1, JSON_QUOTE(clinic_id))",
+        [ids],
+      );
+      await pool.query(
+        "DELETE FROM services WHERE JSON_CONTAINS($1, JSON_QUOTE(clinic_id))",
+        [ids],
+      );
       await pool.query(
         "DELETE FROM audit_events WHERE JSON_CONTAINS($1, JSON_QUOTE(clinic_id))",
         [ids],
@@ -521,7 +545,10 @@ describe.skipIf(!databaseUrl)("MySQL repository", () => {
         "DELETE FROM clinic_sequences WHERE JSON_CONTAINS($1, JSON_QUOTE(clinic_id))",
         [ids],
       );
-      await pool.query("DELETE FROM clinics WHERE JSON_CONTAINS($1, JSON_QUOTE(id))", [ids]);
+      await pool.query(
+        "DELETE FROM clinics WHERE JSON_CONTAINS($1, JSON_QUOTE(id))",
+        [ids],
+      );
     }
   });
 

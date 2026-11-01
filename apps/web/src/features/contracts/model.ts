@@ -5,6 +5,8 @@ import {
   type DocumentSignatureLinkShare,
   type ClinicBranding,
   type DocumentKind,
+  type IssuedDocument,
+  signatureLinkExpired,
 } from "@crm/contracts";
 import { api } from "../../api";
 
@@ -14,6 +16,92 @@ export const documentKindLabels: Record<DocumentKind, string> = {
   consent: "Termo de consentimento",
   other: "Outro",
 };
+
+/** Situação do documento na lista: junta a situação da emissão e a da assinatura. */
+export type DocumentSituation =
+  | "draft"
+  | "issued"
+  | "awaiting_signature"
+  | "link_expired"
+  | "signed"
+  | "cancelled";
+
+export const documentSituationLabels: Record<DocumentSituation, string> = {
+  draft: "Rascunho",
+  issued: "Emitido",
+  awaiting_signature: "Aguardando assinatura",
+  link_expired: "Link expirado",
+  signed: "Assinado",
+  cancelled: "Cancelado",
+};
+
+/** Classe de `status-pill` de cada situação. */
+export const documentSituationPills: Record<DocumentSituation, string> = {
+  draft: "open",
+  issued: "issued",
+  awaiting_signature: "draft",
+  link_expired: "expired",
+  signed: "active",
+  cancelled: "cancelled",
+};
+
+export function documentSituation(
+  document: IssuedDocument,
+  at: Date = new Date(),
+): DocumentSituation {
+  if (document.status === "cancelled") return "cancelled";
+  if (document.status === "draft") return "draft";
+  if (document.manualSignature || document.signatureLink?.signedAt)
+    return "signed";
+  if (document.signatureLink)
+    return signatureLinkExpired(document.signatureLink, at)
+      ? "link_expired"
+      : "awaiting_signature";
+  return "issued";
+}
+
+export interface DocumentFilters {
+  search: string;
+  situation: DocumentSituation | "";
+  template: string;
+}
+
+export const emptyDocumentFilters: DocumentFilters = {
+  search: "",
+  situation: "",
+  template: "",
+};
+
+function normalized(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLocaleLowerCase("pt-BR")
+    .trim();
+}
+
+/** Busca por título, cliente/fornecedor ou modelo (sem acento) e filtra por situação e modelo. */
+export function filterDocuments(
+  documents: IssuedDocument[],
+  filters: DocumentFilters,
+  at: Date = new Date(),
+) {
+  const terms = normalized(filters.search).split(/\s+/).filter(Boolean);
+  return documents.filter((document) => {
+    if (
+      filters.situation &&
+      documentSituation(document, at) !== filters.situation
+    )
+      return false;
+    if (filters.template && document.templateName !== filters.template)
+      return false;
+    if (!terms.length) return true;
+    const text = normalized(
+      [document.title, document.patientName, document.templateName].join(" "),
+    );
+    return terms.every((term) => text.includes(term));
+  });
+}
 
 export function fetchContractsPageData(canSeePlans: boolean) {
   return Promise.all([
