@@ -5,6 +5,7 @@ import { MemoryClinicRepository } from "../../memory-repository.js";
 import { nextTestCpf } from "../../test-support/cpf.js";
 import { payrollSuite } from "../../test-support/payroll-suite.js";
 import { salariedEmployeeViaApi } from "../../test-support/payroll-users.js";
+import { serviceWithSinglePlan } from "../../test-support/single-plan-service.js";
 
 const clinicId = "11111111-1111-4111-8111-111111111111",
   actorId = "22222222-2222-4222-8222-222222222222";
@@ -18,9 +19,12 @@ describe("rotas da folha de pagamento", () => {
     try {
       const [professional] = await repository.listProfessionals(clinicId),
         [room] = await repository.listRooms(clinicId),
-        service = (await repository.listServices(clinicId)).find(
-          (item) => item.priceInCents >= 1000,
-        )!,
+        service = await serviceWithSinglePlan(
+          repository,
+          clinicId,
+          "22222222-2222-4222-8222-222222222222",
+          18000,
+        ),
         patient = await repository.createPatient(clinicId, {
           cpf: nextTestCpf(),
           fullName: "Cliente das rotas da folha",

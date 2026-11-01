@@ -25,7 +25,6 @@ describe.skipIf(!databaseUrl)("MySQL repository", () => {
 
   let repository: MysqlClinicRepository;
 
-
   beforeAll(async () => {
     database = await createTestDatabase("agenda");
     pool = database.pool;
@@ -41,7 +40,6 @@ describe.skipIf(!databaseUrl)("MySQL repository", () => {
         name,
         durationMinutes: 50,
         priceInCents: 9000,
-        color: "#547A6B",
         professionalIds: [professional!.id],
         roomIds: [room!.id],
       });
@@ -417,9 +415,10 @@ describe.skipIf(!databaseUrl)("MySQL repository", () => {
         expect(other.nextAppointments).toEqual([]);
       }
     } finally {
-      await pool.query("DELETE FROM appointments WHERE JSON_CONTAINS($1, JSON_QUOTE(id))", [
-        ids,
-      ]);
+      await pool.query(
+        "DELETE FROM appointments WHERE JSON_CONTAINS($1, JSON_QUOTE(id))",
+        [ids],
+      );
     }
   });
 
@@ -468,9 +467,10 @@ describe.skipIf(!databaseUrl)("MySQL repository", () => {
         ).filter((item) => ids.includes(item.id)),
       ).toEqual([]);
     } finally {
-      await pool.query("DELETE FROM appointments WHERE JSON_CONTAINS($1, JSON_QUOTE(id))", [
-        ids,
-      ]);
+      await pool.query(
+        "DELETE FROM appointments WHERE JSON_CONTAINS($1, JSON_QUOTE(id))",
+        [ids],
+      );
     }
   });
 

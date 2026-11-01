@@ -6,6 +6,7 @@ import {
   type IssuedDocument,
   type PatientOption,
   type PatientPlan,
+  type Supplier,
 } from "@crm/contracts";
 import { useEffect, useId, useRef, useState } from "react";
 import { api } from "../../api";
@@ -18,9 +19,26 @@ import { Modal, ModalCancelButton } from "../../shared/components/Modal";
 import { DocumentPaper } from "./DocumentPaper";
 import { SignatureShare } from "./SignatureRequest";
 
+type Signer = "patient" | "supplier";
+
+/** Quem assina, no formato da API: cliente (com plano opcional) ou fornecedor. */
+function signerFields(form: {
+  signer: Signer;
+  patientId: string;
+  supplierId: string;
+  planId: string;
+}) {
+  return form.signer === "supplier"
+    ? { supplierId: form.supplierId }
+    : {
+        patientId: form.patientId,
+        ...(form.planId ? { planId: form.planId } : {}),
+      };
+}
+
 /**
- * Envia o contrato pelo WhatsApp com um link para o cliente ler e assinar.
- * Sem `document`, primeiro escolhe cliente, modelo e plano e emite o documento.
+ * Envia o contrato pelo WhatsApp com um link para o cliente (ou fornecedor) ler e assinar.
+ * Sem `document`, primeiro escolhe quem assina, o modelo e o plano e emite o documento.
  */
 export function SendForSignatureModal({
   document,
@@ -46,10 +64,36 @@ export function SendForSignatureModal({
   );
   const choices = contractTemplates.length ? contractTemplates : templates;
   const [form, setForm] = useState({
+    signer: "patient" as Signer,
     patientId: patientId ?? "",
+    supplierId: "",
     templateId: choices.length === 1 ? choices[0]!.id : "",
     planId: "",
   });
+  const forSupplier = form.signer === "supplier";
+  const signerId = forSupplier ? form.supplierId : form.patientId;
+  // Fornecedores ativos: carregados só quando o envio é para fornecedor.
+  const [suppliers, setSuppliers] = useState<Supplier[] | null>(null);
+  const [suppliersError, setSuppliersError] = useState("");
+  const loadSuppliers = forSupplier && suppliers === null;
+  useEffect(() => {
+    if (!loadSuppliers) return;
+    let active = true;
+    api
+      .suppliers()
+      .then(
+        (items) => active && setSuppliers(items.filter((item) => item.active)),
+      )
+      .catch((cause: Error) => {
+        if (!active) return;
+        setSuppliers([]);
+        setSuppliersError(cause.message);
+      });
+    return () => {
+      active = false;
+    };
+  }, [loadSuppliers]);
+
   const [preview, setPreview] = useState<{
     key: string;
     data?: DocumentPreview;
@@ -82,18 +126,17 @@ export function SendForSignatureModal({
   }, [document]);
 
   const previewKey =
-    form.patientId && form.templateId
-      ? `${form.patientId}:${form.templateId}:${form.planId}`
+    signerId && form.templateId
+      ? `${form.signer}:${signerId}:${form.templateId}:${form.planId}`
       : "";
   useEffect(() => {
     if (document || !previewKey) return;
     let active = true;
     api
       .previewDocument({
-        patientId: form.patientId,
+        ...signerFields(form),
         templateId: form.templateId,
         title: "Prévia do contrato",
-        ...(form.planId ? { planId: form.planId } : {}),
       })
       .then((data) => active && setPreview({ key: previewKey, data }))
       .catch(
@@ -103,7 +146,7 @@ export function SendForSignatureModal({
     return () => {
       active = false;
     };
-  }, [document, previewKey, form.patientId, form.templateId, form.planId]);
+  }, [document, previewKey, form]);
 
   const currentPreview = preview?.key === previewKey ? preview : null;
   const manualFields = currentPreview?.data
@@ -111,7 +154,7 @@ export function SendForSignatureModal({
     : [];
   const missing = useMissingFields(
     [
-      !form.patientId && "Cliente",
+      !signerId && (forSupplier ? "Fornecedor" : "Cliente"),
       !form.templateId && "Modelo do contrato",
       manualFields.length > 0 &&
         "Modelo sem campos para preencher (use Novo documento)",
@@ -124,15 +167,14 @@ export function SendForSignatureModal({
 
   async function send() {
     const template = choices.find((item) => item.id === form.templateId);
-    if (!template || !form.patientId) return;
+    if (!template || !signerId) return;
     setBusy(true);
     setError("");
     try {
       const draft = await api.createDocument({
-        patientId: form.patientId,
+        ...signerFields(form),
         templateId: template.id,
         title: template.name,
-        ...(form.planId ? { planId: form.planId } : {}),
       });
       onSent(draft);
       const issued = await api.updateDocumentStatus(draft.id, "issued");
@@ -155,10 +197,14 @@ export function SendForSignatureModal({
       subtitle={
         title
           ? `${title} · ${share?.document.patientName ?? document?.patientName ?? ""}`
-          : "Escolha o cliente e o modelo do contrato."
+          : "Escolha quem assina e o modelo do contrato."
       }
       busy={busy}
-      dirty={!share && !document && Boolean(form.patientId || form.planId)}
+      dirty={
+        !share &&
+        !document &&
+        Boolean(form.patientId || form.supplierId || form.planId)
+      }
       wide={!share && Boolean(currentPreview?.data)}
       onClose={onClose}
     >
@@ -188,14 +234,58 @@ export function SendForSignatureModal({
           }}
         >
           <fieldset className="form-fields form-grid" disabled={busy}>
-            <PatientPicker
-              required
-              patients={patients}
-              value={form.patientId}
-              onChange={(next) =>
-                setForm({ ...form, patientId: next, planId: "" })
-              }
-            />
+            <label className="span-2">
+              Quem assina
+              <select
+                value={form.signer}
+                onChange={(event) =>
+                  setForm({
+                    ...form,
+                    signer: event.target.value as Signer,
+                    planId: "",
+                  })
+                }
+              >
+                <option value="patient">Cliente</option>
+                <option value="supplier">Fornecedor</option>
+              </select>
+            </label>
+            {forSupplier ? (
+              <div className="field-with-hint">
+                <label>
+                  Fornecedor
+                  <select
+                    required
+                    disabled={!suppliers}
+                    value={form.supplierId}
+                    onChange={(event) =>
+                      setForm({ ...form, supplierId: event.target.value })
+                    }
+                  >
+                    <option value="">
+                      {suppliers ? "Selecione" : "Carregando…"}
+                    </option>
+                    {suppliers?.map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                {suppliersError && (
+                  <small className="field-error">{suppliersError}</small>
+                )}
+              </div>
+            ) : (
+              <PatientPicker
+                required
+                patients={patients}
+                value={form.patientId}
+                onChange={(next) =>
+                  setForm({ ...form, patientId: next, planId: "" })
+                }
+              />
+            )}
             <label>
               Modelo do contrato
               <select
@@ -213,7 +303,7 @@ export function SendForSignatureModal({
                 ))}
               </select>
             </label>
-            {canView("plans") && (
+            {!forSupplier && canView("plans") && (
               <div>
                 <label>
                   Plano vinculado
@@ -269,9 +359,10 @@ export function SendForSignatureModal({
               </div>
             )}
             <p className="muted-copy span-2">
-              O contrato é emitido com este modelo e o cliente recebe um link
-              para ler e assinar. A visualização e a assinatura ficam
-              registradas no documento.
+              O contrato é emitido com este modelo e{" "}
+              {forSupplier ? "o fornecedor" : "o cliente"} recebe um link para
+              ler e assinar. A visualização e a assinatura ficam registradas no
+              documento.
             </p>
           </fieldset>
           {missing.hint}

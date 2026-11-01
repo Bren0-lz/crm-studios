@@ -1,8 +1,9 @@
-import type { GroupClass, PatientPlan, Service } from "@crm/contracts";
+import type { GroupClass, PatientPlan } from "@crm/contracts";
 import { describe, expect, it } from "vitest";
 import { buildTeamFinanceReport, competencesBetween } from "./team-finance.js";
 
-const service = { id: "s1", name: "Pilates", priceInCents: 8000 } as Service;
+// Sessão sem plano vale a sessão do plano avulso do serviço (8000).
+const singleSessionPrices = new Map([["s1", 8000]]);
 const plan = {
   id: "p1",
   patientId: "c1",
@@ -69,7 +70,7 @@ describe("buildTeamFinanceReport", () => {
         ],
       },
       plans: [plan],
-      services: [service],
+      singleSessionPrices,
       groups: [group("cheia", 1), group("vazia", 3)],
       enrollments: [
         {
@@ -129,7 +130,7 @@ describe("buildTeamFinanceReport", () => {
         pendingCommissions: [],
       },
       plans: [],
-      services: [service],
+      singleSessionPrices,
       groups: [group("Turma B", 2), group("Turma A", 2)],
       enrollments: [],
     });
