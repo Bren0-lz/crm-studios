@@ -1,5 +1,4 @@
 import type { PatientPlan } from "../plans/types.js";
-import type { Service } from "../administration/types.js";
 import type { GroupClass, GroupEnrollment } from "./types.js";
 
 /** Semanas consideradas num mês, como nos planos (`planSessionsForPeriod`). */
@@ -29,13 +28,14 @@ export interface GroupRevenueRow {
  * Faturamento mensal de cada turma. Cada matriculado contribui com o valor por sessão do
  * plano ativo mais recente que cobre o serviço da turma (valor do serviço ÷ sessões)
  * × encontros da turma no mês. Matriculado sem plano ativo não soma. As vagas livres
- * valem o ticket médio dos matriculados com plano; sem nenhum, o preço avulso do serviço.
+ * valem o ticket médio dos matriculados com plano; sem nenhum, o valor por sessão do plano
+ * avulso do serviço (`singlePlanSessionPrices`).
  */
 export function groupRevenueOverview(
   groups: GroupClass[],
   enrollments: GroupEnrollment[],
   plans: PatientPlan[],
-  services: Pick<Service, "id" | "priceInCents">[],
+  singleSessionPrices: ReadonlyMap<string, number>,
   today: string,
 ): GroupRevenueRow[] {
   return groups.map((group) => {
@@ -71,8 +71,7 @@ export function groupRevenueOverview(
     const currentInCents = monthlyValues.reduce((sum, value) => sum + value, 0);
     const referenceInCents = monthlyValues.length
       ? Math.round(currentInCents / monthlyValues.length)
-      : (services.find((item) => item.id === group.serviceId)?.priceInCents ??
-          0) * sessionsPerMonth;
+      : (singleSessionPrices.get(group.serviceId) ?? 0) * sessionsPerMonth;
     const enrolled = group.activeEnrollments;
     const freeSeats = Math.max(0, group.capacity - enrolled);
     return {

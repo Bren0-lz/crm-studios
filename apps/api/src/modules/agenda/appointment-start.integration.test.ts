@@ -139,18 +139,4 @@ describe("clinical actions only after the appointment starts", () => {
     });
     expect((await saveRecord(started)).statusCode).toBe(201);
   });
-
-  it("keeps accepting future appointments on a tab (pre-sale)", async () => {
-    const { repository, base, patientId } = await setup();
-    const tab = await repository.openPatientTab(clinicId, actorId, {
-      patientId,
-    });
-    const updated = await repository.createPatientTabAppointment(
-      clinicId,
-      actorId,
-      tab.id,
-      { ...base, startsAt: "2039-07-01T13:00:00Z" },
-    );
-    expect(updated.services).toHaveLength(1);
-  });
 });

@@ -2,7 +2,6 @@ import {
   type GroupClass,
   type GroupEnrollment,
   type PatientPlan,
-  type Service,
   type TeamFinanceReport,
   type TeamProductionSources,
   addMonthsToIsoDate,
@@ -30,14 +29,13 @@ export function buildTeamFinanceReport(input: {
   to: string;
   sources: TeamProductionSources;
   plans: PatientPlan[];
-  services: Service[];
+  /** Valor por sessão dos planos avulsos (`singlePlanSessionPrices`): sessão sem plano. */
+  singleSessionPrices: ReadonlyMap<string, number>;
   groups: GroupClass[];
   enrollments: GroupEnrollment[];
 }): TeamFinanceReport {
   const plans = new Map(input.plans.map((plan) => [plan.id, plan]));
-  const prices = new Map(
-    input.services.map((service) => [service.id, service.priceInCents]),
-  );
+  const prices = input.singleSessionPrices;
   const valueOf = (serviceId: string, plan?: PatientPlan) =>
     sessionValueInCents(
       plan?.services.find((entry) => entry.serviceId === serviceId),
