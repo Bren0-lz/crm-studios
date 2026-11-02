@@ -5,7 +5,6 @@ import {
   patientTagDisplayColor,
 } from "@crm/contracts";
 import { PatientProfileFilters } from "./PatientProfileFilters";
-import { PatientManagementModal } from "./PatientManagementModal";
 import {
   type Patient,
   type PatientSegmentSummary,
@@ -52,9 +51,8 @@ import { PatientModal } from "./PatientModal";
 import type { PatientRecordFilter, PatientSort } from "./types";
 
 export function PatientsPage() {
-  const { can, canEdit, canView, user } = useAuthorization();
+  const { can, canEdit, canView } = useAuthorization();
   const navigate = useNavigate();
-  const [inactiveOpen, setInactiveOpen] = useState(false);
   const [segments, setSegments] = useState<PatientSegmentSummary[]>([]);
   const [patients, setPatients] = useState<Patient[]>([]);
   const [filters, setFilters] = useState(defaultPatientFilters);
@@ -172,14 +170,6 @@ export function PatientsPage() {
   }
 
   const moreActions: ActionMenuItem[] = [
-    ...(user?.role === "admin"
-      ? [
-          {
-            label: "Inativar antigos",
-            onSelect: () => setInactiveOpen(true),
-          },
-        ]
-      : []),
     ...(canManage && can("patients.import")
       ? [
           {
@@ -202,16 +192,6 @@ export function PatientsPage() {
 
   return (
     <>
-      {inactiveOpen && (
-        <PatientManagementModal
-          onClose={() => setInactiveOpen(false)}
-          onSaved={(message) => {
-            setInactiveOpen(false);
-            setNotice(message);
-            void load(appliedSearch);
-          }}
-        />
-      )}
       <PageHeader
         title="Clientes"
         description="Cadastros, vínculos e informações essenciais em um só lugar."
