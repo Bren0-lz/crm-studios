@@ -33,6 +33,7 @@ export function PlanCard({
   autoRenewControl?: ReactNode;
   actions?: ReactNode;
 }) {
+  const cancelled = plan.status === "cancelled";
   const used = plan.totalSessions - plan.remainingSessions;
   const percent = Math.min(100, Math.round((used / plan.totalSessions) * 100));
   return (
@@ -45,13 +46,17 @@ export function PlanCard({
       </div>
       <h3>{title}</h3>
       {subtitle && <p>{subtitle}</p>}
+      {/* Plano cancelado não tem sessão utilizável, mesmo com saldo gravado. */}
       <div className="balance-line">
-        <strong>{plan.remainingSessions}</strong>
-        <span>de {plan.totalSessions} sessões restantes</span>
+        <strong>{cancelled ? 0 : plan.remainingSessions}</strong>
+        <span>
+          de {plan.totalSessions} sessões{" "}
+          {cancelled ? "· plano cancelado" : "restantes"}
+        </span>
       </div>
       {plan.services.map((entry) => (
         <p key={entry.serviceId}>
-          {entry.serviceName}: {entry.remainingSessions} de{" "}
+          {entry.serviceName}: {cancelled ? 0 : entry.remainingSessions} de{" "}
           {entry.totalSessions} sessões ·{" "}
           {currency.format(entry.totalValueInCents / 100)}
         </p>
