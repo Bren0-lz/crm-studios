@@ -93,7 +93,7 @@ reproduz o zoom do iOS, a causa 2 é verificada pelo estilo computado (≥ 16 px
   falha hoje em pelo menos as asserções 3 e 4 (e 2, se a causa 1 se confirmar no Chromium);
   saída real anotada no STATE. Gate completo verde (o e2e não está no gate completo).
 - **Depende de:** —
-- **Status:** TODO
+- **Status:** DONE
 
 ### CT2 — Layout da página pública no celular
 
