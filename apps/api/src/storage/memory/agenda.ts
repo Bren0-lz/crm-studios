@@ -1,5 +1,7 @@
 import {
+  agendaConflict,
   isAppointmentPendingFinalization,
+  type AgendaConflict,
   type Appointment,
   type AppointmentInput,
   type AppointmentRescheduleEvent,
@@ -33,6 +35,7 @@ import {
 import { assertAppointmentStarted } from "../../modules/agenda/appointment-start.js";
 import {
   DomainError,
+  type AgendaSlotProbe,
   type AppointmentCreateOptions,
   type AutoCampaignRedemptionWrite,
 } from "../../repository.js";
@@ -544,6 +547,66 @@ export function createAgendaRepository(
       return repositoryContext.appointmentReschedules
         .filter((item) => item.appointmentId === appointmentId)
         .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    },
+
+    async findAgendaConflicts(clinicId: string, slots: AgendaSlotProbe[]) {
+      const conflicts: AgendaConflict[] = [];
+      for (const slot of slots) {
+        const startsAt = new Date(slot.startsAt);
+        const endsAt = new Date(slot.endsAt);
+        const overlaps = (from: string, to: string) =>
+          new Date(from) < endsAt && new Date(to) > startsAt;
+        const sameResource = (item: {
+          professionalId?: string | undefined;
+          roomId?: string | undefined;
+        }) =>
+          item.professionalId === slot.professionalId ||
+          item.roomId === slot.roomId;
+        const appointment = repositoryContext.appointments.some(
+          (item) =>
+            item.clinicId === clinicId &&
+            item.status !== "cancelled" &&
+            sameResource(item) &&
+            overlaps(item.startsAt, item.endsAt),
+        );
+        if (appointment) {
+          conflicts.push(agendaConflict(slot.key, "appointment"));
+          continue;
+        }
+        const block = repositoryContext.scheduleBlocks.some(
+          (item) =>
+            item.clinicId === clinicId &&
+            item.status === "active" &&
+            sameResource(item) &&
+            overlaps(item.startsAt, item.endsAt),
+        );
+        if (block) {
+          conflicts.push(agendaConflict(slot.key, "block"));
+          continue;
+        }
+        const group =
+          repositoryContext.groupSessions.some((session) => {
+            const owner = repositoryContext.groupClasses.find(
+              (item) => item.id === session.groupId,
+            );
+            return (
+              session.clinicId === clinicId &&
+              session.status !== "cancelled" &&
+              Boolean(owner) &&
+              sameResource(owner!) &&
+              overlaps(session.startsAt, session.endsAt)
+            );
+          }) ||
+          repositoryContext.hasWeeklyGroupSlotConflict(
+            clinicId,
+            slot.professionalId,
+            slot.roomId,
+            startsAt,
+            endsAt,
+          );
+        if (group) conflicts.push(agendaConflict(slot.key, "group"));
+      }
+      return conflicts;
     },
 
     async createRecurringAppointments(

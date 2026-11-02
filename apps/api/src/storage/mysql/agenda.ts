@@ -1,4 +1,6 @@
 import {
+  agendaConflict,
+  type AgendaConflict,
   type Appointment,
   type AppointmentInput,
   type AppointmentRescheduleEvent,
@@ -27,6 +29,7 @@ import {
 import { assertAppointmentStarted } from "../../modules/agenda/appointment-start.js";
 import {
   DomainError,
+  type AgendaSlotProbe,
   type AppointmentCreateOptions,
 } from "../../repository.js";
 import { insertAutoCampaignRedemption } from "./auto-campaigns.js";
@@ -717,6 +720,45 @@ export function createAgendaRepository(
       }));
     },
 
+    async findAgendaConflicts(clinicId: string, slots: AgendaSlotProbe[]) {
+      const conflicts: AgendaConflict[] = [];
+      for (const slot of slots) {
+        const startsAt = new Date(slot.startsAt);
+        const endsAt = new Date(slot.endsAt);
+        // Mesma checagem de `assertAgendaFree`, sem trava e dizendo o motivo.
+        const busy = await repositoryContext.pool.query<{ kind: string }>(
+          `SELECT 'appointment' AS kind FROM appointments a
+           WHERE a.clinic_id = $1 AND a.status <> 'cancelled'
+             AND ((a.professional_id = $2) OR (a.room_id = $3))
+             AND a.starts_at < $5 AND a.ends_at > $4
+           UNION ALL
+           SELECT 'block' AS kind FROM schedule_blocks b
+           WHERE b.clinic_id = $1 AND b.status = 'active'
+             AND ((b.professional_id = $2) OR (b.room_id = $3))
+             AND b.starts_at < $5 AND b.ends_at > $4
+           LIMIT 1`,
+          [clinicId, slot.professionalId, slot.roomId, startsAt, endsAt],
+        );
+        const kind = busy.rows[0]?.kind;
+        if (kind === "appointment" || kind === "block") {
+          conflicts.push(agendaConflict(slot.key, kind));
+          continue;
+        }
+        if (
+          await hasGroupSessionConflict(
+            repositoryContext.pool,
+            clinicId,
+            slot.professionalId,
+            slot.roomId,
+            startsAt,
+            endsAt,
+          )
+        )
+          conflicts.push(agendaConflict(slot.key, "group"));
+      }
+      return conflicts;
+    },
+
     async createRecurringAppointments(
       clinicId: string,
       input: RecurringAppointmentInput,
@@ -899,31 +941,33 @@ export function createAgendaRepository(
         { professionalId: input.professionalId, roomId: input.roomId },
       );
       try {
-        const inserted = await repositoryContext.inTransaction(async (client) => {
-          await repositoryContext.assertAgendaFree(client, clinicId, {
-            kind: "block",
-            professionalId: input.professionalId || null,
-            roomId: input.roomId || null,
-            startsAt: input.startsAt,
-            endsAt: input.endsAt,
-          });
-          return writeAndRead<{ id: string }>(
-          client,
-          `INSERT INTO schedule_blocks
+        const inserted = await repositoryContext.inTransaction(
+          async (client) => {
+            await repositoryContext.assertAgendaFree(client, clinicId, {
+              kind: "block",
+              professionalId: input.professionalId || null,
+              roomId: input.roomId || null,
+              startsAt: input.startsAt,
+              endsAt: input.endsAt,
+            });
+            return writeAndRead<{ id: string }>(
+              client,
+              `INSERT INTO schedule_blocks
            (clinic_id, professional_id, room_id, starts_at, ends_at, reason, branch_id, id) VALUES ($1,$2,$3,$4,$5,$6,${branchOrDefault("$7", "$1")}, $8)`,
-          [
-            clinicId,
-            input.professionalId || null,
-            input.roomId || null,
-            input.startsAt,
-            input.endsAt,
-            input.reason,
-            branchId,
-            randomUUID(),
-          ],
-          `SELECT id FROM schedule_blocks WHERE id = $8`,
+              [
+                clinicId,
+                input.professionalId || null,
+                input.roomId || null,
+                input.startsAt,
+                input.endsAt,
+                input.reason,
+                branchId,
+                randomUUID(),
+              ],
+              `SELECT id FROM schedule_blocks WHERE id = $8`,
+            );
+          },
         );
-        });
         return (await repositoryContext.findScheduleBlock(
           clinicId,
           inserted.rows[0]!.id,

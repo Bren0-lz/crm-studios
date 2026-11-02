@@ -4,6 +4,7 @@ import type {
   WaitlistEntryUpdate,
 } from "@crm/contracts";
 import type {
+  AgendaConflict,
   AgendaNote,
   AgendaNoteInput,
   AgendaNoteUpdate,
@@ -916,6 +917,15 @@ export interface ClinicRepository {
     appointmentId: string,
     input: AppointmentUpdateInput,
   ): Promise<Appointment | null>;
+  /**
+   * Só leitura: para cada horário planejado, o primeiro conflito com a agenda (atendimento
+   * não cancelado, bloqueio ativo ou turma do mesmo profissional ou sala). Sem conflito, o
+   * item não aparece. Feriados e conflitos dentro do próprio lote ficam com a rota.
+   */
+  findAgendaConflicts(
+    clinicId: string,
+    slots: AgendaSlotProbe[],
+  ): Promise<AgendaConflict[]>;
   /** Com `promotion`, o uso fica ligado à 1ª ocorrência. */
   createRecurringAppointments(
     clinicId: string,
@@ -1808,6 +1818,15 @@ export interface AutoCampaignRedemptionWrite {
   occurrenceKey: string;
   redeemedOn: string;
   blockedUntil?: string | undefined;
+}
+
+/** Horário planejado (ainda não gravado) para a verificação de conflitos. */
+export interface AgendaSlotProbe {
+  key: string;
+  professionalId: string;
+  roomId: string;
+  startsAt: string;
+  endsAt: string;
 }
 
 export interface AppointmentCreateOptions {
