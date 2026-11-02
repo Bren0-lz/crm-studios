@@ -32,10 +32,12 @@ regra do `CLAUDE.md`. Ordem: CD0 → CD1 → CD2 → CD3 → CD4 → CD5; CD6 j�
 - **B1-10 contato de emergência obrigatório** (nome e telefone). Quem não tiver repete o próprio
   nome e telefone, e o sistema aceita. Sem checkbox "sem contato" e sem permissão para dispensar.
 - **E-mail continua opcional** até decidir (CD7 BLOCKED).
-- **Importação por planilha:** aceita cliente **sem CPF** (só na importação); **WhatsApp
-  obrigatório** também na planilha (linha sem WhatsApp é erro); contato de emergência pode faltar.
+- **Importação por planilha: nenhum campo é obrigatório.** CPF, telefone, WhatsApp e contato de
+  emergência podem faltar; linha sem nome (mas com algum dado) entra como "Cliente sem nome
+  (linha N)"; linha totalmente vazia é ignorada. Só o **cadastro normal** (rápido, agenda,
+  guiado, edição, conversão de lead, API externa) exige os campos.
 - **Etiqueta do que falta:** todo cliente sem algum dado obrigatório mostra etiqueta automática
-  ("Falta CPF", "Falta WhatsApp", "Falta contato de emergência").
+  ("Falta nome", "Falta CPF", "Falta telefone", "Falta WhatsApp", "Falta contato de emergência").
 - **Clientes antigos:** nada é migrado nem apagado. "Editar cliente" exige preencher o que falta
   ao salvar (como já acontece com o CPF); nunca fica impossível (WhatsApp pode repetir o
   telefone; contato pode repetir o próprio cliente). Status, etiquetas, mesclagem, inativação,
@@ -47,14 +49,14 @@ regra do `CLAUDE.md`. Ordem: CD0 → CD1 → CD2 → CD3 → CD4 → CD5; CD6 j�
 | Lugar | WhatsApp | Contato de emergência (nome + tel.) | CPF |
 |---|---|---|---|
 | `patientInputSchema` (cadastro, guiado, edição) | obrigatório | obrigatório (pode = cliente) | obrigatório (como hoje) |
-| Importação (`patientImportInputSchema`, novo) | obrigatório | opcional → etiqueta | opcional (válido se vier) → etiqueta |
+| Importação (`patientImportInputSchema`, novo) | opcional → etiqueta | opcional → etiqueta | opcional (válido se vier) → etiqueta; nome e telefone também opcionais |
 | Mesclagem (`mergedPatientInput`) | tolerante | tolerante | tolerante |
 | `PatientModal` novo (botão, agenda, guiado) | `required` + "Falta:" | fora de "Mais informações", `required` | como hoje |
 | `PatientModal` edição | exigido ao salvar | exigido ao salvar | como hoje |
 | Conversão de lead (`leadConversionInputSchema`, `LeadConvertModal`) | obrigatório (pré-preenche) | obrigatório | como hoje |
 | API externa `POST /external/v1/patients` e `/leads/:id/convert` | segue a rota interna | idem | idem |
 | Painel de vendas (`dashboard-studios`) | campo novo obrigatório | campos novos obrigatórios | como hoje |
-| Etiqueta automática (leitura) | "Falta WhatsApp" | "Falta contato de emergência" (nome **ou** telefone vazio) | "Falta CPF" |
+| Etiqueta automática (leitura) | "Falta WhatsApp" | "Falta contato de emergência" (nome **ou** telefone vazio) | "Falta CPF" (+ "Falta nome", "Falta telefone") |
 | E-mail | opcional em tudo (CD7) | | |
 
 ### Triagem no código (02/11/2026)
@@ -102,9 +104,11 @@ regra do `CLAUDE.md`. Ordem: CD0 → CD1 → CD2 → CD3 → CD4 → CD5; CD6 j�
 
 ### CD2 — Etiquetas automáticas de cadastro incompleto
 
-- **Escopo:** contracts: "Falta CPF", "Falta WhatsApp", "Falta contato de emergência" em
-  `automaticPatientTagNames`, `missingPatientDataTags(patient)` e categoria por etiqueta (`status`
-  para estas; atraso segue `financial`). API: `automaticPatientTagger` acrescenta para todo
+- **Escopo:** contracts: "Falta nome", "Falta CPF", "Falta telefone", "Falta WhatsApp", "Falta
+  contato de emergência" em `automaticPatientTagNames`, `missingPatientDataTags(patient)` ("Falta
+  nome" via helper novo `isPlaceholderPatientName` para "Cliente sem nome (linha N)"; "Falta
+  telefone" com `phone` vazio) e categoria por etiqueta (`status` para estas; atraso segue
+  `financial`). API: `automaticPatientTagger` acrescenta para todo
   usuário com o módulo de clientes (atraso continua só com Financeiro); recusa etiqueta manual com
   esses nomes. Web: opções automáticas no filtro de `PatientsPage`; filtro e exportação
   reconhecem as novas. Testes contracts (contato pela metade conta como faltando), API (lista,
@@ -116,7 +120,8 @@ regra do `CLAUDE.md`. Ordem: CD0 → CD1 → CD2 → CD3 → CD4 → CD5; CD6 j�
 ### CD3 — WhatsApp e contato de emergência obrigatórios no cadastro e na edição
 
 - **Escopo:** contracts: `whatsapp`, `emergencyContactName`, `emergencyContactPhone` obrigatórios
-  em `patientInputSchema` (mensagens pt-BR), **sem** regra contra contato = próprio cliente;
+  em `patientInputSchema` (mensagens pt-BR), **sem** regra contra contato = próprio cliente; `fullName` recusa o nome provisório da
+  importação ("Informe o nome do cliente.");
   schema tolerante para `mergedPatientInput`; `leadConversionInputSchema` exige os campos
   (pré-preenchidos do lead/cliente). Web: no `PatientModal`, fieldset do contato de emergência
   logo após "Contato", campos `required`, "Falta:" com WhatsApp/Contato/Telefone de emergência,
@@ -130,15 +135,19 @@ regra do `CLAUDE.md`. Ordem: CD0 → CD1 → CD2 → CD3 → CD4 → CD5; CD6 j�
 - **Depende de:** CD0 em produção, CD2
 - **Status:** TODO
 
-### CD4 — Importação: CPF opcional, WhatsApp obrigatório, etiquetas
+### CD4 — Importação sem campos obrigatórios, com etiquetas
 
-- **Escopo:** `patientImportRequiredFields = ["fullName", "phone", "whatsapp"]`; schema
-  `patientImportInputSchema` (CPF opcional mas válido se vier; WhatsApp obrigatório; contato
-  opcional). Prévia avisa por linha ("Sem CPF: será marcado com a etiqueta Falta CPF") sem virar
-  erro; sem WhatsApp = "Linha N: WhatsApp é obrigatório."; duplicidade sem CPF pelo telefone.
-  `PatientImportModal` marca os obrigatórios novos. Reescrever a parte de importação de
-  `patient-required-cpf.integration.test.ts` e `patient-import.unit.test.ts`; planilha com DDD
-  separado continua importando. `importPatients` MySQL com `cpf` nulo.
+- **Escopo:** `patientImportRequiredFields = []` (o mapeamento não marca nada como obrigatório);
+  schema `patientImportInputSchema` com tudo opcional; valor preenchido continua validado (CPF
+  inválido, telefone ou e-mail mal formado = erro da linha, como hoje). Sem nome e com algum dado:
+  `fullName = "Cliente sem nome (linha N)"` (helper de contracts). Linha sem nenhum dado:
+  ignorada. Sem telefone: `phone = ""` (coluna `NOT NULL`, sem migração; conferir telas e links
+  que usam o telefone). Prévia avisa por linha ("Sem CPF, WhatsApp: entra com as etiquetas Falta
+  CPF, Falta WhatsApp") sem virar erro. Duplicidade por CPF e telefone quando existirem; sem os
+  dois não há como detectar (aviso na prévia). Reescrever a parte de importação de
+  `patient-required-cpf.integration.test.ts` e `patient-import.unit.test.ts`: só nome; só
+  telefone (nome provisório); tudo vazio (ignorada); CPF inválido (erro); DDD separado continua
+  importando. `importPatients` MySQL com `cpf` nulo e `phone` vazio.
 - **Gate:** gate completo e `npm run test:mysql`
 - **Depende de:** CD3
 - **Status:** TODO
