@@ -1,14 +1,8 @@
-import type { PlanPaymentPart } from "@crm/contracts";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { useState } from "react";
 import { describe, expect, it } from "vitest";
 import { planRecurrenceMissing } from "../../shared/lib/payment-parts";
 import { PlanPaymentFields, type PlanPaymentValue } from "./PlanPaymentFields";
-
-let latest: PlanPaymentValue & { autoRenew: boolean } = {
-  installments: 1,
-  autoRenew: true,
-};
 
 function Harness() {
   const [plan, setPlan] = useState<PlanPaymentValue & { autoRenew: boolean }>({
@@ -16,7 +10,6 @@ function Harness() {
     installments: 1,
     autoRenew: true,
   });
-  latest = plan;
   return (
     <>
       <PlanPaymentFields
@@ -34,6 +27,11 @@ function Harness() {
           <li key={item}>{item}</li>
         ))}
       </ul>
+      <output aria-label="Formas salvas">
+        {plan.paymentParts
+          ?.map((part) => `${part.paymentMethod}:${String(part.recurring)}`)
+          .join(" ")}
+      </output>
     </>
   );
 }
@@ -68,8 +66,8 @@ describe("formas do plano: só da primeira vez ou recorrente", () => {
       within(second).getByLabelText("Recorrente (segue nas renovações)"),
     );
     expect(pending).toBeEmptyDOMElement();
-    expect(
-      latest.paymentParts?.map((part: PlanPaymentPart) => part.recurring),
-    ).toEqual([false, true]);
+    expect(screen.getByLabelText("Formas salvas")).toHaveTextContent(
+      "pix:false card:true",
+    );
   });
 });
