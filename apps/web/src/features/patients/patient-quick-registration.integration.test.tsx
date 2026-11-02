@@ -120,6 +120,53 @@ describe("quick client registration", () => {
     expect(within(dialog).getByLabelText("UF")).toHaveValue("SP");
   });
 
+  it("asks the residence details that match the chosen residence type", async () => {
+    login();
+    vi.mocked(fetch).mockImplementation(
+      async () => ({ ok: true, status: 200, json: async () => [] }) as Response,
+    );
+    const dialog = await openNewClient();
+    const address = within(dialog).getByRole("group", { name: "Endereço" });
+    for (const label of ["CEP", "Endereço", "Número", "Complemento"])
+      expect(within(address).getByLabelText(label)).toBeInTheDocument();
+    expect(
+      within(address).queryByLabelText("Número do apartamento"),
+    ).not.toBeInTheDocument();
+
+    fireEvent.change(within(address).getByLabelText("Tipo de residência"), {
+      target: { value: "apartment" },
+    });
+    for (const label of ["Nome do edifício", "Bloco/torre", "Andar"])
+      expect(within(address).getByLabelText(label)).toBeInTheDocument();
+    fireEvent.change(within(address).getByLabelText("Número do apartamento"), {
+      target: { value: "302" },
+    });
+
+    fireEvent.change(within(address).getByLabelText("Tipo de residência"), {
+      target: { value: "condominium" },
+    });
+    expect(within(address).getByLabelText("Nome do condomínio")).toBeInTheDocument();
+    expect(within(address).getByLabelText("Quadra/bloco")).toBeInTheDocument();
+    expect(within(address).queryByLabelText("Andar")).not.toBeInTheDocument();
+    // O número digitado para o apartamento continua no campo da unidade.
+    expect(within(address).getByLabelText("Número da casa/lote")).toHaveValue(
+      "302",
+    );
+
+    fireEvent.change(within(address).getByLabelText("Tipo de residência"), {
+      target: { value: "house" },
+    });
+    expect(
+      within(address).queryByLabelText("Número da casa/lote"),
+    ).not.toBeInTheDocument();
+    fireEvent.change(within(address).getByLabelText("Tipo de residência"), {
+      target: { value: "condominium" },
+    });
+    expect(within(address).getByLabelText("Número da casa/lote")).toHaveValue(
+      "",
+    );
+  });
+
   it("masks partial CEPs", () => {
     expect(formatCep("0100")).toBe("0100");
     expect(formatCep("010010")).toBe("01001-0");
