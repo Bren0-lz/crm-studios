@@ -4,7 +4,7 @@ import type { NotificationCenter } from "./notification-center";
 import { NotificationSettingsModal } from "./NotificationSettingsModal";
 
 /** Painel suspenso do cabeçalho: fecha com Esc, clique fora ou ao escolher um item. */
-function HeaderPopover({
+export function HeaderPopover({
   label,
   triggerLabel = label,
   trigger,

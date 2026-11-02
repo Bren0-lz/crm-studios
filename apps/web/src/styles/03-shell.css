@@ -529,125 +529,57 @@
   color: #963f35;
 }
 
-/* Alertas fixos no cabeçalho: grupos destacados nas preferências do sino. Sem botão de
-   fechar; o ícone pulsa e o contorno respira para lembrar das pendências o tempo todo. */
+/* Alertas fixos no cabeçalho: botão com o total dos grupos destacados nas preferências do
+   sino, que abre a lista. Sem botão de fechar; a cor de alerta basta para chamar a atenção. */
 .notification-banner {
-  display: flex;
-  flex: 1;
+  display: contents;
+}
+.top-actions .header-popover > button.notification-banner-trigger {
+  display: inline-flex;
   align-items: center;
   gap: var(--space-2);
-  min-width: 0;
-  padding: var(--space-1) var(--space-2);
+  padding: 0 var(--space-3);
   border: 1px solid #e6c3bd;
   border-radius: var(--radius-md);
   background: #fff5f2;
   color: #963f35;
   font-size: var(--text-sm);
-  animation: notification-banner-breathe 2.4s ease-in-out infinite;
-}
-.notification-banner > strong {
-  flex-shrink: 0;
-  font-weight: 600;
-  white-space: nowrap;
-}
-.notification-banner-icon {
-  display: inline-grid;
-  flex-shrink: 0;
-  place-items: center;
-  width: calc(var(--space-6) + var(--space-1));
-  height: calc(var(--space-6) + var(--space-1));
-  border-radius: 50%;
-  background: color-mix(in srgb, var(--red) 80%, #000);
-  color: #fff;
-  animation: notification-banner-ring 2.4s ease-out infinite;
-}
-.notification-banner-icon svg {
-  animation: notification-banner-shake 2.4s ease-in-out infinite;
-}
-.notification-banner ul {
-  display: flex;
-  flex: 1;
-  gap: var(--space-2);
-  min-width: 0;
-  margin: 0;
-  padding: 0;
-  overflow-x: auto;
-  list-style: none;
-  scrollbar-width: thin;
-}
-.notification-banner-item {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  min-height: calc(var(--space-6) + var(--space-1));
-  padding: 0 var(--space-1) 0 var(--space-2);
-  border: 1px solid #e6c3bd;
-  border-radius: var(--radius-sm);
-  background: #fff;
-  color: inherit;
-  font-size: var(--text-sm);
-  font-weight: 600;
+  font-weight: 500;
   white-space: nowrap;
   cursor: pointer;
 }
-.notification-banner-item:hover,
-.notification-banner-item:focus-visible {
+.notification-banner-trigger strong {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.top-actions .header-popover > button.notification-banner-trigger:hover,
+.top-actions
+  .header-popover
+  > button.notification-banner-trigger:focus-visible {
   border-color: #963f35;
 }
-.notification-banner-item:focus-visible {
+.top-actions
+  .header-popover
+  > button.notification-banner-trigger:focus-visible {
   outline: 2px solid #963f35;
   outline-offset: 2px;
 }
-.notification-banner-count {
-  min-width: var(--space-5);
-  padding: 0 var(--space-1);
-  border-radius: var(--radius-sm);
-  background: color-mix(in srgb, var(--red) 80%, #000);
-  color: #fff;
-  font-size: var(--text-xs);
-  font-weight: 700;
-  line-height: var(--space-5);
-  text-align: center;
+.top-actions
+  .header-popover
+  > button.notification-banner-trigger[aria-expanded="true"] {
+  border-color: #963f35;
+  background: #f7e4e1;
 }
-@keyframes notification-banner-ring {
-  0% {
-    box-shadow: 0 0 0 0 color-mix(in srgb, var(--red) 55%, transparent);
-  }
-  70%,
-  100% {
-    box-shadow: 0 0 0 var(--space-2)
-      color-mix(in srgb, var(--red) 0%, transparent);
-  }
+.notification-banner-chevron {
+  transition: transform 0.15s ease;
 }
-@keyframes notification-banner-shake {
-  0%,
-  60%,
-  100% {
-    transform: rotate(0);
-  }
-  65%,
-  75% {
-    transform: rotate(-14deg);
-  }
-  70%,
-  80% {
-    transform: rotate(14deg);
-  }
-}
-@keyframes notification-banner-breathe {
-  0%,
-  100% {
-    border-color: #e6c3bd;
-  }
-  50% {
-    border-color: #963f35;
-  }
+.notification-banner-trigger[aria-expanded="true"]
+  .notification-banner-chevron {
+  transform: rotate(180deg);
 }
 @media (prefers-reduced-motion: reduce) {
-  .notification-banner,
-  .notification-banner-icon,
-  .notification-banner-icon svg {
-    animation: none;
+  .notification-banner-chevron {
+    transition: none;
   }
 }
 
