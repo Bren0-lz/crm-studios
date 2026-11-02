@@ -8,7 +8,7 @@
 --   3. depois, o cadastrado primeiro (created_at) e o menor id.
 -- As cópias têm os planos de clientes e as campanhas (promotion.planTemplateIds) reapontados
 -- para o que fica e depois são apagadas. Rodar de novo não muda nada (não sobra duplicata).
-CREATE TEMPORARY TABLE `tmp_single_plans_0033` (
+CREATE TEMPORARY TABLE `tmp_single_plans_0035` (
   `id` VARCHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL PRIMARY KEY,
   `clinic_id` VARCHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
   `service_id` VARCHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
@@ -17,7 +17,7 @@ CREATE TEMPORARY TABLE `tmp_single_plans_0033` (
   `created_at` DATETIME(6) NOT NULL
 );
 
-INSERT INTO `tmp_single_plans_0033` (`id`, `clinic_id`, `service_id`, `uses`, `is_seed`, `created_at`)
+INSERT INTO `tmp_single_plans_0035` (`id`, `clinic_id`, `service_id`, `uses`, `is_seed`, `created_at`)
 SELECT pt.`id`, pt.`clinic_id`, pts.`service_id`,
        (SELECT COUNT(*) FROM `patient_plans` pp
         WHERE pp.`clinic_id` = pt.`clinic_id` AND pp.`plan_template_id` = pt.`id`),
@@ -30,13 +30,13 @@ WHERE pt.`active` = 1
   AND (SELECT COUNT(*) FROM `plan_template_services` x
        WHERE x.`clinic_id` = pt.`clinic_id` AND x.`template_id` = pt.`id`) = 1;
 
-CREATE TEMPORARY TABLE `tmp_single_dupes_0033` (
+CREATE TEMPORARY TABLE `tmp_single_dupes_0035` (
   `dup_id` VARCHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL PRIMARY KEY,
   `keep_id` VARCHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
   `clinic_id` VARCHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL
 );
 
-INSERT INTO `tmp_single_dupes_0033` (`dup_id`, `keep_id`, `clinic_id`)
+INSERT INTO `tmp_single_dupes_0035` (`dup_id`, `keep_id`, `clinic_id`)
 SELECT ranked.`id`, ranked.`keep_id`, ranked.`clinic_id`
 FROM (
   SELECT t.`id`, t.`clinic_id`,
@@ -48,12 +48,12 @@ FROM (
            PARTITION BY t.`clinic_id`, t.`service_id`
            ORDER BY t.`uses` DESC, t.`is_seed` DESC, t.`created_at`, t.`id`
          ) AS `keep_id`
-  FROM `tmp_single_plans_0033` t
+  FROM `tmp_single_plans_0035` t
 ) ranked
 WHERE ranked.`position` > 1;
 
 UPDATE `patient_plans` pp
-JOIN `tmp_single_dupes_0033` d ON d.`dup_id` = pp.`plan_template_id` AND d.`clinic_id` = pp.`clinic_id`
+JOIN `tmp_single_dupes_0035` d ON d.`dup_id` = pp.`plan_template_id` AND d.`clinic_id` = pp.`clinic_id`
 SET pp.`plan_template_id` = d.`keep_id`;
 
 -- Campanhas "só nos planos marcados": a lista é remontada com o id que fica no lugar de cada
@@ -63,7 +63,7 @@ SET c.`promotion` = JSON_SET(c.`promotion`, '$.planTemplateIds', JSON_EXTRACT((
   SELECT CONCAT('[', GROUP_CONCAT(DISTINCT JSON_QUOTE(COALESCE(d.`keep_id`, j.`id`))
                                   ORDER BY COALESCE(d.`keep_id`, j.`id`)), ']')
   FROM JSON_TABLE(c.`promotion`, '$.planTemplateIds[*]' COLUMNS (`id` VARCHAR(36) PATH '$')) j
-  LEFT JOIN `tmp_single_dupes_0033` d ON d.`dup_id` = j.`id` AND d.`clinic_id` = c.`clinic_id`
+  LEFT JOIN `tmp_single_dupes_0035` d ON d.`dup_id` = j.`id` AND d.`clinic_id` = c.`clinic_id`
 ), '$'))
 WHERE JSON_LENGTH(c.`promotion`, '$.planTemplateIds') > 0;
 
@@ -72,15 +72,15 @@ SET c.`promotion` = JSON_SET(c.`promotion`, '$.planTemplateIds', JSON_EXTRACT((
   SELECT CONCAT('[', GROUP_CONCAT(DISTINCT JSON_QUOTE(COALESCE(d.`keep_id`, j.`id`))
                                   ORDER BY COALESCE(d.`keep_id`, j.`id`)), ']')
   FROM JSON_TABLE(c.`promotion`, '$.planTemplateIds[*]' COLUMNS (`id` VARCHAR(36) PATH '$')) j
-  LEFT JOIN `tmp_single_dupes_0033` d ON d.`dup_id` = j.`id` AND d.`clinic_id` = c.`clinic_id`
+  LEFT JOIN `tmp_single_dupes_0035` d ON d.`dup_id` = j.`id` AND d.`clinic_id` = c.`clinic_id`
 ), '$'))
 WHERE JSON_LENGTH(c.`promotion`, '$.planTemplateIds') > 0;
 
 DELETE pts FROM `plan_template_services` pts
-JOIN `tmp_single_dupes_0033` d ON d.`dup_id` = pts.`template_id` AND d.`clinic_id` = pts.`clinic_id`;
+JOIN `tmp_single_dupes_0035` d ON d.`dup_id` = pts.`template_id` AND d.`clinic_id` = pts.`clinic_id`;
 
 DELETE pt FROM `plan_templates` pt
-JOIN `tmp_single_dupes_0033` d ON d.`dup_id` = pt.`id` AND d.`clinic_id` = pt.`clinic_id`;
+JOIN `tmp_single_dupes_0035` d ON d.`dup_id` = pt.`id` AND d.`clinic_id` = pt.`clinic_id`;
 
-DROP TEMPORARY TABLE `tmp_single_dupes_0033`;
-DROP TEMPORARY TABLE `tmp_single_plans_0033`;
+DROP TEMPORARY TABLE `tmp_single_dupes_0035`;
+DROP TEMPORARY TABLE `tmp_single_plans_0035`;
