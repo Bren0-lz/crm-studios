@@ -383,12 +383,17 @@ export function receivableInstallmentLine(
     | "customerDiscountInCents"
     | "settlementDiscountInCents"
     | "paymentParts"
+    | "manualAmount"
   >,
 ) {
   const money = (cents: number) => currency.format(cents / 100);
   return [
     item.installmentCount > 1
       ? `Parcela ${receivableDisplayInstallment(item)} de ${item.installmentCount}${item.balanceOfInstallment ? " · saldo" : ""}`
+      : "",
+    // 1º pagamento do plano recorrente com o cálculo proporcional desligado na venda.
+    item.manualAmount
+      ? "Valor manual (1º pagamento sem cálculo proporcional)"
       : "",
     item.customerDiscountInCents
       ? `Desconto do cliente: ${currency.format(item.customerDiscountInCents / 100)}`

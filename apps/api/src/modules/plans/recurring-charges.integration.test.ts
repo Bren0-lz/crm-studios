@@ -166,6 +166,64 @@ describe("recurring plan charges", () => {
       { dueDate: "2026-10-01", amountInCents: 17_778 },
       { dueDate: "2026-10-15", amountInCents: 40_000 },
     ]);
+    for (const charge of charges) expect(charge).not.toHaveProperty("manualAmount");
+
+    // Cálculo proporcional desligado: vale o valor informado, marcado como manual.
+    const missing = await app.inject({
+      method: "POST",
+      url: "/plans/purchases",
+      headers,
+      payload: {
+        idempotencyKey: "1f1f1f1f-1f1f-4f1f-8f1f-1f1f1f1f1f1f",
+        plan: { ...plan, manualFirstCharge: true },
+        groupId: group.json().id,
+      },
+    });
+    expect(missing.statusCode).toBe(400);
+    expect(missing.json()).toMatchObject({ code: "FIRST_CHARGE_REQUIRED" });
+    const manual = await app.inject({
+      method: "POST",
+      url: "/plans/purchases",
+      headers,
+      payload: {
+        idempotencyKey: "2f2f2f2f-2f2f-4f2f-8f2f-2f2f2f2f2f2f",
+        plan: {
+          ...plan,
+          manualFirstCharge: true,
+          proratedChargeInCents: 31_500,
+        },
+        groupId: group.json().id,
+      },
+    });
+    expect(manual.statusCode, manual.body).toBe(201);
+    const manualCharges = (await receivablesOf(manual.json().plan.id)).sort(
+      (a, b) => a.dueDate.localeCompare(b.dueDate),
+    );
+    expect(manualCharges).toMatchObject([
+      { dueDate: "2026-10-01", amountInCents: 31_500, manualAmount: true },
+      { dueDate: "2026-10-15", amountInCents: 40_000 },
+    ]);
+    expect(manualCharges[1]).not.toHaveProperty("manualAmount");
+    // Relatório de vendas: a venda aparece com o 1º pagamento manual.
+    const today = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "America/Sao_Paulo",
+    }).format(new Date());
+    const sales = await app.inject({
+      method: "GET",
+      url: `/reports/sales/period?from=${today}&to=${today}`,
+      headers,
+    });
+    expect(sales.statusCode).toBe(200);
+    const saleOf = (planId: string) =>
+      (
+        sales.json().sales as { sourceId: string; manualFirstCharge?: true }[]
+      ).find((item) => item.sourceId === planId);
+    expect(saleOf(manual.json().plan.id)).toMatchObject({
+      manualFirstCharge: true,
+    });
+    expect(saleOf(purchase.json().plan.id)).not.toHaveProperty(
+      "manualFirstCharge",
+    );
     await app.close();
   });
 

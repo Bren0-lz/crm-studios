@@ -722,17 +722,63 @@ export function planFirstChargeProration(
   };
 }
 
-/** Termos do plano com a cobrança proporcional às aulas da turma, quando houver. */
+/**
+ * Plano recorrente que começa antes do 1º vencimento: pode ter a cobrança proporcional
+ * (calculada pela turma ou, com o cálculo desligado, informada à mão).
+ */
+export function planAllowsProratedCharge(plan: {
+  kind?: z.infer<typeof planKindSchema> | null | undefined;
+  validFrom?: string | undefined;
+  firstDueDate?: string | undefined;
+}): boolean {
+  return (
+    plan.kind === "recurring" &&
+    z.iso.date().safeParse(plan.validFrom).success &&
+    z.iso.date().safeParse(plan.firstDueDate).success &&
+    plan.firstDueDate! > plan.validFrom!
+  );
+}
+
+/** 1º pagamento do plano recorrente com valor informado à mão (sem o cálculo proporcional). */
+export function hasManualFirstCharge(plan: {
+  kind?: z.infer<typeof planKindSchema> | null | undefined;
+  manualFirstCharge?: boolean | undefined;
+  proratedChargeInCents?: number | undefined;
+}): boolean {
+  return (
+    plan.kind === "recurring" &&
+    plan.manualFirstCharge === true &&
+    plan.proratedChargeInCents !== undefined
+  );
+}
+
+/**
+ * Termos do plano com a cobrança proporcional às aulas da turma, quando houver. Com o
+ * cálculo desligado (`manualFirstCharge`, só no recorrente), mantém o valor informado.
+ */
 export function withPlanFirstCharge<
   T extends Parameters<typeof planFirstChargeProration>[0],
 >(
-  plan: T & { proratedChargeInCents?: number | undefined },
+  plan: T & {
+    proratedChargeInCents?: number | undefined;
+    manualFirstCharge?: boolean | undefined;
+  },
   slots: readonly { weekday: number }[] | undefined,
-): T & { proratedChargeInCents?: number | undefined } {
-  const terms: T & { proratedChargeInCents?: number | undefined } = {
+): T & {
+  proratedChargeInCents?: number | undefined;
+  manualFirstCharge?: boolean | undefined;
+} {
+  const terms: T & {
+    proratedChargeInCents?: number | undefined;
+    manualFirstCharge?: boolean | undefined;
+  } = {
     ...plan,
   };
+  // Sem valor, o pedido segue assim mesmo: a API recusa ("Informe o valor do 1º pagamento").
+  if (plan.manualFirstCharge && planAllowsProratedCharge(plan))
+    return { ...terms, manualFirstCharge: true };
   delete terms.proratedChargeInCents;
+  delete terms.manualFirstCharge;
   const proration = planFirstChargeProration(plan, slots);
   return proration
     ? { ...terms, proratedChargeInCents: proration.amountInCents }
@@ -761,6 +807,11 @@ export const planTermsSchema = z.object({
    * vencimento (`planFirstChargeProration`), a mais e vencendo no início; ausente = sem ela.
    */
   proratedChargeInCents: z.number().int().min(1).max(2147483647).optional(),
+  /**
+   * Plano recorrente com o cálculo proporcional desligado: a cobrança antes do 1º vencimento
+   * é o `proratedChargeInCents` informado na venda (as mensalidades têm o valor cheio).
+   */
+  manualFirstCharge: z.boolean().optional(),
   /**
    * Desconto combinado na venda deste plano: vale nas cobranças dele e das renovações,
    * conforme o alcance. Na renovação, ausente = segue o desconto do plano anterior.
