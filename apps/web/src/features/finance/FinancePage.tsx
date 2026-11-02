@@ -344,6 +344,16 @@ export function FinancePage() {
     setCommissionRuleOpen(false);
     await reloadAfterAction();
   }
+  // Descontos dados na baixa das parcelas pagas neste mês (fuso da clínica).
+  const thisMonth = saoPauloToday().slice(0, 7);
+  const settlementDiscountThisMonth = (data?.summary.receivables ?? [])
+    .filter(
+      (item) =>
+        item.status === "paid" &&
+        item.paidAt &&
+        saoPauloToday(new Date(item.paidAt)).startsWith(thisMonth),
+    )
+    .reduce((sum, item) => sum + (item.settlementDiscountInCents ?? 0), 0);
   return (
     <>
       <PatientContextNotice
@@ -414,6 +424,8 @@ export function FinancePage() {
               <small className="metric-note">
                 Parcelas de clientes com baixa neste mês, descontados os
                 estornos.
+                {settlementDiscountThisMonth > 0 &&
+                  ` Descontos na baixa: ${currency.format(settlementDiscountThisMonth / 100)}.`}
               </small>
             </article>
             <article className="metric-card">

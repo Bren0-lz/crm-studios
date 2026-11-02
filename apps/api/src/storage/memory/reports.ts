@@ -20,6 +20,7 @@ import {
   type SalesBilling,
   withContractedHistory,
   withPatientContacts,
+  withTabDiscounts,
 } from "../../modules/reports/sales-report.js";
 import type { MemoryRepositoryContext } from "./context.js";
 import { localDate, now, today } from "./helpers.js";
@@ -114,6 +115,19 @@ export function createReportsRepository(
           });
       }
     }
+    withTabDiscounts(
+      sales,
+      new Map(
+        repositoryContext.patientTabs
+          .filter((tab) => tab.clinicId === clinicId && tab.receivableId)
+          .map((tab) => [
+            tab.id,
+            repositoryContext.receivables.find(
+              (item) => item.id === tab.receivableId,
+            )?.customerDiscountInCents ?? 0,
+          ]),
+      ),
+    );
     const tabSources = new Map(
       repositoryContext.patientTabs
         .filter((tab) => tab.clinicId === clinicId && tab.receivableId)
@@ -137,6 +151,12 @@ export function createReportsRepository(
                   status: item.status,
                   amountInCents: item.amountInCents,
                   dueDate: item.dueDate,
+                  ...(item.settlementDiscountInCents
+                    ? {
+                        settlementDiscountInCents:
+                          item.settlementDiscountInCents,
+                      }
+                    : {}),
                 },
               ]
             : [];

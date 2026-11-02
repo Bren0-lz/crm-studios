@@ -4,7 +4,7 @@ import {
   type DocumentSignatureLinkDetails,
   type IssuedDocument,
 } from "@crm/contracts";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { api } from "../../api";
 import { EmptyState } from "../../shared/components/EmptyState";
 import { ErrorBanner } from "../../shared/components/ErrorBanner";
@@ -19,41 +19,102 @@ function when(iso: string) {
   return `${shortDate.format(date)}, ${timeLabel.format(date)}`;
 }
 
-/** Situação do link de assinatura enviado ao cliente: visualizações e assinatura. */
+function viewsLabel(link: NonNullable<IssuedDocument["signatureLink"]>) {
+  if (!link.viewCount) return "Ainda não visualizado";
+  const times = link.viewCount === 1 ? "1 vez" : `${link.viewCount} vezes`;
+  return link.lastViewedAt
+    ? `${times} · última em ${when(link.lastViewedAt)}`
+    : times;
+}
+
+/**
+ * Situação do link de assinatura enviado ao cliente: visualizações e assinatura.
+ * `detailed` mostra os dados em campos (modal de detalhes, onde a situação já
+ * aparece no topo); `actions` entra na mesma linha dos botões do link.
+ */
 export function SignatureLinkRecord({
   document,
+  detailed = false,
+  actions,
 }: {
   document: IssuedDocument;
+  detailed?: boolean;
+  actions?: ReactNode;
 }) {
   const [open, setOpen] = useState(false);
   const [viewing, setViewing] = useState(false);
   const link = document.signatureLink;
   if (!link) return null;
+  const expired = !link.signedAt && signatureLinkExpired(link);
   return (
-    <div className="signature-link-record">
-      <p>
-        {link.signedAt ? (
-          <>
-            <span className="status-pill issued">Assinado pelo link</span>{" "}
-            {link.signerName} em {when(link.signedAt)}.
-          </>
-        ) : signatureLinkExpired(link) ? (
-          <>
-            <span className="status-pill expired">Link expirado</span> Venceu em{" "}
-            {when(link.expiresAt)}. Envie de novo pelo WhatsApp para gerar outro
-            link.
-          </>
-        ) : (
-          <>
-            <span className="status-pill draft">Aguardando assinatura</span>{" "}
-            Link enviado em {when(link.createdAt)} por {link.createdByName}.
-            Vale até {when(link.expiresAt)}.
-          </>
-        )}{" "}
-        {link.viewCount
-          ? `Visualizado ${link.viewCount === 1 ? "1 vez" : `${link.viewCount} vezes`}${link.lastViewedAt ? ` (última em ${when(link.lastViewedAt)})` : ""}.`
-          : "Ainda não visualizado."}
-      </p>
+    <div
+      className={
+        detailed
+          ? "signature-link-record signature-link-record-detailed"
+          : "signature-link-record"
+      }
+    >
+      {detailed ? (
+        <dl className="signature-evidence signature-link-facts">
+          <div>
+            <dt>Link enviado</dt>
+            <dd>
+              {when(link.createdAt)} por {link.createdByName}
+            </dd>
+          </div>
+          {link.signedAt ? (
+            <div>
+              <dt>Assinatura</dt>
+              <dd>
+                Assinado pelo link por {link.signerName} em{" "}
+                {when(link.signedAt)}
+              </dd>
+            </div>
+          ) : (
+            <div>
+              <dt>Validade</dt>
+              <dd>
+                {expired
+                  ? `Expirou em ${when(link.expiresAt)}`
+                  : `Vale até ${when(link.expiresAt)}`}
+              </dd>
+            </div>
+          )}
+          <div>
+            <dt>Visualizações</dt>
+            <dd>{viewsLabel(link)}</dd>
+          </div>
+        </dl>
+      ) : (
+        <p>
+          {link.signedAt ? (
+            <>
+              <span className="status-pill issued">Assinado pelo link</span>{" "}
+              {link.signerName} em {when(link.signedAt)}.
+            </>
+          ) : signatureLinkExpired(link) ? (
+            <>
+              <span className="status-pill expired">Link expirado</span> Venceu
+              em {when(link.expiresAt)}. Envie de novo pelo WhatsApp para gerar
+              outro link.
+            </>
+          ) : (
+            <>
+              <span className="status-pill draft">Aguardando assinatura</span>{" "}
+              Link enviado em {when(link.createdAt)} por {link.createdByName}.
+              Vale até {when(link.expiresAt)}.
+            </>
+          )}{" "}
+          {link.viewCount
+            ? `Visualizado ${link.viewCount === 1 ? "1 vez" : `${link.viewCount} vezes`}${link.lastViewedAt ? ` (última em ${when(link.lastViewedAt)})` : ""}.`
+            : "Ainda não visualizado."}
+        </p>
+      )}
+      {detailed && expired && (
+        <p className="muted-copy">
+          Envie de novo pelo WhatsApp para gerar outro link.
+        </p>
+      )}
       <div className="page-actions">
         {link.signedAt && (
           <button
@@ -71,6 +132,7 @@ export function SignatureLinkRecord({
         >
           Ver registro
         </button>
+        {actions}
       </div>
       {open && (
         <SignatureLinkDetailsModal

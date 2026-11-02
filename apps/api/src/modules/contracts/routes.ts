@@ -160,6 +160,7 @@ export function registerContractsRoutes(context: RouteContext) {
           await repository.createDocumentTemplate(
             request.user.clinicId,
             documentTemplateInputSchema.parse(request.body),
+            request.user.sub,
           ),
         ),
   );
@@ -175,7 +176,29 @@ export function registerContractsRoutes(context: RouteContext) {
         id,
         input.body,
         input.content,
+        { actorId: request.user.sub },
       );
+      if (!template)
+        return reply.status(404).send({
+          code: "DOCUMENT_TEMPLATE_NOT_FOUND",
+          message: "Modelo não encontrado.",
+        });
+      return reply.status(201).send(template);
+    },
+  );
+
+  app.post(
+    "/document-templates/:id/restore",
+    { preHandler: authenticate },
+    async (request, reply) => {
+      const { id } = request.params as { id: string };
+      const template =
+        z.uuid().safeParse(id).success &&
+        (await repository.restoreDocumentTemplateVersion(
+          request.user.clinicId,
+          id,
+          request.user.sub,
+        ));
       if (!template)
         return reply.status(404).send({
           code: "DOCUMENT_TEMPLATE_NOT_FOUND",

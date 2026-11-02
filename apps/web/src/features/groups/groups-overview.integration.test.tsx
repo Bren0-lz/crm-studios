@@ -2,7 +2,11 @@ import { fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import App from "../../App";
-import { storedUser } from "../../test-support/legacy-fixtures";
+import type { PermissionKey } from "@crm/contracts";
+import {
+  storedUser,
+  withPermissions,
+} from "../../test-support/legacy-fixtures";
 import "../../test-support/legacy-setup";
 
 const serviceId = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
@@ -53,16 +57,29 @@ const plan = {
   ],
 };
 
-function renderGroups(role: "owner" | "reception" = "owner") {
+function renderGroups(
+  role: "owner" | "reception" = "owner",
+  permissions?: PermissionKey[],
+) {
+  const user = {
+    id: "22222222-2222-4222-8222-222222222222",
+    fullName: "Aryana Dutra",
+    email: "admin@movimenta.local",
+  };
   localStorage.setItem("crm.auth.token", "test-token");
   localStorage.setItem(
     "crm.auth.user",
-    storedUser({
-      id: "22222222-2222-4222-8222-222222222222",
-      fullName: "Aryana Dutra",
-      email: "admin@movimenta.local",
-      role,
-    }),
+    permissions
+      ? JSON.stringify(
+          withPermissions({
+            ...user,
+            role: "user",
+            modules: ["groups"],
+            editModules: [],
+            permissions,
+          }),
+        )
+      : storedUser({ ...user, role }),
   );
   vi.mocked(fetch).mockImplementation(async (input) => {
     const url = String(input);
@@ -157,5 +174,28 @@ describe("groups overview tab", () => {
       }),
     );
     expect(screen.queryByText("Marina Souza")).not.toBeInTheDocument();
+  });
+
+  it("hides the overview tab from whoever lacks the groups overview permission", async () => {
+    renderGroups("owner", ["groups.view"]);
+    expect(
+      await screen.findByRole("heading", { name: "Turmas", level: 2 }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("tablist")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("tab", { name: "Visão geral" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows the overview tab when the permission is granted", async () => {
+    renderGroups("owner", ["groups.view", "groups.overview"]);
+    fireEvent.click(await screen.findByRole("tab", { name: "Visão geral" }));
+    expect(
+      await screen.findByRole("table", { name: "Visão geral das turmas" }),
+    ).toBeInTheDocument();
+    // Sem consulta a Planos, a tabela não mostra faturamento.
+    expect(
+      screen.queryByRole("columnheader", { name: "Faturamento atual" }),
+    ).not.toBeInTheDocument();
   });
 });

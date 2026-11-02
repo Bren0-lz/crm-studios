@@ -708,8 +708,8 @@ p.field-hint {
   width: 100%;
   min-height: 43px;
 }
-/* Flutua em position: fixed (escapa do overflow do modal); topo, esquerda, largura e
-   altura máxima vêm do cálculo em calendar-position.ts para nunca ficar cortado. */
+/* Flutua em position: fixed (escapa do overflow do modal), sempre abaixo do gatilho; topo,
+   esquerda, largura e altura máxima vêm de calendar-position.ts (rola por dentro). */
 .appointment-calendar {
   position: fixed;
   z-index: 10;

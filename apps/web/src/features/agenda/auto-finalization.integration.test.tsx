@@ -76,6 +76,15 @@ function setup(path: string, initial: AutoFinalizationSettings) {
       body = settings;
     } else if (url.includes("/clinic/auto-finalization")) body = settings;
     else if (url.includes("/appointments/completed")) body = completed;
+    else if (url.includes("/status") && init?.method === "PATCH") {
+      const id = url.split("/appointments/")[1]!.split("/")[0];
+      const input = JSON.parse(String(init.body)) as {
+        status: Appointment["status"];
+        absenceReason?: string;
+      };
+      const current = completed.find((item) => item.id === id)!;
+      body = { ...current, ...input, autoCompletedAt: undefined };
+    }
     return { ok: true, status: 200, json: async () => body } as Response;
   });
   render(
@@ -176,6 +185,61 @@ describe("finalização automática", () => {
     expect(screen.queryByText("Otávio Automático")).not.toBeInTheDocument();
     expect(screen.getByText("Paula Presente")).toBeInTheDocument();
     expect(screen.getByText("1 exibido com os filtros")).toBeInTheDocument();
+  });
+
+  it("abre o concluído e corrige a finalização automática feita por engano", async () => {
+    setup("/agenda/concluidos", { enabled: true, delayMinutes: 60 });
+    await screen.findByText("Otávio Automático");
+    fireEvent.click(screen.getByRole("button", { name: /Otávio Automático/ }));
+    const dialog = await screen.findByRole("dialog", {
+      name: "Atendimento concluído",
+    });
+    expect(within(dialog).getByText("Finalização automática")).toBeVisible();
+    expect(within(dialog).getByText("Dr. Bruno Lima")).toBeVisible();
+    const save = within(dialog).getByRole("button", {
+      name: "Salvar situação",
+    });
+    expect(save).toBeDisabled();
+    expect(within(dialog).getByText(/Falta: Nova situação/)).toBeVisible();
+
+    fireEvent.change(within(dialog).getByLabelText("Nova situação"), {
+      target: { value: "no_show" },
+    });
+    // Na falta do cliente o motivo é opcional.
+    expect(save).toBeEnabled();
+    fireEvent.change(within(dialog).getByLabelText("Nova situação"), {
+      target: { value: "cancelled" },
+    });
+    expect(save).toBeDisabled();
+    fireEvent.change(within(dialog).getByLabelText("Motivo"), {
+      target: { value: "Cliente desmarcou por telefone" },
+    });
+    fireEvent.click(save);
+
+    expect(
+      await screen.findByText(
+        'Atendimento de Otávio Automático alterado para "Cancelado".',
+      ),
+    ).toBeInTheDocument();
+    const [patch] = calls("/appointments/a2/status");
+    expect(patch!.init?.method).toBe("PATCH");
+    expect(JSON.parse(String(patch!.init?.body))).toEqual({
+      status: "cancelled",
+      absenceReason: "Cliente desmarcou por telefone",
+    });
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.queryByText("Otávio Automático")).not.toBeInTheDocument();
+    expect(screen.getByText("Paula Presente")).toBeInTheDocument();
+    const summary = screen.getByLabelText("Resumo do período");
+    expect(
+      within(summary)
+        .getAllByRole("article")
+        .map((card) => card.textContent),
+    ).toEqual([
+      "Concluídos1",
+      "Finalização automática0",
+      "Registrados pela equipe1",
+    ]);
   });
 
   it("recusa período invertido sem consultar a API", async () => {

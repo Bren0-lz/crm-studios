@@ -12,8 +12,10 @@ import {
   dateLabel,
   localIsoDate,
   shortDate,
+  statusLabel,
   timeLabel,
 } from "../../shared/lib/formatting";
+import { CompletedAppointmentModal } from "./CompletedAppointmentModal";
 import {
   completedOrigin,
   completedPeriodPresets,
@@ -89,6 +91,8 @@ export function CompletedAppointmentsPage() {
     error?: string;
   } | null>(null);
   const [filters, setFilters] = useState<Filters>(initialFilters);
+  const [selected, setSelected] = useState<Appointment | null>(null);
+  const [notice, setNotice] = useState("");
   const validPeriod = isCompletedPeriodValid(period);
   const periodKey = `${period.from}|${period.to}`;
   const current = result?.key === periodKey ? result : null;
@@ -154,6 +158,27 @@ export function CompletedAppointmentsPage() {
     setPeriod((current) => ({ ...current, [key]: value }));
   }
 
+  // Situação corrigida: o atendimento deixa de ser concluído e sai da lista.
+  function handleUpdated(updated: Appointment) {
+    setSelected(null);
+    setResult((current) =>
+      current?.items
+        ? {
+            ...current,
+            items:
+              updated.status === "completed"
+                ? current.items.map((item) =>
+                    item.id === updated.id ? updated : item,
+                  )
+                : current.items.filter((item) => item.id !== updated.id),
+          }
+        : current,
+    );
+    setNotice(
+      `Atendimento de ${updated.patientName} alterado para "${statusLabel(updated.status)}".`,
+    );
+  }
+
   function updateFilter<K extends keyof Filters>(key: K, value: Filters[K]) {
     setFilters((current) => ({ ...current, [key]: value }));
   }
@@ -179,6 +204,11 @@ export function CompletedAppointmentsPage() {
         }
       />
       {error && <ErrorBanner error={error} />}
+      {notice && (
+        <div className="success-banner" role="status">
+          {notice}
+        </div>
+      )}
       <section className="panel completed-appointments-panel">
         <div className="panel-head completed-appointments-head">
           <div>
@@ -365,26 +395,36 @@ export function CompletedAppointmentsPage() {
                     <ul className="pending-finalization-list">
                       {day.items.map((item) => (
                         <li className="pending-finalization-row" key={item.id}>
-                          <div className="pending-finalization-info">
-                            <strong>{item.patientName}</strong>
-                            <span>
-                              {timeLabel.format(new Date(item.startsAt))}–
-                              {timeLabel.format(new Date(item.endsAt))} ·{" "}
-                              {item.serviceName} · {item.professionalName}
+                          <button
+                            type="button"
+                            className="completed-appointment-open"
+                            title="Ver detalhes e alterar a situação"
+                            onClick={() => {
+                              setNotice("");
+                              setSelected(item);
+                            }}
+                          >
+                            <span className="pending-finalization-info">
+                              <strong>{item.patientName}</strong>
+                              <span>
+                                {timeLabel.format(new Date(item.startsAt))}–
+                                {timeLabel.format(new Date(item.endsAt))} ·{" "}
+                                {item.serviceName} · {item.professionalName}
+                              </span>
                             </span>
-                          </div>
-                          {item.autoCompletedAt ? (
-                            <span
-                              className="auto-finalized-badge"
-                              title={`Finalizado automaticamente em ${shortDate.format(new Date(item.autoCompletedAt))} às ${timeLabel.format(new Date(item.autoCompletedAt))}`}
-                            >
-                              Finalização automática
-                            </span>
-                          ) : (
-                            <span className="status-pill completed">
-                              Registrado pela equipe
-                            </span>
-                          )}
+                            {item.autoCompletedAt ? (
+                              <span
+                                className="auto-finalized-badge"
+                                title={`Finalizado automaticamente em ${shortDate.format(new Date(item.autoCompletedAt))} às ${timeLabel.format(new Date(item.autoCompletedAt))}`}
+                              >
+                                Finalização automática
+                              </span>
+                            ) : (
+                              <span className="status-pill completed">
+                                Registrado pela equipe
+                              </span>
+                            )}
+                          </button>
                         </li>
                       ))}
                     </ul>
@@ -395,6 +435,13 @@ export function CompletedAppointmentsPage() {
           </>
         )}
       </section>
+      {selected && (
+        <CompletedAppointmentModal
+          appointment={selected}
+          onClose={() => setSelected(null)}
+          onUpdated={handleUpdated}
+        />
+      )}
     </>
   );
 }
