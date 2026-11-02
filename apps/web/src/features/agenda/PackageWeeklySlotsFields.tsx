@@ -10,11 +10,14 @@ import { packageWeekdayNames } from "./model";
 export function PackageWeeklySlotsFields({
   slots,
   starts,
+  showPreview = true,
   onChange,
 }: {
   slots: PackageWeeklySlot[];
   /** Datas geradas, em "AAAA-MM-DDTHH:MM" local. */
   starts: string[];
+  /** Sem a lista de datas (quem chama já mostra o resumo das sessões). */
+  showPreview?: boolean;
   onChange: (slots: PackageWeeklySlot[]) => void;
 }) {
   const first = starts[0];
@@ -99,7 +102,7 @@ export function PackageWeeklySlotsFields({
           </button>
         </div>
       ))}
-      {first && last ? (
+      {!showPreview ? null : first && last ? (
         <details className="package-preview">
           <summary>
             {starts.length} sessões de {shortDate.format(new Date(first))} a{" "}

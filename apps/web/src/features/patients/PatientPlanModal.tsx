@@ -1,4 +1,5 @@
 import type {
+  Appointment,
   IssuedDocument,
   PatientOption,
   PatientPlan,
@@ -20,6 +21,11 @@ import {
   type SignatureRequest,
 } from "../contracts/index";
 import { PlanForm, type PlanCatalogKind } from "../plans/index";
+import {
+  PlanPurchaseOptions,
+  PlanSessionsSentStep,
+  type PurchaseOptions,
+} from "../plan-purchase/index";
 
 /**
  * Atalho da aba Planos da ficha: vincula o cliente a um plano recorrente ou avulso do
@@ -37,6 +43,13 @@ export function PatientPlanModal({
   onSaved: (plan: PatientPlan) => void;
 }) {
   const [busy, setBusy] = useState(false);
+  const [nested, setNested] = useState(false);
+  const [options, setOptions] = useState<PurchaseOptions>({ appointments: [] });
+  const [blocked, setBlocked] = useState("");
+  const [scheduled, setScheduled] = useState<{
+    plan: PatientPlan;
+    appointments: Appointment[];
+  } | null>(null);
   const [services, setServices] = useState<Service[] | null>(null);
   const [error, setError] = useState("");
   const [attempt, setAttempt] = useState(0);
@@ -46,6 +59,8 @@ export function PatientPlanModal({
     kind !== "single" && can("plans.purchase") && can("groups.enroll"),
   );
   const [purchaseKey] = useState(() => crypto.randomUUID());
+  // Avulso: as sessões são geradas pelos dias fixos e reservadas na mesma contratação.
+  const purchase = can("plans.purchase");
   const canSign = useCanRequestSignature();
   const templates = useSignatureTemplates(canSign);
   const [signature, setSignature] = useState<SignatureRequest | null>(null);
@@ -68,18 +83,33 @@ export function PatientPlanModal({
     <Modal
       title={kind === "single" ? "Novo plano avulso" : "Novo plano recorrente"}
       subtitle={
-        sending
-          ? `Plano ${sending.plan.name} salvo. Envie o documento para ${patient.fullName} assinar.`
-          : "O saldo e as contas a receber serão criados na mesma operação."
+        scheduled
+          ? `Plano ${scheduled.plan.name} salvo. Envie as sessões para ${patient.fullName} pelo WhatsApp.`
+          : sending
+            ? `Plano ${sending.plan.name} salvo. Envie o documento para ${patient.fullName} assinar.`
+            : "O saldo e as contas a receber serão criados na mesma operação."
       }
       busy={busy}
-      onClose={sending ? () => onSaved(sending.plan) : onClose}
+      inactive={nested}
+      onClose={
+        scheduled
+          ? () => onSaved(scheduled.plan)
+          : sending
+            ? () => onSaved(sending.plan)
+            : onClose
+      }
     >
-      {sending ? (
+      {scheduled && !sending ? (
+        <PlanSessionsSentStep
+          plan={scheduled.plan}
+          appointments={scheduled.appointments}
+          onDone={() => onSaved(scheduled.plan)}
+        />
+      ) : sending ? (
         <SignatureSendStep
           prepare={sending.prepare}
           onBusyChange={setBusy}
-          onDone={() => onSaved(sending.plan)}
+          onDone={() => (scheduled ? setSending(null) : onSaved(sending.plan))}
         />
       ) : services ? (
         <PlanForm
@@ -90,34 +120,52 @@ export function PatientPlanModal({
           groups={groups}
           onCancel={onClose}
           onBusyChange={setBusy}
-          additionalDirty={Boolean(signature)}
-          renderAdditional={
-            canSign
-              ? () => (
-                  <SignatureTemplateField
-                    state={templates}
-                    value={signature}
-                    onChange={setSignature}
-                  />
-                )
-              : undefined
-          }
+          additionalDirty={Boolean(signature || options.appointments.length)}
+          submitBlocked={blocked}
+          renderAdditional={(input, groupId) => (
+            <>
+              {canSign && (
+                <SignatureTemplateField
+                  state={templates}
+                  value={signature}
+                  onChange={setSignature}
+                />
+              )}
+              {purchase && kind === "single" && (
+                <PlanPurchaseOptions
+                  plan={input}
+                  patients={[patient]}
+                  services={services}
+                  group={groups?.items?.find((item) => item.id === groupId)}
+                  value={options}
+                  onChange={setOptions}
+                  onNestedChange={setNested}
+                  onBlockedChange={setBlocked}
+                />
+              )}
+            </>
+          )}
           onSubmit={async (input, groupId) => {
             let document: IssuedDocument | undefined;
             let plan: PatientPlan;
-            if (groupId) {
-              // Com turma, o documento entra na mesma contratação do plano.
+            let booked: Appointment[] = [];
+            const appointments =
+              purchase && kind === "single" ? options.appointments : [];
+            if (groupId || appointments.length) {
+              // Com turma ou sessões, o documento entra na mesma contratação do plano.
               const result = await api.purchasePlan({
                 idempotencyKey: purchaseKey,
                 plan: input,
-                appointments: [],
-                groupId,
+                appointments,
+                ...(groupId ? { groupId } : {}),
                 ...(signature ? { document: signature } : {}),
               });
               plan = result.plan;
               document = result.document;
+              booked = result.appointments;
+              if (booked.length) setScheduled({ plan, appointments: booked });
             } else plan = await api.createPlan(input);
-            if (!signature) return onSaved(plan);
+            if (!signature) return booked.length ? undefined : onSaved(plan);
             setSending({
               plan,
               prepare: document
