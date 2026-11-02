@@ -1,12 +1,14 @@
 import {
   buildPayroll,
   PAYROLL_CATEGORY_NAME,
+  payrollAdvanceDescription,
   payrollEntryAmount,
   payrollPayableDescription,
   payrollPayableNotes,
   type FinancialCategory,
   type Payable,
   type PayrollEmployee,
+  type PayrollAdvanceInput,
   type PayrollEmployeeInput,
   type PayrollEntry,
   type PayrollEntryInput,
@@ -15,6 +17,8 @@ import {
 import { DomainError } from "../../repository.js";
 import { clinicDateOf } from "../../modules/finance/daily-cash.js";
 import {
+  payrollAdvanceInactiveError,
+  payrollAdvanceManagedError,
   payrollEntryLaunchedError,
   payrollEntryLimitError,
   payrollEntryNoSalaryError,
@@ -396,7 +400,11 @@ export function createPayrollRepository(context: MemoryRepositoryContext) {
         };
         context.payables.push(payable);
         for (const item of entry.items) {
-          if (item.kind === "bonus" || item.kind === "discount")
+          if (
+            item.kind === "bonus" ||
+            item.kind === "discount" ||
+            item.kind === "advance"
+          )
             context.payrollEntries.find(
               (row) => row.id === item.id,
             )!.payrollPayableId = payable.id;
@@ -491,6 +499,7 @@ export function createPayrollRepository(context: MemoryRepositoryContext) {
         (item) => item.id === entry.employeeId,
       )!;
       context.assertBranchInScope(employee.branchId);
+      if (entry.kind === "advance") throw payrollAdvanceManagedError();
       if (entry.payrollPayableId) throw payrollEntryLaunchedError();
       context.payrollEntries.splice(index, 1);
       context.recordAudit(
@@ -502,6 +511,136 @@ export function createPayrollRepository(context: MemoryRepositoryContext) {
           entryId,
           competence: entry.competence,
           kind: entry.kind,
+          amountInCents: entry.amountInCents,
+          reason: entry.reason,
+        },
+        employee.id,
+      );
+      return true;
+    },
+    async createPayrollAdvance(
+      clinicId: string,
+      actorId: string,
+      input: PayrollAdvanceInput,
+    ) {
+      const employee = context.payrollEmployees.find(
+        (item) => item.clinicId === clinicId && item.id === input.employeeId,
+      );
+      if (!employee) return null;
+      context.assertBranchInScope(employee.branchId);
+      if (!employee.active) throw payrollAdvanceInactiveError();
+      const category = defaultCategory(clinicId);
+      const name = toEmployee(employee).name;
+      const timestamp = now(),
+        paidOn = clinicDateOf(
+          new Date(input.paidAt ?? timestamp),
+          context.clinicSettings.timezone,
+        );
+      const reason = input.reason?.trim() ?? "";
+      const entryId = uuid();
+      const payable: Payable = {
+        id: uuid(),
+        clinicId,
+        branchId: employee.branchId,
+        description: payrollAdvanceDescription(name, input.competence),
+        ...(reason ? { notes: reason } : {}),
+        categoryId: category.id,
+        categoryName: category.name,
+        dueDate: paidOn,
+        amountInCents: input.amountInCents,
+        postedOn: paidOn,
+        dreCompetence: input.competence,
+        status: "open",
+        overdue: false,
+        createdAt: timestamp,
+        updatedAt: timestamp,
+        payrollAdvance: {
+          entryId,
+          employeeId: employee.id,
+          employeeName: name,
+          competence: input.competence,
+        },
+      };
+      context.payables.push(payable);
+      context.changePayable(
+        clinicId,
+        payable.id,
+        "payment",
+        input.paymentMethod ?? "pix",
+        input.paidAt ? { paidAt: input.paidAt } : undefined,
+      );
+      const entry = {
+        id: entryId,
+        clinicId,
+        employeeId: employee.id,
+        competence: input.competence,
+        kind: "advance" as const,
+        mode: "amount" as const,
+        value: input.amountInCents,
+        amountInCents: input.amountInCents,
+        reason,
+        advancePayableId: payable.id,
+        createdAt: timestamp,
+        createdByUserId: actorId,
+      };
+      context.payrollEntries.push(entry);
+      context.recordAudit(
+        clinicId,
+        actorId,
+        "payroll.advance_created",
+        "payroll_employee",
+        {
+          entryId,
+          payableId: payable.id,
+          competence: input.competence,
+          amountInCents: input.amountInCents,
+          paidOn,
+          reason,
+        },
+        employee.id,
+      );
+      return toEntry(entry);
+    },
+    async deletePayrollAdvance(
+      clinicId: string,
+      actorId: string,
+      entryId: string,
+    ) {
+      const index = context.payrollEntries.findIndex(
+        (item) =>
+          item.clinicId === clinicId &&
+          item.id === entryId &&
+          item.kind === "advance",
+      );
+      const entry = context.payrollEntries[index];
+      if (!entry) return false;
+      const employee = context.payrollEmployees.find(
+        (item) => item.id === entry.employeeId,
+      )!;
+      context.assertBranchInScope(employee.branchId);
+      if (entry.payrollPayableId) throw payrollEntryLaunchedError();
+      const payable = context.payables.find(
+        (item) => item.id === entry.advancePayableId,
+      );
+      if (payable) {
+        if (payable.status === "paid")
+          context.changePayable(clinicId, payable.id, "payment_reversal");
+        payable.status = "cancelled";
+        payable.overdue = false;
+        payable.updatedAt = now();
+        // Como no MySQL: o vale apagado deixa de ligar a despesa (a descrição continua).
+        delete payable.payrollAdvance;
+      }
+      context.payrollEntries.splice(index, 1);
+      context.recordAudit(
+        clinicId,
+        actorId,
+        "payroll.advance_deleted",
+        "payroll_employee",
+        {
+          entryId,
+          ...(payable ? { payableId: payable.id } : {}),
+          competence: entry.competence,
           amountInCents: entry.amountInCents,
           reason: entry.reason,
         },

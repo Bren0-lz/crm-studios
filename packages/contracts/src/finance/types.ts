@@ -440,6 +440,16 @@ export interface Payable extends PayableInput {
   amountPending?: boolean;
   /** Despesa lançada pela folha de pagamento (ver `payroll.ts`). */
   payroll?: PayablePayroll;
+  /** Despesa paga de um vale da folha (ver `payrollAdvanceInputSchema`). */
+  payrollAdvance?: PayablePayrollAdvance;
+}
+
+/** Vale do colaborador: o mês em que ele é descontado da folha. */
+export interface PayablePayrollAdvance {
+  entryId: string;
+  employeeId: string;
+  employeeName: string;
+  competence: string;
 }
 
 /**
