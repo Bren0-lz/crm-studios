@@ -147,6 +147,11 @@ export async function salesReportToXlsx(
       kind: "integer",
       current: report.patientsWithoutReturn.length,
     },
+    compare(
+      "Descontos na baixa das vendas do período",
+      "currency",
+      (item) => item.settlementDiscountInCents ?? 0,
+    ),
   ];
   const summary = addTableSheet(
     workbook,

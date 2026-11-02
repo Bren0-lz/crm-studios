@@ -378,6 +378,11 @@ export const productSaleInputSchema = z
      */
     payments: paymentPartsSchema.optional(),
     dueDate: z.iso.date(),
+    /**
+     * Desconto dado na venda (dos itens e do pedido), já abatido dos preços enviados em
+     * `items`. Fica registrado na cobrança da comanda, para o Financeiro e os relatórios.
+     */
+    discountInCents: z.number().int().min(0).max(2147483647).optional(),
   })
   .refine(
     (value) =>
