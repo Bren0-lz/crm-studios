@@ -807,6 +807,18 @@ describe("página Vendas de produtos", () => {
     await within(details).findByText(
       "Venda cancelada; pagamento estornado e estoque restituído.",
     );
+    // Depois de cancelar: motivo, vendedor e a forma original do pagamento.
+    expect(
+      within(details).getByText("Motivo do cancelamento: Produto com defeito"),
+    ).toBeInTheDocument();
+    expect(within(details).getByText(/^Vendedor: /)).toBeInTheDocument();
+    const cancelledPayment = await within(details).findByRole("region", {
+      name: "Pagamento",
+    });
+    await within(cancelledPayment).findByText("Cancelado");
+    expect(
+      within(cancelledPayment).getByText("Cartão em 3x"),
+    ).toBeInTheDocument();
     const [tab] = (await repository.getInventoryWorkspace(clinicId)).tabs;
     expect(tab).toMatchObject({
       status: "cancelled",
