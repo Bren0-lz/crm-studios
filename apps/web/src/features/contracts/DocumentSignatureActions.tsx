@@ -84,28 +84,42 @@ export function DocumentSignatureActions({
   return (
     <>
       {document.manualSignature ? (
-        <div>
-          <p>
-            Assinatura manual de{" "}
-            {shortDate.format(
-              new Date(`${document.manualSignature.signedOn}T12:00:00`),
-            )}{" "}
-            · responsável {document.manualSignature.responsibleName}. Registrada
-            por {document.manualSignature.actorName}.
-          </p>
-          <button
-            className="secondary-button button-sm"
-            disabled={busy}
-            onClick={() => void download()}
-          >
-            Baixar cópia assinada
-          </button>
+        <div className="manual-signature-record">
+          <dl className="signature-evidence signature-link-facts">
+            <div>
+              <dt>Assinatura manual</dt>
+              <dd>
+                {shortDate.format(
+                  new Date(`${document.manualSignature.signedOn}T12:00:00`),
+                )}
+              </dd>
+            </div>
+            <div>
+              <dt>Responsável pela obtenção</dt>
+              <dd>{document.manualSignature.responsibleName}</dd>
+            </div>
+            <div>
+              <dt>Registrada por</dt>
+              <dd>{document.manualSignature.actorName}</dd>
+            </div>
+          </dl>
+          <div className="page-actions">
+            <button
+              type="button"
+              className="secondary-button button-sm"
+              disabled={busy}
+              onClick={() => void download()}
+            >
+              Baixar cópia assinada
+            </button>
+          </div>
         </div>
       ) : (
         document.status === "issued" &&
         !document.signatureLink?.signedAt &&
         can("contracts.status") && (
           <button
+            type="button"
             className="secondary-button button-sm"
             onClick={() => setOpen(true)}
           >
