@@ -133,13 +133,12 @@ export function PlansPage({ canManage }: { canManage: boolean }) {
   const activePlanCount = plans.filter((plan) =>
     planMatchesFilter(plan, "active", today),
   ).length;
-  const filterButton = (filter: PlanListFilter, describedBy?: string) => (
+  const filterButton = (filter: PlanListFilter) => (
     <button
       type="button"
       key={filter}
       className="text-button tag-filter"
       aria-pressed={listFilter === filter}
-      aria-describedby={describedBy}
       onClick={() => setListFilter(filter)}
     >
       {planListFilterLabels[filter]}
@@ -225,10 +224,7 @@ export function PlansPage({ canManage }: { canManage: boolean }) {
                 {filterButton("all")}
                 {planPartitionFilters.map((filter) => filterButton(filter))}
                 <span className="plans-filter-subset">
-                  <span className="filter-label" id="plans-expiring-note">
-                    Recorte de Ativo (fora da soma)
-                  </span>
-                  {filterButton("expiring", "plans-expiring-note")}
+                  {filterButton("expiring")}
                 </span>
               </div>
             </div>
