@@ -63,6 +63,8 @@ export function planInstallmentPreview(plan: {
   installments: number;
   firstDueDate: string;
   firstInstallmentInCents?: number | undefined;
+  /** 1º pagamento informado à mão (cálculo proporcional desligado). */
+  manualFirstCharge?: boolean | undefined;
   discount?: PatientDiscount | null | undefined;
   /** Na renovação: desconto do plano anterior (segue quando nenhum novo é informado). */
   previousDiscount?: PatientDiscount | null | undefined;
@@ -88,7 +90,9 @@ export function planInstallmentPreview(plan: {
     const parts: InstallmentPreviewPart[] = [];
     if (index === 0 && plan.firstInstallmentInCents !== undefined)
       parts.push({
-        label: "Proporcional às aulas até o 1º vencimento",
+        label: plan.manualFirstCharge
+          ? "Valor do 1º pagamento informado manualmente"
+          : "Proporcional às aulas até o 1º vencimento",
         amountInCents: item.amountInCents,
       });
     else {

@@ -73,6 +73,8 @@ export interface SaleMovement {
   receivableId?: string;
   /** Venda de plano: desconto do cliente nas cobranças do plano (`amountInCents` é o valor do plano). */
   customerDiscountInCents?: number;
+  /** Venda de plano recorrente com o 1º pagamento informado à mão (sem o cálculo proporcional). */
+  manualFirstCharge?: true;
   /** Venda de produto: custo da linha (quantidade × custo unitário gravado na comanda). */
   costInCents?: number;
   /** Cancelamento: data da venda original (separa o cancelamento de venda de outro período). */

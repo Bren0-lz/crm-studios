@@ -122,6 +122,7 @@ export interface ReceivableRow {
   paymentMethod: PaymentMethod | null;
   paymentInstallments?: number | null;
   customerDiscountInCents?: number | null;
+  manualAmount?: number | boolean | null;
 }
 
 export interface FinancialCategoryRow {
@@ -260,6 +261,7 @@ export const receivableColumns = `
   , r.payment_method AS "paymentMethod", r.payment_installments AS "paymentInstallments"
   , r.payment_parts AS "paymentParts"
   , r.customer_discount_in_cents AS "customerDiscountInCents"
+  , r.manual_amount AS "manualAmount"
 `;
 
 export const payableColumns = `
@@ -471,6 +473,7 @@ export function mapReceivable(row: ReceivableRow): Receivable {
     ...(row.customerDiscountInCents
       ? { customerDiscountInCents: row.customerDiscountInCents }
       : {}),
+    ...(bool(row.manualAmount) ? { manualAmount: true as const } : {}),
   };
 }
 

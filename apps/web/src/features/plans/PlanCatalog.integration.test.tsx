@@ -207,13 +207,17 @@ describe("plan types and weekly sessions", () => {
     expect(within(dialog).getByLabelText("Fim da validade")).toHaveValue(
       "2026-12-09",
     );
-    fireEvent.click(within(dialog).getByRole("checkbox"));
-    expect(within(dialog).getByRole("checkbox")).toBeChecked();
+    fireEvent.click(within(dialog).getByRole("checkbox", { name: /renova/i }));
+    expect(
+      within(dialog).getByRole("checkbox", { name: /renova/i }),
+    ).toBeChecked();
     fireEvent.change(within(dialog).getByLabelText("Plano cadastrado"), {
       target: { value: promo.id },
     });
     expect(within(dialog).getByLabelText("Fim da validade")).toHaveValue("");
-    expect(within(dialog).getByRole("checkbox")).not.toBeChecked();
+    expect(
+      within(dialog).getByRole("checkbox", { name: /renova/i }),
+    ).not.toBeChecked();
   });
   it("charges a recurring plan once per cycle and warns about installments after the validity", async () => {
     vi.mocked(api.planTemplates).mockResolvedValue([template]);

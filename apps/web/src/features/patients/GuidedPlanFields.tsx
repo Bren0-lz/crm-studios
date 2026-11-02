@@ -1,6 +1,6 @@
 import {
   type PatientPlan,
-  planFirstChargeProration,
+  withPlanFirstCharge,
   planPeriodEnd,
   planPixChargeMessage,
   planPeriodMonths,
@@ -25,7 +25,11 @@ import { LoadingBlock } from "../../shared/components/LoadingBlock";
 import { usePaymentMethodSettings } from "../../shared/hooks/usePaymentMethodSettings";
 import { currency } from "../../shared/lib/formatting";
 import type { GuidedSingleForm } from "./types";
-import { PlanFirstChargeNote, PlanPaymentFields } from "../plans/index";
+import {
+  PlanFirstChargeFields,
+  PlanPaymentFields,
+  withFirstChargeChoice,
+} from "../plans/index";
 
 export function GuidedPlanFields<T extends GuidedSingleForm>({
   form,
@@ -288,9 +292,12 @@ export function GuidedPlanFields<T extends GuidedSingleForm>({
         />
       </label>
       {"kind" in form && (
-        <PlanFirstChargeNote
+        <PlanFirstChargeFields
           plan={{ ...form, kind: form.kind as PatientPlan["kind"] }}
           slots={groupSlots}
+          onChange={(choice) =>
+            setForm((current) => withFirstChargeChoice(current, choice))
+          }
         />
       )}
       <label className="checkbox-field span-2">
@@ -334,13 +341,18 @@ export function GuidedPlanFields<T extends GuidedSingleForm>({
                 ),
                 pixKey,
                 template: pixTemplate,
-                firstChargeInCents:
-                  "kind" in form
-                    ? planFirstChargeProration(
+                ...("kind" in form
+                  ? (() => {
+                      const terms = withPlanFirstCharge(
                         { ...form, kind: form.kind as PatientPlan["kind"] },
                         groupSlots,
-                      )?.amountInCents
-                    : undefined,
+                      );
+                      return {
+                        firstChargeInCents: terms.firstInstallmentInCents,
+                        manualFirstCharge: terms.manualFirstCharge,
+                      };
+                    })()
+                  : {}),
               })}
             />
           </label>

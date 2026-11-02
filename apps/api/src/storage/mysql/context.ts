@@ -42,6 +42,7 @@ import {
   type Payable,
   type PaymentMethod,
   discountedPlanInstallments,
+  hasManualFirstCharge,
   type PatientDiscount,
   planInstallmentSchedule,
   type PlanTemplateInput,
@@ -1091,6 +1092,8 @@ export class MysqlRepositoryContext {
         ],
       );
     }
+    // 1º pagamento com o valor informado à mão: as cobranças do 1º vencimento (uma por forma).
+    const manualFirstCharge = hasManualFirstCharge(input);
     for (const installment of discounted.installments) {
       const amount = installment.amountInCents;
       const receivableId = randomUUID();
@@ -1098,9 +1101,9 @@ export class MysqlRepositoryContext {
         `INSERT INTO receivables (
            clinic_id, patient_id, plan_id, description, installment_number,
            installment_count, due_date, amount_in_cents, branch_id, id,
-           customer_discount_in_cents, payment_parts
+           customer_discount_in_cents, payment_parts, manual_amount
          ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,
-           (SELECT branch_id FROM patient_plans WHERE clinic_id=$1 AND id=$3), $9, $10, $11
+           (SELECT branch_id FROM patient_plans WHERE clinic_id=$1 AND id=$3), $9, $10, $11, $12
          )`,
         [
           clinicId,
@@ -1122,6 +1125,7 @@ export class MysqlRepositoryContext {
                 },
               ]
             : [],
+          manualFirstCharge && installment.dueDate === input.firstDueDate,
         ],
       );
       await client.query(
