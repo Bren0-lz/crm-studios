@@ -28,6 +28,7 @@ import { MysqlClinicRepository } from "../mysql-repository.js";
 import type { ClinicRepository } from "../repository.js";
 import { atInstant } from "./clock.js";
 import { addLegacyTabService } from "./legacy-tab-service.js";
+import { sellSessionForAppointment } from "./commission-billing.js";
 
 const clinicId = "11111111-1111-4111-8111-111111111111";
 const actorId = "22222222-2222-4222-8222-222222222222";
@@ -1641,10 +1642,7 @@ for (const storage of ["memory", "mysql"] as const) {
           });
         await repository.createCommissionRule(clinicId, {
           professionalId: professional.id,
-          serviceId,
-          kind: "fixed",
-          percentage: 0,
-          fixedAmountInCents: 1500,
+          percentage: 10,
           effectiveFrom: "2057-01-01",
         });
         const appointment = await repository.createAppointment(
@@ -1657,6 +1655,13 @@ for (const storage of ["memory", "mysql"] as const) {
             startsAt: "2057-04-13T15:00:00Z",
             visitType: "trial",
           }),
+        );
+        await sellSessionForAppointment(
+          repository,
+          clinicId,
+          actorId,
+          appointment,
+          15000,
         );
         await atInstant("2057-04-14T12:00:00Z", () =>
           repository.updateAppointmentStatus(
@@ -1773,10 +1778,7 @@ for (const storage of ["memory", "mysql"] as const) {
           });
         await repository.createCommissionRule(clinicId, {
           professionalId: professional.id,
-          serviceId,
-          kind: "fixed",
-          percentage: 0,
-          fixedAmountInCents: 1500,
+          percentage: 10,
           effectiveFrom: "2058-01-01",
         });
         const appointment = await repository.createAppointment(
@@ -1789,6 +1791,13 @@ for (const storage of ["memory", "mysql"] as const) {
             startsAt: "2058-04-13T15:00:00Z",
             visitType: "trial",
           }),
+        );
+        await sellSessionForAppointment(
+          repository,
+          clinicId,
+          actorId,
+          appointment,
+          15000,
         );
         await atInstant("2058-04-14T12:00:00Z", () =>
           repository.updateAppointmentStatus(

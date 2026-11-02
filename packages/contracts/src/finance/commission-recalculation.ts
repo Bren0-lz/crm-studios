@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { commissionTermsSchema } from "./model.js";
-import type { AdminUserCommissionInput } from "./types.js";
+import type { CommissionRuleSnapshot } from "./types.js";
 
 /** Impressão digital da prévia do recálculo: o salvamento recusa se as comissões mudaram. */
 export const commissionRecalculationDigestSchema = z
@@ -52,7 +52,7 @@ export interface CommissionRecalculationItem {
   previousAmountInCents: number;
   amountInCents: number;
   differenceInCents: number;
-  ruleSnapshot: AdminUserCommissionInput;
+  ruleSnapshot: CommissionRuleSnapshot;
 }
 
 export interface CommissionRecalculationPreview {

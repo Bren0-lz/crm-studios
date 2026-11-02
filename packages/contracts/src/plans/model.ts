@@ -338,6 +338,25 @@ export function planTablePriceSummary(
   };
 }
 
+/**
+ * Valor pago por uma sessão do plano, base da comissão: o valor do serviço no plano com o
+ * desconto do cliente já aplicado nas cobranças (rateado pelo valor do plano), dividido pelas
+ * sessões do serviço. Ex.: plano de R$ 400 com 8 sessões e R$ 40 de desconto → R$ 45.
+ * Mesma conta de `planSessionPaidValue` no MySQL (`storage/mysql/sql.ts`).
+ */
+export function planSessionPaidValueInCents(
+  planService: Pick<PlanServiceInput, "totalSessions" | "totalValueInCents">,
+  planTotalValueInCents: number,
+  planDiscountInCents: number,
+): number {
+  if (planService.totalSessions <= 0 || planTotalValueInCents <= 0) return 0;
+  const finalValue = Math.max(0, planTotalValueInCents - planDiscountInCents);
+  return Math.round(
+    (planService.totalValueInCents * finalValue) /
+      (planTotalValueInCents * planService.totalSessions),
+  );
+}
+
 export const planStatusSchema = z.enum([
   "active",
   "paused",

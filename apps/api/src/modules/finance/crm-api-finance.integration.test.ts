@@ -397,6 +397,29 @@ describe("CRM API", () => {
         },
       });
       expect(created.statusCode).toBe(201);
+      // A comissão sai do valor pago: o cliente compra a sessão avulsa do dia (R$ 180).
+      const day = startsAt.slice(0, 10);
+      const sold = await app.inject({
+        method: "POST",
+        url: "/plans",
+        headers,
+        payload: {
+          patientId: patients.json()[0].id,
+          planTemplateId: singlePlan.json().id,
+          name: "Sessão avulsa",
+          kind: "single",
+          totalValueInCents: 18000,
+          services: [
+            { serviceId: service.id, totalSessions: 1, totalValueInCents: 18000 },
+          ],
+          installments: 1,
+          firstDueDate: day,
+          validFrom: day,
+          validUntil: day,
+          autoRenew: false,
+        },
+      });
+      expect(sold.statusCode).toBe(201);
       const done = await patchStatusAt(
         app,
         headers,
@@ -465,7 +488,7 @@ describe("CRM API", () => {
     );
     const unlinkedProfessional = await completedAppointment(
       other,
-      "2031-05-20T15:00:00.000Z",
+      "2031-05-21T15:00:00.000Z",
     );
 
     const generate = () =>

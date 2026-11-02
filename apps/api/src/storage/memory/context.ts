@@ -39,7 +39,6 @@ import {
   type AdminAuditEvent,
   type AdminUser,
   type AdminUserCommissionInput,
-  serviceCommissionsInForce,
   type AppModule,
   appModuleSchema,
   type Appointment,
@@ -480,9 +479,10 @@ export class MemoryRepositoryContext {
     id: string;
     clinicId: string;
     userId: string;
-    kind?: AdminUserCommissionInput["kind"];
-    fixedAmountInCents?: number | undefined;
-    serviceId?: string | undefined;
+    /** Só em regras antigas (comissão por serviço ou valor fixo), que não valem mais. */
+    kind?: "percentage" | "fixed";
+    fixedAmountInCents?: number;
+    serviceId?: string;
     effectiveUntil?: string | undefined;
     percentage: number;
     effectiveFrom: string;
@@ -878,11 +878,6 @@ export class MemoryRepositoryContext {
     const rule = this.userCommissionRuleOn(user.clinicId, user.id, today);
     const allBranches = user.role === "admin" || (user.allBranches ?? true);
     const whatsapp = this.userWhatsapps.get(user.id);
-    const serviceCommissions = this.userServiceCommissions(
-      user.clinicId,
-      user.id,
-      today,
-    );
     const salaryInCents = this.payrollEmployees.find(
       (item) => item.clinicId === user.clinicId && item.userId === user.id,
     )?.baseSalaryInCents;
@@ -904,50 +899,12 @@ export class MemoryRepositoryContext {
         : {}),
       ...(rule
         ? {
-            ...(rule.kind ? { commissionKind: rule.kind } : {}),
-            ...(rule.fixedAmountInCents !== undefined
-              ? { commissionFixedAmountInCents: rule.fixedAmountInCents }
-              : {}),
             commissionPercentage: rule.percentage,
             commissionEffectiveFrom: rule.effectiveFrom,
           }
         : {}),
-      ...(serviceCommissions.length ? { serviceCommissions } : {}),
       ...(salaryInCents ? { salaryInCents } : {}),
     };
-  }
-
-  /** Regras por serviço do usuário vigentes hoje ou agendadas, com o nome do serviço. */
-  userServiceCommissions(clinicId: string, userId: string, today: string) {
-    return serviceCommissionsInForce(
-      this.userCommissionRules.flatMap((rule) => {
-        const service =
-          rule.active && rule.clinicId === clinicId && rule.userId === userId
-            ? this.services.find(
-                (item) =>
-                  item.clinicId === clinicId && item.id === rule.serviceId,
-              )
-            : undefined;
-        return service
-          ? [
-              {
-                serviceId: service.id,
-                serviceName: service.name,
-                kind: rule.kind ?? "percentage",
-                percentage: rule.percentage,
-                ...(rule.fixedAmountInCents !== undefined
-                  ? { fixedAmountInCents: rule.fixedAmountInCents }
-                  : {}),
-                effectiveFrom: rule.effectiveFrom,
-                ...(rule.effectiveUntil
-                  ? { effectiveUntil: rule.effectiveUntil }
-                  : {}),
-              },
-            ]
-          : [];
-      }),
-      today,
-    );
   }
 
   /** Regra do usuário vigente na data (ativa, maior vigência que já começou). */
@@ -960,6 +917,7 @@ export class MemoryRepositoryContext {
           item.active &&
           item.effectiveFrom <= date &&
           !item.serviceId &&
+          item.kind !== "fixed" &&
           (!item.effectiveUntil || item.effectiveUntil >= date),
       )
       .sort((a, b) => b.effectiveFrom.localeCompare(a.effectiveFrom))[0];
@@ -970,30 +928,18 @@ export class MemoryRepositoryContext {
     userId: string,
     input: AdminUserCommissionInput,
   ) {
-    if (
-      input.serviceId &&
-      !this.services.some(
-        (item) => item.clinicId === clinicId && item.id === input.serviceId,
-      )
-    )
-      throw new DomainError(
-        "SERVICE_NOT_FOUND",
-        "Serviço não encontrado.",
-        404,
-      );
     const existing = this.userCommissionRules.find(
       (item) =>
         item.clinicId === clinicId &&
         item.userId === userId &&
-        item.serviceId === input.serviceId &&
+        !item.serviceId &&
         item.effectiveFrom === input.effectiveFrom,
     );
     if (existing) {
       // Mesma vigência: é uma correção do percentual, desde que a regra não tenha lançamentos.
       if (
         existing.percentage === input.percentage &&
-        existing.kind === input.kind &&
-        existing.fixedAmountInCents === input.fixedAmountInCents &&
+        existing.kind !== "fixed" &&
         existing.effectiveUntil === input.effectiveUntil
       )
         return existing;
@@ -1017,13 +963,14 @@ export class MemoryRepositoryContext {
     if (existing) {
       if (
         existing.percentage === input.percentage &&
-        existing.kind === input.kind &&
-        existing.fixedAmountInCents === input.fixedAmountInCents &&
+        existing.kind !== "fixed" &&
         existing.effectiveUntil === input.effectiveUntil
       )
         return;
       const previousPercentage = existing.percentage;
-      Object.assign(existing, input);
+      delete existing.kind;
+      delete existing.fixedAmountInCents;
+      Object.assign(existing, input, { active: true });
       this.addAdminAudit(
         actorUserId,
         "users.commission_updated",

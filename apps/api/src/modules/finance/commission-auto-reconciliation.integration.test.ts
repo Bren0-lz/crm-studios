@@ -1,4 +1,5 @@
 import { nextTestCpf } from "../../test-support/cpf.js";
+import { sellSessionForAppointment } from "../../test-support/commission-billing.js";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { MemoryClinicRepository } from "../../memory-repository.js";
 import { buildApp } from "../../app.js";
@@ -20,11 +21,8 @@ async function setup() {
     [service] = await repository.listServices(clinicId);
   await repository.createCommissionRule(clinicId, {
     professionalId: professional!.id,
-    kind: "fixed",
-    fixedAmountInCents: 1500,
-    percentage: 0,
+    percentage: 10,
     effectiveFrom: "2039-01-01",
-    serviceId: service!.id,
   });
   const app = await buildApp({ repository, logger: false });
   return {
@@ -63,6 +61,7 @@ describe("automatic commission reconciliation", () => {
         visitType: "regular",
         notes: "",
       });
+      await sellSessionForAppointment(repository, clinicId, actorId, appointment, 15000);
       await repository.updateAppointmentStatus(
         clinicId,
         appointment.id,
@@ -137,6 +136,7 @@ describe("automatic commission reconciliation", () => {
         visitType: "regular",
         notes: "",
       });
+      await sellSessionForAppointment(repository, clinicId, actorId, appointment, 15000);
       await repository.updateAppointmentStatus(
         clinicId,
         appointment.id,

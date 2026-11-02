@@ -399,21 +399,6 @@
     padding: var(--space-5) var(--space-4) var(--space-7);
   }
 
-  .service-commission-row {
-    grid-template-columns: 1fr;
-  }
-
-  .service-commission-row > button {
-    grid-column: auto;
-    grid-row: auto;
-    justify-self: start;
-  }
-
-  .service-commission-list li {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-
   /* "Agenda de hoje": escolha de profissionais e "Ver agenda" descem para baixo do título. */
   .schedule-panel .panel-head {
     flex-wrap: wrap;
