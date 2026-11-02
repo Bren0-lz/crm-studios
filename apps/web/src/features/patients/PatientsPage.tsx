@@ -1,7 +1,6 @@
 import {
-  automaticPatientTagCategory,
+  DEFAULT_PATIENT_TAG_COLOR,
   OVERDUE_PAYMENT_TAG,
-  patientTagCategoryColors,
   patientTagDisplayColor,
 } from "@crm/contracts";
 import { PatientProfileFilters } from "./PatientProfileFilters";
@@ -36,6 +35,7 @@ import { ReadOnlyNotice } from "../../shared/components/ReadOnlyNotice";
 import { TagChoice } from "../../shared/components/TagChoice";
 import { usePatientTags } from "../../shared/hooks/usePatientTags";
 import {
+  automaticPatientTagColor,
   initials,
   tagColorLookup,
   tagCounts,
@@ -386,7 +386,8 @@ export function PatientsPage() {
                         key={`automatic-${name}`}
                         name={name}
                         color={
-                          patientTagCategoryColors[automaticPatientTagCategory]
+                          automaticPatientTagColor(name) ??
+                          DEFAULT_PATIENT_TAG_COLOR
                         }
                         count={countTag(name)}
                         hint="Etiqueta automática: cliente com parcela vencida e em aberto."

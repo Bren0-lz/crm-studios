@@ -4,6 +4,7 @@ import {
   type Lead,
   documentTemplateVariables,
   groupClassName,
+  withoutAutomaticPatientTags,
 } from "@crm/contracts";
 import ExcelJS from "exceljs";
 import { describe, expect, it, vi } from "vitest";
@@ -3386,7 +3387,12 @@ describe("CRM API", () => {
       ).json() as Array<{
         tags: string[];
       }>;
-      const used = [...new Set(patients.flatMap((patient) => patient.tags))];
+      // Etiquetas automáticas ("Falta CPF", "Pagamento atrasado") não são configuradas.
+      const used = [
+        ...new Set(
+          patients.flatMap((patient) => withoutAutomaticPatientTags(patient.tags)),
+        ),
+      ];
       expect(tags.map((tag) => tag.name).sort()).toEqual([...used].sort());
       const names = tags.map((tag) => tag.name);
       expect(names).toEqual(

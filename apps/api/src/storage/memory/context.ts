@@ -124,7 +124,7 @@ import {
   type TreatmentClosure,
 } from "@crm/contracts";
 import { hashSync } from "bcryptjs";
-import { demoPatients } from "../../demo-patients.js";
+import { demoCpf, demoPatients } from "../../demo-patients.js";
 import {
   buildDemoScenarios,
   demoMessageTemplates,
@@ -825,6 +825,7 @@ export class MemoryRepositoryContext {
       // PAC-00001..00003, como no seed do PostgreSQL; os demo começam em PAC-00004 (QM15).
       recordNumber: formatSequenceNumber("PAC", number),
       fullName,
+      cpf: demoCpf(number),
       phone,
       tags,
       status: "active",

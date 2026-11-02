@@ -6,6 +6,8 @@ import {
   matchesPatientSegment,
   guidedPatientInputSchema,
   isAutomaticPatientTag,
+  MISSING_CPF_TAG,
+  patientTagKey,
   OVERDUE_PAYMENT_TAG,
   patientExportFilterSchema,
   patientAuditLabels,
@@ -76,14 +78,20 @@ export function registerPatientsRoutes(context: RouteContext) {
       requestAccess.get(request)?.modules ?? [],
     );
 
-  /** "Pagamento atrasado" é automática (QC7): não pode ser criada nem renomeada à mão. */
+  /**
+   * "Pagamento atrasado" (QC7) e "Falta CPF" (B6-05) são automáticas: não podem ser criadas nem
+   * renomeadas à mão.
+   */
   function assertManualTagName(name: string | undefined) {
-    if (name !== undefined && isAutomaticPatientTag(name))
-      throw new DomainError(
-        "PATIENT_TAG_AUTOMATIC",
-        `“${OVERDUE_PAYMENT_TAG}” é uma etiqueta automática: aparece sozinha para clientes com parcela vencida.`,
-        400,
-      );
+    if (name === undefined || !isAutomaticPatientTag(name)) return;
+    const missingCpf = patientTagKey(name) === patientTagKey(MISSING_CPF_TAG);
+    throw new DomainError(
+      "PATIENT_TAG_AUTOMATIC",
+      missingCpf
+        ? `“${MISSING_CPF_TAG}” é uma etiqueta automática: aparece sozinha para clientes sem CPF.`
+        : `“${OVERDUE_PAYMENT_TAG}” é uma etiqueta automática: aparece sozinha para clientes com parcela vencida.`,
+      400,
+    );
   }
 
   app.get("/patients/segments", { preHandler: authenticate }, async (request) =>
