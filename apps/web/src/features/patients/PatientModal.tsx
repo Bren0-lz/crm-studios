@@ -1,5 +1,6 @@
 import {
   patientFirstName,
+  patientNotesMaxLength,
   patientTagDisplayColor,
   discountedPlanInstallments,
   planInstallmentSchedule,
@@ -672,8 +673,7 @@ export function PatientModal({
       // 1º pagamento de cada item no Pix (proporcional à turma e com o desconto do plano),
       // somado.
       const pixFirstCharges = createdPlans.flatMap((plan, index) => {
-        const proratedChargeInCents =
-          sentPlans[index]?.proratedChargeInCents;
+        const proratedChargeInCents = sentPlans[index]?.proratedChargeInCents;
         const discounted = discountedPlanInstallments(
           planInstallmentSchedule({ ...plan, proratedChargeInCents }),
           sentPlans[index]?.discount,
@@ -1072,6 +1072,7 @@ export function PatientModal({
             <label className="span-2">
               Observações
               <textarea
+                maxLength={patientNotesMaxLength}
                 value={form.notes}
                 onChange={(e) => field("notes", e.target.value)}
                 rows={3}

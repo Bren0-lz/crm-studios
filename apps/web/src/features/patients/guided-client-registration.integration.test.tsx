@@ -1,4 +1,8 @@
-import type { AppModule } from "@crm/contracts";
+import {
+  leadAppointmentNotesMaxLength,
+  patientNotesMaxLength,
+  type AppModule,
+} from "@crm/contracts";
 import {
   cleanup,
   fireEvent,
@@ -413,6 +417,25 @@ describe("guided client registration", () => {
         notes: "",
       },
     });
+  });
+
+  it("limits the notes to what the API accepts, so a long text never fails the registration", async () => {
+    mockApi(() => jsonResponse({ patient: created }, 201));
+    renderAs(storedUser(admin));
+    const dialog = await openNewClient();
+    // Reunião de 02/11/2026 (B2-03): mais de 2.000 caracteres davam 400 só ao salvar.
+    expect(within(dialog).getByLabelText("Observações")).toHaveAttribute(
+      "maxLength",
+      String(patientNotesMaxLength),
+    );
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Agendar aula experimental" }),
+    );
+    await within(dialog).findByLabelText("Serviço");
+    expect(within(dialog).getByLabelText("Observação")).toHaveAttribute(
+      "maxLength",
+      String(leadAppointmentNotesMaxLength),
+    );
   });
 
   it("keeps the form filled and shows the API error when the guided registration fails", async () => {
