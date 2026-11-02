@@ -71,7 +71,10 @@ export interface SaleMovement {
   quantity: number;
   amountInCents: number;
   receivableId?: string;
-  /** Venda de plano: desconto do cliente nas cobranças do plano (`amountInCents` é o valor do plano). */
+  /**
+   * Desconto do cliente: no plano, o das cobranças (`amountInCents` é o valor do plano); no
+   * produto, a parte da linha no desconto da venda (`amountInCents` já vem com ele abatido).
+   */
   customerDiscountInCents?: number;
   /** Venda de produto: custo da linha (quantidade × custo unitário gravado na comanda). */
   costInCents?: number;

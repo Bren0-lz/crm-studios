@@ -148,6 +148,15 @@ export function createProductSalesRepository(
         ...(input.categoryId ? { categoryId: input.categoryId } : {}),
         ...(input.costCenterId ? { costCenterId: input.costCenterId } : {}),
       });
+      // Desconto da venda: registrado na cobrança (o valor já vem abatido nos preços).
+      const discount = input.discountInCents ?? 0;
+      const receivable = discount
+        ? context.receivables.find(
+            (item) =>
+              item.clinicId === clinicId && item.id === closed?.receivableId,
+          )
+        : undefined;
+      if (receivable) receivable.customerDiscountInCents = discount;
       return structuredClone(closed!);
     },
   };

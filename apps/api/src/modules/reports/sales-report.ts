@@ -10,7 +10,7 @@ import type {
   SalesPeriodReport,
   SalesReportPeriod,
 } from "@crm/contracts";
-import { salesChangePercent } from "@crm/contracts";
+import { allocatePlanRevenue, salesChangePercent } from "@crm/contracts";
 
 function clinicDate(value: string | Date) {
   const parts = new Intl.DateTimeFormat("en-US", {
@@ -40,6 +40,36 @@ export interface SaleReceivable {
   status: ReceivableStatus;
   amountInCents: number;
   dueDate: string;
+  /** Paga: desconto dado na baixa. */
+  settlementDiscountInCents?: number;
+}
+
+/**
+ * Desconto da venda de produtos (gravado na cobrança da comanda) rateado entre as linhas de
+ * produto da comanda, proporcional ao valor de cada uma. Altera `sales` no lugar.
+ */
+export function withTabDiscounts(
+  sales: SaleMovement[],
+  discountByTab: ReadonlyMap<string, number>,
+) {
+  for (const [tabId, discount] of discountByTab) {
+    if (discount <= 0) continue;
+    const lines = sales.filter(
+      (item) =>
+        item.kind === "sale" &&
+        item.sourceType === "product" &&
+        item.sourceId === tabId,
+    );
+    const shares = allocatePlanRevenue(
+      discount,
+      lines.map((item) => ({ totalValueInCents: item.amountInCents })),
+    );
+    lines.forEach((item, index) => {
+      const share = shares[index] ?? 0;
+      if (share > 0) item.customerDiscountInCents = share;
+    });
+  }
+  return sales;
 }
 
 /** Cobranças das vendas e primeira compra de cada cliente (para "novos compradores"). */
@@ -414,11 +444,14 @@ export function salesPeriodSummary(
 
   const soldSources = new Set(sold.map((item) => item.sourceId));
   const payment = { paidInCents: 0, openInCents: 0, overdueInCents: 0 };
+  let settlementDiscountInCents = 0;
   for (const item of billing.receivables) {
     if (!soldSources.has(item.sourceId) || item.status === "cancelled")
       continue;
-    if (item.status === "paid") payment.paidInCents += item.amountInCents;
-    else {
+    if (item.status === "paid") {
+      payment.paidInCents += item.amountInCents;
+      settlementDiscountInCents += item.settlementDiscountInCents ?? 0;
+    } else {
       payment.openInCents += item.amountInCents;
       if (item.dueDate < today) payment.overdueInCents += item.amountInCents;
     }
@@ -456,5 +489,6 @@ export function salesPeriodSummary(
       .slice(0, TOP_BUYERS),
     payment,
     ...(customerDiscountInCents ? { customerDiscountInCents } : {}),
+    ...(settlementDiscountInCents ? { settlementDiscountInCents } : {}),
   };
 }

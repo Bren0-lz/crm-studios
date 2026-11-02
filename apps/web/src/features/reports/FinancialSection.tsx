@@ -127,6 +127,10 @@ export function FinancialSection({ period }: { period: ReportPeriod }) {
       ? financialTotals(previousEntries, report.proLabore)
       : null;
   const split = outflowSplit(entries);
+  const discountInCents = entries.reduce(
+    (sum, entry) => sum + (entry.discountInCents ?? 0),
+    0,
+  );
   const branches = report ? compareBranches(report) : [];
   const professionals =
     report?.professionals.filter(
@@ -203,7 +207,12 @@ export function FinancialSection({ period }: { period: ReportPeriod }) {
                 <article>
                   <span>Entradas</span>
                   <strong>{money(totals.inflowInCents)}</strong>
-                  <small>Recebido no período, já sem estornos</small>
+                  <small>
+                    Recebido no período, já sem estornos
+                    {discountInCents > 0
+                      ? ` · ${money(discountInCents)} em descontos na baixa`
+                      : ""}
+                  </small>
                   <Variation
                     current={totals.inflowInCents}
                     previous={previousTotals?.inflowInCents}

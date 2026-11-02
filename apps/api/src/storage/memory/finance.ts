@@ -181,6 +181,7 @@ export function createFinanceRepository(
     delete receivable.paymentMethod;
     delete receivable.paymentInstallments;
     delete receivable.paymentParts;
+    delete receivable.settlementDiscountInCents;
     receivable.overdue = receivable.dueDate < today();
     receivable.updatedAt = now();
     repositoryContext.markPaymentProofsReversed(
@@ -809,12 +810,15 @@ export function createFinanceRepository(
           paymentMethod: _method,
           cashAvailableAt: _available,
           paymentParts: _parts,
+          // O desconto do cliente fica na parcela original (como no MySQL), sem repetir no saldo.
+          customerDiscountInCents: _customerDiscount,
           ...base
         } = receivable;
         void _paidAt;
         void _method;
         void _available;
         void _parts;
+        void _customerDiscount;
         const dueDate = adjustments.balanceDueDate ?? receivable.dueDate;
         const balance: Receivable = {
           ...base,
@@ -852,6 +856,9 @@ export function createFinanceRepository(
       else delete receivable.paymentParts;
       receivable.overdue = false;
       receivable.updatedAt = now();
+      if (adjustments.discountInCents)
+        receivable.settlementDiscountInCents = adjustments.discountInCents;
+      else delete receivable.settlementDiscountInCents;
       // Um evento por forma; desconto, juros e saldo ficam no último (o "mais recente").
       parts.forEach((part, index) => {
         const last = index === parts.length - 1;

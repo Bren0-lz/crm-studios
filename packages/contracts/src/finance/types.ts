@@ -64,6 +64,8 @@ export interface DreReport {
     otherRevenueInCents: number;
     /** Descontos do cliente nas cobranças do mês (as receitas já vêm com eles descontados). */
     customerDiscountInCents?: number;
+    /** Descontos dados na baixa das cobranças do mês (também já fora das receitas). */
+    settlementDiscountInCents?: number;
     expenses: Record<DreGroup, number>;
     resultInCents: number;
   }>;
@@ -73,6 +75,8 @@ export interface DreReport {
     resultInCents: number;
     /** Descontos do cliente no período (informativo: já fora das receitas). */
     customerDiscountInCents?: number;
+    /** Descontos na baixa no período (informativo: já fora das receitas). */
+    settlementDiscountInCents?: number;
   };
   categories: Array<{
     id: string;
@@ -195,6 +199,8 @@ export interface ReceivedPayment {
   description: string;
   amountInCents: number;
   paymentMethod?: PaymentMethod;
+  /** Pagamento: desconto dado na baixa (no picado, só na última forma). */
+  discountInCents?: number;
 }
 
 export interface Product extends Omit<
@@ -376,8 +382,14 @@ export interface Receivable {
   /**
    * Desconto do cliente aplicado ao gerar a cobrança do plano (`amountInCents` já é o
    * valor com desconto; o valor cheio é a soma dos dois). Ausente = sem desconto.
+   * Também vale para a comanda de venda de produtos com desconto.
    */
   customerDiscountInCents?: number;
+  /**
+   * Paga: desconto dado na baixa (U39), já fora de `amountInCents`. Ausente = sem desconto
+   * na baixa (ou parcela não paga).
+   */
+  settlementDiscountInCents?: number;
 }
 
 export interface FinancialSummary {
@@ -558,6 +570,11 @@ export interface DailyCashMovement {
    * negativos; saídas positivas (valor pago).
    */
   amountInCents: number;
+  /**
+   * Recebimento: desconto dado na baixa (o recebido já vem sem ele; no picado, só na
+   * última forma). Ausente = sem desconto.
+   */
+  discountInCents?: number;
 }
 
 /** Movimento do caixa com o registro de origem (relatório financeiro por período). */
@@ -583,6 +600,8 @@ export interface DailyCash {
   totalInflowInCents: number;
   totalOutflowInCents: number;
   balanceInCents: number;
+  /** Descontos dados nas baixas do dia (informativo: os recebimentos já vêm sem eles). */
+  totalDiscountInCents?: number;
   /** Movimentos em ordem cronológica. */
   movements: DailyCashMovement[];
 }

@@ -288,6 +288,11 @@ export async function financialEntriesToXlsx(
         value: (entry) =>
           ((entry.direction === "in" ? 1 : -1) * entry.amountInCents) / 100,
       },
+      {
+        header: "Desconto na baixa (R$)",
+        kind: "currency",
+        value: (entry) => money(entry.discountInCents ?? 0),
+      },
     ],
     entries,
   );
@@ -322,6 +327,11 @@ export async function dreReportToXlsx(report: DreReport): Promise<Buffer> {
         header: "Descontos concedidos a clientes (R$)",
         kind: "currency",
         value: (month) => money(month.customerDiscountInCents ?? 0),
+      },
+      {
+        header: "Descontos na baixa (R$)",
+        kind: "currency",
+        value: (month) => money(month.settlementDiscountInCents ?? 0),
       },
       ...(Object.keys(dreGroupLabels) as (keyof typeof dreGroupLabels)[]).map(
         (group): SheetColumn<Month> => ({
