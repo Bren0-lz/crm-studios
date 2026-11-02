@@ -1,4 +1,5 @@
 import {
+  auditChangesOf,
   formatSequenceNumber,
   type GuidedPatientInput,
   overduePatientIds,
@@ -14,7 +15,10 @@ import {
   guidedPlansResult,
   guidedSubscriptions,
 } from "../../modules/patients/guided-plans.js";
-import { buildPatientTimeline } from "../../modules/patients/patient-timeline.js";
+import {
+  buildPatientTimeline,
+  patientEditAction,
+} from "../../modules/patients/patient-timeline.js";
 import {
   DomainError,
   patientTagDuplicateError,
@@ -92,7 +96,9 @@ export function createPatientsRepository(
             0,
             ...repositoryContext.patients
               .filter((item) => item.clinicId === clinicId)
-              .map((item) => parseSequenceNumber("PAC", item.recordNumber) ?? 0),
+              .map(
+                (item) => parseSequenceNumber("PAC", item.recordNumber) ?? 0,
+              ),
           ) + 1,
         ),
         status: "active",
@@ -442,6 +448,23 @@ export function createPatientsRepository(
           clinicId,
           { patientId },
         ),
+        edits: repositoryContext.adminAuditEvents
+          .filter(
+            (event) =>
+              event.clinicId === clinicId &&
+              event.action === patientEditAction &&
+              event.entityId === patientId,
+          )
+          .map((event) => ({
+            id: event.id,
+            occurredAt: event.createdAt,
+            actorName: event.actorName,
+            changes: auditChangesOf(event.metadata),
+            reason:
+              typeof event.metadata.reason === "string"
+                ? event.metadata.reason
+                : undefined,
+          })),
       });
     },
   };

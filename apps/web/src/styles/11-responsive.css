@@ -577,10 +577,10 @@
     justify-items: start;
   }
 
-  /* audit: mobile-ok dois cartões de resumo por linha cabem em 390px (valor em --text-lg) */
+  /* Até 700px as grades viram 1 coluna: os cartões de resumo ficam empilhados. */
   .finance-metrics,
   .metric-grid.finance-metrics {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: 1fr;
     gap: var(--space-2);
   }
 

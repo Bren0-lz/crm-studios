@@ -138,6 +138,7 @@ export function SaleDetailsModal({
         <p className="sale-total">
           Total <strong>{total}</strong>
         </p>
+        <p className="muted">Vendedor: {sale.soldByName ?? "Sem registro"}</p>
         {sale.notes && <p className="muted">{sale.notes}</p>}
         {sale.status === "cancelled" && sale.cancellationReason && (
           <p className="muted">

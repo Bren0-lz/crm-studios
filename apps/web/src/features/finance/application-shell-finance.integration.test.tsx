@@ -1379,6 +1379,19 @@ describe("application shell", () => {
       fireEvent.click(
         within(rowOf("Carla Mendes")).getByRole("button", { name: "Estornar" }),
       );
+      // Pede confirmação antes de estornar: nada muda até confirmar.
+      const confirmReverse = await screen.findByRole("dialog", {
+        name: "Estornar pagamento",
+      });
+      expect(
+        within(confirmReverse).getByText("Esta ação não pode ser desfeita."),
+      ).toBeInTheDocument();
+      expect(workspaceLoads()).toBe(loads);
+      fireEvent.click(
+        within(confirmReverse).getByRole("button", {
+          name: "Estornar pagamento",
+        }),
+      );
       await vi.waitFor(() => expect(workspaceLoads()).toBeGreaterThan(loads));
       expect(
         screen.queryByText(/parcelas? selecionadas?$/),
