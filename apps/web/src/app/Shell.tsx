@@ -231,11 +231,11 @@ export function Shell({
             <span className="clinic-label">Studios Aryana</span>
             <span className="environment-dot">Demonstração</span>
           </div>
+          <NotificationsBanner
+            center={notifications}
+            onNavigate={guardedNavigate}
+          />
           <div className="top-actions">
-            <NotificationsBanner
-              center={notifications}
-              onNavigate={guardedNavigate}
-            />
             <BranchSelector />
             <EmergencyButton />
             <NotificationsMenu
