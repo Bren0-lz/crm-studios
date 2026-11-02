@@ -180,6 +180,12 @@ describe("página Vendas de produtos", () => {
     expect(summary).toHaveTextContent(/Descontos dos produtos\s*− R\$\s8,00/);
     expect(summary).toHaveTextContent(/Desconto geral\s*− R\$\s10,00/);
     expect(within(panel).getByText("Total").textContent).toMatch(/92,00/);
+    // Nas parcelas, o desconto do produto e o geral saem juntos como "Descontos".
+    const parcels = within(panel).getByRole("list", {
+      name: "Parcelas previstas",
+    });
+    expect(parcels).toHaveTextContent(/Descontos\s*− R\$\s18,00/);
+    expect(parcels).not.toHaveTextContent("Descontos dos produtos");
 
     fireEvent.click(
       within(panel).getByRole("button", { name: "Registrar venda" }),

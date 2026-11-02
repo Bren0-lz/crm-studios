@@ -175,6 +175,8 @@ export function NewSaleSection({
     }),
     // Descontos do produto e geral: as parcelas somam o total cobrado.
     discountInCents,
+    discountLabel:
+      order.orderDiscountInCents > 0 ? "Descontos" : "Descontos dos produtos",
     settlement,
     // Prévia por parcela só com uma forma; no picado, cada forma aparece no campo acima.
     paymentMethod: effectiveParts[0]?.paymentMethod ?? "pix",

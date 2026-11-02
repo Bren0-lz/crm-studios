@@ -11,6 +11,8 @@ import {
 export function productSaleInstallments(input: {
   items: readonly { label: string; grossInCents: number }[];
   discountInCents?: number | undefined;
+  /** Rótulo da linha de desconto; "Descontos" quando há desconto geral junto. */
+  discountLabel?: string | undefined;
   settlement: "paid" | "receivable";
   paymentMethod: PaymentMethod;
   paymentInstallments: number;
@@ -21,7 +23,7 @@ export function productSaleInstallments(input: {
     rows: itemsInstallmentPreview({
       items: input.items,
       discountInCents: input.discountInCents,
-      discountLabel: "Descontos dos produtos",
+      discountLabel: input.discountLabel ?? "Descontos dos produtos",
       installments: paid ? input.paymentInstallments : 1,
       firstDueDate: paid ? undefined : input.dueDate,
     }),
