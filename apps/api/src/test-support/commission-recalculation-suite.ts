@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { adminUserInputSchema, type CommissionEntry } from "@crm/contracts";
 import { describe, expect, it } from "vitest";
 import type { ClinicRepository } from "../repository.js";
+import { sellSessionForAppointment } from "./commission-billing.js";
 import { nextTestCpf } from "./cpf.js";
 import { serviceWithSinglePlan } from "./single-plan-service.js";
 import { createSalariedUser } from "./payroll-users.js";
@@ -47,6 +48,7 @@ async function scenario(repo: ClinicRepository, days: string[]) {
       visitType: "regular",
       notes: "",
     });
+    await sellSessionForAppointment(repo, clinic, actor, appointment);
     await repo.updateAppointmentStatus(clinic, appointment.id, "completed");
     appointments.push(appointment);
   }
@@ -284,12 +286,7 @@ export function commissionRecalculationSuite(
         user.id,
         professional.id,
       );
-      const rule = {
-        kind: "fixed" as const,
-        percentage: 0,
-        fixedAmountInCents: 4321,
-        effectiveFrom: "2025-03-01",
-      };
+      const rule = { percentage: 35, effectiveFrom: "2025-03-01" };
       const preview = await repo.previewCommissionRecalculation(clinic, {
         userId: user.id,
         rules: [rule],
@@ -298,15 +295,15 @@ export function commissionRecalculationSuite(
         expect.objectContaining({
           commissionId: commissions[0]!.id,
           previousAmountInCents: percent(10),
-          amountInCents: 4321,
+          amountInCents: percent(35),
         }),
       ]);
       await repo.setAdminUserCommission(clinic, actor, user.id, rule, {
         expectedDigest: preview.digest,
       });
       expect(await commission(commissions[0]!.id)).toMatchObject({
-        amountInCents: 4321,
-        ruleSnapshot: { kind: "fixed", fixedAmountInCents: 4321 },
+        amountInCents: percent(35),
+        ruleSnapshot: { percentage: 35, effectiveFrom: "2025-03-01" },
       });
     });
 

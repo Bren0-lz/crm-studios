@@ -4,7 +4,6 @@ import {
   adminUserInputSchema,
   adminUserUpdateSchema,
   saoPauloToday,
-  type AdminUserServiceCommission,
 } from "@crm/contracts";
 import { describe, expect, it } from "vitest";
 import type { ClinicRepository } from "../repository.js";
@@ -314,12 +313,10 @@ export function userAgendaSuite(repository: () => ClinicRepository) {
       const before = await repo.listAdminUsers(clinic);
       const audit = await repo.listAdminAuditEvents(clinic);
       for (const invalid of [
+        // Comissão válida com filiais inválidas: nada da comissão pode ficar gravado.
         {
-          commission: {
-            percentage: 20,
-            effectiveFrom: saoPauloToday(),
-            serviceId: randomUUID(),
-          },
+          commission: { percentage: 20, effectiveFrom: saoPauloToday() },
+          branchAccess: { allBranches: false, branchIds: [randomUUID()] },
         },
         { branchAccess: { allBranches: false, branchIds: [randomUUID()] } },
       ]) {
@@ -348,121 +345,60 @@ export function userAgendaSuite(repository: () => ClinicRepository) {
       expect(await repo.listAdminAuditEvents(clinic)).toEqual(audit);
     });
 
-    it("grava comissões por serviço e mostra a vigente e as agendadas", async () => {
+    it("grava só a comissão geral: comissão por serviço e valor fixo não existem mais", async () => {
       const repo = repository();
-      const service = (name: string) =>
-        repo.createService(clinic, {
-          name,
-          durationMinutes: 50,
-          priceInCents: 10000,
-        });
-      const pilates = await service(`Pilates ${randomUUID()}`);
-      const dance = await service(`Dança ${randomUUID()}`);
       const created = await repo.createAdminUser(
         clinic,
         actor,
         adminUserInputSchema.parse({
           ...input(),
-          commission: { percentage: 10, effectiveFrom: "2020-01-01" },
+          commission: {
+            percentage: 10,
+            effectiveFrom: "2020-01-01",
+            kind: "fixed",
+            fixedAmountInCents: 2500,
+          },
           serviceCommissions: [
             {
-              serviceId: pilates.id,
+              serviceId: randomUUID(),
               percentage: 40,
               effectiveFrom: "2020-01-01",
-            },
-            {
-              serviceId: dance.id,
-              kind: "fixed",
-              percentage: 0,
-              fixedAmountInCents: 2500,
-              effectiveFrom: "2999-01-01",
             },
           ],
         }),
         "hash",
       );
-      expect(created.commissionPercentage).toBe(10);
-      const mine = (items: AdminUserServiceCommission[] = []) =>
-        items.filter((item) => [pilates.id, dance.id].includes(item.serviceId));
-      expect(mine(created.serviceCommissions)).toHaveLength(2);
-      expect(
-        created.serviceCommissions?.find(
-          (item) => item.serviceId === pilates.id,
-        ),
-      ).toMatchObject({
-        serviceName: pilates.name,
-        kind: "percentage",
-        percentage: 40,
-        effectiveFrom: "2020-01-01",
+      expect(created).toMatchObject({
+        commissionPercentage: 10,
+        commissionEffectiveFrom: "2020-01-01",
       });
-      expect(
-        created.serviceCommissions?.find((item) => item.serviceId === dance.id),
-      ).toMatchObject({
-        kind: "fixed",
-        fixedAmountInCents: 2500,
-        effectiveFrom: "2999-01-01",
-      });
-      // Nova vigência que já começou substitui a anterior na lista; o histórico fica no banco.
+      expect(created).not.toHaveProperty("serviceCommissions");
+      expect(created).not.toHaveProperty("commissionKind");
       const updated = await repo.updateAdminUser(
         clinic,
         actor,
         created.id,
         update({
+          commission: { percentage: 12.5, effectiveFrom: "2021-06-01" },
           serviceCommissions: [
             {
-              serviceId: pilates.id,
+              serviceId: randomUUID(),
               percentage: 45.5,
               effectiveFrom: "2021-06-01",
             },
           ],
         }),
       );
-      expect(
-        mine(updated?.serviceCommissions).map((item) => [
-          item.serviceId,
-          item.percentage,
-          item.effectiveFrom,
-        ]),
-      ).toEqual(
-        expect.arrayContaining([
-          [pilates.id, 45.5, "2021-06-01"],
-          [dance.id, 0, "2999-01-01"],
-        ]),
-      );
-      expect(mine(updated?.serviceCommissions)).toHaveLength(2);
-      expect(updated?.commissionPercentage).toBe(10);
-      const listed = (await repo.listAdminUsers(clinic)).find(
-        (item) => item.id === created.id,
-      );
-      expect(listed?.serviceCommissions).toEqual(updated?.serviceCommissions);
-      // Serviço inexistente desfaz a edição inteira.
-      await expect(
-        repo.updateAdminUser(
-          clinic,
-          actor,
-          created.id,
-          update({
-            fullName: "Não salvar",
-            serviceCommissions: [
-              {
-                serviceId: pilates.id,
-                percentage: 50,
-                effectiveFrom: "2022-01-01",
-              },
-              {
-                serviceId: randomUUID(),
-                percentage: 20,
-                effectiveFrom: "2022-01-01",
-              },
-            ],
-          }),
-        ),
-      ).rejects.toBeTruthy();
+      expect(updated).toMatchObject({
+        commissionPercentage: 12.5,
+        commissionEffectiveFrom: "2021-06-01",
+      });
+      expect(updated).not.toHaveProperty("serviceCommissions");
       expect(
         (await repo.listAdminUsers(clinic)).find(
           (item) => item.id === created.id,
         ),
-      ).toEqual(listed);
+      ).toEqual(updated);
     });
 
     it("mantém exclusividade do vínculo sob concorrência", async () => {

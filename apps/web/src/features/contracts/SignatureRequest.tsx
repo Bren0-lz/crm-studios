@@ -8,7 +8,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import { api } from "../../api";
 import { ErrorBanner } from "../../shared/components/ErrorBanner";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
-import { shortDate } from "../../shared/lib/formatting";
+import { sentence, shortDate } from "../../shared/lib/formatting";
 import { signatureLinkUrl, signatureWhatsappLink } from "./model";
 import type {
   SignatureRequest,
@@ -202,7 +202,7 @@ export function SignatureShare({
           : `O ${signer} não tem telefone no cadastro: o WhatsApp vai pedir o contato.`}{" "}
         {share.document.signatureLink &&
           !share.document.signatureLink.signedAt &&
-          `O link vale até ${shortDate.format(new Date(share.document.signatureLink.expiresAt))}. `}
+          `${sentence(`O link vale até ${shortDate.format(new Date(share.document.signatureLink.expiresAt))}`)} `}
         A visualização e a assinatura ficam registradas no documento.
       </p>
       <div className="modal-actions">

@@ -614,6 +614,13 @@ export function createFinanceRepository(
         );
       assertTabCreditsReversible(repositoryContext, tab);
       // Estorno pelo próprio cancelamento: validado acima, antes de qualquer mudança.
+      // A venda cancelada continua mostrando a forma com que foi paga.
+      const paidWith = paidReceivable
+        ? {
+            paymentMethod: paidReceivable.paymentMethod,
+            paymentInstallments: paidReceivable.paymentInstallments,
+          }
+        : undefined;
       if (paidReceivable) reversePaidReceivable(paidReceivable);
       cancelTabCredits(repositoryContext, tab);
       for (const item of tab.items) {
@@ -638,6 +645,11 @@ export function createFinanceRepository(
           receivable.status = "cancelled";
           delete receivable.paidAt;
           delete receivable.paymentMethod;
+          delete receivable.paymentInstallments;
+          if (paidWith?.paymentMethod)
+            receivable.paymentMethod = paidWith.paymentMethod;
+          if (paidWith?.paymentInstallments)
+            receivable.paymentInstallments = paidWith.paymentInstallments;
           receivable.overdue = false;
           receivable.updatedAt = now();
         }
@@ -826,6 +838,14 @@ export function createFinanceRepository(
                   .map((item) => item.installmentNumber),
               ) + 1
             : receivable.installmentNumber,
+          // Mostra o número da parcela de origem ("Parcela 1 de 3 · saldo").
+          ...(receivable.planId
+            ? {
+                balanceOfInstallment:
+                  receivable.balanceOfInstallment ??
+                  receivable.installmentNumber,
+              }
+            : {}),
           description: `${receivable.description} · saldo`,
           dueDate,
           amountInCents: breakdown.balanceInCents,
@@ -884,15 +904,26 @@ export function createFinanceRepository(
         (item) => item.clinicId === clinicId && item.id === tab.receivableId,
       );
       if (!receivable) return null;
+      // Venda cancelada antes de a forma ser mantida: a forma vem da última baixa registrada.
+      const lastPayment =
+        receivable.status === "cancelled" && !receivable.paymentMethod
+          ? repositoryContext.receiptEvents
+              .filter(
+                (item) =>
+                  item.receivableId === receivable.id &&
+                  item.kind === "payment",
+              )
+              .at(-1)
+          : undefined;
+      const paymentMethod =
+        receivable.paymentMethod ?? lastPayment?.paymentMethod;
       const payment: PatientTabPayment = {
         receivableId: receivable.id,
         status: receivable.status,
         amountInCents: receivable.amountInCents,
         dueDate: receivable.dueDate,
         ...(receivable.paidAt ? { paidAt: receivable.paidAt } : {}),
-        ...(receivable.paymentMethod
-          ? { paymentMethod: receivable.paymentMethod }
-          : {}),
+        ...(paymentMethod ? { paymentMethod } : {}),
         ...(receivable.paymentInstallments
           ? { paymentInstallments: receivable.paymentInstallments }
           : {}),

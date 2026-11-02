@@ -515,6 +515,29 @@ for (const storage of ["memory", "mysql"] as const) {
           ],
         });
       });
+
+      it("mantém a forma do pagamento na venda cancelada com estorno", async () => {
+        const { patient, product } = await fixtures(5);
+        const sale = await repository.createProductSale(clinicId, actorId, {
+          patientId: patient.id,
+          items: [{ productId: product.id, quantity: 2 }],
+          settlement: "paid",
+          paymentMethod: "card",
+          paymentInstallments: 3,
+          dueDate: saoPauloToday(),
+        });
+        await repository.cancelPatientTab(clinicId, actorId, sale.id, {
+          refundPayment: true,
+          reason: "Teste QA de cancelamento",
+        });
+        expect(
+          await repository.patientTabPayment(clinicId, sale.id),
+        ).toMatchObject({
+          status: "cancelled",
+          paymentMethod: "card",
+          paymentInstallments: 3,
+        });
+      });
     },
   );
 }

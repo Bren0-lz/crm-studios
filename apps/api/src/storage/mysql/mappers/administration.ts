@@ -1,6 +1,5 @@
 import {
   type AdminUser,
-  type AdminUserServiceCommission,
   type Professional,
   type PermissionKey,
   effectiveEditModules,
@@ -129,13 +128,8 @@ export interface AdminUserRow extends UserRow {
   professionalId: string | null;
   professionalName: string | null;
   professional: Professional | null;
-  commissionKind?: "fixed" | "percentage" | null;
-  commissionFixedAmountInCents?: number | null;
   commissionPercentage: string | null;
   commissionEffectiveFrom: string | null;
-  /** Regras por serviço ativas e não encerradas (o mapper filtra com `serviceCommissionsInForce`). */
-  serviceCommissions?: AdminUserServiceCommission[] | null;
-  today?: string;
   /** Salário do colaborador da folha ligado ao usuário (0 = não recebe). */
   salaryInCents?: number | null;
 }
@@ -149,24 +143,15 @@ export const adminUserSelect = `SELECT u.*, p.id AS "professionalId", p.full_nam
     (SELECT JSON_OBJECT('id',pr.id,'clinicId',pr.clinic_id,'branchId',pr.branch_id,'fullName',pr.full_name,
       'crefito',COALESCE(pr.crefito,''),'specialty',pr.specialty,'color',pr.color,'active',pr.active = 1)
       FROM professionals pr WHERE pr.id = p.id) AS professional,
-    (SELECT JSON_ARRAYAGG(JSON_OBJECT(
-      'serviceId',r.service_id,'serviceName',s.name,'kind',r.kind,'percentage',r.percentage,
-      'fixedAmountInCents',r.fixed_amount_in_cents,'effectiveFrom',r.effective_from,
-      'effectiveUntil',r.effective_until)) FROM commission_rules r
-      JOIN services s ON s.clinic_id = r.clinic_id AND s.id = r.service_id
-      WHERE r.clinic_id = u."clinicId" AND r.user_id = u.id AND r.active
-        AND (r.effective_until IS NULL OR r.effective_until >= ${localToday()})) AS "serviceCommissions",
-    ${localToday()} AS today,
     (SELECT pe.base_salary_in_cents FROM payroll_employees pe
       WHERE pe.clinic_id = u."clinicId" AND pe.user_id = u.id) AS "salaryInCents",
-    cr.kind AS "commissionKind", cr.fixed_amount_in_cents AS "commissionFixedAmountInCents",
     cr.percentage AS "commissionPercentage", cr.effective_from AS "commissionEffectiveFrom"
   FROM (SELECT ${userColumns} FROM users WHERE clinic_id = $1) u
   LEFT JOIN professionals p ON p.id = (SELECT pr.id FROM professionals pr
     WHERE pr.clinic_id = u."clinicId" AND pr.user_id = u.id
     ORDER BY pr.created_at, pr.id LIMIT 1)
   LEFT JOIN commission_rules cr ON cr.id = (SELECT r.id FROM commission_rules r
-    WHERE r.clinic_id = u."clinicId" AND r.user_id = u.id AND r.active AND r.service_id IS NULL
+    WHERE r.clinic_id = u."clinicId" AND r.user_id = u.id AND r.active AND r.service_id IS NULL AND r.kind <> 'fixed'
       AND r.effective_from <= ${localToday()} AND (r.effective_until IS NULL OR r.effective_until >= ${localToday()})
     ORDER BY r.effective_from DESC LIMIT 1)`;
 

@@ -122,6 +122,38 @@ describe("payment method installments", () => {
     });
   });
 
+  it("counts the balance of a partial payment as its original installment", () => {
+    const installment = (
+      installmentNumber: number,
+      status: "open" | "paid",
+      balanceOfInstallment?: number,
+    ) => ({
+      status,
+      amountInCents: 40000,
+      overdue: false,
+      installmentNumber,
+      ...(balanceOfInstallment ? { balanceOfInstallment } : {}),
+    });
+    // 1/3 paga em parte (saldo = parcela 4 de origem 1), 2/3 e 3/3 em aberto.
+    const partial = [
+      installment(1, "paid"),
+      installment(2, "open"),
+      installment(3, "open"),
+      installment(4, "open", 1),
+    ];
+    expect(planPaymentSummary(partial)).toMatchObject({
+      installmentCount: 3,
+      paidCount: 0,
+      openCount: 3,
+    });
+    partial[3]!.status = "paid";
+    expect(planPaymentSummary(partial)).toMatchObject({
+      installmentCount: 3,
+      paidCount: 1,
+      openCount: 2,
+    });
+  });
+
   it("filters entries that belong to an installment plan or were paid in installments", () => {
     const base = {
       description: "Parcela",

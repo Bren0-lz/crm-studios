@@ -87,6 +87,9 @@ export function QuickServiceModal({
           value={form.priceInCents}
           onChange={(priceInCents) => setForm({ ...form, priceInCents })}
         />
+        <p className="field-hint span-2">
+          O plano avulso do serviço é criado ou atualizado com este valor.
+        </p>
         {error && (
           <div className="form-error span-2" role="alert">
             {error}

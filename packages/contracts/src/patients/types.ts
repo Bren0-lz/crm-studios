@@ -135,7 +135,9 @@ export type PatientTimelineKind =
   | "payment_reversal"
   | "contact"
   | "message"
-  | "satisfaction";
+  | "satisfaction"
+  /** Edição do cadastro do cliente (diferenças e motivo, como no Histórico geral). */
+  | "patient_updated";
 
 /**
  * Evento do histórico do cliente (`GET /patients/:id/timeline`, mais recentes

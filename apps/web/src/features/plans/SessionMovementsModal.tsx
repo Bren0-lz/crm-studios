@@ -8,7 +8,7 @@ import { useEffect, useState } from "react";
 import { api } from "../../api";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
 import { Modal } from "../../shared/components/Modal";
-import { currency, shortDate } from "../../shared/lib/formatting";
+import { currency, sentence, shortDate } from "../../shared/lib/formatting";
 
 export function SessionMovementsModal({
   plan,
@@ -29,28 +29,36 @@ export function SessionMovementsModal({
       active = false;
     };
   }, [plan.id]);
+  const cancelled = plan.status === "cancelled";
   return (
     <Modal
       title={`Extrato · ${plan.patientName}`}
       subtitle={
-        planHasSessionBalance(plan)
-          ? `${plan.remainingSessions} sessões disponíveis no momento.`
-          : `${planUsedSessions(plan)} aulas feitas neste ciclo (plano prevê ${plan.totalSessions}).`
+        cancelled
+          ? "Plano cancelado – sessões indisponíveis."
+          : planHasSessionBalance(plan)
+            ? `${plan.remainingSessions} sessões disponíveis no momento.`
+            : `${planUsedSessions(plan)} aulas feitas neste ciclo (plano prevê ${plan.totalSessions}).`
       }
       onClose={onClose}
     >
       {plan.services.map((entry) => (
         <p key={entry.serviceId}>
+          {/* Plano cancelado não tem sessão utilizável, mesmo com saldo gravado. */}
           {entry.serviceName}:{" "}
-          {planHasSessionBalance(plan)
-            ? `${entry.remainingSessions} de ${entry.totalSessions} sessões restantes`
-            : `${planUsedSessions(entry)} de ${entry.totalSessions} aulas previstas`}
+          {cancelled
+            ? `0 de ${entry.totalSessions} sessões disponíveis`
+            : planHasSessionBalance(plan)
+              ? `${entry.remainingSessions} de ${entry.totalSessions} sessões restantes`
+              : `${planUsedSessions(entry)} de ${entry.totalSessions} aulas previstas`}
         </p>
       ))}
-      {plan.status === "cancelled" && plan.cancelledAt && (
+      {cancelled && plan.cancelledAt && (
         <div className="plan-refund-summary">
           <p>
-            Plano cancelado em {shortDate.format(new Date(plan.cancelledAt))}.
+            {sentence(
+              `Plano cancelado em ${shortDate.format(new Date(plan.cancelledAt))}`,
+            )}
           </p>
           {plan.refundedInCents ? (
             <p>

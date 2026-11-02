@@ -442,6 +442,8 @@ export function registerPatientsRoutes(context: RouteContext) {
         contact: "relationship",
         message: "communications",
         satisfaction: "agenda",
+        // Edição do cadastro: quem vê a ficha vê o que mudou nela.
+        patient_updated: "patients",
       };
       return timeline.filter((item) =>
         requestAccess.get(request)?.modules.includes(sourceModules[item.kind]!),
