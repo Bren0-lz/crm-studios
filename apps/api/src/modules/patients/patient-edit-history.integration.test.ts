@@ -1,4 +1,4 @@
-import type { AdminAuditPage } from "@crm/contracts";
+import type { AdminAuditPage, PatientTimelineEntry } from "@crm/contracts";
 import { describe, expect, it } from "vitest";
 import { authenticatedApp } from "../../test-support/legacy-fixtures.js";
 
@@ -71,6 +71,16 @@ describe("client edit history", () => {
       });
       // Corpo da requisição não vai para o histórico, só os campos comparados.
       expect(JSON.stringify(event)).not.toContain("52998224725");
+
+      // A aba Histórico da ficha também mostra a edição, com o que mudou e o motivo.
+      const timeline = (
+        await app.inject({ url: `${url}/timeline`, headers })
+      ).json<PatientTimelineEntry[]>();
+      const edit = timeline.find((entry) => entry.kind === "patient_updated");
+      expect(edit?.title).toMatch(/^Cadastro editado/);
+      expect(edit?.detail).toContain("Telefone: 11999998888 → 11988887777");
+      expect(edit?.detail).toContain("E-mail: cliente@example.com → (vazio)");
+      expect(edit?.detail).toContain("Motivo: Cliente trocou de número");
 
       // Sem motivo (como os clientes antigos): grava só o que mudou.
       const same = await app.inject({

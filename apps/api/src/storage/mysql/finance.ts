@@ -826,15 +826,19 @@ export function createFinanceRepository(
           await client.query("ROLLBACK");
           return null;
         }
-        const paid = Boolean(
-          row.receivableId &&
-          (
-            await client.query(
-              "SELECT id FROM receivables WHERE clinic_id=$1 AND id=$2 AND status='paid' FOR UPDATE",
-              [clinicId, row.receivableId],
-            )
-          ).rowCount,
-        );
+        // A venda cancelada continua mostrando a forma com que foi paga.
+        const paidWith = row.receivableId
+          ? (
+              await client.query<{
+                paymentMethod: string | null;
+                paymentInstallments: number | null;
+              }>(
+                `SELECT payment_method AS "paymentMethod",payment_installments AS "paymentInstallments" FROM receivables WHERE clinic_id=$1 AND id=$2 AND status='paid' FOR UPDATE`,
+                [clinicId, row.receivableId],
+              )
+            ).rows[0]
+          : undefined;
+        const paid = Boolean(paidWith);
         if (paid && !options.refundPayment)
           throw new DomainError(
             "PATIENT_TAB_PAYMENT_REVERSAL_REQUIRED",
@@ -892,8 +896,12 @@ export function createFinanceRepository(
         }
         if (row.receivableId) {
           await client.query(
-            `UPDATE receivables SET status='cancelled',paid_at=NULL,payment_method=NULL,updated_at=NOW(6) WHERE id=$1`,
-            [row.receivableId],
+            `UPDATE receivables SET status='cancelled',paid_at=NULL,payment_method=$2,payment_installments=$3,updated_at=NOW(6) WHERE id=$1`,
+            [
+              row.receivableId,
+              paidWith?.paymentMethod ?? null,
+              paidWith?.paymentInstallments ?? null,
+            ],
           );
           await client.query(
             `INSERT INTO financial_events(clinic_id,receivable_id,actor_user_id,kind,amount_in_cents,metadata) VALUES($1,$2,$3,'cancellation',$4,$5)`,
@@ -983,6 +991,25 @@ export function createFinanceRepository(
           )
         : null;
       if (!receivable) return null;
+      // Venda cancelada antes de a forma ser mantida: a forma vem da última baixa registrada.
+      if (receivable.status === "cancelled" && !receivable.paymentMethod) {
+        const last = (
+          await repositoryContext.pool.query<{
+            paymentMethod: PaymentMethod | null;
+            paymentInstallments: string | number | null;
+          }>(
+            `SELECT JSON_VALUE(metadata, '$.paymentMethod') AS "paymentMethod",
+                    JSON_VALUE(metadata, '$.paymentInstallments') AS "paymentInstallments"
+             FROM financial_events
+             WHERE clinic_id = $1 AND receivable_id = $2 AND kind = 'payment'
+             ORDER BY created_at DESC, id DESC LIMIT 1`,
+            [clinicId, receivable.id],
+          )
+        ).rows[0];
+        if (last?.paymentMethod) receivable.paymentMethod = last.paymentMethod;
+        if (Number(last?.paymentInstallments) > 1)
+          receivable.paymentInstallments = Number(last!.paymentInstallments);
+      }
       const payment: PatientTabPayment = {
         receivableId: receivable.id,
         status: receivable.status,

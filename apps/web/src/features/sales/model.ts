@@ -13,12 +13,7 @@ import {
 import { localIsoDate } from "../../shared/lib/formatting";
 
 export type SalesTab =
-  | "new"
-  | "history"
-  | "summary"
-  | "inventory"
-  | "catalogs"
-  | "suppliers";
+  "new" | "history" | "summary" | "inventory" | "catalogs" | "suppliers";
 
 export const salesTabLabels: Record<SalesTab, string> = {
   new: "Nova venda",
@@ -286,6 +281,21 @@ export function stockChoices(product: Product): StockChoice[] {
     },
     ...product.sizeStock.map((entry) => ({ ...entry, configured: false })),
   ];
+}
+
+/** Saldo vendável: só os tamanhos configurados (ou o estoque sem tamanho, se o produto não tem). */
+export function sellableTotal(product: Product): number {
+  return stockChoices(product)
+    .filter((choice) => choice.configured)
+    .reduce((sum, choice) => sum + choice.currentStock, 0);
+}
+
+/**
+ * Unidades fora dos tamanhos do produto ("Sem tamanho" num produto com tamanhos, ou sobras de
+ * tamanhos removidos): contam no estoque, mas não aparecem para vender.
+ */
+export function outsideSizesStock(product: Product): number {
+  return Math.max(0, product.currentStock - sellableTotal(product));
 }
 
 /**

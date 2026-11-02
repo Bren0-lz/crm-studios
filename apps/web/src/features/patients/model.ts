@@ -29,6 +29,7 @@ import {
   CircleDollarSign,
   MessageCircle,
   PackageOpen,
+  PencilLine,
   PhoneCall,
   RefreshCw,
   RotateCcw,
@@ -419,6 +420,7 @@ export const timelineFilterLabels: Array<
   ["contacts", "Contatos"],
   ["messages", "Mensagens"],
   ["satisfaction", "Satisfação"],
+  ["edits", "Cadastro"],
 ];
 
 export const timelineKindConfig: Record<
@@ -434,6 +436,7 @@ export const timelineKindConfig: Record<
   contact: { filter: "contacts", icon: PhoneCall },
   message: { filter: "messages", icon: MessageCircle },
   satisfaction: { filter: "satisfaction", icon: Star },
+  patient_updated: { filter: "edits", icon: PencilLine },
 };
 
 /** "10% de desconto · nas próximas 3 cobranças (1 usada)"; vazio sem desconto. */

@@ -302,6 +302,10 @@ function RegistryEditor({
                   value={form.data.priceInCents}
                   onChange={(value) => patch({ priceInCents: value })}
                 />
+                <p className="field-hint span-2">
+                  O plano avulso do serviço é criado ou atualizado com este
+                  valor.
+                </p>
                 <ResourceChecklist
                   legend="Profissionais que atendem"
                   items={professionals

@@ -31,7 +31,7 @@ import {
   PatientDiscountModal,
 } from "../patients/index";
 import { productSaleInstallments } from "../../shared/lib/product-installments";
-import { sellableStock, stockChoices } from "./model";
+import { sellableStock, sellableTotal } from "./model";
 import { ProductModal } from "./ProductModal";
 
 type SaleLine = {
@@ -114,10 +114,7 @@ export function NewSaleSection({
     const product = productOf(line.productId);
     return product ? sellableStock(product, line.size || undefined) : 0;
   };
-  const totalSellable = (product: Product) =>
-    stockChoices(product)
-      .filter((choice) => choice.configured)
-      .reduce((sum, choice) => sum + choice.currentStock, 0);
+  const totalSellable = sellableTotal;
   const sellableKeys = products.reduce(
     (sum, item) => sum + Math.max(1, item.sizes.length),
     0,
@@ -175,6 +172,8 @@ export function NewSaleSection({
     }),
     // Descontos do produto e geral: as parcelas somam o total cobrado.
     discountInCents,
+    discountLabel:
+      order.orderDiscountInCents > 0 ? "Descontos" : "Descontos dos produtos",
     settlement,
     // Prévia por parcela só com uma forma; no picado, cada forma aparece no campo acima.
     paymentMethod: effectiveParts[0]?.paymentMethod ?? "pix",

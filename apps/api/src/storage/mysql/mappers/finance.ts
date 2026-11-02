@@ -111,6 +111,7 @@ export interface ReceivableRow {
   description: string;
   installmentNumber: number;
   installmentCount: number;
+  balanceOfInstallment?: number | null;
   dueDate: string;
   amountInCents: number;
   status: ReceivableStatus;
@@ -252,7 +253,8 @@ export const receivableColumns = `
   r.id, r.clinic_id AS "clinicId", r.patient_id AS "patientId",
   r.plan_id AS "planId", p.full_name AS "patientName", r.description,
   r.installment_number AS "installmentNumber",
-  r.installment_count AS "installmentCount", r.due_date AS "dueDate",
+  r.installment_count AS "installmentCount",
+  r.balance_of_installment AS "balanceOfInstallment", r.due_date AS "dueDate",
   r.amount_in_cents AS "amountInCents", r.status, r.paid_at AS "paidAt",
   (r.status = 'open' AND r.due_date < ${localToday()}) AS overdue,
   r.created_at AS "createdAt", r.updated_at AS "updatedAt"
@@ -432,6 +434,9 @@ export function mapReceivable(row: ReceivableRow): Receivable {
     description: row.description,
     installmentNumber: row.installmentNumber,
     installmentCount: row.installmentCount,
+    ...(row.balanceOfInstallment
+      ? { balanceOfInstallment: Number(row.balanceOfInstallment) }
+      : {}),
     dueDate: row.dueDate,
     amountInCents: row.amountInCents,
     status: row.status,

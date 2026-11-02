@@ -353,6 +353,8 @@ export interface Receivable {
   description: string;
   installmentNumber: number;
   installmentCount: number;
+  /** Saldo de baixa parcial: número da parcela de origem (exibido no lugar do próprio). */
+  balanceOfInstallment?: number;
   dueDate: string;
   amountInCents: number;
   status: ReceivableStatus;

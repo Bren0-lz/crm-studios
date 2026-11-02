@@ -437,9 +437,11 @@ describe.skipIf(!databaseUrl)("MySQL repository", () => {
         status: string;
         description: string;
         installmentNumber: number;
+        balanceOfInstallment: number | null;
       }>(
         `SELECT amount_in_cents AS "amountInCents", status, description,
-                installment_number AS "installmentNumber"
+                installment_number AS "installmentNumber",
+                balance_of_installment AS "balanceOfInstallment"
          FROM receivables WHERE plan_id = $1 ORDER BY installment_number`,
         [plan.id],
       );
@@ -449,6 +451,7 @@ describe.skipIf(!databaseUrl)("MySQL repository", () => {
           amountInCents: 5_500,
           status: "open",
           installmentNumber: 2,
+          balanceOfInstallment: 1,
           description: expect.stringMatching(/ · saldo$/),
         }),
       ]);

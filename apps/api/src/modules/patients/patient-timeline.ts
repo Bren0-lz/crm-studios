@@ -1,4 +1,5 @@
 import type {
+  AuditChange,
   Appointment,
   AppointmentStatus,
   CommunicationChannel,
@@ -24,6 +25,33 @@ export interface PatientTimelineSources {
   contacts: ContactActivity[];
   messages: OutboundMessage[];
   surveys: SatisfactionSurvey[];
+  /** Edições do cadastro do cliente registradas no Histórico (auditoria). */
+  edits?: PatientTimelineEdit[];
+}
+
+/** Ação do Histórico gravada ao editar o cliente (PUT /patients/:id e PATCH …/status). */
+export const patientEditAction = "operation.patients.update";
+
+/** Uma edição do cadastro: quem, quando, o que mudou e o motivo informado. */
+export interface PatientTimelineEdit {
+  id: string;
+  occurredAt: string;
+  actorName?: string | undefined;
+  changes: AuditChange[];
+  reason?: string | undefined;
+}
+
+/** "Apelido: (vazio) → Tres QA; Telefone: … · Motivo: …". */
+function editDetail(edit: PatientTimelineEdit) {
+  const changes = edit.changes
+    .map(
+      (change) =>
+        `${change.label}: ${change.before ?? "(vazio)"} → ${change.after ?? "(vazio)"}`,
+    )
+    .join("; ");
+  return [changes, edit.reason ? `Motivo: ${edit.reason}` : ""]
+    .filter(Boolean)
+    .join(" · ");
 }
 
 const refundCurrency = new Intl.NumberFormat("pt-BR", {
@@ -182,6 +210,21 @@ export function buildPatientTimeline(
       ...(item.comment ? { detail: item.comment } : {}),
       score: item.score,
     });
+
+  // Edição sem diferença registrada nem motivo não diz nada ao cliente.
+  for (const edit of sources.edits ?? []) {
+    const detail = editDetail(edit);
+    if (!detail) continue;
+    entries.push({
+      id: `patient_updated:${edit.id}`,
+      kind: "patient_updated",
+      occurredAt: edit.occurredAt,
+      title: edit.actorName
+        ? `Cadastro editado por ${edit.actorName}`
+        : "Cadastro editado",
+      detail,
+    });
+  }
 
   return entries.sort(
     (a, b) =>

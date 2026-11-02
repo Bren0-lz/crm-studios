@@ -4,7 +4,9 @@ import {
   clinicCatalogKindSchema,
   clinicCatalogInputSchema,
 } from "@crm/contracts";
+import type { Service } from "@crm/contracts";
 import type { RouteContext } from "../../infrastructure/route-context.js";
+import { syncServiceSinglePlan } from "../agenda/service-single-plan.js";
 
 export function registerCatalogRoutes({
   app,
@@ -17,13 +19,24 @@ export function registerCatalogRoutes({
   app.put(
     "/admin/registry/:id",
     { preHandler: authenticate },
-    async (request) =>
-      repository.updateAdministrativeRegistry(
+    async (request) => {
+      const input = administrativeRegistryInputSchema.parse(request.body);
+      const saved = await repository.updateAdministrativeRegistry(
         request.user.clinicId,
         request.user.sub,
         z.object({ id: z.uuid() }).parse(request.params).id,
-        administrativeRegistryInputSchema.parse(request.body),
-      ),
+        input,
+      );
+      // Editar o preço de tabela atualiza o plano avulso do serviço (sem duplicar).
+      if (input.kind === "service")
+        await syncServiceSinglePlan(
+          repository,
+          request.user.clinicId,
+          request.user.sub,
+          saved as Service,
+        );
+      return saved;
+    },
   );
   app.get(
     "/clinic-catalogs/:kind",
