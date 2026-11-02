@@ -1,7 +1,8 @@
 # Plano — Studios Aryana CRM
 
-Plano vivo do loop autodev (`/next`, `/loop /next`). Rodadas 1–7 concluídas; o detalhe delas
-está no histórico do git (este arquivo antes do commit "chore: handoff da rodada 8").
+Plano vivo do loop autodev (`/next`, `/loop /next`). Rodadas 1–7 concluídas (o detalhe delas
+está no histórico do git, neste arquivo antes do commit "chore: handoff da rodada 8"); rodada 8
+em andamento; rodada 9 (CD, cadastro completo) planejada em 02/11/2026.
 
 ## Definição de pronto (global)
 
@@ -16,6 +17,155 @@ está no histórico do git (este arquivo antes do commit "chore: handoff da roda
 - Portal ou app do cliente.
 - Dependências npm novas, `git push`, edição de migrações existentes, `.env` e `compose.yaml`
   sem autorização do dono.
+
+## Rodada 9 — Cadastro completo (reunião de 02/11/2026)
+
+Origem: reunião de 02/11/2026 (itens B1-06, B1-07, B1-08, B1-10). IDs com prefixo `CD`. Cada
+tarefa: branch a partir de `origin/main`, gate completo, commit `feat(CDn): …` em pt-BR e PR
+`CDn: <título>`. Sem migração nova (etiquetas calculadas na leitura); se precisar, número pela
+regra do `CLAUDE.md`. Ordem: CD0 → CD1 → CD2 → CD3 → CD4 → CD5; CD6 já atendido; CD7 BLOCKED.
+
+### Decisões do dono (02/11/2026)
+
+- **B1-07 WhatsApp obrigatório** no cadastro do cliente (a exportação saía sem WhatsApp). Sai a
+  dica "Em branco, as mensagens usam o telefone de contato." do `PatientModal`.
+- **B1-10 contato de emergência obrigatório** (nome e telefone). Quem não tiver repete o próprio
+  nome e telefone, e o sistema aceita. Sem checkbox "sem contato" e sem permissão para dispensar.
+- **E-mail continua opcional** até decidir (CD7 BLOCKED).
+- **Importação por planilha:** aceita cliente **sem CPF** (só na importação); **WhatsApp
+  obrigatório** também na planilha (linha sem WhatsApp é erro); contato de emergência pode faltar.
+- **Etiqueta do que falta:** todo cliente sem algum dado obrigatório mostra etiqueta automática
+  ("Falta CPF", "Falta WhatsApp", "Falta contato de emergência").
+- **Clientes antigos:** nada é migrado nem apagado. "Editar cliente" exige preencher o que falta
+  ao salvar (como já acontece com o CPF); nunca fica impossível (WhatsApp pode repetir o
+  telefone; contato pode repetir o próprio cliente). Status, etiquetas, mesclagem, inativação,
+  planos e agenda continuam funcionando sem completar o cadastro.
+- **B1-06** (constatação): só aviso "Sem WhatsApp" para profissionais, baixa prioridade.
+
+### Onde cada regra vale
+
+| Lugar | WhatsApp | Contato de emergência (nome + tel.) | CPF |
+|---|---|---|---|
+| `patientInputSchema` (cadastro, guiado, edição) | obrigatório | obrigatório (pode = cliente) | obrigatório (como hoje) |
+| Importação (`patientImportInputSchema`, novo) | obrigatório | opcional → etiqueta | opcional (válido se vier) → etiqueta |
+| Mesclagem (`mergedPatientInput`) | tolerante | tolerante | tolerante |
+| `PatientModal` novo (botão, agenda, guiado) | `required` + "Falta:" | fora de "Mais informações", `required` | como hoje |
+| `PatientModal` edição | exigido ao salvar | exigido ao salvar | como hoje |
+| Conversão de lead (`leadConversionInputSchema`, `LeadConvertModal`) | obrigatório (pré-preenche) | obrigatório | como hoje |
+| API externa `POST /external/v1/patients` e `/leads/:id/convert` | segue a rota interna | idem | idem |
+| Painel de vendas (`dashboard-studios`) | campo novo obrigatório | campos novos obrigatórios | como hoje |
+| Etiqueta automática (leitura) | "Falta WhatsApp" | "Falta contato de emergência" (nome **ou** telefone vazio) | "Falta CPF" |
+| E-mail | opcional em tudo (CD7) | | |
+
+### Triagem no código (02/11/2026)
+
+- `patientInputSchema` (`contracts/patients/model.ts`) é usado em `POST /patients`,
+  `POST /patients/guided`, `PUT /patients/:id` (`modules/patients/routes.ts`), importação
+  (`patient-import.ts`), conversão de lead (`commercial/conversion.ts`) e mesclagem
+  (`contracts/patients/management.ts`).
+- `POST /external/v1/patients` repassa para `/patients` (`external/endpoints.ts`). O painel de
+  vendas (`dashboard-studios`: `apps/web/src/components/EnrollDialog.tsx` `NewPatientForm`,
+  `apps/bff/src/app.ts` `patientSchema`, mock `apps/bff/src/mock-crm/app.ts`) cadastra com só
+  nome, CPF, telefone e e-mail → **quebraria com a CD3**; por isso a CD0 vai antes.
+- Um único `PatientModal.tsx` serve cadastro rápido (também `agenda/AppointmentPatientCreateModal`),
+  guiado e edição; o contato de emergência fica no `<details>` "Mais informações".
+- Etiqueta automática já existe para "Pagamento atrasado" (`contracts/patients/automatic-tags.ts`,
+  `api/modules/patients/automatic-tags.ts`, filtro em `PatientsPage.tsx`).
+- Importação exige CPF hoje (`patientImportRequiredFields`; teste
+  `patient-required-cpf.integration.test.ts`); duplicidade já compara CPF **e** telefone.
+- Demo: `demo-patients.ts` sem CPF e sem WhatsApp, contato de emergência só em 1/3; semente MySQL
+  (`database.ts`) não grava `whatsapp`; Helena/Lucas/Sônia só com nome e telefone.
+- ~96 `POST /patients` em 32 arquivos de teste da API (e mocks web) precisam dos campos novos.
+
+### CD0 — Painel de vendas envia WhatsApp e contato de emergência (repo `dashboard-studios`)
+
+- **Escopo:** `NewPatientForm` com WhatsApp, Nome e Telefone do contato de emergência
+  obrigatórios e dica "Sem contato? Repita o nome e o telefone do cliente."; `patientSchema` do
+  BFF com os 3 campos; mock-crm valida igual. Testes BFF (400 sem cada campo; 201 com contato =
+  próprio cliente) e web (formulário).
+- **Gate:** `npm run check` (no `dashboard-studios`); PR com base `main`. Precisa estar em
+  produção antes da CD3 (os campos a mais já são aceitos pelo CRM atual).
+- **Depende de:** —
+- **Status:** TODO
+
+### CD1 — Dados demo completos
+
+- **Escopo:** `demo-patients.ts` com CPF válido gerado (dígitos verificadores), WhatsApp (maioria
+  = telefone, alguns diferentes) e contato de emergência em todos, **exceto 3 clientes fixos** de
+  propósito (um sem CPF, um sem WhatsApp, um sem contato) para demonstrar as etiquetas.
+  Helena/Lucas/Sônia completos em `storage/memory/context.ts` e `database.ts`; semente MySQL grava
+  `cpf` e `whatsapp`. Conferir `demo-scenarios.ts`/`seed-demo-scenarios.ts`. Teste unitário:
+  CPFs válidos e únicos; só os 3 fixos incompletos.
+- **Gate:** gate completo e `npm run test:mysql`
+- **Depende de:** —
+- **Status:** TODO
+
+### CD2 — Etiquetas automáticas de cadastro incompleto
+
+- **Escopo:** contracts: "Falta CPF", "Falta WhatsApp", "Falta contato de emergência" em
+  `automaticPatientTagNames`, `missingPatientDataTags(patient)` e categoria por etiqueta (`status`
+  para estas; atraso segue `financial`). API: `automaticPatientTagger` acrescenta para todo
+  usuário com o módulo de clientes (atraso continua só com Financeiro); recusa etiqueta manual com
+  esses nomes. Web: opções automáticas no filtro de `PatientsPage`; filtro e exportação
+  reconhecem as novas. Testes contracts (contato pela metade conta como faltando), API (lista,
+  ficha, filtro, exportação; não grava) e web (filtro).
+- **Gate:** gate completo
+- **Depende de:** CD1
+- **Status:** TODO
+
+### CD3 — WhatsApp e contato de emergência obrigatórios no cadastro e na edição
+
+- **Escopo:** contracts: `whatsapp`, `emergencyContactName`, `emergencyContactPhone` obrigatórios
+  em `patientInputSchema` (mensagens pt-BR), **sem** regra contra contato = próprio cliente;
+  schema tolerante para `mergedPatientInput`; `leadConversionInputSchema` exige os campos
+  (pré-preenchidos do lead/cliente). Web: no `PatientModal`, fieldset do contato de emergência
+  logo após "Contato", campos `required`, "Falta:" com WhatsApp/Contato/Telefone de emergência,
+  dica do telefone removida, dica "Sem contato? Repita o nome e o telefone do cliente.";
+  `LeadConvertModal` idem. Descrição em `external/endpoints.ts`. Fixture `validPatientContact` em
+  `test-support` para os testes existentes (sem afrouxar asserções). Testes novos: API (400 sem
+  cada campo em `/patients`, `/patients/guided`, `PUT`, conversão de lead,
+  `/external/v1/patients`; 201 com contato = cliente; antigo: PUT sem → 400, com → 200; mesclar
+  dois antigos funciona), contracts e web (rápido, agenda, guiado, edição de antigo).
+- **Gate:** gate completo
+- **Depende de:** CD0 em produção, CD2
+- **Status:** TODO
+
+### CD4 — Importação: CPF opcional, WhatsApp obrigatório, etiquetas
+
+- **Escopo:** `patientImportRequiredFields = ["fullName", "phone", "whatsapp"]`; schema
+  `patientImportInputSchema` (CPF opcional mas válido se vier; WhatsApp obrigatório; contato
+  opcional). Prévia avisa por linha ("Sem CPF: será marcado com a etiqueta Falta CPF") sem virar
+  erro; sem WhatsApp = "Linha N: WhatsApp é obrigatório."; duplicidade sem CPF pelo telefone.
+  `PatientImportModal` marca os obrigatórios novos. Reescrever a parte de importação de
+  `patient-required-cpf.integration.test.ts` e `patient-import.unit.test.ts`; planilha com DDD
+  separado continua importando. `importPatients` MySQL com `cpf` nulo.
+- **Gate:** gate completo e `npm run test:mysql`
+- **Depende de:** CD3
+- **Status:** TODO
+
+### CD5 — Aviso "Sem WhatsApp" em usuários/profissionais (B1-06, baixa prioridade)
+
+- **Escopo:** `settings/AdminUsersContent.tsx`: `status-pill` "Sem WhatsApp" para usuário ligado
+  a profissional (`professionalId`) sem `whatsapp`. Só aviso. Teste web.
+- **Gate:** gate completo
+- **Depende de:** —
+- **Status:** TODO
+
+### CD6 — B1-08 DDD em coluna separada na exportação
+
+- **Escopo:** já atendido no commit `5a60f11`: `modules/patients/patient-export.ts`
+  (`phoneExportColumns`, "DDD (WhatsApp)" etc.) e `modules/reports/report-workbooks.ts` (consulta
+  de clientes em Excel). Testes: `crm-api-patients.integration.test.ts` (cabeçalho com
+  "DDD (Telefone);Telefone;DDD (WhatsApp);WhatsApp…") e `report-workbooks.unit.test.ts`
+  ("separa DDD e número e converte datas e taxas"). `PatientExportModal.tsx` só escolhe colunas.
+- **Status:** DONE
+
+### CD7 — E-mail obrigatório?
+
+- **Pergunta ao dono:** na reunião ficou "tem que ser obrigatório" × "tem gente que não tem". Se
+  obrigatório: o que fazer com quem não tem e-mail (etiqueta "Falta e-mail"? importação aceita?).
+  Nada muda até decidir.
+- **Status:** BLOCKED
 
 ## Rodada 8 — Correções do QA ponta a ponta (pedido do dono, 17/10/2026)
 
