@@ -4,7 +4,7 @@ import type {
 } from "@crm/contracts";
 import { useEffect, useState } from "react";
 import { api } from "../../api";
-import { shortDate } from "../../shared/lib/formatting";
+import { sentence, shortDate } from "../../shared/lib/formatting";
 
 /**
  * Pergunta, para cada campanha promocional que o cliente recebeu e ainda vale hoje, se o
@@ -72,8 +72,9 @@ export function AppointmentPromotionField({
           Esse atendimento é referente à campanha “{offer.campaignName}”?
           <span className="field-hint">
             {" "}
-            Promoção válida para agendar até{" "}
-            {shortDate.format(new Date(`${offer.validUntil}T12:00:00`))}.
+            {sentence(
+              `Promoção válida para agendar até ${shortDate.format(new Date(`${offer.validUntil}T12:00:00`))}`,
+            )}
           </span>
         </span>
       </label>

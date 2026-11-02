@@ -22,7 +22,7 @@ import { useMissingFields } from "../../shared/components/MissingFields";
 import { PhoneInput } from "../../shared/components/PhoneInput";
 import { Modal, ModalCancelButton } from "../../shared/components/Modal";
 import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
-import { roleLabels } from "../../shared/lib/formatting";
+import { roleLabels, sentence } from "../../shared/lib/formatting";
 import {
   isoDateLabel,
   parsePercentage,
@@ -537,7 +537,7 @@ export function UserFormModal({
             </div>
             <p className="muted-copy">
               {current?.commissionPercentage !== undefined
-                ? `Vigente hoje: ${percentageLabel.format(current.commissionPercentage)}%${current.commissionEffectiveFrom ? ` desde ${isoDateLabel(current.commissionEffectiveFrom)}` : ""}. Um percentual ou data novos criam uma nova vigência; o histórico é mantido.`
+                ? `${sentence(`Vigente hoje: ${percentageLabel.format(current.commissionPercentage)}%${current.commissionEffectiveFrom ? ` desde ${isoDateLabel(current.commissionEffectiveFrom)}` : ""}`)} Um percentual ou data novos criam uma nova vigência; o histórico é mantido.`
                 : "Percentual sobre os atendimentos desta pessoa. Deixe em branco se ela não recebe comissão."}
             </p>
             {sameStart && (
@@ -548,8 +548,8 @@ export function UserFormModal({
             {futureStart && (
               <p className="muted-copy" role="status">
                 {current?.commissionPercentage !== undefined
-                  ? `Data futura: o percentual atual (${percentageLabel.format(current.commissionPercentage)}%) continua valendo até ${isoDateLabel(effectiveFrom)}.`
-                  : `Data futura: a comissão só passa a valer em ${isoDateLabel(effectiveFrom)}.`}
+                  ? `Data futura: o percentual atual (${percentageLabel.format(current.commissionPercentage)}%) continua valendo até ${sentence(isoDateLabel(effectiveFrom))}`
+                  : `Data futura: a comissão só passa a valer em ${sentence(isoDateLabel(effectiveFrom))}`}
               </p>
             )}
           </div>
