@@ -883,7 +883,10 @@ export function planPixChargeMessage(input: {
   totalSessions: number;
   pixKey: string;
   template?: string | undefined;
-  /** 1º pagamento proporcional às aulas até o vencimento (`firstInstallmentInCents`). */
+  /**
+   * Plano recorrente: cobrança proporcional às aulas até o 1º vencimento
+   * (`proratedChargeInCents`), paga antes da 1ª mensalidade cheia.
+   */
   firstChargeInCents?: number | undefined;
   /** 1º pagamento informado à mão na venda (cálculo proporcional desligado). */
   manualFirstCharge?: boolean | undefined;
@@ -919,16 +922,14 @@ export function planPixChargeMessage(input: {
       chave_pix: input.pixKey,
     });
   const perSession = sessionValue ? ` (${sessionValue} por sessão)` : "";
-  const prorated =
-    input.firstChargeInCents !== undefined &&
-    input.firstChargeInCents !== input.totalValueInCents;
+  const prorated = input.firstChargeInCents !== undefined;
   const withDiscount = discount
     ? `, já com o seu desconto de ${money(discount)}`
     : "";
   const charge = input.manualFirstCharge
-    ? `o plano “${input.planName}” tem ${sessions} por ${money(input.totalValueInCents)}${perSession}; o 1º pagamento, com o valor combinado na venda, é de ${money(firstCharge)}${withDiscount}`
+    ? `o plano “${input.planName}” tem ${sessions} por ${money(input.totalValueInCents)}${perSession}; o 1º pagamento, com o valor combinado na venda, é de ${money(firstCharge)}${withDiscount}; depois, ${money(input.totalValueInCents)} por mês`
     : prorated
-    ? `o plano “${input.planName}” tem ${sessions} por ${money(input.totalValueInCents)}${perSession}; o 1º pagamento, proporcional às aulas até o vencimento, é de ${money(firstCharge)}${withDiscount}`
+    ? `o plano “${input.planName}” tem ${sessions} por ${money(input.totalValueInCents)}${perSession}; o 1º pagamento, proporcional às aulas até o 1º vencimento, é de ${money(firstCharge)}${withDiscount}; depois, ${money(input.totalValueInCents)} por mês`
     : installments > 1
       ? `o plano “${input.planName}” tem ${sessions} por ${money(input.totalValueInCents)}${perSession}, em ${installments} parcelas; a 1ª parcela é de ${money(firstCharge)}${withDiscount}`
       : `o valor do plano “${input.planName}” é de ${money(firstCharge)}${withDiscount}, referente a ${sessions}${perSession}`;

@@ -3,6 +3,7 @@ import {
   type PatientOption,
   type PatientPlan,
   patientTagKey,
+  planHasSessionBalance,
 } from "@crm/contracts";
 import { AlertTriangle, Eye } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -19,7 +20,7 @@ function hasCurrentPlan(plans: PatientPlan[], today: string) {
   return plans.some(
     (plan) =>
       plan.status === "active" &&
-      plan.remainingSessions > 0 &&
+      (plan.remainingSessions > 0 || !planHasSessionBalance(plan)) &&
       plan.validFrom <= today &&
       (!plan.validUntil || plan.validUntil >= today),
   );

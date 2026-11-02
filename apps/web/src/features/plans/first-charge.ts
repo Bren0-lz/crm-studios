@@ -4,7 +4,7 @@ export type PlanFirstChargeChoice =
 
 export type FirstChargeTerms = {
   manualFirstCharge?: boolean | undefined;
-  firstInstallmentInCents?: number | undefined;
+  proratedChargeInCents?: number | undefined;
 };
 
 /** Aplica a escolha nos termos do plano (desligar o proporcional guarda o valor informado). */
@@ -14,13 +14,13 @@ export function withFirstChargeChoice<T extends FirstChargeTerms>(
 ): T {
   const next = { ...plan };
   delete next.manualFirstCharge;
-  delete next.firstInstallmentInCents;
+  delete next.proratedChargeInCents;
   if (!choice.manual) return next;
   return {
     ...next,
     manualFirstCharge: true,
     ...(choice.amountInCents !== undefined
-      ? { firstInstallmentInCents: choice.amountInCents }
+      ? { proratedChargeInCents: choice.amountInCents }
       : {}),
   };
 }
