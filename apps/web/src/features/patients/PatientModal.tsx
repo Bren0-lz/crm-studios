@@ -20,6 +20,7 @@ import {
   type PatientTag,
   type Product,
   withoutAutomaticPatientTags,
+  MISSING_CPF_TAG,
 } from "@crm/contracts";
 import {
   CalendarPlus,
@@ -138,12 +139,15 @@ export function PatientModal({
     emergencyContactName: patient?.emergencyContactName ?? "",
     emergencyContactPhone: patient?.emergencyContactPhone ?? "",
     notes: patient?.notes ?? "",
-    // "Pagamento atrasado" é automática: não aparece para marcar nem desmarcar.
+    // Etiquetas automáticas ("Pagamento atrasado", "Falta CPF"): não aparecem para marcar.
     tags: withoutAutomaticPatientTags(patient?.tags ?? []),
   }));
   // O histórico usa acesso comercial: a fisioterapia não vê nem chama a rota.
   const showHistory = Boolean(patient) && can("patients.timeline");
   const editable = patient ? can("patients.update") : can("patients.create");
+  // B6-05: cadastro novo exige CPF; quem já está sem CPF (importado da planilha) pode ser
+  // editado sem ele e mantém a etiqueta "Falta CPF" até preencher. CPF gravado não se apaga.
+  const cpfOptional = Boolean(patient) && !patient?.cpf;
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [changeReason, setChangeReason] = useState("");
@@ -441,7 +445,7 @@ export function PatientModal({
   }
   const missing = useMissingFields([
     ...(form.fullName.trim() ? [] : ["Nome completo"]),
-    ...(form.cpf.trim() ? [] : ["CPF"]),
+    ...(form.cpf.trim() || cpfOptional ? [] : ["CPF"]),
     ...(form.phone.trim() ? [] : ["Telefone"]),
     ...(step === "demonstration"
       ? [
@@ -601,7 +605,7 @@ export function PatientModal({
   async function submit(event: FormEvent) {
     event.preventDefault();
     if (submitting.current) return;
-    if (!isValidCpf(form.cpf)) {
+    if (!(cpfOptional && !form.cpf.trim()) && !isValidCpf(form.cpf)) {
       setError("Informe um CPF válido.");
       return;
     }
@@ -957,14 +961,23 @@ export function PatientModal({
             onChange={(e) => field("nickname", e.target.value)}
           />
         </label>
-        <label className="span-2">
-          CPF
-          <CpfInput
-            required
-            value={form.cpf}
-            onChange={(digits) => field("cpf", digits)}
-          />
-        </label>
+        <div className="field-with-hint span-2">
+          <label>
+            CPF
+            <CpfInput
+              required={!cpfOptional}
+              hintId={cpfOptional ? "patient-cpf-hint" : undefined}
+              value={form.cpf}
+              onChange={(digits) => field("cpf", digits)}
+            />
+          </label>
+          {cpfOptional && (
+            <span className="field-hint" id="patient-cpf-hint">
+              Cliente sem CPF: preencha quando tiver. A etiqueta “
+              {MISSING_CPF_TAG}” sai sozinha.
+            </span>
+          )}
+        </div>
         <fieldset className="form-fieldset span-2">
           <legend>Contato</legend>
           <div className="form-fieldset-grid">
