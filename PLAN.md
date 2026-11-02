@@ -174,8 +174,31 @@ reproduz o zoom do iOS, a causa 2 é verificada pelo estilo computado (≥ 16 px
   "B2-03 não reproduzido" com o que foi tentado e **não** criar correção.
 - **Gate:** sem gate de código; entregável é a anotação no STATE (e, se for o caso, a CT6).
 - **Depende de:** — (independente de CT1–CT4)
-- **Status:** TODO
+- **Resultado (02/11/2026):** reproduzida uma falha que combina com "coloquei muita coisa".
+  Com a API em memória (teste temporário, não commitado): cadastro guiado com 10 planos (1 + 9
+  adicionais, com turma) → 201; modelo de contrato com 19 754 caracteres e todas as variáveis →
+  emissão, status "issued" e link de assinatura → 200. **Falha:** observações do cliente com mais
+  de 2 000 caracteres → 400 "Observações: Use no máximo 2000 caracteres." O `textarea`
+  "Observações" do cadastro (`PatientModal.tsx`) não tem `maxLength`, então a tela aceita o texto
+  e só recusa ao salvar; o mesmo vale para "Observação" da aula experimental
+  (`GuidedDemonstrationFields.tsx`, limite 1 000 na API). Não dá para afirmar que foi esse o erro
+  da demo (o trecho da reunião é ininteligível), nem a sessão de 8 h: a CT4 (no iPhone) e o log
+  de produção no horário da demo confirmam. Correção na CT6.
+- **Status:** DONE
 
+
+### CT6 — Limite das observações no cadastro guiado
+
+- **Origem:** CT5 (B2-03).
+- **Escopo:** `patientNotesMaxLength` (2 000) e `leadAppointmentNotesMaxLength` (1 000)
+  exportados de contracts (`patients/model.ts`, `agenda/model.ts`) e usados no schema e no
+  `maxLength` dos `textarea` de `PatientModal.tsx` (Observações) e
+  `GuidedDemonstrationFields.tsx` (Observação). Teste web em
+  `guided-client-registration.integration.test.tsx`.
+- **Gate:** gate completo
+- **Aceite:** os dois campos têm `maxLength` igual ao limite da API (teste web).
+- **Depende de:** CT5
+- **Status:** DONE
 
 ## Rodada 8 — Correções do QA ponta a ponta (pedido do dono, 17/10/2026)
 
