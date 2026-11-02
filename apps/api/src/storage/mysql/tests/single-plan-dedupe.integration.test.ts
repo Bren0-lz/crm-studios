@@ -10,7 +10,7 @@ import {
 } from "../../../test-support/mysql-database.js";
 
 const migration = new URL(
-  "../../../../migrations/0033_dedupe_single_plans.sql",
+  "../../../../migrations/0035_dedupe_single_plans.sql",
   import.meta.url,
 );
 
@@ -65,7 +65,7 @@ async function insertCopy(pool: Pool, serviceId: string, value: number) {
 }
 
 describe.skipIf(!process.env.TEST_DATABASE_URL)(
-  "mysql: 0033 remove avulsos duplicados",
+  "mysql: 0035 remove avulsos duplicados",
   () => {
     let database: TestDatabase;
     let pool: Pool;
