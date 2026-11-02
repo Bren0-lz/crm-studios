@@ -1,4 +1,4 @@
-import type { IssuedDocument, PatientPlan } from "@crm/contracts";
+import type { Appointment, IssuedDocument, PatientPlan } from "@crm/contracts";
 import { useAuthorization } from "../../authorization-context";
 import {
   issueDocumentForSignature,
@@ -10,8 +10,9 @@ import {
 } from "../contracts/index";
 import {
   PlanPurchaseOptions,
+  PlanSessionsSentStep,
   type PurchaseOptions,
-} from "./PlanPurchaseOptions";
+} from "../plan-purchase/index";
 import type { CloseGuard } from "../../shared/workflows/types";
 import { useState, useCallback, useRef } from "react";
 import { api } from "../../api";
@@ -33,6 +34,12 @@ export function PlanModal({
   const [nested, setNested] = useState(false);
   const [options, setOptions] = useState<PurchaseOptions>({ appointments: [] });
   const [signature, setSignature] = useState<SignatureRequest | null>(null);
+  const [blocked, setBlocked] = useState("");
+  // Contratação com sessões: depois de salvar (e da assinatura), o envio pelo WhatsApp.
+  const [scheduled, setScheduled] = useState<{
+    plan: PatientPlan;
+    appointments: Appointment[];
+  } | null>(null);
   // Plano salvo com documento: o modal passa para o envio do link de assinatura.
   const [sending, setSending] = useState<{
     plan: PatientPlan;
@@ -46,11 +53,13 @@ export function PlanModal({
     };
   }, []);
   const close = () =>
-    sending
-      ? onSaved(sending.plan)
-      : closeGuard.current
-        ? closeGuard.current(onClose)
-        : onClose();
+    scheduled
+      ? onSaved(scheduled.plan)
+      : sending
+        ? onSaved(sending.plan)
+        : closeGuard.current
+          ? closeGuard.current(onClose)
+          : onClose();
   const [purchaseKey] = useState(() => crypto.randomUUID());
   // A matrícula entra na contratação: a turma fica no formulário (obrigatória em aulas em grupo).
   const purchase = !renewing && can("plans.purchase");
@@ -61,21 +70,29 @@ export function PlanModal({
     <Modal
       title={renewing ? "Renovar plano" : "Novo plano"}
       subtitle={
-        sending
-          ? `Plano ${sending.plan.name} salvo. Envie o documento para ${sending.plan.patientName} assinar.`
-          : renewing
-            ? `${renewing.patientName} · ${renewing.serviceName}. O novo período recebe saldo e parcelas próprios; as sessões restantes do plano atual não são transferidas.`
-            : "O saldo e as contas a receber serão criados na mesma operação."
+        scheduled
+          ? `Plano ${scheduled.plan.name} salvo. Envie as sessões para ${scheduled.plan.patientName} pelo WhatsApp.`
+          : sending
+            ? `Plano ${sending.plan.name} salvo. Envie o documento para ${sending.plan.patientName} assinar.`
+            : renewing
+              ? `${renewing.patientName} · ${renewing.serviceName}. O novo período recebe saldo e parcelas próprios; as sessões restantes do plano atual não são transferidas.`
+              : "O saldo e as contas a receber serão criados na mesma operação."
       }
       busy={busy}
       inactive={nested}
       onClose={close}
     >
-      {sending ? (
+      {scheduled && !sending ? (
+        <PlanSessionsSentStep
+          plan={scheduled.plan}
+          appointments={scheduled.appointments}
+          onDone={() => onSaved(scheduled.plan)}
+        />
+      ) : sending ? (
         <SignatureSendStep
           prepare={sending.prepare}
           onBusyChange={setBusy}
-          onDone={() => onSaved(sending.plan)}
+          onDone={() => (scheduled ? setSending(null) : onSaved(sending.plan))}
         />
       ) : (
         <PlanForm
@@ -87,6 +104,7 @@ export function PlanModal({
           onCancel={onClose}
           registerCloseGuard={registerCloseGuard}
           additionalDirty={Boolean(signature || options.appointments.length)}
+          submitBlocked={blocked}
           onBusyChange={setBusy}
           renderAdditional={(input, groupId) => (
             <>
@@ -106,6 +124,7 @@ export function PlanModal({
                   value={options}
                   onChange={setOptions}
                   onNestedChange={setNested}
+                  onBlockedChange={setBlocked}
                 />
               )}
             </>
@@ -113,6 +132,7 @@ export function PlanModal({
           onSubmit={async (input, groupId) => {
             let document: IssuedDocument | undefined;
             let plan: PatientPlan;
+            let booked: Appointment[] = [];
             if (renewing)
               plan = await api.renewPlan(renewing.id, {
                 name: input.name,
@@ -141,8 +161,10 @@ export function PlanModal({
               });
               plan = result.plan;
               document = result.document;
+              booked = result.appointments;
+              if (booked.length) setScheduled({ plan, appointments: booked });
             } else plan = await api.createPlan(input);
-            if (!signature) return onSaved(plan);
+            if (!signature) return booked.length ? undefined : onSaved(plan);
             setSending({
               plan,
               prepare: document

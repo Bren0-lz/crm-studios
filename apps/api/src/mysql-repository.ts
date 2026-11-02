@@ -392,6 +392,7 @@ export class MysqlClinicRepository implements ClinicRepository {
     this.findAppointmentServiceId = this.agenda.findAppointmentServiceId;
     this.findAppointment = this.agenda.findAppointment;
     this.updateAppointment = this.agenda.updateAppointment;
+    this.findAgendaConflicts = this.agenda.findAgendaConflicts;
     this.createRecurringAppointments = this.agenda.createRecurringAppointments;
     this.listScheduleBlocks = this.agenda.listScheduleBlocks;
     this.createScheduleBlock = this.agenda.createScheduleBlock;
@@ -846,6 +847,10 @@ export class MysqlClinicRepository implements ClinicRepository {
   readonly listAppointmentReschedules: ReturnType<
     typeof createAgendaRepository
   >["listAppointmentReschedules"];
+
+  readonly findAgendaConflicts: ReturnType<
+    typeof createAgendaRepository
+  >["findAgendaConflicts"];
 
   readonly createRecurringAppointments: ReturnType<
     typeof createAgendaRepository

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import {
+  agendaConflictCheckInputSchema,
   appointmentInputSchema,
   appointmentPromotionSchema,
   appointmentRescheduleInputSchema,
@@ -39,6 +40,17 @@ export type AppointmentUpdateInput = z.infer<
 export type RecurringAppointmentInput = z.infer<
   typeof recurringAppointmentInputSchema
 >;
+
+export type AgendaConflictCheckInput = z.infer<
+  typeof agendaConflictCheckInputSchema
+>;
+
+/** Conflito de um horário planejado: atendimento, aula de turma, bloqueio, feriado ou outro item do próprio lote. */
+export interface AgendaConflict {
+  key: string;
+  kind: "appointment" | "group" | "block" | "holiday" | "batch";
+  label: string;
+}
 
 export type LeadAppointmentInput = z.infer<typeof leadAppointmentInputSchema>;
 
@@ -205,7 +217,12 @@ export interface GroupWorkspace {
 
 export type ClinicalAppointmentOption = Pick<
   Appointment,
-  "id" | "patientId" | "startsAt" | "patientName" | "professionalName" | "status"
+  | "id"
+  | "patientId"
+  | "startsAt"
+  | "patientName"
+  | "professionalName"
+  | "status"
 >;
 
 export interface AppointmentReportBreakdown {
