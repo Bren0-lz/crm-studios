@@ -1,8 +1,10 @@
 import {
+  planHasSessionBalance,
   type GroupAttendance,
   type GroupAttendanceInput,
   type ReplacementBookingInput,
 } from "@crm/contracts";
+import type { PatientPlan } from "@crm/contracts";
 import type { PoolClient } from "../../infrastructure/mysql-client.js";
 import { DomainError } from "../../repository.js";
 import { assertReplacementTarget } from "../../modules/groups/replacement-target.js";
@@ -56,8 +58,13 @@ export function createGroupOperationsRepository(
     if ((present && entry.balance < 0) || (!present && entry.balance >= 0))
       return;
     const plans = present
-      ? await client.query<{ id: string; balance: number }>(
-          `SELECT pp.id,pps.remaining_sessions AS balance FROM patient_plans pp JOIN patient_plan_services pps ON pps.plan_id=pp.id AND pps.clinic_id=pp.clinic_id WHERE pp.clinic_id=$1 AND pp.patient_id=$2 AND pps.service_id=$3 AND pps.remaining_sessions>0 AND pp.status='active' AND pp.source_tab_id IS NULL AND pp.valid_from<=${localDate("$4")} AND (pp.valid_until IS NULL OR pp.valid_until>=${localDate("$4")}) ORDER BY pp.valid_until IS NULL,pp.valid_until,pp.created_at LIMIT 1 FOR UPDATE`,
+      ? await client.query<{
+          id: string;
+          balance: number;
+          kind: PatientPlan["kind"];
+        }>(
+          // Recorrente: a frequência semanal vale, sem bloquear pelo saldo nominal.
+          `SELECT pp.id,pps.remaining_sessions AS balance,pp.kind FROM patient_plans pp JOIN patient_plan_services pps ON pps.plan_id=pp.id AND pps.clinic_id=pp.clinic_id WHERE pp.clinic_id=$1 AND pp.patient_id=$2 AND pps.service_id=$3 AND (pps.remaining_sessions>0 OR pp.kind='recurring') AND pp.status='active' AND pp.source_tab_id IS NULL AND pp.valid_from<=${localDate("$4")} AND (pp.valid_until IS NULL OR pp.valid_until>=${localDate("$4")}) ORDER BY pp.valid_until IS NULL,pp.valid_until,pp.created_at LIMIT 1 FOR UPDATE`,
           [
             clinicId,
             attendance.patientId,
@@ -65,12 +72,16 @@ export function createGroupOperationsRepository(
             attendance.startsAt,
           ],
         )
-      : await client.query<{ id: string; balance: number }>(
-          `SELECT pp.id,pps.remaining_sessions AS balance FROM patient_plans pp JOIN patient_plan_services pps ON pps.plan_id=pp.id AND pps.clinic_id=pp.clinic_id WHERE pp.clinic_id=$1 AND pp.id=$2 AND pps.service_id=$3 FOR UPDATE`,
+      : await client.query<{
+          id: string;
+          balance: number;
+          kind: PatientPlan["kind"];
+        }>(
+          `SELECT pp.id,pps.remaining_sessions AS balance,pp.kind FROM patient_plans pp JOIN patient_plan_services pps ON pps.plan_id=pp.id AND pps.clinic_id=pp.clinic_id WHERE pp.clinic_id=$1 AND pp.id=$2 AND pps.service_id=$3 FOR UPDATE`,
           [clinicId, entry.planId, entry.serviceId],
         );
     const plan = plans.rows[0];
-    if (!plan || (present && plan.balance < 1))
+    if (!plan || (present && plan.balance < 1 && planHasSessionBalance(plan)))
       throw new DomainError(
         "NO_SESSION_BALANCE",
         "O cliente não possui plano vigente com saldo para este serviço.",

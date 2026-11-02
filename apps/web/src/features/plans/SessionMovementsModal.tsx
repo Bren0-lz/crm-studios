@@ -1,4 +1,9 @@
-import { type PatientPlan, paymentMethodLabels } from "@crm/contracts";
+import {
+  type PatientPlan,
+  paymentMethodLabels,
+  planHasSessionBalance,
+  planUsedSessions,
+} from "@crm/contracts";
 import { useEffect, useState } from "react";
 import { api } from "../../api";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
@@ -31,16 +36,21 @@ export function SessionMovementsModal({
       subtitle={
         cancelled
           ? "Plano cancelado – sessões indisponíveis."
-          : `${plan.remainingSessions} sessões disponíveis no momento.`
+          : planHasSessionBalance(plan)
+            ? `${plan.remainingSessions} sessões disponíveis no momento.`
+            : `${planUsedSessions(plan)} aulas feitas neste ciclo (plano prevê ${plan.totalSessions}).`
       }
       onClose={onClose}
     >
       {plan.services.map((entry) => (
         <p key={entry.serviceId}>
           {/* Plano cancelado não tem sessão utilizável, mesmo com saldo gravado. */}
-          {entry.serviceName}: {cancelled ? 0 : entry.remainingSessions} de{" "}
-          {entry.totalSessions} sessões{" "}
-          {cancelled ? "disponíveis" : "restantes"}
+          {entry.serviceName}:{" "}
+          {cancelled
+            ? `0 de ${entry.totalSessions} sessões disponíveis`
+            : planHasSessionBalance(plan)
+              ? `${entry.remainingSessions} de ${entry.totalSessions} sessões restantes`
+              : `${planUsedSessions(entry)} de ${entry.totalSessions} aulas previstas`}
         </p>
       ))}
       {cancelled && plan.cancelledAt && (

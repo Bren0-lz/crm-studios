@@ -1,4 +1,4 @@
-import { isOverdueReceivable } from "@crm/contracts";
+import { isOverdueReceivable, planHasSessionBalance } from "@crm/contracts";
 import type {
   AppModule,
   Appointment,
@@ -233,7 +233,8 @@ export function buildContactSuggestions(
       );
     }
 
-    // low_balance (serviço avulso fica de fora: sempre tem saldo baixo)
+    // low_balance (serviço avulso fica de fora: sempre tem saldo baixo; o recorrente
+    // não tem saldo que acaba, renova pela frequência semanal)
     const lowBalances = plans
       .flatMap((plan) =>
         plan.services.map((service) => ({
@@ -250,6 +251,7 @@ export function buildContactSuggestions(
         (plan) =>
           plan.status === "active" &&
           plan.kind !== "single" &&
+          planHasSessionBalance(plan) &&
           !plan.renewedByPlanId &&
           plan.remainingSessions <= settings.lowBalanceSessions,
       )
@@ -277,6 +279,7 @@ export function buildContactSuggestions(
       .filter(
         (plan) =>
           plan.status === "expired" &&
+          planHasSessionBalance(plan) &&
           plan.remainingSessions > 0 &&
           !plan.renewedByPlanId &&
           plan.validUntil &&

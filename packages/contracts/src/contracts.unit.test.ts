@@ -2148,55 +2148,93 @@ describe("1º pagamento proporcional às aulas até o vencimento", () => {
     );
     expect(weeklySlotSessionsBetween([], "2026-10-01", "2026-10-31")).toBe(0);
   });
-  it("charges the full value at the end of the first cycle", () => {
-    expect(planFirstChargeProration(plan, slots)).toBeNull();
-  });
-  it("is cheaper before and more expensive after the end of the cycle", () => {
-    expect(
-      planFirstChargeProration({ ...plan, firstDueDate: "2026-10-15" }, slots),
-    ).toEqual({
-      sessions: 4,
-      cycleSessions: 8,
-      cycleEnd: "2026-10-31",
-      amountInCents: 20_000,
+  // Novembro/2026: de 20/10 a 19/11 há 9 aulas de segunda e quarta (21, 26, 28/10 e
+  // 2, 4, 9, 11, 16, 18/11); de 10/11 a 19/11, 3 (11, 16, 18).
+  const november = {
+    kind: "recurring" as const,
+    totalValueInCents: 32_000,
+    validFrom: "2026-11-10",
+    firstDueDate: "2026-11-20",
+  };
+  it("prices the class by the cycle that ends the day before the first due date", () => {
+    expect(planFirstChargeProration(november, slots)).toEqual({
+      sessions: 3,
+      cycleSessions: 9,
+      cycleStart: "2026-10-20",
+      cycleEnd: "2026-11-19",
+      dueDate: "2026-11-10",
+      amountInCents: 10_667,
     });
+    // Ciclo de outubro com 8 aulas: de 15/10 a 31/10 há 4 (19, 21, 26, 28).
     expect(
-      planFirstChargeProration({ ...plan, firstDueDate: "2026-11-10" }, slots)
-        ?.amountInCents,
-    ).toBe(55_000);
+      planFirstChargeProration(
+        { ...plan, validFrom: "2026-10-15", firstDueDate: "2026-11-01" },
+        slots,
+      ),
+    ).toMatchObject({ sessions: 4, cycleSessions: 8, amountInCents: 20_000 });
   });
-  it("keeps the full value without a group, when paid upfront or outside recurring plans", () => {
-    const early = { ...plan, firstDueDate: "2026-10-15" };
-    expect(planFirstChargeProration(early, undefined)).toBeNull();
-    expect(planFirstChargeProration(early, [])).toBeNull();
+  it("follows the weekdays of the class", () => {
+    // Terça, quinta e sábado: 14 aulas de 20/10 a 19/11 e 5 de 10/11 a 19/11.
+    const tueThuSat = [{ weekday: 2 }, { weekday: 4 }, { weekday: 6 }];
     expect(
-      planFirstChargeProration({ ...plan, firstDueDate: "2026-10-01" }, slots),
+      planFirstChargeProration(
+        { ...november, totalValueInCents: 30_000 },
+        tueThuSat,
+      ),
+    ).toMatchObject({ sessions: 5, cycleSessions: 14, amountInCents: 10_714 });
+  });
+  it("charges more than the monthly value when the first due date is over a month away", () => {
+    // De 15/10 a 30/11: 4 aulas em outubro + 9 em novembro, ciclo de novembro com 9.
+    expect(
+      planFirstChargeProration(
+        { ...plan, validFrom: "2026-10-15", firstDueDate: "2026-12-01" },
+        slots,
+      ),
+    ).toMatchObject({ sessions: 13, cycleSessions: 9, amountInCents: 57_778 });
+  });
+  it("has no prorated charge without a group, classes before the due date or outside recurring plans", () => {
+    expect(planFirstChargeProration(november, undefined)).toBeNull();
+    expect(planFirstChargeProration(november, [])).toBeNull();
+    expect(
+      planFirstChargeProration(
+        { ...november, firstDueDate: november.validFrom },
+        slots,
+      ),
     ).toBeNull();
     expect(
-      planFirstChargeProration({ ...early, kind: "fixed_package" }, slots),
+      planFirstChargeProration(
+        { ...november, firstDueDate: "2026-11-05" },
+        slots,
+      ),
+    ).toBeNull();
+    // Início numa quinta (19/11) com vencimento na sexta: nenhuma aula no período.
+    expect(
+      planFirstChargeProration({ ...november, validFrom: "2026-11-19" }, slots),
+    ).toBeNull();
+    expect(
+      planFirstChargeProration({ ...november, kind: "fixed_package" }, slots),
     ).toBeNull();
   });
-  it("replaces only the first installment of the schedule", () => {
-    const terms = withPlanFirstCharge(
-      { ...plan, firstDueDate: "2026-10-15", installments: 1 },
-      slots,
-    );
-    expect(terms.firstInstallmentInCents).toBe(20_000);
+  it("adds the prorated charge at the start, before the full monthly charge", () => {
+    const terms = withPlanFirstCharge({ ...november, installments: 1 }, slots);
+    expect(terms.proratedChargeInCents).toBe(10_667);
     expect(planInstallmentSchedule(terms)).toEqual([
-      { installmentNumber: 1, dueDate: "2026-10-15", amountInCents: 20_000 },
+      { installmentNumber: 1, dueDate: "2026-11-10", amountInCents: 10_667 },
+      { installmentNumber: 2, dueDate: "2026-11-20", amountInCents: 32_000 },
     ]);
-    // Voltar para o fim do ciclo remove o valor proporcional calculado antes.
+    // Vencer no próprio início remove a cobrança proporcional calculada antes.
     expect(
-      withPlanFirstCharge({ ...terms, firstDueDate: "2026-10-31" }, slots),
-    ).not.toHaveProperty("firstInstallmentInCents");
+      withPlanFirstCharge({ ...terms, firstDueDate: "2026-11-10" }, slots),
+    ).not.toHaveProperty("proratedChargeInCents");
+    // Sem o início do plano não há onde vencer a proporcional.
     expect(
       planInstallmentSchedule({
         totalValueInCents: 30_000,
         installments: 3,
         firstDueDate: "2026-10-15",
-        firstInstallmentInCents: 5_000,
+        proratedChargeInCents: 5_000,
       }).map((item) => item.amountInCents),
-    ).toEqual([5_000, 10_000, 10_000]);
+    ).toEqual([10_000, 10_000, 10_000]);
   });
   it("tells the prorated first charge in the Pix message", () => {
     expect(
@@ -2210,7 +2248,7 @@ describe("1º pagamento proporcional às aulas até o vencimento", () => {
         firstChargeInCents: 20_000,
       }),
     ).toContain(
-      "o plano “Pilates 2x semana” tem 8 sessões por R$ 400,00 (R$ 50,00 por sessão); o 1º pagamento, proporcional às aulas até o vencimento, é de R$ 200,00.",
+      "o plano “Pilates 2x semana” tem 8 sessões por R$ 400,00 (R$ 50,00 por sessão); o 1º pagamento, proporcional às aulas até o 1º vencimento, é de R$ 200,00; depois, R$ 400,00 por mês.",
     );
   });
 });

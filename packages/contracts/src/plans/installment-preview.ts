@@ -55,14 +55,15 @@ function splitAmount(totalInCents: number, installments: number) {
 /**
  * Parcelas que a venda (ou renovação) do plano vai gerar, com a mesma conta da API
  * (`planInstallmentSchedule` + `discountedPlanInstallments`): divisão do valor, centavo
- * do arredondamento, 1º pagamento proporcional, desconto do plano (conforme o alcance e,
+ * do arredondamento, cobrança proporcional antes do 1º vencimento, desconto do plano (conforme o alcance e,
  * na renovação, o que já foi usado) e a parte do desconto geral do pedido.
  */
 export function planInstallmentPreview(plan: {
   totalValueInCents: number;
   installments: number;
   firstDueDate: string;
-  firstInstallmentInCents?: number | undefined;
+  validFrom?: string | undefined;
+  proratedChargeInCents?: number | undefined;
   discount?: PatientDiscount | null | undefined;
   /** Na renovação: desconto do plano anterior (segue quando nenhum novo é informado). */
   previousDiscount?: PatientDiscount | null | undefined;
@@ -84,9 +85,10 @@ export function planInstallmentPreview(plan: {
     plan.orderDiscountInCents,
   );
   const base = Math.floor(plan.totalValueInCents / installments);
+  const prorated = schedule.length > installments;
   return schedule.map((item, index) => {
     const parts: InstallmentPreviewPart[] = [];
-    if (index === 0 && plan.firstInstallmentInCents !== undefined)
+    if (index === 0 && prorated)
       parts.push({
         label: "Proporcional às aulas até o 1º vencimento",
         amountInCents: item.amountInCents,
@@ -120,7 +122,7 @@ export function planInstallmentPreview(plan: {
       });
     return {
       installmentNumber: item.installmentNumber,
-      installmentCount: installments,
+      installmentCount: schedule.length,
       dueDate: item.dueDate,
       amountInCents: final.installments[index]!.amountInCents,
       parts,

@@ -1,6 +1,7 @@
 import {
   fillCampaignMessage,
   imageDataUrlInfo,
+  planHasSessionBalance,
   usesAppointmentVariables,
   MESSAGE_TEMPLATE_IMAGE_MAX_BYTES,
   type Appointment,
@@ -221,7 +222,9 @@ function matchesPlanFilters(
           plan.validUntil >= today &&
           plan.validUntil <= limit)) &&
       (segment.maxRemainingSessions === undefined ||
-        plan.remainingSessions <= segment.maxRemainingSessions),
+        // Recorrente não tem saldo que acaba: fica fora do filtro de saldo.
+        (planHasSessionBalance(plan) &&
+          plan.remainingSessions <= segment.maxRemainingSessions)),
   );
 }
 

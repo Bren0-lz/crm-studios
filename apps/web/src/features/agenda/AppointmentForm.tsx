@@ -13,6 +13,7 @@ import type {
 } from "@crm/contracts";
 import {
   packageScheduleStarts,
+  planHasSessionBalance,
   recurringOccurrenceStarts,
   serviceAvailableFor,
 } from "@crm/contracts";
@@ -755,6 +756,8 @@ function usePackageRemaining(patientId: string, serviceId: string) {
     .filter(
       (plan) =>
         plan.status === "active" &&
+        // Recorrente não tem saldo que acaba: não sugere quantas sessões marcar.
+        planHasSessionBalance(plan) &&
         plan.validFrom <= today &&
         (!plan.validUntil || plan.validUntil >= today),
     )
