@@ -7,6 +7,9 @@ import {
   type ExternalGroupRow,
   type ExternalGroupsOverview,
   type ExternalLoginResult,
+  type ExternalOverdueReport,
+  type ExternalOverdueRow,
+  externalOverdueBand,
   type ExternalPatientSummary,
   externalGroupsQuerySchema,
   externalPatientsQuerySchema,
@@ -349,6 +352,99 @@ export function registerExternalRoutes({
             status: item.status,
           })),
       }));
+    },
+  );
+
+  /**
+   * Inadimplência por cliente para a tela "Quem preciso cobrar?" do painel: soma as parcelas em
+   * aberto com vencimento antes de hoje (fuso da clínica), pela mesma base do resumo financeiro.
+   */
+  app.get(
+    "/external/v1/overdue",
+    { preHandler: authenticate },
+    async (request): Promise<ExternalOverdueReport> => {
+      const clinicId = request.user.clinicId;
+      const { today, workspace, rows } = await groupsOverview(
+        clinicId,
+        request.user.sub,
+        true,
+      );
+      const [summary, patients] = await Promise.all([
+        repository.getFinancialSummary(clinicId),
+        repository.listPatients(clinicId),
+      ]);
+      const byPatient = new Map<
+        string,
+        { name: string; amount: number; installments: number; oldest: string }
+      >();
+      for (const receivable of summary.receivables) {
+        if (receivable.status !== "open" || receivable.dueDate >= today)
+          continue;
+        const current = byPatient.get(receivable.patientId);
+        if (current) {
+          current.amount += receivable.amountInCents;
+          current.installments += 1;
+          if (receivable.dueDate < current.oldest)
+            current.oldest = receivable.dueDate;
+        } else
+          byPatient.set(receivable.patientId, {
+            name: receivable.patientName,
+            amount: receivable.amountInCents,
+            installments: 1,
+            oldest: receivable.dueDate,
+          });
+      }
+      const patientById = new Map(
+        patients.map((patient) => [patient.id, patient]),
+      );
+      const groupById = new Map(rows.map((row) => [row.group.id, row]));
+      const todayTime = Date.parse(`${today}T00:00:00.000Z`);
+      const result: ExternalOverdueRow[] = [...byPatient].map(
+        ([patientId, item]) => {
+          const patient = patientById.get(patientId);
+          const daysOverdue = Math.round(
+            (todayTime - Date.parse(`${item.oldest}T00:00:00.000Z`)) /
+              86_400_000,
+          );
+          return {
+            patientId,
+            patientName: patient?.fullName ?? item.name,
+            ...(patient?.phone ? { phone: patient.phone } : {}),
+            groups: workspace.enrollments
+              .filter(
+                (enrollment) =>
+                  enrollment.patientId === patientId &&
+                  enrollment.status === "active",
+              )
+              .flatMap((enrollment) => {
+                const row = groupById.get(enrollment.groupId);
+                return row
+                  ? [
+                      {
+                        groupId: row.group.id,
+                        groupName: row.group.name,
+                        full: row.freeSeats <= 0,
+                        waitlistCount: row.group.waitlistCount,
+                      },
+                    ]
+                  : [];
+              }),
+            amountInCents: item.amount,
+            installments: item.installments,
+            oldestDueDate: item.oldest,
+            daysOverdue,
+            band: externalOverdueBand(daysOverdue),
+          };
+        },
+      );
+      return {
+        referenceDate: today,
+        rows: result.sort(
+          (left, right) =>
+            right.daysOverdue - left.daysOverdue ||
+            left.patientName.localeCompare(right.patientName, "pt-BR"),
+        ),
+      };
     },
   );
 
