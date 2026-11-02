@@ -1,6 +1,7 @@
 import {
   matchesPatientProfile,
   patientProfileValueLabels,
+  patientResidenceTypeLabels,
   patientExportColumnLabels,
   type Patient,
   type PatientExportColumn,
@@ -86,6 +87,10 @@ function textValue(patient: Patient, column: PatientExportColumn): string {
           patient[column] as keyof typeof patientProfileValueLabels
         ] ?? ""
       );
+    case "residenceType":
+      return patient.residenceType
+        ? patientResidenceTypeLabels[patient.residenceType]
+        : "";
     case "birthDate":
       return patient.birthDate ? brazilianDate(patient.birthDate) : "";
     case "clientSince":
