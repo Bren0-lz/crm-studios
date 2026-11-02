@@ -8,6 +8,7 @@ import {
   isTabCreditPlan,
   patientProfileLabels,
   patientProfileValueLabels,
+  patientResidenceTypeLabels,
 } from "@crm/contracts";
 import { ArrowUpRight, FileClock, Plus, Repeat } from "lucide-react";
 import { type ReactNode, useEffect, useState } from "react";
@@ -143,9 +144,13 @@ function profileFields(patient: Patient) {
             ? (patientProfileValueLabels[
                 value as keyof typeof patientProfileValueLabels
               ] ?? value)
-            : key === "clientSince"
-              ? formatIsoDate(value)
-              : value,
+            : key === "residenceType"
+              ? (patientResidenceTypeLabels[
+                  value as keyof typeof patientResidenceTypeLabels
+                ] ?? value)
+              : key === "clientSince"
+                ? formatIsoDate(value)
+                : value,
     ]);
   }
   if (patient.discount)
