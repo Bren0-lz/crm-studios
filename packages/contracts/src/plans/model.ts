@@ -252,6 +252,26 @@ export function isSinglePlanTemplate(template: {
 }
 
 /**
+ * Sessões por serviço de um plano vendido como pacote (pacote fixo ou avulso com várias
+ * sessões, ex.: 10 sessões): a contratação agenda os horários em dias fixos na semana até
+ * acabar o pacote. Plano recorrente, personalizado ou avulso de uma sessão: `undefined`.
+ */
+export function planPackageSessions(plan: {
+  kind: z.infer<typeof planKindSchema>;
+  services: readonly { serviceId: string; totalSessions: number }[];
+}): Record<string, number> | undefined {
+  if (plan.kind !== "fixed_package" && plan.kind !== "single") return undefined;
+  if (
+    plan.kind === "single" &&
+    !plan.services.some((item) => item.totalSessions >= 2)
+  )
+    return undefined;
+  return Object.fromEntries(
+    plan.services.map((item) => [item.serviceId, item.totalSessions]),
+  );
+}
+
+/**
  * O preço de tabela do serviço não cobra nada: o valor de referência de uma sessão avulsa vem do plano avulso
  * ativo que inclui o serviço (valor ÷ sessões). Com mais de um, vale o cadastrado primeiro.
  */

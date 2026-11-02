@@ -136,9 +136,10 @@ describe("recurring plan charges", () => {
         serviceId,
         professionalId: professionals!.json()[0].id,
         roomId: rooms!.json()[0].id,
+        // Fora dos horários dos atendimentos demo (06:00 a 14:00 conforme o fuso).
         weeklySlots: [
-          { weekday: 1, startTime: "07:00", endTime: "08:00" },
-          { weekday: 3, startTime: "07:00", endTime: "08:00" },
+          { weekday: 1, startTime: "20:00", endTime: "21:00" },
+          { weekday: 3, startTime: "20:00", endTime: "21:00" },
         ],
       },
     });
