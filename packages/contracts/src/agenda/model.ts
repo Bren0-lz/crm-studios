@@ -483,91 +483,132 @@ export const appointmentStatusInputSchema = z.object({
   status: appointmentStatusSchema,
 });
 
-/**
- * Parcelas de um plano: uma por mês a partir do primeiro vencimento (dia
- * limitado ao fim do mês), com o resto da divisão nos primeiros centavos. Com
- * `firstInstallmentInCents` (1º pagamento proporcional), a 1ª parcela usa esse valor.
- */
-export function planInstallmentSchedule(plan: {
-  totalValueInCents: number;
-  installments: number;
-  firstDueDate: string;
-  firstInstallmentInCents?: number | undefined;
-  paymentMethod?: PaymentMethod | undefined;
-  paymentParts?:
-    | readonly {
-        paymentMethod: PaymentMethod;
-        amountInCents: number;
-        installments: number;
-      }[]
-    | undefined;
-}): {
+type PlanScheduleItem = {
   installmentNumber: number;
   dueDate: string;
   amountInCents: number;
   /** Forma prevista da cobrança (a da parte, no plano picado). */
   paymentMethod?: PaymentMethod;
-}[] {
+};
+
+type PlanSchedulePart = {
+  paymentMethod: PaymentMethod;
+  amountInCents: number;
+  installments: number;
+};
+
+/**
+ * Parcelas de um plano: uma por mês a partir do primeiro vencimento (dia
+ * limitado ao fim do mês), com o resto da divisão nos primeiros centavos. Com
+ * `proratedChargeInCents` (recorrente que começa antes do 1º vencimento), vem antes
+ * uma cobrança a mais com esse valor, vencendo no início do plano (`validFrom`).
+ */
+export function planInstallmentSchedule(plan: {
+  totalValueInCents: number;
+  installments: number;
+  firstDueDate: string;
+  validFrom?: string | undefined;
+  proratedChargeInCents?: number | undefined;
+  paymentMethod?: PaymentMethod | undefined;
+  paymentParts?: readonly PlanSchedulePart[] | undefined;
+}): PlanScheduleItem[] {
   const parts = plan.paymentParts;
-  if (parts && parts.length > 1) return splitPlanSchedule({ ...plan, parts });
   const method = parts?.[0]?.paymentMethod ?? plan.paymentMethod;
+  const regular =
+    parts && parts.length > 1
+      ? splitPlanSchedule(plan.firstDueDate, parts)
+      : regularPlanSchedule(plan, method);
+  const prorated =
+    plan.proratedChargeInCents && plan.validFrom
+      ? proratedPlanCharges(
+          plan.proratedChargeInCents,
+          plan.validFrom,
+          parts && parts.length > 1 ? parts : undefined,
+          method,
+        )
+      : [];
+  return [...prorated, ...regular].map((item, index) => ({
+    ...item,
+    installmentNumber: index + 1,
+  }));
+}
+
+function regularPlanSchedule(
+  plan: {
+    totalValueInCents: number;
+    installments: number;
+    firstDueDate: string;
+  },
+  method: PaymentMethod | undefined,
+): PlanScheduleItem[] {
   const baseAmount = Math.floor(plan.totalValueInCents / plan.installments);
   const remainder = plan.totalValueInCents % plan.installments;
   return Array.from({ length: plan.installments }, (_, index) => ({
     installmentNumber: index + 1,
     dueDate: addMonthsToIsoDate(plan.firstDueDate, index),
-    amountInCents:
-      index === 0 && plan.firstInstallmentInCents !== undefined
-        ? plan.firstInstallmentInCents
-        : baseAmount + (index < remainder ? 1 : 0),
+    amountInCents: baseAmount + (index < remainder ? 1 : 0),
     ...(method ? { paymentMethod: method } : {}),
   }));
 }
 
 /**
- * Plano picado: cada forma divide o próprio valor nas cobranças dela, mês a mês a partir do
- * 1º vencimento. Com 1ª cobrança proporcional, as primeiras de cada forma somam o valor
- * proporcional, repartido na mesma proporção. Ordem: vencimento e depois a ordem das formas.
+ * Cobrança proporcional: no plano picado, repartida entre as formas na proporção do valor
+ * de cada uma (o resto do arredondamento fica na última).
  */
-function splitPlanSchedule(plan: {
-  firstDueDate: string;
-  firstInstallmentInCents?: number | undefined;
-  parts: readonly {
-    paymentMethod: PaymentMethod;
-    amountInCents: number;
-    installments: number;
-  }[];
-}) {
-  const charges = plan.parts.flatMap((part, partIndex) => {
+function proratedPlanCharges(
+  amountInCents: number,
+  dueDate: string,
+  parts: readonly PlanSchedulePart[] | undefined,
+  method: PaymentMethod | undefined,
+): PlanScheduleItem[] {
+  if (!parts)
+    return [
+      {
+        installmentNumber: 1,
+        dueDate,
+        amountInCents,
+        ...(method ? { paymentMethod: method } : {}),
+      },
+    ];
+  const total = parts.reduce((sum, part) => sum + part.amountInCents, 0);
+  let used = 0;
+  return parts.map((part, position) => {
+    const amount =
+      position === parts.length - 1
+        ? amountInCents - used
+        : total > 0
+          ? Math.floor((part.amountInCents * amountInCents) / total)
+          : 0;
+    used += amount;
+    return {
+      installmentNumber: position + 1,
+      dueDate,
+      amountInCents: amount,
+      paymentMethod: part.paymentMethod,
+    };
+  });
+}
+
+/**
+ * Plano picado: cada forma divide o próprio valor nas cobranças dela, mês a mês a partir do
+ * 1º vencimento. Ordem: vencimento e depois a ordem das formas.
+ */
+function splitPlanSchedule(
+  firstDueDate: string,
+  parts: readonly PlanSchedulePart[],
+): PlanScheduleItem[] {
+  const charges = parts.flatMap((part, partIndex) => {
     const count = Math.max(1, part.installments);
     const base = Math.floor(part.amountInCents / count);
     const remainder = part.amountInCents % count;
     return Array.from({ length: count }, (_, index) => ({
       partIndex,
       index,
-      dueDate: addMonthsToIsoDate(plan.firstDueDate, index),
+      dueDate: addMonthsToIsoDate(firstDueDate, index),
       amountInCents: base + (index < remainder ? 1 : 0),
       paymentMethod: part.paymentMethod,
     }));
   });
-  if (plan.firstInstallmentInCents !== undefined) {
-    const first = charges.filter((charge) => charge.index === 0);
-    const firstTotal = first.reduce((sum, item) => sum + item.amountInCents, 0);
-    let used = 0;
-    first.forEach((charge, position) => {
-      const amount =
-        position === first.length - 1
-          ? plan.firstInstallmentInCents! - used
-          : firstTotal > 0
-            ? Math.floor(
-                (charge.amountInCents * plan.firstInstallmentInCents!) /
-                  firstTotal,
-              )
-            : 0;
-      used += amount;
-      charge.amountInCents = amount;
-    });
-  }
   return charges
     .sort(
       (a, b) =>

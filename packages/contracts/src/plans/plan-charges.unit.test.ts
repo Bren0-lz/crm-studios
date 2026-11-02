@@ -3,6 +3,8 @@ import {
   installmentsBeyondValidity,
   patientPlanInputSchema,
   planDisplayStatus,
+  planHasSessionBalance,
+  planUsedSessions,
 } from "./model.js";
 
 const plan = {
@@ -68,6 +70,21 @@ describe("plan charges", () => {
     );
     expect(planDisplayStatus({ status: "paused", remainingSessions: 0 })).toBe(
       "paused",
+    );
+  });
+
+  it("never exhausts a recurring plan, even past the nominal balance", () => {
+    expect(
+      planDisplayStatus({
+        status: "active",
+        remainingSessions: -1,
+        kind: "recurring",
+      }),
+    ).toBe("active");
+    expect(planHasSessionBalance({ kind: "recurring" })).toBe(false);
+    expect(planHasSessionBalance({ kind: "fixed_package" })).toBe(true);
+    expect(planUsedSessions({ totalSessions: 8, remainingSessions: -1 })).toBe(
+      9,
     );
   });
 });

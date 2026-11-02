@@ -9,6 +9,8 @@ import {
   patientProfileLabels,
   patientProfileValueLabels,
   patientResidenceTypeLabels,
+  planHasSessionBalance,
+  planUsedSessions,
 } from "@crm/contracts";
 import { ArrowUpRight, FileClock, Plus, Repeat } from "lucide-react";
 import { type ReactNode, useEffect, useState } from "react";
@@ -318,11 +320,17 @@ export function PatientRecordTabs({
                         <li key={plan.id}>
                           <strong>{plan.name}</strong>
                           <span>
-                            {countLabel(
-                              plan.remainingSessions,
-                              "sessão restante",
-                              "sessões restantes",
-                            )}{" "}
+                            {planHasSessionBalance(plan)
+                              ? countLabel(
+                                  plan.remainingSessions,
+                                  "sessão restante",
+                                  "sessões restantes",
+                                )
+                              : countLabel(
+                                  planUsedSessions(plan),
+                                  "aula feita",
+                                  "aulas feitas",
+                                )}{" "}
                             de {plan.totalSessions}
                             {plan.validUntil
                               ? ` · até ${formatIsoDate(plan.validUntil)}`

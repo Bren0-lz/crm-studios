@@ -4755,8 +4755,9 @@ describe("CRM API", () => {
       ).json().receivables as { planId?: string }[];
       expect(
         receivables.filter((item) => item.planId === withGroupBody.plan.id),
-        // Recorrente: uma cobrança por ciclo.
-      ).toHaveLength(1);
+        // Recorrente: uma cobrança por ciclo, mais a proporcional das aulas da turma
+        // do início (01/01) até a véspera do 1º vencimento (10/01).
+      ).toHaveLength(2);
 
       // Turma de outro serviço: nada fica gravado.
       const mismatch = await guided({
@@ -4952,7 +4953,8 @@ describe("CRM API", () => {
 
     it("computes the prorated first charge of each guided plan from its class", async () => {
       const { app, headers, guided, createGroup } = await setup();
-      // Primeira turma do teste: às segundas. Em janeiro/2026 são 4 segundas; até o dia 10, 1.
+      // Primeira turma do teste: às segundas. De 10/12/2025 a 09/01/2026 são 4 segundas;
+      // de 01/01 a 09/01, 1 (05/01): 1/4 no início e a mensalidade cheia em 10/01.
       const groupId = await createGroup(SERVICE_ID);
       const created = await guided({
         next: "plan",
@@ -4962,7 +4964,7 @@ describe("CRM API", () => {
           kind: "recurring",
           installments: 1,
           // Valor enviado pela tela é descartado: o servidor calcula pela turma.
-          firstInstallmentInCents: 1,
+          proratedChargeInCents: 1,
         },
         groupId,
       });
@@ -4976,10 +4978,18 @@ describe("CRM API", () => {
           })
         ).json().summary.receivables as {
           planId?: string;
+          dueDate: string;
           amountInCents: number;
         }[]
       ).filter((item) => item.planId === created.json().plan.id);
-      expect(receivables.map((item) => item.amountInCents)).toEqual([10_000]);
+      expect(
+        receivables
+          .sort((a, b) => a.dueDate.localeCompare(b.dueDate))
+          .map((item) => [item.dueDate, item.amountInCents]),
+      ).toEqual([
+        ["2026-01-01", 10_000],
+        ["2026-01-10", 40_000],
+      ]);
       await app.close();
     });
 

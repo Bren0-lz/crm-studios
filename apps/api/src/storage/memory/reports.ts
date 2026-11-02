@@ -632,7 +632,8 @@ export function createReportsRepository(
         plans: {
           active: activePlans.length,
           availableSessions: activePlans.reduce(
-            (sum, item) => sum + item.remainingSessions,
+            // Recorrente além do saldo nominal (saldo negativo) não desconta dos outros.
+            (sum, item) => sum + Math.max(0, item.remainingSessions),
             0,
           ),
           consumedInPeriod: Math.max(0, -netMovement),

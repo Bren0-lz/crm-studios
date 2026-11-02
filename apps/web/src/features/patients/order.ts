@@ -24,12 +24,13 @@ export type OrderPlanItem = {
   key: string;
   name: string;
   detail: string;
-  /** Termos já com a 1ª parcela proporcional, quando houver. */
+  /** Termos já com a cobrança proporcional (antes do 1º vencimento), quando houver. */
   terms: {
     totalValueInCents: number;
     installments: number;
     firstDueDate: string;
-    firstInstallmentInCents?: number | undefined;
+    validFrom?: string | undefined;
+    proratedChargeInCents?: number | undefined;
   };
   discount?: PatientDiscount | undefined;
 };

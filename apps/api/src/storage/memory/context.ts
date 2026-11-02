@@ -1,4 +1,7 @@
-import { starterAssessmentTemplates } from "@crm/contracts";
+import {
+  planHasSessionBalance,
+  starterAssessmentTemplates,
+} from "@crm/contracts";
 import type { ExternalOperation, PaymentProof } from "@crm/contracts";
 import type {
   StoredMessageTemplate,
@@ -2242,7 +2245,8 @@ export class MemoryRepositoryContext {
     const planService = plan.services.find(
       (item) => item.serviceId === appointment.serviceId,
     )!;
-    if (planService.remainingSessions < 1) {
+    // Recorrente: a frequência semanal vale; o ciclo com mais aulas que o saldo nominal passa.
+    if (planService.remainingSessions < 1 && planHasSessionBalance(plan)) {
       throw new DomainError(
         "NO_SESSION_BALANCE",
         "O cliente não possui saldo de sessões para este serviço.",
