@@ -12,6 +12,7 @@ import {
   patientExportFilterSchema,
   patientAuditLabels,
   patientInputSchema,
+  patientUpdateInputSchema,
   patientListQuerySchema,
   patientTagInputSchema,
   patientTagUpdateSchema,
@@ -404,11 +405,18 @@ export function registerPatientsRoutes(context: RouteContext) {
     { preHandler: authenticate },
     async (request, reply) => {
       const { id } = request.params as { id: string };
-      const input = patientInputSchema.parse(request.body);
+      const input = patientUpdateInputSchema.parse(request.body);
       // Cadastro anterior: base do desconto já usado e do "antes → depois" no histórico.
       const previous = z.uuid().safeParse(id).success
         ? await repository.getPatient(request.user.clinicId, id)
         : null;
+      // B6-05: cliente importado pode seguir sem CPF, mas o CPF já gravado não pode ser apagado.
+      if (previous?.cpf && !input.cpf)
+        throw new DomainError(
+          "PATIENT_CPF_REQUIRED",
+          "O CPF já cadastrado não pode ser apagado.",
+          400,
+        );
       const patient = await repository.updatePatient(
         request.user.clinicId,
         id,

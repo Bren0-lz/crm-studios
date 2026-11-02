@@ -11,6 +11,7 @@ import {
   patientImportFieldSchema,
   patientImportFileSchema,
   patientImportInputSchema,
+  patientUpdateInputSchema,
   patientInputSchema,
   patientDiscountSchema,
   patientListQuerySchema,
@@ -26,6 +27,9 @@ export type PatientInput = z.infer<typeof patientInputSchema>;
 
 /** Cliente vindo da planilha: o CPF pode faltar (B6-05). */
 export type PatientImportInput = z.infer<typeof patientImportInputSchema>;
+
+/** Edição do cliente: o CPF pode seguir vazio, mas não ser apagado (B6-05). */
+export type PatientUpdateInput = z.infer<typeof patientUpdateInputSchema>;
 
 export type PatientDiscount = z.infer<typeof patientDiscountSchema>;
 

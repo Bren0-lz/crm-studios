@@ -172,6 +172,15 @@ export const patientImportInputSchema = patientInputSchema.extend({
   cpf: optionalCpfSchema,
 });
 
+/**
+ * Edição do cliente (`PUT /patients/:id`, B6-05): o CPF pode continuar vazio em quem foi
+ * importado sem ele (a etiqueta "Falta CPF" fica até ele ser preenchido). A rota recusa apagar
+ * um CPF já gravado.
+ */
+export const patientUpdateInputSchema = patientInputSchema.extend({
+  cpf: optionalCpfSchema,
+});
+
 /** Cor das etiquetas criadas sem cor e das importadas na migração 0044. */
 export const DEFAULT_PATIENT_TAG_COLOR = "#64748b";
 

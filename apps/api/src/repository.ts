@@ -200,7 +200,7 @@ import type {
   OutboundMessage,
   Patient,
   PatientImportInput,
-  PatientInput,
+  PatientUpdateInput,
   PatientPlan,
   PatientPlanInput,
   PatientTab,
@@ -797,10 +797,11 @@ export interface ClinicRepository {
     clinicId: string,
     inputs: PatientImportInput[],
   ): Promise<{ created: number; skipped: number }>;
+  /** O CPF pode seguir vazio (cliente importado sem CPF); sem CPF, grava `NULL`. */
   updatePatient(
     clinicId: string,
     patientId: string,
-    input: PatientInput,
+    input: PatientUpdateInput,
   ): Promise<Patient | null>;
   /** Etiquetas configuradas da clínica, por nome (pt-BR), com quantos clientes usam cada uma. */
   listPlanCatalog(clinicId: string): Promise<PlanCatalogEntry[]>;

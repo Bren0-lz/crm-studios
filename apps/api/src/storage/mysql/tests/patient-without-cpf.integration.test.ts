@@ -1,4 +1,7 @@
-import { patientImportInputSchema } from "@crm/contracts";
+import {
+  patientImportInputSchema,
+  patientUpdateInputSchema,
+} from "@crm/contracts";
 import type { Database as Pool } from "../../../infrastructure/mysql-client.js";
 import {
   createTestDatabase,
@@ -73,6 +76,52 @@ for (const storage of ["memory", "mysql"] as const) {
             imported("Caio De Novo", "11955530002"),
           ]),
         ).toEqual({ created: 0, skipped: 1 });
+      });
+
+      it("edita sem CPF, preenche depois e recusa CPF de outro cliente", async () => {
+        await repository.importPatients(clinicId, [
+          imported("Helga Sem Cpf", "11955530010"),
+        ]);
+        const [helga] = await repository.listPatients(clinicId, "Helga Sem Cpf");
+        const update = (cpf: string, phone = "11955530011") =>
+          patientUpdateInputSchema.parse({
+            fullName: "Helga Sem Cpf",
+            phone,
+            cpf,
+            tags: [],
+          });
+
+        const kept = await repository.updatePatient(
+          clinicId,
+          helga!.id,
+          update(""),
+        );
+        expect(kept?.phone).toBe("11955530011");
+        expect(kept?.cpf).toBeUndefined();
+
+        const other = nextTestCpf();
+        await repository.createPatient(clinicId, {
+          fullName: "Ivo Com Cpf",
+          phone: "11955530012",
+          cpf: other,
+          tags: [],
+        });
+        await expect(
+          repository.updatePatient(clinicId, helga!.id, update(other)),
+        ).rejects.toMatchObject({ code: "PATIENT_DUPLICATE" });
+
+        const cpf = nextTestCpf();
+        const filled = await repository.updatePatient(
+          clinicId,
+          helga!.id,
+          update(cpf),
+        );
+        expect(filled?.cpf).toBe(cpf);
+        expect(
+          (await repository.listPatients(clinicId, cpf)).map(
+            (patient) => patient.fullName,
+          ),
+        ).toEqual(["Helga Sem Cpf"]);
       });
     },
   );
