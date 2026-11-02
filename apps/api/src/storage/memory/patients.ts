@@ -7,7 +7,7 @@ import {
   type GuidedPatientResult,
   type Patient,
   type PatientImportInput,
-  type PatientInput,
+  type PatientUpdateInput,
   type PatientTagInput,
   patientTagKey,
   type PatientTagUpdate,
@@ -240,7 +240,7 @@ export function createPatientsRepository(
     async updatePatient(
       clinicId: string,
       patientId: string,
-      input: PatientInput,
+      input: PatientUpdateInput,
     ) {
       const patient = repositoryContext.patients.find(
         (item) => item.clinicId === clinicId && item.id === patientId,
@@ -261,6 +261,7 @@ export function createPatientsRepository(
           409,
         );
       Object.assign(patient, input, { updatedAt: now() });
+      if (!input.cpf) delete patient.cpf;
       for (const collection of [
         repositoryContext.appointments,
         repositoryContext.clinicalRecords,

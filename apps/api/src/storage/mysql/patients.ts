@@ -3,7 +3,7 @@ import {
   type GuidedPatientInput,
   type GuidedPatientResult,
   type PatientImportInput,
-  type PatientInput,
+  type PatientUpdateInput,
   type PatientPlan,
   type PatientPlanInput,
   type PatientTagInput,
@@ -356,7 +356,7 @@ export function createPatientsRepository(
     async updatePatient(
       clinicId: string,
       patientId: string,
-      input: PatientInput,
+      input: PatientUpdateInput,
     ) {
       const profile = patientProfile(input);
       try {

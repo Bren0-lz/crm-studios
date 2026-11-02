@@ -120,6 +120,109 @@ describe("cliente importado sem CPF (B6-05)", () => {
     }
   });
 
+  it("edita cliente sem CPF, tira a etiqueta ao preencher e não deixa apagar o CPF", async () => {
+    const { app, token } = await authenticatedApp();
+    const headers = { authorization: `Bearer ${token}` };
+    try {
+      await app.inject({
+        method: "POST",
+        url: "/patients/import",
+        headers,
+        payload: csvFile("Nome;Telefone\nGina Importada;11955540020"),
+      });
+      const [gina] = (
+        await app.inject({
+          method: "GET",
+          url: "/patients?search=Gina Importada",
+          headers,
+        })
+      ).json() as Listed[];
+      const url = `/patients/${gina!.id}`;
+      const base = { fullName: "Gina Importada", tags: [] };
+
+      const phoneOnly = await app.inject({
+        method: "PUT",
+        url,
+        headers,
+        payload: { ...base, phone: "11955540021", cpf: "" },
+      });
+      expect(phoneOnly.statusCode, phoneOnly.body).toBe(200);
+      expect(phoneOnly.json()).toMatchObject({
+        phone: "11955540021",
+        tags: [MISSING_CPF_TAG],
+      });
+      expect(phoneOnly.json().cpf).toBeUndefined();
+
+      const invalid = await app.inject({
+        method: "PUT",
+        url,
+        headers,
+        payload: { ...base, phone: "11955540021", cpf: "529.982.247-24" },
+      });
+      expect(invalid.statusCode).toBe(400);
+
+      const other = (
+        await app.inject({
+          method: "POST",
+          url: "/patients",
+          headers,
+          payload: {
+            fullName: "Outra Pessoa",
+            phone: "11955540022",
+            cpf: nextTestCpf(),
+          },
+        })
+      ).json() as { cpf: string };
+      const duplicated = await app.inject({
+        method: "PUT",
+        url,
+        headers,
+        payload: { ...base, phone: "11955540021", cpf: other.cpf },
+      });
+      expect(duplicated.statusCode).toBe(409);
+      expect(duplicated.json().code).toBe("PATIENT_DUPLICATE");
+
+      const cpf = nextTestCpf();
+      const filled = await app.inject({
+        method: "PUT",
+        url,
+        headers,
+        payload: { ...base, phone: "11955540021", cpf },
+      });
+      expect(filled.statusCode).toBe(200);
+      expect(filled.json()).toMatchObject({ cpf, tags: [] });
+      const listed = (
+        await app.inject({
+          method: "GET",
+          url: "/patients?search=Gina Importada",
+          headers,
+        })
+      ).json() as Listed[];
+      expect(listed[0]?.tags).toEqual([]);
+
+      for (const payload of [
+        { ...base, phone: "11955540021", cpf: "" },
+        { ...base, phone: "11955540021" },
+      ]) {
+        const cleared = await app.inject({
+          method: "PUT",
+          url,
+          headers,
+          payload,
+        });
+        expect(cleared.statusCode).toBe(400);
+        expect(cleared.json()).toMatchObject({
+          code: "PATIENT_CPF_REQUIRED",
+          message: "O CPF já cadastrado não pode ser apagado.",
+        });
+      }
+      const after = await app.inject({ method: "GET", url, headers });
+      expect(after.json().cpf).toBe(cpf);
+    } finally {
+      await app.close();
+    }
+  });
+
   it("continua exigindo CPF no cadastro manual", async () => {
     const { app, token } = await authenticatedApp();
     const headers = { authorization: `Bearer ${token}` };
