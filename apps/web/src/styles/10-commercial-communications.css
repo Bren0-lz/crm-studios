@@ -1264,6 +1264,137 @@
   flex: 1;
 }
 
+/* Histórico do modelo: lista de versões ao lado do que mudou em relação à anterior. */
+.template-history {
+  display: grid;
+  grid-template-columns: minmax(220px, 280px) minmax(0, 1fr);
+  gap: var(--space-5);
+  align-items: start;
+}
+
+.template-history-list {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.template-history-version {
+  display: grid;
+  gap: var(--space-1);
+  width: 100%;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: white;
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.template-history-version:hover {
+  border-color: var(--green-2);
+}
+
+.template-history-version[aria-current="true"] {
+  border-color: var(--green);
+  background: var(--mint);
+}
+
+.template-history-list strong {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.template-history-list span:not(.status-pill) {
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+
+.template-history-detail {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.template-history-detail-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.template-history-detail-head h3 {
+  margin: 0;
+  font-size: var(--text-lg);
+  font-weight: 600;
+}
+
+.template-history-summary {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+
+.template-history-diff {
+  max-height: 60vh;
+  overflow-y: auto;
+  padding: var(--space-3) 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: white;
+  font-size: var(--text-md);
+  line-height: 1.55;
+}
+
+/* audit: mobile-ok coluna estreita só com o marcador +/−; o texto ocupa o resto */
+.template-history-diff .diff-line {
+  display: grid;
+  grid-template-columns: var(--space-5) minmax(0, 1fr);
+  margin: 0;
+  padding: 0 var(--space-4) 0 var(--space-2);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.template-history-diff .diff-mark {
+  color: var(--muted);
+  text-align: center;
+}
+
+.template-history-diff ins,
+.template-history-diff del {
+  text-decoration: none;
+}
+
+.template-history-diff .diff-added {
+  background: #e3f1ea;
+}
+
+.template-history-diff .diff-added .diff-mark {
+  color: #31715e;
+}
+
+.template-history-diff .diff-removed {
+  background: #f7e4e1;
+  color: #a04e45;
+}
+
+.template-history-diff .diff-removed del {
+  text-decoration: line-through;
+}
+
+.template-history-diff .diff-removed .diff-mark {
+  color: #a04e45;
+}
+
 /* A folha do editor é o próprio campo de texto. */
 .document-paper-editor:focus-within {
   outline: 2px solid var(--green-2);

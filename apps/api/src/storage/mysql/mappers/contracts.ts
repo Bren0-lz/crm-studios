@@ -17,6 +17,9 @@ export interface DocumentTemplateRow {
   content: DocumentContent | null;
   active: boolean;
   previousVersionId: string | null;
+  restoredFromVersion: number | null;
+  createdById: string | null;
+  createdByName: string | null;
   createdAt: Date;
 }
 
@@ -60,7 +63,13 @@ export interface IssuedDocumentRow {
 
 export const documentTemplateColumns = `
   id, clinic_id AS "clinicId", name, kind, version, body, content, active,
-  previous_version_id AS "previousVersionId", created_at AS "createdAt"
+  previous_version_id AS "previousVersionId",
+  restored_from_version AS "restoredFromVersion",
+  created_by_user_id AS "createdById",
+  (SELECT u.full_name FROM users u
+   WHERE u.clinic_id = document_templates.clinic_id
+     AND u.id = document_templates.created_by_user_id) AS "createdByName",
+  created_at AS "createdAt"
 `;
 
 /** Junções que `issuedDocumentColumns` pede (`d` = issued_documents): quem assina é cliente ou fornecedor. */
@@ -121,6 +130,13 @@ export function mapDocumentTemplate(
     active: row.active,
     ...(row.previousVersionId
       ? { previousVersionId: row.previousVersionId }
+      : {}),
+    ...(row.restoredFromVersion
+      ? { restoredFromVersion: Number(row.restoredFromVersion) }
+      : {}),
+    ...(row.createdById ? { createdById: row.createdById } : {}),
+    ...(row.createdById
+      ? { createdByName: row.createdByName ?? "Usuário removido" }
       : {}),
     createdAt: row.createdAt.toISOString(),
   };

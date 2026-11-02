@@ -95,3 +95,66 @@ describe("document template deletion", () => {
     expect(recreated.json().version).toBe(1);
   });
 });
+
+describe("document template history", () => {
+  it("records the author and restores an old version through the API", async () => {
+    const repository = new MemoryClinicRepository();
+    const app = await buildApp({ repository, logger: false });
+    apps.push(app);
+    const headers = {
+      authorization: `Bearer ${app.jwt.sign({ sub: actorId, clinicId, role: "admin" })}`,
+    };
+    const created = await app.inject({
+      method: "POST",
+      url: "/document-templates",
+      headers,
+      payload: {
+        name: "Contrato com histórico",
+        kind: "contract",
+        body: "Contrato de {{paciente_nome}}, primeira redação.",
+      },
+    });
+    expect(created.statusCode).toBe(201);
+    const first = created.json();
+    const user = await repository.findUserById(clinicId, actorId);
+    expect(first).toMatchObject({
+      createdById: actorId,
+      createdByName: user!.fullName,
+    });
+    const versioned = await app.inject({
+      method: "POST",
+      url: `/document-templates/${first.id}/versions`,
+      headers,
+      payload: { body: "Contrato de {{paciente_nome}}, segunda redação." },
+    });
+    expect(versioned.json()).toMatchObject({
+      version: 2,
+      createdByName: user!.fullName,
+    });
+
+    const active = await app.inject({
+      method: "POST",
+      url: `/document-templates/${versioned.json().id}/restore`,
+      headers,
+    });
+    expect(active.statusCode).toBe(409);
+    const restored = await app.inject({
+      method: "POST",
+      url: `/document-templates/${first.id}/restore`,
+      headers,
+    });
+    expect(restored.statusCode).toBe(201);
+    expect(restored.json()).toMatchObject({
+      version: 3,
+      active: true,
+      body: first.body,
+      restoredFromVersion: 1,
+    });
+    const missing = await app.inject({
+      method: "POST",
+      url: "/document-templates/nao-existe/restore",
+      headers,
+    });
+    expect(missing.statusCode).toBe(404);
+  });
+});
