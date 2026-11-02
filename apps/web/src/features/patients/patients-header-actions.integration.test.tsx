@@ -30,17 +30,9 @@ describe("clients header", () => {
     expect(
       await screen.findByRole("button", { name: /Novo cliente/ }),
     ).toHaveClass("primary-button");
-    for (const name of [
-      "Inativar antigos",
-      "Importar",
-      "Exportar",
-    ])
+    for (const name of ["Inativar antigos", "Importar", "Exportar"])
       expect(screen.queryByRole("button", { name })).not.toBeInTheDocument();
-    expect(moreActionNames()).toEqual([
-      "Inativar antigos",
-      "Importar",
-      "Exportar",
-    ]);
+    expect(moreActionNames()).toEqual(["Importar", "Exportar"]);
     expect(
       readFileSync(
         `${process.cwd()}/src/styles/04-dashboard-clients.css`,
