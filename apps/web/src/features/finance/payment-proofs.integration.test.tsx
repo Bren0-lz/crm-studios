@@ -159,6 +159,11 @@ describe("comprovantes de pagamento", () => {
       },
     );
     fireEvent.click(within(row()).getByRole("button", { name: "Estornar" }));
+    fireEvent.click(
+      within(
+        await screen.findByRole("dialog", { name: "Estornar pagamento" }),
+      ).getByRole("button", { name: "Estornar pagamento" }),
+    );
     await within(row()).findByRole("button", { name: "Dar baixa" });
     // Parcela reaberta: o comprovante segue acessível, com o selo e sem anexar novos.
     fireEvent.click(
