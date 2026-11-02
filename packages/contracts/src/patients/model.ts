@@ -44,9 +44,37 @@ export {
   samePatientDiscount,
 } from "../plans/discount.js";
 
+/** Tipo de residência do endereço: define quais detalhes o cadastro pede. */
+export const patientResidenceTypeSchema = z.enum([
+  "house",
+  "apartment",
+  "condominium",
+  "commercial",
+  "other",
+]);
+
+export const patientResidenceTypeLabels: Record<
+  z.infer<typeof patientResidenceTypeSchema>,
+  string
+> = {
+  house: "Casa",
+  apartment: "Apartamento",
+  condominium: "Casa em condomínio",
+  commercial: "Comercial",
+  other: "Outro",
+};
+
 export const patientProfileSchema = z.object({
   nickname: z.string().trim().max(80).optional(),
+  residenceType: patientResidenceTypeSchema.or(z.literal("")).optional(),
   address: z.string().trim().max(300).optional(),
+  addressNumber: z.string().trim().max(20).optional(),
+  complement: z.string().trim().max(120).optional(),
+  buildingName: z.string().trim().max(120).optional(),
+  block: z.string().trim().max(40).optional(),
+  floor: z.string().trim().max(10).optional(),
+  unit: z.string().trim().max(20).optional(),
+  referencePoint: z.string().trim().max(200).optional(),
   neighborhood: z.string().trim().max(100).optional(),
   city: z.string().trim().max(100).optional(),
   state: z.string().trim().max(2).optional(),
@@ -72,7 +100,15 @@ export const patientStoredProfileSchema = patientProfileSchema.extend({
 
 export const patientProfileLabels = {
   nickname: "Apelido",
+  residenceType: "Tipo de residência",
   address: "Endereço",
+  addressNumber: "Número",
+  complement: "Complemento",
+  buildingName: "Edifício/condomínio",
+  block: "Bloco/torre/quadra",
+  floor: "Andar",
+  unit: "Apartamento/casa",
+  referencePoint: "Ponto de referência",
   neighborhood: "Bairro",
   city: "Cidade",
   state: "UF",
@@ -583,6 +619,13 @@ export const patientAuditLabels: Record<string, AuditFieldLabel> = {
   notes: "Observações",
   tags: "Etiquetas",
   ...patientProfileLabels,
+  residenceType: {
+    label: patientProfileLabels.residenceType,
+    format: (value) =>
+      patientResidenceTypeLabels[
+        value as keyof typeof patientResidenceTypeLabels
+      ] ?? null,
+  },
   gender: {
     label: patientProfileLabels.gender,
     format: (value) =>
