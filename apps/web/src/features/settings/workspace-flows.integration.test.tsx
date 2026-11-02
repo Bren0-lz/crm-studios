@@ -251,6 +251,12 @@ describe("settings workflows through real HTTP handlers", () => {
     const { repository } = await setupApi();
     open("/configuracoes");
     fireEvent.click(await screen.findByRole("tab", { name: "Cadastros" }));
+    // Só os grupos que aparecem na aba (fornecedores e produtos ficam em Vendas).
+    expect(
+      await screen.findByText(
+        "Listas compartilhadas do comercial e do clínico.",
+      ),
+    ).toBeInTheDocument();
     fireEvent.click(
       await screen.findByRole("button", { name: "Adicionar em Origens" }),
     );
