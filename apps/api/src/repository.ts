@@ -1654,12 +1654,23 @@ export interface ClinicRepository {
   createDocumentTemplate(
     clinicId: string,
     input: DocumentTemplateInput,
+    actorId?: string,
   ): Promise<DocumentTemplate>;
   createDocumentTemplateVersion(
     clinicId: string,
     templateId: string,
     body: string,
     content?: DocumentContent,
+    options?: DocumentTemplateVersionOptions,
+  ): Promise<DocumentTemplate | null>;
+  /**
+   * Restaura o texto de uma versão antiga como nova versão ativa do mesmo modelo.
+   * `null` se a versão não existe; erro 409 se ela já é a ativa.
+   */
+  restoreDocumentTemplateVersion(
+    clinicId: string,
+    versionId: string,
+    actorId?: string,
   ): Promise<DocumentTemplate | null>;
   /** Exclui o modelo com todas as versões; os contratos já criados guardam a cópia do texto. */
   deleteDocumentTemplate(
@@ -1801,6 +1812,12 @@ export interface AutoCampaignRedemptionWrite {
 
 export interface AppointmentCreateOptions {
   promotion?: AutoCampaignRedemptionWrite | undefined;
+}
+
+/** Quem criou a versão do modelo e, na restauração, de qual versão o texto veio. */
+export interface DocumentTemplateVersionOptions {
+  actorId?: string | undefined;
+  restoredFromVersion?: number | undefined;
 }
 
 export interface MessageTemplateWrite {

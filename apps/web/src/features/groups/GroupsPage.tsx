@@ -77,20 +77,25 @@ export function GroupsPage() {
   const { can, canEdit, canView } = useAuthorization();
   const tabsId = useId();
   const [activeTab, setActiveTab] = useState<GroupTabKey>("turmas");
+  // "Visão geral" tem permissão própria; sem ela, a página mostra só a lista de turmas, sem abas.
+  const tabs = groupTabs.filter(
+    (tab) => tab.key !== "visao-geral" || can("groups.overview"),
+  );
+  const showTabs = tabs.length > 1;
   function moveTabFocus(
     event: KeyboardEvent<HTMLButtonElement>,
     index: number,
   ) {
     let next: number;
-    if (event.key === "ArrowRight") next = (index + 1) % groupTabs.length;
+    if (event.key === "ArrowRight") next = (index + 1) % tabs.length;
     else if (event.key === "ArrowLeft")
-      next = (index - 1 + groupTabs.length) % groupTabs.length;
+      next = (index - 1 + tabs.length) % tabs.length;
     else if (event.key === "Home") next = 0;
-    else if (event.key === "End") next = groupTabs.length - 1;
+    else if (event.key === "End") next = tabs.length - 1;
     else return;
     event.preventDefault();
-    setActiveTab(groupTabs[next]!.key);
-    document.getElementById(`${tabsId}-${groupTabs[next]!.key}-tab`)?.focus();
+    setActiveTab(tabs[next]!.key);
+    document.getElementById(`${tabsId}-${tabs[next]!.key}-tab`)?.focus();
   }
   const toast = useToast();
   const contextPatientId = usePatientContext();
@@ -705,30 +710,32 @@ export function GroupsPage() {
             </GroupModal>
           )}
 
-          <div
-            className="settings-tabs groups-tabs"
-            role="tablist"
-            aria-label="Seções de turmas"
-          >
-            {groupTabs.map((tab, index) => (
-              <button
-                key={tab.key}
-                id={`${tabsId}-${tab.key}-tab`}
-                type="button"
-                role="tab"
-                className="text-button settings-tab"
-                aria-selected={activeTab === tab.key}
-                aria-controls={`${tabsId}-${tab.key}-panel`}
-                tabIndex={activeTab === tab.key ? 0 : -1}
-                onClick={() => setActiveTab(tab.key)}
-                onKeyDown={(event) => moveTabFocus(event, index)}
-              >
-                <tab.icon size={18} aria-hidden="true" />
-                {tab.label}
-              </button>
-            ))}
-          </div>
-          {activeTab === "visao-geral" && workspace && (
+          {showTabs && (
+            <div
+              className="settings-tabs groups-tabs"
+              role="tablist"
+              aria-label="Seções de turmas"
+            >
+              {tabs.map((tab, index) => (
+                <button
+                  key={tab.key}
+                  id={`${tabsId}-${tab.key}-tab`}
+                  type="button"
+                  role="tab"
+                  className="text-button settings-tab"
+                  aria-selected={activeTab === tab.key}
+                  aria-controls={`${tabsId}-${tab.key}-panel`}
+                  tabIndex={activeTab === tab.key ? 0 : -1}
+                  onClick={() => setActiveTab(tab.key)}
+                  onKeyDown={(event) => moveTabFocus(event, index)}
+                >
+                  <tab.icon size={18} aria-hidden="true" />
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+          )}
+          {showTabs && activeTab === "visao-geral" && workspace && (
             <GroupsOverviewTab
               id={`${tabsId}-visao-geral-panel`}
               labelledBy={`${tabsId}-visao-geral-tab`}
@@ -740,9 +747,9 @@ export function GroupsPage() {
           <section
             className="panel groups-wide"
             id={`${tabsId}-turmas-panel`}
-            role="tabpanel"
-            aria-labelledby={`${tabsId}-turmas-tab`}
-            hidden={activeTab !== "turmas"}
+            role={showTabs ? "tabpanel" : undefined}
+            aria-labelledby={showTabs ? `${tabsId}-turmas-tab` : undefined}
+            hidden={showTabs && activeTab !== "turmas"}
           >
             <h2>Turmas</h2>
             <p className="group-panel-copy">

@@ -2378,6 +2378,9 @@ export class MemoryRepositoryContext {
           ...(event.paymentMethod
             ? { paymentMethod: event.paymentMethod }
             : {}),
+          ...(event.kind === "payment" && event.discountInCents
+            ? { discountInCents: event.discountInCents }
+            : {}),
         };
       })
       .filter((item): item is ReceivedPayment => item !== null);

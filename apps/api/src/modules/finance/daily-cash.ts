@@ -89,7 +89,14 @@ export function buildDailyCash(
       : {}),
     paymentMethod: movement.paymentMethod,
     amountInCents: movement.amountInCents,
+    ...(movement.discountInCents
+      ? { discountInCents: movement.discountInCents }
+      : {}),
   }));
+  const totalDiscountInCents = movements.reduce(
+    (sum, item) => sum + (item.discountInCents ?? 0),
+    0,
+  );
 
   const totals = new Map<DailyCashPaymentMethod, DailyCashMethodTotal>();
   for (const movement of movements) {
@@ -126,6 +133,7 @@ export function buildDailyCash(
     totalInflowInCents,
     totalOutflowInCents,
     balanceInCents: totalInflowInCents - totalOutflowInCents,
+    ...(totalDiscountInCents ? { totalDiscountInCents } : {}),
     movements,
   };
 }
@@ -164,6 +172,9 @@ export function collectCashMovements(
       amountInCents: reversal
         ? -Math.abs(item.amountInCents)
         : item.amountInCents,
+      ...(!reversal && item.discountInCents
+        ? { discountInCents: item.discountInCents }
+        : {}),
     });
   }
   const trackedPayables = new Set(

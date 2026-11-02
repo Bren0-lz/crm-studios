@@ -227,6 +227,7 @@ export function NewSaleSection({
                 : {}),
             }),
         dueDate,
+        ...(discountInCents > 0 ? { discountInCents } : {}),
       });
       toast.success(
         `Venda de ${currency.format(sale.totalInCents / 100)} registrada para ${patientFirstName(sale.patientName)}.`,

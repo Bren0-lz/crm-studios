@@ -99,6 +99,43 @@ export interface ExternalPatientSummary {
   activeGroups: { groupId: string; groupName: string; status: GroupEnrollment["status"] }[];
 }
 
+/** Faixa de atraso da inadimplência, em dias corridos desde a parcela mais antiga. */
+export type ExternalOverdueBand = "1-7" | "8-30" | "31-60" | "60+";
+
+export function externalOverdueBand(daysOverdue: number): ExternalOverdueBand {
+  if (daysOverdue <= 7) return "1-7";
+  if (daysOverdue <= 30) return "8-30";
+  if (daysOverdue <= 60) return "31-60";
+  return "60+";
+}
+
+/** Cliente com parcelas em aberto já vencidas (soma de todas as parcelas vencidas). */
+export interface ExternalOverdueRow {
+  patientId: string;
+  patientName: string;
+  phone?: string;
+  /** Turmas em que o cliente está matriculado, com a lotação (para saber se a vaga tem fila). */
+  groups: {
+    groupId: string;
+    groupName: string;
+    full: boolean;
+    waitlistCount: number;
+  }[];
+  amountInCents: number;
+  installments: number;
+  /** Vencimento da parcela vencida mais antiga (aaaa-mm-dd). */
+  oldestDueDate: string;
+  daysOverdue: number;
+  band: ExternalOverdueBand;
+}
+
+/** Inadimplência por cliente (`GET /external/v1/overdue`), do mais atrasado ao menos. */
+export interface ExternalOverdueReport {
+  /** Data de referência (aaaa-mm-dd, fuso da clínica) do cálculo do atraso. */
+  referenceDate: string;
+  rows: ExternalOverdueRow[];
+}
+
 /**
  * Cabeçalho com o token de usuário do painel de vendas (`POST /external/v1/auth/login`): com
  * ele, a chamada da API externa age como esse usuário (permissões, filiais e histórico dele).

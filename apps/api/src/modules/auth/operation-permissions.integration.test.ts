@@ -127,7 +127,11 @@ describe("per-operation API authorization", () => {
     const { app, headers } = await setup();
     for (const [key, policy] of Object.entries(ROUTE_ACCESS)) {
       // API externa: só chave de integração (JWT recebe 401; ver external-api.integration.test.ts).
-      if (policy === "public" || policy === "login" || "apiKey" in Object(policy))
+      if (
+        policy === "public" ||
+        policy === "login" ||
+        "apiKey" in Object(policy)
+      )
         continue;
       const [method, pattern] = key.split(" ") as [string, string];
       const url = pattern.replace(/:[\w]+/g, ownerId);
@@ -405,6 +409,9 @@ describe("per-operation API authorization", () => {
     );
     expect(migration("0017_document_template_delete.sql")).toContain(
       `WHERE JSON_CONTAINS(permissions, '"contracts.templates_create"')`,
+    );
+    expect(migration("0037_group_overview_permission.sql")).toContain(
+      `JSON_ARRAY_APPEND(permissions, '$', 'groups.overview')\nWHERE JSON_CONTAINS(permissions, '"groups.view"')`,
     );
   });
 });

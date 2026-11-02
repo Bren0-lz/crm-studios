@@ -144,7 +144,7 @@ describe("planilha do extrato financeiro", () => {
     expect(sheet.getCell("J2").value).toBe(123.45);
     expect(sheet.getCell("C3").value).toBe('Conta "luz"');
     expect(sheet.getCell("J3").value).toBe(-50);
-    expect(sheet.autoFilter).toBe("A1:J3");
+    expect(sheet.autoFilter).toBe("A1:K3");
   });
 });
 
