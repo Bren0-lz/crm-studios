@@ -65,10 +65,27 @@ export async function seedDemoScenarios(client: PoolClient, branchId: string) {
     })),
     ignore,
   );
+  // Serviço que já tem plano avulso ativo (ex.: criado pela 0026 ou pelo cadastro) não ganha
+  // outro do seed: no máximo 1 avulso por serviço.
+  const existingSingles = await client.query<{ serviceId: string; id: string }>(
+    `SELECT pts.service_id AS "serviceId", pt.id
+     FROM plan_template_services pts
+     JOIN plan_templates pt ON pt.id = pts.template_id AND pt.clinic_id = pts.clinic_id
+     WHERE pts.clinic_id = $1 AND pt.active = 1
+       AND (pt.plan_type = 'single' OR (pt.plan_type IS NULL AND pt.kind = 'single'))`,
+    [clinicId],
+  );
+  const singlePlanTemplates = demoPlanTemplates.filter(
+    (item) =>
+      !existingSingles.rows.some(
+        (row) =>
+          row.serviceId === item.services[0]!.serviceId && row.id !== item.id,
+      ),
+  );
   await insertRows(
     client,
     "plan_templates",
-    demoPlanTemplates.map((item) => ({
+    singlePlanTemplates.map((item) => ({
       id: item.id,
       clinic_id: item.clinicId,
       name: item.name,
@@ -84,7 +101,7 @@ export async function seedDemoScenarios(client: PoolClient, branchId: string) {
   await insertRows(
     client,
     "plan_template_services",
-    demoPlanTemplates.flatMap((item) =>
+    singlePlanTemplates.flatMap((item) =>
       item.services.map((entry, position) => ({
         clinic_id: item.clinicId,
         template_id: item.id,
