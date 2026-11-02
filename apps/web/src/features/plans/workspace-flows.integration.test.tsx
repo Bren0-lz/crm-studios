@@ -80,24 +80,10 @@ describe("integrated plan purchase", () => {
         .getByText("Horários da contratação", { exact: true })
         .closest("details"),
     ).toHaveAttribute("open");
-    fireEvent.click(
-      await within(dialog).findByRole("button", {
-        name: "Adicionar horários à contratação",
-      }),
-    );
-    const nested = screen.getByRole("dialog", {
-      name: "Horários da contratação",
-    });
-    expect(within(nested).getByText(patient.fullName)).toBeInTheDocument();
-    // Pacote fixo: os horários já abrem em dias fixos na semana até acabar as sessões.
+    // Com turma, a matrícula reserva os horários: não há sessões avulsas para gerar.
     expect(
-      within(nested).getByLabelText("Repetir este atendimento"),
-    ).toBeChecked();
-    expect(within(nested).getByLabelText("Intervalo")).toHaveValue("package");
-    expect(
-      within(nested).getByRole("heading", { name: "Dias e horários fixos" }),
-    ).toBeInTheDocument();
-    fireEvent.click(within(nested).getByRole("button", { name: "Voltar" }));
+      within(dialog).queryByRole("region", { name: "Resumo das sessões" }),
+    ).not.toBeInTheDocument();
     fireEvent.click(
       within(dialog).getByRole("button", { name: "Criar plano e parcelas" }),
     );

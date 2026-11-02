@@ -7,6 +7,7 @@ import {
   paymentMethodSchema,
 } from "../common/model.js";
 import type {
+  AgendaConflict,
   Appointment,
   GroupEnrollment,
   GroupSession,
@@ -170,6 +171,43 @@ export function packageScheduleStarts(input: {
     }
   }
   return starts;
+}
+
+/**
+ * `POST /appointments/conflicts`: verifica, sem gravar, se cada horário planejado (ex.: as
+ * sessões de um plano avulso antes de confirmar a contratação) conflita com a agenda.
+ * `key` identifica o item na resposta.
+ */
+export const agendaConflictCheckInputSchema = z.object({
+  items: z
+    .array(
+      z.object({
+        key: z.string().trim().min(1).max(64),
+        professionalId: z.uuid(),
+        roomId: z.uuid(),
+        serviceId: z.uuid(),
+        startsAt: z.iso.datetime({ offset: true }),
+      }),
+    )
+    .min(1)
+    .max(120),
+});
+
+/** Motivo padrão de cada tipo de conflito, como aparece no resumo das sessões. */
+export const agendaConflictLabels = {
+  appointment: "Profissional ou sala com outro atendimento",
+  block: "Horário bloqueado",
+  group: "Horário de turma",
+  holiday: "Feriado",
+  batch: "Outra sessão deste plano no mesmo horário",
+} as const;
+
+export function agendaConflict(
+  key: string,
+  kind: keyof typeof agendaConflictLabels,
+  label: string = agendaConflictLabels[kind],
+): AgendaConflict {
+  return { key, kind, label };
 }
 
 // Atendimento de lead ainda não convertido: só experimental ou avaliação.

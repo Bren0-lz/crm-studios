@@ -1,5 +1,7 @@
 import { registerAgendaNoteRoutes } from "./notes-routes.js";
 import {
+  agendaConflict,
+  agendaConflictCheckInputSchema,
   appointmentCreateInputSchema,
   appointmentPricing,
   appointmentRescheduleInputSchema,
@@ -13,6 +15,7 @@ import {
   recurringAppointmentCreateInputSchema,
   recurringOccurrenceStarts,
   roomInputSchema,
+  saoPauloToday,
   scheduleBlockInputSchema,
   serviceInputSchema,
   singlePlanSessionPrices,
@@ -351,6 +354,76 @@ export function registerAgendaRoutes(context: RouteContext) {
             { promotion: redemption },
           ),
         );
+    },
+  );
+
+  /**
+   * Só leitura: conflitos dos horários planejados (ex.: sessões de um plano avulso antes de
+   * fechar a contratação). Devolve um item por horário em conflito; a gravação continua
+   * recusando com 409 o que conflitar.
+   */
+  app.post(
+    "/appointments/conflicts",
+    { preHandler: authenticate },
+    async (request) => {
+      const { items } = agendaConflictCheckInputSchema.parse(request.body);
+      const clinicId = request.user.clinicId;
+      await assertServiceAvailable(clinicId, items);
+      const services = await repository.listServices(clinicId);
+      const slots = items.flatMap((item) => {
+        const service = services.find(
+          (candidate) => candidate.id === item.serviceId,
+        );
+        if (!service) return [];
+        const startsAt = new Date(item.startsAt);
+        return [
+          {
+            key: item.key,
+            professionalId: item.professionalId,
+            roomId: item.roomId,
+            startsAt: startsAt.toISOString(),
+            endsAt: new Date(
+              startsAt.getTime() + service.durationMinutes * 60_000,
+            ).toISOString(),
+          },
+        ];
+      });
+      if (slots.length !== items.length)
+        throw new DomainError(
+          "RELATED_RECORD_NOT_FOUND",
+          "Serviço não encontrado.",
+          404,
+        );
+      const dates = slots.map((slot) => saoPauloToday(new Date(slot.startsAt)));
+      const sorted = [...dates].sort();
+      const holidays = await repository.listHolidays(
+        clinicId,
+        sorted[0]!,
+        sorted[sorted.length - 1]!,
+      );
+      const found = new Map(
+        (await repository.findAgendaConflicts(clinicId, slots)).map(
+          (conflict) => [conflict.key, conflict],
+        ),
+      );
+      return slots.flatMap((slot, index) => {
+        const holiday = holidays.find((item) => item.date === dates[index]);
+        if (holiday)
+          return [
+            agendaConflict(slot.key, "holiday", `Feriado: ${holiday.name}`),
+          ];
+        const stored = found.get(slot.key);
+        if (stored) return [stored];
+        const clash = slots.some(
+          (other, position) =>
+            position !== index &&
+            (other.professionalId === slot.professionalId ||
+              other.roomId === slot.roomId) &&
+            other.startsAt < slot.endsAt &&
+            other.endsAt > slot.startsAt,
+        );
+        return clash ? [agendaConflict(slot.key, "batch")] : [];
+      });
     },
   );
 

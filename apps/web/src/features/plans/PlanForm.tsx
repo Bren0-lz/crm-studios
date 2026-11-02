@@ -63,6 +63,7 @@ export function PlanForm({
   additionalDirty = false,
   registerCloseGuard,
   catalogKind,
+  submitBlocked = "",
 }: {
   patients: PatientOption[];
   services: Service[];
@@ -79,6 +80,8 @@ export function PlanForm({
   registerCloseGuard?: ((guard: CloseGuard) => () => void) | undefined;
   /** Restringe os planos cadastrados a avulsos ou recorrentes (atalho da ficha do cliente). */
   catalogKind?: PlanCatalogKind | undefined;
+  /** Motivo que impede salvar (ex.: sessões da contratação em conflito); vazio = liberado. */
+  submitBlocked?: string | undefined;
 }) {
   const { can, canView } = useAuthorization();
   const currentDate = localIsoDate();
@@ -671,6 +674,11 @@ export function PlanForm({
               {error}
             </div>
           )}
+          {submitBlocked && !renewing && (
+            <div className="form-error span-2" role="alert">
+              {submitBlocked}
+            </div>
+          )}
           {missing.hint}
           <div className="modal-actions span-2">
             <button
@@ -683,7 +691,11 @@ export function PlanForm({
             </button>
             <button
               className="primary-button"
-              disabled={loading || missing.blocked}
+              disabled={
+                loading ||
+                missing.blocked ||
+                Boolean(submitBlocked && !renewing)
+              }
               aria-describedby={missing.describedBy}
             >
               {renewing

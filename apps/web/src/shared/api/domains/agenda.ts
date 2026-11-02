@@ -11,6 +11,8 @@ import type {
   ReplacementBookingInput,
 } from "@crm/contracts";
 import type {
+  AgendaConflict,
+  AgendaConflictCheckInput,
   Appointment,
   AppointmentInput,
   AppointmentPricing,
@@ -145,6 +147,12 @@ export const agendaApi = {
     }),
   appointmentReschedules: (id: string) =>
     request<AppointmentRescheduleEvent[]>(`/appointments/${id}/reschedules`),
+  /** Só leitura: conflitos de horários planejados (ex.: sessões do plano antes de contratar). */
+  agendaConflicts: (input: AgendaConflictCheckInput) =>
+    request<AgendaConflict[]>("/appointments/conflicts", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
   createRecurringAppointments: (
     input: RecurringAppointmentInput & {
       promotion?: AppointmentPromotion | undefined;
