@@ -194,4 +194,18 @@ describe("receivable installment line", () => {
     );
     expect(receivableInstallmentLine(base)).toBe("");
   });
+  it("mostra o desconto do cliente e o desconto dado na baixa", () => {
+    expect(
+      receivableInstallmentLine({
+        installmentNumber: 1,
+        installmentCount: 2,
+        status: "paid",
+        paymentMethod: "pix",
+        customerDiscountInCents: 1000,
+        settlementDiscountInCents: 500,
+      }),
+    ).toMatch(
+      /^Parcela 1 de 2 · Desconto do cliente: R\$\s10,00 · Desconto na baixa: R\$\s5,00 · Pago: /,
+    );
+  });
 });

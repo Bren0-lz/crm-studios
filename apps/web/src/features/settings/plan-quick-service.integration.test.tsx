@@ -42,6 +42,14 @@ describe("serviço cadastrado pelo plano", () => {
     )!;
     expect(created).toMatchObject({ durationMinutes: 50, priceInCents: 10000 });
     expect(within(plan).getByLabelText("Serviço 1")).toHaveValue(created.id);
+    // O preço de tabela gera o plano avulso do serviço, já listado no catálogo.
+    const generated = (await repository.listPlanTemplates(clinicId)).filter(
+      (item) => item.name === "Reformer (avulso)",
+    );
+    expect(generated).toMatchObject([
+      { planType: "single", totalValueInCents: 10000 },
+    ]);
+    expect(await screen.findByText("Reformer (avulso)")).toBeInTheDocument();
 
     fireEvent.click(within(plan).getByRole("button", { name: "Salvar plano" }));
     await waitFor(() =>

@@ -17,7 +17,6 @@ import type {
 } from "@crm/contracts";
 import {
   productSizeStock,
-  serviceCommissionsInForce,
   productNeedsRestock,
   sortProductSizes,
 } from "@crm/contracts";
@@ -112,6 +111,7 @@ export interface ReceivableRow {
   description: string;
   installmentNumber: number;
   installmentCount: number;
+  balanceOfInstallment?: number | null;
   dueDate: string;
   amountInCents: number;
   status: ReceivableStatus;
@@ -123,6 +123,7 @@ export interface ReceivableRow {
   paymentInstallments?: number | null;
   customerDiscountInCents?: number | null;
   manualAmount?: number | boolean | null;
+  settlementDiscountInCents?: number | string | null;
 }
 
 export interface FinancialCategoryRow {
@@ -248,13 +249,27 @@ export function paymentInstallmentsValue(value: number | undefined) {
   return value && value > 1 ? value : null;
 }
 
+/**
+ * Desconto da baixa da cobrança `r` (paga): o da última baixa, isto é, dos pagamentos
+ * depois do último estorno. Não paga = 0.
+ */
+export const settlementDiscountSql = `CASE WHEN r.status = 'paid' THEN (
+      SELECT CAST(coalesce(SUM(fe.discount_in_cents),0) AS SIGNED) FROM financial_events fe
+      WHERE fe.clinic_id = r.clinic_id AND fe.receivable_id = r.id AND fe.kind = 'payment'
+        AND fe.created_at > coalesce((
+          SELECT max(fr.created_at) FROM financial_events fr
+          WHERE fr.clinic_id = r.clinic_id AND fr.receivable_id = r.id AND fr.kind = 'payment_reversal'
+        ), CAST('1000-01-01' AS DATETIME(6)))
+    ) ELSE 0 END`;
+
 export const receivableColumns = `
   r.branch_id AS "branchId",r.posted_on AS "postedOn",r.cash_available_at AS "cashAvailableAt",
   r.competence,r.category_id AS "categoryId",r.cost_center_id AS "costCenterId",CASE WHEN r.plan_id IS NOT NULL THEN 'plan' WHEN EXISTS(SELECT 1 FROM patient_tabs t WHERE t.clinic_id=r.clinic_id AND t.receivable_id=r.id) THEN 'tab' ELSE 'manual' END AS source,
   r.id, r.clinic_id AS "clinicId", r.patient_id AS "patientId",
   r.plan_id AS "planId", p.full_name AS "patientName", r.description,
   r.installment_number AS "installmentNumber",
-  r.installment_count AS "installmentCount", r.due_date AS "dueDate",
+  r.installment_count AS "installmentCount",
+  r.balance_of_installment AS "balanceOfInstallment", r.due_date AS "dueDate",
   r.amount_in_cents AS "amountInCents", r.status, r.paid_at AS "paidAt",
   (r.status = 'open' AND r.due_date < ${localToday()}) AS overdue,
   r.created_at AS "createdAt", r.updated_at AS "updatedAt"
@@ -262,6 +277,7 @@ export const receivableColumns = `
   , r.payment_parts AS "paymentParts"
   , r.customer_discount_in_cents AS "customerDiscountInCents"
   , r.manual_amount AS "manualAmount"
+  , ${settlementDiscountSql} AS "settlementDiscountInCents"
 `;
 
 export const payableColumns = `
@@ -300,13 +316,6 @@ export function mapAdminUserWithCommission(raw: AdminUserRow): AdminUser {
   const row = {
     ...raw,
     professional: json<AdminUserRow["professional"]>(raw.professional),
-    serviceCommissions: json<AdminUserRow["serviceCommissions"]>(
-      raw.serviceCommissions,
-    )?.map((item) =>
-      Object.fromEntries(
-        Object.entries(item).filter(([, value]) => value !== null),
-      ),
-    ) as AdminUserRow["serviceCommissions"],
   };
   return {
     ...(row.professional ? { professional: row.professional } : {}),
@@ -319,24 +328,8 @@ export function mapAdminUserWithCommission(raw: AdminUserRow): AdminUser {
       : {}),
     ...(row.commissionPercentage !== null && row.commissionEffectiveFrom
       ? {
-          ...(row.commissionKind ? { commissionKind: row.commissionKind } : {}),
-          ...(row.commissionFixedAmountInCents !== undefined &&
-          row.commissionFixedAmountInCents !== null
-            ? { commissionFixedAmountInCents: row.commissionFixedAmountInCents }
-            : {}),
           commissionPercentage: Number(row.commissionPercentage),
           commissionEffectiveFrom: row.commissionEffectiveFrom,
-        }
-      : {}),
-    ...(row.serviceCommissions?.length && row.today
-      ? {
-          serviceCommissions: serviceCommissionsInForce(
-            row.serviceCommissions.map((item) => ({
-              ...item,
-              percentage: Number(item.percentage),
-            })),
-            row.today,
-          ),
         }
       : {}),
     ...(row.salaryInCents ? { salaryInCents: Number(row.salaryInCents) } : {}),
@@ -458,6 +451,9 @@ export function mapReceivable(row: ReceivableRow): Receivable {
     description: row.description,
     installmentNumber: row.installmentNumber,
     installmentCount: row.installmentCount,
+    ...(row.balanceOfInstallment
+      ? { balanceOfInstallment: Number(row.balanceOfInstallment) }
+      : {}),
     dueDate: row.dueDate,
     amountInCents: row.amountInCents,
     status: row.status,
@@ -474,6 +470,9 @@ export function mapReceivable(row: ReceivableRow): Receivable {
       ? { customerDiscountInCents: row.customerDiscountInCents }
       : {}),
     ...(bool(row.manualAmount) ? { manualAmount: true as const } : {}),
+    ...(Number(row.settlementDiscountInCents ?? 0) > 0
+      ? { settlementDiscountInCents: Number(row.settlementDiscountInCents) }
+      : {}),
   };
 }
 

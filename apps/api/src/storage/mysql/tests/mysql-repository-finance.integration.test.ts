@@ -437,9 +437,11 @@ describe.skipIf(!databaseUrl)("MySQL repository", () => {
         status: string;
         description: string;
         installmentNumber: number;
+        balanceOfInstallment: number | null;
       }>(
         `SELECT amount_in_cents AS "amountInCents", status, description,
-                installment_number AS "installmentNumber"
+                installment_number AS "installmentNumber",
+                balance_of_installment AS "balanceOfInstallment"
          FROM receivables WHERE plan_id = $1 ORDER BY installment_number`,
         [plan.id],
       );
@@ -449,6 +451,7 @@ describe.skipIf(!databaseUrl)("MySQL repository", () => {
           amountInCents: 5_500,
           status: "open",
           installmentNumber: 2,
+          balanceOfInstallment: 1,
           description: expect.stringMatching(/ · saldo$/),
         }),
       ]);
@@ -1297,6 +1300,11 @@ describe.skipIf(!databaseUrl)("MySQL repository", () => {
            (SELECT id FROM appointments WHERE clinic_id = $1 AND notes = $2)`,
         [clinicId, marker],
       );
+      // Consumos do pacote do teste (o pacote fica: o banco do arquivo é descartado no fim).
+      await pool.query(
+        `DELETE FROM session_movements WHERE clinic_id = $1 AND reason = $2`,
+        [clinicId, marker],
+      );
       await pool.query(
         "DELETE FROM appointments WHERE clinic_id = $1 AND notes = $2",
         [clinicId, marker],
@@ -1376,6 +1384,33 @@ describe.skipIf(!databaseUrl)("MySQL repository", () => {
         repository.listRooms(clinicId),
         repository.listServices(clinicId),
       ]);
+      const packageTerms = {
+        name: marker,
+        totalValueInCents: 30000,
+        kind: "custom" as const,
+        services: [
+          {
+            serviceId: services[0]!.id,
+            totalSessions: 3,
+            totalValueInCents: 30000,
+          },
+        ],
+      };
+      const packageTemplate = await repository.createPlanTemplate(
+        clinicId,
+        ownerId,
+        { ...packageTerms, planType: null },
+      );
+      const plan = await repository.createPatientPlan(clinicId, ownerId, {
+        ...packageTerms,
+        planTemplateId: packageTemplate.id,
+        patientId: patients[0]!.id,
+        installments: 1,
+        firstDueDate: "2097-05-01",
+        validFrom: "2097-05-01",
+        validUntil: "2097-05-31",
+        autoRenew: false,
+      });
       const appointment = async (professionalId: string, startsAt: string) => {
         const id: string = randomUUID();
         await pool.query(
@@ -1393,6 +1428,13 @@ describe.skipIf(!databaseUrl)("MySQL repository", () => {
             marker,
             id,
           ],
+        );
+        // A comissão sai do valor pago: cada atendimento consome uma sessão do pacote
+        // (R$ 300 ÷ 3 = R$ 100 por sessão).
+        await pool.query(
+          `INSERT INTO session_movements (clinic_id, plan_id, appointment_id, kind, quantity, reason, service_id)
+           VALUES ($1, $2, $3, 'consumption', -1, $4, $5)`,
+          [clinicId, plan.id, id, marker, services[0]!.id],
         );
         return id;
       };

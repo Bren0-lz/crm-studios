@@ -24,6 +24,8 @@ import {
   sizeStockSummary,
   sizeStockText,
   soldOutSizes,
+  outsideSizesStock,
+  sellableTotal,
   stockChoices,
 } from "./model";
 import { ProductModal } from "./ProductModal";
@@ -236,8 +238,15 @@ export function InventorySection({
                         {productStatus(product).label}
                       </span>
                     </td>
-                    <td className="numeric-value">
-                      {product.currentStock} {product.unit}
+                    <td className="numeric-value inventory-stock">
+                      {/* Mesmo saldo da Nova venda; o que está fora dos tamanhos vem à parte. */}
+                      {sellableTotal(product)} {product.unit}
+                      {outsideSizesStock(product) > 0 && (
+                        <small className="inventory-stock-outside">
+                          + {outsideSizesStock(product)} {product.unit} fora dos
+                          tamanhos
+                        </small>
+                      )}
                     </td>
                     <td className="numeric-value">
                       {currency.format(product.costInCents / 100)}

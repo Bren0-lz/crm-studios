@@ -98,6 +98,15 @@ export function DreSection({ period }: { period: ReportPeriod }) {
                     ],
                   ]
                 : []),
+              ...(data.totals.settlementDiscountInCents
+                ? [
+                    [
+                      "Descontos na baixa (já fora das receitas)",
+                      (m: DreReport["months"][number]) =>
+                        m.settlementDiscountInCents ?? 0,
+                    ],
+                  ]
+                : []),
               ...Object.entries(dreGroupLabels)
                 .filter(([key]) => !key.endsWith("revenue"))
                 .map(([key, label]) => [
@@ -149,9 +158,19 @@ export function DreSection({ period }: { period: ReportPeriod }) {
                   {currency.format(report.totals.revenueInCents / 100)}
                 </strong>
                 <small>
-                  {report.totals.customerDiscountInCents
-                    ? `Por competência · ${currency.format(report.totals.customerDiscountInCents / 100)} em descontos a clientes`
-                    : "Por competência"}
+                  {[
+                    "Por competência",
+                    ...(report.totals.customerDiscountInCents
+                      ? [
+                          `${currency.format(report.totals.customerDiscountInCents / 100)} em descontos a clientes`,
+                        ]
+                      : []),
+                    ...(report.totals.settlementDiscountInCents
+                      ? [
+                          `${currency.format(report.totals.settlementDiscountInCents / 100)} em descontos na baixa`,
+                        ]
+                      : []),
+                  ].join(" · ")}
                 </small>
               </article>
               <article>

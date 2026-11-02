@@ -28,6 +28,7 @@ import { MysqlClinicRepository } from "../mysql-repository.js";
 import type { ClinicRepository } from "../repository.js";
 import { atInstant } from "./clock.js";
 import { addLegacyTabService } from "./legacy-tab-service.js";
+import { sellSessionForAppointment } from "./commission-billing.js";
 
 const clinicId = "11111111-1111-4111-8111-111111111111";
 const actorId = "22222222-2222-4222-8222-222222222222";
@@ -231,6 +232,61 @@ for (const storage of ["memory", "mysql"] as const) {
           templateVersion: 1,
           branding: document.branding,
         });
+      });
+
+      it("records who created each template version and restores an old one", async () => {
+        const name = "Contrato histórico " + randomUUID();
+        const first = await repository.createDocumentTemplate(
+          clinicId,
+          { name, kind: "contract", body: "Primeira redação do contrato." },
+          actorId,
+        );
+        const second = await repository.createDocumentTemplateVersion(
+          clinicId,
+          first.id,
+          "Segunda redação do contrato, revisada.",
+          undefined,
+          { actorId },
+        );
+        expect(first).toMatchObject({ createdById: actorId });
+        expect(first.createdByName).toEqual(expect.any(String));
+        expect(second).toMatchObject({ version: 2, createdById: actorId });
+        await expect(
+          repository.restoreDocumentTemplateVersion(
+            clinicId,
+            second!.id,
+            actorId,
+          ),
+        ).rejects.toMatchObject({ code: "DOCUMENT_TEMPLATE_VERSION_ACTIVE" });
+        const restored = await repository.restoreDocumentTemplateVersion(
+          clinicId,
+          first.id,
+          actorId,
+        );
+        expect(restored).toMatchObject({
+          name,
+          version: 3,
+          active: true,
+          body: first.body,
+          restoredFromVersion: 1,
+          previousVersionId: second!.id,
+          createdById: actorId,
+        });
+        const versions = (await repository.listDocumentTemplates(clinicId))
+          .filter((item) => item.name === name)
+          .map((item) => [item.version, item.active]);
+        expect(versions.sort()).toEqual([
+          [1, false],
+          [2, false],
+          [3, true],
+        ]);
+        expect(
+          await repository.restoreDocumentTemplateVersion(
+            "99999999-9999-4999-8999-999999999999",
+            first.id,
+            actorId,
+          ),
+        ).toBeNull();
       });
 
       it("refuses a meeting professional who does not serve the group's service", async () => {
@@ -1641,10 +1697,7 @@ for (const storage of ["memory", "mysql"] as const) {
           });
         await repository.createCommissionRule(clinicId, {
           professionalId: professional.id,
-          serviceId,
-          kind: "fixed",
-          percentage: 0,
-          fixedAmountInCents: 1500,
+          percentage: 10,
           effectiveFrom: "2057-01-01",
         });
         const appointment = await repository.createAppointment(
@@ -1657,6 +1710,13 @@ for (const storage of ["memory", "mysql"] as const) {
             startsAt: "2057-04-13T15:00:00Z",
             visitType: "trial",
           }),
+        );
+        await sellSessionForAppointment(
+          repository,
+          clinicId,
+          actorId,
+          appointment,
+          15000,
         );
         await atInstant("2057-04-14T12:00:00Z", () =>
           repository.updateAppointmentStatus(
@@ -1773,10 +1833,7 @@ for (const storage of ["memory", "mysql"] as const) {
           });
         await repository.createCommissionRule(clinicId, {
           professionalId: professional.id,
-          serviceId,
-          kind: "fixed",
-          percentage: 0,
-          fixedAmountInCents: 1500,
+          percentage: 10,
           effectiveFrom: "2058-01-01",
         });
         const appointment = await repository.createAppointment(
@@ -1789,6 +1846,13 @@ for (const storage of ["memory", "mysql"] as const) {
             startsAt: "2058-04-13T15:00:00Z",
             visitType: "trial",
           }),
+        );
+        await sellSessionForAppointment(
+          repository,
+          clinicId,
+          actorId,
+          appointment,
+          15000,
         );
         await atInstant("2058-04-14T12:00:00Z", () =>
           repository.updateAppointmentStatus(

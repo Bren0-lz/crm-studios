@@ -1928,6 +1928,54 @@ button.day-event:focus-visible {
   border-top: 0;
 }
 
+/* Linha inteira clicável: abre os detalhes e a correção da situação. */
+.completed-appointments-day .pending-finalization-row {
+  padding: 0;
+}
+
+.completed-appointment-open {
+  display: flex;
+  flex: 1 1 100%;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+  padding: var(--space-3) 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.completed-appointment-open:hover .pending-finalization-info strong {
+  color: var(--green);
+  text-decoration: underline;
+}
+
+.completed-appointment-open:focus-visible {
+  border-radius: var(--radius-sm);
+  outline: 2px solid var(--green-2);
+  outline-offset: 2px;
+}
+
+.completed-appointment-patient-link {
+  display: inline-block;
+  margin-top: var(--space-4);
+}
+
+.completed-appointment-correction h3 {
+  margin: 0;
+}
+
+.completed-appointment-origin {
+  display: block;
+  margin-top: var(--space-1);
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+
 .auto-finalized-badge {
   display: inline-flex;
   align-items: center;

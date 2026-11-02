@@ -124,7 +124,14 @@ export interface DocumentTemplateContext {
   patient?: {
     fullName: string;
     cpf?: string | null | undefined;
+    residenceType?: string | null | undefined;
     address?: string | null | undefined;
+    addressNumber?: string | null | undefined;
+    complement?: string | null | undefined;
+    buildingName?: string | null | undefined;
+    block?: string | null | undefined;
+    floor?: string | null | undefined;
+    unit?: string | null | undefined;
     neighborhood?: string | null | undefined;
     city?: string | null | undefined;
     state?: string | null | undefined;
@@ -165,7 +172,40 @@ function filled(value: string | null | undefined) {
   return value?.trim() || missingDocumentValue;
 }
 
-/** Endereço do cliente em uma linha: "Rua, Bairro, Cidade/UF, CEP 00000-000". */
+/** "302" e "B" ganham o prefixo ("Apto 302", "Bloco B"); "Torre B" fica como digitado. */
+function withPrefix(prefix: string, value: string | null | undefined) {
+  const text = value?.trim();
+  if (!text) return "";
+  return /^\d/.test(text) || text.length <= 2 ? `${prefix} ${text}` : text;
+}
+
+/**
+ * Detalhes da residência em ordem de leitura: "Ed. Solar, Bloco B, 3º andar, Apto 302"
+ * (apartamento), "Cond. Jardins, Quadra 4, Casa 12" (casa em condomínio) ou
+ * "Ed. Centro, 5º andar, Sala 504" (comercial).
+ */
+function residenceDetails(
+  patient: NonNullable<DocumentTemplateContext["patient"]>,
+) {
+  const condominium = patient.residenceType === "condominium";
+  const unitPrefix = condominium
+    ? "Casa"
+    : patient.residenceType === "commercial"
+      ? "Sala"
+      : "Apto";
+  const floor = patient.floor?.trim();
+  return [
+    withPrefix(condominium ? "Cond." : "Ed.", patient.buildingName),
+    withPrefix(condominium ? "Quadra" : "Bloco", patient.block),
+    floor ? (/^\d+$/.test(floor) ? `${floor}º andar` : floor) : "",
+    withPrefix(unitPrefix, patient.unit),
+  ];
+}
+
+/**
+ * Endereço do cliente em uma linha:
+ * "Rua, 120, Ed. Solar, Bloco B, Apto 302, complemento, Bairro, Cidade/UF, CEP 00000-000".
+ */
 export function formatPatientAddress(
   patient: NonNullable<DocumentTemplateContext["patient"]>,
 ) {
@@ -174,6 +214,9 @@ export function formatPatientAddress(
     .join("/");
   return [
     patient.address?.trim(),
+    patient.address?.trim() ? patient.addressNumber?.trim() : "",
+    ...residenceDetails(patient),
+    patient.complement?.trim(),
     patient.neighborhood?.trim(),
     cityState,
     patient.postalCode?.trim() ? `CEP ${patient.postalCode.trim()}` : "",

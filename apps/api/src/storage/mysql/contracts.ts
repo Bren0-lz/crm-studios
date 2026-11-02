@@ -14,12 +14,16 @@ import {
   documentTemplateValues,
   type DocumentTemplateContext,
   type DocumentStatus,
+  type DocumentTemplate,
   type DocumentTemplateInput,
   type IssuedDocumentInput,
   type PatientPlanService,
 } from "@crm/contracts";
 import { formatPlanServices } from "../../modules/plans/plan-services.js";
-import { DomainError } from "../../repository.js";
+import {
+  DomainError,
+  type DocumentTemplateVersionOptions,
+} from "../../repository.js";
 import { randomUUID } from "node:crypto";
 import type { MysqlRepositoryContext } from "./context.js";
 import { orderedItems } from "./mappers/plans.js";
@@ -39,6 +43,105 @@ import {
 export function createContractsRepository(
   repositoryContext: MysqlRepositoryContext,
 ) {
+  async function createTemplateVersion(
+    clinicId: string,
+    templateId: string,
+    body: string,
+    content?: DocumentContent,
+    options: DocumentTemplateVersionOptions = {},
+  ): Promise<DocumentTemplate | null> {
+    ({ body, content } = documentTemplateVersionInputSchema.parse({
+      body,
+      content,
+    }));
+    const client = await repositoryContext.pool.connect();
+    try {
+      await client.query("BEGIN");
+      const current = await client.query<DocumentTemplateRow>(
+        `SELECT ${documentTemplateColumns} FROM document_templates
+       WHERE clinic_id = $1 AND deleted_at IS NULL AND id = $2 FOR UPDATE`,
+        [clinicId, templateId],
+      );
+      if (!current.rows[0]) {
+        await client.query("COMMIT");
+        return null;
+      }
+      const template = current.rows[0];
+      const versionResult = await client.query<{ nextVersion: number }>(
+        `SELECT COALESCE(MAX(version), 0) + 1 AS "nextVersion"
+       FROM document_templates
+       WHERE clinic_id = $1 AND name = $2 AND deleted_at IS NULL`,
+        [clinicId, template.name],
+      );
+      await client.query(
+        `UPDATE document_templates SET active = false
+       WHERE clinic_id = $1 AND name = $2 AND active`,
+        [clinicId, template.name],
+      );
+      const result = await writeAndRead<DocumentTemplateRow>(
+        client,
+        `INSERT INTO document_templates
+         (clinic_id, name, kind, version, body, previous_version_id, content, id,
+          created_by_user_id, restored_from_version)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+        [
+          clinicId,
+          template.name,
+          template.kind,
+          versionResult.rows[0]!.nextVersion,
+          body,
+          template.id,
+          content ? JSON.stringify(content) : null,
+          randomUUID(),
+          options.actorId ?? null,
+          options.restoredFromVersion ?? null,
+        ],
+        `SELECT ${documentTemplateColumns} FROM document_templates WHERE id = $8`,
+      );
+      await client.query("COMMIT");
+      return mapDocumentTemplate(result.rows[0]!);
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  /** Restaura uma versão antiga como nova versão ativa; o histórico continua intacto. */
+  async function restoreDocumentTemplateVersion(
+    clinicId: string,
+    versionId: string,
+    actorId?: string,
+  ): Promise<DocumentTemplate | null> {
+    const result = await repositoryContext.pool.query<DocumentTemplateRow>(
+      `SELECT ${documentTemplateColumns} FROM document_templates
+       WHERE clinic_id = $1 AND deleted_at IS NULL AND id = $2`,
+      [clinicId, versionId],
+    );
+    const source = result.rows[0] ? mapDocumentTemplate(result.rows[0]) : null;
+    if (!source) return null;
+    if (source.active)
+      throw new DomainError(
+        "DOCUMENT_TEMPLATE_VERSION_ACTIVE",
+        "Esta versão já é a que está em uso.",
+        409,
+      );
+    const current = await repositoryContext.pool.query<{ id: string }>(
+      `SELECT id FROM document_templates
+       WHERE clinic_id = $1 AND deleted_at IS NULL AND name = $2 AND active
+       LIMIT 1`,
+      [clinicId, source.name],
+    );
+    return createTemplateVersion(
+      clinicId,
+      current.rows[0]?.id ?? source.id,
+      source.body,
+      source.content,
+      { actorId, restoredFromVersion: source.version },
+    );
+  }
+
   return {
     async previewDocument(clinicId: string, input: IssuedDocumentInput) {
       return repositoryContext.inTransaction((client) =>
@@ -96,14 +199,15 @@ export function createContractsRepository(
     async createDocumentTemplate(
       clinicId: string,
       input: DocumentTemplateInput,
+      actorId?: string,
     ) {
       input = documentTemplateInputSchema.parse(input);
       try {
         const result = await writeAndRead<DocumentTemplateRow>(
           repositoryContext.pool,
           `INSERT INTO document_templates
-           (clinic_id, name, kind, version, body, content, id)
-         VALUES ($1,$2,$3,1,$4,$5,$6)`,
+           (clinic_id, name, kind, version, body, content, id, created_by_user_id)
+         VALUES ($1,$2,$3,1,$4,$5,$6,$7)`,
           [
             clinicId,
             input.name,
@@ -111,6 +215,7 @@ export function createContractsRepository(
             input.body,
             input.content ? JSON.stringify(input.content) : null,
             randomUUID(),
+            actorId ?? null,
           ],
           `SELECT ${documentTemplateColumns} FROM document_templates WHERE id = $6`,
         );
@@ -126,66 +231,8 @@ export function createContractsRepository(
       }
     },
 
-    async createDocumentTemplateVersion(
-      clinicId: string,
-      templateId: string,
-      body: string,
-      content?: DocumentContent,
-    ) {
-      ({ body, content } = documentTemplateVersionInputSchema.parse({
-        body,
-        content,
-      }));
-      const client = await repositoryContext.pool.connect();
-      try {
-        await client.query("BEGIN");
-        const current = await client.query<DocumentTemplateRow>(
-          `SELECT ${documentTemplateColumns} FROM document_templates
-         WHERE clinic_id = $1 AND deleted_at IS NULL AND id = $2 FOR UPDATE`,
-          [clinicId, templateId],
-        );
-        if (!current.rows[0]) {
-          await client.query("COMMIT");
-          return null;
-        }
-        const template = current.rows[0];
-        const versionResult = await client.query<{ nextVersion: number }>(
-          `SELECT COALESCE(MAX(version), 0) + 1 AS "nextVersion"
-         FROM document_templates
-         WHERE clinic_id = $1 AND name = $2 AND deleted_at IS NULL`,
-          [clinicId, template.name],
-        );
-        await client.query(
-          `UPDATE document_templates SET active = false
-         WHERE clinic_id = $1 AND name = $2 AND active`,
-          [clinicId, template.name],
-        );
-        const result = await writeAndRead<DocumentTemplateRow>(
-          client,
-          `INSERT INTO document_templates
-           (clinic_id, name, kind, version, body, previous_version_id, content, id)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
-          [
-            clinicId,
-            template.name,
-            template.kind,
-            versionResult.rows[0]!.nextVersion,
-            body,
-            template.id,
-            content ? JSON.stringify(content) : null,
-            randomUUID(),
-          ],
-          `SELECT ${documentTemplateColumns} FROM document_templates WHERE id = $8`,
-        );
-        await client.query("COMMIT");
-        return mapDocumentTemplate(result.rows[0]!);
-      } catch (error) {
-        await client.query("ROLLBACK");
-        throw error;
-      } finally {
-        client.release();
-      }
-    },
+    createDocumentTemplateVersion: createTemplateVersion,
+    restoreDocumentTemplateVersion,
 
     async deleteDocumentTemplate(clinicId: string, templateId: string) {
       // Só marca: os contratos emitidos continuam apontando para as versões.
@@ -347,7 +394,18 @@ async function prepareDocumentInTransaction(
     patientCpf: string | null;
     patientProfile: Partial<
       Record<
-        "address" | "neighborhood" | "city" | "state" | "postalCode",
+        | "residenceType"
+        | "address"
+        | "addressNumber"
+        | "complement"
+        | "buildingName"
+        | "block"
+        | "floor"
+        | "unit"
+        | "neighborhood"
+        | "city"
+        | "state"
+        | "postalCode",
         string
       >
     > | null;
@@ -486,7 +544,14 @@ async function prepareDocumentInTransaction(
     ...(item.patientName !== null
       ? {
           patient: {
+            residenceType: item.patientProfile?.residenceType,
             address: item.patientProfile?.address,
+            addressNumber: item.patientProfile?.addressNumber,
+            complement: item.patientProfile?.complement,
+            buildingName: item.patientProfile?.buildingName,
+            block: item.patientProfile?.block,
+            floor: item.patientProfile?.floor,
+            unit: item.patientProfile?.unit,
             neighborhood: item.patientProfile?.neighborhood,
             city: item.patientProfile?.city,
             state: item.patientProfile?.state,

@@ -9,6 +9,7 @@ import type {
 } from "@crm/contracts";
 import {
   describeGroupSchedule,
+  planPackageSessions,
   recurringOccurrenceStarts,
 } from "@crm/contracts";
 import { useEffect, useState } from "react";
@@ -221,16 +222,7 @@ export function PlanPurchaseOptions({
               onCancel={() => schedule(false)}
               onBusyChange={setBusy}
               onNestedModalChange={setNested}
-              packageSessions={
-                plan.kind === "fixed_package"
-                  ? Object.fromEntries(
-                      plan.services.map((entry) => [
-                        entry.serviceId,
-                        entry.totalSessions,
-                      ]),
-                    )
-                  : undefined
-              }
+              packageSessions={planPackageSessions(plan)}
               onSubmit={async (input, recurrence) => {
                 const appointments = (
                   recurrence

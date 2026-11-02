@@ -174,6 +174,10 @@ describe("receivable settlement with discount, interest and partial payment", ()
       dueDate: balanceDueDate,
       description: `${receivable.description} · saldo`,
       installmentNumber: receivable.installmentNumber + 1,
+      // Exibido como a mesma parcela de origem ("Parcela 1 de N · saldo").
+      ...(receivable.planId
+        ? { balanceOfInstallment: receivable.installmentNumber }
+        : {}),
     });
     expect((await inflow()) - cashBefore).toBe(4_000);
     // Competência: 4.000 pagos + 6.000 em aberto = valor original.

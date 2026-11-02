@@ -417,21 +417,21 @@ export function PatientModal({
   // Prévia por parcela só com uma forma; no picado, cada forma aparece no próprio campo.
   const productInstallments =
     productLinesOfOrder.length && productParts.length <= 1
-    ? productSaleInstallments({
-        items: productLinesOfOrder.map((line) => ({
-          label: line.name,
-          grossInCents: line.grossInCents,
-        })),
-        discountInCents: productLinesOfOrder.reduce(
-          (sum, line) => sum + line.grossInCents - line.netInCents,
-          0,
-        ),
-        settlement: productPayment.settlement,
-        dueDate: productPayment.dueDate,
-        paymentMethod: productParts[0]?.paymentMethod ?? "pix",
-        paymentInstallments: productParts[0]?.installments ?? 1,
-      })
-    : undefined;
+      ? productSaleInstallments({
+          items: productLinesOfOrder.map((line) => ({
+            label: line.name,
+            grossInCents: line.grossInCents,
+          })),
+          discountInCents: productLinesOfOrder.reduce(
+            (sum, line) => sum + line.grossInCents - line.netInCents,
+            0,
+          ),
+          settlement: productPayment.settlement,
+          dueDate: productPayment.dueDate,
+          paymentMethod: productParts[0]?.paymentMethod ?? "pix",
+          paymentInstallments: productParts[0]?.installments ?? 1,
+        })
+      : undefined;
   /** Termos do plano com a parte do desconto geral que coube a ele. */
   function withOrderShare<T extends GuidedSingleForm>(form: T, key: string): T {
     const terms = { ...form };
@@ -588,6 +588,7 @@ export function PatientModal({
                 : {}),
             }),
         dueDate: productPayment.dueDate,
+        ...(discountInCents > 0 ? { discountInCents } : {}),
       });
       return ` Venda de produtos de ${currency.format(sale.totalInCents / 100)} registrada.`;
     } catch (cause) {

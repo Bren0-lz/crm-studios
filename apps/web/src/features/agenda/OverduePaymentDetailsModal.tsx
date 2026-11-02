@@ -1,4 +1,5 @@
 import type { Receivable } from "@crm/contracts";
+import { receivableDisplayInstallment } from "@crm/contracts";
 import { ArrowUpRight, Wallet } from "lucide-react";
 import { useEffect, useState } from "react";
 import { allBranches, api } from "../../api";
@@ -94,7 +95,7 @@ export function OverduePaymentDetailsModal({
                     <strong>{item.description}</strong>
                     <span>
                       {item.installmentCount > 1
-                        ? `Parcela ${item.installmentNumber} de ${item.installmentCount} · `
+                        ? `Parcela ${receivableDisplayInstallment(item)} de ${item.installmentCount} · `
                         : ""}
                       Venceu em {formatIsoDate(item.dueDate)} ·{" "}
                       {daysLate(item.dueDate, today)}

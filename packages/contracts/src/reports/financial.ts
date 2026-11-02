@@ -84,6 +84,8 @@ export interface FinancialEntry {
    * recebimento negativos; saídas positivas e estornos de pagamento negativos.
    */
   amountInCents: number;
+  /** Recebimento: desconto dado na baixa (o valor já vem sem ele). Ausente = sem desconto. */
+  discountInCents?: number;
   origin: FinancialEntryOrigin;
   /** Categoria do lançamento; sem categoria, o nome da origem. */
   categoryId?: string;

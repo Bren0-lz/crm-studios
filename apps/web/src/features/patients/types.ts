@@ -53,4 +53,5 @@ export type TimelineFilter =
   | "payments"
   | "contacts"
   | "messages"
-  | "satisfaction";
+  | "satisfaction"
+  | "edits";

@@ -56,6 +56,7 @@ const operations = {
     satisfaction_create: "Registrar pesquisa de satisfação",
   },
   groups: {
+    overview: "Ver visão geral das turmas",
     create: "Criar turma",
     update: "Editar turma",
     rename: "Editar nome da turma",
@@ -257,6 +258,8 @@ export const permissionCatalog: readonly PermissionDefinition[] =
             legacyView.push("patients");
             legacyEdit.push("patients");
           }
+          // Só consulta: quem já via Turmas continua vendo a visão geral.
+          if (key === "groups.overview") legacyEdit.length = 0;
           if (
             key === "clinical.export" ||
             key === "clinical.access_events" ||

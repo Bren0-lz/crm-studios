@@ -200,8 +200,7 @@ export const settingsTabs: Array<{
     key: "catalogs",
     label: "Cadastros",
     title: "Cadastros da clínica",
-    description:
-      "Listas compartilhadas de clientes, comercial, produtos, fornecedores e clínico.",
+    description: "Listas compartilhadas do comercial e do clínico.",
     icon: Tags,
   },
   {
@@ -261,16 +260,8 @@ export function userCommissionSummary(user: AdminUser) {
   const commission =
     user.commissionPercentage === undefined
       ? "Sem comissão vigente"
-      : user.commissionKind === "fixed"
-        ? `Comissão fixa ${(user.commissionFixedAmountInCents ?? 0) / 100} reais`
-        : `Comissão ${percentageLabel.format(user.commissionPercentage)}%`;
-  const services = new Set(
-    user.serviceCommissions?.map((item) => item.serviceId),
-  ).size;
-  const byService = services
-    ? ` · ${services} ${services === 1 ? "serviço" : "serviços"} com comissão própria`
-    : "";
-  return `${agenda} · ${commission}${byService}`;
+      : `Comissão ${percentageLabel.format(user.commissionPercentage)}%`;
+  return `${agenda} · ${commission}`;
 }
 
 export function userSaveErrorMessage(cause: unknown) {
