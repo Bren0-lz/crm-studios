@@ -533,6 +533,21 @@ export function planInstallmentSchedule(plan: {
   }));
 }
 
+/**
+ * Quantas cobranças proporcionais (as primeiras de `planInstallmentSchedule`) o plano gera:
+ * uma, ou uma por forma no plano picado; 0 sem `proratedChargeInCents`.
+ */
+export function planProratedChargeCount(plan: {
+  validFrom?: string | undefined;
+  proratedChargeInCents?: number | undefined;
+  paymentParts?: readonly PlanSchedulePart[] | undefined;
+}): number {
+  if (!plan.proratedChargeInCents || !plan.validFrom) return 0;
+  return plan.paymentParts && plan.paymentParts.length > 1
+    ? plan.paymentParts.length
+    : 1;
+}
+
 function regularPlanSchedule(
   plan: {
     totalValueInCents: number;

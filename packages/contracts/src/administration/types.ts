@@ -75,6 +75,8 @@ export interface SaleMovement {
    * produto, a parte da linha no desconto da venda (`amountInCents` já vem com ele abatido).
    */
   customerDiscountInCents?: number;
+  /** Venda de plano recorrente com o 1º pagamento informado à mão (sem o cálculo proporcional). */
+  manualFirstCharge?: true;
   /** Venda de produto: custo da linha (quantidade × custo unitário gravado na comanda). */
   costInCents?: number;
   /** Cancelamento: data da venda original (separa o cancelamento de venda de outro período). */
