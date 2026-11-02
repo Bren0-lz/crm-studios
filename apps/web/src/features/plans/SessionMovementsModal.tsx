@@ -1,4 +1,9 @@
-import { type PatientPlan, paymentMethodLabels } from "@crm/contracts";
+import {
+  type PatientPlan,
+  paymentMethodLabels,
+  planHasSessionBalance,
+  planUsedSessions,
+} from "@crm/contracts";
 import { useEffect, useState } from "react";
 import { api } from "../../api";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
@@ -27,13 +32,19 @@ export function SessionMovementsModal({
   return (
     <Modal
       title={`Extrato · ${plan.patientName}`}
-      subtitle={`${plan.remainingSessions} sessões disponíveis no momento.`}
+      subtitle={
+        planHasSessionBalance(plan)
+          ? `${plan.remainingSessions} sessões disponíveis no momento.`
+          : `${planUsedSessions(plan)} aulas feitas neste ciclo (plano prevê ${plan.totalSessions}).`
+      }
       onClose={onClose}
     >
       {plan.services.map((entry) => (
         <p key={entry.serviceId}>
-          {entry.serviceName}: {entry.remainingSessions} de{" "}
-          {entry.totalSessions} sessões restantes
+          {entry.serviceName}:{" "}
+          {planHasSessionBalance(plan)
+            ? `${entry.remainingSessions} de ${entry.totalSessions} sessões restantes`
+            : `${planUsedSessions(entry)} de ${entry.totalSessions} aulas previstas`}
         </p>
       ))}
       {plan.status === "cancelled" && plan.cancelledAt && (

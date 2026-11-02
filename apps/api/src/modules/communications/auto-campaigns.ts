@@ -5,6 +5,7 @@ import {
   autoCampaignTriggerTiming,
   fillCampaignMessage,
   isOverdueReceivable,
+  planHasSessionBalance,
   type AppModule,
   type Appointment,
   type AutoCampaign,
@@ -198,6 +199,7 @@ export function detectAutoCampaignEvents(
           if (
             plan.status !== "active" ||
             plan.kind === "single" ||
+            !planHasSessionBalance(plan) ||
             plan.renewedByPlanId
           )
             continue;
@@ -247,6 +249,7 @@ export function detectAutoCampaignEvents(
         for (const plan of plans) {
           if (
             plan.status !== "expired" ||
+            !planHasSessionBalance(plan) ||
             plan.remainingSessions <= 0 ||
             plan.renewedByPlanId ||
             !plan.validUntil

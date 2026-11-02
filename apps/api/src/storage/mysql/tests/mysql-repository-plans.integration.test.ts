@@ -1039,7 +1039,7 @@ describe.skipIf(!databaseUrl)("MySQL repository", () => {
     ).rejects.toMatchObject({ code: "PLAN_ALREADY_RENEWED" });
   });
 
-  it("stores the prorated first charge of a recurring plan", async () => {
+  it("stores the prorated charge of a recurring plan before the full one", async () => {
     const [patients, services] = await Promise.all([
       repository.listPatients(clinicId),
       repository.listServices(clinicId),
@@ -1058,7 +1058,7 @@ describe.skipIf(!databaseUrl)("MySQL repository", () => {
         totalValueInCents: 40_000,
         installments: 1,
         firstDueDate: "2026-10-15",
-        firstInstallmentInCents: 20_000,
+        proratedChargeInCents: 20_000,
       }),
     );
     const receivables = await pool.query<{
@@ -1066,12 +1066,79 @@ describe.skipIf(!databaseUrl)("MySQL repository", () => {
       amountInCents: number;
     }>(
       `SELECT due_date AS "dueDate", amount_in_cents AS "amountInCents"
-       FROM receivables WHERE plan_id = $1`,
+       FROM receivables WHERE plan_id = $1 ORDER BY due_date`,
       [plan.id],
     );
     expect(plan.totalValueInCents).toBe(40_000);
+    // Pré-pago: a proporcional vence no início e a mensalidade cheia no 1º vencimento.
     expect(receivables.rows).toEqual([
-      { dueDate: "2026-10-15", amountInCents: 20_000 },
+      { dueDate: "2026-10-01", amountInCents: 20_000 },
+      { dueDate: "2026-10-15", amountInCents: 40_000 },
     ]);
+  });
+
+  it("lets a recurring plan go past its nominal balance, unlike a package", async () => {
+    const [professionals, rooms, services] = await Promise.all([
+      repository.listProfessionals(clinicId),
+      repository.listRooms(clinicId),
+      repository.listServices(clinicId),
+    ]);
+    const patient = await repository.createPatient(clinicId, {
+      fullName: `Recorrente Além do Saldo ${randomUUID()}`,
+      phone: "11933335555",
+      whatsapp: "11933335555",
+      cpf: nextTestCpf(),
+      tags: [],
+    });
+    const serviceId = services[0]!.id;
+    const buy = (kind: "recurring" | "fixed_package", month: string) =>
+      configuredPlan({
+        patientId: patient.id,
+        serviceId,
+        name: `Saldo ${kind} ${randomUUID()}`,
+        kind,
+        totalSessions: 1,
+        validFrom: `${month}-01`,
+        validUntil: `${month}-28`,
+        totalValueInCents: 10_000,
+        installments: 1,
+        firstDueDate: `${month}-01`,
+      }).then((input) =>
+        repository.createPatientPlan(clinicId, ownerId, input),
+      );
+    const complete = async (startsAt: string) => {
+      const appointment = await repository.createAppointment(clinicId, {
+        patientId: patient.id,
+        professionalId: professionals[0]!.id,
+        roomId: rooms[0]!.id,
+        serviceId,
+        startsAt,
+        notes: "",
+        visitType: "regular",
+      });
+      return atInstant(appointment.startsAt, () =>
+        repository.updateAppointmentStatus(
+          clinicId,
+          appointment.id,
+          "completed",
+        ),
+      );
+    };
+    const remaining = async (planId: string) =>
+      (await repository.listPatientPlans(clinicId)).find(
+        (item) => item.id === planId,
+      )?.remainingSessions;
+
+    const recurring = await buy("recurring", "2031-03");
+    await complete("2031-03-10T13:00:00.000Z");
+    await complete("2031-03-12T13:00:00.000Z");
+    expect(await remaining(recurring.id)).toBe(-1);
+
+    const fixed = await buy("fixed_package", "2031-04");
+    await complete("2031-04-07T13:00:00.000Z");
+    await expect(complete("2031-04-09T13:00:00.000Z")).rejects.toMatchObject({
+      code: "NO_SESSION_BALANCE",
+    });
+    expect(await remaining(fixed.id)).toBe(0);
   });
 });

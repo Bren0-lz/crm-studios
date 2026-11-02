@@ -1,4 +1,5 @@
 import {
+  planHasSessionBalance,
   groupEnrollmentCoversSession,
   type GroupAttendance,
   type GroupAttendanceInput,
@@ -85,7 +86,9 @@ export function createGroupOperationsRepository(
               (!item.validUntil || item.validUntil >= date) &&
               item.services.some(
                 (entry) =>
-                  entry.serviceId === serviceId && entry.remainingSessions > 0,
+                  entry.serviceId === serviceId &&
+                  // Recorrente: a frequência semanal vale, sem bloquear pelo saldo nominal.
+                  (entry.remainingSessions > 0 || !planHasSessionBalance(item)),
               ),
           )
           .sort(
@@ -102,7 +105,11 @@ export function createGroupOperationsRepository(
     const entry = plan?.services.find(
       (item) => item.serviceId === (present ? serviceId : previous?.serviceId),
     );
-    if (!plan || !entry || (present && entry.remainingSessions < 1))
+    if (
+      !plan ||
+      !entry ||
+      (present && entry.remainingSessions < 1 && planHasSessionBalance(plan))
+    )
       throw new DomainError(
         "NO_SESSION_BALANCE",
         "O cliente não possui plano vigente com saldo para este serviço.",
