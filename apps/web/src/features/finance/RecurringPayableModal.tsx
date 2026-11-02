@@ -1,5 +1,5 @@
 import type { FinancialWorkspace, RecurringPayable } from "@crm/contracts";
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
 import { useMissingFields } from "../../shared/components/MissingFields";
@@ -77,6 +77,26 @@ export function RecurringPayableModal({
     startMonth: item?.startMonth ?? currentMonth,
     endMonth: item?.endMonth ?? "",
   });
+  // Fornecedor é texto livre, com os cadastrados ativos como sugestão (falha só tira a sugestão).
+  const [supplierNames, setSupplierNames] = useState<string[]>([]);
+  useEffect(() => {
+    let alive = true;
+    api
+      .suppliers()
+      .then((items) => {
+        if (alive)
+          setSupplierNames(
+            items
+              .filter((supplier) => supplier.active)
+              .map((supplier) => supplier.name)
+              .sort((a, b) => a.localeCompare(b, "pt-BR")),
+          );
+      })
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, []);
   const variable = form.amountType === "variable";
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -195,6 +215,7 @@ export function RecurringPayableModal({
               categories={expenseCategories}
               costCenters={costCenters}
               onCreate={classifications.setCreating}
+              supplierNames={supplierNames}
             />
             <fieldset className="form-fieldset span-2">
               <legend>Valor</legend>
