@@ -129,6 +129,8 @@ describe("recurring plan charges", () => {
 
     // Turma de segunda e quarta: o ciclo de 15/09 a 14/10 tem 9 aulas e de 01/10 a 14/10
     // há 4 (5, 7, 12, 14). Pré-pago: 4/9 do valor no início e a mensalidade cheia em 15/10.
+    // Às 20h, fora dos atendimentos demo (semeados a partir de hoje): às 7h a turma
+    // conflitava com o atendimento demo das segundas e o teste falhava conforme o dia.
     const group = await app.inject({
       method: "POST",
       url: "/groups",
@@ -139,8 +141,8 @@ describe("recurring plan charges", () => {
         professionalId: professionals!.json()[0].id,
         roomId: rooms!.json()[0].id,
         weeklySlots: [
-          { weekday: 1, startTime: "05:00", endTime: "06:00" },
-          { weekday: 3, startTime: "05:00", endTime: "06:00" },
+          { weekday: 1, startTime: "20:00", endTime: "21:00" },
+          { weekday: 3, startTime: "20:00", endTime: "21:00" },
         ],
       },
     });
