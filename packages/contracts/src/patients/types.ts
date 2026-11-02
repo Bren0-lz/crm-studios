@@ -10,6 +10,7 @@ import {
   patientExportFilterSchema,
   patientImportFieldSchema,
   patientImportFileSchema,
+  patientImportInputSchema,
   patientInputSchema,
   patientDiscountSchema,
   patientListQuerySchema,
@@ -22,6 +23,9 @@ import {
 export type PatientStatus = z.infer<typeof patientStatusSchema>;
 
 export type PatientInput = z.infer<typeof patientInputSchema>;
+
+/** Cliente vindo da planilha: o CPF pode faltar (B6-05). */
+export type PatientImportInput = z.infer<typeof patientImportInputSchema>;
 
 export type PatientDiscount = z.infer<typeof patientDiscountSchema>;
 
@@ -183,7 +187,7 @@ export interface PatientImportRow {
   fullName: string;
   phone: string;
   /** Presente em linhas `valid` e `duplicate`. */
-  input?: PatientInput;
+  input?: PatientImportInput;
   /** Mensagens em pt-BR, presentes em linhas `error`. */
   errors?: string[];
   /** Presente em linhas `duplicate`. */

@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  MISSING_CPF_TAG,
   OVERDUE_PAYMENT_TAG,
+  automaticPatientTagCategoryOf,
+  needsCpf,
   isAutomaticPatientTag,
   isOverdueReceivable,
   overduePatientIds,
@@ -45,13 +48,55 @@ describe("etiqueta automática 'Pagamento atrasado'", () => {
   it("acrescenta a etiqueta só a quem está em atraso e descarta a cópia gravada", () => {
     const overdue = new Set(["a"]);
     expect(
-      withAutomaticPatientTags({ id: "a", tags: ["Pilates"] }, overdue).tags,
+      withAutomaticPatientTags(
+        { id: "a", tags: ["Pilates"], cpf: "52998224725" },
+        overdue,
+      ).tags,
     ).toEqual(["Pilates", OVERDUE_PAYMENT_TAG]);
     expect(
       withAutomaticPatientTags(
-        { id: "b", tags: ["Pilates", OVERDUE_PAYMENT_TAG] },
+        { id: "b", tags: ["Pilates", OVERDUE_PAYMENT_TAG], cpf: "52998224725" },
         overdue,
       ).tags,
     ).toEqual(["Pilates"]);
+  });
+});
+
+describe("etiqueta automática 'Falta CPF'", () => {
+  it("vale para cliente sem CPF que não foi mesclado", () => {
+    expect(needsCpf({})).toBe(true);
+    expect(needsCpf({ cpf: "" })).toBe(true);
+    expect(needsCpf({ cpf: null })).toBe(true);
+    expect(needsCpf({ cpf: "52998224725" })).toBe(false);
+    expect(needsCpf({ mergedIntoPatientId: "outro" })).toBe(false);
+  });
+
+  it("entra sem CPF, sai com CPF e não depende do Financeiro", () => {
+    expect(
+      withAutomaticPatientTags({ id: "a", tags: ["Pilates", "falta cpf"] }, null)
+        .tags,
+    ).toEqual(["Pilates", MISSING_CPF_TAG]);
+    expect(
+      withAutomaticPatientTags(
+        { id: "a", tags: ["Pilates", MISSING_CPF_TAG], cpf: "52998224725" },
+        new Set(["a"]),
+      ).tags,
+    ).toEqual(["Pilates", OVERDUE_PAYMENT_TAG]);
+    expect(
+      withAutomaticPatientTags(
+        { id: "a", tags: [OVERDUE_PAYMENT_TAG], cpf: "52998224725" },
+        null,
+      ).tags,
+    ).toEqual([]);
+  });
+
+  it("é automática, com categoria própria", () => {
+    expect(isAutomaticPatientTag("FALTA cpf")).toBe(true);
+    expect(withoutAutomaticPatientTags(["Falta CPF", "Pilates"])).toEqual([
+      "Pilates",
+    ]);
+    expect(automaticPatientTagCategoryOf(MISSING_CPF_TAG)).toBe("status");
+    expect(automaticPatientTagCategoryOf(OVERDUE_PAYMENT_TAG)).toBe("financial");
+    expect(automaticPatientTagCategoryOf("Pilates")).toBeUndefined();
   });
 });

@@ -6,6 +6,7 @@ import {
   parseSequenceNumber,
   type GuidedPatientResult,
   type Patient,
+  type PatientImportInput,
   type PatientInput,
   type PatientTagInput,
   patientTagKey,
@@ -71,7 +72,7 @@ export function createPatientsRepository(
         .sort((a, b) => a.fullName.localeCompare(b.fullName, "pt-BR"));
     },
 
-    async createPatient(clinicId: string, input: PatientInput) {
+    async createPatient(clinicId: string, input: PatientImportInput) {
       const duplicatedCpf = input.cpf
         ? repositoryContext.patients.some(
             (item) => item.clinicId === clinicId && item.cpf === input.cpf,
@@ -207,7 +208,7 @@ export function createPatientsRepository(
       }
     },
 
-    async importPatients(clinicId: string, inputs: PatientInput[]) {
+    async importPatients(clinicId: string, inputs: PatientImportInput[]) {
       const digits = (value: string | undefined) =>
         (value ?? "").replace(/\D/g, "");
       const cpfs = new Set<string>();
@@ -218,7 +219,7 @@ export function createPatientsRepository(
         phones.add(digits(item.phone));
       }
       // Decide tudo antes de gravar: a importação é tudo ou nada.
-      const accepted: PatientInput[] = [];
+      const accepted: PatientImportInput[] = [];
       let skipped = 0;
       for (const input of inputs) {
         const cpf = digits(input.cpf);

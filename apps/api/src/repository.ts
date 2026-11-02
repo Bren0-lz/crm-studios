@@ -199,6 +199,7 @@ import type {
   ManualMessageInput,
   OutboundMessage,
   Patient,
+  PatientImportInput,
   PatientInput,
   PatientPlan,
   PatientPlanInput,
@@ -766,7 +767,11 @@ export interface ClinicRepository {
     professionalIds?: readonly string[],
   ): Promise<DashboardSummary>;
   listPatients(clinicId: string, search?: string): Promise<Patient[]>;
-  createPatient(clinicId: string, input: PatientInput): Promise<Patient>;
+  /**
+   * O CPF só pode faltar em clientes vindos da importação (B6-05); `POST /patients` valida com
+   * `patientInputSchema`, que o exige. Sem CPF, grava `NULL` (nunca `''`, por causa da chave única).
+   */
+  createPatient(clinicId: string, input: PatientImportInput): Promise<Patient>;
   /**
    * Cadastro guiado (`POST /patients/guided`): cria o cliente e o próximo passo — atendimento
    * experimental, plano (com matrícula opcional em turma de um serviço incluído; `additionalPlans`
@@ -786,11 +791,11 @@ export interface ClinicRepository {
   listSubscriberIdsWithoutGroup(clinicId: string): Promise<string[]>;
   /**
    * Cria os clientes importados de uma vez (tudo ou nada), ignorando os que já existem na base
-   * no momento da gravação (mesmo CPF ou telefone, comparando só os dígitos).
+   * no momento da gravação (mesmo CPF ou telefone, comparando só os dígitos). O CPF pode faltar.
    */
   importPatients(
     clinicId: string,
-    inputs: PatientInput[],
+    inputs: PatientImportInput[],
   ): Promise<{ created: number; skipped: number }>;
   updatePatient(
     clinicId: string,

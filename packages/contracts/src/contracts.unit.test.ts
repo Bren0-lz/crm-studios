@@ -93,6 +93,8 @@ import {
   nextPlanPeriod,
   patientDefaultExportColumns,
   patientExportFilterSchema,
+  patientImportInputSchema,
+  patientImportRequiredFields,
   patientInputSchema,
   patientListQuerySchema,
   patientPlanInputSchema,
@@ -641,6 +643,23 @@ describe("shared contracts", () => {
         cpf: "529.982.247-24",
       }),
     ).toThrow("Informe um CPF válido.");
+  });
+
+  it("keeps CPF required in manual registration but optional in spreadsheet imports", () => {
+    const base = { fullName: "Maria da Silva", phone: "11999999999" };
+    expect(() => patientInputSchema.parse(base)).toThrow();
+    expect(() => patientInputSchema.parse({ ...base, cpf: "" })).toThrow(
+      "Informe um CPF válido.",
+    );
+    expect(patientImportInputSchema.parse(base).cpf).toBeUndefined();
+    expect(patientImportInputSchema.parse({ ...base, cpf: " " }).cpf).toBeUndefined();
+    expect(
+      patientImportInputSchema.parse({ ...base, cpf: "529.982.247-25" }).cpf,
+    ).toBe("52998224725");
+    expect(() =>
+      patientImportInputSchema.parse({ ...base, cpf: "529.982.247-24" }),
+    ).toThrow("Informe um CPF válido.");
+    expect(patientImportRequiredFields).toEqual(["fullName", "phone"]);
   });
 
   it("rejects an appointment with invalid identifiers", () => {
