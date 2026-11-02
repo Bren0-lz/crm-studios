@@ -118,7 +118,7 @@ reproduz o zoom do iOS, a causa 2 é verificada pelo estilo computado (≥ 16 px
   `npm run test:e2e -- e2e/contracts.spec.ts --workers=1` (regressão da folha no desktop).
 - **Aceite:** asserções 1–3 da CT1 passam; captura de tela anexada ao PR (Playwright, 390×844).
 - **Depende de:** CT1
-- **Status:** TODO
+- **Status:** DONE
 
 ### CT3 — Assinatura por toque utilizável
 
