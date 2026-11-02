@@ -48,12 +48,13 @@ describe("planInstallmentPreview", () => {
     expect(rows[2]!.parts).toHaveLength(1);
   });
 
-  it("usa o 1º pagamento proporcional e, na renovação, o desconto que sobrou do plano anterior", () => {
+  it("põe a cobrança proporcional antes da cheia e, na renovação, o desconto que sobrou do plano anterior", () => {
     const rows = planInstallmentPreview({
       totalValueInCents: 20_000,
       installments: 1,
       firstDueDate: "2026-11-15",
-      firstInstallmentInCents: 9000,
+      validFrom: "2026-11-05",
+      proratedChargeInCents: 9000,
       previousDiscount: {
         type: "amount",
         amountInCents: 1500,
@@ -65,8 +66,8 @@ describe("planInstallmentPreview", () => {
     expect(rows).toEqual([
       {
         installmentNumber: 1,
-        installmentCount: 1,
-        dueDate: "2026-11-15",
+        installmentCount: 2,
+        dueDate: "2026-11-05",
         amountInCents: 7500,
         parts: [
           {
@@ -75,6 +76,13 @@ describe("planInstallmentPreview", () => {
           },
           { label: "Desconto do plano · valor fixo", amountInCents: -1500 },
         ],
+      },
+      {
+        installmentNumber: 2,
+        installmentCount: 2,
+        dueDate: "2026-11-15",
+        amountInCents: 20_000,
+        parts: [{ label: "Valor do plano", amountInCents: 20_000 }],
       },
     ]);
   });

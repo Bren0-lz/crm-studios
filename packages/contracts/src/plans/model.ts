@@ -405,10 +405,32 @@ export function validityAfterPause(
 /** Situação exibida: um plano ativo sem saldo aparece como "Esgotado" (não é gravado). */
 export type PlanDisplayStatus = PatientPlan["status"] | "exhausted";
 
+/**
+ * O saldo de sessões limita o uso só fora do recorrente: no plano recorrente o cliente
+ * paga a frequência semanal (ex.: 2x por semana), e um ciclo com mais aulas que o saldo
+ * nominal (9 segundas e quartas num mês) não bloqueia nem esgota o plano.
+ */
+export function planHasSessionBalance(plan: {
+  kind?: PatientPlan["kind"] | null | undefined;
+}) {
+  return plan.kind !== "recurring";
+}
+
+/** Aulas já feitas no ciclo do plano recorrente (pode passar do saldo nominal). */
+export function planUsedSessions(
+  plan: Pick<PatientPlan, "totalSessions" | "remainingSessions">,
+) {
+  return plan.totalSessions - plan.remainingSessions;
+}
+
 export function planDisplayStatus(
-  plan: Pick<PatientPlan, "status" | "remainingSessions">,
+  plan: Pick<PatientPlan, "status" | "remainingSessions"> & {
+    kind?: PatientPlan["kind"] | null | undefined;
+  },
 ): PlanDisplayStatus {
-  return plan.status === "active" && plan.remainingSessions <= 0
+  return plan.status === "active" &&
+    planHasSessionBalance(plan) &&
+    plan.remainingSessions <= 0
     ? "exhausted"
     : plan.status;
 }
@@ -533,19 +555,26 @@ export function weeklySlotSessionsBetween(
 }
 
 export type PlanFirstChargeProration = {
-  /** Aulas da turma do início até o primeiro vencimento, inclusive. */
+  /** Aulas da turma do início do plano até a véspera do primeiro vencimento. */
   sessions: number;
-  /** Aulas do primeiro ciclo (início até o fim do 1º mês). */
+  /** Aulas do ciclo mensal que termina na véspera do primeiro vencimento. */
   cycleSessions: number;
+  /** Ciclo de referência: do 1º vencimento menos um mês até a véspera do vencimento. */
+  cycleStart: string;
   cycleEnd: string;
+  /** A cobrança proporcional vence no início do plano (matrícula). */
+  dueDate: string;
   amountInCents: number;
 };
 
 /**
- * 1º pagamento do plano recorrente proporcional às aulas da turma até o vencimento:
- * vencer no fim do 1º ciclo (ex.: início 01/10, vence 31/10) cobra o valor cheio;
- * antes sai mais barato, depois sai mais caro. Vencimento no próprio início
- * (pagamento antecipado) ou sem turma mantém o valor cheio (null).
+ * Plano recorrente pré-pago: a mensalidade do vencimento (ex.: dia 20) paga o mês que começa
+ * nele (20 a 19). Quem entra antes do 1º vencimento paga à parte, no início, as aulas da turma
+ * até a véspera do vencimento, pelo valor da aula do ciclo de referência (vencimento − 1 mês
+ * até a véspera): valor do plano ÷ aulas do ciclo × aulas do período. Ex.: início 10/11,
+ * vence 20/11, turma seg/qua: 9 aulas de 20/10 a 19/11 e 3 de 10/11 a 19/11 → 3/9 do valor.
+ * Sem turma, fora do recorrente, vencimento no próprio início (ou antes) ou sem aula no
+ * período não há cobrança proporcional (null).
  */
 export function planFirstChargeProration(
   plan: {
@@ -564,23 +593,17 @@ export function planFirstChargeProration(
     plan.firstDueDate <= plan.validFrom
   )
     return null;
-  const cycleEnd = addDaysToIsoDate(addMonthsToIsoDate(plan.validFrom, 1), -1);
-  if (plan.firstDueDate === cycleEnd) return null;
-  const cycleSessions = weeklySlotSessionsBetween(
-    slots,
-    plan.validFrom,
-    cycleEnd,
-  );
-  if (!cycleSessions) return null;
-  const sessions = weeklySlotSessionsBetween(
-    slots,
-    plan.validFrom,
-    plan.firstDueDate,
-  );
+  const cycleStart = addMonthsToIsoDate(plan.firstDueDate, -1);
+  const cycleEnd = addDaysToIsoDate(plan.firstDueDate, -1);
+  const cycleSessions = weeklySlotSessionsBetween(slots, cycleStart, cycleEnd);
+  const sessions = weeklySlotSessionsBetween(slots, plan.validFrom, cycleEnd);
+  if (!cycleSessions || !sessions) return null;
   return {
     sessions,
     cycleSessions,
+    cycleStart,
     cycleEnd,
+    dueDate: plan.validFrom,
     amountInCents: Math.min(
       2147483647,
       Math.round((plan.totalValueInCents * sessions) / cycleSessions),
@@ -588,20 +611,20 @@ export function planFirstChargeProration(
   };
 }
 
-/** Termos do plano com a 1ª parcela proporcional às aulas da turma, quando houver. */
+/** Termos do plano com a cobrança proporcional às aulas da turma, quando houver. */
 export function withPlanFirstCharge<
   T extends Parameters<typeof planFirstChargeProration>[0],
 >(
-  plan: T & { firstInstallmentInCents?: number | undefined },
+  plan: T & { proratedChargeInCents?: number | undefined },
   slots: readonly { weekday: number }[] | undefined,
-): T & { firstInstallmentInCents?: number | undefined } {
-  const terms: T & { firstInstallmentInCents?: number | undefined } = {
+): T & { proratedChargeInCents?: number | undefined } {
+  const terms: T & { proratedChargeInCents?: number | undefined } = {
     ...plan,
   };
-  delete terms.firstInstallmentInCents;
+  delete terms.proratedChargeInCents;
   const proration = planFirstChargeProration(plan, slots);
   return proration
-    ? { ...terms, firstInstallmentInCents: proration.amountInCents }
+    ? { ...terms, proratedChargeInCents: proration.amountInCents }
     : terms;
 }
 
@@ -623,10 +646,10 @@ export const planTermsSchema = z.object({
    */
   paymentParts: planPaymentPartsSchema.optional(),
   /**
-   * Valor da 1ª parcela quando proporcional às aulas até o primeiro vencimento
-   * (`planFirstChargeProration`); ausente = divisão normal do valor total.
+   * Plano recorrente: cobrança proporcional às aulas do início até a véspera do 1º
+   * vencimento (`planFirstChargeProration`), a mais e vencendo no início; ausente = sem ela.
    */
-  firstInstallmentInCents: z.number().int().min(0).max(2147483647).optional(),
+  proratedChargeInCents: z.number().int().min(1).max(2147483647).optional(),
   /**
    * Desconto combinado na venda deste plano: vale nas cobranças dele e das renovações,
    * conforme o alcance. Na renovação, ausente = segue o desconto do plano anterior.

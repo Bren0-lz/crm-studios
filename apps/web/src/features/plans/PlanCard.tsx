@@ -2,6 +2,8 @@ import {
   type PatientPlan,
   paymentMethodLabels,
   planDisplayStatus,
+  planHasSessionBalance,
+  planUsedSessions,
 } from "@crm/contracts";
 import type { ReactNode } from "react";
 import { currency, shortDate } from "../../shared/lib/formatting";
@@ -33,8 +35,10 @@ export function PlanCard({
   autoRenewControl?: ReactNode;
   actions?: ReactNode;
 }) {
-  const used = plan.totalSessions - plan.remainingSessions;
+  const used = planUsedSessions(plan);
   const percent = Math.min(100, Math.round((used / plan.totalSessions) * 100));
+  // Recorrente: vale a frequência semanal; mostra as aulas feitas no ciclo, sem saldo.
+  const hasBalance = planHasSessionBalance(plan);
   return (
     <article className="plan-card">
       <div className="plan-card-head">
@@ -45,20 +49,34 @@ export function PlanCard({
       </div>
       <h3>{title}</h3>
       {subtitle && <p>{subtitle}</p>}
-      <div className="balance-line">
-        <strong>{plan.remainingSessions}</strong>
-        <span>de {plan.totalSessions} sessões restantes</span>
-      </div>
+      {hasBalance ? (
+        <div className="balance-line">
+          <strong>{plan.remainingSessions}</strong>
+          <span>de {plan.totalSessions} sessões restantes</span>
+        </div>
+      ) : (
+        <div className="balance-line">
+          <strong>{used}</strong>
+          <span>
+            {used === 1 ? "aula feita" : "aulas feitas"} neste ciclo · plano
+            prevê {plan.totalSessions}
+          </span>
+        </div>
+      )}
       {plan.services.map((entry) => (
         <p key={entry.serviceId}>
-          {entry.serviceName}: {entry.remainingSessions} de{" "}
-          {entry.totalSessions} sessões ·{" "}
-          {currency.format(entry.totalValueInCents / 100)}
+          {entry.serviceName}:{" "}
+          {hasBalance
+            ? `${entry.remainingSessions} de ${entry.totalSessions} sessões`
+            : `${planUsedSessions(entry)} de ${entry.totalSessions} aulas previstas`}{" "}
+          · {currency.format(entry.totalValueInCents / 100)}
         </p>
       ))}
-      <div className="progress-track">
-        <span style={{ width: `${percent}%` }} />
-      </div>
+      {hasBalance && (
+        <div className="progress-track">
+          <span style={{ width: `${percent}%` }} />
+        </div>
+      )}
       <div className="plan-meta">
         <span>Validade</span>
         <strong>

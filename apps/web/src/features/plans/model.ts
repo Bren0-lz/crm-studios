@@ -97,7 +97,8 @@ export function planMatchesSearch(plan: PatientPlan, search: string): boolean {
 
 /** Texto do selo: o crédito da comanda aguarda o atendimento até ser consumido. */
 export function planBadgeLabel(
-  plan: Pick<PatientPlan, "sourceTabId" | "status" | "remainingSessions">,
+  plan: Pick<PatientPlan, "sourceTabId" | "status" | "remainingSessions"> &
+    Partial<Pick<PatientPlan, "kind">>,
 ): string {
   if (
     plan.sourceTabId &&

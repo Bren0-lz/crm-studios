@@ -671,10 +671,10 @@ export function PatientModal({
       // 1º pagamento de cada item no Pix (proporcional à turma e com o desconto do plano),
       // somado.
       const pixFirstCharges = createdPlans.flatMap((plan, index) => {
-        const firstInstallmentInCents =
-          sentPlans[index]?.firstInstallmentInCents;
+        const proratedChargeInCents =
+          sentPlans[index]?.proratedChargeInCents;
         const discounted = discountedPlanInstallments(
-          planInstallmentSchedule({ ...plan, firstInstallmentInCents }),
+          planInstallmentSchedule({ ...plan, proratedChargeInCents }),
           sentPlans[index]?.discount,
           undefined,
           sentPlans[index]?.orderDiscountInCents,
@@ -683,7 +683,7 @@ export function PatientModal({
         return plan.paymentMethod === "pix" && !plan.paymentParts && first
           ? [
               {
-                prorated: firstInstallmentInCents !== undefined,
+                prorated: proratedChargeInCents !== undefined,
                 amountInCents:
                   first.amountInCents + first.customerDiscountInCents,
                 discountInCents: first.customerDiscountInCents,

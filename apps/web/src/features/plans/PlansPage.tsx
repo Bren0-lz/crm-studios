@@ -7,6 +7,7 @@ import {
   type Service,
   isTabCreditPlan,
   patientFirstName,
+  planHasSessionBalance,
 } from "@crm/contracts";
 import { FileClock, Pause, Play, Plus, RefreshCw, Search } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -174,10 +175,9 @@ export function PlansPage({ canManage }: { canManage: boolean }) {
         </div>
         <div>
           <strong>
-            {contractedPlans.reduce(
-              (sum, plan) => sum + plan.remainingSessions,
-              0,
-            )}
+            {contractedPlans
+              .filter(planHasSessionBalance)
+              .reduce((sum, plan) => sum + plan.remainingSessions, 0)}
           </strong>
           <span>sessões disponíveis</span>
         </div>
@@ -186,7 +186,9 @@ export function PlansPage({ canManage }: { canManage: boolean }) {
             {
               contractedPlans.filter(
                 (plan) =>
-                  plan.remainingSessions <= 2 && plan.status === "active",
+                  planHasSessionBalance(plan) &&
+                  plan.remainingSessions <= 2 &&
+                  plan.status === "active",
               ).length
             }
           </strong>

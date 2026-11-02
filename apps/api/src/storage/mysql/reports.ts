@@ -605,7 +605,7 @@ export function createReportsRepository(
           availableSessions: number;
         }>(
           `SELECT COUNT(*) AS active,
-                CAST(COALESCE(SUM(remaining_sessions), 0) AS SIGNED) AS "availableSessions"
+                CAST(COALESCE(SUM(GREATEST(remaining_sessions, 0)), 0) AS SIGNED) AS "availableSessions"
          FROM patient_plans WHERE clinic_id = $1 AND status = 'active'
            AND ${branchClause("branch_id", 2)}`,
           [clinicId, branchIds],

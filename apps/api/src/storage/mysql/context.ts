@@ -1,6 +1,8 @@
 import { markPaymentProofsReversed } from "./payment-proofs.js";
 import {
   acceptsPaymentInstallments,
+  planHasSessionBalance,
+  type PatientPlan,
   formatSequenceNumber,
   installmentPaymentSplitIssue,
   settlementBreakdown,
@@ -2007,8 +2009,9 @@ export class MysqlRepositoryContext {
     const planResult = await client.query<{
       id: string;
       remainingSessions: number;
+      kind: PatientPlan["kind"];
     }>(
-      `SELECT pp.id, pps.remaining_sessions AS "remainingSessions"
+      `SELECT pp.id, pps.remaining_sessions AS "remainingSessions", pp.kind
        FROM patient_plans pp JOIN clinics c ON c.id = pp.clinic_id
        JOIN patient_plan_services pps ON pps.plan_id = pp.id AND pps.clinic_id = pp.clinic_id
        WHERE pp.clinic_id = $1 AND pp.patient_id = $2 AND pps.service_id = $3
@@ -2042,7 +2045,8 @@ export class MysqlRepositoryContext {
       [plan.id, appointmentId],
     );
     if ((ledger.rows[0]?.balance ?? 0) < 0) return;
-    if (plan.remainingSessions < 1) {
+    // Recorrente: a frequência semanal vale; o ciclo com mais aulas que o saldo nominal passa.
+    if (plan.remainingSessions < 1 && planHasSessionBalance(plan)) {
       throw new DomainError(
         "NO_SESSION_BALANCE",
         "O cliente não possui saldo de sessões para este serviço.",

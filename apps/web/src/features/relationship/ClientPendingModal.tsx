@@ -5,6 +5,7 @@ import {
   type Receivable,
   isTabCreditPlan,
   patientFirstName,
+  planHasSessionBalance,
 } from "@crm/contracts";
 import { ArrowUpRight, MessageCircle, PhoneCall } from "lucide-react";
 import { type ReactNode, useEffect, useState } from "react";
@@ -49,6 +50,7 @@ function usePendingList<T>(enabled: boolean, load: () => Promise<T[]>) {
 function hasPendingBalance(plan: PatientPlan) {
   return (
     !isTabCreditPlan(plan) &&
+    planHasSessionBalance(plan) &&
     plan.remainingSessions > 0 &&
     (plan.status === "active" ||
       plan.status === "paused" ||
