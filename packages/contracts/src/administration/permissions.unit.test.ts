@@ -9,6 +9,7 @@ import {
   legacyPermissions,
   normalizePermissions,
   permissionCatalog,
+  permissionEditModules,
   permissionKeys,
   resolvePermissionInput,
   togglePermissions,
@@ -38,6 +39,22 @@ describe("operation permissions", () => {
       "groups.view",
       "groups.rename",
     ]);
+  });
+  it("keeps the groups overview for whoever already viewed groups, as a view-only operation", () => {
+    expect(effectivePermissions("admin")).toContain("groups.overview");
+    expect(legacyPermissions("user", ["groups"], [])).toContain(
+      "groups.overview",
+    );
+    expect(normalizePermissions(["groups.overview"])).toEqual([]);
+    expect(togglePermissions([], ["groups.overview"], true)).toEqual([
+      "groups.view",
+      "groups.overview",
+    ]);
+    // Retirar a visão geral não tira a edição de Turmas de quem a tinha.
+    const editing = legacyPermissions("user", ["groups"], ["groups"]).filter(
+      (key) => key !== "groups.overview",
+    );
+    expect(permissionEditModules(editing)).toEqual(["groups"]);
   });
   it("keeps agenda notes explicit and dependent on agenda visibility", () => {
     expect(legacyPermissions("user", ["agenda"], ["agenda"])).not.toContain(
