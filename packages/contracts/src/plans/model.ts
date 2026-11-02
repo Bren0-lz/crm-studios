@@ -588,17 +588,46 @@ export function planFirstChargeProration(
   };
 }
 
-/** Termos do plano com a 1ª parcela proporcional às aulas da turma, quando houver. */
+/** 1º pagamento do plano recorrente com valor informado à mão (sem o cálculo proporcional). */
+export function hasManualFirstCharge(plan: {
+  kind?: z.infer<typeof planKindSchema> | null | undefined;
+  manualFirstCharge?: boolean | undefined;
+  firstInstallmentInCents?: number | undefined;
+}): boolean {
+  return (
+    plan.kind === "recurring" &&
+    plan.manualFirstCharge === true &&
+    plan.firstInstallmentInCents !== undefined
+  );
+}
+
+/**
+ * Termos do plano com a 1ª parcela proporcional às aulas da turma, quando houver. Com o
+ * cálculo desligado (`manualFirstCharge`, só no recorrente), mantém o valor informado.
+ */
 export function withPlanFirstCharge<
   T extends Parameters<typeof planFirstChargeProration>[0],
 >(
-  plan: T & { firstInstallmentInCents?: number | undefined },
+  plan: T & {
+    firstInstallmentInCents?: number | undefined;
+    manualFirstCharge?: boolean | undefined;
+  },
   slots: readonly { weekday: number }[] | undefined,
-): T & { firstInstallmentInCents?: number | undefined } {
-  const terms: T & { firstInstallmentInCents?: number | undefined } = {
+): T & {
+  firstInstallmentInCents?: number | undefined;
+  manualFirstCharge?: boolean | undefined;
+} {
+  const terms: T & {
+    firstInstallmentInCents?: number | undefined;
+    manualFirstCharge?: boolean | undefined;
+  } = {
     ...plan,
   };
+  // Sem valor, o pedido segue assim mesmo: a API recusa ("Informe o valor do 1º pagamento").
+  if (plan.kind === "recurring" && plan.manualFirstCharge)
+    return { ...terms, manualFirstCharge: true };
   delete terms.firstInstallmentInCents;
+  delete terms.manualFirstCharge;
   const proration = planFirstChargeProration(plan, slots);
   return proration
     ? { ...terms, firstInstallmentInCents: proration.amountInCents }
@@ -627,6 +656,11 @@ export const planTermsSchema = z.object({
    * (`planFirstChargeProration`); ausente = divisão normal do valor total.
    */
   firstInstallmentInCents: z.number().int().min(0).max(2147483647).optional(),
+  /**
+   * Plano recorrente com o cálculo proporcional desligado: o 1º pagamento é o
+   * `firstInstallmentInCents` informado na venda (as cobranças seguintes têm o valor cheio).
+   */
+  manualFirstCharge: z.boolean().optional(),
   /**
    * Desconto combinado na venda deste plano: vale nas cobranças dele e das renovações,
    * conforme o alcance. Na renovação, ausente = segue o desconto do plano anterior.

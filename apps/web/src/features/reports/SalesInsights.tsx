@@ -535,6 +535,9 @@ export function SalesInsights({
                             {item.customerDiscountInCents
                               ? ` · desconto do cliente ${money(item.customerDiscountInCents)}`
                               : ""}
+                            {item.manualFirstCharge
+                              ? " · 1º pagamento com valor manual"
+                              : ""}
                           </small>
                         </th>
                         <td>

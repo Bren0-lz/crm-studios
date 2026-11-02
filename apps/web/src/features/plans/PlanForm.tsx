@@ -23,7 +23,8 @@ import {
   type ReactNode,
 } from "react";
 import { NavLink } from "react-router-dom";
-import { PlanFirstChargeNote } from "./PlanFirstChargeNote";
+import { withFirstChargeChoice } from "./first-charge";
+import { PlanFirstChargeFields } from "./PlanFirstChargeFields";
 import { PlanPaymentFields } from "./PlanPaymentFields";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
@@ -615,7 +616,14 @@ export function PlanForm({
               />
             </label>
             {!renewing && (
-              <PlanFirstChargeNote plan={form} slots={firstChargeSlots} />
+              <PlanFirstChargeFields
+                plan={form}
+                slots={firstChargeSlots}
+                disabled={loading}
+                onChange={(choice) =>
+                  setForm((current) => withFirstChargeChoice(current, choice))
+                }
+              />
             )}
             {form.totalValueInCents > 0 && (
               <InstallmentsPreview

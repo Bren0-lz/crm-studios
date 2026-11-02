@@ -935,6 +935,8 @@ export function planPixChargeMessage(input: {
   template?: string | undefined;
   /** 1º pagamento proporcional às aulas até o vencimento (`firstInstallmentInCents`). */
   firstChargeInCents?: number | undefined;
+  /** 1º pagamento informado à mão na venda (cálculo proporcional desligado). */
+  manualFirstCharge?: boolean | undefined;
   /** Desconto do cliente no 1º pagamento (o valor cobrado já vem com ele descontado). */
   discountInCents?: number | undefined;
 }): string {
@@ -973,7 +975,9 @@ export function planPixChargeMessage(input: {
   const withDiscount = discount
     ? `, já com o seu desconto de ${money(discount)}`
     : "";
-  const charge = prorated
+  const charge = input.manualFirstCharge
+    ? `o plano “${input.planName}” tem ${sessions} por ${money(input.totalValueInCents)}${perSession}; o 1º pagamento, com o valor combinado na venda, é de ${money(firstCharge)}${withDiscount}`
+    : prorated
     ? `o plano “${input.planName}” tem ${sessions} por ${money(input.totalValueInCents)}${perSession}; o 1º pagamento, proporcional às aulas até o vencimento, é de ${money(firstCharge)}${withDiscount}`
     : installments > 1
       ? `o plano “${input.planName}” tem ${sessions} por ${money(input.totalValueInCents)}${perSession}, em ${installments} parcelas; a 1ª parcela é de ${money(firstCharge)}${withDiscount}`

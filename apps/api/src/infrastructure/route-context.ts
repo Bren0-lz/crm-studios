@@ -683,11 +683,22 @@ export async function createRouteContext({
   /**
    * 1º pagamento do plano recorrente proporcional às aulas da turma, calculado aqui a partir
    * dos horários da turma (`groupId`). O valor enviado pela tela é descartado: sem turma, ou
-   * fora da regra, o plano fica com a divisão normal do valor.
+   * fora da regra, o plano fica com a divisão normal do valor. Com o cálculo desligado
+   * (`manualFirstCharge`, só no recorrente), vale o valor do 1º pagamento informado.
    */
   async function withServerFirstCharge<
     T extends Parameters<typeof withPlanFirstCharge>[0],
   >(clinicId: string, plan: T, groupId?: string): Promise<T> {
+    if (
+      plan.kind === "recurring" &&
+      plan.manualFirstCharge &&
+      plan.firstInstallmentInCents === undefined
+    )
+      throw new DomainError(
+        "FIRST_CHARGE_REQUIRED",
+        "Informe o valor do 1º pagamento.",
+        400,
+      );
     const today = saoPauloToday();
     const slots = groupId
       ? (

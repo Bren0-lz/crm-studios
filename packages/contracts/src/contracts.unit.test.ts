@@ -2158,6 +2158,52 @@ describe("1º pagamento proporcional às aulas até o vencimento", () => {
       }).map((item) => item.amountInCents),
     ).toEqual([5_000, 10_000, 10_000]);
   });
+  it("keeps the manual first charge when the proration is turned off", () => {
+    const manual = withPlanFirstCharge(
+      {
+        ...plan,
+        firstDueDate: "2026-10-15",
+        installments: 1,
+        manualFirstCharge: true,
+        firstInstallmentInCents: 12_345,
+      },
+      slots,
+    );
+    expect(manual).toMatchObject({
+      manualFirstCharge: true,
+      firstInstallmentInCents: 12_345,
+    });
+    // Sem valor, não calcula a proporção (a API pede o valor); fora do recorrente, é ignorado.
+    expect(
+      withPlanFirstCharge(
+        { ...plan, firstDueDate: "2026-10-15", manualFirstCharge: true },
+        slots,
+      ),
+    ).not.toHaveProperty("firstInstallmentInCents");
+    expect(
+      withPlanFirstCharge(
+        {
+          ...plan,
+          kind: "fixed_package",
+          manualFirstCharge: true,
+          firstInstallmentInCents: 100,
+        },
+        slots,
+      ),
+    ).not.toHaveProperty("manualFirstCharge");
+    expect(
+      planPixChargeMessage({
+        patientName: "Marina Costa",
+        planName: "Pilates",
+        totalValueInCents: 40_000,
+        installments: 1,
+        totalSessions: 8,
+        pixKey: "pix@clinica.com",
+        firstChargeInCents: 12_345,
+        manualFirstCharge: true,
+      }),
+    ).toContain("o 1º pagamento, com o valor combinado na venda, é de R$ 123,45");
+  });
   it("tells the prorated first charge in the Pix message", () => {
     expect(
       planPixChargeMessage({

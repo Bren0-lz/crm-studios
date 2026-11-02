@@ -94,6 +94,7 @@ import {
   permissionModules,
   type PlanCatalogEntry,
   discountedPlanInstallments,
+  hasManualFirstCharge,
   planInstallmentSchedule,
   withPlanPaymentParts,
   type PlanTemplate,
@@ -1947,6 +1948,7 @@ export class MemoryRepositoryContext {
     );
     delete plan.discount;
     delete plan.orderDiscountInCents;
+    delete plan.manualFirstCharge;
     if (discounted.discount) plan.discount = discounted.discount;
     const installments: Receivable[] = discounted.installments.map(
       (installment) => ({
@@ -1982,6 +1984,11 @@ export class MemoryRepositoryContext {
           : {}),
         ...(installment.customerDiscountInCents
           ? { customerDiscountInCents: installment.customerDiscountInCents }
+          : {}),
+        // 1º pagamento com o valor informado à mão (as cobranças do 1º vencimento).
+        ...(hasManualFirstCharge(input) &&
+        installment.dueDate === input.firstDueDate
+          ? { manualAmount: true as const }
           : {}),
         status: "open",
         overdue: false,

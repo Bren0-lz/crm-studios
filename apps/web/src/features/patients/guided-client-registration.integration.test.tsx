@@ -932,6 +932,76 @@ describe("guided client registration", () => {
         firstInstallmentInCents: 24000,
       },
     });
+    expect(posts[0]!.plan).not.toHaveProperty("manualFirstCharge");
+  });
+
+  it("lets the user turn off the prorated first charge and type its value", async () => {
+    const posts = mockApi((body) =>
+      jsonResponse(
+        {
+          patient: created,
+          plan: {
+            id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+            patientId: created.id,
+            patientName: created.fullName,
+            serviceName: "Pilates",
+            ...(body.plan as object),
+            status: "active",
+            remainingSessions: 8,
+          },
+        },
+        201,
+      ),
+    );
+    renderAs(storedUser(admin));
+    const dialog = await openNewClient();
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Adicionar plano" }),
+    );
+    fireEvent.change(await within(dialog).findByLabelText("Plano cadastrado"), {
+      target: { value: pilatesTemplate.id },
+    });
+    fireEvent.change(within(dialog).getByLabelText("Modelo"), {
+      target: { value: "recurring" },
+    });
+    fireEvent.change(within(dialog).getByLabelText("Início"), {
+      target: { value: "2026-10-01" },
+    });
+    fireEvent.change(within(dialog).getByLabelText("Primeiro vencimento"), {
+      target: { value: "2026-10-15" },
+    });
+    fireEvent.change(await within(dialog).findByLabelText("Turma"), {
+      target: { value: groups[0]!.id },
+    });
+    const toggle = within(dialog).getByLabelText(
+      "Calcular o 1º pagamento proporcional às aulas até o vencimento",
+    );
+    expect(toggle).toBeChecked();
+    fireEvent.click(toggle);
+    expect(
+      within(dialog).queryByText(/^1º pagamento proporcional/),
+    ).not.toBeInTheDocument();
+    // Começa do valor que seria cobrado (o proporcional) e aceita outro.
+    const amount = within(dialog).getByLabelText("Valor do 1º pagamento (R$)");
+    expect(amount).toHaveValue("240,00");
+    fireEvent.change(amount, { target: { value: "315,00" } });
+    expect(
+      within(dialog).getByText(/^Valor informado manualmente/),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Salvar e criar plano" }),
+    );
+    await waitFor(() => expect(posts).toHaveLength(1));
+    expect(posts[0]).toMatchObject({
+      next: "plan",
+      groupId: groups[0]!.id,
+      plan: {
+        kind: "recurring",
+        totalValueInCents: 48000,
+        manualFirstCharge: true,
+        firstInstallmentInCents: 31500,
+      },
+    });
   });
 
   it("sells a single service without model nor class", async () => {

@@ -1074,4 +1074,46 @@ describe.skipIf(!databaseUrl)("MySQL repository", () => {
       { dueDate: "2026-10-15", amountInCents: 20_000 },
     ]);
   });
+
+  it("marks the manual first charge of a recurring plan in finance and sales", async () => {
+    const [patients, services] = await Promise.all([
+      repository.listPatients(clinicId),
+      repository.listServices(clinicId),
+    ]);
+    const plan = await repository.createPatientPlan(
+      clinicId,
+      ownerId,
+      await configuredPlan({
+        patientId: patients[0]!.id,
+        serviceId: services[0]!.id,
+        name: `Manual ${randomUUID()}`,
+        kind: "recurring",
+        totalSessions: 8,
+        validFrom: "2026-10-01",
+        validUntil: "2026-10-31",
+        totalValueInCents: 40_000,
+        installments: 1,
+        firstDueDate: "2026-10-15",
+        manualFirstCharge: true,
+        firstInstallmentInCents: 31_500,
+      }),
+    );
+    const summary = await repository.getFinancialSummary(clinicId);
+    expect(
+      summary.receivables.filter((item) => item.planId === plan.id),
+    ).toMatchObject([
+      { dueDate: "2026-10-15", amountInCents: 31_500, manualAmount: true },
+    ]);
+    const today = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "America/Sao_Paulo",
+    }).format(new Date());
+    const report = await repository.getSalesPeriodReport(
+      clinicId,
+      today,
+      today,
+    );
+    expect(
+      report.sales.find((item) => item.sourceId === plan.id),
+    ).toMatchObject({ manualFirstCharge: true });
+  });
 });

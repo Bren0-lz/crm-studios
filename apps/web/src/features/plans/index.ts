@@ -1,6 +1,8 @@
 export { planBadgeLabel, planKindLabels, planSubtitle } from "./model";
 export { PlanForm } from "./PlanForm";
 export { PlanFirstChargeNote } from "./PlanFirstChargeNote";
+export { PlanFirstChargeFields } from "./PlanFirstChargeFields";
+export { withFirstChargeChoice } from "./first-charge";
 export { PlanInstallmentsField } from "./PlanInstallmentsField";
 export { PlanPaymentFields } from "./PlanPaymentFields";
 export { PlanCancelModal } from "./PlanCancelModal";

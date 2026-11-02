@@ -378,6 +378,11 @@ export interface Receivable {
    * valor com desconto; o valor cheio é a soma dos dois). Ausente = sem desconto.
    */
   customerDiscountInCents?: number;
+  /**
+   * Valor definido à mão na venda do plano recorrente: 1º pagamento com o cálculo
+   * proporcional desligado. Ausente = valor calculado pelo CRM.
+   */
+  manualAmount?: true;
 }
 
 export interface FinancialSummary {
