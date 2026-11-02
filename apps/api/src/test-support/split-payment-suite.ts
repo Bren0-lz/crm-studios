@@ -286,8 +286,18 @@ export function splitPaymentSuite(
           installments: 1,
           firstDueDate: "2031-04-10",
           paymentParts: [
-            { paymentMethod: "pix", amountInCents: 10_000, installments: 1 },
-            { paymentMethod: "card", amountInCents: 20_000, installments: 2 },
+            {
+              paymentMethod: "pix",
+              amountInCents: 10_000,
+              installments: 1,
+              recurring: false,
+            },
+            {
+              paymentMethod: "card",
+              amountInCents: 20_000,
+              installments: 2,
+              recurring: true,
+            },
           ],
         }),
       );

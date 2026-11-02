@@ -11,6 +11,8 @@ import {
   planPauseDetailsSchema,
   isRecurringChargeValid,
   recurringSingleChargeIssue,
+  autoRenewPaymentPartsIssue,
+  autoRenewPaymentPartsValid,
   type ApiError,
 } from "@crm/contracts";
 import { z } from "zod";
@@ -297,11 +299,29 @@ export function registerPlansRoutes(context: RouteContext) {
     { preHandler: authenticate },
     async (request, reply) => {
       const { id } = request.params as { id: string };
+      const { autoRenew } = planAutoRenewInputSchema.parse(request.body);
+      if (autoRenew) {
+        const current = (
+          await repository.listPatientPlans(request.user.clinicId)
+        ).find((item) => item.id === id);
+        if (
+          current &&
+          !autoRenewPaymentPartsValid({
+            autoRenew,
+            paymentParts: current.paymentParts,
+          })
+        )
+          throw new DomainError(
+            "AUTO_RENEW_NEEDS_RECURRING_PAYMENT",
+            autoRenewPaymentPartsIssue.message,
+            400,
+          );
+      }
       const plan = await repository.updatePatientPlanAutoRenew(
         request.user.clinicId,
         request.user.sub,
         id,
-        planAutoRenewInputSchema.parse(request.body).autoRenew,
+        autoRenew,
       );
       if (!plan)
         return reply.status(404).send({
