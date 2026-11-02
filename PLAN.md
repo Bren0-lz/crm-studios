@@ -261,3 +261,136 @@ destaque no lugar sem perguntar. Os divisores neutros de 1px entre colunas (ex.:
   WhatsApp, logout/sair de todos, mesclar, recorrência, pausar/renovar; celular ≤ 400 px.
 - **Depende de:** QR1
 - **Status:** TODO
+
+## Rodada 9 — B2-02: turma cheia entra na lista de espera (reunião de 02/11/2026)
+
+Origem: item B2-02 da reunião de 02/11/2026 (Breno, cobrado duas vezes): "A turma está cheia, aí
+a gente consegue cadastrar, mas ele já entra automático na lista de espera." IDs com prefixo `TW`.
+Um PR por tarefa (fluxo do `CLAUDE.md`); ordem TW1 → TW6, empilhando TW2–TW4/TW6 (mexem em
+`route-access.ts` e `groups/routes.ts`). Sem migração nova (os status já existem); tarefas com SQL
+rodam também `npm run test:mysql`.
+
+### Triagem no código (02/11/2026, `main` 75d3190)
+
+- Matrícula em turma sem vaga **não dá erro, não bloqueia e não passa da capacidade** nas três
+  entradas: cadastro guiado (`GuidedGroupField` → `POST /patients/guided` → `insertGroupEnrollment`),
+  turma (`POST /group-enrollments` → `createGroupEnrollment`) e venda de plano
+  (`storage/*/plan-purchases.ts`). Regra `activeCount < capacity ? "active" : "waitlisted"`
+  (memory/agenda.ts `createGroupEnrollment`; mysql/context.ts `insertGroupEnrollment`); cliente e
+  plano são salvos na mesma transação.
+- MySQL: `SELECT capacity … FROM group_classes … FOR UPDATE` antes do `COUNT`, sessão READ
+  COMMITTED (`infrastructure/mysql-client.ts`), duplicidade barrada por
+  `UNIQUE group_enrollment_current_idx`. Não há teste de última vaga nem de matrículas simultâneas.
+- Avisos: `groupEnrollmentToast` (turma) e `PlanGroupPicker` (venda) já avisam; `guidedNotice`
+  diz "A turma X está cheia: o cliente entrou…" (sem nome) e o `GuidedGroupField` só marca
+  "turma cheia (lista de espera)" no texto da opção.
+- **Promoção automática:** cancelar matrícula ativa ou aumentar a capacidade promove sozinho o 1º
+  da fila (`promote` em memory/agenda.ts; mysql/agenda.ts `cancelGroupEnrollment` e
+  `updateGroupClass`). Não há tela de "oferecer vaga".
+- Duas filas sem ligação: a da turma (`group_enrollments.status='waitlisted'`, "Espera N" em Turmas)
+  e a página Lista de espera (`features/waitlist`, por serviço/produto, status manual).
+- Plano × espera: validade pelo `validFrom` escolhido na venda e parcelas criadas na venda; nada
+  olha o status da matrícula. Matrícula em espera não entra em presença
+  (`groupEnrollmentCoversSession`), então não consome sessão.
+
+### Decisões (Breno, 02/11/2026)
+
+- **D1:** nunca matrícula acima da capacidade e **nunca promoção automática**: vaga aberta gera
+  notificação, a equipe liga e confirma com a pessoa ("Confirmar matrícula").
+- **D2:** fila não é furada: matrícula nova só fica ativa com vaga livre **e fila vazia**; havendo
+  fila, vai para a espera (guiado, turma, venda e API externa).
+- **D3:** qualquer posição da fila pode ser confirmada; confirmação sob a mesma trava da turma,
+  409 `GROUP_FULL` "A turma não tem vaga livre." se a vaga já foi tomada; início = hoje.
+- **D4:** notificação derivada (sem tabela): turmas ativas com `activeEnrollments < capacity` e
+  `waitlistCount > 0` no `GET /notifications`, só para quem tem `groups.enroll`.
+- **D5 (pergunta ao dono, aberta):** o código não decide a política comercial. "Cliente que compra
+  plano e cai na lista de espera da turma: (a) validade e cobrança começam na data escolhida, como
+  hoje; (b) o plano fica pausado até confirmar a vaga; ou (c) a venda fica para depois da vaga?"
+  Até a resposta, nada muda na validade nem na cobrança (TW5 só deixa isso explícito na tela). Se
+  a resposta for (b) ou (c), vira TW7.
+- A fila da turma aparece também na página Lista de espera (TW6).
+
+| ID | Título | Status |
+|---|---|---|
+| TW1 | Regra única de vaga (sem furar fila) + testes de última vaga e concorrência | TODO |
+| TW2 | Fim da promoção automática + `POST /group-enrollments/:id/confirm` | TODO |
+| TW3 | Web: vaga aberta e "Confirmar matrícula" na turma | TODO |
+| TW4 | Notificação de vaga aberta com fila | TODO |
+| TW5 | Aviso "Turma cheia: Fulana entrou na lista de espera de <turma>" nas três entradas | TODO |
+| TW6 | Filas das turmas na página Lista de espera | TODO |
+
+### TW1 — Regra única de vaga + testes de última vaga e concorrência
+
+- **Escopo:** contracts/agenda `groupEnrollmentStatusFor({ capacity, activeCount, waitlistCount })`
+  (D2), usada em memory/agenda.ts `createGroupEnrollment` e mysql/context.ts
+  `insertGroupEnrollment` (contar `waitlisted` no mesmo `SELECT`, sob a trava da turma).
+- **Testes:** contrato em `contracts.unit.test.ts`. API (memória,
+  `modules/groups/group-capacity.integration.test.ts`): última vaga → `active`; a seguinte →
+  `waitlisted` posição 1; fila com vaga livre → `waitlisted`; mesmos casos pelo cadastro guiado
+  (cliente e plano salvos) e pela compra de plano. MySQL
+  (`storage/mysql/tests/group-capacity.integration.test.ts`, molde `nav-tabs`): turma com 1 vaga,
+  `Promise.all` de duas matrículas e de dois cadastros guiados → 1 `active`, 1 `waitlisted`
+  posição 1, ativos ≤ capacidade.
+- **Gate:** gate completo + `npm run test:mysql`
+- **Status:** TODO
+
+### TW2 — Fim da promoção automática + confirmar matrícula (API)
+
+- **Escopo:** remover `promote` de `cancelGroupEnrollment` e `updateGroupClass` (memória e MySQL),
+  só renumerar a fila; no MySQL, `cancelGroupEnrollment` trava `group_classes … FOR UPDATE` antes da
+  matrícula (mesma ordem do insert). Novo `confirmGroupEnrollment(clinicId, enrollmentId)` em
+  `ClinicRepository`, memória e MySQL (D3; a lógica do `promote` vira a da confirmação). Rota
+  `POST /group-enrollments/:id/confirm` junto do cancel, guarda `groups.enroll` no bloco de turmas
+  do `route-access.ts`, entrada em `domainsForMutation`.
+- **Testes:** cancelar ativa e aumentar capacidade não mudam ninguém de status; confirmar com vaga
+  → ativa e fila renumerada; sem vaga → 409 `GROUP_FULL`; fora da 1ª posição permitido. MySQL: duas
+  confirmações simultâneas na última vaga → 1 sucesso, 1 409. Atualizar testes que esperavam
+  promoção (`crm-api-patients`, `external-api`, testes de turmas).
+- **Gate:** gate completo + `npm run test:mysql`
+- **Depende de:** TW1
+- **Status:** TODO
+
+### TW3 — Web: vaga aberta e confirmação na turma
+
+- **Escopo:** em Turmas (`GroupsPage`/`GroupOperationsPanel`), participante em espera ganha
+  "Confirmar matrícula" (só com `groups.enroll` e vaga livre): `ActionModal` "Confirme que a
+  Fulana aceitou a vaga antes de matricular.", `busy` no salvamento, toast
+  `groupEnrollmentToast`. `GroupDetails` mostra "1 vaga aberta · 2 na espera".
+  `api.confirmGroupEnrollment` em `shared/api/domains`.
+- **Testes:** botão só com vaga e permissão; sucesso atualiza a lista; 409 vira `error-banner` no
+  modal.
+- **Depende de:** TW2
+- **Status:** TODO
+
+### TW4 — Notificação de vaga aberta com fila
+
+- **Escopo:** `groupVacanciesWithWaitlist` no `GET /notifications` (modules/dashboard/routes.ts) e
+  no contrato; item em `app/notification-center.tsx` ("Pilates 18h: 1 vaga aberta e 2 na espera —
+  ligar e confirmar") com link para Turmas.
+- **Testes:** API (só turmas ativas com vaga e fila; some após confirmar; ausente sem
+  `groups.enroll`) e web (item e link).
+- **Depende de:** TW3
+- **Status:** TODO
+
+### TW5 — Aviso claro ao cair na espera
+
+- **Escopo:** `guidedNotice`, aviso da venda e `groupEnrollmentToast`: "Turma cheia: Fulana entrou
+  na lista de espera de <turma> (posição N)." (primeiro nome). `GuidedGroupField` com turma cheia
+  selecionada mostra o aviso do `PlanGroupPicker` + "O plano vale a partir do início escolhido
+  mesmo durante a espera." (D5); o mesmo complemento no `PlanGroupPicker`.
+- **Testes:** web (cadastro guiado e venda): resposta `waitlisted` → `success-banner` com o texto,
+  cliente e plano salvos; última vaga → "Matrícula feita…".
+- **Depende de:** TW4
+- **Status:** TODO
+
+### TW6 — Filas das turmas na página Lista de espera
+
+- **Escopo:** `GET /waitlist/groups` (permissão de ver a lista de espera): turmas com fila, horário
+  (`describeGroupSchedule`), vagas livres e pessoas em ordem com "desde". `WaitlistPage` ganha a
+  seção "Turmas" (`panel`/`panel-head`, `LoadingBlock`/`EmptyState`/`ErrorBanner`), selo "vaga
+  aberta" e "Confirmar matrícula" com `groups.enroll` (ação da TW3). A fila manual por
+  serviço/produto não muda.
+- **Testes:** API (só `waitlisted`, ordem, escopo de filial) e web (seção, vazio, erro, confirmar).
+- **Gate:** gate completo + `npm run test:mysql`
+- **Depende de:** TW5
+- **Status:** TODO
