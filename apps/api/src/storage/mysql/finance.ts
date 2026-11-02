@@ -346,10 +346,12 @@ export function createFinanceRepository(
         occurredAt: Date;
         availableAt: Date;
         paymentMethod: ReceivedPayment["paymentMethod"] | null;
+        discountInCents: number;
       }>(
         `SELECT fe.id, fe.receivable_id AS "receivableId", fe.kind,
               r.patient_id AS "patientId", p.full_name AS "patientName",
               r.description, fe.amount_in_cents AS "amountInCents",
+              fe.discount_in_cents AS "discountInCents",
               coalesce(dc.occurred_at,fe.occurred_at,fe.created_at) AS "occurredAt",coalesce(dc.cash_available_at,fe.cash_available_at,fe.occurred_at,fe.created_at) AS "availableAt",
               COALESCE(JSON_VALUE(fe.metadata, '$.paymentMethod'), (
                 SELECT JSON_VALUE(prev.metadata, '$.paymentMethod') FROM financial_events prev
@@ -421,6 +423,9 @@ export function createFinanceRepository(
         description: item.description,
         amountInCents: item.amountInCents,
         ...(item.paymentMethod ? { paymentMethod: item.paymentMethod } : {}),
+        ...(item.kind === "payment" && item.discountInCents
+          ? { discountInCents: item.discountInCents }
+          : {}),
       }));
       return {
         sources: {
@@ -794,6 +799,12 @@ export function createFinanceRepository(
           ...(input.categoryId ? { categoryId: input.categoryId } : {}),
           ...(input.costCenterId ? { costCenterId: input.costCenterId } : {}),
         });
+        // Desconto da venda: registrado na cobrança (o valor já vem abatido nos preços).
+        if (input.discountInCents)
+          await client.query(
+            `UPDATE receivables r JOIN patient_tabs t ON t.receivable_id=r.id AND t.clinic_id=r.clinic_id SET r.customer_discount_in_cents=$3 WHERE t.clinic_id=$1 AND t.id=$2`,
+            [clinicId, tabId, input.discountInCents],
+          );
         return (await repositoryContext.findPatientTab(
           clinicId,
           tabId,
@@ -2184,8 +2195,10 @@ export function createFinanceRepository(
         amountInCents: number;
         occurredAt: Date;
         paymentMethod: ReceivedPayment["paymentMethod"] | null;
+        discountInCents: number;
       }>(
         `SELECT fe.id, fe.receivable_id AS "receivableId", fe.kind,
+              fe.discount_in_cents AS "discountInCents",
               r.plan_id AS "planId",
               (SELECT pt.id FROM patient_tabs pt WHERE pt.receivable_id=r.id LIMIT 1) AS "tabId",
               r.patient_id AS "patientId", p.full_name AS "patientName",
@@ -2214,6 +2227,9 @@ export function createFinanceRepository(
         description: item.description,
         amountInCents: item.amountInCents,
         ...(item.paymentMethod ? { paymentMethod: item.paymentMethod } : {}),
+        ...(item.kind === "payment" && item.discountInCents
+          ? { discountInCents: item.discountInCents }
+          : {}),
       }));
     },
   };
