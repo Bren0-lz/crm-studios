@@ -838,6 +838,14 @@ export function createFinanceRepository(
                   .map((item) => item.installmentNumber),
               ) + 1
             : receivable.installmentNumber,
+          // Mostra o número da parcela de origem ("Parcela 1 de 3 · saldo").
+          ...(receivable.planId
+            ? {
+                balanceOfInstallment:
+                  receivable.balanceOfInstallment ??
+                  receivable.installmentNumber,
+              }
+            : {}),
           description: `${receivable.description} · saldo`,
           dueDate,
           amountInCents: breakdown.balanceInCents,
