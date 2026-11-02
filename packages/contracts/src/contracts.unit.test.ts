@@ -1836,9 +1836,9 @@ describe("textos de interface sem nome antigo nem código interno (QM15)", () =>
       dependencies: ["patients.view", "patients.tabs_cancel"],
       explicitGrantOnly: true,
     });
-    expect(
-      legacyPermissions("user", ["patients"], ["patients"]),
-    ).not.toContain("patients.tabs_refund");
+    expect(legacyPermissions("user", ["patients"], ["patients"])).not.toContain(
+      "patients.tabs_refund",
+    );
     expect(
       normalizePermissions(["patients.view", "patients.tabs_refund"]),
     ).toEqual(["patients.view"]);
@@ -1852,9 +1852,9 @@ describe("textos de interface sem nome antigo nem código interno (QM15)", () =>
     expect(patientTabCancelInputSchema.parse({})).toEqual({
       refundPayment: false,
     });
-    expect(
-      patientTabCancelInputSchema.parse({ refundPayment: true }),
-    ).toEqual({ refundPayment: true });
+    expect(patientTabCancelInputSchema.parse({ refundPayment: true })).toEqual({
+      refundPayment: true,
+    });
     expect(() =>
       patientTabCancelInputSchema.parse({ refundPayment: "sim" }),
     ).toThrow();
@@ -1984,6 +1984,46 @@ describe("document templates", () => {
     },
     issuedOn: "23/10/2026",
   };
+
+  it("writes the residence details in the client address", () => {
+    expect(
+      documentTemplateValues({
+        ...context,
+        patient: {
+          fullName: "Helena Almeida",
+          residenceType: "apartment",
+          address: "Rua das Flores",
+          addressNumber: "120",
+          buildingName: "Edifício Solar",
+          block: "B",
+          floor: "3",
+          unit: "302",
+          neighborhood: "Centro",
+          city: "Campinas",
+          state: "SP",
+        },
+      }).paciente_endereco,
+    ).toBe(
+      "Rua das Flores, 120, Edifício Solar, Bloco B, 3º andar, Apto 302, Centro, Campinas/SP",
+    );
+    expect(
+      documentTemplateValues({
+        ...context,
+        patient: {
+          fullName: "Helena Almeida",
+          residenceType: "condominium",
+          address: "Avenida Brasil",
+          addressNumber: "900",
+          buildingName: "Residencial Jardins",
+          block: "4",
+          unit: "12",
+          complement: "fundos",
+        },
+      }).paciente_endereco,
+    ).toBe(
+      "Avenida Brasil, 900, Residencial Jardins, Quadra 4, Casa 12, fundos",
+    );
+  });
 
   it("fills the parties with formatted documents and falls back when data is missing", () => {
     const values = documentTemplateValues(context);

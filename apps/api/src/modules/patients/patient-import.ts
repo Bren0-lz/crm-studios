@@ -4,6 +4,7 @@ import {
   patientInputSchema,
   patientProfileLabels,
   patientProfileValueLabels,
+  patientResidenceTypeLabels,
   resolvePatientTags,
   withoutAutomaticPatientTags,
   type Patient,
@@ -456,6 +457,11 @@ export function validatePatientImport(
       else if (key === "gender")
         raw[key] =
           Object.entries(patientProfileValueLabels).find(
+            ([, label]) => normalizeHeader(label) === normalizeHeader(text),
+          )?.[0] ?? text;
+      else if (key === "residenceType")
+        raw[key] =
+          Object.entries(patientResidenceTypeLabels).find(
             ([, label]) => normalizeHeader(label) === normalizeHeader(text),
           )?.[0] ?? text;
       else if (key === "clientSince") raw[key] = parseBirthDate(text) ?? text;
