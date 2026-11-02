@@ -218,6 +218,10 @@ export async function salesReportToXlsx(
       { header: "ID da origem", value: (item) => item.sourceId },
       { header: "ID do cliente", value: (item) => item.patientId },
       { header: "ID da conta", value: (item) => item.receivableId ?? "" },
+      {
+        header: "1º pagamento",
+        value: (item) => (item.manualFirstCharge ? "Valor manual" : ""),
+      },
     ],
     report.sales,
   );

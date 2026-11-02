@@ -14,6 +14,7 @@ import {
   planTemplateInputSchema,
   type PlanTemplateUpdate,
   type SessionMovement,
+  renewalPlanPayment,
 } from "@crm/contracts";
 import {
   assertRefundWithinPlan,
@@ -560,13 +561,8 @@ export function createPlansRepository(
                   ),
                   totalValueInCents: plan.totalValueInCents,
                   installments: plan.installments,
-                  // A renovação segue as formas de pagamento combinadas.
-                  ...(plan.paymentMethod
-                    ? { paymentMethod: plan.paymentMethod }
-                    : {}),
-                  ...(plan.paymentParts
-                    ? { paymentParts: plan.paymentParts }
-                    : {}),
+                  // A renovação segue as formas recorrentes (as "só da primeira vez" saem).
+                  ...renewalPlanPayment(plan),
                   autoRenew: true,
                   ...period,
                 },

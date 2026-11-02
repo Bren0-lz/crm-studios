@@ -8,6 +8,7 @@ import { patientDiscountSchema } from "./discount.js";
 import {
   type PlanPaymentPart,
   paymentPartsTotal,
+  scalePaymentParts,
   planPaymentPartsSchema,
 } from "../finance/payment-parts.js";
 import type {
@@ -524,6 +525,77 @@ export function planPaymentPartsMatch(plan: {
   );
 }
 
+/** Plano picado: cada forma marcada como só da primeira vez ou recorrente. */
+export function planPaymentRecurrenceChosen(plan: {
+  paymentParts?: readonly { recurring?: boolean | undefined }[] | undefined;
+}) {
+  const parts = plan.paymentParts;
+  return (
+    !parts ||
+    parts.length < 2 ||
+    parts.every((part) => typeof part.recurring === "boolean")
+  );
+}
+
+export const planPaymentRecurrenceIssue = {
+  message:
+    "Marque se cada forma de pagamento é só da primeira vez ou recorrente.",
+  path: ["paymentParts"],
+};
+
+/** Formas que seguem na renovação (ausente = recorrente, como nos planos antigos). */
+export function recurringPlanPaymentParts<
+  T extends { recurring?: boolean | undefined },
+>(parts: readonly T[] | undefined): T[] {
+  return (parts ?? []).filter((part) => part.recurring !== false);
+}
+
+/** Renovação automática com plano picado: ao menos uma forma recorrente. */
+export function autoRenewPaymentPartsValid(plan: {
+  autoRenew?: boolean | null | undefined;
+  paymentParts?: readonly { recurring?: boolean | undefined }[] | undefined;
+}) {
+  return (
+    !plan.autoRenew ||
+    !plan.paymentParts ||
+    plan.paymentParts.length < 2 ||
+    recurringPlanPaymentParts(plan.paymentParts).length > 0
+  );
+}
+
+export const autoRenewPaymentPartsIssue = {
+  message:
+    "Na renovação automática, marque ao menos uma forma de pagamento como recorrente.",
+  path: ["paymentParts"],
+};
+
+/**
+ * Formas da renovação: só as recorrentes, com o valor total repartido entre elas na
+ * proporção do que tinham. Uma só recorrente vira a forma única do plano (sem lista).
+ */
+export function renewalPlanPayment(plan: {
+  totalValueInCents: number;
+  paymentMethod?: z.infer<typeof paymentMethodSchema> | undefined;
+  paymentParts?: readonly PlanPaymentPart[] | undefined;
+}): {
+  paymentMethod?: z.infer<typeof paymentMethodSchema>;
+  paymentParts?: PlanPaymentPart[];
+} {
+  const parts = plan.paymentParts;
+  if (!parts || parts.length < 2)
+    return plan.paymentMethod ? { paymentMethod: plan.paymentMethod } : {};
+  const recurring = recurringPlanPaymentParts(parts);
+  const kept = recurring.length ? recurring : [...parts];
+  if (kept.length === 1) return { paymentMethod: kept[0]!.paymentMethod };
+  return {
+    paymentMethod: kept[0]!.paymentMethod,
+    paymentParts:
+      kept.length === parts.length
+        ? kept.map((part) => ({ ...part }))
+        : scalePaymentParts(kept, plan.totalValueInCents),
+  };
+}
+
 export const planPaymentPartsIssue = {
   message: "As formas de pagamento precisam somar o valor total do plano.",
   path: ["paymentParts"],
@@ -650,17 +722,63 @@ export function planFirstChargeProration(
   };
 }
 
-/** Termos do plano com a cobrança proporcional às aulas da turma, quando houver. */
+/**
+ * Plano recorrente que começa antes do 1º vencimento: pode ter a cobrança proporcional
+ * (calculada pela turma ou, com o cálculo desligado, informada à mão).
+ */
+export function planAllowsProratedCharge(plan: {
+  kind?: z.infer<typeof planKindSchema> | null | undefined;
+  validFrom?: string | undefined;
+  firstDueDate?: string | undefined;
+}): boolean {
+  return (
+    plan.kind === "recurring" &&
+    z.iso.date().safeParse(plan.validFrom).success &&
+    z.iso.date().safeParse(plan.firstDueDate).success &&
+    plan.firstDueDate! > plan.validFrom!
+  );
+}
+
+/** 1º pagamento do plano recorrente com valor informado à mão (sem o cálculo proporcional). */
+export function hasManualFirstCharge(plan: {
+  kind?: z.infer<typeof planKindSchema> | null | undefined;
+  manualFirstCharge?: boolean | undefined;
+  proratedChargeInCents?: number | undefined;
+}): boolean {
+  return (
+    plan.kind === "recurring" &&
+    plan.manualFirstCharge === true &&
+    plan.proratedChargeInCents !== undefined
+  );
+}
+
+/**
+ * Termos do plano com a cobrança proporcional às aulas da turma, quando houver. Com o
+ * cálculo desligado (`manualFirstCharge`, só no recorrente), mantém o valor informado.
+ */
 export function withPlanFirstCharge<
   T extends Parameters<typeof planFirstChargeProration>[0],
 >(
-  plan: T & { proratedChargeInCents?: number | undefined },
+  plan: T & {
+    proratedChargeInCents?: number | undefined;
+    manualFirstCharge?: boolean | undefined;
+  },
   slots: readonly { weekday: number }[] | undefined,
-): T & { proratedChargeInCents?: number | undefined } {
-  const terms: T & { proratedChargeInCents?: number | undefined } = {
+): T & {
+  proratedChargeInCents?: number | undefined;
+  manualFirstCharge?: boolean | undefined;
+} {
+  const terms: T & {
+    proratedChargeInCents?: number | undefined;
+    manualFirstCharge?: boolean | undefined;
+  } = {
     ...plan,
   };
+  // Sem valor, o pedido segue assim mesmo: a API recusa ("Informe o valor do 1º pagamento").
+  if (plan.manualFirstCharge && planAllowsProratedCharge(plan))
+    return { ...terms, manualFirstCharge: true };
   delete terms.proratedChargeInCents;
+  delete terms.manualFirstCharge;
   const proration = planFirstChargeProration(plan, slots);
   return proration
     ? { ...terms, proratedChargeInCents: proration.amountInCents }
@@ -689,6 +807,11 @@ export const planTermsSchema = z.object({
    * vencimento (`planFirstChargeProration`), a mais e vencendo no início; ausente = sem ela.
    */
   proratedChargeInCents: z.number().int().min(1).max(2147483647).optional(),
+  /**
+   * Plano recorrente com o cálculo proporcional desligado: a cobrança antes do 1º vencimento
+   * é o `proratedChargeInCents` informado na venda (as mensalidades têm o valor cheio).
+   */
+  manualFirstCharge: z.boolean().optional(),
   /**
    * Desconto combinado na venda deste plano: vale nas cobranças dele e das renovações,
    * conforme o alcance. Na renovação, ausente = segue o desconto do plano anterior.
@@ -730,6 +853,8 @@ export const patientPlanInputSchema = planTermsSchema
   })
   .refine(renewablePlanPeriod, autoRenewIssue)
   .refine(planPaymentPartsMatch, planPaymentPartsIssue)
+  .refine(planPaymentRecurrenceChosen, planPaymentRecurrenceIssue)
+  .refine(autoRenewPaymentPartsValid, autoRenewPaymentPartsIssue)
   .refine(
     (value) =>
       value.services.reduce((sum, item) => sum + item.totalValueInCents, 0) ===
@@ -744,6 +869,8 @@ export const planRenewalInputSchema = planTermsSchema
   .refine(validPlanPeriod, planPeriodIssue)
   .refine(renewablePlanPeriod, autoRenewIssue)
   .refine(planPaymentPartsMatch, planPaymentPartsIssue)
+  .refine(planPaymentRecurrenceChosen, planPaymentRecurrenceIssue)
+  .refine(autoRenewPaymentPartsValid, autoRenewPaymentPartsIssue)
   .refine(
     (value) =>
       value.services.reduce((sum, item) => sum + item.totalValueInCents, 0) ===

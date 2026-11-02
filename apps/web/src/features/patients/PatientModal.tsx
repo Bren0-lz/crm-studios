@@ -685,6 +685,7 @@ export function PatientModal({
           ? [
               {
                 prorated: proratedChargeInCents !== undefined,
+                manual: sentPlans[index]?.manualFirstCharge === true,
                 amountInCents:
                   first.amountInCents + first.customerDiscountInCents,
                 discountInCents: first.customerDiscountInCents,
@@ -727,6 +728,7 @@ export function PatientModal({
                   0,
                 )
               : undefined,
+            manualFirstCharge: pixFirstCharges.some((item) => item.manual),
             ...(pixDiscount ? { discountInCents: pixDiscount } : {}),
           }),
         });

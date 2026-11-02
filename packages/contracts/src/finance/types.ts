@@ -383,6 +383,11 @@ export interface Receivable {
    */
   customerDiscountInCents?: number;
   /**
+   * Valor definido à mão na venda do plano recorrente: 1º pagamento com o cálculo
+   * proporcional desligado. Ausente = valor calculado pelo CRM.
+   */
+  manualAmount?: true;
+  /**
    * Paga: desconto dado na baixa (U39), já fora de `amountInCents`. Ausente = sem desconto
    * na baixa (ou parcela não paga).
    */

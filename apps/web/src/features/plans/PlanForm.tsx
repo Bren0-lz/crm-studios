@@ -13,6 +13,7 @@ import {
   type PatientPlanInput,
   type PlanTemplate,
   type Service,
+  renewalPlanPayment,
   withPlanFirstCharge,
 } from "@crm/contracts";
 import {
@@ -23,7 +24,8 @@ import {
   type ReactNode,
 } from "react";
 import { NavLink } from "react-router-dom";
-import { PlanFirstChargeNote } from "./PlanFirstChargeNote";
+import { withFirstChargeChoice } from "./first-charge";
+import { PlanFirstChargeFields } from "./PlanFirstChargeFields";
 import { PlanPaymentFields } from "./PlanPaymentFields";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
@@ -36,6 +38,7 @@ import { PlanGroupPicker } from "../../shared/components/PlanGroupPicker";
 import { usePaymentMethodSettings } from "../../shared/hooks/usePaymentMethodSettings";
 import { currency, localIsoDate } from "../../shared/lib/formatting";
 import { planGroupMissing } from "../../shared/lib/plan-groups";
+import { planRecurrenceMissing } from "../../shared/lib/payment-parts";
 import type { GroupChoices } from "../../shared/workflows/types";
 import {
   useConfirmDiscard,
@@ -121,9 +124,9 @@ export function PlanForm({
       ),
       totalValueInCents: renewing.totalValueInCents,
       installments: renewing.kind === "recurring" ? 1 : renewing.installments,
-      // A renovação segue as formas combinadas (Pix quando o plano antigo não tinha).
-      paymentMethod: renewing.paymentMethod ?? "pix",
-      ...(renewing.paymentParts ? { paymentParts: renewing.paymentParts } : {}),
+      // A renovação segue as formas recorrentes (Pix quando o plano antigo não tinha).
+      paymentMethod: "pix" as const,
+      ...renewalPlanPayment(renewing),
       autoRenew: renewing.autoRenew && Boolean(period.validUntil),
       ...period,
     };
@@ -148,6 +151,7 @@ export function PlanForm({
       !form.validFrom && "Início",
       !form.firstDueDate && "Primeiro vencimento",
       groupMissing && "Turma",
+      ...planRecurrenceMissing(form),
     ].filter((item): item is string => Boolean(item)),
   );
   const formElement = useRef<HTMLFormElement>(null);
@@ -617,7 +621,14 @@ export function PlanForm({
               />
             </label>
             {!renewing && (
-              <PlanFirstChargeNote plan={form} slots={firstChargeSlots} />
+              <PlanFirstChargeFields
+                plan={form}
+                slots={firstChargeSlots}
+                disabled={loading}
+                onChange={(choice) =>
+                  setForm((current) => withFirstChargeChoice(current, choice))
+                }
+              />
             )}
             {form.totalValueInCents > 0 && (
               <InstallmentsPreview

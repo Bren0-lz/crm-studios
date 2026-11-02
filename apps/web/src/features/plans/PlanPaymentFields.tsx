@@ -7,6 +7,7 @@ import {
   installmentsLimitLabel,
   paymentMethodLabels,
 } from "@crm/contracts";
+import { useId } from "react";
 import { PaymentPartsField } from "../../shared/components/PaymentPartsField";
 import {
   effectiveDrafts,
@@ -35,6 +36,7 @@ export function PlanPaymentFields({
 }: {
   plan: PlanPaymentValue & {
     kind?: PatientPlan["kind"] | undefined;
+    autoRenew?: boolean | undefined;
     totalValueInCents: number;
     firstDueDate: string;
     validUntil?: string | undefined;
@@ -49,6 +51,7 @@ export function PlanPaymentFields({
     paymentParts: PlanPaymentPart[] | undefined;
   }) => void;
 }) {
+  const name = useId();
   const recurring = plan.kind === "recurring";
   const parts = planDrafts(plan);
   return (
@@ -58,7 +61,40 @@ export function PlanPaymentFields({
       totalInCents={plan.totalValueInCents}
       settings={settings}
       {...(disabled === undefined ? {} : { disabled })}
-      hint="Combinou em mais de uma forma? Adicione as outras: cada uma gera as próprias cobranças."
+      hint={
+        parts.length > 1
+          ? `Marque se cada forma é só da primeira vez ou recorrente: na renovação, o valor fica com as recorrentes.${plan.autoRenew ? " Com renovação automática, ao menos uma precisa ser recorrente." : ""}`
+          : "Combinou em mais de uma forma? Adicione as outras: cada uma gera as próprias cobranças."
+      }
+      renderPartExtra={(part, index, update) =>
+        parts.length > 1 ? (
+          <fieldset className="form-fieldset span-2">
+            <legend>Cobrança da forma {index + 1}</legend>
+            <div className="form-fieldset-grid">
+              <label className="checkbox-field">
+                <input
+                  type="radio"
+                  name={`${name}-recurring-${index}`}
+                  checked={part.recurring === false}
+                  disabled={disabled}
+                  onChange={() => update({ recurring: false })}
+                />
+                Só na primeira vez
+              </label>
+              <label className="checkbox-field">
+                <input
+                  type="radio"
+                  name={`${name}-recurring-${index}`}
+                  checked={part.recurring === true}
+                  disabled={disabled}
+                  onChange={() => update({ recurring: true })}
+                />
+                Recorrente (segue nas renovações)
+              </label>
+            </div>
+          </fieldset>
+        ) : null
+      }
       // O plano guarda só os valores: aplica já a forma que completa o total.
       onChange={(next) =>
         onChange(

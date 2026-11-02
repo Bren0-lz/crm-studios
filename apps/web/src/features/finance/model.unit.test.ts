@@ -183,6 +183,17 @@ describe("daily cash grouping", () => {
 });
 
 describe("receivable installment line", () => {
+  it("tells when the first charge of the plan was typed by hand", () => {
+    const base = {
+      installmentNumber: 1,
+      installmentCount: 1,
+      status: "open" as const,
+    };
+    expect(receivableInstallmentLine({ ...base, manualAmount: true })).toBe(
+      "Valor manual (1º pagamento sem cálculo proporcional)",
+    );
+    expect(receivableInstallmentLine(base)).toBe("");
+  });
   it("mostra o desconto do cliente e o desconto dado na baixa", () => {
     expect(
       receivableInstallmentLine({

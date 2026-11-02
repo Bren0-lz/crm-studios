@@ -2,9 +2,11 @@ import {
   type PaymentMethod,
   type PaymentPart,
   type PlanPaymentPart,
+  autoRenewPaymentPartsValid,
   paymentMethodLabels,
   paymentMethodSchema,
   paymentPartsIssue,
+  planPaymentRecurrenceChosen,
 } from "@crm/contracts";
 import { currency } from "./formatting";
 
@@ -20,6 +22,8 @@ export interface PaymentPartDraft {
   installments: number;
   /** Completa o total sozinha (a forma que o usuário não digitou por último). */
   auto?: boolean;
+  /** Plano picado: segue nas renovações (`true`) ou só na primeira vez; ausente = a marcar. */
+  recurring?: boolean | undefined;
 }
 
 export function draftTotal(parts: readonly PaymentPartDraft[]) {
@@ -182,6 +186,7 @@ export function toPlanParts(
     paymentMethod: part.paymentMethod,
     amountInCents: part.amountInCents ?? 0,
     installments: Math.max(1, part.installments),
+    ...(part.recurring === undefined ? {} : { recurring: part.recurring }),
   }));
 }
 
@@ -197,6 +202,7 @@ export function planDrafts(plan: {
       paymentMethod: part.paymentMethod,
       amountInCents: part.amountInCents || null,
       installments: part.installments,
+      ...(part.recurring === undefined ? {} : { recurring: part.recurring }),
     }));
   return [
     {
@@ -235,6 +241,22 @@ export function planPaymentFields(
       : planParts.reduce((sum, part) => sum + part.installments, 0),
     paymentParts: planParts,
   };
+}
+
+/**
+ * O que falta marcar nas formas do plano picado (lista de pendências do botão salvar):
+ * cada forma só da primeira vez ou recorrente e, na renovação automática, ao menos uma
+ * recorrente.
+ */
+export function planRecurrenceMissing(plan: {
+  autoRenew?: boolean | null | undefined;
+  paymentParts?: readonly { recurring?: boolean | undefined }[] | undefined;
+}): string[] {
+  if (!planPaymentRecurrenceChosen(plan))
+    return ["Cobrança de cada forma (só na primeira vez ou recorrente)"];
+  if (!autoRenewPaymentPartsValid(plan))
+    return ["Uma forma de pagamento recorrente (renovação automática)"];
+  return [];
 }
 
 /**
