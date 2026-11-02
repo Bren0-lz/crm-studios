@@ -8,6 +8,7 @@ import { patientDiscountSchema } from "./discount.js";
 import {
   type PlanPaymentPart,
   paymentPartsTotal,
+  scalePaymentParts,
   planPaymentPartsSchema,
 } from "../finance/payment-parts.js";
 import type {
@@ -524,6 +525,77 @@ export function planPaymentPartsMatch(plan: {
   );
 }
 
+/** Plano picado: cada forma marcada como só da primeira vez ou recorrente. */
+export function planPaymentRecurrenceChosen(plan: {
+  paymentParts?: readonly { recurring?: boolean | undefined }[] | undefined;
+}) {
+  const parts = plan.paymentParts;
+  return (
+    !parts ||
+    parts.length < 2 ||
+    parts.every((part) => typeof part.recurring === "boolean")
+  );
+}
+
+export const planPaymentRecurrenceIssue = {
+  message:
+    "Marque se cada forma de pagamento é só da primeira vez ou recorrente.",
+  path: ["paymentParts"],
+};
+
+/** Formas que seguem na renovação (ausente = recorrente, como nos planos antigos). */
+export function recurringPlanPaymentParts<
+  T extends { recurring?: boolean | undefined },
+>(parts: readonly T[] | undefined): T[] {
+  return (parts ?? []).filter((part) => part.recurring !== false);
+}
+
+/** Renovação automática com plano picado: ao menos uma forma recorrente. */
+export function autoRenewPaymentPartsValid(plan: {
+  autoRenew?: boolean | null | undefined;
+  paymentParts?: readonly { recurring?: boolean | undefined }[] | undefined;
+}) {
+  return (
+    !plan.autoRenew ||
+    !plan.paymentParts ||
+    plan.paymentParts.length < 2 ||
+    recurringPlanPaymentParts(plan.paymentParts).length > 0
+  );
+}
+
+export const autoRenewPaymentPartsIssue = {
+  message:
+    "Na renovação automática, marque ao menos uma forma de pagamento como recorrente.",
+  path: ["paymentParts"],
+};
+
+/**
+ * Formas da renovação: só as recorrentes, com o valor total repartido entre elas na
+ * proporção do que tinham. Uma só recorrente vira a forma única do plano (sem lista).
+ */
+export function renewalPlanPayment(plan: {
+  totalValueInCents: number;
+  paymentMethod?: z.infer<typeof paymentMethodSchema> | undefined;
+  paymentParts?: readonly PlanPaymentPart[] | undefined;
+}): {
+  paymentMethod?: z.infer<typeof paymentMethodSchema>;
+  paymentParts?: PlanPaymentPart[];
+} {
+  const parts = plan.paymentParts;
+  if (!parts || parts.length < 2)
+    return plan.paymentMethod ? { paymentMethod: plan.paymentMethod } : {};
+  const recurring = recurringPlanPaymentParts(parts);
+  const kept = recurring.length ? recurring : [...parts];
+  if (kept.length === 1) return { paymentMethod: kept[0]!.paymentMethod };
+  return {
+    paymentMethod: kept[0]!.paymentMethod,
+    paymentParts:
+      kept.length === parts.length
+        ? kept.map((part) => ({ ...part }))
+        : scalePaymentParts(kept, plan.totalValueInCents),
+  };
+}
+
 export const planPaymentPartsIssue = {
   message: "As formas de pagamento precisam somar o valor total do plano.",
   path: ["paymentParts"],
@@ -730,6 +802,8 @@ export const patientPlanInputSchema = planTermsSchema
   })
   .refine(renewablePlanPeriod, autoRenewIssue)
   .refine(planPaymentPartsMatch, planPaymentPartsIssue)
+  .refine(planPaymentRecurrenceChosen, planPaymentRecurrenceIssue)
+  .refine(autoRenewPaymentPartsValid, autoRenewPaymentPartsIssue)
   .refine(
     (value) =>
       value.services.reduce((sum, item) => sum + item.totalValueInCents, 0) ===
@@ -744,6 +818,8 @@ export const planRenewalInputSchema = planTermsSchema
   .refine(validPlanPeriod, planPeriodIssue)
   .refine(renewablePlanPeriod, autoRenewIssue)
   .refine(planPaymentPartsMatch, planPaymentPartsIssue)
+  .refine(planPaymentRecurrenceChosen, planPaymentRecurrenceIssue)
+  .refine(autoRenewPaymentPartsValid, autoRenewPaymentPartsIssue)
   .refine(
     (value) =>
       value.services.reduce((sum, item) => sum + item.totalValueInCents, 0) ===

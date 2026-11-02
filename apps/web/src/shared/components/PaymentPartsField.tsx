@@ -41,6 +41,7 @@ export function PaymentPartsField({
   legend = "Formas de pagamento",
   hint,
   renderInstallments,
+  renderPartExtra,
   className,
 }: {
   parts: PaymentPartDraft[];
@@ -61,6 +62,12 @@ export function PaymentPartsField({
     part: PaymentPartDraft,
     index: number,
     setInstallments: (installments: number) => void,
+  ) => ReactNode;
+  /** Campos a mais em cada forma (ex.: no plano, só na primeira vez ou recorrente). */
+  renderPartExtra?: (
+    part: PaymentPartDraft,
+    index: number,
+    update: (patch: Partial<PaymentPartDraft>) => void,
   ) => ReactNode;
   className?: string;
 }) {
@@ -198,6 +205,9 @@ export function PaymentPartsField({
                         update(index, { installments })
                       }
                     />
+                  )}
+                  {renderPartExtra?.(part, index, (patch) =>
+                    update(index, patch),
                   )}
                   {split && (
                     <div className="payment-part-actions span-2">

@@ -43,6 +43,8 @@ export type PaymentPart = z.infer<typeof paymentPartSchema>;
 /**
  * Forma de um plano picado: cada parte vira cobranças próprias. `installments` é a
  * quantidade de cobranças desta parte (ex.: R$ 200 no cartão em 2 cobranças mensais).
+ * `recurring`: `true` = segue nas renovações; `false` = só no primeiro período (a renovação
+ * reparte o valor entre as recorrentes). Ausente (plano antigo) = recorrente.
  */
 export const planPaymentPartSchema = z.object({
   paymentMethod: paymentMethodSchema,
@@ -52,6 +54,7 @@ export const planPaymentPartSchema = z.object({
     .min(1, "Cada forma de pagamento precisa ter valor.")
     .max(2147483647),
   installments: z.number().int().min(1).max(maxInstallmentsLimit),
+  recurring: z.boolean().optional(),
 });
 
 export const planPaymentPartsSchema = z
