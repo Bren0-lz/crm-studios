@@ -23,6 +23,7 @@ import {
   planPixChargeMessage,
   planFirstChargeProration,
   planInstallmentSchedule,
+  planProratedChargeCount,
   planServiceValueForSessions,
   weeklySlotSessionsBetween,
   withPlanFirstCharge,
@@ -2235,6 +2236,79 @@ describe("1º pagamento proporcional às aulas até o vencimento", () => {
         proratedChargeInCents: 5_000,
       }).map((item) => item.amountInCents),
     ).toEqual([10_000, 10_000, 10_000]);
+  });
+  it("keeps the manual first charge when the proration is turned off", () => {
+    const manual = withPlanFirstCharge(
+      {
+        ...plan,
+        firstDueDate: "2026-10-15",
+        installments: 1,
+        manualFirstCharge: true,
+        proratedChargeInCents: 12_345,
+      },
+      slots,
+    );
+    expect(manual).toMatchObject({
+      manualFirstCharge: true,
+      proratedChargeInCents: 12_345,
+    });
+    // Sem valor, não calcula a proporção (a API pede o valor); fora do recorrente, ou
+    // vencendo no próprio início (sem cobrança proporcional), é ignorado.
+    expect(
+      withPlanFirstCharge(
+        { ...plan, firstDueDate: "2026-10-15", manualFirstCharge: true },
+        slots,
+      ),
+    ).not.toHaveProperty("proratedChargeInCents");
+    expect(
+      withPlanFirstCharge(
+        {
+          ...plan,
+          kind: "fixed_package",
+          manualFirstCharge: true,
+          proratedChargeInCents: 100,
+        },
+        slots,
+      ),
+    ).not.toHaveProperty("manualFirstCharge");
+    expect(
+      withPlanFirstCharge(
+        {
+          ...plan,
+          firstDueDate: plan.validFrom,
+          manualFirstCharge: true,
+          proratedChargeInCents: 100,
+        },
+        slots,
+      ),
+    ).not.toHaveProperty("manualFirstCharge");
+    // A cobrança informada vence no início, antes da mensalidade cheia, e só ela é manual.
+    expect(
+      planProratedChargeCount({ ...plan, proratedChargeInCents: 12_345 }),
+    ).toBe(1);
+    expect(
+      planProratedChargeCount({
+        ...plan,
+        proratedChargeInCents: 12_345,
+        paymentParts: [
+          { paymentMethod: "pix", amountInCents: 20_000, installments: 1 },
+          { paymentMethod: "cash", amountInCents: 20_000, installments: 1 },
+        ],
+      }),
+    ).toBe(2);
+    expect(planProratedChargeCount(plan)).toBe(0);
+    expect(
+      planPixChargeMessage({
+        patientName: "Marina Costa",
+        planName: "Pilates",
+        totalValueInCents: 40_000,
+        installments: 1,
+        totalSessions: 8,
+        pixKey: "pix@clinica.com",
+        firstChargeInCents: 12_345,
+        manualFirstCharge: true,
+      }),
+    ).toContain("o 1º pagamento, com o valor combinado na venda, é de R$ 123,45");
   });
   it("tells the prorated first charge in the Pix message", () => {
     expect(

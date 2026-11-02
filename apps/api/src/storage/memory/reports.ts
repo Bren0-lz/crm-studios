@@ -51,6 +51,11 @@ export function createReportsRepository(
         occurredAt: plan.createdAt,
         amountInCents: plan.totalValueInCents,
         ...(customerDiscountInCents ? { customerDiscountInCents } : {}),
+        ...(repositoryContext.receivables.some(
+          (item) => item.planId === plan.id && item.manualAmount,
+        )
+          ? { manualFirstCharge: true as const }
+          : {}),
       });
       if (plan.cancelledAt)
         sales.push({

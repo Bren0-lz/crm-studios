@@ -32,6 +32,7 @@ import {
   branchClause,
   mapAppointment,
 } from "./helpers.js";
+import { bool } from "./mappers/common.js";
 import { settlementDiscountSql as settlementDiscount } from "./mappers/finance.js";
 import { orderedItems } from "./mappers/plans.js";
 import {
@@ -54,6 +55,8 @@ type PlanSaleRow = {
   totalValueInCents: number;
   cancelledValueInCents: number;
   customerDiscountInCents: number;
+  /** Plano com o 1º pagamento informado à mão (alguma cobrança com `manual_amount`). */
+  manualFirstCharge: number | boolean;
   createdAt: Date;
   cancelledAt: Date | null;
 };
@@ -95,6 +98,9 @@ function toSales(planRows: PlanSaleRow[], tabRows: TabSaleRow[]) {
       amountInCents: plan.totalValueInCents,
       ...(plan.customerDiscountInCents
         ? { customerDiscountInCents: plan.customerDiscountInCents }
+        : {}),
+      ...(bool(plan.manualFirstCharge)
+        ? { manualFirstCharge: true as const }
         : {}),
     });
     if (plan.cancelledAt)
@@ -161,6 +167,7 @@ export function createReportsRepository(
                 pp.total_value_in_cents AS "totalValueInCents",
                 pp.cancelled_value_in_cents AS "cancelledValueInCents",
                 (SELECT CAST(coalesce(sum(r.customer_discount_in_cents),0) AS SIGNED) FROM receivables r WHERE r.clinic_id=pp.clinic_id AND r.plan_id=pp.id) AS "customerDiscountInCents",
+                EXISTS(SELECT 1 FROM receivables r WHERE r.clinic_id=pp.clinic_id AND r.plan_id=pp.id AND r.manual_amount=1) AS "manualFirstCharge",
                 pp.created_at AS "createdAt", pp.cancelled_at AS "cancelledAt"
          FROM patient_plans pp
          JOIN patients p ON p.id=pp.patient_id
@@ -209,6 +216,7 @@ export function createReportsRepository(
                 pp.total_value_in_cents AS "totalValueInCents",
                 pp.cancelled_value_in_cents AS "cancelledValueInCents",
                 (SELECT CAST(coalesce(sum(r.customer_discount_in_cents),0) AS SIGNED) FROM receivables r WHERE r.clinic_id=pp.clinic_id AND r.plan_id=pp.id) AS "customerDiscountInCents",
+                EXISTS(SELECT 1 FROM receivables r WHERE r.clinic_id=pp.clinic_id AND r.plan_id=pp.id AND r.manual_amount=1) AS "manualFirstCharge",
                 pp.created_at AS "createdAt", pp.cancelled_at AS "cancelledAt"
          FROM patient_plans pp
          JOIN patients p ON p.id=pp.patient_id
