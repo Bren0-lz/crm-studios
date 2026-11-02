@@ -191,6 +191,12 @@ describe("página Vendas de produtos", () => {
     const sale = inventory.tabs.find((tab) => tab.patientId === patient.id)!;
     expect(sale.totalInCents).toBe(9_200);
     expect(sale.notes).toBe("Venda com R$\u00a018,00 de desconto.");
+    // O desconto fica na cobrança da venda, para o Financeiro e os relatórios.
+    const charges = (await repository.getFinancialSummary(clinicId))
+      .receivables;
+    expect(charges.find((item) => item.id === sale.receivableId)).toMatchObject(
+      { amountInCents: 9_200, customerDiscountInCents: 1_800 },
+    );
     // O formulário volta sem descontos para a próxima venda.
     await waitFor(() =>
       expect(

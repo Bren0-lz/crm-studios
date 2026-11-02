@@ -379,6 +379,7 @@ export function receivableInstallmentLine(
     | "paymentMethod"
     | "paymentInstallments"
     | "customerDiscountInCents"
+    | "settlementDiscountInCents"
     | "paymentParts"
   >,
 ) {
@@ -389,6 +390,9 @@ export function receivableInstallmentLine(
       : "",
     item.customerDiscountInCents
       ? `Desconto do cliente: ${currency.format(item.customerDiscountInCents / 100)}`
+      : "",
+    item.status === "paid" && item.settlementDiscountInCents
+      ? `Desconto na baixa: ${currency.format(item.settlementDiscountInCents / 100)}`
       : "",
     item.status === "paid" && item.paymentParts
       ? `Pago: ${paymentPartsLabel(item.paymentParts, money)}`

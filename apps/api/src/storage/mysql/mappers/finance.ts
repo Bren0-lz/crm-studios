@@ -122,6 +122,7 @@ export interface ReceivableRow {
   paymentMethod: PaymentMethod | null;
   paymentInstallments?: number | null;
   customerDiscountInCents?: number | null;
+  settlementDiscountInCents?: number | string | null;
 }
 
 export interface FinancialCategoryRow {
@@ -247,6 +248,19 @@ export function paymentInstallmentsValue(value: number | undefined) {
   return value && value > 1 ? value : null;
 }
 
+/**
+ * Desconto da baixa da cobrança `r` (paga): o da última baixa, isto é, dos pagamentos
+ * depois do último estorno. Não paga = 0.
+ */
+export const settlementDiscountSql = `CASE WHEN r.status = 'paid' THEN (
+      SELECT CAST(coalesce(SUM(fe.discount_in_cents),0) AS SIGNED) FROM financial_events fe
+      WHERE fe.clinic_id = r.clinic_id AND fe.receivable_id = r.id AND fe.kind = 'payment'
+        AND fe.created_at > coalesce((
+          SELECT max(fr.created_at) FROM financial_events fr
+          WHERE fr.clinic_id = r.clinic_id AND fr.receivable_id = r.id AND fr.kind = 'payment_reversal'
+        ), CAST('1000-01-01' AS DATETIME(6)))
+    ) ELSE 0 END`;
+
 export const receivableColumns = `
   r.branch_id AS "branchId",r.posted_on AS "postedOn",r.cash_available_at AS "cashAvailableAt",
   r.competence,r.category_id AS "categoryId",r.cost_center_id AS "costCenterId",CASE WHEN r.plan_id IS NOT NULL THEN 'plan' WHEN EXISTS(SELECT 1 FROM patient_tabs t WHERE t.clinic_id=r.clinic_id AND t.receivable_id=r.id) THEN 'tab' ELSE 'manual' END AS source,
@@ -260,6 +274,7 @@ export const receivableColumns = `
   , r.payment_method AS "paymentMethod", r.payment_installments AS "paymentInstallments"
   , r.payment_parts AS "paymentParts"
   , r.customer_discount_in_cents AS "customerDiscountInCents"
+  , ${settlementDiscountSql} AS "settlementDiscountInCents"
 `;
 
 export const payableColumns = `
@@ -470,6 +485,9 @@ export function mapReceivable(row: ReceivableRow): Receivable {
     ...paymentPartsOf(row.paymentParts),
     ...(row.customerDiscountInCents
       ? { customerDiscountInCents: row.customerDiscountInCents }
+      : {}),
+    ...(Number(row.settlementDiscountInCents ?? 0) > 0
+      ? { settlementDiscountInCents: Number(row.settlementDiscountInCents) }
       : {}),
   };
 }

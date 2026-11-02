@@ -73,6 +73,10 @@ export function FinancialLedger({
   const outflow = visible
     .filter((entry) => entry.direction === "out")
     .reduce((sum, entry) => sum + entry.amountInCents, 0);
+  const discounts = visible.reduce(
+    (sum, entry) => sum + (entry.discountInCents ?? 0),
+    0,
+  );
   const active = activeFilterCount(filters);
   const set = <K extends keyof FinancialFilters>(
     key: K,
@@ -310,6 +314,12 @@ export function FinancialLedger({
             <strong>{money(inflow)}</strong> · saídas{" "}
             <strong>{money(outflow)}</strong> · saldo{" "}
             <strong>{money(inflow - outflow)}</strong>
+            {discounts > 0 && (
+              <>
+                {" "}
+                · descontos na baixa <strong>{money(discounts)}</strong>
+              </>
+            )}
           </span>
           {active > 0 && (
             <button
@@ -392,6 +402,11 @@ export function FinancialLedger({
                         {entry.kind.endsWith("reversal") && (
                           <span className="reports-cell-detail">Estorno</span>
                         )}
+                        {entry.discountInCents ? (
+                          <span className="reports-cell-detail">
+                            Desconto de {money(entry.discountInCents)}
+                          </span>
+                        ) : null}
                       </td>
                       {balance !== undefined && (
                         <td
