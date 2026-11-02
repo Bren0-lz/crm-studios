@@ -17,7 +17,10 @@ import type {
   IssuedDocument,
   IssuedDocumentInput,
 } from "@crm/contracts";
-import { DomainError } from "../../repository.js";
+import {
+  DomainError,
+  type DocumentTemplateVersionOptions,
+} from "../../repository.js";
 import type { MemoryRepositoryContext } from "./context.js";
 import { now, uuid } from "./helpers.js";
 
@@ -121,6 +124,91 @@ export function createContractsRepository(
       ...(plan ? { planName: plan.name } : {}),
     };
   }
+  const author = (clinicId: string, actorId?: string) =>
+    actorId
+      ? {
+          createdById: actorId,
+          createdByName:
+            repositoryContext.users.find(
+              (item) => item.clinicId === clinicId && item.id === actorId,
+            )?.fullName ?? "Usuário removido",
+        }
+      : {};
+
+  async function createTemplateVersion(
+    clinicId: string,
+    templateId: string,
+    body: string,
+    content?: DocumentContent,
+    options: DocumentTemplateVersionOptions = {},
+  ): Promise<DocumentTemplate | null> {
+    ({ body, content } = documentTemplateVersionInputSchema.parse({
+      body,
+      content,
+    }));
+    const template = repositoryContext.documentTemplates.find(
+      (item) => item.clinicId === clinicId && item.id === templateId,
+    );
+    if (!template) return null;
+    const versions = repositoryContext.documentTemplates.filter(
+      (item) =>
+        item.clinicId === clinicId &&
+        item.name.toLocaleLowerCase() === template.name.toLocaleLowerCase(),
+    );
+    for (const item of versions) item.active = false;
+    const next: DocumentTemplate = {
+      id: uuid(),
+      clinicId,
+      name: template.name,
+      kind: template.kind,
+      body,
+      ...(content ? { content } : {}),
+      version: Math.max(...versions.map((item) => item.version)) + 1,
+      active: true,
+      previousVersionId: template.id,
+      ...(options.restoredFromVersion
+        ? { restoredFromVersion: options.restoredFromVersion }
+        : {}),
+      ...author(clinicId, options.actorId),
+      createdAt: now(),
+    };
+    repositoryContext.documentTemplates.push(next);
+    return next;
+  }
+
+  /** Restaura uma versão antiga como nova versão ativa; o histórico continua intacto. */
+  async function restoreDocumentTemplateVersion(
+    clinicId: string,
+    versionId: string,
+    actorId?: string,
+  ): Promise<DocumentTemplate | null> {
+    const source = repositoryContext.documentTemplates.find(
+      (item) => item.clinicId === clinicId && item.id === versionId,
+    );
+    if (!source) return null;
+    if (source.active)
+      throw new DomainError(
+        "DOCUMENT_TEMPLATE_VERSION_ACTIVE",
+        "Esta versão já é a que está em uso.",
+        409,
+      );
+    const name = source.name.toLocaleLowerCase();
+    const current =
+      repositoryContext.documentTemplates.find(
+        (item) =>
+          item.clinicId === clinicId &&
+          item.active &&
+          item.name.toLocaleLowerCase() === name,
+      ) ?? source;
+    return createTemplateVersion(
+      clinicId,
+      current.id,
+      source.body,
+      source.content,
+      { actorId, restoredFromVersion: source.version },
+    );
+  }
+
   return {
     previewDocument,
     async updateDocumentDraft(
@@ -158,6 +246,7 @@ export function createContractsRepository(
     async createDocumentTemplate(
       clinicId: string,
       input: DocumentTemplateInput,
+      actorId?: string,
     ) {
       input = documentTemplateInputSchema.parse(input);
       if (
@@ -179,47 +268,15 @@ export function createContractsRepository(
         clinicId,
         version: 1,
         active: true,
+        ...author(clinicId, actorId),
         createdAt: now(),
       };
       repositoryContext.documentTemplates.push(template);
       return template;
     },
 
-    async createDocumentTemplateVersion(
-      clinicId: string,
-      templateId: string,
-      body: string,
-      content?: DocumentContent,
-    ) {
-      ({ body, content } = documentTemplateVersionInputSchema.parse({
-        body,
-        content,
-      }));
-      const template = repositoryContext.documentTemplates.find(
-        (item) => item.clinicId === clinicId && item.id === templateId,
-      );
-      if (!template) return null;
-      const versions = repositoryContext.documentTemplates.filter(
-        (item) =>
-          item.clinicId === clinicId &&
-          item.name.toLocaleLowerCase() === template.name.toLocaleLowerCase(),
-      );
-      for (const item of versions) item.active = false;
-      const next: DocumentTemplate = {
-        id: uuid(),
-        clinicId,
-        name: template.name,
-        kind: template.kind,
-        body,
-        ...(content ? { content } : {}),
-        version: Math.max(...versions.map((item) => item.version)) + 1,
-        active: true,
-        previousVersionId: template.id,
-        createdAt: now(),
-      };
-      repositoryContext.documentTemplates.push(next);
-      return next;
-    },
+    createDocumentTemplateVersion: createTemplateVersion,
+    restoreDocumentTemplateVersion,
 
     async deleteDocumentTemplate(clinicId: string, templateId: string) {
       const template = repositoryContext.documentTemplates.find(

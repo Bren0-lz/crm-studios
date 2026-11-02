@@ -24,6 +24,11 @@ export interface DocumentTemplate extends DocumentTemplateInput {
   version: number;
   active: boolean;
   previousVersionId?: string;
+  /** Versão antiga cujo texto foi restaurado nesta versão. */
+  restoredFromVersion?: number;
+  /** Quem criou a versão (vazio em versões gravadas antes do histórico). */
+  createdById?: string;
+  createdByName?: string;
   createdAt: string;
 }
 

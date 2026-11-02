@@ -55,6 +55,11 @@ export const contractsApi = {
       method: "POST",
       body: JSON.stringify({ body, ...(content ? { content } : {}) }),
     }),
+  /** Restaura uma versão antiga do modelo como nova versão ativa. */
+  restoreDocumentTemplateVersion: (id: string) =>
+    request<DocumentTemplate>(`/document-templates/${id}/restore`, {
+      method: "POST",
+    }),
   deleteDocumentTemplate: (id: string) =>
     request<void>(`/document-templates/${id}`, { method: "DELETE" }),
   previewDocument: (input: IssuedDocumentInput) =>
