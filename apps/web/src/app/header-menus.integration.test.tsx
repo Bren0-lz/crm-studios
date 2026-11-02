@@ -380,38 +380,18 @@ describe("notification banner, alerts and settings", () => {
     mockApi(() => json(summary));
     renderApp();
     const banner = await screen.findByRole("region", { name: "Alertas" });
-    const trigger = within(banner).getByRole("button", {
-      name: "4 pendências pedem atenção",
-    });
-    expect(trigger).toHaveTextContent(/^4\s*pendências$/);
-    expect(trigger).toHaveAttribute("aria-expanded", "false");
-
-    // Esc fecha a lista e devolve o foco ao botão.
-    fireEvent.click(trigger);
-    expect(
-      within(banner).getByRole("dialog", { name: "Pendências em destaque" }),
-    ).toBeVisible();
-    fireEvent.keyDown(document, { key: "Escape" });
-    expect(
-      within(banner).queryByRole("dialog", { name: "Pendências em destaque" }),
-    ).not.toBeInTheDocument();
-    expect(trigger).toHaveFocus();
-
+    expect(banner).toHaveTextContent("4 pendências pedem atenção");
     // Padrão: parcelas vencidas e atendimentos a finalizar em destaque; aniversários não.
-    fireEvent.click(trigger);
-    const list = within(banner).getByRole("dialog", {
-      name: "Pendências em destaque",
-    });
     expect(
-      within(list).getByRole("button", { name: /Parcelas vencidas/ }),
+      within(banner).getByRole("button", { name: /Parcelas vencidas/ }),
     ).toHaveTextContent("3");
-    expect(list).not.toHaveTextContent("Aniversariantes");
+    expect(banner).not.toHaveTextContent("Aniversariantes");
     expect(
       screen.getByRole("button", { name: "Notificações: 6 pendências" }),
     ).toHaveClass("is-alerting");
 
     fireEvent.click(
-      within(list).getByRole("button", { name: /Atendimentos a finalizar/ }),
+      within(banner).getByRole("button", { name: /Atendimentos a finalizar/ }),
     );
     expect(screen.getByTestId("location")).toHaveTextContent(
       "/agenda/a-finalizar",
@@ -524,9 +504,6 @@ describe("notification banner, alerts and settings", () => {
       await screen.findByRole("button", { name: "Notificações: 3 pendências" }),
     ).toBeVisible();
     const banner = screen.getByRole("region", { name: "Alertas" });
-    fireEvent.click(
-      within(banner).getByRole("button", { name: /pede(m)? atenção/ }),
-    );
     expect(banner).toHaveTextContent("Aniversariantes de hoje");
     expect(banner).not.toHaveTextContent("Parcelas vencidas");
   });

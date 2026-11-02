@@ -139,6 +139,17 @@
     gap: var(--space-1);
   }
 
+  /* Alertas do cabeçalho: linha inteira abaixo da marca e das ações. */
+  .notification-banner {
+    flex-basis: 100%;
+    flex-wrap: wrap;
+    order: 3;
+  }
+  .notification-banner ul {
+    flex-basis: 100%;
+    flex-wrap: wrap;
+  }
+
   .topbar .header-popover-panel {
     position: fixed;
     top: auto;
@@ -353,7 +364,7 @@
     outline-offset: 2px;
   }
 
-  /* Cabeçalho compacto: menu, ambiente e ações numa linha; alertas num botão compacto. */
+  /* Cabeçalho compacto: menu, ambiente e ações numa linha; alertas numa faixa rolável. */
   .topbar {
     gap: var(--space-2);
     padding: var(--space-2) var(--space-4);
@@ -363,9 +374,23 @@
     flex: 1;
   }
 
-  /* Alertas do cabeçalho: só ícone e número; o nome completo fica no aria-label. */
-  .notification-banner-noun {
-    display: none;
+  .notification-banner {
+    gap: var(--space-1) var(--space-2);
+    padding: var(--space-2);
+  }
+
+  .notification-banner > strong {
+    flex: 1;
+    white-space: normal;
+  }
+
+  .notification-banner ul {
+    flex-wrap: nowrap;
+    padding-bottom: var(--space-1);
+  }
+
+  .notification-banner li {
+    flex-shrink: 0;
   }
 
   .topbar .header-popover-panel {
