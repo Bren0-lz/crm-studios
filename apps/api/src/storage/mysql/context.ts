@@ -1645,13 +1645,15 @@ export class MysqlRepositoryContext {
           await client.query(
             `INSERT INTO receivables
                (id, clinic_id, patient_id, plan_id, description, installment_number,
-                installment_count, due_date, amount_in_cents, competence,
+                installment_count, balance_of_installment, due_date, amount_in_cents, competence,
                 category_id, cost_center_id, posted_on, branch_id)
              SELECT $5, r.clinic_id, r.patient_id, r.plan_id, r.description || ' · saldo',
                     CASE WHEN r.plan_id IS NULL THEN r.installment_number
                          ELSE (SELECT max(x.installment_number) + 1 FROM receivables x
                                WHERE x.plan_id = r.plan_id) END,
-                    r.installment_count, coalesce($3, r.due_date), $4,
+                    r.installment_count,
+                    CASE WHEN r.plan_id IS NULL THEN NULL
+                         ELSE coalesce(r.balance_of_installment, r.installment_number) END, coalesce($3, r.due_date), $4,
                     r.competence, r.category_id, r.cost_center_id, r.posted_on, r.branch_id
              FROM receivables r WHERE r.clinic_id = $1 AND r.id = $2`,
             [

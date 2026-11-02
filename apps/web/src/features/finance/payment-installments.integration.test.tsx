@@ -188,6 +188,64 @@ describe("installments by payment method", () => {
     ).toBeInTheDocument();
   });
 
+  it("keeps the balance of a partial payment as the same installment", async () => {
+    const { repository } = await setupApi();
+    const patient = await repository.createPatient(clinicId, {
+      cpf: nextTestCpf(),
+      fullName: "Cliente do saldo",
+      phone: "11988887777",
+      tags: [],
+    });
+    const [service] = await repository.listServices(clinicId);
+    const template = await repository.createPlanTemplate(clinicId, actorId, {
+      name: "Pilates trimestral QA",
+      kind: "fixed_package",
+      totalValueInCents: 120000,
+      services: [
+        { serviceId: service!.id, totalSessions: 3, totalValueInCents: 120000 },
+      ],
+    });
+    const plan = await repository.createPatientPlan(clinicId, actorId, {
+      planTemplateId: template.id,
+      patientId: patient.id,
+      name: template.name,
+      kind: "fixed_package",
+      services: template.services,
+      validFrom: "2040-06-01",
+      totalValueInCents: 120000,
+      installments: 3,
+      firstDueDate: "2040-06-10",
+      paymentMethod: "card",
+    });
+    const [first] = (
+      await repository.getFinancialSummary(clinicId)
+    ).receivables.filter(
+      (item) => item.planId === plan.id && item.installmentNumber === 1,
+    );
+    // Parcela de R$ 400 com R$ 350 recebidos: R$ 50 viram saldo da parcela 1.
+    await repository.settleReceivable(
+      clinicId,
+      actorId,
+      first!.id,
+      "card",
+      undefined,
+      { receivedInCents: 35000 },
+    );
+    open("/financeiro");
+    const description = await screen.findByText(
+      "Pilates trimestral QA · 1/3 · saldo",
+    );
+    const row = description.closest<HTMLElement>(".finance-row")!;
+    expect(within(row).getByText("Parcela 1 de 3 · saldo")).toBeInTheDocument();
+    fireEvent.click(within(row).getByRole("button", { name: "Dar baixa" }));
+    const dialog = screen.getByRole("dialog", { name: "Dar baixa na parcela" });
+    const summary = within(dialog)
+      .getByText("Valor total do plano")
+      .closest("dl")!;
+    // A parcela 1 só conta como paga quando o saldo também for pago.
+    expect(summary).toHaveTextContent("Parcelas pagas0 de 3");
+  });
+
   it("splits a single charge on the card when settling it", async () => {
     const { repository } = await setupApi();
     await repository.updatePaymentMethodSettings(clinicId, actorId, {

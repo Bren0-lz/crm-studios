@@ -1,4 +1,5 @@
 import type { PaymentReceipt, Receivable } from "@crm/contracts";
+import { receivableDisplayInstallment } from "@crm/contracts";
 
 /** Recibo sem campos opcionais vazios (o tipo não aceita string vazia como "informado"). */
 export function receiptWithClinic(
@@ -47,7 +48,8 @@ export function receiptInstallments(
     | "installmentCount"
     | "paymentInstallments"
     | "customerDiscountInCents"
-  >,
+  > &
+    Partial<Pick<Receivable, "balanceOfInstallment">>,
 ): Pick<
   PaymentReceipt,
   | "installmentNumber"
@@ -61,7 +63,8 @@ export function receiptInstallments(
       : {}),
     ...(receivable.installmentCount > 1
       ? {
-          installmentNumber: receivable.installmentNumber,
+          // Saldo de baixa parcial: número da parcela de origem.
+          installmentNumber: receivableDisplayInstallment(receivable),
           installmentCount: receivable.installmentCount,
         }
       : {}),
