@@ -3,7 +3,7 @@ import {
   type PublicSignatureDocument,
 } from "@crm/contracts";
 import { FileSignature } from "lucide-react";
-import { useEffect, useRef, useState, type PointerEvent } from "react";
+import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { api, ApiClientError } from "../../api";
 import { CpfInput } from "../../shared/components/CpfInput";
@@ -13,91 +13,11 @@ import { LoadingBlock } from "../../shared/components/LoadingBlock";
 import { useMissingFields } from "../../shared/components/MissingFields";
 import { shortDate, timeLabel } from "../../shared/lib/formatting";
 import { DocumentPaper } from "./DocumentPaper";
+import { SignaturePad } from "./SignaturePad";
 
 function when(iso: string) {
   const date = new Date(iso);
   return `${shortDate.format(date)}, ${timeLabel.format(date)}`;
-}
-
-/** Área para desenhar a assinatura com o dedo, a caneta ou o mouse. */
-function SignaturePad({
-  disabled,
-  onChange,
-}: {
-  disabled: boolean;
-  onChange: (image: string) => void;
-}) {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const drawing = useRef(false);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ratio = window.devicePixelRatio || 1;
-    canvas.width = Math.max(1, canvas.clientWidth * ratio);
-    canvas.height = Math.max(1, canvas.clientHeight * ratio);
-    const context = canvas.getContext("2d");
-    if (!context) return;
-    context.scale(ratio, ratio);
-    context.lineWidth = 2.5;
-    context.lineCap = "round";
-    context.lineJoin = "round";
-    context.strokeStyle = "#1f2a37";
-  }, []);
-
-  function point(event: PointerEvent<HTMLCanvasElement>) {
-    const rect = event.currentTarget.getBoundingClientRect();
-    return { x: event.clientX - rect.left, y: event.clientY - rect.top };
-  }
-  function start(event: PointerEvent<HTMLCanvasElement>) {
-    if (disabled) return;
-    event.currentTarget.setPointerCapture?.(event.pointerId);
-    const context = event.currentTarget.getContext("2d");
-    const { x, y } = point(event);
-    context?.beginPath();
-    context?.moveTo(x, y);
-    context?.lineTo(x + 0.1, y + 0.1);
-    context?.stroke();
-    drawing.current = true;
-  }
-  function move(event: PointerEvent<HTMLCanvasElement>) {
-    if (!drawing.current) return;
-    const context = event.currentTarget.getContext("2d");
-    const { x, y } = point(event);
-    context?.lineTo(x, y);
-    context?.stroke();
-  }
-  function end(event: PointerEvent<HTMLCanvasElement>) {
-    if (!drawing.current) return;
-    drawing.current = false;
-    onChange(event.currentTarget.toDataURL("image/png"));
-  }
-  function clear() {
-    const canvas = canvasRef.current;
-    canvas?.getContext("2d")?.clearRect(0, 0, canvas.width, canvas.height);
-    onChange("");
-  }
-  return (
-    <div className="signature-pad">
-      <canvas
-        ref={canvasRef}
-        role="img"
-        aria-label="Área de assinatura"
-        onPointerDown={start}
-        onPointerMove={move}
-        onPointerUp={end}
-        onPointerLeave={end}
-      />
-      <button
-        type="button"
-        className="secondary-button button-sm"
-        disabled={disabled}
-        onClick={clear}
-      >
-        Limpar assinatura
-      </button>
-    </div>
-  );
 }
 
 /** Página aberta pelo cliente no link enviado pelo WhatsApp: lê o documento e assina. */

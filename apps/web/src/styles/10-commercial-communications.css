@@ -1904,5 +1904,9 @@
   border-radius: var(--radius-sm);
   background: white;
   touch-action: none;
+  /* Pressionar com o dedo desenha, sem selecionar texto nem abrir o menu do iOS. */
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
   cursor: crosshair;
 }

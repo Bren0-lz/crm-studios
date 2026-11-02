@@ -1,7 +1,7 @@
 # Estado do loop
 
-- **Tarefa atual:** CT3 (Rodada 9)
-- **Última concluída:** CT2
+- **Tarefa atual:** CT5 (Rodada 9; CT4 é manual, com o dono)
+- **Última concluída:** CT3
 - **Tentativas na atual:** 0/3
 - **Bloqueios:** nenhum
 
@@ -56,3 +56,4 @@
 - 2026-11-02 RODADA 9 planejada (reunião 02/11, B2-04 e B2-03): CT1–CT5 no PLAN.md, antes da QM16. Diagnóstico no código: `.document-paper` com `aspect-ratio` A4 também no celular (texto pode vazar sobre o formulário), campos em 14 px (zoom do iOS), canvas da assinatura dimensionado só na montagem e sem `pointercancel`. A página pública não usa `DocumentPdfPreview` (sem iframe). Cadastro guiado não tem campo de contrato (fica em PatientPlanModal/PlanModal/AppointmentModal). Só há Chromium no ambiente: e2e com emulação de iPhone.
 - 2026-11-02 CT1 DONE (gate completo exit 0: contracts 305, API 617+173 skip, web 1090). `e2e/public-signature-mobile.spec.ts` (iPhone 13 emulado no Chromium, só projeto mobile). Vermelho antes da CT2/CT3: campos Nome/CPF com 14 px (< 16, zoom do iOS); canvas 924 px internos depois de girar para 844 px (esperado 1524 = clientWidth × min(dpr,2)) e 924 em retrato (esperado 616: dpr 3 sem teto); canvas com user-select ≠ none. Rolagem horizontal e sobreposição folha/formulário NÃO reproduzem no Chromium (a caixa com aspect-ratio cresce com o texto); a CT2 remove o aspect-ratio na página pública mesmo assim, por causa do WebKit, e a confirmação fica na CT4. No ambiente remoto só há Chromium 1243 para o Playwright 1.64: rodar com uma config local (fora do git) que define `launchOptions.executablePath`.
 - 2026-11-02 CT2 DONE (gate completo exit 0: contracts 305, API 617+173 skip, web 1090). CSS da página pública (10-commercial-communications.css, bloco "Página pública"): folha sem aspect-ratio só em `.public-signature-document`, `100dvh`, e em ≤ 700 px respiro menor e campos em `--text-lg` (16 px). Spec da CT1: asserção de fonte verde; faltam as do canvas (CT3). `e2e/contracts.spec.ts` falha no nome do PDF baixado ("download") também sem esta mudança: é o Chromium 1243 local com o Playwright 1.64, não regressão.
+- 2026-11-02 CT3 DONE (gate completo exit 0: contracts 305, API 617+173 skip, web 1091). `features/contracts/SignaturePad.tsx` (saiu de PublicSignaturePage): traços guardados em fração da área e redesenhados quando o tamanho muda (ResizeObserver; sem ele, `resize`), densidade com teto 2, um ponteiro por vez, `pointercancel` encerra o traço e emite a imagem; CSS do canvas com `user-select: none` e `-webkit-touch-callout: none`. Spec da CT1 todo verde no projeto mobile (no desktop é pulado de propósito). Teste web novo em signature-link.integration.test.tsx (cancelamento do toque, redimensionar, limpar).
