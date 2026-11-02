@@ -96,6 +96,8 @@ import {
   permissionModules,
   type PlanCatalogEntry,
   discountedPlanInstallments,
+  hasManualFirstCharge,
+  planProratedChargeCount,
   planInstallmentSchedule,
   withPlanPaymentParts,
   type PlanTemplate,
@@ -1897,9 +1899,13 @@ export class MemoryRepositoryContext {
     );
     delete plan.discount;
     delete plan.orderDiscountInCents;
+    delete plan.manualFirstCharge;
     if (discounted.discount) plan.discount = discounted.discount;
+    const manualCharges = hasManualFirstCharge(input)
+      ? planProratedChargeCount(input)
+      : 0;
     const installments: Receivable[] = discounted.installments.map(
-      (installment) => ({
+      (installment, index) => ({
         id: uuid(),
         clinicId,
         branchId,
@@ -1933,6 +1939,8 @@ export class MemoryRepositoryContext {
         ...(installment.customerDiscountInCents
           ? { customerDiscountInCents: installment.customerDiscountInCents }
           : {}),
+        // Cobrança proporcional com o valor informado à mão (as primeiras, uma por forma).
+        ...(index < manualCharges ? { manualAmount: true as const } : {}),
         status: "open",
         overdue: false,
         createdAt: timestamp,

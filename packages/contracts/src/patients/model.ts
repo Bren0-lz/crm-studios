@@ -19,6 +19,10 @@ import {
   autoRenewIssue,
   guidedPlanTermsSchema,
   isRecurringChargeValid,
+  planPaymentRecurrenceChosen,
+  planPaymentRecurrenceIssue,
+  autoRenewPaymentPartsValid,
+  autoRenewPaymentPartsIssue,
   recurringSingleChargeIssue,
   planPeriodIssue,
   renewablePlanPeriod,
@@ -352,6 +356,8 @@ const guidedSubscriptionPlanSchema = guidedPlanTermsSchema
     path: ["installments"],
   })
   .refine(renewablePlanPeriod, autoRenewIssue)
+  .refine(planPaymentRecurrenceChosen, planPaymentRecurrenceIssue)
+  .refine(autoRenewPaymentPartsValid, autoRenewPaymentPartsIssue)
   .refine(
     (value) =>
       value.services.reduce((sum, item) => sum + item.totalValueInCents, 0) ===
@@ -367,6 +373,8 @@ const guidedAdditionalSingleSchema = guidedPlanTermsSchema
   .extend({ kind: z.literal("single") })
   .refine(validPlanPeriod, planPeriodIssue)
   .refine(renewablePlanPeriod, autoRenewIssue)
+  .refine(planPaymentRecurrenceChosen, planPaymentRecurrenceIssue)
+  .refine(autoRenewPaymentPartsValid, autoRenewPaymentPartsIssue)
   .refine(
     (value) =>
       value.services.reduce((sum, item) => sum + item.totalValueInCents, 0) ===
@@ -443,6 +451,8 @@ export const guidedPatientInputSchema = z.discriminatedUnion("next", [
     plan: guidedPlanTermsSchema
       .refine(validPlanPeriod, planPeriodIssue)
       .refine(renewablePlanPeriod, autoRenewIssue)
+      .refine(planPaymentRecurrenceChosen, planPaymentRecurrenceIssue)
+      .refine(autoRenewPaymentPartsValid, autoRenewPaymentPartsIssue)
       .refine(
         (value) =>
           value.services.reduce(

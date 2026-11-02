@@ -36,6 +36,7 @@ import {
   Star,
   X,
 } from "lucide-react";
+import { planRecurrenceMissing } from "../../shared/lib/payment-parts";
 import {
   localIsoDate,
   shortDate,
@@ -238,6 +239,7 @@ export function missingPlanFields(plan: GuidedSingleForm) {
     !plan.planTemplateId && "Plano cadastrado",
     !plan.validFrom && "Início",
     !plan.firstDueDate && "Primeiro vencimento",
+    ...planRecurrenceMissing(plan),
   ].filter((item): item is string => Boolean(item));
 }
 
