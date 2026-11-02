@@ -347,7 +347,18 @@ async function prepareDocumentInTransaction(
     patientCpf: string | null;
     patientProfile: Partial<
       Record<
-        "address" | "neighborhood" | "city" | "state" | "postalCode",
+        | "residenceType"
+        | "address"
+        | "addressNumber"
+        | "complement"
+        | "buildingName"
+        | "block"
+        | "floor"
+        | "unit"
+        | "neighborhood"
+        | "city"
+        | "state"
+        | "postalCode",
         string
       >
     > | null;
@@ -486,7 +497,14 @@ async function prepareDocumentInTransaction(
     ...(item.patientName !== null
       ? {
           patient: {
+            residenceType: item.patientProfile?.residenceType,
             address: item.patientProfile?.address,
+            addressNumber: item.patientProfile?.addressNumber,
+            complement: item.patientProfile?.complement,
+            buildingName: item.patientProfile?.buildingName,
+            block: item.patientProfile?.block,
+            floor: item.patientProfile?.floor,
+            unit: item.patientProfile?.unit,
             neighborhood: item.patientProfile?.neighborhood,
             city: item.patientProfile?.city,
             state: item.patientProfile?.state,
