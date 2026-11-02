@@ -6,6 +6,7 @@ import {
   initials,
   localIsoDate,
   relativeTime,
+  sentence,
   statusLabel,
   toLocalDateTimeInput,
 } from "./formatting";
@@ -17,6 +18,12 @@ describe("display helpers", () => {
     expect(clinicIsoDate(new Date("2040-06-02T01:00:00Z"), "UTC")).toBe(
       "2040-06-02",
     );
+  });
+  it("closes a sentence without doubling the period of a short date", () => {
+    expect(sentence("Plano cancelado em 01 de nov.")).toBe(
+      "Plano cancelado em 01 de nov.",
+    );
+    expect(sentence("Vale até 05/11/2026")).toBe("Vale até 05/11/2026.");
   });
   it("formats ISO dates without timezone conversion", () => {
     expect(formatIsoDate("2026-10-12")).toBe("12/10/2026");

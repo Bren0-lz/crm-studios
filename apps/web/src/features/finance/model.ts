@@ -13,6 +13,7 @@ import type {
   RecurringPayableReminder,
 } from "@crm/contracts";
 import {
+  receivableDisplayInstallment,
   cashPaymentMethodLabels,
   patientFirstName,
   paymentMethodWithInstallments,
@@ -375,10 +376,12 @@ export function receivableInstallmentLine(
     Receivable,
     | "installmentNumber"
     | "installmentCount"
+    | "balanceOfInstallment"
     | "status"
     | "paymentMethod"
     | "paymentInstallments"
     | "customerDiscountInCents"
+    | "settlementDiscountInCents"
     | "paymentParts"
     | "manualAmount"
   >,
@@ -386,7 +389,7 @@ export function receivableInstallmentLine(
   const money = (cents: number) => currency.format(cents / 100);
   return [
     item.installmentCount > 1
-      ? `Parcela ${item.installmentNumber} de ${item.installmentCount}`
+      ? `Parcela ${receivableDisplayInstallment(item)} de ${item.installmentCount}${item.balanceOfInstallment ? " · saldo" : ""}`
       : "",
     // 1º pagamento do plano recorrente com o cálculo proporcional desligado na venda.
     item.manualAmount
@@ -394,6 +397,9 @@ export function receivableInstallmentLine(
       : "",
     item.customerDiscountInCents
       ? `Desconto do cliente: ${currency.format(item.customerDiscountInCents / 100)}`
+      : "",
+    item.status === "paid" && item.settlementDiscountInCents
+      ? `Desconto na baixa: ${currency.format(item.settlementDiscountInCents / 100)}`
       : "",
     item.status === "paid" && item.paymentParts
       ? `Pago: ${paymentPartsLabel(item.paymentParts, money)}`

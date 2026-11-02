@@ -53,6 +53,10 @@ import { ReceiptModal } from "./ReceiptModal";
 import { ReceivableAdjustModal } from "./ReceivableAdjustModal";
 import { ReceivableContactModal } from "./ReceivableContactModal";
 import { ReceivablesList } from "./ReceivablesList";
+import {
+  ReversePaymentModal,
+  type ReversePaymentTarget,
+} from "./ReversePaymentModal";
 import { RecurringPayablesSection } from "./RecurringPayablesSection";
 import { RenegotiateModal } from "./RenegotiateModal";
 import { SettleModal } from "./SettleModal";
@@ -184,27 +188,38 @@ export function FinancePage() {
     };
   }, [financeVersion]);
   const toast = useToast();
-  async function reverseReceivable(id: string) {
+  // Estorno só depois da confirmação (valor, forma e "não pode ser desfeita").
+  const [reversing, setReversing] = useState<ReversePaymentTarget | null>(null);
+  function askReverse(kind: ReversePaymentTarget["kind"], id: string) {
+    const item =
+      kind === "receivable"
+        ? data?.summary.receivables.find((entry) => entry.id === id)
+        : data?.payables.find((entry) => entry.id === id);
+    if (!item) return;
+    setReversing({
+      kind,
+      id,
+      description: item.description,
+      amountInCents: item.amountInCents,
+      paymentMethod: item.paymentMethod,
+      paymentInstallments:
+        "paymentInstallments" in item ? item.paymentInstallments : undefined,
+      paymentParts: item.paymentParts,
+    });
+  }
+  async function reverse(target: ReversePaymentTarget) {
     setError("");
-    try {
-      await api.reverseReceivable(id);
+    if (target.kind === "receivable") {
+      await api.reverseReceivable(target.id);
       toast.success("Pagamento estornado.");
       // A parcela mudou de situação: a seleção antiga não vale mais para renegociar.
       setSelectedReceivables([]);
-      await reload();
-    } catch (cause) {
-      setError((cause as Error).message);
-    }
-  }
-  async function reversePayable(id: string) {
-    setError("");
-    try {
-      await api.reversePayable(id);
+    } else {
+      await api.reversePayable(target.id);
       toast.success("Pagamento da conta estornado.");
-      await reload();
-    } catch (cause) {
-      setError((cause as Error).message);
     }
+    setReversing(null);
+    await reload();
   }
   async function settle(
     target: SettleTarget,
@@ -329,6 +344,16 @@ export function FinancePage() {
     setCommissionRuleOpen(false);
     await reloadAfterAction();
   }
+  // Descontos dados na baixa das parcelas pagas neste mês (fuso da clínica).
+  const thisMonth = saoPauloToday().slice(0, 7);
+  const settlementDiscountThisMonth = (data?.summary.receivables ?? [])
+    .filter(
+      (item) =>
+        item.status === "paid" &&
+        item.paidAt &&
+        saoPauloToday(new Date(item.paidAt)).startsWith(thisMonth),
+    )
+    .reduce((sum, item) => sum + (item.settlementDiscountInCents ?? 0), 0);
   return (
     <>
       <PatientContextNotice
@@ -399,6 +424,8 @@ export function FinancePage() {
               <small className="metric-note">
                 Parcelas de clientes com baixa neste mês, descontados os
                 estornos.
+                {settlementDiscountThisMonth > 0 &&
+                  ` Descontos na baixa: ${currency.format(settlementDiscountThisMonth / 100)}.`}
               </small>
             </article>
             <article className="metric-card">
@@ -541,7 +568,7 @@ export function FinancePage() {
                       : {}),
                   })
                 }
-                onReverse={(id) => void reverseReceivable(id)}
+                onReverse={(id) => askReverse("receivable", id)}
                 onAdjust={(item) => setAdjusting(item)}
                 onContact={(item, overdue) =>
                   setContacting({ receivable: item, overdue })
@@ -648,7 +675,7 @@ export function FinancePage() {
                     }
                     canManage={canManage}
                     onCreate={() => setPayableModal(true)}
-                    onReverse={(id) => void reversePayable(id)}
+                    onReverse={(id) => askReverse("payable", id)}
                     onProofs={(item) =>
                       setViewingProofs({
                         entity: "payable",
@@ -783,6 +810,13 @@ export function FinancePage() {
           receivable={contacting.receivable}
           overdue={contacting.overdue}
           onClose={() => setContacting(null)}
+        />
+      )}
+      {reversing && (
+        <ReversePaymentModal
+          target={reversing}
+          onConfirm={() => reverse(reversing)}
+          onClose={() => setReversing(null)}
         />
       )}
       {adjusting && (

@@ -40,6 +40,7 @@ import {
   patientTagDisplayColor,
   adminUserInputSchema,
   adminUserUpdateSchema,
+  commissionRuleInputSchema,
   appModuleLabels,
   appModuleSchema,
   appointmentInputSchema,
@@ -126,8 +127,7 @@ import {
   renderDocumentTemplate,
   clinicalAlertInputSchema,
   compareClinicalAlerts,
-  adminUserServiceCommissionsSchema,
-  serviceCommissionsInForce,
+  planSessionPaidValueInCents,
   publicDocumentSignInputSchema,
   signatureLinkExpiresAt,
   signatureLinkExpired,
@@ -1836,9 +1836,9 @@ describe("textos de interface sem nome antigo nem código interno (QM15)", () =>
       dependencies: ["patients.view", "patients.tabs_cancel"],
       explicitGrantOnly: true,
     });
-    expect(
-      legacyPermissions("user", ["patients"], ["patients"]),
-    ).not.toContain("patients.tabs_refund");
+    expect(legacyPermissions("user", ["patients"], ["patients"])).not.toContain(
+      "patients.tabs_refund",
+    );
     expect(
       normalizePermissions(["patients.view", "patients.tabs_refund"]),
     ).toEqual(["patients.view"]);
@@ -1852,9 +1852,9 @@ describe("textos de interface sem nome antigo nem código interno (QM15)", () =>
     expect(patientTabCancelInputSchema.parse({})).toEqual({
       refundPayment: false,
     });
-    expect(
-      patientTabCancelInputSchema.parse({ refundPayment: true }),
-    ).toEqual({ refundPayment: true });
+    expect(patientTabCancelInputSchema.parse({ refundPayment: true })).toEqual({
+      refundPayment: true,
+    });
     expect(() =>
       patientTabCancelInputSchema.parse({ refundPayment: "sim" }),
     ).toThrow();
@@ -1984,6 +1984,46 @@ describe("document templates", () => {
     },
     issuedOn: "23/10/2026",
   };
+
+  it("writes the residence details in the client address", () => {
+    expect(
+      documentTemplateValues({
+        ...context,
+        patient: {
+          fullName: "Helena Almeida",
+          residenceType: "apartment",
+          address: "Rua das Flores",
+          addressNumber: "120",
+          buildingName: "Edifício Solar",
+          block: "B",
+          floor: "3",
+          unit: "302",
+          neighborhood: "Centro",
+          city: "Campinas",
+          state: "SP",
+        },
+      }).paciente_endereco,
+    ).toBe(
+      "Rua das Flores, 120, Edifício Solar, Bloco B, 3º andar, Apto 302, Centro, Campinas/SP",
+    );
+    expect(
+      documentTemplateValues({
+        ...context,
+        patient: {
+          fullName: "Helena Almeida",
+          residenceType: "condominium",
+          address: "Avenida Brasil",
+          addressNumber: "900",
+          buildingName: "Residencial Jardins",
+          block: "4",
+          unit: "12",
+          complement: "fundos",
+        },
+      }).paciente_endereco,
+    ).toBe(
+      "Avenida Brasil, 900, Residencial Jardins, Quadra 4, Casa 12, fundos",
+    );
+  });
 
   it("fills the parties with formatted documents and falls back when data is missing", () => {
     const values = documentTemplateValues(context);
@@ -2273,55 +2313,56 @@ describe("receivableContactMessage", () => {
   });
 });
 
-describe("comissões por serviço do usuário", () => {
-  const serviceId = "6c7a0a52-6a1b-4c4f-9d5e-2f8a1b3c4d5e";
-  it("rejects the same service twice on the same start date", () => {
-    const item = { serviceId, percentage: 30, effectiveFrom: "2026-10-01" };
-    expect(adminUserServiceCommissionsSchema.safeParse([item]).success).toBe(
-      true,
-    );
+describe("comissão geral sobre o valor pago", () => {
+  it("accepts only the general percentage: service and fixed-amount fields are dropped", () => {
     expect(
-      adminUserServiceCommissionsSchema.safeParse([item, { ...item }]).success,
-    ).toBe(false);
-    expect(
-      adminUserServiceCommissionsSchema.safeParse([
-        item,
-        { ...item, effectiveFrom: "2026-11-01" },
-      ]).success,
-    ).toBe(true);
-    expect(
-      adminUserServiceCommissionsSchema.safeParse([
-        { percentage: 30, effectiveFrom: "2026-10-01" },
-      ]).success,
-    ).toBe(false);
-  });
-  it("keeps the rule in force and the scheduled ones per service", () => {
-    const rule = (
-      name: string,
-      effectiveFrom: string,
-      effectiveUntil?: string,
-    ) => ({
-      serviceId: name,
-      serviceName: name,
-      kind: "percentage" as const,
-      percentage: 10,
-      effectiveFrom,
-      ...(effectiveUntil ? { effectiveUntil } : {}),
+      commissionRuleInputSchema.parse({
+        professionalId: "6c7a0a52-6a1b-4c4f-9d5e-2f8a1b3c4d5e",
+        percentage: 30,
+        effectiveFrom: "2026-10-01",
+        kind: "fixed",
+        fixedAmountInCents: 1500,
+        serviceId: "6c7a0a52-6a1b-4c4f-9d5e-2f8a1b3c4d5f",
+      }),
+    ).toEqual({
+      professionalId: "6c7a0a52-6a1b-4c4f-9d5e-2f8a1b3c4d5e",
+      percentage: 30,
+      effectiveFrom: "2026-10-01",
     });
     expect(
-      serviceCommissionsInForce(
-        [
-          rule("Pilates", "2026-11-01"),
-          rule("Pilates", "2026-01-01"),
-          rule("Pilates", "2026-06-01"),
-          rule("Dança", "2026-01-01", "2026-10-24"),
-          rule("Dança", "2026-12-01"),
-        ],
-        "2026-10-25",
-      ).map((item) => `${item.serviceName} ${item.effectiveFrom}`),
-    ).toEqual(["Dança 2026-12-01", "Pilates 2026-06-01", "Pilates 2026-11-01"]);
+      adminUserUpdateSchema.parse({
+        fullName: "Ana Souza",
+        role: "user",
+        active: true,
+        serviceCommissions: [{ percentage: 30, effectiveFrom: "2026-10-01" }],
+      }),
+    ).not.toHaveProperty("serviceCommissions");
   });
+  it("values a plan session by the final plan value with the client's discount", () => {
+    const service = { totalSessions: 8, totalValueInCents: 40000 };
+    expect(planSessionPaidValueInCents(service, 40000, 0)).toBe(5000);
+    expect(planSessionPaidValueInCents(service, 40000, 4000)).toBe(4500);
+    // Plano com dois serviços: o desconto é rateado pelo valor de cada um.
+    expect(
+      planSessionPaidValueInCents(
+        { totalSessions: 3, totalValueInCents: 10000 },
+        30000,
+        3000,
+      ),
+    ).toBe(3000);
+    expect(
+      planSessionPaidValueInCents(
+        { totalSessions: 3, totalValueInCents: 10000 },
+        10000,
+        0,
+      ),
+    ).toBe(3333);
+    expect(planSessionPaidValueInCents(service, 0, 0)).toBe(0);
+    expect(planSessionPaidValueInCents(service, 40000, 50000)).toBe(0);
+  });
+});
 
+describe("assinatura pelo link público", () => {
   it("accepts only a valid CPF when signing through the public link", () => {
     const base = {
       signerName: "Cliente",

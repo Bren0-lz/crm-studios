@@ -1,5 +1,4 @@
 import { z } from "zod";
-import type { AdminUserServiceCommission } from "./types.js";
 import {
   addDaysToIsoDate,
   competenceMonthSchema,
@@ -28,21 +27,15 @@ export function tabReceivableDescription(
  * Regra de comissão do próprio usuário (`commission_rules.user_id`), sem exigir profissional
  * ligado. Vale nos atendimentos do profissional da agenda ligado ao usuário a partir de
  * `effectiveFrom` e prevalece sobre a regra do profissional (Financeiro); nova vigência cria
- * uma regra nova (o histórico é mantido).
+ * uma regra nova (o histórico é mantido). Só existe a comissão geral: um percentual sobre o
+ * valor que o cliente pagou pelo atendimento (sem comissão por serviço nem valor fixo).
  */
 export const commissionTermsSchema = z
   .object({
-    kind: z.enum(["percentage", "fixed"]).optional(),
-    serviceId: z.uuid().optional(),
-    fixedAmountInCents: z.number().int().min(0).max(2147483647).optional(),
     effectiveUntil: z.iso.date().optional(),
     percentage: z.number().min(0).max(100),
     effectiveFrom: z.iso.date(),
   })
-  .refine(
-    (value) => value.kind !== "fixed" || value.fixedAmountInCents !== undefined,
-    { message: "Informe o valor fixo.", path: ["fixedAmountInCents"] },
-  )
   .refine(
     (value) =>
       !value.effectiveUntil || value.effectiveUntil >= value.effectiveFrom,
@@ -52,54 +45,6 @@ export const commissionTermsSchema = z
     },
   );
 export const adminUserCommissionInputSchema = commissionTermsSchema;
-
-/**
- * Comissão do usuário num serviço específico (`commission_rules.user_id` + `service_id`):
- * prevalece sobre a regra geral do usuário nos atendimentos desse serviço.
- */
-export const adminUserServiceCommissionInputSchema =
-  commissionTermsSchema.safeExtend({ serviceId: z.uuid() });
-
-/** Lista enviada no cadastro do usuário: um serviço só aparece uma vez por data de início. */
-export const adminUserServiceCommissionsSchema = z
-  .array(adminUserServiceCommissionInputSchema)
-  .max(50)
-  .refine(
-    (items) =>
-      new Set(items.map((item) => `${item.serviceId}|${item.effectiveFrom}`))
-        .size === items.length,
-    { message: "Serviço repetido com a mesma data de início." },
-  );
-
-/**
- * Regras de serviço do usuário que importam hoje: em cada serviço, a vigente (maior início que
- * já começou e não terminou) e as que começam depois dela. Ordem: serviço, depois início.
- */
-export function serviceCommissionsInForce(
-  rules: readonly AdminUserServiceCommission[],
-  today: string,
-): AdminUserServiceCommission[] {
-  const live = rules.filter(
-    (rule) => !rule.effectiveUntil || rule.effectiveUntil >= today,
-  );
-  const currentStart = new Map<string, string>();
-  for (const rule of live)
-    if (
-      rule.effectiveFrom <= today &&
-      rule.effectiveFrom > (currentStart.get(rule.serviceId) ?? "")
-    )
-      currentStart.set(rule.serviceId, rule.effectiveFrom);
-  return live
-    .filter(
-      (rule) => rule.effectiveFrom >= (currentStart.get(rule.serviceId) ?? ""),
-    )
-    .sort(
-      (a, b) =>
-        a.serviceName.localeCompare(b.serviceName, "pt-BR") ||
-        a.serviceId.localeCompare(b.serviceId) ||
-        a.effectiveFrom.localeCompare(b.effectiveFrom),
-    );
-}
 
 /**
  * Rótulos dos códigos de tamanho gravados antes de os tamanhos virem da categoria (escala fixa de
@@ -433,6 +378,11 @@ export const productSaleInputSchema = z
      */
     payments: paymentPartsSchema.optional(),
     dueDate: z.iso.date(),
+    /**
+     * Desconto dado na venda (dos itens e do pedido), já abatido dos preços enviados em
+     * `items`. Fica registrado na cobrança da comanda, para o Financeiro e os relatórios.
+     */
+    discountInCents: z.number().int().min(0).max(2147483647).optional(),
   })
   .refine(
     (value) =>

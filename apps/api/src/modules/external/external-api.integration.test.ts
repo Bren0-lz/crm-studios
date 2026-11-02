@@ -342,6 +342,116 @@ describe("API externa de vendas", () => {
     await app.close();
   });
 
+  it("lists overdue clients with amount, oldest due date, band and turmas; finance only", async () => {
+    const { app, repository, createKey } = await setup();
+    const { headers } = await createKey();
+    const [service] = await repository.listServices(clinicId);
+    const [professional] = await repository.listProfessionals(clinicId);
+    const [room] = await repository.listRooms(clinicId);
+    const group = await repository.createGroupClass(clinicId, {
+      serviceId: service!.id,
+      professionalId: professional!.id,
+      roomId: room!.id,
+      capacity: 1,
+      weeklySlots: [{ weekday: 3, startTime: "07:00", endTime: "08:00" }],
+    });
+    const patient = await app.inject({
+      method: "POST",
+      url: "/external/v1/patients",
+      headers,
+      payload: {
+        fullName: "Cliente em atraso",
+        cpf: nextTestCpf(),
+        phone: "11944443333",
+      },
+    });
+    expect(patient.statusCode, patient.body).toBe(201);
+    const patientId = patient.json().id as string;
+    // Três parcelas mensais desde 2020: todas vencidas, qualquer que seja a data de hoje.
+    const plan = await configuredPlan(app, {
+      patientId,
+      serviceId: service!.id,
+      name: "Pilates trimestral",
+      kind: "custom" as const,
+      totalSessions: 12,
+      totalValueInCents: 30_000,
+      installments: 3,
+      firstDueDate: "2020-01-10",
+      validFrom: "2020-01-01",
+      validUntil: "2099-12-31",
+      autoRenew: false,
+    });
+    const sold = await app.inject({
+      method: "POST",
+      url: "/external/v1/plans/purchases",
+      headers,
+      payload: {
+        idempotencyKey: "5b5b5b5b-5b5b-4b5b-8b5b-5b5b5b5b5b5b",
+        plan,
+        groupId: group.id,
+      },
+    });
+    expect(sold.statusCode, sold.body).toBe(201);
+    const receivables = (await repository.getFinancialSummary(clinicId))
+      .receivables.filter((item) => item.patientId === patientId)
+      .sort((left, right) => left.dueDate.localeCompare(right.dueDate));
+    expect(receivables).toHaveLength(3);
+    // A parcela paga sai da conta.
+    await repository.settleReceivable(
+      clinicId,
+      OWNER_ID,
+      receivables[0]!.id,
+      "pix",
+    );
+
+    const response = await app.inject({ url: "/external/v1/overdue", headers });
+    expect(response.statusCode, response.body).toBe(200);
+    const report = response.json();
+    const oldest = receivables[1]!.dueDate;
+    const days = Math.round(
+      (Date.parse(`${report.referenceDate}T00:00:00.000Z`) -
+        Date.parse(`${oldest}T00:00:00.000Z`)) /
+        86_400_000,
+    );
+    expect(
+      report.rows.find((row: { patientId: string }) => row.patientId === patientId),
+    ).toEqual({
+      patientId,
+      patientName: "Cliente em atraso",
+      phone: "11944443333",
+      groups: [
+        { groupId: group.id, groupName: group.name, full: true, waitlistCount: 0 },
+      ],
+      amountInCents: receivables[1]!.amountInCents + receivables[2]!.amountInCents,
+      installments: 2,
+      oldestDueDate: oldest,
+      daysOverdue: days,
+      band: "60+",
+    });
+    const sorted = report.rows.map((row: { daysOverdue: number }) => row.daysOverdue);
+    expect(sorted).toEqual([...sorted].sort((left, right) => right - left));
+
+    // Chave de usuária sem Financeiro (recepção): 403, e o painel mostra a lista indisponível.
+    await seedRoleUsers(app);
+    const { generateIntegrationToken } = await import("../integrations/tokens.js");
+    const { token } = generateIntegrationToken();
+    await repository.createIntegrationKey(
+      clinicId,
+      roleSub(app, "reception"),
+      { name: "Chave da recepção", scopes: ["sales:read"] },
+      { prefix: token.slice(0, 12), tokenHash: hashIntegrationToken(token) },
+    );
+    expect(
+      (
+        await app.inject({
+          url: "/external/v1/overdue",
+          headers: { authorization: `Bearer ${token}` },
+        })
+      ).statusCode,
+    ).toBe(403);
+    await app.close();
+  });
+
   it("proxies writes with the internal validation, 404s and history", async () => {
     const { app, repository, createKey } = await setup();
     const { headers } = await createKey();

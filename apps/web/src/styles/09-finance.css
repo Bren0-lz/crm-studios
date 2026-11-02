@@ -1348,20 +1348,27 @@
    e o cabeçalho tinham larguras próprias e os valores saíam da coluna do título.
    audit: mobile-ok no celular (≤ 700px) a linha vira cartão de 1 coluna (.finance-list) */
 .payroll-table .finance-row {
+  /* Nome e valores dividem a sobra (o nome com o dobro); ações com largura fixa. As trilhas
+     são as mesmas em todas as linhas, então cabeçalho e valores continuam alinhados. */
   grid-template-columns:
-    minmax(calc(var(--space-8) * 2 + var(--space-6)), 1fr)
-    repeat(5, calc(var(--space-8) + var(--space-7)))
+    minmax(calc(var(--space-8) * 2 + var(--space-2)), 2fr)
+    repeat(5, minmax(calc(var(--space-8) + var(--space-5) + var(--space-1)), 1fr))
     calc(var(--space-8) * 3);
-  column-gap: var(--space-4);
+  column-gap: var(--space-3);
 }
-/* Tela média (menu lateral aberto): a tabela rola na horizontal em vez de espremer o nome.
-   A largura mínima é a soma das colunas fixas, igual em todas as linhas. */
+/* No desktop a tabela cabe sem rolar. Abaixo da soma das larguras mínimas (tela estreita com
+   o menu lateral aberto), rola na horizontal em vez de espremer as colunas. */
 .payroll-table {
   overflow-x: auto;
 }
 .payroll-table > .finance-head,
 .payroll-table > .payroll-line {
-  min-width: calc(var(--space-8) * 16 + var(--space-6));
+  min-width: calc(var(--space-8) * 14 + var(--space-3));
+}
+/* Nome longo quebra a linha em vez de ser cortado com reticências. */
+.payroll-table .finance-item > strong {
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 .payroll-table .finance-head {
   border-top: 1px solid var(--line);

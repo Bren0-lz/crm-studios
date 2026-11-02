@@ -330,7 +330,12 @@ describe("product sales", () => {
       url: `/patient-tabs/${sale.id}/payment`,
       headers: refunder,
     });
-    expect(history.json().payment).toMatchObject({ status: "cancelled" });
+    // A venda cancelada mantém a forma com que foi paga (Cartão em 3x).
+    expect(history.json().payment).toMatchObject({
+      status: "cancelled",
+      paymentMethod: "card",
+      paymentInstallments: 3,
+    });
     await app.close();
   });
 });

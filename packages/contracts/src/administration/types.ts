@@ -1,6 +1,5 @@
 import { z } from "zod";
 import type { PermissionKey } from "../permissions.js";
-import type { AdminUserServiceCommission } from "../finance/types.js";
 import {
   adminUserAgendaInputSchema,
   adminUserInputSchema,
@@ -71,7 +70,10 @@ export interface SaleMovement {
   quantity: number;
   amountInCents: number;
   receivableId?: string;
-  /** Venda de plano: desconto do cliente nas cobranças do plano (`amountInCents` é o valor do plano). */
+  /**
+   * Desconto do cliente: no plano, o das cobranças (`amountInCents` é o valor do plano); no
+   * produto, a parte da linha no desconto da venda (`amountInCents` já vem com ele abatido).
+   */
   customerDiscountInCents?: number;
   /** Venda de plano recorrente com o 1º pagamento informado à mão (sem o cálculo proporcional). */
   manualFirstCharge?: true;
@@ -123,13 +125,9 @@ export interface AdminUser extends UserSummary {
    * Percentual da regra de comissão do próprio usuário vigente hoje (fuso da clínica); não
    * depende do profissional ligado. Regras só do profissional (Financeiro) não aparecem aqui.
    */
-  commissionKind?: "percentage" | "fixed";
-  commissionFixedAmountInCents?: number;
   commissionPercentage?: number;
   /** Início de vigência (aaaa-mm-dd) da regra vigente hoje. */
   commissionEffectiveFrom?: string;
-  /** Comissões por serviço vigentes hoje ou agendadas (`serviceCommissionsInForce`). */
-  serviceCommissions?: AdminUserServiceCommission[];
   /** Salário mensal (ausente = não recebe salário e não entra na folha). */
   salaryInCents?: number;
 }

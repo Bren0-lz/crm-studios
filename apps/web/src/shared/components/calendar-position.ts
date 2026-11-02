@@ -17,50 +17,69 @@ export type FloatingPosition = {
   left: number;
   width: number;
   maxHeight: number;
-  placement: "above" | "below";
   align: "start" | "end";
 };
 
+function viewBounds(viewport: ViewportBox, margin: number) {
+  return {
+    top: viewport.top + margin,
+    bottom: viewport.top + viewport.height - margin,
+    left: viewport.left + margin,
+    right: viewport.left + viewport.width - margin,
+  };
+}
+
 /**
- * Posiciona um painel flutuante (position: fixed) junto ao gatilho sem nunca sair da
- * área visível: abre para baixo quando cabe, para cima quando há mais espaço acima, e
- * alinha pela direita do gatilho quando não cabe a partir da esquerda. Se nenhum lado
- * comporta o painel inteiro, limita a altura (o painel rola por dentro).
+ * Posiciona um painel flutuante (position: fixed) sempre logo abaixo do gatilho. A altura
+ * máxima é o espaço até o fim da área visível (o painel rola por dentro) e depende só da
+ * geometria do gatilho e da viewport — nunca da altura do painel —, para que rolar ou
+ * carregar conteúdo não faça o painel pular de lugar. Alinha pela direita do gatilho
+ * quando não cabe a partir da esquerda.
  */
 export function computeFloatingPosition({
   trigger,
-  panel,
+  panelWidth,
   viewport,
   margin = 8,
   gap = 4,
 }: {
   trigger: Rect;
-  panel: { width: number; height: number };
+  panelWidth: number;
   viewport: ViewportBox;
   margin?: number;
   gap?: number;
 }): FloatingPosition {
-  const viewTop = viewport.top + margin;
-  const viewBottom = viewport.top + viewport.height - margin;
-  const viewLeft = viewport.left + margin;
-  const viewRight = viewport.left + viewport.width - margin;
+  const view = viewBounds(viewport, margin);
+  const top = trigger.bottom + gap;
+  const maxHeight = Math.max(0, view.bottom - Math.max(top, view.top));
 
-  const below = Math.max(0, viewBottom - trigger.bottom - gap);
-  const above = Math.max(0, trigger.top - gap - viewTop);
-  const placement =
-    panel.height <= below || below >= above ? "below" : "above";
-  const space = placement === "below" ? below : above;
-  const maxHeight = Math.max(0, Math.min(space, viewBottom - viewTop));
-  const height = Math.min(panel.height, maxHeight);
-  const top =
-    placement === "below"
-      ? Math.max(viewTop, trigger.bottom + gap)
-      : Math.max(viewTop, trigger.top - gap - height);
-
-  const width = Math.max(0, Math.min(panel.width, viewRight - viewLeft));
-  const align = trigger.left + width <= viewRight ? "start" : "end";
+  const width = Math.max(0, Math.min(panelWidth, view.right - view.left));
+  const align = trigger.left + width <= view.right ? "start" : "end";
   const preferred = align === "start" ? trigger.left : trigger.right - width;
-  const left = Math.min(Math.max(preferred, viewLeft), viewRight - width);
+  const left = Math.min(Math.max(preferred, view.left), view.right - width);
 
-  return { top, left, width, maxHeight, placement, align };
+  return { top, left, width, maxHeight, align };
+}
+
+/**
+ * Quanto rolar o conteúdo para o painel (altura `panelHeight`) caber inteiro abaixo do
+ * gatilho, sem empurrar o gatilho para fora do topo da área visível. 0 quando já cabe.
+ */
+export function scrollNeededBelow({
+  trigger,
+  panelHeight,
+  viewport,
+  margin = 8,
+  gap = 4,
+}: {
+  trigger: Rect;
+  panelHeight: number;
+  viewport: ViewportBox;
+  margin?: number;
+  gap?: number;
+}): number {
+  const view = viewBounds(viewport, margin);
+  const missing = trigger.bottom + gap + panelHeight - view.bottom;
+  const room = trigger.top - view.top;
+  return Math.max(0, Math.min(missing, room));
 }

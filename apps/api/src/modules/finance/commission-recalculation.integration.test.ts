@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { sellSessionForAppointment } from "../../test-support/commission-billing.js";
 import { MemoryClinicRepository } from "../../memory-repository.js";
 import { buildApp } from "../../app.js";
 import { commissionRecalculationSuite } from "../../test-support/commission-recalculation-suite.js";
@@ -33,7 +34,6 @@ describe("rotas do recálculo retroativo de comissões", () => {
         professionalId: professional!.id,
         percentage: 10,
         effectiveFrom: "2025-01-01",
-        serviceId: service.id,
       });
       const appointment = await repository.createAppointment(clinicId, {
         patientId: patient.id,
@@ -44,6 +44,7 @@ describe("rotas do recálculo retroativo de comissões", () => {
         visitType: "regular",
         notes: "",
       });
+      await sellSessionForAppointment(repository, clinicId, actorId, appointment);
       await repository.updateAppointmentStatus(
         clinicId,
         appointment.id,

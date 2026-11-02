@@ -33,16 +33,6 @@ export const patientsApi = {
       method: "PATCH",
       body: JSON.stringify({ status }),
     }),
-  previewInactivePatients: (months: number) =>
-    request<Patient[]>("/patients/inactivation/preview", {
-      method: "POST",
-      body: JSON.stringify({ months }),
-    }),
-  inactivatePatients: (months: number, patientIds: string[]) =>
-    request<{ changed: number; skipped: number }>("/patients/inactivation", {
-      method: "POST",
-      body: JSON.stringify({ months, patientIds }),
-    }),
   previewPatientMerge: (sourceId: string, targetId: string) =>
     request<PatientMergePreview>("/patients/merge/preview", {
       method: "POST",

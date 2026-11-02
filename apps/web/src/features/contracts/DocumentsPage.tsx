@@ -24,6 +24,7 @@ import {
   Plus,
   Printer,
   Search,
+  History,
   Trash2,
   X,
   type LucideIcon,
@@ -69,6 +70,7 @@ import { DocumentPdfPreview } from "./DocumentPdfPreview";
 import { useUnsavedChangesPrompt } from "../../shared/workflows/useUnsavedChangesPrompt";
 import { TemplateBodyEditor } from "./TemplateBodyEditor";
 import { TemplateVersionModal } from "./TemplateVersionModal";
+import { TemplateHistoryModal } from "./TemplateHistoryModal";
 import { useToast } from "../../shared/feedback/toast-context";
 
 const emptyTemplateForm: DocumentTemplateInput = {
@@ -122,6 +124,7 @@ export function DocumentsPage() {
     pdf: boolean;
   } | null>(null);
   const [versioning, setVersioning] = useState<DocumentTemplate | null>(null);
+  const [historyOf, setHistoryOf] = useState<DocumentTemplate | null>(null);
   const [deletingTemplate, setDeletingTemplate] =
     useState<DocumentTemplate | null>(null);
   const [cancelling, setCancelling] = useState<IssuedDocument | null>(null);
@@ -299,6 +302,22 @@ export function DocumentsPage() {
     }
   }
 
+  async function templateRestored(
+    template: DocumentTemplate,
+    fromVersion: number,
+  ) {
+    setHistoryOf(null);
+    setError("");
+    setNotice(
+      `Versão ${fromVersion} de “${template.name}” restaurada como versão ${template.version}.`,
+    );
+    try {
+      await load();
+    } catch (cause) {
+      setError((cause as Error).message);
+    }
+  }
+
   function upsertDocument(updated: IssuedDocument) {
     setDocuments((current) =>
       current.some((item) => item.id === updated.id)
@@ -316,6 +335,11 @@ export function DocumentsPage() {
   }
 
   const activeTemplates = templates.filter((template) => template.active);
+  const templateVersions = (template: DocumentTemplate) =>
+    templates.filter(
+      (item) =>
+        item.name.toLocaleLowerCase() === template.name.toLocaleLowerCase(),
+    );
   const visibleDocuments = documents.filter(
     (item) => !contextPatientId || item.patientId === contextPatientId,
   );
@@ -556,7 +580,7 @@ export function DocumentsPage() {
                   <h2>Modelos cadastrados</h2>
                 </div>
                 <div className="page-actions">
-                  <span className="list-count">{templates.length}</span>
+                  <span className="list-count">{activeTemplates.length}</span>
                   {canCreateTemplate && (
                     <button
                       type="button"
@@ -572,7 +596,7 @@ export function DocumentsPage() {
                   )}
                 </div>
               </div>
-              {templates.length === 0 ? (
+              {activeTemplates.length === 0 ? (
                 <EmptyState
                   title="Nenhum modelo"
                   copy={
@@ -583,7 +607,7 @@ export function DocumentsPage() {
                 />
               ) : (
                 <div className="template-list">
-                  {templates.map((template) => (
+                  {activeTemplates.map((template) => (
                     <article key={template.id}>
                       <div>
                         <strong>{template.name}</strong>
@@ -592,33 +616,34 @@ export function DocumentsPage() {
                           {template.version}
                         </span>
                       </div>
-                      <span
-                        className={`status-pill ${template.active ? "active" : "cancelled"}`}
-                      >
-                        {template.active ? "Ativa" : "Histórica"}
-                      </span>
-                      {template.active && (
-                        <div className="template-actions">
-                          {canManage && can("contracts.templates_version") && (
-                            <button
-                              className="secondary-button button-sm"
-                              onClick={() => setVersioning(template)}
-                            >
-                              Nova versão
-                            </button>
-                          )}
-                          {canDeleteTemplate && (
-                            <button
-                              type="button"
-                              className="text-button button-sm"
-                              aria-label={`Excluir modelo ${template.name}`}
-                              onClick={() => setDeletingTemplate(template)}
-                            >
-                              <Trash2 size={15} aria-hidden="true" /> Excluir
-                            </button>
-                          )}
-                        </div>
-                      )}
+                      <div className="template-actions">
+                        <button
+                          type="button"
+                          className="secondary-button button-sm"
+                          aria-label={`Histórico do modelo ${template.name}`}
+                          onClick={() => setHistoryOf(template)}
+                        >
+                          <History size={15} aria-hidden="true" /> Histórico
+                        </button>
+                        {canManage && can("contracts.templates_version") && (
+                          <button
+                            className="secondary-button button-sm"
+                            onClick={() => setVersioning(template)}
+                          >
+                            Nova versão
+                          </button>
+                        )}
+                        {canDeleteTemplate && (
+                          <button
+                            type="button"
+                            className="text-button button-sm"
+                            aria-label={`Excluir modelo ${template.name}`}
+                            onClick={() => setDeletingTemplate(template)}
+                          >
+                            <Trash2 size={15} aria-hidden="true" /> Excluir
+                          </button>
+                        )}
+                      </div>
                     </article>
                   ))}
                 </div>
@@ -829,6 +854,16 @@ export function DocumentsPage() {
           branding={branding}
           onClose={() => setVersioning(null)}
           onCreated={() => void templateVersioned(versioning)}
+        />
+      )}
+      {historyOf && (
+        <TemplateHistoryModal
+          versions={templateVersions(historyOf)}
+          canRestore={canManage && can("contracts.templates_version")}
+          onClose={() => setHistoryOf(null)}
+          onRestored={(template, fromVersion) =>
+            void templateRestored(template, fromVersion)
+          }
         />
       )}
       {issuing && (

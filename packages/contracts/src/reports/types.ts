@@ -83,8 +83,10 @@ export interface SalesReportPeriod {
     openInCents: number;
     overdueInCents: number;
   };
-  /** Descontos do cliente nas vendas de plano do período (informativo). */
+  /** Descontos do cliente nas vendas (planos e produtos) do período (informativo). */
   customerDiscountInCents?: number;
+  /** Descontos dados na baixa das cobranças das vendas do período (informativo). */
+  settlementDiscountInCents?: number;
 }
 
 export interface SalesReport {

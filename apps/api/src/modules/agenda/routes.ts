@@ -28,6 +28,7 @@ import {
   resolveAppointmentPromotion,
 } from "../communications/campaign-promotions.js";
 import { clinicToday } from "../communications/auto-campaigns.js";
+import { syncServiceSinglePlan } from "./service-single-plan.js";
 import {
   agendaProfessionalScope,
   inProfessionalScope,
@@ -142,15 +143,23 @@ export function registerAgendaRoutes(context: RouteContext) {
     }));
   });
 
-  app.post("/services", { preHandler: authenticate }, async (request, reply) =>
-    reply
-      .status(201)
-      .send(
-        await repository.createService(
-          request.user.clinicId,
-          serviceInputSchema.parse(request.body),
-        ),
-      ),
+  // O preço de tabela gera (ou atualiza) o plano avulso do serviço.
+  app.post(
+    "/services",
+    { preHandler: authenticate },
+    async (request, reply) => {
+      const service = await repository.createService(
+        request.user.clinicId,
+        serviceInputSchema.parse(request.body),
+      );
+      await syncServiceSinglePlan(
+        repository,
+        request.user.clinicId,
+        request.user.sub,
+        service,
+      );
+      return reply.status(201).send(service);
+    },
   );
 
   app.get(

@@ -180,6 +180,12 @@ describe("página Vendas de produtos", () => {
     expect(summary).toHaveTextContent(/Descontos dos produtos\s*− R\$\s8,00/);
     expect(summary).toHaveTextContent(/Desconto geral\s*− R\$\s10,00/);
     expect(within(panel).getByText("Total").textContent).toMatch(/92,00/);
+    // Nas parcelas, o desconto do produto e o geral saem juntos como "Descontos".
+    const parcels = within(panel).getByRole("list", {
+      name: "Parcelas previstas",
+    });
+    expect(parcels).toHaveTextContent(/Descontos\s*− R\$\s18,00/);
+    expect(parcels).not.toHaveTextContent("Descontos dos produtos");
 
     fireEvent.click(
       within(panel).getByRole("button", { name: "Registrar venda" }),
@@ -191,6 +197,12 @@ describe("página Vendas de produtos", () => {
     const sale = inventory.tabs.find((tab) => tab.patientId === patient.id)!;
     expect(sale.totalInCents).toBe(9_200);
     expect(sale.notes).toBe("Venda com R$\u00a018,00 de desconto.");
+    // O desconto fica na cobrança da venda, para o Financeiro e os relatórios.
+    const charges = (await repository.getFinancialSummary(clinicId))
+      .receivables;
+    expect(charges.find((item) => item.id === sale.receivableId)).toMatchObject(
+      { amountInCents: 9_200, customerDiscountInCents: 1_800 },
+    );
     // O formulário volta sem descontos para a próxima venda.
     await waitFor(() =>
       expect(
@@ -807,6 +819,18 @@ describe("página Vendas de produtos", () => {
     await within(details).findByText(
       "Venda cancelada; pagamento estornado e estoque restituído.",
     );
+    // Depois de cancelar: motivo, vendedor e a forma original do pagamento.
+    expect(
+      within(details).getByText("Motivo do cancelamento: Produto com defeito"),
+    ).toBeInTheDocument();
+    expect(within(details).getByText(/^Vendedor: /)).toBeInTheDocument();
+    const cancelledPayment = await within(details).findByRole("region", {
+      name: "Pagamento",
+    });
+    await within(cancelledPayment).findByText("Cancelado");
+    expect(
+      within(cancelledPayment).getByText("Cartão em 3x"),
+    ).toBeInTheDocument();
     const [tab] = (await repository.getInventoryWorkspace(clinicId)).tabs;
     expect(tab).toMatchObject({
       status: "cancelled",

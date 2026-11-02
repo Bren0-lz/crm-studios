@@ -38,27 +38,21 @@ export function commissionRuleSnapshot(
   return {
     percentage: rule.percentage,
     effectiveFrom: rule.effectiveFrom,
-    ...(rule.kind ? { kind: rule.kind } : {}),
-    ...(rule.fixedAmountInCents !== undefined
-      ? { fixedAmountInCents: rule.fixedAmountInCents }
-      : {}),
-    ...(rule.serviceId ? { serviceId: rule.serviceId } : {}),
     ...(rule.effectiveUntil ? { effectiveUntil: rule.effectiveUntil } : {}),
   };
 }
 
-/** Regras gravadas pelo cadastro do usuário: a geral e as por serviço. */
+/** Regra gravada pelo cadastro do usuário (só a comissão geral). */
 export function userCommissionDrafts(input: {
   commission?: AdminUserCommissionInput | undefined;
-  serviceCommissions?: AdminUserCommissionInput[] | undefined;
 }) {
-  return [
-    ...(input.commission ? [input.commission] : []),
-    ...(input.serviceCommissions ?? []),
-  ];
+  return input.commission ? [input.commission] : [];
 }
 
-/** Mesmo dono, mesmo serviço e mesmo início: a gravação corrige a regra existente. */
+/**
+ * Mesmo dono e mesmo início: a gravação corrige a regra existente (regras antigas por serviço
+ * ficam de fora: não existem mais).
+ */
 export function sameCommissionRuleSlot(
   rule: CommissionTerms,
   owner: CommissionRuleOwner,
@@ -68,7 +62,7 @@ export function sameCommissionRuleSlot(
     ("userId" in owner
       ? rule.userId === owner.userId
       : rule.professionalId === owner.professionalId) &&
-    (rule.serviceId ?? "") === (terms.serviceId ?? "") &&
+    !rule.serviceId &&
     rule.effectiveFrom === terms.effectiveFrom
   );
 }
@@ -136,7 +130,6 @@ export function planCommissionRecalculation(
       rules,
       commission.professionalId,
       source.userId,
-      source.serviceId,
       source.date,
     );
     if (!rule || !changed.has(rule.id)) continue;

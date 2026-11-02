@@ -163,6 +163,14 @@ export const shortDate = new Intl.DateTimeFormat("pt-BR", {
 });
 
 /**
+ * Fecha a frase com ponto sem repetir o da data abreviada ("01 de nov." já termina em ponto):
+ * `sentence("Plano cancelado em 01 de nov.")` → "Plano cancelado em 01 de nov.".
+ */
+export function sentence(text: string) {
+  return text.endsWith(".") ? text : `${text}.`;
+}
+
+/**
  * Tempo desde `iso` em forma curta para cartões ("agora", "5min", "3h", "2d"); depois de
  * 30 dias, a data curta ("01 de out.").
  */

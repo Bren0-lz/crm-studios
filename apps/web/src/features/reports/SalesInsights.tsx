@@ -398,6 +398,9 @@ export function SalesInsights({
                 {summary.payment.overdueInCents
                   ? ` · ${money(summary.payment.overdueInCents)} em atraso`
                   : ""}
+                {summary.settlementDiscountInCents
+                  ? ` · ${money(summary.settlementDiscountInCents)} em descontos na baixa`
+                  : ""}
               </small>
             </article>
           </div>

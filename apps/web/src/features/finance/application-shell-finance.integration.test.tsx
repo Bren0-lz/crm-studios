@@ -1379,6 +1379,19 @@ describe("application shell", () => {
       fireEvent.click(
         within(rowOf("Carla Mendes")).getByRole("button", { name: "Estornar" }),
       );
+      // Pede confirmação antes de estornar: nada muda até confirmar.
+      const confirmReverse = await screen.findByRole("dialog", {
+        name: "Estornar pagamento",
+      });
+      expect(
+        within(confirmReverse).getByText("Esta ação não pode ser desfeita."),
+      ).toBeInTheDocument();
+      expect(workspaceLoads()).toBe(loads);
+      fireEvent.click(
+        within(confirmReverse).getByRole("button", {
+          name: "Estornar pagamento",
+        }),
+      );
       await vi.waitFor(() => expect(workspaceLoads()).toBeGreaterThan(loads));
       expect(
         screen.queryByText(/parcelas? selecionadas?$/),
@@ -2366,6 +2379,7 @@ describe("application shell", () => {
       totalInflowInCents: 17000,
       totalOutflowInCents: 255000,
       balanceInCents: -238000,
+      totalDiscountInCents: 1500,
       movements: [
         {
           id: "receipt:1",
@@ -2376,6 +2390,7 @@ describe("application shell", () => {
           counterpart: "Ana Souza",
           paymentMethod: "pix",
           amountInCents: 25000,
+          discountInCents: 1500,
         },
         {
           id: "receipt_reversal:2",
@@ -2466,6 +2481,13 @@ describe("application shell", () => {
     expect(
       within(totals).getByText("Saldo").nextElementSibling,
     ).toHaveTextContent("-R$ 2.380,00");
+    // Desconto dado na baixa: no total do dia e no movimento.
+    expect(
+      within(totals).getByText("Descontos na baixa").nextElementSibling,
+    ).toHaveTextContent("R$ 15,00");
+    expect(
+      within(section).getByText(/Desconto de R\$\s15,00/),
+    ).toBeInTheDocument();
 
     // Frase curta explica a aba; entradas em verde e saídas em vermelho no resumo.
     expect(

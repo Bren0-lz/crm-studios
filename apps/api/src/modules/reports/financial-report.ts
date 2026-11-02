@@ -110,12 +110,20 @@ function splitTabEntry(entry: FinancialEntry, tab: PatientTab | undefined) {
     entry.amountInCents,
     lines.map((line) => line.weight),
   );
+  const { discountInCents, ...rest } = entry;
+  const discounts = discountInCents
+    ? splitProportionally(
+        discountInCents,
+        lines.map((line) => line.weight),
+      )
+    : [];
   return lines.map((line, index): FinancialEntry => ({
-    ...entry,
+    ...rest,
     id: `${entry.id}#${line.id}`,
     origin: line.origin,
     description: line.description,
     amountInCents: amounts[index]!,
+    ...(discounts[index] ? { discountInCents: discounts[index] } : {}),
     // Sem categoria no recebimento, a categoria é o tipo do item.
     ...(entry.categoryId
       ? {}
@@ -183,6 +191,9 @@ export function buildFinancialReport(
       ...(movement.counterpart ? { counterpart: movement.counterpart } : {}),
       paymentMethod: movement.paymentMethod,
       amountInCents: movement.amountInCents,
+      ...(movement.discountInCents
+        ? { discountInCents: movement.discountInCents }
+        : {}),
     };
     if (movement.receivableId) {
       const receivable = receivables.get(movement.receivableId),

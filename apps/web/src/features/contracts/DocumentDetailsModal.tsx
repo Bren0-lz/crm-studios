@@ -53,7 +53,7 @@ export function DocumentDetailsModal({
     <Modal
       eyebrow="Contratos"
       title={document.title}
-      subtitle={`${document.patientName}${document.supplierId ? " (fornecedor)" : ""} · ${document.templateName} v${document.templateVersion}`}
+      subtitle={`${document.patientName}${document.supplierId ? " (fornecedor)" : ""}`}
       inactive={inactive}
       wide
       onClose={onClose}
@@ -71,10 +71,6 @@ export function DocumentDetailsModal({
             </dd>
           </div>
           <div>
-            <dt>{document.supplierId ? "Fornecedor" : "Cliente"}</dt>
-            <dd>{document.patientName}</dd>
-          </div>
-          <div>
             <dt>Modelo</dt>
             <dd>
               {document.templateName} v{document.templateVersion}
@@ -86,7 +82,7 @@ export function DocumentDetailsModal({
               <dd>{document.planName}</dd>
             </div>
           )}
-          <div>
+          <div className="document-details-dates">
             <dt>Criado em</dt>
             <dd>{when(document.createdAt)}</dd>
           </div>
@@ -104,7 +100,7 @@ export function DocumentDetailsModal({
           )}
         </dl>
 
-        <section className="document-details-section">
+        <section className="document-details-section document-details-signature">
           <h3>Assinatura</h3>
           {!hasSignature && (
             <p className="muted-copy">
@@ -115,8 +111,26 @@ export function DocumentDetailsModal({
                   : "Nenhum link de assinatura enviado."}
             </p>
           )}
-          <SignatureLinkRecord document={document} />
-          <DocumentSignatureActions document={document} onChanged={onChanged} />
+          {document.signatureLink && !document.manualSignature ? (
+            <SignatureLinkRecord
+              document={document}
+              detailed
+              actions={
+                <DocumentSignatureActions
+                  document={document}
+                  onChanged={onChanged}
+                />
+              }
+            />
+          ) : (
+            <>
+              <SignatureLinkRecord document={document} detailed />
+              <DocumentSignatureActions
+                document={document}
+                onChanged={onChanged}
+              />
+            </>
+          )}
         </section>
 
         <details className="document-details-section document-details-content">

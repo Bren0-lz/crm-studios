@@ -252,6 +252,26 @@ export function isSinglePlanTemplate(template: {
 }
 
 /**
+ * Sessões por serviço de um plano vendido como pacote (pacote fixo ou avulso com várias
+ * sessões, ex.: 10 sessões): a contratação agenda os horários em dias fixos na semana até
+ * acabar o pacote. Plano recorrente, personalizado ou avulso de uma sessão: `undefined`.
+ */
+export function planPackageSessions(plan: {
+  kind: z.infer<typeof planKindSchema>;
+  services: readonly { serviceId: string; totalSessions: number }[];
+}): Record<string, number> | undefined {
+  if (plan.kind !== "fixed_package" && plan.kind !== "single") return undefined;
+  if (
+    plan.kind === "single" &&
+    !plan.services.some((item) => item.totalSessions >= 2)
+  )
+    return undefined;
+  return Object.fromEntries(
+    plan.services.map((item) => [item.serviceId, item.totalSessions]),
+  );
+}
+
+/**
  * O preço de tabela do serviço não cobra nada: o valor de referência de uma sessão avulsa vem do plano avulso
  * ativo que inclui o serviço (valor ÷ sessões). Com mais de um, vale o cadastrado primeiro.
  */
@@ -336,6 +356,25 @@ export function planTablePriceSummary(
     missingPrices: lines.filter((line) => line.unitPriceInCents === null)
       .length,
   };
+}
+
+/**
+ * Valor pago por uma sessão do plano, base da comissão: o valor do serviço no plano com o
+ * desconto do cliente já aplicado nas cobranças (rateado pelo valor do plano), dividido pelas
+ * sessões do serviço. Ex.: plano de R$ 400 com 8 sessões e R$ 40 de desconto → R$ 45.
+ * Mesma conta de `planSessionPaidValue` no MySQL (`storage/mysql/sql.ts`).
+ */
+export function planSessionPaidValueInCents(
+  planService: Pick<PlanServiceInput, "totalSessions" | "totalValueInCents">,
+  planTotalValueInCents: number,
+  planDiscountInCents: number,
+): number {
+  if (planService.totalSessions <= 0 || planTotalValueInCents <= 0) return 0;
+  const finalValue = Math.max(0, planTotalValueInCents - planDiscountInCents);
+  return Math.round(
+    (planService.totalValueInCents * finalValue) /
+      (planTotalValueInCents * planService.totalSessions),
+  );
 }
 
 export const planStatusSchema = z.enum([
@@ -769,23 +808,58 @@ export function nextPlanPeriod(plan: {
   };
 }
 
-/** Resume as parcelas do plano (canceladas ficam fora); null quando não há cobrança. */
+/** Número exibido da parcela: o saldo de uma baixa parcial mostra o da parcela de origem. */
+export function receivableDisplayInstallment(item: {
+  installmentNumber: number;
+  balanceOfInstallment?: number | null | undefined;
+}): number {
+  return item.balanceOfInstallment ?? item.installmentNumber;
+}
+
+/**
+ * Resume as parcelas do plano (canceladas ficam fora); null quando não há cobrança. O saldo
+ * de baixa parcial conta junto da parcela de origem: ela só está paga quando o saldo também
+ * está (sem número, cada recebível conta como uma parcela).
+ */
 export function planPaymentSummary(
   receivables: readonly {
     status: "open" | "paid" | "cancelled";
     amountInCents: number;
     overdue: boolean;
+    installmentNumber?: number;
+    balanceOfInstallment?: number | null | undefined;
   }[],
 ): PlanPaymentSummary | null {
   const active = receivables.filter((item) => item.status !== "cancelled");
   if (!active.length) return null;
   const paid = active.filter((item) => item.status === "paid");
   const open = active.filter((item) => item.status === "open");
+  const key = (item: (typeof active)[number], index: number) =>
+    item.installmentNumber === undefined
+      ? `#${index}`
+      : String(
+          receivableDisplayInstallment({
+            installmentNumber: item.installmentNumber,
+            balanceOfInstallment: item.balanceOfInstallment,
+          }),
+        );
+  const keys = new Set(active.map(key));
+  const openKeys = new Set(
+    active.map(key).filter((_, index) => active[index]!.status === "open"),
+  );
+  const overdueKeys = new Set(
+    active
+      .map(key)
+      .filter(
+        (_, index) =>
+          active[index]!.status === "open" && active[index]!.overdue,
+      ),
+  );
   return {
-    installmentCount: active.length,
-    paidCount: paid.length,
-    openCount: open.length,
-    overdueCount: open.filter((item) => item.overdue).length,
+    installmentCount: keys.size,
+    paidCount: keys.size - openKeys.size,
+    openCount: openKeys.size,
+    overdueCount: overdueKeys.size,
     paidInCents: paid.reduce((sum, item) => sum + item.amountInCents, 0),
     openInCents: open.reduce((sum, item) => sum + item.amountInCents, 0),
   };

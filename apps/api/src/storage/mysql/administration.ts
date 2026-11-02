@@ -430,14 +430,6 @@ export function createAdministrationRepository(
             created.id,
             input.commission,
           );
-        for (const item of input.serviceCommissions ?? [])
-          await repositoryContext.insertUserCommissionRule(
-            client,
-            clinicId,
-            actorUserId,
-            created.id,
-            item,
-          );
         if (input.branchAccess)
           await repositoryContext.setUserBranchAccess(
             client,
@@ -474,7 +466,6 @@ export function createAdministrationRepository(
           );
         const withCommission =
           input.commission ||
-          input.serviceCommissions?.length ||
           input.branchAccess ||
           input.professional ||
           input.salaryInCents
@@ -639,14 +630,6 @@ export function createAdministrationRepository(
             actorUserId,
             userId,
             input.commission,
-          );
-        for (const item of input.serviceCommissions ?? [])
-          await repositoryContext.insertUserCommissionRule(
-            client,
-            clinicId,
-            actorUserId,
-            userId,
-            item,
           );
         await saveUserAgenda(
           repositoryContext,

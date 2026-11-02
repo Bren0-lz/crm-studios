@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   allocatePlanRevenue,
   nextPlanPeriod,
+  planPackageSessions,
   planServiceTotals,
   planTemplateUpdateSchema,
 } from "./model.js";
@@ -82,5 +83,34 @@ describe("plan values and periods", () => {
     expect(
       nextPlanPeriod({ validFrom: "2026-01-01", firstDueDate: "2026-01-01" }),
     ).toBeNull();
+  });
+});
+
+describe("package sessions scheduled at purchase", () => {
+  const services = [
+    { serviceId: "a", totalSessions: 10 },
+    { serviceId: "b", totalSessions: 1 },
+  ];
+  it("schedules fixed packages and single packages with several sessions", () => {
+    expect(planPackageSessions({ kind: "single", services })).toEqual({
+      a: 10,
+      b: 1,
+    });
+    expect(planPackageSessions({ kind: "fixed_package", services })).toEqual({
+      a: 10,
+      b: 1,
+    });
+  });
+  it("leaves one single session, recurring and custom plans out", () => {
+    expect(
+      planPackageSessions({
+        kind: "single",
+        services: [{ serviceId: "a", totalSessions: 1 }],
+      }),
+    ).toBeUndefined();
+    expect(
+      planPackageSessions({ kind: "recurring", services }),
+    ).toBeUndefined();
+    expect(planPackageSessions({ kind: "custom", services })).toBeUndefined();
   });
 });
