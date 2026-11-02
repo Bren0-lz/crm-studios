@@ -226,6 +226,7 @@ export function PlanPurchaseOptions({
   return (
     <div className="span-2">
       <details
+        className="plan-schedule-details"
         open={expanded}
         onToggle={(event) => {
           const open = event.currentTarget.open;
@@ -408,7 +409,7 @@ export function PlanPurchaseOptions({
                   onBlockedChange={reportSummary}
                   onNestedChange={onNestedChange}
                 />
-                <p>
+                <p className="field-hint">
                   As sessões serão reservadas junto com o plano e as parcelas.
                 </p>
               </>
