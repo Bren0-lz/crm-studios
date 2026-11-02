@@ -35,6 +35,7 @@ export function PlanCard({
   autoRenewControl?: ReactNode;
   actions?: ReactNode;
 }) {
+  const cancelled = plan.status === "cancelled";
   const used = planUsedSessions(plan);
   const percent = Math.min(100, Math.round((used / plan.totalSessions) * 100));
   // Recorrente: vale a frequência semanal; mostra as aulas feitas no ciclo, sem saldo.
@@ -49,7 +50,13 @@ export function PlanCard({
       </div>
       <h3>{title}</h3>
       {subtitle && <p>{subtitle}</p>}
-      {hasBalance ? (
+      {/* Plano cancelado não tem sessão utilizável, mesmo com saldo gravado. */}
+      {cancelled ? (
+        <div className="balance-line">
+          <strong>0</strong>
+          <span>de {plan.totalSessions} sessões · plano cancelado</span>
+        </div>
+      ) : hasBalance ? (
         <div className="balance-line">
           <strong>{plan.remainingSessions}</strong>
           <span>de {plan.totalSessions} sessões restantes</span>
@@ -66,9 +73,11 @@ export function PlanCard({
       {plan.services.map((entry) => (
         <p key={entry.serviceId}>
           {entry.serviceName}:{" "}
-          {hasBalance
-            ? `${entry.remainingSessions} de ${entry.totalSessions} sessões`
-            : `${planUsedSessions(entry)} de ${entry.totalSessions} aulas previstas`}{" "}
+          {cancelled
+            ? `0 de ${entry.totalSessions} sessões`
+            : hasBalance
+              ? `${entry.remainingSessions} de ${entry.totalSessions} sessões`
+              : `${planUsedSessions(entry)} de ${entry.totalSessions} aulas previstas`}{" "}
           · {currency.format(entry.totalValueInCents / 100)}
         </p>
       ))}

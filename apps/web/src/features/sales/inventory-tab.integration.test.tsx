@@ -217,6 +217,47 @@ describe("aba Estoque de Vendas de produtos (QM9)", () => {
     ).toBeInTheDocument();
   });
 
+  it("mostra o mesmo saldo da Nova venda e as unidades fora dos tamanhos à parte", async () => {
+    const { repository } = await setupApi();
+    // Produto com 4 unidades sem tamanho que depois ganhou tamanhos (P 3, M 10).
+    const created = await repository.createProduct(clinicId, actorId, {
+      name: "Camiseta QA",
+      sku: "CAMQA",
+      unit: "un",
+      costInCents: 2000,
+      salePriceInCents: 5000,
+      initialStock: 4,
+    });
+    const product = (await repository.updateProduct(
+      clinicId,
+      actorId,
+      created.id,
+      {
+        name: "Camiseta QA",
+        sku: "CAMQA",
+        unit: "un",
+        costInCents: 2000,
+        salePriceInCents: 5000,
+        active: true,
+        sizes: ["P", "M"],
+        sizeQuantities: [
+          { size: "P", quantity: 3 },
+          { size: "M", quantity: 10 },
+        ],
+      },
+    ))!;
+    const panel = await openInventoryTab();
+    const row = (
+      await within(panel).findByText("Camiseta QA", { exact: true })
+    ).closest<HTMLElement>("tr")!;
+    const extra = product.currentStock - 13;
+    expect(extra).toBeGreaterThan(0);
+    expect(row).toHaveTextContent("13 un");
+    expect(
+      within(row).getByText(`+ ${extra} un fora dos tamanhos`),
+    ).toBeInTheDocument();
+  });
+
   it("não oferece tamanhos próprios ao produto de categoria sem tamanhos", async () => {
     const { repository } = await setupApi();
     const category = await repository.saveClinicCatalog(

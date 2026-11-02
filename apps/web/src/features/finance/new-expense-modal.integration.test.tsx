@@ -152,4 +152,42 @@ describe("Nova despesa: pontual ou fixa no mesmo modal", () => {
     });
     expect(bodies[0]).not.toHaveProperty("costCenterId");
   });
+
+  it("suggests the active suppliers in the fixed expense and keeps a free name", async () => {
+    mount();
+    const bodies: unknown[] = [];
+    vi.mocked(fetch).mockImplementation(async (input, options) => {
+      if (options?.method === "POST") {
+        bodies.push(JSON.parse(String(options.body)));
+        return jsonResponse({ id: "rp-2" }, 201);
+      }
+      if (String(input).includes("/finance/suppliers"))
+        return jsonResponse([
+          { id: "s-1", name: "QA Fornecedor Despesa", active: true },
+          { id: "s-2", name: "Fornecedor antigo", active: false },
+        ]);
+      return jsonResponse([]);
+    });
+    fireEvent.click(
+      within(dialog()).getByRole("radio", { name: "Fixa (todo mês)" }),
+    );
+    const supplier = within(dialog()).getByLabelText("Fornecedor");
+    await vi.waitFor(() => expect(supplier).toHaveAttribute("list"));
+    const options = [
+      ...document.querySelectorAll(
+        `datalist#${CSS.escape(supplier.getAttribute("list")!)} option`,
+      ),
+    ].map((option) => option.getAttribute("value"));
+    expect(options).toEqual(["QA Fornecedor Despesa"]);
+
+    fireEvent.change(within(dialog()).getByLabelText("Descrição"), {
+      target: { value: "Faxina" },
+    });
+    fireEvent.change(supplier, { target: { value: "Diarista sem cadastro" } });
+    fireEvent.click(
+      within(dialog()).getByRole("button", { name: "Cadastrar despesa fixa" }),
+    );
+    await vi.waitFor(() => expect(bodies).toHaveLength(1));
+    expect(bodies[0]).toMatchObject({ supplier: "Diarista sem cadastro" });
+  });
 });

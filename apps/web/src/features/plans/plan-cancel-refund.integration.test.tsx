@@ -108,6 +108,8 @@ describe("plan cancellation with refund", () => {
       ),
     ).toBeInTheDocument();
 
+    // O cartão do plano cancelado não mostra sessões utilizáveis.
+    expect(screen.getByText(/sessões · plano cancelado/)).toBeInTheDocument();
     // O extrato do plano também mostra o estorno.
     fireEvent.click(screen.getByRole("button", { name: "Extrato" }));
     const statement = await screen.findByRole("dialog", {
@@ -115,6 +117,14 @@ describe("plan cancellation with refund", () => {
     });
     expect(statement).toHaveTextContent(
       /Valor estornado ao cliente: R\$\s150,00 · Dinheiro · Pix/,
+    );
+    // Plano cancelado: sem sessões utilizáveis e a data sem ponto duplo.
+    expect(statement).toHaveTextContent(
+      "Plano cancelado – sessões indisponíveis.",
+    );
+    expect(statement).not.toHaveTextContent(/sessões disponíveis no momento/);
+    expect(statement).toHaveTextContent(
+      /Plano cancelado em \d{2} de \w+\.(?!\.)/,
     );
     expect(patches).toEqual([
       {

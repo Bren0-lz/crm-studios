@@ -1,4 +1,5 @@
 import { nextTestCpf } from "../../test-support/cpf.js";
+import { sellSessionForAppointment } from "../../test-support/commission-billing.js";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { MemoryClinicRepository } from "../../memory-repository.js";
 const clinicId = "11111111-1111-4111-8111-111111111111",
@@ -20,11 +21,8 @@ describe("commission cash ledger", () => {
       [service] = await repository.listServices(clinicId);
     await repository.createCommissionRule(clinicId, {
       professionalId: professional!.id,
-      kind: "fixed",
-      fixedAmountInCents: 1500,
-      percentage: 0,
+      percentage: 10,
       effectiveFrom: "2039-01-01",
-      serviceId: service!.id,
     });
     const appointment = await repository.createAppointment(clinicId, {
       patientId: patient.id,
@@ -35,6 +33,7 @@ describe("commission cash ledger", () => {
       visitType: "regular",
       notes: "",
     });
+    await sellSessionForAppointment(repository, clinicId, actorId, appointment, 15000);
     await repository.updateAppointmentStatus(
       clinicId,
       appointment.id,
@@ -91,11 +90,8 @@ describe("commission cash ledger", () => {
       [service] = await repository.listServices(clinicId);
     await repository.createCommissionRule(clinicId, {
       professionalId: professional!.id,
-      kind: "fixed",
-      fixedAmountInCents: 1500,
-      percentage: 0,
+      percentage: 10,
       effectiveFrom: "2039-01-01",
-      serviceId: service!.id,
     });
     const appointment = await repository.createAppointment(clinicId, {
       patientId: patient.id,
@@ -106,6 +102,7 @@ describe("commission cash ledger", () => {
       visitType: "regular",
       notes: "",
     });
+    await sellSessionForAppointment(repository, clinicId, actorId, appointment, 15000);
     await repository.updateAppointmentStatus(
       clinicId,
       appointment.id,

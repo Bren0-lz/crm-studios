@@ -96,7 +96,7 @@ describe("team finance report", () => {
     const headers = {
       authorization: `Bearer ${app.jwt.sign({ sub: actorId, clinicId, role: "admin" })}`,
     };
-    // Base da comissão: a sessão do plano consumido na presença (20000 ÷ 2).
+    // Comissão sobre o valor pago pela presença (R$ 200 do plano ÷ 2 sessões), não o preço.
     const expectedCommission = Math.round(10000 * 0.1);
     let report = (await app.inject({ url, headers })).json<ManagementReport>();
     expect(report.teamFinance?.commissionMonths).toEqual(["2039-01"]);

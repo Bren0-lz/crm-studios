@@ -71,7 +71,7 @@ export function createCommissionOperationsRepository(
   )
     SELECT a.clinic_id,a.professional_id,a.appointment_id,a.group_attendance_id,a.service_id,rule.id,${commissionRuleSnapshot},$2,${base},rule.percentage,${commissionAmount(base)}
     FROM sources a JOIN services s ON s.id=a.service_id AND s.clinic_id=a.clinic_id JOIN professionals pr ON pr.id=a.professional_id AND pr.clinic_id=a.clinic_id ${commissionRuleJoin("a.clinic_id")}
-    WHERE ${localMonth("a.starts_at")}=$2 ON DUPLICATE KEY UPDATE commission_entries.id=commission_entries.id`,
+    WHERE ${localMonth("a.starts_at")}=$2 AND ${base}>0 ON DUPLICATE KEY UPDATE commission_entries.id=commission_entries.id`,
           [clinicId, competence],
         );
       });

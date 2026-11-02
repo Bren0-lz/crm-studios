@@ -1,4 +1,5 @@
 import { nextTestCpf } from "../../../../api/src/test-support/cpf.js";
+import { sellSessionForAppointment } from "../../../../api/src/test-support/commission-billing.js";
 import { createSalariedUser } from "../../../../api/src/test-support/payroll-users.js";
 import { serviceWithSinglePlan } from "../../../../api/src/test-support/single-plan-service.js";
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
@@ -41,6 +42,7 @@ describe("folha de pagamento pela API real", () => {
       startsAt: "2025-03-10T13:00:00Z",
       visitType: "regular",
     });
+    await sellSessionForAppointment(repository, clinicId, actorId, appointment);
     await repository.updateAppointmentStatus(
       clinicId,
       appointment.id,

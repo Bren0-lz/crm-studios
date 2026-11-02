@@ -83,7 +83,6 @@ export interface DreReport {
 }
 import {
   adminUserCommissionInputSchema,
-  adminUserServiceCommissionInputSchema,
   commissionRuleInputSchema,
   costCenterInputSchema,
   dailyCashFilterSchema,
@@ -109,19 +108,15 @@ export type AdminUserCommissionInput = z.infer<
   typeof adminUserCommissionInputSchema
 >;
 
-export type AdminUserServiceCommissionInput = z.infer<
-  typeof adminUserServiceCommissionInputSchema
->;
-
-/** Regra de serviço gravada (vigente ou agendada), como a lista de usuários devolve. */
-export interface AdminUserServiceCommission {
-  serviceId: string;
-  serviceName: string;
-  kind: "percentage" | "fixed";
-  percentage: number;
+/**
+ * Cópia da regra gravada no lançamento de comissão. Lançamentos antigos podem trazer a regra por
+ * serviço ou de valor fixo, que não existem mais: `kind`, `fixedAmountInCents` e `serviceId` só
+ * aparecem neles (histórico).
+ */
+export interface CommissionRuleSnapshot extends AdminUserCommissionInput {
+  kind?: "percentage" | "fixed";
   fixedAmountInCents?: number;
-  effectiveFrom: string;
-  effectiveUntil?: string;
+  serviceId?: string;
 }
 
 export type ProductInput = z.infer<typeof productInputSchema>;
@@ -358,6 +353,8 @@ export interface Receivable {
   description: string;
   installmentNumber: number;
   installmentCount: number;
+  /** Saldo de baixa parcial: número da parcela de origem (exibido no lugar do próprio). */
+  balanceOfInstallment?: number;
   dueDate: string;
   amountInCents: number;
   status: ReceivableStatus;
@@ -501,7 +498,11 @@ export interface ReceivableRenegotiation {
   createdAt: string;
 }
 
-export interface CommissionRule extends CommissionRuleInput {
+/** Regra gravada; `kind`/`fixedAmountInCents`/`serviceId` só nas regras antigas (desativadas). */
+export interface CommissionRule
+  extends
+    CommissionRuleInput,
+    Pick<CommissionRuleSnapshot, "kind" | "fixedAmountInCents" | "serviceId"> {
   id: string;
   clinicId: string;
   professionalName: string;
@@ -514,7 +515,7 @@ export interface CommissionEntry {
   sourceType?: "appointment" | "group_attendance";
   ruleId?: string;
   serviceId?: string;
-  ruleSnapshot?: AdminUserCommissionInput;
+  ruleSnapshot?: CommissionRuleSnapshot;
   id: string;
   clinicId: string;
   professionalId: string;

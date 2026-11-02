@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { AdminUserCommissionInput } from "./types.js";
+import type { CommissionRuleSnapshot } from "./types.js";
 import type { CommissionEntry } from "./types.js";
 export const commissionReconciliationInputSchema = z.object({
   expectedDigest: z.string().regex(/^[a-f0-9]{64}$/),
@@ -17,7 +17,7 @@ export interface CommissionExpectation {
   baseAmountInCents: number;
   serviceId: string;
   ruleId: string;
-  ruleSnapshot: AdminUserCommissionInput;
+  ruleSnapshot: CommissionRuleSnapshot;
 }
 export interface CommissionAdjustment {
   id: string;

@@ -363,11 +363,16 @@ export function createPlansRepository(
       >(
         `SELECT ${patientPlanColumns},
          (SELECT CASE WHEN count(*) = 0 THEN NULL ELSE JSON_OBJECT(
-             'installmentCount', count(*),
-             'paidCount', CAST(SUM(r.status = 'paid') AS SIGNED),
-             'openCount', CAST(SUM(r.status = 'open') AS SIGNED),
-             'overdueCount', CAST(SUM(r.status = 'open'
-               AND r.due_date < ${localToday()}) AS SIGNED),
+             -- O saldo de baixa parcial conta junto da parcela de origem.
+             'installmentCount', count(DISTINCT coalesce(r.balance_of_installment, r.installment_number)),
+             'paidCount', count(DISTINCT coalesce(r.balance_of_installment, r.installment_number))
+               - count(DISTINCT CASE WHEN r.status = 'open'
+                   THEN coalesce(r.balance_of_installment, r.installment_number) END),
+             'openCount', count(DISTINCT CASE WHEN r.status = 'open'
+               THEN coalesce(r.balance_of_installment, r.installment_number) END),
+             'overdueCount', count(DISTINCT CASE WHEN r.status = 'open'
+               AND r.due_date < ${localToday()}
+               THEN coalesce(r.balance_of_installment, r.installment_number) END),
              'paidInCents', CAST(coalesce(SUM(CASE WHEN r.status = 'paid' THEN r.amount_in_cents END), 0) AS SIGNED),
              'openInCents', CAST(coalesce(SUM(CASE WHEN r.status = 'open' THEN r.amount_in_cents END), 0) AS SIGNED)
            ) END

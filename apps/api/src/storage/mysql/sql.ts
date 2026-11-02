@@ -162,27 +162,29 @@ export async function writeAndRead<T>(
 }
 
 /**
- * Regra de comissão vigente para a origem `a` (professional_id, service_id, starts_at) com
- * o profissional `pr`: regra do usuário antes da do profissional, por serviço antes da
- * geral, a de início mais recente. `JOIN` com alias `rule` (no Postgres, `JOIN LATERAL`).
+ * Regra de comissão vigente para a origem `a` (professional_id, starts_at) com o profissional
+ * `pr`: regra do usuário antes da do profissional, a de início mais recente. Só a comissão
+ * geral: regras antigas por serviço ou de valor fixo não valem mais. `JOIN` com alias `rule`.
  */
 export const commissionRuleJoin = (clinicExpression: string) =>
   `JOIN commission_rules rule ON rule.id = (SELECT cr.id FROM commission_rules cr
     WHERE cr.clinic_id=${clinicExpression}
       AND (cr.professional_id=a.professional_id OR (pr.user_id IS NOT NULL AND cr.user_id=pr.user_id))
-      AND cr.active AND (cr.service_id IS NULL OR cr.service_id=a.service_id)
+      AND cr.active AND cr.service_id IS NULL AND cr.kind<>'fixed'
       AND cr.effective_from<=${localDate("a.starts_at")}
       AND (cr.effective_until IS NULL OR cr.effective_until>=${localDate("a.starts_at")})
-    ORDER BY (cr.user_id IS NOT NULL) DESC,(cr.service_id IS NOT NULL) DESC,cr.effective_from DESC LIMIT 1)`;
+    ORDER BY (cr.user_id IS NOT NULL) DESC,cr.effective_from DESC LIMIT 1)`;
 
 /** Cópia da regra aplicada, gravada no lançamento de comissão. */
-export const commissionRuleSnapshot = `JSON_OBJECT('percentage',rule.percentage,'kind',rule.kind,'fixedAmountInCents',rule.fixed_amount_in_cents,'serviceId',rule.service_id,'effectiveFrom',rule.effective_from,'effectiveUntil',rule.effective_until)`;
+export const commissionRuleSnapshot = `JSON_OBJECT('percentage',rule.percentage,'effectiveFrom',rule.effective_from,'effectiveUntil',rule.effective_until)`;
 
 /**
- * Base da comissão percentual (o preço de tabela do serviço não entra): o valor por sessão do serviço no
- * plano consumido pelo atendimento/presença; sem consumo de plano, o valor por sessão do
- * plano avulso ativo do serviço (o cadastrado primeiro); sem nenhum, 0. Mesma regra de
- * `commissionBaseInCents` (memória) e `singlePlanSessionPrices` (contratos).
+ * Base da comissão: o valor que o cliente pagou pelo atendimento/presença. Sessão consumida
+ * de um plano (inclusive plano avulso; sessão estornada não conta) → valor do serviço no plano
+ * com o desconto do cliente das cobranças, dividido pelas sessões (arredondado, meio para
+ * cima); sem consumo de plano → NULL (não gera comissão; o preço de tabela e o plano avulso
+ * só cadastrado não entram). Mesma regra de `commissionBaseInCents` (memória) e
+ * `planSessionPaidValueInCents` (contratos).
  */
 export function commissionBase(source: {
   clinic: string;
@@ -190,16 +192,18 @@ export function commissionBase(source: {
   attendanceId: string;
   serviceId: string;
 }) {
-  return `COALESCE((SELECT CAST(ROUND(pps.total_value_in_cents/pps.total_sessions) AS SIGNED) FROM session_movements sm JOIN patient_plan_services pps ON pps.clinic_id=sm.clinic_id AND pps.plan_id=sm.plan_id AND pps.service_id=COALESCE(sm.service_id,${source.serviceId})
-      WHERE sm.clinic_id=${source.clinic} AND sm.kind='consumption' AND (sm.appointment_id=${source.appointmentId} OR sm.group_attendance_id=${source.attendanceId}) AND pps.total_sessions>0
-      ORDER BY sm.created_at,sm.id LIMIT 1),
-    (SELECT CAST(ROUND(pts.total_value_in_cents/pts.total_sessions) AS SIGNED) FROM plan_template_services pts JOIN plan_templates pt ON pt.id=pts.template_id AND pt.clinic_id=pts.clinic_id
-      WHERE pts.clinic_id=${source.clinic} AND pts.service_id=${source.serviceId} AND pt.active AND pts.total_sessions>0 AND (pt.plan_type='single' OR (pt.plan_type IS NULL AND pt.kind='single'))
-      ORDER BY pt.created_at,pt.id LIMIT 1),
-    0)`;
+  return `(SELECT COALESCE(CAST((2*pps.total_value_in_cents*GREATEST(pp.total_value_in_cents-COALESCE((SELECT SUM(r.customer_discount_in_cents) FROM receivables r WHERE r.clinic_id=pp.clinic_id AND r.plan_id=pp.id AND r.status<>'cancelled'),0),0)+pp.total_value_in_cents*pps.total_sessions) DIV NULLIF(2*pp.total_value_in_cents*pps.total_sessions,0) AS SIGNED),0)
+      FROM session_movements sm
+      JOIN patient_plans pp ON pp.id=sm.plan_id AND pp.clinic_id=sm.clinic_id
+      JOIN patient_plan_services pps ON pps.clinic_id=pp.clinic_id AND pps.plan_id=pp.id AND pps.service_id=COALESCE(sm.service_id,${source.serviceId})
+      WHERE sm.clinic_id=${source.clinic} AND sm.kind='consumption'
+        AND (sm.appointment_id=${source.appointmentId} OR sm.group_attendance_id=${source.attendanceId})
+        AND NOT EXISTS (SELECT 1 FROM session_movements rv WHERE rv.clinic_id=sm.clinic_id AND rv.plan_id=sm.plan_id AND rv.kind='reversal'
+          AND (rv.appointment_id=${source.appointmentId} OR rv.group_attendance_id=${source.attendanceId}))
+      ORDER BY sm.created_at,sm.id LIMIT 1)`;
 }
 
-/** Valor da comissão: fixo ou percentual arredondado da base (`commissionBase`). */
+/** Valor da comissão: percentual da regra sobre a base (`commissionBase`), arredondado. */
 export function commissionAmount(base: string) {
-  return `CASE WHEN rule.kind='fixed' THEN rule.fixed_amount_in_cents ELSE CAST(ROUND(${base}*rule.percentage/100) AS SIGNED) END`;
+  return `CAST(ROUND(${base}*rule.percentage/100) AS SIGNED)`;
 }

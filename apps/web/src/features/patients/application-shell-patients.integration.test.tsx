@@ -363,6 +363,13 @@ describe("application shell", () => {
         title: "Avaliação de satisfação",
         score: 9,
       },
+      {
+        id: "patient_updated:5",
+        kind: "patient_updated",
+        occurredAt: "2026-09-01T13:00:00.000Z",
+        title: "Cadastro editado por Aryana Dutra",
+        detail: "Apelido: (vazio) → Tres QA · Motivo: Pedido da cliente",
+      },
     ];
     vi.mocked(fetch).mockImplementation(async (input) => {
       const body = String(input).includes("/timeline") ? timeline : [patient];
@@ -406,6 +413,19 @@ describe("application shell", () => {
     ).not.toBeInTheDocument();
     expect(
       within(history).queryByText("Avaliação de satisfação"),
+    ).not.toBeInTheDocument();
+    // Edições do cadastro também ficam no histórico da ficha, com filtro próprio.
+    fireEvent.click(within(history).getByRole("button", { name: "Cadastro" }));
+    expect(
+      within(history).getByText("Cadastro editado por Aryana Dutra"),
+    ).toBeInTheDocument();
+    expect(
+      within(history).getByText(
+        "Apelido: (vazio) → Tres QA · Motivo: Pedido da cliente",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      within(history).queryByText("Pagamento recebido"),
     ).not.toBeInTheDocument();
     fireEvent.click(within(history).getByRole("button", { name: "Todos" }));
     expect(

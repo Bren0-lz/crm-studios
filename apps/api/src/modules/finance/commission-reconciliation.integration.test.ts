@@ -1,4 +1,5 @@
 import { nextTestCpf } from "../../test-support/cpf.js";
+import { sellSessionForAppointment } from "../../test-support/commission-billing.js";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { randomUUID } from "node:crypto";
 import {
@@ -25,11 +26,8 @@ async function setup() {
     [service] = await repository.listServices(clinicId);
   await repository.createCommissionRule(clinicId, {
     professionalId: professional!.id,
-    kind: "fixed",
-    fixedAmountInCents: 1500,
-    percentage: 0,
+    percentage: 10,
     effectiveFrom: "2039-01-01",
-    serviceId: service!.id,
   });
   const appointment = await repository.createAppointment(clinicId, {
     patientId: patient.id,
@@ -40,6 +38,7 @@ async function setup() {
     visitType: "regular",
     notes: "",
   });
+  await sellSessionForAppointment(repository, clinicId, actorId, appointment, 15000);
   await repository.updateAppointmentStatus(
     clinicId,
     appointment.id,
