@@ -111,18 +111,31 @@ describe("plano picado", () => {
     ]);
   });
 
-  it("reparte a 1ª cobrança proporcional entre as formas", () => {
+  it("reparte a cobrança proporcional entre as formas, antes das cheias", () => {
     const schedule = planInstallmentSchedule({
       totalValueInCents: 20_000,
       installments: 2,
       firstDueDate: "2026-11-10",
-      firstInstallmentInCents: 10_000,
+      validFrom: "2026-11-01",
+      proratedChargeInCents: 10_000,
       paymentParts: [
         { paymentMethod: "pix", amountInCents: 5_000, installments: 1 },
         { paymentMethod: "card", amountInCents: 15_000, installments: 1 },
       ],
     });
-    expect(schedule.map((item) => item.amountInCents)).toEqual([2_500, 7_500]);
+    expect(
+      schedule.map((item) => [
+        item.installmentNumber,
+        item.dueDate,
+        item.amountInCents,
+        item.paymentMethod,
+      ]),
+    ).toEqual([
+      [1, "2026-11-01", 2_500, "pix"],
+      [2, "2026-11-01", 7_500, "card"],
+      [3, "2026-11-10", 5_000, "pix"],
+      [4, "2026-11-10", 15_000, "card"],
+    ]);
   });
 
   it("deriva forma e parcelas e cobra uma por forma no recorrente", () => {

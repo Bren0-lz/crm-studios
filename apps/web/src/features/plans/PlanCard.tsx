@@ -2,6 +2,8 @@ import {
   type PatientPlan,
   paymentMethodLabels,
   planDisplayStatus,
+  planHasSessionBalance,
+  planUsedSessions,
 } from "@crm/contracts";
 import type { ReactNode } from "react";
 import { currency, shortDate } from "../../shared/lib/formatting";
@@ -34,8 +36,10 @@ export function PlanCard({
   actions?: ReactNode;
 }) {
   const cancelled = plan.status === "cancelled";
-  const used = plan.totalSessions - plan.remainingSessions;
+  const used = planUsedSessions(plan);
   const percent = Math.min(100, Math.round((used / plan.totalSessions) * 100));
+  // Recorrente: vale a frequência semanal; mostra as aulas feitas no ciclo, sem saldo.
+  const hasBalance = planHasSessionBalance(plan);
   return (
     <article className="plan-card">
       <div className="plan-card-head">
@@ -47,23 +51,41 @@ export function PlanCard({
       <h3>{title}</h3>
       {subtitle && <p>{subtitle}</p>}
       {/* Plano cancelado não tem sessão utilizável, mesmo com saldo gravado. */}
-      <div className="balance-line">
-        <strong>{cancelled ? 0 : plan.remainingSessions}</strong>
-        <span>
-          de {plan.totalSessions} sessões{" "}
-          {cancelled ? "· plano cancelado" : "restantes"}
-        </span>
-      </div>
+      {cancelled ? (
+        <div className="balance-line">
+          <strong>0</strong>
+          <span>de {plan.totalSessions} sessões · plano cancelado</span>
+        </div>
+      ) : hasBalance ? (
+        <div className="balance-line">
+          <strong>{plan.remainingSessions}</strong>
+          <span>de {plan.totalSessions} sessões restantes</span>
+        </div>
+      ) : (
+        <div className="balance-line">
+          <strong>{used}</strong>
+          <span>
+            {used === 1 ? "aula feita" : "aulas feitas"} neste ciclo · plano
+            prevê {plan.totalSessions}
+          </span>
+        </div>
+      )}
       {plan.services.map((entry) => (
         <p key={entry.serviceId}>
-          {entry.serviceName}: {cancelled ? 0 : entry.remainingSessions} de{" "}
-          {entry.totalSessions} sessões ·{" "}
-          {currency.format(entry.totalValueInCents / 100)}
+          {entry.serviceName}:{" "}
+          {cancelled
+            ? `0 de ${entry.totalSessions} sessões`
+            : hasBalance
+              ? `${entry.remainingSessions} de ${entry.totalSessions} sessões`
+              : `${planUsedSessions(entry)} de ${entry.totalSessions} aulas previstas`}{" "}
+          · {currency.format(entry.totalValueInCents / 100)}
         </p>
       ))}
-      <div className="progress-track">
-        <span style={{ width: `${percent}%` }} />
-      </div>
+      {hasBalance && (
+        <div className="progress-track">
+          <span style={{ width: `${percent}%` }} />
+        </div>
+      )}
       <div className="plan-meta">
         <span>Validade</span>
         <strong>

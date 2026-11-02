@@ -1,4 +1,7 @@
-import { starterAssessmentTemplates } from "@crm/contracts";
+import {
+  planHasSessionBalance,
+  starterAssessmentTemplates,
+} from "@crm/contracts";
 import type { ExternalOperation, PaymentProof } from "@crm/contracts";
 import type {
   StoredMessageTemplate,
@@ -94,6 +97,7 @@ import {
   type PlanCatalogEntry,
   discountedPlanInstallments,
   hasManualFirstCharge,
+  planProratedChargeCount,
   planInstallmentSchedule,
   withPlanPaymentParts,
   type PlanTemplate,
@@ -1897,8 +1901,11 @@ export class MemoryRepositoryContext {
     delete plan.orderDiscountInCents;
     delete plan.manualFirstCharge;
     if (discounted.discount) plan.discount = discounted.discount;
+    const manualCharges = hasManualFirstCharge(input)
+      ? planProratedChargeCount(input)
+      : 0;
     const installments: Receivable[] = discounted.installments.map(
-      (installment) => ({
+      (installment, index) => ({
         id: uuid(),
         clinicId,
         branchId,
@@ -1932,11 +1939,8 @@ export class MemoryRepositoryContext {
         ...(installment.customerDiscountInCents
           ? { customerDiscountInCents: installment.customerDiscountInCents }
           : {}),
-        // 1º pagamento com o valor informado à mão (as cobranças do 1º vencimento).
-        ...(hasManualFirstCharge(input) &&
-        installment.dueDate === input.firstDueDate
-          ? { manualAmount: true as const }
-          : {}),
+        // Cobrança proporcional com o valor informado à mão (as primeiras, uma por forma).
+        ...(index < manualCharges ? { manualAmount: true as const } : {}),
         status: "open",
         overdue: false,
         createdAt: timestamp,
@@ -2249,7 +2253,8 @@ export class MemoryRepositoryContext {
     const planService = plan.services.find(
       (item) => item.serviceId === appointment.serviceId,
     )!;
-    if (planService.remainingSessions < 1) {
+    // Recorrente: a frequência semanal vale; o ciclo com mais aulas que o saldo nominal passa.
+    if (planService.remainingSessions < 1 && planHasSessionBalance(plan)) {
       throw new DomainError(
         "NO_SESSION_BALANCE",
         "O cliente não possui saldo de sessões para este serviço.",

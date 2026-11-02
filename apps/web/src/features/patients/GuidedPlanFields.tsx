@@ -348,7 +348,7 @@ export function GuidedPlanFields<T extends GuidedSingleForm>({
                         groupSlots,
                       );
                       return {
-                        firstChargeInCents: terms.firstInstallmentInCents,
+                        firstChargeInCents: terms.proratedChargeInCents,
                         manualFirstCharge: terms.manualFirstCharge,
                       };
                     })()

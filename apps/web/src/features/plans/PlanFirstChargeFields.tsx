@@ -1,5 +1,6 @@
 import {
   type PatientPlan,
+  planAllowsProratedCharge,
   planInstallmentSchedule,
   withPlanFirstCharge,
 } from "@crm/contracts";
@@ -18,9 +19,10 @@ type Plan = Parameters<typeof planInstallmentSchedule>[0] &
   };
 
 /**
- * 1º pagamento do plano recorrente: por padrão proporcional às aulas da turma até o
- * vencimento (`PlanFirstChargeNote`); desligado, o valor é informado à mão e a cobrança fica
- * marcada como "valor manual" no Financeiro e nos relatórios.
+ * 1º pagamento do plano recorrente que começa antes do vencimento: por padrão a cobrança
+ * proporcional às aulas da turma (`PlanFirstChargeNote`); desligado, o valor é informado à
+ * mão (cobrado no início do plano) e fica marcado como "valor manual" no Financeiro e nos
+ * relatórios.
  */
 export function PlanFirstChargeFields({
   plan,
@@ -34,19 +36,12 @@ export function PlanFirstChargeFields({
   disabled?: boolean | undefined;
   onChange: (choice: PlanFirstChargeChoice) => void;
 }) {
-  if (plan.kind !== "recurring") return null;
+  if (!planAllowsProratedCharge(plan)) return null;
   const manual = Boolean(plan.manualFirstCharge);
-  // Ao desligar, começa do valor que seria cobrado (proporcional ou a divisão normal).
-  const calculatedFirstCharge = () => {
-    const terms = withPlanFirstCharge(
-      withFirstChargeChoice(plan, { manual: false }),
-      slots,
-    );
-    if (!terms.firstDueDate || terms.totalValueInCents <= 0) return undefined;
-    return planInstallmentSchedule(terms)
-      .filter((item) => item.dueDate === terms.firstDueDate)
-      .reduce((sum, item) => sum + item.amountInCents, 0);
-  };
+  // Ao desligar, começa do valor proporcional calculado (sem turma, fica em branco).
+  const calculatedFirstCharge = () =>
+    withPlanFirstCharge(withFirstChargeChoice(plan, { manual: false }), slots)
+      .proratedChargeInCents;
   return (
     <>
       <label className="checkbox-field span-2">
@@ -71,16 +66,16 @@ export function PlanFirstChargeFields({
             <MoneyInput
               required
               disabled={disabled}
-              valueInCents={plan.firstInstallmentInCents ?? null}
+              valueInCents={plan.proratedChargeInCents ?? null}
               onChange={(cents) =>
                 onChange({ manual: true, amountInCents: cents ?? undefined })
               }
             />
           </label>
           <p className="span-2 muted-copy plan-installments-note">
-            Valor informado manualmente, sem o cálculo proporcional. As
-            cobranças seguintes têm o valor cheio. No Financeiro e nos
-            relatórios, a cobrança aparece como valor manual.
+            Valor informado manualmente, sem o cálculo proporcional, cobrado
+            no início do plano. As mensalidades têm o valor cheio. No
+            Financeiro e nos relatórios, a cobrança aparece como valor manual.
           </p>
         </>
       ) : (

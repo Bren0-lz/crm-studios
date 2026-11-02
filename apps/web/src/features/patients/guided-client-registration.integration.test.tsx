@@ -871,7 +871,7 @@ describe("guided client registration", () => {
     ).not.toHaveProperty("groupId");
   });
 
-  it("prorates the first charge of a recurring plan by the classes until the due date", async () => {
+  it("charges the classes before the first due date of a recurring plan at the start", async () => {
     const posts = mockApi((body) =>
       jsonResponse(
         {
@@ -907,15 +907,18 @@ describe("guided client registration", () => {
       target: { value: "2026-10-15" },
     });
     expect(
-      within(dialog).getByText(/^Escolha a turma para calcular o 1º pagamento/),
+      within(dialog).getByText(
+        /^Escolha a turma para calcular a cobrança proporcional/,
+      ),
     ).toBeInTheDocument();
-    // Pilates 1 é às segundas: 4 aulas em outubro, 2 delas até o dia 15.
+    // Pilates 1 é às segundas: 4 aulas no ciclo de 15/09 a 14/10 (21 e 28/09, 5 e 12/10),
+    // 2 delas de 01/10 a 14/10. Pré-pago: 2/4 no início e a mensalidade cheia em 15/10.
     fireEvent.change(await within(dialog).findByLabelText("Turma"), {
       target: { value: groups[0]!.id },
     });
-    const note = within(dialog).getByText(/^1º pagamento proporcional/);
+    const note = within(dialog).getByText(/^Cobrança proporcional/);
     expect(note).toHaveTextContent(
-      /R\$\s240,00 \(2 aulas da turma até 15\/10\/2026, de 4 aulas no ciclo até 31\/10\/2026\)/,
+      /R\$\s240,00 em 01\/10\/2026 \(2 aulas da turma de 01\/10\/2026 a 14\/10\/2026, de 4 aulas no ciclo de 15\/09\/2026 a 14\/10\/2026\)\. A partir de 15\/10\/2026, R\$\s480,00 por mês\./,
     );
     fireEvent.click(
       within(dialog).getByRole("button", { name: "Salvar e criar plano" }),
@@ -929,7 +932,7 @@ describe("guided client registration", () => {
         installments: 1,
         totalValueInCents: 48000,
         firstDueDate: "2026-10-15",
-        firstInstallmentInCents: 24000,
+        proratedChargeInCents: 24000,
       },
     });
     expect(posts[0]!.plan).not.toHaveProperty("manualFirstCharge");
@@ -979,7 +982,7 @@ describe("guided client registration", () => {
     expect(toggle).toBeChecked();
     fireEvent.click(toggle);
     expect(
-      within(dialog).queryByText(/^1º pagamento proporcional/),
+      within(dialog).queryByText(/^Cobrança proporcional/),
     ).not.toBeInTheDocument();
     // Começa do valor que seria cobrado (o proporcional) e aceita outro.
     const amount = within(dialog).getByLabelText("Valor do 1º pagamento (R$)");
@@ -999,7 +1002,7 @@ describe("guided client registration", () => {
         kind: "recurring",
         totalValueInCents: 48000,
         manualFirstCharge: true,
-        firstInstallmentInCents: 31500,
+        proratedChargeInCents: 31500,
       },
     });
   });
