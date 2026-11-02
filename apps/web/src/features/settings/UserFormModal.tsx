@@ -1,6 +1,4 @@
 import { UserAgendaFields } from "./UserAgendaFields";
-import { UserServiceCommissionFields } from "./UserServiceCommissionFields";
-import { useServiceCommissions } from "./useServiceCommissions";
 import { useUserAgenda } from "./useUserAgenda";
 import { CommissionRecalculationNotice } from "../finance/index";
 import {
@@ -75,7 +73,6 @@ export function UserFormModal({
   );
   const [salary, setSalary] = useState(user?.salaryInCents ?? 0);
   const agenda = useUserAgenda(user, users, fullName);
-  const serviceCommissions = useServiceCommissions(user);
   // Filiais: só aparecem quando a rede tem mais de uma (admin sempre acessa todas).
   const [branches, setBranches] = useState<Branch[]>([]);
   const [allBranches, setAllBranches] = useState(user?.allBranches ?? true);
@@ -104,7 +101,6 @@ export function UserFormModal({
     effectiveFrom,
     receivesSalary,
     salary,
-    serviceCommissions: serviceCommissions.rows,
     agenda: {
       attends: agenda.attends,
       mode: agenda.mode,
@@ -174,7 +170,6 @@ export function UserFormModal({
       : []),
     ...(commissionChanged && !effectiveFrom ? ["Vale a partir de"] : []),
     ...(receivesSalary && salary <= 0 ? ["Salário mensal"] : []),
-    ...serviceCommissions.missing,
   ]);
 
   const commission =
@@ -182,10 +177,9 @@ export function UserFormModal({
       ? { percentage: typedPercentage, effectiveFrom }
       : undefined;
   // Regras que o salvamento grava; a prévia do recálculo vale só para estas.
-  const commissionRules: AdminUserCommissionInput[] = [
-    ...(commission ? [commission] : []),
-    ...serviceCommissions.payload,
-  ];
+  const commissionRules: AdminUserCommissionInput[] = commission
+    ? [commission]
+    : [];
   const recalculationKey = JSON.stringify(commissionRules);
   const confirmedRecalculation =
     recalculation?.key === recalculationKey ? recalculation.data : null;
@@ -209,7 +203,6 @@ export function UserFormModal({
     if (saving) return;
     const invalid =
       commissionError() ||
-      serviceCommissions.validate() ||
       (whatsapp && whatsapp.length < 10
         ? "Informe o WhatsApp com DDD, por exemplo (11) 99999-9999."
         : "") ||
@@ -241,9 +234,6 @@ export function UserFormModal({
       nextSalary !== (current?.salaryInCents ?? null)
         ? { salaryInCents: nextSalary }
         : {};
-    const services = serviceCommissions.payload.length
-      ? { serviceCommissions: serviceCommissions.payload }
-      : {};
     let latest: AdminUser;
     try {
       // Regra com início até hoje recalcula as comissões já lançadas: mostra antes o que muda.
@@ -280,7 +270,6 @@ export function UserFormModal({
               : {}),
             ...salaryInput,
             ...(commission ? { commission } : {}),
-            ...services,
             ...(agenda.operation ? { professional: agenda.operation } : {}),
             ...(digest ? { recalculationDigest: digest } : {}),
           })
@@ -295,7 +284,6 @@ export function UserFormModal({
             ...(dashboardAccess ? { dashboardAccess } : {}),
             ...salaryInput,
             ...(commission ? { commission } : {}),
-            ...services,
             ...(agenda.operation ? { professional: agenda.operation } : {}),
           });
       onSaved(latest);
@@ -537,8 +525,8 @@ export function UserFormModal({
             </div>
             <p className="muted-copy">
               {current?.commissionPercentage !== undefined
-                ? `Vigente hoje: ${percentageLabel.format(current.commissionPercentage)}%${current.commissionEffectiveFrom ? ` desde ${isoDateLabel(current.commissionEffectiveFrom)}` : ""}. Um percentual ou data novos criam uma nova vigência; o histórico é mantido.`
-                : "Percentual sobre os atendimentos desta pessoa. Deixe em branco se ela não recebe comissão."}
+                ? `Vigente hoje: ${percentageLabel.format(current.commissionPercentage)}%${current.commissionEffectiveFrom ? ` desde ${isoDateLabel(current.commissionEffectiveFrom)}` : ""}, sobre o valor pago pelo cliente. Um percentual ou data novos criam uma nova vigência; o histórico é mantido.`
+                : "Percentual sobre o valor que o cliente pagou em cada atendimento desta pessoa (comanda ou sessão do plano, já com desconto). Atendimento sem cobrança não gera comissão. Deixe em branco se ela não recebe comissão."}
             </p>
             {sameStart && (
               <p className="muted-copy" role="status">
@@ -554,7 +542,6 @@ export function UserFormModal({
             )}
           </div>
         </fieldset>
-        <UserServiceCommissionFields commissions={serviceCommissions} />
         {confirmedRecalculation && (
           <CommissionRecalculationNotice preview={confirmedRecalculation} />
         )}

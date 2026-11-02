@@ -257,7 +257,7 @@ export function CommissionReconciliationModal({
                         {record.expected.competence} ·{" "}
                         {record.expected.ruleSnapshot.kind === "fixed"
                           ? `Fixa: ${currency.format((record.expected.ruleSnapshot.fixedAmountInCents ?? 0) / 100)}`
-                          : `${record.expected.ruleSnapshot.percentage}% da tabela ${currency.format(record.expected.baseAmountInCents / 100)}`}{" "}
+                          : `${record.expected.ruleSnapshot.percentage}% do valor pago ${currency.format(record.expected.baseAmountInCents / 100)}`}{" "}
                         · {currency.format(record.expected.amountInCents / 100)}
                       </p>
                     ) : (

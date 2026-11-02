@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { sellSessionForAppointment } from "./commission-billing.js";
 import type { PayrollLine, PayrollSummary } from "@crm/contracts";
 import { describe, expect, it } from "vitest";
 import type { ClinicRepository } from "../repository.js";
@@ -57,6 +58,7 @@ async function scenario(repo: ClinicRepository, days: string[]) {
       visitType: "regular",
       notes: "",
     });
+    await sellSessionForAppointment(repo, clinic, actor, appointment);
     await repo.updateAppointmentStatus(clinic, appointment.id, "completed");
     return (await repo.generateCommissions(clinic, competence)).find(
       (item) => item.appointmentId === appointment.id,
