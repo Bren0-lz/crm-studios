@@ -4,6 +4,7 @@ import {
   type PatientImportFileInput,
   type PatientImportResult,
   formatPhone,
+  MISSING_CPF_TAG,
 } from "@crm/contracts";
 import { Download, FileDown } from "lucide-react";
 import { useState } from "react";
@@ -104,6 +105,10 @@ export function PatientImportModal({
   }
 
   const validCount = analysis?.totals.valid ?? 0;
+  // B6-05: linhas válidas sem CPF entram com a etiqueta automática "Falta CPF".
+  const withoutCpfCount =
+    analysis?.rows.filter((row) => row.status === "valid" && !row.input?.cpf)
+      .length ?? 0;
   // Sem planilha, Importar fica desativado dizendo o que falta; sem linhas válidas, a prévia explica.
   const missing = useMissingFields(
     file || analysis ? [] : ["Planilha de clientes"],
@@ -138,8 +143,10 @@ export function PatientImportModal({
             <span className="field-hint" id="patient-import-hint">
               A primeira linha deve ter os títulos das colunas. Depois de
               enviar, escolha a que dado do sistema corresponde cada coluna
-              (nome, CPF e telefone são obrigatórios). Datas em dd/mm/aaaa e
-              etiquetas separadas por vírgula. Até 2 MB.
+              (nome e telefone são obrigatórios). Quem vier sem CPF recebe a
+              etiqueta “{MISSING_CPF_TAG}”, que sai sozinha quando o CPF for
+              preenchido. Datas em dd/mm/aaaa e etiquetas separadas por
+              vírgula. Até 2 MB.
             </span>
           </div>
           <a
@@ -229,6 +236,9 @@ export function PatientImportModal({
                   "duplicados",
                 )}
               </span>
+              {withoutCpfCount > 0 && (
+                <span className="status-pill">{`${withoutCpfCount} sem CPF`}</span>
+              )}
             </div>
             {analysis.rows.length > 0 && (
               <div className="patient-import-table">
@@ -254,7 +264,9 @@ export function PatientImportModal({
                         ? (row.errors ?? []).join(" ")
                         : row.duplicateOf
                           ? describeImportDuplicate(row.duplicateOf)
-                          : "Pronta para importar"}
+                          : row.input?.cpf
+                            ? "Pronta para importar"
+                            : `Pronta para importar · sem CPF (etiqueta “${MISSING_CPF_TAG}”)`}
                     </small>
                   </div>
                 ))}

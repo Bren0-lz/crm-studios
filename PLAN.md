@@ -267,7 +267,9 @@ destaque no lugar sem perguntar. Os divisores neutros de 1px entre colunas (ex.:
 Origem: decisão do estúdio na reunião de 02/11/2026 (item B6-05). A planilha do estúdio e o
 sistema anterior não têm CPF; hoje a importação recusa a linha ("CPF é obrigatório.") e a base
 não entra. Regra do estúdio: **"se subir planilha não precisa, mas pra cadastrar manualmente
-precisa"**. IDs com prefixo `CP`. Ordem: CP1 → CP2 → CP3 → CP4 → CP5 → CP6. Arquivos quentes:
+precisa"**. IDs com prefixo `CP`. Ordem: CP1 → CP2 → CP3 → CP4 → CP5 → CP6. CP1 e CP2 saíram num commit
+só: a etiqueta calculada nos contratos muda a resposta da API na hora, e o gate não fecha com
+uma sem a outra. Arquivos quentes:
 nenhum (patients não está na lista do `CLAUDE.md`). **Sem migração** (ver "Banco").
 
 ### Mapa no código (triagem de 02/11/2026)
@@ -361,7 +363,7 @@ nenhum (patients não está na lista do `CLAUDE.md`). **Sem migração** (ver "B
 - **Testes:** `contracts.unit.test.ts` (schema de importação com/sem/inválido; `needsCpf` com
   mesclado; etiqueta entra e sai; `isAutomaticPatientTag("falta cpf")`).
 - **Gate:** gate completo
-- **Status:** TODO
+- **Status:** DONE
 
 ### CP2 — API: importar sem CPF e aplicar a etiqueta
 
@@ -385,7 +387,7 @@ nenhum (patients não está na lista do `CLAUDE.md`). **Sem migração** (ver "B
   clínica (prova o `NULL` × chave única), busca por nome/telefone/CPF, `cpf` nulo no banco.
 - **Gate:** gate completo + `npm run test:mysql` (com `TEST_DATABASE_URL`)
 - **Depende de:** CP1
-- **Status:** TODO
+- **Status:** DONE
 
 ### CP3 — API: editar cliente sem CPF
 
@@ -400,7 +402,7 @@ nenhum (patients não está na lista do `CLAUDE.md`). **Sem migração** (ver "B
   apagar recusado, duplicado → 409).
 - **Gate:** gate completo + `npm run test:mysql`
 - **Depende de:** CP2
-- **Status:** TODO
+- **Status:** DONE
 
 ### CP4 — Web: importação, edição e etiqueta
 
@@ -418,7 +420,7 @@ nenhum (patients não está na lista do `CLAUDE.md`). **Sem migração** (ver "B
   CPF" disponível sem permissão do Financeiro.
 - **Gate:** gate completo
 - **Depende de:** CP3
-- **Status:** TODO
+- **Status:** DONE
 
 ### CP5 — Contrato de cliente sem CPF (conforme P1)
 
