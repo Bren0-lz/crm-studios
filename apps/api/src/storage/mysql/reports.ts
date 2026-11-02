@@ -507,7 +507,12 @@ export function createReportsRepository(
            )} AS "amountInCents"
            FROM sources a JOIN services s ON s.id=a.service_id AND s.clinic_id=$1 JOIN professionals pr ON pr.id=a.professional_id AND pr.clinic_id=$1
            ${commissionRuleJoin("$1")}
-           WHERE JSON_CONTAINS($2, JSON_QUOTE(${localMonth("a.starts_at")})) AND ${branchClause("pr.branch_id", 3)}
+           WHERE ${commissionBase({
+             clinic: "$1",
+             appointmentId: "a.appointment_id",
+             attendanceId: "a.group_attendance_id",
+             serviceId: "a.service_id",
+           })}>0 AND JSON_CONTAINS($2, JSON_QUOTE(${localMonth("a.starts_at")})) AND ${branchClause("pr.branch_id", 3)}
              AND NOT EXISTS (SELECT 1 FROM commission_entries ce WHERE ce.clinic_id=$1 AND (ce.appointment_id=a.appointment_id OR ce.group_attendance_id=a.group_attendance_id))`,
           [clinicId, competences, branchIds],
         ),

@@ -297,19 +297,13 @@ describe("group session accounting", () => {
       ),
     ).toEqual(ledger);
   });
-  it("generates one frozen commission for a presence with user and service precedence", async () => {
-    const { repository, patient, plan, sessions } = await setup(3);
-    const session = sessions[0]!,
-      serviceId = plan.services[0]!.serviceId;
-    await repository.createCommissionRule(clinicId, {
-      professionalId: session.professionalId,
-      percentage: 20,
-      effectiveFrom: "2039-01-01",
-    });
+  it("generates one frozen commission for a presence on the plan's session value, with the user's rule first", async () => {
+    // Plano de R$ 200 com 3 sessões: cada presença vale R$ 66,67 (base da comissão).
+    const { repository, patient, sessions } = await setup(3);
+    const session = sessions[0]!;
     await repository.createCommissionRule(clinicId, {
       professionalId: session.professionalId,
       percentage: 70,
-      serviceId,
       effectiveFrom: "2039-01-01",
     });
     await repository.recordGroupAttendance(
@@ -338,14 +332,7 @@ describe("group session accounting", () => {
       session.professionalId,
     );
     await repository.setAdminUserCommission(clinicId, actorId, user.id, {
-      percentage: 30,
-      effectiveFrom: "2039-01-01",
-    });
-    await repository.setAdminUserCommission(clinicId, actorId, user.id, {
-      kind: "fixed",
-      percentage: 0,
-      fixedAmountInCents: 1500,
-      serviceId,
+      percentage: 22.5,
       effectiveFrom: "2039-01-01",
     });
     const first = await repository.generateCommissions(clinicId, "2039-01"),
@@ -356,15 +343,13 @@ describe("group session accounting", () => {
       )!;
     expect(entry).toMatchObject({
       sourceType: "group_attendance",
+      baseAmountInCents: 6667,
       amountInCents: 1500,
-      ruleSnapshot: { kind: "fixed", serviceId, fixedAmountInCents: 1500 },
+      ruleSnapshot: { percentage: 22.5, effectiveFrom: "2039-01-01" },
     });
     await repository.settleCommission(clinicId, actorId, entry.id);
     await repository.setAdminUserCommission(clinicId, actorId, user.id, {
-      kind: "fixed",
-      percentage: 0,
-      fixedAmountInCents: 2000,
-      serviceId,
+      percentage: 30,
       effectiveFrom: "2039-01-02",
     });
     const second = await repository.generateCommissions(clinicId, "2039-01");
@@ -395,10 +380,7 @@ describe("group session accounting", () => {
     );
     await repository.createCommissionRule(clinicId, {
       professionalId: substitute.id,
-      kind: "fixed",
-      percentage: 0,
-      fixedAmountInCents: 1800,
-      serviceId,
+      percentage: 27,
       effectiveFrom: "2039-01-01",
     });
     await repository.updateGroupSessionProfessional(
@@ -467,15 +449,12 @@ describe("group session accounting", () => {
       professionalId: entry.professionalId,
       amountInCents: 1500,
       status: "paid",
-      ruleSnapshot: { fixedAmountInCents: 1500 },
+      ruleSnapshot: { percentage: 22.5 },
     });
 
     await expect(
       repository.setAdminUserCommission(clinicId, actorId, user.id, {
-        kind: "fixed",
-        percentage: 0,
-        fixedAmountInCents: 2500,
-        serviceId,
+        percentage: 10,
         effectiveFrom: "2039-01-01",
       }),
     ).rejects.toMatchObject({ code: "COMMISSION_RULE_DUPLICATE" });

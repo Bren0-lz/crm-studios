@@ -278,10 +278,7 @@ test("reconciles a paid commission without rewriting the original payout", async
       await api.post("/finance/commission-rules", {
         data: {
           professionalId: professionals[0].id,
-          serviceId: services[0].id,
-          kind: "fixed",
-          percentage: 0,
-          fixedAmountInCents: 1500,
+          percentage: 10,
           effectiveFrom: "2025-01-01",
         },
       })
@@ -300,6 +297,24 @@ test("reconciles a paid commission without rewriting the original payout", async
   });
   expect(created.status()).toBe(201);
   const appointment = await created.json();
+  // A comissão sai do valor pago: R$ 150 na comanda → 10% = R$ 15.
+  const tab = await (
+    await api.post("/patient-tabs", { data: { patientId: patient.id } })
+  ).json();
+  expect(
+    (
+      await api.post(`/patient-tabs/${tab.id}/services`, {
+        data: { appointmentId: appointment.id, amountInCents: 15000 },
+      })
+    ).status(),
+  ).toBe(200);
+  expect(
+    (
+      await api.post(`/patient-tabs/${tab.id}/close`, {
+        data: { settlement: "receivable", dueDate: "2025-02-10" },
+      })
+    ).status(),
+  ).toBe(200);
   expect(
     (
       await api.patch(`/appointments/${appointment.id}/status`, {

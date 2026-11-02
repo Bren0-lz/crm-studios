@@ -34,25 +34,15 @@ describe("commission and access summaries", () => {
     expect(parsePercentage("inválido")).toBeNaN();
     expect(parsePercentage("Infinity")).toBeNaN();
   });
-  it("distinguishes fixed commissions from percentage commissions, including zero", () => {
-    expect(
-      userCommissionSummary({
-        ...user,
-        professionalId: "professional",
-        commissionKind: "fixed",
-        commissionPercentage: 0,
-        commissionFixedAmountInCents: 1250,
-      }),
-    ).toBe("Agenda: profissional ligado · Comissão fixa 12.5 reais");
+  it("summarizes the general commission, including zero", () => {
     expect(
       userCommissionSummary({
         ...user,
         professionalId: "professional",
         professionalName: "Profissional",
-        commissionKind: "fixed",
         commissionPercentage: 0,
       }),
-    ).toBe("Agenda: Profissional · Comissão fixa 0 reais");
+    ).toBe("Agenda: Profissional · Comissão 0%");
     expect(userCommissionSummary({ ...user, commissionPercentage: 12.5 })).toBe(
       "Sem profissional da agenda · Comissão 12,5%",
     );

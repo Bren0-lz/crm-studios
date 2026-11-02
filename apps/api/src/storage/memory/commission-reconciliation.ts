@@ -17,7 +17,7 @@ import {
   commissionAmount,
 } from "../../modules/finance/commission-calculation.js";
 import { clinicDateOf } from "../../modules/finance/daily-cash.js";
-import { commissionBaseInCents } from "./commission-operations.js";
+import { commissionBaseInCents } from "./commission-base.js";
 import type { MemoryRepositoryContext } from "./context.js";
 import { now, uuid } from "./helpers.js";
 export function createCommissionReconciliationRepository(
@@ -107,15 +107,16 @@ export function createCommissionReconciliationRepository(
         ),
         professional.id,
         context.professionalUsers.get(professional.id),
-        service.id,
         date,
       );
-    if (!rule) return null;
-    const baseAmountInCents = commissionBaseInCents(context, clinicId, {
-      appointmentId: item.appointmentId,
-      groupAttendanceId: item.groupAttendanceId,
-      serviceId: service.id,
-    });
+    const baseAmountInCents = commissionBaseInCents(
+      context,
+      clinicId,
+      appointment
+        ? { appointmentId: appointment.id, serviceId: service.id }
+        : { groupAttendanceId: attendance!.id, serviceId: service.id },
+    );
+    if (!rule || !baseAmountInCents) return null;
     const { id: ruleId, active, userId, professionalId, ...terms } = rule;
     void active;
     void userId;
@@ -131,11 +132,6 @@ export function createCommissionReconciliationRepository(
       ruleSnapshot: {
         percentage: terms.percentage,
         effectiveFrom: terms.effectiveFrom,
-        ...(terms.kind ? { kind: terms.kind } : {}),
-        ...(terms.fixedAmountInCents !== undefined
-          ? { fixedAmountInCents: terms.fixedAmountInCents }
-          : {}),
-        ...(terms.serviceId ? { serviceId: terms.serviceId } : {}),
         ...(terms.effectiveUntil
           ? { effectiveUntil: terms.effectiveUntil }
           : {}),
