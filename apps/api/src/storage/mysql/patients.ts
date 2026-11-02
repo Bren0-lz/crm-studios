@@ -1,4 +1,5 @@
 import {
+  auditChangesOf,
   type GuidedPatientInput,
   type GuidedPatientResult,
   type PatientInput,
@@ -14,7 +15,10 @@ import {
   guidedPlansResult,
   guidedSubscriptions,
 } from "../../modules/patients/guided-plans.js";
-import { buildPatientTimeline } from "../../modules/patients/patient-timeline.js";
+import {
+  buildPatientTimeline,
+  patientEditAction,
+} from "../../modules/patients/patient-timeline.js";
 import {
   DomainError,
   patientTagDuplicateError,
@@ -52,28 +56,35 @@ export function createPatientsRepository(
         [clinicId, patientId],
       );
       if (!patient.rows[0]) return null;
-      const [appointments, plans, payments, contacts, messages, surveys] =
-        await Promise.all([
-          repositoryContext.pool.query<AppointmentRow>(
-            `SELECT ${appointmentColumns} FROM appointments a ${appointmentJoins}
+      const [
+        appointments,
+        plans,
+        payments,
+        contacts,
+        messages,
+        surveys,
+        edits,
+      ] = await Promise.all([
+        repositoryContext.pool.query<AppointmentRow>(
+          `SELECT ${appointmentColumns} FROM appointments a ${appointmentJoins}
            WHERE a.clinic_id = $1 AND a.patient_id = $2`,
-            [clinicId, patientId],
-          ),
-          repositoryContext.operations.listPatientPlans(clinicId, patientId),
-          repositoryContext.pool.query<{
-            id: string;
-            receivableId: string;
-            kind: "payment" | "payment_reversal";
-            patientId: string;
-            patientName: string;
-            planId: string | null;
-            tabId: string | null;
-            description: string;
-            amountInCents: number;
-            occurredAt: Date;
-            paymentMethod: ReceivedPayment["paymentMethod"] | null;
-          }>(
-            `SELECT fe.id, fe.receivable_id AS "receivableId", fe.kind,
+          [clinicId, patientId],
+        ),
+        repositoryContext.operations.listPatientPlans(clinicId, patientId),
+        repositoryContext.pool.query<{
+          id: string;
+          receivableId: string;
+          kind: "payment" | "payment_reversal";
+          patientId: string;
+          patientName: string;
+          planId: string | null;
+          tabId: string | null;
+          description: string;
+          amountInCents: number;
+          occurredAt: Date;
+          paymentMethod: ReceivedPayment["paymentMethod"] | null;
+        }>(
+          `SELECT fe.id, fe.receivable_id AS "receivableId", fe.kind,
                   r.patient_id AS "patientId", p.full_name AS "patientName",
                   r.plan_id AS "planId", t.id AS "tabId", r.description,
                   fe.amount_in_cents AS "amountInCents", fe.created_at AS "occurredAt",
@@ -84,23 +95,32 @@ export function createPatientsRepository(
            LEFT JOIN patient_tabs t ON t.receivable_id=r.id
            WHERE fe.clinic_id=$1 AND r.patient_id=$2
              AND fe.kind IN ('payment','payment_reversal')`,
-            [clinicId, patientId],
-          ),
-          repositoryContext.operations.listContactActivities(
-            clinicId,
-            patientId,
-          ),
-          repositoryContext.pool.query<OutboundMessageRow>(
-            `SELECT ${outboundMessageColumns}
+          [clinicId, patientId],
+        ),
+        repositoryContext.operations.listContactActivities(clinicId, patientId),
+        repositoryContext.pool.query<OutboundMessageRow>(
+          `SELECT ${outboundMessageColumns}
            FROM outbound_messages om
            JOIN patients p ON p.id = om.patient_id
            WHERE om.clinic_id = $1 AND om.patient_id = $2`,
-            [clinicId, patientId],
-          ),
-          repositoryContext.operations.listSatisfactionSurveys(clinicId, {
-            patientId,
-          }),
-        ]);
+          [clinicId, patientId],
+        ),
+        repositoryContext.operations.listSatisfactionSurveys(clinicId, {
+          patientId,
+        }),
+        repositoryContext.pool.query<{
+          id: string;
+          occurredAt: Date;
+          actorName: string | null;
+          metadata: unknown;
+        }>(
+          `SELECT ae.id, ae.created_at AS "occurredAt", u.full_name AS "actorName", ae.metadata
+           FROM audit_events ae
+           LEFT JOIN users u ON u.id = ae.actor_user_id
+           WHERE ae.clinic_id = $1 AND ae.action = $2 AND ae.entity_id = $3`,
+          [clinicId, patientEditAction, patientId],
+        ),
+      ]);
       return buildPatientTimeline(patientId, {
         appointments: appointments.rows.map(mapAppointment),
         plans,
@@ -121,6 +141,17 @@ export function createPatientsRepository(
         contacts,
         messages: messages.rows.map(mapOutboundMessage),
         surveys,
+        edits: edits.rows.map((row) => {
+          const metadata = json<Record<string, unknown>>(row.metadata) ?? {};
+          return {
+            id: row.id,
+            occurredAt: row.occurredAt.toISOString(),
+            actorName: row.actorName ?? undefined,
+            changes: auditChangesOf(metadata),
+            reason:
+              typeof metadata.reason === "string" ? metadata.reason : undefined,
+          };
+        }),
       });
     },
 
@@ -470,12 +501,15 @@ export function createPatientsRepository(
               [clinicId, previousName],
             );
             for (const patient of renamed.rows)
-              await client.query("UPDATE patients SET tags = $2 WHERE id = $1", [
-                patient.id,
-                json<string[]>(patient.tags).map((tag) =>
-                  tag === previousName ? name : tag,
-                ),
-              ]);
+              await client.query(
+                "UPDATE patients SET tags = $2 WHERE id = $1",
+                [
+                  patient.id,
+                  json<string[]>(patient.tags).map((tag) =>
+                    tag === previousName ? name : tag,
+                  ),
+                ],
+              );
             patientsUpdated = renamed.rowCount;
           }
           const tag = (await repositoryContext.getPatientTag(
