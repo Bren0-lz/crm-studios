@@ -1,5 +1,11 @@
 import { nextTestCpf } from "../../../../api/src/test-support/cpf.js";
-import { fireEvent, screen, waitFor, within } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import {
   documentSignatureMessage,
@@ -169,6 +175,85 @@ describe("contract signature link", () => {
       signerCpf: "52998224725",
       signatureImage: "data:image/png;base64,cG5n",
     });
+  });
+
+  it("keeps the signature when the touch is cancelled or the pad changes size", async () => {
+    const { repository, patient, dance } = await clientWithTemplates();
+    const draft = await repository.createIssuedDocument(clinicId, actorId, {
+      patientId: patient.id,
+      templateId: dance.id,
+      title: "Contrato Dançaterapia",
+    });
+    await repository.updateIssuedDocumentStatus(clinicId, draft.id, "issued");
+    const share = await repository.createDocumentSignatureLink(
+      clinicId,
+      actorId,
+      draft.id,
+    );
+    localStorage.clear();
+    const context = {
+      scale: vi.fn(),
+      beginPath: vi.fn(),
+      moveTo: vi.fn(),
+      lineTo: vi.fn(),
+      stroke: vi.fn(),
+      clearRect: vi.fn(),
+    };
+    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(
+      context as unknown as CanvasRenderingContext2D,
+    );
+    vi.spyOn(HTMLCanvasElement.prototype, "toDataURL").mockReturnValue(
+      "data:image/png;base64,cG5n",
+    );
+    let resized = () => {};
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        constructor(callback: () => void) {
+          resized = callback;
+        }
+        observe() {}
+        disconnect() {}
+      },
+    );
+    try {
+      open(`/assinar-contrato/${share!.token}`);
+      await screen.findByRole("heading", { name: "Contrato Dançaterapia" });
+      fireEvent.click(
+        screen.getByLabelText("Li o documento e concordo com os seus termos."),
+      );
+      const sign = screen.getByRole("button", { name: "Assinar documento" });
+      const pad = screen.getByRole("img", {
+        name: "Área de assinatura",
+      }) as HTMLCanvasElement;
+      // O iOS cancela o toque (gesto do sistema) no meio do traço.
+      fireEvent.pointerDown(pad, { clientX: 10, clientY: 10 });
+      fireEvent.pointerMove(pad, { clientX: 40, clientY: 30 });
+      fireEvent.pointerCancel(pad);
+      await waitFor(() => expect(sign).toBeEnabled());
+
+      // Girar o celular: a área cresce, a resolução acompanha e o traço é redesenhado.
+      Object.defineProperty(pad, "clientWidth", {
+        configurable: true,
+        value: 600,
+      });
+      Object.defineProperty(pad, "clientHeight", {
+        configurable: true,
+        value: 192,
+      });
+      context.lineTo.mockClear();
+      act(() => resized());
+      expect(pad.width).toBe(600 * Math.min(window.devicePixelRatio || 1, 2));
+      expect(context.lineTo).toHaveBeenCalled();
+      expect(sign).toBeEnabled();
+
+      fireEvent.click(
+        screen.getByRole("button", { name: "Limpar assinatura" }),
+      );
+      await waitFor(() => expect(sign).toBeDisabled());
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it("shows a friendly message for an unknown link", async () => {

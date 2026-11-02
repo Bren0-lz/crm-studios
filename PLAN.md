@@ -140,7 +140,7 @@ reproduz o zoom do iOS, a causa 2 é verificada pelo estilo computado (≥ 16 px
 - **Aceite:** PNG enviado ≤ 700 000 caracteres com o canvas em paisagem (verificado no e2e pelo
   corpo do `POST /public/document-signatures/:token`).
 - **Depende de:** CT2
-- **Status:** TODO
+- **Status:** DONE
 
 ### CT4 — Validação no iPhone real (manual)
 
