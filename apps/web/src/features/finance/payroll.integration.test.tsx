@@ -234,4 +234,93 @@ describe("folha de pagamento pela API real", () => {
       (await within(lanced).findAllByText("A lançar")).length,
     ).toBeGreaterThan(0);
   });
+
+  it("registra o vale como despesa paga e desconto do mês e remove antes de lançar", async () => {
+    const { repository } = await setupApi();
+    const { employee } = await createSalariedUser(
+      repository,
+      clinicId,
+      actorId,
+      { name: "Bia Vale", salaryInCents: 100000 },
+    );
+    open("/financeiro");
+    fireEvent.click(await screen.findByRole("button", { name: "Folha" }));
+    const panel = (
+      await screen.findByRole("heading", { name: "Folha de pagamento" })
+    ).closest("section")!;
+    change("Competência", "2025-03", panel);
+    await within(panel).findByText("Competência 03/2025");
+    await within(panel).findByText("Bia Vale");
+
+    fireEvent.click(within(panel).getByRole("button", { name: /Novo vale/ }));
+    const dialog = await screen.findByRole("dialog", { name: "Novo vale" });
+    expect(
+      within(dialog).getByRole("button", { name: "Registrar vale" }),
+    ).toBeDisabled();
+    change("Colaborador", employee.id, dialog);
+    change("Valor (R$)", "200,00", dialog);
+    change("Forma de pagamento", "cash", dialog);
+    change("Motivo (opcional)", "Adiantamento pedido", dialog);
+    expect(within(dialog).getByLabelText("Mês do desconto")).toHaveValue(
+      "2025-03",
+    );
+    expect(
+      within(dialog).getByText(
+        "Sai do pagamento de 03/2025 de Bia Vale: R$ 200,00",
+      ),
+    ).toBeInTheDocument();
+    await save("Novo vale", "Registrar vale");
+
+    await waitFor(async () => {
+      const payable = (
+        await repository.getFinancialWorkspace(clinicId)
+      ).payables.find((item) => item.payrollAdvance);
+      expect(payable).toMatchObject({
+        description: "Vale · Bia Vale (desconto em 03/2025)",
+        status: "paid",
+        paymentMethod: "cash",
+        amountInCents: 20000,
+        dreCompetence: "2025-03",
+      });
+    });
+    const totals = within(panel).getAllByLabelText(/^Totais de/)[0]!;
+    await within(totals).findByText("-R$ 200,00");
+    fireEvent.click(
+      within(panel).getByRole("button", {
+        name: "Detalhes da folha de Bia Vale",
+      }),
+    );
+    const items = within(panel).getByRole("list", {
+      name: "Itens de Bia Vale",
+    });
+    expect(within(items).getByText("Vale")).toBeInTheDocument();
+    expect(within(items).getByText("Adiantamento pedido")).toBeInTheDocument();
+    expect(
+      within(panel).getByRole("button", {
+        name: "Registrar vale para Bia Vale",
+      }),
+    ).toBeInTheDocument();
+
+    fireEvent.click(
+      within(panel).getByRole("button", { name: "Remover vale de Bia Vale" }),
+    );
+    const remove = await screen.findByRole("dialog", { name: "Remover vale" });
+    expect(
+      within(remove).getByText(/despesa paga dele é estornada e cancelada/),
+    ).toBeInTheDocument();
+    await save("Remover vale", "Remover");
+    await waitFor(async () =>
+      expect(
+        (await repository.getFinancialWorkspace(clinicId)).payables.find(
+          (item) =>
+            item.description === "Vale · Bia Vale (desconto em 03/2025)",
+        )?.status,
+      ).toBe("cancelled"),
+    );
+    await waitFor(() =>
+      expect(
+        within(panel).queryByText("Adiantamento pedido"),
+      ).not.toBeInTheDocument(),
+    );
+  });
 });

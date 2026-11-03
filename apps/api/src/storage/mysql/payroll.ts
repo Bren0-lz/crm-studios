@@ -1,10 +1,12 @@
 import {
   buildPayroll,
   PAYROLL_CATEGORY_NAME,
+  payrollAdvanceDescription,
   payrollEntryAmount,
   payrollPayableDescription,
   payrollPayableNotes,
   type PayrollEmployee,
+  type PayrollAdvanceInput,
   type PayrollEmployeeInput,
   type PayrollEntry,
   type PayrollEntryInput,
@@ -15,6 +17,8 @@ import type { Pool, PoolClient } from "../../infrastructure/mysql-client.js";
 import { DomainError } from "../../repository.js";
 import { clinicDateOf } from "../../modules/finance/daily-cash.js";
 import {
+  payrollAdvanceInactiveError,
+  payrollAdvanceManagedError,
   payrollEntryLaunchedError,
   payrollEntryLimitError,
   payrollEntryNoSalaryError,
@@ -83,10 +87,12 @@ type EntryRow = {
   amountInCents: number;
   reason: string;
   payrollPayableId: string | null;
+  advancePayableId: string | null;
   createdAt: Date;
 };
 const entrySelect = `SELECT id,clinic_id AS "clinicId",employee_id AS "employeeId",competence,kind,mode,value,
-  amount_in_cents AS "amountInCents",reason,payroll_payable_id AS "payrollPayableId",created_at AS "createdAt"
+  amount_in_cents AS "amountInCents",reason,payroll_payable_id AS "payrollPayableId",
+  advance_payable_id AS "advancePayableId",created_at AS "createdAt"
   FROM payroll_entries`;
 const mapEntry = (row: EntryRow): PayrollEntry => ({
   id: row.id,
@@ -99,6 +105,7 @@ const mapEntry = (row: EntryRow): PayrollEntry => ({
   amountInCents: Number(row.amountInCents),
   reason: row.reason,
   ...(row.payrollPayableId ? { payrollPayableId: row.payrollPayableId } : {}),
+  ...(row.advancePayableId ? { advancePayableId: row.advancePayableId } : {}),
   createdAt: row.createdAt.toISOString(),
 });
 
@@ -462,7 +469,12 @@ export function createPayrollRepository(context: MysqlRepositoryContext) {
             [clinicId, payableId, actorId, entry.amountInCents],
           );
           const entryIds = entry.items
-            .filter((item) => item.kind === "bonus" || item.kind === "discount")
+            .filter(
+              (item) =>
+                item.kind === "bonus" ||
+                item.kind === "discount" ||
+                item.kind === "advance",
+            )
             .map((item) => item.id!);
           const extras = entryIds.length
             ? await client.query(
@@ -603,6 +615,7 @@ export function createPayrollRepository(context: MysqlRepositoryContext) {
         ).rows[0];
         if (!row) return false;
         assertBranchInScope(row.branchId);
+        if (row.kind === "advance") throw payrollAdvanceManagedError();
         if (row.payrollPayableId) throw payrollEntryLaunchedError();
         await client.query(
           "DELETE FROM payroll_entries WHERE clinic_id=$1 AND id=$2",
@@ -619,6 +632,190 @@ export function createPayrollRepository(context: MysqlRepositoryContext) {
             entryId,
             competence: row.competence,
             kind: row.kind,
+            amountInCents: Number(row.amountInCents),
+            reason: row.reason,
+          },
+        );
+        return true;
+      });
+    },
+    async createPayrollAdvance(
+      clinicId: string,
+      actorId: string,
+      input: PayrollAdvanceInput,
+    ) {
+      return context.inTransaction(async (client) => {
+        // Mesmo lock do lançamento: o vale não entra no meio de um lançamento.
+        await client.lock(clinicId);
+        const employee = await findEmployee(client, clinicId, input.employeeId);
+        if (!employee) return null;
+        assertBranchInScope(employee.branchId);
+        if (!employee.active) throw payrollAdvanceInactiveError();
+        const categoryId = await defaultCategoryId(client, clinicId);
+        const timezone =
+          (
+            await client.query<{ timezone: string }>(
+              "SELECT timezone FROM clinics WHERE id=$1",
+              [clinicId],
+            )
+          ).rows[0]?.timezone ?? "America/Sao_Paulo";
+        const paidAt = input.paidAt ? new Date(input.paidAt) : new Date();
+        const paidOn = clinicDateOf(paidAt, timezone);
+        const paymentMethod = input.paymentMethod ?? "pix";
+        const reason = input.reason?.trim() ?? "";
+        const payableId = randomUUID(),
+          entryId = randomUUID();
+        await client.query(
+          `INSERT INTO payables
+           (id,clinic_id,description,category_id,due_date,amount_in_cents,notes,created_by_user_id,
+            posted_on,dre_competence,branch_id,status,payment_method,paid_at,paid_by_user_id,payment_parts)
+           VALUES($1,$2,$3,$4,$5,$6,$7,$8,$5,$9,$10,'paid',$11,$12,$8,JSON_ARRAY())`,
+          [
+            payableId,
+            clinicId,
+            payrollAdvanceDescription(employee.name, input.competence),
+            categoryId,
+            paidOn,
+            input.amountInCents,
+            reason || null,
+            actorId,
+            input.competence,
+            employee.branchId,
+            paymentMethod,
+            paidAt,
+          ],
+        );
+        await client.query(
+          `INSERT INTO payable_events(clinic_id,payable_id,actor_user_id,kind,amount_in_cents) VALUES($1,$2,$3,'created',$4)`,
+          [clinicId, payableId, actorId, input.amountInCents],
+        );
+        // Saída gravada com sinal negativo, como no pagamento comum.
+        await client.query(
+          `INSERT INTO payable_events
+             (clinic_id,payable_id,actor_user_id,kind,amount_in_cents,metadata,occurred_at,cash_available_at)
+           VALUES($1,$2,$3,'payment',$4,$5,$6,$6)`,
+          [
+            clinicId,
+            payableId,
+            actorId,
+            -input.amountInCents,
+            { paymentMethod },
+            paidAt,
+          ],
+        );
+        await client.query(
+          `INSERT INTO payroll_entries(id,clinic_id,employee_id,competence,kind,mode,value,amount_in_cents,reason,advance_payable_id,created_by_user_id)
+           VALUES($1,$2,$3,$4,'advance','amount',$5,$5,$6,$7,$8)`,
+          [
+            entryId,
+            clinicId,
+            employee.id,
+            input.competence,
+            input.amountInCents,
+            reason,
+            payableId,
+            actorId,
+          ],
+        );
+        await context.addAdminAudit(
+          client,
+          clinicId,
+          actorId,
+          "payroll.advance_created",
+          "payroll_employee",
+          employee.id,
+          {
+            entryId,
+            payableId,
+            competence: input.competence,
+            amountInCents: input.amountInCents,
+            paidOn,
+            reason,
+          },
+        );
+        const row = (
+          await client.query<EntryRow>(
+            `${entrySelect} WHERE clinic_id=$1 AND id=$2`,
+            [clinicId, entryId],
+          )
+        ).rows[0]!;
+        return mapEntry(row);
+      });
+    },
+    async deletePayrollAdvance(
+      clinicId: string,
+      actorId: string,
+      entryId: string,
+    ) {
+      return context.inTransaction(async (client) => {
+        await client.lock(clinicId);
+        const row = (
+          await client.query<{
+            employeeId: string;
+            competence: string;
+            amountInCents: number;
+            reason: string;
+            payrollPayableId: string | null;
+            advancePayableId: string;
+            branchId: string;
+          }>(
+            `SELECT pe.employee_id AS "employeeId",pe.competence,pe.amount_in_cents AS "amountInCents",pe.reason,
+               pe.payroll_payable_id AS "payrollPayableId",pe.advance_payable_id AS "advancePayableId",em.branch_id AS "branchId"
+             FROM payroll_entries pe JOIN payroll_employees em ON em.id=pe.employee_id
+             WHERE pe.clinic_id=$1 AND pe.id=$2 AND pe.kind='advance' FOR UPDATE`,
+            [clinicId, entryId],
+          )
+        ).rows[0];
+        if (!row) return false;
+        assertBranchInScope(row.branchId);
+        if (row.payrollPayableId) throw payrollEntryLaunchedError();
+        const payable = (
+          await client.query<{
+            status: string;
+            amountInCents: number;
+            paymentMethod: string | null;
+          }>(
+            `SELECT status,amount_in_cents AS "amountInCents",payment_method AS "paymentMethod"
+             FROM payables WHERE clinic_id=$1 AND id=$2 FOR UPDATE`,
+            [clinicId, row.advancePayableId],
+          )
+        ).rows[0];
+        await client.query(
+          "DELETE FROM payroll_entries WHERE clinic_id=$1 AND id=$2",
+          [clinicId, entryId],
+        );
+        if (payable?.status === "paid")
+          // Estorno da saída (positivo), como no estorno comum.
+          await client.query(
+            `INSERT INTO payable_events
+               (clinic_id,payable_id,actor_user_id,kind,amount_in_cents,metadata,occurred_at,cash_available_at)
+             VALUES($1,$2,$3,'payment_reversal',$4,$5,NOW(6),NOW(6))`,
+            [
+              clinicId,
+              row.advancePayableId,
+              actorId,
+              Number(payable.amountInCents),
+              { paymentMethod: payable.paymentMethod },
+            ],
+          );
+        if (payable)
+          await client.query(
+            `UPDATE payables SET status='cancelled',paid_at=NULL,payment_method=NULL,paid_by_user_id=NULL,
+               payment_parts=JSON_ARRAY(),updated_at=NOW(6)
+             WHERE clinic_id=$1 AND id=$2`,
+            [clinicId, row.advancePayableId],
+          );
+        await context.addAdminAudit(
+          client,
+          clinicId,
+          actorId,
+          "payroll.advance_deleted",
+          "payroll_employee",
+          row.employeeId,
+          {
+            entryId,
+            payableId: row.advancePayableId,
+            competence: row.competence,
             amountInCents: Number(row.amountInCents),
             reason: row.reason,
           },

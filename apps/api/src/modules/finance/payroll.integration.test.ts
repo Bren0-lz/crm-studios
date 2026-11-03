@@ -46,7 +46,12 @@ describe("rotas da folha de pagamento", () => {
         visitType: "regular",
         notes: "",
       });
-      await sellSessionForAppointment(repository, clinicId, actorId, appointment);
+      await sellSessionForAppointment(
+        repository,
+        clinicId,
+        actorId,
+        appointment,
+      );
       await repository.updateAppointmentStatus(
         clinicId,
         appointment.id,
@@ -174,9 +179,7 @@ describe("rotas da folha de pagamento", () => {
         },
       });
       expect(launch.statusCode).toBe(201);
-      expect(launch.json().payables[0].categoryName).toBe(
-        "Folha de pagamento",
-      );
+      expect(launch.json().payables[0].categoryName).toBe("Folha de pagamento");
       const payrollCategories = (
         await repository.getFinancialWorkspace(clinicId)
       ).categories.filter((item) => item.name === "Folha de pagamento");
@@ -237,6 +240,106 @@ describe("rotas da folha de pagamento", () => {
           })
         ).statusCode,
       ).toBe(403);
+    } finally {
+      await app.close();
+    }
+  });
+
+  it("registra e remove vale pelas rotas da folha e bloqueia o estorno pelo Financeiro", async () => {
+    const repository = new MemoryClinicRepository();
+    const app = await buildApp({ repository, logger: false });
+    try {
+      const admin = {
+        authorization: `Bearer ${app.jwt.sign({ sub: actorId, clinicId, role: "admin" })}`,
+      };
+      const employeeId = await salariedEmployeeViaApi(app, admin, {
+        name: "Colaboradora do vale",
+        salaryInCents: 100000,
+      });
+      const invalid = await app.inject({
+        method: "POST",
+        url: "/finance/payroll/advances",
+        headers: admin,
+        payload: { employeeId, competence: "2025-13", amountInCents: 0 },
+      });
+      expect(invalid.statusCode).toBe(400);
+      const created = await app.inject({
+        method: "POST",
+        url: "/finance/payroll/advances",
+        headers: admin,
+        payload: {
+          employeeId,
+          competence: "2025-02",
+          amountInCents: 15000,
+          paymentMethod: "pix",
+        },
+      });
+      expect(created.statusCode).toBe(201);
+      const advance = created.json();
+      expect(advance).toMatchObject({
+        kind: "advance",
+        amountInCents: 15000,
+        reason: "",
+      });
+      const reverse = await app.inject({
+        method: "POST",
+        url: `/finance/payables/${advance.advancePayableId}/reverse`,
+        headers: admin,
+      });
+      expect(reverse.statusCode).toBe(409);
+      expect(reverse.json().code).toBe("PAYROLL_ADVANCE_PAYABLE");
+      const summary = (
+        await app.inject({
+          method: "GET",
+          url: "/finance/payroll?competence=2025-02",
+          headers: admin,
+        })
+      ).json();
+      expect(summary.totals.advanceInCents).toBe(-15000);
+
+      const user = await repository.createAdminUser(
+        clinicId,
+        actorId,
+        {
+          fullName: "Financeiro só leitura da folha",
+          email: `${randomUUID()}@test.local`,
+          password: "Password123",
+          role: "user",
+          permissions: ["finance.view", "finance.payroll_view"],
+        },
+        "unused",
+      );
+      const viewer = {
+        authorization: `Bearer ${app.jwt.sign({ sub: user.id, clinicId, role: "user" })}`,
+      };
+      for (const request of [
+        {
+          method: "POST" as const,
+          url: "/finance/payroll/advances",
+          payload: { employeeId, competence: "2025-02", amountInCents: 100 },
+        },
+        {
+          method: "DELETE" as const,
+          url: `/finance/payroll/advances/${advance.id}`,
+        },
+      ])
+        expect(
+          (await app.inject({ ...request, headers: viewer })).statusCode,
+        ).toBe(403);
+
+      const removed = await app.inject({
+        method: "DELETE",
+        url: `/finance/payroll/advances/${advance.id}`,
+        headers: admin,
+      });
+      expect(removed.statusCode).toBe(204);
+      const again = await app.inject({
+        method: "DELETE",
+        url: `/finance/payroll/advances/${advance.id}`,
+        headers: admin,
+      });
+      expect(again.statusCode).toBe(404);
+      expect(again.json().code).toBe("PAYROLL_ADVANCE_NOT_FOUND");
     } finally {
       await app.close();
     }

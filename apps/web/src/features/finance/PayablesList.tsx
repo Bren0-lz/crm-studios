@@ -9,7 +9,12 @@ import { useState } from "react";
 import { useAuthorization } from "../../authorization-context";
 import { EmptyState } from "../../shared/components/EmptyState";
 import { currency, shortDate } from "../../shared/lib/formatting";
-import { payableGroups, receivableSituation, signedCurrency } from "./model";
+import {
+  formatCompetence,
+  payableGroups,
+  receivableSituation,
+  signedCurrency,
+} from "./model";
 
 export function PayablesList({
   payables,
@@ -153,9 +158,12 @@ function PayablesTable({
       </div>
       {payables.map((item) => {
         const situation = receivableSituation(item, today);
+        const advance = item.payrollAdvance;
         const detail = [
           item.supplier || item.categoryName,
           item.costCenterName,
+          advance &&
+            `Vale descontado na folha de ${formatCompetence(advance.competence)}`,
           item.amountPending &&
             (item.amountInCents > 0
               ? "Valor estimado: informe o valor do mês"
@@ -227,8 +235,10 @@ function PayablesTable({
                     Pagar
                   </button>
                 )}
+              {/* O vale só é desfeito pela Folha (remover o vale estorna e cancela). */}
               {canManage &&
                 item.status === "paid" &&
+                !advance &&
                 can("finance.payables_reverse") && (
                   <button
                     className="danger-button button-sm"

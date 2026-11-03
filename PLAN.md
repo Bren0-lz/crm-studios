@@ -198,6 +198,18 @@ reproduz o zoom do iOS, a causa 2 é verificada pelo estilo computado (≥ 16 px
 - **Gate:** gate completo
 - **Aceite:** os dois campos têm `maxLength` igual ao limite da API (teste web).
 - **Depende de:** CT5
+## Pedidos avulsos do dono
+
+### V1 — Vales para colaboradores
+
+- **Pedido (02/11/2026):** vale com valor configurável, colaborador que recebe e mês em que é
+  descontado do salário; aparece no Financeiro e na Folha. Decisões do dono: despesa **já paga**
+  na entrega; criado e consultado **dentro da aba Folha**; desconto em **um mês só**.
+- **Escopo:** lançamento da folha `kind: "advance"` (`payroll_entries.advance_payable_id`,
+  migração `0040`) ligado a uma despesa paga em "Folha de pagamento" (DRE no mês do desconto);
+  `POST`/`DELETE /finance/payroll/advances` (`finance.payroll_manage`); remover o vale a lançar
+  estorna e cancela a despesa; estorno pelo Financeiro recusado (`PAYROLL_ADVANCE_PAYABLE`).
+- **Gate:** gate completo + `npm run test:mysql`
 - **Status:** DONE
 
 ## Rodada 8 — Correções do QA ponta a ponta (pedido do dono, 17/10/2026)
