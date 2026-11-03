@@ -29,8 +29,8 @@ describe("CRM API", () => {
   it("returns reproducible management metrics and an authenticated spreadsheet", async () => {
     const { app, token } = await authenticatedApp();
     const headers = { authorization: `Bearer ${token}` };
-    // Dia da clínica em que o seed criou os atendimentos de "hoje" (`dateAt` usa o fuso do
-    // servidor): com `new Date()` o teste falhava entre 21h e 24h em São Paulo.
+    // Dia da clínica em que o seed criou os atendimentos de "hoje" (`dateAt` usa o fuso da
+    // clínica): com o dia UTC de `new Date()` o teste falhava entre 21h e 24h em São Paulo.
     const date = new Intl.DateTimeFormat("en-CA", {
       timeZone: "America/Sao_Paulo",
     }).format(new Date(dateAt(12)));

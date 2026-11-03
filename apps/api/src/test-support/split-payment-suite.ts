@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import {
   patientPlanInputSchema,
+  saoPauloToday,
   type DailyCash,
   type PaymentMethod,
 } from "@crm/contracts";
@@ -90,7 +91,8 @@ export function splitPaymentSuite(
           },
         ],
       });
-      const today = receivable.paidAt!.slice(0, 10);
+      // Dia da clínica do pagamento: o corte do ISO em UTC caía no dia seguinte entre 21h e 24h.
+      const today = saoPauloToday(new Date(receivable.paidAt!));
       const before = await repo.getDailyCash(clinic, today);
       expect(inflow(before, "cash")).toBeGreaterThanOrEqual(3_000);
       const receipt = await repo.getPaymentReceipt(clinic, receivable.id);
