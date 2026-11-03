@@ -325,13 +325,10 @@ describe("validatePatientImport", () => {
       ]),
     );
     expect(second?.line).toBe(4);
-    expect(second?.errors).toEqual([
-      "Linha 4: CPF é obrigatório.",
-      "Linha 4: telefone é obrigatório.",
-    ]);
+    // CPF pode faltar na planilha (B6-05): só o telefone e a data apontam erro.
+    expect(second?.errors).toEqual(["Linha 4: telefone é obrigatório."]);
     expect(third?.errors).toEqual([
       expect.stringMatching(/^Linha 5: data de nascimento/),
-      "Linha 5: CPF é obrigatório.",
     ]);
     expect(first?.input).toBeUndefined();
   });
@@ -493,5 +490,61 @@ describe("validatePatientImport", () => {
         "Cidade",
       ]),
     ).toEqual(["fullName", "phoneAreaCode", "phone", null, null, "city"]);
+  });
+});
+
+describe("importação sem CPF (B6-05)", () => {
+  it("aceita planilha sem coluna de CPF e linhas com CPF vazio", () => {
+    const analysis = validatePatientImport(
+      [
+        ["Nome", "Telefone"],
+        ["Célia Rocha", "11988880000"],
+        ["Paulo Lima", "11977770000"],
+      ],
+      [existingPatient({ cpf: undefined, phone: "11966660000" })],
+    );
+    expect(analysis.errors).toEqual([]);
+    expect(analysis.totals).toEqual({ valid: 2, error: 0, duplicate: 0 });
+    expect(analysis.rows[0]?.input?.cpf).toBeUndefined();
+
+    const withColumn = validatePatientImport(
+      [
+        ["Nome", "CPF", "Telefone"],
+        ["Célia Rocha", "", "11988880000"],
+        ["Paulo Lima", "529.982.247-24", "11977770000"],
+      ],
+      [],
+    );
+    expect(withColumn.rows.map((row) => row.status)).toEqual(["valid", "error"]);
+    expect(withColumn.rows[0]?.input?.cpf).toBeUndefined();
+    expect(withColumn.rows[1]?.errors).toEqual([
+      expect.stringMatching(/^Linha 3: CPF inválido/),
+    ]);
+  });
+
+  it("sem CPF, o telefone continua apontando duplicados na base e no arquivo", () => {
+    const analysis = validatePatientImport(
+      [
+        ["Nome", "Telefone"],
+        ["Maria de Novo", "(11) 98888-7777"],
+        ["Célia Rocha", "11988880000"],
+        ["Célia R.", "11988880000"],
+      ],
+      [existingPatient()],
+    );
+    expect(analysis.rows.map((row) => row.status)).toEqual([
+      "duplicate",
+      "valid",
+      "duplicate",
+    ]);
+    expect(analysis.rows[0]?.duplicateOf).toMatchObject({
+      kind: "existing",
+      field: "phone",
+    });
+    expect(analysis.rows[2]?.duplicateOf).toEqual({
+      kind: "row",
+      field: "phone",
+      line: 3,
+    });
   });
 });

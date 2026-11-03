@@ -456,3 +456,185 @@ destaque no lugar sem perguntar. Os divisores neutros de 1px entre colunas (ex.:
   WhatsApp, logout/sair de todos, mesclar, recorrência, pausar/renovar; celular ≤ 400 px.
 - **Depende de:** QR1
 - **Status:** TODO
+
+## Rodada 9 — B6-05: importar clientes sem CPF (reunião de 02/11/2026)
+
+Origem: decisão do estúdio na reunião de 02/11/2026 (item B6-05). A planilha do estúdio e o
+sistema anterior não têm CPF; hoje a importação recusa a linha ("CPF é obrigatório.") e a base
+não entra. Regra do estúdio: **"se subir planilha não precisa, mas pra cadastrar manualmente
+precisa"**. IDs com prefixo `CP`. Ordem: CP1 → CP2 → CP3 → CP4 → CP5 → CP6. CP1 e CP2 saíram num commit
+só: a etiqueta calculada nos contratos muda a resposta da API na hora, e o gate não fecha com
+uma sem a outra. Arquivos quentes:
+nenhum (patients não está na lista do `CLAUDE.md`). **Sem migração** (ver "Banco").
+
+### Mapa no código (triagem de 02/11/2026)
+
+| Onde | Hoje | Depois |
+|---|---|---|
+| `contracts/patients/model.ts` `patientInputSchema.cpf` (l. 140) | obrigatório e válido | **inalterado** (cadastro manual, PUT com CPF, lead) |
+| `contracts/patients/model.ts` `patientImportRequiredFields` (l. 555) | nome, CPF, telefone | nome e telefone |
+| `contracts/patients/types.ts` `Patient.cpf` (l. 89) | já opcional ("cadastros antigos e mesclados") | inalterado |
+| `contracts/commercial/model.ts` conversão de lead (l. 47) | CPF obrigatório | inalterado (é cadastro manual) |
+| `contracts/patients/model.ts` `guidedPatientInputSchema` (l. 405) | usa `patientInputSchema` | inalterado (cadastro guiado exige) |
+| API `modules/patients/patient-import.ts` (l. 467–485, 506–544) | `patientInputSchema` → erro "CPF é obrigatório." | schema de importação com CPF opcional; CPF presente continua validado |
+| API `POST /patients/import` + `importPatients` (memória `storage/memory/patients.ts:210`, MySQL `storage/mysql/patients.ts:313`) | duplicidade por CPF **ou** telefone; já pula CPF vazio | só muda o tipo do parâmetro |
+| API `POST /patients`, `POST /patients/guided` (`routes.ts:212`, `:236`) | exige | inalterado |
+| API `PUT /patients/:id` (`routes.ts:395`) | exige (`patientInputSchema`) | ver CP3 |
+| API externa `POST /external/v1/patients` → `/patients` (`external/endpoints.ts:212`) | exige | inalterado (cadastro manual por integração); `GET` já devolve `cpf` ausente quando falta |
+| Exportação `patient-export.ts:113` | `String(patient.cpf ?? "")` | inalterado (célula vazia; exportar → reimportar passa a funcionar) |
+| Web `PatientModal.tsx` (cadastro rápido, guiado e edição: l. 444, 604, 962) | `required` + `isValidCpf` sempre | novo: exige; edição: ver CP3 |
+| Web `PatientImportModal.tsx:141`, `features/patients/model.ts:125/383` | texto "nome, CPF e telefone são obrigatórios" | ver CP4 |
+| Web `LeadConvertModal.tsx` | exige | inalterado |
+| Contrato: `contracts/contracts/model.ts:302` `paciente_cpf` | sem CPF sai "não informado" e entra em `missingFields`; `DocumentWizard.tsx:378` e `SendForSignatureModal.tsx:342` mostram "Confira os dados que faltam" — **não bloqueia** | ver P1 |
+| Recibo (`finance/types.ts:671`, `ReceiptModal.tsx`) | não usa CPF do cliente (só CNPJ/CPF da clínica) | sem impacto |
+| Ficha/agenda (`PatientRecordTabs.tsx:127`, `AppointmentDetailsModal.tsx:391`) | já tratam ausência ("Não informado") | sem impacto |
+
+### Banco
+
+- `apps/api/migrations/0001_schema.sql:1058`: `` `cpf` VARCHAR(191) `` **aceita nulo**, com
+  `UNIQUE KEY patients_clinic_id_cpf_key (clinic_id, cpf)`. No InnoDB (MySQL 8 e MariaDB) a chave
+  única aceita vários `NULL`, mas **não** vários `''`. Todas as gravações já usam `cpf || null`
+  (`storage/mysql/context.ts:488`, `patients.ts:373`, `patient-management.ts:170`,
+  `commercial.ts:441`); o teste MySQL da CP2 trava isso (dois importados sem CPF na mesma clínica).
+- **Nenhuma migração.** Se alguma tarefa precisar de uma, o número segue a regra do `CLAUDE.md`
+  ("nunca `01xx`"; hoje a maior em `origin/main` é `0039`). Atenção: branches remotos antigos da
+  era Postgres ainda têm `0119`/`0120`; o comando de `for-each-ref` do `CLAUDE.md` devolve esses
+  números — ignore os `01xx` e use o maior abaixo de `0100` (hoje `0099`, em branch remoto) + 1.
+
+### Efeitos colaterais avaliados
+
+- **Duplicidade:** sem CPF, o telefone é a única chave na importação (já é assim:
+  `patient-import.ts:507–530`, `importPatients` nos dois repositórios). Risco conhecido e
+  anterior: familiares com o mesmo telefone saem como "duplicado" — fora do escopo, sem mudança.
+  Leads (`findLeadDuplicates`) e conversão de lead (`storage/*/commercial.ts`) casam por telefone
+  ou e-mail também; converter um lead com o telefone de um cliente importado sem CPF reaproveita
+  o cadastro e grava o CPF do lead — e a etiqueta sai sozinha (teste na CP2).
+- **Busca por CPF:** memória (`item.cpf?.…`) e MySQL (`coalesce(cpf, '')`) já toleram ausência.
+- **Mesclar:** a mescla grava `cpf = NULL` no cliente de origem (`storage/mysql/patient-management.ts:160`);
+  por isso a etiqueta **não** vale para cliente mesclado (`mergedIntoPatientId`).
+- **Contrato sem CPF:** hoje já permite, com aviso. Ver P1.
+- **Recibo:** não usa o CPF do cliente. NFS-e (fora de escopo) vai exigir CPF quando existir.
+
+### Decisões
+
+- **Etiqueta "Falta CPF" automática**, no molde da `OVERDUE_PAYMENT_TAG`
+  (`contracts/patients/automatic-tags.ts`): calculada na leitura (`!cpf && !mergedIntoPatientId`),
+  nunca gravada, sai sozinha quando o CPF é preenchido, não pode ser criada/editada à mão
+  (mesmo 400 `PATIENT_TAG_AUTOMATIC`). Motivo: gravar a etiqueta exigiria lembrar de tirá-la em
+  todo caminho que preenche CPF (edição, conversão de lead, mescla); calculada, isso é automático
+  e também cobre cadastros antigos sem CPF. Diferença para "Pagamento atrasado": visível para
+  **todos os perfis** (não depende do Financeiro) e categoria `status` (roxo), não `financial`.
+- **Edição de cliente sem CPF (decidido pelo código, CP3): permitir salvar sem CPF, mantendo a
+  etiqueta.** Motivos: `PatientModal` é o único caminho de edição (telefone, etiquetas, desconto,
+  apelido, motivo da alteração — `api.updatePatient` só é chamado em `PatientModal.tsx:614`);
+  exigir CPF ali travaria qualquer ajuste em quase toda a base logo no início do uso, que é
+  exatamente o problema da B6-05. A regra do estúdio fala em *cadastrar* manualmente, não em
+  editar. Limites: CPF digitado continua validado; **CPF já gravado não pode ser apagado**
+  (400 `PATIENT_CPF_REQUIRED`, "O CPF já cadastrado não pode ser apagado."), então um cliente
+  com CPF nunca volta a "Falta CPF" pela edição. O dono pode vetar; se vetar, a CP3 vira "exigir
+  CPF na edição" e o resto do plano não muda.
+
+### Pergunta ao dono
+
+- **P1 — Contrato de cliente sem CPF:** hoje o contrato é emitido com "inscrito(a) no CPF sob o
+  nº **não informado**" e a tela avisa "Confira os dados que faltam" (lista "CPF do cliente").
+  Recomendação: **manter permitido** (não bloqueia a operação; o aviso já existe) e só deixar o
+  aviso explícito na CP5. Alternativa: bloquear a emissão/envio para assinatura quando o modelo
+  usa `{{paciente_cpf}}` e o cliente não tem CPF (409 `DOCUMENT_PATIENT_CPF_MISSING`, "Informe o
+  CPF do cliente antes de emitir este contrato."). A CP5 só começa com a resposta; CP1–CP4 não
+  dependem dela.
+
+### CP1 — Contratos: CPF opcional na importação e etiqueta "Falta CPF"
+
+- **Escopo:** `contracts/patients/model.ts`: `optionalCpfSchema` (vazio → `undefined`, preenchido
+  → dígitos válidos, mesma mensagem "Informe um CPF válido."), `patientImportInputSchema =
+  patientInputSchema.extend({ cpf: optionalCpfSchema })`, tipo `PatientImportInput`;
+  `patientImportRequiredFields` = nome e telefone; `PatientImportRow.input` passa a
+  `PatientImportInput`. `automatic-tags.ts`: `MISSING_CPF_TAG = "Falta CPF"` em
+  `automaticPatientTagNames`; categoria por etiqueta (`automaticPatientTagCategoryOf(name)`,
+  substitui a constante única `automaticPatientTagCategory`, usada em `shared/lib/formatting.ts:213`
+  e `PatientsPage.tsx:389`); `needsCpf(patient)` (sem CPF e não mesclado); `withAutomaticPatientTags`
+  ganha a regra do CPF independente do conjunto de inadimplentes. `patientInputSchema` não muda.
+- **Testes:** `contracts.unit.test.ts` (schema de importação com/sem/inválido; `needsCpf` com
+  mesclado; etiqueta entra e sai; `isAutomaticPatientTag("falta cpf")`).
+- **Gate:** gate completo
+- **Status:** DONE
+
+### CP2 — API: importar sem CPF e aplicar a etiqueta
+
+- **Escopo:** `patient-import.ts` usa `patientImportInputSchema`; mensagem "CPF é obrigatório."
+  sai; CPF inválido continua erro; duplicidade por CPF só quando há CPF. `ClinicRepository.importPatients`
+  e as duas implementações recebem `PatientImportInput[]` (o `createPatient` interno aceita CPF
+  ausente; gravar `NULL`, nunca `''`). `automaticPatientTagger` (`modules/patients/automatic-tags.ts`):
+  "Falta CPF" para todos os perfis; "Pagamento atrasado" continua só com módulo finance. Filtro
+  por etiqueta em `GET /patients` passa a aceitar "Falta CPF" (já filtra depois do tagger).
+  `POST/PATCH /patient-tags` com "Falta CPF" → 400 `PATIENT_TAG_AUTOMATIC` (mensagem genérica
+  para as duas etiquetas). Etiqueta "Falta CPF" vinda na planilha é ignorada (como hoje).
+- **Testes (memória):** reescrever a parte de importação de `patient-required-cpf.integration.test.ts`
+  (planilha sem coluna CPF e com CPF vazio → `created: 1`, cliente com `tags` contendo "Falta
+  CPF", `cpf` ausente); `POST /patients` e `/leads/:id/convert` sem CPF continuam 400; dois
+  importados sem CPF não colidem; mesmo telefone → `duplicate`; CPF inválido → erro; conversão de
+  lead com o telefone do importado preenche o CPF e tira a etiqueta; perfil sem Financeiro vê
+  "Falta CPF" e não vê "Pagamento atrasado"; mesclado não recebe a etiqueta.
+  `patient-import.unit.test.ts` atualizado.
+- **Testes (MySQL opt-in):** `storage/mysql/tests/patient-without-cpf.integration.test.ts`
+  (molde `nav-tabs.integration.test.ts`, laço memory/mysql): importar dois sem CPF na mesma
+  clínica (prova o `NULL` × chave única), busca por nome/telefone/CPF, `cpf` nulo no banco.
+- **Gate:** gate completo + `npm run test:mysql` (com `TEST_DATABASE_URL`)
+- **Depende de:** CP1
+- **Status:** DONE
+
+### CP3 — API: editar cliente sem CPF
+
+- **Escopo:** `patientUpdateInputSchema = patientInputSchema.extend({ cpf: optionalCpfSchema })`
+  no `PUT /patients/:id`; se o cadastro anterior tem CPF e o novo vem vazio → 400
+  `PATIENT_CPF_REQUIRED` "O CPF já cadastrado não pode ser apagado."; `updatePatient` (memória:
+  apagar a chave em vez de gravar `undefined`/`''`; MySQL já grava `NULL`). CPF duplicado na
+  edição continua 409 `PATIENT_DUPLICATE`. Histórico registra "CPF: — → 529…".
+- **Testes (memória):** editar telefone de importado sem CPF → 200 e etiqueta mantida; preencher
+  CPF → etiqueta some em `GET /patients/:id` e na lista; tentar apagar CPF existente → 400; CPF
+  de outro cliente → 409. **MySQL opt-in:** acrescentar ao arquivo da CP2 (preencher CPF depois,
+  apagar recusado, duplicado → 409).
+- **Gate:** gate completo + `npm run test:mysql`
+- **Depende de:** CP2
+- **Status:** DONE
+
+### CP4 — Web: importação, edição e etiqueta
+
+- **Escopo:** `PatientImportModal.tsx`: dica "nome e telefone são obrigatórios; quem vier sem CPF
+  recebe a etiqueta “Falta CPF”"; mapeamento sem asterisco no CPF; na prévia, resumo "N sem CPF"
+  (contado das linhas válidas sem `input.cpf`, sem contrato novo). `PatientModal.tsx`: cadastro
+  novo (rápido e guiado) **continua exigindo** CPF; edição de cliente sem CPF: campo sem
+  `required`, fora de `useMissingFields`, `isValidCpf` só se preenchido, dica "Cliente sem CPF:
+  preencha quando tiver. A etiqueta “Falta CPF” sai sozinha."; edição de cliente com CPF segue
+  obrigatória. Lista de clientes: "Falta CPF" nas opções de etiqueta automática para todos os
+  perfis (`PatientsPage.tsx:139`), com a cor da categoria `status`. Textos neutros em gênero.
+- **Testes (web):** importação com planilha sem CPF mostra "1 sem CPF" e importa;
+  `patient-quick-registration` e `guided-client-registration` seguem barrando sem CPF; editar
+  cliente sem CPF salva sem CPF; editar cliente com CPF e apagar o campo é barrado; filtro "Falta
+  CPF" disponível sem permissão do Financeiro.
+- **Gate:** gate completo
+- **Depende de:** CP3
+- **Status:** DONE
+
+### CP5 — Contrato de cliente sem CPF (conforme P1)
+
+- **Escopo (recomendado, se o dono mantiver permitido):** no `DocumentWizard` e no
+  `SendForSignatureModal`, quando faltar `paciente_cpf`, aviso específico "O cliente não tem CPF:
+  o contrato vai sair com “não informado” no lugar do CPF." com o atalho existente "Atualizar
+  dados do cadastro". **Se o dono escolher bloquear:** regra na API de emissão e de link de
+  assinatura (memória e MySQL, mesma checagem em `contracts/contracts/model.ts` só quando o
+  modelo usa `{{paciente_cpf}}`), botão desativado com a mesma mensagem na web.
+- **Testes:** web (aviso/bloqueio) e, no caso de bloqueio, API memória + MySQL opt-in.
+- **Gate:** gate completo
+- **Depende de:** CP4 e resposta da P1
+- **Status:** BLOCKED (aguarda P1)
+
+### CP6 — Conferência manual com a planilha do estúdio
+
+- **Tipo:** manual
+- **Escopo:** importar a planilha real (sem CPF) em homologação; conferir duplicados por
+  telefone, etiqueta "Falta CPF" na lista e no filtro, edição sem CPF e preenchimento posterior
+  (etiqueta some), contrato de um importado.
+- **Depende de:** CP4
+- **Status:** TODO

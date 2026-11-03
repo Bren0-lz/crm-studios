@@ -38,7 +38,7 @@ import {
   type GroupEnrollment,
   type GroupEnrollmentInput,
   historyAction,
-  type PatientInput,
+  type PatientImportInput,
   patientProfile,
   type PatientPlanInput,
   type Payable,
@@ -463,7 +463,7 @@ export class MysqlRepositoryContext {
   async insertPatient(
     client: Pool | PoolClient,
     clinicId: string,
-    input: PatientInput,
+    input: PatientImportInput,
   ) {
     const id = randomUUID();
     // Prontuário sequencial da clínica (QM15), sem trecho do UUID.
