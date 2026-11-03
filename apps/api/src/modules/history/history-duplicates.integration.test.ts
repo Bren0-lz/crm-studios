@@ -121,4 +121,39 @@ describe("mergeOperationEvents", () => {
     });
     expect(result[1]).not.toHaveProperty("actorUserId");
   });
+
+  it("pairs each command with the entry of the same kind when the times tie", () => {
+    const at = "2039-06-10T18:00:00.000Z";
+    const operation = (id: string, method: string) => ({
+      ...base,
+      id,
+      action: "operation.communications.campaigns",
+      entityId: "c",
+      actorUserId: ownerId,
+      metadata: { method },
+      createdAt: at,
+    });
+    const domain = (id: string, action: string) => ({
+      ...base,
+      id,
+      action,
+      entityId: "c",
+      createdAt: at,
+    });
+    // Sem o desempate, o cadastro ficava com o registro da edição e a edição, que não pode
+    // usar o "… created", sobrava no histórico como "operation.…".
+    const result = mergeOperationEvents([
+      operation("op-create", "POST"),
+      operation("op-delete", "DELETE"),
+      operation("op-update", "PATCH"),
+      domain("updated", "auto_campaign.updated"),
+      domain("deleted", "auto_campaign.deleted"),
+      domain("created", "auto_campaign.created"),
+    ]);
+    expect(result.map((item) => item.id)).toEqual([
+      "updated",
+      "deleted",
+      "created",
+    ]);
+  });
 });

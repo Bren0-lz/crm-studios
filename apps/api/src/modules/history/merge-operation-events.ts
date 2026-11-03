@@ -10,6 +10,24 @@ const isEdit = (event: AdminAuditEvent) =>
   event.metadata.method === "PUT" || event.metadata.method === "PATCH";
 
 /**
+ * 0 quando o registro do domínio é do mesmo tipo do comando (POST → "….created", DELETE →
+ * "….deleted", edição → nenhum dos dois); 1 quando não é. Desempata registros com a mesma
+ * distância: criar, editar e excluir em sequência (ou com o relógio parado nos testes)
+ * não pode trocar os pares e deixar uma operação sobrando no histórico.
+ */
+function kindMismatch(operation: AdminAuditEvent, item: AdminAuditEvent) {
+  const created = item.action.endsWith(".created"),
+    deleted = item.action.endsWith(".deleted");
+  const matches =
+    operation.metadata.method === "POST"
+      ? created
+      : operation.metadata.method === "DELETE"
+        ? deleted
+        : !created && !deleted;
+  return matches ? 0 : 1;
+}
+
+/**
  * Cada comando gera dois registros: o da operação na API ("Ação realizada: …", com o
  * responsável) e o do domínio ("Cliente cadastrado", gravado pelo banco sem responsável).
  * O histórico mostra um só: o do domínio, com o responsável da operação. Operações sem
@@ -26,6 +44,7 @@ export function mergeOperationEvents(
     const time = Date.parse(operation.createdAt);
     let match: AdminAuditEvent | undefined;
     let distance = Infinity;
+    let mismatch = Infinity;
     for (const item of items) {
       if (
         isOperation(item) ||
@@ -37,9 +56,14 @@ export function mergeOperationEvents(
       )
         continue;
       const gap = Math.abs(Date.parse(item.createdAt) - time);
-      if (gap <= PAIR_WINDOW_MS && gap < distance) {
+      const kind = kindMismatch(operation, item);
+      if (
+        gap <= PAIR_WINDOW_MS &&
+        (gap < distance || (gap === distance && kind < mismatch))
+      ) {
         match = item;
         distance = gap;
+        mismatch = kind;
       }
     }
     if (!match) continue;
