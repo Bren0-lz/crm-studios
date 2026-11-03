@@ -34,9 +34,31 @@ export const localDate = (date: Date) =>
     day: "2-digit",
   }).format(date);
 
+/** Deslocamento do fuso da clínica em relação ao UTC, em minutos (ex.: -180). */
+function clinicOffsetMinutes(at: Date) {
+  const name =
+    new Intl.DateTimeFormat("en-US", {
+      timeZone: "America/Sao_Paulo",
+      timeZoneName: "longOffset",
+    })
+      .formatToParts(at)
+      .find((part) => part.type === "timeZoneName")?.value ?? "GMT";
+  const match = name.match(/GMT([+-])(\d{2}):?(\d{2})?/);
+  if (!match) return 0;
+  const minutes = Number(match[2]) * 60 + Number(match[3] ?? 0);
+  return match[1] === "-" ? -minutes : minutes;
+}
+
+/**
+ * Hora do dia da clínica (America/Sao_Paulo), em UTC, `addDays` dias depois de hoje. Usa o
+ * fuso da clínica e não o do processo: com `setHours` o seed mudava de horário conforme o
+ * `TZ` da máquina e, entre 21h e 24h em São Paulo, caía no dia seguinte.
+ */
 export function dateAt(hour: number, minute = 0, addDays = 0) {
-  const date = new Date();
-  date.setDate(date.getDate() + addDays);
-  date.setHours(hour, minute, 0, 0);
-  return date.toISOString();
+  const current = new Date();
+  const [year, month, day] = localDate(current).split("-").map(Number);
+  const wallClock = Date.UTC(year!, month! - 1, day! + addDays, hour, minute);
+  return new Date(
+    wallClock - clinicOffsetMinutes(new Date(wallClock)) * 60_000,
+  ).toISOString();
 }

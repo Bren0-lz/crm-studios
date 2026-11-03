@@ -1,5 +1,10 @@
 import baseline from "./coverage-baseline.json" with { type: "json" };
 
+// Os testes rodam sempre no fuso da clínica: a CI (Ubuntu) usa UTC e a máquina do dono usa
+// São Paulo, e testes com "hoje"/"amanhã" mudavam de resultado conforme a máquina. Vale para
+// o processo do Vitest e para os workers, que herdam o ambiente.
+process.env.TZ = "America/Sao_Paulo";
+
 export function testProjects(environment: "node" | "jsdom" = "node") {
   return ["unit", "integration"].map((name) => ({
     extends: true as const,
