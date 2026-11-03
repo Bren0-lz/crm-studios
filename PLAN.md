@@ -17,6 +17,201 @@ está no histórico do git (este arquivo antes do commit "chore: handoff da roda
 - Dependências npm novas, `git push`, edição de migrações existentes, `.env` e `compose.yaml`
   sem autorização do dono.
 
+## Rodada 9 — Reunião de 02/11/2026: assinatura no iPhone (B2-04) e cadastro com contrato (B2-03)
+
+Origem: reunião de 02/11/2026. A página pública de assinatura abriu "tudo bugado" no iPhone
+(iOS 18): é o único impeditivo para o estúdio começar a usar o sistema e a única tela que o
+cliente final vê. **Prioridade sobre o restante da rodada 8** (QM16 em diante). Commits
+`fix(CT2): …` em pt-BR, um PR por tarefa, pelas regras de "PRs sem conflito" do `CLAUDE.md`.
+
+### Diagnóstico (lido no código, ainda não reproduzido no aparelho)
+
+Arquivos: `apps/web/src/features/contracts/PublicSignaturePage.tsx` (página + `SignaturePad`),
+`DocumentPaper.tsx`, CSS em `apps/web/src/styles/10-commercial-communications.css`
+(`.document-paper` ~l.1099, mobile ~l.1441, `.public-signature-*`/`.signature-pad` ~l.1836),
+`01-base.css` (campos), `06-modals.css`/`11-responsive.css` (`.form-grid`, `.modal-actions`).
+
+Causas prováveis, em ordem:
+
+1. **Folha A4 com altura travada** — `.document-paper { aspect-ratio: 210/297 }` vale também no
+   celular (o bloco mobile só troca o padding). Em 390 px a folha fica com ~310 px de largura e
+   ~440 px de altura; um contrato real tem várias "páginas" de texto. Se o motor não estender a
+   altura pelo conteúdo (o WebKit tem histórico de divergência no mínimo automático de caixas com
+   `aspect-ratio`), o texto vaza da folha e é pintado **por cima** do formulário de assinatura —
+   exatamente "uma coisa trepada na outra". No desktop a folha tem ~1240 px e o bug não aparece
+   com contratos curtos. Só `@media print` remove o `aspect-ratio`.
+2. **Zoom automático do iOS nos campos** — `input/select/textarea` usam `--text-md` (14 px).
+   O Safari do iOS dá zoom em qualquer campo < 16 px ao focar e não desfaz: a página fica
+   ampliada, com rolagem horizontal e o `.panel` (`overflow: hidden`) cortando conteúdo.
+   Específico do iOS; não aparece no Chromium.
+3. **Canvas dimensionado uma vez só** — `SignaturePad` lê `clientWidth × devicePixelRatio` só no
+   `useEffect` de montagem. Girar o aparelho (ou montar antes do layout final) muda a largura
+   CSS sem mudar a interna: traço esticado e deslocado do dedo. DPR 3 sem teto também infla o PNG
+   (limite do contrato: 700 000 caracteres em `publicDocumentSignInputSchema`).
+4. **Toque** — `touch-action: none` existe (bom), mas falta `onPointerCancel` (gesto do sistema
+   cancela o ponteiro → `drawing` fica preso e `onChange` não roda → botão "Assinar" segue
+   desativado) e falta `-webkit-user-select: none`/`-webkit-touch-callout: none` (pressionar
+   longo seleciona texto/abre menu em vez de desenhar).
+5. **`min-height: 100vh`** em `.public-signature-page` — no iOS inclui a área da barra do Safari;
+   sobra rolagem extra (menor; trocar por `100dvh` com fallback).
+6. Descartados: **PDF em iframe** (`DocumentPdfPreview` não é usado na página pública — só em
+   `DocumentsPage`, `DocumentWizard`, `SignatureLinkRecord`); **position fixed/sticky** (nenhum
+   na página; o `sticky` é do `.template-studio`); **larguras fixas** (`.form-grid` já vira 1
+   coluna em ≤ 700 px; `.panel` tem `max-width: 880px`); **fontes** (DM Sans, sem tamanho < 12 px).
+
+### Ambiente de teste
+
+`playwright.config.ts` tem projetos `desktop` (Desktop Chrome) e `mobile` (Pixel 7, Chromium).
+Só há Chromium instalado (`/opt/pw-browsers`), sem WebKit; instalar WebKit = dependência nova →
+fora. O teste usa **Chromium com emulação de iPhone** (`devices["iPhone 13"]` sem
+`defaultBrowserType`) via `test.use` no próprio arquivo, sem projeto novo. Como o Chromium não
+reproduz o zoom do iOS, a causa 2 é verificada pelo estilo computado (≥ 16 px).
+
+
+### CT1 — Teste E2E da assinatura pública no iPhone (reprodução)
+
+- **Origem:** reunião 02/11/2026, B2-04 ("tudo bugado" no iPhone/iOS 18).
+- **Escopo:** `e2e/public-signature-mobile.spec.ts` (novo). Só teste, sem mudar produção.
+  Monta pela API do fixture (`api` de `e2e/fixtures.ts`): `seedPatient`, `POST /document-templates`
+  com corpo longo (≥ 40 parágrafos, uma palavra de 60 caracteres sem espaço, logo e
+  identificação da empresa como em `e2e/contracts.spec.ts`), emite o documento e
+  `POST /documents/:id/signature-link`; abre `/assinar-contrato/<token>` **sem login** com
+  `test.use({ ...iPhone13SemDefaultBrowserType })`; roda só no projeto `mobile`
+  (`test.skip(testInfo.project.name !== "mobile")`). Asserções:
+  1. sem rolagem horizontal: `documentElement.scrollWidth <= innerWidth`;
+  2. sem sobreposição: `.document-paper` com `scrollHeight <= clientHeight + 1` e o topo do
+     formulário (`h3` "Assinatura") abaixo do fim da folha (`boundingBox`);
+  3. campos de texto (Nome completo, CPF) com `font-size` computado ≥ 16 px;
+  4. canvas: `canvas.width === round(clientWidth × min(dpr, 2))`, também depois de
+     `page.setViewportSize` para paisagem (844×390);
+  5. desenhar com `page.mouse` (down/move/up) sobre o canvas não muda `scrollY` e, preenchido o
+     aceite, "Assinar documento" fica ativo; assinar mostra o `success-banner`.
+  Sem `test.fail()`/`skip` para esconder: o spec entra vermelho de propósito (o e2e não faz parte
+  do gate completo, então o gate segue verde); a saída vermelha vai na descrição do PR e no STATE,
+  e a CT2/CT3 a deixam verde.
+- **Gate:** `npm run test:e2e -- e2e/public-signature-mobile.spec.ts --project=mobile --workers=1`
+  falha hoje em pelo menos as asserções 3 e 4 (e 2, se a causa 1 se confirmar no Chromium);
+  saída real anotada no STATE. Gate completo verde (o e2e não está no gate completo).
+- **Depende de:** —
+- **Status:** DONE
+
+### CT2 — Layout da página pública no celular
+
+- **Origem:** B2-04.
+- **Escopo:** CSS em `10-commercial-communications.css`, junto do bloco
+  `/* Página pública… */` (não no fim do arquivo):
+  - `.public-signature-document .document-paper { aspect-ratio: auto; }` (a folha cresce com o
+    texto; nos outros lugares o A4 continua como está) — e, se a CT1 mostrar o mesmo vazamento em
+    outros usos do `DocumentPaper` fora do `.document-paper-canvas`, aplicar `min-height` A4 em vez
+    de `aspect-ratio` no `.document-paper` geral;
+  - `.public-signature-page { min-height: 100vh; min-height: 100dvh; }`;
+  - no `@media (max-width: 700px)` existente do arquivo: `.public-signature-page` com padding
+    `var(--space-4) var(--space-3)`, `.public-signature-document`/`.public-signature-form` com
+    padding lateral `var(--space-4)`, e `input, select, textarea` dentro de
+    `.public-signature-page` com `font-size: var(--text-lg)` (16 px — evita o zoom do iOS; regra
+    só da página pública, sem mudar o resto do sistema);
+  - `.document-rich-content` já tem `overflow-wrap: anywhere`; garantir `min-width: 0` na
+    `.public-signature-document`.
+  Só tokens (`--space-*`, `--text-*`), nada de px solto nem `style={{}}`, nenhuma fonte < 12 px,
+  sem grid novo de 2+ colunas.
+- **Gate:** gate completo + `audit-panels.cjs` + o spec da CT1 verde no projeto `mobile` e
+  `npm run test:e2e -- e2e/contracts.spec.ts --workers=1` (regressão da folha no desktop).
+- **Aceite:** asserções 1–3 da CT1 passam; captura de tela anexada ao PR (Playwright, 390×844).
+- **Depende de:** CT1
+- **Status:** DONE
+
+### CT3 — Assinatura por toque utilizável
+
+- **Origem:** B2-04.
+- **Escopo:** `SignaturePad` em `PublicSignaturePage.tsx` (pode ir para
+  `features/contracts/SignaturePad.tsx`) e CSS `.signature-pad canvas`:
+  - dimensionar o canvas com `ResizeObserver` (largura CSS × `min(devicePixelRatio, 2)`),
+    reaplicando `scale`/estilo do traço; ao mudar de tamanho, redesenhar a assinatura já feita
+    (guardar os pontos) ou limpá-la e chamar `onChange("")` — escolher redesenhar;
+  - `onPointerCancel` = `end`; ignorar ponteiros extras enquanto um desenha (`pointerId`);
+    `event.preventDefault()` no `pointerdown`;
+  - CSS: `user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;`
+    (mantendo `touch-action: none`);
+  - teste web novo em `features/contracts/signature-link.integration.test.tsx`: `pointercancel`
+    no meio do traço ainda libera "Assinar documento"; redimensionar (mock de `ResizeObserver`)
+    mantém a assinatura e ajusta `canvas.width`.
+- **Gate:** gate completo + spec da CT1 inteiro verde (asserções 4 e 5) no projeto `mobile`
+  e no `desktop`.
+- **Aceite:** PNG enviado ≤ 700 000 caracteres com o canvas em paisagem (verificado no e2e pelo
+  corpo do `POST /public/document-signatures/:token`).
+- **Depende de:** CT2
+- **Status:** DONE
+
+### CT4 — Validação no iPhone real (manual)
+
+- **Tipo:** manual
+- **Escopo:** dono abre um link real em produção no iPhone (Safari e WhatsApp in-app), contrato
+  longo: lê sem sobreposição, sem zoom ao tocar nos campos, assina em retrato e paisagem, vê a
+  confirmação. Registrar o resultado no STATE.
+- **Depende de:** CT3
+- **Status:** TODO
+
+### CT5 — Investigar falha do cadastro com contrato (B2-03)
+
+- **Origem:** reunião 02/11/2026, B2-03 ("acho que ele caducou, porque eu coloquei muita coisa").
+- **Fato do código:** o cadastro guiado (`features/patients/PatientModal.tsx` + `Guided*`) **não**
+  tem campo de contrato; "Documento para o cliente assinar" (`SignatureTemplateField`) está em
+  `PatientPlanModal`, `PlanModal`, `AppointmentModal` e `SupplierModal`, e o documento é emitido
+  depois de salvar (`SignatureSendStep`, `features/contracts/SignatureRequest.tsx`).
+- **Escopo (timebox: uma sessão, sem código de produção):** tentar reproduzir, com a API em
+  memória e com o build de produção:
+  1. cadastro guiado com o máximo de itens (`maxGuidedPlans = 10` planos com turma + avulsos +
+     produtos) e, em seguida, plano/atendimento com contrato pela ficha;
+  2. "caducou" = sessão expirada: JWT de `8h` (`modules/auth/routes.ts`); com token vencido o
+     `transport.ts` limpa a sessão no 401 (`crm:session-ended`) — verificar se o formulário longo
+     se perde e qual mensagem aparece;
+  3. limites: `bodyLimit` padrão 8 MB (`route-context.ts`), 1 MB na assinatura pública, contrato
+     com modelo grande/logo; validação zod de `guidedPatientInputSchema` com itens no limite;
+  4. pedir ao dono, se existir, o horário da demo para cruzar com o log da API em produção.
+  Registrar no STATE: passos, resultado e mensagem exata.
+- **Saída:** se reproduzir → criar **CT6 — Correção** no PLAN.md com causa, arquivos e teste que
+  falha antes (web ou API `*.integration.test.ts`). Se não reproduzir → registrar
+  "B2-03 não reproduzido" com o que foi tentado e **não** criar correção.
+- **Gate:** sem gate de código; entregável é a anotação no STATE (e, se for o caso, a CT6).
+- **Depende de:** — (independente de CT1–CT4)
+- **Resultado (02/11/2026):** reproduzida uma falha que combina com "coloquei muita coisa".
+  Com a API em memória (teste temporário, não commitado): cadastro guiado com 10 planos (1 + 9
+  adicionais, com turma) → 201; modelo de contrato com 19 754 caracteres e todas as variáveis →
+  emissão, status "issued" e link de assinatura → 200. **Falha:** observações do cliente com mais
+  de 2 000 caracteres → 400 "Observações: Use no máximo 2000 caracteres." O `textarea`
+  "Observações" do cadastro (`PatientModal.tsx`) não tem `maxLength`, então a tela aceita o texto
+  e só recusa ao salvar; o mesmo vale para "Observação" da aula experimental
+  (`GuidedDemonstrationFields.tsx`, limite 1 000 na API). Não dá para afirmar que foi esse o erro
+  da demo (o trecho da reunião é ininteligível), nem a sessão de 8 h: a CT4 (no iPhone) e o log
+  de produção no horário da demo confirmam. Correção na CT6.
+- **Status:** DONE
+
+
+### CT6 — Limite das observações no cadastro guiado
+
+- **Origem:** CT5 (B2-03).
+- **Escopo:** `patientNotesMaxLength` (2 000) e `leadAppointmentNotesMaxLength` (1 000)
+  exportados de contracts (`patients/model.ts`, `agenda/model.ts`) e usados no schema e no
+  `maxLength` dos `textarea` de `PatientModal.tsx` (Observações) e
+  `GuidedDemonstrationFields.tsx` (Observação). Teste web em
+  `guided-client-registration.integration.test.tsx`.
+- **Gate:** gate completo
+- **Aceite:** os dois campos têm `maxLength` igual ao limite da API (teste web).
+- **Depende de:** CT5
+## Pedidos avulsos do dono
+
+### V1 — Vales para colaboradores
+
+- **Pedido (02/11/2026):** vale com valor configurável, colaborador que recebe e mês em que é
+  descontado do salário; aparece no Financeiro e na Folha. Decisões do dono: despesa **já paga**
+  na entrega; criado e consultado **dentro da aba Folha**; desconto em **um mês só**.
+- **Escopo:** lançamento da folha `kind: "advance"` (`payroll_entries.advance_payable_id`,
+  migração `0040`) ligado a uma despesa paga em "Folha de pagamento" (DRE no mês do desconto);
+  `POST`/`DELETE /finance/payroll/advances` (`finance.payroll_manage`); remover o vale a lançar
+  estorna e cancela a despesa; estorno pelo Financeiro recusado (`PAYROLL_ADVANCE_PAYABLE`).
+- **Gate:** gate completo + `npm run test:mysql`
+- **Status:** DONE
+
 ## Rodada 8 — Correções do QA ponta a ponta (pedido do dono, 17/10/2026)
 
 Origem: QA em produção (modo Demonstração, admin) de 17/10/2026. IDs com prefixo `Q` para não

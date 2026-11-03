@@ -1836,6 +1836,7 @@
 /* Página pública aberta pelo cliente para ler e assinar. */
 .public-signature-page {
   min-height: 100vh;
+  min-height: 100dvh;
   padding: var(--space-6) var(--space-4);
   background: var(--cream);
 }
@@ -1848,6 +1849,34 @@
 .public-signature-document,
 .public-signature-form {
   padding: 0 calc(var(--space-5) - 1px) calc(var(--space-5) - 1px);
+}
+
+.public-signature-document {
+  min-width: 0;
+}
+
+/* A folha acompanha o texto: com a altura do A4 travada, um contrato longo vaza da folha
+   no celular (Safari) e fica por cima do formulário de assinatura. */
+.public-signature-document .document-paper {
+  aspect-ratio: auto;
+}
+
+@media (max-width: 700px) {
+  .public-signature-page {
+    padding: var(--space-4) var(--space-3);
+  }
+
+  .public-signature-document,
+  .public-signature-form {
+    padding: 0 var(--space-4) var(--space-4);
+  }
+
+  /* Abaixo de 16px o Safari do iOS amplia a página ao tocar no campo e não desfaz. */
+  .public-signature-page input,
+  .public-signature-page select,
+  .public-signature-page textarea {
+    font-size: var(--text-lg);
+  }
 }
 
 .public-signature-form h3 {
@@ -1875,5 +1904,9 @@
   border-radius: var(--radius-sm);
   background: white;
   touch-action: none;
+  /* Pressionar com o dedo desenha, sem selecionar texto nem abrir o menu do iOS. */
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
   cursor: crosshair;
 }

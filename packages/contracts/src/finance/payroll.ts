@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { competenceMonthSchema } from "../common/model.js";
+import { competenceMonthSchema, paymentMethodSchema } from "../common/model.js";
 import type { CommissionAdjustment } from "./commission-reconciliation.js";
 import type { CommissionEntry, Payable } from "./types.js";
 
@@ -99,19 +99,49 @@ export const payrollEntryInputSchema = z
   );
 export type PayrollEntryInput = z.infer<typeof payrollEntryInputSchema>;
 
-/** Desconto ou recompensa gravado: `amountInCents` é sempre positivo (o tipo dá o sinal). */
+/**
+ * `POST /finance/payroll/advances`: vale (adiantamento) dado ao colaborador. Cria na hora uma
+ * despesa já paga (sai do caixa em `paidAt`, padrão agora) na categoria "Folha de pagamento" e
+ * um lançamento da folha que desconta o valor do pagamento de `competence`.
+ */
+export const payrollAdvanceInputSchema = z.object({
+  employeeId: z.uuid("Escolha o colaborador."),
+  competence: competenceMonthSchema,
+  amountInCents: z
+    .number("Informe o valor.")
+    .int("Informe o valor.")
+    .min(1, "Informe um valor maior que zero.")
+    .max(2147483647, "Valor acima do limite permitido."),
+  paidAt: z.iso.datetime({ offset: true }).optional(),
+  paymentMethod: paymentMethodSchema.default("pix"),
+  reason: z
+    .string()
+    .trim()
+    .max(300, "O motivo pode ter até 300 caracteres.")
+    .optional()
+    .or(z.literal("")),
+});
+export type PayrollAdvanceInput = z.input<typeof payrollAdvanceInputSchema>;
+
+/**
+ * Desconto, recompensa ou vale gravado: `amountInCents` é sempre positivo (o tipo dá o sinal;
+ * o vale desconta). O vale é sempre em reais e tem a despesa paga em `advancePayableId`.
+ */
 export interface PayrollEntry {
   id: string;
   clinicId: string;
   employeeId: string;
   competence: string;
-  kind: "bonus" | "discount";
+  kind: "bonus" | "discount" | "advance";
   mode: "amount" | "percent";
   value: number;
   amountInCents: number;
+  /** Vazio só no vale sem motivo. */
   reason: string;
   /** Despesa da folha que incluiu o lançamento; ausente = a lançar. */
   payrollPayableId?: string;
+  /** Vale: a despesa paga na entrega. */
+  advancePayableId?: string;
   createdAt: string;
 }
 
@@ -157,9 +187,10 @@ export interface PayrollEmployee {
 export type PayrollItemStatus = "pending" | "launched" | "paid" | "outside";
 
 export interface PayrollItem {
-  /** `bonus`/`discount`: recompensa e desconto da folha (o desconto vem negativo). */
-  kind: "salary" | "commission" | "adjustment" | "bonus" | "discount";
-  /** Id da comissão, do ajuste ou do desconto/recompensa (ausente no salário). */
+  /** `bonus`/`discount`/`advance`: recompensa, desconto e vale (os dois últimos negativos). */
+  kind:
+    "salary" | "commission" | "adjustment" | "bonus" | "discount" | "advance";
+  /** Id da comissão, do ajuste ou do desconto/recompensa/vale (ausente no salário). */
   id?: string;
   description: string;
   amountInCents: number;
@@ -184,8 +215,10 @@ export interface PayrollLine {
   adjustmentInCents: number;
   /** Recompensas menos descontos da competência. */
   extraInCents: number;
+  /** Vales descontados na competência (negativo). */
+  advanceInCents: number;
   totalInCents: number;
-  /** O que ainda não foi lançado (salário, comissões, ajustes, descontos e recompensas). */
+  /** O que ainda não foi lançado (salário, comissões, ajustes, descontos, recompensas e vales). */
   pendingInCents: number;
   payables: PayrollPayableSummary[];
 }
@@ -195,6 +228,7 @@ export interface PayrollTotals {
   commissionInCents: number;
   adjustmentInCents: number;
   extraInCents: number;
+  advanceInCents: number;
   totalInCents: number;
   pendingInCents: number;
 }
@@ -243,7 +277,7 @@ export interface PayrollSources {
   commissions: (CommissionEntry & { serviceName?: string })[];
   /** Ajustes cuja comissão de origem é da competência. */
   adjustments: CommissionAdjustment[];
-  /** Descontos e recompensas da competência. */
+  /** Descontos, recompensas e vales da competência. */
   entries: PayrollEntry[];
   /** Despesas da folha da competência (sem as canceladas). */
   payables: Payable[];
@@ -257,6 +291,7 @@ const emptyTotals = (): PayrollTotals => ({
   commissionInCents: 0,
   adjustmentInCents: 0,
   extraInCents: 0,
+  advanceInCents: 0,
   totalInCents: 0,
   pendingInCents: 0,
 });
@@ -266,6 +301,7 @@ function addTotals(target: PayrollTotals, line: PayrollTotals) {
   target.commissionInCents += line.commissionInCents;
   target.adjustmentInCents += line.adjustmentInCents;
   target.extraInCents += line.extraInCents;
+  target.advanceInCents += line.advanceInCents;
   target.totalInCents += line.totalInCents;
   target.pendingInCents += line.pendingInCents;
 }
@@ -281,18 +317,29 @@ export function payrollPayableDescription(
 }
 
 const signedEntry = (entry: PayrollEntry) =>
-  entry.kind === "discount" ? -entry.amountInCents : entry.amountInCents;
+  entry.kind === "bonus" ? entry.amountInCents : -entry.amountInCents;
 
-/** "Desconto (10% do salário) · Faltas" / "Recompensa · Meta batida". */
+/** "Desconto (10% do salário) · Faltas" / "Recompensa · Meta batida" / "Vale · Mercado". */
 export function payrollEntryDescription(
   entry: Pick<PayrollEntry, "kind" | "mode" | "value" | "reason">,
 ) {
+  if (entry.kind === "advance")
+    return entry.reason ? `Vale · ${entry.reason}` : "Vale";
   const label = entry.kind === "discount" ? "Desconto" : "Recompensa";
   const percent =
     entry.mode === "percent"
       ? ` (${formatPayrollPercent(entry.value)} do salário)`
       : "";
   return `${label}${percent} · ${entry.reason}`;
+}
+
+/** "Vale · Ana Souza (desconto em 11/2026)": descrição da despesa paga do vale. */
+export function payrollAdvanceDescription(
+  employeeName: string,
+  competence: string,
+) {
+  const [year, month] = competence.split("-");
+  return `Vale · ${employeeName} (desconto em ${month}/${year})`;
 }
 
 /**
@@ -392,7 +439,8 @@ export function buildPayroll(sources: PayrollSources): PayrollSummary {
     const salaryInCents = sum("salary"),
       commissionInCents = sum("commission"),
       adjustmentInCents = sum("adjustment"),
-      extraInCents = sum("bonus", "discount");
+      extraInCents = sum("bonus", "discount"),
+      advanceInCents = sum("advance");
     return {
       employee,
       items,
@@ -400,8 +448,13 @@ export function buildPayroll(sources: PayrollSources): PayrollSummary {
       commissionInCents,
       adjustmentInCents,
       extraInCents,
+      advanceInCents,
       totalInCents:
-        salaryInCents + commissionInCents + adjustmentInCents + extraInCents,
+        salaryInCents +
+        commissionInCents +
+        adjustmentInCents +
+        extraInCents +
+        advanceInCents,
       pendingInCents: items
         .filter((item) => item.status === "pending")
         .reduce((total, item) => total + item.amountInCents, 0),
@@ -488,8 +541,18 @@ export function payrollPayableNotes(items: PayrollItem[]) {
     adjustment: "Ajustes de comissão",
     bonus: "Recompensas",
     discount: "Descontos",
+    advance: "Vales",
   } as const;
-  return (["salary", "commission", "adjustment", "bonus", "discount"] as const)
+  return (
+    [
+      "salary",
+      "commission",
+      "adjustment",
+      "bonus",
+      "discount",
+      "advance",
+    ] as const
+  )
     .map((kind) => {
       const own = items.filter((item) => item.kind === kind);
       if (!own.length) return "";

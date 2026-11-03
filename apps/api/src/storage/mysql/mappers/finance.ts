@@ -150,6 +150,8 @@ export interface PayableRow {
   payrollCompetence?: string | null;
   payrollSalaryInCents?: number | null;
   payrollCommissionInCents?: number | null;
+  /** Vale da folha (JSON montado na consulta; passa por `json()`). */
+  payrollAdvance?: unknown;
   branchId?: string;
   postedOn?: string | null;
   cashAvailableAt?: Date | null;
@@ -296,7 +298,11 @@ export const payableColumns = `
   py.amount_pending AS "amountPending",
   py.payroll_employee_id AS "payrollEmployeeId",py.payroll_competence AS "payrollCompetence",
   py.payroll_salary_in_cents AS "payrollSalaryInCents",py.payroll_commission_in_cents AS "payrollCommissionInCents",
-  (SELECT pe.name FROM payroll_employees pe WHERE pe.id=py.payroll_employee_id) AS "payrollEmployeeName"
+  (SELECT pe.name FROM payroll_employees pe WHERE pe.id=py.payroll_employee_id) AS "payrollEmployeeName",
+  (SELECT JSON_OBJECT('entryId',pa.id,'employeeId',pa.employee_id,'employeeName',COALESCE(pau.full_name,pae.name),'competence',pa.competence)
+     FROM payroll_entries pa JOIN payroll_employees pae ON pae.id=pa.employee_id
+     LEFT JOIN users pau ON pau.id=pae.user_id
+     WHERE pa.advance_payable_id=py.id) AS "payrollAdvance"
 `;
 
 export const recurringPayableColumns = `
@@ -521,7 +527,13 @@ export function mapPayable(row: PayableRow): Payable {
         }
       : {}),
     ...(row.amountPending ? { amountPending: true } : {}),
+    ...payrollAdvanceOf(row.payrollAdvance),
   };
+}
+
+function payrollAdvanceOf(value: unknown) {
+  const advance = json<Payable["payrollAdvance"] | null>(value);
+  return advance ? { payrollAdvance: advance } : {};
 }
 
 export function mapRecurringPayable(
