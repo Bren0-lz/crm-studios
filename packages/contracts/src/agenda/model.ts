@@ -210,13 +210,21 @@ export function agendaConflict(
   return { key, kind, label };
 }
 
+/** Limite da observação da aula experimental: a tela usa o mesmo número no `maxLength`. */
+export const leadAppointmentNotesMaxLength = 1000;
+
 // Atendimento de lead ainda não convertido: só experimental ou avaliação.
 export const leadAppointmentInputSchema = z.object({
   professionalId: z.uuid(),
   roomId: z.uuid(),
   serviceId: z.uuid(),
   startsAt: z.iso.datetime({ offset: true }),
-  notes: z.string().trim().max(1000).optional().or(z.literal("")),
+  notes: z
+    .string()
+    .trim()
+    .max(leadAppointmentNotesMaxLength)
+    .optional()
+    .or(z.literal("")),
   visitType: z.enum(["trial", "evaluation"]),
 });
 

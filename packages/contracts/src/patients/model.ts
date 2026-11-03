@@ -134,6 +134,9 @@ export function patientProfile(
   return patientStoredProfileSchema.parse(input);
 }
 
+/** Limite das observações do cliente: a tela usa o mesmo número no `maxLength`. */
+export const patientNotesMaxLength = 2000;
+
 export const patientInputSchema = z.object({
   ...patientStoredProfileSchema.shape,
   fullName: z.string().trim().min(3).max(160),
@@ -148,7 +151,12 @@ export const patientInputSchema = z.object({
   birthDate: z.iso.date().optional().or(z.literal("")),
   emergencyContactName: z.string().trim().max(160).optional().or(z.literal("")),
   emergencyContactPhone: optionalPhoneSchema,
-  notes: z.string().trim().max(2000).optional().or(z.literal("")),
+  notes: z
+    .string()
+    .trim()
+    .max(patientNotesMaxLength)
+    .optional()
+    .or(z.literal("")),
   tags: z.array(z.string().trim().min(1).max(40)).max(20).default([]),
 });
 
