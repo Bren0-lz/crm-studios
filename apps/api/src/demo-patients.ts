@@ -2,6 +2,26 @@ import type { Patient } from "@crm/contracts";
 
 const clinicId = "11111111-1111-4111-8111-111111111111";
 
+/**
+ * CPF sintético e válido do cliente demo `number` (PAC-0000N). Base 950.000.000 + N, fora da
+ * faixa usada nos testes (`test-support/cpf.ts`, até 900.000.000).
+ */
+export function demoCpf(number: number): string {
+  const digits = String(950_000_000 + number)
+    .split("")
+    .map(Number);
+  for (const weight of [10, 11]) {
+    const remainder =
+      digits.reduce((sum, digit, index) => sum + digit * (weight - index), 0) %
+      11;
+    digits.push(remainder < 2 ? 0 : 11 - remainder);
+  }
+  return digits.join("");
+}
+
+/** Um em cada dez clientes demo fica sem CPF, como os importados da planilha (B6-05). */
+export const isDemoPatientWithoutCpf = (index: number) => index % 10 === 9;
+
 const firstNames = [
   "Ana",
   "Bruna",
@@ -158,6 +178,7 @@ export const demoPatients: Patient[] = Array.from(
       clinicId,
       recordNumber: `PAC-${String(number).padStart(5, "0")}`,
       fullName,
+      ...(isDemoPatientWithoutCpf(index) ? {} : { cpf: demoCpf(number) }),
       phone: `119${String(90000000 + number).padStart(8, "0")}`,
       ...(index % 5 !== 0 ? { email: `cliente${number}@example.com` } : {}),
       birthDate: `${1950 + ((index * 7) % 55)}-${String((index % 12) + 1).padStart(2, "0")}-${String((index % 28) + 1).padStart(2, "0")}`,

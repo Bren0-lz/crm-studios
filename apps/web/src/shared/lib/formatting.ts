@@ -7,9 +7,8 @@ import type {
   LeadAppointmentInput,
 } from "@crm/contracts";
 import {
-  automaticPatientTagCategory,
+  automaticPatientTagCategoryOf,
   formatPhone,
-  isAutomaticPatientTag,
   patientFirstName,
   patientTagCategoryColors,
   type PatientTag,
@@ -199,6 +198,12 @@ export function statusLabel(status: AppointmentStatus) {
   }[status];
 }
 
+/** Cor de uma etiqueta automática (a da sua categoria); `undefined` se não for automática. */
+export function automaticPatientTagColor(name: string): string | undefined {
+  const category = automaticPatientTagCategoryOf(name);
+  return category ? patientTagCategoryColors[category] : undefined;
+}
+
 export function tagColorLookup(tags: readonly PatientTag[] | null) {
   const colors = new Map(
     (tags ?? []).map((tag) => [
@@ -209,9 +214,7 @@ export function tagColorLookup(tags: readonly PatientTag[] | null) {
   return (name: string) =>
     normalizeTagColor(
       colors.get(patientTagKey(name)) ??
-        (isAutomaticPatientTag(name)
-          ? patientTagCategoryColors[automaticPatientTagCategory]
-          : undefined),
+        automaticPatientTagColor(name),
     );
 }
 

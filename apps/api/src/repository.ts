@@ -199,7 +199,8 @@ import type {
   ManualMessageInput,
   OutboundMessage,
   Patient,
-  PatientInput,
+  PatientImportInput,
+  PatientUpdateInput,
   PatientPlan,
   PatientPlanInput,
   PatientTab,
@@ -766,7 +767,11 @@ export interface ClinicRepository {
     professionalIds?: readonly string[],
   ): Promise<DashboardSummary>;
   listPatients(clinicId: string, search?: string): Promise<Patient[]>;
-  createPatient(clinicId: string, input: PatientInput): Promise<Patient>;
+  /**
+   * O CPF só pode faltar em clientes vindos da importação (B6-05); `POST /patients` valida com
+   * `patientInputSchema`, que o exige. Sem CPF, grava `NULL` (nunca `''`, por causa da chave única).
+   */
+  createPatient(clinicId: string, input: PatientImportInput): Promise<Patient>;
   /**
    * Cadastro guiado (`POST /patients/guided`): cria o cliente e o próximo passo — atendimento
    * experimental, plano (com matrícula opcional em turma de um serviço incluído; `additionalPlans`
@@ -786,16 +791,17 @@ export interface ClinicRepository {
   listSubscriberIdsWithoutGroup(clinicId: string): Promise<string[]>;
   /**
    * Cria os clientes importados de uma vez (tudo ou nada), ignorando os que já existem na base
-   * no momento da gravação (mesmo CPF ou telefone, comparando só os dígitos).
+   * no momento da gravação (mesmo CPF ou telefone, comparando só os dígitos). O CPF pode faltar.
    */
   importPatients(
     clinicId: string,
-    inputs: PatientInput[],
+    inputs: PatientImportInput[],
   ): Promise<{ created: number; skipped: number }>;
+  /** O CPF pode seguir vazio (cliente importado sem CPF); sem CPF, grava `NULL`. */
   updatePatient(
     clinicId: string,
     patientId: string,
-    input: PatientInput,
+    input: PatientUpdateInput,
   ): Promise<Patient | null>;
   /** Etiquetas configuradas da clínica, por nome (pt-BR), com quantos clientes usam cada uma. */
   listPlanCatalog(clinicId: string): Promise<PlanCatalogEntry[]>;
@@ -1406,6 +1412,25 @@ export interface ClinicRepository {
    * PAYROLL_ENTRY_LAUNCHED (409). `false` = não encontrado.
    */
   deletePayrollEntry(
+    clinicId: string,
+    actorId: string,
+    entryId: string,
+  ): Promise<boolean>;
+  /**
+   * Vale do colaborador: cria a despesa já paga (categoria "Folha de pagamento", competência
+   * da DRE = mês do desconto) e o lançamento `advance` que desconta o valor na folha desse mês.
+   * Colaborador inativo: PAYROLL_EMPLOYEE_INACTIVE (409). `null` = não encontrado.
+   */
+  createPayrollAdvance(
+    clinicId: string,
+    actorId: string,
+    input: import("@crm/contracts").PayrollAdvanceInput,
+  ): Promise<import("@crm/contracts").PayrollEntry | null>;
+  /**
+   * Remove um vale ainda a lançar: estorna e cancela a despesa paga. Já numa despesa da
+   * folha: PAYROLL_ENTRY_LAUNCHED (409). `false` = não encontrado.
+   */
+  deletePayrollAdvance(
     clinicId: string,
     actorId: string,
     entryId: string,

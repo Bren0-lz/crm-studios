@@ -1,7 +1,7 @@
 import {
-  automaticPatientTagCategory,
+  DEFAULT_PATIENT_TAG_COLOR,
+  MISSING_CPF_TAG,
   OVERDUE_PAYMENT_TAG,
-  patientTagCategoryColors,
   patientTagDisplayColor,
 } from "@crm/contracts";
 import { PatientProfileFilters } from "./PatientProfileFilters";
@@ -36,6 +36,7 @@ import { ReadOnlyNotice } from "../../shared/components/ReadOnlyNotice";
 import { TagChoice } from "../../shared/components/TagChoice";
 import { usePatientTags } from "../../shared/hooks/usePatientTags";
 import {
+  automaticPatientTagColor,
   initials,
   tagColorLookup,
   tagCounts,
@@ -50,6 +51,12 @@ import { PatientImportModal } from "./PatientImportModal";
 import { PatientModal } from "./PatientModal";
 import type { PatientRecordFilter, PatientSort } from "./types";
 
+const automaticTagHints: Record<string, string> = {
+  [OVERDUE_PAYMENT_TAG]:
+    "Etiqueta automática: cliente com parcela vencida e em aberto.",
+  [MISSING_CPF_TAG]:
+    "Etiqueta automática: cliente sem CPF (importado da planilha). Sai sozinha quando o CPF é preenchido.",
+};
 export function PatientsPage() {
   const { can, canEdit, canView } = useAuthorization();
   const navigate = useNavigate();
@@ -135,8 +142,12 @@ export function PatientsPage() {
   // Filtro mostra as etiquetas configuradas (com a cor), com quantos clientes da lista têm cada uma.
   const countTag = tagCounts(patients);
   const tagOptions = configuredTags.tags ?? [];
-  // Etiqueta automática (parcela vencida e em aberto): a API só calcula para quem vê o Financeiro.
-  const automaticTagOptions = canView("finance") ? [OVERDUE_PAYMENT_TAG] : [];
+  // Etiquetas automáticas: "Pagamento atrasado" só para quem vê o Financeiro (a API só calcula
+  // para esse perfil); "Falta CPF" (B6-05) para todos.
+  const automaticTagOptions = [
+    ...(canView("finance") ? [OVERDUE_PAYMENT_TAG] : []),
+    MISSING_CPF_TAG,
+  ];
   const activeFilterCount =
     (filters.status !== "all" ? 1 : 0) +
     (filters.record !== "all" ? 1 : 0) +
@@ -386,10 +397,11 @@ export function PatientsPage() {
                         key={`automatic-${name}`}
                         name={name}
                         color={
-                          patientTagCategoryColors[automaticPatientTagCategory]
+                          automaticPatientTagColor(name) ??
+                          DEFAULT_PATIENT_TAG_COLOR
                         }
                         count={countTag(name)}
-                        hint="Etiqueta automática: cliente com parcela vencida e em aberto."
+                        hint={automaticTagHints[name] ?? ""}
                         pressed={filters.tags.includes(name)}
                         onToggle={() => toggleTag(name)}
                       />

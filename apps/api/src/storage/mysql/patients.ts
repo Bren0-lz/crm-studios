@@ -2,7 +2,8 @@ import {
   auditChangesOf,
   type GuidedPatientInput,
   type GuidedPatientResult,
-  type PatientInput,
+  type PatientImportInput,
+  type PatientUpdateInput,
   type PatientPlan,
   type PatientPlanInput,
   type PatientTagInput,
@@ -186,7 +187,7 @@ export function createPatientsRepository(
       return result.rows.map(mapPatient);
     },
 
-    async createPatient(clinicId: string, input: PatientInput) {
+    async createPatient(clinicId: string, input: PatientImportInput) {
       return repositoryContext.insertPatient(
         repositoryContext.pool,
         clinicId,
@@ -310,7 +311,7 @@ export function createPatientsRepository(
       });
     },
 
-    async importPatients(clinicId: string, inputs: PatientInput[]) {
+    async importPatients(clinicId: string, inputs: PatientImportInput[]) {
       if (inputs.length === 0) return { created: 0, skipped: 0 };
       return repositoryContext.inTransaction(async (client) => {
         // Serializa importações da mesma clínica para a checagem de duplicados valer até o COMMIT.
@@ -355,7 +356,7 @@ export function createPatientsRepository(
     async updatePatient(
       clinicId: string,
       patientId: string,
-      input: PatientInput,
+      input: PatientUpdateInput,
     ) {
       const profile = patientProfile(input);
       try {

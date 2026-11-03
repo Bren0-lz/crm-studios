@@ -24,7 +24,6 @@ import {
   type PaymentMethod,
   type PatientImportAnalysis,
   patientImportFileSchema,
-  type PatientInput,
   permissionCatalog,
   type PermissionKey,
   resolvePatientTags,
@@ -775,10 +774,10 @@ export async function createRouteContext({
    * diferenciar maiúsculas/acentos) ou recusa com 400 listando as desconhecidas. Etiquetas
    * automáticas ("Pagamento atrasado") são calculadas na leitura: informadas à mão, são ignoradas.
    */
-  async function withConfiguredTags(
+  async function withConfiguredTags<T extends { tags: string[] }>(
     clinicId: string,
-    input: PatientInput,
-  ): Promise<PatientInput> {
+    input: T,
+  ): Promise<T> {
     const manualTags = withoutAutomaticPatientTags(input.tags);
     if (manualTags.length === 0) return { ...input, tags: manualTags };
     const { tags, unknown } = resolvePatientTags(

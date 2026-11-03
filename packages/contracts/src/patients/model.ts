@@ -134,6 +134,9 @@ export function patientProfile(
   return patientStoredProfileSchema.parse(input);
 }
 
+/** Limite das observações do cliente: a tela usa o mesmo número no `maxLength`. */
+export const patientNotesMaxLength = 2000;
+
 export const patientInputSchema = z.object({
   ...patientStoredProfileSchema.shape,
   fullName: z.string().trim().min(3).max(160),
@@ -148,8 +151,42 @@ export const patientInputSchema = z.object({
   birthDate: z.iso.date().optional().or(z.literal("")),
   emergencyContactName: z.string().trim().max(160).optional().or(z.literal("")),
   emergencyContactPhone: optionalPhoneSchema,
-  notes: z.string().trim().max(2000).optional().or(z.literal("")),
+  notes: z
+    .string()
+    .trim()
+    .max(patientNotesMaxLength)
+    .optional()
+    .or(z.literal("")),
   tags: z.array(z.string().trim().min(1).max(40)).max(20).default([]),
+});
+
+/**
+ * CPF que pode faltar (B6-05): vazio vira `undefined`; preenchido precisa ser válido. Usado só na
+ * importação por planilha — no cadastro manual o CPF continua obrigatório.
+ */
+export const optionalCpfSchema = z
+  .string({ error: "Informe um CPF válido." })
+  .trim()
+  .transform(cpfDigits)
+  .refine(
+    (value) => value === "" || isValidCpf(value),
+    "Informe um CPF válido.",
+  )
+  .transform((value) => value || undefined)
+  .optional();
+
+/** Linha da planilha de importação: igual ao cadastro, mas o CPF pode faltar (B6-05). */
+export const patientImportInputSchema = patientInputSchema.extend({
+  cpf: optionalCpfSchema,
+});
+
+/**
+ * Edição do cliente (`PUT /patients/:id`, B6-05): o CPF pode continuar vazio em quem foi
+ * importado sem ele (a etiqueta "Falta CPF" fica até ele ser preenchido). A rota recusa apagar
+ * um CPF já gravado.
+ */
+export const patientUpdateInputSchema = patientInputSchema.extend({
+  cpf: optionalCpfSchema,
 });
 
 /** Cor das etiquetas criadas sem cor e das importadas na migração 0044. */
@@ -549,12 +586,11 @@ export const patientImportFieldSchema = z.enum(
 
 export const patientImportFields = patientImportFieldSchema.options;
 
-/** Campos sem os quais o cliente não é cadastrado (marcados na tela de importação). */
-export const patientImportRequiredFields = [
-  "fullName",
-  "cpf",
-  "phone",
-] as const;
+/**
+ * Campos sem os quais o cliente não é cadastrado (marcados na tela de importação). O CPF pode
+ * faltar na planilha (B6-05): o cliente entra com a etiqueta automática "Falta CPF".
+ */
+export const patientImportRequiredFields = ["fullName", "phone"] as const;
 
 /** Nome pt-BR de cada campo na tela de mapeamento das colunas. */
 export const patientImportFieldLabels: Record<

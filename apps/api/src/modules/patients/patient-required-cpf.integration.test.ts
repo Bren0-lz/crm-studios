@@ -1,15 +1,17 @@
+import { MISSING_CPF_TAG } from "@crm/contracts";
 import { describe, expect, it } from "vitest";
 import { authenticatedApp } from "../../test-support/legacy-fixtures.js";
 
 describe("required client CPF", () => {
-  it("requires CPF in imports and when converting a lead into a client", async () => {
+  it("accepts imports without CPF (B6-05) but requires it when converting a lead into a client", async () => {
     const { app, token } = await authenticatedApp();
     const headers = { authorization: `Bearer ${token}` };
     try {
-      for (const csv of [
-        "Nome;Telefone\nCliente Importado;11999998888",
-        "Nome;Telefone;CPF\nCliente Importado;11999998888;",
-      ]) {
+      for (const [csv, created] of [
+        ["Nome;Telefone\nCliente Importado;11999998888", 1],
+        // Mesmo telefone: duplicado (sem CPF, o telefone é a chave).
+        ["Nome;Telefone;CPF\nCliente Importado;11999998888;", 0],
+      ] as const) {
         const file = {
           fileName: "clientes.csv",
           contentBase64: Buffer.from(csv).toString("base64"),
@@ -21,8 +23,7 @@ describe("required client CPF", () => {
           payload: file,
         });
         expect(preview.json()).toMatchObject({
-          totals: { valid: 0, error: 1 },
-          rows: [{ errors: ["Linha 2: CPF é obrigatório."] }],
+          totals: { valid: created, error: 0, duplicate: 1 - created },
         });
         const imported = await app.inject({
           method: "POST",
@@ -30,7 +31,11 @@ describe("required client CPF", () => {
           headers,
           payload: file,
         });
-        expect(imported.json()).toEqual({ created: 0, skipped: 0, errors: 1 });
+        expect(imported.json()).toEqual({
+          created,
+          skipped: 1 - created,
+          errors: 0,
+        });
       }
       const lead = await app.inject({
         method: "POST",
@@ -60,6 +65,14 @@ describe("required client CPF", () => {
       });
       expect(converted.statusCode).toBe(200);
       expect(converted.json().patient.cpf).toBe("52998224725");
+      // Mesmo telefone do importado sem CPF: reaproveita o cadastro e a etiqueta sai sozinha.
+      expect(converted.json().reusedExisting).toBe(true);
+      const detail = await app.inject({
+        method: "GET",
+        url: `/patients/${converted.json().patient.id}`,
+        headers,
+      });
+      expect(detail.json().tags).not.toContain(MISSING_CPF_TAG);
     } finally {
       await app.close();
     }

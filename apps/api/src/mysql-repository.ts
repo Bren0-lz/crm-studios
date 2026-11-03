@@ -360,6 +360,8 @@ export class MysqlClinicRepository implements ClinicRepository {
     this.launchPayroll = payroll.launchPayroll;
     this.createPayrollEntry = payroll.createPayrollEntry;
     this.deletePayrollEntry = payroll.deletePayrollEntry;
+    this.createPayrollAdvance = payroll.createPayrollAdvance;
+    this.deletePayrollAdvance = payroll.deletePayrollAdvance;
     this.cancelPayrollLaunch = payroll.cancelPayrollLaunch;
     this.generateCommissions = this.finance.generateCommissions;
     this.settleCommission = this.finance.settleCommission;
@@ -733,6 +735,8 @@ export class MysqlClinicRepository implements ClinicRepository {
   readonly launchPayroll: ClinicRepository["launchPayroll"];
   readonly createPayrollEntry: ClinicRepository["createPayrollEntry"];
   readonly deletePayrollEntry: ClinicRepository["deletePayrollEntry"];
+  readonly createPayrollAdvance: ClinicRepository["createPayrollAdvance"];
+  readonly deletePayrollAdvance: ClinicRepository["deletePayrollAdvance"];
   readonly cancelPayrollLaunch: ClinicRepository["cancelPayrollLaunch"];
 
   readonly createCommissionRule: ClinicRepository["createCommissionRule"];
