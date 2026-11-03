@@ -1433,6 +1433,10 @@
   font-size: var(--text-xs);
   font-weight: 600;
 }
+/* "Registrar vale" no detalhe: largura do conteúdo, não da coluna. */
+.payroll-detail-block > .secondary-button {
+  justify-self: start;
+}
 .payroll-detail-empty {
   margin: 0;
   color: var(--muted);

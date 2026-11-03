@@ -544,6 +544,16 @@ export const historyActions: {
     label: "Desconto ou recompensa removido da folha",
   },
   {
+    action: "payroll.advance_created",
+    module: "finance",
+    label: "Vale registrado para colaborador",
+  },
+  {
+    action: "payroll.advance_deleted",
+    module: "finance",
+    label: "Vale removido",
+  },
+  {
     action: "payroll.launched",
     module: "finance",
     label: "Folha de pagamento lançada",
