@@ -1,9 +1,9 @@
 # Estado do loop
 
-- **Tarefa atual:** QM16 (Rodada 8, branch `main`)
-- **Última concluída:** QM15
+- **Tarefa atual:** CT1 (Rodada 9; a Rodada 8 está pausada em QM16 e volta depois)
+- **Última concluída:** QM15 (Rodada 8)
 - **Tentativas na atual:** 0/3
-- **Bloqueios:** nenhum
+- **Bloqueios:** Rodada 9 tem tarefas BLOCKED à espera do estúdio: PX3, CD2, CD3, TW2, SS2, EV7, RC6, TG5, TG6, CM2, CM3, AJ4
 
 ## Diário
 
@@ -53,3 +53,4 @@
 - 2026-10-20 FILIAIS (pedido do dono, fora do loop): migração 0086 (branches, user_branches, branch_id nas tabelas operacionais, gatilho de filial padrão). Escopo por cabeçalho X-Branch-Id em repository.branchScope; ver apps/api/AGENTS.md. Toda lista/relatório nova de agenda, financeiro, estoque, comandas ou leads precisa filtrar pela filial; consultas da ficha do cliente não filtram (web usa `allBranches`). Seletor de filial no cabeçalho (só com 2+ filiais) remonta a página. Próxima migração livre: 0087. Testes web dependem de TZ=America/Sao_Paulo (no container UTC 4 testes de turmas falham).
 - 2026-10-25 Formulários de avaliação (pedido direto do dono, fora do PLAN): prontuário ganhou abas Prontuários / Modelos de avaliação / Criar modelo (como Contratos: do zero ou a partir de um modelo, editar = nova versão, duplicar, arquivar/reativar a família inteira). `GET /assessment-templates` e `PATCH /assessment-templates/:id/status` (repo `listAssessmentTemplates`/`setAssessmentTemplateActive`, memória e PG). Workspace agora devolve todas as versões, inclusive arquivadas (rótulos das avaliações antigas); escolha de formulário usa `latestAssessmentTemplates({ publishedOnly })`. Fichas iniciais (Anamnese, Avaliação postural, Ficha de inscrição Dançaterapia) em contracts `starterAssessmentTemplates` + migração 0101 (teste garante que batem) + seedDemoData. Registrar avaliação = escolher formulário → preencher, com a última resposta de cada campo (`previousAssessmentAnswers`) só para consulta. Aba Avaliações agrupada por tipo com filtros. `ClinicalFieldInputs`: Sim/Não e seleção com até 8 opções viram rádios, múltipla vira caixas (testes: clicar no rótulo dentro do `group`). Próxima migração livre: 0102.
 - 2026-10-30 BANCO MySQL/MariaDB (pedido do dono, fora do loop): Postgres removido; migrações recomeçaram em 0001_schema.sql (0019 = tamanhos da categoria, PR #167; 0020 = preferências de notificação, PR #166). Todo SQL novo vai em storage/mysql seguindo a seção "Banco de dados: MySQL/MariaDB" do CLAUDE.md; `storage/mysql/mysql-dialect.unit.test.ts` reprova sintaxe do Postgres. Números de migração e menções a "PG" acima neste diário são da era Postgres.
+- 2026-11-03 RODADA 9 planejada (reunião de 02/11): CT1–CT3, CP1–CP2, PX1–PX3, CD1–CD4, TW1–TW2, SS1–SS2, EV1–EV7, RC1–RC6, TG1–TG6, CM1–CM3, NB1, AJ1–AJ4 no PLAN.md. Já atendidos no código: B1-01, B1-08, B3-06 e B1-04/B1-05 (commit 7a0e2229). A API já põe na espera quem entra em turma cheia (falta o aviso na venda de plano: TW1). Próxima migração livre hoje: 0041 (0040 está no branch aberto beautiful-fermi); confira pela regra antes de usar.
