@@ -7,7 +7,7 @@ export interface PayrollLaunchEntry {
   /** Itens pendentes incluídos na despesa. */
   items: PayrollItem[];
   amountInCents: number;
-  /** Salário + recompensas − descontos (custo de pessoal na DRE). */
+  /** Salário + recompensas − descontos − vales (custo de pessoal na DRE). */
   salaryInCents: number;
   /** Comissões + ajustes incluídos. */
   commissionInCents: number;
@@ -44,6 +44,7 @@ export function payrollLaunchTotals(
       "adjustment",
       "bonus",
       "discount",
+      "advance",
     ]);
     if (amountInCents <= 0) {
       skipped.push({
@@ -63,7 +64,7 @@ export function payrollLaunchTotals(
       line,
       items,
       amountInCents,
-      salaryInCents: sum(["salary", "bonus", "discount"]),
+      salaryInCents: sum(["salary", "bonus", "discount", "advance"]),
       commissionInCents: sum(["commission", "adjustment"]),
       complement: line.payables.length > 0,
     });
@@ -72,7 +73,7 @@ export function payrollLaunchTotals(
     throw new DomainError(
       "PAYROLL_NOTHING_PENDING",
       skipped.length
-        ? "Os valores pendentes desta folha somam zero ou menos (ajustes de desconto); nada foi lançado."
+        ? "Os valores pendentes desta folha somam zero ou menos (descontos, vales ou ajustes); nada foi lançado."
         : "Não há valores pendentes para lançar nesta folha.",
       409,
     );
@@ -126,6 +127,32 @@ export function payrollEntryLimitError() {
   return new DomainError(
     "PAYROLL_AMOUNT_LIMIT",
     "O valor excede o limite financeiro permitido.",
+    409,
+  );
+}
+
+/** O vale é criado e removido pelas rotas próprias, não como desconto comum. */
+export function payrollAdvanceManagedError() {
+  return new DomainError(
+    "PAYROLL_ADVANCE_MANAGED",
+    "Este lançamento é um vale. Remova-o pela opção de vale da folha.",
+    409,
+  );
+}
+
+/** A despesa paga do vale só muda pela folha (remover o vale estorna e cancela). */
+export function payrollAdvanceOnlyError() {
+  return new DomainError(
+    "PAYROLL_ADVANCE_PAYABLE",
+    "Esta despesa é um vale da folha de pagamento. Para desfazer, remova o vale na Folha.",
+    409,
+  );
+}
+
+export function payrollAdvanceInactiveError() {
+  return new DomainError(
+    "PAYROLL_EMPLOYEE_INACTIVE",
+    "Este colaborador está inativo. Ative o cadastro antes de registrar um vale.",
     409,
   );
 }

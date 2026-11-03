@@ -1,7 +1,7 @@
 import {
   patientImportFieldLabels,
   patientImportPhoneFields,
-  patientInputSchema,
+  patientImportInputSchema,
   patientProfileLabels,
   patientProfileValueLabels,
   patientResidenceTypeLabels,
@@ -13,7 +13,7 @@ import {
   type PatientImportDuplicate,
   type PatientImportField,
   type PatientImportRow,
-  type PatientInput,
+  type PatientImportInput,
   type PatientTag,
 } from "@crm/contracts";
 import ExcelJS from "exceljs";
@@ -467,7 +467,8 @@ export function validatePatientImport(
       else if (key === "clientSince") raw[key] = parseBirthDate(text) ?? text;
       else raw[key] = text;
     }
-    const parsed = patientInputSchema.safeParse(raw);
+    // CPF pode faltar na planilha (B6-05): o cliente entra com a etiqueta "Falta CPF".
+    const parsed = patientImportInputSchema.safeParse(raw);
     if (!parsed.success) {
       const fields = new Set<ImportField>();
       for (const issue of parsed.error.issues) {
@@ -479,9 +480,7 @@ export function validatePatientImport(
         errors.push(
           field === "phone" && phone === ""
             ? `Linha ${line}: telefone é obrigatório.`
-            : field === "cpf" && !value("cpf")
-              ? `Linha ${line}: CPF é obrigatório.`
-              : `Linha ${line}: ${issueMessage(field)}`,
+            : `Linha ${line}: ${issueMessage(field)}`,
         );
       }
     }
@@ -502,7 +501,7 @@ export function validatePatientImport(
       continue;
     }
 
-    const input: PatientInput = parsed.data;
+    const input: PatientImportInput = parsed.data;
     const cpfKey = digitsOnly(input.cpf);
     const phoneKey = digitsOnly(input.phone);
     let duplicateOf: PatientImportDuplicate | undefined;

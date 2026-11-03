@@ -9,7 +9,7 @@ import {
   type PayrollSummary,
   type PayrollTotals,
 } from "@crm/contracts";
-import { ChevronDown, ChevronUp, Wallet } from "lucide-react";
+import { ChevronDown, ChevronUp, HandCoins, Wallet } from "lucide-react";
 import { useEffect, useState } from "react";
 import { allBranches, api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
@@ -21,6 +21,7 @@ import { useToast } from "../../shared/feedback/toast-context";
 import { useDataVersion } from "../../shared/hooks/useDataVersion";
 import { currency, formatIsoDate } from "../../shared/lib/formatting";
 import { formatCompetence } from "./model";
+import { PayrollAdvanceModal } from "./PayrollAdvanceModal";
 import { PayrollEntryModal } from "./PayrollEntryModal";
 import { PayrollLaunchModal } from "./PayrollLaunchModal";
 
@@ -40,10 +41,13 @@ const statusTones: Record<PayrollItemStatus, string> = {
   outside: "paid",
 };
 
+/** Itens que a equipe lança e remove um a um enquanto estão a lançar. */
+const removableKinds: PayrollItem["kind"][] = ["bonus", "discount", "advance"];
+
 /**
  * Itens iguais (mesmo tipo, descrição e situação) somados numa linha. A descrição é separada
  * no primeiro " · ": "Comissão" como título e "Pilates individual" como detalhe. Desconto e
- * recompensa ficam cada um na sua linha (podem ser removidos um a um).
+ * recompensa e vale ficam cada um na sua linha (podem ser removidos um a um).
  */
 function groupItems(items: PayrollItem[]) {
   const groups = new Map<
@@ -60,7 +64,7 @@ function groupItems(items: PayrollItem[]) {
     }
   >();
   for (const item of items) {
-    const single = item.kind === "bonus" || item.kind === "discount";
+    const single = removableKinds.includes(item.kind);
     const key = single
       ? `${item.kind}|${item.id}`
       : `${item.kind}|${item.description}|${item.status}`;
@@ -105,6 +109,10 @@ function Totals({ totals, label }: { totals: PayrollTotals; label: string }) {
         <dt>Ajustes</dt>
         <dd>{money(totals.adjustmentInCents + totals.extraInCents)}</dd>
       </div>
+      <div>
+        <dt>Vales</dt>
+        <dd>{money(totals.advanceInCents)}</dd>
+      </div>
       <div className="is-total">
         <dt>Total</dt>
         <dd>{money(totals.totalInCents)}</dd>
@@ -133,7 +141,12 @@ export function PayrollSection() {
   const [open, setOpen] = useState<string[]>([]);
   // Desconto ou recompensa do mês (o salário fixo não muda pela folha).
   const [adjusting, setAdjusting] = useState<PayrollEmployee | null>(null);
+  // Vale: `employee` ausente = "Novo vale" do topo (escolhe o colaborador no modal).
+  const [advancing, setAdvancing] = useState<{
+    employee?: PayrollEmployee;
+  } | null>(null);
   const [removing, setRemoving] = useState<{
+    kind: PayrollItem["kind"];
     id: string;
     title: string;
     detail: string;
@@ -203,8 +216,10 @@ export function PayrollSection() {
             Salário fixo, comissões e ajustes de cada colaborador. Entram na
             folha os usuários que recebem salário (Administração › Usuários). O
             salário fixo não muda aqui: use “Ajustar” para descontos e
-            recompensas do mês. Lançar a folha cria uma despesa por colaborador
-            em Contas a pagar; pagar a despesa paga as comissões incluídas.
+            recompensas do mês e “Novo vale” para adiantamentos (o vale sai do
+            caixa na entrega e é descontado no mês escolhido). Lançar a folha
+            cria uma despesa por colaborador em Contas a pagar; pagar a despesa
+            paga as comissões incluídas.
           </p>
         </div>
         <div className="page-actions">
@@ -216,6 +231,16 @@ export function PayrollSection() {
               onChange={(event) => changeCompetence(event.target.value)}
             />
           </label>
+          {canManage && (
+            <button
+              type="button"
+              className="secondary-button"
+              disabled={!summary}
+              onClick={() => setAdvancing({})}
+            >
+              <HandCoins size={18} /> Novo vale
+            </button>
+          )}
           {canManage && (
             <button
               type="button"
@@ -339,7 +364,9 @@ export function PayrollSection() {
                           <span>Colaborador</span>
                           <span className="finance-number">Salário</span>
                           <span className="finance-number">Comissões</span>
-                          <span className="finance-number">Ajustes</span>
+                          <span className="finance-number">
+                            Ajustes e vales
+                          </span>
                           <span className="finance-amount">Total</span>
                           <span>Situação</span>
                           <span className="finance-actions">Ações</span>
@@ -379,10 +406,12 @@ export function PayrollSection() {
                                 </span>
                                 <span className="finance-number">
                                   <span className="finance-label">
-                                    Ajustes{" "}
+                                    Ajustes e vales{" "}
                                   </span>
                                   {money(
-                                    line.adjustmentInCents + line.extraInCents,
+                                    line.adjustmentInCents +
+                                      line.extraInCents +
+                                      line.advanceInCents,
                                   )}
                                 </span>
                                 <strong className="finance-amount">
@@ -436,6 +465,20 @@ export function PayrollSection() {
                                 <div className="payroll-detail">
                                   <section className="payroll-detail-block">
                                     <h4>Composição do mês</h4>
+                                    {canManage && line.employee.active && (
+                                      <button
+                                        type="button"
+                                        className="secondary-button button-sm"
+                                        aria-label={`Registrar vale para ${line.employee.name}`}
+                                        onClick={() =>
+                                          setAdvancing({
+                                            employee: line.employee,
+                                          })
+                                        }
+                                      >
+                                        <HandCoins size={16} /> Registrar vale
+                                      </button>
+                                    )}
                                     {line.items.length === 0 ? (
                                       <p className="payroll-detail-empty">
                                         Nada nesta competência.
@@ -455,15 +498,16 @@ export function PayrollSection() {
                                               {canManage &&
                                                 group.id &&
                                                 group.status === "pending" &&
-                                                (group.kind === "bonus" ||
-                                                  group.kind ===
-                                                    "discount") && (
+                                                removableKinds.includes(
+                                                  group.kind,
+                                                ) && (
                                                   <button
                                                     type="button"
                                                     className="secondary-button button-sm"
                                                     aria-label={`Remover ${group.title.toLowerCase()} de ${line.employee.name}`}
                                                     onClick={() =>
                                                       setRemoving({
+                                                        kind: group.kind,
                                                         id: group.id!,
                                                         title: group.title,
                                                         detail: group.detail,
@@ -568,17 +612,43 @@ export function PayrollSection() {
           }}
         />
       )}
+      {advancing && summary && (
+        <PayrollAdvanceModal
+          employees={lines
+            .map((line) => line.employee)
+            .filter((employee) => employee.active)}
+          {...(advancing.employee ? { employee: advancing.employee } : {})}
+          competence={competence}
+          onClose={() => setAdvancing(null)}
+          onSave={async (input) => {
+            await api.createPayrollAdvance(input, allBranches);
+            toast.success(
+              "Vale registrado: despesa paga em Contas a pagar e desconto na folha.",
+            );
+            setAdvancing(null);
+            reload();
+          }}
+        />
+      )}
       {removing && (
         <ActionModal
           eyebrow="Folha de pagamento"
           title={`Remover ${removing.title.toLowerCase()}`}
-          subtitle={`${removing.employeeName} · ${removing.detail}`}
-          effect="O valor deixa de entrar no pagamento deste mês."
+          subtitle={[removing.employeeName, removing.detail]
+            .filter(Boolean)
+            .join(" · ")}
+          effect={
+            removing.kind === "advance"
+              ? "O vale deixa de ser descontado neste mês e a despesa paga dele é estornada e cancelada em Contas a pagar."
+              : "O valor deixa de entrar no pagamento deste mês."
+          }
           confirmLabel="Remover"
           danger
           onClose={() => setRemoving(null)}
           onConfirm={async () => {
-            await api.deletePayrollEntry(removing.id, allBranches);
+            if (removing.kind === "advance")
+              await api.deletePayrollAdvance(removing.id, allBranches);
+            else await api.deletePayrollEntry(removing.id, allBranches);
             toast.success("Removido da folha.");
             setRemoving(null);
             reload();
@@ -607,7 +677,7 @@ export function PayrollSection() {
           eyebrow="Folha de pagamento"
           title="Desfazer lançamento"
           subtitle={undoing.description}
-          effect="A despesa é cancelada e o salário, as comissões, os ajustes, os descontos e as recompensas dela voltam a ficar a lançar."
+          effect="A despesa é cancelada e o salário, as comissões, os ajustes, os descontos, as recompensas e os vales dela voltam a ficar a lançar."
           confirmLabel="Desfazer lançamento"
           danger
           onClose={() => setUndoing(null)}

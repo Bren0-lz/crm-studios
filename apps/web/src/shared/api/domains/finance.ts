@@ -1,4 +1,5 @@
 import type {
+  PayrollAdvanceInput,
   PayrollEmployee,
   PayrollEntry,
   PayrollEntryInput,
@@ -341,6 +342,17 @@ export const financeApi = {
     }),
   deletePayrollEntry: (id: string, options?: RequestInit) =>
     request<void>(`/finance/payroll/entries/${id}`, {
+      ...options,
+      method: "DELETE",
+    }),
+  createPayrollAdvance: (input: PayrollAdvanceInput, options?: RequestInit) =>
+    request<PayrollEntry>("/finance/payroll/advances", {
+      ...options,
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  deletePayrollAdvance: (id: string, options?: RequestInit) =>
+    request<void>(`/finance/payroll/advances/${id}`, {
       ...options,
       method: "DELETE",
     }),

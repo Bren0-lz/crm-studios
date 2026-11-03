@@ -29,7 +29,7 @@ import {
 import type { RouteContext } from "../../infrastructure/route-context.js";
 import { DomainError } from "../../repository.js";
 import { buildFinanceForecast } from "./finance-forecast.js";
-import { payrollOnlyError } from "./payroll.js";
+import { payrollAdvanceOnlyError, payrollOnlyError } from "./payroll.js";
 
 export function registerFinanceRoutes(context: RouteContext) {
   const {
@@ -658,6 +658,7 @@ export function registerFinanceRoutes(context: RouteContext) {
       const current = (
         await repository.getFinancialWorkspace(request.user.clinicId)
       ).payables.find((item) => item.id === id);
+      if (current?.payrollAdvance) throw payrollAdvanceOnlyError();
       if (current?.commissionId)
         assertPermissions(request, "finance.commissions_reverse");
       const payable = await repository.reversePayablePayment(

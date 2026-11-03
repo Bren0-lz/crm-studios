@@ -12315,7 +12315,7 @@ describe("configured patient tags", () => {
       within(filter)
         .getAllByRole("button")
         .map((button) => button.textContent),
-    ).toEqual(["Pilates1", "VIP0", "Pagamento atrasado0"]);
+    ).toEqual(["Pilates1", "VIP0", "Pagamento atrasado0", "Falta CPF0"]);
     expect(
       within(filter)
         .getByRole("button", { name: /^VIP/ })

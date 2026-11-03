@@ -1,4 +1,5 @@
 import {
+  payrollAdvanceInputSchema,
   payrollEmployeeInputSchema,
   payrollEntryInputSchema,
   payrollLaunchInputSchema,
@@ -85,6 +86,44 @@ export function registerPayrollRoutes({
         return reply.status(404).send({
           code: "PAYROLL_ENTRY_NOT_FOUND",
           message: "Desconto ou recompensa não encontrado.",
+        });
+      return reply.status(204).send();
+    },
+  );
+
+  // Vale: despesa já paga na entrega + desconto na folha do mês escolhido.
+  app.post(
+    "/finance/payroll/advances",
+    { preHandler: authenticate },
+    async (request, reply) => {
+      const entry = await repository.createPayrollAdvance(
+        request.user.clinicId,
+        request.user.sub,
+        payrollAdvanceInputSchema.parse(request.body),
+      );
+      if (!entry)
+        return reply.status(404).send({
+          code: "PAYROLL_EMPLOYEE_NOT_FOUND",
+          message: "Colaborador não encontrado.",
+        });
+      return reply.status(201).send(entry);
+    },
+  );
+
+  app.delete(
+    "/finance/payroll/advances/:id",
+    { preHandler: authenticate },
+    async (request, reply) => {
+      const { id } = z.object({ id: z.uuid() }).parse(request.params);
+      const deleted = await repository.deletePayrollAdvance(
+        request.user.clinicId,
+        request.user.sub,
+        id,
+      );
+      if (!deleted)
+        return reply.status(404).send({
+          code: "PAYROLL_ADVANCE_NOT_FOUND",
+          message: "Vale não encontrado.",
         });
       return reply.status(204).send();
     },

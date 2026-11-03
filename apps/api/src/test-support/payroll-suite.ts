@@ -491,6 +491,125 @@ export function payrollSuite(repository: () => ClinicRepository) {
       ).rejects.toMatchObject({ code: "PAYROLL_ENTRY_NO_SALARY" });
     });
 
+    it("registra o vale como despesa paga e desconta no mês escolhido", async () => {
+      const repo = repository();
+      const { employee, launch, percent } = await scenario(repo, ["20"]);
+      const advance = await repo.createPayrollAdvance(clinic, actor, {
+        employeeId: employee.id,
+        competence,
+        amountInCents: 20000,
+        paidAt: "2025-03-14T15:00:00Z",
+        paymentMethod: "cash",
+        reason: "Adiantamento pedido",
+      });
+      expect(advance).toMatchObject({
+        kind: "advance",
+        mode: "amount",
+        amountInCents: 20000,
+        reason: "Adiantamento pedido",
+        competence,
+      });
+      expect(advance!.advancePayableId).toBeTruthy();
+      expect(advance!.payrollPayableId).toBeUndefined();
+
+      // Financeiro: despesa já paga na entrega, em "Folha de pagamento", DRE no mês do desconto.
+      const payable = (await repo.getFinancialWorkspace(clinic)).payables.find(
+        (item) => item.id === advance!.advancePayableId,
+      )!;
+      expect(payable).toMatchObject({
+        description: `Vale · ${employee.name} (desconto em 03/2025)`,
+        categoryName: "Folha de pagamento",
+        amountInCents: 20000,
+        status: "paid",
+        paymentMethod: "cash",
+        dueDate: "2025-03-14",
+        postedOn: "2025-03-14",
+        dreCompetence: competence,
+        branchId: employee.branchId,
+        payrollAdvance: {
+          entryId: advance!.id,
+          employeeId: employee.id,
+          employeeName: employee.name,
+          competence,
+        },
+      });
+      expect(payable.payroll).toBeUndefined();
+      expect(new Date(payable.paidAt!).toISOString()).toBe(
+        "2025-03-14T15:00:00.000Z",
+      );
+      const cash = await repo.getDailyCash(clinic, "2025-03-14");
+      expect(
+        cash.movements.filter(
+          (item) =>
+            item.description === payable.description &&
+            item.direction === "out",
+        ),
+      ).toMatchObject([{ amountInCents: 20000, paymentMethod: "cash" }]);
+
+      // Folha: o vale sai do pagamento do mês e não mexe no salário fixo.
+      const before = lineOf(
+        await repo.getPayroll(clinic, competence),
+        employee.id,
+      );
+      expect(before).toMatchObject({
+        salaryInCents: 150000,
+        advanceInCents: -20000,
+        totalInCents: 150000 + percent(10) - 20000,
+        pendingInCents: 150000 + percent(10) - 20000,
+      });
+      expect(
+        before.items
+          .filter((item) => item.kind === "advance")
+          .map((item) => [item.description, item.amountInCents, item.status]),
+      ).toEqual([["Vale · Adiantamento pedido", -20000, "pending"]]);
+      // Outro mês não é afetado.
+      expect(
+        lineOf(await repo.getPayroll(clinic, "2025-04"), employee.id)
+          .advanceInCents,
+      ).toBe(0);
+      // O vale só sai pela rota própria.
+      await expect(
+        repo.deletePayrollEntry(clinic, actor, advance!.id),
+      ).rejects.toMatchObject({ code: "PAYROLL_ADVANCE_MANAGED" });
+
+      const launched = (await launch([employee.id])).payables[0]!;
+      expect(launched).toMatchObject({
+        amountInCents: 150000 + percent(10) - 20000,
+        payroll: { salaryInCents: 130000, commissionInCents: percent(10) },
+      });
+      expect(launched.notes).toContain("Vales (1)");
+      await expect(
+        repo.deletePayrollAdvance(clinic, actor, advance!.id),
+      ).rejects.toMatchObject({ code: "PAYROLL_ENTRY_LAUNCHED" });
+
+      // Desfeito o lançamento, o vale volta a ficar a lançar e pode ser removido.
+      await repo.cancelPayrollLaunch(clinic, actor, launched.id);
+      expect(await repo.deletePayrollAdvance(clinic, actor, advance!.id)).toBe(
+        true,
+      );
+      expect(await repo.deletePayrollAdvance(clinic, actor, advance!.id)).toBe(
+        false,
+      );
+      const removed = (await repo.getFinancialWorkspace(clinic)).payables.find(
+        (item) => item.id === payable.id,
+      );
+      expect(removed?.status ?? "cancelled").toBe("cancelled");
+      const after = lineOf(
+        await repo.getPayroll(clinic, competence),
+        employee.id,
+      );
+      expect(after.advanceInCents).toBe(0);
+      expect(after.pendingInCents).toBe(150000 + percent(10));
+
+      expect(
+        await repo.createPayrollAdvance(clinic, actor, {
+          employeeId: randomUUID(),
+          competence,
+          amountInCents: 100,
+        }),
+      ).toBeNull();
+    });
+
     it("separa por filial e aponta comissão sem colaborador", async () => {
       const repo = repository();
       const { professional, user, employee, category, percent } =

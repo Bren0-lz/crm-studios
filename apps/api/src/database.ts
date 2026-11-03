@@ -4,7 +4,7 @@ import { randomUUID } from "node:crypto";
 import { readdir, readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { config } from "./config.js";
-import { demoPatients } from "./demo-patients.js";
+import { demoCpf, demoPatients } from "./demo-patients.js";
 import { databaseSslConfig } from "./infrastructure/database-connection.js";
 import { Database, type Pool } from "./infrastructure/mysql-client.js";
 import { ensurePatientTags } from "./mysql-repository.js";
@@ -221,11 +221,12 @@ export async function seedDemoData(pool: Pool) {
           "11965432109",
           "Recorrente",
         ],
-      ].map(([id, record_number, full_name, phone, tag]) => ({
+      ].map(([id, record_number, full_name, phone, tag], index) => ({
         id,
         clinic_id: demoClinicId,
         record_number,
         full_name,
+        cpf: demoCpf(index + 1),
         phone,
         tags: [tag],
       })),
@@ -239,6 +240,7 @@ export async function seedDemoData(pool: Pool) {
         clinic_id: patient.clinicId,
         record_number: patient.recordNumber,
         full_name: patient.fullName,
+        cpf: patient.cpf ?? null,
         email: patient.email ?? null,
         phone: patient.phone,
         birth_date: patient.birthDate ?? null,

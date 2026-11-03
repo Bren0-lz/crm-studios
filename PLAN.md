@@ -19,6 +19,20 @@ está no histórico do git (este arquivo antes do commit "chore: handoff da roda
 - Dependências npm novas, `git push`, edição de migrações existentes, `.env` e `compose.yaml`
   sem autorização do dono.
 
+## Pedidos avulsos do dono
+
+### V1 — Vales para colaboradores
+
+- **Pedido (02/11/2026):** vale com valor configurável, colaborador que recebe e mês em que é
+  descontado do salário; aparece no Financeiro e na Folha. Decisões do dono: despesa **já paga**
+  na entrega; criado e consultado **dentro da aba Folha**; desconto em **um mês só**.
+- **Escopo:** lançamento da folha `kind: "advance"` (`payroll_entries.advance_payable_id`,
+  migração `0040`) ligado a uma despesa paga em "Folha de pagamento" (DRE no mês do desconto);
+  `POST`/`DELETE /finance/payroll/advances` (`finance.payroll_manage`); remover o vale a lançar
+  estorna e cancela a despesa; estorno pelo Financeiro recusado (`PAYROLL_ADVANCE_PAYABLE`).
+- **Gate:** gate completo + `npm run test:mysql`
+- **Status:** DONE
+
 ## Rodada 8 — Correções do QA ponta a ponta (pedido do dono, 17/10/2026)
 
 Origem: QA em produção (modo Demonstração, admin) de 17/10/2026. IDs com prefixo `Q` para não
@@ -330,112 +344,97 @@ ou empilhado.
 
 **Ordem:** CT → CP → PX (prazo de segunda do painel) → CD → TW → SS → EV → RC → TG → CM → NB → AJ.
 
+### CT e CP — já feitas nos PRs #272 e #273
+
+As tarefas CT e CP abaixo foram feitas antes deste plano, nos PRs #272 (assinatura no iPhone e
+cadastro com contrato) e #273 (importar clientes sem CPF), que tinham planos próprios com outra
+numeração. Aqui fica só o resumo e o que falta. O detalhe está no diário do `STATE.md` (com a
+numeração antiga, mapeada em cada tarefa) e no histórico do git.
+
 ### CT1 — Página pública de assinatura sem sobreposição no celular
 
 - **Origem:** B2-04 (impeditivo). Link aberto no iPhone (iOS 18) com elementos sobrepostos.
-- **Escopo:**
-  - Reprodução primeiro: `e2e/public-signature.spec.ts` emite um documento longo (vários
-    parágrafos e cabeçalho com logo), cria o link e abre `/assinar-contrato/<token>` (rota em
-    `AppRoutes.tsx`) nos projetos `mobile` (Pixel 7, já existe) e num projeto novo `iphone`
-    (`devices["iPhone 13"]` com `defaultBrowserType: "chromium"`; o WebKit não está instalado e
-    não entra dependência nova).
-  - Asserções: `document.documentElement.scrollWidth <= innerWidth`; o fim da
-    `.document-paper` fica acima do topo de `.public-signature-form`; o último parágrafo do
-    documento fica dentro da caixa da folha. O teste precisa falhar antes da correção (registre
-    a saída no PR).
-  - Correção:
-    - `.public-signature-document .document-paper` com `aspect-ratio: auto` e altura livre (a
-      folha A4 fixa vale só na prévia com `.document-paper-canvas`).
-    - `min-height: 100dvh` com o `100vh` antes, como alternativa.
-    - Imagens e tabelas do conteúdo rico com `max-width: 100%`, sem rolagem horizontal.
-    - `@media (max-width: 700px)` com padding lateral pela escala e fonte ≥ `--text-xs`.
-  - Teste web: a página pública renderiza a folha sem o `aspect-ratio` fixo (classe/estrutura).
-- **Gate:** gate completo e `npm run test:e2e -- e2e/public-signature.spec.ts --workers=1`
-- **Depende de:** —
-- **Status:** TODO
+- **Feito em:** #272 (CT1 e CT2 de lá). `e2e/public-signature-mobile.spec.ts` (iPhone 13 emulado
+  no Chromium, só no projeto `mobile`); CSS do bloco "Página pública" em
+  `10-commercial-communications.css`: folha sem `aspect-ratio` só em `.public-signature-document`,
+  `100dvh` e, em ≤ 700 px, respiro menor e campos em `--text-lg` (16 px, sem zoom do iOS).
+- **Status:** DONE
 
 ### CT2 — Assinar com o dedo no iPhone
 
 - **Origem:** B2-04 (o cliente precisa conseguir assinar no celular).
-- **Escopo:**
-  - `SignaturePad` em `PublicSignaturePage.tsx`:
-    - Tratar `pointercancel`: hoje o Safari cancela o traço e nada é gravado.
-    - Não encerrar o traço no `pointerleave` enquanto houver captura.
-    - Redimensionar o canvas ao girar a tela ou mudar o tamanho (`ResizeObserver`), limpando
-      com aviso "Assine de novo" em vez de distorcer o desenho.
-    - No canvas: `user-select: none`, `-webkit-user-select: none` e
-      `-webkit-touch-callout: none`.
-    - Gravar a imagem ao fim de cada traço.
-  - Conferir o tamanho do PNG com `devicePixelRatio` 3 contra o `bodyLimit` da rota pública de
-    assinatura e reduzir a escala do canvas exportado se passar.
-  - Testes:
-    - Web: `pointercancel` mantém a assinatura e libera o botão.
-    - E2E: no projeto `iphone`, desenhar com toque, aceitar e assinar.
-- **Gate:** gate completo e `npm run test:e2e -- e2e/public-signature.spec.ts --workers=1`
+- **Feito em:** #272 (CT3 de lá). `features/contracts/SignaturePad.tsx`: traços redesenhados ao
+  mudar o tamanho (`ResizeObserver`), densidade com teto 2, `pointercancel` encerra o traço e
+  emite a imagem, canvas com `user-select: none` e `-webkit-touch-callout: none`.
 - **Depende de:** CT1
-- **Status:** TODO
+- **Status:** DONE
 
 ### CT3 — Investigar a falha do cadastro guiado com contrato
 
 - **Tipo:** investigação (sem correção às cegas)
-- **Origem:** B2-03. Na demo, o cadastro com contrato falhou ("acho que ele caducou, porque eu
-  coloquei muita coisa"); o trecho é ininteligível e o erro exato é desconhecido.
-- **Escopo:**
-  - Tentar reproduzir em teste web (`guided-client-registration`,
-    `signature-on-registration`) e na API um cadastro guiado com muitos itens (plano + turma +
-    avulsos + produtos + demonstração) e um contrato para assinatura.
-  - Hipóteses a testar:
-    - Token de 8 h expirado no meio do formulário (o erro mostrado é claro?).
-    - Corpo acima de 1 MiB (logo em data URL no `branding` do documento).
-    - Chave de idempotência reaproveitada após um erro.
-  - Se reproduzir: registrar a causa no STATE.md e criar a CT4 (correção com teste) logo
-    abaixo desta.
-  - Se não reproduzir: registrar "não reproduzido" e as hipóteses descartadas.
-- **Gate:** gate completo (se houver teste novo)
+- **Origem:** B2-03 ("acho que ele caducou, porque eu coloquei muita coisa").
+- **Feito em:** #272 (CT5 e CT6 de lá). Cadastro com 10 planos e contrato de ~19 700 caracteres
+  funciona. Reproduzido: observações acima de 2 000 caracteres davam 400 sem `maxLength` no
+  campo; corrigido com `patientNotesMaxLength`/`leadAppointmentNotesMaxLength` nos dois textarea
+  do cadastro guiado. Não confirmado que foi o erro da demo: pedir ao dono o horário para cruzar
+  com o log de produção.
 - **Depende de:** CT2
+- **Status:** DONE
+
+### CT4 — Validação no iPhone real (manual)
+
+- **Tipo:** manual
+- **Origem:** B2-04 (CT4 do #272).
+- **Escopo:** dono abre um link real em produção no iPhone (Safari e WhatsApp in-app), contrato
+  longo: lê sem sobreposição, sem zoom ao tocar nos campos, assina em retrato e paisagem, vê a
+  confirmação. Registrar o resultado no STATE.
+- **Depende de:** CT3
 - **Status:** TODO
 
 ### CP1 — CPF opcional na importação, com etiqueta automática "Falta CPF"
 
 - **Origem:** B6-05 (impeditivo). A planilha do estúdio não tem CPF e a base não entra.
-- **Escopo:**
-  - Contracts:
-    - `patientImportRequiredFields` sem `cpf`.
-    - Schema de importação aceita CPF vazio. CPF preenchido e inválido continua erro da linha.
-    - `MISSING_CPF_TAG = "Falta CPF"` em `automatic-tags.ts`, junto da
-      `OVERDUE_PAYMENT_TAG`: calculada na leitura (cliente sem CPF), sem gravação nem edição
-      manual. Some sozinha quando o CPF é preenchido e aparece no filtro de etiquetas.
-  - API:
-    - `patient-import.ts` deixa de exigir CPF.
-    - A duplicidade só por CPF quando ele existe; telefone continua.
-    - `withAutomaticPatientTags` aplica as duas etiquetas nos dois repositórios.
-  - Cadastro manual (`POST /patients`, cadastro rápido, guiado e conversão de lead) continua
-    exigindo CPF: `patientInputSchema` não muda para a criação.
-  - Web: a tela de importação para de marcar CPF como obrigatório e a prévia mostra
-    "N clientes sem CPF receberão a etiqueta Falta CPF".
-  - Atualizar `patient-required-cpf.integration.test.ts` (importação sem CPF passa; manual e
-    conversão continuam exigindo).
-  - Testes de contracts (etiqueta), API (memória) e web. MySQL opt-in só se tocar SQL.
-- **Gate:** gate completo
+- **Feito em:** #273 (CP1 e CP2 de lá). `optionalCpfSchema` e `patientImportInputSchema` em
+  contracts; `patientImportRequiredFields` = nome e telefone; `MISSING_CPF_TAG = "Falta CPF"`
+  calculada na leitura (sem CPF e não mesclado), visível para todos os perfis e recusada em
+  `POST/PATCH /patient-tags`. Importação sem CPF nos dois repositórios (grava `NULL`); cadastro
+  manual e conversão de lead continuam exigindo CPF. Teste MySQL opt-in
+  `patient-without-cpf.integration.test.ts`.
 - **Depende de:** CT3
-- **Status:** TODO
+- **Status:** DONE
 
 ### CP2 — Editar cliente importado sem CPF
 
 - **Origem:** B6-05, efeito colateral.
-- **Escopo:**
-  - **Proposta:** `PUT /patients/:id` aceita CPF vazio **só se o cliente já estava sem CPF**.
-    Não deixa apagar um CPF existente. Assim, atualizar o telefone de um cliente importado não
-    obriga a pedir o CPF na hora.
-  - A ficha e o modal mostram o aviso "Cadastro sem CPF" e o campo destacado.
-  - Contrato e recibo sem CPF continuam saindo com "não informado" (comportamento atual).
-  - Se o dono preferir exigir o CPF na edição, a mudança é uma linha no schema da rota: confirme
-    no PR, sem bloquear.
-  - Testes:
-    - API: edita importado sem CPF, recusa apagar CPF existente.
-    - Web: aviso aparece.
-- **Gate:** gate completo
+- **Feito em:** #273 (CP3 e CP4 de lá). `PUT /patients/:id` aceita CPF vazio só se o cliente já
+  estava sem CPF; apagar CPF gravado → 400 `PATIENT_CPF_REQUIRED`. `PatientModal` sem `required`
+  no CPF só nesse caso; importação mostra "N sem CPF"; filtro "Falta CPF" na lista de clientes.
 - **Depende de:** CP1
+- **Status:** DONE
+
+### CP3 — Contrato de cliente sem CPF
+
+- **Origem:** B6-05 (CP5 do #273). ⏸ **Pergunta ao dono (P1):** hoje o contrato sai com "inscrito(a)
+  no CPF sob o nº **não informado**" e a tela avisa "Confira os dados que faltam". Recomendação:
+  **manter permitido** e só deixar o aviso explícito. Alternativa: bloquear a emissão/envio para
+  assinatura quando o modelo usa `{{paciente_cpf}}` e o cliente não tem CPF (409
+  `DOCUMENT_PATIENT_CPF_MISSING`, "Informe o CPF do cliente antes de emitir este contrato.").
+- **Escopo (se mantiver permitido):** no `DocumentWizard` e no `SendForSignatureModal`, quando
+  faltar `paciente_cpf`, aviso "O cliente não tem CPF: o contrato vai sair com “não informado” no
+  lugar do CPF." com o atalho "Atualizar dados do cadastro". **Se bloquear:** regra na API de
+  emissão e de link de assinatura (memória e MySQL) e botão desativado com a mesma mensagem.
+- **Gate:** gate completo
+- **Depende de:** CP2 e resposta da P1
+- **Status:** BLOCKED (aguarda P1)
+
+### CP4 — Conferência manual com a planilha do estúdio
+
+- **Tipo:** manual
+- **Origem:** B6-05 (CP6 do #273).
+- **Escopo:** importar a planilha real (sem CPF) em homologação; conferir duplicados por
+  telefone, etiqueta "Falta CPF" na lista e no filtro, edição sem CPF e preenchimento posterior
+  (etiqueta some), contrato de um importado.
+- **Depende de:** CP2
 - **Status:** TODO
 
 ### PX1 — API externa: linha de negócio e inadimplência por turma
