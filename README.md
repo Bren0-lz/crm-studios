@@ -1,48 +1,177 @@
-# Studios Aryana
+# Studios Aryana — CRM para clínica de fisioterapia e estúdio
 
-CRM web do Studios Aryana (fisioterapia, Pilates, dançaterapia e depilação). Primeira versão executável de um CRM web para clínicas de fisioterapia, inspirada no fluxo operacional estudado no SeuFisio e construída sem aplicativo ou portal do cliente.
+[![CRM checks](https://github.com/Bren0-lz/crm-studios/actions/workflows/ci.yml/badge.svg)](https://github.com/Bren0-lz/crm-studios/actions/workflows/ci.yml)
 
-## O que já funciona
+Sistema web completo (CRM + ERP leve) feito para um negócio real, o **Studios Aryana**:
+fisioterapia, Pilates, dançaterapia e depilação. A equipe usa o sistema para agenda, prontuário
+clínico, planos e pacotes, financeiro, vendas, relacionamento com clientes e relatórios
+gerenciais. Toda a interface é em português e pensada para o dia a dia da recepção, dos
+profissionais e da gestão — no computador, no tablet e no celular.
 
-- autenticação com Admin e Usuário comum;
-- usuários com cargo e permissões individuais por operação, agrupadas por módulo e conferidas pela API a cada requisição; veja o [mapa de permissões e instruções de migração](docs/permissoes.md);
-- comissão por usuário: ligação a um profissional da agenda e percentual com início de vigência;
-- painel com indicadores operacionais;
-- cadastro, edição e pesquisa de clientes, com lista paginada (20 por página);
-- importação de clientes por planilha CSV ou XLSX, com prévia, detecção de duplicados e modelo para download;
-- exportação da base de clientes em CSV ou Excel pela gestão, com escolha de colunas e os filtros da tela;
-- histórico do cliente na ficha, reunindo atendimentos, planos, pagamentos, contatos, mensagens e pesquisas;
-- botão SOS na ficha e no atendimento, com o contato de emergência do cliente para ligar ou chamar no WhatsApp;
-- profissionais, salas e serviços, com o CREFITO do profissional exibido no prontuário, na impressão e nos contratos emitidos;
-- agenda diária e semanal, recorrência, bloqueios e reagendamento individual com histórico e prevenção de conflitos;
-- feriados da clínica cadastrados em Configurações, marcados na agenda e bloqueando novos agendamentos;
-- aulas experimentais e avaliações agendadas para leads sem convertê-los, com taxa de conversão em Relatórios;
-- alteração do status dos atendimentos;
-- prontuário clínico SOAP, avaliações configuráveis, objetivos, medições seriadas, anexos protegidos, adendos e visão longitudinal;
-- bloqueio de prontuários para perfis sem acesso clínico;
-- planos, pacotes, validade, saldo e extrato de sessões;
-- catálogo em Configurações › Planos, com nome e preço obrigatórios e serviço, modelo e sessões opcionais; novas vendas exigem seleção e preenchem o preço automaticamente, permitindo negociação;
-- renovação de planos manual ou automática ao fim do período;
-- consumo automático ao finalizar e estorno ao reabrir atendimentos;
-- financeiro com contas a receber e pagar, categorias, centros de custo, ajustes, formas de pagamento, recibos e fluxo de caixa mensal;
-- despesas fixas recorrentes, que lançam a conta a pagar de cada mês automaticamente;
-- caixa do dia com entradas e saídas por forma de pagamento e previsão de receitas e despesas para 3, 6 ou 12 meses;
-- renegociação parcelada e comissões profissionais por competência;
-- CRM comercial com Kanban, tarefas, contatos e conversão segura de leads;
-- central de comunicações com opt-out, outbox e lembretes idempotentes;
-- comunicado segmentado por etiquetas, situação, plano ou aniversariantes, com prévia e enfileiramento na outbox (sem envio real);
-- central de relacionamento com contatos sugeridos por situação, prazos e mensagens configuráveis, registro de contatos e aniversariantes, sem envio automático;
-- pesquisa de satisfação por atendimento, com NPS em Relatórios e alerta de avaliação baixa na central de relacionamento;
-- contratos em `/contratos`: modelos versionados, emissão com snapshot imutável e impressão;
-- relatórios gerenciais por período, DRE básica e rentabilidade por serviço/produto com exportação CSV;
-- retenção e cancelamentos mês a mês, rankings de clientes por sessões e por recebimentos e distribuição por faixa etária;
-- livro mensal de vendas e cancelamentos, comparação com o mês anterior, clientes sem retorno e exportação Excel detalhada;
-- trilha inicial de auditoria no modelo de dados;
-- interface responsiva para desktop, tablet e celular, com escala de espaçamento padronizada e modais que não desfocam nem rolam a página de fundo.
+**Autor:** Breno Luiz · **Período:** setembro de 2026 até hoje · **Situação:** em uso e em
+evolução contínua, publicado na Hostinger (Node.js + MySQL).
 
-O repositório inclui dois modos de armazenamento: memória, para avaliação imediata, e PostgreSQL, para manter os dados entre reinicializações. No modo PostgreSQL, as migrações são executadas automaticamente e o banco impede conflitos simultâneos de profissional ou sala.
+---
 
-O catálogo começa vazio. Antes da primeira nova venda, cadastre os planos em **Configurações › Planos**. Administradores gerenciam o catálogo; usuários comuns precisam das permissões de cadastrar ou editar planos do catálogo. Alterações de preços e desativações não afetam contratos existentes nem suas renovações. A migração `0048_plan_templates.sql` é aditiva e mantém os contratos antigos sem vínculo obrigatório com o catálogo.
+## Resumo em números
+
+| Indicador                          | Valor                                                      |
+| ---------------------------------- | ---------------------------------------------------------- |
+| Commits / pull requests integrados | ~1.000 commits, 260+ PRs revisados e integrados na `main`  |
+| Código de produção em TypeScript   | ~150 mil linhas (front-end, back-end e contratos)          |
+| Testes automatizados               | ~2.100 casos em ~400 arquivos (unitários, integração, E2E) |
+| Domínios de negócio                | 19 (agenda, clínico, financeiro, comercial, planos…)       |
+| Migrações de banco                 | 39 arquivos SQL versionados, aplicados automaticamente     |
+| Pipeline de CI                     | 3 jobs no GitHub Actions a cada PR                         |
+
+---
+
+## Como este projeto atende aos critérios da bolsa
+
+| Critério                                     | Onde ver no projeto                                                                                                                                                                                                |
+| -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **GitHub**                                   | Fluxo com branch por tarefa, pull request, revisão e CI obrigatório antes do merge; histórico com 1.000+ commits; [workflow de CI](.github/workflows/ci.yml); regras de PR sem conflito em [CLAUDE.md](CLAUDE.md). |
+| **Banco de dados**                           | MySQL 8 / MariaDB com 39 [migrações versionadas](apps/api/migrations), transações, isolamento por clínica (`clinic_id`), travas para evitar conflito de agenda e testes de integração contra banco real.           |
+| **TypeScript**                               | 100% TypeScript em modo estrito, do banco à tela; tipos e validações compartilhados entre front e back no pacote [`packages/contracts`](packages/contracts).                                                       |
+| **React**                                    | SPA em React 19 com react-router, componentes reutilizáveis ([`apps/web/src/shared`](apps/web/src/shared)) e telas organizadas por funcionalidade ([`apps/web/src/features`](apps/web/src/features)).              |
+| **Next.js**                                  | Não usado neste projeto: optei por React + Vite (SPA) com API própria em Fastify, porque o sistema é interno, autenticado e não precisa de SSR/SEO. Os conceitos (roteamento, componentes, build) são os mesmos.   |
+| **Testes automatizados**                     | Vitest (unitário e integração), Testing Library (telas), Playwright (E2E em desktop e celular), testes contra MySQL real, metas de cobertura e auditoria automática de layout.                                     |
+| **Outros frameworks de desenvolvimento web** | Fastify, Zod, Vite, TipTap (editor de contratos), React PDF, ExcelJS (importação/exportação de planilhas), JWT, bcrypt, ESLint, Prettier, esbuild.                                                                 |
+| **Design e prototipagem de interfaces**      | Design system próprio com tokens de espaço, raio e tipografia ([`apps/web/src/styles`](apps/web/src/styles)), regras de design documentadas, layout responsivo e um script que reprova violações visuais no CI.    |
+
+---
+
+## O problema e a solução
+
+O estúdio controlava agenda, pacotes de sessões, pagamentos e prontuários em planilhas, papel e
+WhatsApp. Isso gerava sessões esquecidas, pacotes vencidos sem cobrança, conflitos de horário e
+pouca visão do faturamento.
+
+O CRM centraliza a operação:
+
+- **Agenda** diária e semanal, com recorrência, bloqueios, feriados, reagendamento com histórico
+  e **prevenção de conflitos** de profissional e sala.
+- **Clientes**: cadastro, busca, etiquetas, importação de planilha CSV/XLSX com detecção de
+  duplicados, exportação, histórico completo e botão **SOS** com o contato de emergência.
+- **Prontuário clínico** (SOAP), avaliações configuráveis, objetivos, medições, anexos protegidos
+  e bloqueio para perfis sem acesso clínico.
+- **Planos e pacotes**: catálogo, saldo e extrato de sessões, consumo automático ao finalizar o
+  atendimento, estorno ao reabrir e renovação manual ou automática.
+- **Financeiro**: contas a receber e a pagar, despesas fixas recorrentes, caixa do dia, fluxo de
+  caixa, previsão de 3/6/12 meses, renegociação parcelada, recibos e comissões por profissional.
+- **Comercial**: funil Kanban de leads, aulas experimentais, tarefas e conversão de lead em cliente.
+- **Relacionamento**: contatos sugeridos (sem retorno, aniversário, plano vencendo), comunicados
+  segmentados, pesquisa de satisfação com **NPS**.
+- **Contratos**: modelos versionados, emissão com cópia imutável e impressão.
+- **Relatórios gerenciais**: DRE básica, rentabilidade, retenção, cancelamentos, rankings e
+  livro mensal de vendas exportado em Excel.
+- **Permissões** por usuário e por operação, conferidas pela API a cada requisição
+  ([mapa de permissões](docs/permissoes.md)).
+
+Decisão de escopo: não existe app nem portal do cliente — o sistema é usado só pela equipe,
+o que simplifica segurança e LGPD.
+
+---
+
+## Arquitetura
+
+```text
+┌──────────────────────────┐   HTTP/JSON   ┌───────────────────────────┐        ┌──────────────┐
+│ apps/web                 │ ────────────▶ │ apps/api                  │ ─────▶ │ MySQL 8 /    │
+│ React 19 + Vite          │               │ Fastify 5 + JWT           │        │ MariaDB      │
+│ react-router, TipTap     │               │ rotas por domínio         │        └──────────────┘
+└────────────┬─────────────┘               │ repositório memória/MySQL │
+             │                             └────────────┬──────────────┘
+             └──────────── packages/contracts ──────────┘
+                     (schemas Zod + tipos compartilhados)
+```
+
+Pontos que gosto de destacar:
+
+- **Contratos primeiro**: cada domínio tem seus schemas Zod em `packages/contracts`. O mesmo
+  schema valida o formulário na tela e a requisição na API, e o TypeScript acusa qualquer
+  divergência entre os dois lados.
+- **Repositório duplo**: a interface `ClinicRepository` tem duas implementações — em memória
+  (testes rápidos e demonstração) e MySQL (produção). Os mesmos testes rodam contra as duas.
+- **Monorepo com npm workspaces** e **checagem de arquitetura** própria
+  ([`scripts/check-architecture.mjs`](scripts/check-architecture.mjs)) que impede ciclos de
+  importação e que código compartilhado dependa de uma funcionalidade específica.
+- **Regras no código, não no banco**: sem gatilhos ou procedures, o que permite rodar em
+  hospedagem compartilhada; operações com várias tabelas usam transação.
+- **Migração de banco em produção**: o projeto começou em PostgreSQL e foi migrado para
+  MySQL/MariaDB para caber na hospedagem. Um teste automatizado
+  (`mysql-dialect.unit.test.ts`) reprova qualquer SQL no dialeto antigo.
+- **Deploy** em um único processo Node na Hostinger (site + API no mesmo domínio), gerado por
+  [`scripts/hostinger-build.mjs`](scripts/hostinger-build.mjs) com esbuild.
+
+```text
+apps/api/src/modules     rotas, serviços e testes por domínio
+apps/api/src/storage     armazenamento em memória e MySQL, por domínio
+apps/api/migrations      migrações SQL versionadas
+apps/web/src/app         composição, navegação e layout
+apps/web/src/features    telas, formulários e testes por funcionalidade
+apps/web/src/shared      componentes, hooks, autenticação e cliente HTTP
+apps/web/src/styles      design system (tokens e estilos por módulo)
+packages/contracts/src   schemas, tipos e helpers por domínio
+e2e                      fluxos reais no navegador (desktop e celular)
+```
+
+---
+
+## Testes automatizados
+
+| Camada              | Ferramenta                          | O que cobre                                                       |
+| ------------------- | ----------------------------------- | ----------------------------------------------------------------- |
+| Unitários           | Vitest                              | regras de negócio, cálculos financeiros, schemas e helpers        |
+| Integração da API   | Vitest + `app.inject` (Fastify)     | rotas reais com autenticação, permissões e repositório em memória |
+| Integração do banco | Vitest + MySQL/MariaDB real         | 42 arquivos que criam e apagam o próprio banco de teste           |
+| Interface           | Testing Library + jsdom             | telas e formulários com `fetch` simulado                          |
+| Ponta a ponta (E2E) | Playwright (Chromium)               | 14 fluxos completos em desktop e celular                          |
+| Layout              | script próprio (`audit-panels.cjs`) | espaçamento, responsividade e escala tipográfica                  |
+| Cobertura           | `@vitest/coverage-v8`               | metas mínimas por workspace, que não podem cair                   |
+
+O CI no GitHub Actions roda três jobs em todo pull request: **checks** (tipos, lint, testes,
+build e auditoria visual), **browser** (Playwright) e **mysql** (testes contra MariaDB real +
+cobertura).
+
+```bash
+npm run check             # gate completo: typecheck, lint, testes, build e auditoria
+npm run test:unit
+npm run test:integration
+npm run test:coverage
+npx playwright install chromium && npm run test:e2e
+```
+
+---
+
+## Design e prototipagem de interface
+
+- **Design system com tokens**: espaçamento (`--space-1` a `--space-8`, escala de 4 a 64px),
+  raios, sombras e uma escala tipográfica fechada. Nenhum texto abaixo de 12px.
+- **Diretrizes escritas** (seção "Design de páginas" do [CLAUDE.md](CLAUDE.md)): estrutura de
+  páginas, tom visual sóbrio, estados de carregando/vazio/erro em toda tela, comportamento de
+  modais, alinhamento de valores em tabelas.
+- **Responsivo**: toda grade de várias colunas precisa de versão em uma coluna no celular.
+- **Design verificado automaticamente**: [`audit-panels.cjs`](apps/web/scripts/audit-panels.cjs)
+  analisa o CSS e o JSX e reprova o build se uma regra de design for violada.
+- **Componentes reutilizáveis**: `PageHeader`, `Modal`, `Drawer`, `EmptyState`, `LoadingBlock`,
+  `ErrorBanner`, painéis, filtros e botões padronizados.
+- Prototipagem iterativa: cada rodada de testes de uso (QA) virou uma lista
+  de ajustes no [`PLAN.md`](PLAN.md), implementados e validados um a um.
+
+---
+
+## Processo de desenvolvimento
+
+- Uma tarefa por branch, um pull request por tarefa, com descrição e saída dos testes.
+- Nenhum merge sem o CI verde.
+- Planejamento em [`PLAN.md`](PLAN.md) e acompanhamento em [`STATE.md`](STATE.md).
+- Uso de IA como ferramenta de engenharia: configurei agentes do Claude Code
+  ([`.claude/agents`](.claude/agents)) com papéis separados — um implementa, outro verifica do
+  zero — e regras de qualidade obrigatórias (gates de teste, padrões de banco e de design). Eu
+  defino requisitos, arquitetura e regras, reviso os PRs e valido com a cliente.
+
+---
 
 ## Executar localmente
 
@@ -53,98 +182,51 @@ npm install
 npm run dev
 ```
 
-A interface ficará em `http://localhost:5173` e a API em `http://localhost:3333`.
+Interface em `http://localhost:5173` e API em `http://localhost:3333`. Por padrão os dados ficam
+em memória, com uma base de demonstração fictícia (123 clientes, planos, atendimentos, turmas e
+pagamentos).
 
-Credenciais de demonstração (conta da gestora Aryana Dutra; o e-mail mantém o domínio antigo):
+Acesso de demonstração:
 
 ```text
 admin@movimenta.local
 Admin@123
 ```
 
-O ambiente de demonstração traz 123 clientes fictícios, incluindo 120 cadastros variados de fisioterapia, depilação, dançaterapia e outros serviços. Há clientes ativos e inativos, com e sem e-mail, além de contatos, datas de nascimento e etiquetas para avaliar listas, buscas e formulários. Os e-mails usam `example.com` e os dados adicionais têm identificadores fixos; no PostgreSQL, executar o seed novamente não duplica esses cadastros.
+### Cenários de demonstração
 
-### Cenários de operação
+Busque estas etiquetas em **Clientes** para ver cada trajetória:
 
-Com `SEED_DEMO_DATA=true`, a demonstração também inclui 56 planos com preços e parcelas, 160 atendimentos individuais, uma turma de dançaterapia duas vezes por semana e seu histórico de aulas e presenças. Busque as etiquetas abaixo em **Clientes** para examinar cada trajetória:
+| Etiqueta                 | Cenário                                                |
+| ------------------------ | ------------------------------------------------------ |
+| Frequente / Dançaterapia | plano ativo de 24 aulas, com presença e próximas aulas |
+| Frequente / Pilates      | sessões concluídas e retorno agendado                  |
+| Em tratamento            | pacote de fisioterapia com saldo de sessões            |
+| Serviço avulso           | compras de depilação                                   |
+| Assinatura cancelada     | ex-alunos com pagamentos e parcelas canceladas         |
+| Sem retorno              | pacote vencido e sessões restantes                     |
+| Pagamento atrasado       | plano ativo com parcela vencida                        |
 
-| Etiqueta                 | Cenário                                                              | Valor simulado         |
-| ------------------------ | -------------------------------------------------------------------- | ---------------------- |
-| Frequente / Dançaterapia | 8 clientes em plano ativo de 24 aulas, com presença e próximas aulas | R$ 1.497 em 3 parcelas |
-| Frequente / Pilates      | 8 clientes com sessões concluídas e retorno agendado                 | R$ 1.200 em 2 parcelas |
-| Em tratamento            | 8 clientes com pacote de fisioterapia e saldo de sessões             | R$ 1.500 em 2 parcelas |
-| Serviço avulso           | 8 compras de depilação de pernas ou axilas                           | R$ 120 ou R$ 55        |
-| Assinatura cancelada     | 8 ex-alunos de dançaterapia com pagamentos e parcelas canceladas     | R$ 1.497 por plano     |
-| Sem retorno              | 8 clientes com pacote vencido e sessões restantes                    | R$ 1.500 por pacote    |
-| Pagamento atrasado       | 8 clientes de Pilates com plano ativo e parcela vencida              | R$ 1.200 em 2 parcelas |
-
-Os planos recorrentes representam períodos contratados com sessões e parcelas. Ao fim da validade, os que têm renovação automática ganham o período seguinte com as mesmas condições; qualquer plano também pode ser renovado manualmente em **Planos**, com valores ajustáveis. As datas são posicionadas em relação ao dia em que a base é carregada pela primeira vez; reiniciar a API preserva os registros e as alterações feitas neles.
-
-## Verificações
-
-```bash
-npm run check
-npm run test:unit
-npm run test:integration
-npm run test:coverage
-npm exec -- playwright install chromium
-npm run test:e2e
-```
-
-## Relatório mensal de vendas
-
-Perfis de gestão e financeiro veem no painel o valor vendido, o recebido e os clientes que compareceram no mês anterior sem atendimento concluído no mês atual. A página **Relatórios** permite escolher o mês e baixar um XLSX com resumo, movimentos de vendas e cancelamentos, pagamentos e estornos, clientes sem retorno e definições dos indicadores. O mês em andamento é comparado com os mesmos dias do mês anterior; vendas seguem a data da criação do plano ou do fechamento da comanda, enquanto recebimentos seguem a data do movimento financeiro.
-
-Os testes unitários e de integração usam Vitest; `test:e2e` compila o projeto e inicia uma API em memória exclusiva por cenário. Os relatórios de cobertura ficam em `coverage` de cada workspace; as metas preservam a cobertura inicial registrada em `scripts/coverage-baseline.json`. Consulte [AGENTS.md](AGENTS.md) para localizar código e executar testes focados.
-
-O `typecheck` inclui as configurações de testes e Playwright, além do código das aplicações. O `tsconfig.json` da raiz permite ao editor encontrar essas configurações; o lint verifica todos os workspaces na mesma execução. A antiga suíte `apps/web/src/App.test.tsx` foi dividida em testes próximos às funcionalidades, em `src/app` e `src/features`.
-
-## Banco de dados local
-
-PostgreSQL e Redis podem ser iniciados com:
-
-```bash
-docker compose up -d
-```
+### Com banco MySQL/MariaDB
 
 Copie `.env.example` para `.env` e configure:
 
 ```text
-STORAGE_MODE=postgres
-DATABASE_URL=postgresql://crm:crm@localhost:5432/crm
+STORAGE_MODE=mysql
+DATABASE_URL=mysql://<usuário>:<senha>@localhost:3306/crm
 SEED_DEMO_DATA=true
 ```
-
-Se a porta 5432 já estiver ocupada, defina `CRM_POSTGRES_PORT` e use a mesma porta em `DATABASE_URL` nesse arquivo.
 
 ```bash
 npm run db:setup
 npm run dev
 ```
 
-`SEED_DEMO_DATA=false` desativa os dados fictícios. As migrações aplicadas ficam registradas em `schema_migrations` e podem ser executadas novamente com segurança.
-
-Para testar a implementação contra um banco exclusivo de testes:
+As migrações rodam automaticamente e ficam registradas em `schema_migrations`. Para os testes
+de banco, use um banco exclusivo de testes (nunca produção):
 
 ```bash
-TEST_DATABASE_URL=postgresql://crm:crm@localhost:5432/crm_test npm run test:postgres
+TEST_DATABASE_URL=mysql://<usuário>:<senha>@127.0.0.1:3306/crm_test npm run test:mysql
 ```
 
-Nunca aponte `TEST_DATABASE_URL` para um banco de produção: o teste cria e remove registros próprios.
-
-## Estrutura
-
-```text
-apps/api/src/modules     rotas, serviços e testes por domínio
-apps/api/src/storage     módulos de memória e PostgreSQL com contexto compartilhado
-apps/web/src/app          composição, navegação e layout
-apps/web/src/features     telas, formulários e testes por funcionalidade
-apps/web/src/shared       componentes, hooks, autenticação e cliente HTTP
-packages/contracts/src   schemas, tipos e helpers por domínio
-e2e                      fluxos reais em Chromium desktop e celular
-docs                     levantamento funcional e plano do produto
-```
-
-## Escopo deliberadamente excluído
-
-Não existe aplicativo, login, portal ou autoatendimento do cliente. Toda a operação é realizada pela equipe da clínica, conforme definido no plano do projeto.
+Mais detalhes para localizar código e rodar testes focados em [AGENTS.md](AGENTS.md).
