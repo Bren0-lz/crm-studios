@@ -233,7 +233,7 @@ describe("appointment auto finalization", () => {
     const { app, headers, repository, appointmentAt, saveSettings } =
       await setup();
     await saveSettings({ enabled: true, delayMinutes: 30 });
-    const past = await appointmentAt("2039-06-10T12:00:00Z");
+    const past = await appointmentAt("2039-06-09T12:00:00Z");
     // Fora do intervalo mínimo entre varreduras disparadas pelas requisições.
     vi.setSystemTime(new Date("2039-06-10T18:02:00Z"));
     await app.inject({ method: "GET", url: "/me", headers });

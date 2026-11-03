@@ -57,7 +57,7 @@ describe("automatic commission reconciliation", () => {
         professionalId: professional.id,
         roomId: room.id,
         serviceId: service.id,
-        startsAt: "2039-01-04T12:00:00Z",
+        startsAt: "2039-01-03T12:00:00Z",
         visitType: "regular",
         notes: "",
       });
@@ -132,7 +132,7 @@ describe("automatic commission reconciliation", () => {
         professionalId: professional.id,
         roomId: room.id,
         serviceId: service.id,
-        startsAt: "2039-01-04T12:00:00Z",
+        startsAt: "2039-01-03T12:00:00Z",
         visitType: "regular",
         notes: "",
       });

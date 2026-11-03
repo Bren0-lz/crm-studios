@@ -1,9 +1,11 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef } from "react";
 import { escapeStack } from "../lib/formatting";
 
 export function useEscapeToClose(onClose: () => void, busy: boolean) {
   const latest = useRef({ onClose, busy });
-  useEffect(() => {
+  // `useLayoutEffect`, não `useEffect`: o efeito comum roda depois da pintura, e um Esc logo
+  // após o fim do salvamento ainda via `busy = true` com a tela já liberada (Esc ignorado).
+  useLayoutEffect(() => {
     latest.current = { onClose, busy };
   });
   useEffect(() => {
