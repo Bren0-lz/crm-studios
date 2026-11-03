@@ -1410,6 +1410,25 @@ export interface ClinicRepository {
     actorId: string,
     entryId: string,
   ): Promise<boolean>;
+  /**
+   * Vale do colaborador: cria a despesa já paga (categoria "Folha de pagamento", competência
+   * da DRE = mês do desconto) e o lançamento `advance` que desconta o valor na folha desse mês.
+   * Colaborador inativo: PAYROLL_EMPLOYEE_INACTIVE (409). `null` = não encontrado.
+   */
+  createPayrollAdvance(
+    clinicId: string,
+    actorId: string,
+    input: import("@crm/contracts").PayrollAdvanceInput,
+  ): Promise<import("@crm/contracts").PayrollEntry | null>;
+  /**
+   * Remove um vale ainda a lançar: estorna e cancela a despesa paga. Já numa despesa da
+   * folha: PAYROLL_ENTRY_LAUNCHED (409). `false` = não encontrado.
+   */
+  deletePayrollAdvance(
+    clinicId: string,
+    actorId: string,
+    entryId: string,
+  ): Promise<boolean>;
   /** Desfaz o lançamento de uma despesa da folha em aberto (os itens voltam a pendentes). */
   cancelPayrollLaunch(
     clinicId: string,

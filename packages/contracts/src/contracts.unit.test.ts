@@ -133,6 +133,9 @@ import {
   signatureLinkExpiresAt,
   signatureLinkExpired,
   patientImportFileSchema,
+  payrollAdvanceDescription,
+  payrollAdvanceInputSchema,
+  payrollEntryDescription,
 } from "./index.js";
 
 describe("shared contracts", () => {
@@ -2308,7 +2311,9 @@ describe("1º pagamento proporcional às aulas até o vencimento", () => {
         firstChargeInCents: 12_345,
         manualFirstCharge: true,
       }),
-    ).toContain("o 1º pagamento, com o valor combinado na venda, é de R$ 123,45");
+    ).toContain(
+      "o 1º pagamento, com o valor combinado na venda, é de R$ 123,45",
+    );
   });
   it("tells the prorated first charge in the Pix message", () => {
     expect(
@@ -2704,5 +2709,37 @@ describe("edit history changes", () => {
     expect(changeReasonSchema.parse(undefined)).toBeUndefined();
     expect(changeReasonSchema.safeParse("x".repeat(501)).success).toBe(false);
     expect(auditChangesOf({ changes: [{ field: "a" }] })).toEqual([]);
+  });
+});
+
+describe("vale da folha", () => {
+  it("valida o vale e descreve a despesa e o item da folha", () => {
+    const employeeId = "33333333-3333-4333-8333-333333333333";
+    expect(
+      payrollAdvanceInputSchema.parse({
+        employeeId,
+        competence: "2026-11",
+        amountInCents: 20000,
+      }),
+    ).toMatchObject({ paymentMethod: "pix" });
+    for (const input of [
+      { employeeId, competence: "2026-11", amountInCents: 0 },
+      { employeeId, competence: "2026-13", amountInCents: 100 },
+      {
+        employeeId,
+        competence: "2026-11",
+        amountInCents: 100,
+        paidAt: "ontem",
+      },
+    ])
+      expect(payrollAdvanceInputSchema.safeParse(input).success).toBe(false);
+    expect(payrollAdvanceDescription("Ana Souza", "2026-11")).toBe(
+      "Vale · Ana Souza (desconto em 11/2026)",
+    );
+    const advance = { kind: "advance", mode: "amount", value: 100 } as const;
+    expect(payrollEntryDescription({ ...advance, reason: "" })).toBe("Vale");
+    expect(payrollEntryDescription({ ...advance, reason: "Mercado" })).toBe(
+      "Vale · Mercado",
+    );
   });
 });
