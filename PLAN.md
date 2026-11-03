@@ -13,6 +13,8 @@ está no histórico do git (este arquivo antes do commit "chore: handoff da roda
 ## Fora de escopo
 
 - O que depende de provedor externo: pagamentos, NFSe, envio real de WhatsApp ou e-mail.
+  Exceção aberta pelo dono na reunião de 02/11/2026 (Rodada 9): integração com a Bot API do
+  Telegram (TG1–TG6). Nenhum outro provedor externo entra.
 - Portal ou app do cliente.
 - Dependências npm novas, `git push`, edição de migrações existentes, `.env` e `compose.yaml`
   sem autorização do dono.
@@ -261,3 +263,775 @@ destaque no lugar sem perguntar. Os divisores neutros de 1px entre colunas (ex.:
   WhatsApp, logout/sair de todos, mesclar, recorrência, pausar/renovar; celular ≤ 400 px.
 - **Depende de:** QR1
 - **Status:** TODO
+
+## Rodada 9 — Pedidos da reunião de 02/11/2026
+
+Reunião com o estúdio em 02/11/2026 (ata com itens B1-01…B6-05). Prazo: sábado (07/11); o
+painel de turmas, segunda (09/11). A Rodada 8 fica pausada em QM16 e volta depois desta rodada.
+Itens marcados ⏸ dependem de resposta do estúdio: viram tarefa `BLOCKED` com a pergunta exata
+em **Origem**, sem inventar a regra.
+
+### Decisões do dono (reunião de 02/11)
+
+- **Assinatura no celular (B2-04):** é o único impeditivo para o estúdio começar a usar o
+  sistema. O registro de visualização mostrou "iPhone/iOS 18".
+- **CPF (B6-05):** "se subir planilha não precisa, mas pra cadastrar manualmente precisa".
+  Cliente importado sem CPF recebe a etiqueta "Falta CPF", que some quando o CPF é preenchido.
+- **WhatsApp (B1-07)** e **contato de emergência (B1-10)** obrigatórios no cadastro manual.
+  Quem não tem contato de emergência repete o próprio nome e telefone, e o sistema aceita.
+  Não haverá checkbox "sem contato" nem permissão para dispensar. E-mail obrigatório ficou
+  ambíguo (⏸).
+- **Turma cheia (B2-02):** o cliente é cadastrado e entra automaticamente na lista de espera,
+  com aviso claro. Nada de matrícula acima da capacidade.
+- **Datas das sessões (B1-04):** o dia fixo semanal continua como padrão. Na mesma tela entram
+  o resumo das datas, a marca de horário indisponível e as exceções por data. A Agenda continua
+  servindo para emergências.
+- **Recibo (B5-02, B5-01, B4-08):** o cliente assina o recibo por link, como no contrato
+  (antifraude em dinheiro). Em vez de imagem ou PDF, vai uma mensagem "recebemos seu
+  pagamento" com o link, por modelo editável e pelo botão de WhatsApp existente (wa.me).
+- **Telegram (B5-03, B5-04):** a notificação de pagamento sai quando o cliente **assina** o
+  recibo. Também avisam agendamento marcado e cliente novo, e o bot tem comandos para o dia, a
+  semana e o mês. **Exceção ao "Fora de escopo"**: esta rodada abre a integração com o provedor
+  externo Telegram (Bot API) por decisão do dono na reunião. Nenhum outro provedor entra.
+- **Eventos (B2-05 + B3-01):** página nova, anotada como "muito urgente".
+- **Painel de turmas (B6-02 a B6-04):** cartões com iniciais, modal com alunos, seletor de
+  filial e atrasados clicáveis. Isso fica no repositório `dashboard-studios`; aqui entra só o
+  que a API externa precisar (tarefas PX).
+- **Barra de pendências (B4-02):** continua fixa no topo, com letra branca e fundo vermelho,
+  sem aumentar altura nem fonte.
+
+### Triagem no código (03/11, `main` em `75d3190`)
+
+| Item | Já existe | Falta | Arquivos |
+|---|---|---|---|
+| B2-04 assinatura no iPhone | Página pública, `SignaturePad` com `devicePixelRatio` e `touch-action: none` | **Causa provável:** `.document-paper` tem `aspect-ratio: 210/297` (altura presa à largura). No celular o texto passa da folha e, como a página pública não usa `.document-paper-canvas` (com `overflow: auto`), transborda por cima do formulário. O `@media (max-width: 700px)` só reduz o padding; o `aspect-ratio: auto` existe só no `@media print`. Também há `min-height: 100vh` (barra do Safari), nenhum tratamento de `pointercancel` e o canvas não é redimensionado ao girar a tela | `features/contracts/PublicSignaturePage.tsx`, `DocumentPaper.tsx`, `styles/10-commercial-communications.css` (~1099, ~1484, ~1837) |
+| B2-03 cadastro com contrato "caducou" | — | Erro desconhecido. Hipóteses: token de 8 h expirado (`auth/routes.ts:40`), `bodyLimit` padrão de 1 MiB do Fastify (logo em data URL no `branding`), chave de idempotência repetida | `features/patients/Guided*`, `features/contracts/signature-on-registration.integration.test.tsx` |
+| B6-05 CPF | `patients.cpf` aceita nulo (`UNIQUE (clinic_id, cpf)` aceita vários nulos), gravação usa `input.cpf \|\| null`, contrato sai com "não informado" (`missingDocumentValue`), duplicidade e busca já ignoram CPF vazio | `patientInputSchema.cpf` obrigatório; `patientImportRequiredFields` inclui `cpf`; teste `patient-required-cpf.integration.test.ts` exige CPF na importação | `contracts/src/patients/{model,automatic-tags}.ts`, `api/src/modules/patients/{patient-import,routes}.ts` |
+| B1-07/B1-10 WhatsApp e emergência | Campos opcionais (`optionalPhoneSchema`) | Obrigatoriedade no cadastro manual sem travar a edição de clientes antigos | `contracts/src/patients/model.ts`, `features/patients/PatientModal.tsx`, `patient-emergency-contact.integration.test.tsx` |
+| B1-08 DDD na exportação | **Já atendido:** colunas "DDD (…)" + número em `api/src/modules/patients/patient-export.ts:74`; teste `crm-api-patients.integration.test.ts:3814`; no relatório, `report-workbooks.ts:377` | — | — |
+| B2-02 turma cheia | **API já faz:** `insertGroupEnrollment` (`storage/mysql/context.ts:710`) trava a turma (`FOR UPDATE`), conta as vagas e grava `waitlisted` com posição. A venda de plano com turma usa o mesmo método. Aviso existe no cadastro guiado (`features/patients/model.ts:222`) e em Turmas (`groupEnrollmentToast`) | `PatientPlanModal.tsx` ignora `result.enrollment` (sem aviso de espera). O cancelamento **promove sozinho** o primeiro da espera (`storage/mysql/agenda.ts:1276`), o que contradiz "não matricular sem confirmação" (⏸). Validade do plano conta desde a venda mesmo na espera (⏸) | `PatientPlanModal.tsx`, `storage/{memory,mysql}/agenda.ts` |
+| B1-04/B1-05 datas das sessões | **Já atendido** no commit `7a0e2229` (02/11): `PlanScheduleSummary.tsx` lista as sessões geradas, consulta `POST /appointments/conflicts`, marca conflito e "Fora da vigência", aceita exceção por sessão; `PlanSessionsSentStep.tsx` envia as datas por wa.me | Rótulo "Conflito: …" em vez de "Horário indisponível"; B1-03 "Dia 1/Dia 2" continua em `features/agenda/PackageWeeklySlotsFields.tsx:55` | idem |
+| B5-02/B5-01/B4-08 recibo | Recibo de parcela (`GET /finance/receivables/:id/receipt`, `modules/finance/receipt.ts`, `ReceiptModal.tsx`); link público de assinatura de documento (`document_signature_links`: token, visualizações, `signed_at`, imagem) | O link é preso a `issued_documents`, que exige `template_id`. Não há assinatura de recibo, controle de enviado nem modelo de mensagem de pagamento | `modules/contracts/signature-links.ts`, `PublicSignaturePage.tsx`, `modules/finance/*` |
+| B5-03/B5-04 Telegram | Nada. Variáveis reais no hPanel da Hostinger; API sem agendador em segundo plano | Tudo | — |
+| B2-05 Eventos | CRM comercial: lead com telefone, e-mail, origem livre, `lead_contacts` (canal, observação, data e hora), `LeadAppointmentModal` (avaliação/experimental), conversão em cliente (`LeadConvertModal`, CPF obrigatório), duplicidade (`contracts/commercial/duplicates.ts`); importador com mapeamento de colunas reaproveitável (`modules/patients/patient-import.ts`) | Entidade evento e vínculo participante→evento | `modules/commercial`, `features/commercial` |
+| B3-04 endereço | Endereço da filial (`contracts/src/branches/model.ts`: `street`, `city`…) | Variável de endereço. **Não existe** link do Google Maps no código (a ata supõe que sim) | `contracts/src/communications/model.ts:427`, `MessageBodyEditor.tsx` |
+| B3-06 serviço no lembrete | **Já atendido:** `appointment_upcoming` tem `{{servico}}` (`model.ts:433`), preenchido em `auto-campaigns.ts:167`. Falta só o estúdio cadastrar "Avaliação Pilates" e "Avaliação Fisioterapia" | — | — |
+| B4-02 barra vermelha | `NotificationsBanner` (`app/NotificationAlerts.tsx`) só aparece quando há pendência destacada. `--red: #b85d53` com branco dá ~4,4:1, **abaixo do AA** (4,5:1). Não há tema escuro | Token de perigo escuro e novo visual | `styles/01-base.css`, `styles/03-shell.css:534` |
+| B1-01 sem retorno por serviço | **Já atendido:** filtro "Já contratou" com grupos Planos/Serviços/Produtos (`features/reports/SalesInsights.tsx:162`; teste `reports-redesign.integration.test.tsx:445`) | — | — |
+| API externa (painel) | `/external/v1/groups` com `serviceId/serviceName`, `branchId`; membros com `phone`/`email`; `/external/v1/overdue` | O painel espera `businessLine`, `overdueMembers` e `overdueInCents` por turma ("Fase 0", hoje só no CRM simulado) e WhatsApp do aluno | `contracts/src/integrations/external.ts`, `modules/external/routes.ts` |
+
+**Migrações:** maior número na `main` = `0039`; o branch aberto `claude/beautiful-fermi-ou993c`
+já usa `0040`. Hoje a próxima livre é `0041`, mas confira pela regra do CLAUDE.md no momento de
+cada tarefa (branches antigos do Postgres com `01xx` não contam). Este plano não reserva números.
+
+**Arquivos quentes:** RC e TG mexem em `finance` e `route-access.ts`. TG é empilhado sobre RC e
+nunca em paralelo. EV também mexe em `route-access.ts`: abra o PR dela só depois de RC mesclada
+ou empilhado.
+
+**Ordem:** CT → CP → PX (prazo de segunda do painel) → CD → TW → SS → EV → RC → TG → CM → NB → AJ.
+
+### CT1 — Página pública de assinatura sem sobreposição no celular
+
+- **Origem:** B2-04 (impeditivo). Link aberto no iPhone (iOS 18) com elementos sobrepostos.
+- **Escopo:**
+  - Reprodução primeiro: `e2e/public-signature.spec.ts` emite um documento longo (vários
+    parágrafos e cabeçalho com logo), cria o link e abre `/assinar-contrato/<token>` (rota em
+    `AppRoutes.tsx`) nos projetos `mobile` (Pixel 7, já existe) e num projeto novo `iphone`
+    (`devices["iPhone 13"]` com `defaultBrowserType: "chromium"`; o WebKit não está instalado e
+    não entra dependência nova).
+  - Asserções: `document.documentElement.scrollWidth <= innerWidth`; o fim da
+    `.document-paper` fica acima do topo de `.public-signature-form`; o último parágrafo do
+    documento fica dentro da caixa da folha. O teste precisa falhar antes da correção (registre
+    a saída no PR).
+  - Correção:
+    - `.public-signature-document .document-paper` com `aspect-ratio: auto` e altura livre (a
+      folha A4 fixa vale só na prévia com `.document-paper-canvas`).
+    - `min-height: 100dvh` com o `100vh` antes, como alternativa.
+    - Imagens e tabelas do conteúdo rico com `max-width: 100%`, sem rolagem horizontal.
+    - `@media (max-width: 700px)` com padding lateral pela escala e fonte ≥ `--text-xs`.
+  - Teste web: a página pública renderiza a folha sem o `aspect-ratio` fixo (classe/estrutura).
+- **Gate:** gate completo e `npm run test:e2e -- e2e/public-signature.spec.ts --workers=1`
+- **Depende de:** —
+- **Status:** TODO
+
+### CT2 — Assinar com o dedo no iPhone
+
+- **Origem:** B2-04 (o cliente precisa conseguir assinar no celular).
+- **Escopo:**
+  - `SignaturePad` em `PublicSignaturePage.tsx`:
+    - Tratar `pointercancel`: hoje o Safari cancela o traço e nada é gravado.
+    - Não encerrar o traço no `pointerleave` enquanto houver captura.
+    - Redimensionar o canvas ao girar a tela ou mudar o tamanho (`ResizeObserver`), limpando
+      com aviso "Assine de novo" em vez de distorcer o desenho.
+    - No canvas: `user-select: none`, `-webkit-user-select: none` e
+      `-webkit-touch-callout: none`.
+    - Gravar a imagem ao fim de cada traço.
+  - Conferir o tamanho do PNG com `devicePixelRatio` 3 contra o `bodyLimit` da rota pública de
+    assinatura e reduzir a escala do canvas exportado se passar.
+  - Testes:
+    - Web: `pointercancel` mantém a assinatura e libera o botão.
+    - E2E: no projeto `iphone`, desenhar com toque, aceitar e assinar.
+- **Gate:** gate completo e `npm run test:e2e -- e2e/public-signature.spec.ts --workers=1`
+- **Depende de:** CT1
+- **Status:** TODO
+
+### CT3 — Investigar a falha do cadastro guiado com contrato
+
+- **Tipo:** investigação (sem correção às cegas)
+- **Origem:** B2-03. Na demo, o cadastro com contrato falhou ("acho que ele caducou, porque eu
+  coloquei muita coisa"); o trecho é ininteligível e o erro exato é desconhecido.
+- **Escopo:**
+  - Tentar reproduzir em teste web (`guided-client-registration`,
+    `signature-on-registration`) e na API um cadastro guiado com muitos itens (plano + turma +
+    avulsos + produtos + demonstração) e um contrato para assinatura.
+  - Hipóteses a testar:
+    - Token de 8 h expirado no meio do formulário (o erro mostrado é claro?).
+    - Corpo acima de 1 MiB (logo em data URL no `branding` do documento).
+    - Chave de idempotência reaproveitada após um erro.
+  - Se reproduzir: registrar a causa no STATE.md e criar a CT4 (correção com teste) logo
+    abaixo desta.
+  - Se não reproduzir: registrar "não reproduzido" e as hipóteses descartadas.
+- **Gate:** gate completo (se houver teste novo)
+- **Depende de:** CT2
+- **Status:** TODO
+
+### CP1 — CPF opcional na importação, com etiqueta automática "Falta CPF"
+
+- **Origem:** B6-05 (impeditivo). A planilha do estúdio não tem CPF e a base não entra.
+- **Escopo:**
+  - Contracts:
+    - `patientImportRequiredFields` sem `cpf`.
+    - Schema de importação aceita CPF vazio. CPF preenchido e inválido continua erro da linha.
+    - `MISSING_CPF_TAG = "Falta CPF"` em `automatic-tags.ts`, junto da
+      `OVERDUE_PAYMENT_TAG`: calculada na leitura (cliente sem CPF), sem gravação nem edição
+      manual. Some sozinha quando o CPF é preenchido e aparece no filtro de etiquetas.
+  - API:
+    - `patient-import.ts` deixa de exigir CPF.
+    - A duplicidade só por CPF quando ele existe; telefone continua.
+    - `withAutomaticPatientTags` aplica as duas etiquetas nos dois repositórios.
+  - Cadastro manual (`POST /patients`, cadastro rápido, guiado e conversão de lead) continua
+    exigindo CPF: `patientInputSchema` não muda para a criação.
+  - Web: a tela de importação para de marcar CPF como obrigatório e a prévia mostra
+    "N clientes sem CPF receberão a etiqueta Falta CPF".
+  - Atualizar `patient-required-cpf.integration.test.ts` (importação sem CPF passa; manual e
+    conversão continuam exigindo).
+  - Testes de contracts (etiqueta), API (memória) e web. MySQL opt-in só se tocar SQL.
+- **Gate:** gate completo
+- **Depende de:** CT3
+- **Status:** TODO
+
+### CP2 — Editar cliente importado sem CPF
+
+- **Origem:** B6-05, efeito colateral.
+- **Escopo:**
+  - **Proposta:** `PUT /patients/:id` aceita CPF vazio **só se o cliente já estava sem CPF**.
+    Não deixa apagar um CPF existente. Assim, atualizar o telefone de um cliente importado não
+    obriga a pedir o CPF na hora.
+  - A ficha e o modal mostram o aviso "Cadastro sem CPF" e o campo destacado.
+  - Contrato e recibo sem CPF continuam saindo com "não informado" (comportamento atual).
+  - Se o dono preferir exigir o CPF na edição, a mudança é uma linha no schema da rota: confirme
+    no PR, sem bloquear.
+  - Testes:
+    - API: edita importado sem CPF, recusa apagar CPF existente.
+    - Web: aviso aparece.
+- **Gate:** gate completo
+- **Depende de:** CP1
+- **Status:** TODO
+
+### PX1 — API externa: linha de negócio e inadimplência por turma
+
+- **Origem:** B6-01 a B6-04 (painel de turmas no `dashboard-studios`, prazo segunda). O
+  painel já espera `businessLine`, `overdueMembers` e `overdueInCents` por turma
+  ("Fase 0" do CRM simulado), e hoje a API real não envia.
+- **Escopo:**
+  - Serviço ganha "Linha no painel" (`studio` | `aesthetics`, padrão `studio`): migração nova
+    `services.business_line VARCHAR(20) NOT NULL DEFAULT 'studio'` com `CHECK`, contracts,
+    cadastro de serviço em Configurações e dados demo.
+  - `ExternalGroupRow` ganha:
+    - `businessLine`, vinda do serviço da turma.
+    - `overdueMembers` e `overdueInCents`, com a mesma regra de `/external/v1/overdue`
+      (`isOverdueReceivable`).
+  - Documentar em `endpoints.ts`. Testes em `external-api.integration.test.ts` e MySQL opt-in.
+  - Não implementa as categorias Pilates/Dança: ver PX3.
+- **Gate:** gate completo e `npm run test:mysql`
+- **Depende de:** CP2
+- **Status:** TODO
+
+### PX2 — API externa: WhatsApp e situação de cada aluno da turma
+
+- **Origem:** B6-02 (modal com alunos: nome, telefone e botão de WhatsApp) e B6-04.
+- **Escopo:**
+  - `ExternalGroupMember` ganha `whatsapp?` e `overdue: boolean`.
+  - Privacidade: a API externa já devolve `phone` a quem tem acesso ao painel. O contato
+    passa a sair só se a pessoa logada (`X-CRM-User-Token`) tiver `patients.view`; sem a
+    permissão, saem só o nome e as iniciais.
+  - Testes de API: com e sem a permissão.
+- **Gate:** gate completo
+- **Depende de:** PX1
+- **Status:** TODO
+
+### PX3 — Categorias do painel (Estúdio geral / Pilates / Dança / Estética)
+
+- **Origem:** B6-01 ⏸. **Pergunta ao estúdio:** "Dança é uma aba só, ou Dançaterapia e Ritmos
+  separadas (como no vídeo de referência)?"
+- **Escopo:**
+  - Lista de categorias configurável, derivada dos serviços do CRM (categoria do painel por
+    serviço).
+  - Fica `BLOCKED` até a resposta. PX1 já entrega a separação Estúdio/Estética que o painel
+    usa hoje.
+- **Gate:** gate completo
+- **Depende de:** PX2
+- **Status:** BLOCKED
+
+**Tarefas do `dashboard-studios`** (executadas lá, PR para `main` com `npm run check`; cada uma
+só depois das PX que usa estarem mescladas no CRM e o CRM simulado `apps/bff/src/mock-crm`
+atualizado no mesmo PR):
+
+- PT1: seletor de filial (`useBranchFilter`, já existe) no topo da tela de turmas.
+- PT2: cartões por turma, com:
+  - bolinhas de iniciais (duas letras), de 4 a 6, depois "+N";
+  - "15/20 · 5 vagas".
+- PT3: modal (não gaveta) com os alunos: nome, telefone e WhatsApp. Substitui o
+  `GroupDrawer.tsx`, reaproveitando o conteúdo. Usa a PX2.
+- PT4: "Pagamentos atrasados" clicável, abrindo a lista (`OverduePage`/BFF). Usa a PX1.
+- PT5: inscrever pela turma (`EnrollDialog`, `useGroupFlow`) e invalidar o cache de 45 s do
+  BFF (`TtlCache.clear`/chave da turma) depois de inscrever, para o cartão atualizar na hora.
+  Na turma cheia, a mensagem já vem do CRM (`waitlisted`).
+- PT6 ⏸: filtro de categorias (depende da PX3).
+
+### CD1 — WhatsApp e contato de emergência obrigatórios no cadastro manual
+
+- **Origem:** B1-07 e B1-10 (decididos).
+- **Escopo:**
+  - Contracts: schema de **criação manual** com `whatsapp`, `emergencyContactName` e
+    `emergencyContactPhone` obrigatórios. Aceita o próprio nome e telefone do cliente como
+    contato (sem regra de "diferente de").
+  - Vale para o cadastro completo, o rápido, o guiado e a conversão de lead.
+  - Edição (`PUT`): mesma regra da CP2. Campo vazio é aceito se já estava vazio (clientes
+    antigos continuam editáveis), mas não dá para apagar o que existe. A ficha mostra
+    "Cadastro incompleto: falta WhatsApp/contato de emergência".
+  - Web:
+    - `*` nos campos.
+    - Botão "Usar os dados do cliente" no bloco de emergência, que copia nome e telefone.
+  - Importação: **não muda** nesta tarefa (ver CD3).
+  - Atualizar `demo-patients.ts`, `seed-demo-scenarios.ts` e
+    `patient-emergency-contact.integration.test.tsx`.
+  - Testes de contracts, API e web.
+- **Gate:** gate completo
+- **Depende de:** PX3 (ordem; sem dependência de código)
+- **Status:** TODO
+
+### CD2 — E-mail obrigatório?
+
+- **Origem:** B1-07 ⏸. **Pergunta ao estúdio:** "O e-mail deve ser obrigatório no cadastro?"
+  Na reunião, alguém disse "tem que ser obrigatório" e outra pessoa "tem gente que não tem".
+- **Escopo:** se sim, mesma mecânica da CD1. Até a resposta, o e-mail continua opcional.
+- **Gate:** gate completo
+- **Depende de:** CD1
+- **Status:** BLOCKED
+
+### CD3 — Importação sem WhatsApp ou contato de emergência
+
+- **Origem:** P2/P3 ⏸. **Pergunta ao estúdio:** "A planilha pode trazer cliente sem WhatsApp e
+  sem contato de emergência, como o CPF?"
+- **Escopo:**
+  - Proposta: aceitar na importação e marcar com uma etiqueta automática "Cadastro incompleto",
+    mesmo mecanismo da CP1.
+  - Hoje esses campos já são opcionais na importação: a CD1 não quebra a importação. Esta
+    tarefa só acrescenta a etiqueta.
+- **Gate:** gate completo
+- **Depende de:** CD2
+- **Status:** BLOCKED
+
+### CD4 — Aviso de profissional sem WhatsApp
+
+- **Origem:** B1-06 (constatação, baixa prioridade). Profissionais cadastrados antes da
+  atualização estão sem WhatsApp, e o "compartilhar agenda" fica sem contato.
+- **Escopo:**
+  - Selo "sem WhatsApp" na lista de usuários/profissionais (`features/settings`).
+  - Dica no compartilhar agenda quando faltar o número.
+  - Teste web.
+- **Gate:** gate completo
+- **Depende de:** CD3 (ordem; pode ser feita antes se a CD3 seguir bloqueada)
+- **Status:** TODO
+
+### TW1 — Aviso de lista de espera na venda de plano com turma
+
+- **Origem:** B2-02.
+- **Triagem:** a API já põe na espera quando a turma está cheia, com trava na turma, inclusive
+  na venda de plano. O cadastro guiado e Turmas já avisam.
+- **Escopo:**
+  - `PatientPlanModal.tsx` usa `result.enrollment` e mostra o toast (`groupEnrollmentToast`):
+    "Turma cheia: Fulana entrou na lista de espera de <turma> (posição N)".
+  - Seletores de turma (plano, guiado, Turmas) mostram "turma cheia (lista de espera)" como no
+    guiado.
+  - Testes:
+    - API: a última vaga fica com o primeiro; o seguinte vai para a espera (memória).
+    - API: duas matrículas concorrentes na última vaga, uma ativa e uma na espera (MySQL
+      opt-in).
+    - Web: aviso na venda de plano.
+- **Gate:** gate completo e `npm run test:mysql`
+- **Depende de:** CD4
+- **Status:** TODO
+
+### TW2 — Vaga aberta: promover sozinho ou oferecer?
+
+- **Origem:** B2-02 ⏸.
+  - **Pergunta ao estúdio (1):** "Hoje, ao cancelar uma matrícula, o primeiro da lista de espera
+    é matriculado automaticamente. Preferem que a vaga seja só oferecida (WhatsApp/confirmação)?"
+  - **Pergunta ao estúdio (2):** "O plano vendido para quem está na espera começa a contar
+    validade e cobrança na venda ou só quando a vaga sai?"
+  - Hoje conta na venda: o código não dá resposta segura.
+- **Escopo:** conforme as respostas: rotas de cancelamento nos dois repositórios
+  (`storage/{memory,mysql}/agenda.ts`) e datas do plano na venda com turma.
+- **Gate:** gate completo e `npm run test:mysql`
+- **Depende de:** TW1
+- **Status:** BLOCKED
+
+### SS1 — Rótulos claros dos dias fixos e do horário indisponível
+
+- **Origem:** B1-03 e B1-04.
+  - "Dia 1 / Dia 2" confundiu: pensaram que era a 1ª data.
+  - Resumo, conflito e exceções já existem (commit `7a0e2229`).
+  - Envio das datas por WhatsApp (B1-05) também já existe.
+- **Escopo:**
+  - `PackageWeeklySlotsFields.tsx`: "1º dia da semana", "2º dia da semana"…
+  - `PlanScheduleSummary.tsx`: selo "Horário indisponível" com o motivo em seguida
+    ("Horário indisponível · Profissional ocupado").
+  - Atualizar os testes que procuram os rótulos antigos:
+    - `single-package-schedule`
+    - `appointment-package-weekdays`
+    - `application-shell-finance`
+- **Gate:** gate completo
+- **Depende de:** TW2 (ordem; pode ser feita antes se a TW2 seguir bloqueada)
+- **Status:** TODO
+
+### SS2 — Exceção por data atende?
+
+- **Origem:** P5 ⏸. **Pergunta ao estúdio:** "A exceção por data atende ou querem escolher
+  livremente o dia de cada sessão?"
+- **Escopo:** se quiserem escolha livre, avaliar o modo "datas manuais" que a Agenda já tem
+  (`AppointmentForm`, `manualDates`) também na contratação.
+- **Gate:** gate completo
+- **Depende de:** SS1
+- **Status:** BLOCKED
+
+### EV1 — Eventos: modelo, rotas e permissões
+
+- **Origem:** B2-05 + B3-01 ("muito urgente"). Exemplo: aulão na praça com 130 pessoas; lista
+  de 29 contatos que fechou 7 Pilates e 4 dança.
+- **Decisão técnica (recomendada):** o participante **é um lead** do CRM comercial com vínculo
+  ao evento. Motivos:
+  - Reaproveita o registro de contato (`lead_contacts`), a marcação de avaliação
+    (`LeadAppointmentModal`), a conversão em cliente e o aviso de duplicidade.
+  - Não duplica a pessoa em duas listas.
+  - Fica pergunta ao dono **sem bloquear** (pergunta 5 da lista do estúdio): "O participante
+    deve aparecer também no funil comercial?" Se não, o funil filtra `eventId` fora por padrão.
+- **Escopo:**
+  - Migração nova:
+    - Tabela `events`: id, `clinic_id`, `branch_id` opcional, nome, local/cidade, número de
+      pessoas, `starts_at`, observações (`LONGTEXT`), `created_by`, datas.
+    - `leads.event_id` com FK nomeada `ON DELETE SET NULL`.
+  - Contracts `commercial/events.ts`: schemas e indicadores. Lead criado pelo evento tem origem
+    "Evento: <nome>" e interesse padrão "Evento".
+  - Métodos no `ClinicRepository` (memória + MySQL). Rotas `GET/POST/PUT /events`,
+    `GET /events/:id` com participantes e indicadores.
+  - Indicadores, sem outros:
+    - contatados;
+    - interessados;
+    - avaliações marcadas;
+    - convertidos em cliente.
+  - Permissões novas `events.view` e `events.manage`, no bloco de `crm.*` em `permissions.ts`
+    e `route-access.ts` (junto das rotas `/leads`, não no fim).
+  - Testes API (memória + MySQL opt-in) e contracts.
+- **Gate:** gate completo e `npm run test:mysql`
+- **Depende de:** SS2 (ordem)
+- **Status:** TODO
+
+### EV2 — Página Eventos
+
+- **Origem:** B2-05.
+- **Escopo:**
+  - `features/events/EventsPage.tsx`:
+    - começa com `PageHeader`, depois `.panel` com a lista de eventos;
+    - estados `LoadingBlock`, `EmptyState` e `ErrorBanner`;
+    - modal de criar e editar o evento.
+  - Item "Eventos" no menu lateral logo depois de "Comercial" (bloco relacionado), rota
+    `/eventos`.
+  - Celular: grids com a regra de 700px.
+  - Teste web.
+- **Gate:** gate completo
+- **Depende de:** EV1
+- **Status:** TODO
+
+### EV3 — Participantes e registro de contato
+
+- **Origem:** B2-05.
+- **Escopo:**
+  - Na página do evento, a lista de participantes tem nome, telefone, e-mail e WhatsApp.
+  - Adicionar participante cria um lead ligado ao evento, com o aviso de duplicidade existente.
+  - Registro de contato: contato feito (sim/não), data e hora e observação.
+    - Usa `lead_contacts`.
+    - Observação num campo grande com contador e limite de 2000 caracteres, igual às notas do
+      lead.
+  - Os indicadores se atualizam.
+  - Testes API e web.
+- **Gate:** gate completo
+- **Depende de:** EV2
+- **Status:** TODO
+
+### EV4 — Marcar avaliação pelo evento
+
+- **Origem:** B2-05 ("marcar a avaliação ali mesmo, sem a pessoa sumir da lista do evento").
+- **Escopo:**
+  - Ação "Marcar avaliação" no participante, reaproveitando `LeadAppointmentModal`.
+  - O participante continua na lista, com o selo "Avaliação em 05/11 às 10:00".
+  - Testes web.
+- **Gate:** gate completo
+- **Depende de:** EV3
+- **Status:** TODO
+
+### EV5 — Finalizar cadastro do participante
+
+- **Origem:** B2-05.
+- **Escopo:**
+  - "Finalizar cadastro" abre o cadastro de cliente pré-preenchido, pelo fluxo de conversão de
+    lead (`POST /leads/:id/convert`).
+  - Salva sem plano. CPF, WhatsApp e emergência seguem a CD1.
+  - O participante fica ligado ao cliente criado e conta em "convertidos".
+  - Testes API e web.
+- **Gate:** gate completo
+- **Depende de:** EV4
+- **Status:** TODO
+
+### EV6 — Importar participantes por planilha
+
+- **Origem:** B2-05 (lista de contatos do evento).
+- **Escopo:**
+  - Reaproveitar o analisador com mapeamento de colunas de `modules/patients/patient-import.ts`.
+    Extrair a parte genérica, sem duplicar.
+  - Campos: nome, telefone, e-mail, WhatsApp.
+  - Prévia com duplicados (telefone) antes de gravar.
+  - Testes API e web.
+- **Gate:** gate completo
+- **Depende de:** EV5
+- **Status:** TODO
+
+### EV7 — Mensagem para a lista do evento?
+
+- **Origem:** B2-05 ⏸. **Pergunta ao estúdio:** "Querem mandar mensagem para a lista do
+  evento?" A resposta na reunião foi "Não, não. É esse sistema de mensagem aí": não ficou claro
+  se querem incluir os participantes nas Campanhas.
+- **Escopo:** nada de envio em massa até a resposta.
+- **Gate:** gate completo
+- **Depende de:** EV6
+- **Status:** BLOCKED
+
+### RC1 — Recibo para assinatura: modelo, migração e repositório
+
+- **Origem:** B5-02 (ênfase do Daniel: evitar fraude em pagamento em dinheiro na recepção).
+- **Decisão técnica:** tabela própria em vez de `issued_documents`, porque o documento exige
+  `template_id` e o recibo não vem de modelo. Reaproveita a lógica de token, visualizações e
+  assinatura de `modules/contracts/signature-links.ts`, extraída para um helper comum, sem
+  duplicar.
+- **Escopo:**
+  - Migração nova, tabela `receipt_signatures`:
+    - Identificação: id, `clinic_id`, `receivable_id`, `paid_at` da baixa, valor, `token`
+      único (≥ 32).
+    - Envio e leitura: `sent_at`, `first_viewed_at`/`last_viewed_at`, `view_count`, `views`
+      JSON.
+    - Assinatura: `signed_at`, `signature` JSON, `signature_image`.
+    - Cancelamento: `cancelled_at`, `cancel_reason`.
+    - `CHECK`s iguais aos de `document_signature_links`.
+  - Uma linha por baixa (parcela paga). Estados: gerado → enviado → visualizado → assinado,
+    ou cancelado.
+  - Estornar a baixa cancela o recibo na mesma transação.
+  - O recibo é gerado na baixa, dentro da transação.
+  - Evento interno `receipt.signed` (`{ clinicId, receiptId, receivableId, patientId,
+    amountInCents, signedAt }`) emitido **depois do commit**, por um publicador injetável
+    (`domain-events.ts`, sem fila nesta tarefa). A TG2 consome esse evento.
+  - Métodos no `ClinicRepository` (memória + MySQL).
+  - Testes API (baixa → recibo; estorno → cancelado), MySQL opt-in.
+- **Gate:** gate completo e `npm run test:mysql`
+- **Depende de:** EV7 (ordem)
+- **Status:** TODO
+
+### RC2 — Link público para assinar o recibo
+
+- **Origem:** B5-02 ("como se fosse um contrato de recebimento").
+- **Escopo:**
+  - Rotas públicas `GET/POST /public/receipt-signatures/:token` (como `/public/document-signatures/:token`): visualização registrada e assinatura com
+    nome, aceite e imagem.
+  - Rota web `/assinar-recibo/:token` reaproveitando a estrutura da `PublicSignaturePage` (CT1/CT2)
+    com o recibo (`ReceiptModal` em modo leitura).
+  - Recibo cancelado ou já assinado mostra o estado correto.
+  - PDF ou impressão do recibo assinado com a assinatura e a data.
+  - Testes API e web, e e2e celular no `public-signature.spec.ts`.
+- **Gate:** gate completo e `npm run test:e2e -- e2e/public-signature.spec.ts --workers=1`
+- **Depende de:** RC1
+- **Status:** TODO
+
+### RC3 — Mensagem "recebemos seu pagamento" com modelo editável
+
+- **Origem:** B5-01. Mandar o recibo em imagem/PDF é "muita mão".
+- **Escopo:**
+  - Modelo editável em Configurações › Mensagens, com o editor de variáveis existente:
+    `{{nome}}`, `{{valor}}`, `{{data_pagamento}}`, `{{link_recibo}}`.
+  - Texto padrão: "Olá {{nome}}, recebemos seu pagamento de {{valor}} em {{data_pagamento}}.
+    Assine o recibo: {{link_recibo}}".
+  - Botão "Enviar recibo pelo WhatsApp" na baixa e no recebível: wa.me com o texto pronto.
+  - O sistema registra o clique (`sent_at`), não o envio real.
+  - Prévia no editor e valor de exemplo nos dados demo.
+  - Testes de contracts (preenchimento), API e web.
+- **Gate:** gate completo
+- **Depende de:** RC2
+- **Status:** TODO
+
+### RC4 — Controle de enviado, visualizado e assinado
+
+- **Origem:** B4-08 ("esqueci de colocar um controle de enviado").
+- **Escopo:**
+  - No recebível, no detalhe do pagamento e no histórico, mostrar:
+    - enviado em;
+    - visualizado em;
+    - assinado em.
+  - Selo na lista do Financeiro com filtro "Recibo não assinado".
+  - Testes web.
+- **Gate:** gate completo
+- **Depende de:** RC3
+- **Status:** TODO
+
+### RC5 — Aviso "X clientes ainda não assinaram o recibo"
+
+- **Origem:** B5-02, parte 2.
+- **Escopo:**
+  - Grupo novo no centro de notificações (`app/notification-center.tsx`): recibos enviados e
+    não assinados há mais de N horas. Pode ser destacado na barra (preferências existentes em
+    `NotificationSettingsModal`).
+  - Frequência e horário configuráveis na clínica.
+  - Como a API não tem agendador, o aviso é calculado na leitura: a barra e o sino mostram
+    quando a frequência configurada vence. O envio periódico pelo Telegram fica com a TG4.
+  - Testes API e web.
+- **Gate:** gate completo
+- **Depende de:** RC4
+- **Status:** TODO
+
+### RC6 — Periodicidade padrão do aviso de recibo
+
+- **Origem:** B5-02 ⏸. **Pergunta ao estúdio:** "Com que frequência e em que horário avisar
+  'X clientes não assinaram o recibo'?"
+- **Escopo:** só o valor padrão da configuração da RC5 (até lá: diário, 18:00, provisório e
+  marcado no código como pendente).
+- **Gate:** gate completo
+- **Depende de:** RC5
+- **Status:** BLOCKED
+
+### TG1 — Cliente do Telegram, configuração e vínculo
+
+- **Origem:** B5-03/B5-04. Pedido da dona do estúdio. Exceção de provedor externo registrada
+  nas decisões acima. Empilhada sobre a RC (arquivos quentes).
+- **Escopo:**
+  - `infrastructure/telegram-client.ts`: Bot API por HTTPS com `fetch`, sem dependência nova.
+    Interface injetável e cliente falso nos testes, sem rede.
+  - Token: proposta de variável de ambiente `TELEGRAM_BOT_TOKEN` no hPanel da Hostinger, nunca
+    no repositório (ver TG6). Sem token, a integração fica desligada e a tela diz isso.
+  - Webhook `POST /integrations/telegram/webhook/:secret`:
+    - A API já é HTTPS pública na Hostinger. Long polling exigiria processo contínuo, que a
+      hospedagem compartilhada não garante.
+    - Valida o cabeçalho `X-Telegram-Bot-Api-Secret-Token`.
+  - Vínculo:
+    - Configurações gera um código de uso único (10 min) para o usuário.
+    - Ele envia `/vincular <código>` ao bot.
+    - Grava `telegram_links` (migração nova: `clinic_id`, `user_id`, `chat_id`, `linked_at`).
+    - Só perfis marcados numa configuração da clínica podem vincular (padrão: admin).
+  - Fila de saída `telegram_outbox` (migração nova): mensagem, tentativas, `next_attempt_at`,
+    `last_error`, `sent_at`.
+    - Drenada depois de cada commit que enfileira, a cada chamada do webhook e sob demanda.
+    - Até 5 tentativas com espera crescente; a falha fica registrada.
+    - Falha no Telegram nunca desfaz a operação de origem.
+  - Rotas e permissões no bloco de integrações do `route-access.ts`.
+  - Testes API (vínculo, código vencido, segredo errado, fila com falha) e MySQL opt-in.
+- **Gate:** gate completo e `npm run test:mysql`
+- **Depende de:** RC6 (empilhada sobre RC5 se a RC6 seguir bloqueada)
+- **Status:** TODO
+
+### TG2 — Aviso de recibo assinado
+
+- **Origem:** B5-04. A notificação sai quando o cliente **assina** ("o assinado é a forma mais
+  certeira; fora isso tudo é manipulável"), não quando a baixa é registrada.
+- **Escopo:**
+  - Assinante do evento `receipt.signed` (RC1) enfileira para os chats vinculados:
+    "Recibo assinado: <cliente> · R$ <valor> · pago em <data>".
+  - Teste: registrar a baixa não envia; assinar o recibo envia uma vez.
+  - Falha do Telegram não quebra a assinatura.
+- **Gate:** gate completo
+- **Depende de:** TG1
+- **Status:** TODO
+
+### TG3 — Aviso de agendamento e de cliente novo
+
+- **Origem:** B5-03.
+- **Escopo:**
+  - Ao criar um atendimento (qualquer funcionário), avisar quem marcou, o cliente, o serviço,
+    o profissional e a data e hora.
+  - Ao criar um cliente, mandar o aviso de cliente novo.
+  - Enfileirado depois do commit, para fora da transação.
+  - Recorrência e plano com várias sessões geram **um** aviso com o resumo, não um por sessão.
+  - "Cliente novo" = cadastro criado (pergunta 4 confirma).
+  - Testes API.
+- **Gate:** gate completo
+- **Depende de:** TG2
+- **Status:** TODO
+
+### TG4 — Comandos do bot: dia, semana e mês
+
+- **Origem:** B5-03.
+- **Escopo:**
+  - `/hoje`, `/semana` e `/mes` respondem com as aulas e atendimentos do período (fuso da
+    clínica), agrupados por dia, com totais.
+  - Só para chats vinculados.
+  - O aviso periódico de recibos (RC5) é enviado quando um comando ou o webhook rodar depois
+    do horário configurado (sem agendador).
+  - Testes API com cliente falso.
+- **Gate:** gate completo
+- **Depende de:** TG3
+- **Status:** TODO
+
+### TG5 — Outras métricas no Telegram
+
+- **Origem:** B4-09/B5-05 ⏸. **Pergunta ao estúdio:** "Que outras métricas querem receber no
+  Telegram?" Na reunião: "deve faltar algumas coisinhas".
+- **Escopo:** o envio já é extensível (fila + formatadores). Sem métricas inventadas.
+- **Gate:** gate completo
+- **Depende de:** TG4
+- **Status:** BLOCKED
+
+### TG6 — Quem recebe e onde guardar o token
+
+- **Origem:** P7 ⏸. **Perguntas ao dono:**
+  - (1) Só a Aryana recebe, ou outros perfis?
+  - (2) O token do bot fica em variável de ambiente no hPanel (proposta) ou cifrado na
+    configuração da clínica no banco?
+  - (3) "Cliente novo" é o cadastro ou a primeira compra?
+  - Editar `.env` ou `compose.yaml` exige autorização.
+- **Escopo:** ajustar o padrão de perfis da TG1 e o texto da TG3 conforme as respostas.
+- **Gate:** gate completo
+- **Depende de:** TG5
+- **Status:** BLOCKED
+
+### CM1 — Variável "Inserir endereço" da filial
+
+- **Origem:** B3-04. "Tem gente que é leigo": além do link, o endereço por extenso.
+- **Triagem:** não existe link do Google Maps no código. O endereço da filial existe
+  (`branches/model.ts`).
+- **Escopo:**
+  - Variável `{{endereco}}` nos eventos com atendimento (`appointment_upcoming`). O texto vem
+    da filial do agendamento: rua, número, bairro, cidade.
+  - Variável `{{link_mapa}}` com `https://www.google.com/maps/search/?api=1&query=<endereço>`:
+    só um link, sem API nem provedor.
+  - Filial sem endereço: o editor mostra o aviso "Cadastre o endereço da unidade em
+    Configurações" e a mensagem sai sem a linha (texto vazio, sem `{{endereco}}` cru).
+  - Prévia no editor, valor de exemplo nos dados demo.
+  - Testes de contracts, API e web.
+- **Gate:** gate completo
+- **Depende de:** TG6 (ordem; não depende de código)
+- **Status:** TODO
+
+### CM2 — Lembrete com antecedência em horas
+
+- **Origem:** B3-07 ⏸. **Pergunta ao dono:** "Querem mesmo o lembrete em horas? Qual era a
+  ressalva?" (o trecho ficou ininteligível e não houve decisão).
+- **Escopo planejado:**
+  - Unidade do passo (`days` | `hours`) em `autoCampaignStepSchema`, com migração nova.
+  - O cálculo de `appointment_upcoming` usa horas até o início.
+  - A fila manual mostra "para enviar agora" quando falta ≤ N horas.
+  - O envio continua manual (wa.me + marcar como enviada).
+- **Gate:** gate completo
+- **Depende de:** CM1
+- **Status:** BLOCKED
+
+### CM3 — Nomes dos lembretes configuráveis
+
+- **Origem:** B4-01 ⏸. **Pergunta ao dono:** "Querem renomear os lembretes? Quais nomes?"
+  (Breno ofereceu, sem resposta).
+- **Triagem:** o nome da campanha automática já é editável (`communications/model.ts:337`).
+  Se o pedido for o rótulo do passo ("2 dias antes"), é um campo novo opcional por passo, com
+  migração e impacto na fila e no histórico, que mostram o rótulo.
+- **Gate:** gate completo
+- **Depende de:** CM2
+- **Status:** BLOCKED
+
+### NB1 — Barra de pendências com fundo vermelho e letra branca
+
+- **Origem:** B4-02 (Daniel). Barra fixa no topo; "não bota isso aí muito grande não".
+- **Escopo:**
+  - Token novo `--danger-strong` em `01-base.css`, perto de `--red`, com contraste ≥ 4,5:1
+    com branco. `#963f35`, já usado no foco da barra, dá ~6,9:1.
+  - `.notification-banner` com fundo `--danger-strong`, texto e ícone brancos, sem mudar
+    padding, altura nem fonte.
+  - Itens internos: fundo translúcido branco ou borda branca, com contraste AA. Foco visível
+    com `outline` branco de 2px sobre o vermelho.
+  - A barra só aparece quando há pendência destacada (comportamento atual, mantido e testado).
+  - Avaliar tirar as animações "breathe/ring/shake" (enfeite, contra o tom sóbrio) e anotar no
+    PR.
+  - Teste web: a barra some sem pendência e aparece com a classe nova.
+- **Gate:** gate completo
+- **Depende de:** CM3 (ordem)
+- **Status:** TODO
+
+### AJ1 — Plano com vários serviços: layout do "Adicionar serviço"
+
+- **Origem:** B4-05. O bloco ficou "feio" (palavras do Breno), e a referência de valor usa o
+  preço do avulso.
+- **Escopo:**
+  - Em `features/settings/PlanTemplateModal.tsx` (~442), cada serviço numa linha de
+    `form-grid`, com remover alinhado e "Adicionar serviço" como `secondary-button button-sm`
+    abaixo.
+  - A tabela "Preço de tabela" com valores à direita e regra de 700px.
+  - Preço de referência: mantém "Total avulso" (já rotulado "Só referência"). Se o dono quiser
+    outra base, pergunta no PR sem bloquear.
+  - Teste web (`configured-plan-catalog`).
+- **Gate:** gate completo
+- **Depende de:** NB1
+- **Status:** TODO
+
+### AJ2 — Botões do editor de modelo de prontuário com respiro
+
+- **Origem:** B5-06.
+- **Escopo:**
+  - Espaçamento entre os botões de `features/clinical/AssessmentTemplateFields.tsx` com
+    `gap: var(--space-2)`, sem mudar o comportamento.
+  - Teste existente continua verde; o `audit-panels` passa.
+- **Gate:** gate completo
+- **Depende de:** AJ1
+- **Status:** TODO
+
+### AJ3 — Itens já atendidos (registro)
+
+- **Origem:** B1-01, B1-08, B3-06 e B1-05.
+- **Escopo:** sem código. Registrar no STATE.md com a evidência:
+  - B1-01: `SalesInsights.tsx:162` + `reports-redesign.integration.test.tsx:445`.
+  - B1-08: `patient-export.ts:74` + `crm-api-patients.integration.test.ts:3814`.
+  - B3-06: `auto-campaigns.ts:167`.
+  - B1-05: `PlanSessionsSentStep.tsx`.
+- **Gate:** —
+- **Depende de:** AJ2
+- **Status:** TODO
+
+### AJ4 — Pendências de decisão do estúdio
+
+- **Origem:** ⏸ **Perguntas ao estúdio:**
+  - **B1-12:** qual forma de pagamento estava faltando? O pagamento misto já existe.
+  - **B2-06:** aula experimental é paga ou gratuita? Hoje é gratuita, sem preço.
+    - Aceitar preço opcional exige campo de valor na demonstração do cadastro guiado
+      (`GuidedDemonstrationFields.tsx`) e no agendamento `trial`.
+    - Também exige gerar recebível/comanda e contar nos relatórios de experimentais
+      (`storage/*/reports.ts`).
+  - **B3-02:** o CEP deve preencher cidade e endereço? Exige consulta a serviço externo
+    (ex.: ViaCEP), que é provedor externo e precisa de autorização; sem dependência nova.
+  - **B4-06:** a fonte pequena foi efeito do compartilhamento no Meet? A escala de fontes não
+    muda sem confirmação.
+- **Escopo:** uma tarefa nova por resposta positiva, com ID AJ5+.
+- **Gate:** —
+- **Depende de:** AJ3
+- **Status:** BLOCKED
