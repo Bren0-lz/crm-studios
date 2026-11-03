@@ -154,7 +154,7 @@ npx playwright install chromium && npm run test:e2e
 - **Responsivo**: toda grade de várias colunas precisa de versão em uma coluna no celular.
 - **Design verificado automaticamente**: [`audit-panels.cjs`](apps/web/scripts/audit-panels.cjs)
   analisa o CSS e o JSX e reprova o build se uma regra de design for violada.
-- **Componentes reutilizáveis**: `PageHeader`, `Modal`, `Drawer`, `EmptyState`, `LoadingBlock`,
+- **Componentes reutilizáveis**: `PageHeader`, `Modal`, `EmptyState`, `LoadingBlock`,
   `ErrorBanner`, painéis, filtros e botões padronizados.
 - Prototipagem iterativa: cada rodada de testes de uso (QA) virou uma lista
   de ajustes no [`PLAN.md`](PLAN.md), implementados e validados um a um.
