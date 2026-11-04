@@ -17,6 +17,8 @@
   --terracotta: #c96f50;
   --amber: #d3a349;
   --red: #b85d53;
+  /* Vermelho forte para fundo com texto branco (barra de pendências): #963f35 = 6,86:1. */
+  --danger-strong: #963f35;
   /* Verde do WhatsApp escurecido para texto branco com contraste AA: #075e54 = 7,67:1 e o hover
      #064c44 = 9,88:1 (o #25d366 da marca dá só 1,98:1 com branco). */
   --whatsapp: #075e54;

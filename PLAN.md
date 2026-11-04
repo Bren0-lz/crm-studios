@@ -993,7 +993,7 @@ atualizado no mesmo PR):
   - Teste web: a barra some sem pendência e aparece com a classe nova.
 - **Gate:** gate completo
 - **Depende de:** CM3 (ordem)
-- **Status:** TODO
+- **Status:** DONE
 
 ### AJ1 — Plano com vários serviços: layout do "Adicionar serviço"
 
