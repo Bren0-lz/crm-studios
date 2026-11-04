@@ -966,8 +966,11 @@ describe("application shell", () => {
       within(dialog).getByLabelText("Dado do sistema para a coluna Coluna 4"),
       { target: { value: "phone" } },
     );
+    // Sem WhatsApp, contato de emergência e e-mail: etiquetas automáticas da CD3.
     expect(
-      await within(dialog).findByText("Pronta para importar"),
+      await within(dialog).findByText(
+        "Pronta para importar · sem WhatsApp ou contato de emergência (etiqueta “Cadastro incompleto”) · sem e-mail (etiqueta “Sem e-mail”)",
+      ),
     ).toBeInTheDocument();
     fireEvent.change(
       within(dialog).getByLabelText("Dado do sistema para a coluna Cel."),

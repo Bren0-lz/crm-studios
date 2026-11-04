@@ -232,8 +232,18 @@ export function createPatientsRepository(
         phones.add(phone);
         accepted.push(input);
       }
-      for (const input of accepted)
-        await repositoryContext.operations.createPatient(clinicId, input);
+      // CD3: a marca da importação libera as etiquetas "Cadastro incompleto" e "Sem e-mail".
+      const importedAt = now();
+      for (const input of accepted) {
+        const patient = await repositoryContext.operations.createPatient(
+          clinicId,
+          input,
+        );
+        const stored = repositoryContext.patients.find(
+          (item) => item.id === patient.id,
+        );
+        if (stored) stored.importedAt = importedAt;
+      }
       return { created: accepted.length, skipped };
     },
 

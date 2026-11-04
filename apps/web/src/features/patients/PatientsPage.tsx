@@ -1,6 +1,8 @@
 import {
   DEFAULT_PATIENT_TAG_COLOR,
+  INCOMPLETE_REGISTRATION_TAG,
   MISSING_CPF_TAG,
+  MISSING_EMAIL_TAG,
   OVERDUE_PAYMENT_TAG,
   patientTagDisplayColor,
 } from "@crm/contracts";
@@ -56,6 +58,10 @@ const automaticTagHints: Record<string, string> = {
     "Etiqueta automática: cliente com parcela vencida e em aberto.",
   [MISSING_CPF_TAG]:
     "Etiqueta automática: cliente sem CPF (importado da planilha). Sai sozinha quando o CPF é preenchido.",
+  [INCOMPLETE_REGISTRATION_TAG]:
+    "Etiqueta automática: cliente importado da planilha sem WhatsApp ou sem contato de emergência. Sai sozinha quando os dois são preenchidos.",
+  [MISSING_EMAIL_TAG]:
+    "Etiqueta automática: cliente importado da planilha sem e-mail. Sai sozinha quando o e-mail é preenchido.",
 };
 export function PatientsPage() {
   const { can, canEdit, canView } = useAuthorization();
@@ -143,10 +149,12 @@ export function PatientsPage() {
   const countTag = tagCounts(patients);
   const tagOptions = configuredTags.tags ?? [];
   // Etiquetas automáticas: "Pagamento atrasado" só para quem vê o Financeiro (a API só calcula
-  // para esse perfil); "Falta CPF" (B6-05) para todos.
+  // para esse perfil); "Falta CPF" (B6-05), "Cadastro incompleto" e "Sem e-mail" (CD3) para todos.
   const automaticTagOptions = [
     ...(canView("finance") ? [OVERDUE_PAYMENT_TAG] : []),
     MISSING_CPF_TAG,
+    INCOMPLETE_REGISTRATION_TAG,
+    MISSING_EMAIL_TAG,
   ];
   const activeFilterCount =
     (filters.status !== "all" ? 1 : 0) +

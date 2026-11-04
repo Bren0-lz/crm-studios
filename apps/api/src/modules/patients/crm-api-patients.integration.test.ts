@@ -4,6 +4,8 @@ import {
   type Lead,
   documentTemplateVariables,
   groupClassName,
+  INCOMPLETE_REGISTRATION_TAG,
+  MISSING_EMAIL_TAG,
   withoutAutomaticPatientTags,
 } from "@crm/contracts";
 import ExcelJS from "exceljs";
@@ -3793,7 +3795,13 @@ describe("CRM API", () => {
       expect(listed).toHaveLength(1);
       expect(listed[0]).toMatchObject({
         fullName: "Iara Importada",
-        tags: ["Pós-operatório", "Esportivo"],
+        // Sem WhatsApp, contato de emergência e e-mail: etiquetas automáticas da CD3 no fim.
+        tags: [
+          "Pós-operatório",
+          "Esportivo",
+          INCOMPLETE_REGISTRATION_TAG,
+          MISSING_EMAIL_TAG,
+        ],
       });
       await app.close();
     });
