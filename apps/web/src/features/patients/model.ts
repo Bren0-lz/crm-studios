@@ -1,6 +1,11 @@
 import {
   type PatientProfileFilter,
   type PatientSegmentSummary,
+  INCOMPLETE_REGISTRATION_TAG,
+  lacksEmail,
+  lacksRequiredContact,
+  MISSING_CPF_TAG,
+  MISSING_EMAIL_TAG,
   matchesPatientProfile,
   matchesPatientSegment,
   patientDiscountDescription,
@@ -126,6 +131,25 @@ export function describeImportDuplicate(
   return duplicate.kind === "existing"
     ? `Já cadastrado: ${duplicate.fullName} (${field})`
     : `Repete a linha ${duplicate.line} (${field})`;
+}
+
+/**
+ * Detalhe da linha válida na prévia da importação: o que falta e a etiqueta automática que o
+ * cliente vai receber ("Falta CPF", "Cadastro incompleto", "Sem e-mail").
+ */
+export function importRowNotes(input: PatientImportRow["input"]): string[] {
+  if (!input) return [];
+  return [
+    ...(input.cpf ? [] : [`sem CPF (etiqueta “${MISSING_CPF_TAG}”)`]),
+    ...(lacksRequiredContact(input)
+      ? [
+          `sem WhatsApp ou contato de emergência (etiqueta “${INCOMPLETE_REGISTRATION_TAG}”)`,
+        ]
+      : []),
+    ...(lacksEmail(input)
+      ? [`sem e-mail (etiqueta “${MISSING_EMAIL_TAG}”)`]
+      : []),
+  ];
 }
 
 export function filterPatients(

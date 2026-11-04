@@ -522,25 +522,42 @@ atualizado no mesmo PR):
 
 ### CD2 — E-mail obrigatório?
 
-- **Origem:** B1-07 ⏸. **Pergunta ao estúdio:** "O e-mail deve ser obrigatório no cadastro?"
+- **Origem:** B1-07. **Pergunta ao estúdio:** "O e-mail deve ser obrigatório no cadastro?"
   Na reunião, alguém disse "tem que ser obrigatório" e outra pessoa "tem gente que não tem".
-- **Escopo:** se sim, mesma mecânica da CD1. Até a resposta, o e-mail continua opcional.
-- **Gate:** gate completo
+- **Resposta do dono (04/11):** o e-mail **continua opcional** em todos os cadastros. Sem código
+  nesta tarefa. Quem não tem e-mail é sinalizado só na importação (etiqueta "Sem e-mail", CD3).
+- **Gate:** —
 - **Depende de:** CD1
-- **Status:** BLOCKED
+- **Status:** DONE
 
-### CD3 — Importação sem WhatsApp ou contato de emergência
+### CD3 — Importação sem WhatsApp, contato de emergência ou e-mail
 
-- **Origem:** P2/P3 ⏸. **Pergunta ao estúdio:** "A planilha pode trazer cliente sem WhatsApp e
+- **Origem:** P2/P3. **Pergunta ao estúdio:** "A planilha pode trazer cliente sem WhatsApp e
   sem contato de emergência, como o CPF?"
+- **Respostas do dono (04/11):**
+  - A importação **aceita** cliente sem WhatsApp e sem contato de emergência e marca com a
+    etiqueta automática **"Cadastro incompleto"**, que some quando os dois forem preenchidos.
+  - Etiqueta automática **separada "Sem e-mail"**, só informativa (para filtrar), que some quando
+    o e-mail for preenchido. O e-mail continua opcional (CD2).
+  - As duas etiquetas valem **só para clientes importados pela planilha**. Cadastro manual antigo
+    sem os dados continua só com o aviso na ficha (CD1).
 - **Escopo:**
-  - Proposta: aceitar na importação e marcar com uma etiqueta automática "Cadastro incompleto",
-    mesmo mecanismo da CP1.
-  - Hoje esses campos já são opcionais na importação: a CD1 não quebra a importação. Esta
-    tarefa só acrescenta a etiqueta.
-- **Gate:** gate completo
+  - Migração nova `0041_patient_imported_at.sql`: `patients.imported_at DATETIME(6) NULL`
+    (preenchida por `importPatients` na memória e no MySQL). Clientes importados antes desta
+    tarefa não têm a marca e não recebem as etiquetas (não há registro da origem).
+  - Contracts (`patients/automatic-tags.ts`): `INCOMPLETE_REGISTRATION_TAG` ("Cadastro
+    incompleto") e `MISSING_EMAIL_TAG` ("Sem e-mail"), mesmo mecanismo do `MISSING_CPF_TAG`
+    (`needsCpf` → regras novas que exigem cliente importado e não mesclado), incluídas em
+    `isAutomaticPatientTag`/`withAutomaticPatientTags`; não podem ser criadas à mão. `Patient`
+    ganha `importedAt?`.
+  - API: o tagger aplica as duas para todos os perfis (como "Falta CPF").
+  - Web: filtro de etiquetas da lista de clientes, dica por etiqueta (`automaticTagHints`) e, na
+    prévia da importação, selo "N cadastros incompletos" / "N sem e-mail" e detalhe da linha, como
+    o "N sem CPF" da CP2.
+  - Testes de contracts, API (memória e MySQL opt-in) e web.
+- **Gate:** gate completo e `npm run test:mysql`
 - **Depende de:** CD2
-- **Status:** BLOCKED
+- **Status:** DONE
 
 ### CD4 — Aviso de profissional sem WhatsApp
 

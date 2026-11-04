@@ -12,6 +12,7 @@ import { json } from "./common.js";
 export interface PatientRow {
   inactiveAt?: Date | null;
   mergedIntoPatientId?: string | null;
+  importedAt?: Date | null;
   profile?: ReturnType<typeof patientProfile>;
   id: string;
   clinicId: string;
@@ -48,6 +49,7 @@ export const patientColumns = `
   profile,
   inactive_at AS "inactiveAt",
   merged_into_patient_id AS "mergedIntoPatientId",
+  imported_at AS "importedAt",
   status,
   created_at AS "createdAt",
   updated_at AS "updatedAt"
@@ -60,6 +62,7 @@ export function mapPatient(row: PatientRow): Patient {
     ...(row.mergedIntoPatientId
       ? { mergedIntoPatientId: row.mergedIntoPatientId }
       : {}),
+    ...(row.importedAt ? { importedAt: row.importedAt.toISOString() } : {}),
     id: row.id,
     clinicId: row.clinicId,
     recordNumber: row.recordNumber,
