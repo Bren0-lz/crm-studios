@@ -552,7 +552,7 @@ atualizado no mesmo PR):
   - Teste web.
 - **Gate:** gate completo
 - **Depende de:** CD3 (ordem; pode ser feita antes se a CD3 seguir bloqueada)
-- **Status:** TODO
+- **Status:** DONE
 
 ### TW1 — Aviso de lista de espera na venda de plano com turma
 

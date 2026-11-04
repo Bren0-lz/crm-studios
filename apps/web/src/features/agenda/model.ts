@@ -164,6 +164,24 @@ export function sortAgendaEntriesWithNotes(
 /** Período máximo do "Compartilhar agenda", para a mensagem caber no WhatsApp. */
 export const agendaShareMaxDays = 31;
 
+/**
+ * Dica do campo de WhatsApp no "Compartilhar agenda". Sem número no cadastro, explica onde
+ * cadastrá-lo: quem gerencia usuários recebe o caminho em Configurações; os demais, a quem pedir.
+ */
+export function agendaShareWhatsappHint({
+  hasWhatsapp,
+  canManageUsers,
+}: {
+  hasWhatsapp: boolean;
+  canManageUsers: boolean;
+}) {
+  if (hasWhatsapp)
+    return "Número do cadastro do usuário; altere só para este envio, se precisar.";
+  return canManageUsers
+    ? "Sem WhatsApp no cadastro do usuário: informe o número para este envio ou cadastre-o no usuário."
+    : "Sem WhatsApp no cadastro do usuário: informe o número para este envio ou peça a um administrador que o cadastre.";
+}
+
 /** Dias corridos entre duas datas aaaa-mm-dd, contando as duas pontas. */
 export function agendaShareDays(from: string, to: string) {
   const start = new Date(`${from}T12:00:00`).getTime();

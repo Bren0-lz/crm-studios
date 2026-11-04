@@ -223,6 +223,7 @@ export const settingsTabs: Array<{
 
 /** Aba aberta por `/configuracoes?secao=`; os nomes antigos continuam valendo. */
 const sectionTabs: Record<string, SettingsTabKey> = {
+  usuarios: "users",
   filiais: "branches",
   abas: "menu",
   etiquetas: "tags",
@@ -251,6 +252,11 @@ export function userAccessSummary(user: AdminUser) {
   const view = user.modules.length;
   if (view === 0) return "Nenhum módulo (só Visão geral)";
   return `Vê ${view} ${view === 1 ? "módulo" : "módulos"} · ${user.permissions?.length ?? 0} permissões`;
+}
+
+/** Usuário ligado a um profissional da agenda e sem WhatsApp (o "Compartilhar agenda" fica sem contato). */
+export function lacksWhatsapp(user: AdminUser) {
+  return Boolean(user.professionalId) && !user.whatsapp;
 }
 
 export function userCommissionSummary(user: AdminUser) {

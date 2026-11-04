@@ -452,6 +452,35 @@ describe("users and permissions", () => {
     expect(lastCall("PATCH").body).not.toHaveProperty("whatsapp");
   });
 
+  it("marks agenda professionals without WhatsApp in the user list", async () => {
+    localStorage.setItem("crm.auth.token", "test-token");
+    localStorage.setItem("crm.auth.user", storedUser(ownerSession));
+    const professionalLink = (id: string, name: string) => ({
+      professionalId: id,
+      professionalName: name,
+    });
+    mockAdmin(undefined, [
+      adminUser,
+      { ...customUser, ...professionalLink("p1", "Maria Souza") },
+      {
+        ...carlaUser,
+        whatsapp: "11988887777",
+        ...professionalLink("p2", "Carla Reis"),
+      },
+    ]);
+    render(
+      <MemoryRouter initialEntries={["/configuracoes?secao=usuarios"]}>
+        <App />
+      </MemoryRouter>,
+    );
+    const maria = (await screen.findByText("Maria Souza")).closest("article")!;
+    expect(within(maria).getByText("Sem WhatsApp")).toHaveClass("status-pill");
+    // Com WhatsApp, ou sem profissional da agenda (admin), não há selo.
+    const carla = screen.getByText("Carla Reis").closest("article")!;
+    expect(within(carla).queryByText("Sem WhatsApp")).not.toBeInTheDocument();
+    expect(screen.getAllByText("Sem WhatsApp")).toHaveLength(1);
+  });
+
   it("grants the sales dashboard access, also to an admin, sending it only when it changes", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
     localStorage.setItem("crm.auth.user", storedUser(ownerSession));
