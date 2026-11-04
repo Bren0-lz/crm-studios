@@ -211,11 +211,13 @@ test("SOS keeps its bounds during contact loading, missing contact, errors and r
     data: {
       fileName: "clientes.csv",
       contentBase64: Buffer.from(
-        `Nome;Telefone;CPF\nCliente SOS sem contato;11999991234;${nextTestCpf()}\n`,
+        `Nome;Telefone;CPF\nCliente SOS sem contato;11999995678;${nextTestCpf()}\n`,
       ).toString("base64"),
     },
   });
   expect(imported.status()).toBe(200);
+  // Telefone diferente do outro cliente: a importação pula duplicados sem dar erro.
+  expect((await imported.json()).created).toBe(1);
   await login(page);
   let releaseContact: (() => void) | undefined;
   let failContact = false;
