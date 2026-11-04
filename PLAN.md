@@ -620,7 +620,7 @@ atualizado no mesmo PR):
     - `application-shell-finance`
 - **Gate:** gate completo
 - **Depende de:** TW2 (ordem; pode ser feita antes se a TW2 seguir bloqueada)
-- **Status:** TODO
+- **Status:** DONE
 
 ### SS2 — Exceção por data atende?
 

@@ -97,20 +97,23 @@ describe("appointment package on fixed weekdays", () => {
       .getByRole("heading", { name: "Dias e horários fixos" })
       .closest<HTMLElement>(".recurrence-dates")!;
     // O primeiro dia fixo é o dia e o horário escolhidos para o atendimento.
-    expect(within(days).getByLabelText("Horário do dia 1")).toHaveValue(
+    expect(within(days).getByLabelText("Horário do 1º dia")).toHaveValue(
       "09:00",
     );
+    // Rótulo diz que é um dia da semana, não a 1ª data do pacote.
+    expect(within(days).queryByLabelText("Dia 1")).not.toBeInTheDocument();
     const firstWeekday = Number(
-      (within(days).getByLabelText("Dia 1") as HTMLSelectElement).value,
+      (within(days).getByLabelText("1º dia da semana") as HTMLSelectElement)
+        .value,
     );
     fireEvent.click(
       within(days).getByRole("button", { name: "Adicionar dia" }),
     );
     const secondWeekday = (firstWeekday + 2) % 7;
-    expect(within(days).getByLabelText("Dia 2")).toHaveValue(
+    expect(within(days).getByLabelText("2º dia da semana")).toHaveValue(
       String(secondWeekday),
     );
-    fireEvent.change(within(days).getByLabelText("Horário do dia 2"), {
+    fireEvent.change(within(days).getByLabelText("Horário do 2º dia"), {
       target: { value: "18:00" },
     });
     expect(within(days).getByText(/^10 sessões de/)).toBeInTheDocument();
