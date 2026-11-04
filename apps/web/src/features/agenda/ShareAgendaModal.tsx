@@ -6,7 +6,9 @@ import {
 } from "@crm/contracts";
 import { MessageCircle } from "lucide-react";
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { api } from "../../api";
+import { useAuthorization } from "../../authorization-context";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
 import { useMissingFields } from "../../shared/components/MissingFields";
 import { Modal, ModalCancelButton } from "../../shared/components/Modal";
@@ -15,6 +17,7 @@ import {
   agendaShareDays,
   agendaShareMaxDays,
   agendaShareMessage,
+  agendaShareWhatsappHint,
 } from "./model";
 
 /**
@@ -40,6 +43,9 @@ export function ShareAgendaModal({
       : (professionals[0]?.id ?? ""),
   );
   const professional = professionals.find((item) => item.id === professionalId);
+  const { user } = useAuthorization();
+  // A aba "Usuários" das Configurações é só do administrador.
+  const canManageUsers = user?.role === "admin";
   const [from, setFrom] = useState(initialFrom);
   const [to, setTo] = useState(initialTo);
   const [phone, setPhone] = useState(professional?.whatsapp ?? "");
@@ -158,9 +164,18 @@ export function ShareAgendaModal({
             <PhoneInput value={phone} onChange={setPhone} />
           </label>
           <small className="field-hint">
-            {professional?.whatsapp
-              ? "Número do cadastro do usuário; altere só para este envio, se precisar."
-              : "Sem WhatsApp no cadastro do usuário: informe o número para este envio."}
+            {agendaShareWhatsappHint({
+              hasWhatsapp: Boolean(professional?.whatsapp),
+              canManageUsers,
+            })}
+            {!professional?.whatsapp && canManageUsers && (
+              <>
+                {" "}
+                <Link className="text-link" to="/configuracoes?secao=usuarios">
+                  Abrir usuários em Configurações
+                </Link>
+              </>
+            )}
           </small>
         </div>
         {periodError && <div className="form-error span-2">{periodError}</div>}

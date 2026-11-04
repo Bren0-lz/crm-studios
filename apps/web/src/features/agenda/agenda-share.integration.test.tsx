@@ -1,22 +1,25 @@
+import { legacyPermissions } from "@crm/contracts";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import App from "../../App";
 import { localIsoDate } from "../../shared/lib/formatting";
-import { storedUser } from "../../test-support/legacy-fixtures";
+import {
+  legacyAccess,
+  storedUser,
+  withPermissions,
+} from "../../test-support/legacy-fixtures";
 import "../../test-support/legacy-setup";
 
-function renderAgenda() {
+const session = {
+  id: "22222222-2222-4222-8222-222222222222",
+  fullName: "Aryana Dutra",
+  email: "admin@movimenta.local",
+};
+
+function renderAgenda(user = storedUser({ ...session, role: "owner" })) {
   localStorage.setItem("crm.auth.token", "test-token");
-  localStorage.setItem(
-    "crm.auth.user",
-    storedUser({
-      id: "22222222-2222-4222-8222-222222222222",
-      fullName: "Aryana Dutra",
-      email: "admin@movimenta.local",
-      role: "owner",
-    }),
-  );
+  localStorage.setItem("crm.auth.user", user);
   const at = (hour: number) => {
     const date = new Date();
     date.setHours(hour, 0, 0, 0);
@@ -128,6 +131,15 @@ describe("compartilhar agenda", () => {
       within(dialog).getByRole("button", { name: "Enviar pelo WhatsApp" }),
     ).toBeDisabled();
     expect(within(dialog).getByText("Falta: WhatsApp com DDD.")).toBeVisible();
+    // A dica aponta onde cadastrar o número (o admin gerencia os usuários).
+    expect(
+      within(dialog).getByText(/Sem WhatsApp no cadastro do usuário/),
+    ).toHaveTextContent("ou cadastre-o no usuário");
+    expect(
+      within(dialog).getByRole("link", {
+        name: "Abrir usuários em Configurações",
+      }),
+    ).toHaveAttribute("href", "/configuracoes?secao=usuarios");
     expect(
       within(dialog).getByText(/Agenda de Bia Souza/).textContent,
     ).toContain("Lucas Ribeiro");
@@ -143,6 +155,42 @@ describe("compartilhar agenda", () => {
       "href",
       expect.stringContaining("https://wa.me/5521977776666?text="),
     );
+  });
+
+  it("sem acesso aos usuários, a dica pede o cadastro a um administrador", async () => {
+    // Recepção com a agenda de todos e Configurações, mas sem a aba "Usuários" (só do admin).
+    const reception = legacyAccess("reception");
+    renderAgenda(
+      JSON.stringify(
+        withPermissions({
+          ...session,
+          ...reception,
+          permissions: [
+            ...legacyPermissions(
+              "user",
+              reception.modules,
+              reception.editModules,
+            ),
+            "agenda.view_all",
+          ],
+        }),
+      ),
+    );
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Compartilhar agenda" }),
+    );
+    const dialog = screen.getByRole("dialog", { name: "Compartilhar agenda" });
+    fireEvent.change(within(dialog).getByLabelText("Profissional"), {
+      target: { value: "p2" },
+    });
+    expect(
+      within(dialog).getByText(/Sem WhatsApp no cadastro do usuário/),
+    ).toHaveTextContent("peça a um administrador que o cadastre");
+    expect(
+      within(dialog).queryByRole("link", {
+        name: "Abrir usuários em Configurações",
+      }),
+    ).not.toBeInTheDocument();
   });
 
   it("recusa período invertido ou maior que 31 dias", async () => {

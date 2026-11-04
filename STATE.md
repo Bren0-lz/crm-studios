@@ -1,7 +1,7 @@
 # Estado do loop
 
-- **Tarefa atual:** PX1 (Rodada 9; CT4 e CP4 são manuais, com o dono; a Rodada 8 está pausada em QM16 e volta depois)
-- **Última concluída:** CP2 (Rodada 9, feita no #273)
+- **Tarefa atual:** TW1 (Rodada 9; PX1 e PX2 adiadas pelo dono em 04/11; CD1 no PR #277; CD2/CD3 BLOCKED; CT4 e CP4 são manuais; a Rodada 8 está pausada em QM16)
+- **Última concluída:** CD4 (Rodada 9)
 - **Tentativas na atual:** 0/3
 - **Bloqueios:** Rodada 9 tem tarefas BLOCKED à espera do estúdio: CP3, PX3, CD2, CD3, TW2, SS2, EV7, RC6, TG5, TG6, CM2, CM3, AJ4
 
@@ -66,3 +66,4 @@
 - 2026-11-02 CP4 DONE (gate exit 0: contracts 309, API 624, web 1095). PatientModal: `cpfOptional` (edição de quem está sem CPF) tira `required`, tira CPF do "Falta:" e só valida o que foi digitado, com dica "Cliente sem CPF: preencha quando tiver…" ligada por `CpfInput hintId`; cadastro novo (rápido e guiado) segue exigindo. Importação: dica nova, selo "N sem CPF" (contado das linhas válidas sem `input.cpf`) e detalhe "Pronta para importar · sem CPF (etiqueta “Falta CPF”)". Lista: "Falta CPF" no filtro para todos os perfis, dica por etiqueta (`automaticTagHints`). Teste novo: features/patients/patient-without-cpf.integration.test.tsx. Próxima: CP5 aguarda a resposta do dono (P1, contrato de cliente sem CPF); CP6 é manual.
 - 2026-11-03 RODADA 9 planejada (reunião de 02/11): CT1–CT3, CP1–CP2, PX1–PX3, CD1–CD4, TW1–TW2, SS1–SS2, EV1–EV7, RC1–RC6, TG1–TG6, CM1–CM3, NB1, AJ1–AJ4 no PLAN.md. Já atendidos no código: B1-01, B1-08, B3-06 e B1-04/B1-05 (commit 7a0e2229). A API já põe na espera quem entra em turma cheia (falta o aviso na venda de plano: TW1). Próxima migração livre hoje: 0041 (0040 está no branch aberto beautiful-fermi); confira pela regra antes de usar.
 - 2026-11-03 PLANOS DA RODADA 9 UNIFICADOS (pedido do dono, ao empilhar #271–#274): o plano do #274 é o único da rodada. Numeração antiga → nova: CT1+CT2 (#272) → CT1; CT3 → CT2; CT5+CT6 → CT3; CT4 → CT4; CP1+CP2 (#273) → CP1; CP3+CP4 → CP2; CP5 → CP3 (BLOCKED, P1); CP6 → CP4. As entradas CT/CP acima usam a numeração antiga.
+- 2026-11-04 CD4 DONE (verifier PASS na 1ª tentativa, exit 0 em todos os gates; contracts 310, API 627 + 176 skip, web 1100). Só web: `lacksWhatsapp(user)` (settings/model.ts) = profissional ligado e sem WhatsApp → selo "Sem WhatsApp" (`status-pill paused`) em AdminUsersContent; `agendaShareWhatsappHint()` (agenda/model.ts) no ShareAgendaModal: admin recebe link "Abrir usuários em Configurações" → `/configuracoes?secao=usuarios` (alias novo `usuarios` → aba users, reaproveitável); demais perfis "peça a um administrador". Teste de "Compartilhar agenda" para não admin precisa de `agenda.view_all`. Instável novo: web groups/group-service-professionals "lists only the professionals who serve the chosen service" (passa isolado).
