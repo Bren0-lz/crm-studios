@@ -169,6 +169,9 @@ describe("cliente importado sem CPF (B6-05)", () => {
           payload: {
             fullName: "Outra Pessoa",
             phone: "11955540022",
+            whatsapp: "11955540022",
+            emergencyContactName: "Outra Pessoa",
+            emergencyContactPhone: "11955540022",
             cpf: nextTestCpf(),
           },
         })

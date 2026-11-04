@@ -18,6 +18,7 @@ test("SOS search and contact remain usable with long names on desktop and a smal
             ? longName
             : `Cliente SOS ${String(index).padStart(2, "0")}`,
         phone: "11999991234",
+        whatsapp: "11999991234",
         tags: [],
         emergencyContactName: contactName,
         emergencyContactPhone: "11988887777",
@@ -193,22 +194,28 @@ test("SOS keeps its bounds during contact loading, missing contact, errors and r
   page,
   api,
 }) => {
-  for (const [name, phone] of [
-    ["Cliente SOS com contato", "11988887777"],
-    ["Cliente SOS sem contato", ""],
-  ]) {
-    const response = await api.post("/patients", {
-      data: {
-        cpf: nextTestCpf(),
-        fullName: name,
-        phone: "11999991234",
-        tags: [],
-        emergencyContactName: phone ? "Maria Almeida" : "",
-        emergencyContactPhone: phone,
-      },
-    });
-    expect(response.status()).toBe(201);
-  }
+  const response = await api.post("/patients", {
+    data: {
+      cpf: nextTestCpf(),
+      fullName: "Cliente SOS com contato",
+      phone: "11999991234",
+      whatsapp: "11999991234",
+      tags: [],
+      emergencyContactName: "Maria Almeida",
+      emergencyContactPhone: "11988887777",
+    },
+  });
+  expect(response.status()).toBe(201);
+  // CD1: o cadastro manual exige contato de emergência; sem ele, só pela importação.
+  const imported = await api.post("/patients/import", {
+    data: {
+      fileName: "clientes.csv",
+      contentBase64: Buffer.from(
+        `Nome;Telefone;CPF\nCliente SOS sem contato;11999991234;${nextTestCpf()}\n`,
+      ).toString("base64"),
+    },
+  });
+  expect(imported.status()).toBe(200);
   await login(page);
   let releaseContact: (() => void) | undefined;
   let failContact = false;
@@ -286,6 +293,7 @@ test("SOS stays in the header after scrolling and opens over the entire viewport
       cpf: nextTestCpf(),
       fullName: "Cliente de teste do SOS",
       phone: "11999991234",
+      whatsapp: "11999991234",
       tags: [],
       emergencyContactName: "Maria Almeida",
       emergencyContactPhone: "11988887777",

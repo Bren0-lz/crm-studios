@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { patientInputSchema } from "./model.js";
-import type { Patient } from "./types.js";
+import { patientInputSchema, patientOptionalContactShape } from "./model.js";
+import type { Patient, PatientUpdateInput } from "./types.js";
 
 export const patientStatusUpdateSchema = z.object({
   status: z.enum(["active", "inactive"]),
@@ -35,7 +35,7 @@ export function mergedPatientInput(
   source: Patient,
   target: Patient,
   selections: PatientMergeInput["fieldSources"],
-): z.infer<typeof patientInputSchema> {
+): PatientUpdateInput {
   const result: Record<string, unknown> = {};
   for (const key of patientEditableKeys) {
     result[key] =
@@ -55,5 +55,7 @@ export function mergedPatientInput(
     .filter(Boolean)
     .join("\n")
     .slice(0, 2000);
-  return patientInputSchema.parse(result);
+  // A fusão junta dois cadastros existentes: quem é antigo pode estar sem WhatsApp ou contato
+  // de emergência, como na edição.
+  return patientInputSchema.extend(patientOptionalContactShape).parse(result);
 }

@@ -463,6 +463,9 @@ for (const backend of ["memory", "mysql"] as const) {
               cpf: nextTestCpf(),
               fullName: `multiservice-${randomUUID()}`,
               phone: "11999991235",
+              whatsapp: "11999991235",
+              emergencyContactName: `multiservice-${randomUUID()}`,
+              emergencyContactPhone: "11999991235",
             },
             plan: {
               ...input,

@@ -13,6 +13,7 @@ import {
   storedUser,
 } from "../../test-support/legacy-fixtures";
 import "../../test-support/legacy-setup";
+import { fillRequiredContact } from "../../test-support/patient-actions";
 
 describe("appointment client search and creation", () => {
   const existing = {
@@ -152,6 +153,7 @@ describe("appointment client search and creation", () => {
     fireEvent.change(within(client).getByLabelText("CPF"), {
       target: { value: "52998224725" },
     });
+    fillRequiredContact(client);
     fireEvent.change(
       within(
         within(client).getByRole("group", { name: /^Contato$/ }),
@@ -241,6 +243,7 @@ describe("appointment client search and creation", () => {
     fireEvent.change(within(client).getByLabelText("CPF"), {
       target: { value: "52998224725" },
     });
+    fillRequiredContact(client);
     vi.mocked(fetch).mockResolvedValue(
       response({ code: "DUPLICATE", message: "CPF já cadastrado." }, 409),
     );

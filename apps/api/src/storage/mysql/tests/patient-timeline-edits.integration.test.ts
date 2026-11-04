@@ -41,6 +41,9 @@ for (const storage of ["memory", "mysql"] as const) {
             cpf: nextTestCpf(),
             fullName: "Cliente Teste QA Tres",
             phone: "11988887777",
+            whatsapp: "11988887777",
+            emergencyContactName: "Cliente Teste QA Tres",
+            emergencyContactPhone: "11988887777",
           }),
         );
         await repository.recordAdminAuditEvent(

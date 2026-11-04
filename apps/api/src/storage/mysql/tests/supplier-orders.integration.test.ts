@@ -85,6 +85,9 @@ for (const storage of ["memory", "mysql"] as const) {
             cpf: nextTestCpf(),
             fullName: `Venda ${randomUUID()}`,
             phone: "11988887777",
+            whatsapp: "11988887777",
+            emergencyContactName: `Venda ${randomUUID()}`,
+            emergencyContactPhone: "11988887777",
           }),
         );
         await expect(

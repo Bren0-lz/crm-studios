@@ -96,6 +96,7 @@ import {
   patientImportInputSchema,
   patientImportRequiredFields,
   patientInputSchema,
+  patientUpdateInputSchema,
   patientListQuerySchema,
   patientPlanInputSchema,
   patientTabCloseInputSchema,
@@ -436,6 +437,9 @@ describe("shared contracts", () => {
       cpf: "52998224725",
       fullName: "  Maria da Silva  ",
       phone: "(11) 99999-9999",
+      whatsapp: "(11) 99999-9999",
+      emergencyContactName: " Maria da Silva ",
+      emergencyContactPhone: "(11) 99999-9999",
       tags: ["Pilates"],
     });
 
@@ -447,6 +451,8 @@ describe("shared contracts", () => {
         fullName: "Maria da Silva",
         phone: "11999999999",
         whatsapp: "(11) 3333-4444",
+        emergencyContactName: "Maria da Silva",
+        emergencyContactPhone: "11999999999",
       }).whatsapp,
     ).toBe("1133334444");
     expect(() =>
@@ -455,6 +461,8 @@ describe("shared contracts", () => {
         fullName: "Maria da Silva",
         phone: "11999999999",
         whatsapp: "3333-4444",
+        emergencyContactName: "Maria da Silva",
+        emergencyContactPhone: "11999999999",
       }),
     ).toThrow();
     expect(result.tags).toEqual(["Pilates"]);
@@ -463,16 +471,69 @@ describe("shared contracts", () => {
         cpf: "52998224725",
         fullName: "Maria da Silva",
         phone: "9999-9999",
+        whatsapp: "11999999999",
+        emergencyContactName: "Maria da Silva",
+        emergencyContactPhone: "11999999999",
       }),
     ).toThrow();
     expect(
-      patientInputSchema.parse({
+      patientUpdateInputSchema.parse({
         cpf: "52998224725",
         fullName: "Maria da Silva",
         phone: "11 3333 4444",
         emergencyContactPhone: "",
       }).emergencyContactPhone,
     ).toBe("");
+  });
+
+  it("requires WhatsApp and emergency contact in manual registration only (CD1)", () => {
+    const base = {
+      cpf: "52998224725",
+      fullName: "Maria da Silva",
+      phone: "11999999999",
+    };
+    const complete = {
+      ...base,
+      whatsapp: "11999999999",
+      emergencyContactName: "Maria da Silva",
+      emergencyContactPhone: "11999999999",
+    };
+    // O próprio nome e telefone do cliente valem como contato de emergência.
+    expect(patientInputSchema.parse(complete)).toMatchObject({
+      whatsapp: "11999999999",
+      emergencyContactName: "Maria da Silva",
+      emergencyContactPhone: "11999999999",
+    });
+    for (const [field, message] of [
+      ["whatsapp", "Informe o WhatsApp com DDD."],
+      ["emergencyContactName", "Informe o nome do contato de emergência."],
+      [
+        "emergencyContactPhone",
+        "Informe o telefone do contato de emergência com DDD.",
+      ],
+    ] as const) {
+      for (const value of [undefined, "", "  "]) {
+        const result = patientInputSchema.safeParse({
+          ...complete,
+          [field]: value,
+        });
+        expect(result.success).toBe(false);
+        if (!result.success)
+          expect(result.error.issues).toContainEqual(
+            expect.objectContaining({ path: [field], message }),
+          );
+      }
+    }
+    // Importação e edição seguem aceitando sem esses campos.
+    expect(patientImportInputSchema.parse(base).whatsapp).toBeUndefined();
+    expect(
+      patientUpdateInputSchema.parse({
+        ...base,
+        whatsapp: "",
+        emergencyContactName: "",
+        emergencyContactPhone: "",
+      }),
+    ).toMatchObject({ whatsapp: "", emergencyContactName: "" });
   });
 
   it("validates configured patient tags and compares names without case or accents", () => {
@@ -637,6 +698,9 @@ describe("shared contracts", () => {
         fullName: "Maria da Silva",
         phone: "11999999999",
         cpf: "529.982.247-25",
+        whatsapp: "11999999999",
+        emergencyContactName: "Maria da Silva",
+        emergencyContactPhone: "11999999999",
       }).cpf,
     ).toBe("52998224725");
     expect(() =>
@@ -1281,6 +1345,9 @@ describe("guided patient creation", () => {
     fullName: "Ana Souza",
     phone: "11999990000",
     cpf: "52998224725",
+    whatsapp: "11999990000",
+    emergencyContactName: "Ana Souza",
+    emergencyContactPhone: "11999990000",
   };
   const serviceId = "10000000-0000-4000-8000-000000000001";
   const terms = {

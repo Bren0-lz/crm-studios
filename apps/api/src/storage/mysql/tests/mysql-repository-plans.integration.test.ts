@@ -21,6 +21,7 @@ import {
 } from "../../../test-support/mysql-fixtures.js";
 import { atInstant } from "../../../test-support/clock.js";
 import "../../../test-support/mysql-setup.js";
+import { testPatientContact } from "../../../test-support/patient-contact.js";
 
 describe.skipIf(!databaseUrl)("MySQL repository", () => {
   let database: TestDatabase | undefined;
@@ -411,6 +412,9 @@ describe.skipIf(!databaseUrl)("MySQL repository", () => {
             cpf: nextTestCpf(),
             fullName: "Desfeito catálogo",
             phone: "11987654322",
+            whatsapp: "11987654322",
+            emergencyContactName: "Desfeito catálogo",
+            emergencyContactPhone: "11987654322",
             tags: [],
           },
           plan: { ...input, planTemplateId: foreign.id },
@@ -730,7 +734,7 @@ describe.skipIf(!databaseUrl)("MySQL repository", () => {
       clinicId,
       ownerId,
       converted.id,
-      { cpf: converted.cpf ?? nextTestCpf() },
+      { cpf: converted.cpf ?? nextTestCpf(), ...testPatientContact },
     );
     await createPlanAt(
       conversion!.patient.id,

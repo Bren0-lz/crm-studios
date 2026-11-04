@@ -1,10 +1,11 @@
 import {
   leadPatientProfile,
   patientInputSchema,
+  patientOptionalContactShape,
   type Lead,
   type LeadConversionInput,
   type Patient,
-  type PatientInput,
+  type PatientImportInput,
   withoutAutomaticPatientTags,
 } from "@crm/contracts";
 import { DomainError } from "../../repository.js";
@@ -26,7 +27,7 @@ export function withConversionInput(
 export function leadConversionData(
   lead: Lead,
   existing?: Patient,
-): PatientInput {
+): PatientImportInput {
   const fields: Record<string, unknown> = { ...leadPatientProfile(lead) };
   if (existing)
     for (const [key, value] of Object.entries(leadPatientProfile(existing)))
@@ -65,7 +66,23 @@ export function leadConversionData(
       "Revise os interesses antes da conversão: até 30 itens, com até 80 caracteres cada.",
       409,
     );
-  return patientInputSchema.parse({
+  // CD1: o cliente novo nasce com WhatsApp e contato de emergência; quem já existia (cadastro
+  // antigo) pode seguir sem eles, como na edição.
+  if (
+    !existing &&
+    (!fields.whatsapp ||
+      !fields.emergencyContactName ||
+      !fields.emergencyContactPhone)
+  )
+    throw new DomainError(
+      "LEAD_CONTACT_REQUIRED",
+      "Informe o WhatsApp e o contato de emergência antes de converter o lead.",
+      400,
+    );
+  const schema = existing
+    ? patientInputSchema.extend(patientOptionalContactShape)
+    : patientInputSchema;
+  return schema.parse({
     ...fields,
     fullName: existing?.fullName ?? lead.fullName,
     phone: existing?.phone ?? lead.phone,

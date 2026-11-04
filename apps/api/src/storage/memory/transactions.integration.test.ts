@@ -16,6 +16,9 @@ describe("memory transactions across clinics", () => {
         cpf: nextTestCpf(),
         fullName: "Cadastro que será revertido",
         phone: "11988887777",
+        whatsapp: "11988887777",
+        emergencyContactName: "Cadastro que será revertido",
+        emergencyContactPhone: "11988887777",
       },
       plan: {
         planTemplateId: randomUUID(),

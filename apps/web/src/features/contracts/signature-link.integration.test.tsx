@@ -30,6 +30,9 @@ async function clientWithTemplates() {
       cpf: nextTestCpf(),
       fullName: "Breno Assinante",
       phone: "11999991234",
+      whatsapp: "11999991234",
+      emergencyContactName: "Breno Assinante",
+      emergencyContactPhone: "11999991234",
     }),
   );
   await api.repository.createDocumentTemplate(clinicId, {

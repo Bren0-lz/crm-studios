@@ -518,7 +518,7 @@ atualizado no mesmo PR):
   - Testes de contracts, API e web.
 - **Gate:** gate completo
 - **Depende de:** PX3 (ordem; sem dependência de código)
-- **Status:** TODO
+- **Status:** DONE
 
 ### CD2 — E-mail obrigatório?
 

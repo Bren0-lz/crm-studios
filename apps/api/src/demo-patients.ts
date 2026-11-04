@@ -180,6 +180,9 @@ export const demoPatients: Patient[] = Array.from(
       fullName,
       ...(isDemoPatientWithoutCpf(index) ? {} : { cpf: demoCpf(number) }),
       phone: `119${String(90000000 + number).padStart(8, "0")}`,
+      // CD1: WhatsApp e contato de emergência são obrigatórios no cadastro manual; quem não tem
+      // contato de emergência repete o próprio nome e telefone.
+      whatsapp: `119${String(90000000 + number).padStart(8, "0")}`,
       ...(index % 5 !== 0 ? { email: `cliente${number}@example.com` } : {}),
       birthDate: `${1950 + ((index * 7) % 55)}-${String((index % 12) + 1).padStart(2, "0")}-${String((index % 28) + 1).padStart(2, "0")}`,
       ...(index % 3 === 0
@@ -187,7 +190,10 @@ export const demoPatients: Patient[] = Array.from(
             emergencyContactName: emergencyContactFor(index, secondSurname),
             emergencyContactPhone: `119${String(80000000 + number).padStart(8, "0")}`,
           }
-        : {}),
+        : {
+            emergencyContactName: fullName,
+            emergencyContactPhone: `119${String(90000000 + number).padStart(8, "0")}`,
+          }),
       ...(scenario < scenarioNotes.length
         ? { notes: scenarioNotes[scenario]! }
         : index % 7 === 0

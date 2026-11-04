@@ -66,6 +66,9 @@ for (const storage of ["memory", "mysql"] as const) {
             cpf: nextTestCpf(),
             fullName: `${name} ${randomUUID()}`,
             phone: "11988887777",
+            whatsapp: "11988887777",
+            emergencyContactName: `${name} ${randomUUID()}`,
+            emergencyContactPhone: "11988887777",
           }),
         );
       }
@@ -1373,6 +1376,9 @@ for (const storage of ["memory", "mysql"] as const) {
               cpf: nextTestCpf(),
               fullName: "Alteração indevida",
               phone: "11988887777",
+              whatsapp: "11988887777",
+              emergencyContactName: "Alteração indevida",
+              emergencyContactPhone: "11988887777",
             }),
           ),
         ).toBeNull();
@@ -1645,6 +1651,9 @@ for (const storage of ["memory", "mysql"] as const) {
             cpf: nextTestCpf(),
             fullName: "Parity Birthday " + randomUUID(),
             phone: "11988887777",
+            whatsapp: "11988887777",
+            emergencyContactName: "Parity Birthday " + randomUUID(),
+            emergencyContactPhone: "11988887777",
             birthDate: "1990-01-10",
           }),
         );
@@ -1934,7 +1943,14 @@ for (const storage of ["memory", "mysql"] as const) {
         const name = `Parity Rollback ${randomUUID()}`;
         const input = guidedPatientInputSchema.parse({
           next: "plan",
-          patient: { cpf: nextTestCpf(), fullName: name, phone: "11988887777" },
+          patient: {
+            cpf: nextTestCpf(),
+            fullName: name,
+            phone: "11988887777",
+            whatsapp: "11988887777",
+            emergencyContactName: name,
+            emergencyContactPhone: "11988887777",
+          },
           plan: {
             planTemplateId: randomUUID(),
             name: "Plano inexistente",

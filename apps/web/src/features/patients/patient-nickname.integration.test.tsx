@@ -10,6 +10,7 @@ import { describe, expect, it, vi } from "vitest";
 import App from "../../App";
 import { storedUser } from "../../test-support/legacy-fixtures";
 import "../../test-support/legacy-setup";
+import { fillRequiredContact } from "../../test-support/patient-actions";
 
 const patient = {
   id: "99999999-9999-4999-8999-999999999999",
@@ -66,6 +67,7 @@ describe("client nickname", () => {
     fireEvent.change(within(dialog).getByLabelText("CPF"), {
       target: { value: "52998224725" },
     });
+    fillRequiredContact(dialog);
     fireEvent.change(
       within(
         within(dialog).getByRole("group", { name: "Contato" }),
