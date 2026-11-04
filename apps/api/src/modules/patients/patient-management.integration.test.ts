@@ -31,6 +31,9 @@ describe("client management", () => {
         cpf: nextTestCpf(),
         fullName: "Cliente completo",
         phone: "11988887777",
+        whatsapp: "11988887777",
+        emergencyContactName: "Cliente completo",
+        emergencyContactPhone: "11988887777",
         city: "São Paulo",
         guardianName: "Responsável",
         gender: "female",
@@ -48,6 +51,9 @@ describe("client management", () => {
         cpf: nextTestCpf(),
         fullName: "Cliente atualizado",
         phone: "11988887777",
+        whatsapp: "11988887777",
+        emergencyContactName: "Cliente atualizado",
+        emergencyContactPhone: "11988887777",
       },
     });
     expect(edit.statusCode).toBe(200);

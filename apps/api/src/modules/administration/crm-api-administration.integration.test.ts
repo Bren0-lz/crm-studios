@@ -59,6 +59,9 @@ describe("CRM API", () => {
     const newPatient = {
       fullName: "Cliente Permissão",
       phone: "11977770000",
+      whatsapp: "11977770000",
+      emergencyContactName: "Cliente Permissão",
+      emergencyContactPhone: "11977770000",
       cpf: "52998224725",
     };
 

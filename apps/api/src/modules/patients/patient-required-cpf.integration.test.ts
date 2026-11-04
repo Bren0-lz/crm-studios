@@ -92,6 +92,9 @@ describe("required client CPF", () => {
         const patient = {
           fullName: "Cliente CPF obrigatório",
           phone: "11999998888",
+          whatsapp: "11999998888",
+          emergencyContactName: "Cliente CPF obrigatório",
+          emergencyContactPhone: "11999998888",
           cpf,
         };
         for (const url of ["/patients", "/patients/guided"]) {
@@ -124,6 +127,9 @@ describe("required client CPF", () => {
     const patient = {
       fullName: "Cliente CPF obrigatório",
       phone: "11999998888",
+      whatsapp: "11999998888",
+      emergencyContactName: "Cliente CPF obrigatório",
+      emergencyContactPhone: "11999998888",
       cpf: "529.982.247-25",
     };
     try {

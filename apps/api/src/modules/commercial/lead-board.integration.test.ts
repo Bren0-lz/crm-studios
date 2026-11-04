@@ -9,6 +9,7 @@ import {
   type LeadFilterOptions,
   type LeadStagePage,
 } from "@crm/contracts";
+import { testPatientContact } from "../../test-support/patient-contact.js";
 
 const clinicId = "11111111-1111-4111-8111-111111111111",
   otherClinicId = "33333333-3333-4333-8333-333333333333",
@@ -140,6 +141,7 @@ describe("paginated commercial board", () => {
     await create("Lead de outra clínica", "Outra clínica", otherClinicId);
     await repository.convertLead(clinicId, actorId, won.id, {
       cpf: "52998224725",
+      ...testPatientContact,
     });
 
     const insights = await app.inject({

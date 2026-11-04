@@ -18,6 +18,13 @@ test("creates, searches and edits a client through the interface", async ({
     .getByRole("group", { name: "Contato", exact: true })
     .getByLabel("Telefone", { exact: true })
     .fill("11988887777");
+  await dialog
+    .getByRole("group", { name: "Contato", exact: true })
+    .getByLabel("WhatsApp", { exact: true })
+    .fill("11988887777");
+  await dialog
+    .getByRole("button", { name: "Usar os dados do cliente", exact: true })
+    .click();
   await dialog.getByLabel("Só cadastrar por enquanto", { exact: true }).check();
   await expect(
     dialog.getByRole("button", { name: "Salvar cliente", exact: true }),

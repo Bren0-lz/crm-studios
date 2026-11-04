@@ -5,6 +5,7 @@ import App from "../App";
 import { storedUser } from "../test-support/legacy-fixtures";
 import "../test-support/legacy-setup";
 import { isLeadBoardUrl, leadBoardResponse } from "../test-support/lead-board";
+import { fillRequiredContact } from "../test-support/patient-actions";
 
 describe("action modals instead of browser dialogs", () => {
   const owner = {
@@ -185,6 +186,7 @@ describe("action modals instead of browser dialogs", () => {
       fireEvent.change(within(dialog).getByLabelText("CPF"), {
         target: { value: "52998224725" },
       });
+      fillRequiredContact(dialog);
       fireEvent.click(
         within(dialog).getByRole("button", { name: "Converter em cliente" }),
       );
@@ -237,6 +239,7 @@ describe("action modals instead of browser dialogs", () => {
       fireEvent.change(within(dialog).getByLabelText("CPF"), {
         target: { value: "52998224725" },
       });
+      fillRequiredContact(dialog);
       fireEvent.click(
         within(dialog).getByRole("button", { name: "Converter em cliente" }),
       );

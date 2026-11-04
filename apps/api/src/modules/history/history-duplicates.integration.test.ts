@@ -24,6 +24,9 @@ describe("history without duplicates", () => {
           cpf: nextTestCpf(),
           fullName: "Teste Histórico",
           phone: "11955554444",
+          whatsapp: "11955554444",
+          emergencyContactName: "Teste Histórico",
+          emergencyContactPhone: "11955554444",
           tags: [],
         },
       });

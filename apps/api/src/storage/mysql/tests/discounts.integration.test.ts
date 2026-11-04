@@ -46,6 +46,9 @@ for (const storage of ["memory", "mysql"] as const) {
             cpf: nextTestCpf(),
             fullName: `Desconto ${randomUUID()}`,
             phone: "11988887777",
+            whatsapp: "11988887777",
+            emergencyContactName: `Desconto ${randomUUID()}`,
+            emergencyContactPhone: "11988887777",
           }),
         );
         const product = (sku: string) =>

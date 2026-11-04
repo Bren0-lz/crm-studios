@@ -18,6 +18,9 @@ describe("optional client profile", () => {
       const result = patientInputSchema.safeParse({
         fullName: "Cliente",
         phone: "11999998888",
+        whatsapp: "11999998888",
+        emergencyContactName: "Cliente",
+        emergencyContactPhone: "11999998888",
         cpf,
       });
       expect(result.success).toBe(false);
@@ -36,6 +39,9 @@ describe("optional client profile", () => {
         cpf: "52998224725",
         fullName: "Cliente antigo",
         phone: "11999998888",
+        whatsapp: "11999998888",
+        emergencyContactName: "Cliente antigo",
+        emergencyContactPhone: "11999998888",
       }),
     ).toMatchObject({ tags: [] });
     expect(patientProfile({ city: " São Paulo " })).toEqual({
@@ -46,6 +52,9 @@ describe("optional client profile", () => {
         cpf: "52998224725",
         fullName: "Cliente",
         phone: "11999998888",
+        whatsapp: "11999998888",
+        emergencyContactName: "Cliente",
+        emergencyContactPhone: "11999998888",
         gender: "invalid",
       }).success,
     ).toBe(false);
@@ -54,6 +63,9 @@ describe("optional client profile", () => {
         cpf: "52998224725",
         fullName: "Cliente",
         phone: "11999998888",
+        whatsapp: "11999998888",
+        emergencyContactName: "Cliente",
+        emergencyContactPhone: "11999998888",
         guardianPhone: "12",
       }).success,
     ).toBe(false);

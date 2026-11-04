@@ -524,6 +524,10 @@
 .form-fieldset.emergency-fieldset legend {
   color: var(--red);
 }
+/* "Usar os dados do cliente" (CD1): abaixo dos campos do contato. */
+.form-fieldset.emergency-fieldset > .secondary-button {
+  margin-top: var(--space-3);
+}
 
 .form-fieldset-grid {
   display: grid;

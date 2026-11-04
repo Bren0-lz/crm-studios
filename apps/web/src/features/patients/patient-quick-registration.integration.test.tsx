@@ -45,6 +45,15 @@ describe("quick client registration", () => {
       ).getByLabelText("Telefone"),
       { target: { value: "11999998888" } },
     );
+    fireEvent.change(
+      within(
+        within(dialog).getByRole("group", { name: "Contato" }),
+      ).getByLabelText("WhatsApp"),
+      { target: { value: "11999998888" } },
+    );
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Usar os dados do cliente" }),
+    );
     const save = within(dialog).getByRole("button", { name: "Salvar cliente" });
     expect(save).toBeDisabled();
     expect(within(dialog).getByText("Falta: CPF.")).toBeVisible();
@@ -68,6 +77,56 @@ describe("quick client registration", () => {
     });
     expect(save).toBeEnabled();
   });
+  it("requires WhatsApp and emergency contact and copies the client's own data (CD1)", async () => {
+    login();
+    vi.mocked(fetch).mockImplementation(
+      async () => ({ ok: true, status: 200, json: async () => [] }) as Response,
+    );
+    const dialog = await openNewClient();
+    const contact = within(dialog).getByRole("group", { name: "Contato" });
+    const emergency = within(dialog).getByRole("group", {
+      name: "Contato de emergência",
+    });
+    // À vista, fora de "Mais informações": campo obrigatório não fica escondido.
+    expect(emergency.closest("details")).toBeNull();
+    expect(within(contact).getByLabelText("WhatsApp")).toBeRequired();
+    expect(within(emergency).getByLabelText("Nome")).toBeRequired();
+    expect(within(emergency).getByLabelText("Telefone")).toBeRequired();
+    fireEvent.change(within(dialog).getByLabelText("Nome completo"), {
+      target: { value: "Cliente Sem Contato" },
+    });
+    fireEvent.change(within(dialog).getByLabelText("CPF"), {
+      target: { value: "52998224725" },
+    });
+    fireEvent.change(within(contact).getByLabelText("Telefone"), {
+      target: { value: "11999998888" },
+    });
+    expect(
+      within(dialog).getByText(
+        "Falta: WhatsApp, Nome do contato de emergência, Telefone do contato de emergência.",
+      ),
+    ).toBeVisible();
+    fireEvent.change(within(contact).getByLabelText("WhatsApp"), {
+      target: { value: "11977776666" },
+    });
+    // Quem não tem contato de emergência repete o próprio nome e telefone.
+    fireEvent.click(
+      within(emergency).getByRole("button", {
+        name: "Usar os dados do cliente",
+      }),
+    );
+    expect(within(emergency).getByLabelText("Nome")).toHaveValue(
+      "Cliente Sem Contato",
+    );
+    expect(within(emergency).getByLabelText("Telefone")).toHaveValue(
+      "(11) 99999-8888",
+    );
+    expect(within(dialog).queryByText(/^Falta:/)).toBeNull();
+    expect(
+      within(dialog).getByRole("button", { name: "Salvar cliente" }),
+    ).toBeEnabled();
+  });
+
   it("keeps the essentials visible and collapses the rest under Mais informações", async () => {
     login();
     vi.mocked(fetch).mockImplementation(

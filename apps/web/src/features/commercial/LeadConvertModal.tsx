@@ -13,7 +13,8 @@ import { PatientProfileFields } from "../patients/index";
 
 /**
  * Conversão do lead: o mesmo cadastro do "Novo cliente", já preenchido com o que o lead
- * guarda; o que ainda não foi informado fica em branco. O CPF é obrigatório.
+ * guarda; o que ainda não foi informado fica em branco. CPF, WhatsApp e contato de emergência
+ * são obrigatórios (CD1).
  */
 export function LeadConvertModal({
   lead,
@@ -62,6 +63,13 @@ export function LeadConvertModal({
     ...(form.fullName?.trim() ? [] : ["Nome completo"]),
     ...(form.cpf.trim() ? [] : ["CPF"]),
     ...(form.phone?.trim() ? [] : ["Telefone"]),
+    ...(form.whatsapp?.trim() ? [] : ["WhatsApp"]),
+    ...(form.emergencyContactName?.trim()
+      ? []
+      : ["Nome do contato de emergência"]),
+    ...(form.emergencyContactPhone?.trim()
+      ? []
+      : ["Telefone do contato de emergência"]),
   ];
 
   return (
@@ -104,19 +112,56 @@ export function LeadConvertModal({
               onChange={(digits) => field("phone", digits)}
             />
           </label>
-          <div className="field-with-hint">
-            <label>
-              WhatsApp
-              <PhoneInput
-                value={form.whatsapp ?? ""}
-                onChange={(digits) => field("whatsapp", digits)}
-              />
-            </label>
-            <small className="field-hint">
-              Em branco, as mensagens usam o telefone de contato.
-            </small>
-          </div>
+          <label>
+            WhatsApp
+            <PhoneInput
+              required
+              value={form.whatsapp ?? ""}
+              onChange={(digits) => field("whatsapp", digits)}
+            />
+          </label>
         </div>
+      </fieldset>
+      <fieldset className="form-fieldset emergency-fieldset span-2">
+        <legend>Contato de emergência</legend>
+        <div className="form-fieldset-grid">
+          <label>
+            Nome
+            <input
+              autoComplete="off"
+              maxLength={160}
+              placeholder="Ex.: Maria Souza (mãe)"
+              required
+              value={form.emergencyContactName ?? ""}
+              onChange={(event) =>
+                field("emergencyContactName", event.target.value)
+              }
+            />
+          </label>
+          <label>
+            Telefone
+            <PhoneInput
+              required
+              value={form.emergencyContactPhone ?? ""}
+              onChange={(digits) => field("emergencyContactPhone", digits)}
+            />
+          </label>
+        </div>
+        {/* Quem não tem contato de emergência repete o próprio nome e telefone. */}
+        <button
+          className="secondary-button"
+          type="button"
+          disabled={!form.fullName?.trim() && !form.phone?.trim()}
+          onClick={() =>
+            setForm((current) => ({
+              ...current,
+              emergencyContactName: current.fullName ?? "",
+              emergencyContactPhone: current.phone ?? "",
+            }))
+          }
+        >
+          Usar os dados do cliente
+        </button>
       </fieldset>
       <label>
         E-mail
@@ -143,30 +188,6 @@ export function LeadConvertModal({
               setForm((current) => ({ ...current, [key]: value }))
             }
           />
-          <fieldset className="form-fieldset emergency-fieldset span-2">
-            <legend>Contato de emergência</legend>
-            <div className="form-fieldset-grid">
-              <label>
-                Nome
-                <input
-                  autoComplete="off"
-                  maxLength={120}
-                  placeholder="Ex.: Maria Souza (mãe)"
-                  value={form.emergencyContactName ?? ""}
-                  onChange={(event) =>
-                    field("emergencyContactName", event.target.value)
-                  }
-                />
-              </label>
-              <label>
-                Telefone
-                <PhoneInput
-                  value={form.emergencyContactPhone ?? ""}
-                  onChange={(digits) => field("emergencyContactPhone", digits)}
-                />
-              </label>
-            </div>
-          </fieldset>
           <label className="span-2">
             Observações
             <textarea

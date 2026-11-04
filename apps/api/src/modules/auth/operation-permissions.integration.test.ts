@@ -9,6 +9,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { buildApp } from "../../app.js";
 import { ROUTE_ACCESS } from "../../infrastructure/route-access.js";
 import { MemoryClinicRepository } from "../../memory-repository.js";
+import { testPatientContact } from "../../test-support/patient-contact.js";
 
 const clinicId = "11111111-1111-4111-8111-111111111111";
 const ownerId = "22222222-2222-4222-8222-222222222222";
@@ -359,7 +360,7 @@ describe("per-operation API authorization", () => {
     expect(
       (
         await app.inject({
-          payload: { cpf: nextTestCpf() },
+          payload: { cpf: nextTestCpf(), ...testPatientContact },
           method: "POST",
           url: `/leads/${lead.id}/convert`,
           headers,
@@ -376,7 +377,7 @@ describe("per-operation API authorization", () => {
     expect(
       (
         await app.inject({
-          payload: { cpf: nextTestCpf() },
+          payload: { cpf: nextTestCpf(), ...testPatientContact },
           method: "POST",
           url: `/leads/${lead.id}/convert`,
           headers,

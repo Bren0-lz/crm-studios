@@ -43,6 +43,9 @@ for (const storage of ["memory", "mysql"] as const) {
           patientInputSchema.parse({
             fullName: "Cliente Duplicidade PG",
             phone: "31977771234",
+            whatsapp: "31977771234",
+            emergencyContactName: "Cliente Duplicidade PG",
+            emergencyContactPhone: "31977771234",
             email: "Duplicidade.PG@Email.com",
             cpf: "529.982.247-25",
           }),
@@ -65,6 +68,9 @@ for (const storage of ["memory", "mysql"] as const) {
               cpf: nextTestCpf(),
               fullName: "Outra Clínica",
               phone: "31966665555",
+              whatsapp: "31966665555",
+              emergencyContactName: "Outra Clínica",
+              emergencyContactPhone: "31966665555",
             }),
           );
 

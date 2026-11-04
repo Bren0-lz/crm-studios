@@ -15,6 +15,9 @@ describe("patient search", () => {
         cpf: nextTestCpf(),
         fullName: "André Conceição",
         phone: "11955550000",
+        whatsapp: "11955550000",
+        emergencyContactName: "André Conceição",
+        emergencyContactPhone: "11955550000",
         tags: [],
       },
     });
@@ -44,6 +47,9 @@ describe("patient search", () => {
         fullName: "Maria Aparecida Lima",
         nickname: "  Cidinha  ",
         phone: "11955551111",
+        whatsapp: "11955551111",
+        emergencyContactName: "Maria Aparecida Lima",
+        emergencyContactPhone: "11955551111",
         tags: [],
       },
     });
@@ -77,6 +83,9 @@ describe("patient search", () => {
         fullName: "Outra Cliente",
         nickname: "a".repeat(81),
         phone: "11955552222",
+        whatsapp: "11955552222",
+        emergencyContactName: "Outra Cliente",
+        emergencyContactPhone: "11955552222",
         tags: [],
       },
     });
