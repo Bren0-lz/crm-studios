@@ -52,7 +52,7 @@ export function PackageWeeklySlotsFields({
       {slots.map((slot, index) => (
         <div className="recurrence-date-row package-slot-row" key={index}>
           <label>
-            {`Dia ${index + 1}`}
+            {`${index + 1}º dia da semana`}
             <select
               value={slot.weekday}
               onChange={(e) =>
@@ -73,7 +73,7 @@ export function PackageWeeklySlotsFields({
             </select>
           </label>
           <label>
-            {`Horário do dia ${index + 1}`}
+            {`Horário do ${index + 1}º dia`}
             <input
               type="time"
               required
