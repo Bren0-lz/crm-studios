@@ -68,8 +68,8 @@ function fillFixedDays(
       fireEvent.click(
         within(schedule).getByRole("button", { name: "Adicionar dia" }),
       );
-    change(`Dia ${index + 1}`, String(slot.weekday), schedule);
-    change(`Horário do dia ${index + 1}`, slot.time, schedule);
+    change(`${index + 1}º dia da semana`, String(slot.weekday), schedule);
+    change(`Horário do ${index + 1}º dia`, slot.time, schedule);
   });
 }
 
@@ -126,9 +126,10 @@ describe("single plan purchase with fixed weekdays", () => {
     ).not.toBeInTheDocument();
     await waitFor(() =>
       expect(summaryRows(dialog)[2]).toHaveTextContent(
-        "Conflito: Profissional ou sala com outro atendimento",
+        "Horário indisponível · Profissional ou sala com outro atendimento",
       ),
     );
+    expect(dialog).not.toHaveTextContent("Conflito:");
     expect(summaryRows(dialog)[1]).toHaveTextContent("Livre");
     const create = within(dialog).getByRole("button", {
       name: "Criar plano e parcelas",

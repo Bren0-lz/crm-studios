@@ -174,7 +174,7 @@ export function PlanScheduleSummary({
                   </span>
                 ) : conflict ? (
                   <span className="status-pill cancelled">
-                    {`Conflito: ${conflict.label}`}
+                    {`Horário indisponível · ${conflict.label}`}
                   </span>
                 ) : current && !current.error ? (
                   <span className="status-pill confirmed">Livre</span>
