@@ -101,6 +101,7 @@ import {
   localToday,
   writeAndRead,
 } from "./sql.js";
+import { issueReceiptSignature } from "./receipt-signatures.js";
 import { changeProductStock, productStockOf } from "./product-stock.js";
 import {
   storedPaymentParts,
@@ -306,6 +307,8 @@ async function closeTab(
           }),
         ],
       );
+  // Comanda paga no fechamento: a baixa é esta, e o recibo nasce junto.
+  if (paid) await issueReceiptSignature(client, clinicId, receivableId);
   await client.query(
     `UPDATE patient_tabs SET status='closed',payment_status=$2,receivable_id=$3,closed_at=NOW(6) WHERE id=$1`,
     [tabId, input.settlement, receivableId],

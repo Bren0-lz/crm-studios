@@ -13,7 +13,7 @@ import {
 import type { FastifyReply, FastifyRequest } from "fastify";
 import { createRateLimiter } from "../../infrastructure/rate-limit.js";
 import type { RouteContext } from "../../infrastructure/route-context.js";
-import { signatureTokenPattern } from "./signature-links.js";
+import { signatureTokenPattern } from "../signatures/signature-evidence.js";
 
 const tokenParams = z.object({
   token: z.string().regex(signatureTokenPattern),

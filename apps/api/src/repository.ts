@@ -217,6 +217,7 @@ import type {
   PaymentMethod,
   PaymentPart,
   PaymentReceipt,
+  ReceiptSignature,
   PlanCatalogEntry,
   PlanCatalogInput,
   PlanRenewalInput,
@@ -1287,6 +1288,33 @@ export interface ClinicRepository {
     clinicId: string,
     receivableId: string,
   ): Promise<PaymentReceipt | null>;
+  /**
+   * Recibos para assinatura de uma parcela (um por baixa, inclusive os cancelados pelo
+   * estorno), do mais antigo ao mais novo. Parcela fora das filiais da leitura = lista vazia.
+   */
+  listReceiptSignatures(
+    clinicId: string,
+    receivableId: string,
+  ): Promise<ReceiptSignature[]>;
+  /** Registra o envio do recibo (o primeiro clique fica). `null` = não encontrado. */
+  markReceiptSignatureSent(
+    clinicId: string,
+    receiptId: string,
+  ): Promise<ReceiptSignature | null>;
+  /** Link público: registra a visualização do recibo. `null` = token desconhecido. */
+  openPublicReceiptSignature(
+    token: string,
+    metadata: PublicRequestMetadata,
+  ): Promise<ReceiptSignature | null>;
+  /**
+   * Link público: assina o recibo (uma vez; nunca o cancelado). O evento `receipt.signed`
+   * sai depois do commit, por `signReceipt()` de `modules/finance/receipt-signatures.ts`.
+   */
+  signPublicReceiptSignature(
+    token: string,
+    input: PublicDocumentSignInput,
+    metadata: PublicRequestMetadata,
+  ): Promise<ReceiptSignature | null>;
   getFinancialWorkspace(clinicId: string): Promise<FinancialWorkspace>;
   createFinancialCategory(
     clinicId: string,

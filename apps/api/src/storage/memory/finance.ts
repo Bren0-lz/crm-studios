@@ -80,6 +80,10 @@ import {
 import type { MemoryRepositoryContext } from "./context.js";
 import { createMemoryCommissionRecalculation } from "./commission-recalculation.js";
 import { addMonths, now, today, uuid } from "./helpers.js";
+import {
+  cancelReceiptSignatures,
+  issueReceiptSignature,
+} from "./receipt-signatures.js";
 
 export function createFinanceRepository(
   repositoryContext: MemoryRepositoryContext,
@@ -189,6 +193,7 @@ export function createFinanceRepository(
       "receivable",
       receivableId,
     );
+    cancelReceiptSignatures(repositoryContext, clinicId, receivableId);
   }
 
   return {
@@ -568,7 +573,7 @@ export function createFinanceRepository(
           createdAt: timestamp,
         });
       repositoryContext.receivables.push(receivable);
-      if (receivable.status === "paid")
+      if (receivable.status === "paid") {
         for (const part of parts)
           repositoryContext.receiptEvents.push({
             id: uuid(),
@@ -578,6 +583,9 @@ export function createFinanceRepository(
             amountInCents: part.amountInCents,
             paymentMethod: part.paymentMethod,
           });
+        // Comanda paga no fechamento: a baixa é esta, e o recibo nasce junto.
+        issueReceiptSignature(repositoryContext, receivable);
+      }
       tab.status = "closed";
       tab.paymentStatus = input.settlement;
       tab.receivableId = receivable.id;
@@ -899,6 +907,7 @@ export function createFinanceRepository(
           ...(last && balanceReceivableId ? { balanceReceivableId } : {}),
         });
       });
+      issueReceiptSignature(repositoryContext, receivable);
       return receivable;
     },
 
