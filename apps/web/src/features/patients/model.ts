@@ -173,11 +173,7 @@ export function filterPatients(
     });
 }
 
-export function groupVacancyLabel(group: GroupClass) {
-  const free = group.capacity - group.activeEnrollments;
-  if (free <= 0) return "turma cheia (lista de espera)";
-  return free === 1 ? "1 vaga" : `${free} vagas`;
-}
+export { groupVacancyLabel } from "../../shared/lib/formatting";
 
 export function guidedNotice(
   result: GuidedPatientResult,

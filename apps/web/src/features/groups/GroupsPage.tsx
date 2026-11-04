@@ -37,6 +37,7 @@ import { ReadOnlyNotice } from "../../shared/components/ReadOnlyNotice";
 import {
   clinicIsoDate,
   groupEnrollmentToast,
+  groupVacancyLabel,
   groupOperationRange,
   groupSeatsLabel,
   groupSlotLabel,
@@ -310,8 +311,13 @@ export function GroupsPage() {
   const suggestedName = newGroupService
     ? groupClassName(newGroupService.name, nextGroupSequence)
     : "Selecione o serviço para ver o nome da turma";
+  // Turma cheia avisa no seletor: a matrícula vai para a lista de espera (TW1).
   const groupOptionLabel = (group: GroupClass) =>
-    `${group.name} — ${describeGroupSchedule(group.weeklySlots ?? [])}`;
+    `${group.name} — ${describeGroupSchedule(group.weeklySlots ?? [])}${
+      group.activeEnrollments >= group.capacity
+        ? ` · ${groupVacancyLabel(group)}`
+        : ""
+    }`;
   const editDirty = useFormDirty(
     { editingName, editingCapacity, editingSlots },
     Boolean(selectedGroup),
