@@ -274,6 +274,13 @@ test("creates a client from the suggestion footer with pointer and keyboard", as
     .getByLabel("Telefone", { exact: true })
     .fill("11999998888");
   await client
+    .getByRole("group", { name: "Contato", exact: true })
+    .getByLabel("WhatsApp", { exact: true })
+    .fill("11999998888");
+  await client
+    .getByRole("button", { name: "Usar os dados do cliente", exact: true })
+    .click();
+  await client
     .getByRole("button", { name: "Salvar cliente", exact: true })
     .click();
   await expect(client).toHaveCount(0);

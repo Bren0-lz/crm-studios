@@ -10,6 +10,7 @@ import {
   type Lead,
   type LeadInsights,
 } from "@crm/contracts";
+import { testPatientContact } from "../../test-support/patient-contact.js";
 const clinicId = "11111111-1111-4111-8111-111111111111",
   actorId = "22222222-2222-4222-8222-222222222222",
   apps: Awaited<ReturnType<typeof buildApp>>[] = [];
@@ -130,12 +131,26 @@ describe("commercial filters and conversion", () => {
       payload: { cpf: "111.111.111-11" },
     });
     expect(invalid.statusCode).toBe(400);
+    // CD1: o cliente novo precisa de WhatsApp e contato de emergência.
+    const withoutContact = await app.inject({
+      method: "POST",
+      url: `/leads/${created.json().id}/convert`,
+      headers,
+      payload: { cpf: "52998224725", emergencyContactName: "Joana Mãe" },
+    });
+    expect(withoutContact.statusCode).toBe(400);
+    expect(withoutContact.json()).toEqual({
+      code: "LEAD_CONTACT_REQUIRED",
+      message:
+        "Informe o WhatsApp e o contato de emergência antes de converter o lead.",
+    });
     const converted = await app.inject({
       method: "POST",
       url: `/leads/${created.json().id}/convert`,
       headers,
       payload: {
         cpf: "52998224725",
+        whatsapp: "11977776666",
         emergencyContactName: "Joana Mãe",
         emergencyContactPhone: "11988887777",
         address: "Rua das Flores, 10",
@@ -185,6 +200,9 @@ describe("commercial filters and conversion", () => {
         phone: "11966665555",
         email: "",
         whatsapp: "11955554444",
+        // Quem não tem contato de emergência repete o próprio nome e telefone.
+        emergencyContactName: "Lead Revisado Silva",
+        emergencyContactPhone: "11966665555",
         birthDate: "1990-05-10",
         occupation: "Professora",
         gender: "female",
@@ -281,6 +299,7 @@ describe("commercial filters and conversion", () => {
     ).toBe(403);
     await repository.convertLead(clinicId, actorId, lead.id, {
       cpf: lead.cpf ?? nextTestCpf(),
+      ...testPatientContact,
     });
     expect(
       (

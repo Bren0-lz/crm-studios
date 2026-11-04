@@ -34,6 +34,7 @@ const base = {
   recordNumber: "PAC-00001",
   fullName: "Helena Almeida",
   phone: "11987654321",
+  whatsapp: "11987654321",
   tags: [],
   status: "active",
   createdAt: "2026-01-01T12:00:00.000Z",
@@ -54,6 +55,46 @@ describe("emergency contact on the client record", () => {
       "Maria Souza (mãe) · (11) 95555-6666",
     );
     expect(value.closest(".emergency-contact")).not.toHaveClass("is-missing");
+    expect(within(summary).queryByText(/Cadastro incompleto/)).toBeNull();
+  });
+
+  it("accepts the client's own name and phone as the emergency contact", async () => {
+    renderRecord({
+      ...base,
+      emergencyContactName: "Helena Almeida",
+      emergencyContactPhone: "11987654321",
+    });
+    const summary = await screen.findByRole("region", {
+      name: "Resumo do cliente",
+    });
+    expect(
+      within(summary).getByText("Helena Almeida · (11) 98765-4321"),
+    ).toBeVisible();
+    expect(within(summary).queryByText(/Cadastro incompleto/)).toBeNull();
+  });
+
+  it("flags an old registration without WhatsApp or emergency contact as incomplete", async () => {
+    renderRecord({ ...base, whatsapp: undefined });
+    const summary = await screen.findByRole("region", {
+      name: "Resumo do cliente",
+    });
+    expect(
+      within(summary).getByText(
+        "Cadastro incompleto: falta WhatsApp e contato de emergência.",
+      ),
+    ).toBeVisible();
+  });
+
+  it("names only the missing field in the incomplete registration notice", async () => {
+    renderRecord({ ...base, emergencyContactName: "Maria Souza (mãe)" });
+    const summary = await screen.findByRole("region", {
+      name: "Resumo do cliente",
+    });
+    expect(
+      within(summary).getByText(
+        "Cadastro incompleto: falta contato de emergência.",
+      ),
+    ).toBeVisible();
   });
 
   it("highlights in red only when the contact is missing", async () => {

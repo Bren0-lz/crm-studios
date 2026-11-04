@@ -264,6 +264,13 @@ export function PatientRecordTabs({
     `${to}?patientId=${encodeURIComponent(id)}`;
 
   const emergency = emergencyContactLabel(patient);
+  // CD1: o cadastro manual exige WhatsApp e contato de emergência; quem foi cadastrado antes
+  // (ou importado) sem eles fica com o aviso até completar.
+  const incomplete = [
+    !patient.whatsapp && "WhatsApp",
+    !(patient.emergencyContactName && patient.emergencyContactPhone) &&
+      "contato de emergência",
+  ].filter(Boolean);
   const patientOption = { id, fullName: patient.fullName, tags: patient.tags };
 
   return (
@@ -272,6 +279,11 @@ export function PatientRecordTabs({
         className="panel patient-overview"
         aria-label="Resumo do cliente"
       >
+        {incomplete.length > 0 && (
+          <p className="patient-overview-incomplete">
+            {`Cadastro incompleto: falta ${incomplete.join(" e ")}.`}
+          </p>
+        )}
         <dl className="patient-overview-grid">
           <div>
             <dt>Telefone</dt>

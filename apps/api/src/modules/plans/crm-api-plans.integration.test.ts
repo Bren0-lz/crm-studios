@@ -10,6 +10,7 @@ import {
 } from "../../test-support/legacy-fixtures.js";
 import "../../test-support/legacy-setup.js";
 import { patchStatusAt } from "../../test-support/clock.js";
+import { testPatientContact } from "../../test-support/patient-contact.js";
 
 describe("CRM API", () => {
   it("treats an empty client filter as every client in plans and clinical records", async () => {
@@ -186,7 +187,7 @@ describe("CRM API", () => {
     try {
       vi.setSystemTime(new Date("2032-03-08T15:00:00.000Z"));
       const conversion = await app.inject({
-        payload: { cpf: nextTestCpf() },
+        payload: { cpf: nextTestCpf(), ...testPatientContact },
         method: "POST",
         url: `/leads/${convertedLead}/convert`,
         headers: {
@@ -796,7 +797,15 @@ describe("CRM API", () => {
           method: "POST",
           url: "/patients",
           headers,
-          payload: { cpf: nextTestCpf(), fullName, phone, tags: [] },
+          payload: {
+            cpf: nextTestCpf(),
+            fullName,
+            phone,
+            whatsapp: phone,
+            emergencyContactName: fullName,
+            emergencyContactPhone: phone,
+            tags: [],
+          },
         });
         expect(response.statusCode).toBe(201);
         return response.json().id as string;

@@ -25,6 +25,9 @@ describe("individual document preparation", () => {
         cpf: nextTestCpf(),
         fullName: "Cliente do contrato",
         phone: "11999991234",
+        whatsapp: "11999991234",
+        emergencyContactName: "Cliente do contrato",
+        emergencyContactPhone: "11999991234",
       }),
     );
     const template = await repository.createDocumentTemplate(clinicId, {
@@ -111,6 +114,9 @@ describe("individual document preparation", () => {
         cpf: nextTestCpf(),
         fullName: "Cliente das etapas",
         phone: "11999991234",
+        whatsapp: "11999991234",
+        emergencyContactName: "Cliente das etapas",
+        emergencyContactPhone: "11999991234",
       }),
     );
     await repository.createDocumentTemplate(clinicId, {
@@ -160,6 +166,9 @@ describe("individual document preparation", () => {
         cpf: nextTestCpf(),
         fullName: "Cliente da revisão",
         phone: "11999991234",
+        whatsapp: "11999991234",
+        emergencyContactName: "Cliente da revisão",
+        emergencyContactPhone: "11999991234",
       }),
     );
     const first = await repository.createDocumentTemplate(clinicId, {

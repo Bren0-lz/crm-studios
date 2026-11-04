@@ -137,6 +137,19 @@ export function patientProfile(
 /** Limite das observações do cliente: a tela usa o mesmo número no `maxLength`. */
 export const patientNotesMaxLength = 2000;
 
+/** Telefone obrigatório com DDD, com a mesma mensagem para ausente, vazio ou inválido. */
+function requiredPhoneSchema(message: string) {
+  return z
+    .string({ error: message })
+    .transform((value) => value.replace(/\D/g, ""))
+    .refine((digits) => digits.length === 10 || digits.length === 11, message);
+}
+
+/**
+ * Cadastro manual (completo, rápido, guiado e conversão de lead): CPF, WhatsApp e contato de
+ * emergência obrigatórios (B1-07/B1-10). Quem não tem contato de emergência repete o próprio
+ * nome e telefone. A importação e a edição aceitam esses campos vazios (ver abaixo).
+ */
 export const patientInputSchema = z.object({
   ...patientStoredProfileSchema.shape,
   fullName: z.string().trim().min(3).max(160),
@@ -147,10 +160,16 @@ export const patientInputSchema = z.object({
     .refine((value) => isValidCpf(value), "Informe um CPF válido."),
   email: z.email().optional().or(z.literal("")),
   phone: phoneSchema,
-  whatsapp: optionalPhoneSchema,
+  whatsapp: requiredPhoneSchema("Informe o WhatsApp com DDD."),
   birthDate: z.iso.date().optional().or(z.literal("")),
-  emergencyContactName: z.string().trim().max(160).optional().or(z.literal("")),
-  emergencyContactPhone: optionalPhoneSchema,
+  emergencyContactName: z
+    .string({ error: "Informe o nome do contato de emergência." })
+    .trim()
+    .min(1, "Informe o nome do contato de emergência.")
+    .max(160),
+  emergencyContactPhone: requiredPhoneSchema(
+    "Informe o telefone do contato de emergência com DDD.",
+  ),
   notes: z
     .string()
     .trim()
@@ -175,17 +194,33 @@ export const optionalCpfSchema = z
   .transform((value) => value || undefined)
   .optional();
 
-/** Linha da planilha de importação: igual ao cadastro, mas o CPF pode faltar (B6-05). */
+/**
+ * WhatsApp e contato de emergência que podem faltar: na importação (CD3) e na edição de quem
+ * foi cadastrado antes da regra (a rota recusa apagar o que já existe).
+ */
+export const patientOptionalContactShape = {
+  whatsapp: optionalPhoneSchema,
+  emergencyContactName: z.string().trim().max(160).optional().or(z.literal("")),
+  emergencyContactPhone: optionalPhoneSchema,
+};
+
+/**
+ * Linha da planilha de importação: igual ao cadastro, mas o CPF, o WhatsApp e o contato de
+ * emergência podem faltar (B6-05).
+ */
 export const patientImportInputSchema = patientInputSchema.extend({
+  ...patientOptionalContactShape,
   cpf: optionalCpfSchema,
 });
 
 /**
  * Edição do cliente (`PUT /patients/:id`, B6-05): o CPF pode continuar vazio em quem foi
- * importado sem ele (a etiqueta "Falta CPF" fica até ele ser preenchido). A rota recusa apagar
- * um CPF já gravado.
+ * importado sem ele (a etiqueta "Falta CPF" fica até ele ser preenchido); o mesmo vale para o
+ * WhatsApp e o contato de emergência de quem foi cadastrado antes da regra. A rota recusa apagar
+ * o que já está gravado.
  */
 export const patientUpdateInputSchema = patientInputSchema.extend({
+  ...patientOptionalContactShape,
   cpf: optionalCpfSchema,
 });
 

@@ -94,9 +94,16 @@ export interface ContractedItem {
   itemName: string;
 }
 
-export interface Patient extends Omit<PatientInput, "cpf"> {
+export interface Patient extends Omit<
+  PatientInput,
+  "cpf" | "whatsapp" | "emergencyContactName" | "emergencyContactPhone"
+> {
   /** Cadastros antigos e duplicados já mesclados podem não ter CPF. */
   cpf?: string | undefined;
+  /** Cadastros antigos e importados podem estar sem WhatsApp ou contato de emergência (CD1). */
+  whatsapp?: string | undefined;
+  emergencyContactName?: string | undefined;
+  emergencyContactPhone?: string | undefined;
   inactiveAt?: string;
   mergedIntoPatientId?: string;
   id: string;

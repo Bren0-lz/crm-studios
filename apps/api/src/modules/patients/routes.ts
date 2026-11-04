@@ -417,6 +417,23 @@ export function registerPatientsRoutes(context: RouteContext) {
           "O CPF já cadastrado não pode ser apagado.",
           400,
         );
+      // CD1: cadastro antigo sem WhatsApp/contato de emergência segue editável, mas o que já
+      // está gravado não pode ser apagado.
+      if (previous?.whatsapp && !input.whatsapp)
+        throw new DomainError(
+          "PATIENT_WHATSAPP_REQUIRED",
+          "O WhatsApp já cadastrado não pode ser apagado.",
+          400,
+        );
+      if (
+        (previous?.emergencyContactName && !input.emergencyContactName) ||
+        (previous?.emergencyContactPhone && !input.emergencyContactPhone)
+      )
+        throw new DomainError(
+          "PATIENT_EMERGENCY_CONTACT_REQUIRED",
+          "O contato de emergência já cadastrado não pode ser apagado.",
+          400,
+        );
       const patient = await repository.updatePatient(
         request.user.clinicId,
         id,

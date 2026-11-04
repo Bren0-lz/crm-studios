@@ -116,9 +116,32 @@ describe("lean lead form", () => {
     fireEvent.change(within(convert).getByLabelText("CPF"), {
       target: { value: "529.982.247-25" },
     });
+    // CD1: WhatsApp e contato de emergência obrigatórios na conversão.
+    expect(
+      within(convert).getByRole("button", { name: "Converter em cliente" }),
+    ).toBeDisabled();
+    expect(
+      within(convert).getByText(
+        "Falta: WhatsApp, Nome do contato de emergência, Telefone do contato de emergência.",
+      ),
+    ).toBeVisible();
+    fireEvent.change(within(contact).getByLabelText("WhatsApp"), {
+      target: { value: "11977776666" },
+    });
     const emergency = within(convert).getByRole("group", {
       name: "Contato de emergência",
     });
+    expect(within(emergency).getByLabelText("Nome")).toBeRequired();
+    expect(within(emergency).getByLabelText("Telefone")).toBeRequired();
+    fireEvent.click(
+      within(emergency).getByRole("button", {
+        name: "Usar os dados do cliente",
+      }),
+    );
+    expect(within(emergency).getByLabelText("Nome")).toHaveValue("Lead Enxuto");
+    expect(within(emergency).getByLabelText("Telefone")).toHaveValue(
+      "(11) 97777-6666",
+    );
     fireEvent.change(within(emergency).getByLabelText("Nome"), {
       target: { value: "Joana Mãe" },
     });
@@ -134,7 +157,9 @@ describe("lean lead form", () => {
       fullName: "Lead Enxuto",
       phone: "11977776666",
       cpf: "52998224725",
+      whatsapp: "11977776666",
       emergencyContactName: "Joana Mãe",
+      emergencyContactPhone: "11977776666",
       address: "Rua das Flores, 10",
     });
     await waitFor(() =>

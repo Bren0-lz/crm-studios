@@ -31,6 +31,7 @@ import {
   clickMoreAction,
   findMoreAction,
   moreActionNames,
+  fillRequiredContact,
 } from "./test-support/patient-actions";
 import { isLeadBoardUrl, leadBoardResponse } from "./test-support/lead-board";
 
@@ -798,6 +799,7 @@ describe("appointment client search and creation", () => {
     fireEvent.change(within(client).getByLabelText("CPF"), {
       target: { value: "52998224725" },
     });
+    fillRequiredContact(client);
     fireEvent.change(
       within(
         within(client).getByRole("group", { name: /^Contato$/ }),
@@ -887,6 +889,7 @@ describe("appointment client search and creation", () => {
     fireEvent.change(within(client).getByLabelText("CPF"), {
       target: { value: "52998224725" },
     });
+    fillRequiredContact(client);
     vi.mocked(fetch).mockResolvedValue(
       response({ code: "DUPLICATE", message: "CPF já cadastrado." }, 409),
     );
@@ -2070,6 +2073,7 @@ describe("application shell", () => {
     fireEvent.change(screen.getByLabelText("CPF"), {
       target: { value: "52998224725" },
     });
+    fillRequiredContact(document.body);
     fireEvent.change(screen.getByLabelText("WhatsApp"), {
       target: { value: "11 90000-1234" },
     });
@@ -11665,6 +11669,7 @@ describe("action modals instead of browser dialogs", () => {
       fireEvent.change(within(dialog).getByLabelText("CPF"), {
         target: { value: "52998224725" },
       });
+      fillRequiredContact(dialog);
       fireEvent.click(
         within(dialog).getByRole("button", { name: "Converter em cliente" }),
       );
@@ -11678,7 +11683,7 @@ describe("action modals instead of browser dialogs", () => {
         cpf: "52998224725",
         fullName: "Bruna Lead",
         phone: "11987654321",
-        emergencyContactName: "",
+        emergencyContactName: "Contato de Emergência",
         address: "",
       });
     });
@@ -11721,6 +11726,7 @@ describe("action modals instead of browser dialogs", () => {
       fireEvent.change(within(dialog).getByLabelText("CPF"), {
         target: { value: "52998224725" },
       });
+      fillRequiredContact(dialog);
       fireEvent.click(
         within(dialog).getByRole("button", { name: "Converter em cliente" }),
       );
@@ -12717,6 +12723,7 @@ describe("guided client registration", () => {
     fireEvent.change(within(dialog).getByLabelText("CPF"), {
       target: { value: "52998224725" },
     });
+    fillRequiredContact(dialog);
     fireEvent.change(within(dialog).getAllByLabelText("Telefone")[0]!, {
       target: { value: "11987654321" },
     });

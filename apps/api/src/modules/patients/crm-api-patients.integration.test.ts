@@ -28,6 +28,7 @@ import {
   reissuedHeaders,
 } from "../../test-support/clock.js";
 import { localParts, zonedTimeToUtc } from "../groups/group-schedule.js";
+import { testPatientContact } from "../../test-support/patient-contact.js";
 
 describe("CRM API", () => {
   it("allows the web app to send every write method through CORS", async () => {
@@ -67,6 +68,9 @@ describe("CRM API", () => {
       payload: {
         fullName: "Joana de Souza",
         phone: "11999990000",
+        whatsapp: "11999990000",
+        emergencyContactName: "Joana de Souza",
+        emergencyContactPhone: "11999990000",
         cpf: "12345678909",
         tags: ["Avaliação"],
       },
@@ -135,6 +139,9 @@ describe("CRM API", () => {
         payload: {
           fullName: "Joana de Souza",
           phone: "11999990000",
+          whatsapp: "11999990000",
+          emergencyContactName: "Joana de Souza",
+          emergencyContactPhone: "11999990000",
           cpf: "12345678909",
           tags: [],
         },
@@ -150,6 +157,9 @@ describe("CRM API", () => {
         cpf: nextTestCpf(),
         fullName: "Rita Sequência",
         phone: "11999990001",
+        whatsapp: "11999990001",
+        emergencyContactName: "Rita Sequência",
+        emergencyContactPhone: "11999990001",
         tags: [],
       },
     });
@@ -182,6 +192,9 @@ describe("CRM API", () => {
       payload: {
         fullName: "Joana Pereira",
         phone: "11988887777",
+        whatsapp: "11988887777",
+        emergencyContactName: "Joana Pereira",
+        emergencyContactPhone: "11988887777",
         cpf: patient.cpf,
         tags: ["Retorno"],
       },
@@ -211,6 +224,9 @@ describe("CRM API", () => {
           cpf: nextTestCpf(),
           fullName: "Outra Pessoa",
           phone: "11911112222",
+          whatsapp: "11911112222",
+          emergencyContactName: "Outra Pessoa",
+          emergencyContactPhone: "11911112222",
           tags: [],
         },
       })
@@ -222,6 +238,9 @@ describe("CRM API", () => {
       payload: {
         fullName: other.fullName,
         phone: other.phone,
+        whatsapp: other.phone,
+        emergencyContactName: other.fullName,
+        emergencyContactPhone: other.phone,
         cpf: patient.cpf,
         tags: [],
       },
@@ -677,7 +696,7 @@ describe("CRM API", () => {
     });
 
     const converted = await app.inject({
-      payload: { cpf: nextTestCpf() },
+      payload: { cpf: nextTestCpf(), ...testPatientContact },
       method: "POST",
       url: `/leads/${leadId}/convert`,
       headers,
@@ -747,7 +766,7 @@ describe("CRM API", () => {
     const ids = [trial.json().id as string, evaluation.json().id as string];
 
     const conversion = await app.inject({
-      payload: { cpf: nextTestCpf() },
+      payload: { cpf: nextTestCpf(), ...testPatientContact },
       method: "POST",
       url: `/leads/${leadId}/convert`,
       headers,
@@ -886,7 +905,7 @@ describe("CRM API", () => {
     expect(appointment.statusCode).toBe(201);
 
     const conversion = await app.inject({
-      payload: { cpf: nextTestCpf() },
+      payload: { cpf: nextTestCpf(), ...testPatientContact },
       method: "POST",
       url: `/leads/${leadId}/convert`,
       headers,
@@ -1072,7 +1091,7 @@ describe("CRM API", () => {
     });
     expect(moved.json().stage).toBe("contacted");
     const conversion = await app.inject({
-      payload: { cpf: nextTestCpf() },
+      payload: { cpf: nextTestCpf(), ...testPatientContact },
       method: "POST",
       url: `/leads/${created.json().id}/convert`,
       headers,
@@ -1109,6 +1128,8 @@ describe("CRM API", () => {
         fullName: patient.fullName,
         phone: patient.phone,
         whatsapp: "(11) 90000-1234",
+        emergencyContactName: patient.emergencyContactName,
+        emergencyContactPhone: patient.emergencyContactPhone,
         email: "contato@example.com",
         tags: patient.tags,
       },
@@ -1128,6 +1149,8 @@ describe("CRM API", () => {
       payload: { patientId: patient.id, channel: "email", body: "Olá" },
     });
     expect(byEmail.json().recipient).toBe("contato@example.com");
+    // CD1: o WhatsApp gravado não se apaga (o envio pelo telefone, para quem não tem
+    // WhatsApp, fica em patient-contact-required.integration.test.ts).
     const withoutWhatsapp = await app.inject({
       method: "PUT",
       url: `/patients/${patient.id}`,
@@ -1137,21 +1160,15 @@ describe("CRM API", () => {
         fullName: patient.fullName,
         phone: patient.phone,
         whatsapp: "",
+        emergencyContactName: patient.emergencyContactName,
+        emergencyContactPhone: patient.emergencyContactPhone,
         tags: patient.tags,
       },
     });
-    expect(withoutWhatsapp.json().whatsapp).toBe("");
-    const fallback = await app.inject({
-      method: "POST",
-      url: "/communications/messages",
-      headers,
-      payload: {
-        patientId: patient.id,
-        channel: "whatsapp",
-        body: "Olá de novo",
-      },
+    expect(withoutWhatsapp.statusCode).toBe(400);
+    expect(withoutWhatsapp.json()).toMatchObject({
+      code: "PATIENT_WHATSAPP_REQUIRED",
     });
-    expect(fallback.json().recipient).toBe(patient.phone);
     await app.close();
   });
 
@@ -1521,7 +1538,16 @@ describe("CRM API", () => {
           method: "POST",
           url: "/patients",
           headers,
-          payload: { cpf: nextTestCpf(), fullName, phone, birthDate, tags: [] },
+          payload: {
+            cpf: nextTestCpf(),
+            fullName,
+            phone,
+            whatsapp: phone,
+            emergencyContactName: fullName,
+            emergencyContactPhone: phone,
+            birthDate,
+            tags: [],
+          },
         });
         expect(response.statusCode).toBe(201);
         return response.json().id as string;
@@ -2211,6 +2237,9 @@ describe("CRM API", () => {
             cpf: nextTestCpf(),
             fullName: "Rita Relacionamento",
             phone: "11955554444",
+            whatsapp: "11955554444",
+            emergencyContactName: "Rita Relacionamento",
+            emergencyContactPhone: "11955554444",
             birthDate: "1990-10-10",
             tags: [],
           },
@@ -2436,6 +2465,9 @@ describe("CRM API", () => {
             cpf: nextTestCpf(),
             fullName: "Nair Detratora",
             phone: "11944443333",
+            whatsapp: "11944443333",
+            emergencyContactName: "Nair Detratora",
+            emergencyContactPhone: "11944443333",
             tags: [],
           },
         })
@@ -2529,6 +2561,8 @@ describe("CRM API", () => {
               fullName,
               phone: "11955554444",
               whatsapp: "11966665555",
+              emergencyContactName: fullName,
+              emergencyContactPhone: "11955554444",
               ...(birthDate ? { birthDate } : {}),
               tags: [],
             },
@@ -3017,6 +3051,9 @@ describe("CRM API", () => {
       payload: {
         fullName: "Cliente Existente",
         phone: "21977776666",
+        whatsapp: "21977776666",
+        emergencyContactName: "Cliente Existente",
+        emergencyContactPhone: "21977776666",
         cpf: "98765432100",
         tags: [],
       },
@@ -3453,6 +3490,9 @@ describe("CRM API", () => {
           cpf: nextTestCpf(),
           fullName: "Gabi Gestante",
           phone: "11933330001",
+          whatsapp: "11933330001",
+          emergencyContactName: "Gabi Gestante",
+          emergencyContactPhone: "11933330001",
           tags: ["Gestante T062", "Inventada", "Outra"],
         },
       });
@@ -3470,6 +3510,9 @@ describe("CRM API", () => {
           cpf: nextTestCpf(),
           fullName: "Gabi Gestante",
           phone: "11933330001",
+          whatsapp: "11933330001",
+          emergencyContactName: "Gabi Gestante",
+          emergencyContactPhone: "11933330001",
           tags: ["gestante t062", "GESTANTE T062"],
         },
       });
@@ -3484,6 +3527,9 @@ describe("CRM API", () => {
           cpf: nextTestCpf(),
           fullName: "Gabi Gestante",
           phone: "11933330001",
+          whatsapp: "11933330001",
+          emergencyContactName: "Gabi Gestante",
+          emergencyContactPhone: "11933330001",
           tags: ["Inventada"],
         },
       });
@@ -3591,6 +3637,9 @@ describe("CRM API", () => {
           cpf: nextTestCpf(),
           fullName: "Gabi Gestante",
           phone: "11933330001",
+          whatsapp: "11933330001",
+          emergencyContactName: "Gabi Gestante",
+          emergencyContactPhone: "11933330001",
           tags: [],
         },
       });
@@ -3664,7 +3713,7 @@ describe("CRM API", () => {
       });
       expect(lead.statusCode).toBe(201);
       const converted = await app.inject({
-        payload: { cpf: nextTestCpf() },
+        payload: { cpf: nextTestCpf(), ...testPatientContact },
         method: "POST",
         url: `/leads/${lead.json().id}/convert`,
         headers,
@@ -3683,6 +3732,9 @@ describe("CRM API", () => {
           cpf: nextTestCpf(),
           fullName: "Lia Convertida",
           phone: "11933330009",
+          whatsapp: "11933330009",
+          emergencyContactName: "Lia Convertida",
+          emergencyContactPhone: "11933330009",
           tags: ["Convertido do CRM"],
         },
       });
@@ -3758,7 +3810,13 @@ describe("CRM API", () => {
           method: "POST",
           url: "/patients",
           headers,
-          payload: { cpf: nextTestCpf(), ...payload },
+          payload: {
+            cpf: nextTestCpf(),
+            whatsapp: payload.phone,
+            emergencyContactName: payload.fullName,
+            emergencyContactPhone: payload.phone,
+            ...payload,
+          },
         });
         expect(response.statusCode).toBe(201);
         return response.json() as {
@@ -3820,7 +3878,7 @@ describe("CRM API", () => {
         "Nome;Prontuário;CPF;DDD (Telefone);Telefone;DDD (WhatsApp);WhatsApp;E-mail;Nascimento;Etiquetas;Situação;Contato de emergência;DDD (Telefone de emergência);Telefone de emergência;Observações;Cadastrado em",
       );
       expect(all.body).toContain(
-        `\r\n"Ana; ""Exportada""";${ana.recordNumber};${ana.cpf};11;91111-0001;;;ana.exporta@example.com;20/03/1990;${tag}, vip;ativo;;;;"Linha 1\nLinha 2";`,
+        `\r\n"Ana; ""Exportada""";${ana.recordNumber};${ana.cpf};11;91111-0001;11;91111-0001;ana.exporta@example.com;20/03/1990;${tag}, vip;ativo;"Ana; ""Exportada""";11;91111-0001;"Linha 1\nLinha 2";`,
       );
 
       const chosen = await app.inject({
@@ -4073,7 +4131,13 @@ describe("CRM API", () => {
           method: "POST",
           url: "/patients",
           headers,
-          payload: { cpf: nextTestCpf(), ...payload },
+          payload: {
+            cpf: nextTestCpf(),
+            whatsapp: payload.phone,
+            emergencyContactName: payload.fullName,
+            emergencyContactPhone: payload.phone,
+            ...payload,
+          },
         });
         expect(response.statusCode).toBe(201);
         return response.json() as { id: string; fullName: string };
@@ -4347,6 +4411,9 @@ describe("CRM API", () => {
           cpf: nextTestCpf(),
           fullName: "Maximiliano Comunicado",
           phone: "11922220005",
+          whatsapp: "11922220005",
+          emergencyContactName: "Maximiliano Comunicado",
+          emergencyContactPhone: "11922220005",
           tags: [tag],
         },
       });
@@ -4469,7 +4536,11 @@ describe("CRM API", () => {
           headers: as,
           payload: {
             ...payload,
-            patient: { cpf: nextTestCpf(), ...(payload.patient as object) },
+            patient: {
+              cpf: nextTestCpf(),
+              ...testPatientContact,
+              ...(payload.patient as object),
+            },
             ...(payload.plan
               ? {
                   plan: {
@@ -4605,6 +4676,9 @@ describe("CRM API", () => {
         patient: {
           fullName: "Demo Guiada",
           phone: "11955550001",
+          whatsapp: "11955550001",
+          emergencyContactName: "Demo Guiada",
+          emergencyContactPhone: "11955550001",
           tags: ["experimental t064"],
         },
         appointment: { ...appointment, notes: "Primeira aula" },
@@ -4663,6 +4737,9 @@ describe("CRM API", () => {
         patient: {
           fullName: "Etiqueta Guiada",
           phone: "11955550004",
+          whatsapp: "11955550004",
+          emergencyContactName: "Etiqueta Guiada",
+          emergencyContactPhone: "11955550004",
           tags: ["vip"],
         },
         appointment: { ...appointment, startsAt: "2031-03-26T13:00:00.000Z" },

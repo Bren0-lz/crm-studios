@@ -3,6 +3,7 @@ import { phoneSchema } from "../common/model.js";
 import {
   patientProfileSchema,
   patientInputSchema,
+  patientOptionalContactShape,
   leadStageSchema,
 } from "../patients/model.js";
 
@@ -15,8 +16,10 @@ export const leadPatientProfileSchema = patientProfileSchema.extend(
       emergencyContactName: true,
       emergencyContactPhone: true,
     })
-    .extend({ cpf: patientInputSchema.shape.cpf.optional().or(z.literal("")) })
-    .shape,
+    .extend({
+      ...patientOptionalContactShape,
+      cpf: patientInputSchema.shape.cpf.optional().or(z.literal("")),
+    }).shape,
 );
 export function leadPatientProfile(
   input: z.infer<typeof leadPatientProfileSchema>,

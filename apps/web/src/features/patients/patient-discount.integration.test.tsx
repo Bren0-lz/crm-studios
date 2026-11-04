@@ -10,6 +10,7 @@ import { describe, expect, it, vi } from "vitest";
 import App from "../../App";
 import { storedUser } from "../../test-support/legacy-fixtures";
 import "../../test-support/legacy-setup";
+import { fillRequiredContact } from "../../test-support/patient-actions";
 
 const pilatesId = "77777777-7777-4777-8777-777777777777";
 const singleTemplate = {
@@ -105,6 +106,7 @@ async function openNewClient() {
   fireEvent.change(within(dialog).getByLabelText("CPF"), {
     target: { value: patient.cpf },
   });
+  fillRequiredContact(dialog);
   fireEvent.change(
     within(
       within(dialog).getByRole("group", { name: "Contato" }),

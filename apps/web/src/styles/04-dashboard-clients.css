@@ -980,6 +980,15 @@
   color: var(--muted);
   font-weight: 400;
 }
+/* Cadastro antigo sem WhatsApp ou contato de emergência (CD1): diz o que falta. */
+.patient-overview-incomplete {
+  margin: 0;
+  padding: var(--space-3) calc(var(--space-5) - 1px);
+  border-bottom: 1px solid var(--line);
+  color: var(--red);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
 /* Plano e próximo atendimento: o que a recepção mais consulta, em destaque. */
 .patient-overview-highlights {
   border-top: 1px solid var(--line);

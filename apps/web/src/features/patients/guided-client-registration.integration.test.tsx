@@ -16,6 +16,7 @@ import { describe, expect, it, vi } from "vitest";
 import App from "../../App";
 import { storedUser } from "../../test-support/legacy-fixtures";
 import "../../test-support/legacy-setup";
+import { fillRequiredContact } from "../../test-support/patient-actions";
 
 describe("guided client registration", () => {
   const admin = {
@@ -173,6 +174,7 @@ describe("guided client registration", () => {
     fireEvent.change(within(dialog).getByLabelText("CPF"), {
       target: { value: "52998224725" },
     });
+    fillRequiredContact(dialog);
     fireEvent.change(within(dialog).getAllByLabelText("Telefone")[0]!, {
       target: { value: "11987654321" },
     });

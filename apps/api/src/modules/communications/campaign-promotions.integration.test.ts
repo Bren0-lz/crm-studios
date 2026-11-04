@@ -36,6 +36,9 @@ async function setup() {
         cpf: nextTestCpf(),
         fullName: "Lara Promo",
         phone: "11955554444",
+        whatsapp: "11955554444",
+        emergencyContactName: "Lara Promo",
+        emergencyContactPhone: "11955554444",
         tags: [],
       },
     })

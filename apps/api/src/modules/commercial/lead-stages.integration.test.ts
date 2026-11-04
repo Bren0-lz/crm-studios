@@ -8,6 +8,7 @@ import {
   type LeadBoard,
   type LeadStageConfig,
 } from "@crm/contracts";
+import { testPatientContact } from "../../test-support/patient-contact.js";
 
 const clinicId = "11111111-1111-4111-8111-111111111111",
   otherClinicId = "33333333-3333-4333-8333-333333333333",
@@ -168,6 +169,7 @@ describe("configurable lead funnel", () => {
     const converted = await createLead("Lead convertido");
     await repository.convertLead(clinicId, actorId, converted.id, {
       cpf: nextTestCpf(),
+      ...testPatientContact,
     });
     const open = await createLead("Lead aberto");
     await repository.moveLead(clinicId, actorId, open.id, "proposal");

@@ -6,6 +6,9 @@ const client = {
   fullName: "Cliente Histórico",
   cpf: "529.982.247-25",
   phone: "11999998888",
+  whatsapp: "11999998888",
+  emergencyContactName: "Cliente Histórico",
+  emergencyContactPhone: "11999998888",
   email: "cliente@example.com",
   tags: [],
 };

@@ -17,6 +17,9 @@ describe("plan discount", () => {
       cpf: nextTestCpf(),
       fullName: "Cliente com Desconto",
       phone: "11955552222",
+      whatsapp: "11955552222",
+      emergencyContactName: "Cliente com Desconto",
+      emergencyContactPhone: "11955552222",
       tags: [],
     };
     const created = await app.inject({
@@ -87,6 +90,9 @@ describe("plan discount", () => {
           cpf: nextTestCpf(),
           fullName: "Cliente Desconto Parcelas",
           phone: "11955554444",
+          whatsapp: "11955554444",
+          emergencyContactName: "Cliente Desconto Parcelas",
+          emergencyContactPhone: "11955554444",
           tags: [],
         },
       })
@@ -200,6 +206,9 @@ describe("plan discount", () => {
           cpf: nextTestCpf(),
           fullName: "Cliente Relatório Desconto",
           phone: "11955556666",
+          whatsapp: "11955556666",
+          emergencyContactName: "Cliente Relatório Desconto",
+          emergencyContactPhone: "11955556666",
           tags: [],
         },
       })
@@ -326,6 +335,9 @@ describe("plan discount", () => {
           cpf: nextTestCpf(),
           fullName: "Cliente Inválido",
           phone: "11955553333",
+          whatsapp: "11955553333",
+          emergencyContactName: "Cliente Inválido",
+          emergencyContactPhone: "11955553333",
           tags: [],
           discount,
         },

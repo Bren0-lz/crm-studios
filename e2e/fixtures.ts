@@ -80,6 +80,9 @@ export async function seedPatient(api: APIRequestContext, name: string) {
       fullName: name,
       cpf: nextTestCpf(),
       phone: "11999991234",
+      whatsapp: "11999991234",
+      emergencyContactName: name,
+      emergencyContactPhone: "11999991234",
       tags: [],
     },
   });

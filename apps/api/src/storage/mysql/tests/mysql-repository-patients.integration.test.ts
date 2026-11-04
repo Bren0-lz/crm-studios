@@ -30,6 +30,7 @@ import {
 } from "../../../test-support/mysql-fixtures.js";
 import { atInstant } from "../../../test-support/clock.js";
 import "../../../test-support/mysql-setup.js";
+import { testPatientContact } from "../../../test-support/patient-contact.js";
 
 describe.skipIf(!databaseUrl)("MySQL repository", () => {
   let database: TestDatabase | undefined;
@@ -424,7 +425,7 @@ describe.skipIf(!databaseUrl)("MySQL repository", () => {
       clinicId,
       ownerId,
       lead.id,
-      { cpf: lead.cpf ?? nextTestCpf() },
+      { cpf: lead.cpf ?? nextTestCpf(), ...testPatientContact },
     );
     expect(conversion).toMatchObject({
       reusedExisting: false,
@@ -521,6 +522,7 @@ describe.skipIf(!databaseUrl)("MySQL repository", () => {
         lead.id,
         {
           cpf: "52998224725",
+          whatsapp: "11988887777",
           emergencyContactName: "Joana Mãe",
           emergencyContactPhone: "11988887777",
           postalCode: "01310-100",
@@ -1228,6 +1230,9 @@ describe.skipIf(!databaseUrl)("MySQL repository", () => {
             cpf: nextTestCpf(),
             fullName: "Guiada PG Demo",
             phone: phones[0]!,
+            whatsapp: phones[0]!,
+            emergencyContactName: "Guiada PG Demo",
+            emergencyContactPhone: phones[0]!,
             tags: [],
           },
           appointment,
@@ -1246,6 +1251,9 @@ describe.skipIf(!databaseUrl)("MySQL repository", () => {
             cpf: nextTestCpf(),
             fullName: "Guiada PG Conflito",
             phone: phones[1]!,
+            whatsapp: phones[1]!,
+            emergencyContactName: "Guiada PG Conflito",
+            emergencyContactPhone: phones[1]!,
             tags: [],
           },
           appointment,
@@ -1269,6 +1277,9 @@ describe.skipIf(!databaseUrl)("MySQL repository", () => {
             cpf: nextTestCpf(),
             fullName: "Guiada PG Turma",
             phone: phones[2]!,
+            whatsapp: phones[2]!,
+            emergencyContactName: "Guiada PG Turma",
+            emergencyContactPhone: phones[2]!,
             tags: [],
           },
           plan: { ...terms, kind: "recurring" },
@@ -1294,6 +1305,9 @@ describe.skipIf(!databaseUrl)("MySQL repository", () => {
             cpf: nextTestCpf(),
             fullName: "Guiada PG Sem Turma",
             phone: phones[3]!,
+            whatsapp: phones[3]!,
+            emergencyContactName: "Guiada PG Sem Turma",
+            emergencyContactPhone: phones[3]!,
             tags: [],
           },
           plan: { ...terms, kind: "fixed_package" },
@@ -1309,6 +1323,9 @@ describe.skipIf(!databaseUrl)("MySQL repository", () => {
             cpf: nextTestCpf(),
             fullName: "Guiada PG Dois Planos",
             phone: phones[6]!,
+            whatsapp: phones[6]!,
+            emergencyContactName: "Guiada PG Dois Planos",
+            emergencyContactPhone: phones[6]!,
             tags: [],
           },
           plan: { ...terms, kind: "fixed_package" },
@@ -1339,6 +1356,9 @@ describe.skipIf(!databaseUrl)("MySQL repository", () => {
             cpf: nextTestCpf(),
             fullName: "Guiada PG Avulso",
             phone: phones[4]!,
+            whatsapp: phones[4]!,
+            emergencyContactName: "Guiada PG Avulso",
+            emergencyContactPhone: phones[4]!,
             tags: [],
           },
           plan: {
@@ -1377,6 +1397,9 @@ describe.skipIf(!databaseUrl)("MySQL repository", () => {
             cpf: nextTestCpf(),
             fullName: "Guiada PG Desfeita",
             phone: phones[5]!,
+            whatsapp: phones[5]!,
+            emergencyContactName: "Guiada PG Desfeita",
+            emergencyContactPhone: phones[5]!,
             tags: [],
           },
           plan: {
@@ -1403,6 +1426,9 @@ describe.skipIf(!databaseUrl)("MySQL repository", () => {
             cpf: nextTestCpf(),
             fullName: "Guiada PG Desfeita",
             phone: phones[5]!,
+            whatsapp: phones[5]!,
+            emergencyContactName: "Guiada PG Desfeita",
+            emergencyContactPhone: phones[5]!,
             tags: [],
           },
           plan: {

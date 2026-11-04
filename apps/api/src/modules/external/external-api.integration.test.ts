@@ -12,6 +12,7 @@ import {
 } from "../../test-support/legacy-fixtures.js";
 import { hashIntegrationToken } from "../integrations/tokens.js";
 import { externalEndpoints } from "./endpoints.js";
+import { testPatientContact } from "../../test-support/patient-contact.js";
 
 const clinicId = "11111111-1111-4111-8111-111111111111";
 
@@ -205,7 +206,7 @@ describe("API externa de vendas", () => {
       method: "POST",
       url: `/external/v1/leads/${lead.json().id}/convert`,
       headers,
-      payload: { cpf: nextTestCpf() },
+      payload: { cpf: nextTestCpf(), ...testPatientContact },
     });
     expect(converted.statusCode, converted.body).toBe(200);
     const patientId = converted.json().patient.id as string;
@@ -263,6 +264,9 @@ describe("API externa de vendas", () => {
         fullName: "Cliente na espera",
         cpf: nextTestCpf(),
         phone: "11966665555",
+        whatsapp: "11966665555",
+        emergencyContactName: "Cliente na espera",
+        emergencyContactPhone: "11966665555",
       },
     });
     expect(other.statusCode, other.body).toBe(201);
@@ -363,6 +367,9 @@ describe("API externa de vendas", () => {
         fullName: "Cliente em atraso",
         cpf: nextTestCpf(),
         phone: "11944443333",
+        whatsapp: "11944443333",
+        emergencyContactName: "Cliente em atraso",
+        emergencyContactPhone: "11944443333",
       },
     });
     expect(patient.statusCode, patient.body).toBe(201);

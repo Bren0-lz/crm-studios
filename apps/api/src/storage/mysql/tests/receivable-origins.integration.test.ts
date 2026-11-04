@@ -44,6 +44,9 @@ for (const storage of ["memory", "mysql"] as const) {
             cpf: nextTestCpf(),
             fullName: "Cliente da origem",
             phone: "11988887777",
+            whatsapp: "11988887777",
+            emergencyContactName: "Cliente da origem",
+            emergencyContactPhone: "11988887777",
           }),
         );
         const [first, second] = await repository.listServices(clinicId);

@@ -29,7 +29,15 @@ describe("etiqueta automática 'Pagamento atrasado' (QC7)", () => {
             method: "POST",
             url: "/patients",
             headers,
-            payload: { cpf: nextTestCpf(), fullName, phone, tags: [] },
+            payload: {
+              cpf: nextTestCpf(),
+              fullName,
+              phone,
+              whatsapp: phone,
+              emergencyContactName: fullName,
+              emergencyContactPhone: phone,
+              tags: [],
+            },
           })
         ).json() as { id: string };
       const late = await createPatient("Lara Atrasada", "11955550001");
@@ -126,6 +134,9 @@ describe("etiqueta automática 'Pagamento atrasado' (QC7)", () => {
           cpf: nextTestCpf(),
           fullName: "Otávio Em Dia",
           phone: "11955550002",
+          whatsapp: "11955550002",
+          emergencyContactName: "Otávio Em Dia",
+          emergencyContactPhone: "11955550002",
           tags: ["pagamento atrasado"],
         },
       });
@@ -139,6 +150,9 @@ describe("etiqueta automática 'Pagamento atrasado' (QC7)", () => {
           cpf: nextTestCpf(),
           fullName: "Lara Atrasada",
           phone: "11955550001",
+          whatsapp: "11955550001",
+          emergencyContactName: "Lara Atrasada",
+          emergencyContactPhone: "11955550001",
           tags: [],
         },
       });

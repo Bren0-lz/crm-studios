@@ -48,6 +48,9 @@ for (const storage of ["memory", "mysql"] as const) {
             cpf: nextTestCpf(),
             fullName: `Sem retorno ${randomUUID()}`,
             phone: "11988887777",
+            whatsapp: "11988887777",
+            emergencyContactName: `Sem retorno ${randomUUID()}`,
+            emergencyContactPhone: "11988887777",
           }),
         );
         const product = await repository.createProduct(

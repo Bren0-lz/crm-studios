@@ -149,6 +149,13 @@ export function PatientModal({
   // B6-05: cadastro novo exige CPF; quem já está sem CPF (importado da planilha) pode ser
   // editado sem ele e mantém a etiqueta "Falta CPF" até preencher. CPF gravado não se apaga.
   const cpfOptional = Boolean(patient) && !patient?.cpf;
+  // CD1: o mesmo para WhatsApp e contato de emergência — obrigatórios no cadastro novo; quem
+  // foi cadastrado antes sem eles segue editável, mas o que já está gravado não se apaga.
+  const whatsappOptional = Boolean(patient) && !patient?.whatsapp;
+  const emergencyNameOptional =
+    Boolean(patient) && !patient?.emergencyContactName;
+  const emergencyPhoneOptional =
+    Boolean(patient) && !patient?.emergencyContactPhone;
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [changeReason, setChangeReason] = useState("");
@@ -448,6 +455,13 @@ export function PatientModal({
     ...(form.fullName.trim() ? [] : ["Nome completo"]),
     ...(form.cpf.trim() || cpfOptional ? [] : ["CPF"]),
     ...(form.phone.trim() ? [] : ["Telefone"]),
+    ...(form.whatsapp?.trim() || whatsappOptional ? [] : ["WhatsApp"]),
+    ...(form.emergencyContactName?.trim() || emergencyNameOptional
+      ? []
+      : ["Nome do contato de emergência"]),
+    ...(form.emergencyContactPhone?.trim() || emergencyPhoneOptional
+      ? []
+      : ["Telefone do contato de emergência"]),
     ...(step === "demonstration"
       ? [
           !demonstration.serviceId && "Serviço",
@@ -995,15 +1009,57 @@ export function PatientModal({
               <label>
                 WhatsApp
                 <PhoneInput
+                  required={!whatsappOptional}
                   value={form.whatsapp ?? ""}
                   onChange={(digits) => field("whatsapp", digits)}
                 />
               </label>
-              <small className="field-hint">
-                Em branco, as mensagens usam o telefone de contato.
-              </small>
+              {whatsappOptional && (
+                <small className="field-hint">
+                  Cadastro sem WhatsApp: preencha quando tiver. Em branco, as
+                  mensagens usam o telefone de contato.
+                </small>
+              )}
             </div>
           </div>
+        </fieldset>
+        <fieldset className="form-fieldset emergency-fieldset span-2">
+          <legend>Contato de emergência</legend>
+          <div className="form-fieldset-grid">
+            <label>
+              Nome
+              <input
+                autoComplete="off"
+                placeholder="Ex.: Maria Souza (mãe)"
+                required={!emergencyNameOptional}
+                value={form.emergencyContactName}
+                onChange={(e) => field("emergencyContactName", e.target.value)}
+              />
+            </label>
+            <label>
+              Telefone
+              <PhoneInput
+                required={!emergencyPhoneOptional}
+                value={form.emergencyContactPhone ?? ""}
+                onChange={(digits) => field("emergencyContactPhone", digits)}
+              />
+            </label>
+          </div>
+          {/* Quem não tem contato de emergência repete o próprio nome e telefone. */}
+          <button
+            className="secondary-button"
+            type="button"
+            disabled={!form.fullName.trim() && !form.phone.trim()}
+            onClick={() =>
+              setForm((current) => ({
+                ...current,
+                emergencyContactName: current.fullName,
+                emergencyContactPhone: current.phone,
+              }))
+            }
+          >
+            Usar os dados do cliente
+          </button>
         </fieldset>
         <label>
           E-mail
@@ -1031,31 +1087,6 @@ export function PatientModal({
                 setForm((current) => ({ ...current, [key]: value }))
               }
             />
-            <fieldset className="form-fieldset emergency-fieldset span-2">
-              <legend>Contato de emergência</legend>
-              <div className="form-fieldset-grid">
-                <label>
-                  Nome
-                  <input
-                    autoComplete="off"
-                    placeholder="Ex.: Maria Souza (mãe)"
-                    value={form.emergencyContactName}
-                    onChange={(e) =>
-                      field("emergencyContactName", e.target.value)
-                    }
-                  />
-                </label>
-                <label>
-                  Telefone
-                  <PhoneInput
-                    value={form.emergencyContactPhone ?? ""}
-                    onChange={(digits) =>
-                      field("emergencyContactPhone", digits)
-                    }
-                  />
-                </label>
-              </div>
-            </fieldset>
             <fieldset className="form-fieldset span-2">
               <legend>Etiquetas</legend>
               {configuredTags.error ? (
