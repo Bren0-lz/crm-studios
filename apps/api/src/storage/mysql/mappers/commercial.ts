@@ -10,6 +10,7 @@ import { json } from "./common.js";
 
 export interface LeadRow {
   branchId?: string;
+  eventId?: string | null;
   contactMethod: string | null;
   profile?: Record<string, unknown>;
   id: string;
@@ -64,7 +65,7 @@ export interface LeadTaskRow {
 export const leadColumns = `
   branch_id AS "branchId", id, clinic_id AS "clinicId", full_name AS "fullName", phone, email,
   contact_method AS "contactMethod",profile,source, interest, notes, stage, lost_reason AS "lostReason",
-  converted_patient_id AS "convertedPatientId",
+  converted_patient_id AS "convertedPatientId", event_id AS "eventId",
   responsible_user_id AS "responsibleUserId", tags,
   (SELECT u.full_name FROM users u WHERE u.id = leads.responsible_user_id) AS "responsibleName",
   (SELECT COUNT(*) FROM lead_tasks lt WHERE lt.lead_id = leads.id AND lt.status = 'open') AS "openTasks",
@@ -96,6 +97,7 @@ export function mapLead(row: LeadRow): Lead {
     ...(row.convertedPatientId
       ? { convertedPatientId: row.convertedPatientId }
       : {}),
+    ...(row.eventId ? { eventId: row.eventId } : {}),
     openTasks: Number(row.openTasks ?? 0),
     overdueTasks: Number(row.overdueTasks ?? 0),
     ...(row.lastContactAt

@@ -3,6 +3,7 @@ import {
   withConversionInput,
 } from "../../modules/commercial/conversion.js";
 import {
+  eventLeadSource,
   buildLeadFilterOptions,
   buildLeadInsights,
   findLeadDuplicates,
@@ -110,6 +111,17 @@ export function createCommercialRepository(
           "Responsável não encontrado.",
           404,
         );
+      // Participante de evento: origem "Evento: <nome>" e a filial do evento (se tiver).
+      const event = input.eventId
+        ? repositoryContext.events.find(
+            (item) =>
+              item.clinicId === clinicId &&
+              item.id === input.eventId &&
+              (!item.branchId || repositoryContext.inBranchScope(item)),
+          )
+        : undefined;
+      if (input.eventId && !event)
+        throw new DomainError("EVENT_NOT_FOUND", "Evento não encontrado.", 404);
       const timestamp = now();
       const responsibleName = input.responsibleUserId
         ? repositoryContext.users.find(
@@ -118,7 +130,8 @@ export function createCommercialRepository(
         : undefined;
       const lead: Lead = {
         ...input,
-        branchId: repositoryContext.writeBranchId(clinicId),
+        ...(event ? { source: eventLeadSource(event.name) } : {}),
+        branchId: event?.branchId ?? repositoryContext.writeBranchId(clinicId),
         id: uuid(),
         clinicId,
         stage: firstOpenLeadStage(await repository.listLeadStages(clinicId)),
@@ -162,7 +175,10 @@ export function createCommercialRepository(
           "Responsável não encontrado.",
           404,
         );
-      Object.assign(lead, input, { updatedAt: now() });
+      // O vínculo com o evento é do cadastro; a edição não troca.
+      const changes: LeadInput = { ...input };
+      delete changes.eventId;
+      Object.assign(lead, changes, { updatedAt: now() });
       if (responsible) lead.responsibleName = responsible.fullName;
       else delete lead.responsibleName;
       repositoryContext.recordAudit(

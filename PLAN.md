@@ -662,7 +662,7 @@ atualizado no mesmo PR):
   - Testes API (memória + MySQL opt-in) e contracts.
 - **Gate:** gate completo e `npm run test:mysql`
 - **Depende de:** SS2 (ordem)
-- **Status:** TODO
+- **Status:** DONE
 
 ### EV2 — Página Eventos
 
