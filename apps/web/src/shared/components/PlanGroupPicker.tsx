@@ -1,3 +1,4 @@
+import { groupVacancyLabel } from "../lib/formatting";
 import { compatiblePlanGroups } from "../lib/plan-groups";
 import type { GroupChoices } from "../workflows/types";
 import { GroupDetails } from "./GroupDetails";
@@ -38,10 +39,6 @@ export function PlanGroupPicker({
             {mandatory ? "Selecione a turma" : "Escolher depois"}
           </option>
           {choices.map((group) => {
-            const vacancies = Math.max(
-              0,
-              group.capacity - group.activeEnrollments,
-            );
             const schedule = group.weeklySlots
               .map(
                 (slot) =>
@@ -50,7 +47,7 @@ export function PlanGroupPicker({
               .join(", ");
             return (
               <option key={group.id} value={group.id}>
-                {`${group.name} · ${group.professionalName} · ${schedule} · ${vacancies ? `${vacancies} ${vacancies === 1 ? "vaga" : "vagas"}` : "Sem vagas · lista de espera"}`}
+                {`${group.name} · ${group.professionalName} · ${schedule} · ${groupVacancyLabel(group)}`}
               </option>
             );
           })}

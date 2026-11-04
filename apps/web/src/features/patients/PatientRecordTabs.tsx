@@ -649,9 +649,13 @@ export function PatientRecordTabs({
           patient={patientOption}
           kind={newPlanKind}
           onClose={() => setNewPlanKind(null)}
-          onSaved={(plan) => {
+          onSaved={(plan, notice) => {
             setNewPlanKind(null);
-            toast.success(`Plano ${plan.name} vinculado.`);
+            toast.success(
+              notice
+                ? `Plano ${plan.name} vinculado. ${notice}`
+                : `Plano ${plan.name} vinculado.`,
+            );
           }}
         />
       )}

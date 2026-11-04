@@ -76,6 +76,15 @@ export function groupSeatsLabel(enrolled: number, capacity: number) {
   return `${enrolledLabel} · ${freeLabel}`;
 }
 
+/** Vagas da turma nos seletores (plano, cadastro guiado, Turmas): cheia vai para a espera. */
+export function groupVacancyLabel(
+  group: Pick<GroupClass, "capacity" | "activeEnrollments">,
+) {
+  const free = group.capacity - group.activeEnrollments;
+  if (free <= 0) return "turma cheia (lista de espera)";
+  return free === 1 ? "1 vaga" : `${free} vagas`;
+}
+
 /** Aviso da matrícula em turma (QM13): vaga confirmada ou lista de espera, sem gênero. */
 export function groupEnrollmentToast(
   enrollment: Pick<
@@ -85,10 +94,9 @@ export function groupEnrollmentToast(
   groupName?: string,
 ) {
   const name = patientFirstName(enrollment.patientName);
-  const target = groupName ? ` em ${groupName}` : "";
   return enrollment.status === "waitlisted"
-    ? `${name} entrou na lista de espera${target}${enrollment.queuePosition ? ` (posição ${enrollment.queuePosition})` : ""}.`
-    : `Matrícula de ${name} confirmada${target}.`;
+    ? `Turma cheia: ${name} entrou na lista de espera${groupName ? ` de ${groupName}` : ""}${enrollment.queuePosition ? ` (posição ${enrollment.queuePosition})` : ""}.`
+    : `Matrícula de ${name} confirmada${groupName ? ` em ${groupName}` : ""}.`;
 }
 
 export function groupSlotLabel(

@@ -12,6 +12,7 @@ import { FixedPatient } from "../../shared/components/FixedPatient";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
 import { Modal } from "../../shared/components/Modal";
 import { usePlanGroupChoices } from "../../shared/hooks/usePlanGroupChoices";
+import { groupEnrollmentToast } from "../../shared/lib/formatting";
 import {
   issueDocumentForSignature,
   SignatureSendStep,
@@ -40,7 +41,8 @@ export function PatientPlanModal({
   patient: PatientOption;
   kind: PlanCatalogKind;
   onClose: () => void;
-  onSaved: (plan: PatientPlan) => void;
+  /** `notice`: aviso da matrícula na turma (vaga confirmada ou lista de espera). */
+  onSaved: (plan: PatientPlan, notice?: string) => void;
 }) {
   const [busy, setBusy] = useState(false);
   const [nested, setNested] = useState(false);
@@ -52,6 +54,8 @@ export function PatientPlanModal({
   } | null>(null);
   const [services, setServices] = useState<Service[] | null>(null);
   const [error, setError] = useState("");
+  // Matrícula na turma da contratação: o aviso acompanha o plano salvo (TW1).
+  const [enrollmentNotice, setEnrollmentNotice] = useState<string>();
   const [attempt, setAttempt] = useState(0);
   const { can } = useAuthorization();
   // Recorrente de aulas em grupo: a matrícula na turma entra na mesma contratação.
@@ -93,9 +97,9 @@ export function PatientPlanModal({
       inactive={nested}
       onClose={
         scheduled
-          ? () => onSaved(scheduled.plan)
+          ? () => onSaved(scheduled.plan, enrollmentNotice)
           : sending
-            ? () => onSaved(sending.plan)
+            ? () => onSaved(sending.plan, enrollmentNotice)
             : onClose
       }
     >
@@ -103,13 +107,17 @@ export function PatientPlanModal({
         <PlanSessionsSentStep
           plan={scheduled.plan}
           appointments={scheduled.appointments}
-          onDone={() => onSaved(scheduled.plan)}
+          onDone={() => onSaved(scheduled.plan, enrollmentNotice)}
         />
       ) : sending ? (
         <SignatureSendStep
           prepare={sending.prepare}
           onBusyChange={setBusy}
-          onDone={() => (scheduled ? setSending(null) : onSaved(sending.plan))}
+          onDone={() =>
+            scheduled
+              ? setSending(null)
+              : onSaved(sending.plan, enrollmentNotice)
+          }
         />
       ) : services ? (
         <PlanForm
@@ -149,6 +157,7 @@ export function PatientPlanModal({
             let document: IssuedDocument | undefined;
             let plan: PatientPlan;
             let booked: Appointment[] = [];
+            let notice: string | undefined;
             const appointments =
               purchase && kind === "single" ? options.appointments : [];
             if (groupId || appointments.length) {
@@ -163,9 +172,19 @@ export function PatientPlanModal({
               plan = result.plan;
               document = result.document;
               booked = result.appointments;
+              if (result.enrollment) {
+                notice = groupEnrollmentToast(
+                  result.enrollment,
+                  groups?.items?.find(
+                    (item) => item.id === result.enrollment?.groupId,
+                  )?.name,
+                );
+                setEnrollmentNotice(notice);
+              }
               if (booked.length) setScheduled({ plan, appointments: booked });
             } else plan = await api.createPlan(input);
-            if (!signature) return booked.length ? undefined : onSaved(plan);
+            if (!signature)
+              return booked.length ? undefined : onSaved(plan, notice);
             setSending({
               plan,
               prepare: document
