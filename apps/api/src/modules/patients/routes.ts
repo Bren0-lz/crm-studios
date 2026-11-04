@@ -6,7 +6,9 @@ import {
   matchesPatientSegment,
   guidedPatientInputSchema,
   isAutomaticPatientTag,
+  INCOMPLETE_REGISTRATION_TAG,
   MISSING_CPF_TAG,
+  MISSING_EMAIL_TAG,
   patientTagKey,
   OVERDUE_PAYMENT_TAG,
   patientExportFilterSchema,
@@ -80,17 +82,26 @@ export function registerPatientsRoutes(context: RouteContext) {
     );
 
   /**
-   * "Pagamento atrasado" (QC7) e "Falta CPF" (B6-05) são automáticas: não podem ser criadas nem
-   * renomeadas à mão.
+   * "Pagamento atrasado" (QC7), "Falta CPF" (B6-05), "Cadastro incompleto" e "Sem e-mail" (CD3)
+   * são automáticas: não podem ser criadas nem renomeadas à mão.
    */
   function assertManualTagName(name: string | undefined) {
     if (name === undefined || !isAutomaticPatientTag(name)) return;
-    const missingCpf = patientTagKey(name) === patientTagKey(MISSING_CPF_TAG);
+    const key = patientTagKey(name);
+    const reasons: [string, string][] = [
+      [MISSING_CPF_TAG, "clientes sem CPF"],
+      [
+        INCOMPLETE_REGISTRATION_TAG,
+        "clientes importados sem WhatsApp ou sem contato de emergência",
+      ],
+      [MISSING_EMAIL_TAG, "clientes importados sem e-mail"],
+      [OVERDUE_PAYMENT_TAG, "clientes com parcela vencida"],
+    ];
+    const [tag, reason] =
+      reasons.find(([item]) => patientTagKey(item) === key) ?? reasons[3]!;
     throw new DomainError(
       "PATIENT_TAG_AUTOMATIC",
-      missingCpf
-        ? `“${MISSING_CPF_TAG}” é uma etiqueta automática: aparece sozinha para clientes sem CPF.`
-        : `“${OVERDUE_PAYMENT_TAG}” é uma etiqueta automática: aparece sozinha para clientes com parcela vencida.`,
+      `“${tag}” é uma etiqueta automática: aparece sozinha para ${reason}.`,
       400,
     );
   }

@@ -39,6 +39,14 @@ const withCpf = {
   tags: [],
 };
 
+// Contato completo (CD3): a prévia trata só do CPF, sem "Cadastro incompleto"/"Sem e-mail".
+const completeContact = {
+  whatsapp: "11955549999",
+  emergencyContactName: "Contato",
+  emergencyContactPhone: "11955549999",
+  email: "contato@example.com",
+};
+
 function login() {
   localStorage.setItem("crm.auth.token", "test-token");
   localStorage.setItem(
@@ -191,6 +199,7 @@ describe("cliente sem CPF (B6-05)", () => {
                 input: {
                   fullName: "Gina Importada",
                   phone: "11955540020",
+                  ...completeContact,
                   tags: [],
                 },
               },
@@ -203,6 +212,7 @@ describe("cliente sem CPF (B6-05)", () => {
                   fullName: "Davi Com Documento",
                   phone: "11955540030",
                   cpf: "52998224725",
+                  ...completeContact,
                   tags: [],
                 },
               },

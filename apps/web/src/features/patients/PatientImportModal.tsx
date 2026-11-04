@@ -4,7 +4,11 @@ import {
   type PatientImportFileInput,
   type PatientImportResult,
   formatPhone,
+  INCOMPLETE_REGISTRATION_TAG,
+  lacksEmail,
+  lacksRequiredContact,
   MISSING_CPF_TAG,
+  MISSING_EMAIL_TAG,
 } from "@crm/contracts";
 import { Download, FileDown } from "lucide-react";
 import { useState } from "react";
@@ -23,6 +27,7 @@ import {
   patientImportFieldOptions,
   patientImportStatusLabels,
   patientImportTemplateHref,
+  importRowNotes,
   readFileAsBase64,
   storeImportMapping,
   storedImportMapping,
@@ -106,9 +111,14 @@ export function PatientImportModal({
 
   const validCount = analysis?.totals.valid ?? 0;
   // B6-05: linhas válidas sem CPF entram com a etiqueta automática "Falta CPF".
-  const withoutCpfCount =
-    analysis?.rows.filter((row) => row.status === "valid" && !row.input?.cpf)
-      .length ?? 0;
+  const validInputs =
+    analysis?.rows.flatMap((row) =>
+      row.status === "valid" && row.input ? [row.input] : [],
+    ) ?? [];
+  const withoutCpfCount = validInputs.filter((input) => !input.cpf).length;
+  // CD3: sem WhatsApp/contato de emergência ou sem e-mail entram com as etiquetas automáticas.
+  const incompleteCount = validInputs.filter(lacksRequiredContact).length;
+  const withoutEmailCount = validInputs.filter(lacksEmail).length;
   // Sem planilha, Importar fica desativado dizendo o que falta; sem linhas válidas, a prévia explica.
   const missing = useMissingFields(
     file || analysis ? [] : ["Planilha de clientes"],
@@ -144,7 +154,9 @@ export function PatientImportModal({
               A primeira linha deve ter os títulos das colunas. Depois de
               enviar, escolha a que dado do sistema corresponde cada coluna
               (nome e telefone são obrigatórios). Quem vier sem CPF recebe a
-              etiqueta “{MISSING_CPF_TAG}”, que sai sozinha quando o CPF for
+              etiqueta “{MISSING_CPF_TAG}”; sem WhatsApp ou contato de
+              emergência, “{INCOMPLETE_REGISTRATION_TAG}”; sem e-mail,
+              “{MISSING_EMAIL_TAG}”. Elas saem sozinhas quando o dado for
               preenchido. Datas em dd/mm/aaaa e etiquetas separadas por
               vírgula. Até 2 MB.
             </span>
@@ -239,6 +251,18 @@ export function PatientImportModal({
               {withoutCpfCount > 0 && (
                 <span className="status-pill">{`${withoutCpfCount} sem CPF`}</span>
               )}
+              {incompleteCount > 0 && (
+                <span className="status-pill">
+                  {countLabel(
+                    incompleteCount,
+                    "cadastro incompleto",
+                    "cadastros incompletos",
+                  )}
+                </span>
+              )}
+              {withoutEmailCount > 0 && (
+                <span className="status-pill">{`${withoutEmailCount} sem e-mail`}</span>
+              )}
             </div>
             {analysis.rows.length > 0 && (
               <div className="patient-import-table">
@@ -264,9 +288,7 @@ export function PatientImportModal({
                         ? (row.errors ?? []).join(" ")
                         : row.duplicateOf
                           ? describeImportDuplicate(row.duplicateOf)
-                          : row.input?.cpf
-                            ? "Pronta para importar"
-                            : `Pronta para importar · sem CPF (etiqueta “${MISSING_CPF_TAG}”)`}
+                          : ["Pronta para importar", ...importRowNotes(row.input)].join(" · ")}
                     </small>
                   </div>
                 ))}

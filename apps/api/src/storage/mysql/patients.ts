@@ -346,7 +346,16 @@ export function createPatientsRepository(
           }
           if (cpf) cpfs.add(cpf);
           phones.add(phone);
-          await repositoryContext.insertPatient(client, clinicId, input);
+          const patient = await repositoryContext.insertPatient(
+            client,
+            clinicId,
+            input,
+          );
+          // CD3: a marca da importação libera as etiquetas "Cadastro incompleto" e "Sem e-mail".
+          await client.query(
+            `UPDATE patients SET imported_at = NOW(6) WHERE clinic_id = $1 AND id = $2`,
+            [clinicId, patient.id],
+          );
           created += 1;
         }
         return { created, skipped };

@@ -17,6 +17,17 @@ const csvFile = (csv: string) => ({
   contentBase64: Buffer.from(csv).toString("base64"),
 });
 
+// Contato completo (CD3): estes testes tratam só do CPF, sem "Cadastro incompleto"/"Sem e-mail".
+const contactHeader =
+  "WhatsApp;Contato de emergência;Telefone de emergência;E-mail";
+const contactCells = "11955549999;Contato;11955549999;contato@example.com";
+const contactFields = {
+  whatsapp: "11955549999",
+  emergencyContactName: "Contato",
+  emergencyContactPhone: "11955549999",
+  email: "contato@example.com",
+};
+
 type Listed = { id: string; fullName: string; cpf?: string; tags: string[] };
 
 describe("cliente importado sem CPF (B6-05)", () => {
@@ -34,11 +45,11 @@ describe("cliente importado sem CPF (B6-05)", () => {
         headers,
         payload: csvFile(
           [
-            "Nome;Telefone;CPF",
-            "Bianca Sem Documento;11955540001;",
-            "Caio Sem Documento;11955540002;",
-            `Davi Com Documento;11955540003;${nextTestCpf()}`,
-            "Erro De Cpf;11955540004;529.982.247-24",
+            `Nome;Telefone;CPF;${contactHeader}`,
+            `Bianca Sem Documento;11955540001;;${contactCells}`,
+            `Caio Sem Documento;11955540002;;${contactCells}`,
+            `Davi Com Documento;11955540003;${nextTestCpf()};${contactCells}`,
+            `Erro De Cpf;11955540004;529.982.247-24;${contactCells}`,
           ].join("\n"),
         ),
       });
@@ -91,7 +102,7 @@ describe("cliente importado sem CPF (B6-05)", () => {
         url: "/patients/import",
         headers,
         payload: csvFile(
-          `Nome;Telefone;CPF;Etiquetas\nFlora Etiquetada;11955540005;${nextTestCpf()};Falta CPF`,
+          `Nome;Telefone;CPF;${contactHeader};Etiquetas\nFlora Etiquetada;11955540005;${nextTestCpf()};${contactCells};Falta CPF`,
         ),
       });
       expect(fromSheet.json()).toMatchObject({ created: 1, errors: 0 });
@@ -128,7 +139,9 @@ describe("cliente importado sem CPF (B6-05)", () => {
         method: "POST",
         url: "/patients/import",
         headers,
-        payload: csvFile("Nome;Telefone\nGina Importada;11955540020"),
+        payload: csvFile(
+          `Nome;Telefone;${contactHeader}\nGina Importada;11955540020;${contactCells}`,
+        ),
       });
       const [gina] = (
         await app.inject({
@@ -138,7 +151,7 @@ describe("cliente importado sem CPF (B6-05)", () => {
         })
       ).json() as Listed[];
       const url = `/patients/${gina!.id}`;
-      const base = { fullName: "Gina Importada", tags: [] };
+      const base = { fullName: "Gina Importada", tags: [], ...contactFields };
 
       const phoneOnly = await app.inject({
         method: "PUT",

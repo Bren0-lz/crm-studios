@@ -106,6 +106,8 @@ export interface Patient extends Omit<
   emergencyContactPhone?: string | undefined;
   inactiveAt?: string;
   mergedIntoPatientId?: string;
+  /** Data da importação pela planilha (CD3); ausente em cadastro manual. */
+  importedAt?: string;
   id: string;
   clinicId: string;
   recordNumber: string;
