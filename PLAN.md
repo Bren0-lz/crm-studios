@@ -588,7 +588,7 @@ atualizado no mesmo PR):
     - Web: aviso na venda de plano.
 - **Gate:** gate completo e `npm run test:mysql`
 - **Depende de:** CD4
-- **Status:** DOING
+- **Status:** DONE
 
 ### TW2 — Vaga aberta: promover sozinho ou oferecer?
 
