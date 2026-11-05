@@ -662,7 +662,7 @@ atualizado no mesmo PR):
   - Testes API (memória + MySQL opt-in) e contracts.
 - **Gate:** gate completo e `npm run test:mysql`
 - **Depende de:** SS2 (ordem)
-- **Status:** TODO
+- **Status:** DONE
 
 ### EV2 — Página Eventos
 
@@ -993,7 +993,7 @@ atualizado no mesmo PR):
   - Teste web: a barra some sem pendência e aparece com a classe nova.
 - **Gate:** gate completo
 - **Depende de:** CM3 (ordem)
-- **Status:** TODO
+- **Status:** DONE
 
 ### AJ1 — Plano com vários serviços: layout do "Adicionar serviço"
 

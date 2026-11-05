@@ -173,6 +173,9 @@ import type {
   InventoryWorkspace,
   IssuedDocument,
   IssuedDocumentInput,
+  CommercialEvent,
+  CommercialEventDetail,
+  EventInput,
   Lead,
   LeadActivity,
   LeadAppointmentInput,
@@ -1569,6 +1572,21 @@ export interface ClinicRepository {
     taskId: string,
     status: LeadTaskStatus,
   ): Promise<LeadTask | null>;
+  /** Eventos do comercial visíveis nas filiais da consulta (os da rede sempre), do mais novo. */
+  listEvents(clinicId: string): Promise<CommercialEvent[]>;
+  /** Evento com os participantes (leads ligados, nas filiais da consulta) e os indicadores. */
+  getEvent(clinicId: string, id: string): Promise<CommercialEventDetail | null>;
+  createEvent(
+    clinicId: string,
+    actorUserId: string,
+    input: EventInput,
+  ): Promise<CommercialEvent>;
+  updateEvent(
+    clinicId: string,
+    actorUserId: string,
+    id: string,
+    input: EventInput,
+  ): Promise<CommercialEvent | null>;
   getCommunicationCenter(clinicId: string): Promise<CommunicationCenter>;
   setCommunicationPreference(
     clinicId: string,

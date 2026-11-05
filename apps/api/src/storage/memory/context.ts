@@ -544,6 +544,8 @@ export class MemoryRepositoryContext {
 
   readonly leads: Lead[] = [];
 
+  readonly events: import("./events.js").EventRow[] = [];
+
   readonly leadContacts: LeadContact[] = [];
 
   readonly leadTasks: LeadTask[] = [];
