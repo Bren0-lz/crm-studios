@@ -1,10 +1,12 @@
 import {
+  currentReceiptSignatureSummary,
   receiptSignatureReversalReason,
   receiptSignatureStatus,
   type DocumentSignatureLinkView,
   type PublicDocumentSignInput,
   type PublicRequestMetadata,
   type ReceiptSignature,
+  type ReceiptSignatureSummary,
 } from "@crm/contracts";
 import { randomUUID } from "node:crypto";
 import type { Pool, PoolClient } from "../../infrastructure/mysql-client.js";
@@ -18,7 +20,7 @@ import {
   signerEvidence,
 } from "../../modules/signatures/signature-evidence.js";
 import type { MysqlRepositoryContext } from "./context.js";
-import { json } from "./helpers.js";
+import { branchClause, json } from "./helpers.js";
 
 const columns = `rs.id, rs.clinic_id AS "clinicId", rs.receivable_id AS "receivableId",
   r.patient_id AS "patientId", rs.paid_at AS "paidAt", rs.amount_in_cents AS "amountInCents",
@@ -122,6 +124,52 @@ export async function cancelReceiptSignatures(
       WHERE clinic_id = $1 AND receivable_id = $2 AND cancelled_at IS NULL`,
     [clinicId, receivableId, receiptSignatureReversalReason],
   );
+}
+
+/**
+ * Resumo do recibo em vigor de cada parcela (RC4), para a listagem do Financeiro: uma consulta
+ * só, nas filiais da leitura (`null` = todas). Só entram os recibos não cancelados.
+ */
+export async function loadReceiptSignatureSummaries(
+  client: Pool | PoolClient,
+  clinicId: string,
+  branchIds: string[] | null,
+) {
+  const result = await client.query<{
+    receivableId: string;
+    viewCount: number;
+    sentAt: Date | null;
+    firstViewedAt: Date | null;
+    signedAt: Date | null;
+  }>(
+    `SELECT rs.receivable_id AS "receivableId", rs.view_count AS "viewCount",
+            rs.sent_at AS "sentAt", rs.first_viewed_at AS "firstViewedAt",
+            rs.signed_at AS "signedAt"
+       ${from}
+      WHERE rs.clinic_id = $1 AND rs.cancelled_at IS NULL
+        AND ${branchClause("r.branch_id", 2)}
+      ORDER BY rs.created_at, rs.id`,
+    [clinicId, branchIds],
+  );
+  const byReceivable = new Map<string, (typeof result.rows)[number][]>();
+  for (const row of result.rows)
+    byReceivable.set(row.receivableId, [
+      ...(byReceivable.get(row.receivableId) ?? []),
+      row,
+    ]);
+  const summaries = new Map<string, ReceiptSignatureSummary>();
+  for (const [receivableId, rows] of byReceivable) {
+    const summary = currentReceiptSignatureSummary(
+      rows.map((row) => ({
+        viewCount: Number(row.viewCount),
+        sentAt: iso(row.sentAt),
+        firstViewedAt: iso(row.firstViewedAt),
+        signedAt: iso(row.signedAt),
+      })),
+    );
+    if (summary) summaries.set(receivableId, summary);
+  }
+  return summaries;
 }
 
 async function findById(client: Pool | PoolClient, id: string) {

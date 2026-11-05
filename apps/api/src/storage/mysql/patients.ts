@@ -65,6 +65,7 @@ export function createPatientsRepository(
         messages,
         surveys,
         edits,
+        receipts,
       ] = await Promise.all([
         repositoryContext.pool.query<AppointmentRow>(
           `SELECT ${appointmentColumns} FROM appointments a ${appointmentJoins}
@@ -121,6 +122,25 @@ export function createPatientsRepository(
            WHERE ae.clinic_id = $1 AND ae.action = $2 AND ae.entity_id = $3`,
           [clinicId, patientEditAction, patientId],
         ),
+        repositoryContext.pool.query<{
+          id: string;
+          patientId: string;
+          description: string;
+          amountInCents: number;
+          sentAt: Date | null;
+          firstViewedAt: Date | null;
+          signedAt: Date | null;
+          signature: unknown;
+        }>(
+          `SELECT rs.id, r.patient_id AS "patientId", r.description,
+                  rs.amount_in_cents AS "amountInCents", rs.sent_at AS "sentAt",
+                  rs.first_viewed_at AS "firstViewedAt", rs.signed_at AS "signedAt",
+                  rs.signature
+           FROM receipt_signatures rs
+           JOIN receivables r ON r.id = rs.receivable_id AND r.clinic_id = rs.clinic_id
+           WHERE rs.clinic_id = $1 AND r.patient_id = $2`,
+          [clinicId, patientId],
+        ),
       ]);
       return buildPatientTimeline(patientId, {
         appointments: appointments.rows.map(mapAppointment),
@@ -153,6 +173,18 @@ export function createPatientsRepository(
               typeof metadata.reason === "string" ? metadata.reason : undefined,
           };
         }),
+        receipts: receipts.rows.map((row) => ({
+          id: row.id,
+          patientId: row.patientId,
+          description: row.description,
+          amountInCents: Number(row.amountInCents),
+          sentAt: row.sentAt?.toISOString(),
+          firstViewedAt: row.firstViewedAt?.toISOString(),
+          signedAt: row.signedAt?.toISOString(),
+          signerName: row.signature
+            ? json<{ signerName?: string }>(row.signature)?.signerName
+            : undefined,
+        })),
       });
     },
 

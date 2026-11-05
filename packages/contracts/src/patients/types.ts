@@ -150,6 +150,10 @@ export type PatientTimelineKind =
   | "plan_cancelled"
   | "payment"
   | "payment_reversal"
+  /** Recibo para assinatura da baixa: enviado, 1ª visualização e assinatura do cliente. */
+  | "receipt_sent"
+  | "receipt_viewed"
+  | "receipt_signed"
   | "contact"
   | "message"
   | "satisfaction"

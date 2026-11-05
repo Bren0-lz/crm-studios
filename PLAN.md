@@ -815,7 +815,7 @@ atualizado no mesmo PR):
   - Testes web.
 - **Gate:** gate completo
 - **Depende de:** RC3
-- **Status:** TODO
+- **Status:** DONE
 
 ### RC5 — Aviso "X clientes ainda não assinaram o recibo"
 

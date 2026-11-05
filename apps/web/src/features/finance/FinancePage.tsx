@@ -158,6 +158,7 @@ export function FinancePage() {
   >(null);
   const [commissionRuleOpen, setCommissionRuleOpen] = useState(false);
   const [receipt, setReceipt] = useState<{
+    receivableId: string;
     receipt: PaymentReceipt;
     share: ReceiptSignatureShare | null;
   } | null>(null);
@@ -435,7 +436,10 @@ export function FinancePage() {
         >
           <span>{`Recibo de ${currency.format(receiptToSend.amountInCents / 100)} pronto para o cliente assinar.`}</span>
           <div className="receipt-send-actions">
-            <ReceiptSignatureWhatsapp share={receiptToSend} />
+            <ReceiptSignatureWhatsapp
+              share={receiptToSend}
+              onSent={() => void reloadAfterAction()}
+            />
             <button
               type="button"
               className="secondary-button"
@@ -633,7 +637,9 @@ export function FinancePage() {
                     api.paymentReceipt(id),
                     loadReceiptShare(id),
                   ])
-                    .then(([receipt, share]) => setReceipt({ receipt, share }))
+                    .then(([receipt, share]) =>
+                      setReceipt({ receivableId: id, receipt, share }),
+                    )
                     .catch((cause: Error) => setError(cause.message))
                 }
               />
@@ -852,6 +858,12 @@ export function FinancePage() {
         <ReceiptModal
           receipt={receipt.receipt}
           share={receipt.share}
+          tracking={
+            data?.summary.receivables.find(
+              (item) => item.id === receipt.receivableId,
+            )?.receiptSignature
+          }
+          onSent={() => void reloadAfterAction()}
           onClose={() => setReceipt(null)}
         />
       )}

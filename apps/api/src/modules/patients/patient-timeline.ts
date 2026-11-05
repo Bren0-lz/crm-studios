@@ -27,6 +27,20 @@ export interface PatientTimelineSources {
   surveys: SatisfactionSurvey[];
   /** Edições do cadastro do cliente registradas no Histórico (auditoria). */
   edits?: PatientTimelineEdit[];
+  /** Recibos para assinatura das baixas (inclusive os cancelados pelo estorno). */
+  receipts?: PatientTimelineReceipt[];
+}
+
+/** Recibo da baixa com a descrição da parcela: envio, 1ª visualização e assinatura. */
+export interface PatientTimelineReceipt {
+  id: string;
+  patientId: string;
+  description: string;
+  amountInCents: number;
+  sentAt?: string | undefined;
+  firstViewedAt?: string | undefined;
+  signedAt?: string | undefined;
+  signerName?: string | undefined;
 }
 
 /** Ação do Histórico gravada ao editar o cliente (PUT /patients/:id e PATCH …/status). */
@@ -177,6 +191,35 @@ export function buildPatientTimeline(
         : item.description,
       amountInCents: item.amountInCents,
     });
+  }
+
+  // Recibo da baixa (RC4): cada etapa vira um evento; o valor fica no texto (não é entrada).
+  for (const item of own(sources.receipts ?? [])) {
+    const detail = `${item.description} · ${refundCurrency.format(item.amountInCents / 100)}`;
+    const steps = [
+      ["receipt_sent", item.sentAt, "Recibo enviado para assinatura", detail],
+      [
+        "receipt_viewed",
+        item.firstViewedAt,
+        "Recibo visualizado pelo cliente",
+        detail,
+      ],
+      [
+        "receipt_signed",
+        item.signedAt,
+        "Recibo assinado pelo cliente",
+        item.signerName ? `${detail} · por ${item.signerName}` : detail,
+      ],
+    ] as const;
+    for (const [kind, occurredAt, title, text] of steps)
+      if (occurredAt)
+        entries.push({
+          id: `${kind}:${item.id}`,
+          kind,
+          occurredAt,
+          title,
+          detail: text,
+        });
   }
 
   for (const item of own(sources.contacts))

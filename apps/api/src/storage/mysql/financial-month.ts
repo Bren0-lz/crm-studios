@@ -11,6 +11,7 @@ import {
   receivableColumns,
   type ReceivableRow,
 } from "./helpers.js";
+import { loadReceiptSignatureSummaries } from "./receipt-signatures.js";
 import { latestDateCorrection, localMonth } from "./sql.js";
 export async function loadFinancialMonth(
   client: Pool | PoolClient,
@@ -56,6 +57,11 @@ export async function loadFinancialSummary(
       (await loadFinancialMonth(client, clinicId, timezone, branchIds)),
     today = clinicDateOf(new Date(), timezone);
   const origins = await loadReceivableOrigins(client, clinicId, branchIds);
+  const receiptSignatures = await loadReceiptSignatureSummaries(
+    client,
+    clinicId,
+    branchIds,
+  );
   const receivables = (
     await client.query<ReceivableRow>(
       `SELECT ${receivableColumns} FROM receivables r JOIN patients p ON p.id=r.patient_id AND p.clinic_id=r.clinic_id WHERE r.clinic_id=$1 AND ${branchClause("r.branch_id", 2)} ORDER BY r.due_date,r.created_at`,
@@ -67,6 +73,9 @@ export async function loadFinancialSummary(
       ...item,
       ...origins.get(item.id),
       overdue: item.status === "open" && item.dueDate < today,
+      ...(receiptSignatures.has(item.id)
+        ? { receiptSignature: receiptSignatures.get(item.id)! }
+        : {}),
     }));
   return {
     receivables,

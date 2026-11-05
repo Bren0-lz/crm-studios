@@ -19,6 +19,7 @@ import type {
   SettlementAdjustments,
 } from "@crm/contracts";
 import {
+  currentReceiptSignatureSummary,
   isSplitPayment,
   paymentPartsTotal,
   resolvePaymentParts,
@@ -730,11 +731,24 @@ export function createFinanceRepository(
           (item) =>
             item.clinicId === clinicId && repositoryContext.inBranchScope(item),
         )
-        .map((item) => ({
-          ...item,
-          ...receivableOrigin(item),
-          overdue: item.status === "open" && item.dueDate < currentDate,
-        }))
+        .map((item) => {
+          // Recibo em vigor (RC4): situação e datas, sem uma chamada por linha.
+          const receiptSignature = currentReceiptSignatureSummary(
+            repositoryContext.receiptSignatures
+              .filter(
+                (receipt) =>
+                  receipt.clinicId === clinicId &&
+                  receipt.receivableId === item.id,
+              )
+              .sort((a, b) => a.createdAt.localeCompare(b.createdAt)),
+          );
+          return {
+            ...item,
+            ...receivableOrigin(item),
+            overdue: item.status === "open" && item.dueDate < currentDate,
+            ...(receiptSignature ? { receiptSignature } : {}),
+          };
+        })
         .sort((a, b) => a.dueDate.localeCompare(b.dueDate));
       return {
         openInCents: receivables
