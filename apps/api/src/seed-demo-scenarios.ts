@@ -237,6 +237,20 @@ export async function seedDemoScenarios(client: PoolClient, branchId: string) {
   );
   await insertRows(
     client,
+    "receipt_signatures",
+    data.receiptSignatures.map((item) => ({
+      id: item.id,
+      clinic_id: item.clinicId,
+      receivable_id: item.receivableId,
+      paid_at: at(item.paidAt),
+      amount_in_cents: item.amountInCents,
+      token: item.token,
+      created_at: at(item.createdAt),
+    })),
+    ignore,
+  );
+  await insertRows(
+    client,
     "group_classes",
     data.groups.map((item) => ({
       id: item.id,

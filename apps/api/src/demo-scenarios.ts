@@ -14,6 +14,7 @@ import type {
 } from "@crm/contracts";
 import { groupClassName } from "@crm/contracts";
 import { demoPatients } from "./demo-patients.js";
+import { createSignatureToken } from "./modules/signatures/signature-evidence.js";
 
 export const demoClinicId = "11111111-1111-4111-8111-111111111111";
 export const demoUserId = "22222222-2222-4222-8222-222222222222";
@@ -174,12 +175,25 @@ export type DemoFinancialEvent = {
   amountInCents: number;
   createdAt: string;
 };
+/** Recibo para assinatura de uma parcela paga da demonstração (RC3), ainda não enviado. */
+export type DemoReceiptSignature = {
+  id: string;
+  clinicId: string;
+  receivableId: string;
+  patientId: string;
+  paidAt: string;
+  amountInCents: number;
+  token: string;
+  createdAt: string;
+};
 export type DemoData = {
   plans: PatientPlan[];
   appointments: Appointment[];
   movements: SessionMovement[];
   receivables: Receivable[];
   financialEvents: DemoFinancialEvent[];
+  /** Um recibo por parcela paga, para o "Enviar recibo pelo WhatsApp". */
+  receiptSignatures: DemoReceiptSignature[];
   groups: GroupClass[];
   enrollments: GroupEnrollment[];
   sessions: GroupSession[];
@@ -557,12 +571,25 @@ export function buildDemoScenarios(): DemoData {
     session.attendanceCount = attendance.filter(
       (item) => item.sessionId === session.id,
     ).length;
+  const receiptSignatures = receivables
+    .filter((item) => item.status === "paid" && item.paidAt)
+    .map((item, index) => ({
+      id: id(14, index + 1),
+      clinicId: item.clinicId,
+      receivableId: item.id,
+      patientId: item.patientId,
+      paidAt: item.paidAt!,
+      amountInCents: item.amountInCents,
+      token: createSignatureToken(),
+      createdAt: item.paidAt!,
+    }));
   return {
     plans,
     appointments,
     movements,
     receivables,
     financialEvents,
+    receiptSignatures,
     groups,
     enrollments,
     sessions,

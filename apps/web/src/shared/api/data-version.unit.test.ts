@@ -32,6 +32,13 @@ describe("versão dos dados por domínio", () => {
     expect(
       domainsForMutation("POST", "/finance/receivables/r1/reverse"),
     ).toContain("finance");
+    // Envio do recibo registrado (RC3): o "enviado em" do Financeiro recarrega.
+    expect(
+      domainsForMutation(
+        "POST",
+        "/finance/receivables/r1/receipt-signature/sent",
+      ),
+    ).toContain("finance");
     expect(domainsForMutation("PATCH", "/appointments/a1/status")).toEqual(
       expect.arrayContaining(["agenda", "plans", "finance", "history"]),
     );

@@ -18,8 +18,11 @@ import {
   patientFirstName,
   paymentMethodWithInstallments,
   paymentPartsLabel,
+  paymentReceiptMessage,
   type PaymentReceipt,
+  type ReceiptSignatureShare,
   saoPauloToday,
+  whatsappLink,
 } from "@crm/contracts";
 import { currency, shortDate } from "../../shared/lib/formatting";
 import type { ReceivableFilter } from "./types";
@@ -356,6 +359,45 @@ export function receiptMessage(receipt: PaymentReceipt) {
     ? ` (com desconto de ${currency.format(receipt.customerDiscountInCents / 100)})`
     : "";
   return `Olá, ${patientFirstName(receipt.patientName)}! Segue o recibo ${receipt.receiptNumber}: recebemos ${currency.format(receipt.amountInCents / 100)}${discount} referente a ${receipt.description}${installment}, em ${new Date(receipt.paidAt).toLocaleDateString("pt-BR")}${method}. Obrigado! ${receipt.clinicName}`;
+}
+
+/** Endereço público onde o cliente lê e assina o recibo da baixa. */
+export function receiptSignatureUrl(share: Pick<ReceiptSignatureShare, "path">) {
+  return `${window.location.origin}${share.path}`;
+}
+
+/** Mensagem "recebemos seu pagamento" com o link do recibo (modelo da clínica ou padrão). */
+export function receiptSignatureMessage(share: ReceiptSignatureShare) {
+  return paymentReceiptMessage({
+    patientName: share.patientName,
+    amountInCents: share.amountInCents,
+    paidAt: share.paidAt,
+    link: receiptSignatureUrl(share),
+    template: share.messageTemplate,
+    timeZone: share.timezone,
+  });
+}
+
+/** wa.me do cliente com a mensagem pronta; `null` quando o cliente não tem número. */
+export function receiptSignatureWhatsappLink(share: ReceiptSignatureShare) {
+  return share.patientPhone
+    ? whatsappLink(share.patientPhone, receiptSignatureMessage(share))
+    : null;
+}
+
+/** Resposta válida da rota do recibo para assinatura (resposta inesperada = sem recibo). */
+export function isReceiptSignatureShare(
+  value: unknown,
+): value is ReceiptSignatureShare {
+  const share = value as Partial<ReceiptSignatureShare> | null;
+  return (
+    typeof share === "object" &&
+    share !== null &&
+    typeof share.token === "string" &&
+    typeof share.path === "string" &&
+    typeof share.receivableId === "string" &&
+    share.status !== "cancelled"
+  );
 }
 
 /** Explicações curtas dos termos financeiros (U41), usadas no HelpTip. */

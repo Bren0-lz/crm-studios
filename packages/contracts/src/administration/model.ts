@@ -250,6 +250,13 @@ export const clinicSettingsInputSchema = z.object({
   pixKey: z.string().trim().max(140).optional().or(z.literal("")),
   /** Modelo da mensagem de cobrança Pix (`pixMessageVariables`); vazio = texto padrão. */
   pixMessageTemplate: z.string().trim().max(1000).optional().or(z.literal("")),
+  /** Modelo da mensagem "recebemos seu pagamento" (`paymentReceiptMessageVariables`); vazio = texto padrão. */
+  paymentReceiptMessageTemplate: z
+    .string()
+    .trim()
+    .max(1000)
+    .optional()
+    .or(z.literal("")),
   timezone: z
     .string()
     .trim()

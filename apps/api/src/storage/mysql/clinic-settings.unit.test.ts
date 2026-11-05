@@ -14,6 +14,7 @@ const input: ClinicSettingsInput = {
   address: "Rua de teste, 123",
   pixKey: "financeiro@example.com",
   pixMessageTemplate: "Olá, {{nome}}! Chave Pix: {{chave_pix}}.",
+  paymentReceiptMessageTemplate: "Olá {{nome}}! Recibo: {{link_recibo}}",
   timezone: "America/Sao_Paulo",
 };
 

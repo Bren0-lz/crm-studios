@@ -791,6 +791,13 @@ export class MemoryRepositoryContext {
     this.patientPlans.push(...data.plans);
     this.sessionMovements.push(...data.movements);
     this.receivables.push(...data.receivables);
+    this.receiptSignatures.push(
+      ...data.receiptSignatures.map((receipt) => ({
+        ...receipt,
+        viewCount: 0,
+        views: [],
+      })),
+    );
     this.groupClasses.push(...data.groups);
     this.groupEnrollments.push(...data.enrollments);
     this.groupSessions.push(...data.sessions);
