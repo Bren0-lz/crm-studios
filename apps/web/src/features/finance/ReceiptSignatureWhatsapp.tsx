@@ -11,8 +11,11 @@ import { receiptSignatureWhatsappLink } from "./model";
  */
 export function ReceiptSignatureWhatsapp({
   share,
+  onSent,
 }: {
   share: ReceiptSignatureShare;
+  /** Envio registrado: a página recarrega o controle do recibo (selo e datas, RC4). */
+  onSent?: (() => void) | undefined;
 }) {
   const hintId = useId();
   const [error, setError] = useState("");
@@ -22,7 +25,10 @@ export function ReceiptSignatureWhatsapp({
     setError("");
     void api
       .markReceiptSignatureSent(share.receivableId)
-      .then(() => setSent(true))
+      .then(() => {
+        setSent(true);
+        onSent?.();
+      })
       .catch((cause: Error) =>
         setError(`O envio do recibo não foi registrado: ${cause.message}`),
       );

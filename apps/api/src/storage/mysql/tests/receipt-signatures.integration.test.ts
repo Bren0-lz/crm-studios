@@ -14,6 +14,7 @@ import {
   verifyPaidSaleReceipt,
   verifyReceiptLifecycle,
   verifyReceiptSigning,
+  verifyReceiptTracking,
 } from "../../../test-support/receipt-signatures-suite.js";
 
 // Recibo para assinatura (RC1): mesma regra nos dois armazenamentos.
@@ -46,6 +47,10 @@ for (const storage of ["memory", "mysql"] as const) {
 
       it("assina uma vez e emite receipt.signed depois do commit", async () => {
         await verifyReceiptSigning(repository);
+      });
+
+      it("lista a situação do recibo e mostra envio, visualização e assinatura no histórico", async () => {
+        await verifyReceiptTracking(repository);
       });
 
       it("gera e cancela o recibo da venda paga no balcão", async () => {

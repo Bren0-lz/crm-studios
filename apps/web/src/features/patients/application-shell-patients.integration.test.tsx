@@ -357,6 +357,20 @@ describe("application shell", () => {
         amountInCents: 18000,
       },
       {
+        id: "receipt_signed:3",
+        kind: "receipt_signed",
+        occurredAt: "2026-09-11T15:00:00.000Z",
+        title: "Recibo assinado pelo cliente",
+        detail: "Pilates 1x · R$ 180,00 · por Helena Almeida",
+      },
+      {
+        id: "receipt_sent:3",
+        kind: "receipt_sent",
+        occurredAt: "2026-09-10T14:00:00.000Z",
+        title: "Recibo enviado para assinatura",
+        detail: "Pilates 1x · R$ 180,00",
+      },
+      {
         id: "satisfaction:4",
         kind: "satisfaction",
         occurredAt: "2026-09-05T13:00:00.000Z",
@@ -408,6 +422,14 @@ describe("application shell", () => {
     expect(
       within(history).getByText("Pagamento estornado"),
     ).toBeInTheDocument();
+    // RC4: envio e assinatura do recibo da baixa ficam junto dos pagamentos.
+    expect(
+      within(history).getByText("Recibo enviado para assinatura"),
+    ).toBeInTheDocument();
+    expect(
+      within(history).getByText("Recibo assinado pelo cliente"),
+    ).toBeInTheDocument();
+    expect(within(history).getByText(/11 de set\./)).toBeInTheDocument();
     expect(
       within(history).queryByText("Atendimento de Pilates"),
     ).not.toBeInTheDocument();

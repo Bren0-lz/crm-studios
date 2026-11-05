@@ -48,6 +48,18 @@ describe("recibo para assinatura", () => {
         status: "generated",
       },
     ]);
+    // RC4: a listagem do Financeiro já traz a situação do recibo (sem uma chamada por linha).
+    const summary = await app.inject({
+      method: "GET",
+      url: "/finance/summary",
+      headers,
+    });
+    expect(
+      summary
+        .json<{ receivables: { id: string; receiptSignature?: unknown }[] }>()
+        .receivables.find((item) => item.id === receivable.id)
+        ?.receiptSignature,
+    ).toEqual({ status: "generated" });
 
     const reversed = await app.inject({
       method: "POST",

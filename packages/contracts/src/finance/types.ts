@@ -1,6 +1,7 @@
 import { paymentTimingSchema, financialDatesSchema } from "./model.js";
 import { z } from "zod";
 import type { PaymentPart } from "./payment-parts.js";
+import type { ReceiptSignatureSummary } from "./receipt-signatures.js";
 import type { ProductSize, ProductSizeStock } from "./model.js";
 import {
   productUpdateSchema,
@@ -392,6 +393,11 @@ export interface Receivable {
    * na baixa (ou parcela não paga).
    */
   settlementDiscountInCents?: number;
+  /**
+   * Paga: recibo para assinatura da última baixa não estornada (enviado, visualizado,
+   * assinado). Ausente = parcela sem recibo em vigor.
+   */
+  receiptSignature?: ReceiptSignatureSummary;
 }
 
 export interface FinancialSummary {

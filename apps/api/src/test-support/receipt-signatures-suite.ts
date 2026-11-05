@@ -284,3 +284,99 @@ export async function verifyPaidSaleReceipt(repository: ClinicRepository) {
   });
   expect((await receipts()).map((item) => item.status)).toEqual(["cancelled"]);
 }
+
+/**
+ * RC4: a listagem do Financeiro traz o resumo do recibo em vigor (situação e datas) e o
+ * histórico do cliente mostra enviado, visualizado e assinado.
+ */
+export async function verifyReceiptTracking(repository: ClinicRepository) {
+  const { patient, receivable } = await receiptFixtures(repository);
+  const listed = async () =>
+    (await repository.getFinancialSummary(receiptClinicId)).receivables.find(
+      (item) => item.id === receivable.id,
+    );
+  expect(await listed()).not.toHaveProperty("receiptSignature");
+
+  await repository.settleReceivable(
+    receiptClinicId,
+    receiptActorId,
+    receivable.id,
+    "cash",
+  );
+  expect((await listed())?.receiptSignature).toEqual({ status: "generated" });
+
+  const [receipt] = await repository.listReceiptSignatures(
+    receiptClinicId,
+    receivable.id,
+  );
+  const sent = await repository.markReceiptSignatureSent(
+    receiptClinicId,
+    receipt!.id,
+  );
+  expect((await listed())?.receiptSignature).toEqual({
+    status: "sent",
+    sentAt: sent!.sentAt,
+  });
+  const viewed = await repository.openPublicReceiptSignature(
+    receipt!.token,
+    metadata,
+  );
+  const signed = await repository.signPublicReceiptSignature(
+    receipt!.token,
+    signInput,
+    metadata,
+  );
+  expect((await listed())?.receiptSignature).toEqual({
+    status: "signed",
+    sentAt: sent!.sentAt,
+    firstViewedAt: viewed!.firstViewedAt,
+    signedAt: signed!.signedAt,
+  });
+
+  const timeline = await repository.getPatientTimeline(
+    receiptClinicId,
+    patient.id,
+  );
+  const receiptEntries = (timeline ?? []).filter((entry) =>
+    entry.kind.startsWith("receipt_"),
+  );
+  expect(receiptEntries).toEqual(
+    expect.arrayContaining([
+      {
+        id: `receipt_sent:${receipt!.id}`,
+        kind: "receipt_sent",
+        occurredAt: sent!.sentAt,
+        title: "Recibo enviado para assinatura",
+        detail: "Mensalidade com recibo · R$\u00a050,00",
+      },
+      {
+        id: `receipt_viewed:${receipt!.id}`,
+        kind: "receipt_viewed",
+        occurredAt: viewed!.firstViewedAt,
+        title: "Recibo visualizado pelo cliente",
+        detail: "Mensalidade com recibo · R$\u00a050,00",
+      },
+      {
+        id: `receipt_signed:${receipt!.id}`,
+        kind: "receipt_signed",
+        occurredAt: signed!.signedAt,
+        title: "Recibo assinado pelo cliente",
+        detail: "Mensalidade com recibo · R$\u00a050,00 · por Cliente Recibo",
+      },
+    ]),
+  );
+  expect(receiptEntries).toHaveLength(3);
+
+  // Estorno: a parcela volta sem recibo em vigor; o histórico do que aconteceu fica.
+  await repository.reverseReceivablePayment(
+    receiptClinicId,
+    receiptActorId,
+    receivable.id,
+  );
+  expect(await listed()).not.toHaveProperty("receiptSignature");
+  expect(
+    (await repository.getPatientTimeline(receiptClinicId, patient.id))?.filter(
+      (entry) => entry.kind.startsWith("receipt_"),
+    ),
+  ).toHaveLength(3);
+}

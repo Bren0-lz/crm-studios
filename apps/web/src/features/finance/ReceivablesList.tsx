@@ -1,10 +1,15 @@
 import { type Receivable, saoPauloToday } from "@crm/contracts";
 import { Search } from "lucide-react";
+import { useState } from "react";
 import { useAuthorization } from "../../authorization-context";
 import { EmptyState } from "../../shared/components/EmptyState";
 import { currency, shortDate } from "../../shared/lib/formatting";
 import {
+  hasUnsignedReceipt,
   normalizeSearch,
+  receiptMomentLabel,
+  receiptSignatureLabels,
+  receiptSignatureSteps,
   receivableFilterLabels,
   receivableInstallmentLine,
   receivableSituation,
@@ -49,6 +54,8 @@ export function ReceivablesList({
   proofIds?: ReadonlySet<string>;
 }) {
   const { can } = useAuthorization();
+  // "Recibo não assinado" (RC4): recorte como a busca, somado ao filtro por situação.
+  const [unsignedOnly, setUnsignedOnly] = useState(false);
   if (receivables.length === 0) {
     return (
       <EmptyState
@@ -64,9 +71,15 @@ export function ReceivablesList({
   }));
   const term = normalizeSearch(search);
   // Contadores sobre a lista já buscada: a soma das abas é sempre igual a "Todas".
-  const searched = rows.filter(
+  const matchingSearch = rows.filter(
     (row) => !term || normalizeSearch(row.item.patientName).includes(term),
   );
+  const unsignedCount = matchingSearch.filter((row) =>
+    hasUnsignedReceipt(row.item),
+  ).length;
+  const searched = unsignedOnly
+    ? matchingSearch.filter((row) => hasUnsignedReceipt(row.item))
+    : matchingSearch;
   const count = (key: Exclude<ReceivableFilter, "all">) =>
     searched.filter((row) => row.situation.key === key).length;
   const counts: Record<ReceivableFilter, number> = {
@@ -114,6 +127,14 @@ export function ReceivablesList({
             ),
           )}
         </div>
+        <button
+          type="button"
+          className="tag-filter"
+          aria-pressed={unsignedOnly}
+          onClick={() => setUnsignedOnly((current) => !current)}
+        >
+          Recibo não assinado <small>{unsignedCount}</small>
+        </button>
         <div className="search-box">
           <Search size={18} />
           <input
@@ -178,6 +199,7 @@ export function ReceivablesList({
             onClick={() => {
               onFilterChange("all");
               onSearchChange("");
+              setUnsignedOnly(false);
             }}
           >
             Limpar filtros
@@ -238,11 +260,28 @@ export function ReceivablesList({
                   {signedCurrency(item.amountInCents)}
                 </strong>
               )}
-              <span>
+              <span className="finance-situation">
                 {item.status !== "cancelled" && (
                   <span className={`status-pill ${situation.pill}`}>
                     {situation.label}
                   </span>
+                )}
+                {item.status === "paid" && item.receiptSignature && (
+                  <>
+                    <span
+                      className={`status-pill ${item.receiptSignature.status === "signed" ? "paid" : "open"}`}
+                    >
+                      {receiptSignatureLabels[item.receiptSignature.status]}
+                    </span>
+                    {receiptSignatureSteps(item.receiptSignature).map(
+                      (step) =>
+                        step.at && (
+                          <small key={step.key} className="receipt-step">
+                            {`${step.label} ${receiptMomentLabel(step.at)}`}
+                          </small>
+                        ),
+                    )}
+                  </>
                 )}
               </span>
               <div className="finance-actions">

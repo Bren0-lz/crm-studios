@@ -21,10 +21,11 @@ import {
   paymentReceiptMessage,
   type PaymentReceipt,
   type ReceiptSignatureShare,
+  type ReceiptSignatureSummary,
   saoPauloToday,
   whatsappLink,
 } from "@crm/contracts";
-import { currency, shortDate } from "../../shared/lib/formatting";
+import { currency, shortDate, timeLabel } from "../../shared/lib/formatting";
 import type { ReceivableFilter } from "./types";
 
 export function dailyCashGroups(cash: DailyCash) {
@@ -397,6 +398,43 @@ export function isReceiptSignatureShare(
     typeof share.path === "string" &&
     typeof share.receivableId === "string" &&
     share.status !== "cancelled"
+  );
+}
+
+/** Selo do recibo da baixa na lista do Financeiro (RC4). */
+export const receiptSignatureLabels: Record<
+  ReceiptSignatureSummary["status"],
+  string
+> = {
+  generated: "Recibo não enviado",
+  sent: "Recibo enviado",
+  viewed: "Recibo visualizado",
+  signed: "Recibo assinado",
+};
+
+/** "05 de nov. às 14:30" (data e hora locais do navegador). */
+export function receiptMomentLabel(value: string) {
+  const date = new Date(value);
+  return `${shortDate.format(date)} às ${timeLabel.format(date)}`;
+}
+
+/** Etapas do recibo (enviado, visualizado, assinado), com a data de cada uma quando houve. */
+export function receiptSignatureSteps(summary: ReceiptSignatureSummary) {
+  return [
+    { key: "sent", label: "Enviado em", at: summary.sentAt },
+    { key: "viewed", label: "Visualizado em", at: summary.firstViewedAt },
+    { key: "signed", label: "Assinado em", at: summary.signedAt },
+  ] as const;
+}
+
+/** Paga com recibo em vigor ainda sem assinatura (filtro "Recibo não assinado"). */
+export function hasUnsignedReceipt(
+  item: Pick<Receivable, "status" | "receiptSignature">,
+) {
+  return (
+    item.status === "paid" &&
+    item.receiptSignature !== undefined &&
+    item.receiptSignature.status !== "signed"
   );
 }
 

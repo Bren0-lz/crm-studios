@@ -58,6 +58,42 @@ export function receiptSignatureStatus(receipt: {
 }
 
 /**
+ * Resumo do recibo em vigor da parcela (RC4), devolvido na listagem do Financeiro: situação e
+ * datas de envio, 1ª visualização e assinatura. Sem token nem dados do assinante.
+ */
+export interface ReceiptSignatureSummary {
+  status: Exclude<ReceiptSignatureStatus, "cancelled">;
+  sentAt?: string;
+  firstViewedAt?: string;
+  signedAt?: string;
+}
+
+/**
+ * Resumo do recibo em vigor: o da última baixa não estornada (recibos do mais antigo ao mais
+ * novo). Sem recibo em vigor (nunca paga, ou só baixas estornadas) = `undefined`.
+ */
+export function currentReceiptSignatureSummary(
+  receipts: readonly {
+    cancelledAt?: string | undefined;
+    signedAt?: string | undefined;
+    viewCount: number;
+    sentAt?: string | undefined;
+    firstViewedAt?: string | undefined;
+  }[],
+): ReceiptSignatureSummary | undefined {
+  const current = receipts.filter((receipt) => !receipt.cancelledAt).at(-1);
+  if (!current) return undefined;
+  const status = receiptSignatureStatus(current);
+  if (status === "cancelled") return undefined;
+  return {
+    status,
+    ...(current.sentAt ? { sentAt: current.sentAt } : {}),
+    ...(current.firstViewedAt ? { firstViewedAt: current.firstViewedAt } : {}),
+    ...(current.signedAt ? { signedAt: current.signedAt } : {}),
+  };
+}
+
+/**
  * O que o cliente vê no link público do recibo (sem token, IP nem dados internos).
  * `receipt` é o recibo da baixa (sem o telefone do cliente); ausente no recibo cancelado.
  */

@@ -477,6 +477,18 @@ export function createPatientsRepository(
                 ? event.metadata.reason
                 : undefined,
           })),
+        receipts: repositoryContext.receiptSignatures
+          .filter(
+            (item) =>
+              item.clinicId === clinicId && item.patientId === patientId,
+          )
+          .map((item) => ({
+            ...item,
+            description:
+              repositoryContext.receivables.find(
+                (receivable) => receivable.id === item.receivableId,
+              )?.description ?? "",
+          })),
       });
     },
   };
