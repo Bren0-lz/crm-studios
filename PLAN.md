@@ -770,7 +770,7 @@ atualizado no mesmo PR):
   - Testes API (baixa → recibo; estorno → cancelado), MySQL opt-in.
 - **Gate:** gate completo e `npm run test:mysql`
 - **Depende de:** EV7 (ordem)
-- **Status:** TODO
+- **Status:** DONE
 
 ### RC2 — Link público para assinar o recibo
 

@@ -5,6 +5,7 @@ import { createBranchesRepository } from "./storage/mysql/branches.js";
 import { createCommissionReconciliationRepository } from "./storage/mysql/commission-reconciliation.js";
 import { createExternalOperationsRepository } from "./storage/mysql/external-operations.js";
 import { createPaymentProofsRepository } from "./storage/mysql/payment-proofs.js";
+import { createReceiptSignaturesRepository } from "./storage/mysql/receipt-signatures.js";
 import { createPlanPurchasesRepository } from "./storage/mysql/plan-purchases.js";
 import { createFinancialDatesRepository } from "./storage/mysql/financial-dates.js";
 import { createRegistryRepository } from "./storage/mysql/registry.js";
@@ -69,6 +70,10 @@ export class MysqlClinicRepository implements ClinicRepository {
   readonly getPaymentProofContent: ClinicRepository["getPaymentProofContent"];
   readonly deletePaymentProof: ClinicRepository["deletePaymentProof"];
   readonly findPaymentProofEntity: ClinicRepository["findPaymentProofEntity"];
+  readonly listReceiptSignatures: ClinicRepository["listReceiptSignatures"];
+  readonly markReceiptSignatureSent: ClinicRepository["markReceiptSignatureSent"];
+  readonly openPublicReceiptSignature: ClinicRepository["openPublicReceiptSignature"];
+  readonly signPublicReceiptSignature: ClinicRepository["signPublicReceiptSignature"];
   readonly purchasePatientPlan: ClinicRepository["purchasePatientPlan"];
   readonly getAdministrativeRegistry: ClinicRepository["getAdministrativeRegistry"];
   readonly updateAdministrativeRegistry: ClinicRepository["updateAdministrativeRegistry"];
@@ -180,6 +185,13 @@ export class MysqlClinicRepository implements ClinicRepository {
     this.getPaymentProofContent = paymentProofs.getPaymentProofContent;
     this.deletePaymentProof = paymentProofs.deletePaymentProof;
     this.findPaymentProofEntity = paymentProofs.findPaymentProofEntity;
+    const receiptSignatures = createReceiptSignaturesRepository(this.context);
+    this.listReceiptSignatures = receiptSignatures.listReceiptSignatures;
+    this.markReceiptSignatureSent = receiptSignatures.markReceiptSignatureSent;
+    this.openPublicReceiptSignature =
+      receiptSignatures.openPublicReceiptSignature;
+    this.signPublicReceiptSignature =
+      receiptSignatures.signPublicReceiptSignature;
     this.purchasePatientPlan = createPlanPurchasesRepository(
       this.context,
     ).purchasePatientPlan;

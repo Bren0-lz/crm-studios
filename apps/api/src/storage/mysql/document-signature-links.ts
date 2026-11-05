@@ -13,11 +13,13 @@ import type { PoolClient } from "../../infrastructure/mysql-client.js";
 import { DomainError } from "../../repository.js";
 import {
   assertSignatureLinkOpen,
-  createSignatureToken,
   documentTextSha256,
-  maxStoredSignatureViews,
-  signatureLinkView,
 } from "../../modules/contracts/signature-links.js";
+import {
+  appendSignatureView,
+  createSignatureToken,
+  signerEvidence,
+} from "../../modules/signatures/signature-evidence.js";
 import type { MysqlRepositoryContext } from "./context.js";
 import { writeAndRead } from "./sql.js";
 
@@ -255,10 +257,7 @@ export function createDocumentSignatureLinksRepository(
         if (!row) return null;
         assertRowOpen(row);
         const viewedAt = new Date().toISOString();
-        const views = [
-          ...row.views,
-          signatureLinkView(metadata, viewedAt),
-        ].slice(-maxStoredSignatureViews);
+        const views = appendSignatureView(row.views, metadata, viewedAt);
         await client.query(
           `UPDATE document_signature_links
               SET view_count = view_count + 1,
@@ -294,12 +293,7 @@ export function createDocumentSignatureLinksRepository(
             410,
           );
         const signature = {
-          signerName: input.signerName,
-          ...(input.signerCpf ? { signerCpf: input.signerCpf } : {}),
-          ...(metadata.ipAddress ? { ipAddress: metadata.ipAddress } : {}),
-          ...(metadata.userAgent
-            ? { userAgent: metadata.userAgent.slice(0, 300) }
-            : {}),
+          ...signerEvidence(input, metadata),
           documentSha256: documentTextSha256(row.snapshotBody),
         };
         const signed = await writeAndRead<{ signedAt: Date }>(

@@ -2,7 +2,11 @@ import {
   planHasSessionBalance,
   starterAssessmentTemplates,
 } from "@crm/contracts";
-import type { ExternalOperation, PaymentProof } from "@crm/contracts";
+import type {
+  ExternalOperation,
+  PaymentProof,
+  ReceiptSignature,
+} from "@crm/contracts";
 import type {
   StoredMessageTemplate,
   StoredMessageTemplateImage,
@@ -311,6 +315,8 @@ export class MemoryRepositoryContext {
     deletedByUserId?: string;
     deletionReason?: string;
   })[] = [];
+  /** Recibos para assinatura: um por baixa de parcela (a situação é calculada na leitura). */
+  readonly receiptSignatures: Omit<ReceiptSignature, "status">[] = [];
 
   /** Estorno da baixa: os comprovantes ficam no histórico, marcados como da baixa estornada. */
   markPaymentProofsReversed(

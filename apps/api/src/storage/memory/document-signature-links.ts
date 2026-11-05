@@ -11,11 +11,12 @@ import {
 import { DomainError } from "../../repository.js";
 import {
   assertSignatureLinkOpen,
-  createSignatureToken,
   documentTextSha256,
-  maxStoredSignatureViews,
-  signatureLinkView,
 } from "../../modules/contracts/signature-links.js";
+import {
+  appendSignatureView,
+  createSignatureToken,
+} from "../../modules/signatures/signature-evidence.js";
 import type { MemoryRepositoryContext } from "./context.js";
 import { now } from "./helpers.js";
 
@@ -171,9 +172,7 @@ export function createDocumentSignatureLinksRepository(
       link.viewCount += 1;
       link.firstViewedAt ??= viewedAt;
       link.lastViewedAt = viewedAt;
-      link.views = [...link.views, signatureLinkView(metadata, viewedAt)].slice(
-        -maxStoredSignatureViews,
-      );
+      link.views = appendSignatureView(link.views, metadata, viewedAt);
       sync(document, link);
       return publicDocument(document, link);
     },

@@ -1,5 +1,9 @@
 import { markPaymentProofsReversed } from "./payment-proofs.js";
 import {
+  cancelReceiptSignatures,
+  issueReceiptSignature,
+} from "./receipt-signatures.js";
+import {
   acceptsPaymentInstallments,
   planHasSessionBalance,
   type PatientPlan,
@@ -1760,13 +1764,15 @@ export class MysqlRepositoryContext {
           ],
         );
       }
-      if (operation === "payment_reversal")
+      if (operation === "payment_reversal") {
         await markPaymentProofsReversed(
           client,
           clinicId,
           "receivable",
           receivableId,
         );
+        await cancelReceiptSignatures(client, clinicId, receivableId);
+      } else await issueReceiptSignature(client, clinicId, receivableId);
       const receivable = await this.findReceivable(
         client,
         clinicId,
