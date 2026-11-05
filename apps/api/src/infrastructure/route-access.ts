@@ -13,7 +13,7 @@ export interface ModuleRequirement {
   permission: PermissionKey;
 }
 /**
- * - `public`: sem login (saúde, login e link de assinatura de documento).
+ * - `public`: sem login (saúde, login e links de assinatura de documento e de recibo).
  * - `login`: basta estar logado (usuário ativo).
  * - `admin`: Administração, sempre só do usuário admin (não é módulo configurável).
  * - lista de módulos: o usuário precisa de TODOS os níveis listados.
@@ -378,6 +378,9 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
   // Link de assinatura enviado ao cliente (sem login; o token identifica o documento).
   "GET /public/document-signatures/:token": "public",
   "POST /public/document-signatures/:token": "public",
+  // Link do recibo enviado ao cliente (sem login; o token identifica o recibo).
+  "GET /public/receipt-signatures/:token": "public",
+  "POST /public/receipt-signatures/:token": "public",
   // API externa de vendas (chave de integração; ver `modules/external/endpoints.ts`).
   "GET /external/v1": external("sales:read"),
   "POST /external/v1/auth/login": external("sales:read"),

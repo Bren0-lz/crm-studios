@@ -1,10 +1,10 @@
-import { devices, type Page } from "@playwright/test";
 import { test, expect, seedPatient } from "./fixtures.js";
+import {
+  canvasMatchesItsBox,
+  iPhone,
+  noHorizontalScroll,
+} from "./signature-mobile.js";
 
-// O link de assinatura é aberto pelo cliente no celular (reunião de 02/11/2026: iPhone/iOS 18).
-// Só há Chromium no projeto: emulamos o iPhone (tela, densidade, toque e navegador).
-const iPhone = { ...devices["iPhone 13"] };
-delete (iPhone as { defaultBrowserType?: string }).defaultBrowserType;
 test.use(iPhone);
 
 const paragraph = (text: string) => ({
@@ -37,28 +37,6 @@ function longContract() {
       ],
     },
   };
-}
-
-async function noHorizontalScroll(page: Page) {
-  expect(
-    await page.evaluate(
-      () => document.documentElement.scrollWidth <= window.innerWidth,
-    ),
-  ).toBe(true);
-}
-
-async function canvasMatchesItsBox(page: Page) {
-  const size = await page
-    .getByRole("img", { name: "Área de assinatura", exact: true })
-    .evaluate((element) => {
-      const canvas = element as HTMLCanvasElement;
-      const ratio = Math.min(window.devicePixelRatio || 1, 2);
-      return {
-        width: canvas.width,
-        expected: Math.round(canvas.clientWidth * ratio),
-      };
-    });
-  expect.soft(size.width).toBe(size.expected);
 }
 
 test("the client reads and signs a long contract on an iPhone", async ({

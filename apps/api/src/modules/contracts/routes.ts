@@ -7,65 +7,24 @@ import {
   documentTransitionSchema,
   issuedDocumentInputSchema,
   publicDocumentSignInputSchema,
-  type ApiError,
-  type PublicRequestMetadata,
 } from "@crm/contracts";
-import type { FastifyReply, FastifyRequest } from "fastify";
-import { createRateLimiter } from "../../infrastructure/rate-limit.js";
 import type { RouteContext } from "../../infrastructure/route-context.js";
-import { signatureTokenPattern } from "../signatures/signature-evidence.js";
+import {
+  createPublicSignatureLimiter,
+  publicRequestMetadata as requestMetadata,
+  publicSignatureBodyLimit,
+  publicSignatureTokenParams as tokenParams,
+} from "../signatures/public-signature-guard.js";
 
-const tokenParams = z.object({
-  token: z.string().regex(signatureTokenPattern),
-});
 const signatureLinkNotFound = {
   code: "DOCUMENT_SIGNATURE_LINK_NOT_FOUND",
   message: "Link de assinatura não encontrado.",
 };
 
-function requestMetadata(request: FastifyRequest): PublicRequestMetadata {
-  const userAgent = request.headers["user-agent"];
-  return {
-    ...(request.ip ? { ipAddress: request.ip } : {}),
-    ...(userAgent ? { userAgent } : {}),
-  };
-}
-
-/** Limites por minuto das rotas públicas de assinatura, por IP e por token. */
-export const publicSignatureRateLimits = { GET: 60, POST: 10 } as const;
-
 export function registerContractsRoutes(context: RouteContext) {
   const { app, authenticate, repository, assertPermissions } = context;
-  const publicLimiters = {
-    GET: createRateLimiter({
-      limit: publicSignatureRateLimits.GET,
-      windowMs: 60_000,
-    }),
-    POST: createRateLimiter({
-      limit: publicSignatureRateLimits.POST,
-      windowMs: 60_000,
-    }),
-  };
   /** Rotas sem login (antes de ler o corpo): barra quem abre ou tenta assinar em excesso (429 com Retry-After). */
-  async function limitPublicSignature(
-    request: FastifyRequest,
-    reply: FastifyReply,
-  ) {
-    const limiter = publicLimiters[request.method === "POST" ? "POST" : "GET"];
-    const { token = "" } = request.params as { token?: string };
-    for (const key of [`ip:${request.ip}`, `token:${token.slice(0, 64)}`]) {
-      const result = limiter.hit(key);
-      if (!result.allowed)
-        return reply
-          .status(429)
-          .header("retry-after", String(result.retryAfter))
-          .send({
-            code: "TOO_MANY_REQUESTS",
-            message:
-              "Muitas tentativas em pouco tempo. Aguarde um minuto e tente de novo.",
-          } satisfies ApiError);
-    }
-  }
+  const limitPublicSignature = createPublicSignatureLimiter();
 
   app.post(
     "/documents/:id/signature",
@@ -132,7 +91,7 @@ export function registerContractsRoutes(context: RouteContext) {
   );
   app.post(
     "/public/document-signatures/:token",
-    { bodyLimit: 1024 * 1024, onRequest: limitPublicSignature },
+    { bodyLimit: publicSignatureBodyLimit, onRequest: limitPublicSignature },
     async (request, reply) => {
       const params = tokenParams.safeParse(request.params);
       if (!params.success) return reply.status(404).send(signatureLinkNotFound);

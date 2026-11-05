@@ -18,6 +18,7 @@ import { registerCommunicationsRoutes } from "./modules/communications/routes.js
 import { registerContractsRoutes } from "./modules/contracts/routes.js";
 import { registerDashboardRoutes } from "./modules/dashboard/routes.js";
 import { registerFinanceRoutes } from "./modules/finance/routes.js";
+import { registerPublicReceiptRoutes } from "./modules/finance/public-receipt-routes.js";
 import { registerGroupsRoutes } from "./modules/groups/routes.js";
 import { registerHistoryRoutes } from "./modules/history/routes.js";
 import { registerPatientsRoutes } from "./modules/patients/routes.js";
@@ -46,6 +47,7 @@ export async function buildApp(options: BuildAppOptions) {
   registerGroupsRoutes(context);
   registerFinanceRoutes(context);
   registerFinanceOperationRoutes(context);
+  registerPublicReceiptRoutes(context);
   registerPayrollRoutes(context);
   registerClinicalRoutes(context);
   registerClinicalResourceRoutes(context);

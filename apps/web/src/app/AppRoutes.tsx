@@ -16,6 +16,7 @@ import { DocumentsPage } from "../features/contracts/DocumentsPage";
 import { PublicSignaturePage } from "../features/contracts/PublicSignaturePage";
 import { DashboardPage } from "../features/dashboard/DashboardPage";
 import { FinancePage } from "../features/finance/FinancePage";
+import { PublicReceiptSignaturePage } from "../features/finance/PublicReceiptSignaturePage";
 import { SalesPage } from "../features/sales/SalesPage";
 import { GroupsPage } from "../features/groups/GroupsPage";
 import { HistoryPage } from "../features/history/HistoryPage";
@@ -48,6 +49,10 @@ export function AppRoutes() {
       <Route
         path="/assinar-contrato/:token"
         element={<PublicSignaturePage />}
+      />
+      <Route
+        path="/assinar-recibo/:token"
+        element={<PublicReceiptSignaturePage />}
       />
       <Route
         path="/login"
