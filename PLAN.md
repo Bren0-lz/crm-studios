@@ -785,7 +785,7 @@ atualizado no mesmo PR):
   - Testes API e web, e e2e celular no `public-signature.spec.ts`.
 - **Gate:** gate completo e `npm run test:e2e -- e2e/public-signature.spec.ts --workers=1`
 - **Depende de:** RC1
-- **Status:** TODO
+- **Status:** DONE
 
 ### RC3 — Mensagem "recebemos seu pagamento" com modelo editável
 

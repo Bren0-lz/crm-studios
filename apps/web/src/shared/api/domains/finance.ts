@@ -21,6 +21,10 @@ import type {
   ExternalOperationContent,
 } from "@crm/contracts";
 import type {
+  PublicDocumentSignInput,
+  PublicReceiptSignature,
+} from "@crm/contracts";
+import type {
   ReceivableContact,
   PaymentTiming,
   FinancialDatesInput,
@@ -299,6 +303,16 @@ export const financeApi = {
     request<ReceivableContact>(`/finance/receivables/${id}/contact`),
   paymentReceipt: (id: string) =>
     request<PaymentReceipt>(`/finance/receivables/${id}/receipt`),
+  /** Link público: o cliente abre o recibo sem login (registra a visualização). */
+  publicReceiptSignature: (token: string) =>
+    request<PublicReceiptSignature>(
+      `/public/receipt-signatures/${encodeURIComponent(token)}`,
+    ),
+  signPublicReceipt: (token: string, input: PublicDocumentSignInput) =>
+    request<PublicReceiptSignature>(
+      `/public/receipt-signatures/${encodeURIComponent(token)}`,
+      { method: "POST", body: JSON.stringify(input) },
+    ),
   financialWorkspace: () => request<FinancialWorkspace>("/finance/workspace"),
   renegotiateReceivables: (input: ReceivableRenegotiationInput) =>
     request<ReceivableRenegotiation>("/finance/renegotiations", {

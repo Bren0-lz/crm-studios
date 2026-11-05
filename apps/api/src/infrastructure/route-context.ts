@@ -61,6 +61,7 @@ import {
 /** Requisições por minuto de cada chave de integração (API externa). */
 export const INTEGRATION_RATE_LIMIT = 120;
 import { type BuildAppOptions } from "./route-utils.js";
+import { createDomainEventPublisher } from "./domain-events.js";
 
 // Regras padrão do zod em pt-BR: a resposta 400 diz ao usuário o que corrigir.
 z.config({ customError: ptBrValidationError });
@@ -69,6 +70,7 @@ export async function createRouteContext({
   repository,
   logger = true,
   trustProxy = config.TRUST_PROXY,
+  events: injectedEvents,
 }: BuildAppOptions) {
   const app = Fastify({
     logger,
@@ -79,6 +81,13 @@ export async function createRouteContext({
       ? { trustProxy: (_address: string, hop: number) => hop < trustProxy }
       : {}),
   });
+
+  // Assinante que falha não desfaz a operação de origem: só fica no log.
+  const events =
+    injectedEvents ??
+    createDomainEventPublisher((error, event) =>
+      app.log.error({ err: error, event: event.type }, "domain event handler"),
+    );
 
   const loginAttempts = new Map<
     string,
@@ -879,6 +888,7 @@ export async function createRouteContext({
     app,
     loginAttempts,
     repository,
+    events,
     toUserSummary,
     authenticate,
     autoFinalizer,

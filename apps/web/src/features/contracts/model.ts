@@ -9,6 +9,13 @@ import {
   signatureLinkExpired,
 } from "@crm/contracts";
 import { api } from "../../api";
+import { shortDate, timeLabel } from "../../shared/lib/formatting";
+
+/** Data e hora da assinatura no link público ("01 de out., 14:30"). */
+export function signatureMoment(iso: string) {
+  const date = new Date(iso);
+  return `${shortDate.format(date)}, ${timeLabel.format(date)}`;
+}
 
 export const documentKindLabels: Record<DocumentKind, string> = {
   contract: "Contrato",

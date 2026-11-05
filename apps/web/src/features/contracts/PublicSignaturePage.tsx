@@ -1,24 +1,14 @@
-import {
-  publicDocumentSignInputSchema,
-  type PublicSignatureDocument,
-} from "@crm/contracts";
-import { FileSignature } from "lucide-react";
+import type { PublicSignatureDocument } from "@crm/contracts";
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { api, ApiClientError } from "../../api";
-import { CpfInput } from "../../shared/components/CpfInput";
-import { EmptyState } from "../../shared/components/EmptyState";
 import { ErrorBanner } from "../../shared/components/ErrorBanner";
-import { LoadingBlock } from "../../shared/components/LoadingBlock";
-import { useMissingFields } from "../../shared/components/MissingFields";
-import { shortDate, timeLabel } from "../../shared/lib/formatting";
 import { DocumentPaper } from "./DocumentPaper";
-import { SignaturePad } from "./SignaturePad";
-
-function when(iso: string) {
-  const date = new Date(iso);
-  return `${shortDate.format(date)}, ${timeLabel.format(date)}`;
-}
+import { signatureMoment } from "./model";
+import {
+  PublicSignatureForm,
+  PublicSignatureShell,
+} from "./PublicSignatureLayout";
 
 /** Página aberta pelo cliente no link enviado pelo WhatsApp: lê o documento e assina. */
 export function PublicSignaturePage() {
@@ -29,21 +19,13 @@ export function PublicSignaturePage() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [expired, setExpired] = useState(false);
-  const [error, setError] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [signerName, setSignerName] = useState("");
-  const [signerCpf, setSignerCpf] = useState("");
-  const [accepted, setAccepted] = useState(false);
-  const [signatureImage, setSignatureImage] = useState("");
 
   useEffect(() => {
     let active = true;
     api
       .publicSignatureDocument(token)
       .then((data) => {
-        if (!active) return;
-        setDocument(data);
-        setSignerName(data.patientName);
+        if (active) setDocument(data);
       })
       .catch((cause: Error) => {
         if (!active) return;
@@ -59,53 +41,21 @@ export function PublicSignaturePage() {
     };
   }, [token]);
 
-  const missing = useMissingFields(
-    [
-      signerName.trim().length < 3 && "Nome completo",
-      !signatureImage && "Assinatura",
-      !accepted && "Confirmação de leitura",
-    ].filter((item): item is string => Boolean(item)),
-    "field-hint",
-  );
-
-  async function sign() {
-    const input = publicDocumentSignInputSchema.safeParse({
-      signerName,
-      signerCpf,
-      accepted,
-      signatureImage,
-    });
-    if (!input.success) {
-      setError(input.error.issues[0]?.message ?? "Confira os dados.");
-      return;
-    }
-    setBusy(true);
-    setError("");
-    try {
-      setDocument(await api.signPublicDocument(token, input.data));
-    } catch (cause) {
-      setError((cause as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  }
-
   return (
-    <main className="public-signature-page">
-      {loading ? (
-        <LoadingBlock />
-      ) : !document ? (
-        <section className="panel">
-          <EmptyState
-            icon={FileSignature}
-            title={expired ? "Link expirado" : "Link indisponível"}
-            copy={
-              loadError ||
-              "Confira se o link foi copiado por inteiro ou peça um novo à clínica."
+    <PublicSignatureShell
+      loading={loading}
+      unavailable={
+        document
+          ? null
+          : {
+              title: expired ? "Link expirado" : "Link indisponível",
+              copy:
+                loadError ||
+                "Confira se o link foi copiado por inteiro ou peça um novo à clínica.",
             }
-          />
-        </section>
-      ) : (
+      }
+    >
+      {document && (
         <section className="panel public-signature">
           <div className="panel-head">
             <div>
@@ -126,74 +76,27 @@ export function PublicSignaturePage() {
             {document.status === "signed" ? (
               <div className="success-banner" role="status">
                 Documento assinado por {document.signerName}
-                {document.signedAt ? ` em ${when(document.signedAt)}` : ""}.
-                Código do documento: {document.documentSha256.slice(0, 16)}.
+                {document.signedAt
+                  ? ` em ${signatureMoment(document.signedAt)}`
+                  : ""}
+                . Código do documento: {document.documentSha256.slice(0, 16)}.
               </div>
             ) : document.status === "cancelled" ? (
               <ErrorBanner error="Este documento foi cancelado pela clínica e não pode mais ser assinado." />
             ) : (
-              <form
-                className="clinical-form"
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  void sign();
-                }}
-              >
-                <h3>Assinatura</h3>
-                {error && <ErrorBanner error={error} />}
-                <fieldset className="form-fields form-grid" disabled={busy}>
-                  <label>
-                    Nome completo
-                    <input
-                      required
-                      minLength={3}
-                      maxLength={160}
-                      autoComplete="name"
-                      value={signerName}
-                      onChange={(event) => setSignerName(event.target.value)}
-                    />
-                  </label>
-                  <label>
-                    CPF (opcional)
-                    <CpfInput value={signerCpf} onChange={setSignerCpf} />
-                  </label>
-                  <div className="span-2">
-                    <span className="signature-pad-label">
-                      Desenhe sua assinatura abaixo
-                    </span>
-                    <SignaturePad
-                      disabled={busy}
-                      onChange={setSignatureImage}
-                    />
-                  </div>
-                  <label className="checkbox-field span-2">
-                    <input
-                      type="checkbox"
-                      checked={accepted}
-                      onChange={(event) => setAccepted(event.target.checked)}
-                    />
-                    Li o documento e concordo com os seus termos.
-                  </label>
-                </fieldset>
-                {missing.hint}
-                <div className="modal-actions">
-                  <button
-                    className="primary-button"
-                    disabled={busy || missing.blocked}
-                    aria-describedby={missing.describedBy}
-                  >
-                    Assinar documento
-                  </button>
-                </div>
-                <p className="muted-copy">
-                  Ao assinar, registramos data, hora, IP e navegador junto com o
-                  código do documento.
-                </p>
-              </form>
+              <PublicSignatureForm
+                initialName={document.patientName}
+                acceptLabel="Li o documento e concordo com os seus termos."
+                submitLabel="Assinar documento"
+                footnote="Ao assinar, registramos data, hora, IP e navegador junto com o código do documento."
+                onSign={async (input) =>
+                  setDocument(await api.signPublicDocument(token, input))
+                }
+              />
             )}
           </div>
         </section>
       )}
-    </main>
+    </PublicSignatureShell>
   );
 }

@@ -1,4 +1,5 @@
 import type { DocumentSignatureLinkView } from "../contracts/types.js";
+import type { PaymentReceipt } from "./types.js";
 
 /**
  * Recibo para assinatura (B5-02): uma linha por baixa de parcela. Gerado na baixa, enviado
@@ -50,4 +51,29 @@ export function receiptSignatureStatus(receipt: {
   if (receipt.viewCount > 0) return "viewed";
   if (receipt.sentAt) return "sent";
   return "generated";
+}
+
+/**
+ * O que o cliente vê no link público do recibo (sem token, IP nem dados internos).
+ * `receipt` é o recibo da baixa (sem o telefone do cliente); ausente no recibo cancelado.
+ */
+export interface PublicReceiptSignature {
+  status: "pending" | "signed" | "cancelled";
+  amountInCents: number;
+  paidAt: string;
+  receipt?: Omit<PaymentReceipt, "patientPhone">;
+  signedAt?: string;
+  signerName?: string;
+  /** Assinatura desenhada, devolvida só no recibo assinado (para imprimir). */
+  signatureImage?: string;
+  cancelledAt?: string;
+}
+
+/** Situação mostrada no link público: o cancelado vale sobre o assinado. */
+export function publicReceiptSignatureStatus(receipt: {
+  cancelledAt?: string | undefined;
+  signedAt?: string | undefined;
+}): PublicReceiptSignature["status"] {
+  if (receipt.cancelledAt) return "cancelled";
+  return receipt.signedAt ? "signed" : "pending";
 }
