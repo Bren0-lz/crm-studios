@@ -354,6 +354,43 @@ describe.skipIf(!databaseUrl)("MySQL repository", () => {
     }
   });
 
+  it("stores the receipt reminder settings and keeps them when absent", async () => {
+    const before = (await repository.getClinicSettings(clinicId))!;
+    const reminder = {
+      frequency: "weekly" as const,
+      weekday: 5,
+      time: "09:30",
+      afterHours: 48,
+    };
+    try {
+      const saved = await repository.updateClinicSettings(clinicId, ownerId, {
+        name: before.name,
+        timezone: before.timezone,
+        receiptReminder: reminder,
+      });
+      expect(saved.receiptReminder).toEqual(reminder);
+      expect(saved.paymentReceiptMessageTemplate).toBe(
+        before.paymentReceiptMessageTemplate,
+      );
+      const untouched = await repository.updateClinicSettings(
+        clinicId,
+        ownerId,
+        { name: before.name, timezone: before.timezone },
+      );
+      expect(untouched.receiptReminder).toEqual(reminder);
+      expect((await repository.getClinicSettings(clinicId))!.receiptReminder)
+        .toEqual(reminder);
+    } finally {
+      await repository.updateClinicSettings(clinicId, ownerId, {
+        name: before.name,
+        timezone: before.timezone,
+        ...(before.receiptReminder
+          ? { receiptReminder: before.receiptReminder }
+          : {}),
+      });
+    }
+  });
+
   it("stores and clears the clinic Pix key and message without touching the other settings", async () => {
     const before = (await repository.getClinicSettings(clinicId))!;
     try {

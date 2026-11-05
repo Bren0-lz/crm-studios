@@ -1,7 +1,10 @@
 import {
   isOverdueReceivable,
+  isReceiptReminderDue,
   notificationPreferencesSchema,
   recurringPayableReminders,
+  resolveReceiptReminderSettings,
+  unsignedReceiptPatientCount,
   type DashboardViewSummary,
   type NotificationsSummary,
 } from "@crm/contracts";
@@ -83,7 +86,8 @@ export function registerDashboardRoutes(context: RouteContext) {
   /**
    * Sino do cabeçalho (QM13): só contagens, cada grupo apenas com o módulo correspondente.
    * Aniversariantes do dia ainda sem parabéns (relacionamento), parcelas vencidas em aberto
-   * (financeiro, mesma regra da etiqueta "Pagamento atrasado"), despesas fixas no prazo de
+   * (financeiro, mesma regra da etiqueta "Pagamento atrasado"), clientes com recibo enviado e
+   * não assinado, no horário do aviso configurado na clínica (financeiro), despesas fixas no prazo de
    * aviso configurado ou vencidas (financeiro), atendimentos a finalizar
    * (agenda) e os retornos combinados pela equipe: tarefas comerciais vencidas (crm),
    * contatos adiados que voltaram à lista (relacionamento) e pausas com retorno previsto
@@ -114,9 +118,13 @@ export function registerDashboardRoutes(context: RouteContext) {
     const { clinicId } = request.user;
     const modules = requestAccess.get(request)?.modules ?? [];
     const settings = await repository.getClinicSettings(clinicId);
-    const date = clinicDateOf(
-      new Date(),
-      settings?.timezone ?? DEFAULT_CLINIC_TIMEZONE,
+    const now = new Date();
+    const timezone = settings?.timezone ?? DEFAULT_CLINIC_TIMEZONE;
+    const date = clinicDateOf(now, timezone);
+    // Aviso de recibos não assinados (RC5): sem agendador, vale na leitura a partir do
+    // horário configurado na clínica, nos dias da frequência escolhida.
+    const receiptReminder = resolveReceiptReminderSettings(
+      settings?.receiptReminder,
     );
     const [
       birthdays,
@@ -199,6 +207,15 @@ export function registerDashboardRoutes(context: RouteContext) {
             overdueReceivables: finance.receivables.filter((item) =>
               isOverdueReceivable(item, date),
             ).length,
+          }
+        : {}),
+      ...(finance && isReceiptReminderDue(receiptReminder, now, timezone)
+        ? {
+            unsignedReceipts: unsignedReceiptPatientCount(
+              finance.receivables,
+              receiptReminder.afterHours,
+              now,
+            ),
           }
         : {}),
       ...(recurringDue !== undefined

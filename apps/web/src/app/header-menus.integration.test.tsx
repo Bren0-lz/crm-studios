@@ -30,7 +30,12 @@ function login(access?: { modules: string[] }) {
 
 function LocationProbe() {
   const location = useLocation();
-  return <output data-testid="location">{location.pathname}</output>;
+  return (
+    <output data-testid="location">
+      {location.pathname}
+      {location.search}
+    </output>
+  );
 }
 
 /**
@@ -443,6 +448,11 @@ describe("notification banner, alerts and settings", () => {
     // Só os grupos dos módulos do usuário (admin vê todos).
     expect(
       within(modal).getByRole("checkbox", {
+        name: "Destacar Recibos não assinados no topo da tela",
+      }),
+    ).toBeChecked();
+    expect(
+      within(modal).getByRole("checkbox", {
         name: "Mostrar Campanhas automáticas no sino",
       }),
     ).toBeChecked();
@@ -491,6 +501,7 @@ describe("notification banner, alerts and settings", () => {
       hiddenKinds: ["overdueReceivables"],
       highlightedKinds: [
         "overdueReceivables",
+        "unsignedReceipts",
         "pendingFinalization",
         "overdueLeadTasks",
         "birthdays",
@@ -506,6 +517,48 @@ describe("notification banner, alerts and settings", () => {
     const banner = screen.getByRole("region", { name: "Alertas" });
     expect(banner).toHaveTextContent("Aniversariantes de hoje");
     expect(banner).not.toHaveTextContent("Parcelas vencidas");
+  });
+
+  it("shows the clients who have not signed the receipt in the bell and in the banner", async () => {
+    login();
+    mockApi(() =>
+      json({ date: "2026-10-16", overdueReceivables: 0, unsignedReceipts: 2 }),
+    );
+    renderApp();
+    const bell = await screen.findByRole("button", {
+      name: "Notificações: 2 pendências",
+    });
+    // Destacado por padrão: entra também na faixa de alertas.
+    const banner = screen.getByRole("region", { name: "Alertas" });
+    expect(
+      within(banner).getByRole("button", { name: /Recibos não assinados/ }),
+    ).toHaveAccessibleDescription("2 clientes ainda não assinaram o recibo");
+    fireEvent.click(bell);
+    const panel = screen.getByRole("dialog", { name: "Notificações" });
+    const group = within(panel).getByRole("button", {
+      name: /Recibos não assinados/,
+    });
+    expect(group).toHaveTextContent("2 clientes ainda não assinaram o recibo");
+    expect(group).toHaveTextContent("2");
+    fireEvent.click(group);
+    expect(screen.getByTestId("location")).toHaveTextContent(
+      "/financeiro?recibo=nao-assinado",
+    );
+  });
+
+  it("leaves the receipt reminder out when the API does not send it", async () => {
+    login();
+    mockApi(() => json({ date: "2026-10-16", overdueReceivables: 1 }));
+    renderApp();
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Notificações: 1 pendência" }),
+    );
+    expect(
+      within(screen.getByRole("dialog", { name: "Notificações" })).queryByRole(
+        "button",
+        { name: /Recibos não assinados/ },
+      ),
+    ).not.toBeInTheDocument();
   });
 
   it("warns on screen when a new pending item shows up", async () => {

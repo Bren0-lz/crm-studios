@@ -68,6 +68,7 @@ export function salesChangePercent(
 export const notificationKinds = [
   "birthdays",
   "overdueReceivables",
+  "unsignedReceipts",
   "recurringPayables",
   "pendingFinalization",
   "overdueLeadTasks",
@@ -112,6 +113,8 @@ export const defaultNotificationPreferences: z.infer<
   hiddenKinds: [],
   highlightedKinds: [
     "overdueReceivables",
+    // RC5: o aviso de recibos só aparece no horário configurado e vai também para a faixa.
+    "unsignedReceipts",
     "pendingFinalization",
     "overdueLeadTasks",
   ],

@@ -216,6 +216,11 @@ export interface NotificationsSummary {
   birthdaysToday?: number | undefined;
   /** Parcelas em aberto com vencimento antes de hoje (módulo finance). */
   overdueReceivables?: number | undefined;
+  /**
+   * Clientes com recibo enviado há mais das horas configuradas e ainda não assinado (módulo
+   * finance, RC5). Só presente quando o aviso da clínica vence (horário e frequência).
+   */
+  unsignedReceipts?: number | undefined;
   /** Contas de despesas fixas no prazo de aviso ou vencidas, ainda não pagas (módulo finance). */
   recurringPayablesDue?: number | undefined;
   /** Atendimentos passados ainda agendados/confirmados (módulo agenda). */

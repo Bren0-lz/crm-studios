@@ -119,11 +119,20 @@ export function FinancePage() {
     requestedPayablesView,
   );
   const [payableSearch, setPayableSearch] = useState("");
+  // `?recibo=nao-assinado` (aviso de recibos no sino, RC5) liga o recorte "Recibo não assinado".
+  const unsignedRequested = () =>
+    searchParams.get("recibo") === "nao-assinado";
+  const [unsignedReceiptsOnly, setUnsignedReceiptsOnly] =
+    useState(unsignedRequested);
   if (location.key !== seenLocation) {
     setSeenLocation(location.key);
     if (searchParams.get("aba") === "contas-a-pagar") {
       setTab("payables");
       setPayablesView(requestedPayablesView());
+    }
+    if (unsignedRequested()) {
+      setTab("receivables");
+      setUnsignedReceiptsOnly(true);
     }
   }
   const [professionals, setProfessionals] = useState<Professional[]>([]);
@@ -598,6 +607,8 @@ export function FinancePage() {
                 search={receivableSearch}
                 selected={selectedReceivables}
                 onFilterChange={changeReceivableFilter}
+                unsignedOnly={unsignedReceiptsOnly}
+                onUnsignedOnlyChange={setUnsignedReceiptsOnly}
                 onSearchChange={changeReceivableSearch}
                 onSelectedChange={setSelectedReceivables}
                 onRenegotiate={() => setRenegotiating(true)}
