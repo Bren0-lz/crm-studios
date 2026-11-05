@@ -1,7 +1,7 @@
 # Estado do loop
 
-- **Tarefa atual:** RC2 (Rodada 9; EV2 em seguida; TW2 e SS2 BLOCKED; PX1 e PX2 adiadas pelo dono em 04/11 — painel/dashboard fica para depois; CT4 e CP4 são manuais; a Rodada 8 está pausada em QM16)
-- **Última concluída:** RC1 (Rodada 9)
+- **Tarefa atual:** RC3 (Rodada 9; EV2 também na fila; TW2 e SS2 BLOCKED; PX1 e PX2 adiadas pelo dono em 04/11 — painel/dashboard fica para depois; CT4 e CP4 são manuais; a Rodada 8 está pausada em QM16)
+- **Última concluída:** RC2 (Rodada 9)
 - **Tentativas na atual:** 0/3
 - **Bloqueios:** Rodada 9 tem tarefas BLOCKED à espera do estúdio: CP3, PX3, TW2, SS2, EV7, RC6, TG5, TG6, CM2, CM3, AJ4
 
