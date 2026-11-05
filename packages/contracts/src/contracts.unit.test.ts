@@ -21,6 +21,9 @@ import {
   cpfMatchKey,
   receivableContactMessage,
   planPixChargeMessage,
+  paymentReceiptMessage,
+  paymentReceiptMessageVariables,
+  receiptSignaturePath,
   planFirstChargeProration,
   planInstallmentSchedule,
   planProratedChargeCount,
@@ -2214,6 +2217,56 @@ describe("planPixChargeMessage", () => {
     ).toContain(
       "tem 1 sessão por R$ 100,00 (R$ 100,00 por sessão), em 3 parcelas; a 1ª parcela é de R$ 33,34.",
     );
+  });
+});
+
+describe("paymentReceiptMessage", () => {
+  const payment = {
+    patientName: "Marina Costa",
+    amountInCents: 16000,
+    paidAt: "2026-11-05T01:30:00.000Z",
+    link: "https://crm.example/assinar-recibo/abc",
+  };
+  it("fills the default message with the first name, value, local date and link", () => {
+    expect(paymentReceiptMessage(payment)).toBe(
+      "Olá Marina, recebemos seu pagamento de R$ 160,00 em 04/11/2026. Assine o recibo: https://crm.example/assinar-recibo/abc",
+    );
+  });
+  it("uses the clinic template and its time zone; blank falls back to the default", () => {
+    const template =
+      "{{nome}}: {{valor}} pago em {{data_pagamento}}. {{link_recibo}} {{outro}}";
+    expect(
+      paymentReceiptMessage({ ...payment, template, timeZone: "UTC" }),
+    ).toBe(
+      "Marina: R$ 160,00 pago em 05/11/2026. https://crm.example/assinar-recibo/abc {{outro}}",
+    );
+    expect(paymentReceiptMessage({ ...payment, template: "   " })).toBe(
+      paymentReceiptMessage(payment),
+    );
+  });
+  it("offers the four variables in the editor and builds the public path", () => {
+    expect(paymentReceiptMessageVariables.map((item) => item.code)).toEqual([
+      "{{nome}}",
+      "{{valor}}",
+      "{{data_pagamento}}",
+      "{{link_recibo}}",
+    ]);
+    expect(receiptSignaturePath("tok")).toBe("/assinar-recibo/tok");
+  });
+  it("accepts the template in the clinic settings (up to 1000 characters)", () => {
+    const base = { name: "Studios Aryana", timezone: "America/Sao_Paulo" };
+    expect(
+      clinicSettingsInputSchema.parse({
+        ...base,
+        paymentReceiptMessageTemplate: "  Olá {{nome}}  ",
+      }).paymentReceiptMessageTemplate,
+    ).toBe("Olá {{nome}}");
+    expect(
+      clinicSettingsInputSchema.safeParse({
+        ...base,
+        paymentReceiptMessageTemplate: "x".repeat(1001),
+      }).success,
+    ).toBe(false);
   });
 });
 

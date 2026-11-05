@@ -22,6 +22,7 @@ import type {
   PaymentPart,
   PaymentReceipt,
   Professional,
+  ReceiptSignatureShare,
   Receivable,
 } from "@crm/contracts";
 import { Building2, Plus, Search, Tags } from "lucide-react";
@@ -48,8 +49,13 @@ import { NewExpenseModal } from "./NewExpenseModal";
 import type { ExpenseKind } from "./expense-kind";
 import { PayablesList } from "./PayablesList";
 import { PayablesSummary } from "./PayablesSummary";
-import { hasEntryFilter, matchesPayableSearch } from "./model";
+import {
+  hasEntryFilter,
+  isReceiptSignatureShare,
+  matchesPayableSearch,
+} from "./model";
 import { ReceiptModal } from "./ReceiptModal";
+import { ReceiptSignatureWhatsapp } from "./ReceiptSignatureWhatsapp";
 import { ReceivableAdjustModal } from "./ReceivableAdjustModal";
 import { ReceivableContactModal } from "./ReceivableContactModal";
 import { ReceivablesList } from "./ReceivablesList";
@@ -151,9 +157,26 @@ export function FinancePage() {
     string | null
   >(null);
   const [commissionRuleOpen, setCommissionRuleOpen] = useState(false);
-  const [receipt, setReceipt] = useState<PaymentReceipt | null>(null);
+  const [receipt, setReceipt] = useState<{
+    receipt: PaymentReceipt;
+    share: ReceiptSignatureShare | null;
+  } | null>(null);
+  // Recibo da baixa recém-feita, pronto para o "Enviar recibo pelo WhatsApp" (RC3).
+  const [receiptToSend, setReceiptToSend] =
+    useState<ReceiptSignatureShare | null>(null);
   const [error, setError] = useState("");
   const canManage = canEdit("finance");
+  const canSendReceipt = canManage && can("finance.receive");
+  /** Recibo para assinatura da parcela; sem recibo (ou sem permissão) = `null`. */
+  async function loadReceiptShare(receivableId: string) {
+    if (!canSendReceipt) return null;
+    try {
+      const share: unknown = await api.receiptSignatureShare(receivableId);
+      return isReceiptSignatureShare(share) ? share : null;
+    } catch {
+      return null;
+    }
+  }
   // Tipos do "Nova despesa" que o perfil pode cadastrar (pontual e/ou fixa).
   const expenseKinds: ExpenseKind[] = canManage
     ? [
@@ -263,6 +286,9 @@ export function FinancePage() {
     if (failedProofs.length) toast.error(proofFailureMessage(failedProofs));
     // A baixa foi feita: fecha o modal e, se o recarregamento falhar, avisa na página.
     setSettling(null);
+    setReceiptToSend(null);
+    if (target.kind === "receivable")
+      void loadReceiptShare(target.id).then(setReceiptToSend);
     if (target.kind === "receivable") setSelectedReceivables([]);
     setError("");
     try {
@@ -402,6 +428,24 @@ export function FinancePage() {
       />
       {!canManage && <ReadOnlyNotice module="finance" />}
       {error && <ErrorBanner error={error} />}
+      {receiptToSend && (
+        <section
+          className="success-banner receipt-send-notice"
+          aria-label="Recibo da baixa"
+        >
+          <span>{`Recibo de ${currency.format(receiptToSend.amountInCents / 100)} pronto para o cliente assinar.`}</span>
+          <div className="receipt-send-actions">
+            <ReceiptSignatureWhatsapp share={receiptToSend} />
+            <button
+              type="button"
+              className="secondary-button"
+              onClick={() => setReceiptToSend(null)}
+            >
+              Dispensar
+            </button>
+          </div>
+        </section>
+      )}
       {!data ? (
         <LoadingBlock />
       ) : (
@@ -585,9 +629,11 @@ export function FinancePage() {
                   })
                 }
                 onReceipt={(id) =>
-                  void api
-                    .paymentReceipt(id)
-                    .then(setReceipt)
+                  void Promise.all([
+                    api.paymentReceipt(id),
+                    loadReceiptShare(id),
+                  ])
+                    .then(([receipt, share]) => setReceipt({ receipt, share }))
                     .catch((cause: Error) => setError(cause.message))
                 }
               />
@@ -803,7 +849,11 @@ export function FinancePage() {
         />
       )}
       {receipt && (
-        <ReceiptModal receipt={receipt} onClose={() => setReceipt(null)} />
+        <ReceiptModal
+          receipt={receipt.receipt}
+          share={receipt.share}
+          onClose={() => setReceipt(null)}
+        />
       )}
       {contacting && (
         <ReceivableContactModal

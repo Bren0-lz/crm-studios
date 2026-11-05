@@ -1,6 +1,8 @@
 import {
   formatTaxId,
   isValidTaxId,
+  paymentReceiptMessage,
+  paymentReceiptMessageVariables,
   pixMessageVariables,
   planPixChargeMessage,
   type ClinicSettings,
@@ -308,7 +310,10 @@ export function ClinicSettingsContent() {
                 <Wallet size={20} aria-hidden="true" />
               </span>
               <h3 id="clinic-payments-title">Recebimentos</h3>
-              <p>Chave e mensagem enviadas ao cliente nas cobranças por Pix.</p>
+              <p>
+                Chave Pix e mensagens enviadas ao cliente nas cobranças e nos
+                recibos.
+              </p>
             </div>
             <div className="form-grid">
               <label className="span-2">
@@ -352,6 +357,41 @@ export function ClinicSettingsContent() {
                     totalSessions: 8,
                     pixKey: settings.pixKey?.trim() || "sua chave Pix",
                     template: settings.pixMessageTemplate,
+                  })}`}
+                </small>
+              </div>
+              <div className="span-2 field-with-hint">
+                <label id="clinic-receipt-message-label">
+                  Mensagem do recibo
+                </label>
+                <MessageBodyEditor
+                  labelId="clinic-receipt-message-label"
+                  value={settings.paymentReceiptMessageTemplate ?? ""}
+                  maxLength={1000}
+                  variables={paymentReceiptMessageVariables}
+                  toolbarLabel="Inserir dados na mensagem do recibo"
+                  formatting={false}
+                  required={false}
+                  disabled={saving}
+                  describedBy="clinic-receipt-message-help"
+                  placeholder="Em branco, usa a mensagem padrão: recebemos seu pagamento, com o valor, a data e o link para assinar o recibo."
+                  onChange={(paymentReceiptMessageTemplate) => {
+                    setSettings((current) =>
+                      current
+                        ? { ...current, paymentReceiptMessageTemplate }
+                        : current,
+                    );
+                    setNotice("");
+                  }}
+                />
+                <small id="clinic-receipt-message-help" className="field-hint">
+                  {`Prévia: ${paymentReceiptMessage({
+                    patientName: "Marina Costa",
+                    amountInCents: 16000,
+                    paidAt: "2026-11-05T15:00:00.000Z",
+                    link: `${window.location.origin}/assinar-recibo/…`,
+                    template: settings.paymentReceiptMessageTemplate,
+                    timeZone: settings.timezone,
                   })}`}
                 </small>
               </div>

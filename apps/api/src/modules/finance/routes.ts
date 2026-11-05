@@ -30,6 +30,7 @@ import type { RouteContext } from "../../infrastructure/route-context.js";
 import { DomainError } from "../../repository.js";
 import { buildFinanceForecast } from "./finance-forecast.js";
 import { payrollAdvanceOnlyError, payrollOnlyError } from "./payroll.js";
+import { receiptSignatureShare } from "./receipt-signature-share.js";
 
 export function registerFinanceRoutes(context: RouteContext) {
   const {
@@ -301,6 +302,28 @@ export function registerFinanceRoutes(context: RouteContext) {
           message: "Conta a receber não encontrada.",
         });
       return receipt;
+    },
+  );
+
+  // Recibo para assinatura da baixa (RC3): link e contato para o "Enviar recibo pelo
+  // WhatsApp"; o POST registra o clique (o sistema não sabe se a mensagem saiu).
+  app.get(
+    "/finance/receivables/:id/receipt-signature",
+    { preHandler: authenticate },
+    async (request) => {
+      const { id } = request.params as { id: string };
+      return receiptSignatureShare(repository, request.user.clinicId, id);
+    },
+  );
+
+  app.post(
+    "/finance/receivables/:id/receipt-signature/sent",
+    { preHandler: authenticate },
+    async (request) => {
+      const { id } = request.params as { id: string };
+      return receiptSignatureShare(repository, request.user.clinicId, id, {
+        markSent: true,
+      });
     },
   );
 

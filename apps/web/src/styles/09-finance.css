@@ -1159,6 +1159,22 @@
   margin-bottom: 0;
 }
 
+/* Recibo da baixa recém-feita, com o "Enviar recibo pelo WhatsApp" (RC3). */
+.receipt-send-notice {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.receipt-send-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
 .dre-category-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));

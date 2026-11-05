@@ -19,6 +19,20 @@ describe("demonstration scenarios", () => {
       ),
     ).toBe(true);
     expect(data.receivables.some((item) => item.overdue)).toBe(true);
+    // Recibo para assinatura de exemplo: um por parcela paga, pronto para enviar (RC3).
+    const paid = data.receivables.filter((item) => item.status === "paid");
+    expect(data.receiptSignatures.map((item) => item.receivableId)).toEqual(
+      paid.map((item) => item.id),
+    );
+    expect(
+      data.receiptSignatures.every(
+        (item) =>
+          /^[A-Za-z0-9_-]{43}$/.test(item.token) &&
+          item.amountInCents ===
+            paid.find((entry) => entry.id === item.receivableId)!
+              .amountInCents,
+      ),
+    ).toBe(true);
     expect(
       data.plans
         .filter((plan) => plan.kind === "recurring")

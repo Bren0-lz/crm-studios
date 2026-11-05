@@ -23,6 +23,7 @@ import type {
 import type {
   PublicDocumentSignInput,
   PublicReceiptSignature,
+  ReceiptSignatureShare,
 } from "@crm/contracts";
 import type {
   ReceivableContact,
@@ -303,6 +304,17 @@ export const financeApi = {
     request<ReceivableContact>(`/finance/receivables/${id}/contact`),
   paymentReceipt: (id: string) =>
     request<PaymentReceipt>(`/finance/receivables/${id}/receipt`),
+  /** Recibo para assinatura em vigor da parcela: link e contato (não marca o envio). */
+  receiptSignatureShare: (receivableId: string) =>
+    request<ReceiptSignatureShare>(
+      `/finance/receivables/${receivableId}/receipt-signature`,
+    ),
+  /** Registra o clique em "Enviar recibo pelo WhatsApp" (o primeiro envio fica). */
+  markReceiptSignatureSent: (receivableId: string) =>
+    request<ReceiptSignatureShare>(
+      `/finance/receivables/${receivableId}/receipt-signature/sent`,
+      { method: "POST" },
+    ),
   /** Link público: o cliente abre o recibo sem login (registra a visualização). */
   publicReceiptSignature: (token: string) =>
     request<PublicReceiptSignature>(

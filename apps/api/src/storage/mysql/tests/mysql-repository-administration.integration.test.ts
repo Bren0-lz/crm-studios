@@ -311,6 +311,49 @@ describe.skipIf(!databaseUrl)("MySQL repository", () => {
     }
   });
 
+  it("stores and clears the payment receipt message template", async () => {
+    const before = (await repository.getClinicSettings(clinicId))!;
+    try {
+      const saved = await repository.updateClinicSettings(clinicId, ownerId, {
+        name: before.name,
+        timezone: before.timezone,
+        paymentReceiptMessageTemplate: "Oi {{nome}}! Recibo: {{link_recibo}}",
+      });
+      expect(saved.paymentReceiptMessageTemplate).toBe(
+        "Oi {{nome}}! Recibo: {{link_recibo}}",
+      );
+      expect(saved.pixMessageTemplate).toBe(before.pixMessageTemplate);
+      const untouched = await repository.updateClinicSettings(
+        clinicId,
+        ownerId,
+        { name: before.name, timezone: before.timezone },
+      );
+      expect(untouched.paymentReceiptMessageTemplate).toBe(
+        "Oi {{nome}}! Recibo: {{link_recibo}}",
+      );
+      const cleared = await repository.updateClinicSettings(clinicId, ownerId, {
+        name: before.name,
+        timezone: before.timezone,
+        paymentReceiptMessageTemplate: "",
+      });
+      expect(cleared.paymentReceiptMessageTemplate).toBe("");
+    } finally {
+      await repository.updateClinicSettings(clinicId, ownerId, {
+        name: before.name,
+        timezone: before.timezone,
+        legalName: before.legalName ?? "",
+        taxId: before.taxId ?? "",
+        phone: before.phone ?? "",
+        email: before.email ?? "",
+        address: before.address ?? "",
+        pixKey: before.pixKey ?? "",
+        pixMessageTemplate: before.pixMessageTemplate ?? "",
+        paymentReceiptMessageTemplate:
+          before.paymentReceiptMessageTemplate ?? "",
+      });
+    }
+  });
+
   it("stores and clears the clinic Pix key and message without touching the other settings", async () => {
     const before = (await repository.getClinicSettings(clinicId))!;
     try {

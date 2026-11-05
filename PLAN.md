@@ -801,7 +801,7 @@ atualizado no mesmo PR):
   - Testes de contracts (preenchimento), API e web.
 - **Gate:** gate completo
 - **Depende de:** RC2
-- **Status:** TODO
+- **Status:** DONE
 
 ### RC4 — Controle de enviado, visualizado e assinado
 

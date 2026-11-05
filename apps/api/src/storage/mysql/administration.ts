@@ -75,13 +75,15 @@ type ClinicSettingsRow = {
   address: string | null;
   pixKey: string | null;
   pixMessageTemplate: string | null;
+  paymentReceiptMessageTemplate: string | null;
   timezone: string;
   updatedAt: Date;
 };
 
 const clinicSettingsColumns = `id, name, legal_name AS "legalName", tax_id AS "taxId", phone,
   logo_data_url AS "logoDataUrl",email, address, pix_key AS "pixKey",
-  pix_message_template AS "pixMessageTemplate", timezone, updated_at AS "updatedAt"`;
+  pix_message_template AS "pixMessageTemplate",
+  payment_receipt_message_template AS "paymentReceiptMessageTemplate", timezone, updated_at AS "updatedAt"`;
 
 type AutoFinalizationRow = {
   enabled: boolean;
@@ -151,6 +153,7 @@ function mapClinicSettings(row: ClinicSettingsRow): ClinicSettings {
     address: row.address ?? "",
     pixKey: row.pixKey ?? "",
     pixMessageTemplate: row.pixMessageTemplate ?? "",
+    paymentReceiptMessageTemplate: row.paymentReceiptMessageTemplate ?? "",
     timezone: row.timezone,
     updatedAt: row.updatedAt.toISOString(),
   };
@@ -925,7 +928,9 @@ export function createAdministrationRepository(
           `UPDATE clinics SET name = $2, legal_name = $3, tax_id = $4,
             phone = $5, email = $6, address = $7, timezone = $8,logo_data_url=CASE WHEN $9 THEN $10 ELSE logo_data_url END,
             pix_key = CASE WHEN $11 THEN $12 ELSE pix_key END,
-            pix_message_template = CASE WHEN $13 THEN $14 ELSE pix_message_template END, updated_at = NOW(6)
+            pix_message_template = CASE WHEN $13 THEN $14 ELSE pix_message_template END,
+            payment_receipt_message_template = CASE WHEN $15 THEN $16 ELSE payment_receipt_message_template END,
+            updated_at = NOW(6)
          WHERE id = $1`,
           [
             clinicId,
@@ -942,6 +947,8 @@ export function createAdministrationRepository(
             input.pixKey || null,
             input.pixMessageTemplate !== undefined,
             input.pixMessageTemplate || null,
+            input.paymentReceiptMessageTemplate !== undefined,
+            input.paymentReceiptMessageTemplate || null,
           ],
           `SELECT ${clinicSettingsColumns} FROM clinics WHERE id = $1`,
         );
