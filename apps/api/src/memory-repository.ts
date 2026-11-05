@@ -1,5 +1,6 @@
 import { createAgendaNotesRepository } from "./storage/memory/agenda-notes.js";
 import { createWaitlistRepository } from "./storage/memory/waitlist.js";
+import { createEventsRepository } from "./storage/memory/events.js";
 import { createBranchesRepository } from "./storage/memory/branches.js";
 import { createCommissionReconciliationRepository } from "./storage/memory/commission-reconciliation.js";
 import { createExternalOperationsRepository } from "./storage/memory/external-operations.js";
@@ -42,6 +43,10 @@ export class MemoryClinicRepository implements ClinicRepository {
   readonly createWaitlistEntry: ClinicRepository["createWaitlistEntry"];
   readonly updateWaitlistEntry: ClinicRepository["updateWaitlistEntry"];
   readonly deleteWaitlistEntry: ClinicRepository["deleteWaitlistEntry"];
+  readonly listEvents: ClinicRepository["listEvents"];
+  readonly getEvent: ClinicRepository["getEvent"];
+  readonly createEvent: ClinicRepository["createEvent"];
+  readonly updateEvent: ClinicRepository["updateEvent"];
 
   readonly listAgendaNotes: ClinicRepository["listAgendaNotes"];
   readonly createAgendaNotes: ClinicRepository["createAgendaNotes"];
@@ -220,6 +225,11 @@ export class MemoryClinicRepository implements ClinicRepository {
     this.createWaitlistEntry = waitlist.createWaitlistEntry;
     this.updateWaitlistEntry = waitlist.updateWaitlistEntry;
     this.deleteWaitlistEntry = waitlist.deleteWaitlistEntry;
+    const events = createEventsRepository(this.context);
+    this.listEvents = events.listEvents;
+    this.getEvent = events.getEvent;
+    this.createEvent = events.createEvent;
+    this.updateEvent = events.updateEvent;
     const agendaNotes = createAgendaNotesRepository(this.context);
     this.listAgendaNotes = agendaNotes.listAgendaNotes;
     this.createAgendaNotes = agendaNotes.createAgendaNotes;

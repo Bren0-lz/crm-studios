@@ -11,6 +11,7 @@ import { registerAgendaRoutes } from "./modules/agenda/routes.js";
 import { registerAuthRoutes } from "./modules/auth/routes.js";
 import { registerClinicalRoutes } from "./modules/clinical/routes.js";
 import { registerCommercialRoutes } from "./modules/commercial/routes.js";
+import { registerEventRoutes } from "./modules/commercial/event-routes.js";
 import { registerCampaignRoutes } from "./modules/communications/campaign-routes.js";
 import { registerAutoCampaignRoutes } from "./modules/communications/auto-campaign-routes.js";
 import { registerCommunicationsRoutes } from "./modules/communications/routes.js";
@@ -49,6 +50,7 @@ export async function buildApp(options: BuildAppOptions) {
   registerClinicalRoutes(context);
   registerClinicalResourceRoutes(context);
   registerCommercialRoutes(context);
+  registerEventRoutes(context);
   registerCommunicationsRoutes(context);
   registerCampaignRoutes(context);
   registerAutoCampaignRoutes(context);
