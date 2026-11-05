@@ -4,6 +4,7 @@ import {
 } from "../../modules/commercial/conversion.js";
 import { leadPatientProfile } from "@crm/contracts/commercial";
 import {
+  eventLeadSource,
   buildLeadInsightsFromGroups,
   cpfMatchKey,
   normalizeLeadSearch,
@@ -194,6 +195,26 @@ export function createCommercialRepository(
             404,
           );
       }
+      // Participante de evento: origem "Evento: <nome>" e a filial do evento (se tiver).
+      const event = input.eventId
+        ? (
+            await repositoryContext.pool.query<{
+              name: string;
+              branchId: string | null;
+            }>(
+              `SELECT name, branch_id AS "branchId" FROM events
+               WHERE clinic_id = $1 AND id = $2
+                 AND (branch_id IS NULL OR ${branchClause("branch_id", 3)})`,
+              [clinicId, input.eventId, repositoryContext.branchReadIds()],
+            )
+          ).rows[0]
+        : undefined;
+      if (input.eventId && !event)
+        throw new DomainError(
+          "EVENT_NOT_FOUND",
+          "Evento não encontrado.",
+          404,
+        );
       const stage = firstOpenLeadStage(
         resolveLeadStages(
           (await listStages(repositoryContext.pool, clinicId)).rows,
@@ -203,22 +224,23 @@ export function createCommercialRepository(
         repositoryContext.pool,
         `INSERT INTO leads
          (clinic_id, full_name, phone, email, source, interest, notes,
-          responsible_user_id, tags,profile,contact_method,branch_id,stage, id) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,${branchOrDefault("$12", "$1")},$13, $14)`,
+          responsible_user_id, tags,profile,contact_method,branch_id,stage, id, event_id) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,${branchOrDefault("$12", "$1")},$13, $14, $15)`,
         [
           clinicId,
           input.fullName,
           input.phone,
           input.email || null,
-          input.source,
+          event ? eventLeadSource(event.name) : input.source,
           input.interest,
           input.notes || null,
           input.responsibleUserId || null,
           input.tags,
           JSON.stringify(leadPatientProfile(input)),
           input.contactMethod ?? null,
-          repositoryContext.branchWriteId(),
+          event?.branchId ?? repositoryContext.branchWriteId(),
           stage,
           randomUUID(),
+          input.eventId ?? null,
         ],
         `SELECT id FROM leads WHERE id = $14`,
       );

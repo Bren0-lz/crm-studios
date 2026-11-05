@@ -37,6 +37,8 @@ export const leadInputSchema = z.object({
   notes: z.string().trim().max(2000).optional().or(z.literal("")),
   responsibleUserId: z.uuid().optional().or(z.literal("")),
   tags: z.array(z.string().trim().min(1).max(40)).max(20).default([]),
+  /** Evento em que o lead entrou (participante); só vale no cadastro, a edição não troca. */
+  eventId: z.uuid().optional(),
 });
 
 /**

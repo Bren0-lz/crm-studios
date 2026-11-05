@@ -299,6 +299,11 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
     "agenda.create",
   ),
   "PATCH /lead-tasks/:id/status": operation("crm.tasks_status"),
+  // Eventos do comercial (participantes são leads ligados ao evento).
+  "GET /events": view("events"),
+  "GET /events/:id": view("events"),
+  "POST /events": operation("events.manage"),
+  "PUT /events/:id": operation("events.manage"),
 
   // Contatos sugeridos (relacionamento).
   "GET /relationship/settings": viewAny("relationship", "settings"),
@@ -609,6 +614,7 @@ export const moduleDeniedCodes: Record<AppModule, string> = {
   patients: "COMMERCIAL_ACCESS_DENIED",
   plans: "COMMERCIAL_ACCESS_DENIED",
   crm: "COMMERCIAL_ACCESS_DENIED",
+  events: "COMMERCIAL_ACCESS_DENIED",
   relationship: "COMMERCIAL_ACCESS_DENIED",
   waitlist: "COMMERCIAL_ACCESS_DENIED",
   communications: "COMMERCIAL_ACCESS_DENIED",

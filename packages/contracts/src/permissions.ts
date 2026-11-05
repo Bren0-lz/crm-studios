@@ -102,6 +102,8 @@ const operations = {
     tasks_status: "Alterar situação da tarefa",
     stages_manage: "Editar etapas do funil",
   },
+  // Eventos do comercial: o participante é um lead do CRM ligado ao evento.
+  events: { manage: "Cadastrar e editar evento" },
   relationship: { activities_create: "Registrar contato com cliente" },
   waitlist: { manage: "Gerenciar lista de espera" },
   communications: {
