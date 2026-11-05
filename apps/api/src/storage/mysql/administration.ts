@@ -34,6 +34,7 @@ import {
   resolveNavTabLabels,
   resolveNotificationPreferences,
   resolvePermissionInput,
+  resolveReceiptReminderSettings,
 } from "@crm/contracts";
 import type { Pool, PoolClient } from "../../infrastructure/mysql-client.js";
 import {
@@ -76,6 +77,7 @@ type ClinicSettingsRow = {
   pixKey: string | null;
   pixMessageTemplate: string | null;
   paymentReceiptMessageTemplate: string | null;
+  receiptReminder?: unknown;
   timezone: string;
   updatedAt: Date;
 };
@@ -83,7 +85,8 @@ type ClinicSettingsRow = {
 const clinicSettingsColumns = `id, name, legal_name AS "legalName", tax_id AS "taxId", phone,
   logo_data_url AS "logoDataUrl",email, address, pix_key AS "pixKey",
   pix_message_template AS "pixMessageTemplate",
-  payment_receipt_message_template AS "paymentReceiptMessageTemplate", timezone, updated_at AS "updatedAt"`;
+  payment_receipt_message_template AS "paymentReceiptMessageTemplate",
+  receipt_reminder AS "receiptReminder", timezone, updated_at AS "updatedAt"`;
 
 type AutoFinalizationRow = {
   enabled: boolean;
@@ -154,6 +157,14 @@ function mapClinicSettings(row: ClinicSettingsRow): ClinicSettings {
     pixKey: row.pixKey ?? "",
     pixMessageTemplate: row.pixMessageTemplate ?? "",
     paymentReceiptMessageTemplate: row.paymentReceiptMessageTemplate ?? "",
+    // Sem configuração gravada: ausente (a leitura usa o padrão dos contratos).
+    ...(row.receiptReminder !== undefined && row.receiptReminder !== null
+      ? {
+          receiptReminder: resolveReceiptReminderSettings(
+            json<unknown>(row.receiptReminder),
+          ),
+        }
+      : {}),
     timezone: row.timezone,
     updatedAt: row.updatedAt.toISOString(),
   };
@@ -930,6 +941,7 @@ export function createAdministrationRepository(
             pix_key = CASE WHEN $11 THEN $12 ELSE pix_key END,
             pix_message_template = CASE WHEN $13 THEN $14 ELSE pix_message_template END,
             payment_receipt_message_template = CASE WHEN $15 THEN $16 ELSE payment_receipt_message_template END,
+            receipt_reminder = CASE WHEN $17 THEN $18 ELSE receipt_reminder END,
             updated_at = NOW(6)
          WHERE id = $1`,
           [
@@ -949,6 +961,8 @@ export function createAdministrationRepository(
             input.pixMessageTemplate || null,
             input.paymentReceiptMessageTemplate !== undefined,
             input.paymentReceiptMessageTemplate || null,
+            input.receiptReminder !== undefined,
+            input.receiptReminder ?? null,
           ],
           `SELECT ${clinicSettingsColumns} FROM clinics WHERE id = $1`,
         );

@@ -12,5 +12,6 @@ export * from "./commission-reconciliation.js";
 export * from "./payroll.js";
 export * from "./payment-proofs.js";
 export * from "./receipt-signatures.js";
+export * from "./receipt-reminders.js";
 
 export * from "./commission-recalculation.js";

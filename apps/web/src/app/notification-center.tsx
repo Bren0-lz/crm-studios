@@ -11,6 +11,7 @@ import {
   BellRing,
   Cake,
   CalendarClock,
+  FileSignature,
   ListTodo,
   PackageOpen,
   PauseCircle,
@@ -59,6 +60,12 @@ export const notificationKindDetails: Record<
   overdueReceivables: {
     label: "Parcelas vencidas",
     detail: "Em aberto com vencimento já passado",
+    module: "finance",
+  },
+  unsignedReceipts: {
+    label: "Recibos não assinados",
+    detail:
+      "Clientes que receberam o recibo e não assinaram, no horário do aviso da clínica",
     module: "finance",
   },
   recurringPayables: {
@@ -119,7 +126,8 @@ const iconProps = { size: 16, "aria-hidden": true } as const;
 
 /**
  * Grupos do sino (QM13), cada um só para quem vê o módulo: aniversariantes de hoje
- * (Relacionamento), parcelas vencidas e despesas fixas a vencer (Financeiro), atendimentos a
+ * (Relacionamento), parcelas vencidas, recibos não assinados (no horário do aviso da clínica)
+ * e despesas fixas a vencer (Financeiro), atendimentos a
  * finalizar (Agenda) e os retornos combinados: tarefas comerciais vencidas (Comercial),
  * contatos adiados que voltaram (Relacionamento), pausas com retorno previsto (Planos), produtos
  * a repor (Vendas, com permissão de ver estoque) e uma
@@ -140,13 +148,14 @@ export function notificationGroups(
     count: number | undefined,
     to: string,
     icon: ReactNode,
+    detail = notificationKindDetails[kind].detail,
   ) {
     if (!visible(kind) || !count) return;
     groups.push({
       key: kind,
       kind,
       label: notificationKindDetails[kind].label,
-      detail: notificationKindDetails[kind].detail,
+      detail,
       count,
       to,
       icon,
@@ -163,6 +172,16 @@ export function notificationGroups(
     summary.overdueReceivables,
     "/financeiro",
     <WalletCards {...iconProps} />,
+  );
+  // Só vem da API no horário do aviso configurado na clínica (RC5).
+  add(
+    "unsignedReceipts",
+    summary.unsignedReceipts,
+    "/financeiro?recibo=nao-assinado",
+    <FileSignature {...iconProps} />,
+    summary.unsignedReceipts === 1
+      ? "1 cliente ainda não assinou o recibo"
+      : `${summary.unsignedReceipts} clientes ainda não assinaram o recibo`,
   );
   add(
     "recurringPayables",

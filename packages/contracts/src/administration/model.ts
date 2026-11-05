@@ -6,6 +6,7 @@ import {
   optionalPhoneSchema,
 } from "../common/model.js";
 import { adminUserCommissionInputSchema } from "../finance/model.js";
+import { receiptReminderSettingsSchema } from "../finance/receipt-reminders.js";
 import {
   userPermissionsSchema,
   validatePermissionInput,
@@ -257,6 +258,11 @@ export const clinicSettingsInputSchema = z.object({
     .max(1000)
     .optional()
     .or(z.literal("")),
+  /**
+   * Aviso de recibos não assinados no sino (RC5); ausente = mantém o gravado (ou o padrão
+   * `defaultReceiptReminderSettings`, se nunca foi configurado).
+   */
+  receiptReminder: receiptReminderSettingsSchema.optional(),
   timezone: z
     .string()
     .trim()

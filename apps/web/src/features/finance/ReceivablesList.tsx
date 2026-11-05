@@ -1,6 +1,5 @@
 import { type Receivable, saoPauloToday } from "@crm/contracts";
 import { Search } from "lucide-react";
-import { useState } from "react";
 import { useAuthorization } from "../../authorization-context";
 import { EmptyState } from "../../shared/components/EmptyState";
 import { currency, shortDate } from "../../shared/lib/formatting";
@@ -23,7 +22,9 @@ export function ReceivablesList({
   filter,
   search,
   selected,
+  unsignedOnly,
   onFilterChange,
+  onUnsignedOnlyChange,
   onSearchChange,
   onSelectedChange,
   onRenegotiate,
@@ -40,7 +41,10 @@ export function ReceivablesList({
   filter: ReceivableFilter;
   search: string;
   selected: string[];
+  /** Recorte "Recibo não assinado" (RC4), somado ao filtro por situação. */
+  unsignedOnly: boolean;
   onFilterChange: (filter: ReceivableFilter) => void;
+  onUnsignedOnlyChange: (value: boolean) => void;
   onSearchChange: (value: string) => void;
   onSelectedChange: (ids: string[]) => void;
   onRenegotiate: () => void;
@@ -54,8 +58,6 @@ export function ReceivablesList({
   proofIds?: ReadonlySet<string>;
 }) {
   const { can } = useAuthorization();
-  // "Recibo não assinado" (RC4): recorte como a busca, somado ao filtro por situação.
-  const [unsignedOnly, setUnsignedOnly] = useState(false);
   if (receivables.length === 0) {
     return (
       <EmptyState
@@ -131,7 +133,7 @@ export function ReceivablesList({
           type="button"
           className="tag-filter"
           aria-pressed={unsignedOnly}
-          onClick={() => setUnsignedOnly((current) => !current)}
+          onClick={() => onUnsignedOnlyChange(!unsignedOnly)}
         >
           Recibo não assinado <small>{unsignedCount}</small>
         </button>
@@ -199,7 +201,7 @@ export function ReceivablesList({
             onClick={() => {
               onFilterChange("all");
               onSearchChange("");
-              setUnsignedOnly(false);
+              onUnsignedOnlyChange(false);
             }}
           >
             Limpar filtros

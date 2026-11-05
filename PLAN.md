@@ -830,7 +830,7 @@ atualizado no mesmo PR):
   - Testes API e web.
 - **Gate:** gate completo
 - **Depende de:** RC4
-- **Status:** TODO
+- **Status:** DONE
 
 ### RC6 — Periodicidade padrão do aviso de recibo
 
