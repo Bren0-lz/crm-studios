@@ -328,7 +328,7 @@ describe("API externa de vendas", () => {
       activeGroups: [{ groupId: group.id, status: "active" }],
     });
 
-    // Cancelar a inscrição ativa promove quem estava na espera.
+    // Cancelar libera a vaga; o cliente aguarda contato e aceite.
     const cancelled = await app.inject({
       method: "POST",
       url: `/external/v1/group-enrollments/${sold.json().enrollment.id}/cancel`,
@@ -340,9 +340,9 @@ describe("API externa de vendas", () => {
       headers,
     });
     expect(after.json()).toMatchObject({
-      enrolled: 1,
-      waitlistCount: 0,
-      members: [{ patientId: other.json().id }],
+      enrolled: 0,
+      waitlistCount: 1,
+      members: [],
     });
     await app.close();
   });

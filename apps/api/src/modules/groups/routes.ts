@@ -173,6 +173,26 @@ export function registerGroupsRoutes(context: RouteContext) {
     },
   );
 
+  app.post(
+    "/group-enrollments/:id/confirm",
+    { preHandler: authenticate },
+    async (request, reply) => {
+      const { id } = z.object({ id: z.uuid() }).parse(request.params);
+      const enrollment = await repository.confirmGroupEnrollment(
+        request.user.clinicId,
+        id,
+      );
+      if (!enrollment)
+        return reply
+          .status(404)
+          .send({
+            code: "GROUP_ENROLLMENT_NOT_FOUND",
+            message: "Matrícula não encontrada.",
+          });
+      return enrollment;
+    },
+  );
+
   // Encontros das turmas exibidos na agenda; a reserva é feita ao salvar a turma.
   app.get("/group-sessions", { preHandler: authenticate }, async (request) => {
     const query = request.query as { from?: string; to?: string };

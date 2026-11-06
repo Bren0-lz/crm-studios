@@ -573,6 +573,9 @@ describe("guided client registration", () => {
       within(dialog).queryByRole("region", { name: /^Detalhes da turma/ }),
     ).not.toBeInTheDocument();
     fireEvent.change(turma, { target: { value: groups[1]!.id } });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Sim, colocar na lista de espera" }),
+    );
     // Escolhida a turma, aparecem os dias e horários para repassar ao cliente.
     const details = within(dialog).getByRole("region", {
       name: "Detalhes da turma Pilates 2",
@@ -601,6 +604,9 @@ describe("guided client registration", () => {
     fireEvent.change(within(dialog).getByLabelText("Turma"), {
       target: { value: groups[1]!.id },
     });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Sim, colocar na lista de espera" }),
+    );
     fireEvent.click(
       within(dialog).getByRole("button", { name: "Salvar e criar plano" }),
     );

@@ -1068,6 +1068,10 @@ export interface ClinicRepository {
     clinicId: string,
     input: GroupEnrollmentInput,
   ): Promise<GroupEnrollment>;
+  confirmGroupEnrollment(
+    clinicId: string,
+    enrollmentId: string,
+  ): Promise<GroupEnrollment | null>;
   cancelGroupEnrollment(
     clinicId: string,
     enrollmentId: string,

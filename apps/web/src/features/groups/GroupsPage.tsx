@@ -1,6 +1,8 @@
 import { usePatientContext } from "../../shared/hooks/usePatientContext";
 import { PatientContextNotice } from "../../shared/components/PatientContextNotice";
 import { GroupDetailsModal } from "./GroupDetailsModal";
+import { ActionModal } from "../../shared/components/ActionModal";
+import { WaitlistContactModal } from "./WaitlistContactModal";
 import {
   type GroupClass,
   type GroupWorkspace,
@@ -27,6 +29,7 @@ import {
 import { EmptyState } from "../../shared/components/EmptyState";
 import { type KeyboardEvent, useEffect, useId, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
+import { createPortal } from "react-dom";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
 import { PatientPicker } from "../../PatientPicker";
@@ -110,6 +113,7 @@ export function GroupsPage() {
     "Sábado",
   ];
   const [workspace, setWorkspace] = useState<GroupWorkspace | null>(null);
+  const [confirmWaitlist, setConfirmWaitlist] = useState(false);
   const [patients, setPatients] = useState<PatientOption[]>([]);
   const [professionals, setProfessionals] = useState<Professional[]>([]);
   const [rooms, setRooms] = useState<Room[]>([]);
@@ -118,7 +122,13 @@ export function GroupsPage() {
   const [loading, setLoading] = useState(true);
   const canManage = canEdit("groups");
   // Atalho de Clientes ("Assinantes sem turma vinculada"): `?matricular=<cliente>` abre a matrícula.
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const offerId = canView("patients") ? searchParams.get("oferecer") : null;
+  function closeOffer() {
+    const next = new URLSearchParams(searchParams);
+    next.delete("oferecer");
+    setSearchParams(next, { replace: true });
+  }
   const enrollPatientId = canManage
     ? (searchParams.get("matricular") ?? "")
     : "";
@@ -288,6 +298,28 @@ export function GroupsPage() {
       setSaving(false);
     }
   }
+  async function submitEnrollment() {
+    setError("");
+    setSaving(true);
+    try {
+      const enrollment = await api.createGroupEnrollment(enrollmentForm);
+      setConfirmWaitlist(false);
+      closeGroupDialogs();
+      toast.success(
+        groupEnrollmentToast(
+          enrollment,
+          workspace?.groups.find((item) => item.id === enrollment.groupId)
+            ?.name,
+        ),
+      );
+      await load();
+    } catch (cause) {
+      setError((cause as Error).message);
+      throw cause;
+    } finally {
+      setSaving(false);
+    }
+  }
   const activeEnrollments =
     workspace?.enrollments.filter((item) => item.status === "active") ?? [];
   const selectedGroup = workspace?.groups.find(
@@ -361,6 +393,37 @@ export function GroupsPage() {
   }
   return (
     <>
+      {confirmWaitlist &&
+        createPortal(
+          <ActionModal
+            eyebrow="Lista de espera"
+            title="Turma cheia"
+            subtitle="Deseja colocar o cliente na lista de espera desta turma?"
+            confirmLabel="Sim, colocar na lista de espera"
+            onClose={() => setConfirmWaitlist(false)}
+            onConfirm={submitEnrollment}
+          />,
+          document.body,
+        )}
+      {offerId && workspace && (
+        <WaitlistContactModal
+          enrollment={workspace.enrollments.find((item) => item.id === offerId)}
+          group={workspace.groups.find(
+            (item) =>
+              item.id ===
+              workspace.enrollments.find(
+                (enrollment) => enrollment.id === offerId,
+              )?.groupId,
+          )}
+          canConfirm={can("groups.enroll")}
+          onClose={closeOffer}
+          onConfirmed={async () => {
+            await load();
+            toast.success("Matrícula confirmada após aceite do cliente.");
+            closeOffer();
+          }}
+        />
+      )}
       <PatientContextNotice patientId={contextPatientId} patients={patients} />
       <PageHeader
         title="Turmas"
@@ -632,17 +695,12 @@ export function GroupsPage() {
                     onSubmit={(event) => {
                       event.preventDefault();
                       if (!enrollmentForm.patientId) return;
-                      void run(async () => {
-                        const enrollment =
-                          await api.createGroupEnrollment(enrollmentForm);
-                        closeGroupDialogs();
-                        return groupEnrollmentToast(
-                          enrollment,
-                          workspace?.groups.find(
-                            (item) => item.id === enrollment.groupId,
-                          )?.name,
-                        );
-                      });
+                      const group = workspace?.groups.find(
+                        (item) => item.id === enrollmentForm.groupId,
+                      );
+                      if (group && group.activeEnrollments >= group.capacity)
+                        setConfirmWaitlist(true);
+                      else void submitEnrollment().catch(() => undefined);
                     }}
                   >
                     <section className="group-modal-section">

@@ -166,6 +166,9 @@ describe("toasts de sucesso nas gravações", () => {
       }),
     ).toBeInTheDocument();
     await enrollHelena(dialog);
+    fireEvent.click(
+      screen.getByRole("button", { name: "Sim, colocar na lista de espera" }),
+    );
     await successToast(
       "Turma cheia: Helena entrou na lista de espera de Pilates Turma A (posição 2).",
     );

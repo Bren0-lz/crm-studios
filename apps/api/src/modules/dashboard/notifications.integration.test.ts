@@ -62,6 +62,64 @@ async function setup() {
 }
 
 describe("GET /notifications", () => {
+  it("keeps a vacant seat pending until the waiting client accepts and respects module access", async () => {
+    const { repository, notifications, userWith, app, headers } = await setup();
+    const patients = (await repository.listPatients(clinicId)).filter(
+      (patient) => patient.status === "active",
+    );
+    const [service] = await repository.listServices(clinicId);
+    const [professional] = await repository.listProfessionals(clinicId);
+    const room = (await repository.listRooms(clinicId)).find(
+      (item) => item.capacity >= 2,
+    )!;
+    const group = await repository.createGroupClass(clinicId, {
+      serviceId: service!.id,
+      professionalId: professional!.id,
+      roomId: room.id,
+      capacity: 1,
+      weeklySlots: [{ weekday: 0, startTime: "21:00", endTime: "22:00" }],
+    });
+    const active = await repository.createGroupEnrollment(clinicId, {
+      groupId: group.id,
+      patientId: patients[0]!.id,
+    });
+    const waiting = await repository.createGroupEnrollment(clinicId, {
+      groupId: group.id,
+      patientId: patients[1]!.id,
+    });
+    expect((await notifications()).groupVacancies).not.toContainEqual(
+      expect.objectContaining({ groupId: group.id }),
+    );
+    await repository.cancelGroupEnrollment(clinicId, active.id);
+    expect((await notifications()).groupVacancies).toContainEqual(
+      expect.objectContaining({
+        groupId: group.id,
+        vacancies: 1,
+        waiting: 1,
+        enrollmentId: waiting.id,
+        patientId: waiting.patientId,
+      }),
+    );
+    expect(await notifications(await userWith(["groups"]))).not.toHaveProperty(
+      "groupVacancies",
+    );
+    const denied = await app.inject({
+      method: "POST",
+      url: `/group-enrollments/${waiting.id}/confirm`,
+      headers: await userWith(["groups", "patients"]),
+    });
+    expect(denied.statusCode).toBe(403);
+    const accepted = await app.inject({
+      method: "POST",
+      url: `/group-enrollments/${waiting.id}/confirm`,
+      headers,
+    });
+    expect(accepted.statusCode).toBe(200);
+    expect(accepted.json().status).toBe("active");
+    expect((await notifications()).groupVacancies).not.toContainEqual(
+      expect.objectContaining({ groupId: group.id }),
+    );
+  });
   it("counts today's birthdays, overdue installments and appointments to finalize", async () => {
     const { app, repository, headers, notifications } = await setup();
     const before = await notifications();
@@ -138,6 +196,7 @@ describe("GET /notifications", () => {
       pauseReturnsDue: before.pauseReturnsDue,
       lowStockProducts: before.lowStockProducts,
       autoCampaigns: [],
+      groupVacancies: [],
     });
 
     // Parabéns registrados tiram o aniversariante do sino.
@@ -682,7 +741,11 @@ describe("GET /notifications", () => {
   it("counts active products that need restock", async () => {
     const { app, headers, notifications } = await setup();
     const before = (await notifications()).lowStockProducts ?? 0;
-    const create = (sku: string, initialStock: number, restockAlertAt?: number) =>
+    const create = (
+      sku: string,
+      initialStock: number,
+      restockAlertAt?: number,
+    ) =>
       app
         .inject({
           method: "POST",
@@ -784,12 +847,13 @@ describe("GET /notifications", () => {
     vi.setSystemTime(new Date("2039-06-11T21:30:00Z"));
 
     // Só o Financeiro vê o aviso.
-    expect(
-      await notifications(await userWith(["finance"])),
-    ).toHaveProperty("unsignedReceipts", sameDay! + 1);
-    expect(
-      await notifications(await userWith(["agenda"])),
-    ).not.toHaveProperty("unsignedReceipts");
+    expect(await notifications(await userWith(["finance"]))).toHaveProperty(
+      "unsignedReceipts",
+      sameDay! + 1,
+    );
+    expect(await notifications(await userWith(["agenda"]))).not.toHaveProperty(
+      "unsignedReceipts",
+    );
 
     // Configuração da clínica: semanal às sextas (11/06/2039 é sábado), 9h, 48 horas.
     const base = settings.json<Record<string, unknown>>();

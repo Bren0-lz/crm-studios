@@ -7,6 +7,8 @@ import { LoadingBlock } from "../../shared/components/LoadingBlock";
 import { groupOperationRange } from "../../shared/lib/formatting";
 import { compatiblePlanGroups } from "../../shared/lib/plan-groups";
 import { groupVacancyLabel } from "./model";
+import { ActionModal } from "../../shared/components/ActionModal";
+import { createPortal } from "react-dom";
 
 export function GuidedGroupField({
   serviceIds,
@@ -25,6 +27,7 @@ export function GuidedGroupField({
   const canEnroll = can("groups.enroll");
   const [loadError, setLoadError] = useState("");
   const [attempt, setAttempt] = useState(0);
+  const [pendingGroup, setPendingGroup] = useState<string | null>(null);
   useEffect(() => {
     if (!canEnroll || groups !== null) return;
     let active = true;
@@ -80,7 +83,14 @@ export function GuidedGroupField({
           <select
             required={required}
             value={value}
-            onChange={(e) => onChange(e.target.value)}
+            onChange={(event) => {
+              const group = compatible.find(
+                (item) => item.id === event.target.value,
+              );
+              if (group && group.activeEnrollments >= group.capacity)
+                setPendingGroup(group.id);
+              else onChange(event.target.value);
+            }}
           >
             <option value="">
               {required ? "Selecione a turma" : "Escolher depois"}
@@ -94,6 +104,22 @@ export function GuidedGroupField({
         </label>
       )}
       {selected && <GroupDetails group={selected} />}
+      {pendingGroup &&
+        createPortal(
+          <ActionModal
+            eyebrow="Lista de espera"
+            title="Turma cheia"
+            subtitle="Deseja colocar o cliente na lista de espera desta turma?"
+            confirmLabel="Sim, colocar na lista de espera"
+            effect="A inclusão será feita ao concluir o cadastro. Quando surgir uma vaga, a equipe será avisada para entrar em contato."
+            onClose={() => setPendingGroup(null)}
+            onConfirm={async () => {
+              onChange(pendingGroup);
+              setPendingGroup(null);
+            }}
+          />,
+          document.body,
+        )}
       <small className="field-hint">
         {required
           ? "Plano de aulas em grupo: escolha a turma do cliente."

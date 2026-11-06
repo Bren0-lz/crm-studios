@@ -3,6 +3,9 @@ import { compatiblePlanGroups } from "../lib/plan-groups";
 import type { GroupChoices } from "../workflows/types";
 import { GroupDetails } from "./GroupDetails";
 import { LoadingBlock } from "./LoadingBlock";
+import { useState } from "react";
+import { ActionModal } from "./ActionModal";
+import { createPortal } from "react-dom";
 
 export function PlanGroupPicker({
   groups,
@@ -21,6 +24,7 @@ export function PlanGroupPicker({
   required?: boolean;
 }) {
   const choices = compatiblePlanGroups(groups.items, services);
+  const [pendingGroup, setPendingGroup] = useState<string | null>(null);
   const mandatory = required && choices.length > 0;
   const selected = choices.find((group) => group.id === value);
   const weekdays = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
@@ -33,7 +37,14 @@ export function PlanGroupPicker({
           required={mandatory}
           value={value}
           disabled={disabled || !choices.length || Boolean(groups.error)}
-          onChange={(event) => onChange(event.target.value)}
+          onChange={(event) => {
+            const group = choices.find(
+              (item) => item.id === event.target.value,
+            );
+            if (group && group.activeEnrollments >= group.capacity)
+              setPendingGroup(group.id);
+            else onChange(event.target.value);
+          }}
         >
           <option value="">
             {mandatory ? "Selecione a turma" : "Escolher depois"}
@@ -84,6 +95,22 @@ export function PlanGroupPicker({
           ? "Plano de aulas em grupo: escolha a turma do cliente."
           : "A turma pode ser escolhida depois com o responsável."}
       </p>
+      {pendingGroup &&
+        createPortal(
+          <ActionModal
+            eyebrow="Lista de espera"
+            title="Turma cheia"
+            subtitle="Deseja colocar o cliente na lista de espera desta turma?"
+            effect="A inclusão será feita ao concluir o cadastro. Quando surgir uma vaga, a equipe será avisada para entrar em contato."
+            confirmLabel="Sim, colocar na lista de espera"
+            onClose={() => setPendingGroup(null)}
+            onConfirm={async () => {
+              onChange(pendingGroup);
+              setPendingGroup(null);
+            }}
+          />,
+          document.body,
+        )}
     </fieldset>
   );
 }

@@ -954,13 +954,6 @@ export function createAgendaRepository(
           (item) => item.groupId === groupId && item.status === "waitlisted",
         )
         .sort((a, b) => (a.queuePosition ?? 0) - (b.queuePosition ?? 0));
-      for (
-        let index = 0;
-        index < Math.min(input.capacity - activeCount, waitlist.length);
-        index += 1
-      ) {
-        promote(waitlist[index]!);
-      }
       waitlist
         .filter((item) => item.status === "waitlisted")
         .forEach((item, index) => {
@@ -1056,20 +1049,6 @@ export function createAgendaRepository(
       enrollment.updatedAt = now();
       // Só a matrícula ativa ganha fim; quem estava na espera nunca participou.
       if (wasActive) enrollment.endedOn = clinicDate(enrollment.updatedAt);
-      if (wasActive) {
-        const next = repositoryContext.groupEnrollments
-          .filter(
-            (item) =>
-              item.groupId === enrollment.groupId &&
-              item.status === "waitlisted",
-          )
-          .sort(
-            (a, b) =>
-              (a.queuePosition ?? 0) - (b.queuePosition ?? 0) ||
-              a.enrolledAt.localeCompare(b.enrolledAt),
-          )[0];
-        if (next) promote(next);
-      }
       const remaining = repositoryContext.groupEnrollments
         .filter(
           (item) =>
@@ -1083,6 +1062,46 @@ export function createAgendaRepository(
         (item) => item.id === enrollment.groupId,
       );
       if (group) repositoryContext.refreshGroupCounts(group);
+      return enrollment;
+    },
+
+    async confirmGroupEnrollment(clinicId: string, enrollmentId: string) {
+      const enrollment = repositoryContext.groupEnrollments.find(
+        (item) => item.clinicId === clinicId && item.id === enrollmentId,
+      );
+      const group = repositoryContext.groupClasses.find(
+        (item) =>
+          item.clinicId === clinicId &&
+          item.id === enrollment?.groupId &&
+          item.active &&
+          repositoryContext.inBranchScope(item),
+      );
+      if (!enrollment || !group) return null;
+      if (enrollment.status !== "waitlisted")
+        throw new DomainError(
+          "WAITLIST_REQUIRED",
+          "O cliente não está na lista de espera de uma turma ativa.",
+          409,
+        );
+      const active = repositoryContext.groupEnrollments.filter(
+        (item) => item.groupId === group.id && item.status === "active",
+      ).length;
+      if (active >= group.capacity)
+        throw new DomainError(
+          "GROUP_FULL",
+          "A turma está cheia. A vaga não está mais disponível.",
+          409,
+        );
+      promote(enrollment);
+      repositoryContext.groupEnrollments
+        .filter(
+          (item) => item.groupId === group.id && item.status === "waitlisted",
+        )
+        .sort((a, b) => (a.queuePosition ?? 0) - (b.queuePosition ?? 0))
+        .forEach((item, index) => {
+          item.queuePosition = index + 1;
+        });
+      repositoryContext.refreshGroupCounts(group);
       return enrollment;
     },
 

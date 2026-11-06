@@ -457,6 +457,7 @@ export class MemoryClinicRepository implements ClinicRepository {
     this.renameGroupClass = this.agenda.renameGroupClass;
     this.createGroupEnrollment = this.agenda.createGroupEnrollment;
     this.cancelGroupEnrollment = this.agenda.cancelGroupEnrollment;
+    this.confirmGroupEnrollment = this.agenda.confirmGroupEnrollment;
     this.listGroupSessions = this.agenda.listGroupSessions;
     this.recordGroupAttendance = groupOperations.recordGroupAttendance;
     this.completeGroupSession = this.agenda.completeGroupSession;
@@ -956,6 +957,9 @@ export class MemoryClinicRepository implements ClinicRepository {
     typeof createAgendaRepository
   >["createGroupEnrollment"];
 
+  readonly confirmGroupEnrollment: ReturnType<
+    typeof createAgendaRepository
+  >["confirmGroupEnrollment"];
   readonly cancelGroupEnrollment: ReturnType<
     typeof createAgendaRepository
   >["cancelGroupEnrollment"];

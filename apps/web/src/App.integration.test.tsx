@@ -12974,6 +12974,9 @@ describe("guided client registration", () => {
       ),
     ]);
     fireEvent.change(turma, { target: { value: groups[1]!.id } });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Sim, colocar na lista de espera" }),
+    );
     fireEvent.change(within(dialog).getByLabelText("Sessões do serviço 1"), {
       target: { value: "8" },
     });
@@ -12990,6 +12993,9 @@ describe("guided client registration", () => {
     fireEvent.change(within(dialog).getByLabelText("Turma"), {
       target: { value: groups[1]!.id },
     });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Sim, colocar na lista de espera" }),
+    );
     fireEvent.click(
       within(dialog).getByRole("button", { name: "Salvar e criar plano" }),
     );

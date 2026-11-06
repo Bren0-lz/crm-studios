@@ -212,6 +212,16 @@ export type DashboardViewSummary = Pick<DashboardSummary, "date"> &
 export interface NotificationsSummary {
   /** Data de referência (aaaa-mm-dd, fuso da clínica). */
   date: string;
+  /** Vagas em turmas ativas com clientes aguardando contato, na ordem da fila. */
+  groupVacancies?: Array<{
+    groupId: string;
+    groupName: string;
+    vacancies: number;
+    waiting: number;
+    enrollmentId: string;
+    patientId: string;
+    patientName: string;
+  }>;
   /** Aniversariantes de hoje ainda sem parabéns registrados (módulo relationship). */
   birthdaysToday?: number | undefined;
   /** Parcelas em aberto com vencimento antes de hoje (módulo finance). */

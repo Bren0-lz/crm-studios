@@ -71,6 +71,7 @@ export const notificationKinds = [
   "unsignedReceipts",
   "recurringPayables",
   "pendingFinalization",
+  "groupVacancies",
   "overdueLeadTasks",
   "snoozedContacts",
   "pauseReturns",
@@ -116,6 +117,7 @@ export const defaultNotificationPreferences: z.infer<
     // RC5: o aviso de recibos só aparece no horário configurado e vai também para a faixa.
     "unsignedReceipts",
     "pendingFinalization",
+    "groupVacancies",
     "overdueLeadTasks",
   ],
   showBanner: true,
