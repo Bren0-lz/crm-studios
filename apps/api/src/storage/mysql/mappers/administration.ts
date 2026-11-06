@@ -84,7 +84,7 @@ export interface ServiceRow {
   active: boolean;
   professionalIds: string[];
   roomIds: string[];
-  businessLine: ServiceBusinessLine;
+  businessLine: ServiceBusinessLine | null;
 }
 
 export function present(value: string | null) {

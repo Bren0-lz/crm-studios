@@ -799,7 +799,7 @@ export function createAdministrationRepository(
         professionalIds: [],
         roomIds: [],
         ...input,
-        businessLine: input.businessLine ?? "studio",
+        businessLine: input.businessLine ?? null,
         id: uuid(),
         clinicId,
         active: true,

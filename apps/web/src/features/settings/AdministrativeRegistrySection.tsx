@@ -69,7 +69,7 @@ export function AdministrativeRegistrySection() {
                   name: "",
                   durationMinutes: 60,
                   priceInCents: 0,
-                  businessLine: "studio",
+                  businessLine: null,
                   active: true,
                 },
               },
@@ -167,7 +167,7 @@ function RegistryEditor({
   const [form, setForm] = useState(editor.input),
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
-  const patch = (data: Record<string, string | number | boolean>) =>
+  const patch = (data: Record<string, string | number | boolean | null>) =>
     setForm(
       (current) =>
         ({
@@ -312,11 +312,12 @@ function RegistryEditor({
                 <label>
                   Linha no painel
                   <select
-                    value={form.data.businessLine ?? "studio"}
+                    value={form.data.businessLine ?? ""}
                     onChange={(event) =>
-                      patch({ businessLine: event.target.value })
+                      patch({ businessLine: event.target.value || null })
                     }
                   >
+                    <option value="">Sem classificação</option>
                     {serviceBusinessLines.map((line) => (
                       <option key={line} value={line}>
                         {serviceBusinessLineLabels[line]}
@@ -325,7 +326,9 @@ function RegistryEditor({
                   </select>
                 </label>
                 <p className="field-hint span-2">
-                  Separa as turmas e vendas do serviço no painel de vendas.
+                  Só vale para o painel de vendas, que separa as turmas e vendas
+                  do serviço por linha (sem classificação aparece como Outros).
+                  Não muda nada no CRM.
                 </p>
                 <ResourceChecklist
                   legend="Profissionais que atendem"
