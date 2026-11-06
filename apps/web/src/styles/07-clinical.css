@@ -1683,6 +1683,18 @@
   font-size: var(--text-xs);
 }
 
+/* Editor do modelo de prontuário: respiro entre campos, perguntas e botões. */
+.assessment-template-fields,
+.assessment-template-fields > .clinical-form-builder {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.assessment-template-fields > .secondary-button,
+.assessment-template-fields > .clinical-form-builder > .secondary-button {
+  justify-self: start;
+}
+
 .assessment-preview {
   min-width: 0;
   margin: 0;

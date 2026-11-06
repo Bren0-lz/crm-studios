@@ -1020,7 +1020,7 @@ atualizado no mesmo PR):
   - Teste existente continua verde; o `audit-panels` passa.
 - **Gate:** gate completo
 - **Depende de:** AJ1
-- **Status:** TODO
+- **Status:** DONE
 
 ### AJ3 — Itens já atendidos (registro)
 
@@ -1032,7 +1032,7 @@ atualizado no mesmo PR):
   - B1-05: `PlanSessionsSentStep.tsx`.
 - **Gate:** —
 - **Depende de:** AJ2
-- **Status:** TODO
+- **Status:** DONE
 
 ### AJ4 — Pendências de decisão do estúdio
 
