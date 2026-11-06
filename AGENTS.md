@@ -8,7 +8,7 @@ Interface em pt-BR; no produto, `patient` significa **cliente**. Node 22+; Windo
 - Tela/fluxo: `apps/web/src/features/<domínio>`; composição e navegação: `src/app`.
 - Rotas: `apps/api/src/modules/<domínio>/routes.ts`; armazenamento: `src/storage/{memory,mysql}/<domínio>.ts`.
 - Schemas/tipos: `packages/contracts/src/<domínio>/{model,types}.ts`; imports públicos também existem em `@crm/contracts/<domínio>`.
-- Leia primeiro o AGENTS.md do workspace e os arquivos/testes do domínio. Consulte PLAN.md/STATE.md somente para o estado das tarefas; não carregue todo o histórico por padrão.
+- Leia primeiro o AGENTS.md do workspace e os arquivos/testes do domínio. Consulte o Status no PLAN.md para o estado das tarefas e, para descobertas, os arquivos das tarefas relacionadas em `diario/` (STATE.md guarda o histórico até 06/11/2026); não carregue todo o histórico por padrão.
 
 ## Verificar
 

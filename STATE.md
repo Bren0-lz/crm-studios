@@ -1,14 +1,15 @@
 # Estado do loop
 
-- **Tarefa atual:** EV3 e PX1 em andamento (Rodada 9; PX1/PX2 retomadas pelo dono em 06/11). TW2 e SS2 seguem BLOCKED; CT4/CP4 manuais; Rodada 8 pausada em QM16.
-- **Última concluída:** TG1 (Rodada 9; 06/11/2026)
-- **Tentativas na atual:** 0/3
-- **Bloqueios:** Rodada 9 tem tarefas BLOCKED à espera do estúdio: PX3, TW2, SS2, EV7, RC6, TG5, TG6, CM2, CM3, AJ4
+- **Situação de cada tarefa:** o campo **Status** no `PLAN.md` é a fonte única (TODO, DOING,
+  DONE, BLOCKED). Bloqueios abertos = tarefas `BLOCKED` no PLAN.
+- **Diário a partir de 06/11/2026:** um arquivo por tarefa em `diario/` (regra "Diário por tarefa"
+  em `CLAUDE.md`). PR de tarefa **não edita este arquivo**: era o fim deste diário e o cabeçalho
+  acima que todo PR alterava, e por isso todos conflitavam entre si.
 
 ## Diário
 
-<!-- Uma linha por evento. O implementer lê isto: registre descobertas que
-     mudam tarefas futuras, não narrativa. Diário das rodadas 1–7 no histórico do git. -->
+<!-- Arquivo congelado: entradas até 06/11/2026. As novas ficam em diario/<AAAA-MM-DD>-<ID>.md.
+     Diário das rodadas 1–7 no histórico do git. -->
 
 - 2026-10-18 RODADA 8 iniciada (QA ponta a ponta de 17/10): QC1–QC10, QM1–QM17, QV1–QV9, QR1–QR2 no PLAN.md, com triagem no código e decisões do dono (comanda pré-paga mantida; realizado/falta a partir de 15 min antes; "Pagamento atrasado" automático; estoque em aba do Financeiro). Branch local `fix/qa-out-2026`. Próxima migração livre: 0081.
 - 2026-10-18 QC6 DONE (verifier PASS na 1ª tentativa, exit 0 em todos os gates; web 709 testes). `shared/api/data-version.ts` (versão por domínio: agenda, finance, inventory, plans, patients, history, clinical, contracts) incrementada em `request()` do transport.ts após escrita bem-sucedida (mapa `domainsForMutation`; /preview e /auth fora). Telas assinam com `useDataVersion(...domínios)` nas deps do efeito, recarga silenciosa: ficha (abas, Histórico, estoque/comandas), FinancePage (lista = contadores), Caixa do dia, Previsão, Dashboard. AgendaPage/PlansPage/PatientDetailPage NÃO assinam (gerariam GET duplicado e quebram mocks que contam leituras). Rota nova de escrita precisa entrar em `domainsForMutation`. Financeiro e estoque ainda fazem reload manual redundante. Teste instável: finance/workspace-flows "classifies a supplier expense" clica em "Nova despesa" antes de `data` carregar.
