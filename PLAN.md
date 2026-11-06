@@ -535,7 +535,7 @@ numeração antiga, mapeada em cada tarefa) e no histórico do git.
   - Documentar em `endpoints.ts`. Testes API e MySQL opt-in.
 - **Gate:** gate completo e `npm run test:mysql`
 - **Depende de:** PX3
-- **Status:** DOING
+- **Status:** DONE
 
 **Tarefas do `dashboard-studios`** (executadas lá, PR para `main` com `npm run check`; cada uma
 só depois das PX que usa estarem mescladas no CRM e o CRM simulado `apps/bff/src/mock-crm`
