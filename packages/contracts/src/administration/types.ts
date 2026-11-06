@@ -214,8 +214,8 @@ export type ServiceBusinessLine = z.infer<typeof serviceBusinessLineSchema>;
 
 export interface Service extends Omit<ServiceInput, "businessLine"> {
   id: string;
-  /** Linha no painel de vendas (padrão `studio`). */
-  businessLine: ServiceBusinessLine;
+  /** Linha no painel de vendas; `null` = sem classificação ("Outros" no painel). */
+  businessLine: ServiceBusinessLine | null;
   clinicId: string;
   active: boolean;
   /**

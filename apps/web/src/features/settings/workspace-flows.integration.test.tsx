@@ -338,9 +338,16 @@ describe("settings workflows through real HTTP handlers", () => {
       await within(section).findByRole("button", { name: "Novo cadastro" }),
     );
     const dialog = screen.getByRole("dialog", { name: "Novo cadastro" });
-    expect(within(dialog).getByLabelText("Linha no painel")).toHaveValue(
-      "studio",
-    );
+    const line = within(dialog).getByLabelText("Linha no painel");
+    expect(line).toHaveValue("");
+    expect(
+      within(line)
+        .getAllByRole("option")
+        .map((option) => option.textContent),
+    ).toEqual(["Sem classificação", "Studio", "Estética"]);
+    expect(
+      within(dialog).getByText(/Só vale para o painel de vendas/),
+    ).toBeInTheDocument();
     change("Nome", "Depilação facial", dialog);
     change("Linha no painel", "aesthetics", dialog);
     await save("Novo cadastro", "Salvar cadastro");
@@ -368,5 +375,45 @@ describe("settings workflows through real HTTP handlers", () => {
         (item) => item.id === created?.id,
       )?.businessLine,
     ).toBe("studio");
+
+    // Voltar para "Sem classificação" grava null (o painel mostra em Outros).
+    fireEvent.click(
+      within(
+        (
+          await within(section).findByText("Depilação facial", { exact: true })
+        ).closest(".table-row") as HTMLElement,
+      ).getByRole("button", { name: "Editar cadastro" }),
+    );
+    const clear = screen.getByRole("dialog", { name: "Editar cadastro" });
+    expect(within(clear).getByLabelText("Linha no painel")).toHaveValue(
+      "studio",
+    );
+    change("Linha no painel", "", clear);
+    await save("Editar cadastro", "Salvar cadastro");
+    expect(
+      (await repository.getAdministrativeRegistry(clinicId)).services.find(
+        (item) => item.id === created?.id,
+      )?.businessLine,
+    ).toBeNull();
+  });
+
+  it("cria serviço sem classificação no painel por padrão", async () => {
+    const { repository } = await setupApi();
+    open("/configuracoes");
+    fireEvent.click(
+      await screen.findByRole("tab", { name: "Serviços e salas" }),
+    );
+    const section = screen.getByRole("tabpanel", { name: "Serviços e salas" });
+    fireEvent.click(
+      await within(section).findByRole("button", { name: "Novo cadastro" }),
+    );
+    const dialog = screen.getByRole("dialog", { name: "Novo cadastro" });
+    change("Nome", "Dança do ventre", dialog);
+    await save("Novo cadastro", "Salvar cadastro");
+    expect(
+      (await repository.getAdministrativeRegistry(clinicId)).services.find(
+        (item) => item.name === "Dança do ventre",
+      )?.businessLine,
+    ).toBeNull();
   });
 });

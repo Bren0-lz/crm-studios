@@ -29,7 +29,7 @@ export const nativeEndpoints: ExternalEndpoint[] = [
     path: "/external/v1/groups",
     scope: "sales:read",
     description:
-      "Tabela de turmas: capacidade, inscritos, vagas livres, lista de espera, nomes dos matriculados ativos na ordem de inscrição (memberNames; só o nome, sem a lista de espera, com ou sem acesso a Clientes), ocupação, faturamento mensal atual/potencial e linha do serviço no painel (businessLine: studio | aesthetics). Com acesso ao Financeiro, também os matriculados com parcela vencida e a soma delas (overdueMembers, overdueInCents; mesma regra de /external/v1/overdue). Query: includeInactive=true.",
+      "Tabela de turmas: capacidade, inscritos, vagas livres, lista de espera, nomes dos matriculados ativos na ordem de inscrição (memberNames; só o nome, sem a lista de espera, com ou sem acesso a Clientes), ocupação, faturamento mensal atual/potencial e linha do serviço no painel (businessLine: studio | aesthetics | null; null = serviço sem classificação, que o painel mostra como Outros). Com acesso ao Financeiro, também os matriculados com parcela vencida e a soma delas (overdueMembers, overdueInCents; mesma regra de /external/v1/overdue). Query: includeInactive=true.",
   },
   {
     method: "GET",
@@ -68,7 +68,7 @@ export const proxiedEndpoints: ProxiedEndpoint[] = [
     target: "/services",
     scope: "sales:read",
     description:
-      "Serviços (preço de tabela, valor da sessão do plano avulso, duração, linha no painel: businessLine studio | aesthetics, ativos).",
+      "Serviços ativos (id, nome, preço de tabela, valor da sessão do plano avulso, duração e linha no painel: businessLine studio | aesthetics | null; null = sem classificação, que o painel mostra como Outros). É a lista de filtros por serviço do painel.",
   },
   {
     method: "GET",

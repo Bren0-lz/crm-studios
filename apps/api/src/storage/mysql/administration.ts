@@ -1169,7 +1169,7 @@ export function createAdministrationRepository(
           input.professionalIds ?? [],
           input.roomIds ?? [],
           randomUUID(),
-          input.businessLine ?? "studio",
+          input.businessLine ?? null,
         ],
         `SELECT id, clinic_id AS "clinicId", name, duration_minutes AS "durationMinutes",
                   price_in_cents AS "priceInCents", active,

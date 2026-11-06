@@ -1,5 +1,5 @@
 import { hashSync } from "bcryptjs";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { buildApp } from "../../app.js";
 import { INTEGRATION_RATE_LIMIT } from "../../infrastructure/route-context.js";
 import { ROUTE_ACCESS } from "../../infrastructure/route-access.js";
@@ -626,6 +626,142 @@ describe("API externa de vendas", () => {
     ).json();
     expect(limitedDetails.businessLine).toBe("aesthetics");
     expect(limitedDetails).not.toHaveProperty("overdueMembers");
+    await app.close();
+  });
+
+  it("services without classification come out as null in the services list and in the groups", async () => {
+    const { app, repository, admin, createKey } = await setup();
+    const { headers } = await createKey();
+    const created = await app.inject({
+      method: "POST",
+      url: "/services",
+      headers: admin,
+      payload: {
+        name: "Dança do ventre",
+        durationMinutes: 60,
+        priceInCents: 8000,
+      },
+    });
+    expect(created.statusCode, created.body).toBe(201);
+    const unclassified = created.json() as {
+      id: string;
+      businessLine: unknown;
+    };
+    expect(unclassified.businessLine).toBeNull();
+    const laser = await repository.createService(clinicId, {
+      name: "Depilação a laser",
+      durationMinutes: 30,
+      priceInCents: 15_000,
+      businessLine: "aesthetics",
+    });
+    const retired = await repository.createService(clinicId, {
+      name: "Serviço antigo",
+      durationMinutes: 30,
+      priceInCents: 5_000,
+      businessLine: "studio",
+    });
+    await repository.updateAdministrativeRegistry(
+      clinicId,
+      OWNER_ID,
+      retired.id,
+      {
+        kind: "service",
+        data: {
+          name: retired.name,
+          durationMinutes: 30,
+          priceInCents: 5_000,
+          active: false,
+        },
+      },
+    );
+
+    // Lista de filtros do painel: só os ativos, com id, nome e linha (null = "Outros").
+    const services = await app.inject({
+      url: "/external/v1/services",
+      headers,
+    });
+    expect(services.statusCode, services.body).toBe(200);
+    const listed = services.json() as {
+      id: string;
+      name: string;
+      businessLine: string | null;
+    }[];
+    expect(listed.map((item) => item.id)).not.toContain(retired.id);
+    expect(listed.find((item) => item.id === unclassified.id)).toMatchObject({
+      name: "Dança do ventre",
+      businessLine: null,
+    });
+    expect(listed.find((item) => item.id === laser.id)).toMatchObject({
+      name: "Depilação a laser",
+      businessLine: "aesthetics",
+    });
+    for (const item of listed) {
+      expect(item).toHaveProperty("businessLine");
+      expect(typeof item.name).toBe("string");
+    }
+
+    const [professional] = await repository.listProfessionals(clinicId);
+    const [room] = (await repository.listRooms(clinicId)).sort(
+      (left, right) => right.capacity - left.capacity,
+    );
+    const group = await repository.createGroupClass(clinicId, {
+      serviceId: unclassified.id,
+      professionalId: professional!.id,
+      roomId: room!.id,
+      capacity: 2,
+      weeklySlots: [{ weekday: 2, startTime: "06:00", endTime: "07:00" }],
+    });
+    const rowOf = async () =>
+      (
+        (await app.inject({ url: "/external/v1/groups", headers })).json()
+          .groups as { id: string; businessLine: string | null }[]
+      ).find((item) => item.id === group.id);
+    expect(await rowOf()).toMatchObject({ businessLine: null });
+    const details = await app.inject({
+      url: `/external/v1/groups/${group.id}`,
+      headers,
+    });
+    expect(details.json()).toMatchObject({ businessLine: null });
+
+    // Classificado no cadastro: a turma acompanha; `null` no PUT volta para sem classificação.
+    const edit = (businessLine: string | null) =>
+      app.inject({
+        method: "PUT",
+        url: `/admin/registry/${unclassified.id}`,
+        headers: admin,
+        payload: {
+          kind: "service",
+          data: {
+            name: "Dança do ventre",
+            durationMinutes: 60,
+            priceInCents: 8000,
+            active: true,
+            businessLine,
+          },
+        },
+      });
+    expect((await edit("studio")).statusCode).toBe(200);
+    expect(await rowOf()).toMatchObject({ businessLine: "studio" });
+    expect((await edit(null)).statusCode).toBe(200);
+    expect(await rowOf()).toMatchObject({ businessLine: null });
+
+    // Serviço da turma não encontrado no cadastro: também sem classificação (antes, `studio`).
+    const registry = repository.getAdministrativeRegistry.bind(repository);
+    expect((await edit("aesthetics")).statusCode).toBe(200);
+    const missing = vi
+      .spyOn(repository, "getAdministrativeRegistry")
+      .mockImplementation(async (id: string) => {
+        const value = await registry(id);
+        return {
+          ...value,
+          services: value.services.filter(
+            (item) => item.id !== unclassified.id,
+          ),
+        };
+      });
+    expect(await rowOf()).toMatchObject({ businessLine: null });
+    missing.mockRestore();
+    expect(await rowOf()).toMatchObject({ businessLine: "aesthetics" });
     await app.close();
   });
 

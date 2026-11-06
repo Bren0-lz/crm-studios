@@ -669,7 +669,7 @@ export class MemoryRepositoryContext {
       id: "88888888-8888-4888-8888-888888888888",
       clinicId: CLINIC_ID,
       name: "Avaliação funcional",
-      businessLine: "studio",
+      businessLine: null,
       durationMinutes: 60,
       priceInCents: 22000,
       active: true,
