@@ -21,7 +21,7 @@ import type {
   ExternalOperationContent,
 } from "@crm/contracts";
 import type {
-  PublicDocumentSignInput,
+  PublicSignatureInput,
   PublicReceiptSignature,
   ReceiptSignatureShare,
 } from "@crm/contracts";
@@ -320,7 +320,7 @@ export const financeApi = {
     request<PublicReceiptSignature>(
       `/public/receipt-signatures/${encodeURIComponent(token)}`,
     ),
-  signPublicReceipt: (token: string, input: PublicDocumentSignInput) =>
+  signPublicReceipt: (token: string, input: PublicSignatureInput) =>
     request<PublicReceiptSignature>(
       `/public/receipt-signatures/${encodeURIComponent(token)}`,
       { method: "POST", body: JSON.stringify(input) },

@@ -300,46 +300,125 @@ export function PlanTemplateModal({
             </p>
           )}
           {form.services.map((entry, index) => (
-            <fieldset className="span-2 form-grid" key={index}>
+            <fieldset
+              className="span-2 form-grid plan-template-service"
+              key={index}
+            >
               <legend>Serviço {index + 1}</legend>
-              <label>
-                Serviço {index + 1}
-                <select
-                  required
-                  value={entry.serviceId}
-                  onChange={(event) =>
-                    updateRow(index, { serviceId: event.target.value })
+              <div
+                className={`span-2 form-grid plan-template-service-fields${form.services.length > 1 ? " plan-template-service-fields-multiple" : ""}`}
+              >
+                <label>
+                  Serviço {index + 1}
+                  <select
+                    required
+                    value={entry.serviceId}
+                    onChange={(event) =>
+                      updateRow(index, { serviceId: event.target.value })
+                    }
+                  >
+                    <option value="">Selecione um serviço</option>
+                    {services
+                      .filter(
+                        (service) =>
+                          service.active || service.id === entry.serviceId,
+                      )
+                      .map((service) => (
+                        <option
+                          key={service.id}
+                          value={service.id}
+                          disabled={
+                            !service.active ||
+                            form.services.some(
+                              (row, position) =>
+                                position !== index &&
+                                row.serviceId === service.id,
+                            )
+                          }
+                        >
+                          {service.name}
+                          {!service.active ? " (inativo)" : ""}
+                        </option>
+                      ))}
+                  </select>
+                </label>
+                {months ? (
+                  <>
+                    <label>
+                      Sessões por semana do serviço {index + 1}
+                      <input
+                        required
+                        type="number"
+                        min="1"
+                        max="7"
+                        step="1"
+                        value={entry.sessionsPerWeek}
+                        onChange={(event) =>
+                          updateRow(index, {
+                            sessionsPerWeek: event.target.value,
+                          })
+                        }
+                      />
+                    </label>
+                  </>
+                ) : (
+                  <label>
+                    Sessões do serviço {index + 1}
+                    <input
+                      required
+                      type="number"
+                      min="1"
+                      max="1000"
+                      step="1"
+                      value={entry.sessions}
+                      onChange={(event) =>
+                        updateRow(index, { sessions: event.target.value })
+                      }
+                    />
+                  </label>
+                )}
+                {form.services.length > 1 && (
+                  <label>
+                    Valor do serviço {index + 1}
+                    <MoneyInput
+                      required
+                      valueInCents={reaisToCents(entry.value)}
+                      onChange={(cents) =>
+                        updateRow(index, { value: centsToMoneyText(cents) })
+                      }
+                    />
+                  </label>
+                )}
+                <button
+                  type="button"
+                  className="secondary-button button-sm plan-template-service-remove"
+                  disabled={form.services.length === 1 || saving}
+                  onClick={() =>
+                    setForm({
+                      ...form,
+                      services: form.services.filter(
+                        (_, position) => position !== index,
+                      ),
+                    })
                   }
                 >
-                  <option value="">Selecione um serviço</option>
-                  {services
-                    .filter(
-                      (service) =>
-                        service.active || service.id === entry.serviceId,
-                    )
-                    .map((service) => (
-                      <option
-                        key={service.id}
-                        value={service.id}
-                        disabled={
-                          !service.active ||
-                          form.services.some(
-                            (row, position) =>
-                              position !== index &&
-                              row.serviceId === service.id,
-                          )
-                        }
-                      >
-                        {service.name}
-                        {!service.active ? " (inativo)" : ""}
-                      </option>
-                    ))}
-                </select>
-              </label>
+                  Remover serviço {index + 1}
+                </button>
+              </div>
+              {months > 0 && (
+                <p className="span-2" role="status">
+                  {entry.sessionsPerWeek ? periodSessions(entry) : 0} sessões no
+                  período
+                  {entry.sessionsPerWeek
+                    ? ` · ${entry.sessionsPerWeek}x por semana`
+                    : ""}
+                  .
+                </p>
+              )}
               {can("agenda.services_create") && (
                 <button
                   type="button"
-                  className="secondary-button"
+                  className="secondary-button button-sm plan-template-service-create"
                   disabled={saving}
                   aria-label={`Cadastrar novo serviço para o serviço ${index + 1}`}
                   onClick={() => setCreatingFor(index)}
@@ -348,99 +427,32 @@ export function PlanTemplateModal({
                   Novo serviço
                 </button>
               )}
-              {months ? (
-                <>
-                  <label>
-                    Sessões por semana do serviço {index + 1}
-                    <input
-                      required
-                      type="number"
-                      min="1"
-                      max="7"
-                      step="1"
-                      value={entry.sessionsPerWeek}
-                      onChange={(event) =>
-                        updateRow(index, {
-                          sessionsPerWeek: event.target.value,
-                        })
-                      }
-                    />
-                  </label>
-                  <p className="span-2" role="status">
-                    {entry.sessionsPerWeek ? periodSessions(entry) : 0} sessões
-                    no período
-                    {entry.sessionsPerWeek
-                      ? ` · ${entry.sessionsPerWeek}x por semana`
-                      : ""}
-                    .
-                  </p>
-                </>
-              ) : (
-                <label>
-                  Sessões do serviço {index + 1}
-                  <input
-                    required
-                    type="number"
-                    min="1"
-                    max="1000"
-                    step="1"
-                    value={entry.sessions}
-                    onChange={(event) =>
-                      updateRow(index, { sessions: event.target.value })
-                    }
-                  />
-                </label>
-              )}
-              {form.services.length > 1 && (
-                <label>
-                  Valor do serviço {index + 1}
-                  <MoneyInput
-                    required
-                    valueInCents={reaisToCents(entry.value)}
-                    onChange={(cents) =>
-                      updateRow(index, { value: centsToMoneyText(cents) })
-                    }
-                  />
-                </label>
-              )}
-              <button
-                type="button"
-                className="secondary-button"
-                disabled={form.services.length === 1 || saving}
-                onClick={() =>
-                  setForm({
-                    ...form,
-                    services: form.services.filter(
-                      (_, position) => position !== index,
-                    ),
-                  })
-                }
-              >
-                Remover serviço {index + 1}
-              </button>
             </fieldset>
           ))}
-          <button
-            type="button"
-            className="secondary-button span-2"
-            disabled={saving}
-            onClick={() =>
-              setForm({
-                ...form,
-                services: [
-                  ...form.services,
-                  {
-                    serviceId: "",
-                    sessions: "1",
-                    sessionsPerWeek: "",
-                    value: "",
-                  },
-                ],
-              })
-            }
-          >
-            Adicionar serviço
-          </button>
+          <div className="span-2 plan-template-service-add">
+            <button
+              type="button"
+              className="secondary-button button-sm"
+              disabled={saving}
+              onClick={() =>
+                setForm({
+                  ...form,
+                  services: [
+                    ...form.services,
+                    {
+                      serviceId: "",
+                      sessions: "1",
+                      sessionsPerWeek: "",
+                      value: "",
+                    },
+                  ],
+                })
+              }
+            >
+              <Plus size={16} aria-hidden="true" />
+              Adicionar serviço
+            </button>
+          </div>
           {form.services.length > 1 && (
             <p className="span-2" role="status">
               Soma dos serviços: {currency.format(sum / 100)} · Diferença:{" "}

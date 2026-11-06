@@ -8,6 +8,7 @@ import {
   documentTemplateInputSchema,
   issuedDocumentInputSchema,
   publicDocumentSignInputSchema,
+  publicSignatureInputSchema,
 } from "./model.js";
 
 export type DocumentKind = z.infer<typeof documentKindSchema>;
@@ -43,6 +44,10 @@ export interface DocumentSignatureContent extends DocumentSignature {
   contentBase64: string;
 }
 export interface IssuedDocument extends IssuedDocumentInput {
+  /** Exigência do modelo preservada junto do rascunho. */
+  requiresPatientCpf?: boolean;
+  /** Situação atual do cadastro, sem alterar o texto preservado. */
+  patientCpfMissing?: boolean;
   snapshotContent?: DocumentContent;
   branding?: ClinicBranding;
   manualSignature?: DocumentSignature;
@@ -63,6 +68,8 @@ export interface IssuedDocument extends IssuedDocumentInput {
 }
 
 export interface DocumentPreview {
+  requiresPatientCpf?: boolean;
+  patientCpfMissing?: boolean;
   snapshotBody: string;
   snapshotContent: DocumentContent;
   branding: ClinicBranding;
@@ -76,6 +83,8 @@ export interface DocumentDraftInput {
   title: string;
   content: DocumentContent;
 }
+
+export type PublicSignatureInput = z.infer<typeof publicSignatureInputSchema>;
 
 export type PublicDocumentSignInput = z.infer<
   typeof publicDocumentSignInputSchema

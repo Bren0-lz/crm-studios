@@ -79,6 +79,7 @@ describe("shell navigation", () => {
       ],
       Relacionamento: [
         "CRM comercial",
+        "Eventos",
         "Contatos sugeridos",
         "Lista de espera",
         "Comunicações",

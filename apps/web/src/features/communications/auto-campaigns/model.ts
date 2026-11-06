@@ -27,6 +27,15 @@ const autoCampaignVariableInfo: Record<
   data: { label: "Data", example: "23/10" },
   idade: { label: "Idade", example: "35" },
   hora: { label: "Hora", example: "09:00" },
+  endereco: {
+    label: "Endereço",
+    example: "Rua das Flores, 100 · Centro · Campinas/SP",
+  },
+  link_mapa: {
+    label: "Link do mapa",
+    example:
+      "https://www.google.com/maps/search/?api=1&query=Rua%20das%20Flores%2C%20100%20Campinas%20SP",
+  },
   servico: { label: "Serviço", example: "Pilates" },
   plano: { label: "Plano", example: "Pilates 2x semana" },
   sessoes: { label: "Sessões", example: "2 sessões" },

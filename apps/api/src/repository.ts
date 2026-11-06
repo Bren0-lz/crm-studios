@@ -63,6 +63,7 @@ import type {
   DocumentSignatureLinkDetails,
   DocumentSignatureLinkShare,
   PublicDocumentSignInput,
+  PublicSignatureInput,
   PublicRequestMetadata,
   PublicSignatureDocument,
 } from "@crm/contracts";
@@ -1404,7 +1405,7 @@ export interface ClinicRepository {
    */
   signPublicReceiptSignature(
     token: string,
-    input: PublicDocumentSignInput,
+    input: PublicSignatureInput,
     metadata: PublicRequestMetadata,
   ): Promise<ReceiptSignature | null>;
   getFinancialWorkspace(clinicId: string): Promise<FinancialWorkspace>;

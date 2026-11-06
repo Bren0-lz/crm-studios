@@ -150,7 +150,7 @@ describe("contract signature link", () => {
     expect(screen.getByLabelText("Nome completo")).toHaveValue(
       patient.fullName,
     );
-    const cpf = screen.getByLabelText("CPF (opcional)");
+    const cpf = screen.getByLabelText("CPF de quem assina");
     fireEvent.change(cpf, { target: { value: "52998224725" } });
     expect(cpf).toHaveValue("529.982.247-25");
     const sign = screen.getByRole("button", { name: "Assinar documento" });
@@ -162,6 +162,11 @@ describe("contract signature link", () => {
     fireEvent.click(
       screen.getByLabelText("Li o documento e concordo com os seus termos."),
     );
+    fireEvent.change(cpf, { target: { value: "" } });
+    expect(sign).toBeDisabled();
+    fireEvent.change(cpf, { target: { value: "11111111111" } });
+    expect(sign).toBeDisabled();
+    fireEvent.change(cpf, { target: { value: "52998224725" } });
     await waitFor(() => expect(sign).toBeEnabled());
     fireEvent.click(sign);
     expect(
@@ -225,6 +230,9 @@ describe("contract signature link", () => {
       fireEvent.click(
         screen.getByLabelText("Li o documento e concordo com os seus termos."),
       );
+      fireEvent.change(screen.getByLabelText("CPF de quem assina"), {
+        target: { value: "52998224725" },
+      });
       const sign = screen.getByRole("button", { name: "Assinar documento" });
       const pad = screen.getByRole("img", {
         name: "Área de assinatura",

@@ -106,6 +106,27 @@
 }
 
 /* Preço de tabela no cadastro de plano: serviço à esquerda, valor à direita e a soma. */
+.settings-modal .form-grid.plan-template-service-fields {
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) auto;
+  align-items: end;
+  gap: var(--space-3);
+}
+.settings-modal
+  .plan-template-service-fields.plan-template-service-fields-multiple {
+  grid-template-columns: minmax(0, 2fr) repeat(2, minmax(0, 1fr)) auto;
+}
+.plan-template-service-fields > label {
+  min-width: 0;
+}
+.plan-template-service-remove,
+.plan-template-service-create {
+  justify-self: start;
+}
+.plan-template-service-add {
+  display: flex;
+  justify-content: flex-start;
+}
+
 .plan-table-price {
   display: grid;
   gap: var(--space-2);
@@ -182,6 +203,27 @@
 
 .plan-table-price > .field-hint {
   margin: 0;
+}
+
+@media (max-width: 700px) {
+  .settings-modal .form-grid.plan-template-service-fields,
+  .settings-modal
+    .plan-template-service-fields.plan-template-service-fields-multiple {
+    grid-template-columns: 1fr;
+  }
+  .plan-template-service-fields .span-2 {
+    grid-column: auto;
+  }
+  .plan-table-price {
+    padding: var(--space-3);
+  }
+  .plan-table-price li > span:first-child {
+    flex: 1;
+  }
+  .plan-table-price li > span:last-child,
+  .plan-table-price dd {
+    flex-shrink: 0;
+  }
 }
 
 .admin-user-row {

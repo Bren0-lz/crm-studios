@@ -105,12 +105,16 @@ test("the client reads and signs a long contract on an iPhone", async ({
   expect(formBox.y).toBeGreaterThanOrEqual(paperBox.y + paperBox.height);
 
   // 3. Campos com 16 px ou mais: abaixo disso o Safari do iOS dá zoom ao tocar.
-  for (const name of ["Nome completo", "CPF (opcional)"]) {
+  for (const name of ["Nome completo", "CPF de quem assina"]) {
     const fontSize = await page
       .getByRole("textbox", { name, exact: true })
       .evaluate((element) => parseFloat(getComputedStyle(element).fontSize));
     expect.soft(fontSize, name).toBeGreaterThanOrEqual(16);
   }
+
+  await page
+    .getByRole("textbox", { name: "CPF de quem assina", exact: true })
+    .fill("52998224725");
 
   // 4. A área de assinatura acompanha o tamanho da tela, também em paisagem.
   const pad = page.getByRole("img", {

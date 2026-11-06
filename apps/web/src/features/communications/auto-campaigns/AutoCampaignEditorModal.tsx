@@ -1,4 +1,6 @@
 import {
+  appointmentLocationVariables,
+  fillAutoCampaignMessage,
   autoCampaignCooldownUnitLabels,
   autoCampaignInputSchema,
   autoCampaignStepLabel,
@@ -13,6 +15,7 @@ import { api } from "../../../api";
 import { Modal, ModalCancelButton } from "../../../shared/components/Modal";
 import { MoneyInput } from "../../../shared/components/MoneyInput";
 import { useFormDirty } from "../../../shared/workflows/useDirtyGuard";
+import { WhatsappBubble } from "../campaigns/WhatsappBubble";
 import { MessageBodyEditor } from "../campaigns/MessageBodyEditor";
 import { DiscountScopeFields } from "./DiscountScopeFields";
 import {
@@ -62,6 +65,9 @@ export function AutoCampaignEditorModal({
       campaign?.trigger === trigger,
   );
   const variables = autoCampaignEditorVariables[draft.trigger];
+  const location = useAppointmentLocation(
+    draft.trigger === "appointment_upcoming",
+  );
   const fixedDateAllowed = promotionAllowsFixedDate(draft.trigger);
   const validityMode = fixedDateAllowed ? draft.validityMode : "days";
   const offsets = draft.steps
@@ -475,6 +481,38 @@ export function AutoCampaignEditorModal({
                     disabled={saving}
                     onChange={(message) => updateStep(step.key, { message })}
                   />
+                  {draft.trigger === "appointment_upcoming" && (
+                    <>
+                      {location.error && (
+                        <p className="form-error" role="alert">
+                          {location.error}
+                        </p>
+                      )}
+                      {location.missing && (
+                        <p className="field-hint" role="note">
+                          Cadastre o endereço da unidade em Configurações
+                        </p>
+                      )}
+                      <p className="field-hint">
+                        Prévia ilustrativa. O endereço enviado será o da filial
+                        do atendimento.
+                      </p>
+                      <WhatsappBubble
+                        images={[]}
+                        contactName="Maria Souza"
+                        text={fillAutoCampaignMessage(
+                          step.message,
+                          "Maria Souza",
+                          {
+                            data: "23/10",
+                            hora: "09:00",
+                            servico: "Pilates",
+                            ...location.vars,
+                          },
+                        )}
+                      />
+                    </>
+                  )}
                 </div>
               </li>
             ))}
@@ -539,6 +577,46 @@ function usePlanTemplates(enabled: boolean) {
           }),
       )
       .catch(() => active && setState({ status: "error" }));
+    return () => {
+      active = false;
+    };
+  }, [enabled]);
+  return state;
+}
+
+function useAppointmentLocation(enabled: boolean) {
+  const [state, setState] = useState({
+    missing: false,
+    error: "",
+    vars: appointmentLocationVariables(),
+  });
+  useEffect(() => {
+    if (!enabled) return;
+    let active = true;
+    api
+      .branches()
+      .then((branches) => {
+        if (!active) return;
+        const locations = branches.map(appointmentLocationVariables);
+        setState({
+          missing:
+            locations.length === 0 || locations.some((item) => !item.endereco),
+          error: "",
+          vars:
+            locations.find((item) => item.endereco) ??
+            appointmentLocationVariables(),
+        });
+      })
+      .catch(
+        () =>
+          active &&
+          setState({
+            missing: false,
+            error:
+              "Não foi possível verificar os endereços das unidades. Tente reabrir o editor.",
+            vars: appointmentLocationVariables(),
+          }),
+      );
     return () => {
       active = false;
     };
