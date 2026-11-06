@@ -327,4 +327,46 @@ describe("settings workflows through real HTTP handlers", () => {
       ).toBe(true);
     },
   );
+  it("cadastra e edita a linha do serviço no painel de vendas", async () => {
+    const { repository } = await setupApi();
+    open("/configuracoes");
+    fireEvent.click(
+      await screen.findByRole("tab", { name: "Serviços e salas" }),
+    );
+    const section = screen.getByRole("tabpanel", { name: "Serviços e salas" });
+    fireEvent.click(
+      await within(section).findByRole("button", { name: "Novo cadastro" }),
+    );
+    const dialog = screen.getByRole("dialog", { name: "Novo cadastro" });
+    expect(within(dialog).getByLabelText("Linha no painel")).toHaveValue(
+      "studio",
+    );
+    change("Nome", "Depilação facial", dialog);
+    change("Linha no painel", "aesthetics", dialog);
+    await save("Novo cadastro", "Salvar cadastro");
+    const created = (
+      await repository.getAdministrativeRegistry(clinicId)
+    ).services.find((item) => item.name === "Depilação facial");
+    expect(created?.businessLine).toBe("aesthetics");
+
+    const row = (
+      await within(section).findByText("Depilação facial", { exact: true })
+    ).closest(".table-row")!;
+    fireEvent.click(
+      within(row as HTMLElement).getByRole("button", {
+        name: "Editar cadastro",
+      }),
+    );
+    const edit = screen.getByRole("dialog", { name: "Editar cadastro" });
+    expect(within(edit).getByLabelText("Linha no painel")).toHaveValue(
+      "aesthetics",
+    );
+    change("Linha no painel", "studio", edit);
+    await save("Editar cadastro", "Salvar cadastro");
+    expect(
+      (await repository.getAdministrativeRegistry(clinicId)).services.find(
+        (item) => item.id === created?.id,
+      )?.businessLine,
+    ).toBe("studio");
+  });
 });

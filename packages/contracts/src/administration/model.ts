@@ -283,6 +283,14 @@ export const roomInputSchema = z.object({
   capacity: z.number().int().min(1).max(100),
 });
 
+/** Linha do serviço no painel de vendas: Estúdio (aulas, turmas) ou Estética. */
+export const serviceBusinessLines = ["studio", "aesthetics"] as const;
+export const serviceBusinessLineSchema = z.enum(serviceBusinessLines);
+export const serviceBusinessLineLabels: Record<
+  (typeof serviceBusinessLines)[number],
+  string
+> = { studio: "Estúdio", aesthetics: "Estética" };
+
 export const serviceInputSchema = z.object({
   name: z.string().trim().min(2).max(120),
   durationMinutes: z.number().int().min(15).max(480),
@@ -291,6 +299,8 @@ export const serviceInputSchema = z.object({
   /** Profissionais e salas que atendem o serviço; vazio ou ausente = todos. */
   professionalIds: z.array(z.uuid()).max(200).optional(),
   roomIds: z.array(z.uuid()).max(200).optional(),
+  /** Linha no painel de vendas; ausente = `studio` ao criar e mantém a atual ao editar. */
+  businessLine: serviceBusinessLineSchema.optional(),
 });
 
 /** O serviço pode ser agendado com este profissional e esta sala? (vazio = todos). */

@@ -1,5 +1,8 @@
 import { z } from "zod";
-import type { UserSummary } from "../administration/types.js";
+import type {
+  ServiceBusinessLine,
+  UserSummary,
+} from "../administration/types.js";
 import type { GroupEnrollment, GroupWeeklySlot } from "../agenda/types.js";
 import type { IntegrationScope } from "./types.js";
 
@@ -35,6 +38,15 @@ export interface ExternalGroupRow {
   monthlyRevenueInCents: number;
   /** Atual + vagas livres × ticket médio (turma cheia). */
   potentialMonthlyRevenueInCents: number;
+  /** Linha do serviço da turma no painel (Estúdio ou Estética). */
+  businessLine: ServiceBusinessLine;
+  /**
+   * Matriculados ativos com parcela vencida (mesma regra de `GET /external/v1/overdue`). Só vem
+   * para quem tem acesso ao Financeiro, junto de `overdueInCents`.
+   */
+  overdueMembers?: number;
+  /** Soma das parcelas vencidas desses matriculados (todas as do cliente, não só da turma). */
+  overdueInCents?: number;
 }
 
 export interface ExternalGroupsTotals {
