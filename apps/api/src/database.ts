@@ -107,6 +107,13 @@ export async function seedDemoData(pool: Pool) {
        ON DUPLICATE KEY UPDATE id = id`,
       [demoClinicId, DEFAULT_CLINIC_TIMEZONE],
     );
+    // Só uma unidade demo nova recebe o endereço fictício; nunca sobrescreve cadastro existente.
+    await client.query(
+      `INSERT INTO branches (id, clinic_id, name, is_default, street, number, neighborhood, city, state)
+       SELECT $2, $1, 'Matriz', 1, 'Rua das Flores', '100', 'Centro', 'Campinas', 'SP'
+       FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM branches WHERE clinic_id = $1 AND is_default = 1)`,
+      [demoClinicId, randomUUID()],
+    );
     const branchId = await createDefaultBranch(client, demoClinicId);
     // Banco novo: os modelos iniciais de avaliação entram junto com a clínica.
     for (const template of starterAssessmentTemplates) {

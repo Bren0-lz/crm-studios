@@ -951,7 +951,7 @@ atualizado no mesmo PR):
   - Testes de contracts, API e web.
 - **Gate:** gate completo
 - **Depende de:** TG6 (ordem; não depende de código)
-- **Status:** TODO
+- **Status:** DOING
 
 ### CM2 — Lembrete com antecedência em horas
 
