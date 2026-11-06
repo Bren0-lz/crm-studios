@@ -134,6 +134,8 @@ import type {
   NotificationPreferences,
   IntegrationKey,
   IntegrationKeyInput,
+  TelegramSettings,
+  TelegramSettingsInput,
   CommissionEntry,
   CommissionRule,
   CommissionRuleInput,
@@ -283,6 +285,44 @@ export interface AuthenticatedUser extends UserSummary {
   createdAt: string;
   updatedAt: string;
 }
+
+/** Chat do Telegram vinculado a um usuário (TG1). */
+export interface TelegramLink {
+  clinicId: string;
+  userId: string;
+  chatId: string;
+  linkedAt: string;
+}
+
+/** Resultado de `/vincular <código>`: o vínculo gravado ou o motivo da recusa. */
+export type TelegramLinkAttempt =
+  | {
+      status: "linked";
+      clinicId: string;
+      userId: string;
+      userName: string;
+    }
+  | { status: "invalid" | "expired" | "used" | "forbidden" };
+
+/** Mensagem da fila de saída do Telegram. `clinicId` null: resposta a chat sem vínculo. */
+export interface TelegramOutboxMessage {
+  id: string;
+  clinicId: string | null;
+  chatId: string;
+  message: string;
+  attempts: number;
+  nextAttemptAt: string;
+  lastError?: string;
+  sentAt?: string;
+  failedAt?: string;
+  createdAt: string;
+}
+
+/** Resultado de uma tentativa de envio: enviada, nova tentativa marcada ou desistência. */
+export type TelegramDeliveryResult =
+  | { sentAt: string }
+  | { error: string; nextAttemptAt: string }
+  | { error: string; failedAt: string };
 
 /**
  * Pedido de recálculo retroativo ao gravar regras de comissão. `expectedDigest` (da prévia
@@ -684,6 +724,55 @@ export interface ClinicRepository {
   ): Promise<{ clinicId: string; key: IntegrationKey } | null>;
   /** Registra o último uso da chave. */
   touchIntegrationKey(clinicId: string, id: string): Promise<void>;
+  /** Telegram (TG1): perfis que podem vincular (sem configuração, o padrão provisório). */
+  getTelegramSettings(clinicId: string): Promise<TelegramSettings>;
+  saveTelegramSettings(
+    clinicId: string,
+    input: TelegramSettingsInput,
+  ): Promise<TelegramSettings>;
+  getTelegramLink(clinicId: string, userId: string): Promise<TelegramLink | null>;
+  /** Chats vinculados de usuários ativos da clínica (destino dos avisos). */
+  listTelegramLinks(clinicId: string): Promise<TelegramLink[]>;
+  /** Desvincula o chat do usuário; `false` se não havia vínculo. */
+  deleteTelegramLink(clinicId: string, userId: string): Promise<boolean>;
+  /** Grava o código (pelo hash) e apaga os códigos ainda não usados do usuário. */
+  createTelegramLinkCode(
+    clinicId: string,
+    userId: string,
+    code: { codeHash: string; expiresAt: string },
+  ): Promise<void>;
+  /**
+   * `/vincular <código>`, em qualquer clínica (o código diz a clínica): confere validade, uso
+   * e perfil do usuário, marca o código como usado e grava o vínculo, numa transação.
+   */
+  linkTelegramChat(input: {
+    codeHash: string;
+    chatId: string;
+    now: string;
+  }): Promise<TelegramLinkAttempt>;
+  /** Enfileira para envio a partir de `at` (relógio do serviço). */
+  enqueueTelegramMessages(
+    clinicId: string | null,
+    messages: { chatId: string; message: string }[],
+    at: string,
+  ): Promise<void>;
+  /**
+   * Reserva as mensagens vencidas (não enviadas, sem desistência, `nextAttemptAt <= now`) até
+   * `leaseUntil`, para dois drenos simultâneos não mandarem a mesma mensagem. Sem `clinicId`,
+   * de todas as clínicas.
+   */
+  claimTelegramOutbox(options: {
+    now: string;
+    leaseUntil: string;
+    limit: number;
+    clinicId?: string;
+  }): Promise<TelegramOutboxMessage[]>;
+  /** Registra a tentativa; a falha soma uma tentativa e guarda o erro. */
+  recordTelegramDelivery(
+    id: string,
+    result: TelegramDeliveryResult,
+  ): Promise<void>;
+  listTelegramOutbox(clinicId: string): Promise<TelegramOutboxMessage[]>;
   listAdminAuditEvents(clinicId: string): Promise<AdminAuditEvent[]>;
   listAdminAuditPage(
     clinicId: string,

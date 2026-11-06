@@ -27,6 +27,7 @@ import { registerRelationshipRoutes } from "./modules/relationship/routes.js";
 import { registerReportsRoutes } from "./modules/reports/routes.js";
 import { registerWaitlistRoutes } from "./modules/waitlist/routes.js";
 import { registerIntegrationRoutes } from "./modules/integrations/routes.js";
+import { registerTelegramRoutes } from "./modules/integrations/telegram-routes.js";
 import { registerExternalRoutes } from "./modules/external/routes.js";
 
 export async function buildApp(options: BuildAppOptions) {
@@ -36,6 +37,7 @@ export async function buildApp(options: BuildAppOptions) {
   registerCatalogRoutes(context);
   registerAdministrationRoutes(context);
   registerIntegrationRoutes(context);
+  registerTelegramRoutes(context);
   registerRelationshipRoutes(context);
   registerWaitlistRoutes(context);
   registerAgendaRoutes(context);
