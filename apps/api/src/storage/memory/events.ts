@@ -62,6 +62,18 @@ export function createEventsRepository(context: MemoryRepositoryContext) {
       .map((item) => item.startsAt)
       .sort()
       .at(-1);
+  /** Último contato feito (tentativa sem resposta fica de fora). */
+  const contactedAt = (lead: EventParticipant) =>
+    context.leadContacts
+      .filter(
+        (item) =>
+          item.clinicId === lead.clinicId &&
+          item.leadId === lead.id &&
+          item.reached !== false,
+      )
+      .map((item) => item.occurredAt)
+      .sort()
+      .at(-1);
   const eventFields = (clinicId: string, input: EventInput) => {
     if (input.branchId) {
       if (
@@ -107,8 +119,13 @@ export function createEventsRepository(context: MemoryRepositoryContext) {
         .filter((lead) => lead.eventId === row.id)
         .sort(byName)
         .map((lead): EventParticipant => {
-          const at = evaluationAt(lead);
-          return { ...lead, ...(at ? { evaluationAt: at } : {}) };
+          const at = evaluationAt(lead),
+            contacted = contactedAt(lead);
+          return {
+            ...lead,
+            ...(contacted ? { contactedAt: contacted } : {}),
+            ...(at ? { evaluationAt: at } : {}),
+          };
         });
       return {
         ...toEvent(row),

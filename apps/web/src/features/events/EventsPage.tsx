@@ -1,6 +1,7 @@
 import type { Branch, CommercialEvent } from "@crm/contracts";
 import { CalendarDays, Plus } from "lucide-react";
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
 import { PageHeader } from "../../shared/components/PageHeader";
@@ -145,15 +146,24 @@ export function EventsPage() {
                         <p className="events-notes">{event.notes}</p>
                       )}
                     </div>
-                    {canManage && (
-                      <button
+                    <div className="events-actions">
+                      <Link
                         className="secondary-button button-sm"
-                        aria-label={`Editar ${event.name}`}
-                        onClick={() => open(event)}
+                        to={`/eventos/${event.id}`}
+                        aria-label={`Ver participantes de ${event.name}`}
                       >
-                        Editar
-                      </button>
-                    )}
+                        Participantes
+                      </Link>
+                      {canManage && (
+                        <button
+                          className="secondary-button button-sm"
+                          aria-label={`Editar ${event.name}`}
+                          onClick={() => open(event)}
+                        >
+                          Editar
+                        </button>
+                      )}
+                    </div>
                   </li>
                 ))}
             </ul>

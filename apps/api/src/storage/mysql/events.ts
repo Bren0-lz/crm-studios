@@ -69,6 +69,10 @@ const evaluationAtColumn = `(SELECT MAX(a.starts_at) FROM appointments a
       OR (leads.converted_patient_id IS NOT NULL AND a.patient_id = leads.converted_patient_id
         AND a.created_at >= leads.created_at))) AS "evaluationAt"`;
 
+/** Último contato feito (tentativa sem resposta, `reached = 0`, fica de fora). */
+const contactedAtColumn = `(SELECT MAX(lc.occurred_at) FROM lead_contacts lc
+  WHERE lc.clinic_id = leads.clinic_id AND lc.lead_id = leads.id AND lc.reached = 1) AS "contactedAt"`;
+
 export function createEventsRepository(context: MysqlRepositoryContext) {
   async function findEvent(
     db: Pool | PoolClient,
@@ -125,15 +129,18 @@ export function createEventsRepository(context: MysqlRepositoryContext) {
       const event = await findEvent(context.pool, clinicId, id);
       if (!event) return null;
       const result = await context.pool.query<
-        LeadRow & { evaluationAt: Date | null }
+        LeadRow & { evaluationAt: Date | null; contactedAt: Date | null }
       >(
-        `SELECT ${leadColumns}, ${evaluationAtColumn} FROM leads
+        `SELECT ${leadColumns}, ${evaluationAtColumn}, ${contactedAtColumn} FROM leads
          WHERE clinic_id = $1 AND event_id = $3 AND ${branchClause("branch_id", 2)}
          ORDER BY full_name, id`,
         [clinicId, context.branchReadIds(), id],
       );
       const participants = result.rows.map((row): EventParticipant => ({
         ...mapLead(row),
+        ...(row.contactedAt
+          ? { contactedAt: row.contactedAt.toISOString() }
+          : {}),
         ...(row.evaluationAt
           ? { evaluationAt: row.evaluationAt.toISOString() }
           : {}),

@@ -344,6 +344,7 @@ export function createCommercialRepository(
         clinicId,
         leadId,
         actorName: actor.fullName,
+        reached: input.reached ?? true,
         occurredAt: input.occurredAt ?? now(),
         createdAt: now(),
       };

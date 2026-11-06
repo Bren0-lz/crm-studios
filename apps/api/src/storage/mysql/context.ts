@@ -1330,7 +1330,7 @@ export class MysqlRepositoryContext {
   ) {
     const result = await client.query<LeadContactRow>(
       `SELECT lc.id, lc.clinic_id AS "clinicId", lc.lead_id AS "leadId",
-              lc.channel, lc.contact_method AS "contactMethod", lc.direction, lc.notes, u.full_name AS "actorName",
+              lc.channel, lc.contact_method AS "contactMethod", lc.direction, lc.notes, lc.reached, u.full_name AS "actorName",
               lc.occurred_at AS "occurredAt", lc.created_at AS "createdAt"
        FROM lead_contacts lc JOIN users u ON u.id = lc.actor_user_id
        WHERE lc.clinic_id = $1 AND lc.id = $2`,

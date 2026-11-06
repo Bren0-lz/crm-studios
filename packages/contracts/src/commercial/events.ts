@@ -42,7 +42,7 @@ export type EventInput = z.infer<typeof eventInputSchema>;
 
 /** Indicadores do evento, só estes quatro. */
 export interface EventIndicators {
-  /** Participantes com algum contato registrado. */
+  /** Participantes com algum contato feito (tentativa sem resposta não conta). */
   contacted: number;
   /** Participantes não perdidos com interesse informado (diferente do padrão "Evento"). */
   interested: number;
@@ -71,6 +71,8 @@ export interface CommercialEvent {
 }
 
 export interface EventParticipant extends Lead {
+  /** Último contato feito (`reached` diferente de `false`); `lastContactAt` inclui tentativas. */
+  contactedAt?: string;
   /** Início da avaliação/aula experimental marcada mais recente (não cancelada). */
   evaluationAt?: string;
 }
@@ -100,7 +102,7 @@ export function buildEventIndicators(
   const count = (test: (item: EventParticipant) => boolean) =>
     participants.filter(test).length;
   return {
-    contacted: count((item) => Boolean(item.lastContactAt)),
+    contacted: count((item) => Boolean(item.contactedAt)),
     interested: count(
       (item) => item.stage !== LEAD_LOST_STAGE && hasEventInterest(item),
     ),

@@ -42,6 +42,8 @@ export interface LeadContactRow {
   channel: LeadContact["channel"];
   direction: LeadContact["direction"];
   notes: string;
+  /** TINYINT(1): 0 = tentativa sem resposta. */
+  reached: number | boolean;
   actorName: string;
   occurredAt: Date;
   createdAt: Date;
@@ -117,6 +119,7 @@ export function mapLeadContact(row: LeadContactRow): LeadContact {
     ...(row.contactMethod ? { contactMethod: row.contactMethod } : {}),
     direction: row.direction,
     notes: row.notes,
+    reached: Boolean(Number(row.reached)),
     actorName: row.actorName,
     occurredAt: row.occurredAt.toISOString(),
     createdAt: row.createdAt.toISOString(),

@@ -162,6 +162,23 @@ for (const storage of ["memory", "mysql"] as const) {
           direction: "outbound",
           notes: "Quer Pilates à noite",
         });
+        // Tentativa sem resposta: fica no histórico, mas não conta como contatado.
+        const attempt = await repository.createLeadContact(
+          clinicId,
+          actorId,
+          caio.id,
+          {
+            channel: "phone",
+            direction: "outbound",
+            notes: "Não atendeu",
+            occurredAt: "2026-11-09T15:30:00.000Z",
+            reached: false,
+          },
+        );
+        expect(attempt).toMatchObject({ reached: false, notes: "Não atendeu" });
+        expect(
+          (await repository.getLeadActivity(clinicId, ana.id))?.contacts[0],
+        ).toMatchObject({ reached: true });
         await repository.moveLead(clinicId, actorId, davi.id, "lost", "Mudou");
         const appointment = {
           professionalId: professional!.id,
@@ -201,6 +218,12 @@ for (const storage of ["memory", "mysql"] as const) {
           "2099-04-07T15:00:00.000Z",
           null,
         ]);
+        expect(
+          detail.participants.map((item) => Boolean(item.contactedAt)),
+        ).toEqual([true, true, false, false]);
+        expect(detail.participants[2]?.lastContactAt).toBe(
+          "2026-11-09T15:30:00.000Z",
+        );
         expect(detail.indicators).toEqual({
           contacted: 2,
           interested: 2,

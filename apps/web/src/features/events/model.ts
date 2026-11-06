@@ -33,3 +33,20 @@ export function eventStartsAt(value: string, timezone: string) {
     );
   return iso;
 }
+
+/** "09 de nov. às 10:00" no fuso da clínica (contato e avaliação do participante). */
+export function eventMoment(iso: string, timezone: string) {
+  const date = new Date(iso);
+  const day = new Intl.DateTimeFormat("pt-BR", {
+    timeZone: timezone,
+    day: "2-digit",
+    month: "short",
+  }).format(date);
+  const time = new Intl.DateTimeFormat("pt-BR", {
+    timeZone: timezone,
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).format(date);
+  return `${day} às ${time}`;
+}

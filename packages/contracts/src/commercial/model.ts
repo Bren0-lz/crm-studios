@@ -26,6 +26,9 @@ export function leadPatientProfile(
 ) {
   return leadPatientProfileSchema.parse(input);
 }
+/** Limite das observações do lead e do registro de contato. */
+export const LEAD_NOTES_MAX = 2000;
+
 export const leadInputSchema = z.object({
   ...leadPatientProfileSchema.shape,
   contactMethod: z.string().trim().max(80).optional(),
@@ -34,7 +37,7 @@ export const leadInputSchema = z.object({
   email: z.email().optional().or(z.literal("")),
   source: z.string().trim().min(2).max(80),
   interest: z.string().trim().min(2).max(120),
-  notes: z.string().trim().max(2000).optional().or(z.literal("")),
+  notes: z.string().trim().max(LEAD_NOTES_MAX).optional().or(z.literal("")),
   responsibleUserId: z.uuid().optional().or(z.literal("")),
   tags: z.array(z.string().trim().min(1).max(40)).max(20).default([]),
   /** Evento em que o lead entrou (participante); só vale no cadastro, a edição não troca. */
@@ -78,8 +81,13 @@ export const leadContactInputSchema = z.object({
   channel: leadContactChannelSchema,
   contactMethod: z.string().trim().max(80).optional(),
   direction: z.enum(["inbound", "outbound", "internal"]),
-  notes: z.string().trim().min(2).max(2000),
+  notes: z.string().trim().min(2).max(LEAD_NOTES_MAX),
   occurredAt: z.iso.datetime().optional(),
+  /**
+   * Contato feito? `false` = tentativa sem resposta (fica no histórico, mas não conta como
+   * contatado nos indicadores do evento). Ausente = contato feito.
+   */
+  reached: z.boolean().optional(),
 });
 
 export const leadTaskStatusSchema = z.enum(["open", "completed", "cancelled"]);
