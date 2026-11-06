@@ -1,6 +1,6 @@
 # Estado do loop
 
-- **Tarefa atual:** EV3 e PX1 em andamento (Rodada 9; PX1/PX2 retomadas pelo dono em 06/11). TW2 e SS2 seguem BLOCKED; PX1/PX2 adiadas pelo dono; CT4/CP4 manuais; Rodada 8 pausada em QM16.
+- **Tarefa atual:** EV3 e PX1 em andamento (Rodada 9; PX1/PX2 retomadas pelo dono em 06/11). TW2 e SS2 seguem BLOCKED; CT4/CP4 manuais; Rodada 8 pausada em QM16.
 - **Última concluída:** TG1 (Rodada 9; 06/11/2026)
 - **Tentativas na atual:** 0/3
 - **Bloqueios:** Rodada 9 tem tarefas BLOCKED à espera do estúdio: PX3, TW2, SS2, EV7, RC6, TG5, TG6, CM2, CM3, AJ4
