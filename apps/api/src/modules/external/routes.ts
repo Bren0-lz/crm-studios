@@ -18,6 +18,7 @@ import {
   groupRevenueOverview,
   isOverdueReceivable,
   loginSchema,
+  type MemberOverdue,
   type Patient,
   type Receivable,
   saoPauloToday,
@@ -68,6 +69,15 @@ function overdueByPatient(
       });
   }
   return byPatient;
+}
+
+/** Dias corridos entre o vencimento mais antigo e hoje (aaaa-mm-dd). */
+function daysSince(oldest: string, today: string) {
+  return Math.round(
+    (Date.parse(`${today}T00:00:00.000Z`) -
+      Date.parse(`${oldest}T00:00:00.000Z`)) /
+      86_400_000,
+  );
 }
 
 /**
@@ -125,16 +135,33 @@ function groupRow(
   };
 }
 
+/**
+ * Inscrito da turma. O contato só entra com `patient` (quem chama tem acesso a Clientes); o
+ * atraso, só para inscrito ativo quando `overdue` é informado (acesso ao Financeiro).
+ */
 function member(
   enrollment: GroupEnrollment,
   patient: Patient | undefined,
   monthlyInCents: number | null,
+  today: string,
+  overdue?: ReadonlyMap<string, PatientOverdue>,
 ): ExternalGroupMember {
+  const late =
+    enrollment.status === "active"
+      ? overdue?.get(enrollment.patientId)
+      : undefined;
+  const memberOverdue: MemberOverdue | undefined = late && {
+    amountInCents: late.amount,
+    installments: late.installments,
+    oldestDueDate: late.oldest,
+    daysOverdue: daysSince(late.oldest, today),
+  };
   return {
     enrollmentId: enrollment.id,
     patientId: enrollment.patientId,
     patientName: enrollment.patientName,
     ...(patient?.phone ? { phone: patient.phone } : {}),
+    ...(patient?.whatsapp ? { whatsapp: patient.whatsapp } : {}),
     ...(patient?.email ? { email: patient.email } : {}),
     status: enrollment.status,
     ...(enrollment.queuePosition === undefined
@@ -142,6 +169,7 @@ function member(
       : { queuePosition: enrollment.queuePosition }),
     startsOn: enrollment.startsOn,
     monthlyInCents,
+    ...(memberOverdue ? { overdue: memberOverdue } : {}),
   };
 }
 
@@ -347,11 +375,14 @@ export function registerExternalRoutes({
       if (!row)
         throw new DomainError("GROUP_NOT_FOUND", "Turma não encontrada.", 404);
       const overdue = await visibleOverdue(request, today);
-      const patients = new Map(
-        (await repository.listPatients(clinicId)).map((patient) => [
-          patient.id,
-          patient,
-        ]),
+      // Contato (telefone, WhatsApp, e-mail) só para quem tem acesso a Clientes.
+      const patients = new Map<string, Patient>(
+        requestAccess.get(request)?.permissions.includes("patients.view")
+          ? (await repository.listPatients(clinicId)).map((patient) => [
+              patient.id,
+              patient,
+            ])
+          : [],
       );
       return {
         ...groupRow(row, businessLines, overdue),
@@ -360,6 +391,8 @@ export function registerExternalRoutes({
             enrollment,
             patients.get(enrollment.patientId),
             monthlyInCents,
+            today,
+            overdue,
           ),
         ),
         waitlist: workspace.enrollments
@@ -369,7 +402,13 @@ export function registerExternalRoutes({
               (left.queuePosition ?? 0) - (right.queuePosition ?? 0),
           )
           .map((enrollment) =>
-            member(enrollment, patients.get(enrollment.patientId), null),
+            member(
+              enrollment,
+              patients.get(enrollment.patientId),
+              null,
+              today,
+              overdue,
+            ),
           ),
       };
     },
@@ -456,14 +495,10 @@ export function registerExternalRoutes({
         patients.map((patient) => [patient.id, patient]),
       );
       const groupById = new Map(rows.map((row) => [row.group.id, row]));
-      const todayTime = Date.parse(`${today}T00:00:00.000Z`);
       const result: ExternalOverdueRow[] = [...byPatient].map(
         ([patientId, item]) => {
           const patient = patientById.get(patientId);
-          const daysOverdue = Math.round(
-            (todayTime - Date.parse(`${item.oldest}T00:00:00.000Z`)) /
-              86_400_000,
-          );
+          const daysOverdue = daysSince(item.oldest, today);
           return {
             patientId,
             patientName: patient?.fullName ?? item.name,

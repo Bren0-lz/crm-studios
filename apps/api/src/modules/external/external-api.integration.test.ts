@@ -1,3 +1,4 @@
+import { hashSync } from "bcryptjs";
 import { describe, expect, it } from "vitest";
 import { buildApp } from "../../app.js";
 import { INTEGRATION_RATE_LIMIT } from "../../infrastructure/route-context.js";
@@ -625,6 +626,192 @@ describe("API externa de vendas", () => {
     ).json();
     expect(limitedDetails.businessLine).toBe("aesthetics");
     expect(limitedDetails).not.toHaveProperty("overdueMembers");
+    await app.close();
+  });
+
+  it("group members carry WhatsApp only with patients.view and the overdue only with finance.view", async () => {
+    const { app, repository, createKey } = await setup();
+    const { headers } = await createKey();
+    const [service] = await repository.listServices(clinicId);
+    const [professional] = await repository.listProfessionals(clinicId);
+    const [room] = (await repository.listRooms(clinicId)).sort(
+      (left, right) => right.capacity - left.capacity,
+    );
+    const group = await repository.createGroupClass(clinicId, {
+      serviceId: service!.id,
+      professionalId: professional!.id,
+      roomId: room!.id,
+      capacity: 2,
+      weeklySlots: [{ weekday: 5, startTime: "06:00", endTime: "07:00" }],
+    });
+    const createPatient = async (name: string, phone: string, whatsapp: string) => {
+      const created = await app.inject({
+        method: "POST",
+        url: "/external/v1/patients",
+        headers,
+        payload: {
+          fullName: name,
+          cpf: nextTestCpf(),
+          phone,
+          whatsapp,
+          email: `${phone}@example.com`,
+          emergencyContactName: name,
+          emergencyContactPhone: phone,
+        },
+      });
+      expect(created.statusCode, created.body).toBe(201);
+      return created.json().id as string;
+    };
+    const sell = async (
+      patientId: string,
+      firstDueDate: string,
+      idempotencyKey: string,
+      groupId?: string,
+    ) => {
+      const plan = await configuredPlan(app, {
+        patientId,
+        serviceId: service!.id,
+        name: "Pilates trimestral",
+        kind: "custom" as const,
+        totalSessions: 12,
+        totalValueInCents: 30_000,
+        installments: 3,
+        firstDueDate,
+        validFrom: "2020-01-01",
+        validUntil: "2099-12-31",
+        autoRenew: false,
+      });
+      const sold = await app.inject({
+        method: "POST",
+        url: "/external/v1/plans/purchases",
+        headers,
+        payload: { idempotencyKey, plan, ...(groupId ? { groupId } : {}) },
+      });
+      expect(sold.statusCode, sold.body).toBe(201);
+    };
+    // Atrasada (2020) e em dia (2099) matriculadas; a terceira, atrasada, fica na espera.
+    const late = await createPatient("Cliente atrasada", "11911112222", "11933334444");
+    const onTime = await createPatient("Cliente em dia", "11955556666", "11955556666");
+    const waiting = await createPatient("Cliente na espera", "11977778888", "11977778888");
+    await sell(late, "2020-01-10", "8e8e8e8e-8e8e-4e8e-8e8e-8e8e8e8e8e8e", group.id);
+    await sell(onTime, "2099-01-10", "9f9f9f9f-9f9f-4f9f-8f9f-9f9f9f9f9f9f", group.id);
+    await sell(waiting, "2020-01-10", "a0a0a0a0-a0a0-4a0a-8a0a-a0a0a0a0a0a0");
+    const queued = await app.inject({
+      method: "POST",
+      url: "/external/v1/group-enrollments",
+      headers,
+      payload: { groupId: group.id, patientId: waiting },
+    });
+    expect(queued.statusCode, queued.body).toBe(201);
+    expect(queued.json().status).toBe("waitlisted");
+    const receivables = (await repository.getFinancialSummary(clinicId))
+      .receivables.filter((item) => item.patientId === late)
+      .sort((left, right) => left.dueDate.localeCompare(right.dueDate));
+    expect(receivables).toHaveLength(3);
+    await repository.settleReceivable(clinicId, OWNER_ID, receivables[0]!.id, "pix");
+    const report = (await app.inject({ url: "/external/v1/overdue", headers })).json();
+    const lateRow = report.rows.find(
+      (row: { patientId: string }) => row.patientId === late,
+    );
+    const expectedOverdue = {
+      amountInCents: receivables[1]!.amountInCents + receivables[2]!.amountInCents,
+      installments: 2,
+      oldestDueDate: receivables[1]!.dueDate,
+      daysOverdue: lateRow.daysOverdue,
+    };
+    expect(lateRow).toMatchObject({
+      amountInCents: expectedOverdue.amountInCents,
+      oldestDueDate: expectedOverdue.oldestDueDate,
+    });
+
+    type Member = Record<string, unknown> & { patientId: string };
+    const detailsAs = async (extra: Record<string, string> = {}) => {
+      const response = await app.inject({
+        url: `/external/v1/groups/${group.id}`,
+        headers: { ...headers, ...extra },
+      });
+      expect(response.statusCode, response.body).toBe(200);
+      const body = response.json() as { members: Member[]; waitlist: Member[] };
+      const find = (id: string) =>
+        [...body.members, ...body.waitlist].find((item) => item.patientId === id)!;
+      return { late: find(late), onTime: find(onTime), waiting: find(waiting) };
+    };
+
+    // Dono da chave (admin): contato completo e atraso só de quem está ativo e vencido.
+    const full = await detailsAs();
+    expect(full.late).toMatchObject({
+      patientName: "Cliente atrasada",
+      phone: "11911112222",
+      whatsapp: "11933334444",
+      email: "11911112222@example.com",
+      status: "active",
+      overdue: expectedOverdue,
+    });
+    expect(full.onTime).toMatchObject({
+      phone: "11955556666",
+      whatsapp: "11955556666",
+      status: "active",
+    });
+    expect(full.onTime).not.toHaveProperty("overdue");
+    expect(full.waiting).toMatchObject({ status: "waitlisted", whatsapp: "11977778888" });
+    expect(full.waiting).not.toHaveProperty("overdue");
+
+    // Pessoas logadas no painel, cada uma com as próprias permissões.
+    const loginWith = async (email: string, permissions: string[]) => {
+      await repository.createAdminUser(
+        clinicId,
+        OWNER_ID,
+        {
+          fullName: email,
+          email,
+          password: "Password123",
+          role: "user",
+          permissions: permissions as never,
+          dashboardAccess: true,
+        },
+        hashSync("Password123", 4),
+      );
+      const logged = await app.inject({
+        method: "POST",
+        url: "/external/v1/auth/login",
+        headers,
+        payload: { email, password: "Password123" },
+      });
+      expect(logged.statusCode, logged.body).toBe(200);
+      return { "x-crm-user-token": logged.json().token as string };
+    };
+    const contactKeys = ["phone", "whatsapp", "email"];
+    const base = ["groups.view", "plans.view"];
+
+    // Sem patients.view nem finance.view: só nome e situação da inscrição.
+    const bare = await detailsAs(await loginWith("turmas@example.com", base));
+    for (const person of [bare.late, bare.onTime, bare.waiting]) {
+      for (const key of [...contactKeys, "overdue"])
+        expect(person).not.toHaveProperty(key);
+    }
+    expect(bare.late).toMatchObject({
+      patientName: "Cliente atrasada",
+      status: "active",
+    });
+
+    // Com patients.view: contato sim, atraso não.
+    const contact = await detailsAs(
+      await loginWith("clientes@example.com", [...base, "patients.view"]),
+    );
+    expect(contact.late).toMatchObject({
+      phone: "11911112222",
+      whatsapp: "11933334444",
+      email: "11911112222@example.com",
+    });
+    expect(contact.late).not.toHaveProperty("overdue");
+
+    // Com finance.view sem patients.view: atraso sim, contato não.
+    const finance = await detailsAs(
+      await loginWith("financeiro@example.com", [...base, "finance.view"]),
+    );
+    expect(finance.late.overdue).toEqual(expectedOverdue);
+    for (const key of contactKeys) expect(finance.late).not.toHaveProperty(key);
+    expect(finance.waiting).not.toHaveProperty("overdue");
     await app.close();
   });
 

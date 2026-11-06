@@ -470,7 +470,7 @@ numeração antiga, mapeada em cada tarefa) e no histórico do git.
 - **Decisão do dono (06/11):** `overdue` no formato do CRM simulado do painel (`{ amountInCents, installments, oldestDueDate, daysOverdue }`, só com `finance.view` e só para inscritos ativos), não `boolean`.
 - **Gate:** gate completo
 - **Depende de:** PX1
-- **Status:** TODO
+- **Status:** DONE
 
 ### PX3 — Categorias do painel (Estúdio geral / Pilates / Dança / Estética)
 
