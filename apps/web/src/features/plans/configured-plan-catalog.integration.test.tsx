@@ -398,6 +398,71 @@ describe("configured plan catalog", () => {
     await screen.findByRole("button", { name: "Ativar plano Plano completo" });
   });
 
+  it("keeps the single-session reference separate from the plan value while changing service rows", async () => {
+    setupCatalog();
+    const originalFetch = vi.mocked(fetch).getMockImplementation()!;
+    vi.mocked(fetch).mockImplementation(async (input, init) => {
+      if (String(input).endsWith("/services"))
+        return {
+          ok: true,
+          status: 200,
+          json: async () => [
+            {
+              id: first.serviceId,
+              name: "Pilates",
+              active: true,
+              priceInCents: 10000,
+            },
+            {
+              id: "77777777-7777-4777-8777-777777777777",
+              name: "Fisioterapia",
+              active: true,
+              priceInCents: 5000,
+            },
+          ],
+        } as Response;
+      return originalFetch(input, init);
+    });
+    render(
+      <MemoryRouter initialEntries={["/configuracoes"]}>
+        <App />
+      </MemoryRouter>,
+    );
+    fireEvent.click(await screen.findByRole("tab", { name: "Planos" }));
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Editar plano Pilates mensal",
+      }),
+    );
+    const dialog = screen.getByRole("dialog");
+    const reference = within(dialog).getByRole("region", {
+      name: "Preço de tabela dos serviços",
+    });
+    expect(
+      within(reference).getByText("Total avulso").parentElement,
+    ).toHaveTextContent(/900,00/);
+    expect(within(reference).getByText(/Só referência/)).toHaveTextContent(
+      "Não muda o valor do plano.",
+    );
+    fireEvent.change(within(dialog).getByLabelText("Sessões do serviço 1"), {
+      target: { value: "4" },
+    });
+    expect(
+      within(reference).getByText("Total avulso").parentElement,
+    ).toHaveTextContent(/500,00/);
+    expect(within(dialog).getByLabelText("Valor total")).toHaveValue("450,00");
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Remover serviço 2" }),
+    );
+    expect(
+      within(reference).getByText("Total avulso").parentElement,
+    ).toHaveTextContent(/400,00/);
+    expect(within(dialog).getByLabelText("Valor total")).toHaveValue("450,00");
+    expect(
+      within(dialog).getByRole("button", { name: "Remover serviço 1" }),
+    ).toBeDisabled();
+  });
+
   it("shows the catalog read-only without settings operation permissions", async () => {
     setupCatalog({ role: "reception" });
     render(
