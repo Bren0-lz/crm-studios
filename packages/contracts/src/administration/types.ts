@@ -13,6 +13,7 @@ import {
   ownProfileUpdateSchema,
   professionalInputSchema,
   roomInputSchema,
+  serviceBusinessLineSchema,
   serviceInputSchema,
   userRoleSchema,
 } from "./model.js";
@@ -209,8 +210,12 @@ export interface Room extends RoomInput {
   active: boolean;
 }
 
-export interface Service extends ServiceInput {
+export type ServiceBusinessLine = z.infer<typeof serviceBusinessLineSchema>;
+
+export interface Service extends Omit<ServiceInput, "businessLine"> {
   id: string;
+  /** Linha no painel de vendas (padrão `studio`). */
+  businessLine: ServiceBusinessLine;
   clinicId: string;
   active: boolean;
   /**

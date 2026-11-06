@@ -61,6 +61,7 @@ export async function seedDemoScenarios(client: PoolClient, branchId: string) {
       price_in_cents: item.priceInCents,
       professional_ids: item.professionalIds ?? [],
       room_ids: item.roomIds ?? [],
+      business_line: item.businessLine,
       active: item.active,
     })),
     ignore,

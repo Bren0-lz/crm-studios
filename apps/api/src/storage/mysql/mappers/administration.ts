@@ -2,6 +2,7 @@ import {
   type AdminUser,
   type Professional,
   type PermissionKey,
+  type ServiceBusinessLine,
   effectiveEditModules,
   effectivePermissions,
   permissionEditModules,
@@ -83,6 +84,7 @@ export interface ServiceRow {
   active: boolean;
   professionalIds: string[];
   roomIds: string[];
+  businessLine: ServiceBusinessLine;
 }
 
 export function present(value: string | null) {

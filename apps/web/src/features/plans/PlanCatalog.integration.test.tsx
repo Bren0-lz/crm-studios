@@ -79,6 +79,7 @@ beforeEach(() => {
       clinicId: template.clinicId,
       name: "Dançaterapia",
       active: true,
+      businessLine: "studio",
       durationMinutes: 50,
       priceInCents: 16000,
     },

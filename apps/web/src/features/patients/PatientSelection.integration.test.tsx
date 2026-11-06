@@ -57,6 +57,7 @@ const service: Service = {
   clinicId,
   name: "Pilates",
   active: true,
+  businessLine: "studio",
   durationMinutes: 50,
   priceInCents: 16000,
 };

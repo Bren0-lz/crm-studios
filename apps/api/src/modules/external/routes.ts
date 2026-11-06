@@ -16,9 +16,12 @@ import {
   type GroupEnrollment,
   type GroupRevenueRow,
   groupRevenueOverview,
+  isOverdueReceivable,
   loginSchema,
   type Patient,
+  type Receivable,
   saoPauloToday,
+  type ServiceBusinessLine,
   singlePlanSessionPrices,
 } from "@crm/contracts";
 import { compare } from "bcryptjs";
@@ -35,14 +38,62 @@ import {
 const percent = (part: number, total: number) =>
   total > 0 ? Math.round((part / total) * 100) : 0;
 
-function groupRow({
-  group,
-  enrolled,
-  freeSeats,
-  sessionsPerMonth,
-  currentInCents,
-  potentialInCents,
-}: GroupRevenueRow): ExternalGroupRow {
+/** Parcelas vencidas somadas por cliente (`isOverdueReceivable`, fuso da clínica). */
+interface PatientOverdue {
+  name: string;
+  amount: number;
+  installments: number;
+  oldest: string;
+}
+
+function overdueByPatient(
+  receivables: readonly Receivable[],
+  today: string,
+): Map<string, PatientOverdue> {
+  const byPatient = new Map<string, PatientOverdue>();
+  for (const receivable of receivables) {
+    if (!isOverdueReceivable(receivable, today)) continue;
+    const current = byPatient.get(receivable.patientId);
+    if (current) {
+      current.amount += receivable.amountInCents;
+      current.installments += 1;
+      if (receivable.dueDate < current.oldest)
+        current.oldest = receivable.dueDate;
+    } else
+      byPatient.set(receivable.patientId, {
+        name: receivable.patientName,
+        amount: receivable.amountInCents,
+        installments: 1,
+        oldest: receivable.dueDate,
+      });
+  }
+  return byPatient;
+}
+
+/**
+ * Linha da turma. `businessLine` vem do serviço da turma; a inadimplência (matriculados ativos
+ * com parcela vencida e a soma delas) só entra quando `overdue` é informado (acesso ao
+ * Financeiro).
+ */
+function groupRow(
+  {
+    group,
+    members,
+    enrolled,
+    freeSeats,
+    sessionsPerMonth,
+    currentInCents,
+    potentialInCents,
+  }: GroupRevenueRow,
+  businessLines: ReadonlyMap<string, ServiceBusinessLine>,
+  overdue?: ReadonlyMap<string, PatientOverdue>,
+): ExternalGroupRow {
+  const late = overdue
+    ? members.flatMap(({ enrollment }) => {
+        const item = overdue.get(enrollment.patientId);
+        return item ? [item] : [];
+      })
+    : [];
   return {
     id: group.id,
     ...(group.branchId ? { branchId: group.branchId } : {}),
@@ -64,6 +115,13 @@ function groupRow({
     sessionsPerMonth,
     monthlyRevenueInCents: currentInCents,
     potentialMonthlyRevenueInCents: potentialInCents,
+    businessLine: businessLines.get(group.serviceId) ?? "studio",
+    ...(overdue
+      ? {
+          overdueMembers: late.length,
+          overdueInCents: late.reduce((total, item) => total + item.amount, 0),
+        }
+      : {}),
   };
 }
 
@@ -99,6 +157,7 @@ export function registerExternalRoutes({
   integrationKeys,
   loginAttempts,
   dashboardAccessDenied,
+  requestAccess,
 }: RouteContext) {
   /** Turmas com ocupação e faturamento, pelo mesmo cálculo da aba "Visão geral" de Turmas. */
   async function groupsOverview(
@@ -110,10 +169,11 @@ export function registerExternalRoutes({
     const from = `${today}T00:00:00.000Z`;
     const to = new Date(Date.parse(from) + 86_400_000).toISOString();
     await repository.renewDuePatientPlans(clinicId, actorUserId);
-    const [workspace, plans, templates] = await Promise.all([
+    const [workspace, plans, templates, registry] = await Promise.all([
       repository.getGroupWorkspace(clinicId, from, to),
       repository.listPatientPlans(clinicId),
       repository.listPlanTemplates(clinicId),
+      repository.getAdministrativeRegistry(clinicId),
     ]);
     const groups = workspace.groups
       .filter((group) => includeInactive || group.active)
@@ -122,6 +182,12 @@ export function registerExternalRoutes({
       today,
       workspace,
       plans,
+      businessLines: new Map(
+        registry.services.map((service) => [
+          service.id,
+          service.businessLine,
+        ]),
+      ),
       rows: groupRevenueOverview(
         groups,
         workspace.enrollments,
@@ -130,6 +196,16 @@ export function registerExternalRoutes({
         today,
       ),
     };
+  }
+
+  /** Inadimplência por cliente, só para quem tem acesso ao Financeiro (senão `undefined`). */
+  async function visibleOverdue(request: FastifyRequest, today: string) {
+    if (!requestAccess.get(request)?.permissions.includes("finance.view"))
+      return undefined;
+    const summary = await repository.getFinancialSummary(
+      request.user.clinicId,
+    );
+    return overdueByPatient(summary.receivables, today);
   }
 
   /** Validade do token do painel de vendas (o mesmo das sessões do CRM). */
@@ -226,12 +302,13 @@ export function registerExternalRoutes({
       const { includeInactive } = externalGroupsQuerySchema.parse(
         request.query,
       );
-      const { today, rows } = await groupsOverview(
+      const { today, rows, businessLines } = await groupsOverview(
         request.user.clinicId,
         request.user.sub,
         includeInactive,
       );
-      const groups = rows.map(groupRow);
+      const overdue = await visibleOverdue(request, today);
+      const groups = rows.map((row) => groupRow(row, businessLines, overdue));
       const sum = (pick: (row: ExternalGroupRow) => number) =>
         groups.reduce((total, row) => total + pick(row), 0);
       const capacity = sum((row) => row.capacity);
@@ -261,7 +338,7 @@ export function registerExternalRoutes({
     async (request): Promise<ExternalGroupDetails> => {
       const { id } = z.object({ id: z.uuid() }).parse(request.params);
       const clinicId = request.user.clinicId;
-      const { workspace, rows } = await groupsOverview(
+      const { today, workspace, rows, businessLines } = await groupsOverview(
         clinicId,
         request.user.sub,
         true,
@@ -269,6 +346,7 @@ export function registerExternalRoutes({
       const row = rows.find((item) => item.group.id === id);
       if (!row)
         throw new DomainError("GROUP_NOT_FOUND", "Turma não encontrada.", 404);
+      const overdue = await visibleOverdue(request, today);
       const patients = new Map(
         (await repository.listPatients(clinicId)).map((patient) => [
           patient.id,
@@ -276,7 +354,7 @@ export function registerExternalRoutes({
         ]),
       );
       return {
-        ...groupRow(row),
+        ...groupRow(row, businessLines, overdue),
         members: row.members.map(({ enrollment, monthlyInCents }) =>
           member(
             enrollment,
@@ -373,27 +451,7 @@ export function registerExternalRoutes({
         repository.getFinancialSummary(clinicId),
         repository.listPatients(clinicId),
       ]);
-      const byPatient = new Map<
-        string,
-        { name: string; amount: number; installments: number; oldest: string }
-      >();
-      for (const receivable of summary.receivables) {
-        if (receivable.status !== "open" || receivable.dueDate >= today)
-          continue;
-        const current = byPatient.get(receivable.patientId);
-        if (current) {
-          current.amount += receivable.amountInCents;
-          current.installments += 1;
-          if (receivable.dueDate < current.oldest)
-            current.oldest = receivable.dueDate;
-        } else
-          byPatient.set(receivable.patientId, {
-            name: receivable.patientName,
-            amount: receivable.amountInCents,
-            installments: 1,
-            oldest: receivable.dueDate,
-          });
-      }
+      const byPatient = overdueByPatient(summary.receivables, today);
       const patientById = new Map(
         patients.map((patient) => [patient.id, patient]),
       );
