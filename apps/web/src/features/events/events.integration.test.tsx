@@ -143,6 +143,9 @@ describe("events page", () => {
     expect(screen.getByText(/3 participante/)).toHaveTextContent(
       "Público estimado: 20",
     );
+    expect(
+      screen.getByRole("link", { name: `Ver participantes de ${event.name}` }),
+    ).toHaveAttribute("href", `/eventos/${event.id}`);
   });
   it("creates and edits, preserving clinic time, zero public estimate and branch", async () => {
     const writes = setup({ empty: true });

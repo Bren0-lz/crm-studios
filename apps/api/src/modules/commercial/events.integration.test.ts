@@ -1,5 +1,10 @@
 import { afterEach, describe, expect, it } from "vitest";
-import type { CommercialEvent, CommercialEventDetail } from "@crm/contracts";
+import {
+  EVENT_LEAD_DEFAULT_INTEREST,
+  eventLeadSource,
+  type CommercialEvent,
+  type CommercialEventDetail,
+} from "@crm/contracts";
 import { buildApp } from "../../app.js";
 import { MemoryClinicRepository } from "../../memory-repository.js";
 import { nextTestCpf } from "../../test-support/cpf.js";
@@ -208,6 +213,96 @@ describe("eventos do comercial", () => {
       converted: 1,
     });
     expect(body.participantCount).toBe(3);
+  });
+
+  it("registra contato feito ou tentativa do participante e atualiza os indicadores", async () => {
+    const { app, headers } = await setup();
+    const event = (
+      await app.inject({
+        method: "POST",
+        url: "/events",
+        headers,
+        payload: eventPayload,
+      })
+    ).json() as CommercialEvent;
+    const lead = (
+      await app.inject({
+        method: "POST",
+        url: "/leads",
+        headers,
+        payload: {
+          fullName: "Duda Participante",
+          phone: "11987650000",
+          email: "duda@example.com",
+          whatsapp: "11987650001",
+          source: eventLeadSource(event.name),
+          interest: EVENT_LEAD_DEFAULT_INTEREST,
+          eventId: event.id,
+        },
+      })
+    ).json() as { id: string };
+    const indicators = async () =>
+      (
+        (
+          await app.inject({
+            method: "GET",
+            url: `/events/${event.id}`,
+            headers,
+          })
+        ).json() as CommercialEventDetail
+      ).indicators.contacted;
+    const tooLong = await app.inject({
+      method: "POST",
+      url: `/leads/${lead.id}/contacts`,
+      headers,
+      payload: {
+        channel: "phone",
+        direction: "outbound",
+        notes: "x".repeat(2001),
+        reached: true,
+      },
+    });
+    expect(tooLong.statusCode).toBe(400);
+    const attempt = await app.inject({
+      method: "POST",
+      url: `/leads/${lead.id}/contacts`,
+      headers,
+      payload: {
+        channel: "phone",
+        direction: "outbound",
+        notes: "Não atendeu, ligar amanhã",
+        occurredAt: "2026-11-09T13:00:00.000Z",
+        reached: false,
+      },
+    });
+    expect(attempt.statusCode, attempt.body).toBe(201);
+    expect(attempt.json()).toMatchObject({ reached: false });
+    expect(await indicators()).toBe(0);
+    const done = await app.inject({
+      method: "POST",
+      url: `/leads/${lead.id}/contacts`,
+      headers,
+      payload: {
+        channel: "phone",
+        direction: "outbound",
+        notes: "x".repeat(2000),
+        occurredAt: "2026-11-10T13:00:00.000Z",
+        reached: true,
+      },
+    });
+    expect(done.statusCode, done.body).toBe(201);
+    const detail = (
+      await app.inject({ method: "GET", url: `/events/${event.id}`, headers })
+    ).json() as CommercialEventDetail;
+    expect(detail.indicators.contacted).toBe(1);
+    expect(detail.participants[0]).toMatchObject({
+      phone: "11987650000",
+      email: "duda@example.com",
+      whatsapp: "11987650001",
+      interest: EVENT_LEAD_DEFAULT_INTEREST,
+      contactedAt: "2026-11-10T13:00:00.000Z",
+      lastContactAt: "2026-11-10T13:00:00.000Z",
+    });
   });
 
   it("exige events.view para consultar e events.manage para cadastrar", async () => {

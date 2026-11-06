@@ -695,7 +695,7 @@ atualizado no mesmo PR):
   - Testes API e web.
 - **Gate:** gate completo
 - **Depende de:** EV2
-- **Status:** TODO
+- **Status:** DONE
 
 ### EV4 — Marcar avaliação pelo evento
 

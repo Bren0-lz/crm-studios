@@ -7,6 +7,8 @@ import {
   eventInputSchema,
   eventLeadSource,
   hasEventInterest,
+  LEAD_NOTES_MAX,
+  leadContactInputSchema,
   leadInputSchema,
   normalizePermissions,
   permissionCatalog,
@@ -77,10 +79,14 @@ describe("eventos do comercial", () => {
   it("calcula os quatro indicadores", () => {
     expect(
       buildEventIndicators([
-        participant({ lastContactAt: "2026-11-09T12:00:00.000Z" }),
+        participant({
+          lastContactAt: "2026-11-09T12:00:00.000Z",
+          contactedAt: "2026-11-09T12:00:00.000Z",
+        }),
         participant({
           interest: "Pilates",
           lastContactAt: "2026-11-09T12:00:00.000Z",
+          contactedAt: "2026-11-09T12:00:00.000Z",
           evaluationAt: "2026-11-12T13:00:00.000Z",
         }),
         participant({
@@ -94,6 +100,8 @@ describe("eventos do comercial", () => {
           stage: "lost",
           lostReason: "Mudou",
         }),
+        // Tentativa sem resposta: tem último contato, mas não conta como contatado.
+        participant({ lastContactAt: "2026-11-10T12:00:00.000Z" }),
       ]),
     ).toEqual({ contacted: 2, interested: 2, evaluations: 2, converted: 1 });
     expect(buildEventIndicators([])).toEqual({
@@ -102,6 +110,31 @@ describe("eventos do comercial", () => {
       evaluations: 0,
       converted: 0,
     });
+  });
+
+  it("registra contato feito ou tentativa, com observação de até 2000 caracteres", () => {
+    const contact = {
+      channel: "phone",
+      direction: "outbound",
+      notes: "Não atendeu",
+    } as const;
+    expect(LEAD_NOTES_MAX).toBe(2000);
+    expect(
+      leadContactInputSchema.parse({ ...contact, reached: false }).reached,
+    ).toBe(false);
+    expect(leadContactInputSchema.parse(contact).reached).toBeUndefined();
+    expect(
+      leadContactInputSchema.safeParse({
+        ...contact,
+        notes: "x".repeat(LEAD_NOTES_MAX),
+      }).success,
+    ).toBe(true);
+    expect(
+      leadContactInputSchema.safeParse({
+        ...contact,
+        notes: "x".repeat(LEAD_NOTES_MAX + 1),
+      }).success,
+    ).toBe(false);
   });
 
   it("tem módulo e permissões próprios, ao lado do CRM", () => {

@@ -2,16 +2,7 @@ import { useUnsavedChangesPrompt } from "../../shared/workflows/useUnsavedChange
 import { PatientProfileFields } from "../patients/index";
 import { CatalogInput } from "../../shared/components/CatalogInput";
 import { CatalogSelect } from "../../shared/components/CatalogSelect";
-import {
-  cpfMatchKey,
-  describeLeadDuplicate,
-  emailMatchKey,
-  leadInputSchema,
-  phoneMatchKey,
-  type Lead,
-  type LeadDuplicateMatch,
-  type LeadInput,
-} from "@crm/contracts";
+import { leadInputSchema, type Lead, type LeadInput } from "@crm/contracts";
 import { useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { api, getStoredUser } from "../../api";
@@ -19,6 +10,8 @@ import { useAuthorization } from "../../authorization-context";
 import { useMissingFields } from "../../shared/components/MissingFields";
 import { Modal } from "../../shared/components/Modal";
 import { PhoneInput } from "../../shared/components/PhoneInput";
+import { LeadDuplicateWarning } from "./LeadDuplicateWarning";
+import { useLeadDuplicates } from "./useLeadDuplicates";
 
 export function LeadModal({
   onClose,
@@ -57,21 +50,7 @@ export function LeadModal({
     ].filter((item): item is string => Boolean(item)),
   );
   const navigate = useNavigate();
-  const contactKey = (input: LeadInput) =>
-    JSON.stringify([
-      phoneMatchKey(input.phone),
-      emailMatchKey(input.email),
-      cpfMatchKey(input.cpf),
-    ]);
-  // Na edição, só checa de novo se o telefone, o e-mail ou o CPF mudaram.
-  const [baselineContact] = useState(() => contactKey(form));
-  const currentContact = contactKey(form);
-  const [duplicates, setDuplicates] = useState<{
-    key: string;
-    matches: LeadDuplicateMatch[];
-  } | null>(null);
-  const shownDuplicates =
-    duplicates?.key === currentContact ? duplicates.matches : [];
+  const duplicates = useLeadDuplicates(form, lead?.id);
   async function save() {
     setLoading(true);
     setError("");
@@ -113,26 +92,14 @@ export function LeadModal({
   }
   /** Aviso não bloqueante (QM10): telefone, e-mail ou CPF já cadastrado em outro registro. */
   async function checkDuplicates(): Promise<boolean> {
-    if (currentContact === baselineContact || duplicates?.key === currentContact)
-      return false;
+    if (!duplicates.pending) return false;
     setLoading(true);
     setError("");
-    let matches: LeadDuplicateMatch[] = [];
     try {
-      const result = await api.leadDuplicates({
-        phone: form.phone,
-        email: form.email ?? "",
-        cpf: form.cpf ?? "",
-        excludeLeadId: lead?.id ?? "",
-      });
-      matches = result?.matches ?? [];
-    } catch {
-      /* A checagem é só um aviso: se falhar, o cadastro segue. */
+      return await duplicates.check();
     } finally {
       setLoading(false);
     }
-    setDuplicates({ key: currentContact, matches });
-    return matches.length > 0;
   }
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -271,40 +238,14 @@ export function LeadModal({
                 </div>
               </div>
             </details>
-            {shownDuplicates.length > 0 && (
-              <div className="lead-duplicate-warning span-2" role="alert">
-                <ul>
-                  {shownDuplicates.map((match) => (
-                    <li key={`${match.kind}-${match.id}`}>
-                      <span>{describeLeadDuplicate(match)}</span>
-                      {match.kind === "patient" && (
-                        <button
-                          type="button"
-                          className="secondary-button"
-                          aria-label={`Abrir ficha de ${match.fullName}`}
-                          disabled={loading}
-                          onClick={() =>
-                            prompt.confirmLeave(
-                              () => void navigate(`/clientes/${match.id}`),
-                            )
-                          }
-                        >
-                          Abrir ficha
-                        </button>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-                <button
-                  type="button"
-                  className="secondary-button"
-                  disabled={loading}
-                  onClick={() => void saveAnyway()}
-                >
-                  Salvar mesmo assim
-                </button>
-              </div>
-            )}
+            <LeadDuplicateWarning
+              matches={duplicates.matches}
+              busy={loading}
+              onOpenPatient={(id) =>
+                prompt.confirmLeave(() => void navigate(`/clientes/${id}`))
+              }
+              onSaveAnyway={() => void saveAnyway()}
+            />
             {error && <div className="form-error span-2">{error}</div>}
             {missing.hint}
             <div className="modal-actions span-2">

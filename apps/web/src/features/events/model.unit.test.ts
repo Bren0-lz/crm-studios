@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { eventDateTime, eventStartsAt } from "./model";
+import { eventDateTime, eventMoment, eventStartsAt } from "./model";
 
 describe("event clinic timezone", () => {
   it.each([
@@ -19,6 +19,11 @@ describe("event clinic timezone", () => {
     ).toThrow();
     expect(() => eventStartsAt("2026-03-08T02:30", "America/New_York")).toThrow(
       /Horário inválido/,
+    );
+  });
+  it("formats the contact moment in the clinic timezone", () => {
+    expect(eventMoment("2039-11-09T13:05:00.000Z", "America/Manaus")).toBe(
+      "09 de nov. às 09:05",
     );
   });
 });

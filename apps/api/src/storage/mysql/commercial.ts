@@ -522,7 +522,7 @@ export function createCommercialRepository(
       const [contacts, tasks] = await Promise.all([
         repositoryContext.pool.query<LeadContactRow>(
           `SELECT lc.id, lc.clinic_id AS "clinicId", lc.lead_id AS "leadId",
-                lc.channel, lc.contact_method AS "contactMethod", lc.direction, lc.notes, u.full_name AS "actorName",
+                lc.channel, lc.contact_method AS "contactMethod", lc.direction, lc.notes, lc.reached, u.full_name AS "actorName",
                 lc.occurred_at AS "occurredAt", lc.created_at AS "createdAt"
          FROM lead_contacts lc JOIN users u ON u.id = lc.actor_user_id
          WHERE lc.clinic_id = $1 AND lc.lead_id = $2
@@ -558,8 +558,8 @@ export function createCommercialRepository(
         const inserted = await writeAndRead<{ id: string }>(
           client,
           `INSERT INTO lead_contacts
-         (id, clinic_id, lead_id, actor_user_id, channel, direction, notes, occurred_at, contact_method)
-       SELECT $9, $1, l.id, u.id, $4, $5, $6, $7, $8
+         (id, clinic_id, lead_id, actor_user_id, channel, direction, notes, occurred_at, contact_method, reached)
+       SELECT $9, $1, l.id, u.id, $4, $5, $6, $7, $8, $10
        FROM leads l JOIN users u ON u.clinic_id = l.clinic_id AND u.id = $3
        WHERE l.clinic_id = $1 AND l.id = $2`,
           [
@@ -572,6 +572,7 @@ export function createCommercialRepository(
             input.occurredAt ?? new Date().toISOString(),
             input.contactMethod || null,
             randomUUID(),
+            input.reached === false ? 0 : 1,
           ],
           "SELECT id FROM lead_contacts WHERE id = $9",
         );
