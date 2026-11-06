@@ -193,8 +193,43 @@ export function registerDashboardRoutes(context: RouteContext) {
         ? loadAutoCampaignQueue(repository, clinicId, modules)
         : undefined,
     ]);
+    const groupWorkspace =
+      modules.includes("groups") && modules.includes("patients")
+        ? await repository.getGroupWorkspace(
+            clinicId,
+            now.toISOString(),
+            now.toISOString(),
+          )
+        : undefined;
+    const groupVacancies = groupWorkspace?.groups.flatMap((group) => {
+      if (!group.active || group.activeEnrollments >= group.capacity) return [];
+      const waiting = groupWorkspace.enrollments
+        .filter(
+          (item) => item.groupId === group.id && item.status === "waitlisted",
+        )
+        .sort(
+          (a, b) =>
+            (a.queuePosition ?? 0) - (b.queuePosition ?? 0) ||
+            a.enrolledAt.localeCompare(b.enrolledAt),
+        );
+      const first = waiting[0];
+      return first
+        ? [
+            {
+              groupId: group.id,
+              groupName: group.name,
+              vacancies: group.capacity - group.activeEnrollments,
+              waiting: waiting.length,
+              enrollmentId: first.id,
+              patientId: first.patientId,
+              patientName: first.patientName,
+            },
+          ]
+        : [];
+    });
     return {
       date,
+      ...(groupVacancies ? { groupVacancies } : {}),
       ...(birthdays
         ? {
             birthdaysToday: birthdays.filter(

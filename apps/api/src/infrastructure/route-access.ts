@@ -190,6 +190,7 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
   "PUT /groups/:id": operation("groups.update"),
   "PATCH /groups/:id/name": operation("groups.rename"),
   "POST /group-enrollments": operation("groups.enroll"),
+  "POST /group-enrollments/:id/confirm": operation("groups.enroll"),
   "POST /group-enrollments/:id/cancel": operation("groups.cancel_enrollment"),
   "PUT /group-sessions/:sessionId/attendance/:patientId":
     operation("groups.attendance"),

@@ -2043,9 +2043,16 @@ describe("CRM API", () => {
     expect(updatedGroup.statusCode).toBe(200);
     expect(updatedGroup.json()).toMatchObject({
       capacity: 2,
-      activeEnrollments: 2,
-      waitlistCount: 0,
+      activeEnrollments: 1,
+      waitlistCount: 1,
     });
+    const accepted = await app.inject({
+      method: "POST",
+      url: `/group-enrollments/${waiting.json().id}/confirm`,
+      headers,
+    });
+    expect(accepted.statusCode).toBe(200);
+    expect(accepted.json().status).toBe("active");
     expect(updatedGroup.json().weeklySlots).toHaveLength(2);
     const tooSmall = await app.inject({
       method: "PUT",

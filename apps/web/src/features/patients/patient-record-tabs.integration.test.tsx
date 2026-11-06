@@ -649,6 +649,9 @@ describe("client record", () => {
       }),
     ).toBeInTheDocument();
     fireEvent.change(turma, { target: { value: group.id } });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Sim, colocar na lista de espera" }),
+    );
     expect(
       within(dialog).getByText(
         "Esta turma está cheia. O cliente será incluído na lista de espera.",

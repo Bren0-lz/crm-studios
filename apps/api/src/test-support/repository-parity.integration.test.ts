@@ -408,7 +408,13 @@ for (const storage of ["memory", "mysql"] as const) {
               .filter((item) => item.groupId === group.id)
               .map((item) => ({ ...item, groupName: "Novo nome" })),
           );
-          expect(after.enrollments).toEqual(before.enrollments);
+          // Matrículas com o mesmo enrolledAt podem trocar de ordem no MySQL.
+          // Compare todos os dados por identidade, sem exigir ordem entre empates.
+          const byId = (a: { id: string }, b: { id: string }) =>
+            a.id.localeCompare(b.id);
+          expect([...after.enrollments].sort(byId)).toEqual(
+            [...before.enrollments].sort(byId),
+          );
           expect(after.attendance).toEqual(before.attendance);
           expect(after.replacementCredits).toEqual(before.replacementCredits);
           expect(

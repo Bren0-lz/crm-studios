@@ -219,6 +219,10 @@ export const agendaApi = {
       method: "POST",
       body: JSON.stringify(input),
     }),
+  confirmGroupEnrollment: (id: string) =>
+    request<GroupEnrollment>(`/group-enrollments/${id}/confirm`, {
+      method: "POST",
+    }),
   cancelGroupEnrollment: (id: string) =>
     request<GroupEnrollment>(`/group-enrollments/${id}/cancel`, {
       method: "POST",

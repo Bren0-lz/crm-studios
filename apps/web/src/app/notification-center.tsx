@@ -37,7 +37,8 @@ type NotificationModule =
   | "crm"
   | "plans"
   | "patients"
-  | "communications";
+  | "communications"
+  | "groups";
 
 /**
  * Nome, explicação, módulo e, quando o módulo não basta, a permissão de cada grupo (também
@@ -52,6 +53,13 @@ export const notificationKindDetails: Record<
     permission?: PermissionKey;
   }
 > = {
+  groupVacancies: {
+    label: "Vagas com lista de espera",
+    detail:
+      "Entre em contato com o primeiro cliente da fila para oferecer a vaga",
+    module: "groups",
+    permission: "patients.view",
+  },
   birthdays: {
     label: "Aniversariantes de hoje",
     detail: "Envie os parabéns em Relacionamento",
@@ -219,6 +227,17 @@ export function notificationGroups(
     "/vendas?aba=estoque",
     <PackageOpen {...iconProps} />,
   );
+  if (visible("groupVacancies"))
+    for (const vacancy of summary.groupVacancies ?? [])
+      groups.push({
+        key: `group-vacancy:${vacancy.groupId}:${vacancy.enrollmentId}`,
+        kind: "groupVacancies",
+        label: `${vacancy.groupName}: ${vacancy.vacancies === 1 ? "1 vaga disponível" : `${vacancy.vacancies} vagas disponíveis`} · ${vacancy.waiting} na espera`,
+        detail: `Oferecer a vaga para ${vacancy.patientName}, primeiro cliente da fila`,
+        count: vacancy.vacancies,
+        to: `/turmas?oferecer=${encodeURIComponent(vacancy.enrollmentId)}`,
+        icon: <PhoneCall {...iconProps} />,
+      });
   if (visible("autoCampaigns"))
     for (const campaign of summary.autoCampaigns ?? [])
       if (campaign.pending > 0)

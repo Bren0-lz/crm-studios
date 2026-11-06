@@ -1224,12 +1224,6 @@ export function createAgendaRepository(
           groupSessionHorizon(),
           { groupId },
         );
-        if (input.capacity > activeCount) {
-          await client.query(
-            `UPDATE group_enrollments e JOIN (SELECT id FROM group_enrollments WHERE clinic_id=$1 AND group_id=$2 AND status='waitlisted' ORDER BY queue_position,enrolled_at LIMIT $3) waiting ON e.id=waiting.id SET e.status='active',e.queue_position=NULL,e.updated_at=NOW(6),e.enrolled_at=GREATEST(e.enrolled_at,NOW(6))`,
-            [clinicId, groupId, input.capacity - activeCount],
-          );
-        }
         await client.query(
           `UPDATE group_enrollments e JOIN (SELECT id,row_number() OVER (ORDER BY queue_position,enrolled_at) AS position FROM group_enrollments WHERE clinic_id=$1 AND group_id=$2 AND status='waitlisted') ordered ON e.id=ordered.id SET e.queue_position=ordered.position`,
           [clinicId, groupId],
@@ -1257,7 +1251,20 @@ export function createAgendaRepository(
     async cancelGroupEnrollment(clinicId: string, enrollmentId: string) {
       const client = await repositoryContext.pool.connect();
       try {
+        // Toda alteração de ocupação trava a turma antes das matrículas, como na
+        // criação e na confirmação, para evitar inversão de travas durante o contato.
+        const target = await client.query<{ groupId: string }>(
+          `SELECT group_id AS "groupId" FROM group_enrollments WHERE clinic_id=$1 AND id=$2`,
+          [clinicId, enrollmentId],
+        );
+        if (!target.rows[0]) {
+          return null;
+        }
         await client.query("BEGIN");
+        await client.query(
+          `SELECT id FROM group_classes WHERE clinic_id=$1 AND id=$2 FOR UPDATE`,
+          [clinicId, target.rows[0].groupId],
+        );
         const current = await client.query<GroupEnrollmentRow>(
           `SELECT ${groupEnrollmentColumns} FROM group_enrollments e JOIN patients p ON p.id=e.patient_id WHERE e.id=$2 AND e.clinic_id=$1 FOR UPDATE`,
           [clinicId, enrollmentId],
@@ -1271,17 +1278,6 @@ export function createAgendaRepository(
           `UPDATE group_enrollments SET ended_at=CASE WHEN status='active' THEN NOW(6) ELSE ended_at END,status='cancelled',queue_position=NULL,updated_at=NOW(6) WHERE id=$1`,
           [enrollmentId],
         );
-        if (row.status === "active") {
-          const next = await client.query<{ id: string }>(
-            `SELECT id FROM group_enrollments WHERE group_id=$1 AND status='waitlisted' ORDER BY queue_position,enrolled_at LIMIT 1 FOR UPDATE`,
-            [row.groupId],
-          );
-          if (next.rows[0])
-            await client.query(
-              `UPDATE group_enrollments SET status='active',queue_position=NULL,updated_at=NOW(6),enrolled_at=GREATEST(enrolled_at,NOW(6)) WHERE id=$1`,
-              [next.rows[0].id],
-            );
-        }
         await client.query(
           `UPDATE group_enrollments e JOIN (SELECT id,row_number() OVER(ORDER BY queue_position,enrolled_at) AS position FROM group_enrollments WHERE group_id=$1 AND status='waitlisted') ranked ON e.id=ranked.id SET e.queue_position=ranked.position`,
           [row.groupId],
@@ -1298,6 +1294,55 @@ export function createAgendaRepository(
       } finally {
         client.release();
       }
+    },
+
+    async confirmGroupEnrollment(clinicId: string, enrollmentId: string) {
+      const current = await repositoryContext.pool.query<{ groupId: string }>(
+        `SELECT group_id AS "groupId" FROM group_enrollments WHERE clinic_id=$1 AND id=$2`,
+        [clinicId, enrollmentId],
+      );
+      if (!current.rows[0]) return null;
+      const groupId = current.rows[0].groupId;
+      return repositoryContext.inTransaction(async (client) => {
+        const group = await client.query<{ capacity: number }>(
+          `SELECT capacity FROM group_classes WHERE clinic_id=$1 AND id=$2 AND active AND ${branchClause("branch_id", 3)} FOR UPDATE`,
+          [clinicId, groupId, repositoryContext.branchReadIds()],
+        );
+        if (!group.rows[0]) return null;
+        const row = await client.query<GroupEnrollmentRow>(
+          `SELECT ${groupEnrollmentColumns} FROM group_enrollments e JOIN patients p ON p.id=e.patient_id WHERE e.clinic_id=$1 AND e.id=$2 FOR UPDATE`,
+          [clinicId, enrollmentId],
+        );
+        if (row.rows[0]?.status !== "waitlisted")
+          throw new DomainError(
+            "WAITLIST_REQUIRED",
+            "O cliente não está na lista de espera de uma turma ativa.",
+            409,
+          );
+        const active = await client.query<{ id: string }>(
+          `SELECT id FROM group_enrollments WHERE clinic_id=$1 AND group_id=$2 AND status='active' FOR UPDATE`,
+          [clinicId, groupId],
+        );
+        if (active.rows.length >= group.rows[0].capacity)
+          throw new DomainError(
+            "GROUP_FULL",
+            "A turma está cheia. A vaga não está mais disponível.",
+            409,
+          );
+        await client.query(
+          `UPDATE group_enrollments SET status='active',queue_position=NULL,enrolled_at=GREATEST(enrolled_at,NOW(6)),updated_at=NOW(6) WHERE clinic_id=$1 AND id=$2`,
+          [clinicId, enrollmentId],
+        );
+        await client.query(
+          `UPDATE group_enrollments e JOIN (SELECT id,row_number() OVER (ORDER BY queue_position,enrolled_at) AS position FROM group_enrollments WHERE clinic_id=$1 AND group_id=$2 AND status='waitlisted') ranked ON e.id=ranked.id SET e.queue_position=ranked.position`,
+          [clinicId, groupId],
+        );
+        const updated = await client.query<GroupEnrollmentRow>(
+          `SELECT ${groupEnrollmentColumns} FROM group_enrollments e JOIN patients p ON p.id=e.patient_id WHERE e.clinic_id=$1 AND e.id=$2`,
+          [clinicId, enrollmentId],
+        );
+        return mapGroupEnrollment(updated.rows[0]!);
+      });
     },
 
     async listGroupSessions(clinicId: string, from: string, to: string) {

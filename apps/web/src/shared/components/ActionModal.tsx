@@ -43,6 +43,8 @@ export function ActionModal({
   const blocked = missing.length > 0;
   async function submit(event: FormEvent) {
     event.preventDefault();
+    // Confirmações abertas dentro de outro formulário não submetem o formulário de origem.
+    event.stopPropagation();
     if (saving || blocked) return;
     const problem = validate?.() ?? "";
     if (problem) {

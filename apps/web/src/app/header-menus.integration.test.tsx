@@ -503,6 +503,7 @@ describe("notification banner, alerts and settings", () => {
         "overdueReceivables",
         "unsignedReceipts",
         "pendingFinalization",
+        "groupVacancies",
         "overdueLeadTasks",
         "birthdays",
       ],

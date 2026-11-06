@@ -636,7 +636,7 @@ atualizado no mesmo PR):
   (`storage/{memory,mysql}/agenda.ts`) e datas do plano na venda com turma.
 - **Gate:** gate completo e `npm run test:mysql`
 - **Depende de:** TW1
-- **Status:** BLOCKED
+- **Status:** DONE (oferta de vaga aprovada pelo dono; cobrança/validade mantidas)
 
 ### SS1 — Rótulos claros dos dias fixos e do horário indisponível
 
