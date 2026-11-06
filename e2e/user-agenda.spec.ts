@@ -51,8 +51,6 @@ test("cadastro do usuário controla o profissional da agenda e preserva atendime
     data: {
       name: "Serviço da Ana",
       durationMinutes: 60,
-      priceInCents: 10000,
-      color: "#336699",
     },
   });
   expect(serviceResponse.status()).toBe(201);

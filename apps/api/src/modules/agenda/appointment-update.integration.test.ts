@@ -31,7 +31,7 @@ async function scenario() {
         method: "POST",
         url: "/services",
         headers,
-        payload: { priceInCents: 5_000, color: "#547A6B", ...payload },
+        payload,
       })
     ).json<{ id: string; name: string }>();
   const free = await createService({ name: "Avaliação", durationMinutes: 30 });

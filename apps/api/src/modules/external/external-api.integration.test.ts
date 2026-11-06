@@ -467,7 +467,6 @@ describe("API externa de vendas", () => {
     const aesthetics = await repository.createService(clinicId, {
       name: "Depilação a laser",
       durationMinutes: 30,
-      priceInCents: 15_000,
       businessLine: "aesthetics",
     });
     expect(aesthetics.businessLine).toBe("aesthetics");

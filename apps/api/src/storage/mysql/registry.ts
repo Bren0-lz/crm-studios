@@ -21,7 +21,7 @@ const professionalColumns =
 const roomColumns =
   'id,clinic_id AS "clinicId",branch_id AS "branchId",name,capacity,active';
 const serviceColumns =
-  'id,clinic_id AS "clinicId",name,duration_minutes AS "durationMinutes",price_in_cents AS "priceInCents",active,professional_ids AS "professionalIds",room_ids AS "roomIds",business_line AS "businessLine"';
+  'id,clinic_id AS "clinicId",name,duration_minutes AS "durationMinutes",active,professional_ids AS "professionalIds",room_ids AS "roomIds",business_line AS "businessLine"';
 export function createRegistryRepository(context: MysqlRepositoryContext) {
   return {
     async getAdministrativeRegistry(clinicId: string) {
@@ -108,13 +108,12 @@ export function createRegistryRepository(context: MysqlRepositoryContext) {
             const data = input.data,
               result = await writeAndRead<Service>(
                 client,
-                `UPDATE services SET name=$3,duration_minutes=$4,price_in_cents=$5,active=$6,professional_ids=COALESCE($7,professional_ids),room_ids=COALESCE($8,room_ids),business_line=COALESCE($9,business_line) WHERE clinic_id=$1 AND id=$2`,
+                `UPDATE services SET name=$3,duration_minutes=$4,active=$5,professional_ids=COALESCE($6,professional_ids),room_ids=COALESCE($7,room_ids),business_line=COALESCE($8,business_line) WHERE clinic_id=$1 AND id=$2`,
                 [
                   clinicId,
                   id,
                   data.name,
                   data.durationMinutes,
-                  data.priceInCents,
                   data.active,
                   data.professionalIds ?? null,
                   data.roomIds ?? null,

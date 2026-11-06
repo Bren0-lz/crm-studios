@@ -1120,7 +1120,7 @@ plano não cobra nada.
     valor fica no plano avulso.
   - Dados demo, seeds e fixtures sem o campo.
 - **Gate:** gate completo + `npm run test:mysql`
-- **Status:** TODO
+- **Status:** DONE
 
 ### AP2 — Atendimento guarda o plano
 

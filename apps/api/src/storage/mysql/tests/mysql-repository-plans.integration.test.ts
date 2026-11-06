@@ -246,7 +246,6 @@ describe.skipIf(!databaseUrl)("MySQL repository", () => {
       await createDefaultBranch(pool, foreignClinic);
       const service = await repository.createService(isolatedClinic, {
         name: marker,
-        priceInCents: 0,
         durationMinutes: 60,
       });
       const patient = await repository.createPatient(isolatedClinic, {
@@ -273,7 +272,6 @@ describe.skipIf(!databaseUrl)("MySQL repository", () => {
       );
       const foreignService = await repository.createService(foreignClinic, {
         name: marker,
-        priceInCents: 0,
         durationMinutes: 60,
       });
       const foreign = await repository.createPlanTemplate(

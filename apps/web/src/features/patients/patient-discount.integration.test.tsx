@@ -37,7 +37,7 @@ function mockApi(extra: (url: string) => unknown = () => undefined) {
           : url.includes("/plan-templates")
             ? [singleTemplate]
             : url.includes("/services")
-              ? [{ id: pilatesId, name: "Pilates", priceInCents: 9000 }]
+              ? [{ id: pilatesId, name: "Pilates" }]
               : []);
     return { ok: true, status: 200, json: async () => body } as Response;
   });

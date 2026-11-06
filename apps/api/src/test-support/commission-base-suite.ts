@@ -31,7 +31,6 @@ export function commissionBaseSuite(repository: () => ClinicRepository) {
       service = await repo.createService(clinic, {
         name: `Pilates ${randomUUID().slice(0, 8)}`,
         durationMinutes: 50,
-        priceInCents: 10000,
       }),
       patient = await repo.createPatient(clinic, {
         cpf: nextTestCpf(),
@@ -64,7 +63,7 @@ export function commissionBaseSuite(repository: () => ClinicRepository) {
   }
 
   describe("base da comissão: valor pago pelo cliente", () => {
-    it("usa o valor pago na sessão avulsa, não o preço de tabela do serviço", async () => {
+    it("usa o valor pago na sessão avulsa", async () => {
       const repo = repository();
       const { appointment, complete, generate } = await scenario(repo);
       const billed = await appointment("08");

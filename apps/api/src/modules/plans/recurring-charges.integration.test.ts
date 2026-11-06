@@ -243,7 +243,6 @@ describe("recurring plan charges", () => {
       payload: {
         name: "Pilates em dupla",
         durationMinutes: 50,
-        priceInCents: 5_000,
         color: "#547A6B",
       },
     });

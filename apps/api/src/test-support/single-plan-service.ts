@@ -3,8 +3,7 @@ import { planTemplateInputSchema, type Service } from "@crm/contracts";
 import type { ClinicRepository } from "../repository.js";
 
 /**
- * O preço de tabela do serviço é só referência: o valor da sessão avulsa vem do plano avulso.
- * Cria um serviço próprio do teste com um plano avulso de 1 sessão (`valueInCents`), que é
+ * Serviço não tem preço: o valor da sessão avulsa vem do plano avulso. Cria um serviço próprio do teste com um plano avulso de 1 sessão (`valueInCents`), que é
  * a base da comissão percentual de atendimentos sem plano.
  */
 export async function serviceWithSinglePlan(
@@ -16,7 +15,6 @@ export async function serviceWithSinglePlan(
   const service = await repository.createService(clinicId, {
     name: `Serviço avulso ${randomUUID().slice(0, 8)}`,
     durationMinutes: 50,
-    priceInCents: 0,
   });
   await repository.createPlanTemplate(
     clinicId,

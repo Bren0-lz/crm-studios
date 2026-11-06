@@ -68,7 +68,7 @@ export const proxiedEndpoints: ProxiedEndpoint[] = [
     target: "/services",
     scope: "sales:read",
     description:
-      "Serviços (preço de tabela, valor da sessão do plano avulso, duração, linha no painel: businessLine studio | aesthetics, ativos).",
+      "Serviços (valor da sessão do plano avulso, duração, linha no painel: businessLine studio | aesthetics, ativos).",
   },
   {
     method: "GET",

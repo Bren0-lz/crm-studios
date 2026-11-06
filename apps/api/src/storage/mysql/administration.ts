@@ -1146,7 +1146,7 @@ export function createAdministrationRepository(
       const result = await repositoryContext.pool.query<ServiceRow>(
         `
         SELECT id, clinic_id AS "clinicId", name, duration_minutes AS "durationMinutes",
-               price_in_cents AS "priceInCents", active,
+               active,
                professional_ids AS "professionalIds", room_ids AS "roomIds",
                business_line AS "businessLine"
         FROM services WHERE clinic_id = $1 AND active = true ORDER BY name
@@ -1160,21 +1160,20 @@ export function createAdministrationRepository(
       const result = await writeAndRead<ServiceRow>(
         repositoryContext.pool,
         `
-        INSERT INTO services (clinic_id, name, duration_minutes, price_in_cents, professional_ids, room_ids, id, business_line) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+        INSERT INTO services (clinic_id, name, duration_minutes, professional_ids, room_ids, id, business_line) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
         [
           clinicId,
           input.name,
           input.durationMinutes,
-          input.priceInCents,
           input.professionalIds ?? [],
           input.roomIds ?? [],
           randomUUID(),
           input.businessLine ?? "studio",
         ],
         `SELECT id, clinic_id AS "clinicId", name, duration_minutes AS "durationMinutes",
-                  price_in_cents AS "priceInCents", active,
+                  active,
                   professional_ids AS "professionalIds", room_ids AS "roomIds",
-                  business_line AS "businessLine" FROM services WHERE id = $7`,
+                  business_line AS "businessLine" FROM services WHERE id = $6`,
       );
       return result.rows[0]!;
     },

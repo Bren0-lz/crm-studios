@@ -78,7 +78,6 @@ describe("promoção de campanha automática ao agendar", () => {
                     {
                       id: "77777777-7777-4777-8777-777777777777",
                       name: "Pilates",
-                      priceInCents: 10000,
                     },
                   ]
                 : [],

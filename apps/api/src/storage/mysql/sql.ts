@@ -182,8 +182,8 @@ export const commissionRuleSnapshot = `JSON_OBJECT('percentage',rule.percentage,
  * Base da comissão: o valor que o cliente pagou pelo atendimento/presença. Sessão consumida
  * de um plano (inclusive plano avulso; sessão estornada não conta) → valor do serviço no plano
  * com o desconto do cliente das cobranças, dividido pelas sessões (arredondado, meio para
- * cima); sem consumo de plano → NULL (não gera comissão; o preço de tabela e o plano avulso
- * só cadastrado não entram). Mesma regra de `commissionBaseInCents` (memória) e
+ * cima); sem consumo de plano → NULL (não gera comissão; o plano avulso
+ * só cadastrado não entra). Mesma regra de `commissionBaseInCents` (memória) e
  * `planSessionPaidValueInCents` (contratos).
  */
 export function commissionBase(source: {

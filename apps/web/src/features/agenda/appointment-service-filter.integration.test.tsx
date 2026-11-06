@@ -35,7 +35,6 @@ describe("new appointment services", () => {
                   id: "s1",
                   name: "Pilates",
                   durationMinutes: 50,
-                  priceInCents: 9000,
                   singleSessionPriceInCents: 8500,
                   professionalIds: [ana],
                   roomIds: [],
@@ -44,7 +43,6 @@ describe("new appointment services", () => {
                   id: "s2",
                   name: "Avaliação",
                   durationMinutes: 30,
-                  priceInCents: 0,
                   professionalIds: [],
                   roomIds: [],
                 },
@@ -63,7 +61,7 @@ describe("new appointment services", () => {
     const dialog = await screen.findByRole("dialog");
     const service = within(dialog).getByLabelText("Serviço");
     expect(within(service).getAllByRole("option")).toHaveLength(3);
-    // O valor mostrado é o da sessão do plano avulso, não o preço de tabela.
+    // O valor mostrado é o da sessão do plano avulso.
     expect(
       within(service)
         .getAllByRole("option")
@@ -118,7 +116,6 @@ describe("new appointment services", () => {
                   id: "s1",
                   name: "Depilação pernas",
                   durationMinutes: 45,
-                  priceInCents: 12000,
                   professionalIds: [carolina],
                   roomIds: [aestheticsRoom],
                 },
@@ -126,7 +123,6 @@ describe("new appointment services", () => {
                   id: "s2",
                   name: "Pilates individual",
                   durationMinutes: 50,
-                  priceInCents: 15000,
                   professionalIds: [beatriz],
                   roomIds: [pilatesRoom],
                 },

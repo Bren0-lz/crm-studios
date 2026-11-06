@@ -105,7 +105,7 @@ function renderGroups(
       : url.includes("/plans?")
         ? [plan]
         : url.includes("/services")
-          ? [{ id: serviceId, name: "Pilates", priceInCents: 7000 }]
+          ? [{ id: serviceId, name: "Pilates" }]
           : [];
     return { ok: true, status: 200, json: async () => body } as Response;
   });

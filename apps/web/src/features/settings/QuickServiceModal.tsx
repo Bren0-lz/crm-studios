@@ -1,19 +1,17 @@
 import { serviceInputSchema, type Service } from "@crm/contracts";
 import { useState, type FormEvent } from "react";
 import { api } from "../../api";
-import { CurrencyField } from "../../shared/components/CurrencyField";
 import { Modal, ModalCancelButton } from "../../shared/components/Modal";
 import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
 
 const initial = {
   name: "",
   durationMinutes: "60",
-  priceInCents: 0,
 };
 
 /**
- * Cadastro rápido de serviço a partir do plano. O preço de tabela é só referência (o resumo
- * do plano mostra quanto as sessões custariam avulsas); quem cobra é o plano. Profissionais e salas começam liberados para todos; o ajuste fino continua em
+ * Cadastro rápido de serviço a partir do plano. Serviço não tem preço: quem cobra é o plano.
+ * Profissionais e salas começam liberados para todos; o ajuste fino continua em
  * Configurações → Serviços e salas.
  */
 export function QuickServiceModal({
@@ -33,7 +31,6 @@ export function QuickServiceModal({
     const parsed = serviceInputSchema.safeParse({
       name: form.name,
       durationMinutes: Number(form.durationMinutes),
-      priceInCents: form.priceInCents,
     });
     if (!parsed.success) {
       setError(
@@ -53,7 +50,7 @@ export function QuickServiceModal({
   return (
     <Modal
       title="Novo serviço"
-      subtitle="O preço de tabela é só referência; quem cobra é o plano. Profissionais e salas podem ser ajustados depois em Serviços e salas."
+      subtitle="O serviço não tem preço; quem cobra é o plano. Profissionais e salas podem ser ajustados depois em Serviços e salas."
       busy={saving}
       dirty={dirty}
       onClose={onClose}
@@ -82,13 +79,9 @@ export function QuickServiceModal({
             }
           />
         </label>
-        <CurrencyField
-          label="Preço de tabela"
-          value={form.priceInCents}
-          onChange={(priceInCents) => setForm({ ...form, priceInCents })}
-        />
         <p className="field-hint span-2">
-          O plano avulso do serviço é criado ou atualizado com este valor.
+          Para vender um atendimento único deste serviço, cadastre o plano
+          avulso dele em Configurações › Planos.
         </p>
         {error && (
           <div className="form-error span-2" role="alert">

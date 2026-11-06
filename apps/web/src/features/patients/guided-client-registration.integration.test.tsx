@@ -139,8 +139,8 @@ describe("guided client registration", () => {
         ]);
       if (url.includes("/services"))
         return jsonResponse([
-          { id: pilatesId, name: "Pilates", priceInCents: 9000 },
-          { id: physioId, name: "Fisioterapia", priceInCents: 12000 },
+          { id: pilatesId, name: "Pilates" },
+          { id: physioId, name: "Fisioterapia" },
         ]);
       if (url.includes("/groups/workspace?"))
         return jsonResponse({
@@ -1456,13 +1456,11 @@ describe("guided client registration", () => {
             {
               id: pilatesId,
               name: "Pilates",
-              priceInCents: 9000,
               durationMinutes: 50,
             },
             {
               id: massageId,
               name: "Massagem",
-              priceInCents: 15000,
               durationMinutes: 60,
             },
           ]);

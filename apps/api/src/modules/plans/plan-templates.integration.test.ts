@@ -240,7 +240,6 @@ describe("plan catalog", () => {
     const foreignService = await repository.createService(foreignClinic, {
       name: "Serviço externo",
       durationMinutes: 60,
-      priceInCents: 0,
     });
     const foreign = await repository.createPlanTemplate(
       foreignClinic,
