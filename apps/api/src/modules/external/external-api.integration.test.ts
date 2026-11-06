@@ -459,6 +459,175 @@ describe("API externa de vendas", () => {
     await app.close();
   });
 
+  it("groups carry the service business line and, with finance access, the overdue members", async () => {
+    const { app, repository, createKey } = await setup();
+    const { headers } = await createKey();
+    const studio = (await repository.listServices(clinicId))[0]!;
+    const aesthetics = await repository.createService(clinicId, {
+      name: "Depilação a laser",
+      durationMinutes: 30,
+      priceInCents: 15_000,
+      businessLine: "aesthetics",
+    });
+    expect(aesthetics.businessLine).toBe("aesthetics");
+    expect(studio.businessLine).toBe("studio");
+    const [professional] = await repository.listProfessionals(clinicId);
+    const [room] = (await repository.listRooms(clinicId)).sort(
+      (left, right) => right.capacity - left.capacity,
+    );
+    const createGroup = (serviceId: string, startTime: string) =>
+      repository.createGroupClass(clinicId, {
+        serviceId,
+        professionalId: professional!.id,
+        roomId: room!.id,
+        capacity: 2,
+        weeklySlots: [
+          {
+            weekday: 4,
+            startTime,
+            endTime: `${String(Number(startTime.slice(0, 2)) + 1).padStart(2, "0")}:00`,
+          },
+        ],
+      });
+    const laser = await createGroup(aesthetics.id, "06:00");
+    const pilates = await createGroup(studio.id, "21:00");
+    const sell = async (
+      name: string,
+      firstDueDate: string,
+      idempotencyKey: string,
+    ) => {
+      const patient = await app.inject({
+        method: "POST",
+        url: "/external/v1/patients",
+        headers,
+        payload: {
+          fullName: name,
+          cpf: nextTestCpf(),
+          phone: "11944443333",
+          whatsapp: "11944443333",
+          emergencyContactName: name,
+          emergencyContactPhone: "11944443333",
+        },
+      });
+      expect(patient.statusCode, patient.body).toBe(201);
+      const patientId = patient.json().id as string;
+      const plan = await configuredPlan(app, {
+        patientId,
+        serviceId: aesthetics.id,
+        name: "Laser trimestral",
+        kind: "custom" as const,
+        totalSessions: 12,
+        totalValueInCents: 30_000,
+        installments: 3,
+        firstDueDate,
+        validFrom: "2020-01-01",
+        validUntil: "2099-12-31",
+        autoRenew: false,
+      });
+      const sold = await app.inject({
+        method: "POST",
+        url: "/external/v1/plans/purchases",
+        headers,
+        payload: { idempotencyKey, plan, groupId: laser.id },
+      });
+      expect(sold.statusCode, sold.body).toBe(201);
+      return patientId;
+    };
+    // Parcelas de 2020 (todas vencidas) e de 2099 (nenhuma vencida).
+    const late = await sell(
+      "Cliente atrasada",
+      "2020-01-10",
+      "6c6c6c6c-6c6c-4c6c-8c6c-6c6c6c6c6c6c",
+    );
+    await sell(
+      "Cliente em dia",
+      "2099-01-10",
+      "7d7d7d7d-7d7d-4d7d-8d7d-7d7d7d7d7d7d",
+    );
+    const receivables = (await repository.getFinancialSummary(clinicId))
+      .receivables.filter((item) => item.patientId === late)
+      .sort((left, right) => left.dueDate.localeCompare(right.dueDate));
+    expect(receivables).toHaveLength(3);
+    await repository.settleReceivable(
+      clinicId,
+      OWNER_ID,
+      receivables[0]!.id,
+      "pix",
+    );
+    const overdueInCents =
+      receivables[1]!.amountInCents + receivables[2]!.amountInCents;
+
+    const list = await app.inject({ url: "/external/v1/groups", headers });
+    expect(list.statusCode, list.body).toBe(200);
+    const rows = list.json().groups as {
+      id: string;
+      businessLine: string;
+      overdueMembers?: number;
+      overdueInCents?: number;
+    }[];
+    expect(rows.find((row) => row.id === laser.id)).toMatchObject({
+      businessLine: "aesthetics",
+      enrolled: 2,
+      overdueMembers: 1,
+      overdueInCents,
+    });
+    expect(rows.find((row) => row.id === pilates.id)).toMatchObject({
+      businessLine: "studio",
+      overdueMembers: 0,
+      overdueInCents: 0,
+    });
+    // Mesma conta de `/external/v1/overdue`.
+    const report = (
+      await app.inject({ url: "/external/v1/overdue", headers })
+    ).json();
+    expect(
+      report.rows.find((row: { patientId: string }) => row.patientId === late)
+        ?.amountInCents,
+    ).toBe(overdueInCents);
+    const details = await app.inject({
+      url: `/external/v1/groups/${laser.id}`,
+      headers,
+    });
+    expect(details.statusCode, details.body).toBe(200);
+    expect(details.json()).toMatchObject({
+      businessLine: "aesthetics",
+      overdueMembers: 1,
+      overdueInCents,
+    });
+
+    // Sem acesso ao Financeiro (recepção): a linha vem, a inadimplência não.
+    await seedRoleUsers(app);
+    const { generateIntegrationToken } = await import("../integrations/tokens.js");
+    const { token } = generateIntegrationToken();
+    await repository.createIntegrationKey(
+      clinicId,
+      roleSub(app, "reception"),
+      { name: "Chave da recepção", scopes: ["sales:read"] },
+      { prefix: token.slice(0, 12), tokenHash: hashIntegrationToken(token) },
+    );
+    const reception = { authorization: `Bearer ${token}` };
+    const limited = await app.inject({
+      url: "/external/v1/groups",
+      headers: reception,
+    });
+    expect(limited.statusCode, limited.body).toBe(200);
+    const row = (limited.json().groups as typeof rows).find(
+      (item) => item.id === laser.id,
+    )!;
+    expect(row.businessLine).toBe("aesthetics");
+    expect(row).not.toHaveProperty("overdueMembers");
+    expect(row).not.toHaveProperty("overdueInCents");
+    const limitedDetails = (
+      await app.inject({
+        url: `/external/v1/groups/${laser.id}`,
+        headers: reception,
+      })
+    ).json();
+    expect(limitedDetails.businessLine).toBe("aesthetics");
+    expect(limitedDetails).not.toHaveProperty("overdueMembers");
+    await app.close();
+  });
+
   it("proxies writes with the internal validation, 404s and history", async () => {
     const { app, repository, createKey } = await setup();
     const { headers } = await createKey();

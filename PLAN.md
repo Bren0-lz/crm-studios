@@ -456,7 +456,7 @@ numeração antiga, mapeada em cada tarefa) e no histórico do git.
   - Não implementa as categorias Pilates/Dança: ver PX3.
 - **Gate:** gate completo e `npm run test:mysql`
 - **Depende de:** CP2
-- **Status:** TODO
+- **Status:** DONE
 
 ### PX2 — API externa: WhatsApp e situação de cada aluno da turma
 
@@ -467,6 +467,7 @@ numeração antiga, mapeada em cada tarefa) e no histórico do git.
     passa a sair só se a pessoa logada (`X-CRM-User-Token`) tiver `patients.view`; sem a
     permissão, saem só o nome e as iniciais.
   - Testes de API: com e sem a permissão.
+- **Decisão do dono (06/11):** `overdue` no formato do CRM simulado do painel (`{ amountInCents, installments, oldestDueDate, daysOverdue }`, só com `finance.view` e só para inscritos ativos), não `boolean`.
 - **Gate:** gate completo
 - **Depende de:** PX1
 - **Status:** TODO

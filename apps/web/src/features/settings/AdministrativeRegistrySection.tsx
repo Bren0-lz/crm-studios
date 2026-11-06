@@ -1,6 +1,8 @@
-import type {
-  AdministrativeRegistryInput,
-  AdministrativeRegistryWorkspace,
+import {
+  type AdministrativeRegistryInput,
+  type AdministrativeRegistryWorkspace,
+  serviceBusinessLineLabels,
+  serviceBusinessLines,
 } from "@crm/contracts";
 import { useEffect, useState } from "react";
 import { api } from "../../api";
@@ -67,6 +69,7 @@ export function AdministrativeRegistrySection() {
                   name: "",
                   durationMinutes: 60,
                   priceInCents: 0,
+                  businessLine: "studio",
                   active: true,
                 },
               },
@@ -305,6 +308,24 @@ function RegistryEditor({
                 <p className="field-hint span-2">
                   O plano avulso do serviço é criado ou atualizado com este
                   valor.
+                </p>
+                <label>
+                  Linha no painel
+                  <select
+                    value={form.data.businessLine ?? "studio"}
+                    onChange={(event) =>
+                      patch({ businessLine: event.target.value })
+                    }
+                  >
+                    {serviceBusinessLines.map((line) => (
+                      <option key={line} value={line}>
+                        {serviceBusinessLineLabels[line]}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <p className="field-hint span-2">
+                  Separa as turmas e vendas do serviço no painel de vendas.
                 </p>
                 <ResourceChecklist
                   legend="Profissionais que atendem"

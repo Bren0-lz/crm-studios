@@ -29,14 +29,14 @@ export const nativeEndpoints: ExternalEndpoint[] = [
     path: "/external/v1/groups",
     scope: "sales:read",
     description:
-      "Tabela de turmas: capacidade, inscritos, vagas livres, lista de espera, ocupação e faturamento mensal atual/potencial. Query: includeInactive=true.",
+      "Tabela de turmas: capacidade, inscritos, vagas livres, lista de espera, ocupação, faturamento mensal atual/potencial e linha do serviço no painel (businessLine: studio | aesthetics). Com acesso ao Financeiro, também os matriculados com parcela vencida e a soma delas (overdueMembers, overdueInCents; mesma regra de /external/v1/overdue). Query: includeInactive=true.",
   },
   {
     method: "GET",
     path: "/external/v1/groups/:id",
     scope: "sales:read",
     description:
-      "Turma com as pessoas inscritas (contato e valor mensal) e a lista de espera da turma.",
+      "Turma com as pessoas inscritas (contato e valor mensal) e a lista de espera da turma, com os mesmos campos da tabela de turmas (businessLine; overdueMembers e overdueInCents com acesso ao Financeiro).",
   },
   {
     method: "GET",
@@ -68,7 +68,7 @@ export const proxiedEndpoints: ProxiedEndpoint[] = [
     target: "/services",
     scope: "sales:read",
     description:
-      "Serviços (preço de tabela, valor da sessão do plano avulso, duração, ativos).",
+      "Serviços (preço de tabela, valor da sessão do plano avulso, duração, linha no painel: businessLine studio | aesthetics, ativos).",
   },
   {
     method: "GET",

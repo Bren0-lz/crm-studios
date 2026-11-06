@@ -36,12 +36,13 @@ const stamp = (offset: number, hour = 12) =>
   `${date(offset)}T${String(hour).padStart(2, "0")}:00:00-03:00`;
 
 // Vínculos realistas (QM3): Dançaterapia com Clara na Sala de Dança, Pilates com Beatriz na
-// Sala Pilates; Depilação e Massoterapia com Carolina na Sala Estética.
+// Sala Pilates; Depilação e Massoterapia com Carolina na Sala Estética (linha Estética no painel).
 export const demoServices: Service[] = [
   {
     id: id(1, 1),
     clinicId: demoClinicId,
     name: "Dançaterapia",
+    businessLine: "studio",
     durationMinutes: 60,
     priceInCents: 7500,
     professionalIds: [id(2, 1)],
@@ -52,6 +53,7 @@ export const demoServices: Service[] = [
     id: id(1, 2),
     clinicId: demoClinicId,
     name: "Pilates individual",
+    businessLine: "studio",
     durationMinutes: 50,
     priceInCents: 15000,
     professionalIds: [id(2, 2)],
@@ -62,6 +64,7 @@ export const demoServices: Service[] = [
     id: id(1, 3),
     clinicId: demoClinicId,
     name: "Depilação pernas",
+    businessLine: "aesthetics",
     durationMinutes: 45,
     priceInCents: 12000,
     professionalIds: [id(2, 3)],
@@ -72,6 +75,7 @@ export const demoServices: Service[] = [
     id: id(1, 4),
     clinicId: demoClinicId,
     name: "Depilação axilas",
+    businessLine: "aesthetics",
     durationMinutes: 30,
     priceInCents: 5500,
     professionalIds: [id(2, 3)],
@@ -82,6 +86,7 @@ export const demoServices: Service[] = [
     id: id(1, 5),
     clinicId: demoClinicId,
     name: "Massoterapia",
+    businessLine: "aesthetics",
     durationMinutes: 60,
     priceInCents: 17000,
     professionalIds: [id(2, 3)],
