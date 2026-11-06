@@ -869,7 +869,7 @@ atualizado no mesmo PR):
   - Testes API (vínculo, código vencido, segredo errado, fila com falha) e MySQL opt-in.
 - **Gate:** gate completo e `npm run test:mysql`
 - **Depende de:** RC6 (empilhada sobre RC5 se a RC6 seguir bloqueada)
-- **Status:** TODO
+- **Status:** DOING
 
 ### TG2 — Aviso de recibo assinado
 
