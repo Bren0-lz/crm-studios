@@ -782,6 +782,13 @@ export class MemoryRepositoryContext {
       for (const tag of patient.tags)
         this.ensurePatientTag(patient.clinicId, tag);
     if (!withRichDemo) return;
+    Object.assign(this.branches[0]!, {
+      street: "Rua das Flores",
+      number: "100",
+      neighborhood: "Centro",
+      city: "Campinas",
+      state: "SP",
+    });
     const data = buildDemoScenarios();
     this.professionals.push(...demoProfessionals);
     this.rooms.push(...demoRooms);

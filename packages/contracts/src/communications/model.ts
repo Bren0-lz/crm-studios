@@ -430,7 +430,7 @@ export const autoCampaignTriggerVariables: Record<
   readonly string[]
 > = {
   birthday: ["data", "idade"],
-  appointment_upcoming: ["data", "hora", "servico"],
+  appointment_upcoming: ["data", "hora", "servico", "endereco", "link_mapa"],
   plan_expiring: ["data", "plano"],
   low_balance: ["plano", "sessoes"],
   overdue_payment: ["data", "parcelas"],
