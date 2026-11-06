@@ -100,6 +100,7 @@ describe("supplier contract signature", () => {
       {
         signerName: "Responsável Brilho",
         accepted: true,
+        signerCpf: "52998224725",
         signatureImage: "data:image/png;base64,cG5n",
       },
       {},

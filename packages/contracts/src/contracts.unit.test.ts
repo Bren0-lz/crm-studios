@@ -136,6 +136,7 @@ import {
   compareClinicalAlerts,
   planSessionPaidValueInCents,
   publicDocumentSignInputSchema,
+  publicSignatureInputSchema,
   signatureLinkExpiresAt,
   signatureLinkExpired,
   patientImportFileSchema,
@@ -722,7 +723,9 @@ describe("shared contracts", () => {
       "Informe um CPF válido.",
     );
     expect(patientImportInputSchema.parse(base).cpf).toBeUndefined();
-    expect(patientImportInputSchema.parse({ ...base, cpf: " " }).cpf).toBeUndefined();
+    expect(
+      patientImportInputSchema.parse({ ...base, cpf: " " }).cpf,
+    ).toBeUndefined();
     expect(
       patientImportInputSchema.parse({ ...base, cpf: "529.982.247-25" }).cpf,
     ).toBe("52998224725");
@@ -2585,8 +2588,21 @@ describe("assinatura pelo link público", () => {
         signerCpf: "123.456.789-09",
       }).signerCpf,
     ).toBe("12345678909");
+    for (const signerCpf of [
+      undefined,
+      "",
+      "   ",
+      "...---",
+      "123.456.789-00",
+      "111.111.111-11",
+    ]) {
+      expect(
+        publicDocumentSignInputSchema.safeParse({ ...base, signerCpf }).success,
+      ).toBe(false);
+    }
+    expect(publicSignatureInputSchema.parse(base).signerCpf).toBeUndefined();
     expect(
-      publicDocumentSignInputSchema.parse({ ...base, signerCpf: "" }).signerCpf,
+      publicSignatureInputSchema.parse({ ...base, signerCpf: "" }).signerCpf,
     ).toBe("");
     expect(
       publicDocumentSignInputSchema.safeParse({

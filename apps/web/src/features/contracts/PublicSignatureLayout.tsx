@@ -1,5 +1,7 @@
 import {
   publicDocumentSignInputSchema,
+  publicSignatureInputSchema,
+  isValidCpf,
   type PublicDocumentSignInput,
 } from "@crm/contracts";
 import { FileSignature } from "lucide-react";
@@ -48,12 +50,14 @@ export function PublicSignatureShell({
 
 export function PublicSignatureForm({
   initialName,
+  requireCpf = false,
   acceptLabel,
   submitLabel,
   footnote,
   onSign,
 }: {
   initialName: string;
+  requireCpf?: boolean;
   acceptLabel: string;
   submitLabel: string;
   footnote: string;
@@ -69,6 +73,7 @@ export function PublicSignatureForm({
   const missing = useMissingFields(
     [
       signerName.trim().length < 3 && "Nome completo",
+      requireCpf && !isValidCpf(signerCpf) && "CPF válido de quem assina",
       !signatureImage && "Assinatura",
       !accepted && "Confirmação de leitura",
     ].filter((item): item is string => Boolean(item)),
@@ -76,7 +81,9 @@ export function PublicSignatureForm({
   );
 
   async function sign() {
-    const input = publicDocumentSignInputSchema.safeParse({
+    const input = (
+      requireCpf ? publicDocumentSignInputSchema : publicSignatureInputSchema
+    ).safeParse({
       signerName,
       signerCpf,
       accepted,
@@ -89,7 +96,7 @@ export function PublicSignatureForm({
     setBusy(true);
     setError("");
     try {
-      await onSign(input.data);
+      await onSign({ ...input.data, signerCpf: input.data.signerCpf ?? "" });
     } catch (cause) {
       setError((cause as Error).message);
     } finally {
@@ -120,8 +127,12 @@ export function PublicSignatureForm({
           />
         </label>
         <label>
-          CPF (opcional)
-          <CpfInput value={signerCpf} onChange={setSignerCpf} />
+          {requireCpf ? "CPF de quem assina" : "CPF (opcional)"}
+          <CpfInput
+            value={signerCpf}
+            onChange={setSignerCpf}
+            required={requireCpf}
+          />
         </label>
         <div className="span-2">
           <span className="signature-pad-label">

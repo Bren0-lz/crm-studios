@@ -3,7 +3,7 @@ import {
   receiptSignatureReversalReason,
   receiptSignatureStatus,
   type DocumentSignatureLinkView,
-  type PublicDocumentSignInput,
+  type PublicSignatureInput,
   type PublicRequestMetadata,
   type ReceiptSignature,
   type ReceiptSignatureSummary,
@@ -261,7 +261,7 @@ export function createReceiptSignaturesRepository(
 
     async signPublicReceiptSignature(
       token: string,
-      input: PublicDocumentSignInput,
+      input: PublicSignatureInput,
       metadata: PublicRequestMetadata,
     ) {
       return context.inTransaction(async (client) => {

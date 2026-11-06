@@ -160,6 +160,7 @@ describe("document signature on registration", () => {
       {
         signerName: patient.fullName,
         accepted: true,
+        signerCpf: "52998224725",
         signatureImage: "data:image/png;base64,cG5n",
       },
       { ipAddress: "203.0.113.7" },

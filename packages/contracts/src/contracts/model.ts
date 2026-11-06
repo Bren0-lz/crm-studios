@@ -435,8 +435,8 @@ export const documentDraftInputSchema = z
     "O conteúdo precisa ter pelo menos 20 caracteres.",
   );
 
-/** Assinatura eletrônica pelo link público: nome, CPF opcional, aceite e o traço desenhado (PNG). */
-export const publicDocumentSignInputSchema = z.object({
+/** Dados compartilhados da assinatura; recibos mantêm o CPF opcional. */
+export const publicSignatureInputSchema = z.object({
   signerName: z.string().trim().min(3).max(160),
   signerCpf: z
     .string()
@@ -452,6 +452,15 @@ export const publicDocumentSignInputSchema = z.object({
     .string()
     .max(700_000)
     .regex(/^data:image\/png;base64,[A-Za-z0-9+/=]+$/, "Desenhe a assinatura."),
+});
+
+/** Contratos exigem o CPF válido de quem assina, inclusive em links antigos. */
+export const publicDocumentSignInputSchema = publicSignatureInputSchema.extend({
+  signerCpf: z
+    .string("Informe o CPF de quem assina.")
+    .trim()
+    .transform((value) => value.replace(/\D/g, ""))
+    .refine(isValidCpf, "Informe um CPF válido de quem assina."),
 });
 
 /** Por quantos dias o link de assinatura enviado ao cliente continua abrindo. */

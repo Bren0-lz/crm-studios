@@ -284,7 +284,12 @@ describe.skipIf(!databaseUrl)("MySQL repository", () => {
       const signatureImage = "data:image/png;base64,cG5n";
       const signed = await repository.signPublicDocument(
         share!.token,
-        { signerName: patient!.fullName, accepted: true, signatureImage },
+        {
+          signerName: patient!.fullName,
+          accepted: true,
+          signerCpf: "52998224725",
+          signatureImage,
+        },
         { ipAddress: "203.0.113.7", userAgent: "Celular" },
       );
       expect(signed).toMatchObject({
@@ -294,7 +299,12 @@ describe.skipIf(!databaseUrl)("MySQL repository", () => {
       await expect(
         repository.signPublicDocument(
           share!.token,
-          { signerName: "Outra pessoa", accepted: true, signatureImage },
+          {
+            signerName: "Outra pessoa",
+            accepted: true,
+            signerCpf: "52998224725",
+            signatureImage,
+          },
           {},
         ),
       ).rejects.toMatchObject({ code: "DOCUMENT_ALREADY_SIGNED" });
@@ -380,7 +390,12 @@ describe.skipIf(!databaseUrl)("MySQL repository", () => {
       await expect(
         repository.signPublicDocument(
           first!.token,
-          { signerName: "Cliente", accepted: true, signatureImage },
+          {
+            signerName: "Cliente",
+            accepted: true,
+            signerCpf: "52998224725",
+            signatureImage,
+          },
           {},
         ),
       ).rejects.toMatchObject({ code: "DOCUMENT_SIGNATURE_LINK_EXPIRED" });
@@ -403,7 +418,12 @@ describe.skipIf(!databaseUrl)("MySQL repository", () => {
       ).toBeNull();
       await repository.signPublicDocument(
         renewed!.token,
-        { signerName: "Cliente", accepted: true, signatureImage },
+        {
+          signerName: "Cliente",
+          accepted: true,
+          signerCpf: "52998224725",
+          signatureImage,
+        },
         {},
       );
       // Assinado, continua visível depois do prazo e um novo envio não troca o link.
