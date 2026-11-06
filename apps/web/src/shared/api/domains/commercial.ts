@@ -1,4 +1,7 @@
 import type {
+  CommercialEvent,
+  CommercialEventDetail,
+  EventInput,
   Lead,
   LeadActivity,
   LeadBoard,
@@ -32,6 +35,18 @@ function leadQuery(filter: LeadFilter, extra: Record<string, number> = {}) {
 }
 
 export const commercialApi = {
+  events: () => request<CommercialEvent[]>("/events"),
+  event: (id: string) => request<CommercialEventDetail>(`/events/${id}`),
+  createEvent: (input: EventInput) =>
+    request<CommercialEvent>("/events", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  updateEvent: (id: string, input: EventInput) =>
+    request<CommercialEvent>(`/events/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(input),
+    }),
   leads: () => request<Lead[]>("/leads"),
   /** Funil paginado: a primeira página e o total de cada etapa. */
   leadBoard: (filter: LeadFilter = {}) =>

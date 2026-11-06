@@ -678,7 +678,7 @@ atualizado no mesmo PR):
   - Teste web.
 - **Gate:** gate completo
 - **Depende de:** EV1
-- **Status:** TODO
+- **Status:** DOING
 
 ### EV3 — Participantes e registro de contato
 
