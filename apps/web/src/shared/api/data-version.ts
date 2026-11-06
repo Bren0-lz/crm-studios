@@ -52,7 +52,7 @@ const mutationRules: [RegExp, DataDomain[]][] = [
   ],
   [/^\/leads\/[^/]+\/appointments$/, ["agenda", "history", "crm"]],
   // Tarefas e etapas dos leads alimentam o sino (tarefas comerciais vencidas).
-  [/^\/(?:leads|lead-tasks)(?:\/|$|\?)/, ["crm"]],
+  [/^\/(?:leads|lead-tasks|events)(?:\/|$|\?)/, ["crm"]],
   [/^\/patients(?:\/|$)|^\/patient-tags(?:\/|$)/, ["patients", "history"]],
   [
     /^\/(?:clinical-[a-z-]+|therapeutic-goals|treatment-closures|assessment-templates)(?:\/|$)/,

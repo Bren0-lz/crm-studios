@@ -9,6 +9,7 @@ import { PendingFinalizationPage } from "../features/agenda/PendingFinalizationP
 import { CompletedAppointmentsPage } from "../features/agenda/CompletedAppointmentsPage";
 import { LoginPage } from "../features/auth/LoginPage";
 import { ClinicalRecordsPage } from "../features/clinical/ClinicalRecordsPage";
+import { EventsPage } from "../features/events/EventsPage";
 import { CommercialPage } from "../features/commercial/CommercialPage";
 import { CampaignSenderPage } from "../features/communications/campaigns/CampaignSenderPage";
 import { CommunicationsPage } from "../features/communications/CommunicationsPage";
@@ -120,6 +121,10 @@ export function AppRoutes() {
                 <Route
                   path="/comercial"
                   element={allow("crm", <CommercialPage />)}
+                />
+                <Route
+                  path="/eventos"
+                  element={allow("events", <EventsPage />)}
                 />
                 <Route
                   path="/relacionamento"
