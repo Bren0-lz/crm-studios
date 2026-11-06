@@ -678,7 +678,8 @@ atualizado no mesmo PR):
   - Teste web.
 - **Gate:** gate completo
 - **Depende de:** EV1
-- **Status:** TODO
+- **Status:** DOING
+- **Validação:** implementação e testes focados prontos; tipos, lint, build, auditoria e E2E novos aprovados. Gate completo ainda reprovado nas 7 falhas preexistentes de SOS (registradas no STATE); não marcado DONE. PR pendente de acesso à API do GitHub.
 
 ### EV3 — Participantes e registro de contato
 
@@ -952,6 +953,7 @@ atualizado no mesmo PR):
 - **Gate:** gate completo
 - **Depende de:** TG6 (ordem; não depende de código)
 - **Status:** DOING
+- **Validação:** implementação e testes focados prontos; tipos, lint, build, auditoria e E2E novos aprovados. Gate completo ainda reprovado nas 7 falhas preexistentes de SOS (registradas no STATE); não marcado DONE. PR pendente de acesso à API do GitHub.
 
 ### CM2 — Lembrete com antecedência em horas
 
@@ -1009,7 +1011,8 @@ atualizado no mesmo PR):
   - Teste web (`configured-plan-catalog`).
 - **Gate:** gate completo
 - **Depende de:** NB1
-- **Status:** TODO
+- **Status:** DOING
+- **Validação:** implementação e testes focados prontos; tipos, lint, build, auditoria e E2E novos aprovados. Gate completo ainda reprovado nas 7 falhas preexistentes de SOS (registradas no STATE); não marcado DONE. PR pendente de acesso à API do GitHub.
 
 ### AJ2 — Botões do editor de modelo de prontuário com respiro
 
