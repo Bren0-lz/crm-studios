@@ -414,18 +414,20 @@ numeração antiga, mapeada em cada tarefa) e no histórico do git.
 
 ### CP3 — Contrato de cliente sem CPF
 
-- **Origem:** B6-05 (CP5 do #273). ⏸ **Pergunta ao dono (P1):** hoje o contrato sai com "inscrito(a)
-  no CPF sob o nº **não informado**" e a tela avisa "Confira os dados que faltam". Recomendação:
-  **manter permitido** e só deixar o aviso explícito. Alternativa: bloquear a emissão/envio para
-  assinatura quando o modelo usa `{{paciente_cpf}}` e o cliente não tem CPF (409
-  `DOCUMENT_PATIENT_CPF_MISSING`, "Informe o CPF do cliente antes de emitir este contrato.").
-- **Escopo (se mantiver permitido):** no `DocumentWizard` e no `SendForSignatureModal`, quando
-  faltar `paciente_cpf`, aviso "O cliente não tem CPF: o contrato vai sair com “não informado” no
-  lugar do CPF." com o atalho "Atualizar dados do cadastro". **Se bloquear:** regra na API de
-  emissão e de link de assinatura (memória e MySQL) e botão desativado com a mesma mensagem.
-- **Gate:** gate completo
-- **Depende de:** CP2 e resposta da P1
-- **Status:** BLOCKED (aguarda P1)
+- **Origem:** B6-05 (CP5 do #273). **P1 respondida pelo dono em 06/11/2026:** bloquear novas
+  emissões e novos links quando o modelo usa `{{paciente_cpf}}` e o cliente não tem CPF;
+  exigir CPF válido de quem assina; preservar links já enviados e documentos assinados.
+- **Escopo:** rascunhos e prévias continuam permitidos. Aviso específico no `DocumentWizard`
+  e no `SendForSignatureModal`, com acesso ao cadastro e atualização dos dados. API retorna
+  409 `DOCUMENT_PATIENT_CPF_MISSING` na emissão, contratação integrada e geração/renovação
+  de link (memória e MySQL). Modelos sem CPF e documentos de fornecedores seguem permitidos.
+- **Histórico:** links existentes ainda válidos podem ser abertos, reaproveitados e assinados;
+  renovar link vencido exige atender à nova regra. CPF do signatário fica separado do cadastro
+  e do texto do contrato. Recibos mantêm seu CPF opcional. Migração `0047_document_patient_cpf`
+  preserva a exigência do modelo nos novos rascunhos, inclusive após edição ou exclusão do modelo.
+- **Gate:** gate completo, MySQL e navegador desktop/celular
+- **Depende de:** CP2 (concluída); P1 resolvida
+- **Status:** DONE (06/11/2026; gate completo, MySQL e navegador aprovados)
 
 ### CP4 — Conferência manual com a planilha do estúdio
 

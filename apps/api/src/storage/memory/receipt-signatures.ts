@@ -1,7 +1,7 @@
 import {
   receiptSignatureReversalReason,
   receiptSignatureStatus,
-  type PublicDocumentSignInput,
+  type PublicSignatureInput,
   type PublicRequestMetadata,
   type Receivable,
   type ReceiptSignature,
@@ -106,7 +106,7 @@ export function createReceiptSignaturesRepository(
 
     async signPublicReceiptSignature(
       token: string,
-      input: PublicDocumentSignInput,
+      input: PublicSignatureInput,
       metadata: PublicRequestMetadata,
     ) {
       const receipt = byToken(token);

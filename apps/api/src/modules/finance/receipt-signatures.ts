@@ -1,5 +1,5 @@
 import type {
-  PublicDocumentSignInput,
+  PublicSignatureInput,
   PublicRequestMetadata,
   ReceiptSignature,
 } from "@crm/contracts";
@@ -45,7 +45,7 @@ export async function signReceipt(
   repository: Pick<ClinicRepository, "signPublicReceiptSignature">,
   events: DomainEventPublisher,
   token: string,
-  input: PublicDocumentSignInput,
+  input: PublicSignatureInput,
   metadata: PublicRequestMetadata,
 ): Promise<ReceiptSignature | null> {
   const receipt = await repository.signPublicReceiptSignature(

@@ -16,6 +16,7 @@ import { ErrorBanner } from "../../shared/components/ErrorBanner";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
 import { useMissingFields } from "../../shared/components/MissingFields";
 import { Modal, ModalCancelButton } from "../../shared/components/Modal";
+import { DocumentPatientCpfNotice } from "./DocumentPatientCpfNotice";
 import { DocumentPaper } from "./DocumentPaper";
 import { SignatureShare } from "./SignatureRequest";
 
@@ -99,6 +100,7 @@ export function SendForSignatureModal({
     data?: DocumentPreview;
     error?: string;
   } | null>(null);
+  const [previewRevision, setPreviewRevision] = useState(0);
   const [share, setShare] = useState<DocumentSignatureLinkShare | null>(null);
   const [busy, setBusy] = useState(Boolean(document));
   const [error, setError] = useState("");
@@ -146,9 +148,11 @@ export function SendForSignatureModal({
     return () => {
       active = false;
     };
-  }, [document, previewKey, form]);
+  }, [document, previewKey, form, previewRevision]);
 
   const currentPreview = preview?.key === previewKey ? preview : null;
+  const cpfMissing =
+    !forSupplier && Boolean(currentPreview?.data?.patientCpfMissing);
   const manualFields = currentPreview?.data
     ? documentContentFields(currentPreview.data.snapshotContent)
     : [];
@@ -167,7 +171,7 @@ export function SendForSignatureModal({
 
   async function send() {
     const template = choices.find((item) => item.id === form.templateId);
-    if (!template || !signerId) return;
+    if (!template || !signerId || cpfMissing) return;
     setBusy(true);
     setError("");
     try {
@@ -339,15 +343,31 @@ export function SendForSignatureModal({
             )}
             {currentPreview?.data && (
               <div className="span-2">
-                {currentPreview.data.missingFields.length > 0 && (
-                  <p className="field-hint">
-                    Sem dado no cadastro:{" "}
-                    {currentPreview.data.missingFields
-                      .map((field) => field.label)
-                      .join(", ")}
-                    .
-                  </p>
+                {cpfMissing && (
+                  <>
+                    <DocumentPatientCpfNotice patientId={form.patientId} />
+                    <button
+                      type="button"
+                      className="secondary-button"
+                      onClick={() => {
+                        setPreview(null);
+                        setPreviewRevision((value) => value + 1);
+                      }}
+                    >
+                      Atualizar dados do cadastro
+                    </button>
+                  </>
                 )}
+                {currentPreview.data.missingFields.length > 0 &&
+                  !cpfMissing && (
+                    <p className="field-hint">
+                      Sem dado no cadastro:{" "}
+                      {currentPreview.data.missingFields
+                        .map((field) => field.label)
+                        .join(", ")}
+                      .
+                    </p>
+                  )}
                 <details>
                   <summary>Conferir o contrato</summary>
                   <DocumentPaper
@@ -370,7 +390,9 @@ export function SendForSignatureModal({
             <ModalCancelButton disabled={busy}>Cancelar</ModalCancelButton>
             <button
               className="primary-button"
-              disabled={busy || missing.blocked || !currentPreview?.data}
+              disabled={
+                busy || missing.blocked || cpfMissing || !currentPreview?.data
+              }
               aria-describedby={missing.describedBy}
             >
               Emitir e gerar link

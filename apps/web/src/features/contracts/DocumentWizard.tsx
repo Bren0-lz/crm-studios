@@ -28,6 +28,7 @@ import { useUnsavedChangesPrompt } from "../../shared/workflows/useUnsavedChange
 import { useToast } from "../../shared/feedback/toast-context";
 import { RichDocumentEditor } from "./RichDocumentEditor";
 import { DocumentPdfPreview } from "./DocumentPdfPreview";
+import { DocumentPatientCpfNotice } from "./DocumentPatientCpfNotice";
 import { professionalWithCrefito } from "./model";
 
 export function DocumentWizard({
@@ -189,6 +190,8 @@ export function DocumentWizard({
   const patientPlans = plans.filter(
     (plan) => plan.patientId === form.patientId,
   );
+  const cpfMissing =
+    preview?.patientCpfMissing ?? saved?.patientCpfMissing ?? false;
   const firstStep = saved ? 1 : 0;
   function goBack(target: number) {
     if (busyRef.current) return;
@@ -375,25 +378,46 @@ export function DocumentWizard({
               </div>
             </div>
           )}
-          {step > 0 && preview && preview.missingFields.length > 0 && (
-            <div className="document-data-notice" role="status">
-              <strong>Confira os dados que faltam</strong>
-              <p>
-                Complete o cadastro e use “Atualizar dados do cadastro” na etapa
-                Dados, ou ajuste o texto deste contrato.
-              </p>
-              <details>
-                <summary>
-                  Ver campos sem preenchimento ({preview.missingFields.length})
-                </summary>
-                <ul>
-                  {preview.missingFields.map((field) => (
-                    <li key={field.key}>{field.label}</li>
-                  ))}
-                </ul>
-              </details>
-            </div>
+          {step > 0 && cpfMissing && (
+            <>
+              <DocumentPatientCpfNotice patientId={form.patientId} />
+              <button
+                type="button"
+                className="secondary-button"
+                disabled={busy}
+                onClick={() => {
+                  if (content && JSON.stringify(content) !== preparedContent)
+                    setReplace(true);
+                  else void prepare(true);
+                }}
+              >
+                Atualizar dados do cadastro
+              </button>
+            </>
           )}
+          {step > 0 &&
+            preview &&
+            !cpfMissing &&
+            preview.missingFields.length > 0 && (
+              <div className="document-data-notice" role="status">
+                <strong>Confira os dados que faltam</strong>
+                <p>
+                  Complete o cadastro e use “Atualizar dados do cadastro” na
+                  etapa Dados, ou ajuste o texto deste contrato.
+                </p>
+                <details>
+                  <summary>
+                    Ver campos sem preenchimento ({preview.missingFields.length}
+                    )
+                  </summary>
+                  <ul>
+                    {preview.missingFields.map((field) => (
+                      <li key={field.key}>{field.label}</li>
+                    ))}
+                  </ul>
+                </details>
+              </div>
+            )}
           {step === 1 && content && (
             <>
               {saved && (
@@ -481,7 +505,7 @@ export function DocumentWizard({
                   <button
                     className="primary-button"
                     type="button"
-                    disabled={busy || !pdfReady}
+                    disabled={busy || !pdfReady || cpfMissing}
                     onClick={() => setIssuing(true)}
                   >
                     Emitir

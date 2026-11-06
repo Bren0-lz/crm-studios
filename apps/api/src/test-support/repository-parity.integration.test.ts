@@ -10,6 +10,7 @@ import {
   clinicSettingsInputSchema,
   guidedPatientInputSchema,
   patientInputSchema,
+  patientImportInputSchema,
   patientPlanInputSchema,
   planTemplateInputSchema,
   saoPauloToday,
@@ -821,6 +822,69 @@ for (const storage of ["memory", "mysql"] as const) {
             logoDataUrl: input.logoDataUrl ?? "",
           });
         }
+      });
+
+      it("rolls back a plan purchase when its contract requires the imported client's missing CPF", async () => {
+        const name = `Cliente CP3 ${randomUUID()}`;
+        await repository.importPatients(clinicId, [
+          patientImportInputSchema.parse({
+            fullName: name,
+            phone: "11955549998",
+            tags: [],
+          }),
+        ]);
+        const [created] = await repository.listPatients(clinicId, name);
+        const template = await repository.createDocumentTemplate(clinicId, {
+          name: `Contrato CP3 ${randomUUID()}`,
+          kind: "contract",
+          body: "Contrato de {{paciente_nome}}, CPF {{paciente_cpf}}, para {{plano_nome}}.",
+        });
+        const planTemplate = await repository.createPlanTemplate(
+          clinicId,
+          actorId,
+          planTemplateInputSchema.parse({
+            name: `Plano CP3 ${randomUUID()}`,
+            totalValueInCents: 20000,
+            services: [
+              { serviceId, totalSessions: 4, totalValueInCents: 20000 },
+            ],
+          }),
+        );
+        const input = planPurchaseInputSchema.parse({
+          idempotencyKey: randomUUID(),
+          plan: {
+            planTemplateId: planTemplate.id,
+            patientId: created!.id,
+            name: "Plano CP3",
+            kind: "fixed_package",
+            services: [
+              { serviceId, totalSessions: 4, totalValueInCents: 20000 },
+            ],
+            totalValueInCents: 20000,
+            installments: 2,
+            validFrom: "2059-08-01",
+            validUntil: "2059-08-31",
+            firstDueDate: "2059-08-01",
+          },
+          appointments: [],
+          document: { templateId: template.id, title: "Contrato CP3" },
+        });
+        await expect(
+          repository.purchasePatientPlan(clinicId, actorId, input),
+        ).rejects.toMatchObject({ code: "DOCUMENT_PATIENT_CPF_MISSING" });
+        expect(
+          await repository.listPatientPlans(clinicId, created!.id),
+        ).toEqual([]);
+        expect(
+          (await repository.listIssuedDocuments(clinicId)).filter(
+            (document) => document.patientId === created!.id,
+          ),
+        ).toEqual([]);
+        expect(
+          (await repository.getFinancialSummary(clinicId)).receivables.filter(
+            (receivable) => receivable.patientId === created!.id,
+          ),
+        ).toEqual([]);
       });
 
       it("purchases plan, schedule and document atomically with concurrent retry protection", async () => {
