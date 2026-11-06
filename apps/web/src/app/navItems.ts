@@ -93,6 +93,13 @@ export const navGroups: Array<{ label: string; items: NavItem[] }> = [
         module: "crm",
       },
       {
+        tab: "events",
+        to: "/eventos",
+        label: defaultNavTabLabels.events,
+        icon: CalendarDays,
+        module: "events",
+      },
+      {
         tab: "relationship",
         to: "/relacionamento",
         label: defaultNavTabLabels.relationship,

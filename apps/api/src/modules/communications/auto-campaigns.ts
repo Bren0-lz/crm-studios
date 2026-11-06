@@ -3,7 +3,9 @@ import {
   addMonthsToIsoDate,
   autoCampaignStepLabel,
   autoCampaignTriggerTiming,
-  fillCampaignMessage,
+  fillAutoCampaignMessage,
+  appointmentLocationVariables,
+  type Branch,
   isOverdueReceivable,
   planHasSessionBalance,
   type AppModule,
@@ -39,6 +41,7 @@ import { destination } from "./broadcast.js";
 /** Dados que as campanhas automáticas leem (mesmas fontes dos contatos sugeridos). */
 export interface AutoCampaignSourceData {
   patients: Patient[];
+  branches?: Branch[];
   plans: PatientPlan[];
   appointments: Appointment[];
   receivables: Receivable[];
@@ -165,6 +168,11 @@ export function detectAutoCampaignEvents(
               data: shortDate(date),
               hora: time,
               servico: appointment.serviceName,
+              ...appointmentLocationVariables(
+                data.branches?.find(
+                  (branch) => branch.id === appointment.branchId,
+                ),
+              ),
             },
           });
         }
@@ -716,12 +724,10 @@ export function buildAutoCampaignQueue(
         occurrenceKey: event.occurrenceKey,
         eventDate: event.eventDate,
         detail: event.detail,
-        message: fillCampaignMessage(
+        message: fillAutoCampaignMessage(
           step.message,
           event.patient.fullName,
-        ).replace(
-          /\{\{\s*([a-z_]+)\s*\}\}/g,
-          (match, name: string) => event.vars[name] ?? match,
+          event.vars,
         ),
         status: delivery
           ? delivery.status
@@ -777,7 +783,7 @@ export async function loadAutoCampaignQueue(
       today,
       timezone,
     );
-  const [data, center, deliveries, redemptions] = await Promise.all([
+  const [data, center, deliveries, redemptions, branches] = await Promise.all([
     repository.getAutoCampaignSourceData(
       clinicId,
       addDays(today, -AUTO_CAMPAIGN_HISTORY_DAYS),
@@ -787,10 +793,11 @@ export async function loadAutoCampaignQueue(
     campaigns.some((campaign) => campaign.promotion)
       ? repository.listAutoCampaignRedemptions(clinicId)
       : [],
+    repository.listBranches(clinicId),
   ]);
   return buildAutoCampaignQueue(
     campaigns,
-    { ...data, preferences: center.preferences },
+    { ...data, branches, preferences: center.preferences },
     deliveries,
     today,
     timezone,

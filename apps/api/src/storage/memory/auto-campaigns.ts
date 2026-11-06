@@ -266,7 +266,12 @@ export function createAutoCampaignsRepository(
       return {
         patients: ofClinic(repositoryContext.patients),
         plans,
-        appointments: ofClinic(repositoryContext.appointments),
+        appointments: ofClinic(repositoryContext.appointments).map(
+          (appointment) => ({
+            ...appointment,
+            branchId: repositoryContext.branchOf(appointment),
+          }),
+        ),
         receivables: ofClinic(repositoryContext.receivables),
         tabs: ofClinic(repositoryContext.patientTabs),
         surveys,
