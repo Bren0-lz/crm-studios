@@ -48,3 +48,16 @@ export function documentBranding(
     ...(clinic.email ? { email: clinic.email } : {}),
   };
 }
+
+/** Regra do modelo original; editar o texto individual não remove a exigência. */
+export function documentRequiresPatientCpf(template: {
+  body: string;
+  content?: DocumentContent | undefined;
+}) {
+  return documentContentFields(
+    template.content ?? documentContentFromText(template.body),
+  ).includes("paciente_cpf");
+}
+
+export const documentPatientCpfRequiredMessage =
+  "Informe o CPF do cliente no cadastro antes de emitir este contrato ou gerar um novo link de assinatura.";

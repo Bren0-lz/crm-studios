@@ -5,15 +5,14 @@ import {
   purchaseFingerprint,
   validatePurchaseSchedule,
 } from "../../modules/plans/purchase.js";
+import { assertDocumentPatientCpf } from "../../modules/contracts/patient-cpf.js";
 import { createIssuedDocumentInTransaction } from "./contracts.js";
 import {
   type GroupEnrollmentRow,
   groupEnrollmentColumns,
   mapGroupEnrollment,
 } from "./helpers.js";
-export function createPlanPurchasesRepository(
-  context: MysqlRepositoryContext,
-) {
+export function createPlanPurchasesRepository(context: MysqlRepositoryContext) {
   return {
     async purchasePatientPlan(
       clinicId: string,
@@ -135,6 +134,7 @@ export function createPlanPurchasesRepository(
             )
           : undefined;
         if (document) {
+          assertDocumentPatientCpf(document);
           await client.query(
             "UPDATE issued_documents SET status='issued',issued_at=NOW(6),updated_at=NOW(6) WHERE clinic_id=$1 AND id=$2",
             [clinicId, document.id],

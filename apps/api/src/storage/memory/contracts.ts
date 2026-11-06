@@ -1,5 +1,6 @@
 import {
   documentTemplateInputSchema,
+  documentRequiresPatientCpf,
   documentTemplateVersionInputSchema,
   documentBranding,
   documentTemplateValues,
@@ -23,6 +24,8 @@ import {
 } from "../../repository.js";
 import type { MemoryRepositoryContext } from "./context.js";
 import { now, uuid } from "./helpers.js";
+import { withDocumentPatientCpf } from "./document-patient-cpf.js";
+import { assertDocumentPatientCpf } from "../../modules/contracts/patient-cpf.js";
 
 export function createContractsRepository(
   repositoryContext: MemoryRepositoryContext,
@@ -108,6 +111,7 @@ export function createContractsRepository(
         timeZone: settings.timezone,
       }).format(new Date()),
     });
+    const requiresPatientCpf = documentRequiresPatientCpf(template);
     return {
       ...prepareDocumentContent(
         template.body,
@@ -118,6 +122,8 @@ export function createContractsRepository(
         ...settings,
         logoDataUrl: settings.logoDataUrl ?? "",
       }),
+      requiresPatientCpf,
+      patientCpfMissing: Boolean(patient && !patient.cpf && requiresPatientCpf),
       templateName: template.name,
       templateVersion: template.version,
       patientName: patient?.fullName ?? supplier!.name,
@@ -235,7 +241,7 @@ export function createContractsRepository(
       document.snapshotContent = structuredClone(input.content);
       document.snapshotBody = documentContentText(input.content);
       document.updatedAt = now();
-      return document;
+      return withDocumentPatientCpf(repositoryContext, document);
     },
     async listDocumentTemplates(clinicId: string) {
       return repositoryContext.documentTemplates
@@ -302,7 +308,8 @@ export function createContractsRepository(
     async listIssuedDocuments(clinicId: string) {
       return repositoryContext.issuedDocuments
         .filter((item) => item.clinicId === clinicId)
-        .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+        .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+        .map((document) => withDocumentPatientCpf(repositoryContext, document));
     },
 
     async createIssuedDocument(
@@ -313,6 +320,7 @@ export function createContractsRepository(
       const preview = await previewDocument(clinicId, input);
       const timestamp = now();
       const issuedDocument: IssuedDocument = {
+        requiresPatientCpf: preview.requiresPatientCpf,
         templateId: input.templateId,
         ...(input.patientId ? { patientId: input.patientId } : {}),
         ...(input.supplierId ? { supplierId: input.supplierId } : {}),
@@ -335,7 +343,7 @@ export function createContractsRepository(
         updatedAt: timestamp,
       };
       repositoryContext.issuedDocuments.push(issuedDocument);
-      return issuedDocument;
+      return withDocumentPatientCpf(repositoryContext, issuedDocument);
     },
 
     async updateIssuedDocumentStatus(
@@ -359,11 +367,15 @@ export function createContractsRepository(
           "Este documento já foi emitido.",
           409,
         );
+      if (status === "issued")
+        assertDocumentPatientCpf(
+          withDocumentPatientCpf(repositoryContext, document),
+        );
       document.status = status;
       document.updatedAt = now();
       if (status === "issued") document.issuedAt = now();
       if (status === "cancelled") document.cancelledAt = now();
-      return document;
+      return withDocumentPatientCpf(repositoryContext, document);
     },
   };
 }

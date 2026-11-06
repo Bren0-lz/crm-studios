@@ -1,3 +1,7 @@
+import {
+  patientImportInputSchema,
+  documentPatientCpfRequiredMessage,
+} from "@crm/contracts";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { buildApp } from "../../app.js";
 import { MemoryClinicRepository } from "../../memory-repository.js";
@@ -32,6 +36,98 @@ async function issuedDocument(options: { trustProxy?: number } = {}) {
 }
 
 describe("document signature link", () => {
+  it("rejects issuance through the API with a specific CPF error and preserves the draft", async () => {
+    const { app, repository, headers } = await issuedDocument();
+    await repository.importPatients(clinicId, [
+      patientImportInputSchema.parse({
+        fullName: "Cliente importado sem CPF",
+        phone: "11999991230",
+        tags: [],
+      }),
+    ]);
+    const [patient] = await repository.listPatients(
+      clinicId,
+      "Cliente importado sem CPF",
+    );
+    const template = await repository.createDocumentTemplate(clinicId, {
+      name: "Modelo com CPF",
+      kind: "contract",
+      body: "Contrato de {{paciente_nome}}, CPF {{paciente_cpf}}.",
+    });
+    const draft = await repository.createIssuedDocument(clinicId, actorId, {
+      patientId: patient!.id,
+      templateId: template.id,
+      title: template.name,
+    });
+    const result = await app.inject({
+      method: "PATCH",
+      url: `/documents/${draft.id}/status`,
+      headers,
+      payload: { status: "issued" },
+    });
+    expect(result.statusCode).toBe(409);
+    expect(result.json()).toMatchObject({
+      code: "DOCUMENT_PATIENT_CPF_MISSING",
+      message: documentPatientCpfRequiredMessage,
+    });
+    expect(
+      (await repository.listIssuedDocuments(clinicId)).find(
+        (item) => item.id === draft.id,
+      )?.status,
+    ).toBe("draft");
+  });
+
+  it("requires a valid signer CPF without consuming the existing link on invalid attempts", async () => {
+    const { app, repository, document, headers } = await issuedDocument();
+    await repository.updateIssuedDocumentStatus(
+      clinicId,
+      document.id,
+      "issued",
+    );
+    const created = await app.inject({
+      method: "POST",
+      url: `/documents/${document.id}/signature-link`,
+      headers,
+    });
+    const { token } = created.json();
+    for (const signerCpf of [
+      undefined,
+      "",
+      "111.111.111-11",
+      "123.456.789-00",
+    ]) {
+      const response = await app.inject({
+        method: "POST",
+        url: `/public/document-signatures/${token}`,
+        payload: {
+          signerName: "Responsável",
+          signerCpf,
+          accepted: true,
+          signatureImage,
+        },
+      });
+      expect(response.statusCode).toBe(400);
+      expect(
+        (await repository.getDocumentSignatureLink(clinicId, document.id))
+          ?.signedAt,
+      ).toBeUndefined();
+    }
+    const signed = await app.inject({
+      method: "POST",
+      url: `/public/document-signatures/${token}`,
+      payload: {
+        signerName: "Responsável",
+        signerCpf: "529.982.247-25",
+        accepted: true,
+        signatureImage,
+      },
+    });
+    expect(signed.statusCode).toBe(200);
+    expect(
+      await repository.getDocumentSignatureLink(clinicId, document.id),
+    ).toMatchObject({ signerCpf: "52998224725" });
+  });
+
   it("records the views and the client's signature through the public link", async () => {
     const { app, repository, document, patient, headers } =
       await issuedDocument();
@@ -93,7 +189,12 @@ describe("document signature link", () => {
     const invalid = await app.inject({
       method: "POST",
       url: `/public/document-signatures/${share.token}`,
-      payload: { signerName: "Cliente", accepted: false, signatureImage },
+      payload: {
+        signerName: "Cliente",
+        signerCpf: "52998224725",
+        accepted: false,
+        signatureImage,
+      },
     });
     expect(invalid.statusCode).toBe(400);
     const signed = await app.inject({
@@ -119,6 +220,7 @@ describe("document signature link", () => {
           url: `/public/document-signatures/${share.token}`,
           payload: {
             signerName: "Outra pessoa",
+            signerCpf: "52998224725",
             accepted: true,
             signatureImage,
           },
@@ -185,7 +287,12 @@ describe("document signature link", () => {
     const signed = await app.inject({
       method: "POST",
       url: `/public/document-signatures/${token}`,
-      payload: { signerName: "Cliente", accepted: true, signatureImage },
+      payload: {
+        signerName: "Cliente",
+        signerCpf: "52998224725",
+        accepted: true,
+        signatureImage,
+      },
     });
     expect(signed.statusCode).toBe(410);
   });
@@ -248,7 +355,12 @@ describe("document signature link", () => {
         method: "POST",
         url: `/public/document-signatures/${token}`,
         headers: forwarded,
-        payload: { signerName: "Cliente", accepted: true, signatureImage },
+        payload: {
+          signerName: "Cliente",
+          signerCpf: "52998224725",
+          accepted: true,
+          signatureImage,
+        },
       });
       const details = (
         await app.inject({
@@ -301,7 +413,12 @@ describe("document signature link", () => {
     const lateSign = await app.inject({
       method: "POST",
       url: `/public/document-signatures/${first.token}`,
-      payload: { signerName: "Cliente", accepted: true, signatureImage },
+      payload: {
+        signerName: "Cliente",
+        signerCpf: "52998224725",
+        accepted: true,
+        signatureImage,
+      },
     });
     expect(lateSign.statusCode).toBe(410);
     // A visualização recusada não entra no registro.
@@ -339,7 +456,12 @@ describe("document signature link", () => {
         await app.inject({
           method: "POST",
           url: `/public/document-signatures/${renewed.token}`,
-          payload: { signerName: "Cliente", accepted: true, signatureImage },
+          payload: {
+            signerName: "Cliente",
+            signerCpf: "52998224725",
+            accepted: true,
+            signatureImage,
+          },
         })
       ).statusCode,
     ).toBe(200);
@@ -373,7 +495,12 @@ describe("document signature link", () => {
     expect(blocked.json().code).toBe("TOO_MANY_REQUESTS");
     expect(Number(blocked.headers["retry-after"])).toBeGreaterThan(0);
 
-    const payload = { signerName: "Cliente", accepted: true, signatureImage };
+    const payload = {
+      signerName: "Cliente",
+      signerCpf: "52998224725",
+      accepted: true,
+      signatureImage,
+    };
     const other = `/public/document-signatures/${"b".repeat(43)}`;
     for (let index = 0; index < 10; index += 1)
       expect(
