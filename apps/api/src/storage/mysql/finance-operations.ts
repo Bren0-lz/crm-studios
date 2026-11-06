@@ -41,7 +41,7 @@ import {
   stockKey,
 } from "../../modules/finance/product-stock.js";
 
-const productColumns = `id,clinic_id AS "clinicId",name,sku,unit,cost_in_cents AS "costInCents",sale_price_in_cents AS "salePriceInCents",current_stock AS "currentStock",restock_alert_at AS "restockAlertAt",sizes,${productStockRowsColumn},active,category_id AS "categoryId",brand_id AS "brandId",created_at AS "createdAt",updated_at AS "updatedAt"`;
+const productColumns = `id,clinic_id AS "clinicId",name,sku,unit,cost_in_cents AS "costInCents",sale_price_in_cents AS "salePriceInCents",current_stock AS "currentStock",restock_alert_at AS "restockAlertAt",business_line AS "businessLine",sizes,${productStockRowsColumn},active,category_id AS "categoryId",brand_id AS "brandId",created_at AS "createdAt",updated_at AS "updatedAt"`;
 const supplierColumns = `id,clinic_id AS "clinicId",name,kind,document,phone,whatsapp,email,hired_on AS "hiredOn",contract_amount_in_cents AS "contractAmountInCents",billing_cycle AS "billingCycle",payment_method AS "paymentMethod",installments,payment_terms AS "paymentTerms",orders,contracts,notes,active,created_at AS "createdAt",updated_at AS "updatedAt"`;
 type SupplierRow = Omit<
   Supplier,
@@ -187,7 +187,7 @@ export function createFinanceOperationsRepository(
               );
           const result = await writeAndRead<ProductRow>(
             client,
-            `UPDATE products SET name=$3,sku=COALESCE($4,sku),unit=$5,cost_in_cents=$6,sale_price_in_cents=$7,active=$8,category_id=CASE WHEN $9 THEN $10 ELSE category_id END,brand_id=CASE WHEN $11 THEN $12 ELSE brand_id END,sizes=COALESCE($13,sizes),restock_alert_at=CASE WHEN $14 THEN $15 ELSE restock_alert_at END,updated_at=NOW(6) WHERE clinic_id=$1 AND id=$2`,
+            `UPDATE products SET name=$3,sku=COALESCE($4,sku),unit=$5,cost_in_cents=$6,sale_price_in_cents=$7,active=$8,category_id=CASE WHEN $9 THEN $10 ELSE category_id END,brand_id=CASE WHEN $11 THEN $12 ELSE brand_id END,sizes=COALESCE($13,sizes),restock_alert_at=CASE WHEN $14 THEN $15 ELSE restock_alert_at END,business_line=CASE WHEN $16 THEN $17 ELSE business_line END,updated_at=NOW(6) WHERE clinic_id=$1 AND id=$2`,
             [
               clinicId,
               id,
@@ -204,6 +204,9 @@ export function createFinanceOperationsRepository(
               input.sizes ?? null,
               input.restockAlertAt !== undefined,
               input.restockAlertAt ?? null,
+              // Linha no painel: ausente mantém; `null` explícito limpa (sem classificação).
+              input.businessLine !== undefined,
+              input.businessLine ?? null,
             ],
             `SELECT ${productColumns} FROM products WHERE clinic_id=$1 AND id=$2`,
           );

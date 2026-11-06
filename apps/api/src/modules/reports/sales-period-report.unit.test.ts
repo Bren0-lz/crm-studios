@@ -24,6 +24,7 @@ const sale = (
   patientName: "Ana",
   itemName: "Pilates",
   quantity: 1,
+  services: [],
 });
 const appointment = (
   patientId: string | undefined,

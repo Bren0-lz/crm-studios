@@ -6,6 +6,7 @@ import {
   optionalPhoneSchema,
 } from "../common/model.js";
 import { adminUserCommissionInputSchema } from "../finance/model.js";
+import { serviceBusinessLineSchema } from "./business-line.js";
 import { receiptReminderSettingsSchema } from "../finance/receipt-reminders.js";
 import {
   userPermissionsSchema,
@@ -283,16 +284,12 @@ export const roomInputSchema = z.object({
   capacity: z.number().int().min(1).max(100),
 });
 
-/**
- * Linha do serviço no painel de vendas: Studio (aulas, turmas) ou Estética. Só categoriza o
- * painel; serviço sem linha (`null`) aparece lá como "Outros".
- */
-export const serviceBusinessLines = ["studio", "aesthetics"] as const;
-export const serviceBusinessLineSchema = z.enum(serviceBusinessLines);
-export const serviceBusinessLineLabels: Record<
-  (typeof serviceBusinessLines)[number],
-  string
-> = { studio: "Studio", aesthetics: "Estética" };
+/** Linha no painel de vendas (serviço e produto): ver `business-line.ts`. */
+export {
+  serviceBusinessLineLabels,
+  serviceBusinessLineSchema,
+  serviceBusinessLines,
+} from "./business-line.js";
 
 export const serviceInputSchema = z.object({
   name: z.string().trim().min(2).max(120),

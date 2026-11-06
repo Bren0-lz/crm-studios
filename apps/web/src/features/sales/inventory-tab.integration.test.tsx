@@ -109,6 +109,62 @@ describe("aba Estoque de Vendas de produtos (QM9)", () => {
     );
   });
 
+  it("classifica o produto na linha do painel de vendas (sem classificação por padrão)", async () => {
+    const { repository } = await setupApi();
+    const panel = await openInventoryTab();
+    fireEvent.click(
+      await within(panel).findByRole("button", { name: "Novo produto" }),
+    );
+    let dialog = screen.getByRole("dialog", { name: "Novo produto" });
+    const line = within(dialog).getByLabelText("Linha no painel");
+    expect(line).toHaveValue("");
+    expect(
+      within(line)
+        .getAllByRole("option")
+        .map((option) => option.textContent),
+    ).toEqual(["Sem classificação", "Studio", "Estética"]);
+    expect(
+      within(dialog).getByText(/Só vale para o painel de vendas/),
+    ).toBeInTheDocument();
+    change("Nome", "Creme pós-depilação", dialog);
+    change("Preço de venda (R$)", "40,00", dialog);
+    change("Linha no painel", "aesthetics", dialog);
+    await save("Novo produto", "Salvar produto");
+    const saved = async () =>
+      (await repository.getInventoryWorkspace(clinicId)).products.find(
+        (item) => item.name === "Creme pós-depilação",
+      );
+    expect((await saved())?.businessLine).toBe("aesthetics");
+
+    const edit = async () => {
+      fireEvent.click(
+        await within(panel).findByRole("button", {
+          name: "Editar Creme pós-depilação",
+        }),
+      );
+      return screen.getByRole("dialog", { name: "Editar produto" });
+    };
+    dialog = await edit();
+    expect(within(dialog).getByLabelText("Linha no painel")).toHaveValue(
+      "aesthetics",
+    );
+    change("Linha no painel", "", dialog);
+    await save("Editar produto", "Salvar produto");
+    expect((await saved())?.businessLine).toBeNull();
+
+    fireEvent.click(
+      within(panel).getByRole("button", { name: "Novo produto" }),
+    );
+    dialog = screen.getByRole("dialog", { name: "Novo produto" });
+    change("Nome", "Faixa sem linha", dialog);
+    await save("Novo produto", "Salvar produto");
+    expect(
+      (await repository.getInventoryWorkspace(clinicId)).products.find(
+        (item) => item.name === "Faixa sem linha",
+      )?.businessLine,
+    ).toBeNull();
+  });
+
   it("liga e desliga o aviso de reposição do produto", async () => {
     const { repository } = await setupApi();
     const product = await repository.createProduct(clinicId, actorId, {

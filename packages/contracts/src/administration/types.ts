@@ -59,6 +59,17 @@ export type AdminUserProfessionalInput = z.infer<
   typeof adminUserProfessionalInputSchema
 >;
 
+/**
+ * Serviço com a linha no painel de vendas, como o cadastro tem hoje (inclusive serviço
+ * inativo). `name` é o nome atual do cadastro (o vendido, se o serviço não existe mais);
+ * `businessLine` `null` = sem classificação ou serviço não encontrado ("Outros" no painel).
+ */
+export interface ServiceLineRef {
+  id: string;
+  name: string;
+  businessLine: ServiceBusinessLine | null;
+}
+
 export interface SaleMovement {
   id: string;
   sourceId: string;
@@ -70,6 +81,16 @@ export interface SaleMovement {
   itemName: string;
   quantity: number;
   amountInCents: number;
+  /**
+   * Serviços da venda (painel de vendas): no serviço da comanda, ele; no plano, todos os do
+   * plano (o valor da venda conta inteiro em cada um, não se divide); no produto, vazio.
+   */
+  services: ServiceLineRef[];
+  /**
+   * Só na venda de produto: linha do produto no painel (`null` = sem classificação). Ausente
+   * no plano e no serviço, cuja linha vem de cada item de `services`.
+   */
+  businessLine?: ServiceBusinessLine | null;
   receivableId?: string;
   /**
    * Desconto do cliente: no plano, o das cobranças (`amountInCents` é o valor do plano); no

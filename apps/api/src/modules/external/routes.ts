@@ -22,7 +22,9 @@ import {
   type Patient,
   type Receivable,
   saoPauloToday,
+  type Service,
   type ServiceBusinessLine,
+  type ServiceLineRef,
   singlePlanSessionPrices,
 } from "@crm/contracts";
 import { compare } from "bcryptjs";
@@ -67,6 +69,48 @@ function overdueByPatient(
         installments: 1,
         oldest: receivable.dueDate,
       });
+  }
+  return byPatient;
+}
+
+/** Serviços e linhas dos produtos de onde vêm as parcelas vencidas de um cliente. */
+interface OverdueOrigin {
+  services: Map<string, ServiceLineRef>;
+  productLines: Set<ServiceBusinessLine | null>;
+}
+
+/**
+ * Origem das parcelas vencidas por cliente, pela mesma regra de `overdueByPatient`. Serviços:
+ * os de `Receivable.services` (do plano ou os atendimentos da comanda), com nome e linha do
+ * cadastro (inclusive inativo). Produtos: os itens da comanda cuja cobrança é a parcela
+ * (`PatientTab.receivableId`). Parcela avulsa e saldo de baixa parcial de comanda não têm
+ * vínculo com a origem e ficam de fora.
+ */
+function overdueOrigins(
+  receivables: readonly Receivable[],
+  today: string,
+  services: ReadonlyMap<string, Service>,
+  tabProductLines: ReadonlyMap<string, (ServiceBusinessLine | null)[]>,
+) {
+  const byPatient = new Map<string, OverdueOrigin>();
+  for (const receivable of receivables) {
+    if (!isOverdueReceivable(receivable, today)) continue;
+    const origin = byPatient.get(receivable.patientId) ?? {
+      services: new Map(),
+      productLines: new Set(),
+    };
+    for (const service of receivable.services ?? [])
+      if (!origin.services.has(service.id)) {
+        const registered = services.get(service.id);
+        origin.services.set(service.id, {
+          id: service.id,
+          name: registered?.name ?? service.name,
+          businessLine: registered?.businessLine ?? null,
+        });
+      }
+    for (const line of tabProductLines.get(receivable.id) ?? [])
+      origin.productLines.add(line);
+    byPatient.set(receivable.patientId, origin);
   }
   return byPatient;
 }
@@ -217,6 +261,9 @@ export function registerExternalRoutes({
       today,
       workspace,
       plans,
+      services: new Map(
+        registry.services.map((service) => [service.id, service]),
+      ),
       businessLines: new Map(
         registry.services.map((service) => [
           service.id,
@@ -488,7 +535,7 @@ export function registerExternalRoutes({
     { preHandler: authenticate },
     async (request): Promise<ExternalOverdueReport> => {
       const clinicId = request.user.clinicId;
-      const { today, workspace, rows } = await groupsOverview(
+      const { today, workspace, rows, services } = await groupsOverview(
         clinicId,
         request.user.sub,
         true,
@@ -498,6 +545,33 @@ export function registerExternalRoutes({
         repository.listPatients(clinicId),
       ]);
       const byPatient = overdueByPatient(summary.receivables, today);
+      // Produtos só vêm de comanda: as comandas só são lidas se há parcela vencida fora de plano.
+      const tabProductLines = new Map<string, (ServiceBusinessLine | null)[]>();
+      if (
+        summary.receivables.some(
+          (item) => !item.planId && isOverdueReceivable(item, today),
+        )
+      ) {
+        const inventory = await repository.getInventoryWorkspace(clinicId);
+        const productLine = new Map(
+          inventory.products.map((product) => [
+            product.id,
+            product.businessLine,
+          ]),
+        );
+        for (const tab of inventory.tabs)
+          if (tab.receivableId && tab.items.length)
+            tabProductLines.set(
+              tab.receivableId,
+              tab.items.map((item) => productLine.get(item.productId) ?? null),
+            );
+      }
+      const origins = overdueOrigins(
+        summary.receivables,
+        today,
+        services,
+        tabProductLines,
+      );
       const patientById = new Map(
         patients.map((patient) => [patient.id, patient]),
       );
@@ -529,6 +603,8 @@ export function registerExternalRoutes({
                     ]
                   : [];
               }),
+            services: [...(origins.get(patientId)?.services.values() ?? [])],
+            productLines: [...(origins.get(patientId)?.productLines ?? [])],
             amountInCents: item.amount,
             installments: item.installments,
             oldestDueDate: item.oldest,

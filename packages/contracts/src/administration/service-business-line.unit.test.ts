@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { productInputSchema, productUpdateSchema } from "../finance/model.js";
 import { serviceBusinessLineLabels, serviceInputSchema } from "./model.js";
 import { administrativeRegistryInputSchema } from "./registry.js";
 
@@ -38,5 +39,26 @@ describe("linha do serviço no painel", () => {
       studio: "Studio",
       aesthetics: "Estética",
     });
+  });
+
+  it("vale também para o produto: ausente fica ausente, null limpa e outra linha é recusada", () => {
+    const product = { name: "Creme", costInCents: 100, salePriceInCents: 200 };
+    expect(productInputSchema.parse(product)).not.toHaveProperty(
+      "businessLine",
+    );
+    expect(
+      productInputSchema.parse({ ...product, businessLine: "aesthetics" })
+        .businessLine,
+    ).toBe("aesthetics");
+    expect(
+      productInputSchema.safeParse({ ...product, businessLine: "dance" })
+        .success,
+    ).toBe(false);
+    expect(productUpdateSchema.parse(product)).not.toHaveProperty(
+      "businessLine",
+    );
+    expect(
+      productUpdateSchema.parse({ ...product, businessLine: null }),
+    ).toHaveProperty("businessLine", null);
   });
 });

@@ -307,6 +307,7 @@ export function createFinanceRepository(
         costInCents: input.costInCents,
         salePriceInCents: input.salePriceInCents,
         restockAlertAt: input.restockAlertAt ?? null,
+        businessLine: input.businessLine ?? null,
         sizes: input.sizes ?? [],
         sizeStock: [],
         branchId,

@@ -1,5 +1,6 @@
 import { paymentTimingSchema, financialDatesSchema } from "./model.js";
 import { z } from "zod";
+import type { ServiceBusinessLine } from "../administration/types.js";
 import type { PaymentPart } from "./payment-parts.js";
 import type { ReceiptSignatureSummary } from "./receipt-signatures.js";
 import type { ProductSize, ProductSizeStock } from "./model.js";
@@ -201,9 +202,16 @@ export interface ReceivedPayment {
 
 export interface Product extends Omit<
   ProductInput,
-  "initialStock" | "initialSizeStock" | "sizes" | "restockAlertAt" | "sku"
+  | "initialStock"
+  | "initialSizeStock"
+  | "sizes"
+  | "restockAlertAt"
+  | "sku"
+  | "businessLine"
 > {
   sku: string;
+  /** Linha no painel de vendas; `null` = sem classificação ("Outros" no painel). */
+  businessLine: ServiceBusinessLine | null;
   /** Aviso de reposição; `null` = sem aviso. */
   restockAlertAt: number | null;
   /** Vazio = produto sem distinção por tamanhos. */

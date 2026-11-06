@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type {
   ServiceBusinessLine,
+  ServiceLineRef,
   UserSummary,
 } from "../administration/types.js";
 import type { GroupEnrollment, GroupWeeklySlot } from "../agenda/types.js";
@@ -159,6 +160,17 @@ export interface ExternalOverdueRow {
     full: boolean;
     waitlistCount: number;
   }[];
+  /**
+   * Serviços de onde vêm as parcelas vencidas (os do plano e os atendimentos da comanda), sem
+   * repetir, com a linha do cadastro. Parcela avulsa (lançada à mão) e saldo de baixa parcial de
+   * comanda não têm vínculo com a origem e não entram.
+   */
+  services: ServiceLineRef[];
+  /**
+   * Linhas dos produtos dessas parcelas (comanda), sem repetir; `null` = produto sem
+   * classificação. Vazio quando nenhuma parcela vencida vem de produto.
+   */
+  productLines: (ServiceBusinessLine | null)[];
   amountInCents: number;
   installments: number;
   /** Vencimento da parcela vencida mais antiga (aaaa-mm-dd). */

@@ -30,6 +30,26 @@ export function createReportsRepository(
 ) {
   async function salesSources(clinicId: string) {
     const sales: SaleMovement[] = [];
+    // Linha no painel de cada serviço/produto vendido, como o cadastro tem hoje (inclusive
+    // inativos); serviço que não existe mais sai com o nome vendido e linha `null`.
+    const registry = new Map(
+      repositoryContext.services
+        .filter((item) => item.clinicId === clinicId)
+        .map((item) => [item.id, item]),
+    );
+    const serviceLine = (id: string, soldName: string) => {
+      const service = registry.get(id);
+      return {
+        id,
+        name: service?.name ?? soldName,
+        businessLine: service?.businessLine ?? null,
+      };
+    };
+    const productLines = new Map(
+      repositoryContext.products
+        .filter((item) => item.clinicId === clinicId)
+        .map((item) => [item.id, item.businessLine ?? null]),
+    );
     for (const plan of repositoryContext
       .scoped(repositoryContext.patientPlans)
       .filter((item) => item.clinicId === clinicId && !item.sourceTabId)) {
@@ -40,6 +60,12 @@ export function createReportsRepository(
         patientName: plan.patientName,
         itemName: `${plan.name} (${plan.serviceName})`,
         quantity: 1,
+        // Todos os serviços do plano (o valor da venda conta inteiro em cada um).
+        services: plan.services.length
+          ? plan.services.map((item) =>
+              serviceLine(item.serviceId, item.serviceName),
+            )
+          : [serviceLine(plan.serviceId, plan.serviceName)],
       };
       const customerDiscountInCents = repositoryContext.receivables
         .filter((item) => item.planId === plan.id)
@@ -76,6 +102,8 @@ export function createReportsRepository(
         ...tab.items.map((item) => ({
           ...item,
           sourceType: "product" as const,
+          services: [],
+          businessLine: productLines.get(item.productId) ?? null,
         })),
         ...(tab.services ?? []).map((item) => ({
           id: item.id,
@@ -84,6 +112,8 @@ export function createReportsRepository(
           totalInCents: item.amountInCents,
           unitCostInCents: undefined,
           sourceType: "service" as const,
+          services: [serviceLine(item.serviceId, item.serviceName)],
+          businessLine: undefined,
         })),
       ];
       for (const item of items) {
@@ -97,6 +127,10 @@ export function createReportsRepository(
               ? productItemName(item)
               : item.productName,
           quantity: item.quantity,
+          services: item.services,
+          ...(item.businessLine === undefined
+            ? {}
+            : { businessLine: item.businessLine }),
           ...(tab.receivableId ? { receivableId: tab.receivableId } : {}),
         };
         sales.push({
