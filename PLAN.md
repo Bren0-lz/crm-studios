@@ -511,6 +511,32 @@ numeração antiga, mapeada em cada tarefa) e no histórico do git.
 - **Depende de:** PX4
 - **Status:** DONE
 
+### PX5 — API externa: linha e serviços de cada venda e de cada inadimplente
+
+- **Origem:** PT6 (filtro por linha e por serviço em todas as telas do painel). Hoje `/sales` e
+  `/overdue` não dizem a linha nem os serviços de cada item, e o painel deduzia a linha pela
+  turma do cliente. **Decisões do dono (06/11):** produto ganha a mesma "Linha no painel" do
+  serviço (Studio / Estética / sem classificação), escolhida no cadastro do produto no CRM e
+  que só categoriza o painel; venda de plano com vários serviços aparece em cada serviço dele,
+  com o valor inteiro (não divide).
+- **Escopo:**
+  - Migração nova: `products.business_line VARCHAR(20) NULL` (sem padrão; existentes NULL),
+    CHECK nomeado com `studio`/`aesthetics`. contracts e cadastro de produto com "Sem
+    classificação" (padrão), "Studio" e "Estética" e a mesma dica do serviço; PUT ausente
+    mantém e `null` limpa (como na PX3). Dados demo coerentes.
+  - `SaleMovement` (`/external/v1/sales`) ganha `services: { id, name, businessLine }[]`
+    (venda de serviço: o serviço; de plano: todos os serviços do plano; de produto: vazio) e
+    `businessLine` do produto na venda de produto (`null` = sem classificação). A linha de
+    cada serviço vem do cadastro, inclusive de serviço inativo.
+  - `ExternalOverdueRow` (`/external/v1/overdue`) ganha `services: { id, name, businessLine }[]`:
+    os serviços de onde vêm as parcelas vencidas do cliente (plano, serviço da comanda/venda) e
+    `productLines` (linhas dos produtos dessas parcelas), para o painel filtrar sem deduzir pela
+    turma.
+  - Documentar em `endpoints.ts`. Testes API e MySQL opt-in.
+- **Gate:** gate completo e `npm run test:mysql`
+- **Depende de:** PX3
+- **Status:** DOING
+
 **Tarefas do `dashboard-studios`** (executadas lá, PR para `main` com `npm run check`; cada uma
 só depois das PX que usa estarem mescladas no CRM e o CRM simulado `apps/bff/src/mock-crm`
 atualizado no mesmo PR):
@@ -530,7 +556,7 @@ atualizado no mesmo PR):
   "Tudo" inclui Estética. Serviços: os ativos do CRM (`/external/v1/services`), agrupados por
   linha, com seleção de vários ao mesmo tempo. A escolha fica na URL e acompanha o usuário entre
   as telas. Substitui o filtro de linha atual. Atualizar o CRM simulado (`businessLine` nulo
-  em parte dos serviços). Usa a PX3.
+  em parte dos serviços e produtos). Usa a PX3 e a PX5.
 
 ### CD1 — WhatsApp e contato de emergência obrigatórios no cadastro manual
 
