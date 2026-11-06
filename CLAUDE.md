@@ -35,7 +35,8 @@ Fora dos gates: `npm run format:check` (já falha em arquivos antigos) e `npm ru
 
 ### Regras do loop
 
-- O estado real está em `PLAN.md` e `STATE.md`. Nunca confie na memória da conversa.
+- O estado real está no `PLAN.md` (campo **Status** de cada tarefa) e no diário (`diario/`, e
+  `STATE.md` para o histórico até 06/11/2026). Nunca confie na memória da conversa.
 - Uma tarefa por vez. Um commit por tarefa concluída, mensagem em pt-BR.
 - Commits **sem** `Co-Authored-By` e sem "Generated with Claude".
 - Nunca marque `DONE` sem a saída real do comando de gate.
@@ -70,6 +71,14 @@ em conflito com a `main` e entre si, com números de migração repetidos. Para 
   PRs abertos mexendo neles ao mesmo tempo sem empilhar um sobre o outro. CSS, rotas e campos
   novos entram **junto do bloco relacionado**, não sempre no fim do arquivo/objeto (o fim é onde todo PR
   escreve e onde todos conflitam).
+- **Diário por tarefa** (desde 06/11/2026, depois de PRs abertos ao mesmo tempo conflitarem
+  todos no fim do `STATE.md`): cada tarefa escreve o seu diário **só** no arquivo próprio
+  `diario/<AAAA-MM-DD>-<ID>.md` (data em que a tarefa começou, ex.: `diario/2026-11-06-TG2.md`),
+  no mesmo formato de linha do `STATE.md` (`- AAAA-MM-DD <ID> DONE (…)`, `FAIL n/3: …`,
+  descobertas). Tentativas e FAIL também vão nesse arquivo. PR de tarefa **não edita o
+  `STATE.md`** (nem cabeçalho nem diário) e, no `PLAN.md`, só a linha de **Status** das próprias
+  tarefas; tarefa nova entra na seção da rodada, junto das relacionadas. Para ler o diário:
+  `ls diario/` e os arquivos das tarefas relacionadas (o `STATE.md` guarda o histórico anterior).
 - **Ao resolver conflito**: trecho por trecho. Nunca `git checkout --ours/--theirs` no arquivo
   inteiro (ele descarta também o que entrou sem conflito). Depois, confira que nada da `main`
   sumiu: `git diff origin/main -- <arquivo> | grep '^-'` deve mostrar só o que o PR removeu de

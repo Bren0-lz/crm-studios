@@ -4,31 +4,33 @@ description: Executa a próxima tarefa do PLAN.md, verifica, commita, abre PR e 
 
 Execute **UMA** iteração do loop de desenvolvimento. Responda em pt-BR.
 
-1. Leia `STATE.md` e `PLAN.md`. Identifique a próxima tarefa `TODO` cujas dependências estão `DONE`.
+1. Leia o `PLAN.md` (Status de cada tarefa). Identifique a próxima tarefa `TODO` cujas dependências estão `DONE`.
 2. Se não houver nenhuma, ou houver bloqueio aberto: **PARE** e diga o motivo.
    Não invente tarefa nova, não "adiante" outra coisa.
    Se a tarefa elegível tiver `**Tipo:** manual`: **não delegue**. Marque-a `BLOCKED` no
-   `PLAN.md`, registre em `STATE.md` "aguardando revisão manual de <ID>", **PARE** e me chame
+   `PLAN.md`, registre em `diario/<data>-<ID>.md` "aguardando revisão manual de <ID>", **PARE** e me chame
    com o escopo da revisão. (Marcar `BLOCKED` faz o loop headless parar; o dono marca `DONE`
    depois de aprovar.)
 3. Crie o branch da tarefa a partir da `main` atual (`git fetch origin main` e
    `git switch -c <branch-da-tarefa> origin/main`), nunca de um branch antigo ou de outro PR
    (regras em "PRs sem conflito" no `CLAUDE.md`). Marque a tarefa `DOING` no `PLAN.md` e delegue ao agente `implementer` (via Agent,
    subagent_type `implementer`) passando: ID, escopo, gate e as descobertas do diário que
-   sejam relevantes.
-4. Se voltar `BLOCKED`: marque a tarefa `BLOCKED`, registre o motivo em `STATE.md`, **PARE** e me chame.
+   sejam relevantes (arquivos das tarefas relacionadas em `diario/` e, para o histórico
+   anterior a 06/11/2026, o `STATE.md`).
+4. Se voltar `BLOCKED`: marque a tarefa `BLOCKED`, registre o motivo em `diario/<data>-<ID>.md`, **PARE** e me chame.
 5. Delegue ao agente `verifier` (subagent_type `verifier`) passando apenas o ID e o escopo —
    nada do raciocínio do implementer.
-6. Se `FAIL`: incremente as tentativas em `STATE.md` e volte ao passo 3 informando o motivo da falha.
+6. Se `FAIL`: registre `FAIL n/3: <motivo>` em `diario/<data>-<ID>.md` e volte ao passo 3 informando o motivo da falha.
    Na **3ª** falha: marque a tarefa `BLOCKED`, **PARE** e me chame.
 7. Se `PASS`:
-   - marque a tarefa `DONE` no `PLAN.md` e atualize `STATE.md`: última concluída = ID,
-     tarefa atual = próxima elegível, tentativas = 0, uma linha no diário
+   - marque a tarefa `DONE` no `PLAN.md` e escreva a linha `DONE` (gate, decisões,
+     descobertas) em `diario/<data>-<ID>.md`. **Não edite o `STATE.md`** (regra "Diário por
+     tarefa" do `CLAUDE.md`)
    - rode `node apps/web/scripts/audit-panels.cjs` (exceto na D01, que é quem o zera); se falhar,
      trate como `FAIL` do passo 6
    - `git add -A && git commit -m "<ID>: <título da tarefa>"` — mensagem em pt-BR, **sem**
      linhas `Co-Authored-By` nem "Generated with Claude" (regra do dono do repositório).
-     O commit inclui código, `PLAN.md` e `STATE.md` juntos; o hash fica no `git log`.
+     O commit inclui código, `PLAN.md` e o arquivo do diário juntos; o hash fica no `git log`.
 8. Sincronize com a `main` antes do push: `git fetch origin main && git merge origin/main`.
    Se houver conflito, resolva trecho a trecho (nunca `checkout --ours/--theirs` no arquivo
    inteiro), renumere a migração se o número já existir na `main`, porte para MySQL
