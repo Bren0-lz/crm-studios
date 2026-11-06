@@ -67,18 +67,36 @@ export interface ExternalGroupsOverview {
   groups: ExternalGroupRow[];
 }
 
-/** Pessoa inscrita na turma (ativa ou na lista de espera da turma). */
+/**
+ * Atraso do inscrito: parcelas vencidas do cliente (todas, não só da turma; mesma regra de
+ * `GET /external/v1/overdue`).
+ */
+export interface MemberOverdue {
+  amountInCents: number;
+  installments: number;
+  /** Vencimento da parcela vencida mais antiga (aaaa-mm-dd). */
+  oldestDueDate: string;
+  daysOverdue: number;
+}
+
+/**
+ * Pessoa inscrita na turma (ativa ou na lista de espera da turma). O contato (`phone`,
+ * `whatsapp`, `email`) só vem para quem tem acesso a Clientes; sem ele, só o nome.
+ */
 export interface ExternalGroupMember {
   enrollmentId: string;
   patientId: string;
   patientName: string;
   phone?: string;
+  whatsapp?: string;
   email?: string;
   status: GroupEnrollment["status"];
   queuePosition?: number;
   startsOn: string;
   /** Valor mensal do plano para a turma; null sem plano ativo (ou na lista de espera). */
   monthlyInCents: number | null;
+  /** Só para inscritos ativos com parcela vencida e para quem tem acesso ao Financeiro. */
+  overdue?: MemberOverdue;
 }
 
 export interface ExternalGroupDetails extends ExternalGroupRow {

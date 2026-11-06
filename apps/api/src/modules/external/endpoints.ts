@@ -36,7 +36,7 @@ export const nativeEndpoints: ExternalEndpoint[] = [
     path: "/external/v1/groups/:id",
     scope: "sales:read",
     description:
-      "Turma com as pessoas inscritas (contato e valor mensal) e a lista de espera da turma, com os mesmos campos da tabela de turmas (businessLine; overdueMembers e overdueInCents com acesso ao Financeiro).",
+      "Turma com as pessoas inscritas (valor mensal) e a lista de espera da turma, com os mesmos campos da tabela de turmas (businessLine; overdueMembers e overdueInCents com acesso ao Financeiro). Contato de cada pessoa (phone, whatsapp, email) só com acesso a Clientes; sem ele, só o nome. Com acesso ao Financeiro, cada inscrito ativo com parcela vencida traz overdue (amountInCents, installments, oldestDueDate, daysOverdue; mesma regra de /external/v1/overdue); sem atraso, o campo não vem.",
   },
   {
     method: "GET",
