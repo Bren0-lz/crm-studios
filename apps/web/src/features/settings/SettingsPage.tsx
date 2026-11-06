@@ -20,6 +20,7 @@ import { ClinicSettingsContent } from "./ClinicSettingsContent";
 import { HolidaysContent } from "./HolidaysContent";
 import { IntegrationKeysContent } from "./IntegrationKeysContent";
 import { NavTabLabelsContent } from "./NavTabLabelsContent";
+import { TelegramIntegrationContent } from "./TelegramIntegrationContent";
 import { settingsTabFromSection, settingsTabs } from "./model";
 import { PatientTagsContent } from "./PatientTagsContent";
 import { PlanTemplatesContent } from "./PlanTemplatesContent";
@@ -145,7 +146,10 @@ export function SettingsPage() {
             ) : tab.key === "paymentMethods" ? (
               <PaymentMethodsContent />
             ) : tab.key === "integrations" ? (
-              <IntegrationKeysContent />
+              <>
+                <IntegrationKeysContent />
+                <TelegramIntegrationContent />
+              </>
             ) : tab.key === "plans" ? (
               <PlanTemplatesContent />
             ) : tab.key === "holidays" ? (

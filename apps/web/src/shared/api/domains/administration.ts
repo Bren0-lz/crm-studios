@@ -37,6 +37,8 @@ import type {
   IntegrationKey,
   IntegrationKeyCreated,
   IntegrationKeyInput,
+  TelegramLinkCode,
+  TelegramStatus,
 } from "@crm/contracts";
 import { TOKEN_KEY, storeUser, type Session } from "../session";
 import { request } from "../transport";
@@ -166,6 +168,16 @@ export const administrationApi = {
   revokeIntegrationKey: (id: string) =>
     request<IntegrationKey>(`/integration-keys/${id}/revoke`, {
       method: "POST",
+    }),
+  /** Telegram (TG1): situação do usuário logado, código de vínculo e desvincular. */
+  telegramStatus: () => request<TelegramStatus>("/integrations/telegram"),
+  createTelegramLinkCode: () =>
+    request<TelegramLinkCode>("/integrations/telegram/link-code", {
+      method: "POST",
+    }),
+  unlinkTelegram: () =>
+    request<TelegramStatus>("/integrations/telegram/link", {
+      method: "DELETE",
     }),
   adminAuditEvents: () => request<AdminAuditEvent[]>("/admin/audit-events"),
   auditHistory: (cursor?: string, filters: AuditHistoryFilters = {}) => {

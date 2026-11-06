@@ -587,6 +587,14 @@ export class MemoryRepositoryContext {
     tokenHash: string;
   })[] = [];
 
+  /** Telegram (TG1): vínculos, códigos de vínculo, fila de saída e perfis que vinculam. */
+  readonly telegram: import("./telegram.js").TelegramMemoryState = {
+    links: [],
+    codes: [],
+    outbox: [],
+    linkRoles: new Map(),
+  };
+
   /** WhatsApp por usuário (`users.whatsapp` no PostgreSQL). */
   readonly userWhatsapps = new Map<string, string>();
 

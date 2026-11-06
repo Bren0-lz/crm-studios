@@ -13,7 +13,8 @@ export interface ModuleRequirement {
   permission: PermissionKey;
 }
 /**
- * - `public`: sem login (saúde, login e links de assinatura de documento e de recibo).
+ * - `public`: sem login (saúde, login, links de assinatura de documento e de recibo e o
+ *   webhook do Telegram, que confere o próprio segredo).
  * - `login`: basta estar logado (usuário ativo).
  * - `admin`: Administração, sempre só do usuário admin (não é módulo configurável).
  * - lista de módulos: o usuário precisa de TODOS os níveis listados.
@@ -118,6 +119,14 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
   "GET /integration-keys": "admin",
   "POST /integration-keys": "admin",
   "POST /integration-keys/:id/revoke": "admin",
+  // Telegram (TG1): cada usuário vincula o próprio chat (o perfil é conferido na rota); a
+  // configuração e o envio sob demanda são do admin; o webhook é público com segredo.
+  "GET /integrations/telegram": "login",
+  "POST /integrations/telegram/link-code": "login",
+  "DELETE /integrations/telegram/link": "login",
+  "PUT /integrations/telegram/settings": "admin",
+  "POST /integrations/telegram/outbox/drain": "admin",
+  "POST /integrations/telegram/webhook/:secret": "public",
   "GET /patients/export": operation("patients.export"),
 
   // Visão geral e leituras de apoio da agenda: só login.

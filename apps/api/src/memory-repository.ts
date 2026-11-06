@@ -6,6 +6,7 @@ import { createCommissionReconciliationRepository } from "./storage/memory/commi
 import { createExternalOperationsRepository } from "./storage/memory/external-operations.js";
 import { createPaymentProofsRepository } from "./storage/memory/payment-proofs.js";
 import { createReceiptSignaturesRepository } from "./storage/memory/receipt-signatures.js";
+import { createTelegramRepository } from "./storage/memory/telegram.js";
 import { createPlanPurchasesRepository } from "./storage/memory/plan-purchases.js";
 import { createClinicWriteLock } from "./storage/memory/write-lock.js";
 import { createFinancialDatesRepository } from "./storage/memory/financial-dates.js";
@@ -75,6 +76,17 @@ export class MemoryClinicRepository implements ClinicRepository {
   readonly markReceiptSignatureSent: ClinicRepository["markReceiptSignatureSent"];
   readonly openPublicReceiptSignature: ClinicRepository["openPublicReceiptSignature"];
   readonly signPublicReceiptSignature: ClinicRepository["signPublicReceiptSignature"];
+  readonly getTelegramSettings: ClinicRepository["getTelegramSettings"];
+  readonly saveTelegramSettings: ClinicRepository["saveTelegramSettings"];
+  readonly getTelegramLink: ClinicRepository["getTelegramLink"];
+  readonly listTelegramLinks: ClinicRepository["listTelegramLinks"];
+  readonly deleteTelegramLink: ClinicRepository["deleteTelegramLink"];
+  readonly createTelegramLinkCode: ClinicRepository["createTelegramLinkCode"];
+  readonly linkTelegramChat: ClinicRepository["linkTelegramChat"];
+  readonly enqueueTelegramMessages: ClinicRepository["enqueueTelegramMessages"];
+  readonly claimTelegramOutbox: ClinicRepository["claimTelegramOutbox"];
+  readonly recordTelegramDelivery: ClinicRepository["recordTelegramDelivery"];
+  readonly listTelegramOutbox: ClinicRepository["listTelegramOutbox"];
   readonly purchasePatientPlan: ClinicRepository["purchasePatientPlan"];
   readonly getAdministrativeRegistry: ClinicRepository["getAdministrativeRegistry"];
   readonly updateAdministrativeRegistry: ClinicRepository["updateAdministrativeRegistry"];
@@ -193,6 +205,18 @@ export class MemoryClinicRepository implements ClinicRepository {
       receiptSignatures.openPublicReceiptSignature;
     this.signPublicReceiptSignature =
       receiptSignatures.signPublicReceiptSignature;
+    const telegram = createTelegramRepository(this.context);
+    this.getTelegramSettings = telegram.getTelegramSettings;
+    this.saveTelegramSettings = telegram.saveTelegramSettings;
+    this.getTelegramLink = telegram.getTelegramLink;
+    this.listTelegramLinks = telegram.listTelegramLinks;
+    this.deleteTelegramLink = telegram.deleteTelegramLink;
+    this.createTelegramLinkCode = telegram.createTelegramLinkCode;
+    this.linkTelegramChat = telegram.linkTelegramChat;
+    this.enqueueTelegramMessages = telegram.enqueueTelegramMessages;
+    this.claimTelegramOutbox = telegram.claimTelegramOutbox;
+    this.recordTelegramDelivery = telegram.recordTelegramDelivery;
+    this.listTelegramOutbox = telegram.listTelegramOutbox;
     this.purchasePatientPlan = createPlanPurchasesRepository(
       this.context,
     ).purchasePatientPlan;

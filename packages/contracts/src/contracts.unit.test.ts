@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  resolveTelegramLinkRoles,
+  telegramSettingsInputSchema,
   auditChangesOf,
   changeReasonSchema,
   diffAuditFields,
@@ -2880,5 +2882,19 @@ describe("vale da folha", () => {
     expect(payrollEntryDescription({ ...advance, reason: "Mercado" })).toBe(
       "Vale · Mercado",
     );
+  });
+});
+
+describe("Telegram (TG1)", () => {
+  it("usa só admin como padrão provisório e remove perfis repetidos", () => {
+    expect(resolveTelegramLinkRoles(undefined)).toEqual(["admin"]);
+    expect(resolveTelegramLinkRoles(["gestora"])).toEqual(["admin"]);
+    expect(resolveTelegramLinkRoles([])).toEqual([]);
+    expect(
+      telegramSettingsInputSchema.parse({ linkRoles: ["user", "user", "admin"] }),
+    ).toEqual({ linkRoles: ["user", "admin"] });
+    expect(
+      telegramSettingsInputSchema.safeParse({ linkRoles: ["gestora"] }).success,
+    ).toBe(false);
   });
 });
