@@ -485,20 +485,31 @@ numeração antiga, mapeada em cada tarefa) e no histórico do git.
   - Documentar em `endpoints.ts`. Testes em `external-api.integration.test.ts`.
 - **Gate:** gate completo
 - **Depende de:** PX2
-- **Status:** DOING
+- **Status:** DONE
 
-### PX3 — Categorias do painel (Estúdio geral / Pilates / Dança / Estética)
+### PX3 — Serviço sem classificação ("Outros") para os filtros do painel
 
-- **Origem:** B6-01 ⏸. **Pergunta ao estúdio:** "Dança é uma aba só, ou Dançaterapia e Ritmos
-  separadas (como no vídeo de referência)?"
+- **Origem:** B6-01. **Respondida pelo dono em 06/11:** no painel, os filtros são os próprios
+  serviços do CRM (vários ao mesmo tempo), agrupados por linha Studio / Estética / Outros, para
+  acompanhar novos serviços sem mudar o painel. A linha é escolhida no cadastro do serviço no
+  CRM e **só** categoriza o painel (não muda nada no funcionamento do CRM). Serviço sem
+  classificação aparece como "Outros". Os serviços que já existem voltam para "sem
+  classificação" (decisão do dono), e o estúdio classifica um a um.
 - **Escopo:**
-  - Lista de categorias configurável, derivada dos serviços do CRM (categoria do painel por
-    serviço).
-  - Fica `BLOCKED` até a resposta. PX1 já entrega a separação Estúdio/Estética que o painel
-    usa hoje.
-- **Gate:** gate completo
-- **Depende de:** PX2
-- **Status:** BLOCKED
+  - Migração nova: `services.business_line` passa a aceitar NULL (sem padrão) e todos os
+    serviços existentes ficam NULL. O CHECK continua aceitando só `studio`/`aesthetics`.
+  - contracts: `ServiceBusinessLine | null` no `Service` e no `ExternalGroupRow.businessLine`;
+    na entrada, ausente ao criar = `null`; no PUT, ausente = mantém e `null` explícito limpa.
+  - Cadastro de serviço em Configurações: "Linha no painel" com "Sem classificação" (padrão),
+    "Studio" e "Estética", e a dica de que isso só vale para o painel. Dados demo coerentes
+    (alguns serviços sem classificação).
+  - API externa: `businessLine: null` sai como está (o painel mostra "Outros"); documentar em
+    `endpoints.ts`. Conferir que `/external/v1/services` devolve `id`, `name` e
+    `businessLine` dos serviços ativos (é a lista de filtros do painel).
+  - Testes API, web e MySQL opt-in.
+- **Gate:** gate completo e `npm run test:mysql`
+- **Depende de:** PX4
+- **Status:** TODO
 
 **Tarefas do `dashboard-studios`** (executadas lá, PR para `main` com `npm run check`; cada uma
 só depois das PX que usa estarem mescladas no CRM e o CRM simulado `apps/bff/src/mock-crm`
@@ -514,7 +525,12 @@ atualizado no mesmo PR):
 - PT5: inscrever pela turma (`EnrollDialog`, `useGroupFlow`) e invalidar o cache de 45 s do
   BFF (`TtlCache.clear`/chave da turma) depois de inscrever, para o cartão atualizar na hora.
   Na turma cheia, a mensagem já vem do CRM (`waitlisted`).
-- PT6 ⏸: filtro de categorias (depende da PX3).
+- PT6: filtro por linha e por serviço em **todas** as telas que hoje filtram por linha
+  (decisão do dono em 06/11). Linha: Tudo / Studio / Estética / Outros (sem classificação);
+  "Tudo" inclui Estética. Serviços: os ativos do CRM (`/external/v1/services`), agrupados por
+  linha, com seleção de vários ao mesmo tempo. A escolha fica na URL e acompanha o usuário entre
+  as telas. Substitui o filtro de linha atual. Atualizar o CRM simulado (`businessLine` nulo
+  em parte dos serviços). Usa a PX3.
 
 ### CD1 — WhatsApp e contato de emergência obrigatórios no cadastro manual
 

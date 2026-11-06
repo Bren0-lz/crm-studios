@@ -121,6 +121,12 @@ function groupRow(
     enrolled,
     freeSeats,
     waitlistCount: group.waitlistCount,
+    // `members` vem por nome; o painel mostra na ordem de inscrição (sort estável no empate).
+    memberNames: [...members]
+      .sort((left, right) =>
+        left.enrollment.enrolledAt.localeCompare(right.enrollment.enrolledAt),
+      )
+      .map(({ enrollment }) => enrollment.patientName),
     occupancyPercent: percent(enrolled, group.capacity),
     sessionsPerMonth,
     monthlyRevenueInCents: currentInCents,

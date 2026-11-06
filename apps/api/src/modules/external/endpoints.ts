@@ -29,7 +29,7 @@ export const nativeEndpoints: ExternalEndpoint[] = [
     path: "/external/v1/groups",
     scope: "sales:read",
     description:
-      "Tabela de turmas: capacidade, inscritos, vagas livres, lista de espera, ocupação, faturamento mensal atual/potencial e linha do serviço no painel (businessLine: studio | aesthetics). Com acesso ao Financeiro, também os matriculados com parcela vencida e a soma delas (overdueMembers, overdueInCents; mesma regra de /external/v1/overdue). Query: includeInactive=true.",
+      "Tabela de turmas: capacidade, inscritos, vagas livres, lista de espera, nomes dos matriculados ativos na ordem de inscrição (memberNames; só o nome, sem a lista de espera, com ou sem acesso a Clientes), ocupação, faturamento mensal atual/potencial e linha do serviço no painel (businessLine: studio | aesthetics). Com acesso ao Financeiro, também os matriculados com parcela vencida e a soma delas (overdueMembers, overdueInCents; mesma regra de /external/v1/overdue). Query: includeInactive=true.",
   },
   {
     method: "GET",
