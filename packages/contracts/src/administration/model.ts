@@ -283,13 +283,16 @@ export const roomInputSchema = z.object({
   capacity: z.number().int().min(1).max(100),
 });
 
-/** Linha do serviço no painel de vendas: Estúdio (aulas, turmas) ou Estética. */
+/**
+ * Linha do serviço no painel de vendas: Studio (aulas, turmas) ou Estética. Só categoriza o
+ * painel; serviço sem linha (`null`) aparece lá como "Outros".
+ */
 export const serviceBusinessLines = ["studio", "aesthetics"] as const;
 export const serviceBusinessLineSchema = z.enum(serviceBusinessLines);
 export const serviceBusinessLineLabels: Record<
   (typeof serviceBusinessLines)[number],
   string
-> = { studio: "Estúdio", aesthetics: "Estética" };
+> = { studio: "Studio", aesthetics: "Estética" };
 
 /**
  * Serviço é só cadastro (nome, duração, linha, profissionais e salas): o valor fica nos planos
@@ -301,8 +304,11 @@ export const serviceInputSchema = z.object({
   /** Profissionais e salas que atendem o serviço; vazio ou ausente = todos. */
   professionalIds: z.array(z.uuid()).max(200).optional(),
   roomIds: z.array(z.uuid()).max(200).optional(),
-  /** Linha no painel de vendas; ausente = `studio` ao criar e mantém a atual ao editar. */
-  businessLine: serviceBusinessLineSchema.optional(),
+  /**
+   * Linha no painel de vendas; `null` = sem classificação. Ausente = `null` ao criar e mantém a
+   * atual ao editar; `null` explícito ao editar limpa.
+   */
+  businessLine: serviceBusinessLineSchema.nullable().optional(),
 });
 
 /** O serviço pode ser agendado com este profissional e esta sala? (vazio = todos). */

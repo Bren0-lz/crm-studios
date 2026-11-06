@@ -43,8 +43,11 @@ export interface ExternalGroupRow {
   monthlyRevenueInCents: number;
   /** Atual + vagas livres × ticket médio (turma cheia). */
   potentialMonthlyRevenueInCents: number;
-  /** Linha do serviço da turma no painel (Estúdio ou Estética). */
-  businessLine: ServiceBusinessLine;
+  /**
+   * Linha do serviço da turma no painel (Studio ou Estética); `null` = serviço sem classificação
+   * ou não encontrado ("Outros" no painel).
+   */
+  businessLine: ServiceBusinessLine | null;
   /**
    * Matriculados ativos com parcela vencida (mesma regra de `GET /external/v1/overdue`). Só vem
    * para quem tem acesso ao Financeiro, junto de `overdueInCents`.

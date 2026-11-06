@@ -108,7 +108,7 @@ export function createRegistryRepository(context: MysqlRepositoryContext) {
             const data = input.data,
               result = await writeAndRead<Service>(
                 client,
-                `UPDATE services SET name=$3,duration_minutes=$4,active=$5,professional_ids=COALESCE($6,professional_ids),room_ids=COALESCE($7,room_ids),business_line=COALESCE($8,business_line) WHERE clinic_id=$1 AND id=$2`,
+                `UPDATE services SET name=$3,duration_minutes=$4,active=$5,professional_ids=COALESCE($6,professional_ids),room_ids=COALESCE($7,room_ids),business_line=CASE WHEN $9 THEN $8 ELSE business_line END WHERE clinic_id=$1 AND id=$2`,
                 [
                   clinicId,
                   id,
@@ -117,7 +117,9 @@ export function createRegistryRepository(context: MysqlRepositoryContext) {
                   data.active,
                   data.professionalIds ?? null,
                   data.roomIds ?? null,
+                  // Ausente mantém a linha atual; `null` explícito limpa (sem classificação).
                   data.businessLine ?? null,
+                  data.businessLine !== undefined,
                 ],
                 `SELECT ${serviceColumns} FROM services WHERE clinic_id=$1 AND id=$2`,
               );

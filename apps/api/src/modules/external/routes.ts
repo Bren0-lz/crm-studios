@@ -81,9 +81,9 @@ function daysSince(oldest: string, today: string) {
 }
 
 /**
- * Linha da turma. `businessLine` vem do serviço da turma; a inadimplência (matriculados ativos
- * com parcela vencida e a soma delas) só entra quando `overdue` é informado (acesso ao
- * Financeiro).
+ * Linha da turma. `businessLine` vem do serviço da turma (`null` sem classificação); a
+ * inadimplência (matriculados ativos com parcela vencida e a soma delas) só entra quando
+ * `overdue` é informado (acesso ao Financeiro).
  */
 function groupRow(
   {
@@ -95,7 +95,7 @@ function groupRow(
     currentInCents,
     potentialInCents,
   }: GroupRevenueRow,
-  businessLines: ReadonlyMap<string, ServiceBusinessLine>,
+  businessLines: ReadonlyMap<string, ServiceBusinessLine | null>,
   overdue?: ReadonlyMap<string, PatientOverdue>,
 ): ExternalGroupRow {
   const late = overdue
@@ -131,7 +131,8 @@ function groupRow(
     sessionsPerMonth,
     monthlyRevenueInCents: currentInCents,
     potentialMonthlyRevenueInCents: potentialInCents,
-    businessLine: businessLines.get(group.serviceId) ?? "studio",
+    // Serviço sem classificação ou não encontrado: `null` ("Outros" no painel).
+    businessLine: businessLines.get(group.serviceId) ?? null,
     ...(overdue
       ? {
           overdueMembers: late.length,
