@@ -472,6 +472,21 @@ numeração antiga, mapeada em cada tarefa) e no histórico do git.
 - **Depende de:** PX1
 - **Status:** DONE
 
+### PX4 — API externa: nomes dos alunos ativos na lista de turmas
+
+- **Origem:** PT2 (bolinhas de iniciais nos cartões do painel). Sem isto, o BFF do painel
+  busca `/external/v1/groups/:id` de cada turma (cerca de N+1 vezes a carga do
+  `groupsOverview` no CRM). Decisão do dono em 06/11: os nomes vêm na própria lista.
+- **Escopo:**
+  - `ExternalGroupRow` ganha `memberNames: string[]`: nomes dos inscritos **ativos** da turma
+    (sem a lista de espera), na ordem de inscrição, calculados no mesmo `groupsOverview` que
+    já monta a lista (nenhuma consulta nova por turma).
+  - Só nomes, que o detalhe da turma já devolve sem `patients.view`; nada de contato.
+  - Documentar em `endpoints.ts`. Testes em `external-api.integration.test.ts`.
+- **Gate:** gate completo
+- **Depende de:** PX2
+- **Status:** DOING
+
 ### PX3 — Categorias do painel (Estúdio geral / Pilates / Dança / Estética)
 
 - **Origem:** B6-01 ⏸. **Pergunta ao estúdio:** "Dança é uma aba só, ou Dançaterapia e Ritmos
