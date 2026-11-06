@@ -30,6 +30,11 @@ export interface ExternalGroupRow {
   enrolled: number;
   freeSeats: number;
   waitlistCount: number;
+  /**
+   * Nomes dos matriculados ativos (sem a lista de espera), na ordem de inscrição. Só o nome,
+   * como no detalhe da turma: vem com ou sem acesso a Clientes.
+   */
+  memberNames: string[];
   /** Matriculados ÷ capacidade, de 0 a 100. */
   occupancyPercent: number;
   /** Encontros por mês: horários semanais × 4 semanas. */

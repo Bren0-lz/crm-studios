@@ -485,7 +485,7 @@ numeração antiga, mapeada em cada tarefa) e no histórico do git.
   - Documentar em `endpoints.ts`. Testes em `external-api.integration.test.ts`.
 - **Gate:** gate completo
 - **Depende de:** PX2
-- **Status:** DOING
+- **Status:** DONE
 
 ### PX3 — Serviço sem classificação ("Outros") para os filtros do painel
 

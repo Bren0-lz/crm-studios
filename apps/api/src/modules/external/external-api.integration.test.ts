@@ -815,6 +815,107 @@ describe("API externa de vendas", () => {
     await app.close();
   });
 
+  it("group list carries the active members' names in enrollment order, without the waitlist", async () => {
+    const { app, repository, createKey } = await setup();
+    const { headers } = await createKey(["sales:read"]);
+    const [service] = await repository.listServices(clinicId);
+    const [professional] = await repository.listProfessionals(clinicId);
+    const [room] = (await repository.listRooms(clinicId)).sort(
+      (left, right) => right.capacity - left.capacity,
+    );
+    const group = await repository.createGroupClass(clinicId, {
+      serviceId: service!.id,
+      professionalId: professional!.id,
+      roomId: room!.id,
+      capacity: 2,
+      weeklySlots: [{ weekday: 4, startTime: "07:00", endTime: "08:00" }],
+    });
+    const createPatient = async (fullName: string) =>
+      (
+        await repository.createPatient(clinicId, {
+          fullName,
+          cpf: nextTestCpf(),
+          phone: "11988887777",
+          tags: [],
+        })
+      ).id;
+    // Inscrição fora da ordem alfabética: Zélia antes de Ana; Bruna fica na espera.
+    const zelia = await createPatient("Zélia Inscrita Primeiro");
+    const ana = await createPatient("Ana Inscrita Depois");
+    const bruna = await createPatient("Bruna Na Espera");
+    await repository.createGroupEnrollment(clinicId, {
+      groupId: group.id,
+      patientId: zelia,
+      startsOn: "2020-01-01",
+    });
+    await repository.createGroupEnrollment(clinicId, {
+      groupId: group.id,
+      patientId: ana,
+      startsOn: "2020-02-01",
+    });
+    const waiting = await repository.createGroupEnrollment(clinicId, {
+      groupId: group.id,
+      patientId: bruna,
+    });
+    expect(waiting.status).toBe("waitlisted");
+
+    const namesAs = async (extra: Record<string, string> = {}) => {
+      const response = await app.inject({
+        url: "/external/v1/groups",
+        headers: { ...headers, ...extra },
+      });
+      expect(response.statusCode, response.body).toBe(200);
+      const row = (
+        response.json().groups as { id: string; memberNames: string[] }[]
+      ).find((item) => item.id === group.id)!;
+      const details = await app.inject({
+        url: `/external/v1/groups/${group.id}`,
+        headers: { ...headers, ...extra },
+      });
+      expect(details.statusCode, details.body).toBe(200);
+      expect(details.json().memberNames).toEqual(row.memberNames);
+      return row.memberNames;
+    };
+    const expected = ["Zélia Inscrita Primeiro", "Ana Inscrita Depois"];
+    // Dono da chave (admin, com patients.view).
+    expect(await namesAs()).toEqual(expected);
+
+    const loginWith = async (email: string, permissions: string[]) => {
+      await repository.createAdminUser(
+        clinicId,
+        OWNER_ID,
+        {
+          fullName: email,
+          email,
+          password: "Password123",
+          role: "user",
+          permissions: permissions as never,
+          dashboardAccess: true,
+        },
+        hashSync("Password123", 4),
+      );
+      const logged = await app.inject({
+        method: "POST",
+        url: "/external/v1/auth/login",
+        headers,
+        payload: { email, password: "Password123" },
+      });
+      expect(logged.statusCode, logged.body).toBe(200);
+      return { "x-crm-user-token": logged.json().token as string };
+    };
+    const base = ["groups.view", "plans.view"];
+    // Sem patients.view: os mesmos nomes (só o nome, como no detalhe).
+    expect(
+      await namesAs(await loginWith("turmas-nomes@example.com", base)),
+    ).toEqual(expected);
+    expect(
+      await namesAs(
+        await loginWith("clientes-nomes@example.com", [...base, "patients.view"]),
+      ),
+    ).toEqual(expected);
+    await app.close();
+  });
+
   it("proxies writes with the internal validation, 404s and history", async () => {
     const { app, repository, createKey } = await setup();
     const { headers } = await createKey();
