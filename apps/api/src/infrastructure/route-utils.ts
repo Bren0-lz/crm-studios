@@ -2,6 +2,7 @@ import type { UserSummary } from "@crm/contracts";
 import { z } from "zod";
 import type { ClinicRepository } from "../repository.js";
 import type { DomainEventPublisher } from "./domain-events.js";
+import type { TelegramIntegration } from "./telegram-client.js";
 
 // A interface manda `patientId=` vazio para listar tudo; o PostgreSQL não aceita "" como uuid.
 export const optionalPatientFilterSchema = z.object({
@@ -18,6 +19,11 @@ export interface BuildAppOptions {
   trustProxy?: number;
   /** Eventos de domínio (ex.: `receipt.signed`); padrão: publicador em memória do processo. */
   events?: DomainEventPublisher;
+  /**
+   * Telegram (TG1): cliente e segredo do webhook; `null` = desligada. Padrão: a partir de
+   * `TELEGRAM_BOT_TOKEN` (sem a variável, desligada). Os testes injetam um cliente falso.
+   */
+  telegram?: TelegramIntegration | null;
 }
 
 declare module "@fastify/jwt" {
