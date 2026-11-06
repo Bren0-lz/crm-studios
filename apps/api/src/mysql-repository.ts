@@ -6,6 +6,7 @@ import { createCommissionReconciliationRepository } from "./storage/mysql/commis
 import { createExternalOperationsRepository } from "./storage/mysql/external-operations.js";
 import { createPaymentProofsRepository } from "./storage/mysql/payment-proofs.js";
 import { createReceiptSignaturesRepository } from "./storage/mysql/receipt-signatures.js";
+import { createTelegramRepository } from "./storage/mysql/telegram.js";
 import { createPlanPurchasesRepository } from "./storage/mysql/plan-purchases.js";
 import { createFinancialDatesRepository } from "./storage/mysql/financial-dates.js";
 import { createRegistryRepository } from "./storage/mysql/registry.js";
@@ -74,6 +75,17 @@ export class MysqlClinicRepository implements ClinicRepository {
   readonly markReceiptSignatureSent: ClinicRepository["markReceiptSignatureSent"];
   readonly openPublicReceiptSignature: ClinicRepository["openPublicReceiptSignature"];
   readonly signPublicReceiptSignature: ClinicRepository["signPublicReceiptSignature"];
+  readonly getTelegramSettings: ClinicRepository["getTelegramSettings"];
+  readonly saveTelegramSettings: ClinicRepository["saveTelegramSettings"];
+  readonly getTelegramLink: ClinicRepository["getTelegramLink"];
+  readonly listTelegramLinks: ClinicRepository["listTelegramLinks"];
+  readonly deleteTelegramLink: ClinicRepository["deleteTelegramLink"];
+  readonly createTelegramLinkCode: ClinicRepository["createTelegramLinkCode"];
+  readonly linkTelegramChat: ClinicRepository["linkTelegramChat"];
+  readonly enqueueTelegramMessages: ClinicRepository["enqueueTelegramMessages"];
+  readonly claimTelegramOutbox: ClinicRepository["claimTelegramOutbox"];
+  readonly recordTelegramDelivery: ClinicRepository["recordTelegramDelivery"];
+  readonly listTelegramOutbox: ClinicRepository["listTelegramOutbox"];
   readonly purchasePatientPlan: ClinicRepository["purchasePatientPlan"];
   readonly getAdministrativeRegistry: ClinicRepository["getAdministrativeRegistry"];
   readonly updateAdministrativeRegistry: ClinicRepository["updateAdministrativeRegistry"];
@@ -192,6 +204,18 @@ export class MysqlClinicRepository implements ClinicRepository {
       receiptSignatures.openPublicReceiptSignature;
     this.signPublicReceiptSignature =
       receiptSignatures.signPublicReceiptSignature;
+    const telegram = createTelegramRepository(this.context);
+    this.getTelegramSettings = telegram.getTelegramSettings;
+    this.saveTelegramSettings = telegram.saveTelegramSettings;
+    this.getTelegramLink = telegram.getTelegramLink;
+    this.listTelegramLinks = telegram.listTelegramLinks;
+    this.deleteTelegramLink = telegram.deleteTelegramLink;
+    this.createTelegramLinkCode = telegram.createTelegramLinkCode;
+    this.linkTelegramChat = telegram.linkTelegramChat;
+    this.enqueueTelegramMessages = telegram.enqueueTelegramMessages;
+    this.claimTelegramOutbox = telegram.claimTelegramOutbox;
+    this.recordTelegramDelivery = telegram.recordTelegramDelivery;
+    this.listTelegramOutbox = telegram.listTelegramOutbox;
     this.purchasePatientPlan = createPlanPurchasesRepository(
       this.context,
     ).purchasePatientPlan;

@@ -62,6 +62,8 @@ import {
 export const INTEGRATION_RATE_LIMIT = 120;
 import { type BuildAppOptions } from "./route-utils.js";
 import { createDomainEventPublisher } from "./domain-events.js";
+import { telegramIntegrationFromEnv } from "./telegram-client.js";
+import { createTelegramService } from "../modules/integrations/telegram.js";
 
 // Regras padrão do zod em pt-BR: a resposta 400 diz ao usuário o que corrigir.
 z.config({ customError: ptBrValidationError });
@@ -71,6 +73,7 @@ export async function createRouteContext({
   logger = true,
   trustProxy = config.TRUST_PROXY,
   events: injectedEvents,
+  telegram: injectedTelegram,
 }: BuildAppOptions) {
   const app = Fastify({
     logger,
@@ -88,6 +91,16 @@ export async function createRouteContext({
     createDomainEventPublisher((error, event) =>
       app.log.error({ err: error, event: event.type }, "domain event handler"),
     );
+
+  // Telegram: sem token, desligado (a fila não recebe nada e a tela avisa).
+  const telegram = createTelegramService({
+    repository,
+    integration:
+      injectedTelegram === undefined
+        ? telegramIntegrationFromEnv()
+        : injectedTelegram,
+    log: app.log,
+  });
 
   const loginAttempts = new Map<
     string,
@@ -889,6 +902,7 @@ export async function createRouteContext({
     loginAttempts,
     repository,
     events,
+    telegram,
     toUserSummary,
     authenticate,
     autoFinalizer,
