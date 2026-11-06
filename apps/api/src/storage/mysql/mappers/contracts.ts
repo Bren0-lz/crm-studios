@@ -1,3 +1,4 @@
+import { documentRequiresPatientCpf } from "@crm/contracts";
 import type { DocumentContent, ClinicBranding } from "@crm/contracts";
 import { isoText } from "../sql.js";
 import { json } from "./common.js";
@@ -37,6 +38,10 @@ export interface SignatureLinkRow {
 }
 
 export interface IssuedDocumentRow {
+  requiresPatientCpf: boolean | number | null;
+  patientCpf: string | null;
+  templateBody: string | null;
+  templateContent: DocumentContent | null;
   manualSignature?: IssuedDocument["manualSignature"] | null;
   signatureLink?: SignatureLinkRow | null;
   id: string;
@@ -74,12 +79,15 @@ export const documentTemplateColumns = `
 
 /** Junções que `issuedDocumentColumns` pede (`d` = issued_documents): quem assina é cliente ou fornecedor. */
 export const issuedDocumentJoins = `
+  LEFT JOIN document_templates dt ON dt.id = d.template_id AND dt.clinic_id = d.clinic_id
   LEFT JOIN patients p ON p.id = d.patient_id AND p.clinic_id = d.clinic_id
   LEFT JOIN suppliers s ON s.id = d.supplier_id AND s.clinic_id = d.clinic_id
   LEFT JOIN patient_plans pp ON pp.id = d.plan_id AND pp.clinic_id = d.clinic_id
 `;
 
 export const issuedDocumentColumns = `
+  d.requires_patient_cpf AS "requiresPatientCpf", p.cpf AS "patientCpf",
+  dt.body AS "templateBody", dt.content AS "templateContent",
   d.id, d.clinic_id AS "clinicId", d.template_id AS "templateId",
   d.patient_id AS "patientId", d.supplier_id AS "supplierId", d.plan_id AS "planId",
   d.professional_id AS "professionalId", d.title,
@@ -143,7 +151,18 @@ export function mapDocumentTemplate(
 }
 
 export function mapIssuedDocument(row: IssuedDocumentRow): IssuedDocument {
+  const requiresPatientCpf =
+    row.requiresPatientCpf === null
+      ? documentRequiresPatientCpf({
+          body: row.templateBody ?? "",
+          content: row.templateContent ? json(row.templateContent) : undefined,
+        })
+      : Boolean(row.requiresPatientCpf);
   return {
+    requiresPatientCpf,
+    patientCpfMissing: Boolean(
+      row.patientId && requiresPatientCpf && !row.patientCpf,
+    ),
     id: row.id,
     clinicId: row.clinicId,
     templateId: row.templateId,

@@ -1,5 +1,6 @@
 import {
   documentTemplateInputSchema,
+  documentRequiresPatientCpf,
   documentTemplateVersionInputSchema,
   documentBranding,
   prepareDocumentContent,
@@ -24,6 +25,7 @@ import {
   DomainError,
   type DocumentTemplateVersionOptions,
 } from "../../repository.js";
+import { assertDocumentPatientCpf } from "../../modules/contracts/patient-cpf.js";
 import { randomUUID } from "node:crypto";
 import type { MysqlRepositoryContext } from "./context.js";
 import { orderedItems } from "./mappers/plans.js";
@@ -306,6 +308,14 @@ export function createContractsRepository(
             "Este documento já foi emitido.",
             409,
           );
+        if (status === "issued") {
+          const document = await repositoryContext.findIssuedDocument(
+            client,
+            clinicId,
+            documentId,
+          );
+          assertDocumentPatientCpf(document!);
+        }
         await client.query(
           `UPDATE issued_documents
          SET status = $3,
@@ -344,8 +354,8 @@ export async function createIssuedDocumentInTransaction(
     client,
     `INSERT INTO issued_documents
        (clinic_id, template_id, patient_id, plan_id, title, template_name,
-        template_version, snapshot_body, created_by_user_id, professional_id, snapshot_content, branding, id, supplier_id)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
+        template_version, snapshot_body, created_by_user_id, professional_id, snapshot_content, branding, id, supplier_id, requires_patient_cpf)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`,
     [
       clinicId,
       input.templateId,
@@ -361,6 +371,7 @@ export async function createIssuedDocumentInTransaction(
       JSON.stringify(item.branding),
       randomUUID(),
       input.supplierId || null,
+      item.requiresPatientCpf,
     ],
     `SELECT ${issuedDocumentColumns}
        FROM issued_documents d
@@ -592,6 +603,10 @@ async function prepareDocumentInTransaction(
       : {}),
     issuedOn: emissionDate,
   });
+  const requiresPatientCpf = documentRequiresPatientCpf({
+    body: item.templateBody,
+    content: item.templateContent ? json(item.templateContent) : undefined,
+  });
   return {
     ...prepareDocumentContent(
       item.templateBody,
@@ -599,6 +614,10 @@ async function prepareDocumentInTransaction(
       values,
     ),
     branding,
+    requiresPatientCpf,
+    patientCpfMissing: Boolean(
+      input.patientId && !item.patientCpf && requiresPatientCpf,
+    ),
     templateName: item.templateName,
     templateVersion: item.templateVersion,
     patientName:

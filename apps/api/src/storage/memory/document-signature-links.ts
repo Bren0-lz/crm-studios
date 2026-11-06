@@ -19,6 +19,8 @@ import {
 } from "../../modules/signatures/signature-evidence.js";
 import type { MemoryRepositoryContext } from "./context.js";
 import { now } from "./helpers.js";
+import { withDocumentPatientCpf } from "./document-patient-cpf.js";
+import { assertDocumentPatientCpf } from "../../modules/contracts/patient-cpf.js";
 
 interface StoredLink extends DocumentSignatureLinkDetails {
   clinicId: string;
@@ -97,6 +99,7 @@ export function createDocumentSignatureLinksRepository(
       // Link vencido sem assinatura: troca o token (o antigo deixa de abrir) e renova o prazo.
       const renewing = Boolean(link && signatureLinkExpired(link));
       if (!link || renewing) {
+        assertDocumentPatientCpf(withDocumentPatientCpf(context, document));
         const actor = context.users.find(
           (item) => item.clinicId === clinicId && item.id === actorUserId,
         );

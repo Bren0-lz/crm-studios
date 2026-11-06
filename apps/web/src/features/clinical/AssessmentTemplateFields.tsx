@@ -13,7 +13,7 @@ export function AssessmentTemplateFields({
 }) {
   const [preview, setPreview] = useState(false);
   return (
-    <>
+    <div className="assessment-template-fields">
       <div className="form-grid">
         <label>
           Nome do modelo
@@ -62,6 +62,6 @@ export function AssessmentTemplateFields({
           />
         </fieldset>
       )}
-    </>
+    </div>
   );
 }

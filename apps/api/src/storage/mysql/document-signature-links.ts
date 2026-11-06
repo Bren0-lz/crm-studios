@@ -10,6 +10,7 @@ import {
   type PublicSignatureDocument,
 } from "@crm/contracts";
 import type { PoolClient } from "../../infrastructure/mysql-client.js";
+import { assertDocumentPatientCpf } from "../../modules/contracts/patient-cpf.js";
 import { DomainError } from "../../repository.js";
 import {
   assertSignatureLinkOpen,
@@ -138,6 +139,12 @@ export function createDocumentSignatureLinksRepository(
           current.expiresAt.getTime() <= Date.now(),
         );
         if (!token || renewing) {
+          const currentDocument = await context.findIssuedDocument(
+            client,
+            clinicId,
+            documentId,
+          );
+          assertDocumentPatientCpf(currentDocument!);
           token = createSignatureToken();
           const createdAt = new Date().toISOString();
           await client.query(

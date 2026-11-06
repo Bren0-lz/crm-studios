@@ -98,6 +98,7 @@ describe("supplier documents", () => {
       url: `/public/document-signatures/${share.token}`,
       payload: {
         signerName: "Responsável do fornecedor",
+        signerCpf: "52998224725",
         accepted: true,
         signatureImage,
       },
