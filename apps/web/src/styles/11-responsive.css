@@ -607,8 +607,12 @@
     display: none;
   }
 
+  .receivables-table {
+    display: block;
+  }
+
   .finance-list .finance-row,
-  .receivables-table.selectable .finance-row {
+  .receivables-table > .finance-row {
     grid-template-columns: 1fr;
     gap: var(--space-2);
     padding: var(--space-4);
