@@ -730,7 +730,10 @@ export interface ClinicRepository {
     clinicId: string,
     input: TelegramSettingsInput,
   ): Promise<TelegramSettings>;
-  getTelegramLink(clinicId: string, userId: string): Promise<TelegramLink | null>;
+  getTelegramLink(
+    clinicId: string,
+    userId: string,
+  ): Promise<TelegramLink | null>;
   /** Chats vinculados de usuários ativos da clínica (destino dos avisos). */
   listTelegramLinks(clinicId: string): Promise<TelegramLink[]>;
   /** Desvincula o chat do usuário; `false` se não havia vínculo. */
@@ -1616,6 +1619,11 @@ export interface ClinicRepository {
     query: LeadDuplicateQuery,
   ): Promise<LeadDuplicateMatch[]>;
   createLead(clinicId: string, input: LeadInput): Promise<Lead>;
+  importEventParticipants(
+    clinicId: string,
+    eventId: string,
+    inputs: LeadInput[],
+  ): Promise<number>;
   updateLead(
     clinicId: string,
     actorUserId: string,

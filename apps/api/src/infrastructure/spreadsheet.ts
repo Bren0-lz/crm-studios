@@ -1,5 +1,6 @@
 import { splitPhone } from "@crm/contracts";
 import ExcelJS from "exceljs";
+import { DomainError } from "../repository.js";
 
 /**
  * Planilhas exportadas pelo CRM: um visual só para todas as abas. Cabeçalho sempre na
@@ -215,4 +216,150 @@ export function addTableSheet<Row>(
       to: { row: Math.max(1, rows.length + 1), column: columns.length },
     };
   return sheet;
+}
+
+function detectSeparator(text: string): ";" | "," {
+  let semicolons = 0;
+  let commas = 0;
+  let quoted = false;
+  for (const char of text) {
+    if (char === '"') quoted = !quoted;
+    else if (!quoted && (char === "\n" || char === "\r")) break;
+    else if (!quoted && char === ";") semicolons += 1;
+    else if (!quoted && char === ",") commas += 1;
+  }
+  return semicolons >= commas && semicolons > 0 ? ";" : ",";
+}
+
+/**
+ * Decodifica o conteúdo de um CSV: UTF-8 quando válido; senão Windows-1252 (Latin-1),
+ * padrão do "CSV" salvo pelo Excel em português.
+ */
+export function decodeCsvText(bytes: Uint8Array): string {
+  try {
+    return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+  } catch {
+    return new TextDecoder("windows-1252").decode(bytes);
+  }
+}
+
+/** Lê CSV com separador `;` ou `,` (detectado pela primeira linha), aspas duplas e BOM. */
+export function parseCsv(text: string): string[][] {
+  const source = text.startsWith("﻿") ? text.slice(1) : text;
+  if (source.length === 0) return [];
+  const separator = detectSeparator(source);
+  const rows: string[][] = [];
+  let row: string[] = [];
+  let cell = "";
+  let quoted = false;
+  for (let index = 0; index < source.length; index += 1) {
+    const char = source[index];
+    if (quoted) {
+      if (char === '"') {
+        if (source[index + 1] === '"') {
+          cell += '"';
+          index += 1;
+        } else {
+          quoted = false;
+        }
+      } else {
+        cell += char;
+      }
+    } else if (char === '"') {
+      quoted = true;
+    } else if (char === separator) {
+      row.push(cell);
+      cell = "";
+    } else if (char === "\r" || char === "\n") {
+      if (char === "\r" && source[index + 1] === "\n") index += 1;
+      row.push(cell);
+      rows.push(row);
+      row = [];
+      cell = "";
+    } else {
+      cell += char;
+    }
+  }
+  if (cell.length > 0 || row.length > 0) {
+    row.push(cell);
+    rows.push(row);
+  }
+  return rows;
+}
+
+function isoDateFromUtc(date: Date): string {
+  return date.toISOString().slice(0, 10);
+}
+
+function cellToString(value: ExcelJS.CellValue): string {
+  if (value === null || value === undefined) return "";
+  if (value instanceof Date) return isoDateFromUtc(value);
+  if (typeof value === "string") return value;
+  if (typeof value === "number" || typeof value === "boolean")
+    return String(value);
+  if ("richText" in value)
+    return value.richText.map((part) => part.text).join("");
+  // Em planilhas reais o texto de um link pode vir como rich text.
+  if ("hyperlink" in value)
+    return cellToString(value.text as ExcelJS.CellValue);
+  if ("formula" in value || "sharedFormula" in value) {
+    const result = value.result;
+    if (result === undefined) return "";
+    if (result instanceof Date) return isoDateFromUtc(result);
+    return typeof result === "object" ? "" : String(result);
+  }
+  return "";
+}
+
+/** Lê as linhas da primeira aba de um XLSX como texto (datas viram aaaa-mm-dd). */
+export async function readXlsxRows(buffer: Buffer): Promise<string[][]> {
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.load(
+    buffer as unknown as Parameters<typeof workbook.xlsx.load>[0],
+  );
+  const sheet = workbook.worksheets[0];
+  if (!sheet) return [];
+  const rows: string[][] = [];
+  const columnCount = sheet.columnCount;
+  for (let rowNumber = 1; rowNumber <= sheet.rowCount; rowNumber += 1) {
+    const row = sheet.getRow(rowNumber);
+    const cells: string[] = [];
+    for (let column = 1; column <= columnCount; column += 1) {
+      cells.push(cellToString(row.getCell(column).value));
+    }
+    rows.push(cells);
+  }
+  return rows;
+}
+
+/** Leitura compartilhada pelas importações de clientes e participantes. */
+export async function readSpreadsheetFile(
+  file: { fileName: string; contentBase64: string },
+  errorPrefix: string,
+): Promise<string[][]> {
+  const extension = /\.([^.]+)$/.exec(file.fileName)?.[1]?.toLowerCase();
+  if (extension !== "csv" && extension !== "xlsx")
+    throw new DomainError(
+      `${errorPrefix}_UNSUPPORTED_FILE`,
+      "Formato não suportado. Envie uma planilha .csv ou .xlsx.",
+      400,
+    );
+  const buffer = Buffer.from(file.contentBase64, "base64");
+  if (buffer.length > 2 * 1024 * 1024)
+    throw new DomainError(
+      `${errorPrefix}_TOO_LARGE`,
+      "O arquivo passa de 2 MB. Divida a planilha em partes menores.",
+      413,
+    );
+  try {
+    return extension === "csv"
+      ? parseCsv(decodeCsvText(buffer))
+      : await readXlsxRows(buffer);
+  } catch {
+    throw new DomainError(
+      `${errorPrefix}_INVALID_FILE`,
+      "Não foi possível ler a planilha. Verifique se o arquivo não está corrompido.",
+      400,
+    );
+  }
 }

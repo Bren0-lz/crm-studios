@@ -5,6 +5,7 @@ import {
   leadContactInputSchema,
   leadDuplicateQuerySchema,
   leadInputSchema,
+  eventLeadInputSchema,
   leadConversionInputSchema,
   leadMoveSchema,
   leadTaskInputSchema,
@@ -113,16 +114,18 @@ export function registerCommercialRoutes(context: RouteContext) {
     }),
   );
 
-  app.post("/leads", { preHandler: authenticate }, async (request, reply) =>
-    reply
+  app.post("/leads", { preHandler: authenticate }, async (request, reply) => {
+    const participant =
+      typeof request.body === "object" &&
+      request.body !== null &&
+      "eventId" in request.body;
+    const input = (participant ? eventLeadInputSchema : leadInputSchema).parse(
+      request.body,
+    );
+    return reply
       .status(201)
-      .send(
-        await repository.createLead(
-          request.user.clinicId,
-          leadInputSchema.parse(request.body),
-        ),
-      ),
-  );
+      .send(await repository.createLead(request.user.clinicId, input));
+  });
 
   app.put(
     "/leads/:id",

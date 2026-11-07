@@ -2,6 +2,9 @@ import type {
   CommercialEvent,
   CommercialEventDetail,
   EventInput,
+  EventImportFileInput,
+  EventImportAnalysis,
+  EventImportResult,
   Lead,
   LeadActivity,
   LeadBoard,
@@ -37,6 +40,16 @@ function leadQuery(filter: LeadFilter, extra: Record<string, number> = {}) {
 export const commercialApi = {
   events: () => request<CommercialEvent[]>("/events"),
   event: (id: string) => request<CommercialEventDetail>(`/events/${id}`),
+  previewEventImport: (id: string, input: EventImportFileInput) =>
+    request<EventImportAnalysis>(`/events/${id}/import/preview`, {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  importEventParticipants: (id: string, input: EventImportFileInput) =>
+    request<EventImportResult>(`/events/${id}/import`, {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
   createEvent: (input: EventInput) =>
     request<CommercialEvent>("/events", {
       method: "POST",

@@ -45,12 +45,8 @@ import { config } from "../config.js";
 import { createAutoFinalizer } from "../modules/agenda/auto-finalization.js";
 import { hashIntegrationToken } from "../modules/integrations/tokens.js";
 import { buildBroadcast } from "../modules/communications/broadcast.js";
-import {
-  decodeCsvText,
-  parseCsv,
-  readXlsxRows,
-  validatePatientImport,
-} from "../modules/patients/patient-import.js";
+import { validatePatientImport } from "../modules/patients/patient-import.js";
+import { readSpreadsheetFile } from "./spreadsheet.js";
 import { type AuthenticatedUser, DomainError } from "../repository.js";
 import {
   moduleDeniedCodes,
@@ -830,40 +826,12 @@ export async function createRouteContext({
     message: "Etiqueta não encontrada.",
   } satisfies ApiError;
 
-  const patientImportMaxBytes = 2 * 1024 * 1024;
-
   async function analyzePatientImport(
     clinicId: string,
     body: unknown,
   ): Promise<PatientImportAnalysis> {
     const file = patientImportFileSchema.parse(body);
-    const extension = /\.([^.]+)$/.exec(file.fileName)?.[1]?.toLowerCase();
-    if (extension !== "csv" && extension !== "xlsx")
-      throw new DomainError(
-        "PATIENT_IMPORT_UNSUPPORTED_FILE",
-        "Formato não suportado. Envie uma planilha .csv ou .xlsx.",
-        400,
-      );
-    const buffer = Buffer.from(file.contentBase64, "base64");
-    if (buffer.length > patientImportMaxBytes)
-      throw new DomainError(
-        "PATIENT_IMPORT_TOO_LARGE",
-        "O arquivo passa de 2 MB. Divida a planilha em partes menores.",
-        413,
-      );
-    let rows: string[][];
-    try {
-      rows =
-        extension === "csv"
-          ? parseCsv(decodeCsvText(buffer))
-          : await readXlsxRows(buffer);
-    } catch {
-      throw new DomainError(
-        "PATIENT_IMPORT_INVALID_FILE",
-        "Não foi possível ler a planilha. Verifique se o arquivo não está corrompido.",
-        400,
-      );
-    }
+    const rows = await readSpreadsheetFile(file, "PATIENT_IMPORT");
     const [patients, tags] = await Promise.all([
       repository.listPatients(clinicId),
       repository.listPatientTags(clinicId),

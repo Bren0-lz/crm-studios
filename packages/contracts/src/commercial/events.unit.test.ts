@@ -5,6 +5,8 @@ import {
   EVENT_LEAD_DEFAULT_INTEREST,
   EVENT_NAME_MAX,
   eventInputSchema,
+  eventLeadInputSchema,
+  eventImportFileSchema,
   eventLeadSource,
   hasEventInterest,
   LEAD_NOTES_MAX,
@@ -67,6 +69,42 @@ describe("eventos do comercial", () => {
         interest: EVENT_LEAD_DEFAULT_INTEREST,
       }).success,
     ).toBe(true);
+  });
+
+  it("aceita participantes sem campos e valida o mapeamento", () => {
+    const eventId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+    expect(eventLeadInputSchema.parse({ eventId })).toMatchObject({
+      fullName: "",
+      phone: "",
+      interest: "Evento",
+      tags: [],
+    });
+    expect(
+      eventLeadInputSchema.parse({ eventId, phone: "123", fullName: "A" })
+        .phone,
+    ).toBe("123");
+    expect(
+      eventLeadInputSchema.parse({ eventId, phone: "+55 (11) 99999-1234" })
+        .phone,
+    ).toBe("11999991234");
+    expect(eventLeadInputSchema.safeParse({ phone: "123" }).success).toBe(
+      false,
+    );
+    const file = { fileName: "lista.csv", contentBase64: "eA==" };
+    expect(
+      eventImportFileSchema.safeParse({
+        ...file,
+        mapping: [null, "email", "notes"],
+      }).success,
+    ).toBe(true);
+    expect(
+      eventImportFileSchema.safeParse({ ...file, mapping: ["phone", "phone"] })
+        .success,
+    ).toBe(false);
+    expect(
+      eventImportFileSchema.safeParse({ ...file, mapping: ["desconhecido"] })
+        .success,
+    ).toBe(false);
   });
 
   it("conta interesse só quando diferente do padrão 'Evento'", () => {

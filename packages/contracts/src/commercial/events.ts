@@ -1,6 +1,8 @@
 import { z } from "zod";
 import { LEAD_LOST_STAGE } from "./stages.js";
 import type { Lead } from "./types.js";
+import { leadInputSchema } from "./model.js";
+import { splitPhone } from "../common/model.js";
 
 /**
  * Eventos do comercial (aulão, feira, palestra): o participante é um lead do CRM ligado ao
@@ -9,6 +11,86 @@ import type { Lead } from "./types.js";
 export const EVENT_LEAD_SOURCE_PREFIX = "Evento: ";
 /** Interesse do participante enquanto ninguém registrou o que ele procura. */
 export const EVENT_LEAD_DEFAULT_INTEREST = "Evento";
+
+/** Participantes podem entrar sem dados de contato e sem validação do telefone. */
+export const eventLeadInputSchema = leadInputSchema.extend({
+  eventId: z.uuid(),
+  fullName: z.string().trim().max(160).default(""),
+  phone: z
+    .string()
+    .trim()
+    .max(40)
+    .default("")
+    .transform((value) => {
+      const { ddd, number } = splitPhone(value);
+      return ddd ? ddd + number.replace(/\D/g, "") : value;
+    }),
+  source: leadInputSchema.shape.source.default("Evento"),
+  interest: leadInputSchema.shape.interest.default(EVENT_LEAD_DEFAULT_INTEREST),
+});
+
+export const eventImportFieldLabels = {
+  fullName: "Nome",
+  phone: "Telefone",
+  whatsapp: "WhatsApp",
+  email: "E-mail",
+  interest: "Interesse",
+  notes: "Observações",
+  phoneAreaCode: "DDD do telefone",
+  whatsappAreaCode: "DDD do WhatsApp",
+} as const;
+export const eventImportFieldSchema = z.enum([
+  "fullName",
+  "phone",
+  "whatsapp",
+  "email",
+  "interest",
+  "notes",
+  "phoneAreaCode",
+  "whatsappAreaCode",
+]);
+export type EventImportField = z.infer<typeof eventImportFieldSchema>;
+export const eventImportFileSchema = z.object({
+  fileName: z.string().trim().min(1).max(255),
+  contentBase64: z.string().min(1),
+  mapping: z
+    .array(eventImportFieldSchema.nullable())
+    .max(200)
+    .optional()
+    .superRefine((mapping, context) => {
+      const used = new Set<string>();
+      for (const field of mapping ?? []) {
+        if (!field) continue;
+        if (used.has(field)) {
+          context.addIssue({
+            code: "custom",
+            message: `O campo ${eventImportFieldLabels[field]} foi escolhido em mais de uma coluna.`,
+          });
+          return;
+        }
+        used.add(field);
+      }
+    }),
+});
+export type EventImportFileInput = z.infer<typeof eventImportFileSchema>;
+export interface EventImportAnalysis {
+  columns: { index: number; title: string; samples: string[] }[];
+  mapping: (EventImportField | null)[];
+  rows: {
+    line: number;
+    fullName: string;
+    phone: string;
+    status: "valid" | "error";
+    errors: string[];
+    input?: z.infer<typeof eventLeadInputSchema>;
+  }[];
+  errors: string[];
+  totals: { valid: number; error: number };
+}
+export interface EventImportResult {
+  created: number;
+  errors: number;
+}
 /** O nome cabe na origem do lead ("Evento: <nome>", até 80 caracteres). */
 export const EVENT_NAME_MAX = 80 - EVENT_LEAD_SOURCE_PREFIX.length;
 export const EVENT_LOCATION_MAX = 160;

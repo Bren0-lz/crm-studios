@@ -56,12 +56,7 @@ import {
   branchClause,
 } from "./helpers.js";
 import { randomUUID } from "node:crypto";
-import {
-  branchOrDefault,
-  insertRows,
-  localDate,
-  writeAndRead,
-} from "./sql.js";
+import { branchOrDefault, insertRows, localDate, writeAndRead } from "./sql.js";
 
 /** Etiquetas (array JSON) como texto separado por espaços. */
 const tagsText = (column: string) =>
@@ -105,9 +100,7 @@ function leadFilterSql(
     conditions.push(`lost_reason = ${param(filter.lostReason)}`);
   if (filter.stage) conditions.push(`stage = ${param(filter.stage)}`);
   if (filter.responsibleUserId)
-    conditions.push(
-      `responsible_user_id = ${param(filter.responsibleUserId)}`,
-    );
+    conditions.push(`responsible_user_id = ${param(filter.responsibleUserId)}`);
   if (filter.from || filter.to) {
     // Dia no fuso fixo da clínica (`timezone` mantido na assinatura para o memória).
     void timezone;
@@ -136,6 +129,73 @@ const listStages = (db: Pool | PoolClient, clinicId: string) =>
 export function createCommercialRepository(
   repositoryContext: MysqlRepositoryContext,
 ) {
+  async function createLead(
+    clinicId: string,
+    input: LeadInput,
+    db: Pool | PoolClient = repositoryContext.pool,
+  ) {
+    if (input.responsibleUserId) {
+      const responsible = await db.query(
+        `SELECT 1 FROM users WHERE clinic_id = $1 AND id = $2 AND active`,
+        [clinicId, input.responsibleUserId],
+      );
+      if (!responsible.rows[0])
+        throw new DomainError(
+          "RESPONSIBLE_USER_NOT_FOUND",
+          "Responsável não encontrado.",
+          404,
+        );
+    }
+    // Participante de evento: origem "Evento: <nome>" e a filial do evento (se tiver).
+    const event = input.eventId
+      ? (
+          await db.query<{
+            name: string;
+            branchId: string | null;
+          }>(
+            `SELECT name, branch_id AS "branchId" FROM events
+               WHERE clinic_id = $1 AND id = $2
+                 AND (branch_id IS NULL OR ${branchClause("branch_id", 3)})`,
+            [clinicId, input.eventId, repositoryContext.branchReadIds()],
+          )
+        ).rows[0]
+      : undefined;
+    if (input.eventId && !event)
+      throw new DomainError("EVENT_NOT_FOUND", "Evento não encontrado.", 404);
+    const stage = firstOpenLeadStage(
+      resolveLeadStages((await listStages(db, clinicId)).rows),
+    );
+    const result = await writeAndRead<{ id: string }>(
+      db,
+      `INSERT INTO leads
+         (clinic_id, full_name, phone, email, source, interest, notes,
+          responsible_user_id, tags,profile,contact_method,branch_id,stage, id, event_id) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,${branchOrDefault("$12", "$1")},$13, $14, $15)`,
+      [
+        clinicId,
+        input.fullName,
+        input.phone,
+        input.email || null,
+        event ? eventLeadSource(event.name) : input.source,
+        input.interest,
+        input.notes || null,
+        input.responsibleUserId || null,
+        input.tags,
+        JSON.stringify(leadPatientProfile(input)),
+        input.contactMethod ?? null,
+        event?.branchId ?? repositoryContext.branchWriteId(),
+        stage,
+        randomUUID(),
+        input.eventId ?? null,
+      ],
+      `SELECT id FROM leads WHERE id = $14`,
+    );
+    return (await repositoryContext.findLead(
+      db,
+      clinicId,
+      result.rows[0]!.id,
+    ))!;
+  }
+
   return {
     async listLeads(clinicId: string) {
       const result = await repositoryContext.pool.query<LeadRow>(
@@ -182,73 +242,18 @@ export function createCommercialRepository(
       return findLeadDuplicates(query, patients.rows, leads.rows);
     },
 
-    async createLead(clinicId: string, input: LeadInput) {
-      if (input.responsibleUserId) {
-        const responsible = await repositoryContext.pool.query(
-          `SELECT 1 FROM users WHERE clinic_id = $1 AND id = $2 AND active`,
-          [clinicId, input.responsibleUserId],
-        );
-        if (!responsible.rows[0])
-          throw new DomainError(
-            "RESPONSIBLE_USER_NOT_FOUND",
-            "Responsável não encontrado.",
-            404,
-          );
-      }
-      // Participante de evento: origem "Evento: <nome>" e a filial do evento (se tiver).
-      const event = input.eventId
-        ? (
-            await repositoryContext.pool.query<{
-              name: string;
-              branchId: string | null;
-            }>(
-              `SELECT name, branch_id AS "branchId" FROM events
-               WHERE clinic_id = $1 AND id = $2
-                 AND (branch_id IS NULL OR ${branchClause("branch_id", 3)})`,
-              [clinicId, input.eventId, repositoryContext.branchReadIds()],
-            )
-          ).rows[0]
-        : undefined;
-      if (input.eventId && !event)
-        throw new DomainError(
-          "EVENT_NOT_FOUND",
-          "Evento não encontrado.",
-          404,
-        );
-      const stage = firstOpenLeadStage(
-        resolveLeadStages(
-          (await listStages(repositoryContext.pool, clinicId)).rows,
-        ),
-      );
-      const result = await writeAndRead<{ id: string }>(
-        repositoryContext.pool,
-        `INSERT INTO leads
-         (clinic_id, full_name, phone, email, source, interest, notes,
-          responsible_user_id, tags,profile,contact_method,branch_id,stage, id, event_id) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,${branchOrDefault("$12", "$1")},$13, $14, $15)`,
-        [
-          clinicId,
-          input.fullName,
-          input.phone,
-          input.email || null,
-          event ? eventLeadSource(event.name) : input.source,
-          input.interest,
-          input.notes || null,
-          input.responsibleUserId || null,
-          input.tags,
-          JSON.stringify(leadPatientProfile(input)),
-          input.contactMethod ?? null,
-          event?.branchId ?? repositoryContext.branchWriteId(),
-          stage,
-          randomUUID(),
-          input.eventId ?? null,
-        ],
-        `SELECT id FROM leads WHERE id = $14`,
-      );
-      return (await repositoryContext.findLead(
-        repositoryContext.pool,
-        clinicId,
-        result.rows[0]!.id,
-      ))!;
+    createLead,
+    async importEventParticipants(
+      clinicId: string,
+      eventId: string,
+      inputs: LeadInput[],
+    ) {
+      return repositoryContext.inTransaction(async (client) => {
+        await client.lock(clinicId);
+        for (const input of inputs)
+          await createLead(clinicId, { ...input, eventId }, client);
+        return inputs.length;
+      });
     },
 
     async updateLead(

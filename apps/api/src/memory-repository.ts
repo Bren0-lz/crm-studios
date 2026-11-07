@@ -522,6 +522,7 @@ export class MemoryClinicRepository implements ClinicRepository {
     this.saveLeadStages = this.commercial.saveLeadStages;
     this.findLeadDuplicates = this.commercial.findLeadDuplicates;
     this.createLead = this.commercial.createLead;
+    this.importEventParticipants = this.commercial.importEventParticipants;
     this.updateLead = this.commercial.updateLead;
     this.moveLead = this.commercial.moveLead;
     this.convertLead = this.commercial.convertLead;
@@ -1187,6 +1188,10 @@ export class MemoryClinicRepository implements ClinicRepository {
   readonly saveLeadStages: ClinicRepository["saveLeadStages"];
   readonly findLeadDuplicates: ClinicRepository["findLeadDuplicates"];
   readonly updateLead: ClinicRepository["updateLead"];
+  readonly importEventParticipants: ReturnType<
+    typeof createCommercialRepository
+  >["importEventParticipants"];
+
   readonly createLead: ReturnType<
     typeof createCommercialRepository
   >["createLead"];
