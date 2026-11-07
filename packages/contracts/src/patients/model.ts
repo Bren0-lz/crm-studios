@@ -1,6 +1,10 @@
 import { patientProfileFilterSchema } from "./segments.js";
 import { z } from "zod";
-import { leadAppointmentInputSchema } from "../agenda/model.js";
+import {
+  appointmentInputSchema,
+  leadAppointmentInputSchema,
+} from "../agenda/model.js";
+import { issuedDocumentFieldsSchema } from "../contracts/model.js";
 import type { AuditFieldLabel } from "../history-changes.js";
 import {
   patientDiscountDescription,
@@ -463,6 +467,20 @@ const guidedAdditionalSingleSchema = guidedPlanTermsSchema
     },
   );
 
+/**
+ * Documento para o cliente assinar, emitido junto com o plano do cadastro guiado (mesmo
+ * formato da contratação de plano): o link de assinatura sai ao concluir o cadastro.
+ */
+const guidedDocumentSchema = issuedDocumentFieldsSchema
+  .omit({ patientId: true, supplierId: true, planId: true })
+  .optional();
+
+/** Sessões do avulso reservadas no cadastro guiado (mesmas regras da contratação de plano). */
+const guidedAppointmentsSchema = z
+  .array(appointmentInputSchema.omit({ patientId: true }))
+  .max(120)
+  .optional();
+
 const guidedGroupIdSchema = z
   .uuid()
   .optional()
@@ -490,6 +508,8 @@ const guidedWaitlistSchema = z.array(guidedWaitlistItemSchema).max(10);
  *   (a mesma turma não pode aparecer duas vezes), e os serviços avulsos (`kind: "single"`,
  *   sem turma) comprados junto;
  * - `single`: serviço avulso (plano `single`);
+ * - cada plano pode levar o `document` para o cliente assinar e cada avulso, as sessões
+ *   (`appointments`) reservadas na mesma operação, como na contratação de plano;
  * - `waitlist`: só a Lista de espera dos serviços cujas turmas escolhidas estão cheias (TW3).
  *   No passo `plan`, `waitlist` leva os serviços de turma cheia junto dos planos com vaga.
  */
@@ -506,17 +526,22 @@ export const guidedPatientInputSchema = z.discriminatedUnion("next", [
       patient: patientInputSchema,
       plan: guidedSubscriptionPlanSchema,
       groupId: guidedGroupIdSchema,
+      document: guidedDocumentSchema,
       additionalPlans: z
         .array(
           z.union([
             z.object({
               plan: guidedSubscriptionPlanSchema,
               groupId: guidedGroupIdSchema,
+              document: guidedDocumentSchema,
+              appointments: z.undefined().optional(),
             }),
             // Avulso não tem turma: `groupId` informado é recusado.
             z.object({
               plan: guidedAdditionalSingleSchema,
               groupId: z.undefined().optional(),
+              document: guidedDocumentSchema,
+              appointments: guidedAppointmentsSchema,
             }),
           ]),
         )
@@ -568,6 +593,8 @@ export const guidedPatientInputSchema = z.discriminatedUnion("next", [
           path: ["totalValueInCents"],
         },
       ),
+    document: guidedDocumentSchema,
+    appointments: guidedAppointmentsSchema,
   }),
 ]);
 

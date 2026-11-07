@@ -965,6 +965,20 @@ atualizado no mesmo PR):
 - **Gate:** gate completo
 - **Status:** DONE
 
+### RC8 — Contrato, horários e pagamento no fim do cadastro de cliente
+
+- **Pedido do dono (07/11/2026):** a pergunta do pagamento da RC7 vale sempre que se fecha um
+  contrato de plano, inclusive no fim do cadastro de cliente (Novo cliente em Clientes e na
+  Agenda); e os horários pelo WhatsApp também precisam aparecer ali. Decisões do dono: um campo
+  "Documento para o cliente assinar" por plano do cadastro; o avulso do cadastro ganha o mesmo
+  agendamento de sessões do Novo plano.
+- **Escopo:** `POST /patients/guided` aceita `document` em cada plano e `appointments` nos
+  avulsos, na mesma transação (memória e MySQL, helpers extraídos da contratação de plano).
+  Ao concluir: link de cada contrato → horários → cobrança Pix (como antes) → pergunta do
+  pagamento de cada plano com contrato → recibo. Sem migração.
+- **Gate:** gate completo + `npm run test:mysql`
+- **Status:** DONE
+
 ### TG1 — Cliente do Telegram, configuração e vínculo
 
 - **Origem:** B5-03/B5-04. Pedido da dona do estúdio. Exceção de provedor externo registrada

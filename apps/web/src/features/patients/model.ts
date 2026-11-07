@@ -98,6 +98,7 @@ export function defaultGuidedPlanEntry(id: number): GuidedPlanEntry {
     id,
     form: { kind: "fixed_package", ...defaultPlanTerms() },
     groupId: "",
+    document: null,
   };
 }
 

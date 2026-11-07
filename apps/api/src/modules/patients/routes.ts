@@ -1,6 +1,10 @@
 import { automaticPatientTagger } from "./automatic-tags.js";
 import { clientSegments } from "./client-segments.js";
-import { guidedSubscriptions, guidedWaitlist } from "./guided-plans.js";
+import {
+  guidedSales,
+  guidedSubscriptions,
+  guidedWaitlist,
+} from "./guided-plans.js";
 import {
   matchesPatientProfile,
   matchesPatientSegment,
@@ -286,6 +290,8 @@ export function registerPatientsRoutes(context: RouteContext) {
           ...parsed,
           plan: await withServerFirstCharge(clinicId, parsed.plan),
         };
+      const sales = guidedSales(input);
+      const booked = sales.flatMap((sale) => sale.appointments);
       assertPermissions(
         request,
         "patients.create",
@@ -297,6 +303,13 @@ export function registerPatientsRoutes(context: RouteContext) {
           ? ["groups.enroll" as const]
           : []),
         ...(guidedWaitlist(input).length ? ["waitlist.manage" as const] : []),
+        // Contrato e sessões vendidos junto: as mesmas permissões da contratação de plano.
+        ...(sales.some((sale) => sale.appointments.length)
+          ? ["agenda.create" as const]
+          : []),
+        ...(sales.some((sale) => sale.document)
+          ? ["contracts.issue" as const, "contracts.status" as const]
+          : []),
       );
       const patient = await withConfiguredTags(
         clinicId,
@@ -305,6 +318,13 @@ export function registerPatientsRoutes(context: RouteContext) {
       if (input.next === "demonstration") {
         await assertNoHoliday(clinicId, [input.appointment.startsAt]);
         await assertServiceAvailable(clinicId, [input.appointment]);
+      }
+      if (booked.length) {
+        await assertNoHoliday(
+          clinicId,
+          booked.map((item) => item.startsAt),
+        );
+        await assertServiceAvailable(clinicId, booked);
       }
       // Limite de parcelas da forma e do plano em cada item: principal, adicionais e avulsos.
       if (input.next === "single")

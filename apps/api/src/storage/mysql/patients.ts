@@ -16,10 +16,15 @@ import {
 } from "@crm/contracts";
 import {
   guidedPlansResult,
+  guidedSales,
   guidedSubscriptions,
   guidedWaitlist,
 } from "../../modules/patients/guided-plans.js";
-import { assertPlanEnrollmentSeat } from "../../modules/plans/purchase.js";
+import {
+  assertPlanEnrollmentSeat,
+  validatePurchaseSchedule,
+} from "../../modules/plans/purchase.js";
+import { bookPlanAppointments, issuePlanDocument } from "./plan-purchases.js";
 import { insertWaitlistEntry, readWaitlistEntry } from "./waitlist.js";
 import {
   buildPatientTimeline,
@@ -239,6 +244,24 @@ export function createPatientsRepository(
     ): Promise<GuidedPatientResult> {
       return repositoryContext.inTransaction(async (client) => {
         const subscriptions = guidedSubscriptions(input);
+        const sales = guidedSales(input);
+        // Sessões do avulso: a trava da clínica serializa a checagem de conflito da agenda,
+        // como na contratação; serviços e vigência do plano, no máximo as sessões compradas.
+        if (sales.some((sale) => sale.appointments.length)) {
+          await client.lock(clinicId);
+          const settings = await client.query<{ timezone: string }>(
+            "SELECT timezone FROM clinics WHERE id=$1",
+            [clinicId],
+          );
+          if (!settings.rows[0])
+            throw new DomainError(
+              "CLINIC_NOT_FOUND",
+              "Clínica não encontrada.",
+              404,
+            );
+          for (const sale of sales)
+            validatePurchaseSchedule(sale, settings.rows[0].timezone);
+        }
         for (const item of subscriptions) {
           if (!item.groupId) continue;
           const group = await client.query<{ serviceId: string }>(
@@ -358,17 +381,8 @@ export function createPatientsRepository(
             planId,
           ))!;
         };
-        if (input.next === "single")
-          return {
-            patient,
-            plan: await insertPlan({
-              ...input.plan,
-              patientId: patient.id,
-              kind: "single",
-            }),
-          };
         const created: NonNullable<GuidedPatientResult["additionalPlans"]> = [];
-        for (const item of subscriptions) {
+        for (const item of sales) {
           const plan = await insertPlan({
             ...item.plan,
             patientId: patient.id,
@@ -380,8 +394,31 @@ export function createPatientsRepository(
               })
             : undefined;
           assertPlanEnrollmentSeat(enrollment);
-          created.push(enrollment ? { plan, enrollment } : { plan });
+          const appointments = await bookPlanAppointments(
+            repositoryContext,
+            client,
+            clinicId,
+            plan,
+            item.appointments,
+          );
+          const document = item.document
+            ? await issuePlanDocument(
+                repositoryContext,
+                client,
+                clinicId,
+                actorUserId,
+                plan,
+                item.document,
+              )
+            : undefined;
+          created.push({
+            plan,
+            ...(enrollment ? { enrollment } : {}),
+            ...(appointments.length ? { appointments } : {}),
+            ...(document ? { document } : {}),
+          });
         }
+        if (input.next === "single") return { patient, ...created[0]! };
         return guidedPlansResult(
           patient,
           created,

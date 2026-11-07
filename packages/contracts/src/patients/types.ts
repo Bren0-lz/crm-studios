@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { Appointment, GroupEnrollment } from "../agenda/types.js";
 import type { BroadcastSkipReason } from "../communications/types.js";
 import type { PatientPlan } from "../plans/types.js";
+import type { IssuedDocument } from "../contracts/types.js";
 import type { WaitlistEntry } from "../waitlist/types.js";
 import {
   clientAgeBandSchema,
@@ -69,8 +70,20 @@ export interface GuidedPatientResult {
   plan?: PatientPlan;
   /** `status: "waitlisted"` quando a turma estava cheia. */
   enrollment?: GroupEnrollment;
-  /** Demais planos de `additionalPlans`, na mesma ordem, cada um com a sua matrícula. */
-  additionalPlans?: { plan: PatientPlan; enrollment?: GroupEnrollment }[];
+  /** Documento do `plan` emitido para assinatura (quando enviado). */
+  document?: IssuedDocument;
+  /** Sessões reservadas do avulso `plan` (quando enviadas). */
+  appointments?: Appointment[];
+  /**
+   * Demais planos de `additionalPlans`, na mesma ordem, cada um com a sua matrícula, o
+   * documento emitido e as sessões reservadas.
+   */
+  additionalPlans?: {
+    plan: PatientPlan;
+    enrollment?: GroupEnrollment;
+    document?: IssuedDocument;
+    appointments?: Appointment[];
+  }[];
   /** Entradas da Lista de espera criadas para os serviços de turma cheia (TW3). */
   waitlistEntries?: WaitlistEntry[];
 }

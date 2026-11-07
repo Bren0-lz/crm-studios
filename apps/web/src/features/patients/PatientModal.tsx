@@ -37,6 +37,7 @@ import {
   type Dispatch,
   type FormEvent,
   type SetStateAction,
+  useContext,
   useEffect,
   useRef,
   useState,
@@ -53,6 +54,16 @@ import { planGroupMissing } from "../../shared/lib/plan-groups";
 import { productSaleInstallments } from "../../shared/lib/product-installments";
 import { Modal, ModalCancelButton } from "../../shared/components/Modal";
 import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
+import {
+  GuidedSaleContext,
+  type GuidedFollowUpRequest,
+  type GuidedSaleItem,
+} from "../../shared/workflows/GuidedSaleContext";
+import {
+  SignatureTemplateField,
+  useCanRequestSignature,
+  useSignatureTemplates,
+} from "../contracts/index";
 import { PhoneInput } from "../../shared/components/PhoneInput";
 import { TagChoice } from "../../shared/components/TagChoice";
 import {
@@ -232,6 +243,23 @@ export function PatientModal({
   }
   // Serviços avulsos adicionados (sozinhos ou junto com os planos).
   const [singles, setSingles] = useState<GuidedSingleEntry[]>([]);
+  function updateSingle(id: number, patch: Partial<GuidedSingleEntry>) {
+    setSingles((current) =>
+      current.map((entry) =>
+        entry.id === id ? { ...entry, ...patch } : entry,
+      ),
+    );
+  }
+  // Contrato de cada plano e sessões do avulso, vendidos junto com o cadastro (RC8).
+  const guidedSale = useContext(GuidedSaleContext);
+  const canSign = useCanRequestSignature() && !patient;
+  const signatureTemplates = useSignatureTemplates(canSign);
+  const [scheduleNested, setScheduleNested] = useState(false);
+  const [scheduleBlocked, setScheduleBlocked] = useState<
+    Record<number, string>
+  >({});
+  // Passos finais (link do contrato, horários e pagamento), um estágio por vez.
+  const [followUp, setFollowUp] = useState<GuidedFollowUpRequest | null>(null);
   // Turmas carregadas uma vez (sobrevivem à troca de opção); `null` enquanto não buscadas.
   const [groups, setGroups] = useState<GroupClass[] | null>(null);
   // Turma cheia (TW3): o plano não é vendido; o cliente vai para a Lista de espera do serviço.
@@ -356,6 +384,8 @@ export function PatientModal({
     notice: string;
     result: PatientRegistrationResult;
     message: string;
+    /** Depois da cobrança: a pergunta do pagamento (se houver contrato) e o fim do cadastro. */
+    next: () => void;
   } | null>(null);
   /** Horários da turma escolhida: base do 1º pagamento proporcional do plano. */
   const slotsOf = (groupId: string) =>
@@ -531,6 +561,19 @@ export function PatientModal({
       ? ["Formas de pagamento dos produtos somando o total"]
       : []),
   ]);
+  // Sessões do avulso em conflito ou ainda em verificação: o cadastro espera (como o Novo plano).
+  const scheduleBlockedMessage = singles
+    .map((entry) => scheduleBlocked[entry.id])
+    .find(Boolean);
+  /** Contrato e sessões do avulso enviados junto com ele. */
+  function singleSale(entry: GuidedSingleEntry) {
+    return {
+      ...(entry.document ? { document: entry.document } : {}),
+      ...(entry.appointments.length
+        ? { appointments: entry.appointments }
+        : {}),
+    };
+  }
   function guidedInput(): GuidedPatientInput | string {
     if (step === "demonstration") {
       if (!demonstration.startsAt)
@@ -549,11 +592,13 @@ export function PatientModal({
     }
     if ([...plans, ...singles].some((entry) => !entry.form.planTemplateId))
       return "Selecione um plano cadastrado.";
+    if (scheduleBlockedMessage) return scheduleBlockedMessage;
     if (step === "single")
       return {
         next: "single",
         patient: form,
         plan: withOrderShare(singles[0]!.form, `plan-${singles[0]!.id}`),
+        ...singleSale(singles[0]!),
       };
     // Turma cheia: só a Lista de espera do serviço da turma, sem plano nem cobrança (TW3).
     const waitlist = waitlistPlans.map((entry) => ({
@@ -581,6 +626,7 @@ export function PatientModal({
           `plan-${first!.id}`,
         ),
         ...(first!.groupId ? { groupId: first!.groupId } : {}),
+        ...(first!.document ? { document: first!.document } : {}),
         ...(rest.length || singles.length
           ? {
               additionalPlans: [
@@ -590,12 +636,14 @@ export function PatientModal({
                     `plan-${entry.id}`,
                   ),
                   ...(entry.groupId ? { groupId: entry.groupId } : {}),
+                  ...(entry.document ? { document: entry.document } : {}),
                 })),
                 ...singles.map((entry) => ({
                   plan: {
                     ...withOrderShare(entry.form, `plan-${entry.id}`),
                     kind: "single" as const,
                   },
+                  ...singleSale(entry),
                 })),
               ],
             }
@@ -751,12 +799,41 @@ export function PatientModal({
         (sum, item) => sum + item.discountInCents,
         0,
       );
+      // Passos finais: link de cada contrato e horários → cobrança Pix → pergunta do
+      // pagamento de cada plano com contrato → fim do cadastro.
+      const sales: GuidedSaleItem[] = [
+        ...(result.plan
+          ? [
+              {
+                plan: result.plan,
+                document: result.document,
+                appointments: result.appointments,
+              },
+            ]
+          : []),
+        ...(result.additionalPlans ?? []),
+      ];
+      const patientName = patientFirstName(result.patient.fullName);
+      const finish = () => onSaved(result.patient, notice, registration);
+      const askPayment = () => {
+        setPixCharge(null);
+        if (guidedSale && sales.some((sale) => sale.document))
+          setFollowUp({
+            stage: "payment",
+            patientName,
+            sales,
+            onDone: finish,
+          });
+        else finish();
+      };
+      let afterSend = askPayment;
       if (pixPlans.length > 0 && pixKey) {
         const installments = pixPlans[0]!.installments;
-        setPixCharge({
+        const charge = {
           patient: result.patient,
           notice,
           result: registration,
+          next: askPayment,
           message: planPixChargeMessage({
             patientName: result.patient.fullName,
             planName: pixPlans.map((plan) => plan.name).join(" + "),
@@ -785,10 +862,25 @@ export function PatientModal({
             manualFirstCharge: pixFirstCharges.some((item) => item.manual),
             ...(pixDiscount ? { discountInCents: pixDiscount } : {}),
           }),
+        };
+        afterSend = () => {
+          setFollowUp(null);
+          setPixCharge(charge);
+        };
+      }
+      if (
+        guidedSale &&
+        sales.some((sale) => sale.document || sale.appointments?.length)
+      ) {
+        setFollowUp({
+          stage: "send",
+          patientName,
+          sales,
+          onDone: afterSend,
         });
         return;
       }
-      onSaved(result.patient, notice, registration);
+      afterSend();
     } catch (cause) {
       // Tudo ou nada: nada foi gravado, o formulário continua preenchido.
       setError((cause as Error).message);
@@ -824,7 +916,10 @@ export function PatientModal({
         `${planLabelFor(plans.length + 1)} adicionado logo abaixo.`,
       );
     }
-    setSingles((current) => [...current, { id, form: defaultSingleForm() }]);
+    setSingles((current) => [
+      ...current,
+      { id, form: defaultSingleForm(), document: null, appointments: [] },
+    ]);
     announce(`${singleLabelFor(singles.length + 1)} adicionado logo abaixo.`);
   }
   // Itens que podem entrar no cadastro, cada um com o seu botão "Adicionar".
@@ -944,9 +1039,17 @@ export function PatientModal({
       }
     </GuidedItemFieldset>
   ));
+  if (followUp && guidedSale)
+    return guidedSale.renderFollowUp({
+      ...followUp,
+      // Estágio seguinte: a cobrança Pix ou a pergunta do pagamento (outro estágio).
+      onDone: () => {
+        setFollowUp(null);
+        followUp.onDone();
+      },
+    });
   if (pixCharge) {
-    const finish = () =>
-      onSaved(pixCharge.patient, pixCharge.notice, pixCharge.result);
+    const finish = pixCharge.next;
     const phone = pixCharge.patient.whatsapp || pixCharge.patient.phone;
     return (
       <Modal
@@ -989,7 +1092,7 @@ export function PatientModal({
       }
       busy={loading}
       dirty={dirty}
-      inactive={Boolean(discountTarget)}
+      inactive={Boolean(discountTarget) || scheduleNested}
       onClose={onClose}
     >
       <form className="form-grid" onSubmit={submit}>
@@ -1243,6 +1346,14 @@ export function PatientModal({
                     setGroups={setGroups}
                   />
                 </GuidedPlanFields>
+                {canSign && !guidedGroupFull(groups, entry.groupId) && (
+                  <SignatureTemplateField
+                    state={signatureTemplates}
+                    value={entry.document}
+                    onChange={(document) => updatePlan(entry.id, { document })}
+                    disabled={!editable || loading}
+                  />
+                )}
                 {entry.form.planTemplateId &&
                   !guidedGroupFull(groups, entry.groupId) && (
                     <PlanDiscountSummary
@@ -1282,6 +1393,29 @@ export function PatientModal({
                   pixKey={pixKey}
                   pixTemplate={pixTemplate}
                 />
+                {canSign && (
+                  <SignatureTemplateField
+                    state={signatureTemplates}
+                    value={entry.document}
+                    onChange={(document) =>
+                      updateSingle(entry.id, { document })
+                    }
+                    disabled={!editable || loading}
+                  />
+                )}
+                {guidedSale?.renderScheduling({
+                  plan: { ...entry.form, kind: "single", patientId: "" },
+                  appointments: entry.appointments,
+                  onChange: (appointments) =>
+                    updateSingle(entry.id, { appointments }),
+                  onNestedChange: setScheduleNested,
+                  onBlockedChange: (message) =>
+                    setScheduleBlocked((current) =>
+                      current[entry.id] === message
+                        ? current
+                        : { ...current, [entry.id]: message },
+                    ),
+                })}
                 {entry.form.planTemplateId && (
                   <PlanDiscountSummary
                     discount={entry.form.discount}
@@ -1381,6 +1515,11 @@ export function PatientModal({
             salvas.
           </p>
         )}
+        {editable && scheduleBlockedMessage && (
+          <div className="form-error span-2" role="alert">
+            {scheduleBlockedMessage}
+          </div>
+        )}
         {editable && missing.hint}
         <div className="modal-actions span-2">
           <ModalCancelButton disabled={loading}>
@@ -1389,7 +1528,9 @@ export function PatientModal({
           {editable && (
             <button
               className="primary-button"
-              disabled={loading || missing.blocked}
+              disabled={
+                loading || missing.blocked || Boolean(scheduleBlockedMessage)
+              }
               aria-describedby={missing.describedBy}
             >
               {loading
