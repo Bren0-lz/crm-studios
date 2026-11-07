@@ -36,6 +36,43 @@ export interface AppointmentPricing {
   single?: AppointmentSinglePrice | undefined;
 }
 
+/** Plano ativo e vigente na data (dia da clínica, `AAAA-MM-DD`). */
+function planValidOn(plan: PatientPlan, date: string) {
+  return (
+    plan.status === "active" &&
+    plan.validFrom <= date &&
+    (!plan.validUntil || plan.validUntil >= date)
+  );
+}
+
+/** Serviço do plano ainda agendável: com saldo, ou plano recorrente (vale pela frequência). */
+function planServiceUsable(
+  plan: PatientPlan,
+  service: NonNullable<PatientPlan["services"]>[number],
+) {
+  return !planHasSessionBalance(plan) || service.remainingSessions > 0;
+}
+
+/**
+ * Serviços que o cliente pode agendar pelos planos que já tem: plano ativo e vigente na data,
+ * com saldo no serviço (ou recorrente). Ignora o plano criado por um atendimento (comanda),
+ * como `GET /appointments/pricing`.
+ */
+export function appointmentPlanServiceIds(
+  plans: readonly PatientPlan[],
+  date: string,
+): Set<string> {
+  return new Set(
+    plans
+      .filter((plan) => !plan.sourceAppointmentId && planValidOn(plan, date))
+      .flatMap((plan) =>
+        (plan.services ?? [])
+          .filter((service) => planServiceUsable(plan, service))
+          .map((service) => service.serviceId),
+      ),
+  );
+}
+
 /**
  * Monta o `AppointmentPricing`: planos ativos e vigentes hoje com saldo no serviço (mesma
  * ordem do consumo: validade mais próxima primeiro) e o plano avulso do serviço.
@@ -47,17 +84,10 @@ export function appointmentPricing(
   today: string,
 ): AppointmentPricing {
   const planPrices = plans
-    .filter(
-      (plan) =>
-        plan.status === "active" &&
-        plan.validFrom <= today &&
-        (!plan.validUntil || plan.validUntil >= today),
-    )
+    .filter((plan) => planValidOn(plan, today))
     .flatMap((plan) => {
       const service = (plan.services ?? []).find(
-        (item) =>
-          item.serviceId === serviceId &&
-          (!planHasSessionBalance(plan) || item.remainingSessions > 0),
+        (item) => item.serviceId === serviceId && planServiceUsable(plan, item),
       );
       return service ? [{ plan, service }] : [];
     })

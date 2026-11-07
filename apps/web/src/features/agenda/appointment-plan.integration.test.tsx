@@ -25,8 +25,12 @@ async function scenario() {
     }),
   );
   const services = await api.repository.listServices(clinicId);
-  async function plan(name: string, validUntil: string) {
-    const items = services.map((service) => ({
+  async function plan(
+    name: string,
+    validUntil: string,
+    only?: (typeof services)[number],
+  ) {
+    const items = (only ? [only] : services).map((service) => ({
       serviceId: service.id,
       totalSessions: 4,
       totalValueInCents: 20000,
@@ -123,6 +127,18 @@ describe("agendamento com plano (AP4)", () => {
     expect(
       await within(dialog).findByText("Cliente sem plano para este serviço"),
     ).toBeInTheDocument();
+    // Sem plano, o "Serviço" está no modo "Vender plano avulso…": todos, com o preço.
+    const serviceField = within(dialog).getByLabelText("Serviço");
+    expect(
+      within(serviceField).getByRole("option", {
+        name: "Voltar aos serviços dos planos",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      within(serviceField)
+        .getAllByRole("option")
+        .some((option) => option.textContent?.includes("R$")),
+    ).toBe(true);
     // Sem plano, "Confirmar" fica desativado dizendo o que falta.
     expect(confirm(dialog)).toBeDisabled();
     expect(confirm(dialog)).toHaveAccessibleDescription("Falta: Plano.");
@@ -169,6 +185,15 @@ describe("agendamento com plano (AP4)", () => {
     await waitFor(() =>
       expect(within(dialog).getByLabelText("Plano")).toHaveValue(sold!.id),
     );
+    // Vendido o avulso, o serviço passa a constar dos planos do cliente.
+    await waitFor(() =>
+      expect(
+        within(serviceField)
+          .getAllByRole("option")
+          .map((option) => option.textContent),
+      ).toEqual(["Selecione", serviceName, "Vender plano avulso…"]),
+    );
+    expect(serviceField).toHaveValue(serviceId);
     await waitFor(() => expect(confirm(dialog)).toBeEnabled());
     fireEvent.click(confirm(dialog));
     expect((await booked()).planId).toBe(sold!.id);
@@ -188,11 +213,52 @@ describe("agendamento com plano (AP4)", () => {
     expect(confirm(dialog)).toBeDisabled();
   });
 
+  it("lista só os serviços dos planos do cliente e a venda do avulso (AP7)", async () => {
+    const { plan, services, openBooking, booked, confirm } = await scenario();
+    const covered = services[1]!;
+    const contracted = await plan(
+      "Pacote de um serviço",
+      "2045-12-31",
+      covered,
+    );
+    const dialog = await openBooking();
+    const serviceField = within(dialog).getByLabelText("Serviço");
+    // Sem preço: o valor sai do plano.
+    expect(
+      within(serviceField)
+        .getAllByRole("option")
+        .map((option) => option.textContent),
+    ).toEqual(["Selecione", covered.name, "Vender plano avulso…"]);
+    expect(serviceField).toHaveValue(covered.id);
+    await waitFor(() =>
+      expect(within(dialog).getByLabelText("Plano")).toHaveValue(contracted.id),
+    );
+    // "Vender plano avulso…" mostra todos os serviços; "Voltar" retorna aos dos planos.
+    change("Serviço", "__sell-single-plan", dialog);
+    expect(
+      within(dialog).getByText("Escolha o serviço do plano avulso a vender."),
+    ).toBeInTheDocument();
+    expect(within(serviceField).getAllByRole("option").length).toBeGreaterThan(
+      3,
+    );
+    change("Serviço", "__plan-services", dialog);
+    change("Serviço", covered.id, dialog);
+    await waitFor(() => expect(confirm(dialog)).toBeEnabled());
+    fireEvent.click(confirm(dialog));
+    expect((await booked()).planId).toBe(contracted.id);
+  });
+
   it("aula experimental não pede plano", async () => {
     const { openBooking, booked, confirm } = await scenario();
     const dialog = await openBooking();
     change("Tipo", "trial", dialog);
     expect(within(dialog).queryByLabelText("Plano")).not.toBeInTheDocument();
+    // Experimental não sai de plano: o "Serviço" lista todos.
+    expect(
+      within(within(dialog).getByLabelText("Serviço")).queryByRole("option", {
+        name: /Vender plano avulso|Voltar aos serviços/,
+      }),
+    ).not.toBeInTheDocument();
     expect(
       within(dialog).queryByText("Cliente sem plano para este serviço"),
     ).not.toBeInTheDocument();

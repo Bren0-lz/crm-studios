@@ -38,6 +38,7 @@ export function AppointmentPlanField({
   disabled = false,
   noneLabel,
   onNestedModalChange,
+  onPlanSold,
 }: {
   patient: PatientOption | undefined;
   serviceId: string;
@@ -54,6 +55,8 @@ export function AppointmentPlanField({
    */
   noneLabel?: string | undefined;
   onNestedModalChange?: ((open: boolean) => void) | undefined;
+  /** Plano avulso vendido aqui (o formulário recarrega os planos do cliente). */
+  onPlanSold?: (() => void) | undefined;
 }) {
   const { can, canEdit } = useAuthorization();
   const renderPlanSale = useContext(PlanSaleContext);
@@ -200,6 +203,7 @@ export function AppointmentPlanField({
               setState(null);
               onChange(plan.id);
               setAttempt((current) => current + 1);
+              onPlanSold?.();
             },
           }),
           document.body,
