@@ -16,6 +16,7 @@ import { localDate, localTime, utcTime } from "../sql.js";
 import { present } from "./administration.js";
 
 export interface AppointmentRow {
+  planId?: string | null;
   branchId?: string;
   predecessorId?: string | null;
   absenceReason?: string | null;
@@ -150,6 +151,7 @@ export const appointmentColumns = `
   a.predecessor_id AS "predecessorId",a.absence_reason AS "absenceReason",a.id,
   a.clinic_id AS "clinicId",
   a.patient_id AS "patientId",
+  a.patient_plan_id AS "planId",
   a.lead_id AS "leadId",
   l.full_name AS "leadName",
   a.professional_id AS "professionalId",
@@ -182,6 +184,7 @@ export const appointmentJoins = `
 
 export function mapAppointment(row: AppointmentRow): Appointment {
   return {
+    ...(row.planId ? { planId: row.planId } : {}),
     ...(row.predecessorId ? { predecessorId: row.predecessorId } : {}),
     ...(row.absenceReason ? { absenceReason: row.absenceReason } : {}),
     ...(row.branchId ? { branchId: row.branchId } : {}),

@@ -48,6 +48,7 @@ export function createAgendaLinksRepository(context: MemoryRepositoryContext) {
         const data = {
           ...input,
           serviceId: source.serviceId,
+          ...(source.planId ? { planId: source.planId } : {}),
           visitType: source.visitType,
           notes: source.notes ?? "",
         };

@@ -1190,7 +1190,7 @@ plano não cobra nada.
   - Compra de plano com agendamento grava o `planId` nos atendimentos criados.
 - **Gate:** gate completo + `npm run test:mysql`
 - **Depende de:** AP1
-- **Status:** TODO
+- **Status:** DONE
 
 ### AP3 — Agendar exige plano (API)
 

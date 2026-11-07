@@ -622,6 +622,7 @@ export function createAgendaRepository(
           const appointment =
             await repositoryContext.operations.createAppointment(clinicId, {
               patientId: input.patientId,
+              ...(input.planId ? { planId: input.planId } : {}),
               professionalId: input.professionalId,
               roomId: input.roomId,
               serviceId: input.serviceId,

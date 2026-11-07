@@ -155,7 +155,7 @@ describe("finance workflows through real HTTP handlers", () => {
       roomId: room!.id,
       serviceId: service!.id,
       startsAt: "2039-02-10T12:00:00Z",
-      visitType: "trial",
+      visitType: "regular",
     });
     // Realizado só depois do início do atendimento (QC3): relógio no dia seguinte.
     // A comissão sai do valor pago: R$ 150 na comanda → 10% = R$ 15.

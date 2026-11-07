@@ -625,6 +625,30 @@ export class MysqlRepositoryContext {
       );
   }
 
+  /** Confere o vínculo sem antecipar a obrigatoriedade de plano da AP3. */
+  async appointmentPlanId(
+    client: PoolClient,
+    clinicId: string,
+    input: Omit<AppointmentInput, "patientId">,
+    patientId: string | null,
+  ): Promise<string | null> {
+    if (!patientId || input.visitType === "trial" || !input.planId) return null;
+    const plan = await client.query<{ id: string }>(
+      `SELECT pp.id FROM patient_plans pp
+       JOIN patient_plan_services ps ON ps.clinic_id=pp.clinic_id AND ps.plan_id=pp.id
+       WHERE pp.clinic_id=$1 AND pp.id=$2 AND pp.patient_id=$3 AND ps.service_id=$4
+       LOCK IN SHARE MODE`,
+      [clinicId, input.planId, patientId, input.serviceId],
+    );
+    if (!plan.rows[0])
+      throw new DomainError(
+        "PLAN_NOT_FOUND",
+        "Plano do cliente para este serviço não encontrado.",
+        404,
+      );
+    return plan.rows[0].id;
+  }
+
   /** Grava o atendimento (de cliente ou de lead) já validado. */
   async insertAppointment(
     clinicId: string,
@@ -644,6 +668,12 @@ export class MysqlRepositoryContext {
           connection,
         ),
       );
+    const planId = await this.appointmentPlanId(
+      client,
+      clinicId,
+      input,
+      owner.patientId,
+    );
     const startsAt = new Date(input.startsAt);
     const endsAt = new Date(startsAt.getTime() + durationMinutes * 60_000);
     if (
@@ -678,9 +708,9 @@ export class MysqlRepositoryContext {
         `
           INSERT INTO appointments (
             clinic_id, patient_id, lead_id, professional_id, room_id,
-            service_id, starts_at, ends_at, notes, visit_type, branch_id, id
+            service_id, starts_at, ends_at, notes, visit_type, branch_id, id, patient_plan_id
           )
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, ${branchOrDefault("$11", "$1")}, $12)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, ${branchOrDefault("$11", "$1")}, $12, $13)
         `,
         [
           clinicId,
@@ -695,6 +725,7 @@ export class MysqlRepositoryContext {
           input.visitType,
           branchId,
           appointmentId,
+          planId,
         ],
       );
       return (await this.findAppointment(clinicId, appointmentId, client))!;
@@ -1979,6 +2010,15 @@ export class MysqlRepositoryContext {
     serviceId: string,
     startsAt: Date,
   ) {
+    const appointment = await client.query<{
+      planId: string | null;
+      visitType: string;
+    }>(
+      'SELECT patient_plan_id AS "planId", visit_type AS "visitType" FROM appointments WHERE clinic_id=$1 AND id=$2',
+      [clinicId, appointmentId],
+    );
+    const linked = appointment.rows[0];
+    if (linked?.visitType === "trial") return;
     const planResult = await client.query<{
       id: string;
       remainingSessions: number;
@@ -1989,16 +2029,30 @@ export class MysqlRepositoryContext {
        JOIN patient_plan_services pps ON pps.plan_id = pp.id AND pps.clinic_id = pp.clinic_id
        WHERE pp.clinic_id = $1 AND pp.patient_id = $2 AND pps.service_id = $3
          AND pp.status = 'active'
+         AND ($6 IS NULL OR pp.id = $6)
          AND (pp.source_appointment_id IS NULL OR pp.source_appointment_id = $5)
          AND pp.valid_from <= ${localDate("$4")}
          AND (pp.valid_until IS NULL OR pp.valid_until >= ${localDate("$4")})
        ORDER BY coalesce(pp.source_appointment_id = $5, 0) DESC,
          pp.valid_until IS NULL, pp.valid_until, pp.created_at
        LIMIT 1 FOR UPDATE`,
-      [clinicId, patientId, serviceId, startsAt, appointmentId],
+      [
+        clinicId,
+        patientId,
+        serviceId,
+        startsAt,
+        appointmentId,
+        linked?.planId ?? null,
+      ],
     );
     const plan = planResult.rows[0];
     if (!plan) {
+      if (linked?.planId)
+        throw new DomainError(
+          "NO_SESSION_BALANCE",
+          "O plano vinculado não possui saldo de sessões válido para este atendimento.",
+          409,
+        );
       const tabService = await client.query(
         "SELECT 1 FROM patient_tab_services WHERE clinic_id=$1 AND appointment_id=$2 UNION ALL SELECT 1 FROM patient_plans WHERE clinic_id=$1 AND source_appointment_id=$2 LIMIT 1",
         [clinicId, appointmentId],

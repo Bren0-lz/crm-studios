@@ -1786,7 +1786,7 @@ for (const storage of ["memory", "mysql"] as const) {
             roomId: room.id,
             serviceId,
             startsAt: "2057-04-13T15:00:00Z",
-            visitType: "trial",
+            visitType: "regular",
           }),
         );
         await sellSessionForAppointment(
@@ -1922,7 +1922,7 @@ for (const storage of ["memory", "mysql"] as const) {
             roomId: room.id,
             serviceId,
             startsAt: "2058-04-13T15:00:00Z",
-            visitType: "trial",
+            visitType: "regular",
           }),
         );
         await sellSessionForAppointment(

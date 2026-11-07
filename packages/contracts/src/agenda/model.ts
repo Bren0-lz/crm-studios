@@ -35,6 +35,8 @@ export const appointmentVisitTypeSchema = z.enum([
 
 export const appointmentInputSchema = z.object({
   patientId: z.uuid(),
+  /** Plano consumido ao finalizar; ausente preserva o comportamento histórico. */
+  planId: z.uuid().optional(),
   professionalId: z.uuid(),
   roomId: z.uuid(),
   serviceId: z.uuid(),
