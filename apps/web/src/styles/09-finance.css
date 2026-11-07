@@ -347,6 +347,22 @@
   column-gap: normal;
 }
 
+/* Vencimento, Valor e Situação centralizados na coluna (cabeçalho e conteúdo), entre o
+   cliente à esquerda e as ações à direita. */
+.receivables-table .finance-col-center,
+.receivables-table .finance-row > .finance-due,
+.receivables-table .finance-row > .finance-amount {
+  text-align: center;
+}
+
+.receivables-table .finance-row > .finance-amount.cancelled-amount {
+  justify-content: center;
+}
+
+.receivables-table .finance-situation {
+  align-items: center;
+}
+
 /* audit: mobile-ok no celular (≤ 700px) a linha vira cartão de 1 coluna */
 .payables-table .finance-row {
   /* Ações com largura fixa (cabe "Comprovantes" + "Estornar"): com `auto`, cada linha

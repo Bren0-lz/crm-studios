@@ -611,6 +611,20 @@
     display: block;
   }
 
+  /* No cartão do celular tudo fica à esquerda (a centralização é só da tabela). */
+  .receivables-table .finance-row > .finance-due,
+  .receivables-table .finance-row > .finance-amount {
+    text-align: left;
+  }
+
+  .receivables-table .finance-row > .finance-amount.cancelled-amount {
+    justify-content: flex-start;
+  }
+
+  .receivables-table .finance-situation {
+    align-items: flex-start;
+  }
+
   .finance-list .finance-row,
   .receivables-table > .finance-row {
     grid-template-columns: 1fr;
