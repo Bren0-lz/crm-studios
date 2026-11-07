@@ -56,7 +56,7 @@ test("the client checks and signs the payment receipt on an iPhone", async ({
   expect(formBox.y).toBeGreaterThanOrEqual(contentBox.y + contentBox.height);
 
   // 3. Campos com 16 px ou mais: abaixo disso o Safari do iOS dá zoom ao tocar.
-  for (const name of ["Nome completo", "CPF (opcional)"]) {
+  for (const name of ["Nome completo", "CPF de quem assina"]) {
     const fontSize = await page
       .getByRole("textbox", { name, exact: true })
       .evaluate((element) => parseFloat(getComputedStyle(element).fontSize));

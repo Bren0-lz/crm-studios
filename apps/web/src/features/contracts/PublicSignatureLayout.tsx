@@ -1,6 +1,5 @@
 import {
   publicDocumentSignInputSchema,
-  publicSignatureInputSchema,
   isValidCpf,
   type PublicDocumentSignInput,
 } from "@crm/contracts";
@@ -15,7 +14,7 @@ import { SignaturePad } from "./SignaturePad";
 
 /**
  * Peças comuns das páginas abertas pelo cliente no link do WhatsApp (contrato e recibo):
- * a moldura sem login e o formulário de assinatura (nome, CPF, desenho e aceite).
+ * a moldura sem login e o formulário de assinatura (nome, CPF obrigatório, desenho e aceite).
  */
 
 /** Página pública: carregando, link indisponível ou o conteúdo. */
@@ -50,14 +49,12 @@ export function PublicSignatureShell({
 
 export function PublicSignatureForm({
   initialName,
-  requireCpf = false,
   acceptLabel,
   submitLabel,
   footnote,
   onSign,
 }: {
   initialName: string;
-  requireCpf?: boolean;
   acceptLabel: string;
   submitLabel: string;
   footnote: string;
@@ -73,7 +70,7 @@ export function PublicSignatureForm({
   const missing = useMissingFields(
     [
       signerName.trim().length < 3 && "Nome completo",
-      requireCpf && !isValidCpf(signerCpf) && "CPF válido de quem assina",
+      !isValidCpf(signerCpf) && "CPF válido de quem assina",
       !signatureImage && "Assinatura",
       !accepted && "Confirmação de leitura",
     ].filter((item): item is string => Boolean(item)),
@@ -81,9 +78,7 @@ export function PublicSignatureForm({
   );
 
   async function sign() {
-    const input = (
-      requireCpf ? publicDocumentSignInputSchema : publicSignatureInputSchema
-    ).safeParse({
+    const input = publicDocumentSignInputSchema.safeParse({
       signerName,
       signerCpf,
       accepted,
@@ -96,7 +91,7 @@ export function PublicSignatureForm({
     setBusy(true);
     setError("");
     try {
-      await onSign({ ...input.data, signerCpf: input.data.signerCpf ?? "" });
+      await onSign(input.data);
     } catch (cause) {
       setError((cause as Error).message);
     } finally {
@@ -127,12 +122,8 @@ export function PublicSignatureForm({
           />
         </label>
         <label>
-          {requireCpf ? "CPF de quem assina" : "CPF (opcional)"}
-          <CpfInput
-            value={signerCpf}
-            onChange={setSignerCpf}
-            required={requireCpf}
-          />
+          CPF de quem assina
+          <CpfInput value={signerCpf} onChange={setSignerCpf} required />
         </label>
         <div className="span-2">
           <span className="signature-pad-label">

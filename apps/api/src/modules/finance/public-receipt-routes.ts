@@ -1,5 +1,5 @@
 import {
-  publicSignatureInputSchema,
+  publicDocumentSignInputSchema,
   publicReceiptSignatureStatus,
   type PaymentReceipt,
   type PublicReceiptSignature,
@@ -97,7 +97,7 @@ export function registerPublicReceiptRoutes(context: RouteContext) {
         repository,
         events,
         params.data.token,
-        publicSignatureInputSchema.parse(request.body),
+        publicDocumentSignInputSchema.parse(request.body),
         publicRequestMetadata(request),
       );
       return receipt
