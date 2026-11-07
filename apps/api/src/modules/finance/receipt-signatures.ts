@@ -61,6 +61,7 @@ export async function signReceipt(
     receivableId: receipt.receivableId,
     patientId: receipt.patientId,
     amountInCents: receipt.amountInCents,
+    paidAt: receipt.paidAt,
     signedAt: receipt.signedAt,
   });
   return receipt;
