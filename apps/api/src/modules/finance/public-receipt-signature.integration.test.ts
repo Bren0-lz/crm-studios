@@ -17,6 +17,7 @@ afterEach(async () => {
 });
 
 const signatureImage = "data:image/png;base64,iVBORw0KGgo=";
+const signerCpf = "529.982.247-25";
 
 async function paidReceipt() {
   const repository = new MemoryClinicRepository();
@@ -135,7 +136,12 @@ describe("link público do recibo", () => {
     const again = await app.inject({
       method: "POST",
       url,
-      payload: { signerName: "Outra Pessoa", accepted: true, signatureImage },
+      payload: {
+        signerName: "Outra Pessoa",
+        signerCpf,
+        accepted: true,
+        signatureImage,
+      },
     });
     expect(again.statusCode).toBe(409);
     expect(again.json().code).toBe("RECEIPT_ALREADY_SIGNED");
@@ -163,7 +169,12 @@ describe("link público do recibo", () => {
     const signed = await app.inject({
       method: "POST",
       url,
-      payload: { signerName: "Cliente Recibo", accepted: true, signatureImage },
+      payload: {
+        signerName: "Cliente Recibo",
+        signerCpf,
+        accepted: true,
+        signatureImage,
+      },
     });
     expect(signed.statusCode).toBe(410);
     expect(signed.json().code).toBe("RECEIPT_NOT_AVAILABLE");
@@ -175,7 +186,12 @@ describe("link público do recibo", () => {
     await app.inject({
       method: "POST",
       url,
-      payload: { signerName: "Cliente Recibo", accepted: true, signatureImage },
+      payload: {
+        signerName: "Cliente Recibo",
+        signerCpf,
+        accepted: true,
+        signatureImage,
+      },
     });
     await app.inject({
       method: "POST",
@@ -200,14 +216,31 @@ describe("link público do recibo", () => {
     const unknown = await app.inject({
       method: "POST",
       url: `/public/receipt-signatures/${"a".repeat(43)}`,
-      payload: { signerName: "Cliente Recibo", accepted: true, signatureImage },
+      payload: {
+        signerName: "Cliente Recibo",
+        signerCpf,
+        accepted: true,
+        signatureImage,
+      },
     });
     expect(unknown.statusCode).toBe(404);
 
     for (const payload of [
-      { signerName: "Cliente Recibo", accepted: false, signatureImage },
-      { signerName: "Cliente Recibo", accepted: true, signatureImage: "" },
-      { signerName: "C", accepted: true, signatureImage },
+      // Sem CPF: o recibo também exige o CPF de quem assina.
+      { signerName: "Cliente Recibo", accepted: true, signatureImage },
+      {
+        signerName: "Cliente Recibo",
+        signerCpf,
+        accepted: false,
+        signatureImage,
+      },
+      {
+        signerName: "Cliente Recibo",
+        signerCpf,
+        accepted: true,
+        signatureImage: "",
+      },
+      { signerName: "C", signerCpf, accepted: true, signatureImage },
       {
         signerName: "Cliente Recibo",
         signerCpf: "111.111.111-11",
@@ -245,7 +278,12 @@ describe("link público do recibo", () => {
       ).statusCode,
     ).toBe(404);
 
-    const payload = { signerName: "Cliente", accepted: true, signatureImage };
+    const payload = {
+      signerName: "Cliente",
+      signerCpf,
+      accepted: true,
+      signatureImage,
+    };
     const other = `/public/receipt-signatures/${"b".repeat(43)}`;
     for (let index = 0; index < 10; index += 1)
       expect(
