@@ -12924,31 +12924,45 @@ describe("guided client registration", () => {
   it("subscribes a group class plan with a required class of the same service and warns about the waiting list", async () => {
     const posts = mockApi((body) =>
       jsonResponse(
-        {
-          patient: created,
-          plan: {
-            id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
-            patientId: created.id,
-            patientName: created.fullName,
-            serviceName: "Pilates",
-            ...(body.plan as object),
-            status: "active",
-            remainingSessions: 8,
-          },
-          enrollment: body.groupId
-            ? {
-                id: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
-                clinicId: created.clinicId,
-                groupId: body.groupId,
+        body.next === "waitlist"
+          ? {
+              patient: created,
+              waitlistEntries: [
+                {
+                  id: "ffffffff-ffff-4fff-8fff-ffffffffffff",
+                  patientId: created.id,
+                  kind: "service",
+                  serviceId: pilatesId,
+                  itemName: "Pilates",
+                  status: "waiting",
+                },
+              ],
+            }
+          : {
+              patient: created,
+              plan: {
+                id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
                 patientId: created.id,
                 patientName: created.fullName,
-                status: "waitlisted",
-                queuePosition: 2,
-                enrolledAt: "2026-10-04T12:00:00.000Z",
-                updatedAt: "2026-10-04T12:00:00.000Z",
-              }
-            : undefined,
-        },
+                serviceName: "Pilates",
+                ...(body.plan as object),
+                status: "active",
+                remainingSessions: 8,
+              },
+              enrollment: body.groupId
+                ? {
+                    id: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+                    clinicId: created.clinicId,
+                    groupId: body.groupId,
+                    patientId: created.id,
+                    patientName: created.fullName,
+                    status: "waitlisted",
+                    queuePosition: 2,
+                    enrolledAt: "2026-10-04T12:00:00.000Z",
+                    updatedAt: "2026-10-04T12:00:00.000Z",
+                  }
+                : undefined,
+            },
         201,
       ),
     );
@@ -12990,12 +13004,10 @@ describe("guided client registration", () => {
     fireEvent.click(
       screen.getByRole("button", { name: "Sim, colocar na lista de espera" }),
     );
-    fireEvent.change(within(dialog).getByLabelText("Sessões do serviço 1"), {
-      target: { value: "8" },
-    });
-    fireEvent.change(within(dialog).getByLabelText("Valor do serviço 1"), {
-      target: { value: "480,00" },
-    });
+    // TW3: turma cheia não vende plano: somem sessões, valores e pagamento.
+    expect(
+      within(dialog).queryByLabelText("Sessões do serviço 1"),
+    ).not.toBeInTheDocument();
     // Trocar o plano limpa a turma escolhida (ela é de outro serviço).
     fireEvent.change(catalog, { target: { value: physioTemplate.id } });
     expect(within(dialog).getByLabelText("Turma")).toHaveValue("");
@@ -13010,28 +13022,22 @@ describe("guided client registration", () => {
       screen.getByRole("button", { name: "Sim, colocar na lista de espera" }),
     );
     fireEvent.click(
-      within(dialog).getByRole("button", { name: "Salvar e criar plano" }),
+      within(dialog).getByRole("button", {
+        name: "Salvar e colocar na lista de espera",
+      }),
     );
     expect(
       await screen.findByText(
-        /A turma Pilates 2 está cheia: o cliente entrou na lista de espera \(posição 2\)/,
+        /Turma cheia: o cliente entrou na Lista de espera de Pilates, sem plano nem cobrança\./,
       ),
     ).toBeInTheDocument();
     expect(
       screen.queryByRole("dialog", { name: "Cliente cadastrado" }),
     ).not.toBeInTheDocument();
-    expect(posts[0]).toMatchObject({
-      next: "plan",
-      groupId: groups[1]!.id,
-      plan: {
-        planTemplateId: pilatesTemplate.id,
-        kind: "fixed_package",
-        name: "Pilates 2x semana",
-        services: [
-          { serviceId: pilatesId, totalSessions: 8, totalValueInCents: 48000 },
-        ],
-        totalValueInCents: 48000,
-      },
+    expect(posts[0]).toEqual({
+      next: "waitlist",
+      patient: expect.objectContaining({ fullName: expect.any(String) }),
+      waitlist: [{ serviceId: pilatesId, groupId: groups[1]!.id }],
     });
   });
 

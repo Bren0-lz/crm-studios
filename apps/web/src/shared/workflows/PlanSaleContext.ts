@@ -1,13 +1,23 @@
 import type { PatientOption, PatientPlan } from "@crm/contracts";
 import { createContext, type ReactNode } from "react";
 
-/** Venda de um plano cadastrado ao cliente, aberta de outra tela (ex.: agendamento). */
+/**
+ * Venda de um plano cadastrado ao cliente, aberta de outra tela: o avulso do serviço no
+ * agendamento, ou o recorrente com a turma na matrícula pela Lista de espera (TW3).
+ */
 export interface PlanSaleRequest {
   patient: PatientOption;
+  /** Catálogo mostrado; padrão `single` (avulso do agendamento). */
+  kind?: "single" | "recurring";
   /** Plano cadastrado já escolhido (avulso do serviço). */
-  planTemplateId: string;
+  planTemplateId?: string;
+  /** Só planos cadastrados que incluem o serviço. */
+  initialServiceId?: string;
+  /** Turma já escolhida quando o plano cobre o serviço dela. */
+  initialGroupId?: string;
   onClose: () => void;
-  onSaved: (plan: PatientPlan) => void;
+  /** `notice`: aviso da matrícula na turma, quando houver. */
+  onSaved: (plan: PatientPlan, notice?: string) => void;
 }
 
 /**

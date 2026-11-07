@@ -3,6 +3,7 @@ import type { MemoryRepositoryContext } from "./context.js";
 import { DomainError } from "../../repository.js";
 import {
   purchaseFingerprint,
+  assertPlanEnrollmentSeat,
   validatePurchaseSchedule,
 } from "../../modules/plans/purchase.js";
 export function createPlanPurchasesRepository(
@@ -95,6 +96,8 @@ export function createPlanPurchasesRepository(
                 patientId: plan.patientId,
               })
             : undefined;
+        // Sem vaga confirmada na turma não há venda (TW3): desfaz plano e matrícula.
+        assertPlanEnrollmentSeat(enrollment);
         let document = input.document
           ? await context.operations.createIssuedDocument(clinicId, actorId, {
               ...input.document,

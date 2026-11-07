@@ -5274,12 +5274,19 @@ describe("CRM API", () => {
         plan: { ...planTerms, kind: "recurring", installments: 1 },
         groupId: fullGroupId,
       });
+      // Venda com turma cheia é recusada (TW3); a espera da turma vem de Turmas, sem plano novo.
       const waitlisted = await create({
         next: "plan",
         patient: { fullName: "Filtro Espera", phone: "11977771005" },
         plan: { ...planTerms, kind: "recurring", installments: 1 },
-        groupId: fullGroupId,
       });
+      const waitlistEnroll = await app.inject({
+        method: "POST",
+        url: "/group-enrollments",
+        headers,
+        payload: { groupId: fullGroupId, patientId: waitlisted.patient.id },
+      });
+      expect(waitlistEnroll.json()).toMatchObject({ status: "waitlisted" });
       await create({
         next: "single",
         patient: { fullName: "Filtro Avulso", phone: "11977771006" },

@@ -469,6 +469,17 @@ const guidedGroupIdSchema = z
   .or(z.literal("").transform(() => undefined));
 
 /**
+ * Serviço com a turma escolhida cheia (TW3): o cliente vai para a Lista de espera do serviço,
+ * sem plano, cobrança nem contrato. `groupId` é a turma desejada (fica nas observações).
+ */
+export const guidedWaitlistItemSchema = z.object({
+  serviceId: z.uuid(),
+  groupId: guidedGroupIdSchema,
+});
+
+const guidedWaitlistSchema = z.array(guidedWaitlistItemSchema).max(10);
+
+/**
  * `POST /patients/guided`: cria o cliente já com o próximo passo, tudo ou nada.
  * - `none`: só o cadastro (igual a `POST /patients`);
  * - `demonstration`: atendimento experimental (`visitType: "trial"`) com serviço, profissional,
@@ -478,7 +489,9 @@ const guidedGroupIdSchema = z
  *   `additionalPlans` vão os demais planos do cliente, cada um com a sua turma opcional
  *   (a mesma turma não pode aparecer duas vezes), e os serviços avulsos (`kind: "single"`,
  *   sem turma) comprados junto;
- * - `single`: serviço avulso (plano `single`).
+ * - `single`: serviço avulso (plano `single`);
+ * - `waitlist`: só a Lista de espera dos serviços cujas turmas escolhidas estão cheias (TW3).
+ *   No passo `plan`, `waitlist` leva os serviços de turma cheia junto dos planos com vaga.
  */
 export const guidedPatientInputSchema = z.discriminatedUnion("next", [
   z.object({ next: z.literal("none"), patient: patientInputSchema }),
@@ -509,6 +522,7 @@ export const guidedPatientInputSchema = z.discriminatedUnion("next", [
         )
         .max(9)
         .optional(),
+      waitlist: guidedWaitlistSchema.optional(),
     })
     .refine(
       (value) => {
@@ -523,6 +537,14 @@ export const guidedPatientInputSchema = z.discriminatedUnion("next", [
         path: ["additionalPlans"],
       },
     ),
+  z.object({
+    next: z.literal("waitlist"),
+    patient: patientInputSchema,
+    waitlist: guidedWaitlistSchema.min(
+      1,
+      "Informe o serviço da lista de espera.",
+    ),
+  }),
   z.object({
     next: z.literal("single"),
     patient: patientInputSchema,

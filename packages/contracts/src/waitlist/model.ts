@@ -70,6 +70,21 @@ export const waitlistEntryUpdateSchema = z
     "Informe a situação ou as observações.",
   );
 
+const desiredGroupPrefix = "Turma desejada: ";
+
+/** Observação da entrada criada porque a turma escolhida estava cheia (TW3). */
+export function waitlistDesiredGroupNote(groupName: string) {
+  return `${desiredGroupPrefix}${groupName}`;
+}
+
+/** Nome da turma desejada guardado nas observações, se houver. */
+export function waitlistDesiredGroupName(notes: string) {
+  const line = notes
+    .split("\n")
+    .find((item) => item.startsWith(desiredGroupPrefix));
+  return line ? line.slice(desiredGroupPrefix.length).trim() : null;
+}
+
 /** Chave do item aguardado (serviço ou produto). */
 export function waitlistItemKey(
   entry: Pick<WaitlistEntry, "kind" | "serviceId" | "productId">,

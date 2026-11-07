@@ -154,6 +154,12 @@
   justify-self: start;
 }
 
+/* Matrícula pela Lista de espera (TW3): turma com vaga, detalhes e o botão. */
+.waitlist-enroll {
+  display: grid;
+  gap: var(--space-3);
+}
+
 @media (max-width: 700px) {
   .waitlist-toolbar {
     align-items: stretch;

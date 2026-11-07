@@ -18,6 +18,7 @@ import { useState, useCallback, useRef } from "react";
 import { api } from "../../api";
 import { Modal } from "../../shared/components/Modal";
 import { usePlanGroupChoices } from "../../shared/hooks/usePlanGroupChoices";
+import { addToServiceWaitlist } from "./full-group-waitlist";
 import { PlanForm } from "./PlanForm";
 import type { PlanModalProps } from "./types";
 
@@ -28,6 +29,7 @@ export function PlanModal({
   fixedPatient,
   onClose,
   onSaved,
+  onWaitlisted,
 }: PlanModalProps) {
   const { can } = useAuthorization();
   const [busy, setBusy] = useState(false);
@@ -106,6 +108,12 @@ export function PlanModal({
           additionalDirty={Boolean(signature || options.appointments.length)}
           submitBlocked={blocked}
           onBusyChange={setBusy}
+          onWaitlist={
+            onWaitlisted
+              ? async (entry) =>
+                  onWaitlisted(await addToServiceWaitlist(entry, groups))
+              : undefined
+          }
           renderAdditional={(input, groupId) => (
             <>
               {canSign && (

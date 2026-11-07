@@ -11,11 +11,15 @@ import {
   type PatientTagInput,
   patientTagKey,
   type PatientTagUpdate,
+  type WaitlistEntry,
+  waitlistDesiredGroupNote,
 } from "@crm/contracts";
 import {
   guidedPlansResult,
   guidedSubscriptions,
+  guidedWaitlist,
 } from "../../modules/patients/guided-plans.js";
+import { assertPlanEnrollmentSeat } from "../../modules/plans/purchase.js";
 import {
   buildPatientTimeline,
   patientEditAction,
@@ -123,6 +127,7 @@ export function createPatientsRepository(
         repositoryContext.receivables,
         repositoryContext.sessionMovements,
         repositoryContext.groupEnrollments,
+        repositoryContext.waitlistEntries,
         repositoryContext.adminAuditEvents,
       ];
       const lengths = collections.map((collection) => collection.length);
@@ -153,10 +158,49 @@ export function createPatientsRepository(
               400,
             );
         }
+        // Turma cheia (TW3): a turma desejada fica nas observações da Lista de espera.
+        const waitlist = guidedWaitlist(input).map((item) => {
+          if (!item.groupId) return { serviceId: item.serviceId, notes: "" };
+          const group = repositoryContext.groupClasses.find(
+            (entry) =>
+              entry.clinicId === clinicId &&
+              entry.id === item.groupId &&
+              entry.serviceId === item.serviceId,
+          );
+          if (!group)
+            throw new DomainError(
+              "GROUP_SERVICE_MISMATCH",
+              "A turma escolhida não é do serviço da lista de espera.",
+              400,
+            );
+          return {
+            serviceId: item.serviceId,
+            notes: waitlistDesiredGroupNote(group.name),
+          };
+        });
         const patient = await repositoryContext.operations.createPatient(
           clinicId,
           input.patient,
         );
+        const createWaitlist = async () => {
+          const entries: WaitlistEntry[] = [];
+          for (const item of waitlist)
+            entries.push(
+              await repositoryContext.operations.createWaitlistEntry(
+                clinicId,
+                actorUserId,
+                {
+                  ...item,
+                  patientId: patient.id,
+                  kind: "service",
+                  productId: null,
+                },
+              ),
+            );
+          return entries;
+        };
+        if (input.next === "waitlist")
+          return { patient, waitlistEntries: await createWaitlist() };
         if (input.next === "demonstration")
           return {
             patient,
@@ -186,20 +230,21 @@ export function createPatientsRepository(
             actorUserId,
             { ...item.plan, patientId: patient.id },
           );
-          created.push(
-            item.groupId
-              ? {
-                  plan,
-                  enrollment:
-                    await repositoryContext.operations.createGroupEnrollment(
-                      clinicId,
-                      { groupId: item.groupId, patientId: patient.id },
-                    ),
-                }
-              : { plan },
-          );
+          const enrollment = item.groupId
+            ? await repositoryContext.operations.createGroupEnrollment(
+                clinicId,
+                { groupId: item.groupId, patientId: patient.id },
+              )
+            : undefined;
+          assertPlanEnrollmentSeat(enrollment);
+          created.push(enrollment ? { plan, enrollment } : { plan });
         }
-        return guidedPlansResult(patient, created, input);
+        return guidedPlansResult(
+          patient,
+          created,
+          input,
+          await createWaitlist(),
+        );
       } catch (error) {
         collections.forEach((collection, index) => {
           collection.length = lengths[index]!;

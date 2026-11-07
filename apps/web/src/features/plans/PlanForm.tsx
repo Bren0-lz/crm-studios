@@ -64,6 +64,9 @@ export function PlanForm({
   registerCloseGuard,
   catalogKind,
   initialTemplateId,
+  initialServiceId,
+  initialGroupId,
+  onWaitlist,
   submitBlocked = "",
 }: {
   patients: PatientOption[];
@@ -83,6 +86,21 @@ export function PlanForm({
   catalogKind?: PlanCatalogKind | undefined;
   /** Plano cadastrado já escolhido ao abrir (ex.: avulso do serviço, vendido no agendamento). */
   initialTemplateId?: string | undefined;
+  /** Mostra só os planos cadastrados que incluem o serviço (matrícula pela Lista de espera). */
+  initialServiceId?: string | undefined;
+  /** Turma já escolhida ao abrir, assim que o plano escolhido incluir o serviço dela. */
+  initialGroupId?: string | undefined;
+  /**
+   * Turma cheia escolhida (TW3): em vez de vender o plano, coloca o cliente na Lista de espera
+   * do serviço da turma — sem pagamento nem contrato.
+   */
+  onWaitlist?:
+    | ((entry: {
+        patientId: string;
+        serviceId: string;
+        groupId: string;
+      }) => Promise<void>)
+    | undefined;
   /** Motivo que impede salvar (ex.: sessões da contratação em conflito); vazio = liberado. */
   submitBlocked?: string | undefined;
 }) {
@@ -139,6 +157,31 @@ export function PlanForm({
   const submitting = useRef(false);
   const [groupId, setGroupId] = useState("");
   const [baseline, setBaseline] = useState(() => JSON.stringify(form));
+  // Turma cheia: o plano não é vendido; o cliente vai para a Lista de espera (TW3).
+  const chosenGroup = groups?.items?.find((group) => group.id === groupId);
+  const waitlisted = Boolean(
+    onWaitlist &&
+    !renewing &&
+    form.kind !== "single" &&
+    chosenGroup &&
+    chosenGroup.activeEnrollments >= chosenGroup.capacity,
+  );
+  // Matrícula pela Lista de espera: a turma com vaga entra escolhida (uma vez, ajustada no
+  // próprio render) quando o plano escolhido cobre o serviço dela.
+  const [groupPreselected, setGroupPreselected] = useState(false);
+  const initialGroup = groups?.items?.find(
+    (item) => item.id === initialGroupId,
+  );
+  if (
+    !groupPreselected &&
+    !groupId &&
+    initialGroup &&
+    form.kind !== "single" &&
+    form.services.some((entry) => entry.serviceId === initialGroup.serviceId)
+  ) {
+    setGroupPreselected(true);
+    setGroupId(initialGroup.id);
+  }
   // Plano de aulas em grupo (serviço com turma ativa) só é contratado com a turma escolhida.
   const groupMissing =
     Boolean(groups) &&
@@ -151,10 +194,11 @@ export function PlanForm({
       !renewing && !form.patientId && "Cliente",
       !renewing && !form.planTemplateId && "Plano cadastrado",
       Boolean(renewing) && !form.name.trim() && "Nome do plano",
-      !form.validFrom && "Início",
-      !form.firstDueDate && "Primeiro vencimento",
+      // Na Lista de espera não há cobrança: datas e recorrência ficam para a vaga.
+      !waitlisted && !form.validFrom && "Início",
+      !waitlisted && !form.firstDueDate && "Primeiro vencimento",
       groupMissing && "Turma",
-      ...planRecurrenceMissing(form),
+      ...(waitlisted ? [] : planRecurrenceMissing(form)),
     ].filter((item): item is string => Boolean(item)),
   );
   const formElement = useRef<HTMLFormElement>(null);
@@ -270,10 +314,17 @@ export function PlanForm({
     onBusyChange(true);
     setError("");
     try {
-      await onSubmit(
-        withPlanFirstCharge(form, firstChargeSlots),
-        form.kind !== "single" ? groupId || undefined : undefined,
-      );
+      if (waitlisted && onWaitlist && chosenGroup)
+        await onWaitlist({
+          patientId: form.patientId,
+          serviceId: chosenGroup.serviceId,
+          groupId: chosenGroup.id,
+        });
+      else
+        await onSubmit(
+          withPlanFirstCharge(form, firstChargeSlots),
+          form.kind !== "single" ? groupId || undefined : undefined,
+        );
     } catch (cause) {
       setError((cause as Error).message);
       throw cause;
@@ -296,12 +347,17 @@ export function PlanForm({
   const shownCatalogKind: PlanCatalogKind =
     catalogKind ?? (form.kind === "single" ? "single" : "recurring");
   const shownTemplates = templates?.filter(
-    (item) => planTemplateCatalogKind(item) === shownCatalogKind,
+    (item) =>
+      planTemplateCatalogKind(item) === shownCatalogKind &&
+      (!initialServiceId ||
+        item.services.some((entry) => entry.serviceId === initialServiceId)),
   );
   const servicesTotal = (entries: PatientPlanInput["services"]) =>
     entries.reduce((sum, item) => sum + item.totalValueInCents, 0);
   const formDirty =
-    additionalDirty || Boolean(groupId) || JSON.stringify(form) !== baseline;
+    additionalDirty ||
+    (Boolean(groupId) && groupId !== initialGroupId) ||
+    JSON.stringify(form) !== baseline;
   // Sem guarda própria (PlanForm dentro de outro modal): o Modal pergunta antes de descartar.
   useModalDirty(!registerCloseGuard && formDirty);
   const confirmDiscard = useConfirmDiscard();
@@ -501,159 +557,172 @@ export function PlanForm({
                   · Valor total do período.
                 </p>
               )}
-            {form.services.map((entry, index) => (
-              <fieldset className="span-2 form-grid" key={entry.serviceId}>
-                <legend>
-                  {renewing?.services.find(
-                    (item) => item.serviceId === entry.serviceId,
-                  )?.serviceName ??
-                    services.find((item) => item.id === entry.serviceId)
-                      ?.name ??
-                    "Serviço"}
-                </legend>
-                {renewing && (
-                  <p className="span-2">
-                    Saldo atual:{" "}
-                    {
-                      renewing.services.find(
+            {waitlisted ? (
+              <p className="span-2 muted-copy">
+                Turma cheia: o plano não é vendido. O cliente vai para a Lista
+                de espera do serviço, sem forma de pagamento nem contrato.
+              </p>
+            ) : (
+              <>
+                {form.services.map((entry, index) => (
+                  <fieldset className="span-2 form-grid" key={entry.serviceId}>
+                    <legend>
+                      {renewing?.services.find(
                         (item) => item.serviceId === entry.serviceId,
-                      )?.remainingSessions
-                    }{" "}
-                    sessões. A renovação criará o novo saldo informado abaixo.
-                  </p>
-                )}
+                      )?.serviceName ??
+                        services.find((item) => item.id === entry.serviceId)
+                          ?.name ??
+                        "Serviço"}
+                    </legend>
+                    {renewing && (
+                      <p className="span-2">
+                        Saldo atual:{" "}
+                        {
+                          renewing.services.find(
+                            (item) => item.serviceId === entry.serviceId,
+                          )?.remainingSessions
+                        }{" "}
+                        sessões. A renovação criará o novo saldo informado
+                        abaixo.
+                      </p>
+                    )}
+                    <label>
+                      Sessões do serviço {index + 1}
+                      <input
+                        required
+                        type="number"
+                        min="1"
+                        max="1000"
+                        step="1"
+                        readOnly
+                        value={entry.totalSessions}
+                      />
+                    </label>
+                    <label>
+                      Valor do serviço {index + 1}
+                      <input
+                        readOnly
+                        value={currency.format(entry.totalValueInCents / 100)}
+                      />
+                    </label>
+                    <p className="span-2 muted-copy">
+                      {form.kind === "single"
+                        ? "Avulso: uma sessão, pelo preço por sessão do plano."
+                        : "Sessões e valor seguem o plano cadastrado."}
+                    </p>
+                  </fieldset>
+                ))}
+                <label className="span-2">
+                  Valor total
+                  <input
+                    readOnly
+                    value={currency.format(form.totalValueInCents / 100)}
+                  />
+                </label>
                 <label>
-                  Sessões do serviço {index + 1}
+                  Início
                   <input
                     required
-                    type="number"
-                    min="1"
-                    max="1000"
-                    step="1"
-                    readOnly
-                    value={entry.totalSessions}
+                    type="date"
+                    value={form.validFrom}
+                    onChange={(e) => {
+                      const selected = templates?.find(
+                        (item) => item.id === form.planTemplateId,
+                      );
+                      setForm({
+                        ...form,
+                        validFrom: e.target.value,
+                        ...(!renewing &&
+                        selected?.planType &&
+                        planPeriodMonths(selected.planType)
+                          ? {
+                              validUntil: planPeriodEnd(
+                                selected.planType,
+                                e.target.value,
+                              ),
+                            }
+                          : {}),
+                      });
+                    }}
                   />
                 </label>
                 <label>
-                  Valor do serviço {index + 1}
+                  Fim da validade
                   <input
-                    readOnly
-                    value={currency.format(entry.totalValueInCents / 100)}
+                    type="date"
+                    value={form.validUntil}
+                    onChange={(e) =>
+                      setForm({
+                        ...form,
+                        validUntil: e.target.value,
+                        autoRenew: Boolean(e.target.value) && form.autoRenew,
+                      })
+                    }
                   />
                 </label>
-                <p className="span-2 muted-copy">
-                  {form.kind === "single"
-                    ? "Avulso: uma sessão, pelo preço por sessão do plano."
-                    : "Sessões e valor seguem o plano cadastrado."}
-                </p>
-              </fieldset>
-            ))}
-            <label className="span-2">
-              Valor total
-              <input
-                readOnly
-                value={currency.format(form.totalValueInCents / 100)}
-              />
-            </label>
-            <label>
-              Início
-              <input
-                required
-                type="date"
-                value={form.validFrom}
-                onChange={(e) => {
-                  const selected = templates?.find(
-                    (item) => item.id === form.planTemplateId,
-                  );
-                  setForm({
-                    ...form,
-                    validFrom: e.target.value,
-                    ...(!renewing &&
-                    selected?.planType &&
-                    planPeriodMonths(selected.planType)
-                      ? {
-                          validUntil: planPeriodEnd(
-                            selected.planType,
-                            e.target.value,
-                          ),
-                        }
-                      : {}),
-                  });
-                }}
-              />
-            </label>
-            <label>
-              Fim da validade
-              <input
-                type="date"
-                value={form.validUntil}
-                onChange={(e) =>
-                  setForm({
-                    ...form,
-                    validUntil: e.target.value,
-                    autoRenew: Boolean(e.target.value) && form.autoRenew,
-                  })
-                }
-              />
-            </label>
-            <PlanPaymentFields
-              plan={form}
-              settings={paymentSettings}
-              template={templates?.find(
-                (item) =>
-                  item.id === (renewing?.planTemplateId ?? form.planTemplateId),
-              )}
-              disabled={loading}
-              onChange={(fields) => setForm({ ...form, ...fields })}
-            />
-            <label>
-              Primeiro vencimento
-              <input
-                required
-                type="date"
-                value={form.firstDueDate}
-                onChange={(e) =>
-                  setForm({ ...form, firstDueDate: e.target.value })
-                }
-              />
-            </label>
-            {!renewing && (
-              <PlanFirstChargeFields
-                plan={form}
-                slots={firstChargeSlots}
-                disabled={loading}
-                onChange={(choice) =>
-                  setForm((current) => withFirstChargeChoice(current, choice))
-                }
-              />
+                <PlanPaymentFields
+                  plan={form}
+                  settings={paymentSettings}
+                  template={templates?.find(
+                    (item) =>
+                      item.id ===
+                      (renewing?.planTemplateId ?? form.planTemplateId),
+                  )}
+                  disabled={loading}
+                  onChange={(fields) => setForm({ ...form, ...fields })}
+                />
+                <label>
+                  Primeiro vencimento
+                  <input
+                    required
+                    type="date"
+                    value={form.firstDueDate}
+                    onChange={(e) =>
+                      setForm({ ...form, firstDueDate: e.target.value })
+                    }
+                  />
+                </label>
+                {!renewing && (
+                  <PlanFirstChargeFields
+                    plan={form}
+                    slots={firstChargeSlots}
+                    disabled={loading}
+                    onChange={(choice) =>
+                      setForm((current) =>
+                        withFirstChargeChoice(current, choice),
+                      )
+                    }
+                  />
+                )}
+                {form.totalValueInCents > 0 && (
+                  <InstallmentsPreview
+                    className="span-2"
+                    rows={planInstallmentPreview({
+                      ...withPlanFirstCharge(form, firstChargeSlots),
+                      previousDiscount: renewing?.discount,
+                    })}
+                    note={
+                      form.kind === "recurring"
+                        ? "Plano recorrente: as próximas cobranças são geradas a cada renovação."
+                        : undefined
+                    }
+                  />
+                )}
+                <label className="checkbox-field span-2">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(form.autoRenew)}
+                    disabled={!form.validUntil}
+                    onChange={(e) =>
+                      setForm({ ...form, autoRenew: e.target.checked })
+                    }
+                  />
+                  {form.validUntil
+                    ? "Renovar automaticamente ao fim da validade, com as mesmas condições"
+                    : "Renovação automática exige o fim da validade"}
+                </label>
+              </>
             )}
-            {form.totalValueInCents > 0 && (
-              <InstallmentsPreview
-                className="span-2"
-                rows={planInstallmentPreview({
-                  ...withPlanFirstCharge(form, firstChargeSlots),
-                  previousDiscount: renewing?.discount,
-                })}
-                note={
-                  form.kind === "recurring"
-                    ? "Plano recorrente: as próximas cobranças são geradas a cada renovação."
-                    : undefined
-                }
-              />
-            )}
-            <label className="checkbox-field span-2">
-              <input
-                type="checkbox"
-                checked={Boolean(form.autoRenew)}
-                disabled={!form.validUntil}
-                onChange={(e) =>
-                  setForm({ ...form, autoRenew: e.target.checked })
-                }
-              />
-              {form.validUntil
-                ? "Renovar automaticamente ao fim da validade, com as mesmas condições"
-                : "Renovação automática exige o fim da validade"}
-            </label>
             {groups && form.kind !== "single" && form.services.length > 0 && (
               <PlanGroupPicker
                 groups={groups}
@@ -664,7 +733,7 @@ export function PlanForm({
                 required
               />
             )}
-            {renderAdditional?.(form, groupId)}
+            {!waitlisted && renderAdditional?.(form, groupId)}
           </fieldset>
           {error && (
             <div className="form-error span-2" role="alert">
@@ -701,7 +770,9 @@ export function PlanForm({
                   : "Renovar plano e gerar parcelas"
                 : loading
                   ? "Criando…"
-                  : "Criar plano e parcelas"}
+                  : waitlisted
+                    ? "Colocar na lista de espera"
+                    : "Criar plano e parcelas"}
             </button>
           </div>
         </form>

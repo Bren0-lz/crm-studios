@@ -1,6 +1,6 @@
 import { automaticPatientTagger } from "./automatic-tags.js";
 import { clientSegments } from "./client-segments.js";
-import { guidedSubscriptions } from "./guided-plans.js";
+import { guidedSubscriptions, guidedWaitlist } from "./guided-plans.js";
 import {
   matchesPatientProfile,
   matchesPatientSegment,
@@ -296,6 +296,7 @@ export function registerPatientsRoutes(context: RouteContext) {
         ...(guidedSubscriptions(input).some((item) => item.groupId)
           ? ["groups.enroll" as const]
           : []),
+        ...(guidedWaitlist(input).length ? ["waitlist.manage" as const] : []),
       );
       const patient = await withConfiguredTags(
         clinicId,
