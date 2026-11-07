@@ -23,8 +23,7 @@ import {
 } from "../../shared/lib/formatting";
 import { MoneyInput } from "../../shared/components/MoneyInput";
 import { QuickServiceModal } from "./QuickServiceModal";
-
-const NEW_SERVICE_OPTION = "__create__";
+import { ServicePicker } from "./ServicePicker";
 
 export function PlanTemplateModal({
   item,
@@ -290,66 +289,43 @@ export function PlanTemplateModal({
               key={index}
             >
               <legend>Serviço {index + 1}</legend>
-              <button
-                type="button"
-                className="icon-button plan-template-service-remove"
-                disabled={form.services.length === 1 || saving}
-                aria-label={`Remover serviço ${index + 1}`}
-                title={`Remover serviço ${index + 1}`}
-                onClick={() =>
-                  setForm({
-                    ...form,
-                    services: form.services.filter(
-                      (_, position) => position !== index,
-                    ),
-                  })
-                }
-              >
-                <Trash2 size={16} aria-hidden="true" />
-              </button>
               <div className="span-2 form-grid plan-template-service-fields">
-                <label className="span-2">
-                  Serviço<span className="sr-only"> {index + 1}</span>
-                  <select
-                    required
-                    value={entry.serviceId}
-                    onChange={(event) => {
-                      // A opção "+ Novo serviço" abre o cadastro rápido sem trocar a escolha atual.
-                      if (event.target.value === NEW_SERVICE_OPTION) {
-                        setCreatingFor(index);
-                        return;
+                <ServicePicker
+                  label="Serviço"
+                  srLabel={` ${index + 1}`}
+                  services={services}
+                  value={entry.serviceId}
+                  unavailableIds={form.services
+                    .filter((_, position) => position !== index)
+                    .map((row) => row.serviceId)
+                    .filter(Boolean)}
+                  disabled={saving}
+                  onChange={(serviceId) => updateRow(index, { serviceId })}
+                  onCreate={
+                    can("agenda.services_create")
+                      ? () => setCreatingFor(index)
+                      : undefined
+                  }
+                  action={
+                    <button
+                      type="button"
+                      className="icon-button plan-template-service-remove"
+                      disabled={form.services.length === 1 || saving}
+                      aria-label={`Remover serviço ${index + 1}`}
+                      title={`Remover serviço ${index + 1}`}
+                      onClick={() =>
+                        setForm({
+                          ...form,
+                          services: form.services.filter(
+                            (_, position) => position !== index,
+                          ),
+                        })
                       }
-                      updateRow(index, { serviceId: event.target.value });
-                    }}
-                  >
-                    <option value="">Selecione um serviço</option>
-                    {services
-                      .filter(
-                        (service) =>
-                          service.active || service.id === entry.serviceId,
-                      )
-                      .map((service) => (
-                        <option
-                          key={service.id}
-                          value={service.id}
-                          disabled={
-                            !service.active ||
-                            form.services.some(
-                              (row, position) =>
-                                position !== index &&
-                                row.serviceId === service.id,
-                            )
-                          }
-                        >
-                          {service.name}
-                          {!service.active ? " (inativo)" : ""}
-                        </option>
-                      ))}
-                    {can("agenda.services_create") && (
-                      <option value={NEW_SERVICE_OPTION}>+ Novo serviço</option>
-                    )}
-                  </select>
-                </label>
+                    >
+                      <Trash2 size={16} aria-hidden="true" />
+                    </button>
+                  }
+                />
                 {months ? (
                   <>
                     <label>

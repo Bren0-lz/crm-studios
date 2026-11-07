@@ -34,6 +34,7 @@ import {
   fillRequiredContact,
 } from "./test-support/patient-actions";
 import { isLeadBoardUrl, leadBoardResponse } from "./test-support/lead-board";
+import { chooseService } from "./test-support/workflow-ui";
 
 /** Abre o menu "Mais ações" de uma despesa fixa e devolve a opção pedida. */
 async function recurringAction(
@@ -366,7 +367,7 @@ describe("configured plan catalog", () => {
     fill("Nome do plano", "Plano completo");
     fill("Tipo de plano", "promotional");
     fill("Valor total", "125,50");
-    fill("Serviço 1", first.serviceId);
+    chooseService(dialog, "Serviço 1", "Pilates");
     fill("Sessões do serviço 1", "8");
     fireEvent.click(
       within(dialog).getByRole("button", { name: "Adicionar serviço" }),
@@ -379,7 +380,7 @@ describe("configured plan catalog", () => {
     expect(
       within(dialog).getByRole("button", { name: "Salvar plano" }),
     ).toHaveAccessibleDescription("Falta: Serviço 2, Valor do serviço 2.");
-    fill("Serviço 2", "77777777-7777-4777-8777-777777777777");
+    chooseService(dialog, "Serviço 2", "Fisioterapia");
     fill("Sessões do serviço 2", "2");
     fill("Valor do serviço 2", "25,50");
     expect(
