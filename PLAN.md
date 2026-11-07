@@ -1253,3 +1253,17 @@ plano não cobra nada.
 - **Gate:** gate completo
 - **Depende de:** AP4
 - **Status:** DONE
+
+### AP6 — Serviço do agendamento só dos planos do cliente
+
+- **Escopo (pedido do dono, 07/11/2026):** no "Novo atendimento" (normal/avaliação), o campo
+  "Serviço" mostrava todos os serviços com o preço do avulso, misturando serviço e plano.
+  - Contratos: `appointmentPlanServiceIds(planos, data)` — serviços de planos ativos, vigentes
+    e com saldo (ou recorrentes), mesma regra do `appointmentPricing`.
+  - Web: "Serviço" lista só os serviços dos planos do cliente, sem preço, e a opção "Vender
+    plano avulso…" (quem vende planos), que passa a listar todos os serviços com o preço do
+    avulso; escolhido o serviço, o campo "Plano" vende o avulso e já o seleciona. Experimental,
+    sem cliente e contratação de pacote seguem com a lista completa.
+- **Gate:** gate completo
+- **Depende de:** AP5
+- **Status:** DONE

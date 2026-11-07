@@ -12,6 +12,7 @@ import type {
   Service,
 } from "@crm/contracts";
 import {
+  appointmentPlanServiceIds,
   packageScheduleStarts,
   planHasSessionBalance,
   recurringOccurrenceStarts,
@@ -20,6 +21,7 @@ import {
 import { X } from "lucide-react";
 import {
   useCallback,
+  useContext,
   useEffect,
   useId,
   useLayoutEffect,
@@ -53,6 +55,11 @@ import {
   useModalDirty,
 } from "../../shared/workflows/ModalGuardContext";
 import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
+import { PlanSaleContext } from "../../shared/workflows/PlanSaleContext";
+
+/** Opções especiais do campo "Serviço" (não viram `serviceId`). */
+const SELL_SINGLE_PLAN = "__sell-single-plan";
+const BACK_TO_PLAN_SERVICES = "__plan-services";
 
 export function AppointmentForm({
   patients,
@@ -102,7 +109,8 @@ export function AppointmentForm({
   additional?: ReactNode;
   additionalDirty?: boolean;
 }) {
-  const { can, canView } = useAuthorization();
+  const { can, canEdit, canView } = useAuthorization();
+  const renderPlanSale = useContext(PlanSaleContext);
   const [form, setForm] = useState({
     patientId: fixedPatient?.id ?? "",
     visitType: "" as AppointmentVisitType | "",
@@ -128,12 +136,21 @@ export function AppointmentForm({
     // Plano de onde sai a sessão (AP4); vazio na experimental e na contratação do plano.
     planId: "",
   });
-  const fetchedRemaining = usePackageRemaining(
-    form.packageDays && !packageSessions && canView("plans")
+  // Experimental não usa plano; na contratação o plano é o que está sendo vendido.
+  const needsPlan =
+    !packageSessions && form.visitType !== "" && form.visitType !== "trial";
+  // Planos do cliente: limitam o "Serviço" (AP6) e sugerem o número de sessões do pacote.
+  const [plansVersion, setPlansVersion] = useState(0);
+  const patientPlans = usePatientPlans(
+    needsPlan || (form.packageDays && !packageSessions && canView("plans"))
       ? form.patientId
       : "",
-    form.serviceId,
+    plansVersion,
   );
+  const fetchedRemaining =
+    form.packageDays && !packageSessions && canView("plans")
+      ? packageRemainingOf(patientPlans?.items, form.serviceId)
+      : null;
   const packageRemaining = packageSessions
     ? (packageSessions[form.serviceId] ?? null)
     : fetchedRemaining;
@@ -179,9 +196,6 @@ export function AppointmentForm({
             }
       : { kind: "manual", starts: [form.startsAt] },
   );
-  // Experimental não usa plano; na contratação o plano é o que está sendo vendido.
-  const needsPlan =
-    !packageSessions && form.visitType !== "" && form.visitType !== "trial";
   const firstStart = summaryStarts[0] ?? "";
   const planStartsAt = completeDateTime.test(firstStart)
     ? new Date(firstStart).toISOString()
@@ -194,6 +208,43 @@ export function AppointmentForm({
   const availableServices = services.filter((item) =>
     serviceAvailableFor(item, form.professionalId, form.roomId),
   );
+  // Atendimento que sai de plano (AP6): "Serviço" mostra só os serviços dos planos do
+  // cliente; "Vender plano avulso…" troca para os serviços com plano avulso, com o preço.
+  const canSellSinglePlan =
+    Boolean(renderPlanSale) && canEdit("plans") && can("plans.create");
+  const [sellSinglePlan, setSellSinglePlan] = useState(false);
+  const planServicesLoading =
+    needsPlan && Boolean(form.patientId) && patientPlans === null;
+  const coveredServiceIds =
+    needsPlan && patientPlans?.items
+      ? appointmentPlanServiceIds(
+          patientPlans.items,
+          form.startsAt.split("T")[0] || localIsoDate(),
+        )
+      : undefined;
+  const sellingSinglePlan =
+    Boolean(coveredServiceIds) && canSellSinglePlan && sellSinglePlan;
+  // Na venda do avulso lista todos: sem plano avulso cadastrado, o campo "Plano" orienta.
+  const serviceOptions = availableServices.filter(
+    (item) =>
+      !coveredServiceIds ||
+      sellingSinglePlan ||
+      item.id === form.serviceId ||
+      coveredServiceIds.has(item.id),
+  );
+  const showServicePrice = !coveredServiceIds || sellingSinglePlan;
+  const serviceHint = planServicesLoading
+    ? ""
+    : needsPlan && form.patientId && patientPlans?.error
+      ? "Não foi possível carregar os planos do cliente; mostrando todos os serviços."
+      : sellingSinglePlan
+        ? "Escolha o serviço do plano avulso a vender."
+        : coveredServiceIds && coveredServiceIds.size === 0
+          ? canSellSinglePlan
+            ? "Cliente sem plano ativo. Use “Vender plano avulso…” para agendar."
+            : "Cliente sem plano ativo. Peça a quem vende planos para contratar o plano."
+          : "";
+  const serviceHintId = useId();
   // E vice-versa: com um serviço escolhido, só as salas que o atendem.
   const selectedService = services.find((item) => item.id === form.serviceId);
   const availableRooms = selectedService
@@ -343,6 +394,7 @@ export function AppointmentForm({
                   }
                   onChange={(patientId, patient) => {
                     if (patient) setSelectedPatient(patient);
+                    setSellSinglePlan(false);
                     setForm((current) => ({
                       ...current,
                       patientId,
@@ -512,28 +564,60 @@ export function AppointmentForm({
                 ))}
               </select>
             </label>
-            <label>
-              Serviço
-              <select
-                required
-                value={form.serviceId}
-                onChange={(e) =>
-                  setForm(
-                    keepAvailableRoom({ ...form, serviceId: e.target.value }),
-                  )
-                }
-              >
-                <option value="">Selecione</option>
-                {availableServices.map((item) => (
-                  <option value={item.id} key={item.id}>
-                    {item.name}
-                    {item.singleSessionPriceInCents
-                      ? ` · ${currency.format(item.singleSessionPriceInCents / 100)}`
-                      : ""}
+            <div>
+              <label>
+                Serviço
+                <select
+                  required
+                  value={planServicesLoading ? "" : form.serviceId}
+                  disabled={planServicesLoading}
+                  aria-describedby={serviceHint ? serviceHintId : undefined}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    if (
+                      value === SELL_SINGLE_PLAN ||
+                      value === BACK_TO_PLAN_SERVICES
+                    ) {
+                      setSellSinglePlan(value === SELL_SINGLE_PLAN);
+                      setForm({ ...form, serviceId: "" });
+                      return;
+                    }
+                    setForm(keepAvailableRoom({ ...form, serviceId: value }));
+                  }}
+                >
+                  <option value="">
+                    {planServicesLoading
+                      ? "Carregando planos do cliente…"
+                      : "Selecione"}
                   </option>
-                ))}
-              </select>
-            </label>
+                  {!planServicesLoading &&
+                    serviceOptions.map((item) => (
+                      <option value={item.id} key={item.id}>
+                        {item.name}
+                        {showServicePrice && item.singleSessionPriceInCents
+                          ? ` · ${currency.format(item.singleSessionPriceInCents / 100)}`
+                          : ""}
+                      </option>
+                    ))}
+                  {coveredServiceIds &&
+                    canSellSinglePlan &&
+                    (sellingSinglePlan ? (
+                      <option value={BACK_TO_PLAN_SERVICES}>
+                        Voltar aos serviços dos planos
+                      </option>
+                    ) : (
+                      <option value={SELL_SINGLE_PLAN}>
+                        Vender plano avulso…
+                      </option>
+                    ))}
+                </select>
+              </label>
+              {serviceHint && (
+                <span className="field-hint" id={serviceHintId}>
+                  {serviceHint}
+                </span>
+              )}
+            </div>
             <div>
               <AppointmentDateTimePicker
                 value={form.startsAt}
@@ -556,6 +640,11 @@ export function AppointmentForm({
                 sessions={summaryStarts.length}
                 value={form.planId}
                 onChange={choosePlan}
+                onPlanSold={() => {
+                  // O plano novo entra na lista: o serviço passa a constar dos planos.
+                  setSellSinglePlan(false);
+                  setPlansVersion((current) => current + 1);
+                }}
                 disabled={loading}
                 onNestedModalChange={onNestedModalChange}
               />
@@ -761,32 +850,46 @@ function occurrenceStarts(
 }
 
 /**
- * Saldo de sessões do serviço nos planos vigentes do cliente (pacote contratado), para
- * sugerir quantas sessões marcar. `null` enquanto não houver cliente/serviço ou plano.
+ * Planos do cliente (`GET /plans`). `undefined` sem cliente; `null` carregando. Ao recarregar
+ * (`version`, ex.: depois de vender um plano) mantém a lista anterior do mesmo cliente.
  */
-function usePackageRemaining(patientId: string, serviceId: string) {
-  const [plans, setPlans] = useState<{
+function usePatientPlans(patientId: string, version: number) {
+  const [state, setState] = useState<{
     patientId: string;
-    items: PatientPlan[];
+    items?: PatientPlan[];
+    error?: true;
   } | null>(null);
   useEffect(() => {
     if (!patientId) return;
     let active = true;
     api
       .plans(patientId)
-      .then(
-        (items) =>
-          active &&
-          setPlans({ patientId, items: Array.isArray(items) ? items : [] }),
-      )
-      .catch(() => undefined);
+      .then((items) => {
+        if (active)
+          setState({ patientId, items: Array.isArray(items) ? items : [] });
+      })
+      .catch(() => {
+        if (active) setState({ patientId, error: true });
+      });
     return () => {
       active = false;
     };
-  }, [patientId]);
-  if (!patientId || !serviceId || plans?.patientId !== patientId) return null;
+  }, [patientId, version]);
+  if (!patientId) return undefined;
+  return state?.patientId === patientId ? state : null;
+}
+
+/**
+ * Saldo de sessões do serviço nos planos vigentes do cliente (pacote contratado), para
+ * sugerir quantas sessões marcar. `null` enquanto não houver cliente/serviço ou plano.
+ */
+function packageRemainingOf(
+  plans: PatientPlan[] | undefined,
+  serviceId: string,
+) {
+  if (!plans || !serviceId) return null;
   const today = localIsoDate();
-  const services = plans.items
+  const services = plans
     .filter(
       (plan) =>
         plan.status === "active" &&

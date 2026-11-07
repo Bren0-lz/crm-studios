@@ -146,6 +146,8 @@ import {
   payrollAdvanceDescription,
   payrollAdvanceInputSchema,
   payrollEntryDescription,
+  appointmentPlanServiceIds,
+  type PatientPlan,
 } from "./index.js";
 
 describe("shared contracts", () => {
@@ -2097,6 +2099,50 @@ describe("campanhas de WhatsApp", () => {
     expect(
       whatsappCampaignAudienceSchema.parse({ mode: "segment" }),
     ).toMatchObject({ segment: { tags: [], birthdayMonth: false } });
+  });
+});
+
+describe("serviços agendáveis pelos planos do cliente", () => {
+  function plan(overrides: Partial<PatientPlan>): PatientPlan {
+    return {
+      status: "active",
+      kind: "fixed_package",
+      validFrom: "2026-01-01",
+      validUntil: "2026-12-31",
+      services: [
+        { serviceId: "s1", remainingSessions: 2 },
+        { serviceId: "s2", remainingSessions: 0 },
+      ],
+      ...overrides,
+    } as PatientPlan;
+  }
+
+  it("lista só serviços de planos ativos, vigentes e com saldo", () => {
+    expect([...appointmentPlanServiceIds([plan({})], "2026-11-07")]).toEqual([
+      "s1",
+    ]);
+    expect(
+      appointmentPlanServiceIds([plan({ status: "paused" })], "2026-11-07")
+        .size,
+    ).toBe(0);
+    expect(appointmentPlanServiceIds([plan({})], "2027-01-02").size).toBe(0);
+    expect(
+      appointmentPlanServiceIds(
+        [plan({ sourceAppointmentId: "a1" })],
+        "2026-11-07",
+      ).size,
+    ).toBe(0);
+  });
+
+  it("plano recorrente vale mesmo sem saldo nominal", () => {
+    expect(
+      [
+        ...appointmentPlanServiceIds(
+          [plan({ kind: "recurring" })],
+          "2026-11-07",
+        ),
+      ].sort(),
+    ).toEqual(["s1", "s2"]);
   });
 });
 

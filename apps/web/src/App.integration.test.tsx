@@ -1,4 +1,7 @@
-import { appointmentPricingWithPlan } from "./test-support/legacy-fixtures";
+import {
+  appointmentPricingWithPlan,
+  patientPlansWithService,
+} from "./test-support/legacy-fixtures";
 import {
   setDocumentText,
   installDocumentBrowserMocks,
@@ -635,6 +638,8 @@ async function fillAppointmentForm(dialog: HTMLElement, patientName?: string) {
   }
   for (const label of ["Tipo", "Profissional", "Sala", "Serviço"]) {
     const select = within(dialog).getByLabelText(label) as HTMLSelectElement;
+    // "Serviço" espera os planos do cliente (AP6).
+    await waitFor(() => expect(select).toBeEnabled());
     if (!select.value)
       fireEvent.change(select, { target: { value: select.options[1]!.value } });
   }
@@ -687,7 +692,9 @@ describe("appointment client search and creation", () => {
     );
     vi.mocked(fetch).mockImplementation(async (input, init) => {
       const url = String(input);
-      const pricing = appointmentPricingWithPlan(url);
+      const pricing =
+        appointmentPricingWithPlan(url) ??
+        patientPlansWithService(url, "77777777-7777-4777-8777-777777777777");
       if (pricing) return pricing;
       if (init?.method === "POST")
         return url.endsWith("/patients")
@@ -5329,7 +5336,9 @@ describe("application shell", () => {
       "Não é possível agendar em 01/01/2027: é feriado (Aniversário da cidade).";
     vi.mocked(fetch).mockImplementation(async (input, init) => {
       const url = String(input);
-      const pricing = appointmentPricingWithPlan(url);
+      const pricing =
+        appointmentPricingWithPlan(url) ??
+        patientPlansWithService(url, "77777777-7777-4777-8777-777777777777");
       if (pricing) return pricing;
       if (init?.method === "POST") {
         return {
@@ -5689,7 +5698,9 @@ describe("application shell", () => {
     let posted: Record<string, unknown> | undefined;
     vi.mocked(fetch).mockImplementation(async (input, init) => {
       const url = String(input);
-      const pricing = appointmentPricingWithPlan(url);
+      const pricing =
+        appointmentPricingWithPlan(url) ??
+        patientPlansWithService(url, "77777777-7777-4777-8777-777777777777");
       if (pricing) return pricing;
       if (init?.method === "POST") {
         posted = JSON.parse(String(init.body));

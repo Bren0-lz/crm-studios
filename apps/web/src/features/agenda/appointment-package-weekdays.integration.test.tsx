@@ -91,7 +91,8 @@ describe("appointment package on fixed weekdays", () => {
     });
     // O número de sessões vem do saldo do pacote do cliente.
     expect(
-      await within(dialog).findByLabelText("Número de sessões"),
+      // O saldo carregado entra no rótulo como dica.
+      await within(dialog).findByLabelText(/^Número de sessões/),
     ).toHaveValue(10);
     expect(
       within(dialog).getByText("Saldo do pacote neste serviço: 10 sessões."),
