@@ -1,3 +1,4 @@
+import { withAppointmentPlan } from "../../test-support/appointment-plan.js";
 import { describe, expect, it } from "vitest";
 import { MemoryClinicRepository } from "../../memory-repository.js";
 import { runBranchScenario } from "../../test-support/branch-scenario.js";
@@ -121,13 +122,17 @@ describe("branches", () => {
       method: "POST",
       url: "/appointments",
       headers: centro,
-      payload: {
-        patientId: patients[0]!.id,
-        professionalId: professional.id,
-        roomId: room.id,
-        serviceId: services[0]!.id,
-        startsAt: nextWeekAt(13),
-      },
+      payload: await withAppointmentPlan(
+        app,
+        {
+          patientId: patients[0]!.id,
+          professionalId: professional.id,
+          roomId: room.id,
+          serviceId: services[0]!.id,
+          startsAt: nextWeekAt(13),
+        },
+        centro,
+      ),
     });
     expect(appointment.statusCode, appointment.body).toBe(201);
     expect(appointment.json().branchId).toBe(centroId);
@@ -155,13 +160,17 @@ describe("branches", () => {
       method: "POST",
       url: "/appointments",
       headers: admin,
-      payload: {
-        patientId: patients[0]!.id,
-        professionalId: matrizProfessional.id,
-        roomId: room.id,
-        serviceId: services[0]!.id,
-        startsAt: nextWeekAt(15),
-      },
+      payload: await withAppointmentPlan(
+        app,
+        {
+          patientId: patients[0]!.id,
+          professionalId: matrizProfessional.id,
+          roomId: room.id,
+          serviceId: services[0]!.id,
+          startsAt: nextWeekAt(15),
+        },
+        admin,
+      ),
     });
     expect(mixed.statusCode).toBe(409);
     expect(mixed.json().code).toBe("BRANCH_MISMATCH");

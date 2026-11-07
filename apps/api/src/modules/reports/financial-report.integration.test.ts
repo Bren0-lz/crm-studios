@@ -1,3 +1,4 @@
+import { withAppointmentPlan } from "../../test-support/appointment-plan.js";
 import {
   saoPauloToday,
   type FinancialReport,
@@ -110,13 +111,17 @@ describe("relatório financeiro", () => {
         method: "POST",
         url: "/appointments",
         headers: as("owner"),
-        payload: {
-          patientId: patients[0].id,
-          professionalId: professionals[0].id,
-          roomId: rooms[0].id,
-          serviceId: services[0].id,
-          startsAt: "2031-03-10T13:00:00.000Z",
-        },
+        payload: await withAppointmentPlan(
+          app,
+          {
+            patientId: patients[0].id,
+            professionalId: professionals[0].id,
+            roomId: rooms[0].id,
+            serviceId: services[0].id,
+            startsAt: "2031-03-10T13:00:00.000Z",
+          },
+          as("owner"),
+        ),
       });
       await app.inject({
         method: "PATCH",

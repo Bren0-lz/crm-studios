@@ -73,8 +73,9 @@ export async function configuredPlan<
 }
 
 export async function authenticatedApp() {
+  const repository = new MemoryClinicRepository();
   const app = await buildApp({
-    repository: new MemoryClinicRepository(),
+    repository,
     logger: false,
   });
   const response = await app.inject({
@@ -82,7 +83,7 @@ export async function authenticatedApp() {
     url: "/auth/login",
     payload: { email: "admin@movimenta.local", password: "Admin@123" },
   });
-  return { app, token: response.json().token as string };
+  return { app, token: response.json().token as string, repository };
 }
 
 export const OWNER_ID = "22222222-2222-4222-8222-222222222222";

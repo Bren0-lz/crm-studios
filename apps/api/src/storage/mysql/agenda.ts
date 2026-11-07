@@ -338,13 +338,16 @@ export function createAgendaRepository(
         await client.lock(clinicId);
         const current = await client.query<{
           status: AppointmentStatus;
+          patientId: string | null;
+          planId: string | null;
+          visitType: Appointment["visitType"];
           startsAt: Date;
           endsAt: Date;
           professionalId: string;
           roomId: string;
           serviceId: string;
         }>(
-          `SELECT status, starts_at AS "startsAt", ends_at AS "endsAt",
+          `SELECT status, patient_id AS "patientId", patient_plan_id AS "planId", visit_type AS "visitType", starts_at AS "startsAt", ends_at AS "endsAt",
                 professional_id AS "professionalId", room_id AS "roomId",
                 service_id AS "serviceId"
          FROM appointments WHERE clinic_id = $1 AND id = $2 FOR UPDATE`,
@@ -380,6 +383,22 @@ export function createAgendaRepository(
           roomId: input.roomId,
           appointmentId,
         });
+        const planId =
+          input.planId !== undefined
+            ? await repositoryContext.appointmentPlanId(
+                client,
+                clinicId,
+                {
+                  professionalId: input.professionalId,
+                  roomId: input.roomId,
+                  serviceId: previous.serviceId,
+                  startsAt: input.startsAt,
+                  visitType: previous.visitType,
+                  planId: input.planId,
+                },
+                previous.patientId,
+              )
+            : previous.planId;
         const startsAt = new Date(input.startsAt);
         const endsAt = new Date(
           startsAt.getTime() + related.rows[0].durationMinutes * 60_000,
@@ -387,7 +406,8 @@ export function createAgendaRepository(
         if (
           startsAt.getTime() === previous.startsAt.getTime() &&
           input.professionalId === previous.professionalId &&
-          input.roomId === previous.roomId
+          input.roomId === previous.roomId &&
+          planId === previous.planId
         ) {
           const unchanged = await repositoryContext.findAppointment(
             clinicId,
@@ -455,6 +475,10 @@ export function createAgendaRepository(
             input.roomId,
           ],
         );
+        await client.query(
+          "UPDATE appointments SET patient_plan_id=$3 WHERE clinic_id=$1 AND id=$2",
+          [clinicId, appointmentId, planId],
+        );
         const appointment = await repositoryContext.findAppointment(
           clinicId,
           appointmentId,
@@ -500,13 +524,16 @@ export function createAgendaRepository(
           await client.lock(clinicId);
           const current = await client.query<{
             status: AppointmentStatus;
+            patientId: string | null;
+            planId: string | null;
+            visitType: Appointment["visitType"];
             startsAt: Date;
             professionalId: string;
             roomId: string;
             serviceId: string;
             notes: string | null;
           }>(
-            `SELECT status, starts_at AS "startsAt",
+            `SELECT status, patient_id AS "patientId", patient_plan_id AS "planId", visit_type AS "visitType", starts_at AS "startsAt",
                     professional_id AS "professionalId", room_id AS "roomId",
                     service_id AS "serviceId", notes
              FROM appointments WHERE clinic_id = $1 AND id = $2 FOR UPDATE`,
@@ -534,6 +561,51 @@ export function createAgendaRepository(
               404,
             );
           const serviceChanged = input.serviceId !== previous.serviceId;
+          const patientId = input.patientId ?? previous.patientId;
+          const patientChanged = patientId !== previous.patientId;
+          if (patientChanged) {
+            const patient = await client.query(
+              "SELECT id FROM patients WHERE clinic_id=$1 AND id=$2 AND status='active'",
+              [clinicId, patientId],
+            );
+            if (!previous.patientId || !patient.rows[0])
+              throw new DomainError(
+                "RELATED_RECORD_NOT_FOUND",
+                "Cliente ativo não encontrado.",
+                404,
+              );
+            const linked = await client.query(
+              `SELECT 1 FROM patient_tab_services WHERE clinic_id=$1 AND appointment_id=$2 UNION ALL SELECT 1 FROM patient_plans WHERE clinic_id=$1 AND source_appointment_id=$2 UNION ALL SELECT 1 FROM clinical_records WHERE clinic_id=$1 AND appointment_id=$2 LIMIT 1`,
+              [clinicId, appointmentId],
+            );
+            if (linked.rowCount)
+              throw new DomainError(
+                "APPOINTMENT_PATIENT_LOCKED",
+                "Este atendimento já possui registros financeiros ou clínicos: o cliente não pode ser alterado.",
+                409,
+              );
+          }
+          const planId =
+            input.planId !== undefined || patientChanged || serviceChanged
+              ? await repositoryContext.appointmentPlanId(
+                  client,
+                  clinicId,
+                  {
+                    professionalId: previous.professionalId,
+                    roomId: input.roomId,
+                    serviceId: input.serviceId,
+                    startsAt: previous.startsAt.toISOString(),
+                    visitType: previous.visitType,
+                    planId:
+                      input.planId ??
+                      (patientChanged
+                        ? undefined
+                        : (previous.planId ?? undefined)),
+                  },
+                  patientId,
+                )
+              : previous.planId;
+
           if (serviceChanged) {
             // Crédito da comanda/plano de origem é do serviço original.
             const linked = await client.query(
@@ -555,6 +627,8 @@ export function createAgendaRepository(
           const notes = input.notes ?? "";
           if (
             !serviceChanged &&
+            !patientChanged &&
+            planId === previous.planId &&
             input.roomId === previous.roomId &&
             (previous.notes ?? "") === notes
           )
@@ -611,7 +685,7 @@ export function createAgendaRepository(
           });
           await client.query(
             `UPDATE appointments
-             SET service_id = $3, room_id = $4, notes = $5, ends_at = $6,
+             SET service_id = $3, room_id = $4, notes = $5, ends_at = $6, patient_id = $7, patient_plan_id = $8,
                  updated_at = NOW(6)
              WHERE clinic_id = $1 AND id = $2`,
             [
@@ -621,6 +695,8 @@ export function createAgendaRepository(
               input.roomId,
               notes || null,
               endsAt,
+              patientId,
+              planId,
             ],
           );
           const name = names.rows[0];
@@ -633,6 +709,8 @@ export function createAgendaRepository(
             appointmentId,
             {
               previous: {
+                patientId: previous.patientId,
+                planId: previous.planId,
                 serviceId: previous.serviceId,
                 serviceName: name?.previousServiceName,
                 roomId: previous.roomId,
@@ -640,6 +718,8 @@ export function createAgendaRepository(
                 notes: previous.notes ?? "",
               },
               current: {
+                patientId,
+                planId,
                 serviceId: input.serviceId,
                 serviceName: name?.serviceName,
                 roomId: input.roomId,

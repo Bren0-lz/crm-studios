@@ -35,7 +35,7 @@ export const appointmentVisitTypeSchema = z.enum([
 
 export const appointmentInputSchema = z.object({
   patientId: z.uuid(),
-  /** Plano consumido ao finalizar; ausente preserva o comportamento histórico. */
+  /** Plano consumido ao finalizar; opcional em históricos/experimentais, exigido pela API nos demais. */
   planId: z.uuid().optional(),
   professionalId: z.uuid(),
   roomId: z.uuid(),
@@ -59,16 +59,19 @@ export const appointmentCreateInputSchema = appointmentInputSchema.extend({
 });
 
 export const appointmentRescheduleInputSchema = z.object({
+  planId: z.uuid().optional(),
   professionalId: z.uuid(),
   roomId: z.uuid(),
   startsAt: z.iso.datetime({ offset: true }),
 });
 
 /**
- * Edição de um atendimento ainda não finalizado (QM6): serviço, sala e observação.
+ * Edição de um atendimento ainda não finalizado: cliente, plano, serviço, sala e observação.
  * Data, horário e profissional mudam só pela remarcação. `notes` vazio limpa a observação.
  */
 export const appointmentUpdateInputSchema = z.object({
+  patientId: z.uuid().optional(),
+  planId: z.uuid().optional(),
   serviceId: z.uuid(),
   roomId: z.uuid(),
   notes: z.string().trim().max(1000).optional().or(z.literal("")),
