@@ -9,6 +9,7 @@ import {
   type SignatureRequest,
 } from "../contracts/index";
 import {
+  PlanPaymentStep,
   PlanPurchaseOptions,
   PlanSessionsSentStep,
   type PurchaseOptions,
@@ -31,7 +32,13 @@ export function PlanModal({
   onSaved,
   onWaitlisted,
 }: PlanModalProps) {
-  const { can } = useAuthorization();
+  const { can, canEdit } = useAuthorization();
+  // Venda com documento: ao concluir o envio, pergunta se o cliente já pagou (baixa + recibo).
+  const canReceive = canEdit("finance") && can("finance.receive");
+  const [documentSent, setDocumentSent] = useState(false);
+  const [paying, setPaying] = useState<PatientPlan | null>(null);
+  const finish = (plan: PatientPlan) =>
+    documentSent && canReceive ? setPaying(plan) : onSaved(plan);
   const [busy, setBusy] = useState(false);
   const [nested, setNested] = useState(false);
   const [options, setOptions] = useState<PurchaseOptions>({ appointments: [] });
@@ -55,13 +62,15 @@ export function PlanModal({
     };
   }, []);
   const close = () =>
-    scheduled
-      ? onSaved(scheduled.plan)
-      : sending
-        ? onSaved(sending.plan)
-        : closeGuard.current
-          ? closeGuard.current(onClose)
-          : onClose();
+    paying
+      ? onSaved(paying)
+      : scheduled
+        ? onSaved(scheduled.plan)
+        : sending
+          ? onSaved(sending.plan)
+          : closeGuard.current
+            ? closeGuard.current(onClose)
+            : onClose();
   const [purchaseKey] = useState(() => crypto.randomUUID());
   // A matrícula entra na contratação: a turma fica no formulário (obrigatória em aulas em grupo).
   const purchase = !renewing && can("plans.purchase");
@@ -72,29 +81,38 @@ export function PlanModal({
     <Modal
       title={renewing ? "Renovar plano" : "Novo plano"}
       subtitle={
-        scheduled
-          ? `Plano ${scheduled.plan.name} salvo. Envie as sessões para ${scheduled.plan.patientName} pelo WhatsApp.`
-          : sending
-            ? `Plano ${sending.plan.name} salvo. Envie o documento para ${sending.plan.patientName} assinar.`
-            : renewing
-              ? `${renewing.patientName} · ${renewing.serviceName}. O novo período recebe saldo e parcelas próprios; as sessões restantes do plano atual não são transferidas.`
-              : "O saldo e as contas a receber serão criados na mesma operação."
+        paying
+          ? `Plano ${paying.name} salvo. Registre o pagamento de ${paying.patientName}.`
+          : scheduled
+            ? `Plano ${scheduled.plan.name} salvo. Envie as sessões para ${scheduled.plan.patientName} pelo WhatsApp.`
+            : sending
+              ? `Plano ${sending.plan.name} salvo. Envie o documento para ${sending.plan.patientName} assinar.`
+              : renewing
+                ? `${renewing.patientName} · ${renewing.serviceName}. O novo período recebe saldo e parcelas próprios; as sessões restantes do plano atual não são transferidas.`
+                : "O saldo e as contas a receber serão criados na mesma operação."
       }
       busy={busy}
       inactive={nested}
       onClose={close}
     >
-      {scheduled && !sending ? (
+      {paying ? (
+        <PlanPaymentStep
+          plan={paying}
+          onBusyChange={setBusy}
+          onNestedChange={setNested}
+          onDone={() => onSaved(paying)}
+        />
+      ) : scheduled && !sending ? (
         <PlanSessionsSentStep
           plan={scheduled.plan}
           appointments={scheduled.appointments}
-          onDone={() => onSaved(scheduled.plan)}
+          onDone={() => finish(scheduled.plan)}
         />
       ) : sending ? (
         <SignatureSendStep
           prepare={sending.prepare}
           onBusyChange={setBusy}
-          onDone={() => (scheduled ? setSending(null) : onSaved(sending.plan))}
+          onDone={() => (scheduled ? setSending(null) : finish(sending.plan))}
         />
       ) : (
         <PlanForm
@@ -173,6 +191,7 @@ export function PlanModal({
               if (booked.length) setScheduled({ plan, appointments: booked });
             } else plan = await api.createPlan(input);
             if (!signature) return booked.length ? undefined : onSaved(plan);
+            setDocumentSent(true);
             setSending({
               plan,
               prepare: document
