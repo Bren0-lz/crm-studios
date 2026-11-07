@@ -105,22 +105,28 @@
   container-type: inline-size;
 }
 
-/* Preço de tabela no cadastro de plano: serviço à esquerda, valor à direita e a soma. */
+/* Serviço de um modelo de plano: serviço na linha de cima, sessões e valor lado a lado
+   abaixo, e as ações (cadastrar serviço, remover) no rodapé do bloco. */
 .settings-modal .form-grid.plan-template-service-fields {
-  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) auto;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   align-items: end;
   gap: var(--space-3);
-}
-.settings-modal
-  .plan-template-service-fields.plan-template-service-fields-multiple {
-  grid-template-columns: minmax(0, 2fr) repeat(2, minmax(0, 1fr)) auto;
 }
 .plan-template-service-fields > label {
   min-width: 0;
 }
-.plan-template-service-remove,
-.plan-template-service-create {
-  justify-self: start;
+.plan-template-service > p {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+.plan-template-service-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.plan-template-service-remove {
+  margin-left: auto;
 }
 .plan-template-service-add {
   display: flex;
@@ -128,9 +134,7 @@
 }
 
 @media (max-width: 700px) {
-  .settings-modal .form-grid.plan-template-service-fields,
-  .settings-modal
-    .plan-template-service-fields.plan-template-service-fields-multiple {
+  .settings-modal .form-grid.plan-template-service-fields {
     grid-template-columns: 1fr;
   }
   .plan-template-service-fields .span-2 {

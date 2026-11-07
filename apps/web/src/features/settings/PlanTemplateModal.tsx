@@ -288,11 +288,9 @@ export function PlanTemplateModal({
               key={index}
             >
               <legend>Serviço {index + 1}</legend>
-              <div
-                className={`span-2 form-grid plan-template-service-fields${form.services.length > 1 ? " plan-template-service-fields-multiple" : ""}`}
-              >
-                <label>
-                  Serviço {index + 1}
+              <div className="span-2 form-grid plan-template-service-fields">
+                <label className="span-2">
+                  Serviço<span className="sr-only"> {index + 1}</span>
                   <select
                     required
                     value={entry.serviceId}
@@ -328,7 +326,8 @@ export function PlanTemplateModal({
                 {months ? (
                   <>
                     <label>
-                      Sessões por semana do serviço {index + 1}
+                      Sessões por semana
+                      <span className="sr-only"> do serviço {index + 1}</span>
                       <input
                         required
                         type="number"
@@ -346,7 +345,8 @@ export function PlanTemplateModal({
                   </>
                 ) : (
                   <label>
-                    Sessões do serviço {index + 1}
+                    Sessões
+                    <span className="sr-only"> do serviço {index + 1}</span>
                     <input
                       required
                       type="number"
@@ -362,7 +362,8 @@ export function PlanTemplateModal({
                 )}
                 {form.services.length > 1 && (
                   <label>
-                    Valor do serviço {index + 1}
+                    Valor
+                    <span className="sr-only"> do serviço {index + 1}</span>
                     <MoneyInput
                       required
                       valueInCents={reaisToCents(entry.value)}
@@ -371,6 +372,30 @@ export function PlanTemplateModal({
                       }
                     />
                   </label>
+                )}
+              </div>
+              {months > 0 && (
+                <p className="span-2" role="status">
+                  {entry.sessionsPerWeek ? periodSessions(entry) : 0} sessões no
+                  período
+                  {entry.sessionsPerWeek
+                    ? ` · ${entry.sessionsPerWeek}x por semana`
+                    : ""}
+                  .
+                </p>
+              )}
+              <div className="span-2 plan-template-service-actions">
+                {can("agenda.services_create") && (
+                  <button
+                    type="button"
+                    className="secondary-button button-sm plan-template-service-create"
+                    disabled={saving}
+                    aria-label={`Cadastrar novo serviço para o serviço ${index + 1}`}
+                    onClick={() => setCreatingFor(index)}
+                  >
+                    <Plus size={16} aria-hidden="true" />
+                    Novo serviço
+                  </button>
                 )}
                 <button
                   type="button"
@@ -388,28 +413,6 @@ export function PlanTemplateModal({
                   Remover serviço {index + 1}
                 </button>
               </div>
-              {months > 0 && (
-                <p className="span-2" role="status">
-                  {entry.sessionsPerWeek ? periodSessions(entry) : 0} sessões no
-                  período
-                  {entry.sessionsPerWeek
-                    ? ` · ${entry.sessionsPerWeek}x por semana`
-                    : ""}
-                  .
-                </p>
-              )}
-              {can("agenda.services_create") && (
-                <button
-                  type="button"
-                  className="secondary-button button-sm plan-template-service-create"
-                  disabled={saving}
-                  aria-label={`Cadastrar novo serviço para o serviço ${index + 1}`}
-                  onClick={() => setCreatingFor(index)}
-                >
-                  <Plus size={16} aria-hidden="true" />
-                  Novo serviço
-                </button>
-              )}
             </fieldset>
           ))}
           <div className="span-2 plan-template-service-add">
