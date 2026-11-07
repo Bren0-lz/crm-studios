@@ -318,7 +318,11 @@
 
 /* audit: mobile-ok no celular (≤ 700px) a linha vira cartão de 1 coluna */
 .receivables-table .finance-row {
-  grid-template-columns: minmax(0, 1fr) 90px 110px 140px minmax(200px, auto);
+  grid-template-columns:
+    minmax(0, 1fr) 90px 110px calc(var(--space-8) * 3)
+    minmax(200px, auto);
+  /* Respiro entre "Valor" (alinhado à direita) e "Situação" (à esquerda). */
+  column-gap: var(--space-5);
 }
 
 /* audit: mobile-ok no celular (≤ 700px) a linha vira cartão de 1 coluna */
@@ -482,7 +486,8 @@
 .receivables-table.selectable .finance-row {
   grid-template-columns:
     calc(var(--space-4) + 2px) minmax(0, 1fr)
-    90px 110px 140px minmax(200px, auto);
+    90px 110px calc(var(--space-8) * 3) minmax(200px, auto);
+  column-gap: var(--space-5);
 }
 
 .finance-list .finance-head {
@@ -560,6 +565,7 @@
   color: var(--muted);
   font-size: var(--text-xs);
   line-height: 1.4;
+  white-space: nowrap;
 }
 
 .finance-list .finance-actions {
@@ -843,15 +849,15 @@
 
 .receipt-content {
   display: grid;
-  gap: 22px;
-  padding: 12px;
+  gap: var(--space-5);
+  padding: var(--space-2) var(--space-3);
 }
 
 .receipt-content > p {
   margin: 0;
   color: #46534e;
-  font-size: var(--text-sm);
-  line-height: 1.8;
+  font-size: var(--text-md);
+  line-height: 1.7;
 }
 
 .receipt-content > .document-print-body {
@@ -861,13 +867,13 @@
 .receipt-content dl {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 10px;
+  gap: var(--space-2);
   margin: 0;
 }
 
 .receipt-content dl > div {
-  padding: 12px;
-  border-radius: 10px;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
   background: #f4f2eb;
 }
 
@@ -877,19 +883,68 @@
 }
 
 .receipt-content dd {
-  margin: 4px 0 0;
-  font-size: var(--text-xs);
-  font-weight: 700;
+  margin: var(--space-1) 0 0;
+  font-size: var(--text-sm);
+  font-weight: 600;
 }
 
-/* Selo e datas do recibo para assinatura no recibo da parcela (RC4). */
+/* Selo e datas do recibo para assinatura no recibo da parcela (RC4): uma faixa separada
+   do conteúdo do recibo, com as três etapas lado a lado. */
 .receipt-tracking {
   display: grid;
+  gap: var(--space-3);
+  padding-top: var(--space-5);
+  border-top: 1px solid var(--line);
+}
+
+.receipt-tracking-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
   gap: var(--space-2);
 }
 
-.receipt-tracking > .status-pill {
-  justify-self: start;
+.receipt-tracking-head > h3 {
+  margin: 0;
+  font-size: var(--text-md);
+  font-weight: 600;
+}
+
+.receipt-content .receipt-tracking dl {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.receipt-content .receipt-tracking dl > div {
+  border: 1px solid var(--line);
+  background: transparent;
+}
+
+.receipt-content .receipt-tracking dl > .pending dd {
+  color: var(--muted);
+  font-weight: 400;
+}
+
+/* Rodapé do recibo: imprimir e WhatsApp juntos à direita; avisos do envio na linha de baixo. */
+.receipt-content > .receipt-actions {
+  flex-wrap: wrap;
+  align-items: center;
+  padding-top: var(--space-5);
+  border-top: 1px solid var(--line);
+}
+
+.receipt-actions > .primary-button,
+.receipt-actions > .secondary-button,
+.receipt-actions > .whatsapp-button {
+  white-space: nowrap;
+}
+
+.receipt-actions > .field-hint,
+.receipt-actions > .form-error {
+  order: 1;
+  flex-basis: 100%;
+  margin: 0;
+  text-align: right;
 }
 
 .finance-row:last-child {

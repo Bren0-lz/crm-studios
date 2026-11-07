@@ -513,6 +513,7 @@
   .plan-metrics,
   .plans-grid,
   .receipt-content dl,
+  .receipt-content .receipt-tracking dl,
   .commercial-metrics,
   .activity-form,
   .documents-layout,
@@ -772,6 +773,35 @@
 
   .modal-actions button {
     width: 100%;
+  }
+
+  /* Recibo: WhatsApp em cima, o aviso do envio logo abaixo dele e "Imprimir" por último. */
+  .receipt-content > .receipt-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .receipt-actions > .secondary-button {
+    order: 2;
+  }
+
+  .receipt-actions > .field-hint,
+  .receipt-actions > .form-error {
+    flex-basis: auto;
+    text-align: center;
+  }
+
+  /* Etapas do recibo em linhas compactas (rótulo à esquerda, data à direita). */
+  .receipt-content .receipt-tracking dl > div {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-2);
+  }
+
+  .receipt-content .receipt-tracking dd {
+    margin: 0;
   }
 
   /* audit: mobile-ok título + etiqueta curta; as ações ocupam a linha inteira */

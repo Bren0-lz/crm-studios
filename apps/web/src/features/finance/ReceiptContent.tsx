@@ -58,7 +58,12 @@ export function ReceiptContent({
         ) : null}
         <div>
           <dt>Data</dt>
-          <dd>{new Date(receipt.paidAt).toLocaleString("pt-BR")}</dd>
+          <dd>
+            {new Date(receipt.paidAt).toLocaleString("pt-BR", {
+              dateStyle: "short",
+              timeStyle: "short",
+            })}
+          </dd>
         </div>
         {receipt.customerDiscountInCents ? (
           <div>

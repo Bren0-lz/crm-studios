@@ -56,15 +56,16 @@ describe("controle do recibo enviado, visualizado e assinado", () => {
     open("/financeiro");
     const signed = await rowOf("Mensalidade assinada");
     expect(within(signed).getByText("Recibo assinado")).toBeInTheDocument();
-    expect(
-      within(signed).getByText(new RegExp(`^Enviado em ${moment}$`)),
-    ).toBeInTheDocument();
-    expect(
-      within(signed).getByText(new RegExp(`^Visualizado em ${moment}$`)),
-    ).toBeInTheDocument();
-    expect(
-      within(signed).getByText(new RegExp(`^Assinado em ${moment}$`)),
-    ).toBeInTheDocument();
+    // A linha mostra só a etapa mais recente; as três datas ficam no título.
+    const latest = within(signed).getByText(
+      new RegExp(`^Assinado em ${moment}$`),
+    );
+    expect(latest.getAttribute("title")).toMatch(
+      new RegExp(
+        `^Enviado em ${moment}\\nVisualizado em ${moment}\\nAssinado em ${moment}$`,
+      ),
+    );
+    expect(within(signed).queryByText(/^Enviado em/)).not.toBeInTheDocument();
     const pending = await rowOf("Mensalidade sem envio");
     expect(within(pending).getByText("Recibo não enviado")).toBeInTheDocument();
     expect(within(pending).queryByText(/^Enviado em/)).not.toBeInTheDocument();

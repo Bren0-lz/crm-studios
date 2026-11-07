@@ -275,14 +275,7 @@ export function ReceivablesList({
                     >
                       {receiptSignatureLabels[item.receiptSignature.status]}
                     </span>
-                    {receiptSignatureSteps(item.receiptSignature).map(
-                      (step) =>
-                        step.at && (
-                          <small key={step.key} className="receipt-step">
-                            {`${step.label} ${receiptMomentLabel(step.at)}`}
-                          </small>
-                        ),
-                    )}
+                    <ReceiptLatestStep summary={item.receiptSignature} />
                   </>
                 )}
               </span>
@@ -348,5 +341,26 @@ export function ReceivablesList({
         </div>
       )}
     </>
+  );
+}
+
+/**
+ * Só a etapa mais recente do recibo (ex.: "Assinado em 06 de nov. às 22:56"), para a linha
+ * não crescer; as três datas ficam no título e no modal do recibo.
+ */
+function ReceiptLatestStep({
+  summary,
+}: {
+  summary: Parameters<typeof receiptSignatureSteps>[0];
+}) {
+  const done = receiptSignatureSteps(summary).flatMap((step) =>
+    step.at ? [`${step.label} ${receiptMomentLabel(step.at)}`] : [],
+  );
+  const latest = done.at(-1);
+  if (!latest) return null;
+  return (
+    <small className="receipt-step" title={done.join("\n")}>
+      {latest}
+    </small>
   );
 }

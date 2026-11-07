@@ -4,7 +4,7 @@ import {
   type ReceiptSignatureShare,
   type ReceiptSignatureSummary,
 } from "@crm/contracts";
-import { MessageCircle } from "lucide-react";
+import { MessageCircle, Printer } from "lucide-react";
 import { Modal } from "../../shared/components/Modal";
 import {
   receiptMessage,
@@ -47,14 +47,17 @@ export function ReceiptModal({
             className="receipt-tracking print-hidden"
             aria-label="Assinatura do recibo"
           >
-            <span
-              className={`status-pill ${tracking.status === "signed" ? "paid" : "open"}`}
-            >
-              {receiptSignatureLabels[tracking.status]}
-            </span>
+            <div className="receipt-tracking-head">
+              <h3>Assinatura do recibo</h3>
+              <span
+                className={`status-pill ${tracking.status === "signed" ? "paid" : "open"}`}
+              >
+                {receiptSignatureLabels[tracking.status]}
+              </span>
+            </div>
             <dl>
               {receiptSignatureSteps(tracking).map((step) => (
-                <div key={step.key}>
+                <div key={step.key} className={step.at ? undefined : "pending"}>
                   <dt>{step.label}</dt>
                   <dd>{step.at ? receiptMomentLabel(step.at) : "Ainda não"}</dd>
                 </div>
@@ -62,7 +65,15 @@ export function ReceiptModal({
             </dl>
           </section>
         )}
-        <div className="modal-actions print-hidden">
+        <div className="modal-actions receipt-actions print-hidden">
+          <button
+            type="button"
+            className="secondary-button"
+            onClick={() => window.print()}
+          >
+            <Printer size={16} aria-hidden="true" />
+            Imprimir recibo
+          </button>
           {share ? (
             <ReceiptSignatureWhatsapp share={share} onSent={onSent} />
           ) : (
@@ -76,9 +87,6 @@ export function ReceiptModal({
               Enviar por WhatsApp
             </a>
           )}
-          <button className="primary-button" onClick={() => window.print()}>
-            Imprimir recibo
-          </button>
         </div>
       </ReceiptContent>
     </Modal>
