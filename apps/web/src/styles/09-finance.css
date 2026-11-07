@@ -316,13 +316,35 @@
   padding: var(--space-3) calc(var(--space-5) - 1px);
 }
 
-/* audit: mobile-ok no celular (≤ 700px) a linha vira cartão de 1 coluna */
-.receivables-table .finance-row {
+/* Contas a receber: uma grade só para a tabela inteira e cada linha (cabeçalho incluído)
+   herda as colunas por `subgrid`. Antes cada linha era uma grade própria com "Ações" em
+   `auto`: o cabeçalho e as linhas com botões diferentes tinham colunas de larguras
+   diferentes e Vencimento/Valor/Situação saíam do alinhamento.
+   audit: mobile-ok no celular (≤ 700px) a tabela vira lista de cartões de 1 coluna */
+.receivables-table {
+  display: grid;
   grid-template-columns:
-    minmax(0, 1fr) 90px 110px calc(var(--space-8) * 3)
-    minmax(200px, auto);
+    minmax(calc(var(--space-8) * 3), 1fr)
+    max-content max-content max-content max-content;
   /* Respiro entre "Valor" (alinhado à direita) e "Situação" (à esquerda). */
   column-gap: var(--space-5);
+}
+
+/* audit: mobile-ok no celular (≤ 700px) a tabela vira lista de cartões de 1 coluna */
+.receivables-table.selectable {
+  /* Caixa de seleção em `max-content`: no subgrid o respiro lateral da linha entra na
+     primeira coluna, e uma largura fixa faria a caixa encostar no nome. */
+  grid-template-columns:
+    max-content minmax(calc(var(--space-8) * 3), 1fr)
+    max-content max-content max-content max-content;
+}
+
+.receivables-table > .finance-row {
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
+  /* `normal` = o espaçamento da tabela; o `gap` de `.finance-list .finance-row` faria o
+     subgrid encolher a coluna da caixa de seleção e a caixa encostar no nome. */
+  column-gap: normal;
 }
 
 /* audit: mobile-ok no celular (≤ 700px) a linha vira cartão de 1 coluna */
@@ -480,14 +502,6 @@
       260px,
       auto
     );
-}
-
-/* audit: mobile-ok no celular (≤ 700px) a linha vira cartão de 1 coluna */
-.receivables-table.selectable .finance-row {
-  grid-template-columns:
-    calc(var(--space-4) + 2px) minmax(0, 1fr)
-    90px 110px calc(var(--space-8) * 3) minmax(200px, auto);
-  column-gap: var(--space-5);
 }
 
 .finance-list .finance-head {
