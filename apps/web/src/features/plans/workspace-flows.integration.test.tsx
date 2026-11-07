@@ -97,6 +97,8 @@ describe("integrated plan purchase", () => {
         .value,
     ).toMatch(/\/assinar-contrato\/[A-Za-z0-9_-]{43}$/);
     fireEvent.click(within(dialog).getByRole("button", { name: "Concluir" }));
+    // Ainda não pagou: "Não" fecha e a cobrança fica em aberto no Financeiro.
+    fireEvent.click(await within(dialog).findByRole("button", { name: "Não" }));
     await waitFor(() =>
       expect(
         screen.queryByRole("dialog", { name: "Novo plano" }),

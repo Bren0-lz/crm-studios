@@ -60,6 +60,7 @@ export function createReportsRepository(
         patientName: plan.patientName,
         itemName: `${plan.name} (${plan.serviceName})`,
         quantity: 1,
+        ...(plan.kind === "single" ? { planKind: "single" as const } : {}),
         // Todos os serviços do plano (o valor da venda conta inteiro em cada um).
         services: plan.services.length
           ? plan.services.map((item) =>
@@ -236,6 +237,8 @@ export function createReportsRepository(
             item.clinicId === clinicId &&
             item.patientId &&
             item.status === "completed" &&
+            // Aula experimental é gratuita: não gera valor para a equipe.
+            item.visitType !== "trial" &&
             inPeriod(item.startsAt),
         )
         .map((item) => {

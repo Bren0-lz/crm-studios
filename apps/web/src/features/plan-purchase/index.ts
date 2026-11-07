@@ -6,3 +6,4 @@ export {
   type PurchaseOptions,
 } from "./PlanPurchaseOptions";
 export { PlanSessionsSentStep } from "./PlanSessionsSentStep";
+export { PlanPaymentStep } from "./PlanPaymentStep";

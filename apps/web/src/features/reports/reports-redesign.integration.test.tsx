@@ -432,6 +432,7 @@ describe("management reports redesign", () => {
           nextAppointmentAt: "2099-01-10T13:00:00Z",
           contracted: [
             { sourceType: "plan", itemName: "Pilates 2x (Pilates)" },
+            { sourceType: "single", itemName: "Avaliação (Avaliação)" },
           ],
         },
         {
@@ -449,7 +450,12 @@ describe("management reports redesign", () => {
       within(select)
         .getAllByRole("group")
         .map((group) => group.getAttribute("label")),
-    ).toEqual(["Planos", "Serviços", "Produtos"]);
+    ).toEqual([
+      "Planos",
+      "Planos avulsos",
+      "Produtos",
+      "Serviços (comanda antiga)",
+    ]);
     fireEvent.change(select, {
       target: { value: "plan:Pilates 2x (Pilates)" },
     });

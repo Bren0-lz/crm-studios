@@ -139,7 +139,7 @@ export function AppointmentForm({
   // Experimental não usa plano; na contratação o plano é o que está sendo vendido.
   const needsPlan =
     !packageSessions && form.visitType !== "" && form.visitType !== "trial";
-  // Planos do cliente: limitam o "Serviço" (AP6) e sugerem o número de sessões do pacote.
+  // Planos do cliente: limitam o "Serviço" (AP7) e sugerem o número de sessões do pacote.
   const [plansVersion, setPlansVersion] = useState(0);
   const patientPlans = usePatientPlans(
     needsPlan || (form.packageDays && !packageSessions && canView("plans"))
@@ -208,7 +208,7 @@ export function AppointmentForm({
   const availableServices = services.filter((item) =>
     serviceAvailableFor(item, form.professionalId, form.roomId),
   );
-  // Atendimento que sai de plano (AP6): "Serviço" mostra só os serviços dos planos do
+  // Atendimento que sai de plano (AP7): "Serviço" mostra só os serviços dos planos do
   // cliente; "Vender plano avulso…" troca para os serviços com plano avulso, com o preço.
   const canSellSinglePlan =
     Boolean(renderPlanSale) && canEdit("plans") && can("plans.create");

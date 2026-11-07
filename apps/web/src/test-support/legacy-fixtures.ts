@@ -173,7 +173,7 @@ export async function fillAppointmentForm(
   }
   for (const label of ["Tipo", "Profissional", "Sala", "Serviço"]) {
     const select = within(dialog).getByLabelText(label) as HTMLSelectElement;
-    // "Serviço" espera os planos do cliente (AP6).
+    // "Serviço" espera os planos do cliente (AP7).
     await waitFor(() => expect(select).toBeEnabled());
     if (select.value) continue;
     // Cliente sem plano para nenhum serviço: escolhe pelo "Vender plano avulso…".
@@ -237,7 +237,7 @@ export const fixturePlanId = "d5555555-5555-4555-8555-555555555555";
 
 /**
  * Resposta de `GET /plans?patientId=` com um plano vigente do cliente que cobre `serviceId`
- * (AP6: o "Serviço" do agendamento lista só os serviços dos planos). `undefined` para as
+ * (AP7: o "Serviço" do agendamento lista só os serviços dos planos). `undefined` para as
  * demais URLs.
  */
 export function patientPlansWithService(

@@ -213,7 +213,7 @@ describe("agendamento com plano (AP4)", () => {
     expect(confirm(dialog)).toBeDisabled();
   });
 
-  it("lista só os serviços dos planos do cliente e a venda do avulso (AP6)", async () => {
+  it("lista só os serviços dos planos do cliente e a venda do avulso (AP7)", async () => {
     const { plan, services, openBooking, booked, confirm } = await scenario();
     const covered = services[1]!;
     const contracted = await plan(

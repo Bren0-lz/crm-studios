@@ -147,6 +147,41 @@ describe("team finance report", () => {
     });
   });
 
+  it("leaves completed trial classes out of the generated value", async () => {
+    const { app, repository, professional, service } = await setup();
+    const headers = {
+      authorization: `Bearer ${app.jwt.sign({ sub: actorId, clinicId, role: "admin" })}`,
+    };
+    const patient = await repository.createPatient(clinicId, {
+      cpf: nextTestCpf(),
+      fullName: "Cliente experimental",
+      phone: "11977776666",
+      tags: [],
+    });
+    const room = (await repository.listRooms(clinicId))[0]!;
+    // Aula experimental é gratuita: realizada, não entra em sessões nem no valor gerado.
+    const trial = await repository.createAppointment(clinicId, {
+      patientId: patient.id,
+      professionalId: professional.id,
+      roomId: room.id,
+      serviceId: service.id,
+      startsAt: "2039-01-10T13:00:00Z",
+      visitType: "trial",
+      notes: "",
+    });
+    vi.setSystemTime(new Date("2039-01-11T12:00:00Z"));
+    await repository.updateAppointmentStatus(clinicId, trial.id, "completed");
+    const report = (await app.inject({ url, headers })).json<ManagementReport>();
+    expect(
+      report.teamFinance?.byProfessional.find(
+        (item) => item.id === professional.id,
+      ),
+    ).toMatchObject({ completedSessions: 1, generatedInCents: 10000 });
+    expect(
+      report.teamFinance?.byService.find((item) => item.id === service.id),
+    ).toMatchObject({ completedSessions: 1, generatedInCents: 10000 });
+  });
+
   it("omits the values without the team finance permission", async () => {
     const { app, repository } = await setup();
     const user = await repository.createAdminUser(

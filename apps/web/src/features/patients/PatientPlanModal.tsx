@@ -27,6 +27,7 @@ import {
   type PlanCatalogKind,
 } from "../plans/index";
 import {
+  PlanPaymentStep,
   PlanPurchaseOptions,
   PlanSessionsSentStep,
   type PurchaseOptions,
@@ -78,7 +79,11 @@ export function PatientPlanModal({
   // Matrícula na turma da contratação: o aviso acompanha o plano salvo (TW1).
   const [enrollmentNotice, setEnrollmentNotice] = useState<string>();
   const [attempt, setAttempt] = useState(0);
-  const { can } = useAuthorization();
+  const { can, canEdit } = useAuthorization();
+  // Venda com documento: ao concluir o envio, pergunta se o cliente já pagou (baixa + recibo).
+  const canReceive = canEdit("finance") && can("finance.receive");
+  const [documentSent, setDocumentSent] = useState(false);
+  const [paying, setPaying] = useState<PatientPlan | null>(null);
   // Recorrente de aulas em grupo: a matrícula na turma entra na mesma contratação.
   const groups = usePlanGroupChoices(
     kind !== "single" && can("plans.purchase") && can("groups.enroll"),
@@ -94,6 +99,10 @@ export function PatientPlanModal({
     plan: PatientPlan;
     prepare: () => Promise<IssuedDocument>;
   } | null>(null);
+  function finish(plan: PatientPlan) {
+    if (documentSent && canReceive) setPaying(plan);
+    else onSaved(plan, enrollmentNotice);
+  }
   useEffect(() => {
     let active = true;
     api
@@ -108,37 +117,44 @@ export function PatientPlanModal({
     <Modal
       title={kind === "single" ? "Novo plano avulso" : "Novo plano recorrente"}
       subtitle={
-        scheduled
-          ? `Plano ${scheduled.plan.name} salvo. Envie as sessões para ${patient.fullName} pelo WhatsApp.`
-          : sending
-            ? `Plano ${sending.plan.name} salvo. Envie o documento para ${patient.fullName} assinar.`
-            : "O saldo e as contas a receber serão criados na mesma operação."
+        paying
+          ? `Plano ${paying.name} salvo. Registre o pagamento de ${patient.fullName}.`
+          : scheduled
+            ? `Plano ${scheduled.plan.name} salvo. Envie as sessões para ${patient.fullName} pelo WhatsApp.`
+            : sending
+              ? `Plano ${sending.plan.name} salvo. Envie o documento para ${patient.fullName} assinar.`
+              : "O saldo e as contas a receber serão criados na mesma operação."
       }
       busy={busy}
       inactive={nested}
       onClose={
-        scheduled
-          ? () => onSaved(scheduled.plan, enrollmentNotice)
-          : sending
-            ? () => onSaved(sending.plan, enrollmentNotice)
-            : onClose
+        paying
+          ? () => onSaved(paying, enrollmentNotice)
+          : scheduled
+            ? () => onSaved(scheduled.plan, enrollmentNotice)
+            : sending
+              ? () => onSaved(sending.plan, enrollmentNotice)
+              : onClose
       }
     >
-      {scheduled && !sending ? (
+      {paying ? (
+        <PlanPaymentStep
+          plan={paying}
+          onBusyChange={setBusy}
+          onNestedChange={setNested}
+          onDone={() => onSaved(paying, enrollmentNotice)}
+        />
+      ) : scheduled && !sending ? (
         <PlanSessionsSentStep
           plan={scheduled.plan}
           appointments={scheduled.appointments}
-          onDone={() => onSaved(scheduled.plan, enrollmentNotice)}
+          onDone={() => finish(scheduled.plan)}
         />
       ) : sending ? (
         <SignatureSendStep
           prepare={sending.prepare}
           onBusyChange={setBusy}
-          onDone={() =>
-            scheduled
-              ? setSending(null)
-              : onSaved(sending.plan, enrollmentNotice)
-          }
+          onDone={() => (scheduled ? setSending(null) : finish(sending.plan))}
         />
       ) : services ? (
         <PlanForm
@@ -215,6 +231,7 @@ export function PatientPlanModal({
             } else plan = await api.createPlan(input);
             if (!signature)
               return booked.length ? undefined : onSaved(plan, notice);
+            setDocumentSent(true);
             setSending({
               plan,
               prepare: document
