@@ -432,6 +432,17 @@ export interface ExternalEndpoint {
   description: string;
 }
 
+/**
+ * Filial que a pessoa logada no painel pode escolher (`GET /external/v1/branches`). O id vai no
+ * cabeçalho `X-Branch-Id`; sem ele, a leitura é de todas as filiais da pessoa.
+ */
+export interface ExternalBranch {
+  id: string;
+  name: string;
+  active: boolean;
+  isDefault: boolean;
+}
+
 /** Índice da API: clínica, chave usada e rotas disponíveis. */
 export interface ExternalApiIndex {
   version: "v1";

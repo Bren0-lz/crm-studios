@@ -26,6 +26,13 @@ export const nativeEndpoints: ExternalEndpoint[] = [
   },
   {
     method: "GET",
+    path: "/external/v1/branches",
+    scope: "sales:read",
+    description:
+      "Filiais ativas que a pessoa logada no painel acessa (admin e quem tem todas as filiais: todas), a padrão primeiro: id, name, active, isDefault. O id vai no cabeçalho X-Branch-Id das outras chamadas; sem o cabeçalho, a leitura é de todas as filiais da pessoa.",
+  },
+  {
+    method: "GET",
     path: "/external/v1/groups",
     scope: "sales:read",
     description:

@@ -2,6 +2,7 @@ import {
   BRANCH_HEADER,
   describeGroupSchedule,
   type ExternalApiIndex,
+  type ExternalBranch,
   type ExternalGroupDetails,
   type ExternalGroupMember,
   type ExternalGroupRow,
@@ -245,6 +246,7 @@ export function registerExternalRoutes({
   loginAttempts,
   dashboardAccessDenied,
   requestAccess,
+  accessibleBranches,
 }: RouteContext) {
   /** Turmas com ocupação e faturamento, pelo mesmo cálculo da aba "Visão geral" de Turmas. */
   async function groupsOverview(
@@ -382,6 +384,32 @@ export function registerExternalRoutes({
         key: { id: key.id, name: key.name, scopes: key.scopes },
         endpoints: externalEndpoints,
       };
+    },
+  );
+
+  // Filiais ativas da pessoa logada no painel (admin e "todas as filiais": todas as ativas),
+  // a padrão primeiro. É a lista do seletor de filial do painel.
+  app.get(
+    "/external/v1/branches",
+    { preHandler: authenticate },
+    async (request): Promise<ExternalBranch[]> => {
+      const user = await repository.findUserById(
+        request.user.clinicId,
+        request.user.sub,
+      );
+      const branches = user ? await accessibleBranches(user) : [];
+      return branches
+        .map(({ id, name, active, isDefault }) => ({
+          id,
+          name,
+          active,
+          isDefault,
+        }))
+        .sort(
+          (left, right) =>
+            Number(right.isDefault) - Number(left.isDefault) ||
+            left.name.localeCompare(right.name, "pt-BR"),
+        );
     },
   );
 
