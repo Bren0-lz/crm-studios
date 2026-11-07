@@ -18,11 +18,11 @@ describe("serviço cadastrado pelo plano", () => {
     fill(plan, "Nome do plano", "Reformer avulso");
     fill(plan, "Tipo de plano", "single");
     fill(plan, "Valor total", "90,00");
-    fireEvent.click(
-      within(plan).getByRole("button", {
-        name: "Cadastrar novo serviço para o serviço 1",
-      }),
-    );
+    // "+ Novo serviço" é uma opção do próprio campo Serviço, não um botão solto no modal.
+    expect(
+      within(plan).queryByRole("button", { name: /Novo serviço/ }),
+    ).not.toBeInTheDocument();
+    fill(plan, "Serviço 1", "__create__");
 
     const quick = screen.getByRole("dialog", { name: "Novo serviço" });
     fill(quick, "Nome do serviço", "Reformer");

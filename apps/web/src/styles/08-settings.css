@@ -106,7 +106,38 @@
 }
 
 /* Serviço de um modelo de plano: serviço na linha de cima, sessões e valor lado a lado
-   abaixo, e as ações (cadastrar serviço, remover) no rodapé do bloco. */
+   abaixo. "+ Novo serviço" é opção do próprio select; a lixeira fica na borda superior,
+   espelhando a legenda. */
+.settings-modal fieldset.plan-template-service {
+  position: relative;
+}
+.icon-button.plan-template-service-remove {
+  position: absolute;
+  top: 0;
+  right: var(--space-3);
+  min-width: var(--space-6);
+  min-height: var(--space-6);
+  padding: 0;
+  border-color: var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--paper);
+  color: var(--muted);
+  transform: translateY(-50%);
+  transition:
+    background 0.15s,
+    border-color 0.15s,
+    color 0.15s;
+}
+.icon-button.plan-template-service-remove:hover:not(:disabled),
+.icon-button.plan-template-service-remove:focus-visible {
+  border-color: color-mix(in srgb, var(--red) 45%, var(--line));
+  background: color-mix(in srgb, var(--red) 10%, white);
+  color: var(--danger-strong);
+}
+.icon-button.plan-template-service-remove:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
 .settings-modal .form-grid.plan-template-service-fields {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   align-items: end;
@@ -119,14 +150,6 @@
   margin: 0;
   color: var(--muted);
   font-size: var(--text-sm);
-}
-.plan-template-service-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-}
-.plan-template-service-remove {
-  margin-left: auto;
 }
 .plan-template-service-add {
   display: flex;
