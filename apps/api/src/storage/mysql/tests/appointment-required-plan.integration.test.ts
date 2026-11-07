@@ -352,6 +352,29 @@ for (const storage of ["memory", "mysql"] as const) {
         expect(replacement.statusCode, replacement.body).toBe(201);
         expect(replacement.json().planId).toBe(input.planId);
       });
+      it("remarca atendimento sem plano vinculado (anterior à AP3) sem exigir plano", async () => {
+        const { input } = await fixture();
+        const legacy = await repository.createAppointment(clinicId, {
+          patientId: input.patientId,
+          serviceId: input.serviceId,
+          professionalId: input.professionalId,
+          roomId: input.roomId,
+          visitType: "regular",
+          startsAt: "2039-02-01T12:00:00Z",
+        });
+        const moved = await app.inject({
+          method: "PUT",
+          url: `/appointments/${legacy.id}/schedule`,
+          headers,
+          payload: {
+            professionalId: input.professionalId,
+            roomId: input.roomId,
+            startsAt: "2039-02-02T12:00:00Z",
+          },
+        });
+        expect(moved.statusCode, moved.body).toBe(200);
+        expect(moved.json().planId ?? null).toBeNull();
+      });
       for (const linked of ["clinical", "financial"] as const) {
         it(`não troca cliente de atendimento com registro ${linked}`, async () => {
           const original = await fixture(),

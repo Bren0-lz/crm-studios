@@ -519,11 +519,13 @@ export function registerAgendaRoutes(context: RouteContext) {
       await assertNoHoliday(request.user.clinicId, [input.startsAt]);
       await assertMovedServiceAvailable(request.user.clinicId, id, input);
       const planId = input.planId ?? current.planId;
+      // Remarcar sem plano vinculado (agendado antes da AP3) não exige contratação nova.
       const changed =
-        new Date(input.startsAt).getTime() !== Date.parse(current.startsAt) ||
+        Boolean(planId) &&
+        (new Date(input.startsAt).getTime() !== Date.parse(current.startsAt) ||
         input.professionalId !== current.professionalId ||
         input.roomId !== current.roomId ||
-        planId !== current.planId;
+          planId !== current.planId);
       if (changed)
         await assertAppointmentPlan(
           repository,
