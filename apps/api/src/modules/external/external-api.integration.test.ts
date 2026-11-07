@@ -62,6 +62,65 @@ describe("API externa de vendas", () => {
     await app.close();
   });
 
+  it("lists the branches the dashboard user can pick, default first", async () => {
+    const { app, repository, admin, createKey } = await setup();
+    const { headers } = await createKey(["sales:read"]);
+    const save = async (name: string, active = true) =>
+      (await repository.saveBranch(clinicId, OWNER_ID, {
+        name,
+        phones: [],
+        active,
+      }))!;
+    const zona = await save("Zona Sul");
+    const centro = await save("Centro");
+    await save("Fechada", false);
+    const created = await app.inject({
+      method: "POST",
+      url: "/admin/users",
+      headers: admin,
+      payload: {
+        fullName: "Vendas Centro",
+        email: "vendas.centro@teste.local",
+        role: "user",
+        password: "SenhaForte123",
+        modules: ["groups"],
+        branchAccess: { allBranches: false, branchIds: [centro.id] },
+        dashboardAccess: true,
+      },
+    });
+    expect(created.statusCode, created.body).toBe(201);
+    const loginAs = async (email: string, password: string) => {
+      const logged = await app.inject({
+        method: "POST",
+        url: "/external/v1/auth/login",
+        headers,
+        payload: { email, password },
+      });
+      expect(logged.statusCode, logged.body).toBe(200);
+      return { ...headers, "x-crm-user-token": logged.json().token as string };
+    };
+    const limited = await app.inject({
+      url: "/external/v1/branches",
+      headers: await loginAs("vendas.centro@teste.local", "SenhaForte123"),
+    });
+    expect(limited.statusCode, limited.body).toBe(200);
+    expect(limited.json()).toEqual([
+      { id: centro.id, name: "Centro", active: true, isDefault: false },
+    ]);
+
+    // Sem token de pessoa, a chave age como o admin que a criou: todas as filiais ativas.
+    const all = await app.inject({ url: "/external/v1/branches", headers });
+    expect(all.statusCode, all.body).toBe(200);
+    const names = (all.json() as { name: string; isDefault: boolean }[]).map(
+      (branch) => branch.name,
+    );
+    expect(all.json()[0].isDefault).toBe(true);
+    expect(names.slice(1)).toEqual(["Centro", "Zona Sul"]);
+    expect(names).not.toContain("Fechada");
+    expect(zona.active).toBe(true);
+    await app.close();
+  });
+
   it("stores only the token hash and refuses missing, wrong, revoked and JWT credentials", async () => {
     const { app, repository, admin, createKey } = await setup();
     const { id, headers } = await createKey();
