@@ -85,7 +85,6 @@ export function PublicSignaturePage() {
               <ErrorBanner error="Este documento foi cancelado pela clínica e não pode mais ser assinado." />
             ) : (
               <PublicSignatureForm
-                requireCpf
                 initialName={document.patientName}
                 acceptLabel="Li o documento e concordo com os seus termos."
                 submitLabel="Assinar documento"

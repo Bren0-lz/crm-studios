@@ -435,7 +435,7 @@ export const documentDraftInputSchema = z
     "O conteúdo precisa ter pelo menos 20 caracteres.",
   );
 
-/** Dados compartilhados da assinatura; recibos mantêm o CPF opcional. */
+/** Base dos dados da assinatura (CPF opcional); as rotas públicas usam `publicDocumentSignInputSchema`. */
 export const publicSignatureInputSchema = z.object({
   signerName: z.string().trim().min(3).max(160),
   signerCpf: z
@@ -454,7 +454,7 @@ export const publicSignatureInputSchema = z.object({
     .regex(/^data:image\/png;base64,[A-Za-z0-9+/=]+$/, "Desenhe a assinatura."),
 });
 
-/** Contratos exigem o CPF válido de quem assina, inclusive em links antigos. */
+/** Contratos e recibos exigem o CPF válido de quem assina, inclusive em links antigos. */
 export const publicDocumentSignInputSchema = publicSignatureInputSchema.extend({
   signerCpf: z
     .string("Informe o CPF de quem assina.")

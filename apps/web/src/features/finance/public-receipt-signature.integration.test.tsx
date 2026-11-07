@@ -75,6 +75,12 @@ describe("link público do recibo", () => {
 
     const sign = screen.getByRole("button", { name: "Assinar recibo" });
     expect(sign).toBeDisabled();
+    // O CPF de quem assina é obrigatório, como no contrato.
+    const cpf = screen.getByLabelText("CPF de quem assina");
+    expect(cpf).toBeRequired();
+    expect(screen.getByText(/CPF válido de quem assina/)).toBeInTheDocument();
+    fireEvent.change(cpf, { target: { value: "52998224725" } });
+    expect(cpf).toHaveValue("529.982.247-25");
     const pad = screen.getByRole("img", { name: "Área de assinatura" });
     fireEvent.pointerDown(pad, { clientX: 10, clientY: 10 });
     fireEvent.pointerMove(pad, { clientX: 40, clientY: 30 });
@@ -168,6 +174,9 @@ describe("link público do recibo", () => {
     await screen.findByRole("heading", { name: "Recibo de pagamento" });
     // Estornado enquanto o cliente estava com a página aberta.
     await repository.reverseReceivablePayment(clinicId, actorId, receivable.id);
+    fireEvent.change(screen.getByLabelText("CPF de quem assina"), {
+      target: { value: "52998224725" },
+    });
     const pad = screen.getByRole("img", { name: "Área de assinatura" });
     fireEvent.pointerDown(pad, { clientX: 10, clientY: 10 });
     fireEvent.pointerMove(pad, { clientX: 40, clientY: 30 });

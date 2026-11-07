@@ -17,6 +17,7 @@ afterEach(async () => {
 
 const payload = {
   signerName: "Cliente Recibo",
+  signerCpf: "529.982.247-25",
   accepted: true,
   signatureImage: "data:image/png;base64,iVBORw0KGgo=",
 };
