@@ -48,6 +48,16 @@ export function createDatabasePool({
  * migração falhar no meio, corrija o banco à mão antes de rodar de novo. A trava nomeada
  * impede duas instâncias migrando ao mesmo tempo.
  */
+/**
+ * Migrações renomeadas depois de entrarem na `main` (nome novo → nome antigo). Se o banco já
+ * registrou o nome antigo, o novo conta como aplicado e não roda de novo — a produção pode ter
+ * aplicado a migração com o nome antigo antes da renomeação. Nunca remova uma entrada.
+ */
+export const renamedMigrations: Readonly<Record<string, string>> = {
+  // Duas 0052 entraram ao mesmo tempo (#303 e #304); a do produto passou a 0053 em 07/11/2026.
+  "0053_product_business_line.sql": "0052_product_business_line.sql",
+};
+
 export async function runMigrations(pool: Pool): Promise<string[]> {
   const runner = createDatabasePool({
     max: 1,
@@ -75,6 +85,13 @@ export async function runMigrations(pool: Pool): Promise<string[]> {
     const appliedNow: string[] = [];
     for (const file of files) {
       if (applied.has(file)) continue;
+      const previousName = renamedMigrations[file];
+      if (previousName && applied.has(previousName)) {
+        await lock.query("INSERT INTO schema_migrations (name) VALUES ($1)", [
+          file,
+        ]);
+        continue;
+      }
       const sql = await readFile(`${migrationsPath}/${file}`, "utf8");
       await lock.execute(sql);
       await lock.query("INSERT INTO schema_migrations (name) VALUES ($1)", [
