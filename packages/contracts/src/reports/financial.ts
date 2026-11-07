@@ -40,7 +40,8 @@ export const proLaboreBaseLabels: Record<ProLaboreSettings["base"], string> = {
 
 /**
  * Por onde o dinheiro entrou ou saiu. A venda (comanda) não é origem: cada pagamento dela
- * vira uma linha por produto (`product_sale`) e por serviço avulso (`service_sale`).
+ * vira uma linha por produto (`product_sale`) e por serviço de comanda antiga (`service_sale`;
+ * serviço não se vende mais, só aparece em comanda fechada antes da mudança).
  */
 export type FinancialEntryOrigin =
   | "plan"
@@ -55,7 +56,7 @@ export const financialEntryOriginLabels: Record<FinancialEntryOrigin, string> =
   {
     plan: "Venda de planos",
     product_sale: "Venda de produtos",
-    service_sale: "Serviços avulsos",
+    service_sale: "Serviços (comanda antiga)",
     manual_receivable: "Receitas avulsas",
     expense: "Despesas",
     payroll: "Folha de pagamento",

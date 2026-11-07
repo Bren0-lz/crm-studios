@@ -3,7 +3,9 @@ import type {
   SalesReport,
   SalesPeriodReport,
   SalesReportPeriod,
+  SaleType,
 } from "@crm/contracts";
+import { saleTypeOf } from "@crm/contracts";
 import type ExcelJS from "exceljs";
 import {
   addTableSheet,
@@ -31,10 +33,11 @@ export function heading(sheet: ExcelJS.Worksheet) {
   };
 }
 
-const typeLabels: Record<SaleMovement["sourceType"], string> = {
+const typeLabels: Record<SaleType, string> = {
   plan: "Plano",
-  service: "Serviço avulso",
+  single: "Plano avulso",
   product: "Produto",
+  service: "Serviço (comanda antiga)",
 };
 
 type ItemSummary = SalesReportPeriod["byItem"][number];
@@ -195,7 +198,7 @@ export async function salesReportToXlsx(
         header: "Movimento",
         value: (item) => (item.kind === "sale" ? "Venda" : "Cancelamento"),
       },
-      { header: "Tipo", value: (item) => typeLabels[item.sourceType] },
+      { header: "Tipo", value: (item) => typeLabels[saleTypeOf(item)] },
       { header: "Cliente", value: (item) => item.patientName },
       { header: "Item", value: (item) => item.itemName },
       { header: "Quantidade", kind: "decimal", value: (item) => item.quantity },

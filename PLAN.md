@@ -1253,3 +1253,18 @@ plano não cobra nada.
 - **Gate:** gate completo
 - **Depende de:** AP4
 - **Status:** DONE
+
+### AP6 — Venda de plano e fim da venda de serviço nos relatórios
+
+- **Escopo (pedido do dono, 07/11/2026: conferir financeiro e relatórios depois da AP1–AP5):**
+  - Produção da equipe (relatório gerencial): aula experimental realizada não entra em sessões
+    nem no valor gerado (ela é gratuita); memória e MySQL.
+  - Vendas: o plano avulso fica separado dos demais planos. `SaleMovement.planKind: "single"`
+    (sem mudar `sourceType`, que o painel de vendas valida), tipo `single` "Planos avulsos" em
+    `byType`/`byItem`, no "Já contratou", no histórico do cliente e na planilha.
+  - O tipo `service` (e a origem `service_sale` do relatório financeiro) passa a se chamar
+    "Serviço(s) (comanda antiga)": só comanda fechada antes de o serviço deixar de ser vendido.
+  - Descrição de `/external/v1/sales` atualizada.
+- **Gate:** gate completo + `npm run test:mysql`
+- **Depende de:** AP5
+- **Status:** DONE

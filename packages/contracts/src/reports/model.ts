@@ -1,5 +1,11 @@
 import { z } from "zod";
+import type { SaleMovement, SaleType } from "../administration/types.js";
 import { emptyQueryToUndefined } from "../common/model.js";
+
+/** Tipo da venda nos relatórios: plano avulso separado dos demais planos. */
+export const saleTypeOf = (
+  item: Pick<SaleMovement, "sourceType" | "planKind">,
+): SaleType => (item.planKind === "single" ? "single" : item.sourceType);
 
 export const managementReportFilterSchema = z
   .object({

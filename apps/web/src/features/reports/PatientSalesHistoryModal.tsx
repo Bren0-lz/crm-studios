@@ -1,4 +1,5 @@
-import type { SaleMovement } from "@crm/contracts";
+import type { SaleMovement, SaleType } from "@crm/contracts";
+import { saleTypeOf } from "@crm/contracts";
 import { useEffect, useState } from "react";
 import { api } from "../../api";
 import { EmptyState } from "../../shared/components/EmptyState";
@@ -11,13 +12,14 @@ import {
   formatIsoDate,
 } from "../../shared/lib/formatting";
 
-const sourceLabels: Record<SaleMovement["sourceType"], string> = {
+const sourceLabels: Record<SaleType, string> = {
   plan: "Plano",
-  service: "Serviço",
+  single: "Plano avulso",
   product: "Produto",
+  service: "Serviço (comanda antiga)",
 };
 
-/** Tudo o que o cliente já contratou: planos, serviços e produtos (com estornos). */
+/** Tudo o que o cliente já contratou: planos, produtos e serviços de comandas antigas (com estornos). */
 export function PatientSalesHistoryModal({
   patientId,
   patientName,
@@ -86,7 +88,7 @@ export function PatientSalesHistoryModal({
                         </small>
                       )}
                     </th>
-                    <td>{sourceLabels[item.sourceType]}</td>
+                    <td>{sourceLabels[saleTypeOf(item)]}</td>
                     <td>{item.kind === "sale" ? "Venda" : "Cancelamento"}</td>
                     <td className="numeric-value">
                       {currency.format(item.amountInCents / 100)}

@@ -56,6 +56,40 @@ describe("sales by inclusive date range", () => {
       }).from,
     ).toBe("2026-03-01");
   });
+  it("separates single-session plans from the other plans", () => {
+    const report = buildSalesPeriodReport(
+      "2026-03-01",
+      "2026-03-31",
+      [
+        sale("mensal", "2026-03-10T15:00:00Z", 30000),
+        {
+          ...sale("avaliacao", "2026-03-11T15:00:00Z", 12000),
+          itemName: "Avaliação (avulso)",
+          planKind: "single",
+        },
+      ],
+      emptySalesBilling,
+      [],
+      new Date("2026-03-31T15:00:00Z"),
+    );
+    expect(
+      report.summary.byType.map((row) => [
+        row.sourceType,
+        row.label,
+        row.netInCents,
+      ]),
+    ).toEqual([
+      ["plan", "Planos", 30000],
+      ["single", "Planos avulsos", 12000],
+    ]);
+    expect(
+      report.summary.byItem.find((row) => row.label === "Avaliação (avulso)"),
+    ).toMatchObject({ sourceType: "single", salesCount: 1 });
+    expect(report.summary).toMatchObject({
+      grossSalesInCents: 42000,
+      salesCount: 2,
+    });
+  });
   it("keeps local date boundaries, separates cancellations of earlier sales and exports only selected movements", async () => {
     const sales = [
       sale("before", "2026-12-31T02:59:59Z", 9999),
@@ -232,7 +266,7 @@ describe("sales by inclusive date range", () => {
     });
     expect(summary.byType.map((row) => [row.label, row.netInCents])).toEqual([
       ["Planos", 20000],
-      ["Serviços avulsos", 8000],
+      ["Serviço (comanda antiga)", 8000],
       ["Produtos", 4000],
     ]);
     expect(summary.byItem.find((row) => row.label === "Faixa")).toMatchObject({
