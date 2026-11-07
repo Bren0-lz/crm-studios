@@ -400,6 +400,12 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
     view("groups", "plans"),
   ),
   "GET /external/v1/patients": external("sales:read", view("patients")),
+  // Ficha: o nome sempre; os dados só com Clientes (conferido na rota).
+  "GET /external/v1/patients/:id": external("sales:read"),
+  "GET /external/v1/patients/:id/payments": external(
+    "sales:read",
+    view("finance"),
+  ),
   "GET /external/v1/overdue": external("sales:read", view("finance")),
   "GET /external/v1/patients/:id/plans": external("sales:read"),
   "GET /external/v1/services": external("sales:read"),

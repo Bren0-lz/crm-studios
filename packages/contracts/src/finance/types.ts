@@ -198,6 +198,8 @@ export interface ReceivedPayment {
   paymentMethod?: PaymentMethod;
   /** Pagamento: desconto dado na baixa (no picado, só na última forma). */
   discountInCents?: number;
+  /** Pagamento parcial: a cobrança do saldo que a baixa gerou (só na última forma). */
+  balanceReceivableId?: string;
 }
 
 export interface Product extends Omit<

@@ -537,6 +537,30 @@ numeração antiga, mapeada em cada tarefa) e no histórico do git.
 - **Depende de:** PX3
 - **Status:** DONE
 
+### PX6 — API externa: ficha do cliente e histórico de pagamentos
+
+- **Origem:** pedido do dono em 07/11 para o painel de turmas: o matriculado vira botão que abre
+  os detalhes do cliente, com os dados do CRM e o histórico de pagamento de tudo, com filtros.
+  **Decisões do dono (07/11):** abre num modal sobre a turma (PT8); filtros por situação,
+  período, origem e serviço/linha; permissões iguais às do CRM (dados cadastrais e contato só com
+  `patients.view`; histórico de pagamento só com `finance.view`; sem a permissão, só o nome).
+- **Escopo:**
+  - `GET /external/v1/patients/:id`: ficha do cliente (nome sempre; com `patients.view`, os dados
+    cadastrais e de contato que o CRM mostra na ficha, etiquetas, filial, planos ativos e turmas).
+    404 para cliente de outra clínica ou inexistente.
+  - `GET /external/v1/patients/:id/payments` (exige `finance.view`): todas as cobranças do
+    cliente — planos, comandas, vendas e lançamentos manuais — com origem (`plan` | `tab` |
+    `sale` | `manual`), descrição, vencimento, valor, desconto, situação (em aberto, vencida,
+    paga, parcialmente paga, estornada/cancelada), baixas (data, valor, forma) e estornos, e
+    `services: { id, name, businessLine }[]` + `productLines` como na PX5. Query opcional para
+    filtrar por situação, período (vencimento ou pagamento), origem, serviço e linha; sem query,
+    tudo, do mais recente para o mais antigo.
+  - Documentar em `endpoints.ts`. Testes API (com e sem cada permissão) e MySQL opt-in se houver
+    SQL novo.
+- **Gate:** gate completo (+ `npm run test:mysql` se mexer em SQL)
+- **Depende de:** PX5
+- **Status:** DONE
+
 **Tarefas do `dashboard-studios`** (executadas lá, PR para `main` com `npm run check`; cada uma
 só depois das PX que usa estarem mescladas no CRM e o CRM simulado `apps/bff/src/mock-crm`
 atualizado no mesmo PR):
@@ -557,6 +581,13 @@ atualizado no mesmo PR):
   linha, com seleção de vários ao mesmo tempo. A escolha fica na URL e acompanha o usuário entre
   as telas. Substitui o filtro de linha atual. Atualizar o CRM simulado (`businessLine` nulo
   em parte dos serviços e produtos). Usa a PX3 e a PX5.
+- PT7 (pedido do dono, 07/11): tela de turmas abre na **tabela** por padrão (cartões continuam na
+  alternância); na lista de matriculados (tabela e cartão) o aluno com parcela vencida aparece
+  marcado como inadimplente (`overdue` da PX2, só com `finance.view`); abrir a lista de
+  matriculados não muda a largura das colunas nem o tamanho da tabela.
+- PT8 (pedido do dono, 07/11): cada matriculado vira botão que abre, num modal sobre a turma, os
+  detalhes do cliente (dados do CRM) e o histórico de pagamento de tudo, com filtros por
+  situação, período, origem e serviço/linha. Permissões iguais às do CRM. Usa a PX6.
 
 ### CD1 — WhatsApp e contato de emergência obrigatórios no cadastro manual
 

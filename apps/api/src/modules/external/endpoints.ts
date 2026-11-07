@@ -47,6 +47,20 @@ export const nativeEndpoints: ExternalEndpoint[] = [
   },
   {
     method: "GET",
+    path: "/external/v1/patients/:id",
+    scope: "sales:read",
+    description:
+      "Ficha do cliente: id e fullName sempre; com acesso a Clientes, record com os dados cadastrais e de contato da ficha do CRM (recordNumber, status, CPF, nascimento, telefone, WhatsApp, e-mail, contato de emergência, endereço e demais campos preenchidos do perfil, desconto), etiquetas (com as automáticas; Pagamento atrasado só com Financeiro), filiais (as dos planos ativos e das turmas: o cliente é da rede), planos ativos e turmas (ativo ou na lista de espera). Sem acesso a Clientes, record não vem. 404 PATIENT_NOT_FOUND para cliente inexistente ou de outra clínica.",
+  },
+  {
+    method: "GET",
+    path: "/external/v1/patients/:id/payments",
+    scope: "sales:read",
+    description:
+      "Histórico de pagamentos do cliente (exige acesso ao Financeiro; sem ele, 403 FINANCE_ACCESS_DENIED): uma linha por cobrança (conta a receber), do vencimento mais recente ao mais antigo, com origin (plan | tab | sale | manual; sale = comanda só com produtos), descrição, parcela, vencimento, valor, desconto (do cliente + da baixa), status (open | overdue | paid | partially_paid | cancelled; partially_paid = paga com saldo da baixa parcial ainda em aberto), reversed (teve baixa estornada), paidInCents, baixas (payments) e estornos (reversals) com data, valor e forma, o saldo gerado (balanceReceivableId) ou de origem (balanceOfReceivableId; o saldo herda origem, serviços e produtos), services (id, name, businessLine do cadastro) e productLines (null = produto sem classificação), e totals das linhas devolvidas. Query opcional (listas com vírgula ou parâmetro repetido; dentro de um filtro basta um valor, entre filtros valem todos): status (os acima e reversed), origin, serviceId, businessLine (studio | aesthetics | other; other = sem classificação), from/to (aaaa-mm-dd) pelo vencimento (dateField=due, padrão) ou pela data das baixas (dateField=paid). Cobranças sem serviço nem produto não entram no filtro por linha. Nas filiais da leitura (X-Branch-Id). 404 PATIENT_NOT_FOUND para cliente inexistente ou de outra clínica.",
+  },
+  {
+    method: "GET",
     path: "/external/v1/overdue",
     scope: "sales:read",
     description:
