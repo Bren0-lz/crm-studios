@@ -4,7 +4,6 @@ import type {
   AppointmentVisitType,
   GroupClass,
   GroupEnrollment,
-  LeadAppointmentInput,
 } from "@crm/contracts";
 import {
   automaticPatientTagCategoryOf,
@@ -114,11 +113,6 @@ export function initials(name: string) {
     .join("")
     .toUpperCase();
 }
-
-export const leadVisitTypes: LeadAppointmentInput["visitType"][] = [
-  "trial",
-  "evaluation",
-];
 
 export function localIsoDate(date = new Date()) {
   const year = date.getFullYear();

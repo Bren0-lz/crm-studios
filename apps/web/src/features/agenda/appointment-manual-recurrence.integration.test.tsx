@@ -1,8 +1,15 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import {
+  waitFor,
+  fireEvent,
+  render,
+  screen,
+  within,
+} from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import App from "../../App";
 import {
+  appointmentPricingWithPlan,
   fillAppointmentForm,
   storedUser,
 } from "../../test-support/legacy-fixtures";
@@ -31,6 +38,8 @@ describe("appointment recurrence on chosen dates", () => {
     };
     vi.mocked(fetch).mockImplementation(async (input, init) => {
       const url = String(input);
+      const pricing = appointmentPricingWithPlan(url);
+      if (pricing) return pricing;
       if (init?.method === "POST")
         return response({ code: "CONFLICT", message: "Horário ocupado." }, 409);
       return response(
@@ -95,6 +104,12 @@ describe("appointment recurrence on chosen dates", () => {
       within(dates).getByRole("button", { name: "Remover ocorrência 3" }),
     );
     expect(within(dialog).getByText(/^2 ocorrências/)).toBeInTheDocument();
+    // Agendar exige plano (AP4): espera os planos do cliente.
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "Confirmar atendimento" }),
+      ).toBeEnabled(),
+    );
     fireEvent.click(
       within(dialog).getByRole("button", { name: "Confirmar atendimento" }),
     );

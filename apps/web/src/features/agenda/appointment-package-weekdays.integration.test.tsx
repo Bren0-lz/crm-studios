@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 import App from "../../App";
 import { localIsoDate } from "../../shared/lib/formatting";
 import {
+  appointmentPricingWithPlan,
   fillAppointmentForm,
   storedUser,
 } from "../../test-support/legacy-fixtures";
@@ -51,6 +52,8 @@ describe("appointment package on fixed weekdays", () => {
     };
     vi.mocked(fetch).mockImplementation(async (input, init) => {
       const url = String(input);
+      const pricing = appointmentPricingWithPlan(url);
+      if (pricing) return pricing;
       if (init?.method === "POST")
         return response({ code: "CONFLICT", message: "Horário ocupado." }, 409);
       return response(

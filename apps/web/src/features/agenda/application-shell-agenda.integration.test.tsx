@@ -1,8 +1,15 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import {
+  waitFor,
+  fireEvent,
+  render,
+  screen,
+  within,
+} from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import App from "../../App";
 import {
+  appointmentPricingWithPlan,
   fillAppointmentForm,
   openSettingsSection,
   relationshipSettingsFixture,
@@ -731,6 +738,8 @@ describe("application shell", () => {
       "Não é possível agendar em 01/01/2027: é feriado (Aniversário da cidade).";
     vi.mocked(fetch).mockImplementation(async (input, init) => {
       const url = String(input);
+      const pricing = appointmentPricingWithPlan(url);
+      if (pricing) return pricing;
       if (init?.method === "POST") {
         return {
           ok: false,
@@ -814,6 +823,12 @@ describe("application shell", () => {
     await fillAppointmentForm(
       screen.getByRole("dialog", { name: "Novo atendimento" }),
       "Helena Almeida",
+    );
+    // Agendar exige plano (AP4): espera os planos do cliente.
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "Confirmar atendimento" }),
+      ).toBeEnabled(),
     );
     fireEvent.click(
       screen.getByRole("button", { name: "Confirmar atendimento" }),
@@ -908,6 +923,8 @@ describe("application shell", () => {
     let posted: Record<string, unknown> | undefined;
     vi.mocked(fetch).mockImplementation(async (input, init) => {
       const url = String(input);
+      const pricing = appointmentPricingWithPlan(url);
+      if (pricing) return pricing;
       if (init?.method === "POST") {
         posted = JSON.parse(String(init.body));
         return {
@@ -978,6 +995,12 @@ describe("application shell", () => {
     expect(within(dialog).getByLabelText("Horário")).toHaveValue("14:30");
     fireEvent.click(
       within(dialog).getByRole("button", { name: "Fechar calendário" }),
+    );
+    // Agendar exige plano (AP4): espera os planos do cliente.
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "Confirmar atendimento" }),
+      ).toBeEnabled(),
     );
     fireEvent.click(
       screen.getByRole("button", { name: "Confirmar atendimento" }),

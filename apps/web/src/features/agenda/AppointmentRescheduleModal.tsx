@@ -1,6 +1,6 @@
 import type { Appointment, Professional, Room, Service } from "@crm/contracts";
 import { serviceAvailableFor } from "@crm/contracts";
-import { useState, type FormEvent } from "react";
+import { useCallback, useState, type FormEvent } from "react";
 import { api } from "../../api";
 import { AppointmentDateTimePicker } from "../../AppointmentDateTimePicker";
 import { useAuthorization } from "../../authorization-context";
@@ -11,6 +11,9 @@ import {
 import { Modal, ModalCancelButton } from "../../shared/components/Modal";
 import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
 import { toLocalDateTimeInput } from "../../shared/lib/formatting";
+import { AppointmentPlanField } from "./AppointmentPlanField";
+
+const absenceStatuses = ["no_show", "excused_absence", "professional_absence"];
 
 export function AppointmentRescheduleModal({
   appointment,
@@ -48,7 +51,22 @@ export function AppointmentRescheduleModal({
         ? appointment.roomId
         : rooms[0].id,
     startsAt: toLocalDateTimeInput(new Date(appointment.startsAt)),
+    planId: appointment.planId ?? "",
   });
+  const [nested, setNested] = useState(false);
+  const choosePlan = useCallback(
+    (planId: string) => setForm((current) => ({ ...current, planId })),
+    [],
+  );
+  const absence = absenceStatuses.includes(appointment.status);
+  // Atendimento de cliente fora da experimental sai de um plano (AP4). Remarcar o agendado
+  // antes da exigência (sem vínculo) não pede plano; a reposição de ausência pede.
+  const usesPlan =
+    Boolean(appointment.patientId) && appointment.visitType !== "trial";
+  const legacy = usesPlan && !appointment.planId && !absence;
+  const newStartsAt = isCompleteDateTime(form.startsAt)
+    ? new Date(form.startsAt).toISOString()
+    : undefined;
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const dirty = useFormDirty(form);
@@ -57,6 +75,7 @@ export function AppointmentRescheduleModal({
       !form.professionalId && "Profissional",
       !form.roomId && "Sala",
       !isCompleteDateTime(form.startsAt) && "Nova data e horário",
+      usesPlan && !legacy && !form.planId && "Plano",
     ].filter((item): item is string => Boolean(item)),
   );
   async function submit(event: FormEvent) {
@@ -66,15 +85,12 @@ export function AppointmentRescheduleModal({
     try {
       onSaved(
         await (
-          ["no_show", "excused_absence", "professional_absence"].includes(
-            appointment.status,
-          )
-            ? api.createAbsenceSuccessor
-            : api.rescheduleAppointment
+          absence ? api.createAbsenceSuccessor : api.rescheduleAppointment
         )(appointment.id, {
           professionalId: form.professionalId,
           roomId: form.roomId,
           startsAt: new Date(form.startsAt).toISOString(),
+          ...(usesPlan && form.planId ? { planId: form.planId } : {}),
         }),
       );
     } catch (cause) {
@@ -89,14 +105,13 @@ export function AppointmentRescheduleModal({
     <Modal
       title="Reagendar atendimento"
       subtitle={
-        ["no_show", "excused_absence", "professional_absence"].includes(
-          appointment.status,
-        )
+        absence
           ? `${appointment.patientName} · ${appointment.serviceName}. Será criado outro atendimento, preservando esta ausência.`
           : `${appointment.patientName} · ${appointment.serviceName}. Esta alteração afeta somente esta ocorrência.`
       }
       busy={loading}
       dirty={dirty}
+      inactive={nested}
       onClose={onClose}
     >
       {can("agenda.reschedule") && (
@@ -144,6 +159,22 @@ export function AppointmentRescheduleModal({
               label="Nova data e horário"
             />
           </div>
+          {usesPlan && appointment.patientId && (
+            <AppointmentPlanField
+              patient={{
+                id: appointment.patientId,
+                fullName: appointment.patientName,
+                tags: [],
+              }}
+              serviceId={appointment.serviceId}
+              startsAt={newStartsAt}
+              value={form.planId}
+              onChange={choosePlan}
+              disabled={loading}
+              noneLabel={legacy ? "Sem plano vinculado" : undefined}
+              onNestedModalChange={setNested}
+            />
+          )}
           {error && <div className="form-error span-2">{error}</div>}
           {missing.hint}
           <div className="modal-actions span-2">

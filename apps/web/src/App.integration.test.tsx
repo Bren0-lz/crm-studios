@@ -1,3 +1,4 @@
+import { appointmentPricingWithPlan } from "./test-support/legacy-fixtures";
 import {
   setDocumentText,
   installDocumentBrowserMocks,
@@ -690,6 +691,8 @@ describe("appointment client search and creation", () => {
     );
     vi.mocked(fetch).mockImplementation(async (input, init) => {
       const url = String(input);
+      const pricing = appointmentPricingWithPlan(url);
+      if (pricing) return pricing;
       if (init?.method === "POST")
         return url.endsWith("/patients")
           ? response(created, 201)
@@ -832,6 +835,14 @@ describe("appointment client search and creation", () => {
     expect(
       within(appointment).getByLabelText("Número de ocorrências"),
     ).toHaveValue(6);
+    // Agendar exige plano (AP4): espera o plano do cliente entrar no formulário.
+    await waitFor(() =>
+      expect(
+        within(appointment).getByRole("button", {
+          name: "Confirmar atendimento",
+        }),
+      ).toBeEnabled(),
+    );
     fireEvent.click(
       within(appointment).getByRole("button", {
         name: "Confirmar atendimento",
@@ -5322,6 +5333,8 @@ describe("application shell", () => {
       "Não é possível agendar em 01/01/2027: é feriado (Aniversário da cidade).";
     vi.mocked(fetch).mockImplementation(async (input, init) => {
       const url = String(input);
+      const pricing = appointmentPricingWithPlan(url);
+      if (pricing) return pricing;
       if (init?.method === "POST") {
         return {
           ok: false,
@@ -5405,6 +5418,12 @@ describe("application shell", () => {
     await fillAppointmentForm(
       screen.getByRole("dialog", { name: "Novo atendimento" }),
       "Helena Almeida",
+    );
+    // Agendar exige plano (AP4): espera os planos do cliente.
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "Confirmar atendimento" }),
+      ).toBeEnabled(),
     );
     fireEvent.click(
       screen.getByRole("button", { name: "Confirmar atendimento" }),
@@ -5674,6 +5693,8 @@ describe("application shell", () => {
     let posted: Record<string, unknown> | undefined;
     vi.mocked(fetch).mockImplementation(async (input, init) => {
       const url = String(input);
+      const pricing = appointmentPricingWithPlan(url);
+      if (pricing) return pricing;
       if (init?.method === "POST") {
         posted = JSON.parse(String(init.body));
         return {
@@ -5744,6 +5765,12 @@ describe("application shell", () => {
     expect(within(dialog).getByLabelText("Horário")).toHaveValue("14:30");
     fireEvent.click(
       within(dialog).getByRole("button", { name: "Fechar calendário" }),
+    );
+    // Agendar exige plano (AP4): espera os planos do cliente.
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "Confirmar atendimento" }),
+      ).toBeEnabled(),
     );
     fireEvent.click(
       screen.getByRole("button", { name: "Confirmar atendimento" }),
@@ -5881,14 +5908,8 @@ describe("application shell", () => {
     expect(within(dialog).getByLabelText("Sala")).toHaveValue(
       "55555555-5555-4555-8555-555555555555",
     );
-    const type = within(dialog).getByLabelText("Tipo");
-    expect(type).toHaveValue("trial");
-    expect(
-      within(type)
-        .getAllByRole("option")
-        .map((item) => item.textContent),
-    ).toEqual(["Experimental", "Avaliação"]);
-    fireEvent.change(type, { target: { value: "evaluation" } });
+    // Lead só agenda aula experimental (AP4): sem escolha de tipo.
+    expect(within(dialog).queryByLabelText("Tipo")).not.toBeInTheDocument();
     fireEvent.click(within(dialog).getByRole("button", { name: "Data" }));
     const chosenDate = dialog.querySelector<HTMLButtonElement>(
       '[data-date][tabindex="0"]',
@@ -5923,14 +5944,14 @@ describe("application shell", () => {
       serviceId: "77777777-7777-4777-8777-777777777777",
       startsAt: new Date(`${chosenDate}T09:00`).toISOString(),
       notes: "",
-      visitType: "evaluation",
+      visitType: "trial",
     });
     conflict = false;
     fireEvent.click(
       within(dialog).getByRole("button", { name: "Confirmar agendamento" }),
     );
     expect(
-      await screen.findByText(/Avaliação agendada para Bruna Lead/),
+      await screen.findByText(/Experimental agendada para Bruna Lead/),
     ).toBeInTheDocument();
     expect(
       screen.queryByRole("dialog", { name: "Agendar experimental" }),

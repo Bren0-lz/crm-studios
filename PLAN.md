@@ -1215,6 +1215,6 @@ plano não cobra nada.
   - Testes web: com plano, vendendo avulso, experimental.
 - **Gate:** gate completo
 - **Depende de:** AP3
-- **Status:** TODO
+- **Status:** DONE
 - **Pendente com o dono:** a EV4 ("Marcar avaliação pelo evento") passa a marcar aula
   experimental ou exige converter o participante antes?

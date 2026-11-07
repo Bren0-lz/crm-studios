@@ -3,7 +3,7 @@ import {
   type AppointmentPricing,
   type AutoCampaignPromotionOffer,
 } from "@crm/contracts";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { api } from "../../api";
 import { ErrorBanner } from "../../shared/components/ErrorBanner";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
@@ -29,7 +29,7 @@ export function AppointmentOrderSummary({
   serviceName,
   starts,
   promotion,
-  onPricing,
+  planId,
 }: {
   patientId: string;
   serviceId: string;
@@ -37,7 +37,8 @@ export function AppointmentOrderSummary({
   /** Datas/horários (aaaa-mm-ddThh:mm) de cada ocorrência, em ordem; "" = a definir. */
   starts: readonly string[];
   promotion?: AutoCampaignPromotionOffer | undefined;
-  onPricing?: ((pricing: AppointmentPricing | undefined) => void) | undefined;
+  /** Plano escolhido no agendamento: as sessões saem só dele (AP4). */
+  planId?: string | undefined;
 }) {
   const first = starts[0] ?? "";
   const startsAt =
@@ -45,10 +46,6 @@ export function AppointmentOrderSummary({
       ? new Date(first).toISOString()
       : undefined;
   const key = `${patientId}:${serviceId}:${startsAt ?? ""}`;
-  const pricingCallback = useRef(onPricing);
-  useEffect(() => {
-    pricingCallback.current = onPricing;
-  }, [onPricing]);
   const [state, setState] = useState<{
     key: string;
     pricing?: AppointmentPricing;
@@ -67,7 +64,6 @@ export function AppointmentOrderSummary({
         setState(
           valid ? { key: requestKey, pricing: valid } : { key: requestKey },
         );
-        pricingCallback.current?.(valid);
       })
       .catch(
         () =>
@@ -98,11 +94,14 @@ export function AppointmentOrderSummary({
         <ErrorBanner error={loaded.error ?? ""} />
       </fieldset>
     );
-  const summary = appointmentSummary({
-    starts,
-    pricing: loaded.pricing,
-    promotion,
-  });
+  const pricing =
+    planId === undefined
+      ? loaded.pricing
+      : {
+          ...loaded.pricing,
+          plans: loaded.pricing.plans.filter((plan) => plan.planId === planId),
+        };
+  const summary = appointmentSummary({ starts, pricing, promotion });
   const several = summary.lines.length > 1;
   const campaign = promotion ? `campanha “${promotion.campaignName}”` : "";
   const firstPlan = summary.lines[0]?.planName;
