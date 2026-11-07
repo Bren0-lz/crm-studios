@@ -1,6 +1,5 @@
 import type {
   AppointmentInput,
-  AppointmentPricing,
   AppointmentPromotion,
   AppointmentVisitType,
   AutoCampaignPromotionOffer,
@@ -20,8 +19,8 @@ import {
 } from "@crm/contracts";
 import { X } from "lucide-react";
 import {
-  useEffect,
   useCallback,
+  useEffect,
   useId,
   useLayoutEffect,
   useRef,
@@ -44,6 +43,7 @@ import {
 } from "../../shared/lib/formatting";
 import { AppointmentPatientWarnings } from "./AppointmentPatientWarnings";
 import { AppointmentOrderSummary } from "./AppointmentOrderSummary";
+import { AppointmentPlanField } from "./AppointmentPlanField";
 import { AppointmentPatientCreateModal } from "./AppointmentPatientCreateModal";
 import { AppointmentPromotionField } from "./AppointmentPromotionField";
 import { initialPackageSlot } from "./model";
@@ -125,6 +125,8 @@ export function AppointmentForm({
     slots: [] as PackageWeeklySlot[],
     occurrencesEdited: false,
     promotion: undefined as AppointmentPromotion | undefined,
+    // Plano de onde sai a sessão (AP4); vazio na experimental e na contratação do plano.
+    planId: "",
   });
   const fetchedRemaining = usePackageRemaining(
     form.packageDays && !packageSessions && canView("plans")
@@ -177,24 +179,17 @@ export function AppointmentForm({
             }
       : { kind: "manual", starts: [form.startsAt] },
   );
-  const pricingKey = `${form.patientId}:${form.serviceId}:${summaryStarts[0] ?? ""}`;
-  const [bookingPricing, setBookingPricing] = useState<{
-    key: string;
-    pricing: AppointmentPricing | undefined;
-  }>();
-  const rememberPricing = useCallback(
-    (pricing: AppointmentPricing | undefined) => {
-      setBookingPricing({ key: pricingKey, pricing });
-    },
-    [pricingKey],
+  // Experimental não usa plano; na contratação o plano é o que está sendo vendido.
+  const needsPlan =
+    !packageSessions && form.visitType !== "" && form.visitType !== "trial";
+  const firstStart = summaryStarts[0] ?? "";
+  const planStartsAt = completeDateTime.test(firstStart)
+    ? new Date(firstStart).toISOString()
+    : undefined;
+  const choosePlan = useCallback(
+    (planId: string) => setForm((current) => ({ ...current, planId })),
+    [],
   );
-  const bookingPlan =
-    bookingPricing?.key === pricingKey
-      ? bookingPricing.pricing?.plans.find(
-          (plan) =>
-            plan.unlimited || plan.remainingSessions >= summaryStarts.length,
-        )
-      : undefined;
   // Só os serviços atendidos pelo profissional e pela sala escolhidos (U10).
   const availableServices = services.filter((item) =>
     serviceAvailableFor(item, form.professionalId, form.roomId),
@@ -220,7 +215,10 @@ export function AppointmentForm({
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   // Sem cliente, "Confirmar atendimento" fica desativado e diz o que falta (QM14).
-  const missing = form.patientId ? [] : ["Cliente"];
+  const missing = [
+    !form.patientId && "Cliente",
+    needsPlan && form.patientId && form.serviceId && !form.planId && "Plano",
+  ].filter((item): item is string => Boolean(item));
   const missingId = useId();
   useModalDirty(useFormDirty(form) || additionalDirty);
   const confirmDiscard = useConfirmDiscard();
@@ -279,25 +277,9 @@ export function AppointmentForm({
         ).toISOString(),
         notes: form.notes,
         visitType: form.visitType as AppointmentVisitType,
-        ...(!packageSessions && form.visitType !== "trial" && bookingPlan
-          ? { planId: bookingPlan.planId }
-          : {}),
+        ...(needsPlan && form.planId ? { planId: form.planId } : {}),
         ...(form.promotion ? { promotion: form.promotion } : {}),
       };
-      // O usuário pode confirmar antes de a consulta do resumo terminar.
-      if (!packageSessions && input.visitType !== "trial" && !input.planId) {
-        const pricing = await api.appointmentPricing(
-          input.patientId,
-          input.serviceId,
-          input.startsAt,
-        );
-        const plan = pricing?.plans?.find(
-          (candidate) =>
-            candidate.unlimited ||
-            candidate.remainingSessions >= summaryStarts.length,
-        );
-        if (plan) input.planId = plan.planId;
-      }
       await onSubmit(
         input,
         !form.recurring
@@ -563,6 +545,21 @@ export function AppointmentForm({
                 disabled={loading}
               />
             </div>
+            {needsPlan && (
+              <AppointmentPlanField
+                patient={
+                  fixedPatient ??
+                  patientChoices.find((item) => item.id === form.patientId)
+                }
+                serviceId={form.serviceId}
+                startsAt={planStartsAt}
+                sessions={summaryStarts.length}
+                value={form.planId}
+                onChange={choosePlan}
+                disabled={loading}
+                onNestedModalChange={onNestedModalChange}
+              />
+            )}
             {form.recurring && form.packageDays && (
               <PackageWeeklySlotsFields
                 slots={packageSlots}
@@ -663,7 +660,7 @@ export function AppointmentForm({
                 }
                 starts={summaryStarts}
                 promotion={selectedOffer}
-                onPricing={rememberPricing}
+                planId={needsPlan ? form.planId : undefined}
               />
             )}
             {/* No fim do formulário: o aviso chega depois da busca dos planos e não desloca os campos. */}
@@ -672,7 +669,6 @@ export function AppointmentForm({
                 fixedPatient ??
                 patientChoices.find((item) => item.id === form.patientId)
               }
-              checkPlan={form.visitType === "regular"}
               onNestedModalChange={onNestedModalChange}
             />
           </fieldset>

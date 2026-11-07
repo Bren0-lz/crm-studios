@@ -63,6 +63,7 @@ export function PlanForm({
   additionalDirty = false,
   registerCloseGuard,
   catalogKind,
+  initialTemplateId,
   submitBlocked = "",
 }: {
   patients: PatientOption[];
@@ -80,6 +81,8 @@ export function PlanForm({
   registerCloseGuard?: ((guard: CloseGuard) => () => void) | undefined;
   /** Restringe os planos cadastrados a avulsos ou recorrentes (atalho da ficha do cliente). */
   catalogKind?: PlanCatalogKind | undefined;
+  /** Plano cadastrado já escolhido ao abrir (ex.: avulso do serviço, vendido no agendamento). */
+  initialTemplateId?: string | undefined;
   /** Motivo que impede salvar (ex.: sessões da contratação em conflito); vazio = liberado. */
   submitBlocked?: string | undefined;
 }) {
@@ -135,7 +138,7 @@ export function PlanForm({
   const [loading, setLoading] = useState(false);
   const submitting = useRef(false);
   const [groupId, setGroupId] = useState("");
-  const [baseline] = useState(() => JSON.stringify(form));
+  const [baseline, setBaseline] = useState(() => JSON.stringify(form));
   // Plano de aulas em grupo (serviço com turma ativa) só é contratado com a turma escolhida.
   const groupMissing =
     Boolean(groups) &&
@@ -159,21 +162,32 @@ export function PlanForm({
   const paymentSettings = usePaymentMethodSettings();
   const [catalogError, setCatalogError] = useState("");
   const [catalogAttempt, setCatalogAttempt] = useState(0);
+  const preselected = useRef(false);
   useEffect(() => {
     if (renewing) return;
     let active = true;
     api
       .planTemplates()
       .then((items) => {
-        if (active)
-          setTemplates(
-            items.filter(
-              (item) =>
-                item.active &&
-                item.services.length > 0 &&
-                (!catalogKind || planTemplateCatalogKind(item) === catalogKind),
-            ),
-          );
+        if (!active) return;
+        const list = items.filter(
+          (item) =>
+            item.active &&
+            item.services.length > 0 &&
+            (!catalogKind || planTemplateCatalogKind(item) === catalogKind),
+        );
+        setTemplates(list);
+        if (
+          !preselected.current &&
+          initialTemplateId &&
+          list.some((item) => item.id === initialTemplateId)
+        ) {
+          preselected.current = true;
+          const next = chooseTemplate(form, initialTemplateId, list);
+          setForm(next);
+          // Pré-escolhido não conta como alteração do usuário.
+          setBaseline(JSON.stringify(next));
+        }
       })
       .catch((cause: Error) => {
         if (active) setCatalogError(cause.message);
@@ -181,7 +195,51 @@ export function PlanForm({
     return () => {
       active = false;
     };
+    // O formulário inicial é a base da pré-escolha (feita uma vez, ao carregar o catálogo).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [renewing, catalogAttempt, catalogKind]);
+  /** Aplica o plano cadastrado escolhido: sessões, valor, modelo e período. */
+  function chooseTemplate(
+    current: PatientPlanInput,
+    templateId: string,
+    list = templates,
+  ): PatientPlanInput {
+    const template = list?.find((item) => item.id === templateId);
+    if (
+      !template ||
+      (template.planType ? planTypeKind(template.planType) : template.kind) ===
+        "single" ||
+      !template.services.some((entry) =>
+        groups?.items?.some(
+          (group) =>
+            group.id === groupId && group.serviceId === entry.serviceId,
+        ),
+      )
+    ) {
+      setGroupId("");
+    }
+    const templateKind = template?.planType
+      ? planTypeKind(template.planType)
+      : (template?.kind ?? "fixed_package");
+    return {
+      ...current,
+      planTemplateId: template?.id ?? "",
+      name: template?.name ?? "",
+      totalValueInCents: template?.totalValueInCents ?? 0,
+      // Valor novo: as formas picadas voltam a uma.
+      paymentParts: undefined,
+      services: template?.services.map((entry) => ({ ...entry })) ?? [],
+      kind: templateKind,
+      installments: templateKind === "recurring" ? 1 : current.installments,
+      ...(template?.planType
+        ? {
+            validUntil: planPeriodEnd(template.planType, current.validFrom),
+            autoRenew:
+              Boolean(planPeriodMonths(template.planType)) && current.autoRenew,
+          }
+        : {}),
+    };
+  }
   async function save() {
     if (submitting.current)
       throw new Error("Aguarde o salvamento em andamento.");
@@ -373,54 +431,9 @@ export function PlanForm({
                     autoFocus={Boolean(catalogKind)}
                     value={form.planTemplateId}
                     disabled={!shownTemplates?.length || loading}
-                    onChange={(event) => {
-                      const template = templates?.find(
-                        (item) => item.id === event.target.value,
-                      );
-                      if (
-                        !template ||
-                        (template.planType
-                          ? planTypeKind(template.planType)
-                          : template.kind) === "single" ||
-                        !template.services.some((entry) =>
-                          groups?.items?.some(
-                            (group) =>
-                              group.id === groupId &&
-                              group.serviceId === entry.serviceId,
-                          ),
-                        )
-                      ) {
-                        setGroupId("");
-                      }
-                      const templateKind = template?.planType
-                        ? planTypeKind(template.planType)
-                        : (template?.kind ?? "fixed_package");
-                      setForm({
-                        ...form,
-                        planTemplateId: template?.id ?? "",
-                        name: template?.name ?? "",
-                        totalValueInCents: template?.totalValueInCents ?? 0,
-                        // Valor novo: as formas picadas voltam a uma.
-                        paymentParts: undefined,
-                        services:
-                          template?.services.map((entry) => ({ ...entry })) ??
-                          [],
-                        kind: templateKind,
-                        installments:
-                          templateKind === "recurring" ? 1 : form.installments,
-                        ...(template?.planType
-                          ? {
-                              validUntil: planPeriodEnd(
-                                template.planType,
-                                form.validFrom,
-                              ),
-                              autoRenew:
-                                Boolean(planPeriodMonths(template.planType)) &&
-                                form.autoRenew,
-                            }
-                          : {}),
-                      });
-                    }}
+                    onChange={(event) =>
+                      setForm(chooseTemplate(form, event.target.value))
+                    }
                   >
                     <option value="">Selecione um plano</option>
                     {shownTemplates?.map((item) => (

@@ -237,8 +237,9 @@ describe("promoção de campanha automática ao agendar", () => {
       name: "Atendimentos do resumo",
     });
     expect(within(summary).getByText("Pilates")).toBeInTheDocument();
+    // O resumo segue o plano escolhido no campo "Plano" (AP4).
     expect(
-      within(summary).getByText(/Saldo do plano Pilates 8 sessões/),
+      await within(summary).findByText(/Saldo do plano Pilates 8 sessões/),
     ).toBeInTheDocument();
 
     fireEvent.click(
@@ -253,7 +254,8 @@ describe("promoção de campanha automática ao agendar", () => {
     const totals = dialog.querySelector(".order-totals") as HTMLElement;
     expect(within(totals).getByText(/R\$\s*54,00/)).toBeInTheDocument();
 
-    // Repetir: cada sessão aparece com o próprio valor; o desconto fica na 1ª.
+    // Repetir: o plano (1 sessão) não cobre as 3; sem plano escolhido, o resumo mostra o
+    // valor do avulso em cada sessão e o desconto fica na 1ª.
     fireEvent.click(
       within(dialog).getByRole("checkbox", {
         name: "Repetir este atendimento",
@@ -262,6 +264,12 @@ describe("promoção de campanha automática ao agendar", () => {
     fireEvent.change(within(dialog).getByLabelText("Número de ocorrências"), {
       target: { value: "3" },
     });
+    expect(
+      await within(dialog).findByText("Cliente sem plano para este serviço"),
+    ).toBeInTheDocument();
+    expect(
+      within(dialog).getByRole("button", { name: "Vender plano avulso" }),
+    ).toBeInTheDocument();
     const items = within(summary).getAllByRole("listitem");
     expect(items).toHaveLength(3);
     expect(
@@ -271,14 +279,17 @@ describe("promoção de campanha automática ao agendar", () => {
       within(items[0]!).getByText("Desconto da campanha “Aniversariantes”"),
     ).toBeInTheDocument();
     expect(
+      within(items[0]!).getByText(/Avulso: Pilates \(avulso\)/),
+    ).toBeInTheDocument();
+    expect(
       within(items[1]!).getByText(/Avulso: Pilates \(avulso\)/),
     ).toBeInTheDocument();
     expect(within(items[1]!).getByText(/R\$\s*90,00/)).toBeInTheDocument();
     expect(
       within(items[2]!).queryByText(/Desconto da campanha/),
     ).not.toBeInTheDocument();
-    // 60 + 90 + 90 − 6.
-    expect(within(totals).getByText(/R\$\s*234,00/)).toBeInTheDocument();
+    // 90 + 90 + 90 − 9 (10% da 1ª).
+    expect(within(totals).getByText(/R\$\s*261,00/)).toBeInTheDocument();
     expect(
       within(dialog).getByText(/A campanha vale só na 1ª sessão/),
     ).toBeInTheDocument();

@@ -225,3 +225,31 @@ export function relationshipSettingsFixture() {
     },
   };
 }
+
+/** Plano do cliente devolvido por `appointmentPricingWithPlan`. */
+export const fixturePlanId = "d5555555-5555-4555-8555-555555555555";
+
+/**
+ * Resposta de `GET /appointments/pricing` com um plano do cliente com saldo (AP4: agendar
+ * exige plano). `undefined` para as demais URLs, para o mock seguir adiante.
+ */
+export function appointmentPricingWithPlan(url: string): Response | undefined {
+  if (!url.includes("/appointments/pricing")) return undefined;
+  const serviceId =
+    new URL(url, "http://localhost").searchParams.get("serviceId") ?? "";
+  return {
+    ok: true,
+    status: 200,
+    json: async () => ({
+      serviceId,
+      plans: [
+        {
+          planId: fixturePlanId,
+          planName: "Plano do cliente",
+          remainingSessions: 52,
+          sessionValueInCents: 6_000,
+        },
+      ],
+    }),
+  } as Response;
+}

@@ -1,7 +1,6 @@
 import type {
   Appointment,
   Lead,
-  LeadAppointmentInput,
   Professional,
   Room,
   Service,
@@ -20,11 +19,7 @@ import {
 } from "../../shared/components/MissingFields";
 import { Modal, ModalCancelButton } from "../../shared/components/Modal";
 import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
-import {
-  leadVisitTypes,
-  toLocalDateTimeInput,
-  visitTypeLabels,
-} from "../../shared/lib/formatting";
+import { toLocalDateTimeInput } from "../../shared/lib/formatting";
 
 type ScheduleOptions = {
   services: Service[];
@@ -83,7 +78,6 @@ export function LeadAppointmentModal({
   const [options, setOptions] = useState<ScheduleOptions | null>(null);
   const [loadError, setLoadError] = useState("");
   const [form, setForm] = useState({
-    visitType: "trial" as LeadAppointmentInput["visitType"],
     serviceId: "",
     professionalId: "",
     roomId: "",
@@ -136,7 +130,7 @@ export function LeadAppointmentModal({
           serviceId: form.serviceId,
           startsAt: new Date(form.startsAt).toISOString(),
           notes: form.notes,
-          visitType: form.visitType,
+          visitType: "trial",
         }),
       );
     } catch (cause) {
@@ -175,25 +169,10 @@ export function LeadAppointmentModal({
       ) : (
         can("crm.appointments_create", "agenda.create") && (
           <form className="form-grid" onSubmit={(event) => void submit(event)}>
-            <label>
-              Tipo
-              <select
-                value={form.visitType}
-                onChange={(e) =>
-                  setForm({
-                    ...form,
-                    visitType: e.target
-                      .value as LeadAppointmentInput["visitType"],
-                  })
-                }
-              >
-                {leadVisitTypes.map((item) => (
-                  <option value={item} key={item}>
-                    {visitTypeLabels[item]}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <p className="field-hint span-2">
+              Lead agenda só aula experimental. Para avaliação ou atendimento
+              com plano, converta o lead em cliente.
+            </p>
             <label>
               Serviço
               <select

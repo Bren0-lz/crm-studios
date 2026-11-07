@@ -1,14 +1,16 @@
 import type { Appointment, Room, Service } from "@crm/contracts";
 import { serviceAvailableFor } from "@crm/contracts";
-import { useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { api } from "../../api";
 import { ErrorBanner } from "../../shared/components/ErrorBanner";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
 import { Modal, ModalCancelButton } from "../../shared/components/Modal";
+import { useMissingFields } from "../../shared/components/MissingFields";
 import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
+import { AppointmentPlanField } from "./AppointmentPlanField";
 
 /**
- * Editar atendimento (QM6): serviço, sala e observação. Data, horário e profissional
+ * Editar atendimento (QM6): serviço, plano, sala e observação. Data, horário e profissional
  * ficam com "Remarcar". Só aparecem serviços do profissional do atendimento e salas
  * do serviço escolhido (QM3).
  */
@@ -31,7 +33,22 @@ export function AppointmentEditModal({
     serviceId: appointment.serviceId,
     roomId: appointment.roomId,
     notes: appointment.notes ?? "",
+    planId: appointment.planId ?? "",
   });
+  const [nested, setNested] = useState(false);
+  const choosePlan = useCallback(
+    (planId: string) => setForm((current) => ({ ...current, planId })),
+    [],
+  );
+  // Atendimento de cliente fora da experimental sai de um plano (AP4).
+  const usesPlan =
+    Boolean(appointment.patientId) && appointment.visitType !== "trial";
+  const serviceChanged = form.serviceId !== appointment.serviceId;
+  // Agendado antes da exigência (sem vínculo): segue sem plano enquanto o serviço não mudar.
+  const legacy = usesPlan && !appointment.planId && !serviceChanged;
+  const missing = useMissingFields(
+    usesPlan && !legacy && !form.planId ? ["Plano"] : [],
+  );
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const dirty = useFormDirty(form);
@@ -93,6 +110,11 @@ export function AppointmentEditModal({
           serviceId: form.serviceId,
           roomId: form.roomId,
           notes: form.notes.trim(),
+          ...(usesPlan &&
+          form.planId &&
+          (serviceChanged || form.planId !== (appointment.planId ?? ""))
+            ? { planId: form.planId }
+            : {}),
         }),
       );
     } catch (cause) {
@@ -112,6 +134,7 @@ export function AppointmentEditModal({
       subtitle={`${appointment.patientName} · ${appointment.professionalName}. Para mudar data, horário ou profissional, use Remarcar.`}
       busy={saving}
       dirty={dirty}
+      inactive={nested}
       onClose={onClose}
     >
       {!resources ? (
@@ -177,6 +200,22 @@ export function AppointmentEditModal({
               ))}
             </select>
           </label>
+          {usesPlan && appointment.patientId && (
+            <AppointmentPlanField
+              patient={{
+                id: appointment.patientId,
+                fullName: appointment.patientName,
+                tags: [],
+              }}
+              serviceId={form.serviceId}
+              startsAt={appointment.startsAt}
+              value={form.planId}
+              onChange={choosePlan}
+              disabled={saving}
+              noneLabel={legacy ? "Sem plano vinculado" : undefined}
+              onNestedModalChange={setNested}
+            />
+          )}
           <label className="span-2">
             Observação
             <textarea
@@ -190,9 +229,14 @@ export function AppointmentEditModal({
             />
           </label>
           {error && <div className="form-error span-2">{error}</div>}
+          {missing.hint}
           <div className="modal-actions span-2">
             <ModalCancelButton disabled={saving}>Voltar</ModalCancelButton>
-            <button className="primary-button" disabled={saving}>
+            <button
+              className="primary-button"
+              disabled={saving || missing.blocked}
+              aria-describedby={missing.describedBy}
+            >
               {saving ? "Salvando…" : "Salvar alterações"}
             </button>
           </div>

@@ -35,11 +35,20 @@ import {
 export function PatientPlanModal({
   patient,
   kind,
+  initialTemplateId,
+  scheduleSessions = true,
   onClose,
   onSaved,
 }: {
   patient: PatientOption;
   kind: PlanCatalogKind;
+  /** Plano cadastrado já escolhido (ex.: avulso do serviço, vendido no agendamento). */
+  initialTemplateId?: string | undefined;
+  /**
+   * Oferece marcar as sessões do avulso na contratação. Desligado quando a venda parte do
+   * próprio agendamento, que marca o atendimento depois.
+   */
+  scheduleSessions?: boolean | undefined;
   onClose: () => void;
   /** `notice`: aviso da matrícula na turma (vaga confirmada ou lista de espera). */
   onSaved: (plan: PatientPlan, notice?: string) => void;
@@ -64,7 +73,7 @@ export function PatientPlanModal({
   );
   const [purchaseKey] = useState(() => crypto.randomUUID());
   // Avulso: as sessões são geradas pelos dias fixos e reservadas na mesma contratação.
-  const purchase = can("plans.purchase");
+  const purchase = can("plans.purchase") && scheduleSessions;
   const canSign = useCanRequestSignature();
   const templates = useSignatureTemplates(canSign);
   const [signature, setSignature] = useState<SignatureRequest | null>(null);
@@ -125,6 +134,7 @@ export function PatientPlanModal({
           fixedPatient={patient}
           services={services}
           catalogKind={kind}
+          initialTemplateId={initialTemplateId}
           groups={groups}
           onCancel={onClose}
           onBusyChange={setBusy}

@@ -8,6 +8,10 @@ import {
   AuthorizationContext,
 } from "../../authorization-context";
 import { jsonResponse } from "../../test-support/http";
+import {
+  appointmentPricingWithPlan,
+  fixturePlanId,
+} from "../../test-support/legacy-fixtures";
 import "../../test-support/legacy-setup";
 import { AppointmentDetailsModal } from "./AppointmentDetailsModal";
 
@@ -102,6 +106,8 @@ function mount(
 function mockApi(saved: Appointment) {
   vi.mocked(fetch).mockImplementation(async (input, init) => {
     const url = new URL(String(input), "http://localhost");
+    const pricing = appointmentPricingWithPlan(String(input));
+    if (pricing) return pricing;
     if (init?.method === "PATCH") return jsonResponse(saved);
     if (url.pathname.endsWith("/services"))
       return jsonResponse([pilates, depilation, massage]);
@@ -217,6 +223,15 @@ describe("appointment details footer and edit (QM6)", () => {
     fireEvent.change(within(dialog).getByLabelText("Observação"), {
       target: { value: "Chegar 10 min antes" },
     });
+    // Trocar o serviço exige plano do cliente com o novo serviço (AP4).
+    await vi.waitFor(() =>
+      expect(within(dialog).getByLabelText("Plano")).toHaveValue(fixturePlanId),
+    );
+    await vi.waitFor(() =>
+      expect(
+        within(dialog).getByRole("button", { name: "Salvar alterações" }),
+      ).toBeEnabled(),
+    );
     fireEvent.click(
       within(dialog).getByRole("button", { name: "Salvar alterações" }),
     );
@@ -230,6 +245,7 @@ describe("appointment details footer and edit (QM6)", () => {
       serviceId: depilation.id,
       roomId: aestheticsRoom,
       notes: "Chegar 10 min antes",
+      planId: fixturePlanId,
     });
     // Volta aos detalhes depois de salvar.
     expect(

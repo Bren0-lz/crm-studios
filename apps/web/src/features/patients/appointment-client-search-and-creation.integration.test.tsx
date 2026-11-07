@@ -9,6 +9,7 @@ import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import App from "../../App";
 import {
+  appointmentPricingWithPlan,
   fillAppointmentForm,
   storedUser,
 } from "../../test-support/legacy-fixtures";
@@ -43,6 +44,8 @@ describe("appointment client search and creation", () => {
     );
     vi.mocked(fetch).mockImplementation(async (input, init) => {
       const url = String(input);
+      const pricing = appointmentPricingWithPlan(url);
+      if (pricing) return pricing;
       if (init?.method === "POST")
         return url.endsWith("/patients")
           ? response(created, 201)
@@ -185,6 +188,14 @@ describe("appointment client search and creation", () => {
     expect(
       within(appointment).getByLabelText("Número de ocorrências"),
     ).toHaveValue(6);
+    // Agendar exige plano (AP4): espera o plano do cliente entrar no formulário.
+    await waitFor(() =>
+      expect(
+        within(appointment).getByRole("button", {
+          name: "Confirmar atendimento",
+        }),
+      ).toBeEnabled(),
+    );
     fireEvent.click(
       within(appointment).getByRole("button", {
         name: "Confirmar atendimento",
