@@ -397,6 +397,7 @@ export function PlanPurchaseOptions({
                   professionals={professionals}
                   rooms={rooms}
                   services={services}
+                  validFrom={plan.validFrom || undefined}
                   validUntil={plan.validUntil || undefined}
                   onException={(key, exception) =>
                     setExceptions((current) => {
