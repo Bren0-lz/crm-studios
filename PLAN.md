@@ -721,7 +721,7 @@ atualizado no mesmo PR):
   (`AppointmentForm`, `manualDates`) também na contratação.
 - **Gate:** gate completo
 - **Depende de:** SS1
-- **Status:** BLOCKED
+- **Status:** DONE (07/11/2026; dono: a exceção por data atende, sem código novo)
 
 ### EV1 — Eventos: modelo, rotas e permissões
 
