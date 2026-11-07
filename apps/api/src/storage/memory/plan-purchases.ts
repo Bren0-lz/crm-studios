@@ -1,5 +1,8 @@
 import type {
+  Appointment,
   GroupEnrollment,
+  IssuedDocument,
+  PatientPlan,
   PlanPurchaseInput,
   PlanPurchaseResult,
 } from "@crm/contracts";
@@ -10,6 +13,45 @@ import {
   assertPlanEnrollmentSeat,
   validatePurchaseSchedule,
 } from "../../modules/plans/purchase.js";
+/** Reserva as sessões da contratação no plano (conflito de agenda recusa a operação). */
+export async function bookPlanAppointments(
+  context: MemoryRepositoryContext,
+  clinicId: string,
+  plan: PatientPlan,
+  appointments: PlanPurchaseInput["appointments"],
+) {
+  const booked: Appointment[] = [];
+  for (const appointment of appointments)
+    booked.push(
+      await context.operations.createAppointment(clinicId, {
+        ...appointment,
+        patientId: plan.patientId,
+        planId: plan.id,
+      }),
+    );
+  return booked;
+}
+
+/** Emite o documento da contratação ligado ao plano, pronto para o link de assinatura. */
+export async function issuePlanDocument(
+  context: MemoryRepositoryContext,
+  clinicId: string,
+  actorId: string,
+  plan: PatientPlan,
+  document: NonNullable<PlanPurchaseInput["document"]>,
+): Promise<IssuedDocument> {
+  const draft = await context.operations.createIssuedDocument(
+    clinicId,
+    actorId,
+    { ...document, patientId: plan.patientId, planId: plan.id },
+  );
+  return (await context.operations.updateIssuedDocumentStatus(
+    clinicId,
+    draft.id,
+    "issued",
+  ))!;
+}
+
 export function createPlanPurchasesRepository(
   context: MemoryRepositoryContext,
 ) {
@@ -73,7 +115,8 @@ export function createPlanPurchasesRepository(
           (item) => item.clinicId === clinicId && item.id === waiting.groupId,
         );
         const active = context.groupEnrollments.filter(
-          (item) => item.groupId === waiting.groupId && item.status === "active",
+          (item) =>
+            item.groupId === waiting.groupId && item.status === "active",
         ).length;
         if (!group || active >= group.capacity) return undefined;
         const saved = context.groupEnrollments
@@ -102,15 +145,12 @@ export function createPlanPurchasesRepository(
           actorId,
           input.plan,
         );
-        const appointments = [];
-        for (const appointment of input.appointments)
-          appointments.push(
-            await context.operations.createAppointment(clinicId, {
-              ...appointment,
-              patientId: plan.patientId,
-              planId: plan.id,
-            }),
-          );
+        const appointments = await bookPlanAppointments(
+          context,
+          clinicId,
+          plan,
+          input.appointments,
+        );
         // Cliente que já está na turma (plano anterior vencido ou cancelado não encerra a
         // matrícula): o novo plano segue com a mesma matrícula, sem duplicar.
         const current = input.groupId
@@ -138,19 +178,15 @@ export function createPlanPurchasesRepository(
             : undefined;
         // Sem vaga confirmada na turma não há venda (TW3): desfaz plano e matrícula.
         assertPlanEnrollmentSeat(enrollment);
-        let document = input.document
-          ? await context.operations.createIssuedDocument(clinicId, actorId, {
-              ...input.document,
-              patientId: plan.patientId,
-              planId: plan.id,
-            })
+        const document = input.document
+          ? await issuePlanDocument(
+              context,
+              clinicId,
+              actorId,
+              plan,
+              input.document,
+            )
           : undefined;
-        if (document)
-          document = (await context.operations.updateIssuedDocumentStatus(
-            clinicId,
-            document.id,
-            "issued",
-          ))!;
         const result: PlanPurchaseResult = {
           plan,
           appointments,

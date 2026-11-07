@@ -7,3 +7,6 @@ export {
 } from "./PlanPurchaseOptions";
 export { PlanSessionsSentStep } from "./PlanSessionsSentStep";
 export { PlanPaymentStep } from "./PlanPaymentStep";
+// Agendamento e passos finais da venda no cadastro de cliente (fornecidos pela raiz do app).
+export { GuidedSaleFollowUp } from "./GuidedSaleFollowUp";
+export { GuidedSaleScheduling } from "./GuidedSaleScheduling";

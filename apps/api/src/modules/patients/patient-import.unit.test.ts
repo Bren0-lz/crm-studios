@@ -515,7 +515,10 @@ describe("importação sem CPF (B6-05)", () => {
       ],
       [],
     );
-    expect(withColumn.rows.map((row) => row.status)).toEqual(["valid", "error"]);
+    expect(withColumn.rows.map((row) => row.status)).toEqual([
+      "valid",
+      "error",
+    ]);
     expect(withColumn.rows[0]?.input?.cpf).toBeUndefined();
     expect(withColumn.rows[1]?.errors).toEqual([
       expect.stringMatching(/^Linha 3: CPF inválido/),

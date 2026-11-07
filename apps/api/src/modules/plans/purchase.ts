@@ -17,8 +17,16 @@ export function purchaseFingerprint(input: PlanPurchaseInput): string {
     .update(JSON.stringify(sorted(input)))
     .digest("hex");
 }
+/** Plano e sessões validados: a contratação e o cadastro guiado (avulso com sessões). */
+export interface PurchaseSchedule {
+  plan: Pick<
+    PlanPurchaseInput["plan"],
+    "services" | "validFrom" | "validUntil" | "kind"
+  >;
+  appointments: PlanPurchaseInput["appointments"];
+}
 export function validatePurchaseSchedule(
-  input: PlanPurchaseInput,
+  input: PurchaseSchedule,
   timezone: string,
 ) {
   for (const appointment of input.appointments) {

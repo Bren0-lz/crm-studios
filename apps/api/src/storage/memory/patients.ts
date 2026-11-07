@@ -16,10 +16,15 @@ import {
 } from "@crm/contracts";
 import {
   guidedPlansResult,
+  guidedSales,
   guidedSubscriptions,
   guidedWaitlist,
 } from "../../modules/patients/guided-plans.js";
-import { assertPlanEnrollmentSeat } from "../../modules/plans/purchase.js";
+import {
+  assertPlanEnrollmentSeat,
+  validatePurchaseSchedule,
+} from "../../modules/plans/purchase.js";
+import { bookPlanAppointments, issuePlanDocument } from "./plan-purchases.js";
 import {
   buildPatientTimeline,
   patientEditAction,
@@ -128,11 +133,18 @@ export function createPatientsRepository(
         repositoryContext.sessionMovements,
         repositoryContext.groupEnrollments,
         repositoryContext.waitlistEntries,
+        repositoryContext.issuedDocuments,
         repositoryContext.adminAuditEvents,
       ];
       const lengths = collections.map((collection) => collection.length);
       try {
         const subscriptions = guidedSubscriptions(input);
+        // Sessões do avulso: serviços e vigência do plano, no máximo as sessões compradas.
+        for (const sale of guidedSales(input))
+          validatePurchaseSchedule(
+            sale,
+            repositoryContext.clinicSettings.timezone,
+          );
         for (const item of subscriptions) {
           if (!item.groupId) continue;
           const group = repositoryContext.groupClasses.find(
@@ -214,17 +226,8 @@ export function createPatientsRepository(
             ),
           };
         if (input.next === "none") return { patient };
-        if (input.next === "single")
-          return {
-            patient,
-            plan: await repositoryContext.operations.createPatientPlan(
-              clinicId,
-              actorUserId,
-              { ...input.plan, patientId: patient.id, kind: "single" },
-            ),
-          };
         const created: NonNullable<GuidedPatientResult["additionalPlans"]> = [];
-        for (const item of subscriptions) {
+        for (const item of guidedSales(input)) {
           const plan = await repositoryContext.operations.createPatientPlan(
             clinicId,
             actorUserId,
@@ -237,8 +240,29 @@ export function createPatientsRepository(
               )
             : undefined;
           assertPlanEnrollmentSeat(enrollment);
-          created.push(enrollment ? { plan, enrollment } : { plan });
+          const appointments = await bookPlanAppointments(
+            repositoryContext,
+            clinicId,
+            plan,
+            item.appointments,
+          );
+          const document = item.document
+            ? await issuePlanDocument(
+                repositoryContext,
+                clinicId,
+                actorUserId,
+                plan,
+                item.document,
+              )
+            : undefined;
+          created.push({
+            plan,
+            ...(enrollment ? { enrollment } : {}),
+            ...(appointments.length ? { appointments } : {}),
+            ...(document ? { document } : {}),
+          });
         }
+        if (input.next === "single") return { patient, ...created[0]! };
         return guidedPlansResult(
           patient,
           created,

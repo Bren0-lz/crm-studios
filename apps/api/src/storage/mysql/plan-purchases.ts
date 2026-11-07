@@ -1,4 +1,11 @@
-import type { PlanPurchaseInput, PlanPurchaseResult } from "@crm/contracts";
+import type {
+  Appointment,
+  IssuedDocument,
+  PatientPlan,
+  PlanPurchaseInput,
+  PlanPurchaseResult,
+} from "@crm/contracts";
+import type { PoolClient } from "../../infrastructure/mysql-client.js";
 import type { MysqlRepositoryContext } from "./context.js";
 import { DomainError } from "../../repository.js";
 import {
@@ -13,6 +20,69 @@ import {
   groupEnrollmentColumns,
   mapGroupEnrollment,
 } from "./helpers.js";
+
+/** Reserva as sessões da contratação no plano (conflito de agenda recusa a operação). */
+export async function bookPlanAppointments(
+  context: MysqlRepositoryContext,
+  client: PoolClient,
+  clinicId: string,
+  plan: PatientPlan,
+  appointments: PlanPurchaseInput["appointments"],
+) {
+  const booked: Appointment[] = [];
+  for (const appointment of appointments) {
+    const related = await client.query<{ duration: number }>(
+      "SELECT s.duration_minutes AS duration FROM services s,professionals pr,rooms r WHERE s.clinic_id=$1 AND s.id=$2 AND s.active AND pr.clinic_id=$1 AND pr.id=$3 AND pr.active AND r.clinic_id=$1 AND r.id=$4 AND r.active",
+      [
+        clinicId,
+        appointment.serviceId,
+        appointment.professionalId,
+        appointment.roomId,
+      ],
+    );
+    if (!related.rows[0])
+      throw new DomainError(
+        "RELATED_RECORD_NOT_FOUND",
+        "Serviço, profissional ou sala não encontrado.",
+        404,
+      );
+    booked.push(
+      await context.insertAppointment(
+        clinicId,
+        { ...appointment, planId: plan.id },
+        related.rows[0].duration,
+        { patientId: plan.patientId, leadId: null },
+        client,
+      ),
+    );
+  }
+  return booked;
+}
+
+/** Emite o documento da contratação ligado ao plano, pronto para o link de assinatura. */
+export async function issuePlanDocument(
+  context: MysqlRepositoryContext,
+  client: PoolClient,
+  clinicId: string,
+  actorId: string,
+  plan: PatientPlan,
+  input: NonNullable<PlanPurchaseInput["document"]>,
+): Promise<IssuedDocument> {
+  const document = await createIssuedDocumentInTransaction(
+    context,
+    client,
+    clinicId,
+    actorId,
+    { ...input, patientId: plan.patientId, planId: plan.id },
+  );
+  assertDocumentPatientCpf(document);
+  await client.query(
+    "UPDATE issued_documents SET status='issued',issued_at=NOW(6),updated_at=NOW(6) WHERE clinic_id=$1 AND id=$2",
+    [clinicId, document.id],
+  );
+  return (await context.findIssuedDocument(client, clinicId, document.id))!;
+}
+
 export function createPlanPurchasesRepository(context: MysqlRepositoryContext) {
   return {
     async purchasePatientPlan(
@@ -79,34 +149,14 @@ export function createPlanPurchasesRepository(context: MysqlRepositoryContext) {
           input.plan,
           "Crédito inicial do plano",
         );
-        const plan = (await context.findPatientPlan(client, clinicId, planId))!,
-          appointments = [];
-        for (const appointment of input.appointments) {
-          const related = await client.query<{ duration: number }>(
-            "SELECT s.duration_minutes AS duration FROM services s,professionals pr,rooms r WHERE s.clinic_id=$1 AND s.id=$2 AND s.active AND pr.clinic_id=$1 AND pr.id=$3 AND pr.active AND r.clinic_id=$1 AND r.id=$4 AND r.active",
-            [
-              clinicId,
-              appointment.serviceId,
-              appointment.professionalId,
-              appointment.roomId,
-            ],
-          );
-          if (!related.rows[0])
-            throw new DomainError(
-              "RELATED_RECORD_NOT_FOUND",
-              "Serviço, profissional ou sala não encontrado.",
-              404,
-            );
-          appointments.push(
-            await context.insertAppointment(
-              clinicId,
-              { ...appointment, planId },
-              related.rows[0].duration,
-              { patientId: plan.patientId, leadId: null },
-              client,
-            ),
-          );
-        }
+        const plan = (await context.findPatientPlan(client, clinicId, planId))!;
+        const appointments = await bookPlanAppointments(
+          context,
+          client,
+          clinicId,
+          plan,
+          input.appointments,
+        );
         // Cliente que já está na turma (plano anterior vencido ou cancelado não encerra a
         // matrícula): o novo plano segue com a mesma matrícula, sem duplicar.
         let current = input.groupId
@@ -155,27 +205,16 @@ export function createPlanPurchasesRepository(context: MysqlRepositoryContext) {
             : undefined;
         // Sem vaga confirmada na turma não há venda (TW3): desfaz plano e matrícula.
         assertPlanEnrollmentSeat(enrollment);
-        let document = input.document
-          ? await createIssuedDocumentInTransaction(
+        const document = input.document
+          ? await issuePlanDocument(
               context,
               client,
               clinicId,
               actorId,
-              { ...input.document, patientId: plan.patientId, planId },
+              plan,
+              input.document,
             )
           : undefined;
-        if (document) {
-          assertDocumentPatientCpf(document);
-          await client.query(
-            "UPDATE issued_documents SET status='issued',issued_at=NOW(6),updated_at=NOW(6) WHERE clinic_id=$1 AND id=$2",
-            [clinicId, document.id],
-          );
-          document = (await context.findIssuedDocument(
-            client,
-            clinicId,
-            document.id,
-          ))!;
-        }
         const result: PlanPurchaseResult = {
           plan,
           appointments,

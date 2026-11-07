@@ -92,9 +92,9 @@ describe("cliente importado sem CPF (B6-05)", () => {
           .map((patient) => patient.fullName)
           .sort(),
       ).toEqual(["Bianca Sem Documento", "Caio Sem Documento"]);
-      expect(
-        forReception.flatMap((patient) => patient.tags),
-      ).not.toContain(OVERDUE_PAYMENT_TAG);
+      expect(forReception.flatMap((patient) => patient.tags)).not.toContain(
+        OVERDUE_PAYMENT_TAG,
+      );
 
       // A etiqueta vinda da planilha não é gravada.
       const fromSheet = await app.inject({

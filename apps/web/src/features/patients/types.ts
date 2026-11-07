@@ -2,7 +2,9 @@ import type {
   GuidedPatientInput,
   GuidedPatientResult,
   GroupClass,
+  PlanPurchaseInput,
 } from "@crm/contracts";
+import type { SignatureRequest } from "../contracts/index";
 import { guidedPlanKinds } from "./model";
 
 export type PatientRegistrationResult = GuidedPatientResult & {
@@ -26,12 +28,17 @@ export interface GuidedPlanEntry {
   id: number;
   form: GuidedPlanForm;
   groupId: string;
+  /** Documento para o cliente assinar, emitido com o plano (link ao concluir). */
+  document: SignatureRequest | null;
 }
 
 /** Serviço avulso comprado junto com os planos do passo "Assinar um plano". */
 export interface GuidedSingleEntry {
   id: number;
   form: GuidedSingleForm;
+  document: SignatureRequest | null;
+  /** Sessões do avulso reservadas com o cadastro (horários enviados ao concluir). */
+  appointments: PlanPurchaseInput["appointments"];
 }
 
 export type GuidedSingleForm = Extract<

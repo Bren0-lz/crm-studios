@@ -155,10 +155,10 @@ export function PatientImportModal({
               enviar, escolha a que dado do sistema corresponde cada coluna
               (nome e telefone são obrigatórios). Quem vier sem CPF recebe a
               etiqueta “{MISSING_CPF_TAG}”; sem WhatsApp ou contato de
-              emergência, “{INCOMPLETE_REGISTRATION_TAG}”; sem e-mail,
-              “{MISSING_EMAIL_TAG}”. Elas saem sozinhas quando o dado for
-              preenchido. Datas em dd/mm/aaaa e etiquetas separadas por
-              vírgula. Até 2 MB.
+              emergência, “{INCOMPLETE_REGISTRATION_TAG}”; sem e-mail, “
+              {MISSING_EMAIL_TAG}”. Elas saem sozinhas quando o dado for
+              preenchido. Datas em dd/mm/aaaa e etiquetas separadas por vírgula.
+              Até 2 MB.
             </span>
           </div>
           <a
@@ -288,7 +288,10 @@ export function PatientImportModal({
                         ? (row.errors ?? []).join(" ")
                         : row.duplicateOf
                           ? describeImportDuplicate(row.duplicateOf)
-                          : ["Pronta para importar", ...importRowNotes(row.input)].join(" · ")}
+                          : [
+                              "Pronta para importar",
+                              ...importRowNotes(row.input),
+                            ].join(" · ")}
                     </small>
                   </div>
                 ))}

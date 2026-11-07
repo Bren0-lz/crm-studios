@@ -21,11 +21,20 @@ describe("etiqueta automática 'Pagamento atrasado'", () => {
   const today = "2026-10-18";
 
   it("considera vencida só a parcela em aberto com vencimento antes de hoje", () => {
-    expect(isOverdueReceivable({ status: "open", dueDate: "2026-10-17" }, today)).toBe(true);
-    expect(isOverdueReceivable({ status: "open", dueDate: today }, today)).toBe(false);
-    expect(isOverdueReceivable({ status: "paid", dueDate: "2026-09-01" }, today)).toBe(false);
     expect(
-      isOverdueReceivable({ status: "cancelled", dueDate: "2026-09-01" }, today),
+      isOverdueReceivable({ status: "open", dueDate: "2026-10-17" }, today),
+    ).toBe(true);
+    expect(isOverdueReceivable({ status: "open", dueDate: today }, today)).toBe(
+      false,
+    );
+    expect(
+      isOverdueReceivable({ status: "paid", dueDate: "2026-09-01" }, today),
+    ).toBe(false);
+    expect(
+      isOverdueReceivable(
+        { status: "cancelled", dueDate: "2026-09-01" },
+        today,
+      ),
     ).toBe(false);
   });
 
@@ -79,8 +88,10 @@ describe("etiqueta automática 'Falta CPF'", () => {
 
   it("entra sem CPF, sai com CPF e não depende do Financeiro", () => {
     expect(
-      withAutomaticPatientTags({ id: "a", tags: ["Pilates", "falta cpf"] }, null)
-        .tags,
+      withAutomaticPatientTags(
+        { id: "a", tags: ["Pilates", "falta cpf"] },
+        null,
+      ).tags,
     ).toEqual(["Pilates", MISSING_CPF_TAG]);
     expect(
       withAutomaticPatientTags(
@@ -102,7 +113,9 @@ describe("etiqueta automática 'Falta CPF'", () => {
       "Pilates",
     ]);
     expect(automaticPatientTagCategoryOf(MISSING_CPF_TAG)).toBe("status");
-    expect(automaticPatientTagCategoryOf(OVERDUE_PAYMENT_TAG)).toBe("financial");
+    expect(automaticPatientTagCategoryOf(OVERDUE_PAYMENT_TAG)).toBe(
+      "financial",
+    );
     expect(automaticPatientTagCategoryOf("Pilates")).toBeUndefined();
   });
 });
@@ -119,8 +132,12 @@ describe("etiquetas automáticas 'Cadastro incompleto' e 'Sem e-mail' (CD3)", ()
   it("detecta o contato que falta, sem olhar a origem", () => {
     expect(lacksRequiredContact(complete)).toBe(false);
     expect(lacksRequiredContact({ ...complete, whatsapp: "" })).toBe(true);
-    expect(lacksRequiredContact({ ...complete, emergencyContactName: " " })).toBe(true);
-    expect(lacksRequiredContact({ ...complete, emergencyContactPhone: null })).toBe(true);
+    expect(
+      lacksRequiredContact({ ...complete, emergencyContactName: " " }),
+    ).toBe(true);
+    expect(
+      lacksRequiredContact({ ...complete, emergencyContactPhone: null }),
+    ).toBe(true);
     expect(lacksEmail(complete)).toBe(false);
     expect(lacksEmail({})).toBe(true);
   });
@@ -133,7 +150,9 @@ describe("etiquetas automáticas 'Cadastro incompleto' e 'Sem e-mail' (CD3)", ()
     expect(
       needsCompleteRegistration({ ...imported, mergedIntoPatientId: "outro" }),
     ).toBe(false);
-    expect(needsEmail({ ...imported, mergedIntoPatientId: "outro" })).toBe(false);
+    expect(needsEmail({ ...imported, mergedIntoPatientId: "outro" })).toBe(
+      false,
+    );
     expect(needsCompleteRegistration({ ...imported, ...complete })).toBe(false);
     expect(needsEmail({ ...imported, ...complete })).toBe(false);
   });
@@ -160,7 +179,13 @@ describe("etiquetas automáticas 'Cadastro incompleto' e 'Sem e-mail' (CD3)", ()
     ).toEqual([]);
     expect(
       withAutomaticPatientTags(
-        { id: "a", tags: [INCOMPLETE_REGISTRATION_TAG], cpf, ...complete, email: "" },
+        {
+          id: "a",
+          tags: [INCOMPLETE_REGISTRATION_TAG],
+          cpf,
+          ...complete,
+          email: "",
+        },
         null,
       ).tags,
     ).toEqual([]);
@@ -170,9 +195,15 @@ describe("etiquetas automáticas 'Cadastro incompleto' e 'Sem e-mail' (CD3)", ()
     expect(isAutomaticPatientTag("cadastro INCOMPLETO")).toBe(true);
     expect(isAutomaticPatientTag("Sem e-mail")).toBe(true);
     expect(
-      withoutAutomaticPatientTags(["Cadastro incompleto", "Sem e-mail", "Pilates"]),
+      withoutAutomaticPatientTags([
+        "Cadastro incompleto",
+        "Sem e-mail",
+        "Pilates",
+      ]),
     ).toEqual(["Pilates"]);
-    expect(automaticPatientTagCategoryOf(INCOMPLETE_REGISTRATION_TAG)).toBe("status");
+    expect(automaticPatientTagCategoryOf(INCOMPLETE_REGISTRATION_TAG)).toBe(
+      "status",
+    );
     expect(automaticPatientTagCategoryOf(MISSING_EMAIL_TAG)).toBe("status");
   });
 });
