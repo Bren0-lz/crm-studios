@@ -116,6 +116,9 @@ describe("matrícula pela Lista de espera (TW3)", () => {
     fireEvent.click(
       within(planDialog).getByRole("button", { name: "Concluir" }),
     );
+    fireEvent.click(
+      await within(planDialog).findByRole("button", { name: "Não" }),
+    );
     await waitFor(() =>
       expect(
         screen.queryByRole("dialog", { name: patient.fullName }),

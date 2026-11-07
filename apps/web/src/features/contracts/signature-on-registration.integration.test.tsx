@@ -162,12 +162,97 @@ describe("document signature on registration", () => {
         signatureLink: { viewCount: 0 },
       },
     ]);
+    // Concluir o envio pergunta se o cliente já pagou; "Sim" dá baixa e mostra o recibo.
+    fireEvent.click(within(dialog).getByRole("button", { name: "Concluir" }));
+    expect(
+      await within(dialog).findByText(
+        "O cliente já fez o pagamento (R$ 150,00)?",
+      ),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Sim, já pagou" }),
+    );
+    const settle = await screen.findByRole("dialog", {
+      name: "Dar baixa na parcela",
+    });
+    fireEvent.click(
+      within(settle).getByRole("button", { name: "Confirmar baixa" }),
+    );
+    const receipt = await within(dialog).findByRole("link", {
+      name: "Enviar recibo pelo WhatsApp",
+    });
+    expect(receipt.getAttribute("href")).toContain("wa.me/5511999995555");
+    expect(
+      within(dialog).getByText(/Pagamento de R\$ 150,00 registrado/),
+    ).toBeInTheDocument();
+    const receivable = (
+      await repository.getFinancialSummary(clinicId)
+    ).receivables.find((item) => item.planId === plan!.id);
+    expect(receivable).toMatchObject({ status: "paid" });
+    fireEvent.click(receipt);
+    await waitFor(async () =>
+      expect(
+        (await repository.listReceiptSignatures(clinicId, receivable!.id))[0]
+          ?.sentAt,
+      ).toBeTruthy(),
+    );
     fireEvent.click(within(dialog).getByRole("button", { name: "Concluir" }));
     await waitFor(() =>
       expect(
         screen.queryByRole("dialog", { name: "Novo plano avulso" }),
       ).not.toBeInTheDocument(),
     );
+  });
+
+  it("asks about the 1st installment and keeps it open when the client has not paid", async () => {
+    const { repository, patient, template } = await clientWithTemplate();
+    const [service] = await repository.listServices(clinicId);
+    const single = await repository.createPlanTemplate(clinicId, actorId, {
+      name: "Avulso em duas vezes",
+      kind: "single",
+      totalValueInCents: 20000,
+      services: [
+        { serviceId: service!.id, totalSessions: 1, totalValueInCents: 20000 },
+      ],
+    });
+    open(`/clientes/${patient.id}`);
+    fireEvent.click(await screen.findByRole("tab", { name: "Planos" }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Plano avulso" }),
+    );
+    const dialog = await screen.findByRole("dialog", {
+      name: "Novo plano avulso",
+    });
+    await within(dialog).findByRole("option", {
+      name: new RegExp(single.name),
+    });
+    change("Plano cadastrado", single.id, dialog);
+    change("Parcelas", "2", dialog);
+    change("Primeiro vencimento", saoPauloToday(), dialog);
+    await within(
+      within(dialog).getByLabelText("Documento para o cliente assinar"),
+    ).findByRole("option", { name: new RegExp(template.name) });
+    change("Documento para o cliente assinar", template.id, dialog);
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Criar plano e parcelas" }),
+    );
+    await within(dialog).findByRole("link", { name: "Abrir WhatsApp" });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Concluir" }));
+    expect(
+      await within(dialog).findByText(
+        "O cliente já fez o pagamento da 1ª parcela (R$ 100,00)?",
+      ),
+    ).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Não" }));
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("dialog", { name: "Novo plano avulso" }),
+      ).not.toBeInTheDocument(),
+    );
+    const receivables = (
+      await repository.getFinancialSummary(clinicId)
+    ).receivables.filter((item) => item.patientId === patient.id);
+    expect(receivables.map((item) => item.status)).not.toContain("paid");
   });
 
   it("shows the contract signed by the client in the client record, with the signature in the PDF", async () => {

@@ -953,6 +953,18 @@ atualizado no mesmo PR):
 - **Depende de:** RC5
 - **Status:** DOING (regra imediata definida pelo dono; validação geral bloqueada por duas migrações 0052 já na main)
 
+### RC7 — Pagamento e recibo no fim do envio do contrato
+
+- **Pedido do dono (07/11/2026):** ao concluir o envio do contrato pelo WhatsApp, perguntar se o
+  cliente já pagou. "Sim" dá baixa e gera o recibo para enviar pelo WhatsApp, no mesmo fluxo;
+  "Não" fecha e a cobrança fica em aberto no Financeiro. Decisões do dono: a baixa usa a tela
+  completa do Financeiro ("Dar baixa na parcela"); plano parcelado dá baixa só na 1ª parcela.
+- **Escopo:** só a venda de plano com documento (Novo plano da ficha e da tela Planos), que é a
+  que gera cobrança. Pergunta só para quem pode dar baixa (`finance` editável +
+  `finance.receive`). Sem API nova nem migração.
+- **Gate:** gate completo
+- **Status:** DONE
+
 ### TG1 — Cliente do Telegram, configuração e vínculo
 
 - **Origem:** B5-03/B5-04. Pedido da dona do estúdio. Exceção de provedor externo registrada
