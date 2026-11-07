@@ -12,6 +12,8 @@ import {
   type PlanStatus,
   type PlanTemplateInput,
   planTemplateInputSchema,
+  planTemplateStoredSchema,
+  planTemplateUpdateChangesTerms,
   type PlanTemplateUpdate,
   type SessionMovement,
   renewalPlanPayment,
@@ -208,7 +210,10 @@ export function createPlansRepository(
           services: input.services ?? previous.services,
         };
         if (item.active || item.services.length)
-          planTemplateInputSchema.parse(item);
+          (planTemplateUpdateChangesTerms(input)
+            ? planTemplateInputSchema
+            : planTemplateStoredSchema
+          ).parse(item);
         if (input.services || input.active)
           await repositoryContext.assertTemplateServices(
             client,

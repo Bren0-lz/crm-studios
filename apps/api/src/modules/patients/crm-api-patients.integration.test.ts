@@ -4622,6 +4622,15 @@ describe("CRM API", () => {
       installments: 2,
       firstDueDate: "2026-01-10",
     };
+    // Plano avulso: uma sessão de um serviço (AP5).
+    const singleTerms = {
+      ...planTerms,
+      services: [
+        { serviceId: SERVICE_ID, totalSessions: 1, totalValueInCents: 40000 },
+      ],
+      name: "Sessão avulsa",
+      totalSessions: 1,
+    };
     async function setup() {
       const { app, token } = await authenticatedApp();
       const headers = { authorization: `Bearer ${token}` };
@@ -4739,7 +4748,7 @@ describe("CRM API", () => {
         next: "single",
         patient: { fullName: "Cartão Guiado", phone: "11955550102" },
         plan: {
-          ...planTerms,
+          ...singleTerms,
           installments: 1,
           validUntil: "",
           paymentMethod: "card",
@@ -4974,7 +4983,7 @@ describe("CRM API", () => {
           services: [
             {
               serviceId: "99999999-9999-4999-8999-999999999999",
-              totalSessions: 8,
+              totalSessions: 1,
               totalValueInCents: planTerms.totalValueInCents,
             },
           ],
@@ -5047,6 +5056,11 @@ describe("CRM API", () => {
           {
             plan: {
               ...otherTerms,
+              services: otherTerms.services.map((entry) => ({
+                ...entry,
+                totalSessions: 1,
+              })),
+              totalSessions: 1,
               kind: "single",
               installments: 1,
               validUntil: "",
@@ -5269,7 +5283,7 @@ describe("CRM API", () => {
       await create({
         next: "single",
         patient: { fullName: "Filtro Avulso", phone: "11977771006" },
-        plan: planTerms,
+        plan: singleTerms,
       });
       const paused = await create({
         next: "plan",
@@ -5390,7 +5404,7 @@ describe("CRM API", () => {
         {
           next: "single",
           patient: patient("Perm Avulso Negado"),
-          plan: planTerms,
+          plan: singleTerms,
         },
         patientsOnly,
       );

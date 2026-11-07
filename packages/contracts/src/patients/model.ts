@@ -27,6 +27,8 @@ import {
   planPeriodIssue,
   renewablePlanPeriod,
   validPlanPeriod,
+  isSingleSessionPlan,
+  singlePlanServicesIssue,
 } from "../plans/model.js";
 import type {
   ClientAgeBand,
@@ -443,6 +445,10 @@ const guidedSubscriptionPlanSchema = guidedPlanTermsSchema
 /** Serviço avulso adicionado junto com os planos do cadastro guiado (plano `single`). */
 const guidedAdditionalSingleSchema = guidedPlanTermsSchema
   .extend({ kind: z.literal("single") })
+  .refine(
+    (value) => isSingleSessionPlan(value.services),
+    singlePlanServicesIssue,
+  )
   .refine(validPlanPeriod, planPeriodIssue)
   .refine(renewablePlanPeriod, autoRenewIssue)
   .refine(planPaymentRecurrenceChosen, planPaymentRecurrenceIssue)
@@ -521,6 +527,10 @@ export const guidedPatientInputSchema = z.discriminatedUnion("next", [
     next: z.literal("single"),
     patient: patientInputSchema,
     plan: guidedPlanTermsSchema
+      .refine(
+        (value) => isSingleSessionPlan(value.services),
+        singlePlanServicesIssue,
+      )
       .refine(validPlanPeriod, planPeriodIssue)
       .refine(renewablePlanPeriod, autoRenewIssue)
       .refine(planPaymentRecurrenceChosen, planPaymentRecurrenceIssue)

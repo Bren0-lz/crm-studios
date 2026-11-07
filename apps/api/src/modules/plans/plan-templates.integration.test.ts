@@ -516,3 +516,68 @@ describe("periodic plan templates", () => {
     });
   });
 });
+
+describe("single plan templates", () => {
+  it("keeps a single plan to one session of one service in the catalog and in the sale", async () => {
+    const { app, headers } = await setup();
+    const single = (totalSessions: number) => ({
+      name: "Avaliação",
+      planType: "single",
+      kind: "single",
+      totalValueInCents: 15000,
+      services: [{ serviceId, totalSessions, totalValueInCents: 15000 }],
+    });
+    const several = await app.inject({
+      method: "POST",
+      url: "/plan-templates",
+      headers,
+      payload: single(4),
+    });
+    expect(several.statusCode).toBe(400);
+    expect(several.json()).toMatchObject({ code: "VALIDATION_ERROR" });
+    const created = await app.inject({
+      method: "POST",
+      url: "/plan-templates",
+      headers,
+      payload: single(1),
+    });
+    expect(created.statusCode, created.body).toBe(201);
+    const template = created.json();
+    const editedToSeveral = await app.inject({
+      method: "PATCH",
+      url: `/plan-templates/${template.id as string}`,
+      headers,
+      payload: { services: single(2).services },
+    });
+    expect(editedToSeveral.statusCode).toBe(400);
+    const renamed = await app.inject({
+      method: "PATCH",
+      url: `/plan-templates/${template.id as string}`,
+      headers,
+      payload: { name: "Avaliação inicial" },
+    });
+    expect(renamed.statusCode, renamed.body).toBe(200);
+    const sale = (totalSessions: number) =>
+      app.inject({
+        method: "POST",
+        url: "/plans",
+        headers,
+        payload: {
+          ...terms,
+          name: "Avaliação inicial",
+          kind: "single",
+          planTemplateId: template.id,
+          services: [{ serviceId, totalSessions, totalValueInCents: 15000 }],
+          totalSessions,
+          totalValueInCents: 15000,
+          installments: 1,
+        },
+      });
+    const severalSold = await sale(3);
+    expect(severalSold.statusCode).toBe(400);
+    expect(severalSold.json()).toMatchObject({ code: "VALIDATION_ERROR" });
+    const sold = await sale(1);
+    expect(sold.statusCode, sold.body).toBe(201);
+    expect(sold.json()).toMatchObject({ kind: "single", totalSessions: 1 });
+  });
+});

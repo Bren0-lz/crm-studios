@@ -16,11 +16,11 @@ function tuesday(days = 0) {
 }
 const day = (iso: string) => shortDate.format(new Date(`${iso}T12:00`));
 
-async function openSinglePlan(totalSessions: number) {
+async function openPackagePlan(totalSessions: number) {
   const { repository } = await setupApi();
   const patient = await repository.createPatient(clinicId, {
     cpf: nextTestCpf(),
-    fullName: "Cliente do pacote avulso",
+    fullName: "Cliente do pacote",
     phone: "11977776666",
     tags: [],
   });
@@ -29,7 +29,7 @@ async function openSinglePlan(totalSessions: number) {
   const [room] = await repository.listRooms(clinicId);
   const template = await repository.createPlanTemplate(clinicId, actorId, {
     name: `Massoterapia ${totalSessions} sessões`,
-    kind: "single",
+    kind: "fixed_package",
     totalValueInCents: totalSessions * 10000,
     services: [
       {
@@ -43,12 +43,12 @@ async function openSinglePlan(totalSessions: number) {
   await screen.findByText("Nenhum plano cadastrado", { exact: true });
   fireEvent.click(await screen.findByRole("button", { name: "Novo plano" }));
   const dialog = screen.getByRole("dialog", { name: "Novo plano" });
-  change("Modelo", "single", dialog);
+  change("Modelo", "fixed_package", dialog);
   await within(dialog).findByRole("option", {
     name: new RegExp(template.name),
   });
   change("Plano cadastrado", template.id, dialog);
-  // Plano avulso: os horários da contratação já abrem, com os dias fixos de cada serviço.
+  // Pacote fixo: os horários da contratação já abrem, com os dias fixos de cada serviço.
   const schedule = await within(dialog).findByRole("group", {
     name: new RegExp(`${totalSessions} sessões$`),
   });
@@ -79,7 +79,7 @@ function summaryRows(dialog: HTMLElement) {
   ).getAllByRole("listitem");
 }
 
-describe("single plan purchase with fixed weekdays", () => {
+describe("fixed package purchase with fixed weekdays", () => {
   it("books exactly the plan sessions, flags conflicts and changes only one session", async () => {
     const {
       repository,
@@ -89,7 +89,7 @@ describe("single plan purchase with fixed weekdays", () => {
       room,
       dialog,
       schedule,
-    } = await openSinglePlan(10);
+    } = await openPackagePlan(10);
     const other = await repository.createPatient(clinicId, {
       cpf: nextTestCpf(),
       fullName: "Outra cliente",
@@ -195,7 +195,7 @@ describe("single plan purchase with fixed weekdays", () => {
   });
 
   it("spreads the sessions over more than one weekday without passing the plan total", async () => {
-    const { professional, room, dialog, schedule } = await openSinglePlan(5);
+    const { professional, room, dialog, schedule } = await openPackagePlan(5);
     fillFixedDays(
       schedule,
       { professional: professional!.id, room: room!.id },
@@ -216,7 +216,7 @@ describe("single plan purchase with fixed weekdays", () => {
   });
   it("saves a session exception without closing the purchase and books it changed", async () => {
     const { repository, patient, professional, room, dialog, schedule } =
-      await openSinglePlan(3);
+      await openPackagePlan(3);
     fillFixedDays(
       schedule,
       { professional: professional!.id, room: room!.id },
@@ -263,7 +263,7 @@ describe("single plan purchase with fixed weekdays", () => {
   });
 
   it("flags a session moved before the start of the plan", async () => {
-    const { professional, room, dialog, schedule } = await openSinglePlan(3);
+    const { professional, room, dialog, schedule } = await openPackagePlan(3);
     change("Início", tuesday(), dialog);
     fillFixedDays(
       schedule,
