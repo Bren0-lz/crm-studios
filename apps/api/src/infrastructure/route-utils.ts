@@ -17,7 +17,7 @@ export interface BuildAppOptions {
   logger?: boolean;
   /** Saltos de proxy confiáveis para `request.ip` (padrão: `TRUST_PROXY`). */
   trustProxy?: number;
-  /** Eventos de domínio (ex.: `receipt.signed`); padrão: publicador em memória do processo. */
+  /** Recebe os eventos de domínio além dos consumidores internos da aplicação. */
   events?: DomainEventPublisher;
   /**
    * Telegram (TG1): cliente e segredo do webhook; `null` = desligada. Padrão: a partir de
