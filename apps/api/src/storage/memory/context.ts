@@ -2423,6 +2423,9 @@ export class MemoryRepositoryContext {
           ...(event.kind === "payment" && event.discountInCents
             ? { discountInCents: event.discountInCents }
             : {}),
+          ...(event.kind === "payment" && event.balanceReceivableId
+            ? { balanceReceivableId: event.balanceReceivableId }
+            : {}),
         };
       })
       .filter((item): item is ReceivedPayment => item !== null);

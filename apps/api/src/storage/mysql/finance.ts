@@ -2200,9 +2200,11 @@ export function createFinanceRepository(
         occurredAt: Date;
         paymentMethod: ReceivedPayment["paymentMethod"] | null;
         discountInCents: number;
+        balanceReceivableId: string | null;
       }>(
         `SELECT fe.id, fe.receivable_id AS "receivableId", fe.kind,
               fe.discount_in_cents AS "discountInCents",
+              fe.balance_receivable_id AS "balanceReceivableId",
               r.plan_id AS "planId",
               (SELECT pt.id FROM patient_tabs pt WHERE pt.receivable_id=r.id LIMIT 1) AS "tabId",
               r.patient_id AS "patientId", p.full_name AS "patientName",
@@ -2233,6 +2235,9 @@ export function createFinanceRepository(
         ...(item.paymentMethod ? { paymentMethod: item.paymentMethod } : {}),
         ...(item.kind === "payment" && item.discountInCents
           ? { discountInCents: item.discountInCents }
+          : {}),
+        ...(item.kind === "payment" && item.balanceReceivableId
+          ? { balanceReceivableId: item.balanceReceivableId }
           : {}),
       }));
     },

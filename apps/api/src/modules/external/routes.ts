@@ -10,6 +10,10 @@ import {
   type ExternalOverdueReport,
   type ExternalOverdueRow,
   externalOverdueBand,
+  type ExternalPatientDetails,
+  type ExternalPatientPayments,
+  externalPatientPaymentsQuerySchema,
+  type ExternalPatientRecord,
   type ExternalPatientSummary,
   externalGroupsQuerySchema,
   externalPatientsQuerySchema,
@@ -20,6 +24,8 @@ import {
   loginSchema,
   type MemberOverdue,
   type Patient,
+  type PatientTab,
+  patientProfileLabels,
   type Receivable,
   saoPauloToday,
   type Service,
@@ -32,6 +38,8 @@ import type { FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 import type { RouteContext } from "../../infrastructure/route-context.js";
 import { DomainError } from "../../repository.js";
+import { automaticPatientTagger } from "../patients/automatic-tags.js";
+import { patientPayments } from "./patient-payments.js";
 import {
   externalEndpoints,
   type ProxiedEndpoint,
@@ -523,6 +531,172 @@ export function registerExternalRoutes({
             status: item.status,
           })),
       }));
+    },
+  );
+
+  const patientNotFound = () =>
+    new DomainError("PATIENT_NOT_FOUND", "Cliente não encontrado.", 404);
+
+  /**
+   * Ficha do cliente para o painel: o nome sempre; os dados cadastrais e de contato, as
+   * etiquetas, as filiais, os planos ativos e as turmas só com acesso a Clientes.
+   */
+  app.get(
+    "/external/v1/patients/:id",
+    { preHandler: authenticate },
+    async (request): Promise<ExternalPatientDetails> => {
+      const { id } = request.params as { id: string };
+      const clinicId = request.user.clinicId;
+      const patient = z.uuid().safeParse(id).success
+        ? await repository.getPatient(clinicId, id)
+        : null;
+      if (!patient) throw patientNotFound();
+      const access = requestAccess.get(request);
+      if (!access?.permissions.includes("patients.view"))
+        return { id: patient.id, fullName: patient.fullName };
+      const today = saoPauloToday();
+      const [plans, workspace, branches, tag] = await Promise.all([
+        repository.listPatientPlans(clinicId),
+        repository.getGroupWorkspace(
+          clinicId,
+          `${today}T00:00:00.000Z`,
+          `${today}T00:00:00.001Z`,
+        ),
+        repository.listBranches(clinicId),
+        automaticPatientTagger(repository, clinicId, access.modules),
+      ]);
+      const tagged = tag(patient);
+      const groupById = new Map(
+        workspace.groups.map((group) => [group.id, group]),
+      );
+      const activePlans = plans
+        .filter(
+          (plan) =>
+            plan.patientId === patient.id &&
+            plan.status === "active" &&
+            plan.validFrom <= today &&
+            (!plan.validUntil || plan.validUntil >= today),
+        )
+        .map((plan) => ({
+          id: plan.id,
+          name: plan.name,
+          ...(plan.branchId ? { branchId: plan.branchId } : {}),
+          validFrom: plan.validFrom,
+          ...(plan.validUntil ? { validUntil: plan.validUntil } : {}),
+        }));
+      const groups = workspace.enrollments
+        .filter(
+          (item) => item.patientId === patient.id && item.status !== "cancelled",
+        )
+        .map((item) => {
+          const group = groupById.get(item.groupId);
+          return {
+            groupId: item.groupId,
+            groupName: group?.name ?? "",
+            ...(group?.branchId ? { branchId: group.branchId } : {}),
+            status: item.status,
+          };
+        });
+      const branchIds = new Set(
+        [...activePlans, ...groups].flatMap((item) =>
+          item.branchId ? [item.branchId] : [],
+        ),
+      );
+      // Perfil: só os campos preenchidos, como na ficha do CRM.
+      const filled = (value: unknown) =>
+        value !== undefined &&
+        value !== null &&
+        value !== "" &&
+        !(Array.isArray(value) && !value.length);
+      const fields = [
+        ...Object.keys(patientProfileLabels),
+        "cpf",
+        "birthDate",
+        "email",
+        "whatsapp",
+        "emergencyContactName",
+        "emergencyContactPhone",
+        "discount",
+        "inactiveAt",
+      ] as (keyof Patient)[];
+      const record = {
+        recordNumber: patient.recordNumber,
+        status: patient.status,
+        phone: patient.phone,
+        ...Object.fromEntries(
+          fields
+            .filter((key) => filled(patient[key]))
+            .map((key) => [key, patient[key]]),
+        ),
+        tags: tagged.tags,
+        branches: branches
+          .filter((branch) => branchIds.has(branch.id))
+          .map((branch) => ({ id: branch.id, name: branch.name })),
+        activePlans,
+        groups,
+        createdAt: patient.createdAt,
+      } as ExternalPatientRecord;
+      return { id: patient.id, fullName: patient.fullName, record };
+    },
+  );
+
+  /**
+   * Histórico de pagamentos do cliente (só com acesso ao Financeiro): todas as cobranças do
+   * resumo financeiro, com as baixas e os estornos de cada uma, nas filiais da leitura.
+   */
+  app.get(
+    "/external/v1/patients/:id/payments",
+    { preHandler: authenticate },
+    async (request): Promise<ExternalPatientPayments> => {
+      const { id } = request.params as { id: string };
+      const query = externalPatientPaymentsQuerySchema.parse(request.query);
+      const clinicId = request.user.clinicId;
+      const patient = z.uuid().safeParse(id).success
+        ? await repository.getPatient(clinicId, id)
+        : null;
+      if (!patient) throw patientNotFound();
+      const [summary, settings, registry] = await Promise.all([
+        repository.getFinancialSummary(clinicId),
+        repository.getClinicSettings(clinicId),
+        repository.getAdministrativeRegistry(clinicId),
+      ]);
+      const receivables = summary.receivables.filter(
+        (item) => item.patientId === patient.id,
+      );
+      const ids = new Set(receivables.map((item) => item.id));
+      const [events, inventory] = await Promise.all([
+        receivables.length
+          ? repository.listReceivedPayments(clinicId, "1900-01-01", "9999-12-31")
+          : Promise.resolve([]),
+        // Produtos e vendas só vêm de comanda: as comandas só são lidas se há cobrança fora de plano.
+        receivables.some((item) => !item.planId)
+          ? repository.getInventoryWorkspace(clinicId)
+          : Promise.resolve(undefined),
+      ]);
+      const tabs = new Map<string, PatientTab>();
+      for (const tab of inventory?.tabs ?? [])
+        if (tab.receivableId && ids.has(tab.receivableId))
+          tabs.set(tab.receivableId, tab);
+      return patientPayments(
+        patient,
+        {
+          receivables,
+          events: events.filter((item) => ids.has(item.receivableId)),
+          tabs,
+          productLines: new Map(
+            (inventory?.products ?? []).map((product) => [
+              product.id,
+              product.businessLine,
+            ]),
+          ),
+          services: new Map(
+            registry.services.map((service) => [service.id, service]),
+          ),
+          today: saoPauloToday(),
+          timeZone: settings?.timezone ?? "America/Sao_Paulo",
+        },
+        query,
+      );
     },
   );
 
