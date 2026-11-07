@@ -21,7 +21,9 @@ export async function automaticPatientTagger(
   modules: readonly AppModule[],
 ) {
   const overdue = modules.includes("finance")
-    ? new Set(await repository.listOverduePatientIds(clinicId, saoPauloToday()))
+    ? new Set(
+        await repository.listOverduePatientIds(clinicId, saoPauloToday()),
+      )
     : null;
   return <T extends AutomaticTagSubject>(patient: T): T =>
     withAutomaticPatientTags(patient, overdue);

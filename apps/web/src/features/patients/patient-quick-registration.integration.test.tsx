@@ -204,9 +204,7 @@ describe("quick client registration", () => {
     fireEvent.change(within(address).getByLabelText("Tipo de residência"), {
       target: { value: "condominium" },
     });
-    expect(
-      within(address).getByLabelText("Nome do condomínio"),
-    ).toBeInTheDocument();
+    expect(within(address).getByLabelText("Nome do condomínio")).toBeInTheDocument();
     expect(within(address).getByLabelText("Quadra/bloco")).toBeInTheDocument();
     expect(within(address).queryByLabelText("Andar")).not.toBeInTheDocument();
     // O número digitado para o apartamento continua no campo da unidade.

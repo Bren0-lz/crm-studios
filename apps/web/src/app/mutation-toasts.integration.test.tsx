@@ -159,9 +159,7 @@ describe("toasts de sucesso nas gravações", () => {
       await screen.findByRole("button", { name: "Matricular cliente" }),
     );
     // Turma cheia: o seletor avisa da lista de espera, como no cadastro guiado.
-    const dialog = await screen.findByRole("dialog", {
-      name: "Nova matrícula",
-    });
+    const dialog = await screen.findByRole("dialog", { name: "Nova matrícula" });
     expect(
       within(within(dialog).getByLabelText("Turma")).getByRole("option", {
         name: /^Pilates Turma A — .* · turma cheia \(lista de espera\)$/,
@@ -184,9 +182,7 @@ describe("toasts de sucesso nas gravações", () => {
     });
     renderGroups({});
     fireEvent.click(await screen.findByRole("button", { name: "Abrir turma" }));
-    fireEvent.click(
-      screen.getByRole("tab", { name: "Frequência e reposições" }),
-    );
+    fireEvent.click(screen.getByRole("tab", { name: "Frequência e reposições" }));
     fireEvent.click(
       within(
         await screen.findByRole("table", { name: "Aulas de Outubro de 2026" }),

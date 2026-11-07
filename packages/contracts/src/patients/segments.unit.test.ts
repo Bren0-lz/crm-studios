@@ -38,7 +38,7 @@ describe("client profile and segments", () => {
       matchesPatientProfile(profile, {
         interest: "Pilates",
         gender: "female",
-        record: "with_email",
+            record: "with_email",
       }),
     ).toBe(true);
     expect(matchesPatientProfile(profile, { interest: "Postura" })).toBe(false);

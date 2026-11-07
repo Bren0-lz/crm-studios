@@ -2,15 +2,9 @@ import { readFileSync } from "node:fs";
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { NotificationsBanner } from "./NotificationAlerts";
-import type {
-  NotificationCenter,
-  NotificationGroup,
-} from "./notification-center";
+import type { NotificationCenter, NotificationGroup } from "./notification-center";
 
-const shellCss = readFileSync(
-  `${process.cwd()}/src/styles/03-shell.css`,
-  "utf8",
-);
+const shellCss = readFileSync(`${process.cwd()}/src/styles/03-shell.css`, "utf8");
 const baseCss = readFileSync(`${process.cwd()}/src/styles/01-base.css`, "utf8");
 
 function rule(css: string, selector: string) {
@@ -44,10 +38,7 @@ describe("barra de pendências (NB1)", () => {
 
   it("aparece com a barra vermelha quando há pendência destacada", () => {
     render(
-      <NotificationsBanner
-        center={centerWith([overdue])}
-        onNavigate={vi.fn()}
-      />,
+      <NotificationsBanner center={centerWith([overdue])} onNavigate={vi.fn()} />,
     );
     const banner = screen.getByRole("region", { name: "Alertas" });
     expect(banner).toHaveClass("notification-banner");
@@ -58,9 +49,7 @@ describe("barra de pendências (NB1)", () => {
   });
 
   it("usa fundo branco com botões vermelhos e barra de rolagem estilizada", () => {
-    expect(baseCss).toMatch(
-      /--red: #b85d53;[\s\S]{0,400}--danger-strong: #963f35;/,
-    );
+    expect(baseCss).toMatch(/--red: #b85d53;[\s\S]{0,400}--danger-strong: #963f35;/);
     const banner = rule(shellCss, ".notification-banner");
     expect(banner).toMatch(/background: #fff;/);
     expect(banner).toMatch(/border: 1px solid var\(--danger-strong\);/);
@@ -73,12 +62,8 @@ describe("barra de pendências (NB1)", () => {
     const focus = rule(shellCss, ".notification-banner-item:focus-visible");
     expect(focus).toMatch(/outline: 2px solid var\(--danger-strong\);/);
     // scrollbar-width anula os ::-webkit-scrollbar no Chrome (volta a barra cinza com setas).
-    expect(rule(shellCss, ".notification-banner ul")).not.toMatch(
-      /scrollbar-width/,
-    );
-    expect(shellCss).toMatch(
-      /\.notification-banner ul::-webkit-scrollbar-thumb \{/,
-    );
+    expect(rule(shellCss, ".notification-banner ul")).not.toMatch(/scrollbar-width/);
+    expect(shellCss).toMatch(/\.notification-banner ul::-webkit-scrollbar-thumb \{/);
     expect(shellCss).not.toMatch(/notification-banner-(breathe|ring|shake)/);
   });
 });
@@ -91,30 +76,16 @@ describe("rolagem automática da barra de pendências", () => {
 
   function renderOverflowing() {
     vi.useFakeTimers({
-      toFake: [
-        "requestAnimationFrame",
-        "cancelAnimationFrame",
-        "performance",
-        "setTimeout",
-        "clearTimeout",
-      ],
+      toFake: ["requestAnimationFrame", "cancelAnimationFrame", "performance", "setTimeout", "clearTimeout"],
     });
-    vi.stubGlobal("matchMedia", (query: string) => ({
-      matches: false,
-      media: query,
-    }));
+    vi.stubGlobal("matchMedia", (query: string) => ({ matches: false, media: query }));
     const sizes = vi
       .spyOn(HTMLElement.prototype, "scrollWidth", "get")
       .mockReturnValue(1000);
     const client = vi
       .spyOn(HTMLElement.prototype, "clientWidth", "get")
       .mockReturnValue(400);
-    render(
-      <NotificationsBanner
-        center={centerWith([overdue])}
-        onNavigate={vi.fn()}
-      />,
-    );
+    render(<NotificationsBanner center={centerWith([overdue])} onNavigate={vi.fn()} />);
     const banner = screen.getByRole("region", { name: "Alertas" });
     const list = banner.querySelector("ul")!;
     return {
@@ -150,21 +121,10 @@ describe("rolagem automática da barra de pendências", () => {
       matches: query.includes("reduce"),
       media: query,
     }));
-    vi.useFakeTimers({
-      toFake: ["requestAnimationFrame", "cancelAnimationFrame", "performance"],
-    });
-    const sizes = vi
-      .spyOn(HTMLElement.prototype, "scrollWidth", "get")
-      .mockReturnValue(1000);
-    render(
-      <NotificationsBanner
-        center={centerWith([overdue])}
-        onNavigate={vi.fn()}
-      />,
-    );
-    const list = screen
-      .getByRole("region", { name: "Alertas" })
-      .querySelector("ul")!;
+    vi.useFakeTimers({ toFake: ["requestAnimationFrame", "cancelAnimationFrame", "performance"] });
+    const sizes = vi.spyOn(HTMLElement.prototype, "scrollWidth", "get").mockReturnValue(1000);
+    render(<NotificationsBanner center={centerWith([overdue])} onNavigate={vi.fn()} />);
+    const list = screen.getByRole("region", { name: "Alertas" }).querySelector("ul")!;
     act(() => vi.advanceTimersByTime(4000));
     expect(list.scrollLeft).toBe(0);
     sizes.mockRestore();

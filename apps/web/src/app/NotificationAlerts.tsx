@@ -104,8 +104,7 @@ export function NotificationsBanner({
         syncPaused();
       }}
       onBlur={(event) => {
-        if (event.currentTarget.contains(event.relatedTarget as Node | null))
-          return;
+        if (event.currentTarget.contains(event.relatedTarget as Node | null)) return;
         focused.current = false;
         syncPaused();
       }}

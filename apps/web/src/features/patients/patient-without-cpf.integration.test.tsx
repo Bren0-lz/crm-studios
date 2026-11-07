@@ -136,9 +136,7 @@ describe("cliente sem CPF (B6-05)", () => {
       }),
     ).toBeVisible();
     expect(
-      vi
-        .mocked(fetch)
-        .mock.calls.some(([, options]) => options?.method === "PUT"),
+      vi.mocked(fetch).mock.calls.some(([, options]) => options?.method === "PUT"),
     ).toBe(false);
   });
 
@@ -237,9 +235,7 @@ describe("cliente sem CPF (B6-05)", () => {
     const dialog = screen.getByRole("dialog", { name: "Importar clientes" });
     expect(
       within(dialog).getByText(/nome e telefone são obrigatórios/),
-    ).toHaveTextContent(
-      `Quem vier sem CPF recebe a etiqueta “${MISSING_CPF_TAG}”`,
-    );
+    ).toHaveTextContent(`Quem vier sem CPF recebe a etiqueta “${MISSING_CPF_TAG}”`);
     fireEvent.change(within(dialog).getByLabelText("Planilha de clientes"), {
       target: {
         files: [
@@ -260,7 +256,9 @@ describe("cliente sem CPF (B6-05)", () => {
       }),
     ).toHaveTextContent("Nome (obrigatório)");
     expect(
-      within(dialog).getAllByRole("option", { name: "CPF" }).length,
+      within(dialog)
+        .getAllByRole("option", { name: "CPF" })
+        .length,
     ).toBeGreaterThan(0);
   });
 });
