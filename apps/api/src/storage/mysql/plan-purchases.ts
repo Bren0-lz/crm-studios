@@ -109,7 +109,7 @@ export function createPlanPurchasesRepository(context: MysqlRepositoryContext) {
         }
         // Cliente que já está na turma (plano anterior vencido ou cancelado não encerra a
         // matrícula): o novo plano segue com a mesma matrícula, sem duplicar.
-        const current = input.groupId
+        let current = input.groupId
           ? (
               await client.query<GroupEnrollmentRow>(
                 `SELECT ${groupEnrollmentColumns} FROM group_enrollments e JOIN patients p ON p.id=e.patient_id WHERE e.clinic_id=$1 AND e.group_id=$2 AND e.patient_id=$3 AND e.status IN ('active','waitlisted') FOR UPDATE`,
@@ -117,6 +117,34 @@ export function createPlanPurchasesRepository(context: MysqlRepositoryContext) {
               )
             ).rows[0]
           : undefined;
+        // Cliente na lista de espera da turma e com vaga livre: a venda confirma a matrícula
+        // (como "Cliente aceitou" na Lista de espera), em vez de recusar como turma cheia.
+        if (current?.status === "waitlisted") {
+          const group = await client.query<{ capacity: number }>(
+            `SELECT capacity FROM group_classes WHERE clinic_id=$1 AND id=$2 AND active FOR UPDATE`,
+            [clinicId, current.groupId],
+          );
+          const active = await client.query<{ id: string }>(
+            `SELECT id FROM group_enrollments WHERE clinic_id=$1 AND group_id=$2 AND status='active' FOR UPDATE`,
+            [clinicId, current.groupId],
+          );
+          if (group.rows[0] && active.rows.length < group.rows[0].capacity) {
+            await client.query(
+              `UPDATE group_enrollments SET status='active',queue_position=NULL,enrolled_at=GREATEST(enrolled_at,NOW(6)),updated_at=NOW(6) WHERE clinic_id=$1 AND id=$2`,
+              [clinicId, current.id],
+            );
+            await client.query(
+              `UPDATE group_enrollments e JOIN (SELECT id,row_number() OVER (ORDER BY queue_position,enrolled_at) AS position FROM group_enrollments WHERE clinic_id=$1 AND group_id=$2 AND status='waitlisted') ranked ON e.id=ranked.id SET e.queue_position=ranked.position`,
+              [clinicId, current.groupId],
+            );
+            current = (
+              await client.query<GroupEnrollmentRow>(
+                `SELECT ${groupEnrollmentColumns} FROM group_enrollments e JOIN patients p ON p.id=e.patient_id WHERE e.clinic_id=$1 AND e.id=$2`,
+                [clinicId, current.id],
+              )
+            ).rows[0];
+          }
+        }
         const enrollment = current
           ? mapGroupEnrollment(current)
           : input.groupId
