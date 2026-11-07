@@ -64,6 +64,7 @@ import { type BuildAppOptions } from "./route-utils.js";
 import { createDomainEventPublisher } from "./domain-events.js";
 import { telegramIntegrationFromEnv } from "./telegram-client.js";
 import { createTelegramService } from "../modules/integrations/telegram.js";
+import { createReceiptSignedTelegramHandler } from "../modules/integrations/telegram-receipts.js";
 
 // Regras padrão do zod em pt-BR: a resposta 400 diz ao usuário o que corrigir.
 z.config({ customError: ptBrValidationError });
@@ -86,10 +87,14 @@ export async function createRouteContext({
   });
 
   // Assinante que falha não desfaz a operação de origem: só fica no log.
-  const events =
-    injectedEvents ??
-    createDomainEventPublisher((error, event) =>
-      app.log.error({ err: error, event: event.type }, "domain event handler"),
+  const events = createDomainEventPublisher((error, event) =>
+    app.log.error({ err: error, event: event.type }, "domain event handler"),
+  );
+  // O publicador injetado continua recebendo os eventos, sem substituir os consumidores
+  // internos. Sua falha também é isolada pelo publicador local.
+  if (injectedEvents)
+    events.subscribe("receipt.signed", (event) =>
+      injectedEvents.publish(event),
     );
 
   // Telegram: sem token, desligado (a fila não recebe nada e a tela avisa).
@@ -101,6 +106,10 @@ export async function createRouteContext({
         : injectedTelegram,
     log: app.log,
   });
+  events.subscribe(
+    "receipt.signed",
+    createReceiptSignedTelegramHandler({ repository, telegram }),
+  );
 
   const loginAttempts = new Map<
     string,

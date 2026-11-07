@@ -209,6 +209,7 @@ export async function verifyReceiptSigning(repository: ClinicRepository) {
       receivableId: receivable.id,
       patientId: patient.id,
       amountInCents: 5000,
+      paidAt: receipt!.paidAt,
       signedAt: signed!.signedAt,
     },
   ]);

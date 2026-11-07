@@ -974,7 +974,7 @@ atualizado no mesmo PR):
   - Falha do Telegram não quebra a assinatura.
 - **Gate:** gate completo
 - **Depende de:** TG1
-- **Status:** TODO
+- **Status:** DONE
 
 ### TG3 — Aviso de agendamento e de cliente novo
 

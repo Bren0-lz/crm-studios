@@ -10,6 +10,8 @@ export interface ReceiptSignedEvent {
   receivableId: string;
   patientId: string;
   amountInCents: number;
+  /** Instante da baixa que gerou o recibo (pode ser anterior à assinatura). */
+  paidAt: string;
   signedAt: string;
 }
 
