@@ -112,6 +112,9 @@ html {
   .main-nav {
     scrollbar-color: rgba(255, 255, 255, 0.24) transparent;
   }
+  .notification-banner ul {
+    scrollbar-color: color-mix(in srgb, var(--danger-strong) 40%, #fff) transparent;
+  }
 }
 
 body {
