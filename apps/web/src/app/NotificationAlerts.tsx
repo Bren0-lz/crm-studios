@@ -1,5 +1,66 @@
 import { AlertTriangle, BellRing, X } from "lucide-react";
+import { useEffect, useRef, type RefObject } from "react";
 import type { NotificationCenter } from "./notification-center";
+
+/** Velocidade da rolagem automática dos atalhos, em px por segundo. */
+const AUTO_SCROLL_SPEED = 30;
+/** Pausa no fim (antes de voltar ao início) e no início (antes de recomeçar). */
+const AUTO_SCROLL_HOLD_MS = 1500;
+/** Depois de um toque (arraste manual no celular), espera antes de retomar. */
+const AUTO_SCROLL_TOUCH_RESUME_MS = 4000;
+
+function prefersReducedMotion() {
+  return (
+    typeof window.matchMedia === "function" &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches
+  );
+}
+
+/**
+ * Rola a lista sozinha quando os atalhos não cabem. Pausa enquanto `paused.current` for
+ * verdadeiro (mouse, foco ou toque na barra) e continua de onde o usuário deixou o scroll
+ * manual. Ao chegar no fim, espera e volta ao início. Desliga com movimento reduzido.
+ */
+function useAutoScroll(
+  listRef: RefObject<HTMLUListElement | null>,
+  paused: RefObject<boolean>,
+  resetKey: number,
+) {
+  useEffect(() => {
+    const list = listRef.current;
+    if (!list || prefersReducedMotion()) return;
+    let frame = 0;
+    let holdUntil = performance.now() + AUTO_SCROLL_HOLD_MS;
+    let last: number | null = null;
+    let position = list.scrollLeft;
+    const step = (now: number) => {
+      frame = requestAnimationFrame(step);
+      const elapsed = last === null ? 0 : now - last;
+      last = now;
+      const max = list.scrollWidth - list.clientWidth;
+      if (max <= 0 || paused.current || now < holdUntil) {
+        position = list.scrollLeft;
+        return;
+      }
+      // Lê o scroll atual: se o usuário rolou à mão, segue dali.
+      if (Math.abs(list.scrollLeft - position) > 1) position = list.scrollLeft;
+      if (position >= max - 1) {
+        holdUntil = now + AUTO_SCROLL_HOLD_MS * 2;
+        position = 0;
+        if (typeof list.scrollTo === "function") {
+          list.scrollTo({ left: 0, behavior: "smooth" });
+        } else {
+          list.scrollLeft = 0;
+        }
+        return;
+      }
+      position = Math.min(max, position + (AUTO_SCROLL_SPEED * elapsed) / 1000);
+      list.scrollLeft = position;
+    };
+    frame = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(frame);
+  }, [listRef, paused, resetKey]);
+}
 
 /**
  * Alertas fixos no cabeçalho: os grupos destacados nas preferências, com atalho para cada
@@ -13,10 +74,49 @@ export function NotificationsBanner({
   onNavigate: (to: string) => void;
 }) {
   const groups = center.bannerGroups;
+  const listRef = useRef<HTMLUListElement>(null);
+  const hovered = useRef(false);
+  const focused = useRef(false);
+  const touchTimer = useRef<number | undefined>(undefined);
+  const paused = useRef(false);
+  const syncPaused = () => {
+    paused.current =
+      hovered.current || focused.current || touchTimer.current !== undefined;
+  };
+  useAutoScroll(listRef, paused, groups.length);
+  useEffect(() => () => window.clearTimeout(touchTimer.current), []);
   if (groups.length === 0) return null;
   const total = groups.reduce((sum, group) => sum + group.count, 0);
   return (
-    <section className="notification-banner" aria-label="Alertas">
+    <section
+      className="notification-banner"
+      aria-label="Alertas"
+      onMouseEnter={() => {
+        hovered.current = true;
+        syncPaused();
+      }}
+      onMouseLeave={() => {
+        hovered.current = false;
+        syncPaused();
+      }}
+      onFocus={() => {
+        focused.current = true;
+        syncPaused();
+      }}
+      onBlur={(event) => {
+        if (event.currentTarget.contains(event.relatedTarget as Node | null)) return;
+        focused.current = false;
+        syncPaused();
+      }}
+      onTouchStart={() => {
+        window.clearTimeout(touchTimer.current);
+        touchTimer.current = window.setTimeout(() => {
+          touchTimer.current = undefined;
+          syncPaused();
+        }, AUTO_SCROLL_TOUCH_RESUME_MS);
+        syncPaused();
+      }}
+    >
       <span className="notification-banner-icon" aria-hidden="true">
         <AlertTriangle size={16} />
       </span>
@@ -25,7 +125,7 @@ export function NotificationsBanner({
           ? "1 pendência pede atenção"
           : `${total} pendências pedem atenção`}
       </strong>
-      <ul>
+      <ul ref={listRef}>
         {groups.map((group) => (
           <li key={group.key}>
             <button
