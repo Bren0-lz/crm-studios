@@ -87,4 +87,97 @@ describe("plan purchase with a full group (TW1/TW3)", () => {
     ).toEqual([]);
     await app.close();
   });
+
+  it("sells to a client already on the waitlist once the group has a free seat", async () => {
+    const { app, token } = await authenticatedApp();
+    const headers = { authorization: `Bearer ${token}` };
+    const [patients, services, professionals, rooms] = await Promise.all(
+      ["/patients", "/services", "/professionals", "/rooms"].map((url) =>
+        app.inject({ method: "GET", url, headers }),
+      ),
+    );
+    const serviceId = services!.json()[0].id as string;
+    const group = await app.inject({
+      method: "POST",
+      url: "/groups",
+      headers,
+      payload: {
+        capacity: 1,
+        serviceId,
+        professionalId: professionals!.json()[0].id,
+        roomId: rooms!.json()[0].id,
+        weeklySlots: [{ weekday: 0, startTime: "21:00", endTime: "22:00" }],
+      },
+    });
+    expect(group.statusCode, group.body).toBe(201);
+    const groupId = group.json().id as string;
+    const [firstId, secondId, thirdId] = (
+      patients!.json() as { id: string; status: string }[]
+    )
+      .filter((patient) => patient.status === "active")
+      .map((patient) => patient.id);
+    const enroll = (patientId: string) =>
+      app.inject({
+        method: "POST",
+        url: "/group-enrollments",
+        headers,
+        payload: { groupId, patientId },
+      });
+    const seated = await enroll(firstId!);
+    expect(seated.json()).toMatchObject({ status: "active" });
+    const waiting = await enroll(secondId!);
+    expect(waiting.json()).toMatchObject({ status: "waitlisted" });
+    const behind = await enroll(thirdId!);
+    expect(behind.json()).toMatchObject({ queuePosition: 2 });
+    // A vaga abre: a turma não está mais cheia.
+    const cancelled = await app.inject({
+      method: "POST",
+      url: `/group-enrollments/${seated.json().id}/cancel`,
+      headers,
+    });
+    expect(cancelled.statusCode, cancelled.body).toBe(200);
+
+    const sale = await app.inject({
+      method: "POST",
+      url: "/plans/purchases",
+      headers,
+      payload: {
+        idempotencyKey: "5c5c5c5c-5c5c-4c5c-8c5c-5c5c5c5c5c5c",
+        plan: await configuredPlan(app, {
+          patientId: secondId!,
+          serviceId,
+          name: "Pilates turma espera",
+          kind: "recurring" as const,
+          totalSessions: 4,
+          validFrom: "2026-10-01",
+          validUntil: "2026-10-31",
+          totalValueInCents: 20_000,
+          installments: 1,
+          firstDueDate: "2026-10-15",
+        }),
+        groupId,
+      },
+    });
+    expect(sale.statusCode, sale.body).toBe(201);
+    expect(sale.json().enrollment).toMatchObject({
+      id: waiting.json().id,
+      patientId: secondId,
+      status: "active",
+    });
+    const workspace = await app.inject({
+      method: "GET",
+      url: "/groups/workspace?from=2026-10-01T00:00:00.000Z&to=2026-10-08T00:00:00.000Z",
+      headers,
+    });
+    const enrollments = workspace.json().enrollments as {
+      patientId: string;
+      status: string;
+      queuePosition?: number | null;
+    }[];
+    // Quem estava atrás na fila sobe para o 1º lugar.
+    expect(
+      enrollments.find((item) => item.patientId === thirdId),
+    ).toMatchObject({ status: "waitlisted", queuePosition: 1 });
+    await app.close();
+  });
 });

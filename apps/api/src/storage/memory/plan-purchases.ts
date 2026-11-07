@@ -1,4 +1,8 @@
-import type { PlanPurchaseInput, PlanPurchaseResult } from "@crm/contracts";
+import type {
+  GroupEnrollment,
+  PlanPurchaseInput,
+  PlanPurchaseResult,
+} from "@crm/contracts";
 import type { MemoryRepositoryContext } from "./context.js";
 import { DomainError } from "../../repository.js";
 import {
@@ -62,6 +66,36 @@ export function createPlanPurchasesRepository(
         context.adminAuditEvents,
       ];
       const lengths = collections.map((items) => items.length);
+      // A confirmação altera matrículas já existentes, que o corte por tamanho não desfaz.
+      let restoreGroupEnrollments: (() => void) | undefined;
+      const promoteWaitlisted = async (waiting: GroupEnrollment) => {
+        const group = context.groupClasses.find(
+          (item) => item.clinicId === clinicId && item.id === waiting.groupId,
+        );
+        const active = context.groupEnrollments.filter(
+          (item) => item.groupId === waiting.groupId && item.status === "active",
+        ).length;
+        if (!group || active >= group.capacity) return undefined;
+        const saved = context.groupEnrollments
+          .filter((item) => item.groupId === waiting.groupId)
+          .map((item) => [item, structuredClone(item)] as const);
+        restoreGroupEnrollments = () => {
+          for (const [item, copy] of saved) {
+            for (const field of Object.keys(item))
+              delete (item as Partial<GroupEnrollment>)[
+                field as keyof GroupEnrollment
+              ];
+            Object.assign(item, copy);
+          }
+          context.refreshGroupCounts(group);
+        };
+        return (
+          (await context.operations.confirmGroupEnrollment(
+            clinicId,
+            waiting.id,
+          )) ?? undefined
+        );
+      };
       try {
         const plan = await context.operations.createPatientPlan(
           clinicId,
@@ -88,8 +122,14 @@ export function createPlanPurchasesRepository(
                 item.status !== "cancelled",
             )
           : undefined;
+        // Cliente na lista de espera da turma e com vaga livre: a venda confirma a matrícula
+        // (como "Cliente aceitou" na Lista de espera), em vez de recusar como turma cheia.
+        const promoted =
+          current?.status === "waitlisted"
+            ? await promoteWaitlisted(current)
+            : undefined;
         const enrollment = current
-          ? structuredClone(current)
+          ? structuredClone(promoted ?? current)
           : input.groupId
             ? await context.operations.createGroupEnrollment(clinicId, {
                 groupId: input.groupId,
@@ -138,6 +178,7 @@ export function createPlanPurchasesRepository(
         collections.forEach((items, index) => {
           items.length = lengths[index]!;
         });
+        restoreGroupEnrollments?.();
         throw error;
       }
     },
