@@ -1144,7 +1144,7 @@ atualizado no mesmo PR):
 - **Escopo:** uma tarefa nova por resposta positiva, com ID AJ5+.
 - **Gate:** —
 - **Depende de:** AJ3
-- **Status:** BLOCKED
+- **Status:** DONE
 
 ## Rodada 10 — Atendimento por plano (pedido do dono, 06/11/2026)
 
