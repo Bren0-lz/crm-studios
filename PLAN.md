@@ -559,7 +559,7 @@ numeração antiga, mapeada em cada tarefa) e no histórico do git.
     SQL novo.
 - **Gate:** gate completo (+ `npm run test:mysql` se mexer em SQL)
 - **Depende de:** PX5
-- **Status:** DOING
+- **Status:** DONE
 
 **Tarefas do `dashboard-studios`** (executadas lá, PR para `main` com `npm run check`; cada uma
 só depois das PX que usa estarem mescladas no CRM e o CRM simulado `apps/bff/src/mock-crm`
