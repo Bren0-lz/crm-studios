@@ -243,6 +243,9 @@ export function PlanForm({
   async function save() {
     if (submitting.current)
       throw new Error("Aguarde o salvamento em andamento.");
+    // Sessões em conflito ou fora da vigência: nem o "Salvar" do aviso de alterações fecha a
+    // contratação.
+    if (submitBlocked && !renewing) throw new Error(submitBlocked);
     if (formElement.current && !formElement.current.checkValidity())
       throw new Error(
         "Preencha os campos obrigatórios antes de salvar o plano.",
@@ -316,6 +319,10 @@ export function PlanForm({
       ? prompt.confirmLeave(onCancel)
       : confirmDiscard(onCancel);
   async function submit(event: FormEvent) {
+    // Modais abertos por cima do plano (exceção de uma sessão, horários da contratação) são
+    // portais: o envio do formulário deles sobe pela árvore do React até aqui e não pode
+    // criar o plano.
+    if (event.target !== event.currentTarget) return;
     event.preventDefault();
     try {
       await save();

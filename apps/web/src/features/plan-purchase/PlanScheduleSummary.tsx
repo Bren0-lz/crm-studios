@@ -28,6 +28,7 @@ export function PlanScheduleSummary({
   professionals,
   rooms,
   services,
+  validFrom,
   validUntil,
   onException,
   onBlockedChange,
@@ -37,6 +38,8 @@ export function PlanScheduleSummary({
   professionals: Professional[];
   rooms: Room[];
   services: Service[];
+  /** Início da vigência (AAAA-MM-DD): sessões antes dele não podem ser reservadas. */
+  validFrom?: string | undefined;
   /** Fim da vigência (AAAA-MM-DD): sessões depois dele não podem ser reservadas. */
   validUntil?: string | undefined;
   onException: (key: string, value: SessionException | null) => void;
@@ -80,8 +83,12 @@ export function PlanScheduleSummary({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [request, attempt]);
   const current = conflicts?.request === request ? conflicts : null;
-  const outOfPeriod = (session: PlannedSession) =>
-    Boolean(validUntil && session.local.split("T")[0]! > validUntil);
+  const outOfPeriod = (session: PlannedSession) => {
+    const date = session.local.split("T")[0]!;
+    return Boolean(
+      (validFrom && date < validFrom) || (validUntil && date > validUntil),
+    );
+  };
   const conflictOf = (session: PlannedSession) =>
     current?.items.find((item) => item.key === session.key);
   const blocking = sessions.filter(

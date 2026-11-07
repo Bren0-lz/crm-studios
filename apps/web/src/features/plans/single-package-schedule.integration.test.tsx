@@ -214,4 +214,95 @@ describe("single plan purchase with fixed weekdays", () => {
       expect.stringContaining(`${day(tuesday(14))} · 09:00`),
     ]);
   });
+  it("saves a session exception without closing the purchase and books it changed", async () => {
+    const { repository, patient, professional, room, dialog, schedule } =
+      await openSinglePlan(3);
+    fillFixedDays(
+      schedule,
+      { professional: professional!.id, room: room!.id },
+      [{ weekday: 2, time: "14:00" }],
+    );
+    const create = within(dialog).getByRole("button", {
+      name: "Criar plano e parcelas",
+    });
+    await waitFor(() => expect(create).toBeEnabled());
+    // O modal da exceção é um portal: salvar a sessão não pode enviar o plano junto.
+    fireEvent.click(
+      within(summaryRows(dialog)[1]!).getByRole("button", {
+        name: "Alterar esta sessão",
+      }),
+    );
+    const editing = screen.getByRole("dialog", { name: "Alterar a sessão 2" });
+    fireEvent.change(within(editing).getByLabelText("Horário"), {
+      target: { value: "16:00" },
+    });
+    fireEvent.click(
+      within(editing).getByRole("button", { name: "Salvar esta sessão" }),
+    );
+    expect(summaryRows(dialog)[1]).toHaveTextContent("16:00");
+    expect(create).toHaveTextContent("Criar plano e parcelas");
+    expect(await repository.listPatientPlans(clinicId, patient.id)).toEqual([]);
+    await waitFor(() => expect(create).toBeEnabled());
+    fireEvent.click(create);
+    await within(dialog).findByRole("link", {
+      name: "Enviar sessões pelo WhatsApp",
+    });
+    const booked = (
+      await repository.listAppointments(
+        clinicId,
+        new Date(`${tuesday(-1)}T00:00`).toISOString(),
+        new Date(`${tuesday(21)}T00:00`).toISOString(),
+      )
+    ).filter((item) => item.patientId === patient.id);
+    expect(
+      booked.map((item) => new Date(item.startsAt).getHours()).sort(),
+    ).toEqual([14, 14, 16]);
+    expect(
+      await repository.listPatientPlans(clinicId, patient.id),
+    ).toHaveLength(1);
+  });
+
+  it("flags a session moved before the start of the plan", async () => {
+    const { professional, room, dialog, schedule } = await openSinglePlan(3);
+    change("Início", tuesday(), dialog);
+    fillFixedDays(
+      schedule,
+      { professional: professional!.id, room: room!.id },
+      [{ weekday: 2, time: "14:00" }],
+    );
+    const create = within(dialog).getByRole("button", {
+      name: "Criar plano e parcelas",
+    });
+    await waitFor(() => expect(create).toBeEnabled());
+    fireEvent.click(
+      within(summaryRows(dialog)[0]!).getByRole("button", {
+        name: "Alterar esta sessão",
+      }),
+    );
+    const editing = screen.getByRole("dialog", { name: "Alterar a sessão 1" });
+    fireEvent.click(
+      editing.querySelector<HTMLButtonElement>(".appointment-date-trigger")!,
+    );
+    fireEvent.click(
+      await waitFor(() => {
+        const day = document.querySelector<HTMLButtonElement>(
+          `[data-date="${tuesday(-3)}"]`,
+        );
+        if (!day) throw new Error("Dia do calendário não encontrado.");
+        return day;
+      }),
+    );
+    fireEvent.click(
+      within(editing).getByRole("button", { name: "Salvar esta sessão" }),
+    );
+    expect(summaryRows(dialog)[0]).toHaveTextContent(
+      "Fora da vigência do plano",
+    );
+    await waitFor(() => expect(create).toBeDisabled());
+    await waitFor(() =>
+      expect(dialog).toHaveTextContent(
+        "1 sessão está em conflito ou fora da vigência",
+      ),
+    );
+  });
 });
