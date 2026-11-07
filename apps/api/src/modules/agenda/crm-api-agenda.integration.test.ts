@@ -1,3 +1,4 @@
+import { withAppointmentPlan } from "../../test-support/appointment-plan.js";
 import type { Appointment } from "@crm/contracts";
 import { describe, expect, it } from "vitest";
 import {
@@ -333,7 +334,14 @@ describe("CRM API", () => {
       method: "POST",
       url: "/appointments",
       headers,
-      payload: { ...payload, startsAt: `${holidayDate}T15:00:00.000Z` },
+      payload: await withAppointmentPlan(
+        app,
+        {
+          ...payload,
+          startsAt: `${holidayDate}T15:00:00.000Z`,
+        },
+        headers,
+      ),
     });
     expect(onHoliday.statusCode).toBe(409);
     expect(onHoliday.json()).toMatchObject({ code: "HOLIDAY" });
@@ -343,7 +351,14 @@ describe("CRM API", () => {
       method: "POST",
       url: "/appointments",
       headers,
-      payload: { ...payload, startsAt: `${day(1)}T01:30:00.000Z` },
+      payload: await withAppointmentPlan(
+        app,
+        {
+          ...payload,
+          startsAt: `${day(1)}T01:30:00.000Z`,
+        },
+        headers,
+      ),
     });
     expect(lateOnHoliday.statusCode).toBe(409);
     expect(lateOnHoliday.json()).toMatchObject({ code: "HOLIDAY" });
@@ -352,7 +367,14 @@ describe("CRM API", () => {
       method: "POST",
       url: "/appointments",
       headers,
-      payload: { ...payload, startsAt: `${holidayDate}T02:00:00.000Z` },
+      payload: await withAppointmentPlan(
+        app,
+        {
+          ...payload,
+          startsAt: `${holidayDate}T02:00:00.000Z`,
+        },
+        headers,
+      ),
     });
     expect(eve.statusCode).toBe(201);
 
@@ -380,7 +402,7 @@ describe("CRM API", () => {
       method: "POST",
       url: "/appointments/recurring",
       headers,
-      payload: series,
+      payload: await withAppointmentPlan(app, series, headers),
     });
     expect(recurring.statusCode).toBe(409);
     expect(recurring.json()).toMatchObject({ code: "HOLIDAY" });
@@ -420,7 +442,7 @@ describe("CRM API", () => {
       method: "POST",
       url: "/appointments/recurring",
       headers,
-      payload: series,
+      payload: await withAppointmentPlan(app, series, headers),
     });
     expect(afterRemoval.statusCode).toBe(201);
     expect(afterRemoval.json()).toHaveLength(3);

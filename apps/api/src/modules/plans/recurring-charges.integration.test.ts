@@ -1,3 +1,4 @@
+import { withAppointmentPlan } from "../../test-support/appointment-plan.js";
 import { describe, expect, it } from "vitest";
 import {
   authenticatedApp,
@@ -166,7 +167,8 @@ describe("recurring plan charges", () => {
       { dueDate: "2026-10-01", amountInCents: 17_778 },
       { dueDate: "2026-10-15", amountInCents: 40_000 },
     ]);
-    for (const charge of charges) expect(charge).not.toHaveProperty("manualAmount");
+    for (const charge of charges)
+      expect(charge).not.toHaveProperty("manualAmount");
 
     // Cálculo proporcional desligado: vale o valor informado, marcado como manual.
     const missing = await app.inject({
@@ -247,21 +249,26 @@ describe("recurring plan charges", () => {
       },
     });
     const serviceId = service.json().id as string;
-    const completeAt = async (startsAt: string) => {
+    const completeAt = async (startsAt: string, planId: string) => {
       const created = await app.inject({
         method: "POST",
         url: "/appointments",
         headers,
-        payload: {
-          patientId,
-          serviceId,
-          professionalId: professionals!.json()[0].id,
-          roomId: rooms!.json()[0].id,
-          startsAt,
-          visitType: "regular",
-        },
+        payload: await withAppointmentPlan(
+          app,
+          {
+            patientId,
+            serviceId,
+            professionalId: professionals!.json()[0].id,
+            roomId: rooms!.json()[0].id,
+            startsAt,
+            visitType: "regular",
+            planId,
+          },
+          headers,
+        ),
       });
-      expect(created.statusCode, created.body).toBe(201);
+      if (created.statusCode !== 201) return created;
       return patchStatusAt(app, headers, startsAt, created.json().id, {
         status: "completed",
       });
@@ -299,16 +306,22 @@ describe("recurring plan charges", () => {
 
     // Recorrente com saldo nominal de 1: a 2ª aula do ciclo passa e o saldo fica negativo.
     const recurring = await buy("recurring", "2030-03");
-    expect((await completeAt("2030-03-11T13:00:00.000Z")).statusCode).toBe(200);
-    expect((await completeAt("2030-03-13T13:00:00.000Z")).statusCode).toBe(200);
+    expect(
+      (await completeAt("2030-03-11T13:00:00.000Z", recurring)).statusCode,
+    ).toBe(200);
+    expect(
+      (await completeAt("2030-03-13T13:00:00.000Z", recurring)).statusCode,
+    ).toBe(200);
     expect(await remaining(recurring)).toBe(-1);
 
     // Pacote fechado continua bloqueando sem saldo.
     const fixed = await buy("fixed_package", "2030-04");
-    expect((await completeAt("2030-04-08T13:00:00.000Z")).statusCode).toBe(200);
-    const refused = await completeAt("2030-04-10T13:00:00.000Z");
+    expect(
+      (await completeAt("2030-04-08T13:00:00.000Z", fixed)).statusCode,
+    ).toBe(200);
+    const refused = await completeAt("2030-04-10T13:00:00.000Z", fixed);
     expect(refused.statusCode).toBe(409);
-    expect(refused.json()).toMatchObject({ code: "NO_SESSION_BALANCE" });
+    expect(refused.json()).toMatchObject({ code: "PLAN_REQUIRED" });
     expect(await remaining(fixed)).toBe(0);
     await app.close();
   });

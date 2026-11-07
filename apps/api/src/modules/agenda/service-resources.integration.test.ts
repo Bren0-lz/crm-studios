@@ -1,3 +1,4 @@
+import { withAppointmentPlan } from "../../test-support/appointment-plan.js";
 import { describe, expect, it } from "vitest";
 import { authenticatedApp } from "../../test-support/legacy-fixtures.js";
 import "../../test-support/legacy-setup.js";
@@ -84,12 +85,16 @@ describe("service professionals and rooms", () => {
       method: "POST",
       url: "/appointments",
       headers,
-      payload: {
-        ...base,
-        professionalId: ana!.id,
-        roomId: studio!.id,
-        startsAt: "2031-05-12T13:00:00.000Z",
-      },
+      payload: await withAppointmentPlan(
+        app,
+        {
+          ...base,
+          professionalId: ana!.id,
+          roomId: studio!.id,
+          startsAt: "2031-05-12T13:00:00.000Z",
+        },
+        headers,
+      ),
     });
     expect(wrongRoom.statusCode).toBe(409);
     expect(wrongRoom.json()).toMatchObject({ code: "SERVICE_NOT_AVAILABLE" });
@@ -97,13 +102,17 @@ describe("service professionals and rooms", () => {
       method: "POST",
       url: "/appointments/recurring",
       headers,
-      payload: {
-        ...base,
-        professionalId: paulo!.id,
-        roomId: movement!.id,
-        startsAt: "2031-05-12T13:00:00.000Z",
-        occurrences: 2,
-      },
+      payload: await withAppointmentPlan(
+        app,
+        {
+          ...base,
+          professionalId: paulo!.id,
+          roomId: movement!.id,
+          startsAt: "2031-05-12T13:00:00.000Z",
+          occurrences: 2,
+        },
+        headers,
+      ),
     });
     expect(wrongProfessional.statusCode).toBe(409);
     expect(wrongProfessional.json()).toMatchObject({
@@ -137,12 +146,16 @@ describe("service professionals and rooms", () => {
       method: "POST",
       url: "/appointments",
       headers,
-      payload: {
-        ...base,
-        professionalId: ana!.id,
-        roomId: movement!.id,
-        startsAt: "2031-05-12T13:00:00.000Z",
-      },
+      payload: await withAppointmentPlan(
+        app,
+        {
+          ...base,
+          professionalId: ana!.id,
+          roomId: movement!.id,
+          startsAt: "2031-05-12T13:00:00.000Z",
+        },
+        headers,
+      ),
     });
     expect(allowed.statusCode).toBe(201);
     await app.close();
@@ -173,14 +186,18 @@ describe("service professionals and rooms", () => {
       method: "POST",
       url: "/appointments",
       headers,
-      payload: {
-        patientId: "99999999-9999-4999-8999-999999999999",
-        serviceId: service.json<{ id: string }>().id,
-        professionalId: ana!.id,
-        roomId: movement!.id,
-        startsAt: "2031-05-12T13:00:00.000Z",
-        visitType: "regular",
-      },
+      payload: await withAppointmentPlan(
+        app,
+        {
+          patientId: "99999999-9999-4999-8999-999999999999",
+          serviceId: service.json<{ id: string }>().id,
+          professionalId: ana!.id,
+          roomId: movement!.id,
+          startsAt: "2031-05-12T13:00:00.000Z",
+          visitType: "regular",
+        },
+        headers,
+      ),
     });
     expect(created.statusCode).toBe(201);
     const appointmentId = created.json<{ id: string }>().id;

@@ -89,6 +89,40 @@ export async function seedPatient(api: APIRequestContext, name: string) {
   return response.json();
 }
 
+/** Plano real para os cenários que precisam agendar atendimento normal (AP3). */
+export async function seedPatientPlan(
+  api: APIRequestContext,
+  patientId: string,
+  serviceId: string,
+) {
+  const services = [{ serviceId, totalSessions: 32, totalValueInCents: 0 }];
+  const template = await api.post("/plan-templates", {
+    data: {
+      name: `Plano do cenário ${patientId.slice(0, 8)}`,
+      services,
+      totalValueInCents: 0,
+    },
+  });
+  expect(template.status(), await template.text()).toBe(201);
+  const plan = await api.post("/plans", {
+    data: {
+      patientId,
+      planTemplateId: (await template.json()).id,
+      name: "Plano do cenário",
+      kind: "fixed_package",
+      services,
+      totalValueInCents: 0,
+      installments: 1,
+      validFrom: "2000-01-01",
+      validUntil: "2199-12-31",
+      firstDueDate: clinicToday(),
+      autoRenew: false,
+    },
+  });
+  expect(plan.status(), await plan.text()).toBe(201);
+  return plan.json() as Promise<{ id: string }>;
+}
+
 export async function selectPatient(dialog: Locator, name: string) {
   const picker = dialog.getByRole("combobox", { name: "Cliente", exact: true });
   await picker.fill(name);

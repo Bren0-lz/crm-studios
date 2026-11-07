@@ -1,3 +1,4 @@
+import { withAppointmentPlan } from "../../test-support/appointment-plan.js";
 import { nextTestCpf } from "../../test-support/cpf.js";
 import {
   type Appointment,
@@ -178,13 +179,17 @@ describe("CRM API", () => {
         method: "POST",
         url: "/appointments",
         headers,
-        payload: {
-          patientId: patient.id,
-          professionalId: professional.json()[0].id,
-          roomId: room.json()[0].id,
-          serviceId: service.json()[0].id,
-          startsAt: startsAt.toISOString(),
-        },
+        payload: await withAppointmentPlan(
+          app,
+          {
+            patientId: patient.id,
+            professionalId: professional.json()[0].id,
+            roomId: room.json()[0].id,
+            serviceId: service.json()[0].id,
+            startsAt: startsAt.toISOString(),
+          },
+          headers,
+        ),
       })
     ).json();
     const updated = await app.inject({
@@ -282,7 +287,7 @@ describe("CRM API", () => {
           method: "POST",
           url: "/appointments",
           headers,
-          payload,
+          payload: await withAppointmentPlan(app, payload, headers),
         })
       ).statusCode,
     ).toBe(201);
@@ -292,7 +297,7 @@ describe("CRM API", () => {
           method: "POST",
           url: "/appointments",
           headers,
-          payload,
+          payload: await withAppointmentPlan(app, payload, headers),
         })
       ).statusCode,
     ).toBe(409);
@@ -323,7 +328,14 @@ describe("CRM API", () => {
         method: "POST",
         url: "/appointments",
         headers,
-        payload: { ...payload, startsAt: at(0) },
+        payload: await withAppointmentPlan(
+          app,
+          {
+            ...payload,
+            startsAt: at(0),
+          },
+          headers,
+        ),
       })
     ).json();
     expect(
@@ -332,7 +344,14 @@ describe("CRM API", () => {
           method: "POST",
           url: "/appointments",
           headers,
-          payload: { ...payload, startsAt: at(2) },
+          payload: await withAppointmentPlan(
+            app,
+            {
+              ...payload,
+              startsAt: at(2),
+            },
+            headers,
+          ),
         })
       ).statusCode,
     ).toBe(201);
@@ -443,7 +462,11 @@ describe("CRM API", () => {
       method: "POST",
       url: "/appointments",
       headers,
-      payload: { ...payload, startsAt: at(0) },
+      payload: await withAppointmentPlan(
+        app,
+        { ...payload, startsAt: at(0) },
+        headers,
+      ),
     });
     expect(regular.statusCode).toBe(201);
     expect(regular.json().visitType).toBe("regular");
@@ -451,7 +474,15 @@ describe("CRM API", () => {
       method: "POST",
       url: "/appointments",
       headers,
-      payload: { ...payload, startsAt: at(2), visitType: "evaluation" },
+      payload: await withAppointmentPlan(
+        app,
+        {
+          ...payload,
+          startsAt: at(2),
+          visitType: "evaluation",
+        },
+        headers,
+      ),
     });
     expect(evaluation.statusCode).toBe(201);
     expect(evaluation.json().visitType).toBe("evaluation");
@@ -459,20 +490,32 @@ describe("CRM API", () => {
       method: "POST",
       url: "/appointments",
       headers,
-      payload: { ...payload, startsAt: at(4), visitType: "vip" },
+      payload: await withAppointmentPlan(
+        app,
+        {
+          ...payload,
+          startsAt: at(4),
+          visitType: "vip",
+        },
+        headers,
+      ),
     });
     expect(invalid.statusCode).toBe(400);
     const series = await app.inject({
       method: "POST",
       url: "/appointments/recurring",
       headers,
-      payload: {
-        ...payload,
-        startsAt: at(4),
-        visitType: "trial",
-        occurrences: 2,
-        intervalWeeks: 1,
-      },
+      payload: await withAppointmentPlan(
+        app,
+        {
+          ...payload,
+          startsAt: at(4),
+          visitType: "trial",
+          occurrences: 2,
+          intervalWeeks: 1,
+        },
+        headers,
+      ),
     });
     expect(series.statusCode).toBe(201);
     expect(series.json().map((item: Appointment) => item.visitType)).toEqual([
@@ -623,13 +666,17 @@ describe("CRM API", () => {
       method: "POST",
       url: "/appointments",
       headers,
-      payload: {
-        patientId: patients.json()[0].id,
-        professionalId: payload.professionalId,
-        roomId: rooms.json()[1].id,
-        serviceId: payload.serviceId,
-        startsAt: payload.startsAt,
-      },
+      payload: await withAppointmentPlan(
+        app,
+        {
+          patientId: patients.json()[0].id,
+          professionalId: payload.professionalId,
+          roomId: rooms.json()[1].id,
+          serviceId: payload.serviceId,
+          startsAt: payload.startsAt,
+        },
+        headers,
+      ),
     });
     expect(sameProfessional.statusCode).toBe(409);
     expect(sameProfessional.json()).toMatchObject({
@@ -691,11 +738,8 @@ describe("CRM API", () => {
         visitType: "evaluation",
       },
     });
-    expect(evaluation.statusCode).toBe(201);
-    expect(evaluation.json()).toMatchObject({
-      leadId,
-      visitType: "evaluation",
-    });
+    expect(evaluation.statusCode).toBe(409);
+    expect(evaluation.json()).toMatchObject({ code: "PLAN_REQUIRED" });
 
     const converted = await app.inject({
       payload: { cpf: nextTestCpf(), ...testPatientContact },
@@ -718,7 +762,7 @@ describe("CRM API", () => {
   });
 
   it("moves the lead appointments to the new client on conversion", async () => {
-    const { app, token } = await authenticatedApp();
+    const { app, token, repository } = await authenticatedApp();
     const headers = { authorization: `Bearer ${token}` };
     const [professionals, rooms, services] = await Promise.all([
       app.inject({ method: "GET", url: "/professionals", headers }),
@@ -753,19 +797,19 @@ describe("CRM API", () => {
         visitType: "trial",
       },
     });
-    const evaluation = await app.inject({
-      method: "POST",
-      url: `/leads/${leadId}/appointments`,
-      headers,
-      payload: {
+    // Avaliação histórica de lead anterior à AP3: a conversão continua preservando-a.
+    const evaluation = await repository.createLeadAppointment(
+      "11111111-1111-4111-8111-111111111111",
+      leadId,
+      {
         ...payload,
         startsAt: "2031-05-20T13:00:00.000Z",
         visitType: "evaluation",
       },
-    });
+    );
     expect(trial.statusCode).toBe(201);
-    expect(evaluation.statusCode).toBe(201);
-    const ids = [trial.json().id as string, evaluation.json().id as string];
+    expect(evaluation).not.toBeNull();
+    const ids = [trial.json().id as string, evaluation!.id];
 
     const conversion = await app.inject({
       payload: { cpf: nextTestCpf(), ...testPatientContact },
@@ -916,7 +960,7 @@ describe("CRM API", () => {
         roomId: rooms.json()[0].id,
         serviceId: services.json()[0].id,
         startsAt: "2031-05-06T13:00:00.000Z",
-        visitType: "evaluation",
+        visitType: "trial",
       },
     });
     expect(appointment.statusCode).toBe(201);
@@ -942,7 +986,7 @@ describe("CRM API", () => {
     expect(moved).toMatchObject({
       patientId: existing.id,
       patientName: existing.fullName,
-      visitType: "evaluation",
+      visitType: "trial",
     });
     expect(moved).not.toHaveProperty("leadId");
     expect(moved).not.toHaveProperty("leadName");
@@ -1390,7 +1434,7 @@ describe("CRM API", () => {
       method: "POST",
       url: "/appointments/recurring",
       headers,
-      payload: input,
+      payload: await withAppointmentPlan(app, input, headers),
     });
     expect(recurring.statusCode).toBe(201);
     expect(recurring.json()).toHaveLength(3);
@@ -1418,7 +1462,14 @@ describe("CRM API", () => {
       method: "POST",
       url: "/appointments",
       headers,
-      payload: { ...input, startsAt: blockedStart.toISOString() },
+      payload: await withAppointmentPlan(
+        app,
+        {
+          ...input,
+          startsAt: blockedStart.toISOString(),
+        },
+        headers,
+      ),
     });
     expect(conflicting.statusCode).toBe(409);
     await app.inject({
@@ -1430,7 +1481,14 @@ describe("CRM API", () => {
       method: "POST",
       url: "/appointments",
       headers,
-      payload: { ...input, startsAt: blockedStart.toISOString() },
+      payload: await withAppointmentPlan(
+        app,
+        {
+          ...input,
+          startsAt: blockedStart.toISOString(),
+        },
+        headers,
+      ),
     });
     expect(afterCancellation.statusCode).toBe(201);
     await app.close();
@@ -1574,13 +1632,17 @@ describe("CRM API", () => {
           method: "POST",
           url: "/appointments",
           headers,
-          payload: {
-            patientId,
-            professionalId: professionals.json()[0].id,
-            roomId: rooms.json()[0].id,
-            serviceId: services.json()[0].id,
-            startsAt,
-          },
+          payload: await withAppointmentPlan(
+            app,
+            {
+              patientId,
+              professionalId: professionals.json()[0].id,
+              roomId: rooms.json()[0].id,
+              serviceId: services.json()[0].id,
+              startsAt,
+            },
+            headers,
+          ),
         });
         expect(created.statusCode).toBe(201);
         const completed = await app.inject({
@@ -1864,13 +1926,19 @@ describe("CRM API", () => {
       method: "POST",
       url: "/appointments",
       headers,
-      payload: {
-        patientId: patient.id,
-        professionalId: professionals.json()[0].id,
-        roomId: rooms.json()[0].id,
-        serviceId: services.json()[0].id,
-        startsAt: new Date(Date.now() - 40 * 24 * 60 * 60 * 1000).toISOString(),
-      },
+      payload: await withAppointmentPlan(
+        app,
+        {
+          patientId: patient.id,
+          professionalId: professionals.json()[0].id,
+          roomId: rooms.json()[0].id,
+          serviceId: services.json()[0].id,
+          startsAt: new Date(
+            Date.now() - 40 * 24 * 60 * 60 * 1000,
+          ).toISOString(),
+        },
+        headers,
+      ),
     });
     expect(appointment.statusCode).toBe(201);
     const draft = await app.inject({
@@ -2194,18 +2262,22 @@ describe("CRM API", () => {
       }
       return zonedTimeToUtc(date, time, timezone).toISOString();
     };
-    const book = (startsAt: string) =>
+    const book = async (startsAt: string) =>
       app.inject({
         method: "POST",
         url: "/appointments",
         headers,
-        payload: {
-          patientId: patients.json()[0].id,
-          professionalId: professional.id,
-          roomId: room.id,
-          serviceId: service.id,
-          startsAt,
-        },
+        payload: await withAppointmentPlan(
+          app,
+          {
+            patientId: patients.json()[0].id,
+            professionalId: professional.id,
+            roomId: room.id,
+            serviceId: service.id,
+            startsAt,
+          },
+          headers,
+        ),
       });
     const createGroup = (startTime: string, endTime: string) =>
       app.inject({

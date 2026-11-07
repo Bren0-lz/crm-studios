@@ -1,3 +1,8 @@
+import {
+  appointmentInputSchema,
+  leadAppointmentInputSchema,
+} from "@crm/contracts";
+import { withAppointmentPlan } from "../../test-support/appointment-plan.js";
 import { nextTestCpf } from "../../test-support/cpf.js";
 import { describe, expect, it, vi } from "vitest";
 import {
@@ -36,7 +41,7 @@ describe("CRM API", () => {
   });
 
   it("reports trial conversion when the client gets a plan within 30 days of a completed trial", async () => {
-    const { app, token } = await authenticatedApp();
+    const { app, token, repository } = await authenticatedApp();
     const headers = { authorization: `Bearer ${token}` };
     const [patients, professionals, rooms, services] = await Promise.all([
       app.inject({ method: "GET", url: "/patients", headers }),
@@ -76,6 +81,31 @@ describe("CRM API", () => {
       visitType: string,
       owner: { patientId: string } | { leadId: string },
     ) => {
+      // Relatório mantém avaliações/atendimentos históricos sem vínculo anteriores à AP3.
+      if (visitType !== "trial") {
+        const historical =
+          "leadId" in owner
+            ? await repository.createLeadAppointment(
+                "11111111-1111-4111-8111-111111111111",
+                owner.leadId,
+                leadAppointmentInputSchema.parse({
+                  ...base,
+                  startsAt,
+                  visitType,
+                }),
+              )
+            : await repository.createAppointment(
+                "11111111-1111-4111-8111-111111111111",
+                appointmentInputSchema.parse({
+                  ...base,
+                  patientId: owner.patientId,
+                  startsAt,
+                  visitType,
+                }),
+              );
+        expect(historical).not.toBeNull();
+        return historical!.id;
+      }
       const response =
         "leadId" in owner
           ? await app.inject({
@@ -88,12 +118,16 @@ describe("CRM API", () => {
               method: "POST",
               url: "/appointments",
               headers,
-              payload: {
-                ...base,
-                patientId: owner.patientId,
-                startsAt,
-                visitType,
-              },
+              payload: await withAppointmentPlan(
+                app,
+                {
+                  ...base,
+                  patientId: owner.patientId,
+                  startsAt,
+                  visitType,
+                },
+                headers,
+              ),
             });
       expect(response.statusCode).toBe(201);
       return response.json().id as string;
@@ -272,7 +306,7 @@ describe("CRM API", () => {
       professionalId: professionals.json()[0].id,
       roomId: rooms.json()[0].id,
       serviceId: services.json()[0].id,
-      visitType: "evaluation",
+      visitType: "trial",
     };
     const done = await app.inject({
       method: "POST",
@@ -390,7 +424,7 @@ describe("CRM API", () => {
     expect(management.json().appointments).toMatchObject({
       total: 2,
       completed: 1,
-      byVisitType: { regular: 0, trial: 0, evaluation: 2 },
+      byVisitType: { regular: 0, trial: 2, evaluation: 0 },
     });
 
     // Linha do tempo de qualquer cliente não mostra o atendimento do lead.

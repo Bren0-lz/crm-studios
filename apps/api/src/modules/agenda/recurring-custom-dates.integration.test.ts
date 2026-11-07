@@ -1,3 +1,4 @@
+import { withAppointmentPlan } from "../../test-support/appointment-plan.js";
 import type { Appointment } from "@crm/contracts";
 import { describe, expect, it } from "vitest";
 import { authenticatedApp } from "../../test-support/legacy-fixtures.js";
@@ -30,11 +31,15 @@ describe("recurring appointments on manually chosen dates", () => {
       method: "POST",
       url: "/appointments/recurring",
       headers,
-      payload: {
-        ...payload,
-        occurrences: 3,
-        customStartsAt: [at(9, 2), at(3)],
-      },
+      payload: await withAppointmentPlan(
+        app,
+        {
+          ...payload,
+          occurrences: 3,
+          customStartsAt: [at(9, 2), at(3)],
+        },
+        headers,
+      ),
     });
     expect(series.statusCode).toBe(201);
     const created = series.json<Appointment[]>();
@@ -49,24 +54,32 @@ describe("recurring appointments on manually chosen dates", () => {
       method: "POST",
       url: "/appointments/recurring",
       headers,
-      payload: {
-        ...payload,
-        startsAt: at(20),
-        occurrences: 4,
-        customStartsAt: [at(21)],
-      },
+      payload: await withAppointmentPlan(
+        app,
+        {
+          ...payload,
+          startsAt: at(20),
+          occurrences: 4,
+          customStartsAt: [at(21)],
+        },
+        headers,
+      ),
     });
     expect(mismatch.statusCode).toBe(400);
     const repeated = await app.inject({
       method: "POST",
       url: "/appointments/recurring",
       headers,
-      payload: {
-        ...payload,
-        startsAt: at(20),
-        occurrences: 2,
-        customStartsAt: [at(20)],
-      },
+      payload: await withAppointmentPlan(
+        app,
+        {
+          ...payload,
+          startsAt: at(20),
+          occurrences: 2,
+          customStartsAt: [at(20)],
+        },
+        headers,
+      ),
     });
     expect(repeated.statusCode).toBe(400);
     await app.close();

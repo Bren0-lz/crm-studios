@@ -3,6 +3,7 @@ import {
   expect,
   login,
   seedPatient,
+  seedPatientPlan,
   selectPatient,
   chooseAppointmentTime,
   clinicToday,
@@ -16,9 +17,11 @@ test("appointment modals preserve the scrolled agenda and sticky shell", async (
   const services = await (await api.get("/services")).json();
   const professionals = await (await api.get("/professionals")).json();
   const rooms = await (await api.get("/rooms")).json();
+  const plan = await seedPatientPlan(api, patient.id, services[0].id);
   const created = await api.post("/appointments", {
     data: {
       patientId: patient.id,
+      planId: plan.id,
       serviceId: services[0].id,
       professionalId: professionals[0].id,
       roomId: rooms[0].id,
@@ -309,6 +312,7 @@ test("schedules and reschedules an appointment without creating another occurren
   const services = await (await api.get("/services")).json();
   const professionals = await (await api.get("/professionals")).json();
   const rooms = await (await api.get("/rooms")).json();
+  await seedPatientPlan(api, patient.id, services[0].id);
   await login(page);
   await page.goto("/agenda");
   await page

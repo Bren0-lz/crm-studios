@@ -1202,7 +1202,7 @@ plano não cobra nada.
   - Lead só agenda `trial`; experimental de cliente não pede plano.
 - **Gate:** gate completo + `npm run test:mysql`
 - **Depende de:** AP2
-- **Status:** TODO
+- **Status:** DONE
 
 ### AP4 — Agendar exige plano (web) e venda do avulso no agendamento
 
