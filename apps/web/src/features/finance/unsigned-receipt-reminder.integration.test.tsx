@@ -1,4 +1,4 @@
-import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { nextTestCpf } from "../../../../api/src/test-support/cpf.js";
 import { actorId, clinicId, setupApi } from "../../test-support/api-server";
@@ -43,56 +43,25 @@ describe("aviso de recibos não assinados (RC5)", () => {
     expect(
       await screen.findByText("Mensalidade sem assinatura"),
     ).toBeInTheDocument();
+    const banner = await screen.findByRole("region", { name: "Alertas" });
+    expect(
+      within(banner).getByRole("button", { name: /Recibos não assinados/ }),
+    ).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: /^Recibo não assinado/ }),
     ).toHaveAttribute("aria-pressed", "true");
     expect(screen.queryByText("Mensalidade assinada")).not.toBeInTheDocument();
   });
 
-  it("configura frequência, dia, horário e horas em Configurações › Clínica", async () => {
-    const { repository } = await setupApi();
+  it("explica que o aviso é imediato, sem controles de horário ou espera", async () => {
+    await setupApi();
     open("/configuracoes");
-    const frequency = await screen.findByRole("combobox", {
-      name: "Aviso de recibos não assinados",
-    });
-    // Padrão provisório (RC6): todos os dias às 18:00, 24 horas sem assinar.
-    expect(frequency).toHaveValue("daily");
-    expect(screen.getByLabelText("Horário do aviso")).toHaveValue("18:00");
     expect(
-      screen.getByLabelText("Sem assinatura há mais de (horas)"),
-    ).toHaveValue(24);
-    expect(screen.queryByLabelText("Dia do aviso")).not.toBeInTheDocument();
-
-    fireEvent.change(frequency, { target: { value: "weekly" } });
-    fireEvent.change(screen.getByLabelText("Dia do aviso"), {
-      target: { value: "5" },
-    });
-    fireEvent.change(screen.getByLabelText("Horário do aviso"), {
-      target: { value: "09:30" },
-    });
-    fireEvent.change(
-      screen.getByLabelText("Sem assinatura há mais de (horas)"),
-      { target: { value: "48" } },
-    );
-    fireEvent.click(
-      screen.getByRole("button", { name: "Salvar configurações" }),
-    );
-    await waitFor(async () =>
-      expect(
-        (await repository.getClinicSettings(clinicId))?.receiptReminder,
-      ).toEqual({
-        frequency: "weekly",
-        weekday: 5,
-        time: "09:30",
-        afterHours: 48,
-      }),
-    );
-
-    // Desligado: some o horário e as horas, e a dica explica.
-    fireEvent.change(frequency, { target: { value: "off" } });
+      await screen.findByText(/assim que o recibo é gerado/),
+    ).toBeInTheDocument();
     expect(screen.queryByLabelText("Horário do aviso")).not.toBeInTheDocument();
-    expect(frequency).toHaveAccessibleDescription(
-      "Desligado: o sino e a faixa de alertas não avisam sobre recibos sem assinatura.",
-    );
+    expect(
+      screen.queryByLabelText("Sem assinatura há mais de (horas)"),
+    ).not.toBeInTheDocument();
   });
 });

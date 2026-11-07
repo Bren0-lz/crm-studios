@@ -72,8 +72,7 @@ export const notificationKindDetails: Record<
   },
   unsignedReceipts: {
     label: "Recibos não assinados",
-    detail:
-      "Clientes que receberam o recibo e não assinaram, no horário do aviso da clínica",
+    detail: "Clientes com recibos pendentes de assinatura, desde a geração",
     module: "finance",
   },
   recurringPayables: {

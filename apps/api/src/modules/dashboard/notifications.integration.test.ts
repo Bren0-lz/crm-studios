@@ -189,6 +189,7 @@ describe("GET /notifications", () => {
       date: "2039-06-10",
       birthdaysToday: (before.birthdaysToday ?? 0) + 1,
       overdueReceivables: (before.overdueReceivables ?? 0) + 1,
+      unsignedReceipts: before.unsignedReceipts,
       recurringPayablesDue: before.recurringPayablesDue,
       pendingFinalization: (before.pendingFinalization ?? 0) + 1,
       overdueLeadTasks: before.overdueLeadTasks,
@@ -712,7 +713,12 @@ describe("GET /notifications", () => {
     const { notifications, userWith } = await setup();
     expect(
       Object.keys(await notifications(await userWith(["finance"]))),
-    ).toEqual(["date", "overdueReceivables", "recurringPayablesDue"]);
+    ).toEqual([
+      "date",
+      "overdueReceivables",
+      "unsignedReceipts",
+      "recurringPayablesDue",
+    ]);
     expect(
       Object.keys(await notifications(await userWith(["agenda"]))),
     ).toEqual(["date", "pendingFinalization"]);
@@ -787,22 +793,15 @@ describe("GET /notifications", () => {
     expect((await notifications()).lowStockProducts).toBe(before + 1);
   });
 
-  it("warns about receipts sent and not signed only when the clinic's reminder is due", async () => {
+  it("counts pending receipts immediately, regardless of legacy schedule, with one count per client", async () => {
     const { app, repository, headers, notifications, userWith } = await setup();
-    // 15:00 em São Paulo: o aviso padrão (provisório, diário às 18:00) ainda não venceu.
-    expect(await notifications()).not.toHaveProperty("unsignedReceipts");
-    const settings = await app.inject({
-      url: "/admin/clinic-settings",
-      headers,
-    });
-    expect(settings.json()).not.toHaveProperty("receiptReminder");
-
+    const before = (await notifications()).unsignedReceipts!;
     const patient = await repository.createPatient(clinicId, {
       cpf: nextTestCpf(),
       fullName: "Cliente Sem Assinar",
       phone: "11955551111",
       whatsapp: "11955551111",
-      emergencyContactName: "Cliente Sem Assinar",
+      emergencyContactName: "Contato",
       emergencyContactPhone: "11955551111",
       tags: [],
     });
@@ -829,119 +828,58 @@ describe("GET /notifications", () => {
         receivable.id,
       );
       receipts.push(receipt!);
+      expect((await notifications()).unsignedReceipts).toBe(before + 1);
     }
-    // Dois enviados às 15:00 de 10/06 (mesmo cliente); o terceiro nunca foi enviado.
+    vi.setSystemTime(new Date(Date.now() + 5_000));
+    expect((await notifications()).unsignedReceipts).toBe(before + 1);
     await repository.markReceiptSignatureSent(clinicId, receipts[0]!.id);
-    await repository.markReceiptSignatureSent(clinicId, receipts[1]!.id);
+    expect((await notifications()).unsignedReceipts).toBe(before + 1);
 
-    // 18:30 do mesmo dia: o aviso venceu, mas os recibos têm só 3h30 (padrão: 24 horas).
-    vi.setSystemTime(new Date("2039-06-10T21:30:00Z"));
-    const sameDay = (await notifications()).unsignedReceipts;
-    expect(sameDay).toEqual(expect.any(Number));
-    // 18:30 do dia seguinte: mais de 24 horas sem assinar, um cliente a mais.
-    vi.setSystemTime(new Date("2039-06-11T21:30:00Z"));
-    expect((await notifications()).unsignedReceipts).toBe(sameDay! + 1);
-    // Antes do horário do dia, o aviso some (volta às 18:00).
-    vi.setSystemTime(new Date("2039-06-12T12:00:00Z"));
-    expect(await notifications()).not.toHaveProperty("unsignedReceipts");
-    vi.setSystemTime(new Date("2039-06-11T21:30:00Z"));
-
-    // Só o Financeiro vê o aviso.
+    // Existing saved configurations cannot hide pending receipts.
+    const settings = (
+      await app.inject({ url: "/admin/clinic-settings", headers })
+    ).json();
+    for (const frequency of ["weekly", "off"]) {
+      const saved = await app.inject({
+        method: "PUT",
+        url: "/admin/clinic-settings",
+        headers,
+        payload: {
+          name: settings.name,
+          timezone: settings.timezone,
+          receiptReminder: {
+            frequency,
+            weekday: 0,
+            time: "23:59",
+            afterHours: 720,
+          },
+        },
+      });
+      expect(saved.statusCode, saved.body).toBe(200);
+      expect((await notifications()).unsignedReceipts).toBe(before + 1);
+    }
     expect(await notifications(await userWith(["finance"]))).toHaveProperty(
       "unsignedReceipts",
-      sameDay! + 1,
+      before + 1,
     );
     expect(await notifications(await userWith(["agenda"]))).not.toHaveProperty(
       "unsignedReceipts",
     );
-
-    // Configuração da clínica: semanal às sextas (11/06/2039 é sábado), 9h, 48 horas.
-    const base = settings.json<Record<string, unknown>>();
-    const saved = await app.inject({
-      method: "PUT",
-      url: "/admin/clinic-settings",
-      headers,
-      payload: {
-        name: base.name,
-        timezone: base.timezone,
-        receiptReminder: {
-          frequency: "weekly",
-          weekday: 5,
-          time: "09:00",
-          afterHours: 48,
+    for (const receipt of receipts) {
+      await repository.signPublicReceiptSignature(
+        receipt.token,
+        {
+          signerName: "Cliente Sem Assinar",
+          signerCpf: "",
+          accepted: true,
+          signatureImage: "data:image/png;base64,iVBORw0KGgo=",
         },
-      },
-    });
-    expect(saved.statusCode, saved.body).toBe(200);
-    expect(saved.json().receiptReminder).toEqual({
-      frequency: "weekly",
-      weekday: 5,
-      time: "09:00",
-      afterHours: 48,
-    });
-    expect(await notifications()).not.toHaveProperty("unsignedReceipts");
-    // Sexta seguinte, 09:00: mais de 48 horas desde o envio.
-    vi.setSystemTime(new Date("2039-06-17T12:00:00Z"));
-    expect((await notifications()).unsignedReceipts).toBe(sameDay! + 1);
-
-    // Assinado sai do aviso.
-    await repository.signPublicReceiptSignature(
-      receipts[0]!.token,
-      {
-        signerName: "Cliente Sem Assinar",
-        signerCpf: "",
-        accepted: true,
-        signatureImage: "data:image/png;base64,iVBORw0KGgo=",
-      },
-      { ipAddress: "203.0.113.7", userAgent: "Teste" },
-    );
-    expect((await notifications()).unsignedReceipts).toBe(sameDay! + 1);
-    await repository.signPublicReceiptSignature(
-      receipts[1]!.token,
-      {
-        signerName: "Cliente Sem Assinar",
-        signerCpf: "",
-        accepted: true,
-        signatureImage: "data:image/png;base64,iVBORw0KGgo=",
-      },
-      { ipAddress: "203.0.113.7", userAgent: "Teste" },
-    );
-    expect((await notifications()).unsignedReceipts).toBe(sameDay);
-
-    // Desligado: nunca aparece; configuração inválida é recusada.
-    const off = await app.inject({
-      method: "PUT",
-      url: "/admin/clinic-settings",
-      headers,
-      payload: {
-        name: base.name,
-        timezone: base.timezone,
-        receiptReminder: {
-          frequency: "off",
-          weekday: 5,
-          time: "09:00",
-          afterHours: 48,
-        },
-      },
-    });
-    expect(off.statusCode).toBe(200);
-    expect(await notifications()).not.toHaveProperty("unsignedReceipts");
-    const invalid = await app.inject({
-      method: "PUT",
-      url: "/admin/clinic-settings",
-      headers,
-      payload: {
-        name: base.name,
-        timezone: base.timezone,
-        receiptReminder: {
-          frequency: "daily",
-          weekday: 1,
-          time: "25:00",
-          afterHours: 24,
-        },
-      },
-    });
-    expect(invalid.statusCode).toBe(400);
+        { ipAddress: "203.0.113.7", userAgent: "Teste" },
+      );
+      expect((await notifications()).unsignedReceipts).toBe(
+        receipt === receipts.at(-1) ? before : before + 1,
+      );
+    }
   });
 
   it("requires login", async () => {

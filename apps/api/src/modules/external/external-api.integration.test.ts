@@ -490,7 +490,6 @@ describe("API externa de vendas", () => {
       repository.createService(clinicId, {
         name,
         durationMinutes: 50,
-        priceInCents: 9_000,
         ...(businessLine ? { businessLine } : {}),
       });
     const studio = await service("Pilates das linhas", "studio");
@@ -575,7 +574,6 @@ describe("API externa de vendas", () => {
       data: {
         name: "Laser (desativado)",
         durationMinutes: 50,
-        priceInCents: 9_000,
         active: false,
       },
     });

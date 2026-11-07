@@ -2,9 +2,8 @@ import { z } from "zod";
 import type { ReceiptSignatureSummary } from "./receipt-signatures.js";
 
 /**
- * Aviso "X clientes ainda não assinaram o recibo" (RC5). A API não tem agendador: o aviso é
- * calculado na leitura do sino (`GET /notifications`) e aparece a partir do horário configurado
- * até o fim do dia (no fuso da clínica), nos dias da frequência escolhida.
+ * Configuração legada de periodicidade (RC5), mantida para compatibilidade.
+ * Desde RC6, GET /notifications conta todos os recibos pendentes imediatamente.
  */
 export const receiptReminderFrequencies = ["daily", "weekly", "off"] as const;
 
@@ -54,9 +53,8 @@ export type ReceiptReminderSettings = z.infer<
 >;
 
 /**
- * Padrão do aviso enquanto a clínica não configura (coluna vazia).
- * PENDENTE (RC6): valor provisório — diário às 18:00 — até a resposta do estúdio sobre a
- * frequência e o horário; só este objeto muda quando a RC6 definir o padrão definitivo.
+ * Configuração legada de periodicidade, preservada para compatibilidade.
+ * O sino e a faixa mostram pendências imediatamente, independentemente destes valores.
  */
 export const defaultReceiptReminderSettings: ReceiptReminderSettings = {
   frequency: "daily",
@@ -122,29 +120,21 @@ export function isReceiptReminderDue(
   return `${parts.hour}:${parts.minute}` >= settings.time;
 }
 
-/**
- * Clientes (sem repetir) com recibo enviado há mais de `afterHours` horas e ainda não
- * assinado. Recibo só gerado (nunca enviado) fica de fora; visualizado sem o clique de envio
- * conta a partir da 1ª visualização.
- */
+/** Clientes distintos com recibo pendente, desde a geração, sem prazo mínimo. */
 export function unsignedReceiptPatientCount(
   receivables: readonly {
     patientId: string;
     receiptSignature?: ReceiptSignatureSummary | undefined;
   }[],
-  afterHours: number,
-  now: Date,
 ): number {
-  const limit = now.getTime() - afterHours * 3_600_000;
   const patients = new Set<string>();
   for (const { patientId, receiptSignature } of receivables) {
     if (
-      receiptSignature?.status !== "sent" &&
-      receiptSignature?.status !== "viewed"
+      receiptSignature?.status === "generated" ||
+      receiptSignature?.status === "sent" ||
+      receiptSignature?.status === "viewed"
     )
-      continue;
-    const since = receiptSignature.sentAt ?? receiptSignature.firstViewedAt;
-    if (since && new Date(since).getTime() <= limit) patients.add(patientId);
+      patients.add(patientId);
   }
   return patients.size;
 }
