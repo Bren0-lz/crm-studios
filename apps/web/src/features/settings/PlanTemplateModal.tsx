@@ -9,7 +9,7 @@ import {
   type PlanType,
   type Service,
 } from "@crm/contracts";
-import { Plus } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
 import { useState, type FormEvent } from "react";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
@@ -23,6 +23,8 @@ import {
 } from "../../shared/lib/formatting";
 import { MoneyInput } from "../../shared/components/MoneyInput";
 import { QuickServiceModal } from "./QuickServiceModal";
+
+const NEW_SERVICE_OPTION = "__create__";
 
 export function PlanTemplateModal({
   item,
@@ -288,15 +290,37 @@ export function PlanTemplateModal({
               key={index}
             >
               <legend>Serviço {index + 1}</legend>
+              <button
+                type="button"
+                className="icon-button plan-template-service-remove"
+                disabled={form.services.length === 1 || saving}
+                aria-label={`Remover serviço ${index + 1}`}
+                title={`Remover serviço ${index + 1}`}
+                onClick={() =>
+                  setForm({
+                    ...form,
+                    services: form.services.filter(
+                      (_, position) => position !== index,
+                    ),
+                  })
+                }
+              >
+                <Trash2 size={16} aria-hidden="true" />
+              </button>
               <div className="span-2 form-grid plan-template-service-fields">
                 <label className="span-2">
                   Serviço<span className="sr-only"> {index + 1}</span>
                   <select
                     required
                     value={entry.serviceId}
-                    onChange={(event) =>
-                      updateRow(index, { serviceId: event.target.value })
-                    }
+                    onChange={(event) => {
+                      // A opção "+ Novo serviço" abre o cadastro rápido sem trocar a escolha atual.
+                      if (event.target.value === NEW_SERVICE_OPTION) {
+                        setCreatingFor(index);
+                        return;
+                      }
+                      updateRow(index, { serviceId: event.target.value });
+                    }}
                   >
                     <option value="">Selecione um serviço</option>
                     {services
@@ -321,6 +345,9 @@ export function PlanTemplateModal({
                           {!service.active ? " (inativo)" : ""}
                         </option>
                       ))}
+                    {can("agenda.services_create") && (
+                      <option value={NEW_SERVICE_OPTION}>+ Novo serviço</option>
+                    )}
                   </select>
                 </label>
                 {months ? (
@@ -384,35 +411,6 @@ export function PlanTemplateModal({
                   .
                 </p>
               )}
-              <div className="span-2 plan-template-service-actions">
-                {can("agenda.services_create") && (
-                  <button
-                    type="button"
-                    className="secondary-button button-sm plan-template-service-create"
-                    disabled={saving}
-                    aria-label={`Cadastrar novo serviço para o serviço ${index + 1}`}
-                    onClick={() => setCreatingFor(index)}
-                  >
-                    <Plus size={16} aria-hidden="true" />
-                    Novo serviço
-                  </button>
-                )}
-                <button
-                  type="button"
-                  className="secondary-button button-sm plan-template-service-remove"
-                  disabled={form.services.length === 1 || saving}
-                  onClick={() =>
-                    setForm({
-                      ...form,
-                      services: form.services.filter(
-                        (_, position) => position !== index,
-                      ),
-                    })
-                  }
-                >
-                  Remover serviço {index + 1}
-                </button>
-              </div>
             </fieldset>
           ))}
           <div className="span-2 plan-template-service-add">
