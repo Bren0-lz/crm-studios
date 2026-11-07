@@ -286,6 +286,14 @@ export function createAgendaRepository(
           404,
         );
       repositoryContext.resourceBranch(appointment, professional, room);
+      const planId =
+        input.planId !== undefined
+          ? repositoryContext.appointmentPlanId(
+              clinicId,
+              { ...appointment, planId: input.planId },
+              appointment.patientId,
+            )
+          : appointment.planId;
       const startsAt = new Date(input.startsAt);
       const endsAt = new Date(
         startsAt.getTime() + service.durationMinutes * 60_000,
@@ -293,7 +301,8 @@ export function createAgendaRepository(
       if (
         appointment.startsAt === startsAt.toISOString() &&
         appointment.professionalId === professional.id &&
-        appointment.roomId === room.id
+        appointment.roomId === room.id &&
+        planId === appointment.planId
       )
         return appointment;
       const overlaps = (from: string, to: string) =>
@@ -373,6 +382,8 @@ export function createAgendaRepository(
         roomName: room.name,
         updatedAt: event.createdAt,
       });
+      if (planId) appointment.planId = planId;
+      else delete appointment.planId;
       repositoryContext.appointmentReschedules.push(event);
       return appointment;
     },
@@ -425,6 +436,60 @@ export function createAgendaRepository(
           404,
         );
       const serviceChanged = service.id !== appointment.serviceId;
+      const patientId = input.patientId ?? appointment.patientId;
+      const patientChanged = patientId !== appointment.patientId;
+      const patient = patientChanged
+        ? repositoryContext.patients.find(
+            (item) =>
+              item.clinicId === clinicId &&
+              item.id === patientId &&
+              item.status === "active",
+          )
+        : undefined;
+      if (patientChanged && (!appointment.patientId || !patient))
+        throw new DomainError(
+          "RELATED_RECORD_NOT_FOUND",
+          "Cliente ativo não encontrado.",
+          404,
+        );
+      if (
+        patientChanged &&
+        (repositoryContext.patientTabs.some(
+          (tab) =>
+            tab.clinicId === clinicId &&
+            tab.services?.some((item) => item.appointmentId === appointmentId),
+        ) ||
+          repositoryContext.patientPlans.some(
+            (plan) =>
+              plan.clinicId === clinicId &&
+              plan.sourceAppointmentId === appointmentId,
+          ) ||
+          repositoryContext.clinicalRecords.some(
+            (record) =>
+              record.clinicId === clinicId &&
+              record.appointmentId === appointmentId,
+          ))
+      )
+        throw new DomainError(
+          "APPOINTMENT_PATIENT_LOCKED",
+          "Este atendimento já possui registros financeiros ou clínicos: o cliente não pode ser alterado.",
+          409,
+        );
+      const planId =
+        input.planId !== undefined || patientChanged || serviceChanged
+          ? repositoryContext.appointmentPlanId(
+              clinicId,
+              {
+                ...appointment,
+                serviceId: service.id,
+                planId:
+                  input.planId ??
+                  (patientChanged ? undefined : appointment.planId),
+              },
+              patientId,
+            )
+          : appointment.planId;
+
       // Crédito da comanda/plano de origem é do serviço original: trocar quebraria o vínculo.
       if (
         serviceChanged &&
@@ -451,6 +516,8 @@ export function createAgendaRepository(
       );
       if (
         !serviceChanged &&
+        !patientChanged &&
+        planId === appointment.planId &&
         appointment.roomId === room.id &&
         (appointment.notes ?? "") === notes
       )
@@ -501,6 +568,9 @@ export function createAgendaRepository(
           409,
         );
       const previous = {
+        patientId: appointment.patientId,
+        patientName: appointment.patientName,
+        planId: appointment.planId,
         serviceId: appointment.serviceId,
         serviceName: appointment.serviceName,
         roomId: appointment.roomId,
@@ -515,6 +585,12 @@ export function createAgendaRepository(
         endsAt: endsAt.toISOString(),
         updatedAt: now(),
       });
+      if (patient) {
+        appointment.patientId = patient.id;
+        appointment.patientName = patient.fullName;
+      }
+      if (planId) appointment.planId = planId;
+      else delete appointment.planId;
       if (notes) appointment.notes = notes;
       else delete appointment.notes;
       repositoryContext.recordAudit(
@@ -525,6 +601,9 @@ export function createAgendaRepository(
         {
           previous,
           current: {
+            patientId: appointment.patientId,
+            patientName: appointment.patientName,
+            planId: appointment.planId,
             serviceId: service.id,
             serviceName: service.name,
             roomId: room.id,

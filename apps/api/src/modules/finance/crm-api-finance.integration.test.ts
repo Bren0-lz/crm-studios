@@ -1,3 +1,4 @@
+import { withAppointmentPlan } from "../../test-support/appointment-plan.js";
 import { saoPauloToday } from "@crm/contracts";
 import { describe, expect, it, vi } from "vitest";
 import {
@@ -384,19 +385,6 @@ describe("CRM API", () => {
       professionalId: string,
       startsAt: string,
     ) => {
-      const created = await app.inject({
-        method: "POST",
-        url: "/appointments",
-        headers,
-        payload: {
-          patientId: patients.json()[0].id,
-          professionalId,
-          roomId: rooms.json()[0].id,
-          serviceId: service.id,
-          startsAt,
-        },
-      });
-      expect(created.statusCode).toBe(201);
       // A comissão sai do valor pago: o cliente compra a sessão avulsa do dia (R$ 180).
       const day = startsAt.slice(0, 10);
       const sold = await app.inject({
@@ -410,7 +398,11 @@ describe("CRM API", () => {
           kind: "single",
           totalValueInCents: 18000,
           services: [
-            { serviceId: service.id, totalSessions: 1, totalValueInCents: 18000 },
+            {
+              serviceId: service.id,
+              totalSessions: 1,
+              totalValueInCents: 18000,
+            },
           ],
           installments: 1,
           firstDueDate: day,
@@ -420,6 +412,20 @@ describe("CRM API", () => {
         },
       });
       expect(sold.statusCode).toBe(201);
+      const created = await app.inject({
+        method: "POST",
+        url: "/appointments",
+        headers,
+        payload: {
+          patientId: patients.json()[0].id,
+          professionalId,
+          roomId: rooms.json()[0].id,
+          serviceId: service.id,
+          startsAt,
+          planId: sold.json().id,
+        },
+      });
+      expect(created.statusCode, created.body).toBe(201);
       const done = await patchStatusAt(
         app,
         headers,
@@ -1006,13 +1012,17 @@ describe("CRM API", () => {
         method: "POST",
         url: "/appointments",
         headers,
-        payload: {
-          patientId: patients.json()[0].id,
-          professionalId: professionals.json()[0].id,
-          roomId: rooms.json()[0].id,
-          serviceId: services.json()[0].id,
-          startsAt: "2031-03-10T13:00:00.000Z",
-        },
+        payload: await withAppointmentPlan(
+          app,
+          {
+            patientId: patients.json()[0].id,
+            professionalId: professionals.json()[0].id,
+            roomId: rooms.json()[0].id,
+            serviceId: services.json()[0].id,
+            startsAt: "2031-03-10T13:00:00.000Z",
+          },
+          headers,
+        ),
       });
       expect(appointment.statusCode).toBe(201);
       await app.inject({
@@ -1779,13 +1789,17 @@ describe("CRM API", () => {
       method: "POST",
       url: "/appointments",
       headers,
-      payload: {
-        patientId: patients.json()[0].id,
-        professionalId: professionals.json()[0].id,
-        roomId: rooms.json()[0].id,
-        serviceId: services.json()[0].id,
-        startsAt,
-      },
+      payload: await withAppointmentPlan(
+        app,
+        {
+          patientId: patients.json()[0].id,
+          professionalId: professionals.json()[0].id,
+          roomId: rooms.json()[0].id,
+          serviceId: services.json()[0].id,
+          startsAt,
+        },
+        headers,
+      ),
     });
     const completed = await patchStatusAt(
       app,

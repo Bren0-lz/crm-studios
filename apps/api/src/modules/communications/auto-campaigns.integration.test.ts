@@ -1,3 +1,4 @@
+import { withAppointmentPlan } from "../../test-support/appointment-plan.js";
 import { nextTestCpf } from "../../test-support/cpf.js";
 import type {
   AutoCampaign,
@@ -463,19 +464,23 @@ describe("campanhas automáticas", () => {
         app.inject({ method: "GET", url, headers }),
       ),
     );
-    const appointment = (startsAt: string, promotion?: object) =>
+    const appointment = async (startsAt: string, promotion?: object) =>
       app.inject({
         method: "POST",
         url: "/appointments",
         headers,
-        payload: {
-          patientId: patient.id,
-          professionalId: professionals!.json()[0].id,
-          roomId: rooms!.json()[0].id,
-          serviceId: services!.json()[0].id,
-          startsAt,
-          ...(promotion ? { promotion } : {}),
-        },
+        payload: await withAppointmentPlan(
+          app,
+          {
+            patientId: patient.id,
+            professionalId: professionals!.json()[0].id,
+            roomId: rooms!.json()[0].id,
+            serviceId: services!.json()[0].id,
+            startsAt,
+            ...(promotion ? { promotion } : {}),
+          },
+          headers,
+        ),
       });
     const occurrenceKey = `${patient.id}:2039`;
     // Agendado hoje, dentro do prazo, para depois do fim da promoção: vale.

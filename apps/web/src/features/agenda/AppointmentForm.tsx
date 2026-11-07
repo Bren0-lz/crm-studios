@@ -1,5 +1,6 @@
 import type {
   AppointmentInput,
+  AppointmentPricing,
   AppointmentPromotion,
   AppointmentVisitType,
   AutoCampaignPromotionOffer,
@@ -20,6 +21,7 @@ import {
 import { X } from "lucide-react";
 import {
   useEffect,
+  useCallback,
   useId,
   useLayoutEffect,
   useRef,
@@ -175,6 +177,24 @@ export function AppointmentForm({
             }
       : { kind: "manual", starts: [form.startsAt] },
   );
+  const pricingKey = `${form.patientId}:${form.serviceId}:${summaryStarts[0] ?? ""}`;
+  const [bookingPricing, setBookingPricing] = useState<{
+    key: string;
+    pricing: AppointmentPricing | undefined;
+  }>();
+  const rememberPricing = useCallback(
+    (pricing: AppointmentPricing | undefined) => {
+      setBookingPricing({ key: pricingKey, pricing });
+    },
+    [pricingKey],
+  );
+  const bookingPlan =
+    bookingPricing?.key === pricingKey
+      ? bookingPricing.pricing?.plans.find(
+          (plan) =>
+            plan.unlimited || plan.remainingSessions >= summaryStarts.length,
+        )
+      : undefined;
   // Só os serviços atendidos pelo profissional e pela sala escolhidos (U10).
   const availableServices = services.filter((item) =>
     serviceAvailableFor(item, form.professionalId, form.roomId),
@@ -259,8 +279,25 @@ export function AppointmentForm({
         ).toISOString(),
         notes: form.notes,
         visitType: form.visitType as AppointmentVisitType,
+        ...(!packageSessions && form.visitType !== "trial" && bookingPlan
+          ? { planId: bookingPlan.planId }
+          : {}),
         ...(form.promotion ? { promotion: form.promotion } : {}),
       };
+      // O usuário pode confirmar antes de a consulta do resumo terminar.
+      if (!packageSessions && input.visitType !== "trial" && !input.planId) {
+        const pricing = await api.appointmentPricing(
+          input.patientId,
+          input.serviceId,
+          input.startsAt,
+        );
+        const plan = pricing?.plans?.find(
+          (candidate) =>
+            candidate.unlimited ||
+            candidate.remainingSessions >= summaryStarts.length,
+        );
+        if (plan) input.planId = plan.planId;
+      }
       await onSubmit(
         input,
         !form.recurring
@@ -626,6 +663,7 @@ export function AppointmentForm({
                 }
                 starts={summaryStarts}
                 promotion={selectedOffer}
+                onPricing={rememberPricing}
               />
             )}
             {/* No fim do formulário: o aviso chega depois da busca dos planos e não desloca os campos. */}

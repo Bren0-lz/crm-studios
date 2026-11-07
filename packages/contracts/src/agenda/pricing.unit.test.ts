@@ -46,6 +46,24 @@ describe("resumo do agendamento", () => {
     });
   });
 
+  it("continua usando um plano recorrente mesmo com saldo nominal zerado", () => {
+    const summary = appointmentSummary({
+      starts,
+      pricing: {
+        ...pricing,
+        plans: [
+          { ...pricing.plans[0]!, remainingSessions: 0, unlimited: true },
+        ],
+      },
+    });
+    expect(summary.lines.map((line) => line.source)).toEqual([
+      "plan",
+      "plan",
+      "plan",
+    ]);
+    expect(summary.totalInCents).toBe(18_000);
+  });
+
   it("gives the campaign discount only to the first session when it fits the plan", () => {
     const percent = appointmentSummary({
       starts,

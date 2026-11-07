@@ -1,3 +1,4 @@
+import { withAppointmentPlan } from "../../test-support/appointment-plan.js";
 import type { AdminAuditEvent, Appointment } from "@crm/contracts";
 import { afterEach, describe, expect, it } from "vitest";
 import { buildApp } from "../../app.js";
@@ -16,7 +17,7 @@ afterEach(async () => {
 
 /** Ana e Paulo, duas salas, um serviço livre e outro só para Ana na primeira sala. */
 async function scenario() {
-  const { app, token } = await authenticatedApp();
+  const { app, token, repository } = await authenticatedApp();
   apps.push(app);
   const headers = { authorization: `Bearer ${token}` };
   const [professionals, rooms] = await Promise.all([
@@ -55,26 +56,42 @@ async function scenario() {
       method: "POST",
       url: "/appointments",
       headers,
-      payload: {
-        patientId,
-        serviceId: free.id,
-        professionalId,
-        roomId,
-        startsAt,
-        notes,
-        visitType: "regular",
-      },
+      payload: await withAppointmentPlan(
+        app,
+        {
+          patientId,
+          serviceId: free.id,
+          professionalId,
+          roomId,
+          startsAt,
+          notes,
+          visitType: "regular",
+        },
+        headers,
+      ),
     });
     expect(response.statusCode).toBe(201);
     return response.json<Appointment>();
   };
-  const edit = (id: string, payload: Record<string, unknown>) =>
-    app.inject({
+  const edit = async (id: string, payload: Record<string, unknown>) => {
+    const current = await repository.findAppointment(clinicId, id);
+    const prepared = current
+      ? await withAppointmentPlan(
+          app,
+          { ...current, ...payload, planId: undefined },
+          headers,
+        )
+      : payload;
+    return app.inject({
       method: "PATCH",
       url: `/appointments/${id}`,
       headers,
-      payload,
+      payload: {
+        ...payload,
+        ...("planId" in prepared ? { planId: prepared.planId } : {}),
+      },
     });
+  };
   return {
     app,
     headers,
