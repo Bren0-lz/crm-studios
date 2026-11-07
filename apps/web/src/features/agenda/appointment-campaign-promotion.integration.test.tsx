@@ -43,6 +43,18 @@ describe("promoção de campanha automática ao agendar", () => {
       const url = String(input);
       if (init?.method === "POST")
         return response({ code: "CONFLICT", message: "Horário ocupado." }, 409);
+      if (url.includes("/appointments/pricing"))
+        return response({
+          serviceId: "77777777-7777-4777-8777-777777777777",
+          plans: [
+            {
+              planId: "d4444444-4444-4444-8444-444444444444",
+              planName: "Plano contratado",
+              remainingSessions: 32,
+              sessionValueInCents: 6_000,
+            },
+          ],
+        });
       if (url.includes("/appointments/promotions"))
         return response(
           url.includes(patient.id)
@@ -114,6 +126,9 @@ describe("promoção de campanha automática ao agendar", () => {
       patientId: patient.id,
       promotion,
     });
+    expect(JSON.parse(call![1]!.body as string).planId).toBe(
+      "d4444444-4444-4444-8444-444444444444",
+    );
 
     // Trocar para a campanha manual envia a origem junto.
     const manualQuestion = within(dialog).getByRole("checkbox", {

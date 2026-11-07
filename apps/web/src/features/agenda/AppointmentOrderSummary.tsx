@@ -3,7 +3,7 @@ import {
   type AppointmentPricing,
   type AutoCampaignPromotionOffer,
 } from "@crm/contracts";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api } from "../../api";
 import { ErrorBanner } from "../../shared/components/ErrorBanner";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
@@ -29,6 +29,7 @@ export function AppointmentOrderSummary({
   serviceName,
   starts,
   promotion,
+  onPricing,
 }: {
   patientId: string;
   serviceId: string;
@@ -36,8 +37,18 @@ export function AppointmentOrderSummary({
   /** Datas/horários (aaaa-mm-ddThh:mm) de cada ocorrência, em ordem; "" = a definir. */
   starts: readonly string[];
   promotion?: AutoCampaignPromotionOffer | undefined;
+  onPricing?: ((pricing: AppointmentPricing | undefined) => void) | undefined;
 }) {
-  const key = `${patientId}:${serviceId}`;
+  const first = starts[0] ?? "";
+  const startsAt =
+    completeDateTime.test(first) && Number.isFinite(new Date(first).getTime())
+      ? new Date(first).toISOString()
+      : undefined;
+  const key = `${patientId}:${serviceId}:${startsAt ?? ""}`;
+  const pricingCallback = useRef(onPricing);
+  useEffect(() => {
+    pricingCallback.current = onPricing;
+  }, [onPricing]);
   const [state, setState] = useState<{
     key: string;
     pricing?: AppointmentPricing;
@@ -45,19 +56,19 @@ export function AppointmentOrderSummary({
   } | null>(null);
   useEffect(() => {
     if (!patientId || !serviceId) return;
-    const requestKey = `${patientId}:${serviceId}`;
+    const requestKey = key;
     let active = true;
     api
-      .appointmentPricing(patientId, serviceId)
-      .then(
-        (pricing) =>
-          active &&
-          setState(
-            pricing && Array.isArray(pricing.plans)
-              ? { key: requestKey, pricing }
-              : { key: requestKey },
-          ),
-      )
+      .appointmentPricing(patientId, serviceId, startsAt)
+      .then((pricing) => {
+        if (!active) return;
+        const valid =
+          pricing && Array.isArray(pricing.plans) ? pricing : undefined;
+        setState(
+          valid ? { key: requestKey, pricing: valid } : { key: requestKey },
+        );
+        pricingCallback.current?.(valid);
+      })
       .catch(
         () =>
           active &&
@@ -69,7 +80,7 @@ export function AppointmentOrderSummary({
     return () => {
       active = false;
     };
-  }, [patientId, serviceId]);
+  }, [patientId, serviceId, startsAt, key]);
   if (!patientId || !serviceId || starts.length === 0) return null;
   const loaded = state?.key === key ? state : null;
   if (!loaded)

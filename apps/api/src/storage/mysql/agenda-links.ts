@@ -63,7 +63,9 @@ export function createAgendaLinksRepository(context: MysqlRepositoryContext) {
         const data = {
             ...input,
             serviceId: source.serviceId,
-            ...(source.planId ? { planId: source.planId } : {}),
+            ...((input.planId ?? source.planId)
+              ? { planId: input.planId ?? source.planId }
+              : {}),
             visitType: source.visitType,
             notes: source.notes ?? "",
           },

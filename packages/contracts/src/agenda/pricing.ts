@@ -2,6 +2,7 @@ import { autoCampaignDiscountInCents } from "../communications/model.js";
 import type { AutoCampaignPromotionOffer } from "../communications/types.js";
 import {
   isSinglePlanTemplate,
+  planHasSessionBalance,
   sessionValueInCents,
   singlePlanSessionPrices,
 } from "../plans/model.js";
@@ -14,6 +15,8 @@ export interface AppointmentPlanPrice {
   planName: string;
   /** Saldo atual do serviço no plano. */
   remainingSessions: number;
+  /** Plano recorrente: a frequência vale, mesmo sem saldo nominal no ciclo. */
+  unlimited?: true;
   /** Valor de uma sessão do serviço no plano (valor ÷ sessões contratadas). */
   sessionValueInCents: number;
 }
@@ -52,7 +55,9 @@ export function appointmentPricing(
     )
     .flatMap((plan) => {
       const service = (plan.services ?? []).find(
-        (item) => item.serviceId === serviceId && item.remainingSessions > 0,
+        (item) =>
+          item.serviceId === serviceId &&
+          (!planHasSessionBalance(plan) || item.remainingSessions > 0),
       );
       return service ? [{ plan, service }] : [];
     })
@@ -87,6 +92,7 @@ export function appointmentPricing(
       ...(plan.planTemplateId ? { planTemplateId: plan.planTemplateId } : {}),
       planName: plan.name,
       remainingSessions: service.remainingSessions,
+      ...(!planHasSessionBalance(plan) ? { unlimited: true as const } : {}),
       sessionValueInCents: sessionValueInCents(service, 0),
     })),
     ...(singleTemplate && singlePrice !== undefined
@@ -182,7 +188,9 @@ export function appointmentSummary({
       >
     | undefined;
 }): AppointmentSummary {
-  const balances = pricing.plans.map((plan) => plan.remainingSessions);
+  const balances = pricing.plans.map((plan) =>
+    plan.unlimited ? Infinity : plan.remainingSessions,
+  );
   let discountNotApplicable = false;
   const lines = starts.map((startsAt, index): AppointmentSummaryLine => {
     const planIndex = balances.findIndex((balance) => balance > 0);
