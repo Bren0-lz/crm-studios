@@ -2,6 +2,7 @@ import { z } from "zod";
 import type {
   ClientSessionsRankingEntry,
   SaleMovement,
+  SaleType,
 } from "../administration/types.js";
 import type {
   Appointment,
@@ -32,7 +33,8 @@ export type SalesReportFilter = z.infer<typeof salesReportFilterSchema>;
 export interface SalesBreakdownRow {
   key: string;
   label: string;
-  sourceType: SaleMovement["sourceType"];
+  /** Tipo da venda (o plano avulso fica separado dos demais planos). */
+  sourceType: SaleType;
   /** Planos e comandas distintos. */
   salesCount: number;
   quantity: number;

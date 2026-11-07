@@ -70,10 +70,22 @@ export interface ServiceLineRef {
   businessLine: ServiceBusinessLine | null;
 }
 
+/**
+ * Tipo da venda nos relatórios: o `sourceType`, com o plano avulso (`planKind`) separado dos
+ * demais planos.
+ */
+export type SaleType = "plan" | "single" | "product" | "service";
+
 export interface SaleMovement {
   id: string;
   sourceId: string;
+  /**
+   * Origem da venda: plano (inclusive o plano avulso, com `planKind`), produto ou serviço de
+   * comanda antiga (serviço não se vende mais; só aparece em comanda fechada antes da mudança).
+   */
   sourceType: "plan" | "product" | "service";
+  /** Só na venda de plano avulso (uma sessão de um serviço). */
+  planKind?: "single";
   kind: "sale" | "cancellation";
   occurredAt: string;
   patientId: string;
@@ -82,7 +94,7 @@ export interface SaleMovement {
   quantity: number;
   amountInCents: number;
   /**
-   * Serviços da venda (painel de vendas): no serviço da comanda, ele; no plano, todos os do
+   * Serviços da venda (painel de vendas): no serviço da comanda antiga, ele; no plano, todos os do
    * plano (o valor da venda conta inteiro em cada um, não se divide); no produto, vazio.
    */
   services: ServiceLineRef[];

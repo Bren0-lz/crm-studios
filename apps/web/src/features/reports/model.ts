@@ -43,8 +43,9 @@ export const compactMoney = (cents: number) =>
 
 export const saleTypeLabels: Record<SalesBreakdownRow["sourceType"], string> = {
   plan: "Plano",
-  service: "Serviço avulso",
+  single: "Plano avulso",
   product: "Produto",
+  service: "Serviço (comanda antiga)",
 };
 
 /** Margem do produto sobre o líquido ("62%"); "—" sem custo ou sem líquido. */
@@ -186,8 +187,9 @@ export const contractedTypeLabels: Record<
   string
 > = {
   plan: "Planos",
-  service: "Serviços",
+  single: "Planos avulsos",
   product: "Produtos",
+  service: "Serviços (comanda antiga)",
 };
 /** Opções do filtro "Já contratou": itens da lista, sem repetir, por tipo e nome. */
 export function contractedOptions(items: PatientWithoutReturn[]) {

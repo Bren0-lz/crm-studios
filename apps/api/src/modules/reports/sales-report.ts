@@ -9,8 +9,13 @@ import type {
   SalesReport,
   SalesPeriodReport,
   SalesReportPeriod,
+  SaleType,
 } from "@crm/contracts";
-import { allocatePlanRevenue, salesChangePercent } from "@crm/contracts";
+import {
+  allocatePlanRevenue,
+  salesChangePercent,
+  saleTypeOf,
+} from "@crm/contracts";
 
 function clinicDate(value: string | Date) {
   const parts = new Intl.DateTimeFormat("en-US", {
@@ -85,10 +90,11 @@ export const emptySalesBilling: SalesBilling = {
 };
 
 const TOP_BUYERS = 10;
-const typeLabels: Record<SaleMovement["sourceType"], string> = {
+const typeLabels: Record<SaleType, string> = {
   plan: "Planos",
-  service: "Serviços avulsos",
+  single: "Planos avulsos",
   product: "Produtos",
+  service: "Serviço (comanda antiga)",
 };
 
 export function salesReportBounds(month: string, asOf = new Date()) {
@@ -209,8 +215,9 @@ export function withContractedHistory<
   for (const item of sales) {
     if (item.kind !== "sale") continue;
     const items = byPatient.get(item.patientId) ?? new Map();
-    items.set(`${item.sourceType}:${item.itemName}`, {
-      sourceType: item.sourceType,
+    const sourceType = saleTypeOf(item);
+    items.set(`${sourceType}:${item.itemName}`, {
+      sourceType,
       itemName: item.itemName,
     });
     byPatient.set(item.patientId, items);
@@ -384,7 +391,7 @@ export function salesPeriodSummary(
       const row = rows.get(id) ?? {
         key: id,
         label: label(item),
-        sourceType: item.sourceType,
+        sourceType: saleTypeOf(item),
         salesCount: 0,
         quantity: 0,
         grossInCents: 0,
@@ -473,11 +480,11 @@ export function salesPeriodSummary(
     buyers: buyerList.length,
     newBuyers: buyerList.filter((item) => item.firstPurchase).length,
     byType: breakdown(
-      (item) => item.sourceType,
-      (item) => typeLabels[item.sourceType],
+      (item) => saleTypeOf(item),
+      (item) => typeLabels[saleTypeOf(item)],
     ),
     byItem: breakdown(
-      (item) => `${item.sourceType}:${item.itemName}`,
+      (item) => `${saleTypeOf(item)}:${item.itemName}`,
       (item) => item.itemName,
     ),
     topBuyers: buyerList

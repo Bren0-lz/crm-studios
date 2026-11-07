@@ -285,6 +285,80 @@ for (const storage of ["memory", "mysql"] as const) {
         expect(sold?.items.map((item) => item.productId)).toEqual([band.id]);
       });
 
+      it("marks the single-session plan sale (sold from scheduling) apart from the other plans", async () => {
+        const patient = await repository.createPatient(
+          clinicId,
+          patientInputSchema.parse({
+            cpf: nextTestCpf(),
+            fullName: `Cliente do avulso ${randomUUID().slice(0, 6)}`,
+            phone: "11988887777",
+            whatsapp: "11988887777",
+            emergencyContactName: "Contato",
+            emergencyContactPhone: "11988887777",
+          }),
+        );
+        const evaluation = await repository.createService(clinicId, {
+          name: `Avaliação ${randomUUID().slice(0, 6)}`,
+          durationMinutes: 50,
+          businessLine: "studio",
+        });
+        const single = await repository.createPlanTemplate(
+          clinicId,
+          OWNER_ID,
+          planTemplateInputSchema.parse({
+            name: "Avaliação avulsa",
+            planType: "single",
+            kind: "single",
+            totalValueInCents: 15_000,
+            services: [
+              {
+                serviceId: evaluation.id,
+                totalSessions: 1,
+                totalValueInCents: 15_000,
+              },
+            ],
+          }),
+        );
+        const sell = (kind: "single" | "fixed_package", name: string) =>
+          repository.createPatientPlan(clinicId, OWNER_ID, {
+            planTemplateId: single.id,
+            patientId: patient.id,
+            name,
+            kind,
+            services: single.services,
+            validFrom: "2020-01-01",
+            totalValueInCents: 15_000,
+            installments: 1,
+            firstDueDate: "2020-01-10",
+          });
+        const singlePlan = await sell("single", "Avaliação avulsa");
+        const packagePlan = await sell("fixed_package", "Pacote avaliação");
+
+        const today = saoPauloToday();
+        const report = await repository.getSalesPeriodReport(
+          clinicId,
+          today,
+          today,
+        );
+        const sale = (planId: string) =>
+          report.sales.find(
+            (item) => item.sourceId === planId && item.kind === "sale",
+          );
+        expect(sale(singlePlan.id)).toMatchObject({
+          sourceType: "plan",
+          planKind: "single",
+          amountInCents: 15_000,
+          services: [
+            { id: evaluation.id, name: evaluation.name, businessLine: "studio" },
+          ],
+        });
+        expect(sale(packagePlan.id)?.sourceType).toBe("plan");
+        expect(sale(packagePlan.id)).not.toHaveProperty("planKind");
+        expect(
+          report.summary.byType.find((row) => row.sourceType === "single"),
+        ).toMatchObject({ label: "Planos avulsos", grossInCents: 15_000 });
+      });
+
       it.skipIf(storage === "memory")(
         "rejects an unknown product line in the database",
         async () => {

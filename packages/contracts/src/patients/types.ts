@@ -91,9 +91,12 @@ export interface PatientWithoutReturn {
   contracted?: ContractedItem[];
 }
 
-/** Item já contratado pelo cliente: plano, serviço ou produto, pelo nome da venda. */
+/**
+ * Item já contratado pelo cliente: plano, plano avulso, produto ou serviço de comanda antiga,
+ * pelo nome da venda.
+ */
 export interface ContractedItem {
-  sourceType: "plan" | "service" | "product";
+  sourceType: "plan" | "single" | "service" | "product";
   itemName: string;
 }
 

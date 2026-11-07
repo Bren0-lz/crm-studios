@@ -162,7 +162,7 @@ export const proxiedEndpoints: ProxiedEndpoint[] = [
     target: "/reports/sales",
     scope: "sales:read",
     description:
-      "Relatório de vendas do mês, com comparação ao mês anterior. Cada venda (sales) traz services: { id, name, businessLine }[] com a linha do cadastro (inclusive serviço inativo): o serviço avulso, todos os serviços do plano (o valor inteiro conta em cada um, não se divide) ou vazio no produto; a venda de produto traz também businessLine (studio | aesthetics | null; null = sem classificação), ausente em plano e serviço. Query: month=AAAA-MM.",
+      "Relatório de vendas do mês, com comparação ao mês anterior. Cada venda (sales) traz services: { id, name, businessLine }[] com a linha do cadastro (inclusive serviço inativo): todos os serviços do plano (o valor inteiro conta em cada um, não se divide), o serviço de comanda antiga ou vazio no produto. sourceType é plan, product ou service (só comanda fechada antes de o serviço deixar de ser vendido); o plano avulso (uma sessão) é plan com planKind: \"single\". A venda de produto traz também businessLine (studio | aesthetics | null; null = sem classificação), ausente em plano e serviço. Query: month=AAAA-MM.",
   },
   {
     method: "GET",

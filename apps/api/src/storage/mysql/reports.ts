@@ -59,6 +59,8 @@ type PlanSaleRow = {
   serviceId: string;
   primaryServiceName: string;
   primaryBusinessLine: ServiceBusinessLine | null;
+  /** Tipo do plano vendido (`single` = plano avulso). */
+  kind: string;
   totalValueInCents: number;
   cancelledValueInCents: number;
   customerDiscountInCents: number;
@@ -133,6 +135,7 @@ function toSales(
       patientName: plan.patientName,
       itemName: `${plan.name} (${plan.serviceName})`,
       quantity: 1,
+      ...(plan.kind === "single" ? { planKind: "single" as const } : {}),
       // Todos os serviços do plano (o valor da venda conta inteiro em cada um).
       services: planServices.get(plan.id) ?? [
         {
@@ -233,7 +236,7 @@ export function createReportsRepository(
                 EXISTS(SELECT 1 FROM receivables r WHERE r.clinic_id=pp.clinic_id AND r.plan_id=pp.id AND r.manual_amount=1) AS "manualFirstCharge",
                 pp.created_at AS "createdAt", pp.cancelled_at AS "cancelledAt",
                 pp.service_id AS "serviceId", s.name AS "primaryServiceName",
-                s.business_line AS "primaryBusinessLine"
+                s.business_line AS "primaryBusinessLine", pp.kind
          FROM patient_plans pp
          JOIN patients p ON p.id=pp.patient_id
          JOIN services s ON s.id=pp.service_id
@@ -293,7 +296,7 @@ export function createReportsRepository(
                 EXISTS(SELECT 1 FROM receivables r WHERE r.clinic_id=pp.clinic_id AND r.plan_id=pp.id AND r.manual_amount=1) AS "manualFirstCharge",
                 pp.created_at AS "createdAt", pp.cancelled_at AS "cancelledAt",
                 pp.service_id AS "serviceId", s.name AS "primaryServiceName",
-                s.business_line AS "primaryBusinessLine"
+                s.business_line AS "primaryBusinessLine", pp.kind
          FROM patient_plans pp
          JOIN patients p ON p.id=pp.patient_id
          JOIN services s ON s.id=pp.service_id
@@ -585,7 +588,7 @@ export function createReportsRepository(
         >(
           `SELECT a.professional_id AS "professionalId",p.full_name AS "professionalName",a.service_id AS "serviceId",s.name AS "serviceName",${consumedPlan("appointment_id", "a.id")} AS "planId"
            FROM appointments a JOIN professionals p ON p.id=a.professional_id AND p.clinic_id=a.clinic_id JOIN services s ON s.id=a.service_id AND s.clinic_id=a.clinic_id
-           WHERE a.clinic_id=$1 AND a.status='completed' AND a.patient_id IS NOT NULL AND ${localDate("a.starts_at")} BETWEEN $2 AND $3 AND ${branchClause("a.branch_id", 4)}
+           WHERE a.clinic_id=$1 AND a.status='completed' AND a.visit_type<>'trial' AND a.patient_id IS NOT NULL AND ${localDate("a.starts_at")} BETWEEN $2 AND $3 AND ${branchClause("a.branch_id", 4)}
            UNION ALL
            SELECT p.id,p.full_name,g.service_id,s.name,${consumedPlan("group_attendance_id", "ga.id")}
            FROM group_attendance ga JOIN group_sessions gs ON gs.id=ga.session_id AND gs.clinic_id=ga.clinic_id JOIN group_classes g ON g.id=gs.group_id AND g.clinic_id=gs.clinic_id
