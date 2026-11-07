@@ -91,23 +91,20 @@ describe("package sessions scheduled at purchase", () => {
     { serviceId: "a", totalSessions: 10 },
     { serviceId: "b", totalSessions: 1 },
   ];
-  it("schedules fixed packages and single packages with several sessions", () => {
-    expect(planPackageSessions({ kind: "single", services })).toEqual({
-      a: 10,
-      b: 1,
-    });
+  it("schedules fixed packages", () => {
     expect(planPackageSessions({ kind: "fixed_package", services })).toEqual({
       a: 10,
       b: 1,
     });
   });
-  it("leaves one single session, recurring and custom plans out", () => {
-    expect(
-      planPackageSessions({
-        kind: "single",
-        services: [{ serviceId: "a", totalSessions: 1 }],
-      }),
-    ).toBeUndefined();
+  it("leaves single, recurring and custom plans out", () => {
+    for (const totalSessions of [1, 10])
+      expect(
+        planPackageSessions({
+          kind: "single",
+          services: [{ serviceId: "a", totalSessions }],
+        }),
+      ).toBeUndefined();
     expect(
       planPackageSessions({ kind: "recurring", services }),
     ).toBeUndefined();

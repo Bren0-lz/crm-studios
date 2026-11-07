@@ -120,7 +120,7 @@ describe("agenda conflict check before saving", () => {
       patientId,
       serviceId,
       name: "Massoterapia 4 sessões",
-      kind: "single" as const,
+      kind: "fixed_package" as const,
       totalSessions: 4,
       validFrom: "2039-03-01",
       totalValueInCents: 40_000,

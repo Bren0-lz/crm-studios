@@ -104,6 +104,7 @@ import {
   patientUpdateInputSchema,
   patientListQuerySchema,
   patientPlanInputSchema,
+  singlePlanServicesMessage,
   patientTabCloseInputSchema,
   patientTabCancelInputSchema,
   productSaleInputSchema,
@@ -798,6 +799,38 @@ describe("shared contracts", () => {
     ).toThrow();
   });
 
+  it("sells a single plan only with one session of one service", () => {
+    const single = {
+      services: [
+        {
+          serviceId: "77777777-7777-4777-8777-777777777777",
+          totalSessions: 1,
+          totalValueInCents: 15000,
+        },
+      ],
+      planTemplateId: "aa000000-0000-4000-8000-000000000001",
+      patientId: "99999999-9999-4999-8999-999999999999",
+      serviceId: "77777777-7777-4777-8777-777777777777",
+      name: "Avaliação",
+      kind: "single",
+      totalSessions: 1,
+      validFrom: "2026-09-01",
+      totalValueInCents: 15000,
+      installments: 1,
+      firstDueDate: "2026-09-05",
+    };
+    expect(patientPlanInputSchema.safeParse(single).success).toBe(true);
+    const several = patientPlanInputSchema.safeParse({
+      ...single,
+      services: [{ ...single.services[0]!, totalSessions: 4 }],
+      totalSessions: 4,
+    });
+    expect(several.error?.issues[0]).toMatchObject({
+      path: ["services"],
+      message: singlePlanServicesMessage,
+    });
+  });
+
   it("requires an end date for automatic renewal", () => {
     const base = {
       services: [
@@ -1373,6 +1406,12 @@ describe("guided patient creation", () => {
     firstDueDate: "2026-10-05",
   };
 
+  const single = {
+    ...terms,
+    services: [{ serviceId, totalSessions: 1, totalValueInCents: 40000 }],
+    totalSessions: 1,
+  };
+
   it("accepts each next step with its own data", () => {
     expect(guidedPatientInputSchema.parse({ next: "none", patient }).next).toBe(
       "none",
@@ -1398,7 +1437,7 @@ describe("guided patient creation", () => {
     });
     expect(plan.next === "plan" && plan.groupId).toBeUndefined();
     expect(
-      guidedPatientInputSchema.parse({ next: "single", patient, plan: terms })
+      guidedPatientInputSchema.parse({ next: "single", patient, plan: single })
         .next,
     ).toBe("single");
   });
@@ -1409,7 +1448,19 @@ describe("guided patient creation", () => {
       { next: "plan", patient, plan: { ...terms, kind: "custom" } },
       { next: "demonstration", patient },
       { next: "single", patient },
-      { next: "single", patient, plan: { ...terms, validUntil: "2026-09-01" } },
+      {
+        next: "single",
+        patient,
+        plan: { ...single, validUntil: "2026-09-01" },
+      },
+      // Avulso é uma sessão de um serviço (AP5).
+      { next: "single", patient, plan: terms },
+      {
+        next: "plan",
+        patient,
+        plan: { ...terms, kind: "recurring" },
+        additionalPlans: [{ plan: { ...terms, kind: "single" } }],
+      },
       { next: "trial", patient },
     ])
       expect(guidedPatientInputSchema.safeParse(body).success).toBe(false);
@@ -2907,7 +2958,9 @@ describe("Telegram (TG1)", () => {
     expect(resolveTelegramLinkRoles(["gestora"])).toEqual(["admin"]);
     expect(resolveTelegramLinkRoles([])).toEqual([]);
     expect(
-      telegramSettingsInputSchema.parse({ linkRoles: ["user", "user", "admin"] }),
+      telegramSettingsInputSchema.parse({
+        linkRoles: ["user", "user", "admin"],
+      }),
     ).toEqual({ linkRoles: ["user", "admin"] });
     expect(
       telegramSettingsInputSchema.safeParse({ linkRoles: ["gestora"] }).success,

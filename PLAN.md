@@ -1218,3 +1218,19 @@ plano não cobra nada.
 - **Status:** DONE
 - **Pendente com o dono:** a EV4 ("Marcar avaliação pelo evento") passa a marcar aula
   experimental ou exige converter o participante antes?
+
+### AP5 — Plano avulso tem uma única sessão
+
+- **Escopo (pedido do dono, 07/11/2026):** plano avulso é uma sessão de um serviço, no modelo e
+  na venda.
+  - Contratos: modelo (`planTemplateInputSchema`), venda (`patientPlanInputSchema`) e cadastro
+    guiado (avulso e avulso adicional) recusam avulso com mais de um serviço ou sessão.
+    Modelo antigo com várias sessões segue válido enquanto serviços e tipo não mudam (ativar,
+    desativar, renomear); `planPackageSessions` deixa de tratar avulso como pacote.
+  - Venda (`PlanForm`, `GuidedPlanFields`): sessões só leitura; avulso sai com 1 sessão pelo
+    preço por sessão do modelo (`planTemplateSaleServices`).
+  - Configurações › Planos: avulso sem campo "Sessões" nem "Adicionar serviço"; editar avulso
+    antigo de várias sessões avisa e salva com uma. Sem migração.
+- **Gate:** gate completo
+- **Depende de:** AP4
+- **Status:** DONE

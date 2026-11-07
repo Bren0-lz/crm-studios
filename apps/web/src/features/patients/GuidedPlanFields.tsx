@@ -4,7 +4,7 @@ import {
   planPeriodEnd,
   planPixChargeMessage,
   planPeriodMonths,
-  planServiceValueForSessions,
+  planTemplateSaleServices,
   type PlanTemplate,
   planTypeKind,
   type Service,
@@ -120,10 +120,8 @@ export function GuidedPlanFields<T extends GuidedSingleForm>({
         Configurações › Planos.
       </p>
     );
-  // Plano é fixo; só o avulso muda as sessões, com valor pelo preço por sessão.
-  const sessionsEditable = single || ("kind" in form && form.kind === "single");
-  const references =
-    templates.find((item) => item.id === form.planTemplateId)?.services ?? [];
+  // Sessões e valor seguem o plano cadastrado; o avulso é uma sessão.
+  const singleSale = single || ("kind" in form && form.kind === "single");
   return (
     <div className="form-grid">
       <label className={single ? "span-2" : undefined}>
@@ -139,8 +137,13 @@ export function GuidedPlanFields<T extends GuidedSingleForm>({
               ...form,
               planTemplateId: template?.id ?? "",
               name: template?.name ?? "",
-              services: template?.services.map((entry) => ({ ...entry })) ?? [],
-              totalValueInCents: template?.totalValueInCents ?? 0,
+              services: template ? planTemplateSaleServices(template) : [],
+              totalValueInCents: template
+                ? planTemplateSaleServices(template).reduce(
+                    (sum, item) => sum + item.totalValueInCents,
+                    0,
+                  )
+                : 0,
               // Valor novo: as formas picadas voltam a uma (a forma escolhida fica).
               paymentParts: undefined,
               ...("kind" in form
@@ -191,36 +194,8 @@ export function GuidedPlanFields<T extends GuidedSingleForm>({
               type="number"
               min="1"
               max="1000"
-              readOnly={!sessionsEditable}
+              readOnly
               value={entry.totalSessions}
-              onChange={(event) => {
-                const totalSessions = Number(event.target.value);
-                const reference = references.find(
-                  (item) => item.serviceId === entry.serviceId,
-                );
-                const entries = form.services.map((item, position) =>
-                  position === index
-                    ? {
-                        ...item,
-                        totalSessions,
-                        totalValueInCents: reference
-                          ? planServiceValueForSessions(
-                              reference,
-                              totalSessions,
-                            )
-                          : item.totalValueInCents,
-                      }
-                    : item,
-                );
-                setForm({
-                  ...form,
-                  services: entries,
-                  totalValueInCents: entries.reduce(
-                    (sum, item) => sum + item.totalValueInCents,
-                    0,
-                  ),
-                });
-              }}
             />
           </label>
           <label>
@@ -231,8 +206,8 @@ export function GuidedPlanFields<T extends GuidedSingleForm>({
             />
           </label>
           <p className="span-2 muted-copy">
-            {sessionsEditable
-              ? "Avulso: o valor é calculado pelo preço por sessão do plano."
+            {singleSale
+              ? "Avulso: uma sessão, pelo preço por sessão do plano."
               : "Sessões e valor seguem o plano cadastrado."}
           </p>
         </fieldset>

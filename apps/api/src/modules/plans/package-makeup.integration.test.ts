@@ -6,7 +6,7 @@ import {
 } from "../../test-support/legacy-fixtures.js";
 import "../../test-support/legacy-setup.js";
 
-describe("single package sold with fixed weekdays", () => {
+describe("fixed package sold with fixed weekdays", () => {
   it("books every Tuesday of the package and replaces only the missed session", async () => {
     const { app, token } = await authenticatedApp();
     const headers = { authorization: `Bearer ${token}` };
@@ -21,8 +21,8 @@ describe("single package sold with fixed weekdays", () => {
     const plan = await configuredPlan(app, {
       patientId: patients!.json()[0].id as string,
       serviceId,
-      name: "Pacote avulso 10 sessões",
-      kind: "single" as const,
+      name: "Pacote 10 sessões",
+      kind: "fixed_package" as const,
       totalSessions: 10,
       validFrom: "2039-03-01",
       totalValueInCents: 100_000,

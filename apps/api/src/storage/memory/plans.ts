@@ -4,6 +4,8 @@ import {
   planPaymentSummary,
   validityAfterPause,
   planTemplateInputSchema,
+  planTemplateStoredSchema,
+  planTemplateUpdateChangesTerms,
   type PatientPlan,
   type PatientPlanInput,
   type PlanCatalogEntry,
@@ -144,7 +146,10 @@ export function createPlansRepository(
         services: input.services ?? item.services,
       };
       if (merged.active || merged.services.length)
-        planTemplateInputSchema.parse(merged);
+        (planTemplateUpdateChangesTerms(input)
+          ? planTemplateInputSchema
+          : planTemplateStoredSchema
+        ).parse(merged);
       if (input.services || input.active)
         repositoryContext.assertTemplateServices(clinicId, merged.services);
       const previous = structuredClone(item);
