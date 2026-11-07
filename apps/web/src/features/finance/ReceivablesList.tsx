@@ -214,9 +214,9 @@ export function ReceivablesList({
           <div className="finance-row finance-head" aria-hidden="true">
             {canManage && <span />}
             <span>Cliente e plano</span>
-            <span>Vencimento</span>
-            <span className="finance-amount">Valor</span>
-            <span>Situação</span>
+            <span className="finance-col-center">Vencimento</span>
+            <span className="finance-amount finance-col-center">Valor</span>
+            <span className="finance-col-center">Situação</span>
             <span className="finance-actions">Ações</span>
           </div>
           {visible.map(({ item, situation }) => (
