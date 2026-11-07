@@ -106,23 +106,138 @@
 }
 
 /* Serviço de um modelo de plano: serviço na linha de cima, sessões e valor lado a lado
-   abaixo. "+ Novo serviço" é opção do próprio select; a lixeira fica na borda superior,
-   espelhando a legenda. */
-.settings-modal fieldset.plan-template-service {
+   abaixo. A lixeira fica na linha do rótulo "Serviço", à direita. */
+.settings-modal .form-grid.plan-template-service-fields {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: end;
+  gap: var(--space-3);
+}
+/* Seletor de serviço com busca: lista flutuante (position: fixed, posição calculada no
+   componente) e "+ Novo serviço" fixo no rodapé, fora da área que rola. */
+.service-picker {
+  display: grid;
+  gap: calc(var(--space-2) - 1px);
+  min-width: 0;
+}
+.service-picker-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  min-height: var(--space-6);
+}
+.service-picker-head > label {
+  display: block;
+  color: #4d5b55;
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+.service-picker:has(input:required) .service-picker-head > label::after {
+  content: "*" / "";
+  margin-left: var(--space-1);
+  color: #b44d36;
+}
+.service-picker-field {
   position: relative;
 }
-.icon-button.plan-template-service-remove {
+.service-picker-field > input {
+  width: 100%;
+  padding-right: calc(var(--space-7) + var(--space-1));
+  cursor: pointer;
+}
+.service-picker-field > input:focus {
+  cursor: text;
+}
+.service-picker-field > svg {
   position: absolute;
-  top: 0;
-  right: var(--space-3);
+  top: 50%;
+  right: var(--space-4);
+  color: var(--muted);
+  pointer-events: none;
+  transform: translateY(-50%);
+  transition: transform 0.15s;
+}
+.service-picker-field > input[aria-expanded="true"] + svg {
+  transform: translateY(-50%) rotate(180deg);
+}
+.service-picker-panel {
+  position: fixed;
+  top: var(--service-picker-top);
+  left: var(--service-picker-left);
+  z-index: 120;
+  display: flex;
+  flex-direction: column;
+  width: var(--service-picker-width);
+  max-height: min(calc(var(--space-8) * 5), var(--service-picker-max-height));
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--paper);
+  box-shadow: var(--shadow);
+}
+.service-picker-panel ul {
+  min-height: 0;
+  margin: 0;
+  padding: var(--space-1);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  list-style: none;
+}
+.service-picker-panel li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  box-sizing: border-box;
+  min-height: calc(var(--space-7) + var(--space-1));
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-md);
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+.service-picker-panel li:hover:not([aria-disabled="true"]),
+.service-picker-panel li.active {
+  background: var(--mint);
+}
+.service-picker-panel li[aria-selected="true"] {
+  color: var(--green-2);
+  font-weight: 600;
+}
+.service-picker-panel li[aria-disabled="true"] {
+  color: var(--muted);
+  cursor: not-allowed;
+}
+.service-picker-panel li small {
+  flex-shrink: 0;
+  color: var(--muted);
+  font-size: var(--text-xs);
+  font-weight: 400;
+}
+.service-picker-panel > p {
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+.service-picker-footer {
+  flex-shrink: 0;
+  padding: var(--space-2);
+  border-top: 1px solid var(--line);
+  background: var(--paper);
+}
+.service-picker-footer > button {
+  justify-content: center;
+  width: 100%;
+}
+.icon-button.plan-template-service-remove {
   min-width: var(--space-6);
   min-height: var(--space-6);
   padding: 0;
   border-color: var(--line);
   border-radius: var(--radius-sm);
-  background: var(--paper);
+  background: white;
   color: var(--muted);
-  transform: translateY(-50%);
   transition:
     background 0.15s,
     border-color 0.15s,
@@ -137,11 +252,6 @@
 .icon-button.plan-template-service-remove:disabled {
   opacity: 0.45;
   cursor: not-allowed;
-}
-.settings-modal .form-grid.plan-template-service-fields {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  align-items: end;
-  gap: var(--space-3);
 }
 .plan-template-service-fields > label {
   min-width: 0;

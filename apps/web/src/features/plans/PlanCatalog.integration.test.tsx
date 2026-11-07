@@ -18,6 +18,7 @@ import {
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import App from "../../App";
+import { chooseService } from "../../test-support/workflow-ui";
 import { api } from "../../api";
 const serviceId = "77777777-7777-4777-8777-777777777777";
 const template: PlanTemplate = {
@@ -106,9 +107,7 @@ describe("plan types and weekly sessions", () => {
     fireEvent.change(within(dialog).getByLabelText("Nome do plano"), {
       target: { value: template.name },
     });
-    fireEvent.change(within(dialog).getByLabelText("Serviço 1"), {
-      target: { value: serviceId },
-    });
+    chooseService(dialog, "Serviço 1", "Dançaterapia");
     fireEvent.change(
       within(dialog).getByLabelText("Sessões por semana do serviço 1"),
       { target: { value: "2" } },

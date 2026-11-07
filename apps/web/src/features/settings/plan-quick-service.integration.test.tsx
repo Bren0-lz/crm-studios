@@ -18,11 +18,16 @@ describe("serviço cadastrado pelo plano", () => {
     fill(plan, "Nome do plano", "Reformer avulso");
     fill(plan, "Tipo de plano", "single");
     fill(plan, "Valor total", "90,00");
-    // "+ Novo serviço" é uma opção do próprio campo Serviço, não um botão solto no modal.
+    // "Novo serviço" fica dentro da lista do campo Serviço, não solto no modal.
     expect(
-      within(plan).queryByRole("button", { name: /Novo serviço/ }),
+      within(plan).queryByRole("button", { name: "Novo serviço" }),
     ).not.toBeInTheDocument();
-    fill(plan, "Serviço 1", "__create__");
+    const field = within(plan).getByRole("combobox", { name: "Serviço 1" });
+    fireEvent.focus(field);
+    // A busca filtra a lista e o "Novo serviço" continua visível, mesmo sem resultado.
+    fireEvent.change(field, { target: { value: "zzz-inexistente" } });
+    expect(within(plan).getByText("Nenhum serviço encontrado.")).toBeVisible();
+    fireEvent.click(within(plan).getByRole("button", { name: "Novo serviço" }));
 
     const quick = screen.getByRole("dialog", { name: "Novo serviço" });
     fill(quick, "Nome do serviço", "Reformer");
@@ -43,7 +48,9 @@ describe("serviço cadastrado pelo plano", () => {
       (item) => item.name === "Reformer",
     )!;
     expect(created).toMatchObject({ durationMinutes: 50 });
-    expect(within(plan).getByLabelText("Serviço 1")).toHaveValue(created.id);
+    expect(
+      within(plan).getByRole("combobox", { name: "Serviço 1" }),
+    ).toHaveValue("Reformer");
     // Serviço não gera plano avulso sozinho: o valor é o do plano que está sendo cadastrado.
     expect(
       (await repository.listPlanTemplates(clinicId)).filter(
