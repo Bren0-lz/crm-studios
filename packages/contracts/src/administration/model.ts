@@ -260,8 +260,8 @@ export const clinicSettingsInputSchema = z.object({
     .optional()
     .or(z.literal("")),
   /**
-   * Aviso de recibos não assinados no sino (RC5); ausente = mantém o gravado (ou o padrão
-   * `defaultReceiptReminderSettings`, se nunca foi configurado).
+   * Periodicidade legada, preservada para compatibilidade; ausente mantém o gravado.
+   * Não controla o sino e a faixa: recibos pendentes aparecem imediatamente (RC6).
    */
   receiptReminder: receiptReminderSettingsSchema.optional(),
   timezone: z

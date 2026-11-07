@@ -116,19 +116,16 @@ for (const storage of ["memory", "mysql"] as const) {
         const studio = await repository.createService(clinicId, {
           name: `Pilates ${randomUUID().slice(0, 6)}`,
           durationMinutes: 50,
-          priceInCents: 9_000,
           businessLine: "studio",
         });
         const laser = await repository.createService(clinicId, {
           name: `Laser ${randomUUID().slice(0, 6)}`,
           durationMinutes: 30,
-          priceInCents: 15_000,
           businessLine: "aesthetics",
         });
         const massage = await repository.createService(clinicId, {
           name: `Massagem ${randomUUID().slice(0, 6)}`,
           durationMinutes: 60,
-          priceInCents: 12_000,
         });
 
         // Comanda antiga com atendimento (serviço sem classificação) e produto de Estética,
@@ -216,7 +213,6 @@ for (const storage of ["memory", "mysql"] as const) {
             data: {
               name: laser.name,
               durationMinutes: 30,
-              priceInCents: 15_000,
               active: false,
             },
           },

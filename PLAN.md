@@ -901,7 +901,7 @@ atualizado no mesmo PR):
   marcado no código como pendente).
 - **Gate:** gate completo
 - **Depende de:** RC5
-- **Status:** BLOCKED
+- **Status:** DOING (regra imediata definida pelo dono; validação geral bloqueada por duas migrações 0052 já na main)
 
 ### TG1 — Cliente do Telegram, configuração e vínculo
 

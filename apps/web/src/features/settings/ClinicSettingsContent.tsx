@@ -5,12 +5,7 @@ import {
   paymentReceiptMessageVariables,
   pixMessageVariables,
   planPixChargeMessage,
-  receiptReminderFrequencies,
-  receiptReminderFrequencyLabels,
-  receiptReminderWeekdayLabels,
-  resolveReceiptReminderSettings,
   type ClinicSettings,
-  type ReceiptReminderSettings,
 } from "@crm/contracts";
 import {
   Building2,
@@ -47,23 +42,6 @@ export function ClinicSettingsContent() {
     savedSettings !== null &&
     JSON.stringify(settings) !== JSON.stringify(savedSettings);
   useSettingsBusy(saving);
-  const receiptReminder = resolveReceiptReminderSettings(
-    settings?.receiptReminder,
-  );
-  function changeReceiptReminder(change: Partial<ReceiptReminderSettings>) {
-    setSettings((current) =>
-      current
-        ? {
-            ...current,
-            receiptReminder: {
-              ...resolveReceiptReminderSettings(current.receiptReminder),
-              ...change,
-            },
-          }
-        : current,
-    );
-    setNotice("");
-  }
   useEffect(() => {
     let active = true;
     api
@@ -417,84 +395,12 @@ export function ClinicSettingsContent() {
                   })}`}
                 </small>
               </div>
-              <label>
-                Aviso de recibos não assinados
-                <select
-                  value={receiptReminder.frequency}
-                  aria-describedby="clinic-receipt-reminder-help"
-                  onChange={(event) =>
-                    changeReceiptReminder({
-                      frequency: event.target
-                        .value as ReceiptReminderSettings["frequency"],
-                    })
-                  }
-                >
-                  {receiptReminderFrequencies.map((frequency) => (
-                    <option key={frequency} value={frequency}>
-                      {receiptReminderFrequencyLabels[frequency]}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              {receiptReminder.frequency === "weekly" && (
-                <label>
-                  Dia do aviso
-                  <select
-                    value={receiptReminder.weekday}
-                    onChange={(event) =>
-                      changeReceiptReminder({
-                        weekday: Number(event.target.value),
-                      })
-                    }
-                  >
-                    {receiptReminderWeekdayLabels.map((label, weekday) => (
-                      <option key={label} value={weekday}>
-                        {label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              )}
-              {receiptReminder.frequency !== "off" && (
-                <>
-                  <label>
-                    Horário do aviso
-                    <input
-                      type="time"
-                      required
-                      value={receiptReminder.time}
-                      onChange={(event) =>
-                        changeReceiptReminder({ time: event.target.value })
-                      }
-                    />
-                  </label>
-                  <label>
-                    Sem assinatura há mais de (horas)
-                    <input
-                      type="number"
-                      inputMode="numeric"
-                      required
-                      min={1}
-                      max={720}
-                      step={1}
-                      value={receiptReminder.afterHours || ""}
-                      onChange={(event) =>
-                        changeReceiptReminder({
-                          afterHours: Number(event.target.value),
-                        })
-                      }
-                    />
-                  </label>
-                </>
-              )}
-              <small
-                id="clinic-receipt-reminder-help"
-                className="field-hint span-2"
-              >
-                {receiptReminder.frequency === "off"
-                  ? "Desligado: o sino e a faixa de alertas não avisam sobre recibos sem assinatura."
-                  : "Do horário escolhido até o fim do dia, o sino e a faixa de alertas mostram quantos clientes receberam o recibo e ainda não assinaram."}
-              </small>
+              <p className="field-hint span-2">
+                O sino e a faixa de alertas mostram quantos clientes têm recibos
+                pendentes de assinatura assim que o recibo é gerado, sem prazo
+                mínimo ou horário. Cada cliente conta uma vez, mesmo com vários
+                recibos pendentes.
+              </p>
             </div>
           </fieldset>
           {notice && (
