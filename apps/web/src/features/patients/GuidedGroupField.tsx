@@ -111,7 +111,7 @@ export function GuidedGroupField({
             title="Turma cheia"
             subtitle="Deseja colocar o cliente na lista de espera desta turma?"
             confirmLabel="Sim, colocar na lista de espera"
-            effect="A inclusão será feita ao concluir o cadastro. Quando surgir uma vaga, a equipe será avisada para entrar em contato."
+            effect="Ao concluir o cadastro, o cliente entra na Lista de espera do serviço, sem plano, cobrança nem contrato. Quando abrir vaga, a matrícula e o pagamento são feitos pela Lista de espera."
             onClose={() => setPendingGroup(null)}
             onConfirm={async () => {
               onChange(pendingGroup);

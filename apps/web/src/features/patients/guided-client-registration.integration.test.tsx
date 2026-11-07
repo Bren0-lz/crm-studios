@@ -499,31 +499,53 @@ describe("guided client registration", () => {
   it("subscribes a group class plan with a required class of the same service and warns about the waiting list", async () => {
     const posts = mockApi((body) =>
       jsonResponse(
-        {
-          patient: created,
-          plan: {
-            id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
-            patientId: created.id,
-            patientName: created.fullName,
-            serviceName: "Pilates",
-            ...(body.plan as object),
-            status: "active",
-            remainingSessions: 8,
-          },
-          enrollment: body.groupId
-            ? {
-                id: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
-                clinicId: created.clinicId,
-                groupId: body.groupId,
+        body.next === "waitlist"
+          ? {
+              patient: created,
+              waitlistEntries: [
+                {
+                  id: "ffffffff-ffff-4fff-8fff-ffffffffffff",
+                  clinicId: created.clinicId,
+                  patientId: created.id,
+                  patientName: created.fullName,
+                  patientPhone: created.phone,
+                  kind: "service",
+                  serviceId: pilatesId,
+                  productId: null,
+                  itemName: "Pilates",
+                  status: "waiting",
+                  notes: "Turma desejada: Pilates 2",
+                  createdAt: "2026-10-04T12:00:00.000Z",
+                  updatedAt: "2026-10-04T12:00:00.000Z",
+                  resolvedAt: null,
+                },
+              ],
+            }
+          : {
+              patient: created,
+              plan: {
+                id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
                 patientId: created.id,
                 patientName: created.fullName,
-                status: "waitlisted",
-                queuePosition: 2,
-                enrolledAt: "2026-10-04T12:00:00.000Z",
-                updatedAt: "2026-10-04T12:00:00.000Z",
-              }
-            : undefined,
-        },
+                serviceName: "Pilates",
+                ...(body.plan as object),
+                status: "active",
+                remainingSessions: 8,
+              },
+              enrollment: body.groupId
+                ? {
+                    id: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+                    clinicId: created.clinicId,
+                    groupId: body.groupId,
+                    patientId: created.id,
+                    patientName: created.fullName,
+                    status: "waitlisted",
+                    queuePosition: 2,
+                    enrolledAt: "2026-10-04T12:00:00.000Z",
+                    updatedAt: "2026-10-04T12:00:00.000Z",
+                  }
+                : undefined,
+            },
         201,
       ),
     );
@@ -544,6 +566,13 @@ describe("guided client registration", () => {
     // V7: o bloco de cada serviço do plano usa a borda e o raio do padrão.
     for (const group of dialog.querySelectorAll("fieldset fieldset"))
       expect(group).toHaveClass("form-fieldset");
+    // Plano é fixo: sessões e valor vêm do plano cadastrado.
+    expect(
+      within(dialog).getByLabelText("Sessões do serviço 1"),
+    ).toHaveAttribute("readonly");
+    expect(within(dialog).getByLabelText("Valor do serviço 1")).toHaveAttribute(
+      "readonly",
+    );
     const turma = await within(dialog).findByLabelText("Turma");
     expect(turma).toHaveValue("");
     expect(turma).toBeRequired();
@@ -587,13 +616,21 @@ describe("guided client registration", () => {
         .map((item) => item.textContent),
     ).toEqual(["Segunda-feira08:00 às 09:00"]);
     expect(within(details).getByText(/^Turma cheia/)).toBeInTheDocument();
-    // Plano é fixo: sessões e valor vêm do plano cadastrado.
+    // TW3: turma cheia não vende plano: some pagamento, valores e datas.
     expect(
-      within(dialog).getByLabelText("Sessões do serviço 1"),
-    ).toHaveAttribute("readonly");
-    expect(within(dialog).getByLabelText("Valor do serviço 1")).toHaveAttribute(
-      "readonly",
-    );
+      within(dialog).getByText(
+        /^Turma cheia: o cliente vai para a Lista de espera/,
+      ),
+    ).toBeInTheDocument();
+    expect(
+      within(dialog).queryByLabelText("Sessões do serviço 1"),
+    ).not.toBeInTheDocument();
+    expect(
+      within(dialog).queryByLabelText("Primeiro vencimento"),
+    ).not.toBeInTheDocument();
+    expect(
+      within(dialog).queryByLabelText("Forma de pagamento"),
+    ).not.toBeInTheDocument();
     // Trocar o plano limpa a turma escolhida (ela é de outro serviço).
     fireEvent.change(catalog, { target: { value: physioTemplate.id } });
     expect(within(dialog).getByLabelText("Turma")).toHaveValue("");
@@ -608,28 +645,22 @@ describe("guided client registration", () => {
       screen.getByRole("button", { name: "Sim, colocar na lista de espera" }),
     );
     fireEvent.click(
-      within(dialog).getByRole("button", { name: "Salvar e criar plano" }),
+      within(dialog).getByRole("button", {
+        name: "Salvar e colocar na lista de espera",
+      }),
     );
     expect(
       await screen.findByText(
-        /A turma Pilates 2 está cheia: o cliente entrou na lista de espera \(posição 2\)/,
+        /Turma cheia: o cliente entrou na Lista de espera de Pilates, sem plano nem cobrança\./,
       ),
     ).toBeInTheDocument();
     expect(
       screen.queryByRole("dialog", { name: "Cliente cadastrado" }),
     ).not.toBeInTheDocument();
-    expect(posts[0]).toMatchObject({
-      next: "plan",
-      groupId: groups[1]!.id,
-      plan: {
-        planTemplateId: pilatesTemplate.id,
-        kind: "fixed_package",
-        name: "Pilates 2x semana",
-        services: [
-          { serviceId: pilatesId, totalSessions: 8, totalValueInCents: 48000 },
-        ],
-        totalValueInCents: 48000,
-      },
+    expect(posts[0]).toEqual({
+      next: "waitlist",
+      patient: expect.objectContaining({ fullName: expect.any(String) }),
+      waitlist: [{ serviceId: pilatesId, groupId: groups[1]!.id }],
     });
   });
 

@@ -2,6 +2,7 @@ import type {
   GuidedPatientInput,
   GuidedPatientResult,
   Patient,
+  WaitlistEntry,
 } from "@crm/contracts";
 
 type GuidedPlanStep = Extract<GuidedPatientInput, { next: "plan" }>;
@@ -27,11 +28,20 @@ export function guidedPlansResult(
   patient: Patient,
   created: CreatedGuidedPlan[],
   input: GuidedPlanStep,
+  waitlistEntries: WaitlistEntry[] = [],
 ): GuidedPatientResult {
   const [first, ...rest] = created;
   return {
     patient,
     ...first,
     ...(input.additionalPlans?.length ? { additionalPlans: rest } : {}),
+    ...(waitlistEntries.length ? { waitlistEntries } : {}),
   };
+}
+
+/** Serviços de turma cheia do cadastro guiado que vão para a Lista de espera (TW3). */
+export function guidedWaitlist(input: GuidedPatientInput) {
+  return input.next === "plan" || input.next === "waitlist"
+    ? (input.waitlist ?? [])
+    : [];
 }

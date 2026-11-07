@@ -3,6 +3,7 @@ import type { MysqlRepositoryContext } from "./context.js";
 import { DomainError } from "../../repository.js";
 import {
   purchaseFingerprint,
+  assertPlanEnrollmentSeat,
   validatePurchaseSchedule,
 } from "../../modules/plans/purchase.js";
 import { assertDocumentPatientCpf } from "../../modules/contracts/patient-cpf.js";
@@ -124,6 +125,8 @@ export function createPlanPurchasesRepository(context: MysqlRepositoryContext) {
                 patientId: plan.patientId,
               })
             : undefined;
+        // Sem vaga confirmada na turma não há venda (TW3): desfaz plano e matrícula.
+        assertPlanEnrollmentSeat(enrollment);
         let document = input.document
           ? await createIssuedDocumentInTransaction(
               context,

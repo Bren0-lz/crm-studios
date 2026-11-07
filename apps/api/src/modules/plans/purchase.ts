@@ -56,3 +56,19 @@ export function validatePurchaseSchedule(
       );
   }
 }
+
+/**
+ * Venda de plano com turma (cadastro guiado e contratação) só com vaga confirmada (TW3): turma
+ * cheia não gera plano, cobrança nem contrato — o cliente vai para a Lista de espera do serviço.
+ * Chamado dentro da transação, depois da matrícula, para desfazer tudo se ela ficou na espera.
+ */
+export function assertPlanEnrollmentSeat(
+  enrollment: { status: string } | undefined,
+) {
+  if (enrollment?.status === "waitlisted")
+    throw new DomainError(
+      "GROUP_FULL",
+      "A turma está cheia: coloque o cliente na lista de espera.",
+      409,
+    );
+}

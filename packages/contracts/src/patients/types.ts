@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { Appointment, GroupEnrollment } from "../agenda/types.js";
 import type { BroadcastSkipReason } from "../communications/types.js";
 import type { PatientPlan } from "../plans/types.js";
+import type { WaitlistEntry } from "../waitlist/types.js";
 import {
   clientAgeBandSchema,
   guidedPatientInputSchema,
@@ -70,6 +71,8 @@ export interface GuidedPatientResult {
   enrollment?: GroupEnrollment;
   /** Demais planos de `additionalPlans`, na mesma ordem, cada um com a sua matrícula. */
   additionalPlans?: { plan: PatientPlan; enrollment?: GroupEnrollment }[];
+  /** Entradas da Lista de espera criadas para os serviços de turma cheia (TW3). */
+  waitlistEntries?: WaitlistEntry[];
 }
 
 export type PatientListQuery = z.infer<typeof patientListQuerySchema>;

@@ -87,7 +87,8 @@ export function PlanGroupPicker({
       {selected && <GroupDetails group={selected} />}
       {selected && selected.activeEnrollments >= selected.capacity && (
         <p className="muted-copy">
-          Esta turma está cheia. O cliente será incluído na lista de espera.
+          Esta turma está cheia. O cliente será incluído na Lista de espera do
+          serviço.
         </p>
       )}
       <p className="field-hint">
@@ -101,7 +102,7 @@ export function PlanGroupPicker({
             eyebrow="Lista de espera"
             title="Turma cheia"
             subtitle="Deseja colocar o cliente na lista de espera desta turma?"
-            effect="A inclusão será feita ao concluir o cadastro. Quando surgir uma vaga, a equipe será avisada para entrar em contato."
+            effect="O plano não é vendido: o cliente entra na Lista de espera do serviço, sem forma de pagamento nem contrato. Quando abrir vaga, a matrícula e o pagamento são feitos pela Lista de espera."
             confirmLabel="Sim, colocar na lista de espera"
             onClose={() => setPendingGroup(null)}
             onConfirm={async () => {

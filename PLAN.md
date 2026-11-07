@@ -695,6 +695,25 @@ atualizado no mesmo PR):
 - **Depende de:** TW1
 - **Status:** DONE (oferta de vaga aprovada pelo dono; cobrança/validade mantidas)
 
+### TW3 — Turma cheia vai para a Lista de espera; matrícula pela lista
+
+- **Origem:** pedido do dono (07/11/2026). Decisões: turma cheia não vende plano (sem forma de
+  pagamento nem contrato), no cadastro guiado e no Novo plano; serviço sem turma segue vendendo;
+  quando abrir vaga, a equipe matricula pela Lista de espera, registra o pagamento e envia o
+  contrato (sem portal do cliente).
+- **Escopo:**
+  - Contratos: `next: "waitlist"` e `waitlist` no passo `plan` do cadastro guiado
+    (`serviceId` + turma desejada), `waitlistEntries` na resposta, nota "Turma desejada: …".
+  - API: venda de plano com turma sem vaga (guiado e contratação) → 409 `GROUP_FULL`, tudo
+    desfeito; o guiado grava as entradas da Lista de espera na mesma transação (memória e MySQL).
+  - Web: cadastro guiado e Novo plano escondem pagamento/contrato com turma cheia e colocam o
+    cliente na Lista de espera; o modal da Lista de espera matricula numa turma com vaga, abre o
+    Novo plano com a turma escolhida (pagamento, contrato e link de assinatura) e marca a entrada
+    como atendida.
+- **Gate:** gate completo e `npm run test:mysql`
+- **Depende de:** TW2
+- **Status:** DONE
+
 ### SS1 — Rótulos claros dos dias fixos e do horário indisponível
 
 - **Origem:** B1-03 e B1-04.

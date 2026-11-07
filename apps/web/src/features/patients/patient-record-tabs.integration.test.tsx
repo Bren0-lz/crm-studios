@@ -531,7 +531,7 @@ describe("client record", () => {
     );
   });
 
-  it("warns when the plan's group is full and the client went to the waitlist", async () => {
+  it("puts the client on the service waitlist without a plan when the group is full (TW3)", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
     localStorage.setItem(
       "crm.auth.user",
@@ -581,8 +581,24 @@ describe("client record", () => {
       createdAt: "2026-01-01T12:00:00.000Z",
     };
     const purchases: Record<string, unknown>[] = [];
+    const waitlisted: Record<string, unknown>[] = [];
     vi.mocked(fetch).mockImplementation(async (input, init) => {
       const url = String(input);
+      if (init?.method === "POST" && url.endsWith("/waitlist")) {
+        const body = JSON.parse(String(init.body)) as Record<string, unknown>;
+        waitlisted.push(body);
+        return {
+          ok: true,
+          status: 201,
+          json: async () => ({
+            ...body,
+            id: "ff000000-0000-4000-8000-000000000001",
+            patientName: patient.fullName,
+            itemName: "Pilates",
+            status: "waiting",
+          }),
+        } as Response;
+      }
       if (init?.method === "POST" && url.endsWith("/plans/purchases")) {
         const body = JSON.parse(String(init.body)) as Record<string, unknown>;
         purchases.push(body);
@@ -654,15 +670,24 @@ describe("client record", () => {
     );
     expect(
       within(dialog).getByText(
-        "Esta turma está cheia. O cliente será incluído na lista de espera.",
+        "Esta turma está cheia. O cliente será incluído na Lista de espera do serviço.",
       ),
     ).toBeInTheDocument();
     fireEvent.click(
-      within(dialog).getByRole("button", { name: "Criar plano e parcelas" }),
+      within(dialog).getByRole("button", {
+        name: "Colocar na lista de espera",
+      }),
     );
-    await waitFor(() => expect(purchases).toHaveLength(1));
+    await waitFor(() => expect(waitlisted).toHaveLength(1));
+    expect(waitlisted[0]).toEqual({
+      patientId: patient.id,
+      kind: "service",
+      serviceId,
+      notes: "Turma desejada: Pilates 01",
+    });
+    expect(purchases).toEqual([]);
     const toast = await screen.findByText(
-      "Plano Pilates mensal vinculado. Turma cheia: Helena entrou na lista de espera de Pilates 01 (posição 2).",
+      "Turma cheia: Helena entrou na Lista de espera de Pilates, sem plano nem cobrança.",
     );
     expect(toast.closest(".toast")).toHaveClass("toast-success");
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();

@@ -345,6 +345,10 @@ export function PlansPage({ canManage }: { canManage: boolean }) {
             replacePlan(plan);
             setModalOpen(false);
           }}
+          onWaitlisted={(message) => {
+            toast.success(message);
+            setModalOpen(false);
+          }}
         />
       )}
       {renewingPlan && (

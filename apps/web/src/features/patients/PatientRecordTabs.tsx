@@ -657,6 +657,10 @@ export function PatientRecordTabs({
                 : `Plano ${plan.name} vinculado.`,
             );
           }}
+          onWaitlisted={(message) => {
+            setNewPlanKind(null);
+            toast.success(message);
+          }}
         />
       )}
       {cancellingPlan && (

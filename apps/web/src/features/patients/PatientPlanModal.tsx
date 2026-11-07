@@ -21,7 +21,11 @@ import {
   useSignatureTemplates,
   type SignatureRequest,
 } from "../contracts/index";
-import { PlanForm, type PlanCatalogKind } from "../plans/index";
+import {
+  addToServiceWaitlist,
+  PlanForm,
+  type PlanCatalogKind,
+} from "../plans/index";
 import {
   PlanPurchaseOptions,
   PlanSessionsSentStep,
@@ -37,8 +41,11 @@ export function PatientPlanModal({
   kind,
   initialTemplateId,
   scheduleSessions = true,
+  initialServiceId,
+  initialGroupId,
   onClose,
   onSaved,
+  onWaitlisted,
 }: {
   patient: PatientOption;
   kind: PlanCatalogKind;
@@ -49,9 +56,14 @@ export function PatientPlanModal({
    * próprio agendamento, que marca o atendimento depois.
    */
   scheduleSessions?: boolean | undefined;
+  /** Matrícula pela Lista de espera: só planos do serviço, com a turma já escolhida. */
+  initialServiceId?: string | undefined;
+  initialGroupId?: string | undefined;
   onClose: () => void;
   /** `notice`: aviso da matrícula na turma (vaga confirmada ou lista de espera). */
   onSaved: (plan: PatientPlan, notice?: string) => void;
+  /** Turma cheia (TW3): o cliente foi para a Lista de espera, sem plano; `message` é o aviso. */
+  onWaitlisted?: ((message: string) => void) | undefined;
 }) {
   const [busy, setBusy] = useState(false);
   const [nested, setNested] = useState(false);
@@ -135,6 +147,14 @@ export function PatientPlanModal({
           services={services}
           catalogKind={kind}
           initialTemplateId={initialTemplateId}
+          initialServiceId={initialServiceId}
+          initialGroupId={initialGroupId}
+          onWaitlist={
+            onWaitlisted
+              ? async (entry) =>
+                  onWaitlisted(await addToServiceWaitlist(entry, groups))
+              : undefined
+          }
           groups={groups}
           onCancel={onClose}
           onBusyChange={setBusy}

@@ -81,6 +81,7 @@ import {
   defaultGuidedDemonstration,
   defaultGuidedPlanEntry,
   defaultSingleForm,
+  guidedGroupFull,
   guidedNotice,
   guidedPlanKinds,
   guidedStepOrder,
@@ -231,12 +232,24 @@ export function PatientModal({
   }
   // Serviços avulsos adicionados (sozinhos ou junto com os planos).
   const [singles, setSingles] = useState<GuidedSingleEntry[]>([]);
+  // Turmas carregadas uma vez (sobrevivem à troca de opção); `null` enquanto não buscadas.
+  const [groups, setGroups] = useState<GroupClass[] | null>(null);
+  // Turma cheia (TW3): o plano não é vendido; o cliente vai para a Lista de espera do serviço.
+  const soldPlans = plans.filter(
+    (entry) => !guidedGroupFull(groups, entry.groupId),
+  );
+  const waitlistPlans = plans.filter((entry) =>
+    guidedGroupFull(groups, entry.groupId),
+  );
   // Próximo passo enviado à API, derivado do que foi adicionado: um avulso sozinho é
-  // `single`; planos (com ou sem avulsos) são `plan`; nada (ou só produtos) é `none`.
+  // `single`; planos (com ou sem avulsos) são `plan`; só turmas cheias é `waitlist`; nada (ou
+  // só produtos) é `none`.
   const step: GuidedPatientNext = demonstrationAdded
     ? "demonstration"
     : plans.length
-      ? "plan"
+      ? soldPlans.length || singles.length
+        ? "plan"
+        : "waitlist"
       : singles.length === 1
         ? "single"
         : singles.length
@@ -344,8 +357,6 @@ export function PatientModal({
     result: PatientRegistrationResult;
     message: string;
   } | null>(null);
-  // Turmas carregadas uma vez (sobrevivem à troca de opção); `null` enquanto não buscadas.
-  const [groups, setGroups] = useState<GroupClass[] | null>(null);
   /** Horários da turma escolhida: base do 1º pagamento proporcional do plano. */
   const slotsOf = (groupId: string) =>
     groups?.find((group) => group.id === groupId)?.weeklySlots;
@@ -371,12 +382,18 @@ export function PatientModal({
   // Produtos vendidos depois do cadastro, junto com o que mais foi adicionado.
   const soldProducts = productLines.filter((line) => productOf(line.productId));
   const orderPlans: (OrderPlanItem & { form: GuidedSingleForm })[] = [
-    ...plans.map((entry, index) => ({
-      key: `plan-${entry.id}`,
-      label: planLabel(index),
-      form: entry.form,
-      terms: withPlanFirstCharge(entry.form, slotsOf(entry.groupId)),
-    })),
+    ...plans.flatMap((entry, index) =>
+      soldPlans.includes(entry)
+        ? [
+            {
+              key: `plan-${entry.id}`,
+              label: planLabel(index),
+              form: entry.form,
+              terms: withPlanFirstCharge(entry.form, slotsOf(entry.groupId)),
+            },
+          ]
+        : [],
+    ),
     ...singles.map((entry, index) => ({
       key: `plan-${entry.id}`,
       label: singleLabel(index),
@@ -472,8 +489,13 @@ export function PatientModal({
       : []),
     ...plans.flatMap(({ form: plan, groupId }, index) =>
       [
-        ...missingPlanFields(plan),
-        ...(groupMissing(plan, groupId) ? ["Turma"] : []),
+        // Na Lista de espera não há pagamento: basta o plano (o serviço) e a turma.
+        ...(guidedGroupFull(groups, groupId)
+          ? []
+          : [
+              ...missingPlanFields(plan),
+              ...(groupMissing(plan, groupId) ? ["Turma"] : []),
+            ]),
       ].map((item) =>
         plans.length > 1 ? `${planLabel(index)}: ${item}` : item,
       ),
@@ -483,6 +505,10 @@ export function PatientModal({
         step === "single" ? item : `${singleLabel(index)}: ${item}`,
       ),
     ),
+    // Avulso precisa de um plano vendido junto; turma cheia não conta como plano (TW3).
+    ...(plans.length && !soldPlans.length && singles.length
+      ? ["Plano com vaga na turma (para vender o serviço avulso)"]
+      : []),
     // A API só junta vários avulsos quando há um plano principal.
     ...(!plans.length && singles.length > 1
       ? ["Plano (para vender mais de um serviço avulso)"]
@@ -529,15 +555,24 @@ export function PatientModal({
         patient: form,
         plan: withOrderShare(singles[0]!.form, `plan-${singles[0]!.id}`),
       };
-    if (step === "plan" && !plans.length)
-      return "Para vender mais de um serviço avulso, adicione também um plano.";
+    // Turma cheia: só a Lista de espera do serviço da turma, sem plano nem cobrança (TW3).
+    const waitlist = waitlistPlans.map((entry) => ({
+      serviceId: groups!.find((group) => group.id === entry.groupId)!.serviceId,
+      groupId: entry.groupId,
+    }));
+    if (step === "waitlist")
+      return { next: "waitlist", patient: form, waitlist };
+    if (step === "plan" && !soldPlans.length)
+      return plans.length
+        ? "Com a turma cheia, o plano não é vendido: venda o serviço avulso junto de um plano com vaga ou depois do cadastro."
+        : "Para vender mais de um serviço avulso, adicione também um plano.";
     if (step === "plan") {
       if (plans.some((entry) => groupMissing(entry.form, entry.groupId)))
         return "Selecione a turma do plano de aulas em grupo.";
       const groupIds = plans.map((entry) => entry.groupId).filter(Boolean);
       if (new Set(groupIds).size !== groupIds.length)
         return "A mesma turma foi escolhida em mais de um plano.";
-      const [first, ...rest] = plans;
+      const [first, ...rest] = soldPlans;
       return {
         next: "plan",
         patient: form,
@@ -565,6 +600,7 @@ export function PatientModal({
               ],
             }
           : {}),
+        ...(waitlist.length ? { waitlist } : {}),
       };
     }
     return { next: "none", patient: form };
@@ -1161,6 +1197,7 @@ export function PatientModal({
                   setForm={planFormSetter(entry.id)}
                   onServiceChange={() => updatePlan(entry.id, { groupId: "" })}
                   groupSlots={slotsOf(entry.groupId)}
+                  waitlisted={guidedGroupFull(groups, entry.groupId)}
                   patientName={form.fullName}
                   pixKey={pixKey}
                   pixTemplate={pixTemplate}
@@ -1206,19 +1243,20 @@ export function PatientModal({
                     setGroups={setGroups}
                   />
                 </GuidedPlanFields>
-                {entry.form.planTemplateId && (
-                  <PlanDiscountSummary
-                    discount={entry.form.discount}
-                    emptyLabel="Sem desconto neste plano."
-                    disabled={!editable || loading}
-                    onEdit={() =>
-                      editDiscount(
-                        entry.form.discount,
-                        planFormSetter(entry.id),
-                      )
-                    }
-                  />
-                )}
+                {entry.form.planTemplateId &&
+                  !guidedGroupFull(groups, entry.groupId) && (
+                    <PlanDiscountSummary
+                      discount={entry.form.discount}
+                      emptyLabel="Sem desconto neste plano."
+                      disabled={!editable || loading}
+                      onEdit={() =>
+                        editDiscount(
+                          entry.form.discount,
+                          planFormSetter(entry.id),
+                        )
+                      }
+                    />
+                  )}
                 {removeButton(planLabel(index).toLowerCase(), remove)}
               </>
             )}
@@ -1314,7 +1352,7 @@ export function PatientModal({
             </div>
           </fieldset>
         )}
-        {(sellsItems > 0 || productLines.length > 0) && (
+        {(soldPlans.length + singles.length > 0 || productLines.length > 0) && (
           <GuidedOrderSummary
             order={order}
             productInstallments={productInstallments}

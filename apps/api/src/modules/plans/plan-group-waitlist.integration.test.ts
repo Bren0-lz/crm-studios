@@ -5,8 +5,8 @@ import {
 } from "../../test-support/legacy-fixtures.js";
 import "../../test-support/legacy-setup.js";
 
-describe("plan purchase with a full group (TW1)", () => {
-  it("gives the last seat to the first buyer and waitlists the next", async () => {
+describe("plan purchase with a full group (TW1/TW3)", () => {
+  it("gives the last seat to the first buyer and refuses selling the next one", async () => {
     const { app, token } = await authenticatedApp();
     const headers = { authorization: `Bearer ${token}` };
     const [patients, services, professionals, rooms] = await Promise.all(
@@ -70,12 +70,21 @@ describe("plan purchase with a full group (TW1)", () => {
       secondId!,
       "4b4b4b4b-4b4b-4b4b-8b4b-4b4b4b4b4b4b",
     );
-    expect(second.statusCode, second.body).toBe(201);
-    expect(second.json().enrollment).toMatchObject({
-      patientId: secondId,
-      status: "waitlisted",
-      queuePosition: 1,
+    // Sem vaga não há venda: nem plano, nem cobrança, nem matrícula na espera.
+    expect(second.statusCode, second.body).toBe(409);
+    expect(second.json()).toMatchObject({ code: "GROUP_FULL" });
+    const plans = await app.inject({
+      method: "GET",
+      url: "/plans",
+      headers,
     });
+    expect(plans.statusCode, plans.body).toBe(200);
+    expect(
+      (plans.json() as { patientId: string; name: string }[]).filter(
+        (plan) =>
+          plan.patientId === secondId && plan.name.startsWith("Pilates turma"),
+      ),
+    ).toEqual([]);
     await app.close();
   });
 });

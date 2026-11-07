@@ -211,7 +211,12 @@ export function guidedNotice(
     const startsAt = new Date(appointment.startsAt);
     return `Aula experimental agendada para ${shortDate.format(startsAt)}, às ${timeLabel.format(startsAt)}.`;
   }
-  if (!plan) return "";
+  // Turma cheia (TW3): só a Lista de espera do serviço, sem plano nem cobrança.
+  const waitlisted = (result.waitlistEntries ?? []).map(
+    (entry) =>
+      `Turma cheia: o cliente entrou na Lista de espera de ${entry.itemName}, sem plano nem cobrança.`,
+  );
+  if (!plan) return waitlisted.join(" ");
   const entries = [{ plan, enrollment }, ...(result.additionalPlans ?? [])];
   const list = (names: string[]) =>
     new Intl.ListFormat("pt-BR", { type: "conjunction" }).format(
@@ -248,7 +253,16 @@ export function guidedNotice(
           }.`
         : `Matrícula feita na turma ${groupName}.`;
     }),
+    ...waitlisted,
   ].join(" ");
+}
+
+/** Turma escolhida sem vaga (TW3): o plano vira Lista de espera, sem pagamento nem contrato. */
+export function guidedGroupFull(groups: GroupClass[] | null, groupId: string) {
+  const group = groupId
+    ? groups?.find((item) => item.id === groupId)
+    : undefined;
+  return Boolean(group && group.activeEnrollments >= group.capacity);
 }
 
 export const guidedPlanKinds = ["fixed_package", "recurring"] as const;
@@ -281,6 +295,7 @@ export const guidedSubmitLabels: Record<GuidedPatientNext, string> = {
   demonstration: "Salvar e agendar aula experimental",
   plan: "Salvar e criar plano",
   single: "Salvar e criar serviço avulso",
+  waitlist: "Salvar e colocar na lista de espera",
   none: "Salvar cliente",
 };
 
