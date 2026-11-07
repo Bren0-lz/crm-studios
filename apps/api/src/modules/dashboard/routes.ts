@@ -1,9 +1,7 @@
 import {
   isOverdueReceivable,
-  isReceiptReminderDue,
   notificationPreferencesSchema,
   recurringPayableReminders,
-  resolveReceiptReminderSettings,
   unsignedReceiptPatientCount,
   type DashboardViewSummary,
   type NotificationsSummary,
@@ -121,11 +119,6 @@ export function registerDashboardRoutes(context: RouteContext) {
     const now = new Date();
     const timezone = settings?.timezone ?? DEFAULT_CLINIC_TIMEZONE;
     const date = clinicDateOf(now, timezone);
-    // Aviso de recibos não assinados (RC5): sem agendador, vale na leitura a partir do
-    // horário configurado na clínica, nos dias da frequência escolhida.
-    const receiptReminder = resolveReceiptReminderSettings(
-      settings?.receiptReminder,
-    );
     const [
       birthdays,
       finance,
@@ -244,13 +237,9 @@ export function registerDashboardRoutes(context: RouteContext) {
             ).length,
           }
         : {}),
-      ...(finance && isReceiptReminderDue(receiptReminder, now, timezone)
+      ...(finance
         ? {
-            unsignedReceipts: unsignedReceiptPatientCount(
-              finance.receivables,
-              receiptReminder.afterHours,
-              now,
-            ),
+            unsignedReceipts: unsignedReceiptPatientCount(finance.receivables),
           }
         : {}),
       ...(recurringDue !== undefined

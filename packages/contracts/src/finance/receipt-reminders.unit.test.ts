@@ -10,7 +10,7 @@ import {
 const timeZone = "America/Sao_Paulo";
 
 describe("aviso de recibos não assinados", () => {
-  it("usa o padrão provisório (diário às 18:00) no que não foi configurado", () => {
+  it("preserva a configuração legada no que não foi configurado", () => {
     expect(defaultReceiptReminderSettings).toEqual({
       frequency: "daily",
       weekday: 1,
@@ -91,65 +91,60 @@ describe("aviso de recibos não assinados", () => {
     ).toBe(false);
   });
 
-  it("conta clientes com recibo enviado há mais de N horas e sem assinatura", () => {
-    const now = new Date("2039-06-10T21:00:00Z");
+  it("conta clientes desde a geração, inclusive recibos de cinco segundos atrás", () => {
     expect(
-      unsignedReceiptPatientCount(
-        [
-          // Duas parcelas do mesmo cliente contam uma vez.
-          {
-            patientId: "a",
-            receiptSignature: {
-              status: "sent",
-              sentAt: "2039-06-09T20:00:00Z",
-            },
+      unsignedReceiptPatientCount([
+        // Duas parcelas do mesmo cliente contam uma vez.
+        {
+          patientId: "a",
+          receiptSignature: {
+            status: "sent",
+            sentAt: "2039-06-09T20:00:00Z",
           },
-          {
-            patientId: "a",
-            receiptSignature: {
-              status: "viewed",
-              sentAt: "2039-06-08T20:00:00Z",
-              firstViewedAt: "2039-06-09T10:00:00Z",
-            },
+        },
+        {
+          patientId: "a",
+          receiptSignature: {
+            status: "viewed",
+            sentAt: "2039-06-08T20:00:00Z",
+            firstViewedAt: "2039-06-09T10:00:00Z",
           },
-          // Exatamente 24 horas conta.
-          {
-            patientId: "b",
-            receiptSignature: {
-              status: "sent",
-              sentAt: "2039-06-09T21:00:00Z",
-            },
+        },
+        // Exatamente 24 horas conta.
+        {
+          patientId: "b",
+          receiptSignature: {
+            status: "sent",
+            sentAt: "2039-06-09T21:00:00Z",
           },
-          // Enviado há menos de 24 horas, assinado, só gerado ou sem recibo: fora.
-          {
-            patientId: "c",
-            receiptSignature: {
-              status: "sent",
-              sentAt: "2039-06-10T12:00:00Z",
-            },
+        },
+        // Recente e só gerado contam; assinado e sem recibo ficam fora.
+        {
+          patientId: "c",
+          receiptSignature: {
+            status: "sent",
+            sentAt: "2039-06-10T20:59:55Z",
           },
-          {
-            patientId: "d",
-            receiptSignature: {
-              status: "signed",
-              sentAt: "2039-06-01T12:00:00Z",
-              signedAt: "2039-06-02T12:00:00Z",
-            },
+        },
+        {
+          patientId: "d",
+          receiptSignature: {
+            status: "signed",
+            sentAt: "2039-06-01T12:00:00Z",
+            signedAt: "2039-06-02T12:00:00Z",
           },
-          { patientId: "e", receiptSignature: { status: "generated" } },
-          { patientId: "f" },
-          // Aberto pelo link sem o clique de envio: conta da 1ª visualização.
-          {
-            patientId: "g",
-            receiptSignature: {
-              status: "viewed",
-              firstViewedAt: "2039-06-01T12:00:00Z",
-            },
+        },
+        { patientId: "e", receiptSignature: { status: "generated" } },
+        { patientId: "f" },
+        // Visualizado também conta.
+        {
+          patientId: "g",
+          receiptSignature: {
+            status: "viewed",
+            firstViewedAt: "2039-06-01T12:00:00Z",
           },
-        ],
-        24,
-        now,
-      ),
-    ).toBe(3);
+        },
+      ]),
+    ).toBe(5);
   });
 });
