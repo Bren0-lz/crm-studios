@@ -57,8 +57,12 @@ describe("single package sold with fixed weekdays", () => {
     const booked = purchase.json().appointments as {
       id: string;
       startsAt: string;
+      planId: string;
     }[];
     expect(booked.map((item) => item.startsAt).sort()).toEqual(tuesdays);
+    expect(
+      booked.every((item) => item.planId === purchase.json().plan.id),
+    ).toBe(true);
 
     // A cliente falta na 3ª terça: só ela vira ausência e ganha a reposição.
     const missed = booked.find((item) => item.startsAt === tuesdays[2])!;
@@ -79,6 +83,7 @@ describe("single package sold with fixed weekdays", () => {
     expect(makeup.statusCode, makeup.body).toBe(201);
     expect(makeup.json()).toMatchObject({
       predecessorId: missed.id,
+      planId: purchase.json().plan.id,
       startsAt: makeupStartsAt,
       status: "scheduled",
       serviceId,

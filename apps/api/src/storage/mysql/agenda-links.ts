@@ -2,9 +2,7 @@ import type { AppointmentRescheduleInput } from "@crm/contracts";
 import type { MysqlRepositoryContext } from "./context.js";
 import { DomainError } from "../../repository.js";
 import { localDate } from "./sql.js";
-export function createAgendaLinksRepository(
-  context: MysqlRepositoryContext,
-) {
+export function createAgendaLinksRepository(context: MysqlRepositoryContext) {
   return {
     async createAbsenceSuccessor(
       clinicId: string,
@@ -65,6 +63,7 @@ export function createAgendaLinksRepository(
         const data = {
             ...input,
             serviceId: source.serviceId,
+            ...(source.planId ? { planId: source.planId } : {}),
             visitType: source.visitType,
             notes: source.notes ?? "",
           },

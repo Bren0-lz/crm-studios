@@ -99,7 +99,7 @@ export function createPlanPurchasesRepository(context: MysqlRepositoryContext) {
           appointments.push(
             await context.insertAppointment(
               clinicId,
-              appointment,
+              { ...appointment, planId },
               related.rows[0].duration,
               { patientId: plan.patientId, leadId: null },
               client,

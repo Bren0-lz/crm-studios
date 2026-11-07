@@ -805,7 +805,7 @@ describe("CRM API", () => {
     expect(timeline.statusCode).toBe(200);
     for (const id of ids) expect(JSON.stringify(timeline.json())).toContain(id);
 
-    // Finalizar consome sessão do plano do cliente.
+    // A experimental convertida continua gratuita e não consome o plano.
     const plan = await app.inject({
       method: "POST",
       url: "/plans",
@@ -826,8 +826,8 @@ describe("CRM API", () => {
       }),
     });
     expect(plan.statusCode).toBe(201);
-    // Desfecho e evolução só depois do início (atendimentos em 15 e 16/05/2031).
-    const afterStart = "2031-05-20T12:00:00.000Z";
+    // Desfecho e evolução só depois do início dos dois atendimentos.
+    const afterStart = "2031-05-20T14:00:00.000Z";
     const completed = await patchStatusAt(app, headers, afterStart, ids[0]!, {
       status: "completed",
     });
@@ -837,6 +837,21 @@ describe("CRM API", () => {
       (plans.json() as { id: string; remainingSessions: number }[]).find(
         (item) => item.id === plan.json().id,
       )?.remainingSessions,
+    ).toBe(4);
+    // A avaliação do cliente continua consumindo uma sessão, pelo caminho histórico.
+    const evaluated = await patchStatusAt(app, headers, afterStart, ids[1]!, {
+      status: "completed",
+    });
+    expect(evaluated.statusCode, evaluated.body).toBe(200);
+    const afterEvaluation = await app.inject({
+      method: "GET",
+      url: "/plans",
+      headers,
+    });
+    expect(
+      (
+        afterEvaluation.json() as { id: string; remainingSessions: number }[]
+      ).find((item) => item.id === plan.json().id)?.remainingSessions,
     ).toBe(3);
 
     // Prontuário e NPS passam a ser aceitos.
@@ -3436,7 +3451,9 @@ describe("CRM API", () => {
       // Etiquetas automáticas ("Falta CPF", "Pagamento atrasado") não são configuradas.
       const used = [
         ...new Set(
-          patients.flatMap((patient) => withoutAutomaticPatientTags(patient.tags)),
+          patients.flatMap((patient) =>
+            withoutAutomaticPatientTags(patient.tags),
+          ),
         ),
       ];
       expect(tags.map((tag) => tag.name).sort()).toEqual([...used].sort());

@@ -793,6 +793,12 @@ export function createAgendaRepository(
           clinicId,
           { professionalId: input.professionalId, roomId: input.roomId },
         );
+        const planId = await repositoryContext.appointmentPlanId(
+          client,
+          clinicId,
+          input,
+          input.patientId,
+        );
         const seriesId = randomUUID();
         const ids: string[] = [];
         for (const [index, start] of recurringOccurrenceStarts(
@@ -828,7 +834,7 @@ export function createAgendaRepository(
             client,
             `INSERT INTO appointments
              (clinic_id, patient_id, professional_id, room_id, service_id,
-              starts_at, ends_at, notes, series_id, visit_type, branch_id, id) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,${branchOrDefault("$11", "$1")}, $12)`,
+              starts_at, ends_at, notes, series_id, visit_type, branch_id, id, patient_plan_id) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,${branchOrDefault("$11", "$1")}, $12, $13)`,
             [
               clinicId,
               input.patientId,
@@ -842,6 +848,7 @@ export function createAgendaRepository(
               input.visitType,
               branchId,
               randomUUID(),
+              planId,
             ],
             `SELECT id FROM appointments WHERE id = $12`,
           );

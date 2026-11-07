@@ -73,6 +73,7 @@ export function createPlanPurchasesRepository(
             await context.operations.createAppointment(clinicId, {
               ...appointment,
               patientId: plan.patientId,
+              planId: plan.id,
             }),
           );
         // Cliente que já está na turma (plano anterior vencido ou cancelado não encerra a

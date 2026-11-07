@@ -1434,6 +1434,29 @@ export class MemoryRepositoryContext {
 
   readonly planCatalog: PlanCatalogEntry[] = [];
 
+  appointmentPlanId(
+    clinicId: string,
+    input: Omit<AppointmentInput, "patientId">,
+    patientId?: string,
+  ): string | undefined {
+    if (!patientId || input.visitType === "trial" || !input.planId)
+      return undefined;
+    const plan = this.patientPlans.find(
+      (item) =>
+        item.clinicId === clinicId &&
+        item.id === input.planId &&
+        item.patientId === patientId &&
+        item.services.some((service) => service.serviceId === input.serviceId),
+    );
+    if (!plan)
+      throw new DomainError(
+        "PLAN_NOT_FOUND",
+        "Plano do cliente para este serviço não encontrado.",
+        404,
+      );
+    return plan.id;
+  }
+
   insertAppointment(
     clinicId: string,
     input: Omit<AppointmentInput, "patientId">,
@@ -1516,8 +1539,14 @@ export class MemoryRepositoryContext {
     }
 
     const branchId = this.resourceBranch(professional, room);
+    const planId = this.appointmentPlanId(
+      clinicId,
+      input,
+      "patientId" in owner ? owner.patientId : undefined,
+    );
     const timestamp = now();
     const appointment: Appointment = {
+      ...(planId ? { planId } : {}),
       branchId,
       professionalId: input.professionalId,
       roomId: input.roomId,
@@ -2233,8 +2262,8 @@ export class MemoryRepositoryContext {
   }
 
   consumeSession(appointment: Appointment) {
-    // Atendimento de lead não tem plano: nunca consome sessão.
-    if (!appointment.patientId) return;
+    // Leads e aulas experimentais nunca consomem sessão.
+    if (!appointment.patientId || appointment.visitType === "trial") return;
     const appointmentDate = clinicDateOf(
       new Date(appointment.startsAt),
       this.clinicSettings.timezone,
@@ -2244,6 +2273,7 @@ export class MemoryRepositoryContext {
         (plan) =>
           plan.clinicId === appointment.clinicId &&
           plan.patientId === appointment.patientId &&
+          (!appointment.planId || plan.id === appointment.planId) &&
           (!plan.sourceAppointmentId ||
             plan.sourceAppointmentId === appointment.id) &&
           plan.services.some(
@@ -2265,6 +2295,12 @@ export class MemoryRepositoryContext {
       );
     const plan = plans[0];
     if (!plan) {
+      if (appointment.planId)
+        throw new DomainError(
+          "NO_SESSION_BALANCE",
+          "O plano vinculado não possui saldo de sessões válido para este atendimento.",
+          409,
+        );
       if (
         this.patientTabs.some(
           (t) =>
