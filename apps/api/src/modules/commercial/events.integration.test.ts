@@ -178,7 +178,7 @@ describe("eventos do comercial", () => {
         roomId: room!.id,
         serviceId: service!.id,
         startsAt: "2031-05-12T13:00:00.000Z",
-        visitType: "evaluation",
+        visitType: "trial",
       },
     });
     expect(evaluation.statusCode, evaluation.body).toBe(201);

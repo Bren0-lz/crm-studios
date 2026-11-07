@@ -1,3 +1,4 @@
+import { withAppointmentPlan } from "../../test-support/appointment-plan.js";
 import { nextTestCpf } from "../../test-support/cpf.js";
 import type {
   AutoCampaign,
@@ -409,17 +410,21 @@ describe("relatório de campanhas", () => {
           method: "POST",
           url: "/appointments",
           headers,
-          payload: {
-            patientId: lara.id,
-            professionalId: professionals!.json()[0].id,
-            roomId: rooms!.json()[0].id,
-            serviceId: services!.json()[0].id,
-            startsAt: "2039-06-20T13:00:00.000Z",
-            promotion: {
-              campaignId: campaign.id,
-              occurrenceKey: item.occurrenceKey,
+          payload: await withAppointmentPlan(
+            app,
+            {
+              patientId: lara.id,
+              professionalId: professionals!.json()[0].id,
+              roomId: rooms!.json()[0].id,
+              serviceId: services!.json()[0].id,
+              startsAt: "2039-06-20T13:00:00.000Z",
+              promotion: {
+                campaignId: campaign.id,
+                occurrenceKey: item.occurrenceKey,
+              },
             },
-          },
+            headers,
+          ),
         })
       ).statusCode,
     ).toBe(201);

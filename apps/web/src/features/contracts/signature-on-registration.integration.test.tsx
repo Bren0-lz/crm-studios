@@ -28,6 +28,34 @@ async function clientWithTemplate() {
       emergencyContactPhone: "11999995555",
     }),
   );
+  // Agendamento normal exige plano do cliente com o serviço (AP3).
+  const services = (await api.repository.listServices(clinicId)).map(
+    (service) => ({
+      serviceId: service.id,
+      totalSessions: 4,
+      totalValueInCents: 20000,
+    }),
+  );
+  const planTemplate = await api.repository.createPlanTemplate(
+    clinicId,
+    actorId,
+    {
+      name: "Plano para agendar",
+      totalValueInCents: services.length * 20000,
+      services,
+    },
+  );
+  await api.repository.createPatientPlan(clinicId, actorId, {
+    patientId: patient.id,
+    planTemplateId: planTemplate.id,
+    name: planTemplate.name,
+    kind: "fixed_package",
+    services,
+    totalValueInCents: services.length * 20000,
+    installments: 1,
+    validFrom: "2020-01-01",
+    firstDueDate: "2020-01-01",
+  });
   const template = await api.repository.createDocumentTemplate(clinicId, {
     name: "Termo de consentimento",
     kind: "consent",

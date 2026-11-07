@@ -1,4 +1,11 @@
-import { test, expect, login, seedPatient, clinicToday } from "./fixtures.js";
+import {
+  test,
+  expect,
+  login,
+  seedPatient,
+  seedPatientPlan,
+  clinicToday,
+} from "./fixtures.js";
 
 test("auto finalization completes past appointments and lists them by period", async ({
   page,
@@ -13,9 +20,11 @@ test("auto finalization completes past appointments and lists them by period", a
   const yesterday = new Date(Date.UTC(year!, month! - 1, day! - 1))
     .toISOString()
     .slice(0, 10);
+  const plan = await seedPatientPlan(api, patient.id, services[0].id);
   const created = await api.post("/appointments", {
     data: {
       patientId: patient.id,
+      planId: plan.id,
       serviceId: services[0].id,
       professionalId: professionals[0].id,
       roomId: rooms[0].id,

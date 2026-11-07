@@ -1,3 +1,4 @@
+import { withAppointmentPlan } from "../../test-support/appointment-plan.js";
 import type { AgendaConflict } from "@crm/contracts";
 import { describe, expect, it } from "vitest";
 import {
@@ -34,13 +35,17 @@ describe("agenda conflict check before saving", () => {
       method: "POST",
       url: "/appointments",
       headers,
-      payload: {
-        patientId,
-        professionalId,
-        roomId,
-        serviceId,
-        startsAt: at("2039-03-01T14:00"),
-      },
+      payload: await withAppointmentPlan(
+        app,
+        {
+          patientId,
+          professionalId,
+          roomId,
+          serviceId,
+          startsAt: at("2039-03-01T14:00"),
+        },
+        headers,
+      ),
     });
     expect(booked.statusCode, booked.body).toBe(201);
     const block = await app.inject({

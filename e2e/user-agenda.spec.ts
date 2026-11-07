@@ -1,4 +1,10 @@
-import { test, expect, login, seedPatient } from "./fixtures.js";
+import {
+  test,
+  expect,
+  login,
+  seedPatient,
+  seedPatientPlan,
+} from "./fixtures.js";
 
 test("cadastro do usuário controla o profissional da agenda e preserva atendimentos", async ({
   page,
@@ -59,9 +65,11 @@ test("cadastro do usuário controla o profissional da agenda e preserva atendime
   const startsAt = new Date();
   startsAt.setUTCDate(startsAt.getUTCDate() + 10);
   startsAt.setUTCHours(14, 0, 0, 0);
+  const plan = await seedPatientPlan(api, patient.id, service.id);
   const appointmentResponse = await api.post("/appointments", {
     data: {
       patientId: patient.id,
+      planId: plan.id,
       professionalId,
       serviceId: service.id,
       roomId: room.id,
