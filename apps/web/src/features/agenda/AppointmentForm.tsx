@@ -230,6 +230,8 @@ export function AppointmentForm({
   }
   async function submit(event: FormEvent) {
     event.preventDefault();
+    // Aberto em modal dentro da contratação do plano: o submit não pode chegar ao formulário dele.
+    event.stopPropagation();
     if (submitting.current) return;
     if (!form.patientId) {
       setError("Selecione um cliente para confirmar o atendimento.");

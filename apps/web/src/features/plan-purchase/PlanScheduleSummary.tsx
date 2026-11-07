@@ -269,6 +269,9 @@ function SessionExceptionModal({
         className="form-grid"
         onSubmit={(event) => {
           event.preventDefault();
+          // O modal está num portal, mas o submit sobe pela árvore do React até o formulário
+          // do plano: sem isto, salvar a sessão criaria o plano com as datas antigas.
+          event.stopPropagation();
           if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(form.local)) {
             setError("Escolha a data e o horário da sessão.");
             return;

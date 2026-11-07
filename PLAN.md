@@ -723,6 +723,21 @@ atualizado no mesmo PR):
 - **Depende de:** SS1
 - **Status:** DONE (07/11/2026; dono: a exceção por data atende, sem código novo)
 
+### SS3 — Salvar a sessão alterada sem fechar a contratação (pedido do dono, 07/11/2026)
+
+- **Origem:** relato do dono. "Salvar esta sessão" criava o plano e as parcelas na hora, e a
+  data alterada não era gravada (Agenda e WhatsApp saíam com a data original).
+- **Causa:** o modal da exceção (`PlanScheduleSummary.tsx`) fica num portal, mas o `submit`
+  sobe pela árvore do React até o formulário do plano (`PlanForm`), que salvava antes de a
+  exceção entrar nas sessões.
+- **Escopo:** `stopPropagation` no submit do modal da exceção e do `AppointmentForm` (também
+  aberto dentro da contratação); teste sem conflito com duas alterações de data, conferindo
+  que nada é gravado antes de "Criar plano e parcelas" e que Agenda e WhatsApp saem com as
+  novas datas.
+- **Gate:** gate completo
+- **Depende de:** SS2
+- **Status:** DONE
+
 ### EV1 — Eventos: modelo, rotas e permissões
 
 - **Origem:** B2-05 + B3-01 ("muito urgente"). Exemplo: aulão na praça com 130 pessoas; lista

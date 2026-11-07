@@ -194,6 +194,116 @@ describe("single plan purchase with fixed weekdays", () => {
     );
   });
 
+  it("saves session changes without creating the plan and books the changed dates", async () => {
+    const { repository, patient, professional, room, dialog, schedule } =
+      await openSinglePlan(4);
+    fillFixedDays(
+      schedule,
+      { professional: professional!.id, room: room!.id },
+      [{ weekday: 2, time: "14:00" }],
+    );
+    const create = within(dialog).getByRole("button", {
+      name: "Criar plano e parcelas",
+    });
+    await waitFor(() => expect(create).toBeEnabled());
+
+    // Sem conflito: salvar a sessão não pode enviar a contratação.
+    async function changeSession(row: number, date: string, time: string) {
+      fireEvent.click(
+        within(summaryRows(dialog)[row]!).getByRole("button", {
+          name: "Alterar esta sessão",
+        }),
+      );
+      const editing = screen.getByRole("dialog", {
+        name: `Alterar a sessão ${row + 1}`,
+      });
+      fireEvent.click(
+        editing.querySelector<HTMLButtonElement>(".appointment-date-trigger")!,
+      );
+      let target = editing.querySelector<HTMLButtonElement>(
+        `[data-date="${date}"]`,
+      );
+      if (!target) {
+        fireEvent.click(
+          within(editing).getByRole("button", { name: "Próximo mês" }),
+        );
+        target = editing.querySelector<HTMLButtonElement>(
+          `[data-date="${date}"]`,
+        );
+      }
+      fireEvent.click(target!);
+      fireEvent.change(within(editing).getByLabelText("Horário"), {
+        target: { value: time },
+      });
+      fireEvent.click(
+        within(editing).getByRole("button", { name: "Salvar esta sessão" }),
+      );
+      expect(
+        screen.queryByRole("dialog", { name: `Alterar a sessão ${row + 1}` }),
+      ).not.toBeInTheDocument();
+    }
+
+    await changeSession(1, tuesday(10), "10:00");
+    await waitFor(() =>
+      expect(summaryRows(dialog)[1]).toHaveTextContent(
+        `${day(tuesday(10))} · 10:00`,
+      ),
+    );
+    expect(summaryRows(dialog)[1]).toHaveTextContent("Exceção");
+    // A contratação continua aberta e nada foi gravado: dá para seguir alterando.
+    expect(screen.getByRole("dialog", { name: "Novo plano" })).toBe(dialog);
+    expect(
+      within(dialog).queryByRole("link", {
+        name: "Enviar sessões pelo WhatsApp",
+      }),
+    ).not.toBeInTheDocument();
+    expect(await repository.listPatientPlans(clinicId, patient.id)).toEqual(
+      [],
+    );
+
+    await changeSession(3, tuesday(22), "18:00");
+    await waitFor(() =>
+      expect(summaryRows(dialog)[3]).toHaveTextContent(
+        `${day(tuesday(22))} · 18:00`,
+      ),
+    );
+    expect(await repository.listPatientPlans(clinicId, patient.id)).toEqual(
+      [],
+    );
+
+    await waitFor(() => expect(create).toBeEnabled());
+    fireEvent.click(create);
+    const whatsapp = await within(dialog).findByRole("link", {
+      name: "Enviar sessões pelo WhatsApp",
+    });
+    const text = decodeURIComponent(whatsapp.getAttribute("href")!);
+    expect(text).toContain(`${day(tuesday(10))} · 10:00`);
+    expect(text).toContain(`${day(tuesday(22))} · 18:00`);
+    expect(text).not.toContain(`${day(tuesday(7))} · 14:00`);
+    expect(text).not.toContain(`${day(tuesday(21))} · 14:00`);
+    expect(await repository.listPatientPlans(clinicId, patient.id)).toHaveLength(
+      1,
+    );
+    const booked = (
+      await repository.listAppointments(
+        clinicId,
+        new Date(`${tuesday(-1)}T00:00`).toISOString(),
+        new Date(`${tuesday(40)}T00:00`).toISOString(),
+      )
+    )
+      .filter((item) => item.patientId === patient.id)
+      .map((item) => new Date(item.startsAt).getTime())
+      .sort((a, b) => a - b);
+    expect(booked).toEqual(
+      [
+        `${tuesday()}T14:00`,
+        `${tuesday(10)}T10:00`,
+        `${tuesday(14)}T14:00`,
+        `${tuesday(22)}T18:00`,
+      ].map((local) => new Date(local).getTime()),
+    );
+  });
+
   it("spreads the sessions over more than one weekday without passing the plan total", async () => {
     const { professional, room, dialog, schedule } = await openSinglePlan(5);
     fillFixedDays(
