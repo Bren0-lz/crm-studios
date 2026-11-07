@@ -49,6 +49,53 @@ export function createCommercialRepository(
     (await repository.listLeads(clinicId)).filter((lead) =>
       matchesLead(lead, filter, timezone),
     );
+  async function createLead(clinicId: string, input: LeadInput) {
+    if (
+      input.responsibleUserId &&
+      !repositoryContext.users.some(
+        (user) =>
+          user.clinicId === clinicId && user.id === input.responsibleUserId,
+      )
+    )
+      throw new DomainError(
+        "RESPONSIBLE_USER_NOT_FOUND",
+        "Responsável não encontrado.",
+        404,
+      );
+    // Participante de evento: origem "Evento: <nome>" e a filial do evento (se tiver).
+    const event = input.eventId
+      ? repositoryContext.events.find(
+          (item) =>
+            item.clinicId === clinicId &&
+            item.id === input.eventId &&
+            (!item.branchId || repositoryContext.inBranchScope(item)),
+        )
+      : undefined;
+    if (input.eventId && !event)
+      throw new DomainError("EVENT_NOT_FOUND", "Evento não encontrado.", 404);
+    const timestamp = now();
+    const responsibleName = input.responsibleUserId
+      ? repositoryContext.users.find(
+          (user) => user.id === input.responsibleUserId,
+        )?.fullName
+      : undefined;
+    const lead: Lead = {
+      ...input,
+      ...(event ? { source: eventLeadSource(event.name) } : {}),
+      branchId: event?.branchId ?? repositoryContext.writeBranchId(clinicId),
+      id: uuid(),
+      clinicId,
+      stage: firstOpenLeadStage(await repository.listLeadStages(clinicId)),
+      ...(responsibleName ? { responsibleName } : {}),
+      openTasks: 0,
+      overdueTasks: 0,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    };
+    repositoryContext.leads.push(lead);
+    return lead;
+  }
+
   const repository = {
     async listLeads(clinicId: string) {
       return repositoryContext.leads
@@ -98,51 +145,25 @@ export function createCommercialRepository(
       );
     },
 
-    async createLead(clinicId: string, input: LeadInput) {
-      if (
-        input.responsibleUserId &&
-        !repositoryContext.users.some(
-          (user) =>
-            user.clinicId === clinicId && user.id === input.responsibleUserId,
-        )
-      )
-        throw new DomainError(
-          "RESPONSIBLE_USER_NOT_FOUND",
-          "Responsável não encontrado.",
-          404,
-        );
-      // Participante de evento: origem "Evento: <nome>" e a filial do evento (se tiver).
-      const event = input.eventId
-        ? repositoryContext.events.find(
-            (item) =>
-              item.clinicId === clinicId &&
-              item.id === input.eventId &&
-              (!item.branchId || repositoryContext.inBranchScope(item)),
-          )
-        : undefined;
-      if (input.eventId && !event)
-        throw new DomainError("EVENT_NOT_FOUND", "Evento não encontrado.", 404);
-      const timestamp = now();
-      const responsibleName = input.responsibleUserId
-        ? repositoryContext.users.find(
-            (user) => user.id === input.responsibleUserId,
-          )?.fullName
-        : undefined;
-      const lead: Lead = {
-        ...input,
-        ...(event ? { source: eventLeadSource(event.name) } : {}),
-        branchId: event?.branchId ?? repositoryContext.writeBranchId(clinicId),
-        id: uuid(),
-        clinicId,
-        stage: firstOpenLeadStage(await repository.listLeadStages(clinicId)),
-        ...(responsibleName ? { responsibleName } : {}),
-        openTasks: 0,
-        overdueTasks: 0,
-        createdAt: timestamp,
-        updatedAt: timestamp,
-      };
-      repositoryContext.leads.push(lead);
-      return lead;
+    createLead,
+    async importEventParticipants(
+      clinicId: string,
+      eventId: string,
+      inputs: LeadInput[],
+    ) {
+      const created: Lead[] = [];
+      try {
+        for (const input of inputs)
+          created.push(await createLead(clinicId, { ...input, eventId }));
+        return created.length;
+      } catch (error) {
+        for (const lead of created)
+          repositoryContext.leads.splice(
+            repositoryContext.leads.indexOf(lead),
+            1,
+          );
+        throw error;
+      }
     },
 
     async updateLead(

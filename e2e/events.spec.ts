@@ -1,4 +1,4 @@
-import { test, expect, login } from "./fixtures.js";
+import { test, expect, login, seedPatient } from "./fixtures.js";
 
 test("creates and edits a commercial event through its own module", async ({
   page,
@@ -49,4 +49,95 @@ test("creates and edits a commercial event through its own module", async ({
       startsAt: "2039-06-10T12:00:00.000Z",
     }),
   ]);
+});
+
+test("imports event participants with custom columns, missing data and existing contacts", async ({
+  page,
+  api,
+}) => {
+  await seedPatient(api, "Cliente já cadastrado");
+  const response = await api.post("/events", {
+    data: { name: "Encontro aberto", startsAt: "2039-06-10T12:00:00.000Z" },
+  });
+  expect(response.ok()).toBe(true);
+  const event = await response.json();
+  await login(page);
+  await page.goto(`/eventos/${event.id}`);
+  await page.getByRole("button", { name: "Importar planilha" }).click();
+  const dialog = page.getByRole("dialog", { name: "Importar participantes" });
+  await dialog.getByLabel("Planilha de participantes").setInputFiles({
+    name: "presença.csv",
+    mimeType: "text/csv",
+    buffer: Buffer.from(
+      "Pessoa;Contato;Observações\nAna;11999991234;\nBia;11999991234;\n;;Apenas observação\n;123;",
+    ),
+  });
+  await dialog
+    .getByLabel("Dado do sistema para a coluna Pessoa")
+    .selectOption("fullName");
+  await expect(dialog.getByText("3 válida(s)", { exact: true })).toBeVisible();
+  await dialog
+    .getByLabel("Dado do sistema para a coluna Contato")
+    .selectOption("phone");
+  await expect(
+    dialog.getByRole("button", { name: "Importar 4 participante(s)" }),
+  ).toBeEnabled();
+  await expect(
+    dialog.getByText("Nenhum campo é obrigatório", { exact: false }),
+  ).toBeVisible();
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () => document.documentElement.scrollWidth <= window.innerWidth,
+      ),
+    )
+    .toBe(true);
+  await page.screenshot({
+    path: test.info().outputPath("event-import.png"),
+    fullPage: true,
+  });
+  await dialog
+    .getByRole("button", { name: "Importar 4 participante(s)" })
+    .click();
+  await expect(dialog.getByRole("status")).toContainText(
+    "4 participante(s) importado(s) e 0 com erro",
+  );
+  await dialog
+    .locator(".modal-actions")
+    .getByRole("button", { name: "Fechar", exact: true })
+    .click();
+  await expect(
+    page.getByText("4 participante(s)", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Ana", exact: true }),
+  ).toBeVisible();
+  await expect(page.getByText("123", { exact: true })).toBeVisible();
+  const participants = (await (await api.get(`/events/${event.id}`)).json())
+    .participants;
+  expect(
+    participants.filter(
+      (item: { phone: string }) => item.phone === "11999991234",
+    ),
+  ).toHaveLength(2);
+  expect(participants).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({
+        fullName: "",
+        phone: "",
+        notes: "Apenas observação",
+      }),
+    ]),
+  );
+  await page
+    .getByRole("button", { name: "Adicionar participante", exact: true })
+    .click();
+  const add = page.getByRole("dialog", { name: "Adicionar participante" });
+  await add
+    .getByRole("button", { name: "Adicionar participante", exact: true })
+    .click();
+  await expect(add).toHaveCount(0);
+  await expect(
+    page.getByText("5 participante(s)", { exact: true }),
+  ).toBeVisible();
 });

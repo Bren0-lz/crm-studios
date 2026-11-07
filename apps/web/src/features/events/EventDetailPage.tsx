@@ -3,7 +3,7 @@ import {
   type CommercialEventDetail,
   type EventParticipant,
 } from "@crm/contracts";
-import { UserPlus, Users } from "lucide-react";
+import { FileDown, UserPlus, Users } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { api } from "../../api";
@@ -16,7 +16,8 @@ import { useToast } from "../../shared/feedback/toast-context";
 import { useDataVersion } from "../../shared/hooks/useDataVersion";
 import { EventContactModal } from "./EventContactModal";
 import { EventParticipantModal } from "./EventParticipantModal";
-import { eventMoment } from "./model";
+import { EventImportModal } from "./EventImportModal";
+import { eventMoment, eventPhone } from "./model";
 
 type State =
   | { status: "loading" }
@@ -53,6 +54,7 @@ export function EventDetailPage() {
   const [state, setState] = useState<State>({ status: "loading" });
   const [retry, setRetry] = useState(0);
   const [adding, setAdding] = useState(false);
+  const [importing, setImporting] = useState(false);
   const [contact, setContact] = useState<EventParticipant | null>(null);
   // Mutações em /leads atualizam a versão "crm": participantes e indicadores recarregam.
   const version = useDataVersion("crm");
@@ -102,14 +104,24 @@ export function EventDetailPage() {
         back={{ to: "/eventos", label: "Voltar para Eventos" }}
         action={
           canAdd && (
-            <button
-              className="primary-button"
-              disabled={!event}
-              onClick={() => setAdding(true)}
-            >
-              <UserPlus size={18} aria-hidden="true" />
-              Adicionar participante
-            </button>
+            <div className="page-actions">
+              <button
+                className="secondary-button"
+                disabled={!event}
+                onClick={() => setImporting(true)}
+              >
+                <FileDown size={18} aria-hidden="true" />
+                Importar planilha
+              </button>
+              <button
+                className="primary-button"
+                disabled={!event}
+                onClick={() => setAdding(true)}
+              >
+                <UserPlus size={18} aria-hidden="true" />
+                Adicionar participante
+              </button>
+            </div>
           )
         }
       />
@@ -161,11 +173,11 @@ export function EventDetailPage() {
               {event.participants.map((participant) => (
                 <li key={participant.id}>
                   <div className="events-summary">
-                    <h3>{participant.fullName}</h3>
+                    <h3>{participant.fullName || "Participante sem nome"}</h3>
                     <dl className="events-participant-contacts">
                       <div>
                         <dt>Telefone</dt>
-                        <dd>{formatPhone(participant.phone)}</dd>
+                        <dd>{eventPhone(participant.phone)}</dd>
                       </div>
                       <div>
                         <dt>WhatsApp</dt>
@@ -207,6 +219,13 @@ export function EventDetailPage() {
             setAdding(false);
             toast.success("Participante adicionado.");
           }}
+        />
+      )}
+      {importing && event && canAdd && (
+        <EventImportModal
+          event={event}
+          onClose={() => setImporting(false)}
+          onImported={() => toast.success("Participantes importados.")}
         />
       )}
       {contact && canContact && (

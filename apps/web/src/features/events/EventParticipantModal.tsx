@@ -5,13 +5,10 @@ import {
   type LeadInput,
 } from "@crm/contracts";
 import { useState, type FormEvent } from "react";
-import { useNavigate } from "react-router-dom";
 import { api } from "../../api";
-import { useMissingFields } from "../../shared/components/MissingFields";
 import { Modal, ModalCancelButton } from "../../shared/components/Modal";
 import { PhoneInput } from "../../shared/components/PhoneInput";
 import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
-import { LeadDuplicateWarning, useLeadDuplicates } from "../commercial/index";
 
 /** Participante = lead ligado ao evento (origem "Evento: <nome>", interesse padrão "Evento"). */
 export function EventParticipantModal({
@@ -23,7 +20,6 @@ export function EventParticipantModal({
   onClose: () => void;
   onSaved: () => void;
 }) {
-  const navigate = useNavigate();
   const [form, setForm] = useState({
     fullName: "",
     phone: "",
@@ -33,13 +29,6 @@ export function EventParticipantModal({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const dirty = useFormDirty(form);
-  const duplicates = useLeadDuplicates(form);
-  const missing = useMissingFields(
-    [
-      form.fullName.trim().length < 3 && "Nome (pelo menos 3 caracteres)",
-      !form.phone.trim() && "Telefone",
-    ].filter((item): item is string => Boolean(item)),
-  );
   function update(key: keyof typeof form, value: string) {
     setForm((current) => ({ ...current, [key]: value }));
   }
@@ -73,12 +62,6 @@ export function EventParticipantModal({
   async function submit(e: FormEvent) {
     e.preventDefault();
     if (saving) return;
-    if (duplicates.pending) {
-      setSaving(true);
-      setError("");
-      const found = await duplicates.check().finally(() => setSaving(false));
-      if (found) return;
-    }
     await save();
   }
   return (
@@ -90,11 +73,13 @@ export function EventParticipantModal({
       dirty={dirty}
     >
       <form className="form-grid" onSubmit={(e) => void submit(e)}>
+        <p className="field-hint span-2">
+          Todos os campos são opcionais. Contatos já cadastrados também podem
+          participar.
+        </p>
         <label className="span-2">
           Nome completo
           <input
-            required
-            minLength={3}
             maxLength={160}
             value={form.fullName}
             disabled={saving}
@@ -104,10 +89,12 @@ export function EventParticipantModal({
         </label>
         <label>
           Telefone
-          <PhoneInput
-            required
+          <input
+            type="tel"
+            maxLength={40}
             value={form.phone}
-            onChange={(digits) => update("phone", digits)}
+            disabled={saving}
+            onChange={(e) => update("phone", e.target.value)}
           />
         </label>
         <label>
@@ -126,25 +113,14 @@ export function EventParticipantModal({
             onChange={(e) => update("email", e.target.value)}
           />
         </label>
-        <LeadDuplicateWarning
-          matches={duplicates.matches}
-          busy={saving}
-          onOpenPatient={(id) => void navigate(`/clientes/${id}`)}
-          onSaveAnyway={() => void save()}
-        />
         {error && (
           <div className="form-error span-2" role="alert">
             {error}
           </div>
         )}
-        {missing.hint}
         <div className="modal-actions span-2">
           <ModalCancelButton disabled={saving}>Cancelar</ModalCancelButton>
-          <button
-            className="primary-button"
-            disabled={saving || missing.blocked}
-            aria-describedby={missing.describedBy}
-          >
+          <button className="primary-button" disabled={saving}>
             {saving ? "Salvando…" : "Adicionar participante"}
           </button>
         </div>

@@ -1,3 +1,11 @@
+import { formatPhone, splitPhone } from "@crm/contracts";
+
+/** Preserva contatos fora do padrão brasileiro, aceitos no cadastro do evento. */
+export function eventPhone(value: string) {
+  const { ddd, number } = splitPhone(value);
+  return ddd ? formatPhone(ddd + number) : value || "Não informado";
+}
+
 /** Converte um instante para o campo local no fuso da clínica, não do navegador. */
 export function eventDateTime(iso: string, timezone: string) {
   const parts = new Intl.DateTimeFormat("en-CA", {

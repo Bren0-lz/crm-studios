@@ -180,7 +180,7 @@ describe("event participants", () => {
     ).toBeVisible();
   });
 
-  it("adds a participant linked to the event, with the duplicate warning", async () => {
+  it("adds a participant with an existing contact without checking duplicates", async () => {
     const writes = setup({ duplicates: true });
     expect(await screen.findByText("Ana Participante")).toBeVisible();
     fireEvent.click(
@@ -204,13 +204,6 @@ describe("event participants", () => {
     fireEvent.click(
       within(dialog).getByRole("button", { name: "Adicionar participante" }),
     );
-    expect(await within(dialog).findByRole("alert")).toHaveTextContent(
-      "Telefone já cadastrado para Bia Cliente (cliente).",
-    );
-    expect(writes).toHaveLength(0);
-    fireEvent.click(
-      within(dialog).getByRole("button", { name: "Salvar mesmo assim" }),
-    );
     const list = await screen.findByRole("list", {
       name: "Lista de participantes",
     });
@@ -228,6 +221,30 @@ describe("event participants", () => {
       },
     });
     expect(screen.getByText("2 participante(s)")).toBeVisible();
+    expect(
+      vi
+        .mocked(fetch)
+        .mock.calls.some(([url]) => String(url).includes("/leads/duplicates")),
+    ).toBe(false);
+  });
+
+  it("allows adding a participant without filling any fields", async () => {
+    const writes = setup();
+    await screen.findByText("Ana Participante");
+    fireEvent.click(
+      screen.getByRole("button", { name: "Adicionar participante" }),
+    );
+    const dialog = screen.getByRole("dialog", {
+      name: "Adicionar participante",
+    });
+    expect(within(dialog).getByLabelText("Nome completo")).not.toBeRequired();
+    expect(within(dialog).getByLabelText("Telefone")).not.toBeRequired();
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Adicionar participante" }),
+    );
+    await waitFor(() => expect(writes).toHaveLength(1));
+    expect(writes[0]?.body).toMatchObject({ fullName: "", phone: "", eventId });
+    expect(await screen.findByText("Participante sem nome")).toBeVisible();
   });
 
   it("registers a contact attempt and a contact made, refreshing the indicators", async () => {

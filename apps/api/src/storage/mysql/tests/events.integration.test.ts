@@ -1,4 +1,8 @@
-import { eventInputSchema, leadInputSchema } from "@crm/contracts";
+import {
+  eventInputSchema,
+  leadInputSchema,
+  eventLeadInputSchema,
+} from "@crm/contracts";
 import { randomUUID } from "node:crypto";
 import type { Database as Pool } from "../../../infrastructure/mysql-client.js";
 import {
@@ -51,6 +55,48 @@ for (const storage of ["memory", "mysql"] as const) {
             ...extra,
           }),
         );
+
+      it("imports incomplete participants with repeated contacts atomically and isolated by clinic", async () => {
+        const event = await repository.createEvent(
+          clinicId,
+          actorId,
+          eventInputSchema.parse({
+            name: "Importação " + randomUUID().slice(0, 8),
+            startsAt: "2026-11-08T12:00:00.000Z",
+          }),
+        );
+        const input = eventLeadInputSchema.parse({
+          eventId: event.id,
+          phone: "123",
+        });
+        expect(
+          await repository.importEventParticipants(clinicId, event.id, [
+            input,
+            input,
+            eventLeadInputSchema.parse({
+              eventId: event.id,
+              email: "apenas@example.com",
+            }),
+          ]),
+        ).toBe(3);
+        expect(
+          (await repository.getEvent(clinicId, event.id))?.participants,
+        ).toHaveLength(3);
+        await expect(
+          repository.importEventParticipants(otherClinicId, event.id, [input]),
+        ).rejects.toMatchObject({ code: "EVENT_NOT_FOUND" });
+        await expect(
+          repository.importEventParticipants(clinicId, event.id, [
+            input,
+            { ...input, responsibleUserId: randomUUID() },
+          ]),
+        ).rejects.toMatchObject({ code: "RESPONSIBLE_USER_NOT_FOUND" });
+        const detail = await repository.getEvent(clinicId, event.id);
+        expect(detail?.participants).toHaveLength(3);
+        expect(
+          detail?.participants.filter((item) => item.phone === "123"),
+        ).toHaveLength(2);
+      });
 
       it("creates, lists and edits an event, isolated by clinic", async () => {
         const created = await repository.createEvent(

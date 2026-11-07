@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { eventDateTime, eventMoment, eventStartsAt } from "./model";
+import { eventDateTime, eventMoment, eventStartsAt, eventPhone } from "./model";
 
 describe("event clinic timezone", () => {
   it.each([
@@ -25,5 +25,15 @@ describe("event clinic timezone", () => {
     expect(eventMoment("2039-11-09T13:05:00.000Z", "America/Manaus")).toBe(
       "09 de nov. às 09:05",
     );
+  });
+});
+
+describe("event participant phone", () => {
+  it("formats domestic numbers and preserves other contacts without truncating", () => {
+    expect(eventPhone("11999991234")).toBe("(11) 99999-1234");
+    expect(eventPhone("+55 11 99999-1234")).toBe("(11) 99999-1234");
+    expect(eventPhone("+1 415 555 1234")).toBe("+1 415 555 1234");
+    expect(eventPhone("123")).toBe("123");
+    expect(eventPhone("")).toBe("Não informado");
   });
 });
