@@ -9,6 +9,8 @@ import {
   maxProductSizes,
   productCategorySizes,
   productSizeLabel,
+  serviceBusinessLineLabels,
+  serviceBusinessLines,
   sortProductSizes,
 } from "@crm/contracts";
 import { Plus } from "lucide-react";
@@ -49,6 +51,7 @@ const emptyProduct: ProductForm = {
   salePriceInCents: null,
   initialStock: 0,
   restockAlertAt: null,
+  businessLine: null,
   sizes: [],
 };
 
@@ -406,6 +409,31 @@ export function ProductModal({
                 )}
               </select>
             </label>
+            <label>
+              Linha no painel
+              <select
+                value={form.businessLine ?? ""}
+                onChange={(event) =>
+                  setForm({
+                    ...form,
+                    businessLine: (event.target.value ||
+                      null) as ProductForm["businessLine"],
+                  })
+                }
+              >
+                <option value="">Sem classificação</option>
+                {serviceBusinessLines.map((line) => (
+                  <option key={line} value={line}>
+                    {serviceBusinessLineLabels[line]}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <p className="field-hint span-2">
+              Só vale para o painel de vendas, que separa as vendas do produto
+              por linha (sem classificação aparece como Outros). Não muda nada
+              no CRM.
+            </p>
             {ownSizes && (
               <div className="span-2 size-editor">
                 <ProductSizesEditor

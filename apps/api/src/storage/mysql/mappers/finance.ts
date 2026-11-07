@@ -13,6 +13,7 @@ import type {
   Receivable,
   ReceivableStatus,
   RecurringPayable,
+  ServiceBusinessLine,
   StockMovement,
 } from "@crm/contracts";
 import {
@@ -40,6 +41,7 @@ export interface ProductRow {
   salePriceInCents: number | null;
   currentStock: number;
   restockAlertAt: number | null;
+  businessLine: ServiceBusinessLine | null;
   sizes: ProductSize[];
   /** Linhas de `product_stock` ("" = sem tamanho), via `productStockRowsColumn`. */
   stockRows?: unknown;
@@ -366,6 +368,7 @@ export function mapProduct(row: ProductRow): Product {
     salePriceInCents: row.salePriceInCents,
     currentStock: row.currentStock,
     restockAlertAt: row.restockAlertAt,
+    businessLine: row.businessLine ?? null,
     sizes,
     sizeStock,
     lowStock: productNeedsRestock({

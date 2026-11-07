@@ -14,6 +14,7 @@ import {
 import { hashIntegrationToken } from "../integrations/tokens.js";
 import { externalEndpoints } from "./endpoints.js";
 import { testPatientContact } from "../../test-support/patient-contact.js";
+import { addLegacyTabService } from "../../test-support/legacy-tab-service.js";
 
 const clinicId = "11111111-1111-4111-8111-111111111111";
 
@@ -430,6 +431,14 @@ describe("API externa de vendas", () => {
       groups: [
         { groupId: group.id, groupName: group.name, full: true, waitlistCount: 0 },
       ],
+      services: [
+        {
+          id: service!.id,
+          name: service!.name,
+          businessLine: service!.businessLine,
+        },
+      ],
+      productLines: [],
       amountInCents: receivables[1]!.amountInCents + receivables[2]!.amountInCents,
       installments: 2,
       oldestDueDate: oldest,
@@ -457,6 +466,199 @@ describe("API externa de vendas", () => {
         })
       ).statusCode,
     ).toBe(403);
+    await app.close();
+  });
+
+  it("sales and overdue rows carry the services with the registry line and the product lines", async () => {
+    const { app, repository, createKey } = await setup();
+    const { headers } = await createKey(["sales:read"]);
+    const [professional] = await repository.listProfessionals(clinicId);
+    const [room] = await repository.listRooms(clinicId);
+    const patient = await repository.createPatient(clinicId, {
+      fullName: "Cliente das linhas",
+      cpf: nextTestCpf(),
+      phone: "11988887777",
+      tags: [],
+    });
+    const manualOnly = await repository.createPatient(clinicId, {
+      fullName: "Cliente da parcela avulsa",
+      cpf: nextTestCpf(),
+      phone: "11988887777",
+      tags: [],
+    });
+    const service = (name: string, businessLine?: "studio" | "aesthetics") =>
+      repository.createService(clinicId, {
+        name,
+        durationMinutes: 50,
+        priceInCents: 9_000,
+        ...(businessLine ? { businessLine } : {}),
+      });
+    const studio = await service("Pilates das linhas", "studio");
+    const laser = await service("Laser das linhas", "aesthetics");
+    const massage = await service("Massagem das linhas");
+    const product = (name: string, businessLine?: "aesthetics") =>
+      repository.createProduct(clinicId, OWNER_ID, {
+        name,
+        unit: "un",
+        costInCents: 1_000,
+        salePriceInCents: 2_500,
+        initialStock: 10,
+        ...(businessLine ? { businessLine } : {}),
+      });
+    const cream = await product("Creme das linhas", "aesthetics");
+    const band = await product("Faixa das linhas");
+
+    // Comanda (atendimento sem classificação + creme de Estética) e venda de produto sem
+    // classificação, a receber com vencimento passado.
+    const tab = await repository.openPatientTab(clinicId, OWNER_ID, {
+      patientId: patient.id,
+    });
+    await addLegacyTabService(
+      repository,
+      undefined,
+      clinicId,
+      tab.id,
+      {
+        professionalId: professional!.id,
+        roomId: room!.id,
+        serviceId: massage.id,
+        startsAt: "2040-06-20T13:00:00.000Z",
+        visitType: "regular",
+        notes: "",
+      },
+      12_000,
+    );
+    await repository.addPatientTabItem(clinicId, OWNER_ID, tab.id, {
+      productId: cream.id,
+      quantity: 1,
+    });
+    await repository.closePatientTab(clinicId, OWNER_ID, tab.id, {
+      settlement: "receivable",
+      dueDate: "2020-01-10",
+    });
+    await repository.createProductSale(clinicId, OWNER_ID, {
+      patientId: patient.id,
+      items: [{ productId: band.id, quantity: 1 }],
+      settlement: "receivable",
+      dueDate: "2020-01-15",
+    });
+    // Plano com dois serviços (Studio e Estética), parcelas vencidas.
+    const template = await repository.createPlanTemplate(clinicId, OWNER_ID, {
+      name: "Combo das linhas",
+      totalValueInCents: 40_000,
+      services: [
+        { serviceId: studio.id, totalSessions: 4, totalValueInCents: 25_000 },
+        { serviceId: laser.id, totalSessions: 2, totalValueInCents: 15_000 },
+      ],
+    } as Parameters<typeof repository.createPlanTemplate>[2]);
+    await repository.createPatientPlan(clinicId, OWNER_ID, {
+      planTemplateId: template.id,
+      patientId: patient.id,
+      name: template.name,
+      kind: "fixed_package",
+      services: template.services,
+      validFrom: "2020-01-01",
+      totalValueInCents: 40_000,
+      installments: 2,
+      firstDueDate: "2020-01-10",
+    });
+    // Parcela avulsa vencida: sem vínculo com a origem.
+    await repository.createManualReceivable(clinicId, OWNER_ID, {
+      patientId: manualOnly.id,
+      description: "Ajuste avulso",
+      amountInCents: 5_000,
+      dueDate: "2020-02-01",
+    });
+    // Serviço desativado depois da venda: continua com a linha e o nome do cadastro.
+    await repository.updateAdministrativeRegistry(clinicId, OWNER_ID, laser.id, {
+      kind: "service",
+      data: {
+        name: "Laser (desativado)",
+        durationMinutes: 50,
+        priceInCents: 9_000,
+        active: false,
+      },
+    });
+
+    const overdue = await app.inject({ url: "/external/v1/overdue", headers });
+    expect(overdue.statusCode, overdue.body).toBe(200);
+    const rows = overdue.json().rows as {
+      patientId: string;
+      services: { id: string; name: string; businessLine: string | null }[];
+      productLines: (string | null)[];
+    }[];
+    const row = rows.find((item) => item.patientId === patient.id)!;
+    const byId = (
+      left: { id: string },
+      right: { id: string },
+    ) => left.id.localeCompare(right.id);
+    expect([...row.services].sort(byId)).toEqual(
+      [
+        { id: studio.id, name: studio.name, businessLine: "studio" },
+        { id: laser.id, name: "Laser (desativado)", businessLine: "aesthetics" },
+        { id: massage.id, name: massage.name, businessLine: null },
+      ].sort(byId),
+    );
+    expect([...row.productLines].sort()).toEqual(["aesthetics", null]);
+    expect(
+      rows.find((item) => item.patientId === manualOnly.id),
+    ).toMatchObject({ services: [], productLines: [] });
+
+    const today = overdue.json().referenceDate as string;
+    const period = await app.inject({
+      url: `/external/v1/sales/period?from=${today}&to=${today}`,
+      headers,
+    });
+    expect(period.statusCode, period.body).toBe(200);
+    const sales = (
+      period.json().sales as {
+        patientId: string;
+        kind: string;
+        sourceType: string;
+        itemName: string;
+        amountInCents: number;
+        services: unknown[];
+        businessLine?: string | null;
+      }[]
+    ).filter((item) => item.patientId === patient.id && item.kind === "sale");
+    const plan = sales.find((item) => item.sourceType === "plan")!;
+    expect(plan.services).toEqual([
+      { id: studio.id, name: studio.name, businessLine: "studio" },
+      { id: laser.id, name: "Laser (desativado)", businessLine: "aesthetics" },
+    ]);
+    expect(plan).not.toHaveProperty("businessLine");
+    expect(plan.amountInCents).toBe(40_000);
+    const attended = sales.find((item) => item.sourceType === "service")!;
+    expect(attended.services).toEqual([
+      { id: massage.id, name: massage.name, businessLine: null },
+    ]);
+    expect(attended).not.toHaveProperty("businessLine");
+    expect(
+      sales
+        .filter((item) => item.sourceType === "product")
+        .map(({ itemName, services, businessLine }) => ({
+          itemName,
+          services,
+          businessLine,
+        }))
+        .sort((left, right) => left.itemName.localeCompare(right.itemName)),
+    ).toEqual([
+      { itemName: "Creme das linhas", services: [], businessLine: "aesthetics" },
+      { itemName: "Faixa das linhas", services: [], businessLine: null },
+    ]);
+    // O relatório do mês (`/external/v1/sales`) usa as mesmas vendas.
+    const month = await app.inject({
+      url: `/external/v1/sales?month=${today.slice(0, 7)}`,
+      headers,
+    });
+    expect(month.statusCode, month.body).toBe(200);
+    expect(
+      (month.json().sales as { sourceType: string; services: unknown[] }[]).find(
+        (item) =>
+          item.sourceType === "plan" &&
+          (item as unknown as { patientId: string }).patientId === patient.id,
+      )?.services,
+    ).toHaveLength(2);
     await app.close();
   });
 

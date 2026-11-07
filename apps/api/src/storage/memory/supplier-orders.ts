@@ -108,6 +108,7 @@ export function createSupplierOrdersRepository(
               costInCents: item.unitCostInCents ?? 0,
               salePriceInCents: null,
               restockAlertAt: null,
+              businessLine: null,
               sizes: [],
               sizeStock: [],
               branchId,

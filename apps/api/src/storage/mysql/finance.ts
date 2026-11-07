@@ -506,7 +506,7 @@ export function createFinanceRepository(
         servicesResult,
       ] = await Promise.all([
         repositoryContext.pool.query<ProductRow>(
-          `SELECT id,clinic_id AS "clinicId",branch_id AS "branchId",name,sku,unit,category_id AS "categoryId",brand_id AS "brandId",cost_in_cents AS "costInCents",sale_price_in_cents AS "salePriceInCents",current_stock AS "currentStock",restock_alert_at AS "restockAlertAt",sizes,${productStockRowsColumn},active,created_at AS "createdAt",updated_at AS "updatedAt" FROM products WHERE clinic_id=$1 AND ${branchClause("branch_id", 2)} ORDER BY name`,
+          `SELECT id,clinic_id AS "clinicId",branch_id AS "branchId",name,sku,unit,category_id AS "categoryId",brand_id AS "brandId",cost_in_cents AS "costInCents",sale_price_in_cents AS "salePriceInCents",current_stock AS "currentStock",restock_alert_at AS "restockAlertAt",business_line AS "businessLine",sizes,${productStockRowsColumn},active,created_at AS "createdAt",updated_at AS "updatedAt" FROM products WHERE clinic_id=$1 AND ${branchClause("branch_id", 2)} ORDER BY name`,
           [clinicId, branchIds],
         ),
         repositoryContext.pool.query<StockMovementRow>(
@@ -584,7 +584,7 @@ export function createFinanceRepository(
             );
         const result = await writeAndRead<{ id: string }>(
           client,
-          `INSERT INTO products(clinic_id,name,sku,unit,cost_in_cents,sale_price_in_cents,current_stock,category_id,brand_id,branch_id, id,sizes,restock_alert_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,${branchOrDefault("$10", "$1")}, $11,$12,$13)`,
+          `INSERT INTO products(clinic_id,name,sku,unit,cost_in_cents,sale_price_in_cents,current_stock,category_id,brand_id,branch_id, id,sizes,restock_alert_at,business_line) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,${branchOrDefault("$10", "$1")}, $11,$12,$13,$14)`,
           [
             clinicId,
             input.name,
@@ -599,6 +599,7 @@ export function createFinanceRepository(
             randomUUID(),
             input.sizes ?? [],
             input.restockAlertAt ?? null,
+            input.businessLine ?? null,
           ],
           `SELECT id FROM products WHERE id = $11`,
         );
@@ -623,7 +624,7 @@ export function createFinanceRepository(
             );
           }
         const created = await client.query<ProductRow>(
-          `SELECT id,clinic_id AS "clinicId",branch_id AS "branchId",name,sku,unit,cost_in_cents AS "costInCents",sale_price_in_cents AS "salePriceInCents",current_stock AS "currentStock",restock_alert_at AS "restockAlertAt",sizes,${productStockRowsColumn},active,category_id AS "categoryId",brand_id AS "brandId",created_at AS "createdAt",updated_at AS "updatedAt" FROM products WHERE id=$1`,
+          `SELECT id,clinic_id AS "clinicId",branch_id AS "branchId",name,sku,unit,cost_in_cents AS "costInCents",sale_price_in_cents AS "salePriceInCents",current_stock AS "currentStock",restock_alert_at AS "restockAlertAt",business_line AS "businessLine",sizes,${productStockRowsColumn},active,category_id AS "categoryId",brand_id AS "brandId",created_at AS "createdAt",updated_at AS "updatedAt" FROM products WHERE id=$1`,
           [product.id],
         );
         await client.query("COMMIT");

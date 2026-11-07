@@ -8,9 +8,12 @@ import {
   type SaleMovement,
   type SalesReport,
   type SalesPeriodReport,
+  type ServiceBusinessLine,
+  type ServiceLineRef,
   type TeamProductionSources,
   allocatePlanRevenue,
 } from "@crm/contracts";
+import type { Queryable } from "../../infrastructure/mysql-client.js";
 import { competencesBetween } from "../../modules/reports/team-finance.js";
 import {
   buildSalesReport,
@@ -52,6 +55,10 @@ type PlanSaleRow = {
   patientName: string;
   name: string;
   serviceName: string;
+  /** Serviço principal do plano, com nome e linha do cadastro (plano sem `patient_plan_services`). */
+  serviceId: string;
+  primaryServiceName: string;
+  primaryBusinessLine: ServiceBusinessLine | null;
   totalValueInCents: number;
   cancelledValueInCents: number;
   customerDiscountInCents: number;
@@ -77,9 +84,46 @@ type TabSaleRow = {
   receivableId: string | null;
   /** Desconto da venda gravado na cobrança da comanda. */
   tabDiscountInCents: number | string | null;
+  /** Serviço da comanda: id, nome e linha do cadastro (`null` no produto). */
+  serviceId: string | null;
+  registryServiceName: string | null;
+  /** Linha no painel do produto ou do serviço (`null` = sem classificação). */
+  businessLine: ServiceBusinessLine | null;
 };
 
-function toSales(planRows: PlanSaleRow[], tabRows: TabSaleRow[]) {
+/**
+ * Serviços de cada plano, na ordem do plano, com nome e linha do cadastro atual (inclusive
+ * serviço inativo; o nome vendido se o serviço não existe mais).
+ */
+async function planServiceLines(
+  client: Queryable,
+  clinicId: string,
+  planIds: string[],
+) {
+  const byPlan = new Map<string, ServiceLineRef[]>();
+  if (!planIds.length) return byPlan;
+  const result = await client.query<ServiceLineRef & { planId: string }>(
+    `SELECT x.plan_id AS "planId", x.service_id AS id, COALESCE(s.name, x.service_name) AS name,
+            s.business_line AS "businessLine"
+     FROM patient_plan_services x
+     LEFT JOIN services s ON s.id=x.service_id AND s.clinic_id=x.clinic_id
+     WHERE x.clinic_id=$1 AND ${inJsonArray("x.plan_id", "$2")}
+     ORDER BY x.plan_id, x.position`,
+    [clinicId, planIds],
+  );
+  for (const { planId, ...service } of result.rows)
+    byPlan.set(planId, [
+      ...(byPlan.get(planId) ?? []),
+      { ...service, businessLine: service.businessLine ?? null },
+    ]);
+  return byPlan;
+}
+
+function toSales(
+  planRows: PlanSaleRow[],
+  tabRows: TabSaleRow[],
+  planServices: ReadonlyMap<string, ServiceLineRef[]>,
+) {
   const sales: SaleMovement[] = [];
   for (const plan of planRows) {
     const base = {
@@ -89,6 +133,14 @@ function toSales(planRows: PlanSaleRow[], tabRows: TabSaleRow[]) {
       patientName: plan.patientName,
       itemName: `${plan.name} (${plan.serviceName})`,
       quantity: 1,
+      // Todos os serviços do plano (o valor da venda conta inteiro em cada um).
+      services: planServices.get(plan.id) ?? [
+        {
+          id: plan.serviceId,
+          name: plan.primaryServiceName,
+          businessLine: plan.primaryBusinessLine ?? null,
+        },
+      ],
     };
     sales.push({
       ...base,
@@ -124,6 +176,17 @@ function toSales(planRows: PlanSaleRow[], tabRows: TabSaleRow[]) {
         size: (item.size || undefined) as ProductSize | undefined,
       }),
       quantity: item.quantity,
+      ...(item.sourceType === "service" && item.serviceId
+        ? {
+            services: [
+              {
+                id: item.serviceId,
+                name: item.registryServiceName ?? item.productName,
+                businessLine: item.businessLine ?? null,
+              },
+            ],
+          }
+        : { services: [], businessLine: item.businessLine ?? null }),
       ...(item.receivableId ? { receivableId: item.receivableId } : {}),
     };
     sales.push({
@@ -168,7 +231,9 @@ export function createReportsRepository(
                 pp.cancelled_value_in_cents AS "cancelledValueInCents",
                 (SELECT CAST(coalesce(sum(r.customer_discount_in_cents),0) AS SIGNED) FROM receivables r WHERE r.clinic_id=pp.clinic_id AND r.plan_id=pp.id) AS "customerDiscountInCents",
                 EXISTS(SELECT 1 FROM receivables r WHERE r.clinic_id=pp.clinic_id AND r.plan_id=pp.id AND r.manual_amount=1) AS "manualFirstCharge",
-                pp.created_at AS "createdAt", pp.cancelled_at AS "cancelledAt"
+                pp.created_at AS "createdAt", pp.cancelled_at AS "cancelledAt",
+                pp.service_id AS "serviceId", s.name AS "primaryServiceName",
+                s.business_line AS "primaryBusinessLine"
          FROM patient_plans pp
          JOIN patients p ON p.id=pp.patient_id
          JOIN services s ON s.id=pp.service_id
@@ -182,17 +247,26 @@ export function createReportsRepository(
                 CAST((i.quantity*i.unit_cost_in_cents) AS SIGNED) AS "costInCents",
                 t.closed_at AS "closedAt", t.cancelled_at AS "cancelledAt",
                 t.receivable_id AS "receivableId",
-                (SELECT r.customer_discount_in_cents FROM receivables r WHERE r.clinic_id=t.clinic_id AND r.id=t.receivable_id) AS "tabDiscountInCents"
+                (SELECT r.customer_discount_in_cents FROM receivables r WHERE r.clinic_id=t.clinic_id AND r.id=t.receivable_id) AS "tabDiscountInCents",
+                NULL AS "serviceId", NULL AS "registryServiceName", pr.business_line AS "businessLine"
          FROM patient_tab_items i
          JOIN patient_tabs t ON t.id=i.tab_id
          JOIN patients p ON p.id=t.patient_id
          JOIN products pr ON pr.id=i.product_id
          WHERE t.clinic_id=$1 AND JSON_CONTAINS($2, JSON_QUOTE(t.patient_id)) AND t.closed_at IS NOT NULL AND ${branchClause("t.branch_id", 3)}
-         UNION ALL SELECT i.id,t.id,t.patient_id,'service',p.full_name,i.service_name,'',1,i.amount_in_cents,NULL,t.closed_at,t.cancelled_at,t.receivable_id,(SELECT r.customer_discount_in_cents FROM receivables r WHERE r.clinic_id=t.clinic_id AND r.id=t.receivable_id) FROM patient_tab_services i JOIN patient_tabs t ON t.id=i.tab_id AND t.clinic_id=i.clinic_id JOIN patients p ON p.id=t.patient_id AND p.clinic_id=t.clinic_id WHERE t.clinic_id=$1 AND JSON_CONTAINS($2, JSON_QUOTE(t.patient_id)) AND t.closed_at IS NOT NULL AND ${branchClause("t.branch_id", 3)}`,
+         UNION ALL SELECT i.id,t.id,t.patient_id,'service',p.full_name,i.service_name,'',1,i.amount_in_cents,NULL,t.closed_at,t.cancelled_at,t.receivable_id,(SELECT r.customer_discount_in_cents FROM receivables r WHERE r.clinic_id=t.clinic_id AND r.id=t.receivable_id),i.service_id,sv.name,sv.business_line FROM patient_tab_services i JOIN patient_tabs t ON t.id=i.tab_id AND t.clinic_id=i.clinic_id JOIN patients p ON p.id=t.patient_id AND p.clinic_id=t.clinic_id LEFT JOIN services sv ON sv.id=i.service_id AND sv.clinic_id=i.clinic_id WHERE t.clinic_id=$1 AND JSON_CONTAINS($2, JSON_QUOTE(t.patient_id)) AND t.closed_at IS NOT NULL AND ${branchClause("t.branch_id", 3)}`,
         [clinicId, patientIds, branchIds],
       ),
     ]);
-    return toSales(plans.rows, tabs.rows);
+    return toSales(
+      plans.rows,
+      tabs.rows,
+      await planServiceLines(
+        repositoryContext.pool,
+        clinicId,
+        plans.rows.map((plan) => plan.id),
+      ),
+    );
   }
   async function salesSources(
     clinicId: string,
@@ -217,7 +291,9 @@ export function createReportsRepository(
                 pp.cancelled_value_in_cents AS "cancelledValueInCents",
                 (SELECT CAST(coalesce(sum(r.customer_discount_in_cents),0) AS SIGNED) FROM receivables r WHERE r.clinic_id=pp.clinic_id AND r.plan_id=pp.id) AS "customerDiscountInCents",
                 EXISTS(SELECT 1 FROM receivables r WHERE r.clinic_id=pp.clinic_id AND r.plan_id=pp.id AND r.manual_amount=1) AS "manualFirstCharge",
-                pp.created_at AS "createdAt", pp.cancelled_at AS "cancelledAt"
+                pp.created_at AS "createdAt", pp.cancelled_at AS "cancelledAt",
+                pp.service_id AS "serviceId", s.name AS "primaryServiceName",
+                s.business_line AS "primaryBusinessLine"
          FROM patient_plans pp
          JOIN patients p ON p.id=pp.patient_id
          JOIN services s ON s.id=pp.service_id
@@ -234,7 +310,8 @@ export function createReportsRepository(
                 CAST((i.quantity*i.unit_cost_in_cents) AS SIGNED) AS "costInCents",
                 t.closed_at AS "closedAt", t.cancelled_at AS "cancelledAt",
                 t.receivable_id AS "receivableId",
-                (SELECT r.customer_discount_in_cents FROM receivables r WHERE r.clinic_id=t.clinic_id AND r.id=t.receivable_id) AS "tabDiscountInCents"
+                (SELECT r.customer_discount_in_cents FROM receivables r WHERE r.clinic_id=t.clinic_id AND r.id=t.receivable_id) AS "tabDiscountInCents",
+                NULL AS "serviceId", NULL AS "registryServiceName", pr.business_line AS "businessLine"
          FROM patient_tab_items i
          JOIN patient_tabs t ON t.id=i.tab_id
          JOIN patients p ON p.id=t.patient_id
@@ -242,7 +319,7 @@ export function createReportsRepository(
          WHERE t.clinic_id=$1 AND t.closed_at IS NOT NULL AND ${branchClause("t.branch_id", 4)} AND (
            ${localDate("t.closed_at")} BETWEEN $2 AND $3
            OR ${localDate("t.cancelled_at")} BETWEEN $2 AND $3
-         ) UNION ALL SELECT i.id,t.id,t.patient_id,'service',p.full_name,i.service_name,'',1,i.amount_in_cents,NULL,t.closed_at,t.cancelled_at,t.receivable_id,(SELECT r.customer_discount_in_cents FROM receivables r WHERE r.clinic_id=t.clinic_id AND r.id=t.receivable_id) FROM patient_tab_services i JOIN patient_tabs t ON t.id=i.tab_id AND t.clinic_id=i.clinic_id JOIN patients p ON p.id=t.patient_id AND p.clinic_id=t.clinic_id WHERE t.clinic_id=$1 AND t.closed_at IS NOT NULL AND ${branchClause("t.branch_id", 4)} AND (${localDate("t.closed_at")} BETWEEN $2 AND $3 OR ${localDate("t.cancelled_at")} BETWEEN $2 AND $3)`,
+         ) UNION ALL SELECT i.id,t.id,t.patient_id,'service',p.full_name,i.service_name,'',1,i.amount_in_cents,NULL,t.closed_at,t.cancelled_at,t.receivable_id,(SELECT r.customer_discount_in_cents FROM receivables r WHERE r.clinic_id=t.clinic_id AND r.id=t.receivable_id),i.service_id,sv.name,sv.business_line FROM patient_tab_services i JOIN patient_tabs t ON t.id=i.tab_id AND t.clinic_id=i.clinic_id JOIN patients p ON p.id=t.patient_id AND p.clinic_id=t.clinic_id LEFT JOIN services sv ON sv.id=i.service_id AND sv.clinic_id=i.clinic_id WHERE t.clinic_id=$1 AND t.closed_at IS NOT NULL AND ${branchClause("t.branch_id", 4)} AND (${localDate("t.closed_at")} BETWEEN $2 AND $3 OR ${localDate("t.cancelled_at")} BETWEEN $2 AND $3)`,
         [clinicId, bounds.previousFrom, bounds.currentTo, branchIds],
       );
       const appointmentResult = await client.query<AppointmentRow>(
@@ -259,7 +336,15 @@ export function createReportsRepository(
           branchIds,
         ],
       );
-      const sales = toSales(planResult.rows, productResult.rows);
+      const sales = toSales(
+        planResult.rows,
+        productResult.rows,
+        await planServiceLines(
+          client,
+          clinicId,
+          planResult.rows.map((plan) => plan.id),
+        ),
+      );
       const sold = sales.filter((item) => item.kind === "sale");
       const planIds = [
         ...new Set(

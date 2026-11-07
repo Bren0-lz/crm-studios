@@ -50,7 +50,7 @@ export const nativeEndpoints: ExternalEndpoint[] = [
     path: "/external/v1/overdue",
     scope: "sales:read",
     description:
-      "Inadimplência por cliente: parcelas em aberto vencidas (valor, quantidade, vencimento mais antigo, dias e faixa de atraso) e turmas do cliente. Exige acesso ao Financeiro.",
+      "Inadimplência por cliente: parcelas em aberto vencidas (valor, quantidade, vencimento mais antigo, dias e faixa de atraso) e turmas do cliente. Também de onde vêm essas parcelas, para filtrar por serviço e por linha sem deduzir pela turma: services (id, name, businessLine studio | aesthetics | null, do cadastro, inclusive serviço inativo; serviços do plano e atendimentos da comanda) e productLines (linhas dos produtos da comanda, sem repetir; null = produto sem classificação). Parcela lançada à mão e saldo de baixa parcial de comanda não têm origem e não entram nas duas listas. Exige acesso ao Financeiro.",
   },
 ];
 
@@ -141,14 +141,15 @@ export const proxiedEndpoints: ProxiedEndpoint[] = [
     target: "/reports/sales",
     scope: "sales:read",
     description:
-      "Relatório de vendas do mês, com comparação ao mês anterior. Query: month=AAAA-MM.",
+      "Relatório de vendas do mês, com comparação ao mês anterior. Cada venda (sales) traz services: { id, name, businessLine }[] com a linha do cadastro (inclusive serviço inativo): o serviço avulso, todos os serviços do plano (o valor inteiro conta em cada um, não se divide) ou vazio no produto; a venda de produto traz também businessLine (studio | aesthetics | null; null = sem classificação), ausente em plano e serviço. Query: month=AAAA-MM.",
   },
   {
     method: "GET",
     path: "/external/v1/sales/period",
     target: "/reports/sales/period",
     scope: "sales:read",
-    description: "Vendas de um período. Query: from, to (AAAA-MM-DD).",
+    description:
+      "Vendas de um período, com os mesmos services e businessLine por venda de /external/v1/sales. Query: from, to (AAAA-MM-DD).",
   },
   {
     method: "GET",

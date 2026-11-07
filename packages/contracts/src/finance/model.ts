@@ -4,6 +4,7 @@ import {
   competenceMonthSchema,
   paymentMethodSchema,
 } from "../common/model.js";
+import { serviceBusinessLineSchema } from "../administration/business-line.js";
 import { maxInstallmentsLimit } from "./installments.js";
 import { paymentPartsSchema } from "./payment-parts.js";
 import {
@@ -192,6 +193,12 @@ const productBaseSchema = z.object({
   restockAlertAt: z.number().int().min(1).max(1_000_000).nullable().optional(),
   /** Vazio = sem distinção por tamanhos; ausente = nenhum (cadastro) ou mantém os atuais (edição). */
   sizes: productSizesSchema.optional(),
+  /**
+   * Linha no painel de vendas (como a do serviço; só categoriza o painel); `null` = sem
+   * classificação. Ausente = `null` no cadastro e mantém a atual na edição; `null` explícito na
+   * edição limpa.
+   */
+  businessLine: serviceBusinessLineSchema.nullable().optional(),
 });
 
 export const productInputSchema = productBaseSchema

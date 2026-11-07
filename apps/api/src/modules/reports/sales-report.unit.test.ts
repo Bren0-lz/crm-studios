@@ -27,6 +27,7 @@ describe("monthly sales report", () => {
         patientName: "Ana",
         itemName: "Pacote",
         quantity: 1,
+        services: [],
         amountInCents: 10000,
       },
       {
@@ -40,6 +41,7 @@ describe("monthly sales report", () => {
         patientName: "Ana",
         itemName: "Pacote",
         quantity: 1,
+        services: [],
         amountInCents: -10000,
       },
       {
@@ -52,6 +54,7 @@ describe("monthly sales report", () => {
         patientName: "Bia",
         itemName: "Faixa",
         quantity: 2,
+        services: [],
         amountInCents: 5000,
       },
     ];
@@ -155,6 +158,7 @@ describe("monthly sales report", () => {
       patientName: "Ana",
       itemName: "Pacote",
       quantity: 1,
+      services: [],
       amountInCents,
     });
     const report = buildSalesReport(
@@ -231,6 +235,7 @@ describe("contracted history of patients without return", () => {
       patientName: patientId,
       itemName,
       quantity: 1,
+      services: [],
       amountInCents: kind === "sale" ? 1000 : -1000,
     });
     const patientsWithoutReturn: PatientWithoutReturn[] = [

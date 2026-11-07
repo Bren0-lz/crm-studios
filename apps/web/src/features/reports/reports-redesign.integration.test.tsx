@@ -76,6 +76,7 @@ function sales(from: string, to: string, value = 120000): SalesPeriodReport {
         occurredAt: `${from}T12:00:00Z`,
         amountInCents: value,
         quantity: 1,
+        services: [],
       },
     ],
     patientsWithoutReturn: [
@@ -233,6 +234,7 @@ describe("management reports redesign", () => {
           saleOccurredAt: "2025-09-12T12:00:00Z",
           amountInCents: -798400,
           quantity: 1,
+          services: [],
         },
       ],
     }));
@@ -527,6 +529,7 @@ describe("management reports redesign", () => {
           patientName: "Lucas Ribeiro",
           itemName: "Pilates 2x (Pilates)",
           quantity: 1,
+          services: [],
           amountInCents: 48000,
         },
       ]),
