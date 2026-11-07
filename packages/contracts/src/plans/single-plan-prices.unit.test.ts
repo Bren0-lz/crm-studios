@@ -21,18 +21,13 @@ const template = (
 });
 
 describe("preço da sessão avulsa", () => {
-  it("guarda o preço de tabela no cadastro do serviço", () => {
-    const input = {
+  it("serviço não tem preço: o campo antigo é descartado", () => {
+    const parsed = serviceInputSchema.parse({
       name: "Pilates",
       durationMinutes: 50,
       priceInCents: 9000,
-    };
-    expect(serviceInputSchema.parse(input)).toMatchObject({
-      priceInCents: 9000,
     });
-    expect(
-      serviceInputSchema.safeParse({ ...input, priceInCents: -1 }).success,
-    ).toBe(false);
+    expect(parsed).toEqual({ name: "Pilates", durationMinutes: 50 });
   });
 
   it("reconhece o plano avulso pelo tipo ou, sem tipo, pelo modelo", () => {

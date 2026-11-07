@@ -186,20 +186,17 @@ export async function seedDemoData(pool: Pool) {
           "77777777-7777-4777-8777-777777777777",
           "Fisioterapia individual",
           50,
-          18000,
         ],
         [
           "88888888-8888-4888-8888-888888888888",
           "Avaliação funcional",
           60,
-          22000,
         ],
-      ].map(([id, name, duration_minutes, price_in_cents]) => ({
+      ].map(([id, name, duration_minutes]) => ({
         id,
         clinic_id: demoClinicId,
         name,
         duration_minutes,
-        price_in_cents,
       })),
       { onDuplicate: "ignore" },
     );

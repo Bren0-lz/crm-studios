@@ -5,7 +5,7 @@ import type { MemoryRepositoryContext } from "./context.js";
  * Base da comissão de um atendimento/presença: o valor que o cliente pagou por ele. Sessão
  * consumida de um plano (inclusive plano avulso; sessão estornada não conta) → valor da sessão
  * no plano com o desconto do cliente das cobranças. Sem consumo de plano → `undefined` (não gera
- * comissão; o preço de tabela e o plano avulso só cadastrado não entram). Mesma regra de
+ * comissão; o plano avulso só cadastrado não entra). Mesma regra de
  * `commissionBase` no MySQL.
  */
 export function commissionBaseInCents(

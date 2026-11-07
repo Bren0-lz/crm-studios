@@ -69,7 +69,7 @@ describe("appointment package on fixed weekdays", () => {
               : url.includes("/rooms")
                 ? [{ id: "55555555-5555-4555-8555-555555555555", name: "Sala" }]
                 : url.includes("/services")
-                  ? [{ id: serviceId, name: "Pilates", priceInCents: 10000 }]
+                  ? [{ id: serviceId, name: "Pilates" }]
                   : [],
       );
     });

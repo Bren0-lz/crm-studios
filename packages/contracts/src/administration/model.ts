@@ -294,11 +294,13 @@ export const serviceBusinessLineLabels: Record<
   string
 > = { studio: "Studio", aesthetics: "Estética" };
 
+/**
+ * Serviço é só cadastro (nome, duração, linha, profissionais e salas): o valor fica nos planos
+ * (atendimento único = plano avulso de 1 sessão). `priceInCents` antigo é ignorado.
+ */
 export const serviceInputSchema = z.object({
   name: z.string().trim().min(2).max(120),
   durationMinutes: z.number().int().min(15).max(480),
-  /** Preço de tabela de uma sessão: só referência no cadastro de planos, não cobra nada. */
-  priceInCents: z.number().int().min(0),
   /** Profissionais e salas que atendem o serviço; vazio ou ausente = todos. */
   professionalIds: z.array(z.uuid()).max(200).optional(),
   roomIds: z.array(z.uuid()).max(200).optional(),

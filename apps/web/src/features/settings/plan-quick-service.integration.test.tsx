@@ -4,7 +4,7 @@ import { clinicId, setupApi } from "../../test-support/api-server";
 import { open } from "../../test-support/workflow-ui";
 
 describe("serviço cadastrado pelo plano", () => {
-  it("cadastra o serviço com preço de tabela sem sair do plano e já o escolhe na linha", async () => {
+  it("cadastra o serviço (sem preço) sem sair do plano e já o escolhe na linha", async () => {
     const { repository } = await setupApi();
     open("/configuracoes?secao=planos");
     fireEvent.click(
@@ -27,7 +27,9 @@ describe("serviço cadastrado pelo plano", () => {
     const quick = screen.getByRole("dialog", { name: "Novo serviço" });
     fill(quick, "Nome do serviço", "Reformer");
     fill(quick, "Duração (minutos)", "50");
-    fill(quick, "Preço de tabela (R$)", "100,00");
+    expect(
+      within(quick).queryByLabelText(/Preço de tabela/),
+    ).not.toBeInTheDocument();
     fireEvent.click(
       within(quick).getByRole("button", { name: "Cadastrar serviço" }),
     );
@@ -40,16 +42,14 @@ describe("serviço cadastrado pelo plano", () => {
     const created = (await repository.listServices(clinicId)).find(
       (item) => item.name === "Reformer",
     )!;
-    expect(created).toMatchObject({ durationMinutes: 50, priceInCents: 10000 });
+    expect(created).toMatchObject({ durationMinutes: 50 });
     expect(within(plan).getByLabelText("Serviço 1")).toHaveValue(created.id);
-    // O preço de tabela gera o plano avulso do serviço, já listado no catálogo.
-    const generated = (await repository.listPlanTemplates(clinicId)).filter(
-      (item) => item.name === "Reformer (avulso)",
-    );
-    expect(generated).toMatchObject([
-      { planType: "single", totalValueInCents: 10000 },
-    ]);
-    expect(await screen.findByText("Reformer (avulso)")).toBeInTheDocument();
+    // Serviço não gera plano avulso sozinho: o valor é o do plano que está sendo cadastrado.
+    expect(
+      (await repository.listPlanTemplates(clinicId)).filter(
+        (item) => item.name === "Reformer (avulso)",
+      ),
+    ).toHaveLength(0);
 
     fireEvent.click(within(plan).getByRole("button", { name: "Salvar plano" }));
     await waitFor(() =>

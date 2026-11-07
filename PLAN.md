@@ -1088,3 +1088,76 @@ atualizado no mesmo PR):
 - **Gate:** —
 - **Depende de:** AJ3
 - **Status:** BLOCKED
+
+## Rodada 10 — Atendimento por plano (pedido do dono, 06/11/2026)
+
+Serviço vira só cadastro (nome, duração, linha, profissionais e salas) e todo atendimento sai de
+um plano; atendimento único (ex.: avaliação) é um **plano avulso** de 1 sessão. Hoje o serviço
+ainda tem preço (que gera o plano "<Nome> (avulso)"), agendar não exige plano e o realizado sem
+plano não cobra nada.
+
+### Decisões do dono (06/11/2026)
+
+- Serviço fica com nome, profissionais, salas, **duração** (término na agenda) e **linha de
+  negócio** (painel de vendas). Sai só o preço.
+- Atendimento normal e avaliação **exigem plano com saldo**; sem plano, o agendamento oferece
+  vender o plano avulso do serviço e já agenda. Cada tipo de avaliação é um serviço com o seu
+  plano avulso.
+- **Aula experimental** não exige nem consome plano (sem valor). **Lead só faz experimental**;
+  para avaliação, converte em cliente (afeta a EV4).
+- O atendimento **guarda o plano** escolhido; o realizado consome exatamente esse plano.
+
+### AP1 — Serviço sem preço
+
+- **Escopo:**
+  - Contratos: sai `priceInCents` de `serviceInputSchema`/`Service`/registro; sai
+    `planTablePriceSummary` (bloco "Preço de tabela"/"Total avulso" do `PlanTemplateModal`).
+  - API: sai `syncServiceSinglePlan` (preço → plano avulso automático) de `POST /services` e da
+    edição pelo registro; `GET /services` mantém `singleSessionPriceInCents` (do plano avulso).
+  - Migração nova remove `services.price_in_cents` e o seu CHECK. Planos avulsos já criados
+    ficam.
+  - Web: sai "Preço de tabela" do cadastro de serviço (completo e rápido); o texto orienta que o
+    valor fica no plano avulso.
+  - Dados demo, seeds e fixtures sem o campo.
+- **Gate:** gate completo + `npm run test:mysql`
+- **Status:** DONE
+
+### AP2 — Atendimento guarda o plano
+
+- **Escopo:**
+  - Migração nova: `appointments.patient_plan_id` (nulo = histórico, lead ou experimental), FK
+    para `patient_plans`. `planId` opcional no contrato do atendimento.
+  - Realizado com `planId` consome esse plano (sem saldo → `NO_SESSION_BALANCE`); sem `planId`
+    mantém a busca atual (histórico e crédito de comanda).
+  - `visitType: "trial"` nunca consome sessão (inclusive na finalização automática).
+  - Compra de plano com agendamento grava o `planId` nos atendimentos criados.
+- **Gate:** gate completo + `npm run test:mysql`
+- **Depende de:** AP1
+- **Status:** TODO
+
+### AP3 — Agendar exige plano (API)
+
+- **Escopo:**
+  - Criar, repetir, editar (troca de cliente/serviço) e remarcar ausência de cliente com
+    `visitType` normal/avaliação exigem `planId` de plano do cliente ativo, válido nas datas, que
+    cubra o serviço e com saldo para as ocorrências (`PLAN_REQUIRED`, 409). Regra única
+    reaproveitando `appointmentPricing`.
+  - Lead só agenda `trial`; experimental de cliente não pede plano.
+- **Gate:** gate completo + `npm run test:mysql`
+- **Depende de:** AP2
+- **Status:** TODO
+
+### AP4 — Agendar exige plano (web) e venda do avulso no agendamento
+
+- **Escopo:**
+  - Campo "Plano" no agendamento (padrão: o que vence antes, com saldo); some na experimental.
+  - Sem plano válido: "Vender plano avulso" reaproveitando a venda de plano, já com o plano
+    avulso do serviço, e seleciona o plano novo; sem plano avulso cadastrado, orienta a criar em
+    Configurações › Planos.
+  - Edição/remarcação mostram o plano; agendamento de lead só oferece aula experimental.
+  - Testes web: com plano, vendendo avulso, experimental.
+- **Gate:** gate completo
+- **Depende de:** AP3
+- **Status:** TODO
+- **Pendente com o dono:** a EV4 ("Marcar avaliação pelo evento") passa a marcar aula
+  experimental ou exige converter o participante antes?

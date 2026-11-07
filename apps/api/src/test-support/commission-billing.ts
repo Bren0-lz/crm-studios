@@ -10,7 +10,7 @@ import type { ClinicRepository } from "../repository.js";
  * Vende ao cliente um plano de 1 sessão do serviço do atendimento (ainda agendado), válido no
  * dia dele: ao concluir, o atendimento consome essa sessão. A comissão sai do valor pago pelo
  * cliente, e sem consumo de plano o atendimento não gera comissão. Sem `amountInCents`, vale a
- * sessão do plano avulso do serviço ou, sem ele, o preço de tabela.
+ * sessão do plano avulso do serviço (sem ele, zero).
  */
 export async function sellSessionForAppointment(
   repository: ClinicRepository,
@@ -28,9 +28,7 @@ export async function sellSessionForAppointment(
     singlePlanSessionPrices(await repository.listPlanTemplates(clinicId)).get(
       appointment.serviceId,
     ) ??
-    (await repository.listServices(clinicId)).find(
-      (item) => item.id === appointment.serviceId,
-    )!.priceInCents;
+    0;
   const day = appointment.startsAt.slice(0, 10);
   const terms = {
     name: `Sessão avulsa ${randomUUID().slice(0, 8)}`,

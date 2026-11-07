@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { serviceBusinessLineLabels, serviceInputSchema } from "./model.js";
 import { administrativeRegistryInputSchema } from "./registry.js";
 
-const service = { name: "Pilates", durationMinutes: 50, priceInCents: 9000 };
+const service = { name: "Pilates", durationMinutes: 50 };
 
 describe("linha do serviço no painel", () => {
   it("aceita ausente, null, studio e aesthetics e recusa outra linha", () => {

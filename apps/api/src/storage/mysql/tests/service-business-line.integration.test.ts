@@ -59,18 +59,15 @@ for (const storage of ["memory", "mysql"] as const) {
         const unclassified = await repository.createService(clinicId, {
           name: "Pilates em grupo",
           durationMinutes: 50,
-          priceInCents: 9000,
         });
         const laser = await repository.createService(clinicId, {
           name: "Depilação a laser",
           durationMinutes: 30,
-          priceInCents: 15000,
           businessLine: "aesthetics",
         });
         const explicitNull = await repository.createService(clinicId, {
           name: "Massagem relaxante",
           durationMinutes: 60,
-          priceInCents: 12000,
           businessLine: null,
         });
         expect(unclassified.businessLine).toBeNull();
@@ -105,7 +102,6 @@ for (const storage of ["memory", "mysql"] as const) {
             data: {
               name: "Depilação a laser (axilas)",
               durationMinutes: 30,
-              priceInCents: 15000,
               active: true,
               ...extra,
             },
@@ -139,7 +135,6 @@ for (const storage of ["memory", "mysql"] as const) {
           const classified = await repository.createService(clinicId, {
             name: "Pilates avançado",
             durationMinutes: 50,
-            priceInCents: 9500,
             businessLine: "studio",
           });
           await pool!.query(
@@ -181,7 +176,6 @@ for (const storage of ["memory", "mysql"] as const) {
           const service = await repository.createService(clinicId, {
             name: "Massoterapia",
             durationMinutes: 60,
-            priceInCents: 17000,
           });
           await expect(
             pool!.query(

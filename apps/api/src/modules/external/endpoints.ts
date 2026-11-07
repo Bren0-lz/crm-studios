@@ -68,7 +68,7 @@ export const proxiedEndpoints: ProxiedEndpoint[] = [
     target: "/services",
     scope: "sales:read",
     description:
-      "Serviços ativos (id, nome, preço de tabela, valor da sessão do plano avulso, duração e linha no painel: businessLine studio | aesthetics | null; null = sem classificação, que o painel mostra como Outros). É a lista de filtros por serviço do painel.",
+      "Serviços ativos (id, nome, valor da sessão do plano avulso, duração e linha no painel: businessLine studio | aesthetics | null; null = sem classificação, que o painel mostra como Outros). É a lista de filtros por serviço do painel.",
   },
   {
     method: "GET",

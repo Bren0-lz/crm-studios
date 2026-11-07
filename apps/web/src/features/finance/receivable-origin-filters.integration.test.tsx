@@ -16,12 +16,10 @@ describe("receivable filters by sold plan and service", () => {
     const pilates = await repository.createService(clinicId, {
       name: "Pilates estúdio",
       durationMinutes: 50,
-      priceInCents: 10000,
     });
     const physio = await repository.createService(clinicId, {
       name: "Fisioterapia ortopédica",
       durationMinutes: 50,
-      priceInCents: 12000,
     });
     const combo = await repository.createPlanTemplate(clinicId, actorId, {
       name: "Pilates + fisio",

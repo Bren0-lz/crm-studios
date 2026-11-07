@@ -662,7 +662,6 @@ export class MemoryRepositoryContext {
       name: "Fisioterapia individual",
       businessLine: "studio",
       durationMinutes: 50,
-      priceInCents: 18000,
       active: true,
     },
     {
@@ -671,7 +670,6 @@ export class MemoryRepositoryContext {
       name: "Avaliação funcional",
       businessLine: null,
       durationMinutes: 60,
-      priceInCents: 22000,
       active: true,
     },
   ];

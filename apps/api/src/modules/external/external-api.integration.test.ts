@@ -467,7 +467,6 @@ describe("API externa de vendas", () => {
     const aesthetics = await repository.createService(clinicId, {
       name: "Depilação a laser",
       durationMinutes: 30,
-      priceInCents: 15_000,
       businessLine: "aesthetics",
     });
     expect(aesthetics.businessLine).toBe("aesthetics");
@@ -639,7 +638,6 @@ describe("API externa de vendas", () => {
       payload: {
         name: "Dança do ventre",
         durationMinutes: 60,
-        priceInCents: 8000,
       },
     });
     expect(created.statusCode, created.body).toBe(201);
@@ -651,13 +649,11 @@ describe("API externa de vendas", () => {
     const laser = await repository.createService(clinicId, {
       name: "Depilação a laser",
       durationMinutes: 30,
-      priceInCents: 15_000,
       businessLine: "aesthetics",
     });
     const retired = await repository.createService(clinicId, {
       name: "Serviço antigo",
       durationMinutes: 30,
-      priceInCents: 5_000,
       businessLine: "studio",
     });
     await repository.updateAdministrativeRegistry(
@@ -669,7 +665,6 @@ describe("API externa de vendas", () => {
         data: {
           name: retired.name,
           durationMinutes: 30,
-          priceInCents: 5_000,
           active: false,
         },
       },
@@ -734,7 +729,6 @@ describe("API externa de vendas", () => {
           data: {
             name: "Dança do ventre",
             durationMinutes: 60,
-            priceInCents: 8000,
             active: true,
             businessLine,
           },

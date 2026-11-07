@@ -45,7 +45,6 @@ export const demoServices: Service[] = [
     name: "Dançaterapia",
     businessLine: "studio",
     durationMinutes: 60,
-    priceInCents: 7500,
     professionalIds: [id(2, 1)],
     roomIds: [id(3, 1)],
     active: true,
@@ -56,7 +55,6 @@ export const demoServices: Service[] = [
     name: "Pilates individual",
     businessLine: "studio",
     durationMinutes: 50,
-    priceInCents: 15000,
     professionalIds: [id(2, 2)],
     roomIds: [id(3, 2)],
     active: true,
@@ -67,7 +65,6 @@ export const demoServices: Service[] = [
     name: "Depilação pernas",
     businessLine: "aesthetics",
     durationMinutes: 45,
-    priceInCents: 12000,
     professionalIds: [id(2, 3)],
     roomIds: [id(3, 3)],
     active: true,
@@ -78,7 +75,6 @@ export const demoServices: Service[] = [
     name: "Depilação axilas",
     businessLine: "aesthetics",
     durationMinutes: 30,
-    priceInCents: 5500,
     professionalIds: [id(2, 3)],
     roomIds: [id(3, 3)],
     active: true,
@@ -89,13 +85,12 @@ export const demoServices: Service[] = [
     name: "Massoterapia",
     businessLine: null,
     durationMinutes: 60,
-    priceInCents: 17000,
     professionalIds: [id(2, 3)],
     roomIds: [id(3, 3)],
     active: true,
   },
 ];
-/** O preço do serviço é só de tabela: a sessão avulsa de cada serviço é vendida como plano avulso. */
+/** Serviço não tem preço: a sessão avulsa de cada serviço é vendida como plano avulso. */
 export const demoPlanTemplates: PlanTemplate[] = (
   [
     [1, 7500],

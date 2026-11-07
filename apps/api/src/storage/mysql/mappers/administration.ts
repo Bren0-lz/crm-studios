@@ -80,7 +80,6 @@ export interface ServiceRow {
   clinicId: string;
   name: string;
   durationMinutes: number;
-  priceInCents: number;
   active: boolean;
   professionalIds: string[];
   roomIds: string[];
