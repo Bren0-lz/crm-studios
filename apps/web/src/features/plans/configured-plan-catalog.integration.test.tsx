@@ -226,10 +226,12 @@ describe("configured plan catalog", () => {
     ).not.toBeInTheDocument();
     fireEvent.change(selector, { target: { value: single.id } });
     expect(screen.getByLabelText("Modelo")).toHaveValue("single");
-    // Avulso: as sessões mudam e o valor segue o preço por sessão do plano.
-    fireEvent.change(screen.getByLabelText("Sessões do serviço 1"), {
-      target: { value: "8" },
-    });
+    // Avulso (modelo antigo de 10 sessões): vende uma sessão, pelo preço por sessão.
+    expect(screen.getByLabelText("Sessões do serviço 1")).toHaveValue(1);
+    expect(screen.getByLabelText("Sessões do serviço 1")).toHaveAttribute(
+      "readonly",
+    );
+    expect(screen.getByLabelText("Valor total")).toHaveValue("R$\u00a012,05");
     fireEvent.click(
       screen.getByRole("button", { name: "Criar plano e parcelas" }),
     );
@@ -238,7 +240,8 @@ describe("configured plan catalog", () => {
       name: single.name,
       planTemplateId: single.id,
       kind: "single",
-      totalValueInCents: 9640,
+      totalValueInCents: 1205,
+      services: [expect.objectContaining({ totalSessions: 1 })],
     });
   });
 

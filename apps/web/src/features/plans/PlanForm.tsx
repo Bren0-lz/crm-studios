@@ -5,7 +5,7 @@ import {
   planPeriodEnd,
   planPeriodMonths,
   planInstallmentPreview,
-  planServiceValueForSessions,
+  planTemplateSaleServices,
   planTypeKind,
   planTypeLabels,
   type PatientOption,
@@ -265,14 +265,18 @@ export function PlanForm({
     const templateKind = template?.planType
       ? planTypeKind(template.planType)
       : (template?.kind ?? "fixed_package");
+    const services = template ? planTemplateSaleServices(template) : [];
     return {
       ...current,
       planTemplateId: template?.id ?? "",
       name: template?.name ?? "",
-      totalValueInCents: template?.totalValueInCents ?? 0,
+      totalValueInCents: services.reduce(
+        (sum, item) => sum + item.totalValueInCents,
+        0,
+      ),
       // Valor novo: as formas picadas voltam a uma.
       paymentParts: undefined,
-      services: template?.services.map((entry) => ({ ...entry })) ?? [],
+      services,
       kind: templateKind,
       installments: templateKind === "recurring" ? 1 : current.installments,
       ...(template?.planType
@@ -334,8 +338,7 @@ export function PlanForm({
   const firstChargeSlots = renewing
     ? undefined
     : groups?.items?.find((group) => group.id === groupId)?.weeklySlots;
-  // Plano é fixo: sessões e valor vêm do plano cadastrado (ou do plano renovado).
-  // Só o avulso muda as sessões, e o valor acompanha o preço por sessão.
+  // Sessões e valor vêm do plano cadastrado (ou do plano renovado); o avulso é uma sessão.
   const references = renewing
     ? renewing.services
     : (templates?.find((item) => item.id === form.planTemplateId)?.services ??
@@ -349,7 +352,6 @@ export function PlanForm({
       (!initialServiceId ||
         item.services.some((entry) => entry.serviceId === initialServiceId)),
   );
-  const sessionsEditable = form.kind === "single";
   const servicesTotal = (entries: PatientPlanInput["services"]) =>
     entries.reduce((sum, item) => sum + item.totalValueInCents, 0);
   const formDirty =
@@ -592,33 +594,8 @@ export function PlanForm({
                         min="1"
                         max="1000"
                         step="1"
-                        readOnly={!sessionsEditable}
+                        readOnly
                         value={entry.totalSessions}
-                        onChange={(event) => {
-                          const totalSessions = Number(event.target.value);
-                          const reference = references.find(
-                            (item) => item.serviceId === entry.serviceId,
-                          );
-                          const entries = form.services.map((item, position) =>
-                            position === index
-                              ? {
-                                  ...item,
-                                  totalSessions,
-                                  totalValueInCents: reference
-                                    ? planServiceValueForSessions(
-                                        reference,
-                                        totalSessions,
-                                      )
-                                    : item.totalValueInCents,
-                                }
-                              : item,
-                          );
-                          setForm({
-                            ...form,
-                            services: entries,
-                            totalValueInCents: servicesTotal(entries),
-                          });
-                        }}
                       />
                     </label>
                     <label>
@@ -629,8 +606,8 @@ export function PlanForm({
                       />
                     </label>
                     <p className="span-2 muted-copy">
-                      {sessionsEditable
-                        ? "Avulso: o valor é calculado pelo preço por sessão do plano."
+                      {form.kind === "single"
+                        ? "Avulso: uma sessão, pelo preço por sessão do plano."
                         : "Sessões e valor seguem o plano cadastrado."}
                     </p>
                   </fieldset>

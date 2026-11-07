@@ -2,6 +2,8 @@ import {
   maxInstallmentsLimit,
   planPeriodMonths,
   planSessionsForPeriod,
+  isSinglePlanTemplate,
+  isSingleSessionPlan,
   planTemplateInputSchema,
   planTypeKind,
   planTypeLabels,
@@ -50,6 +52,12 @@ export function PlanTemplateModal({
   ].sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
   // Linha do plano que receberá o serviço cadastrado no atalho.
   const [creatingFor, setCreatingFor] = useState<number | null>(null);
+  // Avulso é uma sessão de um serviço (AP5): modelo antigo de várias sessões é ajustado ao editar.
+  const storedSingle = item ? isSinglePlanTemplate(item) : false;
+  const legacySessions =
+    storedSingle && item && !isSingleSessionPlan(item.services)
+      ? item.services.reduce((sum, entry) => sum + entry.totalSessions, 0)
+      : 0;
   const [form, setForm] = useState({
     name: item?.name ?? "",
     value: item ? centsToMoneyText(item.totalValueInCents) : "",
@@ -60,7 +68,7 @@ export function PlanTemplateModal({
         ? String(item.maxInstallments)
         : "",
     services: item?.services.length
-      ? item.services.map((entry) => ({
+      ? item.services.slice(0, storedSingle ? 1 : undefined).map((entry) => ({
           serviceId: entry.serviceId,
           sessions: String(entry.totalSessions),
           sessionsPerWeek: entry.sessionsPerWeek
@@ -74,18 +82,21 @@ export function PlanTemplateModal({
   const [error, setError] = useState("");
   const dirty = useFormDirty(form);
   const months = planPeriodMonths(form.planType as PlanType);
+  const single = form.planType ? form.planType === "single" : storedSingle;
   // Mensal é recorrente: uma cobrança por ciclo, sem parcelamento a configurar.
   const recurring =
     (form.planType
       ? planTypeKind(form.planType as PlanType)
       : (item?.kind ?? null)) === "recurring";
   const periodSessions = (entry: (typeof form.services)[number]) =>
-    months
-      ? planSessionsForPeriod(
-          form.planType as PlanType,
-          Number(entry.sessionsPerWeek),
-        )
-      : Number(entry.sessions);
+    single
+      ? 1
+      : months
+        ? planSessionsForPeriod(
+            form.planType as PlanType,
+            Number(entry.sessionsPerWeek),
+          )
+        : Number(entry.sessions);
   const total = reaisToCents(form.value);
   const sum = form.services.reduce(
     (value, entry) => value + (reaisToCents(entry.value) ?? 0),
@@ -107,7 +118,8 @@ export function PlanTemplateModal({
       total === null && "Valor total",
       ...form.services.flatMap((entry, index) => [
         !entry.serviceId && `Serviço ${index + 1}`,
-        (months ? !entry.sessionsPerWeek : !entry.sessions) &&
+        !single &&
+          (months ? !entry.sessionsPerWeek : !entry.sessions) &&
           (months
             ? `Sessões por semana do serviço ${index + 1}`
             : `Sessões do serviço ${index + 1}`),
@@ -202,7 +214,15 @@ export function PlanTemplateModal({
               required={!item}
               value={form.planType}
               onChange={(event) =>
-                setForm({ ...form, planType: event.target.value })
+                setForm({
+                  ...form,
+                  planType: event.target.value,
+                  // Avulso: fica só o primeiro serviço, com o valor total do plano.
+                  services:
+                    event.target.value === "single"
+                      ? [{ ...form.services[0]!, value: form.value }]
+                      : form.services,
+                })
               }
             >
               {item && !item.planType && (
@@ -326,7 +346,7 @@ export function PlanTemplateModal({
                     </button>
                   }
                 />
-                {months ? (
+                {single ? null : months ? (
                   <>
                     <label>
                       Sessões por semana
@@ -389,30 +409,39 @@ export function PlanTemplateModal({
               )}
             </fieldset>
           ))}
-          <div className="span-2 plan-template-service-add">
-            <button
-              type="button"
-              className="secondary-button button-sm"
-              disabled={saving}
-              onClick={() =>
-                setForm({
-                  ...form,
-                  services: [
-                    ...form.services,
-                    {
-                      serviceId: "",
-                      sessions: "1",
-                      sessionsPerWeek: "",
-                      value: "",
-                    },
-                  ],
-                })
-              }
-            >
-              <Plus size={16} aria-hidden="true" />
-              Adicionar serviço
-            </button>
-          </div>
+          {single && (
+            <p className="span-2 muted-copy">
+              Avulso: uma sessão do serviço, pelo valor total.
+              {legacySessions > 1 &&
+                ` Este plano tinha ${legacySessions} sessões; ao salvar, passa a ter uma.`}
+            </p>
+          )}
+          {!single && (
+            <div className="span-2 plan-template-service-add">
+              <button
+                type="button"
+                className="secondary-button button-sm"
+                disabled={saving}
+                onClick={() =>
+                  setForm({
+                    ...form,
+                    services: [
+                      ...form.services,
+                      {
+                        serviceId: "",
+                        sessions: "1",
+                        sessionsPerWeek: "",
+                        value: "",
+                      },
+                    ],
+                  })
+                }
+              >
+                <Plus size={16} aria-hidden="true" />
+                Adicionar serviço
+              </button>
+            </div>
+          )}
           {form.services.length > 1 && (
             <p className="span-2" role="status">
               Soma dos serviços: {currency.format(sum / 100)} · Diferença:{" "}

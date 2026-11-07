@@ -126,7 +126,26 @@ export const planTemplateFieldsSchema = z.object({
   maxInstallments: z.number().int().min(1).max(36).nullable().optional(),
 });
 
-export const planTemplateInputSchema = planTemplateFieldsSchema
+/** Plano avulso é um atendimento único: um serviço com uma sessão (AP5). */
+export function isSingleSessionPlan(
+  services: readonly { totalSessions: number }[],
+): boolean {
+  return services.length === 1 && services[0]!.totalSessions === 1;
+}
+
+export const singlePlanServicesMessage =
+  "Plano avulso tem uma única sessão de um serviço.";
+
+export const singlePlanServicesIssue = {
+  message: singlePlanServicesMessage,
+  path: ["services"],
+};
+
+/**
+ * Modelo já gravado: período e soma dos serviços. Avulso antigo com várias sessões segue válido
+ * enquanto serviços e tipo não mudam (ativar, desativar, renomear).
+ */
+export const planTemplateStoredSchema = planTemplateFieldsSchema
   .superRefine((value, ctx) => validateTemplatePeriod(value, ctx))
   .refine(
     (value) =>
@@ -137,6 +156,26 @@ export const planTemplateInputSchema = planTemplateFieldsSchema
       path: ["totalValueInCents"],
     },
   );
+
+export const planTemplateInputSchema = planTemplateStoredSchema.refine(
+  (value) =>
+    !isSinglePlanTemplate(value) || isSingleSessionPlan(value.services),
+  singlePlanServicesIssue,
+);
+
+/** Na edição, a regra do avulso vale quando os serviços, o tipo ou o modelo mudam. */
+export function planTemplateUpdateChangesTerms(input: {
+  readonly [key: string]: unknown;
+  services?: unknown;
+  planType?: unknown;
+  kind?: unknown;
+}): boolean {
+  return (
+    input.services !== undefined ||
+    input.planType !== undefined ||
+    input.kind !== undefined
+  );
+}
 
 // Weekly frequencies become a contracted balance; dates remain calendar months.
 export function validateTemplatePeriod(
@@ -166,7 +205,14 @@ export function validateTemplatePeriod(
 export const planTemplateUpdateSchema = planTemplateFieldsSchema
   .partial()
   .extend({ active: z.boolean().optional() })
-  .refine((value) => Object.keys(value).length > 0, "Informe uma alteração.");
+  .refine((value) => Object.keys(value).length > 0, "Informe uma alteração.")
+  .refine(
+    (value) =>
+      !value.services ||
+      !isSinglePlanTemplate(value) ||
+      isSingleSessionPlan(value.services),
+    singlePlanServicesIssue,
+  );
 
 /** Aggregate fields are derived; services own the sold terms and balances. */
 export function planServiceTotals<T extends { services: PlanServiceInput[] }>(
@@ -183,8 +229,8 @@ export function planServiceTotals<T extends { services: PlanServiceInput[] }>(
 }
 
 /**
- * Valor de um serviço vendido: o plano cadastrado é fixo; só o avulso muda a
- * quantidade de sessões, e o valor segue o preço por sessão da referência.
+ * Valor de um serviço vendido pelo preço por sessão da referência: o avulso sai sempre com
+ * uma sessão, inclusive de modelo antigo cadastrado com várias.
  */
 export function planServiceValueForSessions(
   reference: Pick<PlanServiceInput, "totalSessions" | "totalValueInCents">,
@@ -253,20 +299,41 @@ export function isSinglePlanTemplate(template: {
 }
 
 /**
- * Sessões por serviço de um plano vendido como pacote (pacote fixo ou avulso com várias
- * sessões, ex.: 10 sessões): a contratação agenda os horários em dias fixos na semana até
- * acabar o pacote. Plano recorrente, personalizado ou avulso de uma sessão: `undefined`.
+ * Serviços vendidos a partir do modelo: plano fixo copia o modelo; avulso sai com uma sessão
+ * do serviço, pelo preço por sessão (também do modelo antigo cadastrado com várias).
+ */
+export function planTemplateSaleServices<
+  T extends Pick<
+    PlanServiceInput,
+    "serviceId" | "totalSessions" | "totalValueInCents"
+  >,
+>(template: {
+  planType?: PlanType | null | undefined;
+  kind?: z.infer<typeof planKindSchema> | null | undefined;
+  services: readonly T[];
+}): T[] {
+  const first = template.services[0];
+  if (!isSinglePlanTemplate(template) || !first)
+    return template.services.map((entry) => ({ ...entry }));
+  return [
+    {
+      ...first,
+      totalSessions: 1,
+      totalValueInCents: planServiceValueForSessions(first, 1),
+    },
+  ];
+}
+
+/**
+ * Sessões por serviço de um plano vendido como pacote fixo: a contratação agenda os horários
+ * em dias fixos na semana até acabar o pacote. Avulso (uma sessão), recorrente ou
+ * personalizado: `undefined`.
  */
 export function planPackageSessions(plan: {
   kind: z.infer<typeof planKindSchema>;
   services: readonly { serviceId: string; totalSessions: number }[];
 }): Record<string, number> | undefined {
-  if (plan.kind !== "fixed_package" && plan.kind !== "single") return undefined;
-  if (
-    plan.kind === "single" &&
-    !plan.services.some((item) => item.totalSessions >= 2)
-  )
-    return undefined;
+  if (plan.kind !== "fixed_package") return undefined;
   return Object.fromEntries(
     plan.services.map((item) => [item.serviceId, item.totalSessions]),
   );
@@ -804,6 +871,10 @@ export const patientPlanInputSchema = planTermsSchema
   .refine(planPaymentPartsMatch, planPaymentPartsIssue)
   .refine(planPaymentRecurrenceChosen, planPaymentRecurrenceIssue)
   .refine(autoRenewPaymentPartsValid, autoRenewPaymentPartsIssue)
+  .refine(
+    (value) => value.kind !== "single" || isSingleSessionPlan(value.services),
+    singlePlanServicesIssue,
+  )
   .refine(
     (value) =>
       value.services.reduce((sum, item) => sum + item.totalValueInCents, 0) ===
