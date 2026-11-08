@@ -1345,13 +1345,23 @@ filtros ficam no `dashboard-studios` (EN11–EN13 têm só a parte da API aqui).
 
 ### EN3 — Marcar quem "virou cliente" no evento (3)
 
-- **Escopo:** ação "Virou cliente" no participante, etiqueta "Cliente" no convertido e coluna
-  "Origem: evento/lead" na exportação de clientes.
+- **Escopo:** ação "Se tornou cliente" no participante, etiqueta "Cliente" no convertido.
+- **Decisão do dono (08/11/2026):** "Se tornou cliente" abre o cadastro de cliente normal (o de
+  conversão de lead, já preenchido) **na frente** de onde a equipe está, sem sair da tela nem
+  fechar o modal aberto (ex.: "Registrar contato"); depois de cadastrado, o participante ganha a
+  etiqueta "Cliente". A coluna "Origem: evento/lead" na exportação de clientes foi para a EN3b.
 - **Gate:** gate completo
 - **Depende de:** EN1
-- **Pendente com o dono:** um clique ou o modal de conversão já preenchido (recomendação:
-  modal, porque a conversão pode exigir CPF e contato de emergência)?
-- **Status:** BLOCKED
+- **Status:** DONE
+
+### EN3b — Coluna "Origem: evento/lead" na exportação de clientes
+
+- **Escopo:** coluna opcional na exportação de clientes (`patient-export.ts`) com a origem do
+  cliente convertido de lead ("Evento: <nome>" ou "Lead"), lida pelo `converted_patient_id`
+  dos leads (memória e MySQL).
+- **Gate:** gate completo + `npm run test:mysql`
+- **Depende de:** EN3
+- **Status:** TODO
 
 ### EN2 — Exportar participantes do evento (2)
 

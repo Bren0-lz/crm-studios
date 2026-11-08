@@ -51,6 +51,8 @@ const mutationRules: [RegExp, DataDomain[]][] = [
     ["agenda", "plans", "finance", "history"],
   ],
   [/^\/leads\/[^/]+\/appointments$/, ["agenda", "history", "crm"]],
+  // Converter o lead cadastra o cliente (lista de clientes e participante do evento).
+  [/^\/leads\/[^/]+\/convert$/, ["patients", "history", "crm"]],
   // Tarefas e etapas dos leads alimentam o sino (tarefas comerciais vencidas).
   [/^\/(?:leads|lead-tasks|events)(?:\/|$|\?)/, ["crm"]],
   [/^\/patients(?:\/|$)|^\/patient-tags(?:\/|$)/, ["patients", "history"]],
