@@ -3,6 +3,10 @@ import {
   withConversionInput,
 } from "../../modules/commercial/conversion.js";
 import {
+  countEventParticipantPlans,
+  planEventParticipants,
+} from "../../modules/commercial/event-participants.js";
+import {
   eventLeadSource,
   buildLeadFilterOptions,
   buildLeadInsights,
@@ -156,11 +160,22 @@ export function createCommercialRepository(
       eventId: string,
       inputs: (LeadInput & { extraFields?: ExtraFields })[],
     ) {
+      const patients = repositoryContext.patients
+        .filter((item) => item.clinicId === clinicId)
+        .map((item) => ({
+          ...item,
+          canonicalId: item.mergedIntoPatientId ?? item.id,
+        }));
+      const participants = repositoryContext.leads.filter(
+        (lead) => lead.clinicId === clinicId && lead.eventId === eventId,
+      );
+      const plans = planEventParticipants(inputs, patients, participants);
       const created: Lead[] = [];
       try {
-        for (const input of inputs)
-          created.push(await createLead(clinicId, { ...input, eventId }));
-        return created.length;
+        for (const plan of plans) {
+          if (plan.kind === "skip") continue;
+          created.push(await createLead(clinicId, { ...plan.input, eventId }));
+        }
       } catch (error) {
         for (const lead of created)
           repositoryContext.leads.splice(
@@ -169,6 +184,27 @@ export function createCommercialRepository(
           );
         throw error;
       }
+      // Cliente já cadastrado: o participante entra ligado a ele, como um lead convertido.
+      const timestamp = now();
+      let index = 0;
+      for (const plan of plans) {
+        if (plan.kind === "skip") continue;
+        const lead = created[index++]!;
+        if (plan.kind !== "link") continue;
+        lead.convertedPatientId = plan.patientId;
+        lead.stage = "won";
+        const patient = repositoryContext.patients.find(
+          (item) => item.clinicId === clinicId && item.id === plan.patientId,
+        );
+        if (patient && plan.input.extraFields) {
+          patient.extraFields = mergeExtraFields(
+            patient.extraFields,
+            plan.input.extraFields,
+          );
+          patient.updatedAt = timestamp;
+        }
+      }
+      return countEventParticipantPlans(plans);
     },
 
     async updateLead(

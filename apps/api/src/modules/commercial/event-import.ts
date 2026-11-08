@@ -25,13 +25,17 @@ const aliases: Record<
   phone: ["telefone", "celular", "fone", "tel"],
   whatsapp: ["whatsapp", "whats", "wpp", "zap"],
   email: ["email"],
+  cpf: ["cpf"],
   interest: ["interesse"],
   notes: ["observacoes", "observacao", "obs", "notas"],
   phoneAreaCode: ["ddd", "dddtelefone", "ddddotelefone"],
   whatsappAreaCode: ["dddwhatsapp", "ddddowhatsapp"],
 };
 
-/** Nenhum campo é obrigatório; contatos repetidos continuam sendo participantes distintos. */
+/**
+ * Nenhum campo é obrigatório. Na gravação (EN1), contato que já é participante do evento é
+ * ignorado e o que já é cliente vira participante ligado a ele (`planEventParticipants`).
+ */
 export function validateEventImport(
   rows: string[][],
   eventId: string,
