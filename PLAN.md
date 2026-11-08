@@ -1440,3 +1440,117 @@ filtros ficam no `dashboard-studios` (EN11–EN13 têm só a parte da API aqui).
 - **Pendente com o dono:** autorizar o guia dentro do sistema (o CLAUDE.md proíbe documentos
   novos sem autorização)?
 - **Status:** BLOCKED
+
+## Rodada 12 — Lentidão do site por causa do banco (pedido do dono, 08/11/2026)
+
+Medições e método em `diario/2026-11-08-DB0.md` (MariaDB 10.11 local com ~2 anos de volume:
+3.075 clientes, 16.463 atendimentos, 3.672 cobranças; latência de 10 ms ida e volta até o banco
+simulada por proxy). Os índices estão bons: nenhuma consulta isolada passou de 10 ms. A lentidão
+vem de (1) trabalho pesado disparado dentro das requisições, (2) telas que carregam tabelas
+inteiras e cruzam tudo em memória e (3) muitas consultas por requisição somando a latência do
+banco. Ordem por impacto: DB1 → DB2 → DB3 → DB4 → DB5 → DB6 → DB7 → DB8.
+
+### DB1 — Finalização automática fora da requisição
+
+- **Problema medido:** o `authenticate` espera `autoFinalizer.run()`; a primeira requisição de
+  cada minuto (e todas que chegam enquanto ela roda) espera a varredura. 300 atendimentos
+  vencidos = 30 s; 57 "presos" (sem saldo, `DomainError`) = 4 s **a cada minuto, para sempre**,
+  porque a varredura tenta de novo todos que falharam (2 transações e ~6 consultas por item).
+- **Escopo:** o `authenticate` dispara a varredura sem `await` (erro só no log; as telas de
+  finalização continuam com `force` e esperam); atendimento que falhou por regra de negócio não
+  é tentado de novo a cada minuto (migração nova `appointments.auto_finalization_failed_at`,
+  limpa quando o atendimento muda; a varredura ignora os marcados), mantendo a lista "A
+  finalizar" igual; teste de que a requisição não espera a varredura e de que o item preso é
+  tentado uma vez. Memória e MySQL.
+- **Gate:** gate completo + `npm run test:mysql`
+- **Status:** TODO
+
+### DB2 — Sugestões de contato sem cruzar tudo com tudo
+
+- **Problema medido:** `GET /relationship/suggestions` leva 2,2 s com 11 consultas que somam
+  menos de 10 ms: o tempo é do `buildContactSuggestions`, que para cada cliente ativo filtra
+  todos os planos, atendimentos, comandas, cobranças e atividades (3.075 × 16.463 ≈ 50 milhões
+  de comparações). Também entra no `/notifications`.
+- **Escopo:** agrupar por `patientId` uma vez (`Map`) antes do laço e trocar os `filter`/`some`
+  por cliente pela consulta ao mapa; `hidden()` por chave em `Set`; no MySQL, ler dos
+  atendimentos só as colunas usadas e só os de clientes ativos. Mesmo resultado: o teste
+  existente de sugestões continua passando sem mudança e um teste novo compara a saída antiga e
+  a nova numa massa grande gerada no teste.
+- **Gate:** gate completo
+- **Status:** TODO
+
+### DB3 — Notificações (sino) com contagens no banco
+
+- **Problema medido:** `GET /notifications` faz 60 consultas e 2,4 s; roda ao abrir o site, a
+  cada mutação (versão de dados) e no intervalo do sino. Para devolver contagens ele carrega o
+  `getFinancialWorkspace` inteiro (2,3 MB), todos os leads, todos os planos, o estoque, as turmas
+  e as sugestões de contato, e faz 10 leituras em paralelo (o pool tem 10 conexões: duas abas
+  abertas já fazem as outras requisições esperarem).
+- **Escopo:** método de repositório `getNotificationCounts` que devolve as mesmas contagens com
+  `COUNT`/`EXISTS` por grupo (memória e MySQL); a rota usa só ele (as sugestões continuam vindo
+  de DB2, que já fica rápido); resposta idêntica — o teste de notificações atual passa sem
+  mudança, mais teste de paridade memória × MySQL.
+- **Gate:** gate completo + `npm run test:mysql`
+- **Depende de:** DB2
+- **Status:** TODO
+
+### DB4 — Nenhuma escrita em leitura
+
+- **Problema medido:** `listPatientPlans` executa `UPDATE patient_plans SET status='expired'`
+  em toda leitura (2× por `/notifications`, também em sugestões, planos, ficha); leituras de
+  turmas chamam `ensureGroupSessions` (gera sessões dentro do GET). Escrita em GET disputa trava
+  de linha com as gravações reais e invalida o cache de consultas.
+- **Escopo:** expirar planos e gerar sessões de turma na varredura periódica de DB1 (uma vez por
+  dia por clínica) e na gravação que precisa disso; leitura calcula `expired` pela data sem
+  gravar. Lista e saldo exibidos não mudam (testes atuais continuam passando).
+- **Gate:** gate completo + `npm run test:mysql`
+- **Depende de:** DB1
+- **Status:** TODO
+
+### DB5 — Lista de clientes paginada
+
+- **Problema medido:** `GET /patients?search=` devolve todos os clientes com todas as colunas
+  (1,3 MB com 3.075 clientes); `GET /patients/options` mais 420 KB; os dois abrem com a agenda e
+  vários modais.
+- **Escopo:** `limit`/`offset` (padrão 50) e total na lista de clientes, com "Carregar mais" na
+  tela; seletores de cliente (agenda, venda, modais) buscam pelo que foi digitado
+  (`/patients/options?search=`, até 20) em vez de baixar todos; URLs antigas sem parâmetro
+  continuam funcionando (devolvem a primeira página).
+- **Gate:** gate completo
+- **Pendente com o dono:** confirmar "Carregar mais" (recomendado) ou paginação numerada.
+- **Status:** BLOCKED
+
+### DB6 — Financeiro por período
+
+- **Problema medido:** `GET /finance/workspace` devolve todo o histórico de cobranças e
+  despesas (2,3 MB, 23 consultas) a cada abertura do Financeiro e a cada mutação financeira.
+- **Escopo:** parâmetros `from`/`to` (padrão: mês atual e em aberto de qualquer data) no
+  workspace; a tela pede o período do filtro; totais do resumo continuam calculados no banco.
+- **Gate:** gate completo + `npm run test:mysql`
+- **Status:** TODO
+
+### DB7 — Respostas JSON comprimidas
+
+- **Problema medido:** a API não comprime nada (nem `site-server.ts` nem o Fastify); as
+  respostas de clientes e financeiro têm de 0,4 a 2,3 MB em JSON puro.
+- **Escopo:** gzip/brotli com `node:zlib` (sem dependência nova) no `site-server.ts` para
+  respostas da API e do site acima de 1 KB quando o navegador aceita; teste do cabeçalho
+  `content-encoding`.
+- **Gate:** gate completo
+- **Pendente com o dono:** confirmar se o painel da Hostinger já comprime as respostas do app
+  Node (se sim, a tarefa vira NOT NEEDED).
+- **Status:** BLOCKED
+
+### DB8 — Menos idas ao banco por requisição
+
+- **Problema medido:** toda requisição autenticada faz 2 consultas antes da rota (usuário e
+  filiais) e o pool fecha conexões ociosas depois de 30 s, então a próxima requisição paga nova
+  conexão (TLS, se ligado) e os 2 `SET SESSION`. Com o banco em outra máquina, cada ida custa a
+  latência inteira.
+- **Escopo:** filiais ativas na mesma consulta do usuário no `authenticate`; `idleTimeout` do pool
+  em 5 min com keep-alive; consultas independentes das rotas mais usadas (`/dashboard`,
+  `/reports/management`) em paralelo onde hoje estão em sequência.
+- **Gate:** gate completo + `npm run test:mysql`
+- **Pendente com o dono:** o `DATABASE_URL` da Hostinger aponta para `localhost` ou para um
+  servidor remoto (`*.hstgr.io`)? Define o quanto esta tarefa importa.
+- **Status:** TODO
