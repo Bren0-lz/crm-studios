@@ -1,5 +1,7 @@
 import {
   DEFAULT_PATIENT_TAG_COLOR,
+  mergeExtraFields,
+  type ExtraFields,
   type Patient,
   type PatientTag,
   patientProfile,
@@ -14,6 +16,7 @@ export interface PatientRow {
   mergedIntoPatientId?: string | null;
   importedAt?: Date | null;
   profile?: ReturnType<typeof patientProfile>;
+  extraFields?: ExtraFields | string | null;
   id: string;
   clinicId: string;
   recordNumber: string;
@@ -47,6 +50,7 @@ export const patientColumns = `
   notes,
   tags,
   profile,
+  extra_fields AS "extraFields",
   inactive_at AS "inactiveAt",
   merged_into_patient_id AS "mergedIntoPatientId",
   imported_at AS "importedAt",
@@ -56,8 +60,13 @@ export const patientColumns = `
 `;
 
 export function mapPatient(row: PatientRow): Patient {
+  const extraFields = mergeExtraFields(
+    json<ExtraFields | null>(row.extraFields) ?? {},
+    undefined,
+  );
   return {
     ...patientProfile(json(row.profile) ?? {}),
+    ...(extraFields ? { extraFields } : {}),
     ...(row.inactiveAt ? { inactiveAt: row.inactiveAt.toISOString() } : {}),
     ...(row.mergedIntoPatientId
       ? { mergedIntoPatientId: row.mergedIntoPatientId }

@@ -3,6 +3,10 @@ import { LEAD_LOST_STAGE } from "./stages.js";
 import type { Lead } from "./types.js";
 import { leadInputSchema } from "./model.js";
 import { splitPhone } from "../common/model.js";
+import {
+  EXTRA_FIELDS_LABEL,
+  type ExtraFields,
+} from "../common/extra-fields.js";
 
 /**
  * Eventos do comercial (aulão, feira, palestra): o participante é um lead do CRM ligado ao
@@ -38,7 +42,10 @@ export const eventImportFieldLabels = {
   notes: "Observações",
   phoneAreaCode: "DDD do telefone",
   whatsappAreaCode: "DDD do WhatsApp",
+  extra: EXTRA_FIELDS_LABEL,
 } as const;
+/** "Outros" (`extra`) pode ser escolhido em várias colunas; os demais, em uma só. */
+export const EVENT_IMPORT_EXTRA_FIELD = "extra";
 export const eventImportFieldSchema = z.enum([
   "fullName",
   "phone",
@@ -48,6 +55,7 @@ export const eventImportFieldSchema = z.enum([
   "notes",
   "phoneAreaCode",
   "whatsappAreaCode",
+  EVENT_IMPORT_EXTRA_FIELD,
 ]);
 export type EventImportField = z.infer<typeof eventImportFieldSchema>;
 export const eventImportFileSchema = z.object({
@@ -60,7 +68,7 @@ export const eventImportFileSchema = z.object({
     .superRefine((mapping, context) => {
       const used = new Set<string>();
       for (const field of mapping ?? []) {
-        if (!field) continue;
+        if (!field || field === EVENT_IMPORT_EXTRA_FIELD) continue;
         if (used.has(field)) {
           context.addIssue({
             code: "custom",
@@ -73,6 +81,10 @@ export const eventImportFileSchema = z.object({
     }),
 });
 export type EventImportFileInput = z.infer<typeof eventImportFileSchema>;
+/** Participante pronto para gravar: o lead e o "Outros" da linha. */
+export type EventImportParticipantInput = z.infer<
+  typeof eventLeadInputSchema
+> & { extraFields?: ExtraFields };
 export interface EventImportAnalysis {
   columns: { index: number; title: string; samples: string[] }[];
   mapping: (EventImportField | null)[];
@@ -82,7 +94,7 @@ export interface EventImportAnalysis {
     phone: string;
     status: "valid" | "error";
     errors: string[];
-    input?: z.infer<typeof eventLeadInputSchema>;
+    input?: EventImportParticipantInput;
   }[];
   errors: string[];
   totals: { valid: number; error: number };

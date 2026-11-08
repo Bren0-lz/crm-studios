@@ -35,6 +35,7 @@ describe("required client CPF", () => {
           created,
           skipped: 1 - created,
           errors: 0,
+          updated: 0,
         });
       }
       const lead = await app.inject({

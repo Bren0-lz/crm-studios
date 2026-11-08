@@ -1,4 +1,5 @@
 import {
+  formatExtraFields,
   matchesPatientProfile,
   patientProfileValueLabels,
   patientResidenceTypeLabels,
@@ -109,6 +110,8 @@ function textValue(patient: Patient, column: PatientExportColumn): string {
       return patient.status === "active" ? "ativo" : "inativo";
     case "createdAt":
       return clinicDate(patient.createdAt);
+    case "extraFields":
+      return formatExtraFields(patient.extraFields);
     default:
       return String(patient[column] ?? "");
   }

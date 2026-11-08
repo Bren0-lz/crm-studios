@@ -29,6 +29,7 @@ import type {
   LeadConversion,
   LeadConversionInput,
   LeadInput,
+  ExtraFields,
   LeadStage,
   LeadTaskInput,
   LeadTaskStatus,
@@ -131,7 +132,7 @@ export function createCommercialRepository(
 ) {
   async function createLead(
     clinicId: string,
-    input: LeadInput,
+    input: LeadInput & { extraFields?: ExtraFields },
     db: Pool | PoolClient = repositoryContext.pool,
   ) {
     if (input.responsibleUserId) {
@@ -169,7 +170,7 @@ export function createCommercialRepository(
       db,
       `INSERT INTO leads
          (clinic_id, full_name, phone, email, source, interest, notes,
-          responsible_user_id, tags,profile,contact_method,branch_id,stage, id, event_id) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,${branchOrDefault("$12", "$1")},$13, $14, $15)`,
+          responsible_user_id, tags,profile,contact_method,branch_id,stage, id, event_id, extra_fields) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,${branchOrDefault("$12", "$1")},$13, $14, $15, $16)`,
       [
         clinicId,
         input.fullName,
@@ -186,6 +187,7 @@ export function createCommercialRepository(
         stage,
         randomUUID(),
         input.eventId ?? null,
+        JSON.stringify(input.extraFields ?? {}),
       ],
       `SELECT id FROM leads WHERE id = $14`,
     );
@@ -246,7 +248,7 @@ export function createCommercialRepository(
     async importEventParticipants(
       clinicId: string,
       eventId: string,
-      inputs: LeadInput[],
+      inputs: (LeadInput & { extraFields?: ExtraFields })[],
     ) {
       return repositoryContext.inTransaction(async (client) => {
         await client.lock(clinicId);
@@ -460,7 +462,7 @@ export function createCommercialRepository(
           else {
             patientResult = await writeAndRead<PatientRow>(
               client,
-              `UPDATE patients SET profile=$3,cpf=$4,whatsapp=$5,birth_date=$6,emergency_contact_name=$7,emergency_contact_phone=$8,notes=$9,email=$10,tags=$11,updated_at=NOW(6) WHERE clinic_id=$1 AND id=$2`,
+              `UPDATE patients SET profile=$3,cpf=$4,whatsapp=$5,birth_date=$6,emergency_contact_name=$7,emergency_contact_phone=$8,notes=$9,email=$10,tags=$11,extra_fields=JSON_MERGE_PATCH(extra_fields,$12),updated_at=NOW(6) WHERE clinic_id=$1 AND id=$2`,
               [
                 clinicId,
                 patient.id,
@@ -473,6 +475,7 @@ export function createCommercialRepository(
                 data.notes || null,
                 data.email || null,
                 data.tags,
+                JSON.stringify(data.extraFields ?? {}),
               ],
               `SELECT ${patientColumns} FROM patients WHERE clinic_id=$1 AND id=$2`,
             );

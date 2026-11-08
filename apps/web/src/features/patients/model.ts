@@ -13,6 +13,7 @@ import {
   patientImportFields,
   patientImportRequiredFields,
   patientProfileLabels,
+  PATIENT_IMPORT_EXTRA_FIELD,
 } from "@crm/contracts/patients";
 import type {
   GroupClass,
@@ -28,6 +29,7 @@ import type {
   PatientTimelineKind,
   PermissionKey,
 } from "@crm/contracts";
+import { EXTRA_FIELDS_LABEL } from "@crm/contracts/common";
 import {
   type LucideIcon,
   CalendarDays,
@@ -130,11 +132,22 @@ export function defaultPlanTerms(): GuidedSingleForm {
 
 export function describeImportDuplicate(
   duplicate: PatientImportDuplicate,
+  input?: PatientImportRow["input"],
 ): string {
   const field = duplicate.field === "cpf" ? "mesmo CPF" : "mesmo telefone";
   return duplicate.kind === "existing"
-    ? `Já cadastrado: ${duplicate.fullName} (${field})`
+    ? `Já cadastrado: ${duplicate.fullName} (${field})${input?.extraFields ? ` · “${EXTRA_FIELDS_LABEL}” será atualizado` : ""}`
     : `Repete a linha ${duplicate.line} (${field})`;
+}
+
+/** Linhas de clientes já cadastrados que trazem "Outros": a importação mescla esses dados. */
+export function importMergeCount(rows: readonly PatientImportRow[]): number {
+  return rows.filter(
+    (row) =>
+      row.status === "duplicate" &&
+      row.duplicateOf?.kind === "existing" &&
+      row.input?.extraFields,
+  ).length;
 }
 
 /**
@@ -315,6 +328,7 @@ export const patientExportColumnNames: Record<PatientExportColumn, string> = {
   emergencyContactPhone: "Telefone de emergência",
   notes: "Observações",
   createdAt: "Cadastrado em",
+  extraFields: EXTRA_FIELDS_LABEL,
 };
 
 export const patientImportStatusLabels: Record<
@@ -354,7 +368,7 @@ export function patientImportColumnTitle(column: PatientImportColumn) {
 
 /**
  * Atribui `field` à coluna `index`; se outra coluna já usava o campo, ela passa a
- * "Não importar" (um campo só pode vir de uma coluna).
+ * "Não importar" (um campo só pode vir de uma coluna). "Outros" pode ficar em várias.
  */
 export function assignImportColumn(
   mapping: PatientImportMapping,
@@ -362,7 +376,11 @@ export function assignImportColumn(
   field: PatientImportField | null,
 ): PatientImportMapping {
   return mapping.map((current, position) =>
-    position === index ? field : field && current === field ? null : current,
+    position === index
+      ? field
+      : field && field !== PATIENT_IMPORT_EXTRA_FIELD && current === field
+        ? null
+        : current,
   );
 }
 

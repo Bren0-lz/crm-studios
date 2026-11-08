@@ -143,6 +143,13 @@ import {
   signatureLinkExpiresAt,
   signatureLinkExpired,
   patientImportFileSchema,
+  eventImportFileSchema,
+  extraFieldsFromRow,
+  extraFieldsSchema,
+  mergeExtraFields,
+  formatExtraFields,
+  EXTRA_FIELDS_MAX_KEYS,
+  EXTRA_FIELD_VALUE_MAX,
   payrollAdvanceDescription,
   payrollAdvanceInputSchema,
   payrollEntryDescription,
@@ -2891,6 +2898,79 @@ describe("patientImportFileSchema", () => {
     expect(repeated.error?.issues[0]?.message).toBe(
       "O campo Telefone foi escolhido em mais de uma coluna.",
     );
+  });
+});
+
+describe("Outros na importação (entrega 10)", () => {
+  const file = { fileName: "lista.csv", contentBase64: "bm9tZQ==" };
+
+  it("aceita Outros em várias colunas, nos clientes e nos participantes", () => {
+    expect(
+      patientImportFileSchema.parse({
+        ...file,
+        mapping: ["fullName", "extra", "phone", "extra"],
+      }).mapping,
+    ).toEqual(["fullName", "extra", "phone", "extra"]);
+    expect(
+      eventImportFileSchema.parse({
+        ...file,
+        mapping: ["extra", "fullName", "extra"],
+      }).mapping,
+    ).toEqual(["extra", "fullName", "extra"]);
+    expect(
+      eventImportFileSchema.safeParse({
+        ...file,
+        mapping: ["email", "extra", "email"],
+      }).success,
+    ).toBe(false);
+  });
+
+  it("monta { título: valor } sem células vazias e com títulos repetidos numerados", () => {
+    expect(
+      extraFieldsFromRow(
+        ["Nome", "  Tamanho   do pé ", "", "Tamanho do pé", "Vazia"],
+        [1, 2, 3, 4],
+        ["Ana", " 37 ", "azul", "38", "  "],
+      ),
+    ).toEqual({
+      "Tamanho do pé": "37",
+      "Coluna 3": "azul",
+      "Tamanho do pé (2)": "38",
+    });
+    expect(extraFieldsFromRow(["A"], [0], [""])).toBeUndefined();
+  });
+
+  it("mescla sem apagar, valida os limites e formata para a exportação", () => {
+    expect(
+      mergeExtraFields({ Cor: "azul", Pé: "37" }, { Pé: "38", Turma: "B" }),
+    ).toEqual({ Cor: "azul", Pé: "38", Turma: "B" });
+    expect(mergeExtraFields({}, undefined)).toBeUndefined();
+    expect(formatExtraFields({ Cor: "azul", Pé: "38" })).toBe(
+      "Cor: azul; Pé: 38",
+    );
+    expect(formatExtraFields(undefined)).toBe("");
+    expect(
+      extraFieldsSchema.safeParse(
+        Object.fromEntries(
+          Array.from({ length: EXTRA_FIELDS_MAX_KEYS + 1 }, (_, i) => [
+            `c${i}`,
+            "x",
+          ]),
+        ),
+      ).success,
+    ).toBe(false);
+    expect(
+      extraFieldsSchema.safeParse({ A: "x".repeat(EXTRA_FIELD_VALUE_MAX + 1) })
+        .success,
+    ).toBe(false);
+    expect(
+      patientImportInputSchema.parse({
+        fullName: "Ana Lima",
+        phone: "11999990000",
+        tags: [],
+        extraFields: { Pé: "37" },
+      }).extraFields,
+    ).toEqual({ Pé: "37" });
   });
 });
 

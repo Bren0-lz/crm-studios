@@ -7,6 +7,10 @@ import {
 import { issuedDocumentFieldsSchema } from "../contracts/model.js";
 import type { AuditFieldLabel } from "../history-changes.js";
 import {
+  EXTRA_FIELDS_LABEL,
+  extraFieldsSchema,
+} from "../common/extra-fields.js";
+import {
   patientDiscountDescription,
   patientDiscountSchema,
 } from "../plans/discount.js";
@@ -217,6 +221,8 @@ export const patientOptionalContactShape = {
 export const patientImportInputSchema = patientInputSchema.extend({
   ...patientOptionalContactShape,
   cpf: optionalCpfSchema,
+  /** Colunas mapeadas como "Outros" (entrega 10); a gravação mescla com o que já existe. */
+  extraFields: extraFieldsSchema.optional(),
 });
 
 /**
@@ -357,13 +363,14 @@ export const patientExportColumnSchema = z.enum(
     "notes",
     "createdAt",
     ...patientProfileSchema.keyof().options,
+    "extraFields",
   ],
   "Coluna de exportação desconhecida.",
 );
 
 export const patientExportColumns = patientExportColumnSchema.options;
 export const patientDefaultExportColumns = patientExportColumns.filter(
-  (column) => !(column in patientProfileLabels),
+  (column) => !(column in patientProfileLabels) && column !== "extraFields",
 );
 
 /** Cabeçalho pt-BR de cada coluna (coerente com o modelo de importação). */
@@ -382,6 +389,7 @@ export const patientExportColumnLabels: Record<PatientExportColumn, string> = {
   emergencyContactPhone: "Telefone de emergência",
   notes: "Observações",
   createdAt: "Cadastrado em",
+  extraFields: EXTRA_FIELDS_LABEL,
 };
 
 /**
@@ -645,6 +653,12 @@ export const clientAgeBandLabels: Record<ClientAgeBand, string> = {
   unknown: "Sem data de nascimento",
 };
 
+/**
+ * Opção "Outros" do mapeamento: a coluna sem campo correspondente vai para `extraFields` com o
+ * título como chave. Pode ser escolhida em várias colunas (os demais campos, em uma só).
+ */
+export const PATIENT_IMPORT_EXTRA_FIELD = "extra";
+
 /** Telefones que podem vir com o DDD numa coluna separada da planilha. */
 export const patientImportPhoneFields = [
   "phone",
@@ -674,6 +688,7 @@ export const patientImportFieldSchema = z.enum(
     "whatsappAreaCode",
     "emergencyContactPhoneAreaCode",
     "guardianPhoneAreaCode",
+    PATIENT_IMPORT_EXTRA_FIELD,
   ],
   "Campo de importação desconhecido.",
 );
@@ -706,12 +721,14 @@ export const patientImportFieldLabels: Record<
   whatsappAreaCode: "DDD do WhatsApp",
   emergencyContactPhoneAreaCode: "DDD do telefone de emergência",
   guardianPhoneAreaCode: "DDD do telefone do responsável",
+  extra: EXTRA_FIELDS_LABEL,
 };
 
 /**
  * Arquivo de clientes enviado para prévia/importação: CSV ou XLSX em base64 (até 2 MB decodificado).
  * `mapping[i]` diz que dado do sistema a coluna `i` da planilha preenche (`null` = não importar);
- * ausente = colunas reconhecidas pelo título. Um campo não pode estar em duas colunas.
+ * ausente = colunas reconhecidas pelo título. Um campo não pode estar em duas colunas, exceto
+ * "Outros" (`extra`).
  */
 export const patientImportFileSchema = z.object({
   fileName: z.string().trim().min(1).max(255),
@@ -723,7 +740,7 @@ export const patientImportFileSchema = z.object({
     .superRefine((mapping, context) => {
       const seen = new Set<string>();
       for (const field of mapping ?? []) {
-        if (!field) continue;
+        if (!field || field === PATIENT_IMPORT_EXTRA_FIELD) continue;
         if (seen.has(field)) {
           context.addIssue({
             code: "custom",

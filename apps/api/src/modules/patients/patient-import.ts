@@ -1,4 +1,8 @@
 import {
+  EXTRA_FIELD_VALUE_MAX,
+  EXTRA_FIELDS_MAX_KEYS,
+  PATIENT_IMPORT_EXTRA_FIELD,
+  extraFieldsFromRow,
   patientImportFieldLabels,
   patientImportPhoneFields,
   patientImportInputSchema,
@@ -24,8 +28,11 @@ import {
 export { decodeCsvText, parseCsv, readXlsxRows };
 
 type PhoneField = (typeof patientImportPhoneFields)[number];
-/** Campos com valor próprio (os `*AreaCode` só completam o telefone). */
-type ImportField = Exclude<PatientImportField, `${PhoneField}AreaCode`>;
+/** Campos com valor próprio (os `*AreaCode` só completam o telefone; "Outros" vai à parte). */
+type ImportField = Exclude<
+  PatientImportField,
+  `${PhoneField}AreaCode` | typeof PATIENT_IMPORT_EXTRA_FIELD
+>;
 
 /** Cabeçalhos aceitos, já normalizados (minúsculas, sem acentos, só letras e números). */
 const profileHeaderSynonyms = Object.fromEntries(
@@ -257,9 +264,12 @@ export function validatePatientImport(
   const columns = new Map<ImportField, number>();
   // A planilha exportada separa o telefone em "DDD (Telefone)" + "Telefone".
   const dddColumns = new Map<ImportField, number>();
+  // "Outros": várias colunas, cada uma vira `{ título: valor }` em `extraFields`.
+  const extraColumns: number[] = [];
   appliedMapping.forEach((field, index) => {
     if (!field) return;
-    if (field.endsWith("AreaCode"))
+    if (field === PATIENT_IMPORT_EXTRA_FIELD) extraColumns.push(index);
+    else if (field.endsWith("AreaCode"))
       dddColumns.set(field.slice(0, -"AreaCode".length) as PhoneField, index);
     else columns.set(field as ImportField, index);
   });
@@ -358,15 +368,23 @@ export function validatePatientImport(
       else if (key === "clientSince") raw[key] = parseBirthDate(text) ?? text;
       else raw[key] = text;
     }
+    const extraFields = extraFieldsFromRow(titles, extraColumns, row);
+    if (extraFields) raw.extraFields = extraFields;
     // CPF pode faltar na planilha (B6-05): o cliente entra com a etiqueta "Falta CPF".
     const parsed = patientImportInputSchema.safeParse(raw);
     if (!parsed.success) {
       const fields = new Set<ImportField>();
+      let extraInvalid = false;
       for (const issue of parsed.error.issues) {
         const field = issue.path[0];
-        if (typeof field === "string" && field in fieldLabels)
+        if (field === "extraFields") extraInvalid = true;
+        else if (typeof field === "string" && field in fieldLabels)
           fields.add(field as ImportField);
       }
+      if (extraInvalid)
+        errors.push(
+          `Linha ${line}: "${patientImportFieldLabels[PATIENT_IMPORT_EXTRA_FIELD]}" aceita até ${EXTRA_FIELDS_MAX_KEYS} colunas, cada valor com até ${EXTRA_FIELD_VALUE_MAX} caracteres.`,
+        );
       for (const field of fields) {
         errors.push(
           field === "phone" && phone === ""

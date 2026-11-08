@@ -56,7 +56,7 @@ for (const storage of ["memory", "mysql"] as const) {
           await repository.importPatients(clinicId, [
             imported("Nina Planilha", "11955580001"),
           ]),
-        ).toEqual({ created: 1, skipped: 0 });
+        ).toEqual({ created: 1, skipped: 0, updated: 0 });
         const manual = await repository.createPatient(clinicId, {
           fullName: "Otto Manual",
           phone: "11955580002",

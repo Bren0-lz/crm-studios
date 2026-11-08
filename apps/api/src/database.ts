@@ -273,6 +273,7 @@ export async function seedDemoData(pool: Pool) {
         emergency_contact_phone: patient.emergencyContactPhone ?? null,
         notes: patient.notes ?? null,
         tags: patient.tags,
+        extra_fields: patient.extraFields ?? {},
         status: patient.status,
         created_at: new Date(patient.createdAt),
         updated_at: new Date(patient.updatedAt),

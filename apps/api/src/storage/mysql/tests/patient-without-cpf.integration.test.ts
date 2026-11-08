@@ -49,7 +49,7 @@ for (const storage of ["memory", "mysql"] as const) {
           // Mesmo telefone de outro da planilha: ignorado.
           imported("Bianca Repetida", "(11) 95553-0001"),
         ]);
-        expect(result).toEqual({ created: 3, skipped: 1 });
+        expect(result).toEqual({ created: 3, skipped: 1, updated: 0 });
 
         const found = await repository.listPatients(clinicId, "Sem Cpf");
         expect(found.map((patient) => patient.fullName).sort()).toEqual([
@@ -75,7 +75,7 @@ for (const storage of ["memory", "mysql"] as const) {
           await repository.importPatients(clinicId, [
             imported("Caio De Novo", "11955530002"),
           ]),
-        ).toEqual({ created: 0, skipped: 1 });
+        ).toEqual({ created: 0, skipped: 1, updated: 0 });
       });
 
       it("edita sem CPF, preenche depois e recusa CPF de outro cliente", async () => {

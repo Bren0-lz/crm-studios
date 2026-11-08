@@ -174,7 +174,12 @@ describe("client management", () => {
         contentBase64: Buffer.from(sample, "latin1").toString("base64"),
       },
     });
-    expect(imported.json()).toEqual({ created: 1, skipped: 0, errors: 0 });
+    expect(imported.json()).toEqual({
+      created: 1,
+      skipped: 0,
+      errors: 0,
+      updated: 0,
+    });
     const csv = await app.inject({
       method: "GET",
       url: "/patients/export?format=csv&columns=fullName,notes&search=Concei",

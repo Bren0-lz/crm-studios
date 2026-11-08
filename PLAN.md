@@ -1308,3 +1308,135 @@ plano não cobra nada.
 - **Gate:** gate completo
 - **Depende de:** AP6
 - **Status:** DONE
+
+## Rodada 11 — Entregas da reunião de 07/11/2026
+
+Levantamento completo (o que já existe, passos, riscos e testes) em
+`docs/ENTREGAS_2026-11-07.md`; o número entre parênteses é o da entrega lá. Ordem: EN10 → EN1 →
+EN3 → EN2 → EN4 → EN7–EN9 → EN11–EN13 → EN5–EN6 → EN14. Painel e histórico de pagamentos com
+filtros ficam no `dashboard-studios` (EN11–EN13 têm só a parte da API aqui).
+
+### EN10 — Campo "Outros" na importação (10)
+
+- **Escopo:**
+  - Contratos: opção de mapeamento "Outros" (`extra`), permitida em várias colunas, na
+    importação de clientes e de participantes; `extraFields` (`{ título: valor }`, até 50
+    chaves e 500 caracteres por valor) no cliente e no lead; coluna "Outros" (opcional) na
+    exportação de clientes.
+  - Migração nova: `extra_fields JSON` em `patients` e `leads`.
+  - Gravação mescla sem apagar (`JSON_MERGE_PATCH`/`{...antigo, ...novo}`); reimportação de
+    cliente já cadastrado com "Outros" mescla em vez de ignorar (`updated` no resultado); a
+    conversão de lead em cliente leva o "Outros".
+  - Web: opção no mapeamento (clientes e eventos), "Importar N e atualizar M", seção "Outros"
+    na ficha do cliente. Dados demo com "Outros".
+  - Exportação de participantes com "Outros" fica na EN2.
+- **Gate:** gate completo + `npm run test:mysql`
+- **Status:** DONE
+
+### EN1 — Importar participantes: vincular cliente existente e contar ignorados (1)
+
+- **Escopo:** botão "Importar participantes"; procurar cliente por telefone, e-mail ou CPF e
+  criar o participante já ligado (`convertedPatientId`); contato já participante do evento é
+  ignorado; `EventImportResult` `{ created, linked, skipped, errors }`; memória e MySQL na
+  mesma transação.
+- **Gate:** gate completo + `npm run test:mysql`
+- **Depende de:** EN10
+- **Status:** TODO
+
+### EN3 — Marcar quem "virou cliente" no evento (3)
+
+- **Escopo:** ação "Virou cliente" no participante, etiqueta "Cliente" no convertido e coluna
+  "Origem: evento/lead" na exportação de clientes.
+- **Gate:** gate completo
+- **Depende de:** EN1
+- **Pendente com o dono:** um clique ou o modal de conversão já preenchido (recomendação:
+  modal, porque a conversão pode exigir CPF e contato de emergência)?
+- **Status:** BLOCKED
+
+### EN2 — Exportar participantes do evento (2)
+
+- **Escopo:** `GET /events/:id/participants/export.xlsx` (mesma permissão de ver eventos, filial
+  ativa), colunas do documento incluindo "Virou cliente" e "Outros"; botão "Exportar
+  participantes".
+- **Gate:** gate completo
+- **Depende de:** EN1
+- **Status:** TODO
+
+### EN4 — Limpeza dos dados de teste (4)
+
+- **Escopo:** `db-cleanup.ts` e `npm run db:cleanup-test-data`: simulação por padrão,
+  `--execute --confirm=<nome do estúdio>`, backup antes, uma transação na ordem das FKs.
+- **Gate:** gate completo + `npm run test:mysql`
+- **Pendente com o dono:** zerar todo o operacional ou só o que tem "teste" no nome?
+- **Status:** BLOCKED
+
+### EN7 — Renomear para "Organiza Estúdios" (7)
+
+- **Escopo:** constante `PRODUCT_NAME` nos pontos listados no documento; selo "Demonstração"
+  só no ambiente de demonstração; busca automática pelo nome antigo.
+- **Gate:** gate completo
+- **Pendente com o dono:** separar o nome do produto do nome do estúdio?
+- **Status:** BLOCKED
+
+### EN8 — Logo personalizado no login e favicon (8)
+
+- **Escopo:** `GET /public/branding` (nome e logo), favicon dinâmico, `object-fit` no logo,
+  SVG/WebP.
+- **Gate:** gate completo
+- **Depende de:** EN7
+- **Status:** TODO
+
+### EN9 — "Clínica" → "Estúdio" nos textos visíveis (9)
+
+- **Escopo:** só textos visíveis (sem renomear `clinic_id`/`clinics`); chaves de variáveis
+  mantidas, rótulo "Nome do estúdio".
+- **Gate:** gate completo
+- **Pendente com o dono:** manter os termos clínicos do prontuário?
+- **Status:** BLOCKED
+
+### EN11 — Modalidade Pilates/Dança nos serviços (11, parte da API)
+
+- **Escopo:** `services.modality`, linha obrigatória no cadastro, filtro `modality` na API
+  externa.
+- **Gate:** gate completo + `npm run test:mysql`
+- **Pendente com o dono:** lista fixa ou categoria cadastrável?
+- **Status:** BLOCKED
+
+### EN12 — Botão "Copiar" no histórico de pagamentos (12)
+
+- **Escopo:** `formatPaymentHistoryForWhatsApp` nos contratos; filtros e "Copiar" na aba
+  Financeiro da ficha.
+- **Gate:** gate completo
+- **Pendente com o dono:** "Copiar" na ficha do CRM, no `dashboard-studios` ou nos dois?
+- **Status:** BLOCKED
+
+### EN13 — Relatório e backup do dashboard em Excel (13, parte da API)
+
+- **Escopo:** `GET /reports/dashboard-backup.xlsx` com abas Turmas, Calendário e Lista de
+  espera (período até 31 dias, filial ativa, valores só com `finance.view`).
+- **Gate:** gate completo
+- **Status:** TODO
+
+### EN5 — Telegram: agenda para a profissional (5)
+
+- **Escopo:** vínculo pela profissional, envio por destinatário, avisos de agendamento,
+  `/hoje`, `/semana`, `/mes`.
+- **Gate:** gate completo
+- **Pendente com o dono:** contato da Ariana e respostas da TG6.
+- **Status:** BLOCKED
+
+### EN6 — Melhorias no módulo de eventos (6)
+
+- **Escopo:** excluir evento, serviço do evento (migração `events.service_id`) e filtro,
+  status único por participante, busca/filtro e remover participante.
+- **Gate:** gate completo + `npm run test:mysql`
+- **Depende de:** EN2
+- **Status:** TODO
+
+### EN14 — Guia de uso (14)
+
+- **Escopo:** rota `/ajuda` com o guia estático (sumário do documento).
+- **Gate:** gate completo
+- **Pendente com o dono:** autorizar o guia dentro do sistema (o CLAUDE.md proíbe documentos
+  novos sem autorização)?
+- **Status:** BLOCKED

@@ -1,5 +1,7 @@
 import { leadPatientProfile } from "@crm/contracts/commercial";
+import { mergeExtraFields } from "@crm/contracts";
 import type {
+  ExtraFields,
   Lead,
   LeadContact,
   LeadStage,
@@ -13,6 +15,7 @@ export interface LeadRow {
   eventId?: string | null;
   contactMethod: string | null;
   profile?: Record<string, unknown>;
+  extraFields?: ExtraFields | string | null;
   id: string;
   clinicId: string;
   fullName: string;
@@ -66,7 +69,7 @@ export interface LeadTaskRow {
 
 export const leadColumns = `
   branch_id AS "branchId", id, clinic_id AS "clinicId", full_name AS "fullName", phone, email,
-  contact_method AS "contactMethod",profile,source, interest, notes, stage, lost_reason AS "lostReason",
+  contact_method AS "contactMethod",profile,extra_fields AS "extraFields",source, interest, notes, stage, lost_reason AS "lostReason",
   converted_patient_id AS "convertedPatientId", event_id AS "eventId",
   responsible_user_id AS "responsibleUserId", tags,
   (SELECT u.full_name FROM users u WHERE u.id = leads.responsible_user_id) AS "responsibleName",
@@ -76,10 +79,19 @@ export const leadColumns = `
   created_at AS "createdAt", updated_at AS "updatedAt"
 `;
 
+function extraFieldsOf(value: LeadRow["extraFields"]) {
+  const extraFields = mergeExtraFields(
+    json<ExtraFields | null>(value) ?? {},
+    undefined,
+  );
+  return extraFields ? { extraFields } : {};
+}
+
 export function mapLead(row: LeadRow): Lead {
   return {
     ...(row.branchId ? { branchId: row.branchId } : {}),
     ...leadPatientProfile(json(row.profile) ?? {}),
+    ...extraFieldsOf(row.extraFields),
     id: row.id,
     clinicId: row.clinicId,
     fullName: row.fullName,

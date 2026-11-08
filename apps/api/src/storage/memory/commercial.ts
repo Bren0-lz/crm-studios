@@ -9,6 +9,7 @@ import {
   findLeadDuplicates,
   firstOpenLeadStage,
   matchesLead,
+  mergeExtraFields,
   resolveLeadStages,
   type LeadDuplicateQuery,
   type LeadFilter,
@@ -24,6 +25,7 @@ import type {
   LeadConversion,
   LeadConversionInput,
   LeadInput,
+  ExtraFields,
   LeadStage,
   LeadTask,
   LeadTaskInput,
@@ -49,7 +51,10 @@ export function createCommercialRepository(
     (await repository.listLeads(clinicId)).filter((lead) =>
       matchesLead(lead, filter, timezone),
     );
-  async function createLead(clinicId: string, input: LeadInput) {
+  async function createLead(
+    clinicId: string,
+    input: LeadInput & { extraFields?: ExtraFields },
+  ) {
     if (
       input.responsibleUserId &&
       !repositoryContext.users.some(
@@ -149,7 +154,7 @@ export function createCommercialRepository(
     async importEventParticipants(
       clinicId: string,
       eventId: string,
-      inputs: LeadInput[],
+      inputs: (LeadInput & { extraFields?: ExtraFields })[],
     ) {
       const created: Lead[] = [];
       try {
@@ -298,8 +303,15 @@ export function createCommercialRepository(
       const data = leadConversionData(source, patient);
       for (const tag of data.tags)
         repositoryContext.ensurePatientTag(clinicId, tag);
-      if (patient) Object.assign(patient, data, { updatedAt: now() });
-      else
+      if (patient) {
+        // Entrega 10: o "Outros" do lead é mesclado com o do cliente, sem apagar nada.
+        const extraFields = mergeExtraFields(
+          patient.extraFields,
+          data.extraFields,
+        );
+        Object.assign(patient, data, { updatedAt: now() });
+        if (extraFields) patient.extraFields = extraFields;
+      } else
         patient = await repositoryContext.operations.createPatient(
           clinicId,
           data,
