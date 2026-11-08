@@ -158,8 +158,7 @@ export function EventImportModal({
         {error && <ErrorBanner error={error} />}
         {result && (
           <div className="success-banner" role="status">
-            {result.created} participante(s) importado(s) e {result.errors} com
-            erro.
+            {`${result.created} participante(s) novo(s), ${result.linked} já cliente(s) vinculado(s), ${result.skipped} ignorado(s) por já estar(em) no evento e ${result.errors} com erro.`}
           </div>
         )}
         <div className="patient-import-file">
@@ -176,9 +175,10 @@ export function EventImportModal({
             <span className="field-hint" id="event-import-hint">
               Envie um arquivo .csv ou .xlsx de até 2 MB, com os títulos na
               primeira linha. Escolha o campo de cada coluna e confira a prévia.
-              Nenhum campo é obrigatório e contatos já cadastrados são aceitos.
-              Linhas vazias ou com dados apenas em colunas ignoradas não são
-              importadas.
+              Nenhum campo é obrigatório. Quem já é cliente (mesmo telefone,
+              e-mail ou CPF) entra ligado ao cadastro, e quem já participa do
+              evento é ignorado. Linhas vazias ou com dados apenas em colunas
+              ignoradas não são importadas.
             </span>
           </div>
           <a

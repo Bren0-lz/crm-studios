@@ -3,6 +3,8 @@ import ExcelJS from "exceljs";
 import type { CommercialEvent, EventImportAnalysis } from "@crm/contracts";
 import { buildApp } from "../../app.js";
 import { MemoryClinicRepository } from "../../memory-repository.js";
+import { nextTestCpf } from "../../test-support/cpf.js";
+import { testPatientContact } from "../../test-support/patient-contact.js";
 
 const clinicId = "11111111-1111-4111-8111-111111111111";
 const actorId = "22222222-2222-4222-8222-222222222222";
@@ -35,7 +37,7 @@ const csv = (text: string, mapping?: (string | null)[]) => ({
 });
 
 describe("importação de participantes", () => {
-  it("mapeia colunas sem exigir campos e aceita telefone curto, repetido no arquivo e na base", async () => {
+  it("mapeia colunas sem exigir campos, aceita telefone curto e lead da base e ignora o repetido no arquivo", async () => {
     const { app, repository, headers, event, url } = await setup();
     await repository.createLead(clinicId, {
       fullName: "Lead existente",
@@ -70,9 +72,16 @@ describe("importação de participantes", () => {
       payload,
     });
     expect(imported.statusCode, imported.body).toBe(200);
-    expect(imported.json()).toEqual({ created: 4, errors: 0 });
+    // EN1: "Bia" repete o telefone da "Ana" (já participante pela linha anterior): ignorada.
+    // O lead de fora do evento com o mesmo contato não impede a "Ana".
+    expect(imported.json()).toEqual({
+      created: 3,
+      linked: 0,
+      skipped: 1,
+      errors: 0,
+    });
     const detail = await repository.getEvent(clinicId, event.id);
-    expect(detail?.participants).toHaveLength(4);
+    expect(detail?.participants).toHaveLength(3);
     expect(detail?.participants).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -129,7 +138,12 @@ describe("importação de participantes", () => {
       headers,
       payload,
     });
-    expect(imported.json()).toEqual({ created: 1, errors: 1 });
+    expect(imported.json()).toEqual({
+      created: 1,
+      linked: 0,
+      skipped: 0,
+      errors: 1,
+    });
   });
 
   it("aceita cadastro manual sem campos e preserva a validação dos leads comuns", async () => {
@@ -239,5 +253,108 @@ describe("importação de participantes", () => {
       ).toBe(403);
     }
     expect(event.participantCount).toBe(0);
+  });
+
+  it("liga quem já é cliente por telefone, e-mail ou CPF e ignora quem já participa (EN1)", async () => {
+    const { app, repository, headers, event, url } = await setup();
+    const cpf = nextTestCpf();
+    const [byPhone, byEmail, byCpf] = await Promise.all([
+      repository.createPatient(clinicId, {
+        fullName: "Cliente Telefone",
+        phone: "11988880001",
+        cpf: nextTestCpf(),
+        tags: [],
+        ...testPatientContact,
+      }),
+      repository.createPatient(clinicId, {
+        fullName: "Cliente Email",
+        phone: "11988880002",
+        email: "cliente@example.com",
+        cpf: nextTestCpf(),
+        tags: [],
+        ...testPatientContact,
+      }),
+      repository.createPatient(clinicId, {
+        fullName: "Cliente Cpf",
+        phone: "11988880003",
+        cpf,
+        tags: [],
+        ...testPatientContact,
+      }),
+    ]);
+    await repository.createLead(clinicId, {
+      eventId: event.id,
+      fullName: "Já participante",
+      phone: "11988880009",
+      source: "Evento",
+      interest: "Evento",
+      tags: [],
+    });
+    const patientsBefore = (await repository.listPatients(clinicId)).length;
+    const payload = csv(
+      [
+        "Nome;Telefone;E-mail;CPF",
+        // Mesmo telefone com DDI e pontuação.
+        "Fone;+55 (11) 98888-0001;;",
+        // Mesmo e-mail com outra caixa.
+        "Mail;;CLIENTE@example.com;",
+        `Doc;;;${cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4")}`,
+        // Só o nome igual não basta.
+        "Cliente Telefone;11988880555;;",
+        // Já participa do evento.
+        "Repetido;11988880009;;",
+      ].join("\n"),
+    );
+    const preview = await app.inject({
+      method: "POST",
+      url: `${url}/preview`,
+      headers,
+      payload,
+    });
+    expect(preview.json<EventImportAnalysis>().mapping).toEqual([
+      "fullName",
+      "phone",
+      "email",
+      "cpf",
+    ]);
+    const imported = await app.inject({
+      method: "POST",
+      url,
+      headers,
+      payload,
+    });
+    expect(imported.statusCode, imported.body).toBe(200);
+    expect(imported.json()).toEqual({
+      created: 1,
+      linked: 3,
+      skipped: 1,
+      errors: 0,
+    });
+    expect(await repository.listPatients(clinicId)).toHaveLength(
+      patientsBefore,
+    );
+    const detail = await repository.getEvent(clinicId, event.id);
+    const linkedTo = Object.fromEntries(
+      detail!.participants.map((item) => [
+        item.fullName,
+        [item.convertedPatientId, item.stage],
+      ]),
+    );
+    expect(linkedTo).toEqual({
+      "Já participante": [undefined, expect.any(String)],
+      Fone: [byPhone.id, "won"],
+      Mail: [byEmail.id, "won"],
+      Doc: [byCpf.id, "won"],
+      "Cliente Telefone": [undefined, expect.any(String)],
+    });
+    expect(detail!.indicators.converted).toBe(3);
+
+    const again = await app.inject({ method: "POST", url, headers, payload });
+    expect(again.json()).toEqual({
+      created: 0,
+      linked: 0,
+      skipped: 5,
+      errors: 0,
+    });
   });
 });

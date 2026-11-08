@@ -56,12 +56,12 @@ export function registerEventRoutes({
       const inputs = analysis.rows.flatMap((row) =>
         row.status === "valid" && row.input ? [row.input] : [],
       );
-      const created = await repository.importEventParticipants(
+      const counts = await repository.importEventParticipants(
         request.user.clinicId,
         id,
         inputs,
       );
-      return { created, errors: analysis.totals.error };
+      return { ...counts, errors: analysis.totals.error };
     },
   );
 

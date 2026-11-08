@@ -2,6 +2,11 @@ import {
   leadConversionData,
   withConversionInput,
 } from "../../modules/commercial/conversion.js";
+import {
+  countEventParticipantPlans,
+  planEventParticipants,
+  type EventImportPatient,
+} from "../../modules/commercial/event-participants.js";
 import { leadPatientProfile } from "@crm/contracts/commercial";
 import {
   eventLeadSource,
@@ -252,9 +257,51 @@ export function createCommercialRepository(
     ) {
       return repositoryContext.inTransaction(async (client) => {
         await client.lock(clinicId);
-        for (const input of inputs)
-          await createLead(clinicId, { ...input, eventId }, client);
-        return inputs.length;
+        const [patients, participants] = await Promise.all([
+          client.query<EventImportPatient>(
+            `SELECT id, coalesce(merged_into_patient_id, id) AS "canonicalId",
+                    full_name AS "fullName", phone, email, cpf
+             FROM patients WHERE clinic_id = $1 ORDER BY created_at, id`,
+            [clinicId],
+          ),
+          client.query<ContactDuplicateCandidate>(
+            `SELECT id, full_name AS "fullName", phone, email,
+                    JSON_VALUE(profile, '$.cpf') AS cpf
+             FROM leads WHERE clinic_id = $1 AND event_id = $2`,
+            [clinicId, eventId],
+          ),
+        ]);
+        const plans = planEventParticipants(
+          inputs,
+          patients.rows,
+          participants.rows,
+        );
+        for (const plan of plans) {
+          if (plan.kind === "skip") continue;
+          const lead = await createLead(
+            clinicId,
+            { ...plan.input, eventId },
+            client,
+          );
+          if (plan.kind !== "link") continue;
+          // Cliente já cadastrado: o participante entra ligado a ele, como um lead convertido.
+          await client.query(
+            `UPDATE leads SET converted_patient_id = $3, stage = 'won', updated_at = NOW(6)
+             WHERE clinic_id = $1 AND id = $2`,
+            [clinicId, lead.id, plan.patientId],
+          );
+          if (plan.input.extraFields)
+            await client.query(
+              `UPDATE patients SET extra_fields = JSON_MERGE_PATCH(extra_fields, $3), updated_at = NOW(6)
+               WHERE clinic_id = $1 AND id = $2`,
+              [
+                clinicId,
+                plan.patientId,
+                JSON.stringify(plan.input.extraFields),
+              ],
+            );
+        }
+        return countEventParticipantPlans(plans);
       });
     },
 
