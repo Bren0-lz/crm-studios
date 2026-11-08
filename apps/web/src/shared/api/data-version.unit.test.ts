@@ -59,6 +59,10 @@ describe("versão dos dados por domínio", () => {
     expect(domainsForMutation("POST", "/leads/l1/appointments")).toEqual(
       expect.arrayContaining(["agenda", "crm"]),
     );
+    // Converter o lead cadastra o cliente.
+    expect(domainsForMutation("POST", "/leads/l1/convert")).toEqual(
+      expect.arrayContaining(["patients", "crm"]),
+    );
   });
 
   it("ignora leituras, prévias e sessão", () => {

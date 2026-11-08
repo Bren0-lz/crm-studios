@@ -15,6 +15,7 @@ import { PageHeader } from "../../shared/components/PageHeader";
 import { useToast } from "../../shared/feedback/toast-context";
 import { useDataVersion } from "../../shared/hooks/useDataVersion";
 import { EventContactModal } from "./EventContactModal";
+import { EventConvertModal } from "./EventConvertModal";
 import { EventParticipantModal } from "./EventParticipantModal";
 import { EventImportModal } from "./EventImportModal";
 import { eventMoment, eventPhone } from "./model";
@@ -51,11 +52,14 @@ export function EventDetailPage() {
   const { can } = useAuthorization();
   const canAdd = can("crm.create");
   const canContact = can("crm.contacts_create");
+  // Mesma permissão da conversão no CRM comercial.
+  const canConvert = can("crm.convert", "patients.create");
   const [state, setState] = useState<State>({ status: "loading" });
   const [retry, setRetry] = useState(0);
   const [adding, setAdding] = useState(false);
   const [importing, setImporting] = useState(false);
   const [contact, setContact] = useState<EventParticipant | null>(null);
+  const [converting, setConverting] = useState<EventParticipant | null>(null);
   // Mutações em /leads atualizam a versão "crm": participantes e indicadores recarregam.
   const version = useDataVersion("crm");
   const toast = useToast();
@@ -192,20 +196,36 @@ export function EventDetailPage() {
                         <dd>{participant.email || "Não informado"}</dd>
                       </div>
                     </dl>
-                    <ContactStatus
-                      participant={participant}
-                      timezone={timezone}
-                    />
+                    <div className="events-participant-status">
+                      <ContactStatus
+                        participant={participant}
+                        timezone={timezone}
+                      />
+                      {participant.convertedPatientId && (
+                        <span className="status-pill completed">Cliente</span>
+                      )}
+                    </div>
                   </div>
-                  {canContact && (
-                    <button
-                      className="secondary-button button-sm"
-                      aria-label={`Registrar contato com ${participant.fullName}`}
-                      onClick={() => setContact(participant)}
-                    >
-                      Registrar contato
-                    </button>
-                  )}
+                  <div className="events-actions">
+                    {canConvert && !participant.convertedPatientId && (
+                      <button
+                        className="secondary-button button-sm"
+                        aria-label={`${participant.fullName} se tornou cliente`}
+                        onClick={() => setConverting(participant)}
+                      >
+                        Se tornou cliente
+                      </button>
+                    )}
+                    {canContact && (
+                      <button
+                        className="secondary-button button-sm"
+                        aria-label={`Registrar contato com ${participant.fullName}`}
+                        onClick={() => setContact(participant)}
+                      >
+                        Registrar contato
+                      </button>
+                    )}
+                  </div>
                 </li>
               ))}
             </ul>
@@ -232,10 +252,22 @@ export function EventDetailPage() {
         <EventContactModal
           participant={contact}
           timezone={timezone}
+          canConvert={canConvert}
           onClose={() => setContact(null)}
           onSaved={() => {
             setContact(null);
             toast.success("Contato registrado.");
+          }}
+          onConverted={() => toast.success("Cliente cadastrado.")}
+        />
+      )}
+      {converting && canConvert && (
+        <EventConvertModal
+          participant={converting}
+          onClose={() => setConverting(null)}
+          onConverted={() => {
+            setConverting(null);
+            toast.success("Cliente cadastrado.");
           }}
         />
       )}

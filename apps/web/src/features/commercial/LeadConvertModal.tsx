@@ -18,10 +18,17 @@ import { PatientProfileFields } from "../patients/index";
  */
 export function LeadConvertModal({
   lead,
+  eyebrow = "CRM comercial",
+  title = "Converter lead em cliente",
+  confirmLabel = "Converter em cliente",
   onClose,
   onConfirm,
 }: {
   lead: Lead;
+  /** Módulo de origem (ex.: "Eventos"); o padrão é o CRM comercial. */
+  eyebrow?: string;
+  title?: string;
+  confirmLabel?: string;
   onClose: () => void;
   onConfirm: (input: LeadConversionInput) => Promise<void>;
 }) {
@@ -74,10 +81,10 @@ export function LeadConvertModal({
 
   return (
     <ActionModal
-      eyebrow="CRM comercial"
-      title="Converter lead em cliente"
+      eyebrow={eyebrow}
+      title={title}
       subtitle={`${lead.fullName} · ${formatPhone(lead.phone)}`}
-      confirmLabel="Converter em cliente"
+      confirmLabel={confirmLabel}
       validate={() => (!isValidCpf(form.cpf) ? "Informe um CPF válido." : "")}
       missing={missing}
       dirty={dirty}
