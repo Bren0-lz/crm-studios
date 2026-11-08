@@ -1216,6 +1216,10 @@ describe("application shell", () => {
       expect(within(dialog).getByLabelText("Observações")).toBeChecked();
       fireEvent.click(within(dialog).getByLabelText("Excel (.xlsx)"));
       fireEvent.click(within(dialog).getByLabelText("Observações"));
+      // Origem do cliente convertido de lead (EN3b): opcional, fora das padrão.
+      const leadOrigin = within(dialog).getByLabelText("Origem: evento/lead");
+      expect(leadOrigin).not.toBeChecked();
+      fireEvent.click(leadOrigin);
       fireEvent.click(within(dialog).getByRole("button", { name: "Exportar" }));
 
       await vi.waitFor(() => expect(createObjectURL).toHaveBeenCalled());
@@ -1226,7 +1230,7 @@ describe("application shell", () => {
         .searchParams;
       expect(query.get("format")).toBe("xlsx");
       expect(query.get("columns")).toBe(
-        "fullName,recordNumber,cpf,phone,whatsapp,email,birthDate,tags,status,emergencyContactName,emergencyContactPhone,createdAt",
+        "fullName,recordNumber,cpf,phone,whatsapp,email,birthDate,tags,status,emergencyContactName,emergencyContactPhone,createdAt,leadOrigin",
       );
       expect(query.get("search")).toBe("Hel");
       expect(query.get("status")).toBe("active");

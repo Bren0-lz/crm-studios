@@ -5,7 +5,10 @@ import {
   patientDiscountRemaining,
   patientDiscountSchema,
   samePatientDiscount,
+  patientDefaultExportColumns,
+  patientExportColumnLabels,
   patientExportColumns,
+  patientExportFilterSchema,
   patientInputSchema,
   patientProfile,
 } from "./model.js";
@@ -125,6 +128,16 @@ describe("client discount", () => {
     expect(patientDiscountSchema.safeParse(percent(12.345)).success).toBe(
       false,
     );
+  });
+
+  it("offers the lead origin as an optional export column", () => {
+    expect(patientExportColumns).toContain("leadOrigin");
+    expect(patientDefaultExportColumns).not.toContain("leadOrigin");
+    expect(patientExportColumnLabels.leadOrigin).toBe("Origem: evento/lead");
+    expect(
+      patientExportFilterSchema.parse({ columns: "leadOrigin,fullName" })
+        .columns,
+    ).toEqual(["fullName", "leadOrigin"]);
   });
 
   it("validates the scope: next needs the number of charges", () => {

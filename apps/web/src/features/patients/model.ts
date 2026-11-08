@@ -333,6 +333,7 @@ export const patientExportColumnNames: Record<PatientExportColumn, string> = {
   emergencyContactPhone: "Telefone de emergência",
   notes: "Observações",
   createdAt: "Cadastrado em",
+  leadOrigin: "Origem: evento/lead",
   extraFields: EXTRA_FIELDS_LABEL,
 };
 

@@ -1361,7 +1361,7 @@ filtros ficam no `dashboard-studios` (EN11–EN13 têm só a parte da API aqui).
   dos leads (memória e MySQL).
 - **Gate:** gate completo + `npm run test:mysql`
 - **Depende de:** EN3
-- **Status:** TODO
+- **Status:** DONE
 
 ### EN2 — Exportar participantes do evento (2)
 

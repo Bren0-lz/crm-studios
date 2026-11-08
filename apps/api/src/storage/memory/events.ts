@@ -4,6 +4,7 @@ import {
   type CommercialEventDetail,
   type EventInput,
   type EventParticipant,
+  type PatientLeadOrigin,
 } from "@crm/contracts";
 import { DomainError } from "../../repository.js";
 import type { MemoryRepositoryContext } from "./context.js";
@@ -175,6 +176,30 @@ export function createEventsRepository(context: MemoryRepositoryContext) {
       };
       context.events[index] = row;
       return toEvent(row);
+    },
+    async listPatientLeadOrigins(clinicId: string) {
+      return context.leads
+        .filter((lead) => lead.clinicId === clinicId && lead.convertedPatientId)
+        .sort((a, b) => a.createdAt.localeCompare(b.createdAt) || byId(a, b))
+        .flatMap((lead): PatientLeadOrigin[] => {
+          const patient = context.patients.find(
+            (item) =>
+              item.clinicId === clinicId && item.id === lead.convertedPatientId,
+          );
+          if (!patient) return [];
+          const eventName = lead.eventId
+            ? context.events.find(
+                (item) =>
+                  item.clinicId === clinicId && item.id === lead.eventId,
+              )?.name
+            : undefined;
+          return [
+            {
+              patientId: patient.mergedIntoPatientId ?? patient.id,
+              ...(eventName ? { eventName } : {}),
+            },
+          ];
+        });
     },
   };
 }

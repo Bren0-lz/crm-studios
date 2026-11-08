@@ -48,6 +48,7 @@ export class MysqlClinicRepository implements ClinicRepository {
   readonly getEvent: ClinicRepository["getEvent"];
   readonly createEvent: ClinicRepository["createEvent"];
   readonly updateEvent: ClinicRepository["updateEvent"];
+  readonly listPatientLeadOrigins: ClinicRepository["listPatientLeadOrigins"];
 
   readonly listAgendaNotes: ClinicRepository["listAgendaNotes"];
   readonly createAgendaNotes: ClinicRepository["createAgendaNotes"];
@@ -265,6 +266,7 @@ export class MysqlClinicRepository implements ClinicRepository {
     this.getEvent = events.getEvent;
     this.createEvent = events.createEvent;
     this.updateEvent = events.updateEvent;
+    this.listPatientLeadOrigins = events.listPatientLeadOrigins;
     const agendaNotes = createAgendaNotesRepository(this.context);
     this.listAgendaNotes = agendaNotes.listAgendaNotes;
     this.createAgendaNotes = agendaNotes.createAgendaNotes;

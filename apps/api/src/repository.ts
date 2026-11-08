@@ -178,6 +178,7 @@ import type {
   IssuedDocumentInput,
   CommercialEvent,
   CommercialEventDetail,
+  PatientLeadOrigin,
   EventInput,
   Lead,
   LeadActivity,
@@ -1696,6 +1697,13 @@ export interface ClinicRepository {
     id: string,
     input: EventInput,
   ): Promise<CommercialEvent | null>;
+  /**
+   * Leads convertidos em cliente (EN3b, coluna "Origem: evento/lead" da exportação): um item por
+   * lead com `converted_patient_id`, do mais antigo (criação do lead, depois id). `patientId`
+   * segue a mescla; `eventName` vem do evento atual do lead. Clínica toda, sem filtro de filial
+   * (a lista de clientes também não tem).
+   */
+  listPatientLeadOrigins(clinicId: string): Promise<PatientLeadOrigin[]>;
   getCommunicationCenter(clinicId: string): Promise<CommunicationCenter>;
   setCommunicationPreference(
     clinicId: string,

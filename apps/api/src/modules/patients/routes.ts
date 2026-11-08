@@ -38,6 +38,7 @@ import type { RouteContext } from "../../infrastructure/route-context.js";
 import { DomainError } from "../../repository.js";
 import {
   filterPatientsForExport,
+  patientLeadOriginLabels,
   patientsToCsv,
   patientsToXlsx,
 } from "./patient-export.js";
@@ -188,16 +189,21 @@ export function registerPatientsRoutes(context: RouteContext) {
             requestAccess.get(request)?.permissions.includes("finance.view"),
           )
         : [];
-      const [patients, plans, withoutGroupIds, tag] = await Promise.all([
-        repository.listPatients(clinicId, filters.search),
-        filters.activePlan === undefined
-          ? Promise.resolve([])
-          : repository.listPatientPlans(clinicId),
-        filters.withoutGroup
-          ? repository.listSubscriberIdsWithoutGroup(clinicId)
-          : Promise.resolve(null),
-        taggerFor(request),
-      ]);
+      const [patients, plans, withoutGroupIds, tag, leadOrigins] =
+        await Promise.all([
+          repository.listPatients(clinicId, filters.search),
+          filters.activePlan === undefined
+            ? Promise.resolve([])
+            : repository.listPatientPlans(clinicId),
+          filters.withoutGroup
+            ? repository.listSubscriberIdsWithoutGroup(clinicId)
+            : Promise.resolve(null),
+          taggerFor(request),
+          columns.includes("leadOrigin")
+            ? repository.listPatientLeadOrigins(clinicId)
+            : Promise.resolve([]),
+        ]);
+      const extras = { leadOrigins: patientLeadOriginLabels(leadOrigins) };
       const filtered = filterPatientsForExport(
         patients.map(tag).filter((patient) =>
           matchesPatientSegment(
@@ -228,10 +234,10 @@ export function registerPatientsRoutes(context: RouteContext) {
             "Content-Type",
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
           )
-          .send(await patientsToXlsx(rows, columns));
+          .send(await patientsToXlsx(rows, columns, extras));
       return reply
         .header("Content-Type", "text/csv; charset=utf-8")
-        .send(patientsToCsv(rows, columns));
+        .send(patientsToCsv(rows, columns, extras));
     },
   );
 

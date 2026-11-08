@@ -4,6 +4,7 @@ import {
   type CommercialEventDetail,
   type EventInput,
   type EventParticipant,
+  type PatientLeadOrigin,
 } from "@crm/contracts";
 import { randomUUID } from "node:crypto";
 import { DomainError } from "../../repository.js";
@@ -191,6 +192,25 @@ export function createEventsRepository(context: MysqlRepositoryContext) {
         );
         return findEvent(client, clinicId, id);
       });
+    },
+
+    async listPatientLeadOrigins(clinicId: string) {
+      const result = await context.pool.query<{
+        patientId: string;
+        eventName: string | null;
+      }>(
+        `SELECT coalesce(p.merged_into_patient_id, p.id) AS "patientId", e.name AS "eventName"
+         FROM leads l
+         JOIN patients p ON p.clinic_id = l.clinic_id AND p.id = l.converted_patient_id
+         LEFT JOIN events e ON e.clinic_id = l.clinic_id AND e.id = l.event_id
+         WHERE l.clinic_id = $1 AND l.converted_patient_id IS NOT NULL
+         ORDER BY l.created_at, l.id`,
+        [clinicId],
+      );
+      return result.rows.map((row): PatientLeadOrigin => ({
+        patientId: row.patientId,
+        ...(row.eventName ? { eventName: row.eventName } : {}),
+      }));
     },
   };
 }
