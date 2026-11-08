@@ -4,6 +4,8 @@ dist/
 coverage/
 .env
 .env.local
+# Backups do db:cleanup-test-data (dados reais de clientes)
+backups/
 *.log
 .DS_Store
 .idea/
