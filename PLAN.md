@@ -1425,7 +1425,8 @@ filtros ficam no `dashboard-studios` (EN11–EN13 têm só a parte da API aqui).
 - **Escopo:** `GET /reports/dashboard-backup.xlsx` com abas Turmas, Calendário e Lista de
   espera (período até 31 dias, filial ativa, valores só com `finance.view`).
 - **Gate:** gate completo
-- **Status:** TODO
+- **Pendente com o dono:** como calcular os "horários livres" da aba Calendário? O CRM não guarda expediente nem disponibilidade de profissional.
+- **Status:** BLOCKED
 
 ### EN5 — Telegram: agenda para a profissional (5)
 
