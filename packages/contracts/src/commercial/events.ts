@@ -38,6 +38,7 @@ export const eventImportFieldLabels = {
   phone: "Telefone",
   whatsapp: "WhatsApp",
   email: "E-mail",
+  cpf: "CPF",
   interest: "Interesse",
   notes: "Observações",
   phoneAreaCode: "DDD do telefone",
@@ -51,6 +52,7 @@ export const eventImportFieldSchema = z.enum([
   "phone",
   "whatsapp",
   "email",
+  "cpf",
   "interest",
   "notes",
   "phoneAreaCode",
@@ -99,8 +101,15 @@ export interface EventImportAnalysis {
   errors: string[];
   totals: { valid: number; error: number };
 }
+/**
+ * Resultado da importação (EN1): `created` participantes novos, `linked` participantes ligados a
+ * um cliente já cadastrado (mesmo telefone, e-mail ou CPF), `skipped` contatos que já eram
+ * participantes do evento e `errors` linhas com erro.
+ */
 export interface EventImportResult {
   created: number;
+  linked: number;
+  skipped: number;
   errors: number;
 }
 /** O nome cabe na origem do lead ("Evento: <nome>", até 80 caracteres). */

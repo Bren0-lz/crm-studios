@@ -63,7 +63,7 @@ test("imports event participants with custom columns, missing data and existing 
   const event = await response.json();
   await login(page);
   await page.goto(`/eventos/${event.id}`);
-  await page.getByRole("button", { name: "Importar planilha" }).click();
+  await page.getByRole("button", { name: "Importar participantes" }).click();
   const dialog = page.getByRole("dialog", { name: "Importar participantes" });
   await dialog.getByLabel("Planilha de participantes").setInputFiles({
     name: "presença.csv",
@@ -100,14 +100,14 @@ test("imports event participants with custom columns, missing data and existing 
     .getByRole("button", { name: "Importar 4 participante(s)" })
     .click();
   await expect(dialog.getByRole("status")).toContainText(
-    "4 participante(s) importado(s) e 0 com erro",
+    "3 participante(s) novo(s), 0 já cliente(s) vinculado(s), 1 ignorado(s) por já estar(em) no evento e 0 com erro.",
   );
   await dialog
     .locator(".modal-actions")
     .getByRole("button", { name: "Fechar", exact: true })
     .click();
   await expect(
-    page.getByText("4 participante(s)", { exact: true }),
+    page.getByText("3 participante(s)", { exact: true }),
   ).toBeVisible();
   await expect(
     page.getByRole("heading", { name: "Ana", exact: true }),
@@ -119,7 +119,7 @@ test("imports event participants with custom columns, missing data and existing 
     participants.filter(
       (item: { phone: string }) => item.phone === "11999991234",
     ),
-  ).toHaveLength(2);
+  ).toHaveLength(1);
   expect(participants).toEqual(
     expect.arrayContaining([
       expect.objectContaining({

@@ -111,7 +111,7 @@ export function EventDetailPage() {
                 onClick={() => setImporting(true)}
               >
                 <FileDown size={18} aria-hidden="true" />
-                Importar planilha
+                Importar participantes
               </button>
               <button
                 className="primary-button"

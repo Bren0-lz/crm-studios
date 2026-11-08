@@ -201,7 +201,13 @@ describe('"Outros" na importação (entrega 10)', () => {
       headers,
       payload,
     });
-    expect(imported.json()).toEqual({ created: 3, errors: 0 });
+    // EN1: "Dora" já é cliente, então entra ligada ao cadastro (e o "Outros" já é mesclado).
+    expect(imported.json()).toEqual({
+      created: 2,
+      linked: 1,
+      skipped: 0,
+      errors: 0,
+    });
     const participants = (
       await app.inject({ method: "GET", url: `/events/${event.id}`, headers })
     ).json<CommercialEventDetail>().participants;

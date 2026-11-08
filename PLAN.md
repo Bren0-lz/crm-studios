@@ -1341,7 +1341,7 @@ filtros ficam no `dashboard-studios` (EN11–EN13 têm só a parte da API aqui).
   mesma transação.
 - **Gate:** gate completo + `npm run test:mysql`
 - **Depende de:** EN10
-- **Status:** TODO
+- **Status:** DONE
 
 ### EN3 — Marcar quem "virou cliente" no evento (3)
 

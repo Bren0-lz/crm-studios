@@ -97,7 +97,7 @@ for (const storage of ["memory", "mysql"] as const) {
               extraFields: { Pé: "41" },
             },
           ]),
-        ).toBe(2);
+        ).toEqual({ created: 1, linked: 1, skipped: 0 });
         const participants =
           (await repository.getEvent(clinicId, event.id))?.participants ?? [];
         const pia = participants.find((item) => item.fullName === "Pia Evento");

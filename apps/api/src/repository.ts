@@ -1621,11 +1621,16 @@ export interface ClinicRepository {
     query: LeadDuplicateQuery,
   ): Promise<LeadDuplicateMatch[]>;
   createLead(clinicId: string, input: LeadInput): Promise<Lead>;
+  /**
+   * Grava os participantes importados numa transação (EN1): contato que já participa do evento
+   * é ignorado; o que já é cliente entra ligado a ele (`convertedPatientId`, etapa "won") e o
+   * "Outros" da linha é mesclado no cliente.
+   */
   importEventParticipants(
     clinicId: string,
     eventId: string,
     inputs: (LeadInput & { extraFields?: ExtraFields })[],
-  ): Promise<number>;
+  ): Promise<{ created: number; linked: number; skipped: number }>;
   updateLead(
     clinicId: string,
     actorUserId: string,

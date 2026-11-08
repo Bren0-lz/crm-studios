@@ -56,7 +56,7 @@ for (const storage of ["memory", "mysql"] as const) {
           }),
         );
 
-      it("imports incomplete participants with repeated contacts atomically and isolated by clinic", async () => {
+      it("imports incomplete participants atomically, skips repeated contacts and is isolated by clinic", async () => {
         const event = await repository.createEvent(
           clinicId,
           actorId,
@@ -65,37 +65,48 @@ for (const storage of ["memory", "mysql"] as const) {
             startsAt: "2026-11-08T12:00:00.000Z",
           }),
         );
-        const input = eventLeadInputSchema.parse({
-          eventId: event.id,
-          phone: "123",
-        });
+        const participant = (fields: Record<string, string>) =>
+          eventLeadInputSchema.parse({ eventId: event.id, ...fields });
+        const input = participant({ phone: "123" });
+        // EN1: o segundo "123" repete quem já entrou pela linha anterior e é ignorado.
         expect(
           await repository.importEventParticipants(clinicId, event.id, [
             input,
             input,
-            eventLeadInputSchema.parse({
-              eventId: event.id,
-              email: "apenas@example.com",
-            }),
+            participant({ email: "apenas@example.com" }),
+            participant({ notes: "Sem contato" }),
+            participant({ notes: "Outro sem contato" }),
           ]),
-        ).toBe(3);
+        ).toEqual({ created: 4, linked: 0, skipped: 1 });
         expect(
           (await repository.getEvent(clinicId, event.id))?.participants,
-        ).toHaveLength(3);
+        ).toHaveLength(4);
         await expect(
-          repository.importEventParticipants(otherClinicId, event.id, [input]),
+          repository.importEventParticipants(otherClinicId, event.id, [
+            participant({ phone: "456" }),
+          ]),
         ).rejects.toMatchObject({ code: "EVENT_NOT_FOUND" });
         await expect(
           repository.importEventParticipants(clinicId, event.id, [
-            input,
-            { ...input, responsibleUserId: randomUUID() },
+            participant({ phone: "456" }),
+            {
+              ...participant({ phone: "789" }),
+              responsibleUserId: randomUUID(),
+            },
           ]),
         ).rejects.toMatchObject({ code: "RESPONSIBLE_USER_NOT_FOUND" });
         const detail = await repository.getEvent(clinicId, event.id);
-        expect(detail?.participants).toHaveLength(3);
+        expect(detail?.participants).toHaveLength(4);
         expect(
-          detail?.participants.filter((item) => item.phone === "123"),
-        ).toHaveLength(2);
+          detail?.participants.filter((item) => item.phone === "456"),
+        ).toHaveLength(0);
+        // Contato repetido do evento importado de novo: tudo ignorado, nada gravado.
+        expect(
+          await repository.importEventParticipants(clinicId, event.id, [
+            input,
+            participant({ email: "APENAS@example.com" }),
+          ]),
+        ).toEqual({ created: 0, linked: 0, skipped: 2 });
       });
 
       it("creates, lists and edits an event, isolated by clinic", async () => {
