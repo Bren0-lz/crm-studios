@@ -397,6 +397,51 @@ for (const storage of ["memory", "mysql"] as const) {
           ),
         ).rejects.toMatchObject({ code: "BRANCH_NOT_FOUND" });
       });
+
+      it("informa quando o participante virou cliente (conversão ou vínculo na importação)", async () => {
+        const event = await repository.createEvent(
+          clinicId,
+          actorId,
+          eventInputSchema.parse({
+            name: "Conversões " + randomUUID().slice(0, 8),
+            startsAt: "2026-11-08T12:00:00.000Z",
+          }),
+        );
+        const phone = `119${String(Math.floor(Math.random() * 1e8)).padStart(8, "0")}`;
+        await repository.createPatient(clinicId, {
+          fullName: "Cliente Antiga",
+          phone,
+          cpf: nextTestCpf(),
+          tags: [],
+          ...testPatientContact,
+        });
+        expect(
+          await repository.importEventParticipants(clinicId, event.id, [
+            eventLeadInputSchema.parse({
+              eventId: event.id,
+              fullName: "Cliente Antiga",
+              phone,
+            }),
+          ]),
+        ).toMatchObject({ linked: 1 });
+        const nova = await participant(event.id, "Nova Cliente");
+        await participant(event.id, "Sem Conversão");
+        const before = Date.now();
+        await repository.convertLead(clinicId, actorId, nova.id, {
+          cpf: nextTestCpf(),
+          ...testPatientContact,
+        });
+        const detail = (await repository.getEvent(clinicId, event.id))!;
+        const byName = (name: string) =>
+          detail.participants.find((item) => item.fullName === name)!;
+        const linked = byName("Cliente Antiga");
+        // Importado já ligado a um cliente: vale o cadastro do participante.
+        expect(linked.convertedAt).toBe(linked.createdAt);
+        const converted = Date.parse(byName("Nova Cliente").convertedAt ?? "");
+        expect(converted).toBeGreaterThanOrEqual(before - 1000);
+        expect(converted).toBeLessThanOrEqual(Date.now() + 1000);
+        expect(byName("Sem Conversão").convertedAt).toBeUndefined();
+      });
     },
   );
 }

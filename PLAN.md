@@ -1370,7 +1370,7 @@ filtros ficam no `dashboard-studios` (EN11–EN13 têm só a parte da API aqui).
   participantes".
 - **Gate:** gate completo
 - **Depende de:** EN1
-- **Status:** TODO
+- **Status:** DONE
 
 ### EN4 — Limpeza dos dados de teste (4)
 

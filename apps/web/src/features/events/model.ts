@@ -58,3 +58,14 @@ export function eventMoment(iso: string, timezone: string) {
   }).format(date);
   return `${day} às ${time}`;
 }
+
+/** Nome do arquivo da exportação: `participantes-<evento sem acento>.xlsx`. */
+export function eventExportFileName(eventName: string) {
+  const slug = eventName
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .toLocaleLowerCase("pt-BR")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return `participantes${slug ? `-${slug}` : ""}.xlsx`;
+}

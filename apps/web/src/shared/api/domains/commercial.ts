@@ -26,7 +26,7 @@ import type {
   LeadTaskInput,
   LeadTaskStatus,
 } from "@crm/contracts";
-import { request } from "../transport";
+import { request, requestBlob } from "../transport";
 
 /** Filtros do funil (+ paginação) como query string, sem chaves vazias. */
 function leadQuery(filter: LeadFilter, extra: Record<string, number> = {}) {
@@ -40,6 +40,9 @@ function leadQuery(filter: LeadFilter, extra: Record<string, number> = {}) {
 export const commercialApi = {
   events: () => request<CommercialEvent[]>("/events"),
   event: (id: string) => request<CommercialEventDetail>(`/events/${id}`),
+  /** Planilha dos participantes visíveis na filial ativa. */
+  eventParticipantsXlsx: (id: string) =>
+    requestBlob(`/events/${id}/participants/export.xlsx`),
   previewEventImport: (id: string, input: EventImportFileInput) =>
     request<EventImportAnalysis>(`/events/${id}/import/preview`, {
       method: "POST",

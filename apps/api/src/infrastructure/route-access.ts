@@ -312,6 +312,7 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
   // Eventos do comercial (participantes são leads ligados ao evento).
   "GET /events": view("events"),
   "GET /events/:id": view("events"),
+  "GET /events/:id/participants/export.xlsx": view("events"),
   "POST /events/:id/import/preview": operation("crm.create"),
   "POST /events/:id/import": operation("crm.create"),
   "POST /events": operation("events.manage"),

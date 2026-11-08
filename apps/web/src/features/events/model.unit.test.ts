@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { eventDateTime, eventMoment, eventStartsAt, eventPhone } from "./model";
+import {
+  eventDateTime,
+  eventExportFileName,
+  eventMoment,
+  eventStartsAt,
+  eventPhone,
+} from "./model";
 
 describe("event clinic timezone", () => {
   it.each([
@@ -35,5 +41,14 @@ describe("event participant phone", () => {
     expect(eventPhone("+1 415 555 1234")).toBe("+1 415 555 1234");
     expect(eventPhone("123")).toBe("123");
     expect(eventPhone("")).toBe("Não informado");
+  });
+});
+
+describe("event export file name", () => {
+  it("usa o nome do evento sem acentos nem símbolos", () => {
+    expect(eventExportFileName("Aulão na Praça (2ª ed.)")).toBe(
+      "participantes-aulao-na-praca-2-ed.xlsx",
+    );
+    expect(eventExportFileName("!!!")).toBe("participantes.xlsx");
   });
 });

@@ -121,11 +121,15 @@ export function createEventsRepository(context: MemoryRepositoryContext) {
         .sort(byName)
         .map((lead): EventParticipant => {
           const at = evaluationAt(lead),
-            contacted = contactedAt(lead);
+            contacted = contactedAt(lead),
+            converted =
+              lead.convertedPatientId &&
+              (context.leadConvertedAt.get(lead.id) ?? lead.createdAt);
           return {
             ...lead,
             ...(contacted ? { contactedAt: contacted } : {}),
             ...(at ? { evaluationAt: at } : {}),
+            ...(converted ? { convertedAt: converted } : {}),
           };
         });
       return {

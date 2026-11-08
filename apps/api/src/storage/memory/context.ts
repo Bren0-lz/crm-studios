@@ -544,6 +544,9 @@ export class MemoryRepositoryContext {
 
   readonly leads: Lead[] = [];
 
+  /** Lead id → quando virou cliente (no MySQL vem do `lead_stage_history`). */
+  readonly leadConvertedAt = new Map<string, string>();
+
   readonly events: import("./events.js").EventRow[] = [];
 
   readonly leadContacts: LeadContact[] = [];

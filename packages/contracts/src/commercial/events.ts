@@ -178,6 +178,11 @@ export interface EventParticipant extends Lead {
   contactedAt?: string;
   /** Início da avaliação/aula experimental marcada mais recente (não cancelada). */
   evaluationAt?: string;
+  /**
+   * Quando virou cliente: a conversão (etapa `won`) ou, no participante importado já ligado a um
+   * cliente existente, o próprio cadastro. Ausente se não virou cliente.
+   */
+  convertedAt?: string;
 }
 
 export interface CommercialEventDetail extends CommercialEvent {

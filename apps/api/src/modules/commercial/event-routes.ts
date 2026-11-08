@@ -6,7 +6,12 @@ import {
 import { z } from "zod";
 import type { RouteContext } from "../../infrastructure/route-context.js";
 import { DomainError } from "../../repository.js";
-import { readSpreadsheetFile } from "../../infrastructure/spreadsheet.js";
+import {
+  readSpreadsheetFile,
+  xlsxContentType,
+} from "../../infrastructure/spreadsheet.js";
+import { DEFAULT_CLINIC_TIMEZONE, clinicDateOf } from "../finance/daily-cash.js";
+import { eventParticipantsToXlsx } from "./event-export.js";
 import { validateEventImport } from "./event-import.js";
 
 /** Eventos do comercial: o participante é um lead do CRM ligado ao evento. */
@@ -74,6 +79,29 @@ export function registerEventRoutes({
     if (!event) throw notFound();
     return event;
   });
+  // Participantes visíveis na filial ativa (a leitura do evento já filtra).
+  app.get(
+    "/events/:id/participants/export.xlsx",
+    { preHandler: authenticate },
+    async (request, reply) => {
+      const { id } = idParams.parse(request.params);
+      const { clinicId } = request.user;
+      const [event, stages, settings] = await Promise.all([
+        repository.getEvent(clinicId, id),
+        repository.listLeadStages(clinicId),
+        repository.getClinicSettings(clinicId),
+      ]);
+      if (!event) throw notFound();
+      const timeZone = settings?.timezone || DEFAULT_CLINIC_TIMEZONE;
+      const fileName = `participantes-${clinicDateOf(new Date(), timeZone)}.xlsx`;
+      return reply
+        .header("Content-Type", xlsxContentType)
+        .header("Content-Disposition", `attachment; filename="${fileName}"`)
+        .send(
+          await eventParticipantsToXlsx(event.participants, stages, timeZone),
+        );
+    },
+  );
   app.post("/events", { preHandler: authenticate }, async (request, reply) =>
     reply
       .status(201)

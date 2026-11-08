@@ -3,7 +3,7 @@ import {
   type CommercialEventDetail,
   type EventParticipant,
 } from "@crm/contracts";
-import { FileDown, UserPlus, Users } from "lucide-react";
+import { Download, FileDown, UserPlus, Users } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { api } from "../../api";
@@ -18,7 +18,7 @@ import { EventContactModal } from "./EventContactModal";
 import { EventConvertModal } from "./EventConvertModal";
 import { EventParticipantModal } from "./EventParticipantModal";
 import { EventImportModal } from "./EventImportModal";
-import { eventMoment, eventPhone } from "./model";
+import { eventExportFileName, eventMoment, eventPhone } from "./model";
 
 type State =
   | { status: "loading" }
@@ -60,6 +60,8 @@ export function EventDetailPage() {
   const [importing, setImporting] = useState(false);
   const [contact, setContact] = useState<EventParticipant | null>(null);
   const [converting, setConverting] = useState<EventParticipant | null>(null);
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState("");
   // Mutações em /leads atualizam a versão "crm": participantes e indicadores recarregam.
   const version = useDataVersion("crm");
   const toast = useToast();
@@ -85,6 +87,28 @@ export function EventDetailPage() {
     };
   }, [id, version, retry]);
   const event = state.status === "ready" ? state.event : null;
+  async function exportParticipants() {
+    if (!event) return;
+    setExporting(true);
+    setExportError("");
+    try {
+      const blob = await api.eventParticipantsXlsx(event.id);
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = eventExportFileName(event.name);
+      anchor.click();
+      URL.revokeObjectURL(url);
+    } catch (cause) {
+      setExportError(
+        cause instanceof Error
+          ? cause.message
+          : "Não foi possível exportar os participantes.",
+      );
+    } finally {
+      setExporting(false);
+    }
+  }
   const timezone = state.status === "ready" ? state.timezone : "";
   const indicators = event
     ? [
@@ -107,28 +131,39 @@ export function EventDetailPage() {
         }
         back={{ to: "/eventos", label: "Voltar para Eventos" }}
         action={
-          canAdd && (
-            <div className="page-actions">
-              <button
-                className="secondary-button"
-                disabled={!event}
-                onClick={() => setImporting(true)}
-              >
-                <FileDown size={18} aria-hidden="true" />
-                Importar participantes
-              </button>
-              <button
-                className="primary-button"
-                disabled={!event}
-                onClick={() => setAdding(true)}
-              >
-                <UserPlus size={18} aria-hidden="true" />
-                Adicionar participante
-              </button>
-            </div>
-          )
+          <div className="page-actions">
+            <button
+              className="secondary-button"
+              disabled={!event || exporting}
+              onClick={() => void exportParticipants()}
+            >
+              <Download size={18} aria-hidden="true" />
+              {exporting ? "Exportando..." : "Exportar participantes"}
+            </button>
+            {canAdd && (
+              <>
+                <button
+                  className="secondary-button"
+                  disabled={!event}
+                  onClick={() => setImporting(true)}
+                >
+                  <FileDown size={18} aria-hidden="true" />
+                  Importar participantes
+                </button>
+                <button
+                  className="primary-button"
+                  disabled={!event}
+                  onClick={() => setAdding(true)}
+                >
+                  <UserPlus size={18} aria-hidden="true" />
+                  Adicionar participante
+                </button>
+              </>
+            )}
+          </div>
         }
       />
+      {exportError && <ErrorBanner error={exportError} />}
       {event && (
         <div className="metric-grid events-indicators" aria-label="Indicadores">
           {indicators.map(([label, value]) => (

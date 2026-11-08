@@ -74,6 +74,14 @@ const evaluationAtColumn = `(SELECT MAX(a.starts_at) FROM appointments a
 const contactedAtColumn = `(SELECT MAX(lc.occurred_at) FROM lead_contacts lc
   WHERE lc.clinic_id = leads.clinic_id AND lc.lead_id = leads.id AND lc.reached = 1) AS "contactedAt"`;
 
+/**
+ * Quando virou cliente: a última entrada na etapa `won` do histórico (conversão); sem ela, o
+ * participante foi importado já ligado a um cliente existente e vale o cadastro do lead.
+ */
+const convertedAtColumn = `COALESCE((SELECT MAX(h.created_at) FROM lead_stage_history h
+    WHERE h.clinic_id = leads.clinic_id AND h.lead_id = leads.id AND h.to_stage = 'won'),
+  leads.created_at) AS "convertedAt"`;
+
 export function createEventsRepository(context: MysqlRepositoryContext) {
   async function findEvent(
     db: Pool | PoolClient,
@@ -130,9 +138,14 @@ export function createEventsRepository(context: MysqlRepositoryContext) {
       const event = await findEvent(context.pool, clinicId, id);
       if (!event) return null;
       const result = await context.pool.query<
-        LeadRow & { evaluationAt: Date | null; contactedAt: Date | null }
+        LeadRow & {
+          evaluationAt: Date | null;
+          contactedAt: Date | null;
+          convertedAt: Date | null;
+        }
       >(
-        `SELECT ${leadColumns}, ${evaluationAtColumn}, ${contactedAtColumn} FROM leads
+        `SELECT ${leadColumns}, ${evaluationAtColumn}, ${contactedAtColumn},
+                ${convertedAtColumn} FROM leads
          WHERE clinic_id = $1 AND event_id = $3 AND ${branchClause("branch_id", 2)}
          ORDER BY full_name, id`,
         [clinicId, context.branchReadIds(), id],
@@ -144,6 +157,9 @@ export function createEventsRepository(context: MysqlRepositoryContext) {
           : {}),
         ...(row.evaluationAt
           ? { evaluationAt: row.evaluationAt.toISOString() }
+          : {}),
+        ...(row.convertedPatientId && row.convertedAt
+          ? { convertedAt: row.convertedAt.toISOString() }
           : {}),
       }));
       return {
