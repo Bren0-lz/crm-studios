@@ -21,6 +21,7 @@ import {
   type PatientTag,
   type Product,
   withoutAutomaticPatientTags,
+  INVALID_CPF_TAG,
   MISSING_CPF_TAG,
 } from "@crm/contracts";
 import {
@@ -1126,8 +1127,9 @@ export function PatientModal({
           </label>
           {cpfOptional && (
             <span className="field-hint" id="patient-cpf-hint">
-              Cliente sem CPF: preencha quando tiver. A etiqueta “
-              {MISSING_CPF_TAG}” sai sozinha.
+              {patient?.importedInvalidCpf
+                ? `A planilha trouxe o CPF “${patient.importedInvalidCpf}”, que não confere: preencha o CPF correto e a etiqueta “${INVALID_CPF_TAG}” sai sozinha.`
+                : `Cliente sem CPF: preencha quando tiver. A etiqueta “${MISSING_CPF_TAG}” sai sozinha.`}
             </span>
           )}
         </div>

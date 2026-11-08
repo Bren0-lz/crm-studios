@@ -2,6 +2,7 @@ import {
   type PatientProfileFilter,
   type PatientSegmentSummary,
   INCOMPLETE_REGISTRATION_TAG,
+  INVALID_CPF_TAG,
   lacksEmail,
   lacksRequiredContact,
   MISSING_CPF_TAG,
@@ -157,7 +158,11 @@ export function importMergeCount(rows: readonly PatientImportRow[]): number {
 export function importRowNotes(input: PatientImportRow["input"]): string[] {
   if (!input) return [];
   return [
-    ...(input.cpf ? [] : [`sem CPF (etiqueta “${MISSING_CPF_TAG}”)`]),
+    ...(input.cpf
+      ? []
+      : input.invalidCpf
+        ? [`CPF inválido na planilha: entra sem CPF (etiqueta “${INVALID_CPF_TAG}”)`]
+        : [`sem CPF (etiqueta “${MISSING_CPF_TAG}”)`]),
     ...(lacksRequiredContact(input)
       ? [
           `sem WhatsApp ou contato de emergência (etiqueta “${INCOMPLETE_REGISTRATION_TAG}”)`,

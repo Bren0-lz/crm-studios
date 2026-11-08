@@ -12,6 +12,7 @@ import {
   isAutomaticPatientTag,
   INCOMPLETE_REGISTRATION_TAG,
   MISSING_CPF_TAG,
+  INVALID_CPF_TAG,
   MISSING_EMAIL_TAG,
   patientTagKey,
   OVERDUE_PAYMENT_TAG,
@@ -94,6 +95,7 @@ export function registerPatientsRoutes(context: RouteContext) {
     const key = patientTagKey(name);
     const reasons: [string, string][] = [
       [MISSING_CPF_TAG, "clientes sem CPF"],
+      [INVALID_CPF_TAG, "clientes importados com CPF errado"],
       [
         INCOMPLETE_REGISTRATION_TAG,
         "clientes importados sem WhatsApp ou sem contato de emergência",
@@ -102,7 +104,8 @@ export function registerPatientsRoutes(context: RouteContext) {
       [OVERDUE_PAYMENT_TAG, "clientes com parcela vencida"],
     ];
     const [tag, reason] =
-      reasons.find(([item]) => patientTagKey(item) === key) ?? reasons[3]!;
+      reasons.find(([item]) => patientTagKey(item) === key) ??
+      reasons[reasons.length - 1]!;
     throw new DomainError(
       "PATIENT_TAG_AUTOMATIC",
       `“${tag}” é uma etiqueta automática: aparece sozinha para ${reason}.`,

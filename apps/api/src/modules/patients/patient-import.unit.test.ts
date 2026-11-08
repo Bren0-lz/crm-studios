@@ -321,9 +321,10 @@ describe("validatePatientImport", () => {
         expect.stringMatching(/^Linha 2: e-mail/),
         expect.stringMatching(/^Linha 2: data de nascimento/),
         expect.stringMatching(/^Linha 2: WhatsApp/),
-        expect.stringMatching(/^Linha 2: CPF inválido/),
       ]),
     );
+    // CPF errado não é erro da linha: o cliente entra com a etiqueta "CPF inválido".
+    expect(first?.errors?.some((message) => /CPF/.test(message))).toBe(false);
     expect(second?.line).toBe(4);
     // CPF pode faltar na planilha (B6-05): só o telefone e a data apontam erro.
     expect(second?.errors).toEqual(["Linha 4: telefone é obrigatório."]);
@@ -515,11 +516,14 @@ describe("importação sem CPF (B6-05)", () => {
       ],
       [],
     );
-    expect(withColumn.rows.map((row) => row.status)).toEqual(["valid", "error"]);
+    expect(withColumn.rows.map((row) => row.status)).toEqual(["valid", "valid"]);
     expect(withColumn.rows[0]?.input?.cpf).toBeUndefined();
-    expect(withColumn.rows[1]?.errors).toEqual([
-      expect.stringMatching(/^Linha 3: CPF inválido/),
-    ]);
+    expect(withColumn.rows[0]?.input?.invalidCpf).toBeUndefined();
+    // CPF errado: entra sem CPF, guardando o que veio para a etiqueta "CPF inválido".
+    expect(withColumn.rows[1]?.input).toMatchObject({
+      invalidCpf: "529.982.247-24",
+    });
+    expect(withColumn.rows[1]?.input?.cpf).toBeUndefined();
   });
 
   it("sem CPF, o telefone continua apontando duplicados na base e no arquivo", () => {
@@ -546,5 +550,135 @@ describe("importação sem CPF (B6-05)", () => {
       field: "phone",
       line: 3,
     });
+  });
+});
+
+describe("planilhas reais: CPF numérico, +55 e ano com dois dígitos", () => {
+  it("completa com zeros o CPF que o Excel guardou como número", async () => {
+    const workbook = new ExcelJS.Workbook();
+    const sheet = workbook.addWorksheet("Clientes");
+    sheet.addRow(["Nome", "Telefone", "CPF"]);
+    sheet.addRow(["Célia Zero", 11988880000, 1234567890]);
+    sheet.addRow(["Rui Dois Zeros", 11977770000, 345678958]);
+    const rows = await readXlsxRows(
+      Buffer.from(await workbook.xlsx.writeBuffer()),
+    );
+    const analysis = validatePatientImport(rows, []);
+    expect(analysis.rows.map((row) => row.status)).toEqual(["valid", "valid"]);
+    expect(analysis.rows.map((row) => row.input?.cpf)).toEqual([
+      "01234567890",
+      "00345678958",
+    ]);
+  });
+
+  it("CPF continua opcional e o duplicado é achado com o zero completado", () => {
+    const analysis = validatePatientImport(
+      [
+        ["Nome", "Telefone", "CPF"],
+        ["Sem Documento", "11966660000", ""],
+        ["Ana Repetida", "11955550000", "1234567890"],
+      ],
+      [existingPatient({ cpf: "012.345.678-90", phone: "11911110000" })],
+    );
+    expect(analysis.rows.map((row) => row.status)).toEqual([
+      "valid",
+      "duplicate",
+    ]);
+    expect(analysis.rows[0]?.input?.cpf).toBeUndefined();
+    expect(analysis.rows[1]?.duplicateOf).toMatchObject({ field: "cpf" });
+  });
+
+  it("tira o código do Brasil (+55) de telefone, WhatsApp e telefone de emergência", () => {
+    const analysis = validatePatientImport(
+      [
+        ["Nome", "Telefone", "WhatsApp", "Telefone de emergência"],
+        [
+          "Lia Internacional",
+          "+55 11 98765-0002",
+          "5511987650002",
+          "+55 (55) 3222-1111",
+        ],
+        ["Caio Fixo", "+55 (11) 3333-4444", "", ""],
+      ],
+      [],
+    );
+    expect(analysis.rows.map((row) => row.status)).toEqual(["valid", "valid"]);
+    expect(analysis.rows[0]?.input).toMatchObject({
+      phone: "11987650002",
+      whatsapp: "11987650002",
+      emergencyContactPhone: "5532221111",
+    });
+    expect(analysis.rows[1]?.input?.phone).toBe("1133334444");
+  });
+
+  it("número com DDD 55 sem o código do país fica como está", () => {
+    const analysis = validatePatientImport(
+      [
+        ["Nome", "Telefone"],
+        ["Santa Maria", "(55) 99876-5432"],
+      ],
+      [],
+    );
+    expect(analysis.rows[0]?.input?.phone).toBe("55998765432");
+  });
+
+  it("ano com dois dígitos: até o ano atual vira 20aa, depois 19aa", () => {
+    const analysis = validatePatientImport(
+      [
+        ["Nome", "Telefone", "Nascimento"],
+        ["Luís Noventa", "11987650004", "05/03/90"],
+        ["Bia Cinco", "11987650005", "1/2/05"],
+        ["Teo Inválido", "11987650006", "31/02/90"],
+      ],
+      [],
+    );
+    expect(analysis.rows.map((row) => row.input?.birthDate)).toEqual([
+      "1990-03-05",
+      "2005-02-01",
+      undefined,
+    ]);
+    expect(analysis.rows[2]?.errors).toEqual([
+      expect.stringMatching(/data de nascimento inválida/),
+    ]);
+  });
+});
+
+describe("CPF errado na planilha", () => {
+  it("entra sem CPF e guarda o valor; texto sem dígitos conta como sem CPF", () => {
+    const analysis = validatePatientImport(
+      [
+        ["Nome", "Telefone", "CPF"],
+        ["Errado Um", "11911112222", "123.456.789-00"],
+        ["Curto Dois", "11911113333", "1234"],
+        ["Sem Tres", "11911114444", "não tem"],
+        ["Certo Quatro", "11911115555", "529.982.247-25"],
+      ],
+      [],
+    );
+    expect(analysis.totals).toEqual({ valid: 4, error: 0, duplicate: 0 });
+    expect(
+      analysis.rows.map((row) => [row.input?.cpf, row.input?.invalidCpf]),
+    ).toEqual([
+      [undefined, "123.456.789-00"],
+      [undefined, "1234"],
+      [undefined, undefined],
+      ["52998224725", undefined],
+    ]);
+  });
+
+  it("CPF errado não serve para achar duplicado; o telefone continua valendo", () => {
+    const analysis = validatePatientImport(
+      [
+        ["Nome", "Telefone", "CPF"],
+        ["Maria Outra", "11900001111", "123.456.789-00"],
+        ["Maria Fone", "11988887777", "123.456.789-00"],
+      ],
+      [existingPatient()],
+    );
+    expect(analysis.rows.map((row) => row.status)).toEqual([
+      "valid",
+      "duplicate",
+    ]);
+    expect(analysis.rows[1]?.duplicateOf).toMatchObject({ field: "phone" });
   });
 });

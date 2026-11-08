@@ -480,10 +480,12 @@ export function createPatientsRepository(
           );
           if (cpf) cpfs.set(cpf, patient.id);
           phones.set(phone, patient.id);
-          // CD3: a marca da importação libera as etiquetas "Cadastro incompleto" e "Sem e-mail".
+          // CD3: a marca da importação libera as etiquetas "Cadastro incompleto" e "Sem e-mail";
+          // o CPF errado da planilha dá "CPF inválido" até o cliente ter um CPF.
           await client.query(
-            `UPDATE patients SET imported_at = NOW(6) WHERE clinic_id = $1 AND id = $2`,
-            [clinicId, patient.id],
+            `UPDATE patients SET imported_at = NOW(6), imported_invalid_cpf = $3
+             WHERE clinic_id = $1 AND id = $2`,
+            [clinicId, patient.id, input.invalidCpf ?? null],
           );
           created += 1;
         }

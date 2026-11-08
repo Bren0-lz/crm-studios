@@ -14,6 +14,13 @@ export const OVERDUE_PAYMENT_TAG = "Pagamento atrasado";
 export const MISSING_CPF_TAG = "Falta CPF";
 
 /**
+ * Etiqueta automática: cliente importado pela planilha com CPF errado (dígitos não conferem).
+ * Ele entra sem CPF e com esta etiqueta no lugar de "Falta CPF"; sai sozinha quando o CPF é
+ * preenchido. Visível para todos os perfis.
+ */
+export const INVALID_CPF_TAG = "CPF inválido";
+
+/**
  * Etiqueta automática (CD3): cliente importado pela planilha sem WhatsApp ou sem contato de
  * emergência (nome e telefone). Sai sozinha quando os dois são preenchidos.
  */
@@ -29,6 +36,7 @@ export const MISSING_EMAIL_TAG = "Sem e-mail";
 export const automaticPatientTagNames: readonly string[] = [
   OVERDUE_PAYMENT_TAG,
   MISSING_CPF_TAG,
+  INVALID_CPF_TAG,
   INCOMPLETE_REGISTRATION_TAG,
   MISSING_EMAIL_TAG,
 ];
@@ -36,6 +44,7 @@ export const automaticPatientTagNames: readonly string[] = [
 const automaticPatientTagCategories: Record<string, PatientTagCategory> = {
   [patientTagKey(OVERDUE_PAYMENT_TAG)]: "financial",
   [patientTagKey(MISSING_CPF_TAG)]: "status",
+  [patientTagKey(INVALID_CPF_TAG)]: "status",
   [patientTagKey(INCOMPLETE_REGISTRATION_TAG)]: "status",
   [patientTagKey(MISSING_EMAIL_TAG)]: "status",
 };
@@ -90,6 +99,15 @@ export function needsCpf(patient: {
   mergedIntoPatientId?: string | null | undefined;
 }): boolean {
   return !patient.cpf?.trim() && !patient.mergedIntoPatientId;
+}
+
+/** Sem CPF porque o da planilha estava errado: "CPF inválido" no lugar de "Falta CPF". */
+export function hasInvalidImportedCpf(patient: {
+  cpf?: string | null | undefined;
+  mergedIntoPatientId?: string | null | undefined;
+  importedInvalidCpf?: string | null | undefined;
+}): boolean {
+  return needsCpf(patient) && Boolean(patient.importedInvalidCpf?.trim());
 }
 
 /** Contato que a importação aceita vazio (CD3). */
@@ -152,12 +170,14 @@ export interface AutomaticTagSubject extends ImportedContactFields {
   cpf?: string | null | undefined;
   mergedIntoPatientId?: string | null | undefined;
   importedAt?: string | null | undefined;
+  importedInvalidCpf?: string | null | undefined;
 }
 
 /**
  * Aplica as etiquetas automáticas ao cliente: descarta qualquer cópia gravada, acrescenta
  * "Pagamento atrasado" quando o cliente está em `overdueIds` (`null` = quem consulta não vê o
- * Financeiro), "Falta CPF" quando o cadastro não tem CPF e, só para clientes importados pela
+ * Financeiro), "Falta CPF" quando o cadastro não tem CPF ("CPF inválido" se o da planilha estava
+ * errado) e, só para clientes importados pela
  * planilha, "Cadastro incompleto" e "Sem e-mail" (CD3).
  */
 export function withAutomaticPatientTags<T extends AutomaticTagSubject>(
@@ -166,7 +186,8 @@ export function withAutomaticPatientTags<T extends AutomaticTagSubject>(
 ): T {
   const tags = withoutAutomaticPatientTags(patient.tags);
   if (overdueIds?.has(patient.id)) tags.push(OVERDUE_PAYMENT_TAG);
-  if (needsCpf(patient)) tags.push(MISSING_CPF_TAG);
+  if (hasInvalidImportedCpf(patient)) tags.push(INVALID_CPF_TAG);
+  else if (needsCpf(patient)) tags.push(MISSING_CPF_TAG);
   if (needsCompleteRegistration(patient))
     tags.push(INCOMPLETE_REGISTRATION_TAG);
   if (needsEmail(patient)) tags.push(MISSING_EMAIL_TAG);

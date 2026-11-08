@@ -1,5 +1,6 @@
 import {
   INCOMPLETE_REGISTRATION_TAG,
+  INVALID_CPF_TAG,
   MISSING_EMAIL_TAG,
   patientImportInputSchema,
   patientUpdateInputSchema,
@@ -110,6 +111,42 @@ for (const storage of ["memory", "mysql"] as const) {
           }),
         );
         expect(updated?.importedAt).toBe(nina!.importedAt);
+        expect(withAutomaticPatientTags(updated!, null).tags).toEqual([]);
+      });
+
+      it("guarda o CPF errado da planilha e marca 'CPF inválido' até o CPF ser preenchido", async () => {
+        await repository.importPatients(clinicId, [
+          patientImportInputSchema.parse({
+            fullName: "Rui Cpf Errado",
+            phone: "11955580003",
+            invalidCpf: "123.456.789-00",
+            email: "rui@example.com",
+            tags: [],
+            ...testPatientContact,
+          }),
+        ]);
+        const [rui] = await repository.listPatients(clinicId, "Rui Cpf Errado");
+        expect(rui?.cpf).toBeUndefined();
+        expect(rui?.importedInvalidCpf).toBe("123.456.789-00");
+        expect(withAutomaticPatientTags(rui!, null).tags).toEqual([
+          INVALID_CPF_TAG,
+        ]);
+        expect(
+          (await repository.getPatient(clinicId, rui!.id))?.importedInvalidCpf,
+        ).toBe("123.456.789-00");
+
+        const updated = await repository.updatePatient(
+          clinicId,
+          rui!.id,
+          patientUpdateInputSchema.parse({
+            fullName: "Rui Cpf Errado",
+            phone: "11955580003",
+            cpf: nextTestCpf(),
+            email: "rui@example.com",
+            tags: [],
+            ...testPatientContact,
+          }),
+        );
         expect(withAutomaticPatientTags(updated!, null).tags).toEqual([]);
       });
     },

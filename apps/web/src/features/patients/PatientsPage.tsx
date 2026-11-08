@@ -1,6 +1,7 @@
 import {
   DEFAULT_PATIENT_TAG_COLOR,
   INCOMPLETE_REGISTRATION_TAG,
+  INVALID_CPF_TAG,
   MISSING_CPF_TAG,
   MISSING_EMAIL_TAG,
   OVERDUE_PAYMENT_TAG,
@@ -58,6 +59,8 @@ const automaticTagHints: Record<string, string> = {
     "Etiqueta automática: cliente com parcela vencida e em aberto.",
   [MISSING_CPF_TAG]:
     "Etiqueta automática: cliente sem CPF (importado da planilha). Sai sozinha quando o CPF é preenchido.",
+  [INVALID_CPF_TAG]:
+    "Etiqueta automática: cliente importado da planilha com CPF errado (entrou sem CPF). Sai sozinha quando o CPF correto é preenchido.",
   [INCOMPLETE_REGISTRATION_TAG]:
     "Etiqueta automática: cliente importado da planilha sem WhatsApp ou sem contato de emergência. Sai sozinha quando os dois são preenchidos.",
   [MISSING_EMAIL_TAG]:
@@ -153,6 +156,7 @@ export function PatientsPage() {
   const automaticTagOptions = [
     ...(canView("finance") ? [OVERDUE_PAYMENT_TAG] : []),
     MISSING_CPF_TAG,
+    INVALID_CPF_TAG,
     INCOMPLETE_REGISTRATION_TAG,
     MISSING_EMAIL_TAG,
   ];
