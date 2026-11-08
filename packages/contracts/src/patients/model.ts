@@ -223,6 +223,8 @@ export const patientImportInputSchema = patientInputSchema.extend({
   cpf: optionalCpfSchema,
   /** Colunas mapeadas como "Outros" (entrega 10); a gravação mescla com o que já existe. */
   extraFields: extraFieldsSchema.optional(),
+  /** CPF da planilha que não confere: o cliente entra sem CPF e com "CPF inválido". */
+  invalidCpf: z.string().trim().max(40).optional(),
 });
 
 /**

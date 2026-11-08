@@ -12350,6 +12350,7 @@ describe("configured patient tags", () => {
       "VIP0",
       "Pagamento atrasado0",
       "Falta CPF0",
+      "CPF inválido0",
       "Cadastro incompleto0",
       "Sem e-mail0",
     ]);

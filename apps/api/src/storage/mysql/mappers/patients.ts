@@ -15,6 +15,7 @@ export interface PatientRow {
   inactiveAt?: Date | null;
   mergedIntoPatientId?: string | null;
   importedAt?: Date | null;
+  importedInvalidCpf?: string | null;
   profile?: ReturnType<typeof patientProfile>;
   extraFields?: ExtraFields | string | null;
   id: string;
@@ -54,6 +55,7 @@ export const patientColumns = `
   inactive_at AS "inactiveAt",
   merged_into_patient_id AS "mergedIntoPatientId",
   imported_at AS "importedAt",
+  imported_invalid_cpf AS "importedInvalidCpf",
   status,
   created_at AS "createdAt",
   updated_at AS "updatedAt"
@@ -72,6 +74,9 @@ export function mapPatient(row: PatientRow): Patient {
       ? { mergedIntoPatientId: row.mergedIntoPatientId }
       : {}),
     ...(row.importedAt ? { importedAt: row.importedAt.toISOString() } : {}),
+    ...(row.importedInvalidCpf
+      ? { importedInvalidCpf: row.importedInvalidCpf }
+      : {}),
     id: row.id,
     clinicId: row.clinicId,
     recordNumber: row.recordNumber,

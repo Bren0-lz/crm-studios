@@ -3,6 +3,7 @@ import {
   EXTRA_FIELDS_MAX_KEYS,
   PATIENT_IMPORT_EXTRA_FIELD,
   extraFieldsFromRow,
+  isValidCpf,
   patientImportFieldLabels,
   patientImportPhoneFields,
   patientImportInputSchema,
@@ -400,7 +401,12 @@ export function validatePatientImport(
     }
     const extraFields = extraFieldsFromRow(titles, extraColumns, row);
     if (extraFields) raw.extraFields = extraFields;
-    // CPF pode faltar na planilha (B6-05): o cliente entra com a etiqueta "Falta CPF".
+    // CPF pode faltar na planilha (B6-05): o cliente entra com a etiqueta "Falta CPF". CPF
+    // errado não barra a linha: o cliente entra sem CPF e com a etiqueta "CPF inválido".
+    if (typeof raw.cpf === "string" && !isValidCpf(raw.cpf)) {
+      if (digitsOnly(raw.cpf)) raw.invalidCpf = raw.cpf.slice(0, 40);
+      delete raw.cpf;
+    }
     const parsed = patientImportInputSchema.safeParse(raw);
     if (!parsed.success) {
       const fields = new Set<ImportField>();

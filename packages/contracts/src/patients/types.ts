@@ -128,6 +128,8 @@ export interface Patient extends Omit<
   mergedIntoPatientId?: string;
   /** Data da importação pela planilha (CD3); ausente em cadastro manual. */
   importedAt?: string;
+  /** CPF errado que veio na planilha (o cliente entrou sem CPF e com "CPF inválido"). */
+  importedInvalidCpf?: string;
   /** Colunas "Outros" da importação (`{ título: valor }`); ausente quando não há nenhuma. */
   extraFields?: ExtraFields | undefined;
   id: string;

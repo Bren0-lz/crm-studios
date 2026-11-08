@@ -8,6 +8,7 @@ import {
   lacksEmail,
   lacksRequiredContact,
   MISSING_CPF_TAG,
+  INVALID_CPF_TAG,
   MISSING_EMAIL_TAG,
 } from "@crm/contracts";
 import { Download, FileDown } from "lucide-react";
@@ -117,7 +118,11 @@ export function PatientImportModal({
     analysis?.rows.flatMap((row) =>
       row.status === "valid" && row.input ? [row.input] : [],
     ) ?? [];
-  const withoutCpfCount = validInputs.filter((input) => !input.cpf).length;
+  // CPF errado também entra sem CPF, mas com a etiqueta "CPF inválido" (contado à parte).
+  const withoutCpfCount = validInputs.filter(
+    (input) => !input.cpf && !input.invalidCpf,
+  ).length;
+  const invalidCpfCount = validInputs.filter((input) => input.invalidCpf).length;
   // CD3: sem WhatsApp/contato de emergência ou sem e-mail entram com as etiquetas automáticas.
   const incompleteCount = validInputs.filter(lacksRequiredContact).length;
   const withoutEmailCount = validInputs.filter(lacksEmail).length;
@@ -156,7 +161,8 @@ export function PatientImportModal({
               A primeira linha deve ter os títulos das colunas. Depois de
               enviar, escolha a que dado do sistema corresponde cada coluna
               (nome e telefone são obrigatórios). Quem vier sem CPF recebe a
-              etiqueta “{MISSING_CPF_TAG}”; sem WhatsApp ou contato de
+              etiqueta “{MISSING_CPF_TAG}”; com CPF errado, entra sem CPF e
+              recebe “{INVALID_CPF_TAG}”; sem WhatsApp ou contato de
               emergência, “{INCOMPLETE_REGISTRATION_TAG}”; sem e-mail,
               “{MISSING_EMAIL_TAG}”. Elas saem sozinhas quando o dado for
               preenchido. Datas em dd/mm/aaaa e etiquetas separadas por
@@ -254,6 +260,15 @@ export function PatientImportModal({
               </span>
               {withoutCpfCount > 0 && (
                 <span className="status-pill">{`${withoutCpfCount} sem CPF`}</span>
+              )}
+              {invalidCpfCount > 0 && (
+                <span className="status-pill">
+                  {countLabel(
+                    invalidCpfCount,
+                    "CPF inválido",
+                    "CPFs inválidos",
+                  )}
+                </span>
               )}
               {incompleteCount > 0 && (
                 <span className="status-pill">

@@ -53,12 +53,13 @@ describe("cliente importado sem CPF (B6-05)", () => {
           ].join("\n"),
         ),
       });
+      // CPF errado não barra a linha: entra sem CPF e com "CPF inválido" (no lugar de "Falta CPF").
       expect(imported.json()).toEqual({
-      created: 3,
-      skipped: 0,
-      errors: 1,
-      updated: 0,
-    });
+        created: 4,
+        skipped: 0,
+        errors: 0,
+        updated: 0,
+      });
 
       const listed = (
         await app.inject({

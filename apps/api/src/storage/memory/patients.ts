@@ -332,7 +332,7 @@ export function createPatientsRepository(
       }
       // CD3: a marca da importação libera as etiquetas "Cadastro incompleto" e "Sem e-mail".
       const importedAt = timestamp;
-      for (const input of accepted) {
+      for (const { invalidCpf, ...input } of accepted) {
         const patient = await repositoryContext.operations.createPatient(
           clinicId,
           input,
@@ -340,7 +340,11 @@ export function createPatientsRepository(
         const stored = repositoryContext.patients.find(
           (item) => item.id === patient.id,
         );
-        if (stored) stored.importedAt = importedAt;
+        if (stored) {
+          stored.importedAt = importedAt;
+          // CPF errado da planilha: o cliente fica com "CPF inválido" até ter um CPF.
+          if (invalidCpf) stored.importedInvalidCpf = invalidCpf;
+        }
       }
       return { created: accepted.length, skipped, updated: merges.length };
     },

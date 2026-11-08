@@ -1,4 +1,4 @@
-import { MISSING_CPF_TAG } from "@crm/contracts";
+import { INVALID_CPF_TAG, MISSING_CPF_TAG } from "@crm/contracts";
 import {
   fireEvent,
   render,
@@ -216,9 +216,22 @@ describe("cliente sem CPF (B6-05)", () => {
                   tags: [],
                 },
               },
+              {
+                line: 4,
+                status: "valid",
+                fullName: "Hugo Cpf Errado",
+                phone: "11955540040",
+                input: {
+                  fullName: "Hugo Cpf Errado",
+                  phone: "11955540040",
+                  invalidCpf: "123.456.789-00",
+                  ...completeContact,
+                  tags: [],
+                },
+              },
             ],
             errors: [],
-            totals: { valid: 2, error: 0, duplicate: 0 },
+            totals: { valid: 3, error: 0, duplicate: 0 },
           }
         : /\/patients(\?|$)/.test(url)
           ? [withCpf]
@@ -244,6 +257,12 @@ describe("cliente sem CPF (B6-05)", () => {
       },
     });
     expect(await within(dialog).findByText("1 sem CPF")).toBeVisible();
+    expect(within(dialog).getByText("1 CPF inválido")).toBeVisible();
+    expect(
+      within(dialog).getByText(
+        `Pronta para importar · CPF inválido na planilha: entra sem CPF (etiqueta “${INVALID_CPF_TAG}”)`,
+      ),
+    ).toBeVisible();
     expect(
       within(dialog).getByText(
         `Pronta para importar · sem CPF (etiqueta “${MISSING_CPF_TAG}”)`,
@@ -260,5 +279,28 @@ describe("cliente sem CPF (B6-05)", () => {
         .getAllByRole("option", { name: "CPF" })
         .length,
     ).toBeGreaterThan(0);
+  });
+
+  it("cliente importado com CPF errado: mostra o valor da planilha ao editar", async () => {
+    login();
+    const wrong = {
+      ...basePatient,
+      id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+      recordNumber: "PAC-00003",
+      fullName: "Hugo Cpf Errado",
+      phone: "11955540040",
+      importedInvalidCpf: "123.456.789-00",
+      tags: [INVALID_CPF_TAG],
+    };
+    vi.mocked(fetch).mockImplementation(async (input) => {
+      const body = /\/patients(\?|$)/.test(String(input)) ? [wrong] : [];
+      return { ok: true, status: 200, json: async () => body } as Response;
+    });
+    const dialog = await openEdit("Hugo Cpf Errado");
+    const cpf = within(dialog).getByLabelText("CPF");
+    expect(cpf).not.toBeRequired();
+    expect(cpf).toHaveAccessibleDescription(
+      `A planilha trouxe o CPF “123.456.789-00”, que não confere: preencha o CPF correto e a etiqueta “${INVALID_CPF_TAG}” sai sozinha.`,
+    );
   });
 });
