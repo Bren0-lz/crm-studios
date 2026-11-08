@@ -417,17 +417,27 @@ export function registerPatientsRoutes(context: RouteContext) {
       const [firstError] = analysis.errors;
       if (firstError)
         throw new DomainError("PATIENT_IMPORT_INVALID_FILE", firstError, 400);
-      const inputs = analysis.rows.flatMap((row) =>
-        row.status === "valid" && row.input ? [row.input] : [],
+      // Entrega 10: a linha de um cliente já cadastrado com "Outros" mescla esses dados nele.
+      const merges = analysis.rows.filter(
+        (row) =>
+          row.status === "duplicate" &&
+          row.duplicateOf?.kind === "existing" &&
+          row.input?.extraFields,
       );
-      const { created, skipped } = await repository.importPatients(
+      const inputs = analysis.rows.flatMap((row) =>
+        (row.status === "valid" || merges.includes(row)) && row.input
+          ? [row.input]
+          : [],
+      );
+      const { created, skipped, updated } = await repository.importPatients(
         request.user.clinicId,
         inputs,
       );
       return {
         created,
-        skipped: skipped + analysis.totals.duplicate,
+        skipped: skipped + analysis.totals.duplicate - merges.length,
         errors: analysis.totals.error,
+        updated,
       };
     },
   );

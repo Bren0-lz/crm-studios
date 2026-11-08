@@ -23,6 +23,7 @@ import {
   assignImportColumn,
   countLabel,
   describeImportDuplicate,
+  importMergeCount,
   patientImportColumnTitle,
   patientImportFieldOptions,
   patientImportStatusLabels,
@@ -110,6 +111,7 @@ export function PatientImportModal({
   }
 
   const validCount = analysis?.totals.valid ?? 0;
+  const mergeCount = analysis ? importMergeCount(analysis.rows) : 0;
   // B6-05: linhas válidas sem CPF entram com a etiqueta automática "Falta CPF".
   const validInputs =
     analysis?.rows.flatMap((row) =>
@@ -136,7 +138,7 @@ export function PatientImportModal({
         {error && <ErrorBanner error={error} />}
         {result && (
           <div className="success-banner" role="status">
-            {`${countLabel(result.created, "cliente importado", "clientes importados")}, ${countLabel(result.skipped, "ignorado", "ignorados")} por duplicidade e ${result.errors} com erro.`}
+            {`${countLabel(result.created, "cliente importado", "clientes importados")}, ${result.updated ? `${countLabel(result.updated, "cliente atualizado", "clientes atualizados")} em “Outros”, ` : ""}${countLabel(result.skipped, "ignorado", "ignorados")} por duplicidade e ${result.errors} com erro.`}
           </div>
         )}
         <div className="patient-import-file">
@@ -179,7 +181,9 @@ export function PatientImportModal({
               <h3 id="patient-import-mapping-title">Colunas da planilha</h3>
               <span className="field-hint">
                 Escolha a que dado do sistema corresponde cada coluna. As
-                colunas marcadas como “Não importar” são ignoradas.
+                colunas marcadas como “Não importar” são ignoradas; as
+                marcadas como “Outros” ficam na ficha com o título da coluna
+                (e atualizam quem já está cadastrado).
               </span>
             </div>
             <div className="patient-import-mapping-list">
@@ -287,7 +291,7 @@ export function PatientImportModal({
                       {row.status === "error"
                         ? (row.errors ?? []).join(" ")
                         : row.duplicateOf
-                          ? describeImportDuplicate(row.duplicateOf)
+                          ? describeImportDuplicate(row.duplicateOf, row.input)
                           : ["Pronta para importar", ...importRowNotes(row.input)].join(" · ")}
                     </small>
                   </div>
@@ -310,12 +314,12 @@ export function PatientImportModal({
             <button
               type="button"
               className="primary-button"
-              disabled={loading || !file || validCount === 0}
+              disabled={loading || !file || validCount + mergeCount === 0}
               aria-describedby={missing.describedBy}
               onClick={() => void confirmImport()}
             >
               <FileDown size={18} aria-hidden="true" />
-              {`Importar ${countLabel(validCount, "cliente", "clientes")}`}
+              {`Importar ${countLabel(validCount, "cliente", "clientes")}${mergeCount ? ` e atualizar ${mergeCount}` : ""}`}
             </button>
           )}
         </div>

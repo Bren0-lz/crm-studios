@@ -203,6 +203,15 @@ export const demoPatients: Patient[] = Array.from(
         scenario < scenarioTags.length
           ? [...scenarioTags[scenario]!]
           : [specialty, profiles[index % profiles.length]!],
+      // Entrega 10: alguns vieram de planilha com colunas sem campo próprio ("Outros").
+      ...(index % 20 === 4
+        ? {
+            extraFields: {
+              "Como conheceu": index % 40 === 4 ? "Instagram" : "Indicação",
+              "Tamanho da camiseta": index % 3 === 0 ? "M" : "P",
+            },
+          }
+        : {}),
       status: index >= 56 && index % 9 === 8 ? "inactive" : "active",
       createdAt: timestamp,
       updatedAt: timestamp,

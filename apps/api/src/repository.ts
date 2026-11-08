@@ -206,6 +206,7 @@ import type {
   OutboundMessage,
   Patient,
   PatientImportInput,
+  ExtraFields,
   PatientUpdateInput,
   PatientPlan,
   PatientPlanInput,
@@ -889,11 +890,12 @@ export interface ClinicRepository {
   /**
    * Cria os clientes importados de uma vez (tudo ou nada), ignorando os que já existem na base
    * no momento da gravação (mesmo CPF ou telefone, comparando só os dígitos). O CPF pode faltar.
+   * Linha de cliente já cadastrado com "Outros" mescla o `extraFields` dele (`updated`).
    */
   importPatients(
     clinicId: string,
     inputs: PatientImportInput[],
-  ): Promise<{ created: number; skipped: number }>;
+  ): Promise<{ created: number; skipped: number; updated: number }>;
   /** O CPF pode seguir vazio (cliente importado sem CPF); sem CPF, grava `NULL`. */
   updatePatient(
     clinicId: string,
@@ -1622,7 +1624,7 @@ export interface ClinicRepository {
   importEventParticipants(
     clinicId: string,
     eventId: string,
-    inputs: LeadInput[],
+    inputs: (LeadInput & { extraFields?: ExtraFields })[],
   ): Promise<number>;
   updateLead(
     clinicId: string,

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { LeadStage, Patient } from "../patients/types.js";
+import type { ExtraFields } from "../common/extra-fields.js";
 import {
   leadContactChannelSchema,
   leadContactInputSchema,
@@ -28,6 +29,8 @@ export interface Lead extends LeadInput {
   stage: LeadStage;
   lostReason?: string;
   convertedPatientId?: string;
+  /** Colunas "Outros" da importação de participantes; vão para o cliente na conversão. */
+  extraFields?: ExtraFields | undefined;
   createdAt: string;
   updatedAt: string;
   responsibleName?: string;

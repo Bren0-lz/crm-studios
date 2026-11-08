@@ -53,7 +53,12 @@ describe("cliente importado sem CPF (B6-05)", () => {
           ].join("\n"),
         ),
       });
-      expect(imported.json()).toEqual({ created: 3, skipped: 0, errors: 1 });
+      expect(imported.json()).toEqual({
+      created: 3,
+      skipped: 0,
+      errors: 1,
+      updated: 0,
+    });
 
       const listed = (
         await app.inject({

@@ -1,4 +1,5 @@
 import {
+  extraFieldsSchema,
   leadPatientProfile,
   patientInputSchema,
   patientOptionalContactShape,
@@ -79,9 +80,11 @@ export function leadConversionData(
       "Informe o WhatsApp e o contato de emergência antes de converter o lead.",
       400,
     );
-  const schema = existing
-    ? patientInputSchema.extend(patientOptionalContactShape)
-    : patientInputSchema;
+  const schema = (
+    existing
+      ? patientInputSchema.extend(patientOptionalContactShape)
+      : patientInputSchema
+  ).extend({ extraFields: extraFieldsSchema.optional() });
   return schema.parse({
     ...fields,
     fullName: existing?.fullName ?? lead.fullName,
@@ -90,5 +93,7 @@ export function leadConversionData(
     notes: existing?.notes || lead.notes,
     tags,
     interests,
+    // Entrega 10: o "Outros" do lead vai para o cliente (mesclado com o que ele já tem).
+    ...(lead.extraFields ? { extraFields: lead.extraFields } : {}),
   });
 }

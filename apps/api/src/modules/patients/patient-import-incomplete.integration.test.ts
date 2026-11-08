@@ -47,7 +47,12 @@ describe("cliente importado sem WhatsApp, contato de emergência ou e-mail (CD3)
           ].join("\n"),
         ),
       });
-      expect(imported.json()).toEqual({ created: 4, skipped: 0, errors: 0 });
+      expect(imported.json()).toEqual({
+      created: 4,
+      skipped: 0,
+      errors: 0,
+      updated: 0,
+    });
 
       const listed = (
         await app.inject({

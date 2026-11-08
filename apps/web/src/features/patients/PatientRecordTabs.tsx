@@ -4,6 +4,7 @@ import {
   type Patient,
   type PatientPlan,
   type Receivable,
+  EXTRA_FIELDS_LABEL,
   formatPhone,
   isTabCreditPlan,
   patientProfileLabels,
@@ -389,6 +390,22 @@ export function PatientRecordTabs({
             <span className="is-empty">Sem etiquetas</span>
           )}
         </div>
+        {patient.extraFields && (
+          <section
+            className="patient-overview-extra"
+            aria-labelledby="patient-overview-extra-title"
+          >
+            <h3 id="patient-overview-extra-title">{EXTRA_FIELDS_LABEL}</h3>
+            <dl className="patient-overview-grid">
+              {Object.entries(patient.extraFields).map(([key, value]) => (
+                <div key={key}>
+                  <dt>{key}</dt>
+                  <dd>{value}</dd>
+                </div>
+              ))}
+            </dl>
+          </section>
+        )}
         {canView("communications") && (
           <PatientMessagePreferences patientId={id} />
         )}

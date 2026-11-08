@@ -4,6 +4,7 @@ import type { BroadcastSkipReason } from "../communications/types.js";
 import type { PatientPlan } from "../plans/types.js";
 import type { IssuedDocument } from "../contracts/types.js";
 import type { WaitlistEntry } from "../waitlist/types.js";
+import type { ExtraFields } from "../common/extra-fields.js";
 import {
   clientAgeBandSchema,
   guidedPatientInputSchema,
@@ -127,6 +128,8 @@ export interface Patient extends Omit<
   mergedIntoPatientId?: string;
   /** Data da importação pela planilha (CD3); ausente em cadastro manual. */
   importedAt?: string;
+  /** Colunas "Outros" da importação (`{ título: valor }`); ausente quando não há nenhuma. */
+  extraFields?: ExtraFields | undefined;
   id: string;
   clinicId: string;
   recordNumber: string;
@@ -258,4 +261,6 @@ export interface PatientImportResult {
   created: number;
   skipped: number;
   errors: number;
+  /** Clientes já cadastrados cujo "Outros" foi mesclado pela reimportação (entrega 10). */
+  updated: number;
 }

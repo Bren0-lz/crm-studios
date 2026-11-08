@@ -429,45 +429,57 @@ export function createPatientsRepository(
     },
 
     async importPatients(clinicId: string, inputs: PatientImportInput[]) {
-      if (inputs.length === 0) return { created: 0, skipped: 0 };
+      if (inputs.length === 0) return { created: 0, skipped: 0, updated: 0 };
       return repositoryContext.inTransaction(async (client) => {
         // Serializa importações da mesma clínica para a checagem de duplicados valer até o COMMIT.
         await client.query("SELECT id FROM clinics WHERE id = $1 FOR UPDATE", [
           clinicId,
         ]);
         const existing = await client.query<{
+          id: string;
           cpf: string | null;
           phone: string;
         }>(
-          `SELECT REGEXP_REPLACE(coalesce(cpf, ''), '[^0-9]', '') AS cpf,
+          `SELECT coalesce(merged_into_patient_id, id) AS id,
+                REGEXP_REPLACE(coalesce(cpf, ''), '[^0-9]', '') AS cpf,
                 REGEXP_REPLACE(phone, '[^0-9]', '') AS phone
          FROM patients WHERE clinic_id = $1`,
           [clinicId],
         );
-        const cpfs = new Set<string>();
-        const phones = new Set<string>();
+        const cpfs = new Map<string, string>();
+        const phones = new Map<string, string>();
         for (const row of existing.rows) {
-          if (row.cpf) cpfs.add(row.cpf);
-          phones.add(row.phone);
+          if (row.cpf && !cpfs.has(row.cpf)) cpfs.set(row.cpf, row.id);
+          if (!phones.has(row.phone)) phones.set(row.phone, row.id);
         }
         const digits = (value: string | undefined) =>
           (value ?? "").replace(/\D/g, "");
         let created = 0;
         let skipped = 0;
+        let updated = 0;
         for (const input of inputs) {
           const cpf = digits(input.cpf);
           const phone = digits(input.phone);
-          if ((cpf && cpfs.has(cpf)) || phones.has(phone)) {
-            skipped += 1;
+          const existingId = (cpf && cpfs.get(cpf)) || phones.get(phone);
+          if (existingId) {
+            // Entrega 10: o cliente já cadastrado recebe o "Outros" da linha (mescla sem apagar).
+            if (input.extraFields) {
+              await client.query(
+                `UPDATE patients SET extra_fields = JSON_MERGE_PATCH(extra_fields, $3), updated_at = NOW(6)
+                 WHERE clinic_id = $1 AND id = $2`,
+                [clinicId, existingId, JSON.stringify(input.extraFields)],
+              );
+              updated += 1;
+            } else skipped += 1;
             continue;
           }
-          if (cpf) cpfs.add(cpf);
-          phones.add(phone);
           const patient = await repositoryContext.insertPatient(
             client,
             clinicId,
             input,
           );
+          if (cpf) cpfs.set(cpf, patient.id);
+          phones.set(phone, patient.id);
           // CD3: a marca da importação libera as etiquetas "Cadastro incompleto" e "Sem e-mail".
           await client.query(
             `UPDATE patients SET imported_at = NOW(6) WHERE clinic_id = $1 AND id = $2`,
@@ -475,7 +487,7 @@ export function createPatientsRepository(
           );
           created += 1;
         }
-        return { created, skipped };
+        return { created, skipped, updated };
       });
     },
 

@@ -1,6 +1,11 @@
 import {
+  EVENT_IMPORT_EXTRA_FIELD,
+  EXTRA_FIELD_VALUE_MAX,
+  EXTRA_FIELDS_MAX_KEYS,
   eventImportFieldLabels,
   eventLeadInputSchema,
+  extraFieldsFromRow,
+  extraFieldsSchema,
   type EventImportAnalysis,
   type EventImportField,
 } from "@crm/contracts";
@@ -11,7 +16,11 @@ const key = (value: string) =>
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
     .replace(/[^a-z0-9]/g, "");
-const aliases: Record<EventImportField, string[]> = {
+/** "Outros" nunca é reconhecido pelo título: a pessoa escolhe na tela de mapeamento. */
+const aliases: Record<
+  Exclude<EventImportField, typeof EVENT_IMPORT_EXTRA_FIELD>,
+  string[]
+> = {
   fullName: ["nome", "nomecompleto", "cliente", "participante"],
   phone: ["telefone", "celular", "fone", "tel"],
   whatsapp: ["whatsapp", "whats", "wpp", "zap"],
@@ -61,7 +70,7 @@ export function validateEventImport(
   }));
   result.mapping = result.columns.map(({ title, index }) => {
     if (mapping) return mapping[index] ?? null;
-    const field = (Object.keys(aliases) as EventImportField[]).find(
+    const field = (Object.keys(aliases) as (keyof typeof aliases)[]).find(
       (field) =>
         !used.has(field) &&
         (aliases[field].includes(key(title)) || key(field) === key(title)),
@@ -73,15 +82,26 @@ export function validateEventImport(
     result.errors.push("Escolha ao menos uma coluna para importar.");
     return result;
   }
+  const titles = result.columns.map(({ title }) => title);
+  const extraColumns = result.mapping.flatMap((field, column) =>
+    field === EVENT_IMPORT_EXTRA_FIELD ? [column] : [],
+  );
   data.forEach((row, index) => {
     if (blank(row)) return;
     const raw: Record<string, string> = {};
     result.mapping.forEach((field, column) => {
       const value = (row[column] ?? "").trim();
-      if (field && value) raw[field] = value;
+      if (field && field !== EVENT_IMPORT_EXTRA_FIELD && value)
+        raw[field] = value;
     });
+    // Entrega 10: colunas "Outros" viram `{ título: valor }`.
+    const extraFields = extraFieldsFromRow(titles, extraColumns, row);
     // Linhas com valores somente em colunas ignoradas não criam participantes vazios.
-    if (!Object.keys(raw).some((field) => !field.endsWith("AreaCode"))) return;
+    if (
+      !extraFields &&
+      !Object.keys(raw).some((field) => !field.endsWith("AreaCode"))
+    )
+      return;
     for (const field of ["phone", "whatsapp"] as const) {
       const ddd = raw[`${field}AreaCode`]?.replace(/\D/g, "");
       const digits = raw[field]?.replace(/\D/g, "");
@@ -89,20 +109,28 @@ export function validateEventImport(
         raw[field] = ddd + digits;
     }
     const parsed = eventLeadInputSchema.safeParse({ ...raw, eventId });
+    const extraValid =
+      !extraFields || extraFieldsSchema.safeParse(extraFields).success;
     const errors = parsed.success
       ? []
       : parsed.error.issues.map(
           (issue) =>
             `${eventImportFieldLabels[issue.path[0] as EventImportField] ?? "Campo"}: ${issue.message}`,
         );
-    const status = parsed.success ? "valid" : "error";
+    if (!extraValid)
+      errors.push(
+        `${eventImportFieldLabels[EVENT_IMPORT_EXTRA_FIELD]}: até ${EXTRA_FIELDS_MAX_KEYS} colunas, cada valor com até ${EXTRA_FIELD_VALUE_MAX} caracteres.`,
+      );
+    const status = parsed.success && extraValid ? "valid" : "error";
     result.rows.push({
       line: start + index + 2,
       fullName: raw.fullName ?? "",
       phone: raw.phone ?? "",
       status,
       errors,
-      ...(parsed.success ? { input: parsed.data } : {}),
+      ...(parsed.success && extraValid
+        ? { input: { ...parsed.data, ...(extraFields ? { extraFields } : {}) } }
+        : {}),
     });
     result.totals[status]++;
   });

@@ -1,4 +1,5 @@
 import {
+  EVENT_IMPORT_EXTRA_FIELD,
   eventImportFieldLabels,
   type CommercialEvent,
   type EventImportAnalysis,
@@ -83,8 +84,13 @@ export function EventImportModal({
 
   async function changeColumn(index: number, field: EventImportField | null) {
     if (!file) return;
+    // "Outros" pode ficar em várias colunas; os demais campos, em uma só.
     const next = mapping.map((current, position) =>
-      position === index ? field : field && current === field ? null : current,
+      position === index
+        ? field
+        : field && field !== EVENT_IMPORT_EXTRA_FIELD && current === field
+          ? null
+          : current,
     );
     setMapping(next);
     setAnalysis((current) =>
@@ -193,7 +199,7 @@ export function EventImportModal({
               <h3 id="event-import-mapping-title">Colunas da planilha</h3>
               <span className="field-hint">
                 Escolha o dado do sistema para cada coluna. “Não importar”
-                ignora a coluna.
+                ignora a coluna; “Outros” guarda o valor com o título da coluna.
               </span>
             </div>
             <div className="patient-import-mapping-list">

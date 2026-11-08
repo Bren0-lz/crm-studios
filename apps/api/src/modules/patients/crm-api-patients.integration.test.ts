@@ -3210,7 +3210,12 @@ describe("CRM API", () => {
       payload: file,
     });
     expect(imported.statusCode).toBe(200);
-    expect(imported.json()).toEqual({ created: 2, skipped: 2, errors: 1 });
+    expect(imported.json()).toEqual({
+      created: 2,
+      skipped: 2,
+      errors: 1,
+      updated: 0,
+    });
     const listed = await app.inject({
       method: "GET",
       url: "/patients?search=Importad",
@@ -3229,7 +3234,12 @@ describe("CRM API", () => {
       payload: file,
     });
     expect(again.statusCode).toBe(200);
-    expect(again.json()).toEqual({ created: 0, skipped: 4, errors: 1 });
+    expect(again.json()).toEqual({
+      created: 0,
+      skipped: 4,
+      errors: 1,
+      updated: 0,
+    });
     const relisted = await app.inject({
       method: "GET",
       url: "/patients?search=Importad",
@@ -3282,7 +3292,12 @@ describe("CRM API", () => {
       headers,
       payload: xlsx,
     });
-    expect(xlsxImport.json()).toEqual({ created: 1, skipped: 1, errors: 0 });
+    expect(xlsxImport.json()).toEqual({
+      created: 1,
+      skipped: 1,
+      errors: 0,
+      updated: 0,
+    });
 
     const onlyErrors = {
       fileName: "erros.csv",
@@ -3297,7 +3312,12 @@ describe("CRM API", () => {
       payload: onlyErrors,
     });
     expect(noneValid.statusCode).toBe(200);
-    expect(noneValid.json()).toEqual({ created: 0, skipped: 0, errors: 1 });
+    expect(noneValid.json()).toEqual({
+      created: 0,
+      skipped: 0,
+      errors: 1,
+      updated: 0,
+    });
     await app.close();
   });
 
@@ -3364,7 +3384,12 @@ describe("CRM API", () => {
       headers,
       payload: { ...file, mapping },
     });
-    expect(imported.json()).toEqual({ created: 1, skipped: 0, errors: 0 });
+    expect(imported.json()).toEqual({
+      created: 1,
+      skipped: 0,
+      errors: 0,
+      updated: 0,
+    });
     const listed = await app.inject({
       method: "GET",
       url: "/patients?search=Dora",
@@ -3880,7 +3905,12 @@ describe("CRM API", () => {
         headers,
         payload: file,
       });
-      expect(imported.json()).toEqual({ created: 1, skipped: 0, errors: 1 });
+      expect(imported.json()).toEqual({
+      created: 1,
+      skipped: 0,
+      errors: 1,
+      updated: 0,
+    });
       const listed = (
         await app.inject({
           method: "GET",

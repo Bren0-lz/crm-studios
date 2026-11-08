@@ -3,6 +3,7 @@ import {
   formatSequenceNumber,
   type GuidedPatientInput,
   overduePatientIds,
+  mergeExtraFields,
   parseSequenceNumber,
   type GuidedPatientResult,
   type Patient,
@@ -280,29 +281,57 @@ export function createPatientsRepository(
     async importPatients(clinicId: string, inputs: PatientImportInput[]) {
       const digits = (value: string | undefined) =>
         (value ?? "").replace(/\D/g, "");
-      const cpfs = new Set<string>();
-      const phones = new Set<string>();
+      const cpfs = new Map<string, Patient>();
+      const phones = new Map<string, Patient>();
+      const canonical = (patient: Patient) =>
+        (patient.mergedIntoPatientId &&
+          repositoryContext.patients.find(
+            (item) => item.id === patient.mergedIntoPatientId,
+          )) ||
+        patient;
       for (const item of repositoryContext.patients) {
         if (item.clinicId !== clinicId) continue;
-        if (digits(item.cpf)) cpfs.add(digits(item.cpf));
-        phones.add(digits(item.phone));
+        if (digits(item.cpf) && !cpfs.has(digits(item.cpf)))
+          cpfs.set(digits(item.cpf), canonical(item));
+        if (!phones.has(digits(item.phone)))
+          phones.set(digits(item.phone), canonical(item));
       }
       // Decide tudo antes de gravar: a importação é tudo ou nada.
       const accepted: PatientImportInput[] = [];
+      const merges: [Patient, PatientImportInput["extraFields"]][] = [];
+      const acceptedKeys = new Set<string>();
       let skipped = 0;
       for (const input of inputs) {
         const cpf = digits(input.cpf);
         const phone = digits(input.phone);
-        if ((cpf && cpfs.has(cpf)) || phones.has(phone)) {
+        const existing = (cpf && cpfs.get(cpf)) || phones.get(phone);
+        if (existing) {
+          // Entrega 10: o cliente já cadastrado recebe o "Outros" da linha (mescla sem apagar).
+          if (input.extraFields) merges.push([existing, input.extraFields]);
+          else skipped += 1;
+          continue;
+        }
+        if (
+          (cpf && acceptedKeys.has(`cpf:${cpf}`)) ||
+          acceptedKeys.has(phone)
+        ) {
           skipped += 1;
           continue;
         }
-        if (cpf) cpfs.add(cpf);
-        phones.add(phone);
+        if (cpf) acceptedKeys.add(`cpf:${cpf}`);
+        acceptedKeys.add(phone);
         accepted.push(input);
       }
+      const timestamp = now();
+      for (const [patient, extraFields] of merges) {
+        patient.extraFields = mergeExtraFields(
+          patient.extraFields,
+          extraFields,
+        );
+        patient.updatedAt = timestamp;
+      }
       // CD3: a marca da importação libera as etiquetas "Cadastro incompleto" e "Sem e-mail".
-      const importedAt = now();
+      const importedAt = timestamp;
       for (const input of accepted) {
         const patient = await repositoryContext.operations.createPatient(
           clinicId,
@@ -313,7 +342,7 @@ export function createPatientsRepository(
         );
         if (stored) stored.importedAt = importedAt;
       }
-      return { created: accepted.length, skipped };
+      return { created: accepted.length, skipped, updated: merges.length };
     },
 
     async updatePatient(
