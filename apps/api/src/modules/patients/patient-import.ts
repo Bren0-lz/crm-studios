@@ -111,15 +111,25 @@ function validDate(year: number, month: number, day: number): boolean {
   );
 }
 
-/** Aceita dd/mm/aaaa ou aaaa-mm-dd; devolve aaaa-mm-dd ou null se inválida. */
+/**
+ * Ano com dois dígitos ("05/03/90"): até o ano atual vira 20aa, depois dele 19aa
+ * (em 2026, "05" é 2005 e "90" é 1990).
+ */
+function fullYear(digits: string, today = new Date()): number {
+  const year = Number(digits);
+  if (digits.length !== 2) return year;
+  return year <= today.getUTCFullYear() % 100 ? 2000 + year : 1900 + year;
+}
+
+/** Aceita dd/mm/aaaa, dd/mm/aa ou aaaa-mm-dd; devolve aaaa-mm-dd ou null se inválida. */
 function parseBirthDate(value: string): string | null {
-  const br = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(value);
+  const br = /^(\d{1,2})\/(\d{1,2})\/(\d{4}|\d{2})$/.exec(value);
   const iso = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
   let year: number;
   let month: number;
   let day: number;
   if (br) {
-    [day, month, year] = [Number(br[1]), Number(br[2]), Number(br[3])];
+    [day, month, year] = [Number(br[1]), Number(br[2]), fullYear(br[3]!)];
   } else if (iso) {
     [year, month, day] = [Number(iso[1]), Number(iso[2]), Number(iso[3])];
   } else {
@@ -156,6 +166,23 @@ function issueMessage(field: ImportField): string {
 
 function digitsOnly(value: string | undefined): string {
   return (value ?? "").replace(/\D/g, "");
+}
+
+/**
+ * Telefone com o código do Brasil ("+55 11 98765-4321"): tira o 55 do começo. Com 12 ou 13
+ * dígitos o número nunca é válido como está, então não há como confundir com o DDD 55.
+ */
+function withoutCountryCode(text: string): string {
+  const digits = digitsOnly(text);
+  return /^55\d{10,11}$/.test(digits) ? digits.slice(2) : text;
+}
+
+/**
+ * CPF que o Excel guardou como número perde os zeros da frente ("01234567890" vira
+ * "1234567890"): só dígitos, com 9 ou 10, são completados com zeros à esquerda.
+ */
+function withLeadingZeros(cpf: string): string {
+  return /^\d{9,10}$/.test(cpf) ? cpf.padStart(11, "0") : cpf;
 }
 
 function emptyAnalysis(
@@ -308,8 +335,11 @@ export function validatePatientImport(
       const text = column === undefined ? "" : (row[column] ?? "").trim();
       const dddColumn = dddColumns.get(field);
       const ddd = digitsOnly(dddColumn === undefined ? "" : row[dddColumn]);
-      return ddd.length === 2 && /^\d{8,9}$/.test(digitsOnly(text))
-        ? ddd + digitsOnly(text)
+      if (ddd.length === 2 && /^\d{8,9}$/.test(digitsOnly(text)))
+        return ddd + digitsOnly(text);
+      if (field === "cpf") return withLeadingZeros(text);
+      return (patientImportPhoneFields as readonly string[]).includes(field)
+        ? withoutCountryCode(text)
         : text;
     };
 

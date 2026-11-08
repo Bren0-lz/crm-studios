@@ -548,3 +548,93 @@ describe("importação sem CPF (B6-05)", () => {
     });
   });
 });
+
+describe("planilhas reais: CPF numérico, +55 e ano com dois dígitos", () => {
+  it("completa com zeros o CPF que o Excel guardou como número", async () => {
+    const workbook = new ExcelJS.Workbook();
+    const sheet = workbook.addWorksheet("Clientes");
+    sheet.addRow(["Nome", "Telefone", "CPF"]);
+    sheet.addRow(["Célia Zero", 11988880000, 1234567890]);
+    sheet.addRow(["Rui Dois Zeros", 11977770000, 345678958]);
+    const rows = await readXlsxRows(
+      Buffer.from(await workbook.xlsx.writeBuffer()),
+    );
+    const analysis = validatePatientImport(rows, []);
+    expect(analysis.rows.map((row) => row.status)).toEqual(["valid", "valid"]);
+    expect(analysis.rows.map((row) => row.input?.cpf)).toEqual([
+      "01234567890",
+      "00345678958",
+    ]);
+  });
+
+  it("CPF continua opcional e o duplicado é achado com o zero completado", () => {
+    const analysis = validatePatientImport(
+      [
+        ["Nome", "Telefone", "CPF"],
+        ["Sem Documento", "11966660000", ""],
+        ["Ana Repetida", "11955550000", "1234567890"],
+      ],
+      [existingPatient({ cpf: "012.345.678-90", phone: "11911110000" })],
+    );
+    expect(analysis.rows.map((row) => row.status)).toEqual([
+      "valid",
+      "duplicate",
+    ]);
+    expect(analysis.rows[0]?.input?.cpf).toBeUndefined();
+    expect(analysis.rows[1]?.duplicateOf).toMatchObject({ field: "cpf" });
+  });
+
+  it("tira o código do Brasil (+55) de telefone, WhatsApp e telefone de emergência", () => {
+    const analysis = validatePatientImport(
+      [
+        ["Nome", "Telefone", "WhatsApp", "Telefone de emergência"],
+        [
+          "Lia Internacional",
+          "+55 11 98765-0002",
+          "5511987650002",
+          "+55 (55) 3222-1111",
+        ],
+        ["Caio Fixo", "+55 (11) 3333-4444", "", ""],
+      ],
+      [],
+    );
+    expect(analysis.rows.map((row) => row.status)).toEqual(["valid", "valid"]);
+    expect(analysis.rows[0]?.input).toMatchObject({
+      phone: "11987650002",
+      whatsapp: "11987650002",
+      emergencyContactPhone: "5532221111",
+    });
+    expect(analysis.rows[1]?.input?.phone).toBe("1133334444");
+  });
+
+  it("número com DDD 55 sem o código do país fica como está", () => {
+    const analysis = validatePatientImport(
+      [
+        ["Nome", "Telefone"],
+        ["Santa Maria", "(55) 99876-5432"],
+      ],
+      [],
+    );
+    expect(analysis.rows[0]?.input?.phone).toBe("55998765432");
+  });
+
+  it("ano com dois dígitos: até o ano atual vira 20aa, depois 19aa", () => {
+    const analysis = validatePatientImport(
+      [
+        ["Nome", "Telefone", "Nascimento"],
+        ["Luís Noventa", "11987650004", "05/03/90"],
+        ["Bia Cinco", "11987650005", "1/2/05"],
+        ["Teo Inválido", "11987650006", "31/02/90"],
+      ],
+      [],
+    );
+    expect(analysis.rows.map((row) => row.input?.birthDate)).toEqual([
+      "1990-03-05",
+      "2005-02-01",
+      undefined,
+    ]);
+    expect(analysis.rows[2]?.errors).toEqual([
+      expect.stringMatching(/data de nascimento inválida/),
+    ]);
+  });
+});
