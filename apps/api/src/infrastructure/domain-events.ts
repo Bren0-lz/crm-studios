@@ -15,9 +15,65 @@ export interface ReceiptSignedEvent {
   signedAt: string;
 }
 
-export type DomainEvent = ReceiptSignedEvent;
+/** Atendimento marcado na agenda: data, profissional e cliente (ou lead) no momento da criação. */
+export interface CreatedAppointmentSummary {
+  id: string;
+  /** Nome do cliente ou, na aula experimental, do lead. */
+  patientName: string;
+  lead: boolean;
+  serviceName: string;
+  professionalName: string;
+  startsAt: string;
+}
 
-export type DomainEventHandler = (event: DomainEvent) => void | Promise<void>;
+/**
+ * Atendimentos criados por **uma** operação (avulso, recorrência, sessões de um plano, cadastro
+ * guiado ou aula experimental de lead): a recorrência sai num evento só, com todas as sessões.
+ */
+export interface AppointmentsCreatedEvent {
+  type: "appointments.created";
+  clinicId: string;
+  /** Quem marcou (usuário autenticado). */
+  actorUserId: string;
+  appointments: CreatedAppointmentSummary[];
+}
+
+/** Cadastro de cliente criado (formulário, cadastro guiado ou conversão de lead). */
+export interface PatientCreatedEvent {
+  type: "patient.created";
+  clinicId: string;
+  actorUserId: string;
+  patientId: string;
+  fullName: string;
+  origin: "form" | "guided" | "lead";
+}
+
+/** Importação em lote: um evento com o total, não um por cliente. */
+export interface PatientsImportedEvent {
+  type: "patients.imported";
+  clinicId: string;
+  actorUserId: string;
+  created: number;
+}
+
+export type DomainEvent =
+  | ReceiptSignedEvent
+  | AppointmentsCreatedEvent
+  | PatientCreatedEvent
+  | PatientsImportedEvent;
+
+export type DomainEventType = DomainEvent["type"];
+
+export const domainEventTypes = [
+  "receipt.signed",
+  "appointments.created",
+  "patient.created",
+  "patients.imported",
+] as const satisfies readonly DomainEventType[];
+
+export type DomainEventHandler<T extends DomainEventType = DomainEventType> = (
+  event: Extract<DomainEvent, { type: T }>,
+) => void | Promise<void>;
 
 export interface DomainEventPublisher {
   publish(event: DomainEvent): Promise<void>;
@@ -27,14 +83,19 @@ export interface DomainEventPublisher {
 export function createDomainEventPublisher(
   onHandlerError: (error: unknown, event: DomainEvent) => void = () => {},
 ) {
-  const handlers = new Map<DomainEvent["type"], DomainEventHandler[]>();
+  const handlers = new Map<DomainEventType, DomainEventHandler[]>();
   return {
-    subscribe(type: DomainEvent["type"], handler: DomainEventHandler) {
-      handlers.set(type, [...(handlers.get(type) ?? []), handler]);
+    subscribe<T extends DomainEventType>(
+      type: T,
+      handler: DomainEventHandler<T>,
+    ) {
+      // Só recebe eventos do próprio tipo (ver `publish`).
+      const stored = handler as unknown as DomainEventHandler;
+      handlers.set(type, [...(handlers.get(type) ?? []), stored]);
       return () =>
         handlers.set(
           type,
-          (handlers.get(type) ?? []).filter((item) => item !== handler),
+          (handlers.get(type) ?? []).filter((item) => item !== stored),
         );
     },
     async publish(event: DomainEvent) {
@@ -47,4 +108,41 @@ export function createDomainEventPublisher(
       }
     },
   } satisfies DomainEventPublisher & { subscribe: unknown };
+}
+
+/** Resumo dos atendimentos para `appointments.created`. */
+export function createdAppointmentSummaries(
+  appointments: {
+    id: string;
+    patientName: string;
+    leadId?: string | undefined;
+    serviceName: string;
+    professionalName: string;
+    startsAt: string;
+  }[],
+): CreatedAppointmentSummary[] {
+  return appointments.map((item) => ({
+    id: item.id,
+    patientName: item.patientName,
+    lead: Boolean(item.leadId),
+    serviceName: item.serviceName,
+    professionalName: item.professionalName,
+    startsAt: item.startsAt,
+  }));
+}
+
+/** Publica `appointments.created` (nada quando a operação não criou atendimento). */
+export async function publishAppointmentsCreated(
+  events: DomainEventPublisher,
+  clinicId: string,
+  actorUserId: string,
+  appointments: Parameters<typeof createdAppointmentSummaries>[0],
+) {
+  if (appointments.length === 0) return;
+  await events.publish({
+    type: "appointments.created",
+    clinicId,
+    actorUserId,
+    appointments: createdAppointmentSummaries(appointments),
+  });
 }

@@ -35,6 +35,7 @@ import {
 } from "@crm/contracts";
 import { z } from "zod";
 import type { RouteContext } from "../../infrastructure/route-context.js";
+import { publishAppointmentsCreated } from "../../infrastructure/domain-events.js";
 import { DomainError } from "../../repository.js";
 import {
   filterPatientsForExport,
@@ -78,6 +79,7 @@ export function registerPatientsRoutes(context: RouteContext) {
     analyzePatientImport,
     recordChanges,
     requestAccess,
+    events,
   } = context;
 
   const taggerFor = (request: Parameters<typeof requestAccess.get>[0]) =>
@@ -253,6 +255,15 @@ export function registerPatientsRoutes(context: RouteContext) {
           withDiscountUsage(patientInputSchema.parse(request.body)),
         ),
       );
+      // Depois do commit: aviso de cliente novo (TG3).
+      await events.publish({
+        type: "patient.created",
+        clinicId,
+        actorUserId: request.user.sub,
+        patientId: patient.id,
+        fullName: patient.fullName,
+        origin: "form",
+      });
       return reply.status(201).send(patient);
     },
   );
@@ -345,6 +356,22 @@ export function registerPatientsRoutes(context: RouteContext) {
           ...input,
           patient,
         });
+      // Depois do commit: cliente novo e, se houver, os atendimentos marcados (um aviso só).
+      await events.publish({
+        type: "patient.created",
+        clinicId,
+        actorUserId: request.user.sub,
+        patientId: result.patient.id,
+        fullName: result.patient.fullName,
+        origin: "guided",
+      });
+      await publishAppointmentsCreated(events, clinicId, request.user.sub, [
+        ...(result.appointment ? [result.appointment] : []),
+        ...(result.appointments ?? []),
+        ...(result.additionalPlans ?? []).flatMap(
+          (item) => item.appointments ?? [],
+        ),
+      ]);
       return reply.status(201).send(result);
     },
   );
@@ -442,6 +469,14 @@ export function registerPatientsRoutes(context: RouteContext) {
         request.user.clinicId,
         inputs,
       );
+      // Importação em lote: um aviso com o total de clientes novos, não um por linha.
+      if (created > 0)
+        await events.publish({
+          type: "patients.imported",
+          clinicId: request.user.clinicId,
+          actorUserId: request.user.sub,
+          created,
+        });
       return {
         created,
         skipped: skipped + analysis.totals.duplicate - merges.length,

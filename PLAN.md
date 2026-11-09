@@ -1034,7 +1034,7 @@ atualizado no mesmo PR):
   - Testes API.
 - **Gate:** gate completo
 - **Depende de:** TG2
-- **Status:** TODO
+- **Status:** DONE
 
 ### TG4 — Comandos do bot: dia, semana e mês
 

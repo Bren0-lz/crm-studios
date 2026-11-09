@@ -19,7 +19,7 @@ import type { RouteContext } from "../../infrastructure/route-context.js";
 import { stageNotFoundError } from "./stages.js";
 
 export function registerCommercialRoutes(context: RouteContext) {
-  const { app, authenticate, repository } = context;
+  const { app, authenticate, repository, events } = context;
 
   app.get("/leads", { preHandler: authenticate }, async (request) => {
     const filter = leadFilterSchema.parse(request.query),
@@ -183,6 +183,16 @@ export function registerCommercialRoutes(context: RouteContext) {
         return reply.status(404).send({
           code: "LEAD_NOT_FOUND",
           message: "Lead não encontrado.",
+        });
+      // Só cadastro criado é cliente novo; conversão para cliente já existente não avisa.
+      if (!conversion.reusedExisting)
+        await events.publish({
+          type: "patient.created",
+          clinicId: request.user.clinicId,
+          actorUserId: request.user.sub,
+          patientId: conversion.patient.id,
+          fullName: conversion.patient.fullName,
+          origin: "lead",
         });
       return conversion;
     },

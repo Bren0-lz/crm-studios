@@ -17,6 +17,7 @@ import {
 } from "@crm/contracts";
 import { z } from "zod";
 import type { RouteContext } from "../../infrastructure/route-context.js";
+import { publishAppointmentsCreated } from "../../infrastructure/domain-events.js";
 import { optionalPatientFilterSchema } from "../../infrastructure/route-utils.js";
 import { DomainError } from "../../repository.js";
 
@@ -31,6 +32,7 @@ export function registerPlansRoutes(context: RouteContext) {
     assertInstallmentsAllowed,
     withServerFirstCharge,
     requestAccess,
+    events,
   } = context;
   app.post(
     "/plans/purchases",
@@ -57,15 +59,19 @@ export function registerPlansRoutes(context: RouteContext) {
         );
       await assertServiceAvailable(request.user.clinicId, input.appointments);
       await assertInstallmentsAllowed(request.user.clinicId, input.plan);
-      return reply
-        .status(201)
-        .send(
-          await repository.purchasePatientPlan(
-            request.user.clinicId,
-            request.user.sub,
-            input,
-          ),
-        );
+      const result = await repository.purchasePatientPlan(
+        request.user.clinicId,
+        request.user.sub,
+        input,
+      );
+      // Sessões reservadas na contratação: um aviso com o resumo (TG3).
+      await publishAppointmentsCreated(
+        events,
+        request.user.clinicId,
+        request.user.sub,
+        result.appointments,
+      );
+      return reply.status(201).send(result);
     },
   );
 
