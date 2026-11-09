@@ -231,7 +231,7 @@ Gate completo em todos, na ordem da tabela.
 | QM13 | Toast em toda mutação (matrícula, reposição, NPS); sino com aniversários, parcelas vencidas e atendimentos a finalizar, com skeleton | DONE |
 | QM14 | "Confirmar" desativado listando etapas faltantes; erro do SOAP uma vez só | DONE |
 | QM15 | Sem "movimenta", UUID ou código de seed na interface ("Comanda nº 12") | DONE |
-| QM16 | Histórico: um evento por ação, resumo com cliente, valor e objeto | BLOCKED (3 reprovações; ver `diario/2026-11-09-QM16.md`) |
+| QM16 | Histórico: um evento por ação, resumo com cliente, valor e objeto (decisão do dono 09/11: agrupar só o comprovadamente da mesma ação; na dúvida, solto; sem migração — ver `diario/2026-11-09-QM16.md`) | TODO |
 | QM17 | Linha de profissionais da agenda fixa ao rolar; botão "Hoje" em todas as visões | DONE |
 
 ### Fase 3 — Visual
@@ -816,6 +816,8 @@ atualizado no mesmo PR):
   - Testes web.
 - **Gate:** gate completo
 - **Depende de:** EV3
+- **Decisão do dono (09/11/2026):** para marcar avaliação, o participante precisa virar cliente
+  antes (conversão pelo fluxo da EN3); lead sem cadastro não marca avaliação.
 - **Status:** TODO
 
 ### EV5 — Finalizar cadastro do participante
@@ -951,7 +953,9 @@ atualizado no mesmo PR):
   marcado no código como pendente).
 - **Gate:** gate completo
 - **Depende de:** RC5
-- **Status:** DOING (regra imediata definida pelo dono; validação geral bloqueada por duas migrações 0052 já na main)
+- **Decisão do dono (09/11/2026):** manter o padrão diário às 18:00; falta só tirar a marca de
+  "provisório/pendente" do código.
+- **Status:** TODO
 
 ### RC7 — Pagamento e recibo no fim do envio do contrato
 
@@ -1387,8 +1391,9 @@ filtros ficam no `dashboard-studios` (EN11–EN13 têm só a parte da API aqui).
 - **Escopo:** constante `PRODUCT_NAME` nos pontos listados no documento; selo "Demonstração"
   só no ambiente de demonstração; busca automática pelo nome antigo.
 - **Gate:** gate completo
-- **Pendente com o dono:** separar o nome do produto do nome do estúdio?
-- **Status:** BLOCKED
+- **Decisão do dono (09/11/2026):** separar o nome do produto ("Organiza Estúdios") do nome do
+  estúdio cadastrado nas configurações.
+- **Status:** TODO
 
 ### EN8 — Logo personalizado no login e favicon (8)
 
@@ -1411,8 +1416,9 @@ filtros ficam no `dashboard-studios` (EN11–EN13 têm só a parte da API aqui).
 - **Escopo:** `services.modality`, linha obrigatória no cadastro, filtro `modality` na API
   externa.
 - **Gate:** gate completo + `npm run test:mysql`
-- **Pendente com o dono:** lista fixa ou categoria cadastrável?
-- **Status:** BLOCKED
+- **Decisão do dono (09/11/2026):** modalidade como categoria cadastrável pelo estúdio (sem lista
+  fixa).
+- **Status:** TODO
 
 ### EN12 — Botão "Copiar" no histórico de pagamentos (12)
 
@@ -1427,16 +1433,19 @@ filtros ficam no `dashboard-studios` (EN11–EN13 têm só a parte da API aqui).
 - **Escopo:** `GET /reports/dashboard-backup.xlsx` com abas Turmas, Calendário e Lista de
   espera (período até 31 dias, filial ativa, valores só com `finance.view`).
 - **Gate:** gate completo
-- **Pendente com o dono:** como calcular os "horários livres" da aba Calendário? O CRM não guarda expediente nem disponibilidade de profissional.
-- **Status:** BLOCKED
+- **Decisão do dono (09/11/2026):** não calcular horários livres; a aba Calendário traz só os
+  agendamentos e aulas do período.
+- **Status:** TODO
 
 ### EN5 — Telegram: agenda para a profissional (5)
 
 - **Escopo:** vínculo pela profissional, envio por destinatário, avisos de agendamento,
   `/hoje`, `/semana`, `/mes`.
 - **Gate:** gate completo
-- **Pendente com o dono:** contato da Ariana e respostas da TG6.
-- **Status:** BLOCKED
+- **Decisão do dono (09/11/2026):** o estúdio já tem o contato da Aryana e vai organizar grupos do
+  Telegram, um para cada tipo de registro que o sistema avisa (agendamento, cliente novo, recibo
+  assinado…). O sistema precisa permitir vincular um grupo a cada tipo de aviso.
+- **Status:** TODO
 
 ### EN6 — Melhorias no módulo de eventos (6)
 
