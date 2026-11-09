@@ -140,8 +140,16 @@ export const eventInputSchema = z.object({
   notes: z.string().trim().max(EVENT_NOTES_MAX).optional().or(z.literal("")),
   /** Filial do evento; vazio = evento da rede (aparece em todas as filiais). */
   branchId: z.uuid().optional().or(z.literal("")),
+  /** Serviço do evento (aulão de Pilates, feira de depilação…); vazio = sem serviço. */
+  serviceId: z.uuid().optional().or(z.literal("")),
 });
 export type EventInput = z.infer<typeof eventInputSchema>;
+
+/** Filtro da lista de eventos (`GET /events?serviceId=`). */
+export const eventListQuerySchema = z.object({
+  serviceId: z.uuid().optional(),
+});
+export type EventListQuery = z.infer<typeof eventListQuerySchema>;
 
 /** Indicadores do evento, só estes quatro. */
 export interface EventIndicators {
@@ -165,6 +173,9 @@ export interface CommercialEvent {
   attendeeCount?: number;
   startsAt: string;
   notes?: string;
+  /** Serviço do evento; some se o serviço for apagado (`ON DELETE SET NULL`). */
+  serviceId?: string;
+  serviceName?: string;
   createdBy?: string;
   createdByName?: string;
   /** Participantes visíveis nas filiais da consulta. */
@@ -217,4 +228,48 @@ export function buildEventIndicators(
     evaluations: count((item) => Boolean(item.evaluationAt)),
     converted: count((item) => Boolean(item.convertedPatientId)),
   };
+}
+
+/** Status único do participante, do primeiro ao último passo (EN6). */
+export const eventParticipantStatuses = [
+  "not_contacted",
+  "contacted",
+  "interested",
+  "evaluation",
+  "client",
+] as const;
+export type EventParticipantStatus = (typeof eventParticipantStatuses)[number];
+export const eventParticipantStatusLabels: Readonly<
+  Record<EventParticipantStatus, string>
+> = {
+  not_contacted: "Não contatado",
+  contacted: "Contatado",
+  interested: "Interessado",
+  evaluation: "Avaliação",
+  client: "Cliente",
+};
+
+/**
+ * Passo mais avançado que o participante alcançou, com as mesmas regras dos indicadores:
+ * cliente (`convertedPatientId`) > avaliação/experimental marcada (`evaluationAt`) > interessado
+ * (não perdido e com interesse diferente do padrão "Evento") > contatado (contato feito, sem
+ * contar tentativa sem resposta) > não contatado.
+ */
+export function eventParticipantStatus(
+  participant: Pick<
+    EventParticipant,
+    | "convertedPatientId"
+    | "evaluationAt"
+    | "stage"
+    | "interest"
+    | "interests"
+    | "contactedAt"
+  >,
+): EventParticipantStatus {
+  if (participant.convertedPatientId) return "client";
+  if (participant.evaluationAt) return "evaluation";
+  if (participant.stage !== LEAD_LOST_STAGE && hasEventInterest(participant))
+    return "interested";
+  if (participant.contactedAt) return "contacted";
+  return "not_contacted";
 }

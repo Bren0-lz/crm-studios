@@ -1,4 +1,6 @@
 import {
+  eventParticipantStatus,
+  eventParticipantStatusLabels,
   formatExtraFields,
   type EventParticipant,
   type LeadStageConfig,
@@ -43,6 +45,11 @@ export async function eventParticipantsToXlsx(
     {
       header: "Etapa",
       value: (item) => stageLabel.get(item.stage) ?? item.stage,
+    },
+    {
+      header: "Status",
+      value: (item) =>
+        eventParticipantStatusLabels[eventParticipantStatus(item)],
     },
     {
       header: "Último contato",

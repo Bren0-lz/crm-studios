@@ -180,6 +180,7 @@ import type {
   CommercialEventDetail,
   PatientLeadOrigin,
   EventInput,
+  EventListQuery,
   Lead,
   LeadActivity,
   LeadAppointmentInput,
@@ -1683,7 +1684,10 @@ export interface ClinicRepository {
     status: LeadTaskStatus,
   ): Promise<LeadTask | null>;
   /** Eventos do comercial visíveis nas filiais da consulta (os da rede sempre), do mais novo. */
-  listEvents(clinicId: string): Promise<CommercialEvent[]>;
+  listEvents(
+    clinicId: string,
+    query?: EventListQuery,
+  ): Promise<CommercialEvent[]>;
   /** Evento com os participantes (leads ligados, nas filiais da consulta) e os indicadores. */
   getEvent(clinicId: string, id: string): Promise<CommercialEventDetail | null>;
   createEvent(
@@ -1697,6 +1701,14 @@ export interface ClinicRepository {
     id: string,
     input: EventInput,
   ): Promise<CommercialEvent | null>;
+  /** Apaga o evento visível; os participantes continuam como leads, sem evento. */
+  deleteEvent(clinicId: string, id: string): Promise<boolean>;
+  /** Tira o participante (lead visível) do evento; o lead continua no funil. */
+  removeEventParticipant(
+    clinicId: string,
+    eventId: string,
+    leadId: string,
+  ): Promise<boolean>;
   /**
    * Leads convertidos em cliente (EN3b, coluna "Origem: evento/lead" da exportação): um item por
    * lead com `converted_patient_id`, do mais antigo (criação do lead, depois id). `patientId`

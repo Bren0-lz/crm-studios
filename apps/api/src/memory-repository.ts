@@ -49,6 +49,8 @@ export class MemoryClinicRepository implements ClinicRepository {
   readonly getEvent: ClinicRepository["getEvent"];
   readonly createEvent: ClinicRepository["createEvent"];
   readonly updateEvent: ClinicRepository["updateEvent"];
+  readonly deleteEvent: ClinicRepository["deleteEvent"];
+  readonly removeEventParticipant: ClinicRepository["removeEventParticipant"];
   readonly listPatientLeadOrigins: ClinicRepository["listPatientLeadOrigins"];
 
   readonly listAgendaNotes: ClinicRepository["listAgendaNotes"];
@@ -267,6 +269,8 @@ export class MemoryClinicRepository implements ClinicRepository {
     this.getEvent = events.getEvent;
     this.createEvent = events.createEvent;
     this.updateEvent = events.updateEvent;
+    this.deleteEvent = events.deleteEvent;
+    this.removeEventParticipant = events.removeEventParticipant;
     this.listPatientLeadOrigins = events.listPatientLeadOrigins;
     const agendaNotes = createAgendaNotesRepository(this.context);
     this.listAgendaNotes = agendaNotes.listAgendaNotes;

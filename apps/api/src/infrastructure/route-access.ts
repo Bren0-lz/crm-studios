@@ -146,7 +146,15 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
     "crm",
   ),
   "GET /rooms": viewAny("agenda", "groups", "crm"),
-  "GET /services": viewAny("agenda", "groups", "plans", "crm", "settings"),
+  // Eventos: serviço do evento e filtro da lista.
+  "GET /services": viewAny(
+    "agenda",
+    "groups",
+    "plans",
+    "crm",
+    "events",
+    "settings",
+  ),
   "GET /appointments/options": view("clinical"),
   "GET /appointments": viewAny("agenda"),
   "GET /appointments/:id/reschedules": viewAny("agenda"),
@@ -317,6 +325,8 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
   "POST /events/:id/import": operation("crm.create"),
   "POST /events": operation("events.manage"),
   "PUT /events/:id": operation("events.manage"),
+  "DELETE /events/:id": operation("events.manage"),
+  "DELETE /events/:id/participants/:leadId": operation("events.manage"),
 
   // Contatos sugeridos (relacionamento).
   "GET /relationship/settings": viewAny("relationship", "settings"),

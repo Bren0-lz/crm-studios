@@ -1,5 +1,6 @@
 import {
   eventInputSchema,
+  eventListQuerySchema,
   eventImportFileSchema,
   type EventImportResult,
 } from "@crm/contracts";
@@ -71,7 +72,10 @@ export function registerEventRoutes({
   );
 
   app.get("/events", { preHandler: authenticate }, async (request) =>
-    repository.listEvents(request.user.clinicId),
+    repository.listEvents(
+      request.user.clinicId,
+      eventListQuerySchema.parse(request.query),
+    ),
   );
   app.get("/events/:id", { preHandler: authenticate }, async (request) => {
     const { id } = idParams.parse(request.params);
@@ -124,4 +128,34 @@ export function registerEventRoutes({
     if (!event) throw notFound();
     return event;
   });
+  // Os participantes continuam como leads (sem evento).
+  app.delete(
+    "/events/:id",
+    { preHandler: authenticate },
+    async (request, reply) => {
+      const { id } = idParams.parse(request.params);
+      if (!(await repository.deleteEvent(request.user.clinicId, id)))
+        throw notFound();
+      return reply.status(204).send();
+    },
+  );
+  // Remover participante = tirá-lo do evento; o lead continua no funil.
+  app.delete(
+    "/events/:id/participants/:leadId",
+    { preHandler: authenticate },
+    async (request, reply) => {
+      const { id, leadId } = z
+        .object({ id: z.uuid(), leadId: z.uuid() })
+        .parse(request.params);
+      const { clinicId } = request.user;
+      if (!(await repository.getEvent(clinicId, id))) throw notFound();
+      if (!(await repository.removeEventParticipant(clinicId, id, leadId)))
+        throw new DomainError(
+          "EVENT_PARTICIPANT_NOT_FOUND",
+          "Participante não encontrado no evento.",
+          404,
+        );
+      return reply.status(204).send();
+    },
+  );
 }

@@ -2,6 +2,7 @@ import type {
   CommercialEvent,
   CommercialEventDetail,
   EventInput,
+  EventListQuery,
   EventImportFileInput,
   EventImportAnalysis,
   EventImportResult,
@@ -38,7 +39,12 @@ function leadQuery(filter: LeadFilter, extra: Record<string, number> = {}) {
 }
 
 export const commercialApi = {
-  events: () => request<CommercialEvent[]>("/events"),
+  events: (query: EventListQuery = {}) =>
+    request<CommercialEvent[]>(
+      query.serviceId
+        ? `/events?serviceId=${encodeURIComponent(query.serviceId)}`
+        : "/events",
+    ),
   event: (id: string) => request<CommercialEventDetail>(`/events/${id}`),
   /** Planilha dos participantes visíveis na filial ativa. */
   eventParticipantsXlsx: (id: string) =>
@@ -62,6 +68,14 @@ export const commercialApi = {
     request<CommercialEvent>(`/events/${id}`, {
       method: "PUT",
       body: JSON.stringify(input),
+    }),
+  /** Os participantes continuam como leads, sem evento. */
+  deleteEvent: (id: string) =>
+    request<void>(`/events/${id}`, { method: "DELETE" }),
+  /** Tira o participante do evento; o lead continua no funil. */
+  removeEventParticipant: (id: string, leadId: string) =>
+    request<void>(`/events/${id}/participants/${leadId}`, {
+      method: "DELETE",
     }),
   leads: () => request<Lead[]>("/leads"),
   /** Funil paginado: a primeira página e o total de cada etapa. */

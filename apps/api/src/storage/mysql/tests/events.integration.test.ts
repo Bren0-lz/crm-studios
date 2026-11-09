@@ -171,6 +171,145 @@ for (const storage of ["memory", "mysql"] as const) {
         ).toBeNull();
       });
 
+      it("saves the event service, filters by it and clears it when the service is deleted", async () => {
+        const [service, other] = await repository.listServices(clinicId);
+        const name = "Serviço " + randomUUID().slice(0, 8);
+        const event = await repository.createEvent(
+          clinicId,
+          actorId,
+          eventInputSchema.parse({
+            name,
+            startsAt: "2026-11-08T12:00:00.000Z",
+            serviceId: service!.id,
+          }),
+        );
+        expect(event).toMatchObject({
+          serviceId: service!.id,
+          serviceName: service!.name,
+        });
+        const names = async (serviceId?: string) =>
+          (
+            await repository.listEvents(clinicId, serviceId ? { serviceId } : {})
+          ).map((item) => item.id);
+        expect(await names(service!.id)).toContain(event.id);
+        expect(await names(other!.id)).not.toContain(event.id);
+        expect(await names()).toContain(event.id);
+        await expect(
+          repository.createEvent(
+            clinicId,
+            actorId,
+            eventInputSchema.parse({
+              name,
+              startsAt: "2026-11-08T12:00:00.000Z",
+              serviceId: randomUUID(),
+            }),
+          ),
+        ).rejects.toMatchObject({ code: "SERVICE_NOT_FOUND" });
+        const otherClinicService = (
+          await repository.listServices(otherClinicId)
+        )[0];
+        if (otherClinicService)
+          await expect(
+            repository.createEvent(
+              clinicId,
+              actorId,
+              eventInputSchema.parse({
+                name,
+                startsAt: "2026-11-08T12:00:00.000Z",
+                serviceId: otherClinicService.id,
+              }),
+            ),
+          ).rejects.toMatchObject({ code: "SERVICE_NOT_FOUND" });
+        const cleared = await repository.updateEvent(
+          clinicId,
+          actorId,
+          event.id,
+          eventInputSchema.parse({
+            name,
+            startsAt: "2026-11-08T12:00:00.000Z",
+            serviceId: "",
+          }),
+        );
+        expect(cleared!.serviceId).toBeUndefined();
+        expect(await names(service!.id)).not.toContain(event.id);
+        if (!pool) return;
+        // FK `ON DELETE SET NULL`: apagar o serviço deixa o evento sem serviço.
+        const serviceId = randomUUID();
+        await pool.query(
+          `INSERT INTO services (id, clinic_id, name, duration_minutes)
+           VALUES ($1, $2, 'Serviço temporário', 60)`,
+          [serviceId, clinicId],
+        );
+        await repository.updateEvent(
+          clinicId,
+          actorId,
+          event.id,
+          eventInputSchema.parse({
+            name,
+            startsAt: "2026-11-08T12:00:00.000Z",
+            serviceId,
+          }),
+        );
+        await pool.query("DELETE FROM services WHERE id = $1", [serviceId]);
+        expect((await repository.getEvent(clinicId, event.id))!.serviceId)
+          .toBeUndefined();
+      });
+
+      it("deletes an event keeping the participants as leads and removes a participant", async () => {
+        const create = (name: string) =>
+          repository.createEvent(
+            clinicId,
+            actorId,
+            eventInputSchema.parse({
+              name: name + " " + randomUUID().slice(0, 8),
+              startsAt: "2026-11-08T12:00:00.000Z",
+            }),
+          );
+        const event = await create("Exclusão"),
+          other = await create("Outro");
+        const ana = await participant(event.id, "Ana Removida"),
+          bia = await participant(event.id, "Bia Fica"),
+          caio = await participant(other.id, "Caio Outro");
+        expect(
+          await repository.removeEventParticipant(clinicId, event.id, caio.id),
+        ).toBe(false);
+        expect(
+          await repository.removeEventParticipant(
+            otherClinicId,
+            event.id,
+            ana.id,
+          ),
+        ).toBe(false);
+        expect(
+          await repository.removeEventParticipant(clinicId, event.id, ana.id),
+        ).toBe(true);
+        expect(
+          await repository.removeEventParticipant(clinicId, event.id, ana.id),
+        ).toBe(false);
+        const detail = await repository.getEvent(clinicId, event.id);
+        expect(detail!.participants.map((item) => item.id)).toEqual([bia.id]);
+        expect(detail!.participantCount).toBe(1);
+
+        expect(await repository.deleteEvent(otherClinicId, event.id)).toBe(
+          false,
+        );
+        expect(await repository.deleteEvent(clinicId, event.id)).toBe(true);
+        expect(await repository.deleteEvent(clinicId, event.id)).toBe(false);
+        expect(await repository.getEvent(clinicId, event.id)).toBeNull();
+        expect(
+          (await repository.listEvents(clinicId)).map((item) => item.id),
+        ).not.toContain(event.id);
+        const leads = await repository.listLeads(clinicId);
+        for (const id of [ana.id, bia.id]) {
+          const lead = leads.find((item) => item.id === id);
+          expect(lead).toBeDefined();
+          expect(lead!.eventId).toBeUndefined();
+        }
+        expect(leads.find((item) => item.id === caio.id)!.eventId).toBe(
+          other.id,
+        );
+      });
+
       it("links participants as leads and counts the four indicators", async () => {
         const event = await repository.createEvent(
           clinicId,

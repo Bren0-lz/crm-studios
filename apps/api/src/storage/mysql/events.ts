@@ -3,6 +3,7 @@ import {
   type CommercialEvent,
   type CommercialEventDetail,
   type EventInput,
+  type EventListQuery,
   type EventParticipant,
   type PatientLeadOrigin,
 } from "@crm/contracts";
@@ -21,6 +22,8 @@ interface EventRow {
   attendeeCount: number | null;
   startsAt: Date;
   notes: string | null;
+  serviceId: string | null;
+  serviceName: string | null;
   createdBy: string | null;
   createdByName: string | null;
   participantCount: number | string;
@@ -33,11 +36,12 @@ const visibleEvent = `(e.branch_id IS NULL OR ${branchClause("e.branch_id", 2)})
 
 const eventColumns = `e.id, e.clinic_id AS "clinicId", e.branch_id AS "branchId", e.name,
   e.location, e.attendee_count AS "attendeeCount", e.starts_at AS "startsAt", e.notes,
-  e.created_by AS "createdBy", u.full_name AS "createdByName",
+  e.service_id AS "serviceId", s.name AS "serviceName", e.created_by AS "createdBy", u.full_name AS "createdByName",
   (SELECT COUNT(*) FROM leads l WHERE l.clinic_id = e.clinic_id AND l.event_id = e.id
      AND ${branchClause("l.branch_id", 2)}) AS "participantCount",
   e.created_at AS "createdAt", e.updated_at AS "updatedAt"`;
-const eventFrom = `events e LEFT JOIN users u ON u.id = e.created_by`;
+const eventFrom = `events e LEFT JOIN users u ON u.id = e.created_by
+  LEFT JOIN services s ON s.clinic_id = e.clinic_id AND s.id = e.service_id`;
 
 function mapEvent(row: EventRow): CommercialEvent {
   return {
@@ -51,6 +55,8 @@ function mapEvent(row: EventRow): CommercialEvent {
       : {}),
     startsAt: row.startsAt.toISOString(),
     ...(row.notes ? { notes: row.notes } : {}),
+    ...(row.serviceId ? { serviceId: row.serviceId } : {}),
+    ...(row.serviceName ? { serviceName: row.serviceName } : {}),
     ...(row.createdBy ? { createdBy: row.createdBy } : {}),
     ...(row.createdByName ? { createdByName: row.createdByName } : {}),
     participantCount: Number(row.participantCount),
@@ -112,6 +118,26 @@ export function createEventsRepository(context: MysqlRepositoryContext) {
       throw new DomainError("BRANCH_NOT_FOUND", "Filial não encontrada.", 404);
     context.assertBranchInScope(input.branchId);
   }
+  async function assertService(
+    db: Pool | PoolClient,
+    clinicId: string,
+    input: EventInput,
+  ) {
+    if (
+      input.serviceId &&
+      !(
+        await db.query("SELECT 1 FROM services WHERE clinic_id=$1 AND id=$2", [
+          clinicId,
+          input.serviceId,
+        ])
+      ).rowCount
+    )
+      throw new DomainError(
+        "SERVICE_NOT_FOUND",
+        "Serviço não encontrado.",
+        404,
+      );
+  }
   const values = (input: EventInput) => [
     input.branchId || null,
     input.name,
@@ -119,14 +145,16 @@ export function createEventsRepository(context: MysqlRepositoryContext) {
     input.attendeeCount ?? null,
     input.startsAt,
     input.notes || null,
+    input.serviceId || null,
   ];
   return {
-    async listEvents(clinicId: string) {
+    async listEvents(clinicId: string, query: EventListQuery = {}) {
       const result = await context.pool.query<EventRow>(
         `SELECT ${eventColumns} FROM ${eventFrom}
          WHERE e.clinic_id = $1 AND ${visibleEvent}
+           AND ($3 IS NULL OR e.service_id = $3)
          ORDER BY e.starts_at DESC, e.id`,
-        [clinicId, context.branchReadIds()],
+        [clinicId, context.branchReadIds(), query.serviceId ?? null],
       );
       return result.rows.map(mapEvent);
     },
@@ -175,12 +203,14 @@ export function createEventsRepository(context: MysqlRepositoryContext) {
       input: EventInput,
     ) {
       await assertBranch(context.pool, clinicId, input);
+      await assertService(context.pool, clinicId, input);
       const id = randomUUID();
       await context.pool.query(
         `INSERT INTO events
-           (id, clinic_id, branch_id, name, location, attendee_count, starts_at, notes, created_by)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8,
-           (SELECT u.id FROM users u WHERE u.clinic_id = $2 AND u.id = $9))`,
+           (id, clinic_id, branch_id, name, location, attendee_count, starts_at, notes,
+            service_id, created_by)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9,
+           (SELECT u.id FROM users u WHERE u.clinic_id = $2 AND u.id = $10))`,
         [id, clinicId, ...values(input), actorUserId],
       );
       return (await findEvent(context.pool, clinicId, id))!;
@@ -200,14 +230,41 @@ export function createEventsRepository(context: MysqlRepositoryContext) {
         );
         if (!current.rowCount) return null;
         await assertBranch(client, clinicId, input);
+        await assertService(client, clinicId, input);
         await client.query(
           `UPDATE events SET branch_id = $3, name = $4, location = $5, attendee_count = $6,
-             starts_at = $7, notes = $8, updated_at = NOW(6)
+             starts_at = $7, notes = $8, service_id = $9, updated_at = NOW(6)
            WHERE clinic_id = $1 AND id = $2`,
           [clinicId, id, ...values(input)],
         );
         return findEvent(client, clinicId, id);
       });
+    },
+
+    /** Apaga o evento; os participantes continuam como leads (`ON DELETE SET NULL`). */
+    async deleteEvent(clinicId: string, id: string) {
+      const result = await context.pool.query(
+        `DELETE e FROM events e
+         WHERE e.clinic_id = $1 AND e.id = $3 AND ${visibleEvent}`,
+        [clinicId, context.branchReadIds(), id],
+      );
+      return result.rowCount > 0;
+    },
+
+    /** Tira o participante do evento; o lead continua no funil. */
+    async removeEventParticipant(
+      clinicId: string,
+      eventId: string,
+      leadId: string,
+    ) {
+      if (!(await findEvent(context.pool, clinicId, eventId))) return false;
+      const result = await context.pool.query(
+        `UPDATE leads SET event_id = NULL, updated_at = NOW(6)
+         WHERE clinic_id = $1 AND id = $3 AND event_id = $4
+           AND ${branchClause("branch_id", 2)}`,
+        [clinicId, context.branchReadIds(), leadId, eventId],
+      );
+      return result.rowCount > 0;
     },
 
     async listPatientLeadOrigins(clinicId: string) {

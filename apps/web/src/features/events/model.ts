@@ -1,4 +1,8 @@
-import { formatPhone, splitPhone } from "@crm/contracts";
+import {
+  formatPhone,
+  splitPhone,
+  type EventParticipant,
+} from "@crm/contracts";
 
 /** Preserva contatos fora do padrão brasileiro, aceitos no cadastro do evento. */
 export function eventPhone(value: string) {
@@ -68,4 +72,36 @@ export function eventExportFileName(eventName: string) {
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
   return `participantes${slug ? `-${slug}` : ""}.xlsx`;
+}
+
+const searchKey = (value: string) =>
+  value
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .toLocaleLowerCase("pt-BR")
+    .trim();
+
+/**
+ * Busca do participante por nome ou e-mail (sem acento nem maiúsculas) e por telefone ou
+ * WhatsApp (só os dígitos, com ou sem DDD).
+ */
+export function matchesEventParticipant(
+  participant: Pick<EventParticipant, "fullName" | "email" | "phone" | "whatsapp">,
+  query: string,
+) {
+  const text = searchKey(query);
+  if (!text) return true;
+  if (
+    searchKey(participant.fullName).includes(text) ||
+    searchKey(participant.email ?? "").includes(text)
+  )
+    return true;
+  const digits = query.replace(/\D/g, "");
+  return (
+    digits.length > 0 &&
+    digits.length === query.replace(/[\s()+.-]/g, "").length &&
+    [participant.phone, participant.whatsapp ?? ""].some((phone) =>
+      phone.replace(/\D/g, "").includes(digits),
+    )
+  );
 }

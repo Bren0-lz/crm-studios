@@ -1444,7 +1444,7 @@ filtros ficam no `dashboard-studios` (EN11–EN13 têm só a parte da API aqui).
   status único por participante, busca/filtro e remover participante.
 - **Gate:** gate completo + `npm run test:mysql`
 - **Depende de:** EN2
-- **Status:** TODO
+- **Status:** DONE
 
 ### EN14 — Guia de uso (14)
 

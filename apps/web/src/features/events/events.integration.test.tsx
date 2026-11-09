@@ -21,6 +21,13 @@ import {
 import "../../test-support/legacy-setup";
 
 const branchId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+const pilatesId = "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+  dancaId = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee";
+const services = [
+  { id: pilatesId, name: "Pilates", active: true },
+  { id: dancaId, name: "Dançaterapia", active: true },
+  { id: "ffffffff-ffff-4fff-8fff-ffffffffffff", name: "Antigo", active: false },
+];
 const event: CommercialEvent = {
   id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
   clinicId: "clinic",
@@ -63,11 +70,17 @@ function setup({
   let events = empty ? [] : [{ ...event }];
   let failNext = fail;
   const writes: { method: string; input: EventInput }[] = [];
+  const deletes: string[] = [];
   vi.mocked(fetch).mockImplementation(async (input, init) => {
     const url = String(input);
     const json = (body: unknown, status = 200) =>
       ({ ok: status < 400, status, json: async () => body }) as Response;
-    if (/\/events(?:\/|$)/.test(url)) {
+    if (/\/events(?:\/|$|\?)/.test(url)) {
+      if (init?.method === "DELETE") {
+        deletes.push(url);
+        events = events.filter((item) => !url.endsWith(`/events/${item.id}`));
+        return { ok: true, status: 204, json: async () => null } as Response;
+      }
       if (init?.method && init.method !== "GET") {
         const body = JSON.parse(String(init.body)) as EventInput;
         writes.push({ method: init.method, input: body });
@@ -82,6 +95,14 @@ function setup({
         if (body.notes !== undefined) saved.notes = body.notes;
         if (body.attendeeCount !== undefined)
           saved.attendeeCount = body.attendeeCount;
+        if (body.serviceId) {
+          saved.serviceId = body.serviceId;
+          saved.serviceName =
+            services.find((item) => item.id === body.serviceId)?.name ?? "";
+        } else {
+          delete saved.serviceId;
+          delete saved.serviceName;
+        }
         events = [saved];
         return json(events[0]);
       }
@@ -89,8 +110,14 @@ function setup({
         failNext = false;
         return json({ message: "Falha ao carregar eventos" }, 500);
       }
-      return json(events);
+      const filter = new URL(url, "http://localhost").searchParams.get(
+        "serviceId",
+      );
+      return json(
+        filter ? events.filter((item) => item.serviceId === filter) : events,
+      );
     }
+    if (url.endsWith("/services")) return json(services);
     if (url.endsWith("/branches"))
       return json([{ id: branchId, name: "Centro", active: true }]);
     if (url.includes("branding"))
@@ -103,7 +130,7 @@ function setup({
       <App />
     </MemoryRouter>,
   );
-  return writes;
+  return Object.assign(writes, { deletes });
 }
 
 describe("events page", () => {
@@ -196,6 +223,81 @@ describe("events page", () => {
       input: { startsAt: "2039-06-10T13:00:00.000Z", branchId },
     });
   });
+  it("saves the event service and filters the list by service", async () => {
+    const writes = setup({ empty: true });
+    expect(await screen.findByText("Nenhum evento cadastrado")).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Novo evento" }));
+    const dialog = screen.getByRole("dialog", { name: "Novo evento" });
+    const serviceField = within(dialog).getByLabelText("Serviço");
+    // Só serviços ativos no cadastro.
+    expect(
+      within(serviceField)
+        .getAllByRole("option")
+        .map((option) => option.textContent),
+    ).toEqual(["Sem serviço", "Dançaterapia", "Pilates"]);
+    fireEvent.change(within(dialog).getByLabelText("Nome do evento"), {
+      target: { value: "Aulão de Pilates" },
+    });
+    fireEvent.change(within(dialog).getByLabelText(/Data e horário/), {
+      target: { value: "2039-06-10T09:00" },
+    });
+    fireEvent.change(serviceField, { target: { value: pilatesId } });
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Salvar evento" }),
+    );
+    expect(await screen.findByText(/Pilates · 3 participante/)).toBeVisible();
+    expect(writes[0]).toMatchObject({
+      method: "POST",
+      input: { serviceId: pilatesId },
+    });
+
+    const filter = within(
+      screen.getByRole("region", { name: "Lista de eventos" }),
+    ).getByLabelText("Serviço");
+    fireEvent.change(filter, { target: { value: dancaId } });
+    expect(
+      await screen.findByText("Nenhum evento com este serviço"),
+    ).toBeVisible();
+    expect(
+      vi
+        .mocked(fetch)
+        .mock.calls.some(([url]) =>
+          String(url).endsWith(`/events?serviceId=${dancaId}`),
+        ),
+    ).toBe(true);
+    fireEvent.change(filter, { target: { value: pilatesId } });
+    expect(await screen.findByText("Aulão de Pilates")).toBeVisible();
+  });
+
+  it("deletes an event after confirmation", async () => {
+    const writes = setup();
+    expect(await screen.findByText(event.name)).toBeVisible();
+    fireEvent.click(
+      screen.getByRole("button", { name: `Excluir ${event.name}` }),
+    );
+    const dialog = screen.getByRole("dialog", { name: "Excluir evento" });
+    expect(dialog).toHaveTextContent(
+      "Os 3 participantes continuam no funil comercial como lead",
+    );
+    fireEvent.click(within(dialog).getByRole("button", { name: "Voltar" }));
+    expect(writes.deletes).toEqual([]);
+    fireEvent.click(
+      screen.getByRole("button", { name: `Excluir ${event.name}` }),
+    );
+    fireEvent.click(
+      within(
+        screen.getByRole("dialog", { name: "Excluir evento" }),
+      ).getByRole("button", { name: "Excluir evento" }),
+    );
+    expect(await screen.findByText("Nenhum evento cadastrado")).toBeVisible();
+    expect(writes.deletes).toEqual([
+      expect.stringMatching(new RegExp(`/events/${event.id}$`)),
+    ]);
+    expect(
+      screen.queryByRole("dialog", { name: "Excluir evento" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("shows request errors and supports retry", async () => {
     setup({ fail: true });
     expect(await screen.findByRole("alert")).toHaveTextContent(
@@ -212,6 +314,9 @@ describe("events page", () => {
     ).not.toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: `Editar ${event.name}` }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: `Excluir ${event.name}` }),
     ).not.toBeInTheDocument();
   });
   it("denies the route and menu without events.view", async () => {
