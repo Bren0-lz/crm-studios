@@ -1433,37 +1433,62 @@ button.day-event:focus-visible {
 }
 
 /* Visão Dia em grade: linhas de 30 min × uma coluna por profissional. */
+/* A grade rola dentro do próprio contêiner (o .panel tem overflow: hidden), para o
+   cabeçalho dos profissionais ficar fixo no alto e a coluna de horários à esquerda. */
 .day-grid-scroll {
-  overflow-x: auto;
+  max-height: 70vh;
+  overflow: auto;
 }
+/* Bordas separadas e desenhadas nas células: no modo collapse a borda é da tabela e rola por
+   baixo das células fixas. Cada linha da grade é o border-top da célula de baixo (tracejado nas
+   meias horas); a 1ª coluna desenha a linha esquerda e a tabela, a de baixo. */
 .day-grid {
   width: 100%;
   min-width: 520px;
-  border-collapse: collapse;
+  border-collapse: separate;
+  border-spacing: 0;
+  border-bottom: 1px solid #ece9e2;
   table-layout: fixed;
   font-size: var(--text-sm);
 }
 .day-grid th,
 .day-grid td {
-  border: 1px solid #ece9e2;
+  border: 0;
+  border-top: 1px solid #ece9e2;
+  border-right: 1px solid #ece9e2;
   vertical-align: top;
+}
+/* Linha esquerda da grade como sombra interna, para acompanhar a coluna fixa sem border-left. */
+.day-grid tr > :first-child {
+  box-shadow: inset 1px 0 0 #ece9e2;
 }
 .day-grid thead th {
   position: sticky;
   top: 0;
   z-index: 1;
+  border-bottom: 1px solid #ece9e2;
   padding: var(--space-2);
   background: #faf9f5;
   font-size: var(--text-sm);
   text-align: left;
 }
 .day-grid .day-grid-time {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: #faf9f5;
   width: calc(var(--space-8) - var(--space-2));
   padding: 0 var(--space-1);
   color: var(--muted);
   font-size: var(--text-xs);
   font-weight: 700;
   text-align: right;
+}
+.day-grid thead .day-grid-time {
+  z-index: 2;
+}
+.day-grid tbody tr:first-child > * {
+  border-top: 0;
 }
 .day-grid tr.half-hour td,
 .day-grid tr.half-hour th {

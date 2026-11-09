@@ -232,7 +232,7 @@ Gate completo em todos, na ordem da tabela.
 | QM14 | "Confirmar" desativado listando etapas faltantes; erro do SOAP uma vez só | DONE |
 | QM15 | Sem "movimenta", UUID ou código de seed na interface ("Comanda nº 12") | DONE |
 | QM16 | Histórico: um evento por ação, resumo com cliente, valor e objeto | BLOCKED (3 reprovações; ver `diario/2026-11-09-QM16.md`) |
-| QM17 | Linha de profissionais da agenda fixa ao rolar; botão "Hoje" em todas as visões | TODO |
+| QM17 | Linha de profissionais da agenda fixa ao rolar; botão "Hoje" em todas as visões | DONE |
 
 ### Fase 3 — Visual
 
