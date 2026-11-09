@@ -231,7 +231,7 @@ Gate completo em todos, na ordem da tabela.
 | QM13 | Toast em toda mutação (matrícula, reposição, NPS); sino com aniversários, parcelas vencidas e atendimentos a finalizar, com skeleton | DONE |
 | QM14 | "Confirmar" desativado listando etapas faltantes; erro do SOAP uma vez só | DONE |
 | QM15 | Sem "movimenta", UUID ou código de seed na interface ("Comanda nº 12") | DONE |
-| QM16 | Histórico: um evento por ação, resumo com cliente, valor e objeto | TODO |
+| QM16 | Histórico: um evento por ação, resumo com cliente, valor e objeto | BLOCKED (3 reprovações; ver `diario/2026-11-09-QM16.md`) |
 | QM17 | Linha de profissionais da agenda fixa ao rolar; botão "Hoje" em todas as visões | TODO |
 
 ### Fase 3 — Visual
