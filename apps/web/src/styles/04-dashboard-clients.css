@@ -1140,10 +1140,12 @@
 .patient-tab-item-main strong {
   font-size: var(--text-md);
   font-weight: 600;
+  overflow-wrap: anywhere;
 }
 .patient-tab-item-main span {
   color: var(--muted);
   font-size: var(--text-sm);
+  overflow-wrap: anywhere;
 }
 /* Situação da assinatura na aba Contratos: o selo mantém o tamanho do status-pill. */
 .patient-tab-item-main .signature-link-record .status-pill {
