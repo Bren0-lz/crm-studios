@@ -6,11 +6,7 @@ import { fileURLToPath } from "node:url";
 import { config } from "./config.js";
 import { demoCpf, demoPatients } from "./demo-patients.js";
 import { databaseSslConfig } from "./infrastructure/database-connection.js";
-import {
-  Database,
-  type Pool,
-  type Queryable,
-} from "./infrastructure/mysql-client.js";
+import { Database, type Pool } from "./infrastructure/mysql-client.js";
 import { ensurePatientTags } from "./mysql-repository.js";
 import { seedDemoScenarios } from "./seed-demo-scenarios.js";
 import {
@@ -111,28 +107,6 @@ export async function runMigrations(pool: Pool): Promise<string[]> {
   }
 }
 
-/**
- * Clínica nova: os modelos iniciais de avaliação entram junto com ela (seed demo e
- * `db:cleanup-test-data`). Não duplica um modelo de mesmo nome.
- */
-export async function insertStarterAssessmentTemplates(
-  client: Queryable,
-  clinicId: string,
-) {
-  for (const template of starterAssessmentTemplates) {
-    const id = randomUUID();
-    await client.query(
-      `INSERT INTO assessment_templates (id, clinic_id, name, specialty, fields, version, status, family_id)
-       SELECT $4, $5, $1, $2, $3, 1, 'published', $4
-       FROM DUAL
-       WHERE NOT EXISTS (
-         SELECT 1 FROM assessment_templates WHERE clinic_id = $5 AND name = $1
-       )`,
-      [template.name, template.specialty, template.fields, id, clinicId],
-    );
-  }
-}
-
 const demoClinicId = "11111111-1111-4111-8111-111111111111";
 
 /** Hoje (aaaa-mm-dd) no fuso da clínica, às `hora` locais, como instante UTC. */
@@ -158,7 +132,19 @@ export async function seedDemoData(pool: Pool) {
       [demoClinicId, randomUUID()],
     );
     const branchId = await createDefaultBranch(client, demoClinicId);
-    await insertStarterAssessmentTemplates(client, demoClinicId);
+    // Banco novo: os modelos iniciais de avaliação entram junto com a clínica.
+    for (const template of starterAssessmentTemplates) {
+      const id = randomUUID();
+      await client.query(
+        `INSERT INTO assessment_templates (id, clinic_id, name, specialty, fields, version, status, family_id)
+         SELECT $4, $5, $1, $2, $3, 1, 'published', $4
+         FROM DUAL
+         WHERE NOT EXISTS (
+           SELECT 1 FROM assessment_templates WHERE clinic_id = $5 AND name = $1
+         )`,
+        [template.name, template.specialty, template.fields, id, demoClinicId],
+      );
+    }
     await client.query(
       `INSERT INTO users (id, clinic_id, full_name, email, password_hash, role)
        VALUES ('22222222-2222-4222-8222-222222222222', $2, 'Aryana Dutra', 'admin@movimenta.local', $1, 'admin')

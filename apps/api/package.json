@@ -9,7 +9,6 @@
     "start": "node dist/server.js",
     "db:setup": "tsx src/db-cli.ts",
     "db:migrate": "tsx src/migrate-cli.ts",
-    "db:cleanup-test-data": "tsx src/db-cleanup-cli.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run src",
     "test:mysql": "node ../../scripts/test-mysql.mjs",

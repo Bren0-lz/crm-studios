@@ -1377,11 +1377,8 @@ filtros ficam no `dashboard-studios` (EN11–EN13 têm só a parte da API aqui).
 - **Escopo:** `db-cleanup.ts` e `npm run db:cleanup-test-data`: simulação por padrão,
   `--execute --confirm=<nome do estúdio>`, backup antes, uma transação na ordem das FKs.
 - **Gate:** gate completo + `npm run test:mysql`
-- **Decisão do dono (08/11/2026):** apagar **todos os dados** de todas as tabelas, mantendo a
-  estrutura (tabelas e registro de migrações), e deixar só **um usuário administrador** (com o
-  estúdio e a filial padrão mínimos para ele entrar). Credenciais do admin informadas ao rodar,
-  nunca no código.
-- **Status:** DONE
+- **Pendente com o dono:** zerar todo o operacional ou só o que tem "teste" no nome?
+- **Status:** BLOCKED
 
 ### EN7 — Renomear para "Organiza Estúdios" (7)
 
