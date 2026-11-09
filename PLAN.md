@@ -240,7 +240,7 @@ Gate completo em todos, na ordem da tabela.
 |----|------|--------|
 | QV1 | Barra lateral não pula ao abrir modal (compensação dupla gutter + padding?) | DONE |
 | QV2 | Abas da ficha com o estilo das abas de Configurações (pílula ativa) | DONE |
-| QV3 | Reset de fieldset, `summary` com chevron, tabelas e links do design system | TODO |
+| QV3 | Reset de fieldset, `summary` com chevron, tabelas e links do design system | DONE |
 | QV4 | Comanda: grade de 3 colunas com `min-width: 0`, valores à direita, botões com gap | TODO |
 | QV5 | Textos duplicados ("Sala Sala de Dança", "Cliente / Cliente") | TODO |
 | QV6 | Barra de progresso do plano com semântica definida e legenda "0 de 8 usadas" | TODO |

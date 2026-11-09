@@ -664,16 +664,6 @@ p.field-hint {
 .plan-schedule-details > summary::-webkit-details-marker {
   display: none;
 }
-.plan-schedule-details > summary::after {
-  content: "+";
-  color: var(--muted);
-  font-size: var(--text-xl);
-  font-weight: 400;
-  line-height: 1;
-}
-.plan-schedule-details[open] > summary::after {
-  content: "−";
-}
 .plan-schedule-details > summary:hover {
   background: var(--cream);
 }

@@ -150,6 +150,119 @@ button {
   cursor: pointer;
 }
 
+/* QV3: elementos nativos com a aparência do design system, não a do navegador. As regras de
+   elemento ficam em :where() (especificidade zero): a classe de cada tela continua valendo. */
+
+/* Fieldset e legend sem a moldura, o recuo e o espaço padrão do navegador. */
+:where(fieldset) {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+:where(legend) {
+  padding: 0;
+  color: var(--ink);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+/* Summary (de details): sem o triângulo padrão; chevron próprio, que gira ao abrir. O
+   chevron é decorativo (conteúdo vazio): o leitor de tela já anuncia "recolhido/expandido". */
+:where(summary) {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  cursor: pointer;
+  list-style: none;
+}
+:where(summary)::-webkit-details-marker {
+  display: none;
+}
+:where(summary)::after {
+  flex: none;
+  width: var(--space-2);
+  height: var(--space-2);
+  margin-left: auto;
+  border-right: 2px solid var(--muted);
+  border-bottom: 2px solid var(--muted);
+  content: "";
+  /* O quadrado girado fica abaixo do centro; o deslocamento o alinha ao texto. */
+  transform: translateY(-25%) rotate(45deg);
+  transition: transform 0.15s;
+}
+:where(details[open] > summary)::after {
+  transform: translateY(25%) rotate(-135deg);
+}
+:where(summary):focus-visible {
+  outline: 2px solid var(--green-2);
+  outline-offset: 2px;
+}
+@media (prefers-reduced-motion: reduce) {
+  :where(summary)::after {
+    transition: none;
+  }
+}
+
+/* Tabelas: cabeçalho à esquerda e em 600; o visual completo é o da .dre-table abaixo. */
+:where(table) {
+  border-collapse: collapse;
+}
+:where(caption) {
+  text-align: left;
+}
+:where(th) {
+  font-weight: 600;
+  text-align: left;
+}
+
+/* Tabela do design system: cabeçalho em faixa creme com rótulo pequeno em caixa alta, linhas
+   separadas por --line e valores numéricos/monetários à direita (.numeric-value). */
+.dre-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.dre-table th,
+.dre-table td {
+  padding: var(--space-3);
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+}
+.dre-table th {
+  font-weight: 600;
+  text-align: left;
+}
+.dre-table thead {
+  background: var(--cream);
+}
+.dre-table thead th {
+  color: var(--muted);
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+}
+.dre-table .numeric-value {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.dre-table tbody tr:last-child > * {
+  border-bottom: 0;
+}
+
+/* Links: verde da marca, sublinhado discreto, hover mais escuro e foco visível. */
+:where(a) {
+  color: var(--green-2);
+  text-decoration-line: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.2em;
+}
+:where(a):hover {
+  color: var(--green);
+}
+:where(a):focus-visible {
+  outline: 2px solid var(--green-2);
+  outline-offset: 2px;
+}
+
 .brand {
   display: flex;
   align-items: center;

@@ -284,19 +284,7 @@
   font-variant-numeric: tabular-nums;
 }
 
-.dre-table {
-  width: 100%;
-  border-collapse: collapse;
-}
-.dre-table th,
-.dre-table td {
-  padding: var(--space-3);
-  border-bottom: 1px solid var(--border);
-  white-space: nowrap;
-}
-.dre-table th {
-  text-align: left;
-}
+/* .dre-table (tabela do design system) fica em 01-base.css. */
 
 .patient-context-notice {
   padding: var(--space-4);
@@ -412,6 +400,10 @@
 }
 .inventory-history > summary::-webkit-details-marker {
   display: none;
+}
+/* O ícone ChevronDown já faz o papel do chevron padrão do summary (01-base.css). */
+.inventory-history > summary::after {
+  content: none;
 }
 .inventory-history > summary svg {
   color: var(--muted);
