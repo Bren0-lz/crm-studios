@@ -5,6 +5,7 @@ import type {
   PackageWeeklySlot,
   ScheduleBlock,
 } from "@crm/contracts";
+import { withPrefix } from "@crm/contracts";
 import { localIsoDate, timeLabel } from "../../shared/lib/formatting";
 import type { AgendaEntry } from "./types";
 
@@ -253,7 +254,7 @@ export function agendaShareMessage({
     } else if (entry.kind === "group") {
       const item = entry.session;
       lines.push(
-        `${range(item.startsAt, item.endsAt)} · Turma ${item.groupName}${item.roomName ? ` (${item.roomName})` : ""}`,
+        `${range(item.startsAt, item.endsAt)} · ${withPrefix("Turma", item.groupName)}${item.roomName ? ` (${item.roomName})` : ""}`,
       );
     }
   }

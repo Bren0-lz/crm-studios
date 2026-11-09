@@ -1,3 +1,4 @@
+import { withPrefix } from "@crm/contracts";
 import type { Holiday } from "@crm/contracts";
 import { Plus } from "lucide-react";
 import { useEffect, useRef, useState, type FormEvent } from "react";
@@ -196,7 +197,7 @@ export function HolidaysContent() {
                   <button
                     type="button"
                     className="danger-button button-sm"
-                    aria-label={`Excluir feriado ${holiday.name}`}
+                    aria-label={`Excluir ${withPrefix("feriado", holiday.name)}`}
                     onClick={() => setDeletingHoliday(holiday)}
                   >
                     Excluir

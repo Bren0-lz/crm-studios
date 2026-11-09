@@ -1,3 +1,4 @@
+import { withPrefix } from "@crm/contracts";
 import { CommercialToolbar } from "./CommercialToolbar";
 import {
   type Lead,
@@ -493,7 +494,7 @@ export function CommercialPage() {
                           <button
                             type="button"
                             className="icon-button button-sm kanban-stage-edit"
-                            aria-label={`Editar etapa ${stage.label}`}
+                            aria-label={`Editar ${withPrefix("etapa", stage.label)}`}
                             title="Editar etapa"
                             onClick={() =>
                               setStageForm(

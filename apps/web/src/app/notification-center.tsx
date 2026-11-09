@@ -1,3 +1,4 @@
+import { withQuotedPrefix } from "@crm/contracts";
 import {
   defaultNotificationPreferences,
   notificationKinds,
@@ -243,7 +244,7 @@ export function notificationGroups(
         groups.push({
           key: `auto-campaign:${campaign.id}`,
           kind: "autoCampaigns",
-          label: `Campanha automática “${campaign.name}”`,
+          label: withQuotedPrefix("Campanha automática", campaign.name),
           detail: `${campaign.pending === 1 ? "Falta 1 pessoa" : `Faltam ${campaign.pending} pessoas`} para concluir a campanha de hoje`,
           count: campaign.pending,
           to: "/?aba=campanhas",

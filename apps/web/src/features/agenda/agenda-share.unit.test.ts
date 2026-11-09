@@ -64,6 +64,28 @@ describe("agendaShareMessage", () => {
     ]);
   });
 
+  it("não repete 'Turma' quando o nome da turma já começa com ela (QV5)", () => {
+    const text = agendaShareMessage({
+      professional,
+      from: "2026-10-05",
+      to: "2026-10-05",
+      appointments: [],
+      groupSessions: [
+        {
+          id: "g",
+          professionalId: "p1",
+          groupName: "Turma da manhã",
+          roomName: "Sala de Dança",
+          status: "scheduled",
+          startsAt: local("2026-10-05", "07:00"),
+          endsAt: local("2026-10-05", "08:00"),
+        } as GroupSession,
+      ],
+    });
+    expect(text).toContain("07:00–08:00 · Turma da manhã (Sala de Dança)");
+    expect(text).not.toMatch(/Turma Turma/i);
+  });
+
   it("avisa quando não há atendimentos e usa uma só data para um dia", () => {
     expect(
       agendaShareMessage({

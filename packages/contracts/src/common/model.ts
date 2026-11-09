@@ -189,6 +189,41 @@ export function joinWithAnd(items: string[]): string {
     : `${items.slice(0, -1).join(", ")} e ${items.at(-1)}`;
 }
 
+const comparableLabel = (value: string) =>
+  value.normalize("NFD").replace(/[̀-ͯ]/g, "").toLocaleLowerCase("pt-BR");
+
+/**
+ * Rótulo "prefixo + nome" sem repetir a palavra (QV5): `withPrefix("Sala", "Pilates")` →
+ * "Sala Pilates", mas `withPrefix("Sala", "Sala de Dança")` → "Sala de Dança" (ignora caixa e
+ * acento; o prefixo só conta como repetido se vier como palavra inteira no início do nome).
+ */
+export function withPrefix(prefix: string, name: string): string {
+  const trimmed = name.trim();
+  const head = comparableLabel(prefix.trim());
+  const text = comparableLabel(trimmed);
+  const repeated =
+    head.length > 0 &&
+    text.startsWith(head) &&
+    !/[\p{L}\p{N}]/u.test(text.charAt(head.length));
+  return repeated || !trimmed ? trimmed || prefix : `${prefix} ${trimmed}`;
+}
+
+/**
+ * Igual a `withPrefix`, com o nome entre aspas: `Modelo “Anamnese”`, mas `“Modelo padrão”`
+ * quando o nome já começa com o prefixo (QV5). `quotes` troca as aspas (ex.: `['"', '"']`).
+ */
+export function withQuotedPrefix(
+  prefix: string,
+  name: string,
+  quotes: readonly [string, string] = ["“", "”"],
+): string {
+  const trimmed = name.trim();
+  const quoted = `${quotes[0]}${trimmed}${quotes[1]}`;
+  return trimmed && withPrefix(prefix, trimmed) === trimmed
+    ? quoted
+    : `${prefix} ${quoted}`;
+}
+
 export function addDaysToIsoDate(value: string, days: number): string {
   const [year, month, day] = value.split("-").map(Number);
   return new Date(Date.UTC(year!, month! - 1, day! + days))

@@ -1,3 +1,4 @@
+import { withPrefix } from "@crm/contracts";
 import { useEffect, useRef, useState } from "react";
 import { useAuthorization } from "../../authorization-context";
 import { Modal } from "../../shared/components/Modal";
@@ -93,10 +94,10 @@ export function GuidedSaleFollowUp({
       }
       subtitle={
         step.kind === "sign"
-          ? `Plano ${plan.name} salvo. Envie o documento para ${patientName} assinar.`
+          ? `${withPrefix("Plano", plan.name)} salvo. Envie o documento para ${patientName} assinar.`
           : step.kind === "sessions"
-            ? `Plano ${plan.name} salvo. Envie as sessões para ${patientName} pelo WhatsApp.`
-            : `Plano ${plan.name} salvo. Registre o pagamento de ${patientName}.`
+            ? `${withPrefix("Plano", plan.name)} salvo. Envie as sessões para ${patientName} pelo WhatsApp.`
+            : `${withPrefix("Plano", plan.name)} salvo. Registre o pagamento de ${patientName}.`
       }
       busy={busy}
       inactive={nested}

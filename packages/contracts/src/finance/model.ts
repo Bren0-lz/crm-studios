@@ -1,3 +1,4 @@
+import { withQuotedPrefix } from "../common/model.js";
 import { z } from "zod";
 import {
   addDaysToIsoDate,
@@ -934,11 +935,11 @@ export function planPixChargeMessage(input: {
     ? `, já com o seu desconto de ${money(discount)}`
     : "";
   const charge = input.manualFirstCharge
-    ? `o plano “${input.planName}” tem ${sessions} por ${money(input.totalValueInCents)}${perSession}; o 1º pagamento, com o valor combinado na venda, é de ${money(firstCharge)}${withDiscount}; depois, ${money(input.totalValueInCents)} por mês`
+    ? `o ${withQuotedPrefix("plano", input.planName)} tem ${sessions} por ${money(input.totalValueInCents)}${perSession}; o 1º pagamento, com o valor combinado na venda, é de ${money(firstCharge)}${withDiscount}; depois, ${money(input.totalValueInCents)} por mês`
     : prorated
-    ? `o plano “${input.planName}” tem ${sessions} por ${money(input.totalValueInCents)}${perSession}; o 1º pagamento, proporcional às aulas até o 1º vencimento, é de ${money(firstCharge)}${withDiscount}; depois, ${money(input.totalValueInCents)} por mês`
+    ? `o ${withQuotedPrefix("plano", input.planName)} tem ${sessions} por ${money(input.totalValueInCents)}${perSession}; o 1º pagamento, proporcional às aulas até o 1º vencimento, é de ${money(firstCharge)}${withDiscount}; depois, ${money(input.totalValueInCents)} por mês`
     : installments > 1
-      ? `o plano “${input.planName}” tem ${sessions} por ${money(input.totalValueInCents)}${perSession}, em ${installments} parcelas; a 1ª parcela é de ${money(firstCharge)}${withDiscount}`
-      : `o valor do plano “${input.planName}” é de ${money(firstCharge)}${withDiscount}, referente a ${sessions}${perSession}`;
+      ? `o ${withQuotedPrefix("plano", input.planName)} tem ${sessions} por ${money(input.totalValueInCents)}${perSession}, em ${installments} parcelas; a 1ª parcela é de ${money(firstCharge)}${withDiscount}`
+      : `o valor do ${withQuotedPrefix("plano", input.planName)} é de ${money(firstCharge)}${withDiscount}, referente a ${sessions}${perSession}`;
   return `Olá, ${patientFirstName(input.patientName)}! Tudo bem? Seja bem-vindo(a)! Para confirmar, ${charge}. Chave Pix: ${input.pixKey}. Assim que fizer o pagamento, envie o comprovante por aqui. Obrigado!`;
 }

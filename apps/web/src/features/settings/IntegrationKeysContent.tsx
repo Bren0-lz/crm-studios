@@ -1,3 +1,4 @@
+import { withPrefix, withQuotedPrefix } from "@crm/contracts";
 import {
   type IntegrationKey,
   type IntegrationKeyCreated,
@@ -186,7 +187,7 @@ export function IntegrationKeysContent() {
           {created && (
             <div className="clinical-form" role="status">
               <div className="success-banner">
-                Chave “{created.key.name}” criada. Copie o token agora: ele não
+                {withQuotedPrefix("Chave", created.key.name)} criada. Copie o token agora: ele não
                 aparece de novo.
               </div>
               <label>
@@ -251,7 +252,7 @@ export function IntegrationKeysContent() {
                     <button
                       type="button"
                       className="danger-button button-sm"
-                      aria-label={`Revogar chave ${key.name}`}
+                      aria-label={`Revogar ${withPrefix("chave", key.name)}`}
                       onClick={() => setRevoking(key)}
                     >
                       Revogar

@@ -1,3 +1,4 @@
+import { withQuotedPrefix } from "@crm/contracts";
 import type {
   WaitlistEntry,
   WaitlistEntryData,
@@ -1994,7 +1995,7 @@ export function patientTagDuplicateError(name: string) {
 export function patientTagInUseError(name: string, patientCount: number) {
   return new DomainError(
     "PATIENT_TAG_IN_USE",
-    `A etiqueta "${name}" está em uso por ${patientCount} ${patientCount === 1 ? "cliente" : "clientes"}. Retire-a desses clientes antes de excluir.`,
+    `A ${withQuotedPrefix("etiqueta", name, ['"', '"'])} está em uso por ${patientCount} ${patientCount === 1 ? "cliente" : "clientes"}. Retire-a desses clientes antes de excluir.`,
     409,
     { patientCount },
   );

@@ -16,6 +16,7 @@ import {
   patientFirstName,
   saoPauloToday,
   serviceAvailableFor,
+  withPrefix,
 } from "@crm/contracts";
 import { useToast } from "../../shared/feedback/toast-context";
 import {
@@ -516,7 +517,7 @@ export function GroupsPage() {
                           weeklySlots: [],
                         });
                         closeGroupDialogs();
-                        return `Turma ${created.name} criada.`;
+                        return `${withPrefix("Turma", created.name)} criada.`;
                       });
                     }}
                   >
@@ -1062,7 +1063,7 @@ export function GroupsPage() {
                                 weeklySlots: editingSlots,
                               });
                               closeGroupDialogs();
-                              return `Turma ${selectedGroup.name} atualizada.`;
+                              return `${withPrefix("Turma", selectedGroup.name)} atualizada.`;
                             });
                           }}
                         >
@@ -1089,7 +1090,8 @@ export function GroupsPage() {
                               {selectedGroup.activeEnrollments === 1
                                 ? "matriculado"
                                 : "matriculados"}{" "}
-                              · Sala {selectedGroup.roomName} comporta até{" "}
+                              · {withPrefix("Sala", selectedGroup.roomName)}{" "}
+                              comporta até{" "}
                               {rooms.find(
                                 (item) => item.id === selectedGroup.roomId,
                               )?.capacity ?? "—"}{" "}

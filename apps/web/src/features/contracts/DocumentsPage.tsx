@@ -1,3 +1,4 @@
+import { withPrefix, withQuotedPrefix } from "@crm/contracts";
 import { usePatientContext } from "../../shared/hooks/usePatientContext";
 import { PatientContextNotice } from "../../shared/components/PatientContextNotice";
 import { DocumentDetailsModal } from "./DocumentDetailsModal";
@@ -262,7 +263,9 @@ export function DocumentsPage() {
       setTemplateForm(emptyTemplateForm);
       setTemplateBaseline(JSON.stringify(emptyTemplateForm));
       setTemplates((current) => [created, ...current]);
-      toast.success(`Modelo “${created.name}” criado com a versão 1.`);
+      toast.success(
+        `${withQuotedPrefix("Modelo", created.name)} criado com a versão 1.`,
+      );
       setActiveTab("modelos");
     } finally {
       creatingTemplateRef.current = false;
@@ -620,7 +623,7 @@ export function DocumentsPage() {
                         <button
                           type="button"
                           className="secondary-button button-sm"
-                          aria-label={`Histórico do modelo ${template.name}`}
+                          aria-label={`Histórico do ${withPrefix("modelo", template.name)}`}
                           onClick={() => setHistoryOf(template)}
                         >
                           <History size={15} aria-hidden="true" /> Histórico
@@ -637,7 +640,7 @@ export function DocumentsPage() {
                           <button
                             type="button"
                             className="text-button button-sm"
-                            aria-label={`Excluir modelo ${template.name}`}
+                            aria-label={`Excluir ${withPrefix("modelo", template.name)}`}
                             onClick={() => setDeletingTemplate(template)}
                           >
                             <Trash2 size={15} aria-hidden="true" /> Excluir
@@ -801,7 +804,9 @@ export function DocumentsPage() {
               current.filter((item) => item.name.toLocaleLowerCase() !== name),
             );
             setDeletingTemplate(null);
-            setNotice(`Modelo “${deletingTemplate.name}” excluído.`);
+            setNotice(
+              `${withQuotedPrefix("Modelo", deletingTemplate.name)} excluído.`,
+            );
           }}
         />
       )}
@@ -880,7 +885,9 @@ export function DocumentsPage() {
               await api.updateDocumentStatus(issuing.id, "issued"),
             );
             setIssuing(null);
-            toast.success(`Contrato “${issuing.title}” emitido.`);
+            toast.success(
+              `${withQuotedPrefix("Contrato", issuing.title)} emitido.`,
+            );
           }}
         >
           <div className="span-2">
@@ -901,7 +908,9 @@ export function DocumentsPage() {
           onCancelled={(updated) => {
             replaceDocument(updated);
             setCancelling(null);
-            toast.success(`Documento “${updated.title}” cancelado.`);
+            toast.success(
+              `${withQuotedPrefix("Documento", updated.title)} cancelado.`,
+            );
           }}
         />
       )}

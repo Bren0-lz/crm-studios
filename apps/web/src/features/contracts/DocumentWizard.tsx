@@ -1,3 +1,4 @@
+import { withQuotedPrefix } from "@crm/contracts";
 import {
   documentContentFromText,
   documentContentText,
@@ -542,7 +543,9 @@ export function DocumentWizard({
           onConfirm={async () => {
             const result = await api.updateDocumentStatus(saved.id, "issued");
             onSaved(result);
-            toast.success(`Contrato “${result.title}” emitido.`);
+            toast.success(
+              `${withQuotedPrefix("Contrato", result.title)} emitido.`,
+            );
             onClose();
           }}
         />

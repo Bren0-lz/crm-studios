@@ -1,3 +1,4 @@
+import { withPrefix } from "@crm/contracts";
 import { branchAddressLine, formatPhone, type Branch } from "@crm/contracts";
 import { Plus } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -115,7 +116,7 @@ export function BranchesContent() {
                   <button
                     type="button"
                     className="secondary-button button-sm"
-                    aria-label={`Editar filial ${branch.name}`}
+                    aria-label={`Editar ${withPrefix("filial", branch.name)}`}
                     onClick={() => {
                       setNotice("");
                       setEditing(branch);

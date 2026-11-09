@@ -11,6 +11,7 @@ import {
   describeGroupSchedule,
   recurringOccurrenceStarts,
   serviceAvailableFor,
+  withPrefix,
   type PackageWeeklySlot,
 } from "@crm/contracts";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -245,11 +246,11 @@ export function PlanPurchaseOptions({
             {group && groupSlots.length > 0 && (
               <section
                 className="group-details"
-                aria-label={`Horários fixos da turma ${group.name}`}
+                aria-label={`Horários fixos da ${withPrefix("turma", group.name)}`}
               >
                 <header>
                   <div>
-                    <strong>{`Turma ${group.name}`}</strong>
+                    <strong>{withPrefix("Turma", group.name)}</strong>
                     <small>{describeGroupSchedule(groupSlots)}</small>
                   </div>
                 </header>

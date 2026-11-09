@@ -1,3 +1,4 @@
+import { withPrefix } from "@crm/contracts";
 import type {
   ClinicCatalogEntry,
   Product,
@@ -452,7 +453,7 @@ export function ProductModal({
                 <legend>Tamanhos deste produto</legend>
                 <p className="field-hint">
                   {categorySizes.length
-                    ? `Tamanhos definidos na categoria ${categoryName ?? ""}. Desmarque os que este produto não tem.`
+                    ? `Tamanhos definidos na ${withPrefix("categoria", categoryName ?? "")}. Desmarque os que este produto não tem.`
                     : "Tamanhos de antes da categoria ter os seus. Desmarque todos para deixar o produto sem tamanhos."}
                 </p>
                 <div className="product-size-grid">

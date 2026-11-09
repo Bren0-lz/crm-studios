@@ -1,4 +1,9 @@
-import type { Appointment, IssuedDocument, PatientPlan } from "@crm/contracts";
+import {
+  withPrefix,
+  type Appointment,
+  type IssuedDocument,
+  type PatientPlan,
+} from "@crm/contracts";
 import { useAuthorization } from "../../authorization-context";
 import {
   issueDocumentForSignature,
@@ -82,11 +87,11 @@ export function PlanModal({
       title={renewing ? "Renovar plano" : "Novo plano"}
       subtitle={
         paying
-          ? `Plano ${paying.name} salvo. Registre o pagamento de ${paying.patientName}.`
+          ? `${withPrefix("Plano", paying.name)} salvo. Registre o pagamento de ${paying.patientName}.`
           : scheduled
-            ? `Plano ${scheduled.plan.name} salvo. Envie as sessões para ${scheduled.plan.patientName} pelo WhatsApp.`
+            ? `${withPrefix("Plano", scheduled.plan.name)} salvo. Envie as sessões para ${scheduled.plan.patientName} pelo WhatsApp.`
             : sending
-              ? `Plano ${sending.plan.name} salvo. Envie o documento para ${sending.plan.patientName} assinar.`
+              ? `${withPrefix("Plano", sending.plan.name)} salvo. Envie o documento para ${sending.plan.patientName} assinar.`
               : renewing
                 ? `${renewing.patientName} · ${renewing.serviceName}. O novo período recebe saldo e parcelas próprios; as sessões restantes do plano atual não são transferidas.`
                 : "O saldo e as contas a receber serão criados na mesma operação."

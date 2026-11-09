@@ -1,4 +1,4 @@
-import { serviceAvailableFor } from "@crm/contracts";
+import { serviceAvailableFor, withPrefix } from "@crm/contracts";
 import { DomainError } from "../../repository.js";
 
 /**
@@ -12,7 +12,7 @@ export function assertProfessionalServesGroup(
   if (service && !serviceAvailableFor(service, professionalId, ""))
     throw new DomainError(
       "SERVICE_NOT_AVAILABLE",
-      `O serviço ${service.name} não é atendido por este profissional.`,
+      `O ${withPrefix("serviço", service.name)} não é atendido por este profissional.`,
       409,
     );
 }

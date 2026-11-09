@@ -1,3 +1,4 @@
+import { withQuotedPrefix } from "@crm/contracts";
 import {
   latestAssessmentTemplates,
   type AssessmentTemplate,
@@ -284,7 +285,7 @@ export function AssessmentTemplateLibrary({
             toast.success(
               saved.status === "draft"
                 ? `Rascunho de “${saved.name}” salvo.`
-                : `Modelo “${saved.name}” publicado na versão ${saved.version}.`,
+                : `${withQuotedPrefix("Modelo", saved.name)} publicado na versão ${saved.version}.`,
             );
             reload();
           }}
@@ -310,8 +311,8 @@ export function AssessmentTemplateLibrary({
             );
             toast.success(
               toggling.active
-                ? `Modelo “${toggling.name}” arquivado.`
-                : `Modelo “${toggling.name}” reativado.`,
+                ? `${withQuotedPrefix("Modelo", toggling.name)} arquivado.`
+                : `${withQuotedPrefix("Modelo", toggling.name)} reativado.`,
             );
             setToggling(null);
             reload();
@@ -381,7 +382,7 @@ export function AssessmentTemplateStudio({
       toast.success(
         status === "draft"
           ? `Rascunho de “${created.name}” salvo.`
-          : `Modelo “${created.name}” publicado.`,
+          : `${withQuotedPrefix("Modelo", created.name)} publicado.`,
       );
       onCreated(created);
     } finally {

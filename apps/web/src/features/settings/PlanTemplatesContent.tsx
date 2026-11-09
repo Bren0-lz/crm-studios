@@ -2,6 +2,7 @@ import {
   type PlanTemplate,
   type Service,
   planTypeLabels,
+  withPrefix,
 } from "@crm/contracts";
 import { Plus } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -154,7 +155,7 @@ export function PlanTemplatesContent() {
                         className="secondary-button button-sm"
                         disabled={savingId !== null}
                         onClick={() => setEditing(item)}
-                        aria-label={`Editar plano ${item.name}`}
+                        aria-label={`Editar ${withPrefix("plano", item.name)}`}
                       >
                         Editar
                       </button>
@@ -167,7 +168,7 @@ export function PlanTemplatesContent() {
                         }
                         disabled={savingId !== null}
                         onClick={() => void toggle(item)}
-                        aria-label={`${item.active ? "Desativar" : "Ativar"} plano ${item.name}`}
+                        aria-label={`${item.active ? "Desativar" : "Ativar"} ${withPrefix("plano", item.name)}`}
                       >
                         {item.active ? "Desativar" : "Ativar"}
                       </button>

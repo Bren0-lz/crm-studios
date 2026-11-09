@@ -1,3 +1,4 @@
+import { withPrefix } from "@crm/contracts";
 import type { MessageTemplate } from "@crm/contracts";
 import {
   ArrowRight,
@@ -71,7 +72,7 @@ function TemplateCard({
       {canManage && (
         <div className="template-card-menu">
           <ActionMenu
-            label={`Mais ações da mensagem ${template.title}`}
+            label={`Mais ações da ${withPrefix("mensagem", template.title)}`}
             iconOnly
             items={[
               { label: "Editar", onSelect: onEdit },

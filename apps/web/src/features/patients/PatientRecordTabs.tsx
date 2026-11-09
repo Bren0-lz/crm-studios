@@ -12,6 +12,7 @@ import {
   patientResidenceTypeLabels,
   planHasSessionBalance,
   planUsedSessions,
+  withPrefix,
 } from "@crm/contracts";
 import { ArrowUpRight, FileClock, Plus, Repeat } from "lucide-react";
 import { type ReactNode, useEffect, useState } from "react";
@@ -679,8 +680,8 @@ export function PatientRecordTabs({
             setNewPlanKind(null);
             toast.success(
               notice
-                ? `Plano ${plan.name} vinculado. ${notice}`
-                : `Plano ${plan.name} vinculado.`,
+                ? `${withPrefix("Plano", plan.name)} vinculado. ${notice}`
+                : `${withPrefix("Plano", plan.name)} vinculado.`,
             );
           }}
           onWaitlisted={(message) => {

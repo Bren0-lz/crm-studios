@@ -1,5 +1,7 @@
 import {
   appointmentSummary,
+  withPrefix,
+  withQuotedPrefix,
   type AppointmentPricing,
   type AutoCampaignPromotionOffer,
 } from "@crm/contracts";
@@ -103,7 +105,9 @@ export function AppointmentOrderSummary({
         };
   const summary = appointmentSummary({ starts, pricing, promotion });
   const several = summary.lines.length > 1;
-  const campaign = promotion ? `campanha “${promotion.campaignName}”` : "";
+  const campaign = promotion
+    ? withQuotedPrefix("campanha", promotion.campaignName)
+    : "";
   const firstPlan = summary.lines[0]?.planName;
   return (
     <fieldset className="form-fieldset span-2 order-summary">
@@ -120,7 +124,7 @@ export function AppointmentOrderSummary({
                 <span className="muted-copy">
                   {occurrenceLabel(line.startsAt)} ·{" "}
                   {line.source === "plan"
-                    ? `Saldo do plano ${line.planName}`
+                    ? `Saldo do ${withPrefix("plano", line.planName ?? "")}`
                     : line.source === "single"
                       ? `Avulso: ${line.planName}`
                       : "Sem plano avulso com valor para este serviço"}
@@ -142,7 +146,10 @@ export function AppointmentOrderSummary({
       {summary.discountNotApplicable && (
         <p className="muted-copy">
           O desconto da {campaign} não vale para{" "}
-          {firstPlan ? `o plano ${firstPlan}` : "atendimento sem plano"}.
+          {firstPlan
+            ? `o ${withPrefix("plano", firstPlan)}`
+            : "atendimento sem plano"}
+          .
         </p>
       )}
       <dl className="order-totals">

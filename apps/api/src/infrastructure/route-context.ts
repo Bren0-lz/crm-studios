@@ -33,6 +33,7 @@ import {
   planAllowsProratedCharge,
   serviceAvailableFor,
   type UserSummary,
+  withPrefix,
   ptBrValidationError,
   validationErrorMessage,
 } from "@crm/contracts";
@@ -720,7 +721,7 @@ export async function createRouteContext({
       )
         throw new DomainError(
           "SERVICE_NOT_AVAILABLE",
-          `O serviço ${service.name} não é atendido por este profissional ou nesta sala.`,
+          `O ${withPrefix("serviço", service.name)} não é atendido por este profissional ou nesta sala.`,
           409,
         );
     }

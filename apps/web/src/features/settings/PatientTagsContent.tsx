@@ -1,3 +1,4 @@
+import { withPrefix, withQuotedPrefix } from "@crm/contracts";
 import {
   patientTagCategoryLabels,
   patientTagDisplayColor,
@@ -248,7 +249,7 @@ export function PatientTagsContent({ canEdit }: { canEdit: boolean }) {
                         <button
                           type="button"
                           className="secondary-button button-sm"
-                          aria-label={`Editar etiqueta ${tag.name}`}
+                          aria-label={`Editar ${withPrefix("etiqueta", tag.name)}`}
                           onClick={() => setEditing(tag)}
                         >
                           Editar
@@ -258,7 +259,7 @@ export function PatientTagsContent({ canEdit }: { canEdit: boolean }) {
                         <button
                           type="button"
                           className="danger-button button-sm"
-                          aria-label={`Excluir etiqueta ${tag.name}`}
+                          aria-label={`Excluir ${withPrefix("etiqueta", tag.name)}`}
                           onClick={() => setDeleting(tag)}
                         >
                           Excluir
@@ -290,8 +291,8 @@ export function PatientTagsContent({ canEdit }: { canEdit: boolean }) {
           subtitle={deleting.name}
           effect={
             deleting.patientCount > 0
-              ? `A etiqueta “${deleting.name}” está em ${countLabel(deleting.patientCount, "cliente", "clientes")}. Etiqueta em uso não pode ser excluída: retire-a desses clientes antes.`
-              : `A etiqueta “${deleting.name}” deixa de aparecer no cadastro dos clientes, nos filtros e nos comunicados.`
+              ? `A ${withQuotedPrefix("etiqueta", deleting.name)} está em ${countLabel(deleting.patientCount, "cliente", "clientes")}. Etiqueta em uso não pode ser excluída: retire-a desses clientes antes.`
+              : `A ${withQuotedPrefix("etiqueta", deleting.name)} deixa de aparecer no cadastro dos clientes, nos filtros e nos comunicados.`
           }
           confirmLabel="Excluir etiqueta"
           danger

@@ -4,6 +4,7 @@ import {
   type GroupClass,
   type Patient,
   whatsappLink,
+  withPrefix,
 } from "@crm/contracts";
 import { api } from "../../api";
 import { Modal, ModalCancelButton } from "../../shared/components/Modal";
@@ -78,7 +79,7 @@ export function WaitlistContactModal({
                 rel="noopener noreferrer"
                 href={whatsappLink(
                   patient.whatsapp || patient.phone,
-                  `Olá, ${patient.fullName}! Surgiu uma vaga na turma ${group?.name}. Você tem interesse?`,
+                  `Olá, ${patient.fullName}! Surgiu uma vaga na ${withPrefix("turma", group?.name ?? "")}. Você tem interesse?`,
                 )}
               >
                 Oferecer vaga pelo WhatsApp
@@ -103,7 +104,7 @@ export function WaitlistContactModal({
         <ActionModal
           eyebrow="Lista de espera"
           title="Confirmar matrícula?"
-          subtitle={`O cliente aceitou a vaga na turma ${group?.name}?`}
+          subtitle={`O cliente aceitou a vaga na ${withPrefix("turma", group?.name ?? "")}?`}
           confirmLabel="Confirmar matrícula"
           onClose={() => setConfirm(false)}
           onConfirm={async () => {

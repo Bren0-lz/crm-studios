@@ -3,6 +3,7 @@ import {
   isReceiptReminderDue,
   resolveReceiptReminderSettings,
   unsignedReceiptPatientCount,
+  withPrefix,
   type Appointment,
   type BranchScope,
   type GroupClass,
@@ -259,7 +260,7 @@ async function agendaItems(
         return {
           kind: "class" as const,
           startsAt: session.startsAt,
-          text: `Turma ${session.groupName} · com ${session.professionalName}${occupancy}`,
+          text: `${withPrefix("Turma", session.groupName)} · com ${session.professionalName}${occupancy}`,
         };
       }),
   ];

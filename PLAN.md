@@ -242,7 +242,7 @@ Gate completo em todos, na ordem da tabela.
 | QV2 | Abas da ficha com o estilo das abas de Configurações (pílula ativa) | DONE |
 | QV3 | Reset de fieldset, `summary` com chevron, tabelas e links do design system | DONE |
 | QV4 | Comanda: grade de 3 colunas com `min-width: 0`, valores à direita, botões com gap | DONE |
-| QV5 | Textos duplicados ("Sala Sala de Dança", "Cliente / Cliente") | TODO |
+| QV5 | Textos duplicados ("Sala Sala de Dança", "Cliente / Cliente") | DONE |
 | QV6 | Barra de progresso do plano com semântica definida e legenda "0 de 8 usadas" | TODO |
 | QV7 | Espaço entre seções em Turmas | TODO |
 | QV8 | `PageHeader` igual em Configurações; botões `button-sm` em Serviços e salas, com preço e duração | TODO |

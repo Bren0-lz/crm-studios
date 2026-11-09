@@ -1,3 +1,4 @@
+import { withPrefix } from "@crm/contracts";
 import {
   EVENT_IMPORT_EXTRA_FIELD,
   eventImportFieldLabels,
@@ -219,7 +220,7 @@ export function EventImportModal({
                       </small>
                     </div>
                     <select
-                      aria-label={`Dado do sistema para a coluna ${title}`}
+                      aria-label={`Dado do sistema para a ${withPrefix("coluna", title)}`}
                       value={mapping[column.index] ?? ""}
                       disabled={loading}
                       onChange={(e) =>

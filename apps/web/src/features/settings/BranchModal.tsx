@@ -1,3 +1,4 @@
+import { withQuotedPrefix } from "@crm/contracts";
 import {
   brazilianStates,
   MAX_BRANCH_PHONES,
@@ -128,7 +129,7 @@ export function BranchModal({
     if (incomplete >= 0) {
       setError(
         phones[incomplete]!.label
-          ? `Informe o telefone "${phones[incomplete]!.label}" com DDD.`
+          ? `Informe o ${withQuotedPrefix("telefone", phones[incomplete]!.label, ['"', '"'])} com DDD.`
           : "Informe cada telefone com DDD ou remova a linha vazia.",
       );
       return;

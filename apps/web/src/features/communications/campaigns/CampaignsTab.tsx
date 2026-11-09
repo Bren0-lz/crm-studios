@@ -1,3 +1,4 @@
+import { withPrefix } from "@crm/contracts";
 import type {
   MessageTemplate,
   PatientOption,
@@ -58,7 +59,7 @@ function CampaignRow({ campaign }: { campaign: WhatsappCampaign }) {
         type="button"
         className={done ? "secondary-button" : "primary-button"}
         onClick={() => void navigate(campaignPath(campaign.id))}
-        aria-label={`${done ? "Ver" : "Continuar"} campanha ${campaign.name}`}
+        aria-label={`${done ? "Ver" : "Continuar"} ${withPrefix("campanha", campaign.name)}`}
       >
         {done ? "Ver" : "Continuar"}
         <ArrowRight size={16} aria-hidden="true" />

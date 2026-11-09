@@ -971,7 +971,7 @@ describe("application shell", () => {
     );
     expect(nameSelect).toHaveValue("");
     expect(
-      within(dialog).getByLabelText("Dado do sistema para a coluna Coluna 4"),
+      within(dialog).getByLabelText("Dado do sistema para a Coluna 4"),
     ).toBeInTheDocument();
 
     fireEvent.change(nameSelect, { target: { value: "fullName" } });
@@ -984,7 +984,7 @@ describe("application shell", () => {
     );
     // Escolher Telefone numa coluna e depois em outra deixa a primeira como "Não importar".
     fireEvent.change(
-      within(dialog).getByLabelText("Dado do sistema para a coluna Coluna 4"),
+      within(dialog).getByLabelText("Dado do sistema para a Coluna 4"),
       { target: { value: "phone" } },
     );
     // Sem WhatsApp, contato de emergência e e-mail: etiquetas automáticas da CD3.
@@ -1006,7 +1006,7 @@ describe("application shell", () => {
       ["fullName", "cpf", "phone", null],
     ]);
     expect(
-      within(dialog).getByLabelText("Dado do sistema para a coluna Coluna 4"),
+      within(dialog).getByLabelText("Dado do sistema para a Coluna 4"),
     ).toHaveValue("");
 
     fireEvent.click(
