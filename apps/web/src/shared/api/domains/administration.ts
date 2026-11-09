@@ -144,6 +144,11 @@ export const administrationApi = {
       method: "POST",
       body: JSON.stringify({ password }),
     }),
+  /** Senha atual do usuário (só admin). Cada chamada fica registrada no histórico. */
+  revealUserPassword: (id: string) =>
+    request<{ password: string }>(`/admin/users/${id}/reveal-password`, {
+      method: "POST",
+    }),
   clinicSettings: () => request<ClinicSettings>("/admin/clinic-settings"),
   /** Parcelamento aceito por forma de pagamento (todos leem; só o admin altera). */
   paymentMethodSettings: () =>

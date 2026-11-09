@@ -605,7 +605,8 @@ export interface ClinicRepository {
     clinicId: string,
     actorUserId: string,
     input: AdminUserInput,
-    passwordHash: string,
+    /** Par de `preparePassword`; texto puro = só o hash, sem cópia consultável (testes e seeds). */
+    password: PasswordToStore,
     /** Recalcula as comissões alcançadas pelas regras gravadas (mesma transação). */
     recalculation?: CommissionRecalculationRequest,
   ): Promise<AdminUser>;
@@ -617,12 +618,27 @@ export interface ClinicRepository {
     /** Recalcula as comissões alcançadas pelas regras gravadas (mesma transação). */
     recalculation?: CommissionRecalculationRequest,
   ): Promise<AdminUser | null>;
+  /** Troca a senha (hash e cópia cifrada), derruba as sessões e audita `user.password_reset`. */
   resetAdminUserPassword(
     clinicId: string,
     actorUserId: string,
     userId: string,
-    passwordHash: string,
+    password: PasswordToStore,
   ): Promise<boolean>;
+  /**
+   * Só para `POST /admin/users/:id/reveal-password`: a cópia cifrada da senha do usuário da
+   * clínica. `found: false` = usuário inexistente; `encrypted: null` = sem cópia (senha antiga).
+   */
+  findUserPasswordEncrypted(
+    clinicId: string,
+    userId: string,
+  ): Promise<{ found: boolean; encrypted: string | null }>;
+  /** Audita `user.password_viewed` (sem nenhum valor de senha), antes de a senha ser exibida. */
+  recordUserPasswordViewed(
+    clinicId: string,
+    actorUserId: string,
+    userId: string,
+  ): Promise<void>;
   /** Perfil do próprio usuário (foto e profissional ligado); `null` = usuário inexistente. */
   getOwnProfile(clinicId: string, userId: string): Promise<OwnProfile | null>;
   /**
@@ -1968,6 +1984,20 @@ export interface ClinicRepository {
     from: string,
     to: string,
   ): Promise<ReceivedPayment[]>;
+}
+
+/**
+ * Senha a gravar: o par `{ passwordHash, passwordEncrypted }` de `preparePassword` ou, em
+ * testes e seeds, só o hash (o usuário fica sem cópia consultável).
+ */
+export type PasswordToStore =
+  string | { passwordHash: string; passwordEncrypted: string };
+
+/** Separa o hash e a cópia cifrada (`null` quando só veio o hash). */
+export function passwordColumns(password: PasswordToStore) {
+  return typeof password === "string"
+    ? { passwordHash: password, passwordEncrypted: null }
+    : password;
 }
 
 export class DomainError extends Error {

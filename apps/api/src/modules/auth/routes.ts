@@ -5,10 +5,11 @@ import {
   type ApiError,
   type UserSummary,
 } from "@crm/contracts";
-import { compare, hash } from "bcryptjs";
+import { compare } from "bcryptjs";
 import { config } from "../../config.js";
 import type { RouteContext } from "../../infrastructure/route-context.js";
 import { DomainError } from "../../repository.js";
+import { preparePassword } from "../../security/password-storage.js";
 import { inspectClinicalAttachment } from "../clinical/clinical-integrity.js";
 
 export function registerAuthRoutes(context: RouteContext) {
@@ -158,7 +159,7 @@ export function registerAuthRoutes(context: RouteContext) {
       clinicId,
       sub,
       sub,
-      await hash(input.newPassword, 12),
+      await preparePassword(input.newPassword),
     );
     const updated = (await repository.findUserById(clinicId, sub))!;
     return { token: signSession(updated), user: await withAvatar(updated) };

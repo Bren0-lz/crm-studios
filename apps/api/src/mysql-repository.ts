@@ -344,6 +344,10 @@ export class MysqlClinicRepository implements ClinicRepository {
     this.createAdminUser = this.administration.createAdminUser;
     this.updateAdminUser = this.administration.updateAdminUser;
     this.resetAdminUserPassword = this.administration.resetAdminUserPassword;
+    this.findUserPasswordEncrypted =
+      this.administration.findUserPasswordEncrypted;
+    this.recordUserPasswordViewed =
+      this.administration.recordUserPasswordViewed;
     this.getOwnProfile = this.administration.getOwnProfile;
     this.updateOwnProfile = this.administration.updateOwnProfile;
     this.getClinicSettings = this.administration.getClinicSettings;
@@ -596,6 +600,14 @@ export class MysqlClinicRepository implements ClinicRepository {
   readonly resetAdminUserPassword: ReturnType<
     typeof createAdministrationRepository
   >["resetAdminUserPassword"];
+
+  readonly findUserPasswordEncrypted: ReturnType<
+    typeof createAdministrationRepository
+  >["findUserPasswordEncrypted"];
+
+  readonly recordUserPasswordViewed: ReturnType<
+    typeof createAdministrationRepository
+  >["recordUserPasswordViewed"];
 
   readonly getOwnProfile: ReturnType<
     typeof createAdministrationRepository

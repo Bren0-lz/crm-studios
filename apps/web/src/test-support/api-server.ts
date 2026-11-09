@@ -11,6 +11,8 @@ vi.mock("../../../api/src/config.js", () => ({
     NODE_ENV: "test",
     WEB_ORIGIN: "http://localhost:5173",
     JWT_SECRET: "isolated-dom-api-tests-with-at-least-32-characters",
+    // Chave fixa só dos testes (32 bytes em base64) para a cópia cifrada das senhas.
+    PASSWORD_ENCRYPTION_KEY: "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=",
   },
 }));
 

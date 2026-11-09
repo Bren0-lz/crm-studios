@@ -942,7 +942,7 @@ describe("users and permissions", () => {
     fireEvent.click(
       await screen.findByRole("button", { name: "Redefinir senha" }),
     );
-    const resetDialog = screen.getByRole("dialog", { name: "Redefinir senha" });
+    const resetDialog = screen.getByRole("dialog", { name: "Senha de acesso" });
     fireEvent.change(within(resetDialog).getByLabelText("Nova senha"), {
       target: { value: "Bb2" },
     });

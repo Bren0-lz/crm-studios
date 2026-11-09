@@ -27,6 +27,9 @@ const configSchema = z.object({
   // Quantos proxies à frente da API são confiáveis para ler o IP do cliente em
   // X-Forwarded-For (1 atrás do proxy da Hostinger). 0 ignora o cabeçalho, que o próprio cliente pode forjar.
   TRUST_PROXY: z.coerce.number().int().min(0).max(10).default(0),
+  // Chave da cópia cifrada das senhas (32 bytes em base64), que o admin pode consultar.
+  // Opcional: sem ela o login continua, mas criar ou trocar senha falha.
+  PASSWORD_ENCRYPTION_KEY: z.string().optional(),
   SEED_DEMO_DATA: z
     .enum(["true", "false"])
     .default("true")

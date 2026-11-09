@@ -602,6 +602,18 @@ export class MemoryRepositoryContext {
   /** WhatsApp por usuário (`users.whatsapp` no PostgreSQL). */
   readonly userWhatsapps = new Map<string, string>();
 
+  /**
+   * Cópia cifrada da senha por usuário (`users.password_encrypted` no MySQL). Fica fora de
+   * `users` para nunca sair em `toAdminUser`/`toUserSummary`; só `findUserPasswordEncrypted` lê.
+   */
+  readonly userPasswordCopies = new Map<string, string>();
+
+  /** Grava a cópia nova ou, quando só veio o hash, apaga a anterior (que já não confere). */
+  setUserPasswordCopy(userId: string, encrypted: string | null) {
+    if (encrypted) this.userPasswordCopies.set(userId, encrypted);
+    else this.userPasswordCopies.delete(userId);
+  }
+
   readonly users: AuthenticatedUser[] = [
     {
       id: "22222222-2222-4222-8222-222222222222",

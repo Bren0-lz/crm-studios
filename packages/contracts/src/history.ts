@@ -259,6 +259,11 @@ export const historyActions: {
     label: "Senha redefinida",
   },
   {
+    action: "user.password_viewed",
+    module: "settings",
+    label: "Senha visualizada",
+  },
+  {
     action: "users.permissions_updated",
     module: "settings",
     label: "Permissões de acesso alteradas",
