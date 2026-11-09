@@ -1062,42 +1062,14 @@
   gap: var(--space-1);
 }
 
-/* Abas da ficha: sublinhado no ativo, sem cara de botão. */
-.patient-record-tabs > [role="tablist"] {
-  display: flex;
-  gap: var(--space-5);
-  padding: 0 calc(var(--space-5) - 1px);
-  overflow-x: auto;
-  border-bottom: 1px solid var(--line);
-  scrollbar-width: thin;
+/* Abas da ficha: as mesmas pílulas das abas de Configurações (QV2). */
+.patient-record-tabs {
+  display: grid;
+  gap: var(--space-4);
+  min-width: 0;
 }
-.patient-record-tabs .tab-button {
-  flex: 0 0 auto;
-  min-height: calc(var(--space-7) + var(--space-1));
-  padding: 0 var(--space-1);
-  border: 0;
-  border-bottom: 2px solid transparent;
-  background: transparent;
-  color: var(--muted);
-  font: inherit;
-  font-size: var(--text-md);
-  font-weight: 600;
-  white-space: nowrap;
-  cursor: pointer;
-  transition:
-    color 0.15s ease,
-    border-color 0.15s ease;
-}
-.patient-record-tabs .tab-button:hover {
-  color: var(--ink);
-}
-.patient-record-tabs .tab-button.active {
-  border-bottom-color: var(--green);
-  color: var(--green);
-}
-.patient-record-tabs .tab-button:focus-visible {
-  outline: 2px solid var(--green-2);
-  outline-offset: -2px;
+.settings-tabs.patient-record-tablist {
+  margin-bottom: 0;
 }
 .patient-tab-panel {
   padding: var(--space-4) calc(var(--space-5) - 1px) var(--space-5);
