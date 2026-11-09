@@ -854,7 +854,9 @@ atualizado no mesmo PR):
 - **Escopo:** nada de envio em massa até a resposta.
 - **Gate:** gate completo
 - **Depende de:** EV6
-- **Status:** BLOCKED
+- **Decisão do dono (09/11/2026):** incluir os participantes do evento como público nas Campanhas
+  que já existem (sem envio em massa novo).
+- **Status:** TODO
 
 ### RC1 — Recibo para assinatura: modelo, migração e repositório
 
@@ -1074,7 +1076,9 @@ atualizado no mesmo PR):
 - **Escopo:** ajustar o padrão de perfis da TG1 e o texto da TG3 conforme as respostas.
 - **Gate:** gate completo
 - **Depende de:** TG5
-- **Status:** BLOCKED
+- **Decisão do dono (09/11/2026):** token continua em variável de ambiente no hPanel; os avisos vão
+  para grupos do Telegram, um por tipo de registro (feito na EN5); "cliente novo" = cadastro.
+- **Status:** DONE (decidido; implementação na EN5)
 
 ### CM1 — Variável "Inserir endereço" da filial
 
@@ -1408,8 +1412,9 @@ filtros ficam no `dashboard-studios` (EN11–EN13 têm só a parte da API aqui).
 - **Escopo:** só textos visíveis (sem renomear `clinic_id`/`clinics`); chaves de variáveis
   mantidas, rótulo "Nome do estúdio".
 - **Gate:** gate completo
-- **Pendente com o dono:** manter os termos clínicos do prontuário?
-- **Status:** BLOCKED
+- **Decisão do dono (09/11/2026):** trocar "clínica" por "estúdio" em todos os textos visíveis,
+  inclusive no prontuário ("equipe do estúdio" etc.).
+- **Status:** TODO
 
 ### EN11 — Modalidade Pilates/Dança nos serviços (11, parte da API)
 
@@ -1425,8 +1430,9 @@ filtros ficam no `dashboard-studios` (EN11–EN13 têm só a parte da API aqui).
 - **Escopo:** `formatPaymentHistoryForWhatsApp` nos contratos; filtros e "Copiar" na aba
   Financeiro da ficha.
 - **Gate:** gate completo
-- **Pendente com o dono:** "Copiar" na ficha do CRM, no `dashboard-studios` ou nos dois?
-- **Status:** BLOCKED
+- **Decisão do dono (09/11/2026):** "Copiar" na ficha do CRM e no `dashboard-studios` (aqui, a
+  parte do CRM e o helper nos contratos).
+- **Status:** TODO
 
 ### EN13 — Relatório e backup do dashboard em Excel (13, parte da API)
 
@@ -1459,6 +1465,5 @@ filtros ficam no `dashboard-studios` (EN11–EN13 têm só a parte da API aqui).
 
 - **Escopo:** rota `/ajuda` com o guia estático (sumário do documento).
 - **Gate:** gate completo
-- **Pendente com o dono:** autorizar o guia dentro do sistema (o CLAUDE.md proíbe documentos
-  novos sem autorização)?
-- **Status:** BLOCKED
+- **Decisão do dono (09/11/2026):** fica para depois.
+- **Status:** BLOCKED (adiada pelo dono)
