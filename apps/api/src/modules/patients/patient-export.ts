@@ -7,6 +7,7 @@ import {
   type Patient,
   type PatientExportColumn,
   type PatientExportFilter,
+  type PatientLeadOrigin,
   type PatientPlan,
   splitPhone,
 } from "@crm/contracts";
@@ -72,6 +73,32 @@ function clinicDate(timestamp: string) {
   }).format(new Date(timestamp));
 }
 
+/**
+ * Coluna "Origem: evento/lead" (EN3b): por cliente, "Evento: <nome>" (lead de evento) ou
+ * "Lead" (do funil), na ordem dos leads (mais antigo primeiro), sem repetir, separados por "; ".
+ * Cliente sem lead convertido fica fora do mapa (célula vazia).
+ */
+export function patientLeadOriginLabels(
+  origins: PatientLeadOrigin[],
+): Map<string, string> {
+  const labels = new Map<string, string[]>();
+  for (const origin of origins) {
+    const label = origin.eventName ? `Evento: ${origin.eventName}` : "Lead";
+    const current = labels.get(origin.patientId) ?? [];
+    if (!current.includes(label))
+      labels.set(origin.patientId, [...current, label]);
+  }
+  return new Map(
+    [...labels].map(([patientId, items]) => [patientId, items.join("; ")]),
+  );
+}
+
+/** Dados de fora do cadastro usados por alguma coluna. */
+export interface PatientExportExtras {
+  /** Ver `patientLeadOriginLabels`. */
+  leadOrigins?: ReadonlyMap<string, string>;
+}
+
 /** Colunas de telefone saem em duas: DDD e número. */
 const phoneExportColumns = new Set<PatientExportColumn>([
   "phone",
@@ -79,8 +106,16 @@ const phoneExportColumns = new Set<PatientExportColumn>([
   "emergencyContactPhone",
   "guardianPhone",
 ]);
+const isPhoneColumn = (
+  column: PatientExportColumn,
+): column is "phone" | "whatsapp" | "emergencyContactPhone" | "guardianPhone" =>
+  phoneExportColumns.has(column);
 
-function textValue(patient: Patient, column: PatientExportColumn): string {
+function textValue(
+  patient: Patient,
+  column: PatientExportColumn,
+  extras: PatientExportExtras,
+): string {
   switch (column) {
     case "gender":
       return (
@@ -112,6 +147,8 @@ function textValue(patient: Patient, column: PatientExportColumn): string {
       return clinicDate(patient.createdAt);
     case "extraFields":
       return formatExtraFields(patient.extraFields);
+    case "leadOrigin":
+      return extras.leadOrigins?.get(patient.id) ?? "";
     default:
       return String(patient[column] ?? "");
   }
@@ -124,8 +161,12 @@ function columnHeaders(column: PatientExportColumn): string[] {
     : [header];
 }
 
-function cellValues(patient: Patient, column: PatientExportColumn): string[] {
-  if (!phoneExportColumns.has(column)) return [textValue(patient, column)];
+function cellValues(
+  patient: Patient,
+  column: PatientExportColumn,
+  extras: PatientExportExtras,
+): string[] {
+  if (!isPhoneColumn(column)) return [textValue(patient, column, extras)];
   const { ddd, number } = splitPhone(String(patient[column] ?? ""));
   return [ddd, number];
 }
@@ -134,11 +175,12 @@ function cellValues(patient: Patient, column: PatientExportColumn): string[] {
 export function patientExportRows(
   patients: Patient[],
   columns: PatientExportColumn[],
+  extras: PatientExportExtras = {},
 ): string[][] {
   return [
     columns.flatMap(columnHeaders),
     ...patients.map((patient) =>
-      columns.flatMap((column) => cellValues(patient, column)),
+      columns.flatMap((column) => cellValues(patient, column, extras)),
     ),
   ];
 }
@@ -147,20 +189,24 @@ export function patientExportRows(
 export function patientsToCsv(
   patients: Patient[],
   columns: PatientExportColumn[],
+  extras: PatientExportExtras = {},
 ): string {
   const escape = (text: string) =>
     /[;"\r\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
-  const lines = patientExportRows(patients, columns).map((row) =>
+  const lines = patientExportRows(patients, columns, extras).map((row) =>
     row.map(escape).join(";"),
   );
   return `\uFEFF${lines.join("\r\n")}\r\n`;
 }
 
 /** Datas como data do Excel (filtro por período funciona); o resto como no CSV. */
-function sheetColumns(columns: PatientExportColumn[]): SheetColumn<Patient>[] {
+function sheetColumns(
+  columns: PatientExportColumn[],
+  extras: PatientExportExtras,
+): SheetColumn<Patient>[] {
   return columns.flatMap((column): SheetColumn<Patient>[] => {
     const header = patientExportColumnLabels[column];
-    if (phoneExportColumns.has(column))
+    if (isPhoneColumn(column))
       return phoneColumns(header, (patient) => String(patient[column] ?? ""));
     if (column === "birthDate" || column === "clientSince")
       return [
@@ -178,15 +224,16 @@ function sheetColumns(columns: PatientExportColumn[]): SheetColumn<Patient>[] {
           value: (patient) => sheetDateTime(patient.createdAt),
         },
       ];
-    return [{ header, value: (patient) => textValue(patient, column) }];
+    return [{ header, value: (patient) => textValue(patient, column, extras) }];
   });
 }
 
 export async function patientsToXlsx(
   patients: Patient[],
   columns: PatientExportColumn[],
+  extras: PatientExportExtras = {},
 ): Promise<Buffer> {
   const workbook = createWorkbook();
-  addTableSheet(workbook, "Clientes", sheetColumns(columns), patients);
+  addTableSheet(workbook, "Clientes", sheetColumns(columns, extras), patients);
   return workbookBuffer(workbook);
 }

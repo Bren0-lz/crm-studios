@@ -1,3 +1,4 @@
+import { withQuotedPrefix } from "@crm/contracts";
 import {
   LEAD_WON_STAGE,
   type LeadStageConfig,
@@ -80,8 +81,8 @@ export function stageNotEmptyError(
   return new DomainError(
     "LEAD_STAGE_NOT_EMPTY",
     item.reason === "removed"
-      ? `A etapa "${item.label}" tem ${count}. Mova-os para outra etapa antes de removê-la.`
-      : `A etapa "${item.label}" tem ${count} em aberto. Mova-os para outra etapa antes de torná-la a etapa final.`,
+      ? `A ${withQuotedPrefix("etapa", item.label, ['"', '"'])} tem ${count}. Mova-os para outra etapa antes de removê-la.`
+      : `A ${withQuotedPrefix("etapa", item.label, ['"', '"'])} tem ${count} em aberto. Mova-os para outra etapa antes de torná-la a etapa final.`,
     409,
   );
 }

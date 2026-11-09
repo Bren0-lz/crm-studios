@@ -364,6 +364,7 @@ export const patientExportColumnSchema = z.enum(
     "emergencyContactPhone",
     "notes",
     "createdAt",
+    "leadOrigin",
     ...patientProfileSchema.keyof().options,
     "extraFields",
   ],
@@ -372,7 +373,10 @@ export const patientExportColumnSchema = z.enum(
 
 export const patientExportColumns = patientExportColumnSchema.options;
 export const patientDefaultExportColumns = patientExportColumns.filter(
-  (column) => !(column in patientProfileLabels) && column !== "extraFields",
+  (column) =>
+    !(column in patientProfileLabels) &&
+    column !== "extraFields" &&
+    column !== "leadOrigin",
 );
 
 /** Cabeçalho pt-BR de cada coluna (coerente com o modelo de importação). */
@@ -391,6 +395,7 @@ export const patientExportColumnLabels: Record<PatientExportColumn, string> = {
   emergencyContactPhone: "Telefone de emergência",
   notes: "Observações",
   createdAt: "Cadastrado em",
+  leadOrigin: "Origem: evento/lead",
   extraFields: EXTRA_FIELDS_LABEL,
 };
 

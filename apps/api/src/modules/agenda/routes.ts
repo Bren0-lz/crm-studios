@@ -3,6 +3,7 @@ import {
   DEFAULT_CLINIC_TIMEZONE,
 } from "../finance/daily-cash.js";
 import { assertAppointmentPlan } from "./required-plan.js";
+import { publishAppointmentsCreated } from "../../infrastructure/domain-events.js";
 import { registerAgendaNoteRoutes } from "./notes-routes.js";
 import {
   agendaConflict,
@@ -51,6 +52,7 @@ export function registerAgendaRoutes(context: RouteContext) {
     assertServiceAvailable,
     assertPermissions,
     autoFinalizer,
+    events,
   } = context;
   const professionalScope = agendaProfessionalScope(context);
 
@@ -336,11 +338,19 @@ export function registerAgendaRoutes(context: RouteContext) {
             promotion,
           )
         : undefined;
-      return reply.status(201).send(
-        await repository.createAppointment(request.user.clinicId, input, {
-          promotion: redemption,
-        }),
+      const appointment = await repository.createAppointment(
+        request.user.clinicId,
+        input,
+        { promotion: redemption },
       );
+      // Depois do commit: o aviso (TG3) não participa da gravação.
+      await publishAppointmentsCreated(
+        events,
+        request.user.clinicId,
+        request.user.sub,
+        [appointment],
+      );
+      return reply.status(201).send(appointment);
     },
   );
 
@@ -368,15 +378,19 @@ export function registerAgendaRoutes(context: RouteContext) {
             promotion,
           )
         : undefined;
-      return reply
-        .status(201)
-        .send(
-          await repository.createRecurringAppointments(
-            request.user.clinicId,
-            input,
-            { promotion: redemption },
-          ),
-        );
+      const appointments = await repository.createRecurringAppointments(
+        request.user.clinicId,
+        input,
+        { promotion: redemption },
+      );
+      // Um evento para a série inteira: o aviso resume as sessões.
+      await publishAppointmentsCreated(
+        events,
+        request.user.clinicId,
+        request.user.sub,
+        appointments,
+      );
+      return reply.status(201).send(appointments);
     },
   );
 
@@ -523,8 +537,8 @@ export function registerAgendaRoutes(context: RouteContext) {
       const changed =
         Boolean(planId) &&
         (new Date(input.startsAt).getTime() !== Date.parse(current.startsAt) ||
-        input.professionalId !== current.professionalId ||
-        input.roomId !== current.roomId ||
+          input.professionalId !== current.professionalId ||
+          input.roomId !== current.roomId ||
           planId !== current.planId);
       if (changed)
         await assertAppointmentPlan(
@@ -754,6 +768,13 @@ export function registerAgendaRoutes(context: RouteContext) {
           code: "LEAD_NOT_FOUND",
           message: "Lead não encontrado.",
         });
+      // Aula experimental de lead também é agendamento: entra no aviso.
+      await publishAppointmentsCreated(
+        events,
+        request.user.clinicId,
+        request.user.sub,
+        [appointment],
+      );
       return reply.status(201).send(appointment);
     },
   );

@@ -231,20 +231,20 @@ Gate completo em todos, na ordem da tabela.
 | QM13 | Toast em toda mutação (matrícula, reposição, NPS); sino com aniversários, parcelas vencidas e atendimentos a finalizar, com skeleton | DONE |
 | QM14 | "Confirmar" desativado listando etapas faltantes; erro do SOAP uma vez só | DONE |
 | QM15 | Sem "movimenta", UUID ou código de seed na interface ("Comanda nº 12") | DONE |
-| QM16 | Histórico: um evento por ação, resumo com cliente, valor e objeto | TODO |
-| QM17 | Linha de profissionais da agenda fixa ao rolar; botão "Hoje" em todas as visões | TODO |
+| QM16 | Histórico: um evento por ação, resumo com cliente, valor e objeto | BLOCKED (3 reprovações; ver `diario/2026-11-09-QM16.md`) |
+| QM17 | Linha de profissionais da agenda fixa ao rolar; botão "Hoje" em todas as visões | DONE |
 
 ### Fase 3 — Visual
 
 | ID | Item | Status |
 |----|------|--------|
-| QV1 | Barra lateral não pula ao abrir modal (compensação dupla gutter + padding?) | TODO |
-| QV2 | Abas da ficha com o estilo das abas de Configurações (pílula ativa) | TODO |
-| QV3 | Reset de fieldset, `summary` com chevron, tabelas e links do design system | TODO |
-| QV4 | Comanda: grade de 3 colunas com `min-width: 0`, valores à direita, botões com gap | TODO |
-| QV5 | Textos duplicados ("Sala Sala de Dança", "Cliente / Cliente") | TODO |
-| QV6 | Barra de progresso do plano com semântica definida e legenda "0 de 8 usadas" | TODO |
-| QV7 | Espaço entre seções em Turmas | TODO |
+| QV1 | Barra lateral não pula ao abrir modal (compensação dupla gutter + padding?) | DONE |
+| QV2 | Abas da ficha com o estilo das abas de Configurações (pílula ativa) | DONE |
+| QV3 | Reset de fieldset, `summary` com chevron, tabelas e links do design system | DONE |
+| QV4 | Comanda: grade de 3 colunas com `min-width: 0`, valores à direita, botões com gap | DONE |
+| QV5 | Textos duplicados ("Sala Sala de Dança", "Cliente / Cliente") | DONE |
+| QV6 | Barra de progresso do plano com semântica definida e legenda "0 de 8 usadas" | DONE |
+| QV7 | Espaço entre seções em Turmas | DONE |
 | QV8 | `PageHeader` igual em Configurações; botões `button-sm` em Serviços e salas, com preço e duração | TODO |
 | QV9 | Legenda da agenda em uma linha/popover; colunas do kanban com `min-width` e indicação de rolagem | TODO |
 | QV10 | Sem borda/faixa lateral colorida em nenhum lugar do sistema, inclusive a agenda (pedido do dono, 19/10) — ver abaixo | TODO |
@@ -1034,7 +1034,7 @@ atualizado no mesmo PR):
   - Testes API.
 - **Gate:** gate completo
 - **Depende de:** TG2
-- **Status:** TODO
+- **Status:** DONE
 
 ### TG4 — Comandos do bot: dia, semana e mês
 
@@ -1048,7 +1048,7 @@ atualizado no mesmo PR):
   - Testes API com cliente falso.
 - **Gate:** gate completo
 - **Depende de:** TG3
-- **Status:** TODO
+- **Status:** DONE
 
 ### TG5 — Outras métricas no Telegram
 
@@ -1361,7 +1361,7 @@ filtros ficam no `dashboard-studios` (EN11–EN13 têm só a parte da API aqui).
   dos leads (memória e MySQL).
 - **Gate:** gate completo + `npm run test:mysql`
 - **Depende de:** EN3
-- **Status:** TODO
+- **Status:** DONE
 
 ### EN2 — Exportar participantes do evento (2)
 
@@ -1370,15 +1370,17 @@ filtros ficam no `dashboard-studios` (EN11–EN13 têm só a parte da API aqui).
   participantes".
 - **Gate:** gate completo
 - **Depende de:** EN1
-- **Status:** TODO
+- **Status:** DONE
 
 ### EN4 — Limpeza dos dados de teste (4)
 
 - **Escopo:** `db-cleanup.ts` e `npm run db:cleanup-test-data`: simulação por padrão,
   `--execute --confirm=<nome do estúdio>`, backup antes, uma transação na ordem das FKs.
 - **Gate:** gate completo + `npm run test:mysql`
-- **Pendente com o dono:** zerar todo o operacional ou só o que tem "teste" no nome?
-- **Status:** BLOCKED
+- **Decisão do dono (08–09/11/2026):** apagar todos os dados e deixar só um admin
+  (`admin@studios.com`). Feito à mão no banco de produção, pelo phpMyAdmin, com um script SQL
+  avulso; o comando `db:cleanup-test-data` saiu do PR a pedido do dono.
+- **Status:** DONE
 
 ### EN7 — Renomear para "Organiza Estúdios" (7)
 
@@ -1425,7 +1427,8 @@ filtros ficam no `dashboard-studios` (EN11–EN13 têm só a parte da API aqui).
 - **Escopo:** `GET /reports/dashboard-backup.xlsx` com abas Turmas, Calendário e Lista de
   espera (período até 31 dias, filial ativa, valores só com `finance.view`).
 - **Gate:** gate completo
-- **Status:** TODO
+- **Pendente com o dono:** como calcular os "horários livres" da aba Calendário? O CRM não guarda expediente nem disponibilidade de profissional.
+- **Status:** BLOCKED
 
 ### EN5 — Telegram: agenda para a profissional (5)
 
@@ -1441,7 +1444,7 @@ filtros ficam no `dashboard-studios` (EN11–EN13 têm só a parte da API aqui).
   status único por participante, busca/filtro e remover participante.
 - **Gate:** gate completo + `npm run test:mysql`
 - **Depende de:** EN2
-- **Status:** TODO
+- **Status:** DONE
 
 ### EN14 — Guia de uso (14)
 

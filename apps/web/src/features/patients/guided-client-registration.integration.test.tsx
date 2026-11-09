@@ -911,7 +911,7 @@ describe("guided client registration", () => {
     );
     expect(
       await screen.findByText(
-        "Plano “Pilates 2x semana” criado. Serviço avulso “Serviço avulso” criado.",
+        "Plano “Pilates 2x semana” criado. “Serviço avulso” criado.",
       ),
     ).toBeInTheDocument();
     expect(posts[0]).toMatchObject({
@@ -1103,7 +1103,7 @@ describe("guided client registration", () => {
       }),
     );
     expect(
-      await screen.findByText(/Serviço avulso .* criado/),
+      await screen.findByText("“Serviço avulso” criado."),
     ).toBeInTheDocument();
     expect(
       screen.queryByRole("dialog", { name: "Cliente cadastrado" }),

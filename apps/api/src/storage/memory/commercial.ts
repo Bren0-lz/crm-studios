@@ -193,6 +193,7 @@ export function createCommercialRepository(
         if (plan.kind !== "link") continue;
         lead.convertedPatientId = plan.patientId;
         lead.stage = "won";
+        repositoryContext.leadConvertedAt.set(lead.id, lead.createdAt);
         const patient = repositoryContext.patients.find(
           (item) => item.clinicId === clinicId && item.id === plan.patientId,
         );
@@ -365,6 +366,7 @@ export function createCommercialRepository(
       lead.stage = "won";
       delete lead.lostReason;
       lead.updatedAt = now();
+      repositoryContext.leadConvertedAt.set(lead.id, lead.updatedAt);
       return { lead, patient, reusedExisting };
     },
 

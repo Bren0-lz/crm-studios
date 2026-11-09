@@ -1,9 +1,10 @@
-import type {
-  Appointment,
-  IssuedDocument,
-  PatientOption,
-  PatientPlan,
-  Service,
+import {
+  withPrefix,
+  type Appointment,
+  type IssuedDocument,
+  type PatientOption,
+  type PatientPlan,
+  type Service,
 } from "@crm/contracts";
 import { useEffect, useState } from "react";
 import { api } from "../../api";
@@ -118,11 +119,11 @@ export function PatientPlanModal({
       title={kind === "single" ? "Novo plano avulso" : "Novo plano recorrente"}
       subtitle={
         paying
-          ? `Plano ${paying.name} salvo. Registre o pagamento de ${patient.fullName}.`
+          ? `${withPrefix("Plano", paying.name)} salvo. Registre o pagamento de ${patient.fullName}.`
           : scheduled
-            ? `Plano ${scheduled.plan.name} salvo. Envie as sessões para ${patient.fullName} pelo WhatsApp.`
+            ? `${withPrefix("Plano", scheduled.plan.name)} salvo. Envie as sessões para ${patient.fullName} pelo WhatsApp.`
             : sending
-              ? `Plano ${sending.plan.name} salvo. Envie o documento para ${patient.fullName} assinar.`
+              ? `${withPrefix("Plano", sending.plan.name)} salvo. Envie o documento para ${patient.fullName} assinar.`
               : "O saldo e as contas a receber serão criados na mesma operação."
       }
       busy={busy}

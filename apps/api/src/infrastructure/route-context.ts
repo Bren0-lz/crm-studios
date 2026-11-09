@@ -33,6 +33,7 @@ import {
   planAllowsProratedCharge,
   serviceAvailableFor,
   type UserSummary,
+  withPrefix,
   ptBrValidationError,
   validationErrorMessage,
 } from "@crm/contracts";
@@ -57,10 +58,18 @@ import {
 /** Requisições por minuto de cada chave de integração (API externa). */
 export const INTEGRATION_RATE_LIMIT = 120;
 import { type BuildAppOptions } from "./route-utils.js";
-import { createDomainEventPublisher } from "./domain-events.js";
+import {
+  createDomainEventPublisher,
+  domainEventTypes,
+} from "./domain-events.js";
 import { telegramIntegrationFromEnv } from "./telegram-client.js";
 import { createTelegramService } from "../modules/integrations/telegram.js";
 import { createReceiptSignedTelegramHandler } from "../modules/integrations/telegram-receipts.js";
+import {
+  createAppointmentsCreatedTelegramHandler,
+  createPatientCreatedTelegramHandler,
+  createPatientsImportedTelegramHandler,
+} from "../modules/integrations/telegram-new-records.js";
 
 // Regras padrão do zod em pt-BR: a resposta 400 diz ao usuário o que corrigir.
 z.config({ customError: ptBrValidationError });
@@ -89,9 +98,8 @@ export async function createRouteContext({
   // O publicador injetado continua recebendo os eventos, sem substituir os consumidores
   // internos. Sua falha também é isolada pelo publicador local.
   if (injectedEvents)
-    events.subscribe("receipt.signed", (event) =>
-      injectedEvents.publish(event),
-    );
+    for (const type of domainEventTypes)
+      events.subscribe(type, (event) => injectedEvents.publish(event));
 
   // Telegram: sem token, desligado (a fila não recebe nada e a tela avisa).
   const telegram = createTelegramService({
@@ -105,6 +113,18 @@ export async function createRouteContext({
   events.subscribe(
     "receipt.signed",
     createReceiptSignedTelegramHandler({ repository, telegram }),
+  );
+  events.subscribe(
+    "appointments.created",
+    createAppointmentsCreatedTelegramHandler({ repository, telegram }),
+  );
+  events.subscribe(
+    "patient.created",
+    createPatientCreatedTelegramHandler({ repository, telegram }),
+  );
+  events.subscribe(
+    "patients.imported",
+    createPatientsImportedTelegramHandler({ repository, telegram }),
   );
 
   const loginAttempts = new Map<
@@ -701,7 +721,7 @@ export async function createRouteContext({
       )
         throw new DomainError(
           "SERVICE_NOT_AVAILABLE",
-          `O serviço ${service.name} não é atendido por este profissional ou nesta sala.`,
+          `O ${withPrefix("serviço", service.name)} não é atendido por este profissional ou nesta sala.`,
           409,
         );
     }

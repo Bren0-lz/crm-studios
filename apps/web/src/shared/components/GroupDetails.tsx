@@ -1,4 +1,8 @@
-import { type GroupClass, describeGroupSchedule } from "@crm/contracts";
+import {
+  type GroupClass,
+  describeGroupSchedule,
+  withPrefix,
+} from "@crm/contracts";
 import { CalendarClock } from "lucide-react";
 
 const weekdayNames = [
@@ -22,7 +26,7 @@ export function GroupDetails({ group }: { group: GroupClass }) {
   return (
     <section
       className="group-details"
-      aria-label={`Detalhes da turma ${group.name}`}
+      aria-label={`Detalhes da ${withPrefix("turma", group.name)}`}
     >
       <header>
         <CalendarClock size={16} aria-hidden="true" />

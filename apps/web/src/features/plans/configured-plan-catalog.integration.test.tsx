@@ -371,7 +371,7 @@ describe("configured plan catalog", () => {
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
     );
     fireEvent.click(
-      screen.getByRole("button", { name: "Editar plano Plano completo" }),
+      screen.getByRole("button", { name: "Editar Plano completo" }),
     );
     dialog = screen.getByRole("dialog");
     fireEvent.click(
@@ -395,11 +395,11 @@ describe("configured plan catalog", () => {
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
     );
     fireEvent.click(
-      screen.getByRole("button", { name: "Desativar plano Plano completo" }),
+      screen.getByRole("button", { name: "Desativar Plano completo" }),
     );
     await waitFor(() => expect(writes).toHaveLength(3));
     expect(writes[2]).toEqual({ active: false });
-    await screen.findByRole("button", { name: "Ativar plano Plano completo" });
+    await screen.findByRole("button", { name: "Ativar Plano completo" });
   });
 
   it("keeps the plan value while changing service rows, without a service table price", async () => {

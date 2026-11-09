@@ -396,6 +396,16 @@ export function AgendaPage() {
       start.setDate(start.getDate() - ((start.getDay() + 6) % 7));
     return localIsoDate(start);
   }
+  // "Hoje" mantém a visão e só fica ativo quando o período exibido não contém hoje.
+  const showingToday = periodKey(new Date()) === periodKey(selectedDate);
+  function goToday() {
+    const today = new Date();
+    if (periodKey(today) !== periodKey(selectedDate)) {
+      setLoading(true);
+      setError("");
+    }
+    setSelectedDate(today);
+  }
   /** Leva a agenda à data do (primeiro) atendimento salvo e o destaca. */
   function showSaved(saved: Appointment[]) {
     const first = [...saved].sort((a, b) =>
@@ -535,6 +545,14 @@ export function AgendaPage() {
               }
             >
               <ChevronRight size={19} />
+            </button>
+            <button
+              type="button"
+              className="secondary-button button-sm"
+              onClick={goToday}
+              disabled={showingToday}
+            >
+              Hoje
             </button>
           </div>
           <div className="agenda-toolbar-end">

@@ -1,3 +1,4 @@
+import { withQuotedPrefix } from "@crm/contracts";
 import type {
   WaitlistEntry,
   WaitlistEntryData,
@@ -178,7 +179,9 @@ import type {
   IssuedDocumentInput,
   CommercialEvent,
   CommercialEventDetail,
+  PatientLeadOrigin,
   EventInput,
+  EventListQuery,
   Lead,
   LeadActivity,
   LeadAppointmentInput,
@@ -737,6 +740,21 @@ export interface ClinicRepository {
   ): Promise<TelegramLink | null>;
   /** Chats vinculados de usuários ativos da clínica (destino dos avisos). */
   listTelegramLinks(clinicId: string): Promise<TelegramLink[]>;
+  /**
+   * Vínculos do chat (TG4), de usuários ativos, do mais recente ao mais antigo, em qualquer
+   * clínica: o chat é quem diz a clínica e o usuário dos comandos do bot.
+   */
+  findTelegramLinksByChat(chatId: string): Promise<TelegramLink[]>;
+  /** Dia (aaaa-mm-dd, fuso da clínica) do último aviso de recibos pelo Telegram (TG4). */
+  getTelegramReceiptReminderSentOn(clinicId: string): Promise<string | null>;
+  /**
+   * Reserva o aviso de recibos do dia `sentOn` (aaaa-mm-dd): `true` só para quem gravou
+   * primeiro; `false` se o aviso desse dia já saiu (no máximo um por dia, mesmo em paralelo).
+   */
+  claimTelegramReceiptReminder(
+    clinicId: string,
+    sentOn: string,
+  ): Promise<boolean>;
   /** Desvincula o chat do usuário; `false` se não havia vínculo. */
   deleteTelegramLink(clinicId: string, userId: string): Promise<boolean>;
   /** Grava o código (pelo hash) e apaga os códigos ainda não usados do usuário. */
@@ -1682,7 +1700,10 @@ export interface ClinicRepository {
     status: LeadTaskStatus,
   ): Promise<LeadTask | null>;
   /** Eventos do comercial visíveis nas filiais da consulta (os da rede sempre), do mais novo. */
-  listEvents(clinicId: string): Promise<CommercialEvent[]>;
+  listEvents(
+    clinicId: string,
+    query?: EventListQuery,
+  ): Promise<CommercialEvent[]>;
   /** Evento com os participantes (leads ligados, nas filiais da consulta) e os indicadores. */
   getEvent(clinicId: string, id: string): Promise<CommercialEventDetail | null>;
   createEvent(
@@ -1696,6 +1717,21 @@ export interface ClinicRepository {
     id: string,
     input: EventInput,
   ): Promise<CommercialEvent | null>;
+  /** Apaga o evento visível; os participantes continuam como leads, sem evento. */
+  deleteEvent(clinicId: string, id: string): Promise<boolean>;
+  /** Tira o participante (lead visível) do evento; o lead continua no funil. */
+  removeEventParticipant(
+    clinicId: string,
+    eventId: string,
+    leadId: string,
+  ): Promise<boolean>;
+  /**
+   * Leads convertidos em cliente (EN3b, coluna "Origem: evento/lead" da exportação): um item por
+   * lead com `converted_patient_id`, do mais antigo (criação do lead, depois id). `patientId`
+   * segue a mescla; `eventName` vem do evento atual do lead. Clínica toda, sem filtro de filial
+   * (a lista de clientes também não tem).
+   */
+  listPatientLeadOrigins(clinicId: string): Promise<PatientLeadOrigin[]>;
   getCommunicationCenter(clinicId: string): Promise<CommunicationCenter>;
   setCommunicationPreference(
     clinicId: string,
@@ -1959,7 +1995,7 @@ export function patientTagDuplicateError(name: string) {
 export function patientTagInUseError(name: string, patientCount: number) {
   return new DomainError(
     "PATIENT_TAG_IN_USE",
-    `A etiqueta "${name}" está em uso por ${patientCount} ${patientCount === 1 ? "cliente" : "clientes"}. Retire-a desses clientes antes de excluir.`,
+    `A ${withQuotedPrefix("etiqueta", name, ['"', '"'])} está em uso por ${patientCount} ${patientCount === 1 ? "cliente" : "clientes"}. Retire-a desses clientes antes de excluir.`,
     409,
     { patientCount },
   );

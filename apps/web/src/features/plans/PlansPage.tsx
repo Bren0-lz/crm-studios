@@ -8,6 +8,7 @@ import {
   isTabCreditPlan,
   patientFirstName,
   planHasSessionBalance,
+  withPrefix,
 } from "@crm/contracts";
 import { FileClock, Pause, Play, Plus, RefreshCw, Search } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -340,7 +341,7 @@ export function PlansPage({ canManage }: { canManage: boolean }) {
           onClose={() => setModalOpen(false)}
           onSaved={(plan) => {
             toast.success(
-              `Plano ${plan.name} vinculado a ${patientFirstName(plan.patientName)}.`,
+              `${withPrefix("Plano", plan.name)} vinculado a ${patientFirstName(plan.patientName)}.`,
             );
             replacePlan(plan);
             setModalOpen(false);

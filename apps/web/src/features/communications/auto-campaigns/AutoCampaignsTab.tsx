@@ -1,3 +1,4 @@
+import { withQuotedPrefix } from "@crm/contracts";
 import {
   autoCampaignStepLabel,
   autoCampaignTriggerLabels,
@@ -160,7 +161,7 @@ export function AutoCampaignsTab() {
             toast.success(
               editing.campaign
                 ? "Campanha automática atualizada."
-                : `Campanha “${saved.name}” criada.`,
+                : `${withQuotedPrefix("Campanha", saved.name)} criada.`,
             );
             setEditing(null);
             setReload((value) => value + 1);

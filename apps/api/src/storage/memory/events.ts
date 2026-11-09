@@ -3,7 +3,9 @@ import {
   type CommercialEvent,
   type CommercialEventDetail,
   type EventInput,
+  type EventListQuery,
   type EventParticipant,
+  type PatientLeadOrigin,
 } from "@crm/contracts";
 import { DomainError } from "../../repository.js";
 import type { MemoryRepositoryContext } from "./context.js";
@@ -12,7 +14,7 @@ import { now, uuid } from "./helpers.js";
 /** Evento gravado; contagem e nome de quem cadastrou vêm na leitura. */
 export type EventRow = Omit<
   CommercialEvent,
-  "participantCount" | "createdByName"
+  "participantCount" | "createdByName" | "serviceName"
 >;
 
 const byId = (a: { id: string }, b: { id: string }) =>
@@ -40,9 +42,15 @@ export function createEventsRepository(context: MemoryRepositoryContext) {
     const createdByName = row.createdBy
       ? context.users.find((user) => user.id === row.createdBy)?.fullName
       : undefined;
+    const serviceName = row.serviceId
+      ? context.services.find(
+          (item) => item.clinicId === row.clinicId && item.id === row.serviceId,
+        )?.name
+      : undefined;
     return {
       ...structuredClone(row),
       ...(createdByName ? { createdByName } : {}),
+      ...(serviceName ? { serviceName } : {}),
       participantCount: participantRows(row).length,
     };
   };
@@ -88,8 +96,20 @@ export function createEventsRepository(context: MemoryRepositoryContext) {
         );
       context.assertBranchInScope(input.branchId);
     }
+    if (
+      input.serviceId &&
+      !context.services.some(
+        (item) => item.clinicId === clinicId && item.id === input.serviceId,
+      )
+    )
+      throw new DomainError(
+        "SERVICE_NOT_FOUND",
+        "Serviço não encontrado.",
+        404,
+      );
     return {
       ...(input.branchId ? { branchId: input.branchId } : {}),
+      ...(input.serviceId ? { serviceId: input.serviceId } : {}),
       name: input.name,
       ...(input.location ? { location: input.location } : {}),
       ...(input.attendeeCount !== undefined
@@ -100,9 +120,13 @@ export function createEventsRepository(context: MemoryRepositoryContext) {
     };
   };
   return {
-    async listEvents(clinicId: string) {
+    async listEvents(clinicId: string, query: EventListQuery = {}) {
       return context.events
-        .filter((row) => visible(row, clinicId))
+        .filter(
+          (row) =>
+            visible(row, clinicId) &&
+            (!query.serviceId || row.serviceId === query.serviceId),
+        )
         .sort((a, b) => b.startsAt.localeCompare(a.startsAt) || byId(a, b))
         .map(toEvent);
     },
@@ -120,11 +144,15 @@ export function createEventsRepository(context: MemoryRepositoryContext) {
         .sort(byName)
         .map((lead): EventParticipant => {
           const at = evaluationAt(lead),
-            contacted = contactedAt(lead);
+            contacted = contactedAt(lead),
+            converted =
+              lead.convertedPatientId &&
+              (context.leadConvertedAt.get(lead.id) ?? lead.createdAt);
           return {
             ...lead,
             ...(contacted ? { contactedAt: contacted } : {}),
             ...(at ? { evaluationAt: at } : {}),
+            ...(converted ? { convertedAt: converted } : {}),
           };
         });
       return {
@@ -175,6 +203,66 @@ export function createEventsRepository(context: MemoryRepositoryContext) {
       };
       context.events[index] = row;
       return toEvent(row);
+    },
+    /** Apaga o evento; os participantes continuam como leads (`ON DELETE SET NULL`). */
+    async deleteEvent(clinicId: string, id: string) {
+      const index = context.events.findIndex(
+        (item) => item.id === id && visible(item, clinicId),
+      );
+      if (index < 0) return false;
+      context.events.splice(index, 1);
+      for (const lead of context.leads)
+        if (lead.clinicId === clinicId && lead.eventId === id)
+          delete lead.eventId;
+      return true;
+    },
+    /** Tira o participante do evento; o lead continua no funil. */
+    async removeEventParticipant(
+      clinicId: string,
+      eventId: string,
+      leadId: string,
+    ) {
+      if (
+        !context.events.some(
+          (item) => item.id === eventId && visible(item, clinicId),
+        )
+      )
+        return false;
+      const lead = context.leads.find(
+        (item) =>
+          item.clinicId === clinicId &&
+          item.id === leadId &&
+          item.eventId === eventId &&
+          context.inBranchScope(item),
+      );
+      if (!lead) return false;
+      delete lead.eventId;
+      lead.updatedAt = now();
+      return true;
+    },
+    async listPatientLeadOrigins(clinicId: string) {
+      return context.leads
+        .filter((lead) => lead.clinicId === clinicId && lead.convertedPatientId)
+        .sort((a, b) => a.createdAt.localeCompare(b.createdAt) || byId(a, b))
+        .flatMap((lead): PatientLeadOrigin[] => {
+          const patient = context.patients.find(
+            (item) =>
+              item.clinicId === clinicId && item.id === lead.convertedPatientId,
+          );
+          if (!patient) return [];
+          const eventName = lead.eventId
+            ? context.events.find(
+                (item) =>
+                  item.clinicId === clinicId && item.id === lead.eventId,
+              )?.name
+            : undefined;
+          return [
+            {
+              patientId: patient.mergedIntoPatientId ?? patient.id,
+              ...(eventName ? { eventName } : {}),
+            },
+          ];
+        });
     },
   };
 }

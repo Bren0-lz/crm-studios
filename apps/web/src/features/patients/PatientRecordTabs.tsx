@@ -12,6 +12,7 @@ import {
   patientResidenceTypeLabels,
   planHasSessionBalance,
   planUsedSessions,
+  withPrefix,
 } from "@crm/contracts";
 import { ArrowUpRight, FileClock, Plus, Repeat } from "lucide-react";
 import { type ReactNode, useEffect, useState } from "react";
@@ -411,8 +412,12 @@ export function PatientRecordTabs({
         )}
       </section>
       {visibleTabs.length > 0 && active && (
-        <section className="panel patient-record-tabs">
-          <div className="tabs" role="tablist" aria-label="Ficha do cliente">
+        <section className="patient-record-tabs">
+          <div
+            className="settings-tabs patient-record-tablist"
+            role="tablist"
+            aria-label="Ficha do cliente"
+          >
             {visibleTabs.map((tab) => (
               <button
                 key={tab.key}
@@ -421,243 +426,248 @@ export function PatientRecordTabs({
                 id={`patient-tab-${tab.key}`}
                 aria-selected={active === tab.key}
                 aria-controls="patient-tab-panel"
-                className={`tab-button ${active === tab.key ? "active" : ""}`}
+                className="text-button settings-tab"
                 onClick={() => setSelected(tab.key)}
               >
                 {tab.label}
               </button>
             ))}
           </div>
-          <div
-            className="patient-tab-panel"
-            id="patient-tab-panel"
-            role="tabpanel"
-            aria-labelledby={`patient-tab-${active}`}
-          >
-            {active === "agenda" && (
-              <TabList
-                state={appointments}
-                empty="Nenhum atendimento nos últimos ou próximos 4 meses."
-                summary={(items) =>
-                  countLabel(
-                    items.length,
-                    "atendimento nos últimos e próximos 4 meses",
-                    "atendimentos nos últimos e próximos 4 meses",
-                  )
-                }
-                link={{ to: moduleLink("/agenda"), label: "Abrir na Agenda" }}
-                render={(items: Appointment[]) => {
-                  const upcoming = items
-                    .filter((item) => Date.parse(item.startsAt) >= openedAt)
-                    .sort((a, b) => a.startsAt.localeCompare(b.startsAt));
-                  const past = items
-                    .filter((item) => Date.parse(item.startsAt) < openedAt)
-                    .sort((a, b) => b.startsAt.localeCompare(a.startsAt));
-                  const row = (item: Appointment) => (
-                    <li key={item.id}>
-                      <div className="patient-tab-item-main">
-                        <strong>{dateTime(item.startsAt)}</strong>
-                        <span>
-                          {item.serviceName} · {item.professionalName}
-                        </span>
-                      </div>
-                      <div className="patient-tab-item-side">
-                        <span className={`status-pill ${item.status}`}>
-                          {statusLabel(item.status)}
-                        </span>
-                      </div>
-                    </li>
-                  );
-                  return (
-                    <>
-                      {upcoming.length > 0 && (
-                        <TabGroup title="Próximos" count={upcoming.length}>
-                          {upcoming.map(row)}
-                        </TabGroup>
-                      )}
-                      {past.length > 0 && (
-                        <TabGroup title="Anteriores" count={past.length}>
-                          {past.map(row)}
-                        </TabGroup>
-                      )}
-                    </>
-                  );
-                }}
-              />
-            )}
-            {active === "plans" && (
-              <TabList
-                state={plans}
-                empty="Nenhum plano contratado."
-                summary={(items) =>
-                  countLabel(
-                    items.length,
-                    "plano contratado",
-                    "planos contratados",
-                  )
-                }
-                link={{ to: moduleLink("/planos"), label: "Abrir em Planos" }}
-                actions={
-                  canCreatePlan && (
-                    <>
-                      <button
-                        type="button"
-                        className="secondary-button button-sm"
-                        onClick={() => setNewPlanKind("recurring")}
-                      >
-                        <Repeat size={15} aria-hidden="true" />
-                        Plano recorrente
-                      </button>
-                      <button
-                        type="button"
-                        className="secondary-button button-sm"
-                        onClick={() => setNewPlanKind("single")}
-                      >
-                        <Plus size={15} aria-hidden="true" />
-                        Plano avulso
-                      </button>
-                    </>
-                  )
-                }
-                render={(items: PatientPlan[]) => (
-                  <div className="plans-grid">
-                    {items.map((plan) => (
-                      <PlanCard
-                        key={plan.id}
-                        plan={plan}
-                        plans={items}
-                        title={planSubtitle(plan)}
-                        actions={
-                          <>
-                            <button
-                              type="button"
-                              className="secondary-button button-sm"
-                              onClick={() => setMovementPlan(plan)}
-                            >
-                              <FileClock size={15} />
-                              Extrato
-                            </button>
-                            {canCancelPlan &&
-                              !isTabCreditPlan(plan) &&
-                              plan.status !== "cancelled" && (
-                                <button
-                                  type="button"
-                                  className="danger-button button-sm"
-                                  onClick={() => setCancellingPlan(plan)}
-                                >
-                                  Cancelar plano
-                                </button>
-                              )}
-                          </>
-                        }
-                      />
-                    ))}
-                  </div>
-                )}
-              />
-            )}
-            {active === "finance" && (
-              <TabList
-                state={finance}
-                empty="Nenhuma parcela registrada."
-                summary={(items) => {
-                  // Total de desconto do cliente já concedido nas cobranças.
-                  const discount = items
-                    .filter((item) => item.status !== "cancelled")
-                    .reduce(
-                      (sum, item) => sum + (item.customerDiscountInCents ?? 0),
-                      0,
+          <div className="panel">
+            <div
+              className="patient-tab-panel"
+              id="patient-tab-panel"
+              role="tabpanel"
+              aria-labelledby={`patient-tab-${active}`}
+            >
+              {active === "agenda" && (
+                <TabList
+                  state={appointments}
+                  empty="Nenhum atendimento nos últimos ou próximos 4 meses."
+                  summary={(items) =>
+                    countLabel(
+                      items.length,
+                      "atendimento nos últimos e próximos 4 meses",
+                      "atendimentos nos últimos e próximos 4 meses",
+                    )
+                  }
+                  link={{ to: moduleLink("/agenda"), label: "Abrir na Agenda" }}
+                  render={(items: Appointment[]) => {
+                    const upcoming = items
+                      .filter((item) => Date.parse(item.startsAt) >= openedAt)
+                      .sort((a, b) => a.startsAt.localeCompare(b.startsAt));
+                    const past = items
+                      .filter((item) => Date.parse(item.startsAt) < openedAt)
+                      .sort((a, b) => b.startsAt.localeCompare(a.startsAt));
+                    const row = (item: Appointment) => (
+                      <li key={item.id}>
+                        <div className="patient-tab-item-main">
+                          <strong>{dateTime(item.startsAt)}</strong>
+                          <span>
+                            {item.serviceName} · {item.professionalName}
+                          </span>
+                        </div>
+                        <div className="patient-tab-item-side">
+                          <span className={`status-pill ${item.status}`}>
+                            {statusLabel(item.status)}
+                          </span>
+                        </div>
+                      </li>
                     );
-                  return discount
-                    ? `${countLabel(items.length, "parcela", "parcelas")} · ${currency.format(discount / 100)} em descontos concedidos`
-                    : countLabel(items.length, "parcela", "parcelas");
-                }}
-                link={{
-                  to: moduleLink("/financeiro"),
-                  label: "Abrir no Financeiro",
-                }}
-                render={(items: Receivable[]) => (
-                  <ul className="patient-tab-items">
-                    {[...items]
-                      .sort((a, b) => b.dueDate.localeCompare(a.dueDate))
-                      .map((item) => (
+                    return (
+                      <>
+                        {upcoming.length > 0 && (
+                          <TabGroup title="Próximos" count={upcoming.length}>
+                            {upcoming.map(row)}
+                          </TabGroup>
+                        )}
+                        {past.length > 0 && (
+                          <TabGroup title="Anteriores" count={past.length}>
+                            {past.map(row)}
+                          </TabGroup>
+                        )}
+                      </>
+                    );
+                  }}
+                />
+              )}
+              {active === "plans" && (
+                <TabList
+                  state={plans}
+                  empty="Nenhum plano contratado."
+                  summary={(items) =>
+                    countLabel(
+                      items.length,
+                      "plano contratado",
+                      "planos contratados",
+                    )
+                  }
+                  link={{ to: moduleLink("/planos"), label: "Abrir em Planos" }}
+                  actions={
+                    canCreatePlan && (
+                      <>
+                        <button
+                          type="button"
+                          className="secondary-button button-sm"
+                          onClick={() => setNewPlanKind("recurring")}
+                        >
+                          <Repeat size={15} aria-hidden="true" />
+                          Plano recorrente
+                        </button>
+                        <button
+                          type="button"
+                          className="secondary-button button-sm"
+                          onClick={() => setNewPlanKind("single")}
+                        >
+                          <Plus size={15} aria-hidden="true" />
+                          Plano avulso
+                        </button>
+                      </>
+                    )
+                  }
+                  render={(items: PatientPlan[]) => (
+                    <div className="plans-grid">
+                      {items.map((plan) => (
+                        <PlanCard
+                          key={plan.id}
+                          plan={plan}
+                          plans={items}
+                          title={planSubtitle(plan)}
+                          actions={
+                            <>
+                              <button
+                                type="button"
+                                className="secondary-button button-sm"
+                                onClick={() => setMovementPlan(plan)}
+                              >
+                                <FileClock size={15} />
+                                Extrato
+                              </button>
+                              {canCancelPlan &&
+                                !isTabCreditPlan(plan) &&
+                                plan.status !== "cancelled" && (
+                                  <button
+                                    type="button"
+                                    className="danger-button button-sm"
+                                    onClick={() => setCancellingPlan(plan)}
+                                  >
+                                    Cancelar plano
+                                  </button>
+                                )}
+                            </>
+                          }
+                        />
+                      ))}
+                    </div>
+                  )}
+                />
+              )}
+              {active === "finance" && (
+                <TabList
+                  state={finance}
+                  empty="Nenhuma parcela registrada."
+                  summary={(items) => {
+                    // Total de desconto do cliente já concedido nas cobranças.
+                    const discount = items
+                      .filter((item) => item.status !== "cancelled")
+                      .reduce(
+                        (sum, item) =>
+                          sum + (item.customerDiscountInCents ?? 0),
+                        0,
+                      );
+                    return discount
+                      ? `${countLabel(items.length, "parcela", "parcelas")} · ${currency.format(discount / 100)} em descontos concedidos`
+                      : countLabel(items.length, "parcela", "parcelas");
+                  }}
+                  link={{
+                    to: moduleLink("/financeiro"),
+                    label: "Abrir no Financeiro",
+                  }}
+                  render={(items: Receivable[]) => (
+                    <ul className="patient-tab-items">
+                      {[...items]
+                        .sort((a, b) => b.dueDate.localeCompare(a.dueDate))
+                        .map((item) => (
+                          <li key={item.id}>
+                            <div className="patient-tab-item-main">
+                              <strong>{item.description}</strong>
+                              <span>
+                                Vence em {formatIsoDate(item.dueDate)}
+                                {item.customerDiscountInCents
+                                  ? ` · desconto de ${currency.format(item.customerDiscountInCents / 100)}`
+                                  : ""}
+                              </span>
+                            </div>
+                            <div className="patient-tab-item-side">
+                              <span className="patient-tab-amount">
+                                {currency.format(item.amountInCents / 100)}
+                              </span>
+                              <span
+                                className={`status-pill ${item.overdue ? "overdue" : item.status}`}
+                              >
+                                {item.overdue
+                                  ? "Vencida"
+                                  : item.status === "paid"
+                                    ? "Paga"
+                                    : item.status === "cancelled"
+                                      ? "Cancelada"
+                                      : "Em aberto"}
+                              </span>
+                            </div>
+                          </li>
+                        ))}
+                    </ul>
+                  )}
+                />
+              )}
+              {active === "contracts" && (
+                <TabList
+                  state={contracts}
+                  empty="Nenhum contrato emitido."
+                  summary={(items) =>
+                    countLabel(items.length, "documento", "documentos")
+                  }
+                  link={{
+                    to: moduleLink("/contratos"),
+                    label: "Abrir em Contratos",
+                  }}
+                  render={(items: IssuedDocument[]) => (
+                    <ul className="patient-tab-items">
+                      {items.map((item) => (
                         <li key={item.id}>
                           <div className="patient-tab-item-main">
-                            <strong>{item.description}</strong>
-                            <span>
-                              Vence em {formatIsoDate(item.dueDate)}
-                              {item.customerDiscountInCents
-                                ? ` · desconto de ${currency.format(item.customerDiscountInCents / 100)}`
-                                : ""}
-                            </span>
+                            <strong>{item.title}</strong>
+                            <span>{item.templateName}</span>
+                            {item.status !== "cancelled" && (
+                              <SignatureLinkRecord document={item} />
+                            )}
                           </div>
                           <div className="patient-tab-item-side">
-                            <span className="patient-tab-amount">
-                              {currency.format(item.amountInCents / 100)}
-                            </span>
-                            <span
-                              className={`status-pill ${item.overdue ? "overdue" : item.status}`}
-                            >
-                              {item.overdue
-                                ? "Vencida"
-                                : item.status === "paid"
-                                  ? "Paga"
-                                  : item.status === "cancelled"
-                                    ? "Cancelada"
-                                    : "Em aberto"}
+                            <span className={`status-pill ${item.status}`}>
+                              {item.status === "issued"
+                                ? "Emitido"
+                                : item.status === "cancelled"
+                                  ? "Cancelado"
+                                  : "Rascunho"}
                             </span>
                           </div>
                         </li>
                       ))}
-                  </ul>
-                )}
-              />
-            )}
-            {active === "contracts" && (
-              <TabList
-                state={contracts}
-                empty="Nenhum contrato emitido."
-                summary={(items) =>
-                  countLabel(items.length, "documento", "documentos")
-                }
-                link={{
-                  to: moduleLink("/contratos"),
-                  label: "Abrir em Contratos",
-                }}
-                render={(items: IssuedDocument[]) => (
-                  <ul className="patient-tab-items">
-                    {items.map((item) => (
-                      <li key={item.id}>
-                        <div className="patient-tab-item-main">
-                          <strong>{item.title}</strong>
-                          <span>{item.templateName}</span>
-                          {item.status !== "cancelled" && (
-                            <SignatureLinkRecord document={item} />
-                          )}
-                        </div>
-                        <div className="patient-tab-item-side">
-                          <span className={`status-pill ${item.status}`}>
-                            {item.status === "issued"
-                              ? "Emitido"
-                              : item.status === "cancelled"
-                                ? "Cancelado"
-                                : "Rascunho"}
-                          </span>
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              />
-            )}
-            {active === "clinical" && (
-              <ClinicalWorkspacePanel
-                key={id}
-                patientId={id}
-                editable={canEditClinical}
-              />
-            )}
-            {active === "history" && <PatientTimelineSection patientId={id} />}
+                    </ul>
+                  )}
+                />
+              )}
+              {active === "clinical" && (
+                <ClinicalWorkspacePanel
+                  key={id}
+                  patientId={id}
+                  editable={canEditClinical}
+                />
+              )}
+              {active === "history" && (
+                <PatientTimelineSection patientId={id} />
+              )}
+            </div>
           </div>
         </section>
       )}
@@ -670,8 +680,8 @@ export function PatientRecordTabs({
             setNewPlanKind(null);
             toast.success(
               notice
-                ? `Plano ${plan.name} vinculado. ${notice}`
-                : `Plano ${plan.name} vinculado.`,
+                ? `${withPrefix("Plano", plan.name)} vinculado. ${notice}`
+                : `${withPrefix("Plano", plan.name)} vinculado.`,
             );
           }}
           onWaitlisted={(message) => {

@@ -103,7 +103,20 @@ describe("client record", () => {
     ).toBeInTheDocument();
     expect(overview).toHaveTextContent("Pilates · Ana Martins");
     fireEvent.click(screen.getByRole("tab", { name: "Planos" }));
+    // Abas com o mesmo estilo das de Configurações (pílula na ativa) — QV2.
+    const tablist = screen.getByRole("tablist", { name: "Ficha do cliente" });
+    expect(tablist).toHaveClass("settings-tabs");
+    const plansTab = within(tablist).getByRole("tab", { name: "Planos" });
+    expect(plansTab).toHaveClass("text-button", "settings-tab");
+    expect(plansTab).toHaveAttribute("aria-selected", "true");
+    for (const tab of within(tablist).getAllByRole("tab")) {
+      expect(tab).toHaveClass("settings-tab");
+      expect(tab).not.toHaveClass("tab-button");
+      if (tab !== plansTab)
+        expect(tab).toHaveAttribute("aria-selected", "false");
+    }
     const panel = screen.getByRole("tabpanel");
+    expect(panel).toHaveAttribute("aria-labelledby", plansTab.id);
     expect(await within(panel).findByText("Pilates 2x")).toBeInTheDocument();
     // Cartão completo, como na página de Planos: tipo, saldo, validade e extrato.
     expect(panel).toHaveTextContent("Pacote fixo");

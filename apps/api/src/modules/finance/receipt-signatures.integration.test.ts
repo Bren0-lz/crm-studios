@@ -8,7 +8,7 @@ import {
 } from "../../test-support/receipt-signatures-suite.js";
 import {
   createDomainEventPublisher,
-  type DomainEvent,
+  type ReceiptSignedEvent,
 } from "../../infrastructure/domain-events.js";
 import { signReceipt } from "./receipt-signatures.js";
 
@@ -96,7 +96,7 @@ describe("recibo para assinatura", () => {
   it("registrar a baixa não emite evento; assinar emite uma vez", async () => {
     const { repository, app, headers } = await setup();
     const { receivable } = await receiptFixtures(repository);
-    const events: DomainEvent[] = [];
+    const events: ReceiptSignedEvent[] = [];
     const publisher = createDomainEventPublisher();
     publisher.subscribe("receipt.signed", (event) => {
       events.push(event);

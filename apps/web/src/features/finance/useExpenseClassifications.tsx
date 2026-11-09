@@ -1,3 +1,4 @@
+import { withQuotedPrefix } from "@crm/contracts";
 import type {
   CostCenter,
   FinancialCategory,
@@ -50,12 +51,16 @@ export function useExpenseClassifications({
           });
           setCategories((items) => [...items, created]);
           onCreated("category", created.id);
-          toast.success(`Categoria “${created.name}” criada.`);
+          toast.success(
+            `${withQuotedPrefix("Categoria", created.name)} criada.`,
+          );
         } else {
           const created = await api.createCostCenter({ name });
           setCostCenters((items) => [...items, created]);
           onCreated("costCenter", created.id);
-          toast.success(`Centro de custo “${created.name}” criado.`);
+          toast.success(
+            `${withQuotedPrefix("Centro de custo", created.name)} criado.`,
+          );
         }
         setCreating(null);
       }}

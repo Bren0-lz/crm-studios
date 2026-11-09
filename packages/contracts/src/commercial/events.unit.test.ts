@@ -8,6 +8,10 @@ import {
   eventLeadInputSchema,
   eventImportFileSchema,
   eventLeadSource,
+  eventListQuerySchema,
+  eventParticipantStatus,
+  eventParticipantStatusLabels,
+  eventParticipantStatuses,
   hasEventInterest,
   LEAD_NOTES_MAX,
   leadContactInputSchema,
@@ -36,6 +40,83 @@ const participant = (
 });
 
 describe("eventos do comercial", () => {
+  it("aceita o serviço do evento (opcional) e o filtro por serviço", () => {
+    const serviceId = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+    const valid = { name: "Aulão", startsAt: "2026-11-08T12:00:00.000Z" };
+    expect(eventInputSchema.parse({ ...valid, serviceId })).toMatchObject({
+      serviceId,
+    });
+    expect(eventInputSchema.safeParse({ ...valid, serviceId: "" }).success).toBe(
+      true,
+    );
+    expect(eventListQuerySchema.parse({ serviceId })).toEqual({ serviceId });
+    expect(eventListQuerySchema.parse({})).toEqual({});
+    expect(eventListQuerySchema.safeParse({ serviceId: "x" }).success).toBe(
+      false,
+    );
+  });
+
+  it("deriva um status único por participante, na ordem do funil do evento", () => {
+    expect(eventParticipantStatuses).toEqual([
+      "not_contacted",
+      "contacted",
+      "interested",
+      "evaluation",
+      "client",
+    ]);
+    expect(
+      eventParticipantStatuses.map((key) => eventParticipantStatusLabels[key]),
+    ).toEqual([
+      "Não contatado",
+      "Contatado",
+      "Interessado",
+      "Avaliação",
+      "Cliente",
+    ]);
+    const at = "2026-11-10T13:00:00.000Z";
+    expect(eventParticipantStatus(participant())).toBe("not_contacted");
+    // Tentativa sem resposta não conta como contato (igual ao indicador).
+    expect(eventParticipantStatus(participant({ lastContactAt: at }))).toBe(
+      "not_contacted",
+    );
+    expect(eventParticipantStatus(participant({ contactedAt: at }))).toBe(
+      "contacted",
+    );
+    expect(
+      eventParticipantStatus(participant({ contactedAt: at, interest: "Pilates" })),
+    ).toBe("interested");
+    expect(eventParticipantStatus(participant({ interests: ["Dança"] }))).toBe(
+      "interested",
+    );
+    // Perdido com interesse não conta como interessado (igual ao indicador).
+    expect(
+      eventParticipantStatus(
+        participant({ contactedAt: at, interest: "Pilates", stage: "lost" }),
+      ),
+    ).toBe("contacted");
+    expect(
+      eventParticipantStatus(participant({ evaluationAt: at, contactedAt: at })),
+    ).toBe("evaluation");
+    expect(
+      eventParticipantStatus(
+        participant({ evaluationAt: at, convertedPatientId: "patient" }),
+      ),
+    ).toBe("client");
+    // Cada participante cai em um status só; os indicadores contam etapas alcançadas.
+    const items = [
+      participant({ contactedAt: at }),
+      participant({ interest: "Pilates" }),
+      participant({ evaluationAt: at }),
+      participant({ convertedPatientId: "patient" }),
+    ];
+    expect(items.map(eventParticipantStatus)).toEqual([
+      "contacted",
+      "interested",
+      "evaluation",
+      "client",
+    ]);
+  });
+
   it("valida o evento e cabe o nome na origem do lead", () => {
     const valid = {
       name: "Aulão na praça",
@@ -57,6 +138,7 @@ describe("eventos do comercial", () => {
       { ...valid, startsAt: "2026-11-08" },
       { ...valid, attendeeCount: 1.5 },
       { ...valid, branchId: "matriz" },
+      { ...valid, serviceId: "pilates" },
     ])
       expect(eventInputSchema.safeParse(invalid).success).toBe(false);
     const longest = eventLeadSource("x".repeat(EVENT_NAME_MAX));

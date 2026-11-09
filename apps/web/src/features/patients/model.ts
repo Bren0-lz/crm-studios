@@ -30,6 +30,7 @@ import type {
   PatientTimelineKind,
   PermissionKey,
 } from "@crm/contracts";
+import { withPrefix, withQuotedPrefix } from "@crm/contracts";
 import { EXTRA_FIELDS_LABEL } from "@crm/contracts/common";
 import {
   type LucideIcon,
@@ -250,12 +251,12 @@ export function guidedNotice(
     .map((entry) => entry.plan.name);
   const created = [
     ...(subscriptions.length === 1
-      ? [`Plano ${list(subscriptions)} criado.`]
+      ? [`${withQuotedPrefix("Plano", subscriptions[0]!)} criado.`]
       : subscriptions.length > 1
         ? [`Planos ${list(subscriptions)} criados.`]
         : []),
     ...(singles.length === 1
-      ? [`Serviço avulso ${list(singles)} criado.`]
+      ? [`${withQuotedPrefix("Serviço avulso", singles[0]!)} criado.`]
       : singles.length > 1
         ? [`Serviços avulsos ${list(singles)} criados.`]
         : []),
@@ -267,10 +268,10 @@ export function guidedNotice(
       const groupName =
         groups.find((group) => group.id === item.groupId)?.name ?? "escolhida";
       return item.status === "waitlisted"
-        ? `A turma ${groupName} está cheia: o cliente entrou na lista de espera${
+        ? `A ${withPrefix("turma", groupName)} está cheia: o cliente entrou na lista de espera${
             item.queuePosition ? ` (posição ${item.queuePosition})` : ""
           }.`
-        : `Matrícula feita na turma ${groupName}.`;
+        : `Matrícula feita na ${withPrefix("turma", groupName)}.`;
     }),
     ...waitlisted,
   ].join(" ");
@@ -333,6 +334,7 @@ export const patientExportColumnNames: Record<PatientExportColumn, string> = {
   emergencyContactPhone: "Telefone de emergência",
   notes: "Observações",
   createdAt: "Cadastrado em",
+  leadOrigin: "Origem: evento/lead",
   extraFields: EXTRA_FIELDS_LABEL,
 };
 

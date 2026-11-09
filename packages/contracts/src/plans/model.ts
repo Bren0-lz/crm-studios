@@ -479,6 +479,33 @@ export function planUsedSessions(
   return plan.totalSessions - plan.remainingSessions;
 }
 
+/**
+ * Semântica única da barra de progresso do plano: mede as sessões **usadas** (consumidas)
+ * sobre o total contratado — "0 de 8 usadas", "1 de 8 usada". Plano sem saldo de sessões
+ * (recorrente, vale a frequência semanal) ou sem total não tem barra (`tracked: false`).
+ */
+export type PlanSessionProgress =
+  | { tracked: true; used: number; total: number; label: string }
+  | { tracked: false; label: string };
+
+export function planSessionProgress(
+  plan: Pick<PatientPlan, "totalSessions" | "remainingSessions"> & {
+    kind?: PatientPlan["kind"] | null | undefined;
+  },
+): PlanSessionProgress {
+  if (!planHasSessionBalance(plan) || plan.totalSessions <= 0) {
+    return { tracked: false, label: "Sem limite de sessões" };
+  }
+  const total = plan.totalSessions;
+  const used = Math.min(total, Math.max(0, planUsedSessions(plan)));
+  return {
+    tracked: true,
+    used,
+    total,
+    label: `${used} de ${total} ${used === 1 ? "usada" : "usadas"}`,
+  };
+}
+
 export function planDisplayStatus(
   plan: Pick<PatientPlan, "status" | "remainingSessions"> & {
     kind?: PatientPlan["kind"] | null | undefined;

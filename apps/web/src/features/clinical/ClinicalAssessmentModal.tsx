@@ -1,3 +1,4 @@
+import { withQuotedPrefix } from "@crm/contracts";
 import { ClinicalFieldInputs } from "../../shared/components/ClinicalFieldInputs";
 import {
   assessmentTemplateFamilyId,
@@ -279,11 +280,13 @@ export function ClinicalAssessmentModal({
             setCreated((items) => [...items, saved]);
             if (saved.status === "draft") {
               setTemplateNotice(
-                `O modelo "${saved.name}" foi salvo como rascunho. Publique-o para usar nesta avaliação.`,
+                `O ${withQuotedPrefix("modelo", saved.name, ['"', '"'])} foi salvo como rascunho. Publique-o para usar nesta avaliação.`,
               );
             } else {
               setTemplateNotice("");
-              toast.success(`Modelo “${saved.name}” publicado.`);
+              toast.success(
+                `${withQuotedPrefix("Modelo", saved.name)} publicado.`,
+              );
               setTemplateId(saved.id);
               setValues({});
               setStep("fill");

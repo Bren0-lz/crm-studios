@@ -92,6 +92,12 @@ function setup({
     const url = String(input);
     const json = (body: unknown, status = 200) =>
       ({ ok: status < 400, status, json: async () => body }) as Response;
+    const removeMatch = /\/events\/[^/]+\/participants\/([^/]+)$/.exec(url);
+    if (init?.method === "DELETE" && removeMatch) {
+      writes.push({ url, body: {} });
+      rows = rows.filter((row) => row.id !== removeMatch[1]);
+      return { ok: true, status: 204, json: async () => null } as Response;
+    }
     if (init?.method === "POST") {
       const body = JSON.parse(String(init.body)) as Record<string, unknown>;
       writes.push({ url, body });
@@ -312,11 +318,143 @@ describe("event participants", () => {
     await waitFor(() => expect(indicator("Contatados")).toHaveTextContent("1"));
   });
 
+  it("shows one status per participant, searches and filters by status", async () => {
+    const at = "2039-06-11T14:30:00.000Z";
+    setup({
+      participants: [
+        { ...ana },
+        {
+          ...ana,
+          id: "c0000000-0000-4000-8000-000000000001",
+          fullName: "Bia Contatada",
+          phone: "11955550001",
+          email: "bia@example.com",
+          contactedAt: at,
+          lastContactAt: at,
+        },
+        {
+          ...ana,
+          id: "c0000000-0000-4000-8000-000000000002",
+          fullName: "Caio Interessado",
+          phone: "11955550002",
+          email: "",
+          interest: "Pilates",
+        },
+        {
+          ...ana,
+          id: "c0000000-0000-4000-8000-000000000003",
+          fullName: "Duda Avaliação",
+          phone: "11955550003",
+          email: "duda@example.com",
+          interest: "Pilates",
+          contactedAt: at,
+          evaluationAt: at,
+        },
+        {
+          ...ana,
+          id: "c0000000-0000-4000-8000-000000000004",
+          fullName: "Élio Cliente",
+          phone: "11955550004",
+          email: "elio@example.com",
+          convertedPatientId: "p0000000-0000-4000-8000-000000000004",
+        },
+      ],
+    });
+    const list = await screen.findByRole("list", {
+      name: "Lista de participantes",
+    });
+    const status = (name: string) =>
+      within(list)
+        .getByText(name)
+        .closest("li")!
+        .querySelector(".events-participant-status .status-pill")!
+        .textContent;
+    expect(status("Ana Participante")).toBe("Não contatado");
+    expect(status("Bia Contatada")).toBe("Contatado");
+    expect(status("Caio Interessado")).toBe("Interessado");
+    expect(status("Duda Avaliação")).toBe("Avaliação");
+    expect(status("Élio Cliente")).toBe("Cliente");
+
+    const names = () =>
+      within(
+        screen.getByRole("list", { name: "Lista de participantes" }),
+      )
+        .getAllByRole("heading")
+        .map((heading) => heading.textContent);
+    const search = screen.getByRole("searchbox", {
+      name: "Buscar participante",
+    });
+    // Nome sem acento, telefone formatado e e-mail.
+    fireEvent.change(search, { target: { value: "elio" } });
+    expect(names()).toEqual(["Élio Cliente"]);
+    expect(screen.getByText(/5 participante\(s\) · 1 exibido/)).toBeVisible();
+    fireEvent.change(search, { target: { value: "(11) 95555-0002" } });
+    expect(names()).toEqual(["Caio Interessado"]);
+    fireEvent.change(search, { target: { value: "bia@example" } });
+    expect(names()).toEqual(["Bia Contatada"]);
+    fireEvent.change(search, { target: { value: "ninguém" } });
+    expect(screen.getByText("Nenhum participante encontrado")).toBeVisible();
+    fireEvent.change(search, { target: { value: "" } });
+
+    const filter = screen.getByLabelText("Status");
+    fireEvent.change(filter, { target: { value: "evaluation" } });
+    expect(names()).toEqual(["Duda Avaliação"]);
+    fireEvent.change(filter, { target: { value: "not_contacted" } });
+    expect(names()).toEqual(["Ana Participante"]);
+    fireEvent.change(search, { target: { value: "bia" } });
+    expect(screen.getByText("Nenhum participante encontrado")).toBeVisible();
+  });
+
+  it("removes a participant from the event after confirmation", async () => {
+    const writes = setup({
+      participants: [
+        { ...ana },
+        {
+          ...ana,
+          id: "c0000000-0000-4000-8000-000000000001",
+          fullName: "Bia Fica",
+        },
+      ],
+    });
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Remover Ana Participante do evento",
+      }),
+    );
+    const dialog = screen.getByRole("dialog", {
+      name: "Remover participante",
+    });
+    expect(dialog).toHaveTextContent("continua no funil comercial como lead");
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Remover participante" }),
+    );
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("dialog", { name: "Remover participante" }),
+      ).not.toBeInTheDocument(),
+    );
+    expect(writes[0]?.url).toMatch(
+      new RegExp(`/events/${eventId}/participants/${ana.id}$`),
+    );
+    await waitFor(() =>
+      expect(screen.queryByText("Ana Participante")).not.toBeInTheDocument(),
+    );
+    expect(screen.getByText("Bia Fica")).toBeVisible();
+  });
+
   it("shows the empty state and hides actions without CRM permissions", async () => {
     setup({ participants: [], permissions: ["events.view"] });
     expect(await screen.findByText("Nenhum participante")).toBeVisible();
     expect(
       screen.queryByRole("button", { name: "Adicionar participante" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("hides participant removal without events.manage", async () => {
+    setup({ permissions: ["events.view", "crm.view", "crm.create"] });
+    expect(await screen.findByText("Ana Participante")).toBeVisible();
+    expect(
+      screen.queryByRole("button", { name: /^Remover / }),
     ).not.toBeInTheDocument();
   });
 

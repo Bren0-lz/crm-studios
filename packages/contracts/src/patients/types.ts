@@ -58,6 +58,15 @@ export interface PatientTag {
 
 export type PatientExportColumn = z.infer<typeof patientExportColumnSchema>;
 
+/**
+ * Um lead convertido no cliente (EN3b, coluna "Origem: evento/lead" da exportação).
+ * `patientId` já segue a mescla (cliente que ficou); `eventName` só quando o lead veio de evento.
+ */
+export interface PatientLeadOrigin {
+  patientId: string;
+  eventName?: string;
+}
+
 export type PatientExportFilter = z.infer<typeof patientExportFilterSchema>;
 
 export type GuidedPatientInput = z.infer<typeof guidedPatientInputSchema>;

@@ -101,6 +101,40 @@ export function createTelegramRepository(context: MysqlRepositoryContext) {
       return result.rows.map(mapLink);
     },
 
+    async findTelegramLinksByChat(chatId: string) {
+      const result = await pool.query<LinkRow>(
+        `SELECT ${linkColumns} FROM telegram_links l
+           JOIN users u ON u.id = l.user_id AND u.clinic_id = l.clinic_id
+          WHERE l.chat_id = $1 AND u.active = 1
+          ORDER BY l.linked_at DESC, l.id`,
+        [chatId],
+      );
+      return result.rows.map(mapLink);
+    },
+
+    async getTelegramReceiptReminderSentOn(clinicId: string) {
+      const row = (
+        await pool.query<{ sentOn: string | Date | null }>(
+          `SELECT DATE_FORMAT(telegram_receipt_reminder_sent_on, '%Y-%m-%d') AS "sentOn"
+             FROM clinics WHERE id = $1`,
+          [clinicId],
+        )
+      ).rows[0];
+      return row?.sentOn ? String(row.sentOn) : null;
+    },
+
+    async claimTelegramReceiptReminder(clinicId: string, sentOn: string) {
+      // Um UPDATE condicional só: duas chamadas simultâneas não enviam duas vezes.
+      const result = await pool.query(
+        `UPDATE clinics SET telegram_receipt_reminder_sent_on = $2
+          WHERE id = $1
+            AND (telegram_receipt_reminder_sent_on IS NULL
+              OR telegram_receipt_reminder_sent_on <> $2)`,
+        [clinicId, sentOn],
+      );
+      return result.rowCount > 0;
+    },
+
     async deleteTelegramLink(clinicId: string, userId: string) {
       const result = await pool.query(
         `DELETE FROM telegram_links WHERE clinic_id = $1 AND user_id = $2`,

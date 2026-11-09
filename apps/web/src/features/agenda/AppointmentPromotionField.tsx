@@ -1,3 +1,4 @@
+import { withQuotedPrefix } from "@crm/contracts";
 import type {
   AppointmentPromotion,
   AutoCampaignPromotionOffer,
@@ -69,7 +70,8 @@ export function AppointmentPromotionField({
           }
         />
         <span>
-          Esse atendimento é referente à campanha “{offer.campaignName}”?
+          Esse atendimento é referente à{" "}
+          {withQuotedPrefix("campanha", offer.campaignName)}?
           <span className="field-hint">
             {" "}
             {sentence(

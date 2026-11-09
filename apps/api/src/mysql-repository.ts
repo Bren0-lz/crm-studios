@@ -48,6 +48,9 @@ export class MysqlClinicRepository implements ClinicRepository {
   readonly getEvent: ClinicRepository["getEvent"];
   readonly createEvent: ClinicRepository["createEvent"];
   readonly updateEvent: ClinicRepository["updateEvent"];
+  readonly deleteEvent: ClinicRepository["deleteEvent"];
+  readonly removeEventParticipant: ClinicRepository["removeEventParticipant"];
+  readonly listPatientLeadOrigins: ClinicRepository["listPatientLeadOrigins"];
 
   readonly listAgendaNotes: ClinicRepository["listAgendaNotes"];
   readonly createAgendaNotes: ClinicRepository["createAgendaNotes"];
@@ -79,6 +82,9 @@ export class MysqlClinicRepository implements ClinicRepository {
   readonly saveTelegramSettings: ClinicRepository["saveTelegramSettings"];
   readonly getTelegramLink: ClinicRepository["getTelegramLink"];
   readonly listTelegramLinks: ClinicRepository["listTelegramLinks"];
+  readonly findTelegramLinksByChat: ClinicRepository["findTelegramLinksByChat"];
+  readonly getTelegramReceiptReminderSentOn: ClinicRepository["getTelegramReceiptReminderSentOn"];
+  readonly claimTelegramReceiptReminder: ClinicRepository["claimTelegramReceiptReminder"];
   readonly deleteTelegramLink: ClinicRepository["deleteTelegramLink"];
   readonly createTelegramLinkCode: ClinicRepository["createTelegramLinkCode"];
   readonly linkTelegramChat: ClinicRepository["linkTelegramChat"];
@@ -209,6 +215,10 @@ export class MysqlClinicRepository implements ClinicRepository {
     this.saveTelegramSettings = telegram.saveTelegramSettings;
     this.getTelegramLink = telegram.getTelegramLink;
     this.listTelegramLinks = telegram.listTelegramLinks;
+    this.findTelegramLinksByChat = telegram.findTelegramLinksByChat;
+    this.getTelegramReceiptReminderSentOn =
+      telegram.getTelegramReceiptReminderSentOn;
+    this.claimTelegramReceiptReminder = telegram.claimTelegramReceiptReminder;
     this.deleteTelegramLink = telegram.deleteTelegramLink;
     this.createTelegramLinkCode = telegram.createTelegramLinkCode;
     this.linkTelegramChat = telegram.linkTelegramChat;
@@ -265,6 +275,9 @@ export class MysqlClinicRepository implements ClinicRepository {
     this.getEvent = events.getEvent;
     this.createEvent = events.createEvent;
     this.updateEvent = events.updateEvent;
+    this.deleteEvent = events.deleteEvent;
+    this.removeEventParticipant = events.removeEventParticipant;
+    this.listPatientLeadOrigins = events.listPatientLeadOrigins;
     const agendaNotes = createAgendaNotesRepository(this.context);
     this.listAgendaNotes = agendaNotes.listAgendaNotes;
     this.createAgendaNotes = agendaNotes.createAgendaNotes;

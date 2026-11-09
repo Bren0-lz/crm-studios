@@ -1,3 +1,4 @@
+import { withPrefix } from "@crm/contracts";
 import {
   LEAD_STAGE_LABEL_MAX,
   LEAD_STAGES_MAX,
@@ -92,7 +93,7 @@ export function LeadStageModal({
       title={editing ? "Editar etapa" : "Adicionar etapa"}
       subtitle={
         editing
-          ? `Etapa ${editing.label} do funil. Vale para toda a equipe.`
+          ? `${withPrefix("Etapa", editing.label)} do funil. Vale para toda a equipe.`
           : "A etapa nova aparece no funil para toda a equipe."
       }
       busy={saving}

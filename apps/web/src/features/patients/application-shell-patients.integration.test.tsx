@@ -971,7 +971,7 @@ describe("application shell", () => {
     );
     expect(nameSelect).toHaveValue("");
     expect(
-      within(dialog).getByLabelText("Dado do sistema para a coluna Coluna 4"),
+      within(dialog).getByLabelText("Dado do sistema para a Coluna 4"),
     ).toBeInTheDocument();
 
     fireEvent.change(nameSelect, { target: { value: "fullName" } });
@@ -984,7 +984,7 @@ describe("application shell", () => {
     );
     // Escolher Telefone numa coluna e depois em outra deixa a primeira como "Não importar".
     fireEvent.change(
-      within(dialog).getByLabelText("Dado do sistema para a coluna Coluna 4"),
+      within(dialog).getByLabelText("Dado do sistema para a Coluna 4"),
       { target: { value: "phone" } },
     );
     // Sem WhatsApp, contato de emergência e e-mail: etiquetas automáticas da CD3.
@@ -1006,7 +1006,7 @@ describe("application shell", () => {
       ["fullName", "cpf", "phone", null],
     ]);
     expect(
-      within(dialog).getByLabelText("Dado do sistema para a coluna Coluna 4"),
+      within(dialog).getByLabelText("Dado do sistema para a Coluna 4"),
     ).toHaveValue("");
 
     fireEvent.click(
@@ -1216,6 +1216,10 @@ describe("application shell", () => {
       expect(within(dialog).getByLabelText("Observações")).toBeChecked();
       fireEvent.click(within(dialog).getByLabelText("Excel (.xlsx)"));
       fireEvent.click(within(dialog).getByLabelText("Observações"));
+      // Origem do cliente convertido de lead (EN3b): opcional, fora das padrão.
+      const leadOrigin = within(dialog).getByLabelText("Origem: evento/lead");
+      expect(leadOrigin).not.toBeChecked();
+      fireEvent.click(leadOrigin);
       fireEvent.click(within(dialog).getByRole("button", { name: "Exportar" }));
 
       await vi.waitFor(() => expect(createObjectURL).toHaveBeenCalled());
@@ -1226,7 +1230,7 @@ describe("application shell", () => {
         .searchParams;
       expect(query.get("format")).toBe("xlsx");
       expect(query.get("columns")).toBe(
-        "fullName,recordNumber,cpf,phone,whatsapp,email,birthDate,tags,status,emergencyContactName,emergencyContactPhone,createdAt",
+        "fullName,recordNumber,cpf,phone,whatsapp,email,birthDate,tags,status,emergencyContactName,emergencyContactPhone,createdAt,leadOrigin",
       );
       expect(query.get("search")).toBe("Hel");
       expect(query.get("status")).toBe("active");

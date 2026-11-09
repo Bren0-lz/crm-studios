@@ -569,6 +569,11 @@
     align-items: flex-start;
   }
 
+  /* Valor do item continua à direita quando a linha empilha (QV4). */
+  .patient-tab-items li > .patient-tab-amount {
+    align-self: flex-end;
+  }
+
   .table-actions {
     justify-self: start;
   }

@@ -7,6 +7,7 @@ import {
   waitlistStatusLabels,
   waitlistStatusSchema,
   whatsappLink,
+  withPrefix,
   type WaitlistEntry,
   type WaitlistStatus,
 } from "@crm/contracts";
@@ -81,7 +82,7 @@ export function WaitlistManageModal({
     try {
       await api.updateWaitlistEntry(entry.id, { status: "served" });
       await onChanged(
-        `${notice ?? `Matrícula de ${patientFirstName(entry.patientName)} feita na turma ${group.name}.`} Entrada da lista de espera marcada como atendida.`,
+        `${notice ?? `Matrícula de ${patientFirstName(entry.patientName)} feita na ${withPrefix("turma", group.name)}.`} Entrada da lista de espera marcada como atendida.`,
       );
     } catch (cause) {
       setError(

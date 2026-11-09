@@ -47,6 +47,8 @@ describe("recurring plan card", () => {
       screen.getByText(/Pilates: 9 de 8 aulas previstas/),
     ).toBeInTheDocument();
     expect(screen.queryByText(/sessões restantes/)).not.toBeInTheDocument();
+    // Sem saldo de sessões: sem barra de progresso.
+    expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
   });
 
   it("keeps the balance of a fixed package", () => {
@@ -59,5 +61,35 @@ describe("recurring plan card", () => {
     render(<PlanCard plan={plan} plans={[plan]} title="Pilates 2x" />);
     expect(screen.getByText("Esgotado")).toBeInTheDocument();
     expect(screen.getByText(/de 8 sessões restantes/)).toBeInTheDocument();
+  });
+
+  it("shows the progress bar as used sessions over the contracted total", () => {
+    const plan = {
+      ...base,
+      kind: "fixed_package",
+      remainingSessions: 7,
+      services: [{ ...base.services[0], remainingSessions: 7 }],
+    } as unknown as PatientPlan;
+    render(<PlanCard plan={plan} plans={[plan]} title="Pilates 2x" />);
+    const bar = screen.getByRole("progressbar", { name: "Sessões usadas" });
+    expect(bar).toHaveAttribute("value", "1");
+    expect(bar).toHaveAttribute("max", "8");
+    expect(bar).toHaveAttribute("aria-valuetext", "1 de 8 usada");
+    expect(screen.getByText("1 de 8 usada")).toBeInTheDocument();
+    expect(screen.getByText(/de 8 sessões restantes/)).toBeInTheDocument();
+  });
+
+  it("starts the bar empty with the legend 0 of 8 used", () => {
+    const plan = {
+      ...base,
+      kind: "fixed_package",
+      remainingSessions: 8,
+      services: [{ ...base.services[0], remainingSessions: 8 }],
+    } as unknown as PatientPlan;
+    render(<PlanCard plan={plan} plans={[plan]} title="Pilates 2x" />);
+    expect(
+      screen.getByRole("progressbar", { name: "Sessões usadas" }),
+    ).toHaveAttribute("aria-valuetext", "0 de 8 usadas");
+    expect(screen.getByText("0 de 8 usadas")).toBeInTheDocument();
   });
 });
