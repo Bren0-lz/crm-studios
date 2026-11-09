@@ -238,7 +238,7 @@ Gate completo em todos, na ordem da tabela.
 
 | ID | Item | Status |
 |----|------|--------|
-| QV1 | Barra lateral não pula ao abrir modal (compensação dupla gutter + padding?) | TODO |
+| QV1 | Barra lateral não pula ao abrir modal (compensação dupla gutter + padding?) | DONE |
 | QV2 | Abas da ficha com o estilo das abas de Configurações (pílula ativa) | TODO |
 | QV3 | Reset de fieldset, `summary` com chevron, tabelas e links do design system | TODO |
 | QV4 | Comanda: grade de 3 colunas com `min-width: 0`, valores à direita, botões com gap | TODO |
