@@ -24,6 +24,8 @@ export interface TelegramMemoryState {
   }[];
   outbox: TelegramOutboxMessage[];
   linkRoles: Map<string, UserRole[]>;
+  /** Último aviso de recibos por clínica (`clinics.telegram_receipt_reminder_sent_on`). */
+  receiptReminderSentOn: Map<string, string>;
 }
 
 export function createTelegramRepository(context: MemoryRepositoryContext) {
@@ -61,6 +63,26 @@ export function createTelegramRepository(context: MemoryRepositoryContext) {
         )
         .sort((a, b) => a.linkedAt.localeCompare(b.linkedAt))
         .map((item) => ({ ...item }));
+    },
+
+    async findTelegramLinksByChat(chatId: string) {
+      return state.links
+        .filter(
+          (item) =>
+            item.chatId === chatId && activeUser(item.clinicId, item.userId),
+        )
+        .sort((a, b) => b.linkedAt.localeCompare(a.linkedAt))
+        .map((item) => ({ ...item }));
+    },
+
+    async getTelegramReceiptReminderSentOn(clinicId: string) {
+      return state.receiptReminderSentOn.get(clinicId) ?? null;
+    },
+
+    async claimTelegramReceiptReminder(clinicId: string, sentOn: string) {
+      if (state.receiptReminderSentOn.get(clinicId) === sentOn) return false;
+      state.receiptReminderSentOn.set(clinicId, sentOn);
+      return true;
     },
 
     async deleteTelegramLink(clinicId: string, userId: string) {

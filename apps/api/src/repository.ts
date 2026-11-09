@@ -739,6 +739,21 @@ export interface ClinicRepository {
   ): Promise<TelegramLink | null>;
   /** Chats vinculados de usuários ativos da clínica (destino dos avisos). */
   listTelegramLinks(clinicId: string): Promise<TelegramLink[]>;
+  /**
+   * Vínculos do chat (TG4), de usuários ativos, do mais recente ao mais antigo, em qualquer
+   * clínica: o chat é quem diz a clínica e o usuário dos comandos do bot.
+   */
+  findTelegramLinksByChat(chatId: string): Promise<TelegramLink[]>;
+  /** Dia (aaaa-mm-dd, fuso da clínica) do último aviso de recibos pelo Telegram (TG4). */
+  getTelegramReceiptReminderSentOn(clinicId: string): Promise<string | null>;
+  /**
+   * Reserva o aviso de recibos do dia `sentOn` (aaaa-mm-dd): `true` só para quem gravou
+   * primeiro; `false` se o aviso desse dia já saiu (no máximo um por dia, mesmo em paralelo).
+   */
+  claimTelegramReceiptReminder(
+    clinicId: string,
+    sentOn: string,
+  ): Promise<boolean>;
   /** Desvincula o chat do usuário; `false` se não havia vínculo. */
   deleteTelegramLink(clinicId: string, userId: string): Promise<boolean>;
   /** Grava o código (pelo hash) e apaga os códigos ainda não usados do usuário. */

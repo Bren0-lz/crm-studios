@@ -35,7 +35,7 @@ for (const storage of ["memory", "mysql"] as const) {
           await pool!.query("DELETE FROM telegram_links");
           await pool!.query("DELETE FROM telegram_link_codes");
           await pool!.query(
-            "UPDATE clinics SET telegram_link_roles = NULL WHERE id = $1",
+            "UPDATE clinics SET telegram_link_roles = NULL, telegram_receipt_reminder_sent_on = NULL WHERE id = $1",
             [clinicId],
           );
           repository = new MysqlClinicRepository(pool!);
@@ -187,6 +187,70 @@ for (const storage of ["memory", "mysql"] as const) {
         expect(await repository.deleteTelegramLink(clinicId, user.id)).toBe(
           false,
         );
+      });
+
+      it("acha os vínculos do chat (mais recente primeiro, só usuários ativos)", async () => {
+        expect(await repository.findTelegramLinksByChat("777")).toEqual([]);
+        const link = async (userId: string, minute: number) => {
+          const codeHash = `chat-${randomUUID()}`;
+          await repository.createTelegramLinkCode(clinicId, userId, {
+            codeHash,
+            expiresAt: at(30),
+          });
+          expect(
+            (
+              await repository.linkTelegramChat({
+                codeHash,
+                chatId: "777",
+                now: at(minute),
+              })
+            ).status,
+          ).toBe("linked");
+        };
+        await repository.saveTelegramSettings(clinicId, {
+          linkRoles: ["admin", "user"],
+        });
+        const user = await repository.createAdminUser(
+          clinicId,
+          ownerId,
+          {
+            fullName: "Recepção do chat",
+            email: `${randomUUID()}@test.local`,
+            role: "user",
+            password: "Password123",
+          },
+          "unused-hash",
+        );
+        await link(ownerId, 1);
+        await link(user.id, 2);
+        expect(await repository.findTelegramLinksByChat("777")).toEqual([
+          { clinicId, userId: user.id, chatId: "777", linkedAt: at(2) },
+          { clinicId, userId: ownerId, chatId: "777", linkedAt: at(1) },
+        ]);
+        expect(await repository.findTelegramLinksByChat("778")).toEqual([]);
+      });
+
+      it("reserva o aviso de recibos uma vez por dia", async () => {
+        expect(
+          await repository.getTelegramReceiptReminderSentOn(clinicId),
+        ).toBeNull();
+        expect(
+          await repository.claimTelegramReceiptReminder(clinicId, "2026-11-09"),
+        ).toBe(true);
+        expect(
+          await repository.claimTelegramReceiptReminder(clinicId, "2026-11-09"),
+        ).toBe(false);
+        expect(
+          await repository.getTelegramReceiptReminderSentOn(clinicId),
+        ).toBe("2026-11-09");
+        const parallel = await Promise.all([
+          repository.claimTelegramReceiptReminder(clinicId, "2026-11-10"),
+          repository.claimTelegramReceiptReminder(clinicId, "2026-11-10"),
+        ]);
+        expect(parallel.filter(Boolean)).toHaveLength(1);
+        expect(
+          await repository.getTelegramReceiptReminderSentOn(clinicId),
+        ).toBe("2026-11-10");
       });
 
       it("reserva, registra falhas, desiste e marca envio na fila", async () => {

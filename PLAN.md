@@ -1048,7 +1048,7 @@ atualizado no mesmo PR):
   - Testes API com cliente falso.
 - **Gate:** gate completo
 - **Depende de:** TG3
-- **Status:** TODO
+- **Status:** DONE
 
 ### TG5 — Outras métricas no Telegram
 

@@ -596,6 +596,7 @@ export class MemoryRepositoryContext {
     codes: [],
     outbox: [],
     linkRoles: new Map(),
+    receiptReminderSentOn: new Map(),
   };
 
   /** WhatsApp por usuário (`users.whatsapp` no PostgreSQL). */

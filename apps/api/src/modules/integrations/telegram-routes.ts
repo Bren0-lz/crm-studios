@@ -9,11 +9,19 @@ import type { RouteContext } from "../../infrastructure/route-context.js";
 import { DomainError } from "../../repository.js";
 import type { TelegramLinkAttempt } from "../../repository.js";
 import { hashTelegramLinkCode, type TelegramService } from "./telegram.js";
+import {
+  createTelegramCommands,
+  telegramAgendaCommands,
+  telegramCommandsHelp,
+} from "./telegram-commands.js";
 
 const SETTINGS_PATH = "Configurações › Integrações";
 
 /** Respostas do bot a `/vincular`, por resultado. */
-const linkReplies: Record<Exclude<TelegramLinkAttempt["status"], "linked">, string> = {
+const linkReplies: Record<
+  Exclude<TelegramLinkAttempt["status"], "linked">,
+  string
+> = {
   invalid: `Código não encontrado. Gere um novo em ${SETTINGS_PATH} e envie ${TELEGRAM_LINK_COMMAND} <código>.`,
   expired: `Este código venceu (vale ${TELEGRAM_LINK_CODE_TTL_MINUTES} minutos). Gere um novo em ${SETTINGS_PATH}.`,
   used: `Este código já foi usado. Gere um novo em ${SETTINGS_PATH}.`,
@@ -34,7 +42,9 @@ const telegramUpdateSchema = z.object({
 
 /** `/comando@NomeDoBot argumentos` → comando e argumentos. */
 function parseCommand(text: string) {
-  const match = /^\/([A-Za-z0-9_]+)(?:@\S+)?(?:\s+([\s\S]*))?$/.exec(text.trim());
+  const match = /^\/([A-Za-z0-9_]+)(?:@\S+)?(?:\s+([\s\S]*))?$/.exec(
+    text.trim(),
+  );
   return match
     ? { command: `/${match[1]!.toLowerCase()}`, args: (match[2] ?? "").trim() }
     : null;
@@ -45,9 +55,18 @@ type CommandHandler = (input: {
   args: string;
   telegram: TelegramService;
   context: RouteContext;
+  agendaCommands: ReturnType<typeof createTelegramCommands>;
 }) => Promise<void>;
 
-/** Comandos do bot. A TG4 acrescenta `/hoje`, `/semana` e `/mes` aqui. */
+/** Ajuda: chat vinculado vê os comandos; sem vínculo, como vincular. */
+const help: CommandHandler = async ({ chatId, telegram, agendaCommands }) => {
+  const link = (await agendaCommands.linkOf(chatId)) ?? null;
+  await telegram.enqueue(link?.clinicId ?? null, [
+    { chatId, message: link ? telegramCommandsHelp : helpReply },
+  ]);
+};
+
+/** Comandos do bot: vínculo (TG1) e agenda do dia, da semana e do mês (TG4). */
 const commands: Record<string, CommandHandler> = {
   [TELEGRAM_LINK_COMMAND]: async ({ chatId, args, telegram, context }) => {
     if (!args) {
@@ -76,8 +95,13 @@ const commands: Record<string, CommandHandler> = {
         { chatId, message: linkReplies[result.status] },
       ]);
   },
-  "/start": async ({ chatId, telegram }) =>
-    telegram.enqueue(null, [{ chatId, message: helpReply }]),
+  "/start": help,
+  ...Object.fromEntries(
+    telegramAgendaCommands.map((command): [string, CommandHandler] => [
+      command,
+      ({ chatId, agendaCommands }) => agendaCommands.agenda(command, chatId),
+    ]),
+  ),
 };
 
 const disabledError = () =>
@@ -90,6 +114,14 @@ const disabledError = () =>
 /** Telegram (TG1): webhook do bot, vínculo do chat do usuário e fila de saída. */
 export function registerTelegramRoutes(context: RouteContext) {
   const { app, repository, telegram } = context;
+  const agendaCommands = createTelegramCommands({
+    repository,
+    telegram,
+    accessibleBranches: context.accessibleBranches,
+    log: app.log,
+    settingsPath: SETTINGS_PATH,
+    linkCommand: TELEGRAM_LINK_COMMAND,
+  });
 
   async function statusOf(
     clinicId: string,
@@ -175,10 +207,16 @@ export function registerTelegramRoutes(context: RouteContext) {
       const parsed = message?.text ? parseCommand(message.text) : null;
       if (message && message.text !== undefined) {
         const chatId = String(message.chat.id);
-        const handler = parsed ? commands[parsed.command] : undefined;
-        if (handler)
-          await handler({ chatId, args: parsed!.args, telegram, context });
-        else await telegram.enqueue(null, [{ chatId, message: helpReply }]);
+        const handler = (parsed && commands[parsed.command]) || help;
+        await handler({
+          chatId,
+          args: parsed?.args ?? "",
+          telegram,
+          context,
+          agendaCommands,
+        });
+        // Aviso periódico de recibos: sem agendador, vale o primeiro webhook depois do horário.
+        await agendaCommands.receiptReminderSafely(chatId);
       }
       // Cada chamada do webhook também tenta as mensagens pendentes.
       await telegram.drainSafely();
