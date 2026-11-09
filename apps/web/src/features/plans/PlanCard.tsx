@@ -14,6 +14,7 @@ import {
   planPaymentTerms,
   planRenewalLabel,
 } from "./model";
+import { PlanProgress } from "./PlanProgress";
 
 /**
  * Cartão completo do plano: saldo por serviço, validade, pausa e renovação. Usado na página
@@ -37,7 +38,6 @@ export function PlanCard({
 }) {
   const cancelled = plan.status === "cancelled";
   const used = planUsedSessions(plan);
-  const percent = Math.min(100, Math.round((used / plan.totalSessions) * 100));
   // Recorrente: vale a frequência semanal; mostra as aulas feitas no ciclo, sem saldo.
   const hasBalance = planHasSessionBalance(plan);
   return (
@@ -81,11 +81,7 @@ export function PlanCard({
           · {currency.format(entry.totalValueInCents / 100)}
         </p>
       ))}
-      {hasBalance && (
-        <div className="progress-track">
-          <span style={{ width: `${percent}%` }} />
-        </div>
-      )}
+      <PlanProgress plan={plan} />
       <div className="plan-meta">
         <span>Validade</span>
         <strong>

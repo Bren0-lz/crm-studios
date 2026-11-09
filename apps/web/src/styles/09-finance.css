@@ -49,19 +49,40 @@
   font-size: var(--text-xs);
 }
 
-.progress-track {
-  height: 6px;
-  margin: 8px 0 16px;
+/* Barra de sessões usadas do plano (<progress> nativo) com a legenda "N de M usadas". */
+.plan-progress {
+  display: grid;
+  gap: var(--space-1);
+  margin: var(--space-2) 0 var(--space-4);
+}
+
+.plan-progress progress {
+  width: 100%;
+  height: calc(var(--space-1) + 2px);
   overflow: hidden;
-  border-radius: 9px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: #e9e8e2;
+  appearance: none;
+}
+
+.plan-progress progress::-webkit-progress-bar {
   background: #e9e8e2;
 }
 
-.progress-track span {
-  display: block;
-  height: 100%;
-  border-radius: inherit;
+.plan-progress progress::-webkit-progress-value {
+  border-radius: var(--radius-sm);
   background: var(--terracotta);
+}
+
+.plan-progress progress::-moz-progress-bar {
+  border-radius: var(--radius-sm);
+  background: var(--terracotta);
+}
+
+.plan-progress span {
+  color: var(--muted);
+  font-size: var(--text-xs);
 }
 
 .plan-meta {

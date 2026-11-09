@@ -243,7 +243,7 @@ Gate completo em todos, na ordem da tabela.
 | QV3 | Reset de fieldset, `summary` com chevron, tabelas e links do design system | DONE |
 | QV4 | Comanda: grade de 3 colunas com `min-width: 0`, valores à direita, botões com gap | DONE |
 | QV5 | Textos duplicados ("Sala Sala de Dança", "Cliente / Cliente") | DONE |
-| QV6 | Barra de progresso do plano com semântica definida e legenda "0 de 8 usadas" | TODO |
+| QV6 | Barra de progresso do plano com semântica definida e legenda "0 de 8 usadas" | DONE |
 | QV7 | Espaço entre seções em Turmas | TODO |
 | QV8 | `PageHeader` igual em Configurações; botões `button-sm` em Serviços e salas, com preço e duração | TODO |
 | QV9 | Legenda da agenda em uma linha/popover; colunas do kanban com `min-width` e indicação de rolagem | TODO |
