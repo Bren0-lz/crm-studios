@@ -229,7 +229,6 @@ export function Shell({
           </button>
           <div className="topbar-context">
             <span className="clinic-label">Studios Aryana</span>
-            <span className="environment-dot">Demonstração</span>
           </div>
           <NotificationsBanner
             center={notifications}
