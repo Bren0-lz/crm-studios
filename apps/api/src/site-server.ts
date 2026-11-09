@@ -5,6 +5,7 @@ import { config } from "./config.js";
 import { isApiPath, stripApiPrefix } from "./infrastructure/api-prefix.js";
 import { defaultJwtSecret } from "./infrastructure/published-config.js";
 import { openRepository } from "./infrastructure/startup.js";
+import { passwordEncryptionKey } from "./security/password-storage.js";
 import { createWebHandler } from "./infrastructure/web-static.js";
 
 /**
@@ -23,6 +24,11 @@ if (config.NODE_ENV === "production") {
   if (config.JWT_SECRET === defaultJwtSecret) {
     throw new Error(
       "Defina JWT_SECRET (32+ caracteres aleatórios) nas variáveis de ambiente do app.",
+    );
+  }
+  if (!passwordEncryptionKey()) {
+    console.warn(
+      "Defina PASSWORD_ENCRYPTION_KEY (32 bytes em base64) nas variáveis de ambiente do app: sem ela não é possível criar usuários nem trocar senhas.",
     );
   }
 }

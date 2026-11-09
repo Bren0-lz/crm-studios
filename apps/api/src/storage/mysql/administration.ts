@@ -41,6 +41,8 @@ import {
   DomainError,
   lastAdminError,
   type CommissionRecalculationRequest,
+  passwordColumns,
+  type PasswordToStore,
 } from "../../repository.js";
 import { userCommissionDrafts } from "../../modules/finance/commission-recalculation.js";
 import { createMysqlCommissionRecalculation } from "./commission-recalculation.js";
@@ -369,9 +371,10 @@ export function createAdministrationRepository(
       clinicId: string,
       actorUserId: string,
       input: AdminUserInput,
-      passwordHash: string,
+      password: PasswordToStore,
       recalculation?: CommissionRecalculationRequest,
     ) {
+      const { passwordHash, passwordEncrypted } = passwordColumns(password);
       const client = await repositoryContext.pool.connect();
       try {
         await client.query("BEGIN");
@@ -382,8 +385,8 @@ export function createAdministrationRepository(
         const result = await writeAndRead<UserRow>(
           client,
           `INSERT INTO users (clinic_id, full_name, email, role, password_hash, job_title, modules,
-           edit_modules, permissions, whatsapp, id, dashboard_access)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10, $11, $12)`,
+           edit_modules, permissions, whatsapp, id, dashboard_access, password_encrypted)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10, $11, $12, $13)`,
           [
             clinicId,
             input.fullName,
@@ -397,6 +400,7 @@ export function createAdministrationRepository(
             input.whatsapp || null,
             randomUUID(),
             input.dashboardAccess ?? false,
+            passwordEncrypted,
           ],
           `SELECT ${userColumns} FROM users WHERE id = $11`,
         );
@@ -689,20 +693,27 @@ export function createAdministrationRepository(
       clinicId: string,
       actorUserId: string,
       userId: string,
-      passwordHash: string,
+      password: PasswordToStore,
     ) {
+      const { passwordHash, passwordEncrypted } = passwordColumns(password);
       const client = await repositoryContext.pool.connect();
       try {
         await client.query("BEGIN");
-        const result = await client.query(
-          `UPDATE users SET password_hash = $3, session_version=session_version+1, updated_at = NOW(6)
-         WHERE clinic_id = $1 AND id = $2`,
-          [clinicId, userId, passwordHash],
+        // Trava a linha do usuário: a troca e a auditoria entram juntas.
+        const locked = await client.query(
+          "SELECT id FROM users WHERE clinic_id = $1 AND id = $2 FOR UPDATE",
+          [clinicId, userId],
         );
-        if (!result.rowCount) {
+        if (!locked.rows.length) {
           await client.query("COMMIT");
           return false;
         }
+        await client.query(
+          `UPDATE users SET password_hash = $3, password_encrypted = $4,
+           session_version=session_version+1, updated_at = NOW(6)
+         WHERE clinic_id = $1 AND id = $2`,
+          [clinicId, userId, passwordHash, passwordEncrypted],
+        );
         await repositoryContext.addAdminAudit(
           client,
           clinicId,
@@ -719,6 +730,35 @@ export function createAdministrationRepository(
       } finally {
         client.release();
       }
+    },
+
+    async findUserPasswordEncrypted(clinicId: string, userId: string) {
+      const result = await repositoryContext.pool.query<{
+        encrypted: string | null;
+      }>(
+        "SELECT password_encrypted AS encrypted FROM users WHERE clinic_id = $1 AND id = $2",
+        [clinicId, userId],
+      );
+      const row = result.rows[0];
+      return row
+        ? { found: true, encrypted: row.encrypted ?? null }
+        : { found: false, encrypted: null };
+    },
+
+    async recordUserPasswordViewed(
+      clinicId: string,
+      actorUserId: string,
+      userId: string,
+    ) {
+      await repositoryContext.addAdminAudit(
+        repositoryContext.pool,
+        clinicId,
+        actorUserId,
+        "user.password_viewed",
+        "user",
+        userId,
+        { viewedUserId: userId },
+      );
     },
 
     async getOwnProfile(clinicId: string, userId: string) {
@@ -1288,7 +1328,9 @@ export function createAdministrationRepository(
         [tokenHash],
       );
       const row = result.rows[0];
-      return row ? { clinicId: row.clinicId, key: mapIntegrationKey(row) } : null;
+      return row
+        ? { clinicId: row.clinicId, key: mapIntegrationKey(row) }
+        : null;
     },
 
     async touchIntegrationKey(clinicId: string, id: string) {

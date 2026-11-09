@@ -1450,3 +1450,17 @@ filtros ficam no `dashboard-studios` (EN11–EN13 têm só a parte da API aqui).
 - **Pendente com o dono:** autorizar o guia dentro do sistema (o CLAUDE.md proíbe documentos
   novos sem autorização)?
 - **Status:** BLOCKED
+
+## Pedido avulso — Senha visível para o admin (09/11/2026)
+
+### SV1 — Admin consulta a senha atual do usuário
+
+- **Escopo:** cópia cifrada (AES-256-GCM, `v1:`) da senha ao lado do hash bcrypt, gravada em
+  todo caminho que troca senha (`POST /admin/users`, `reset-password`, `/me/password`);
+  migração `0057_user_password_encrypted.sql`; `POST /admin/users/:id/reveal-password` (só
+  admin, mesma clínica, `no-store`, 20/min, auditoria `user.password_viewed` antes da resposta,
+  409 sem cópia); modal "Senha de acesso" com "Senha atual" (olho) e "Nova senha".
+- **Gate:** gate completo + `npm run test:mysql`
+- **Pendente com o dono:** definir `PASSWORD_ENCRYPTION_KEY` no `.env`/`.env.example` e na
+  Hostinger (não editados sem autorização).
+- **Status:** DONE

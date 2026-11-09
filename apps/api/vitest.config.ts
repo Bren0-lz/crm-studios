@@ -12,6 +12,10 @@ export default defineConfig({
     })),
     coverage: coverageFor("api"),
     maxWorkers: 2,
+    // Chave fixa só dos testes (32 bytes em base64) para a cópia cifrada das senhas.
+    env: {
+      PASSWORD_ENCRYPTION_KEY: "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=",
+    },
     // A máquina de desenvolvimento às vezes fica lenta (OneDrive, antivírus); 5s gerava falsos timeouts.
     testTimeout: 20_000,
   },

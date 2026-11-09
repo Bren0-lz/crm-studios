@@ -37,6 +37,8 @@ import {
   lastAdminError,
   type AuthenticatedUser,
   type CommissionRecalculationRequest,
+  passwordColumns,
+  type PasswordToStore,
 } from "../../repository.js";
 import { userCommissionDrafts } from "../../modules/finance/commission-recalculation.js";
 import type { MemoryRepositoryContext } from "./context.js";
@@ -169,9 +171,10 @@ export function createAdministrationRepository(
       clinicId: string,
       actorUserId: string,
       input: AdminUserInput,
-      passwordHash: string,
+      password: PasswordToStore,
       recalculation?: CommissionRecalculationRequest,
     ) {
+      const { passwordHash, passwordEncrypted } = passwordColumns(password);
       if (
         repositoryContext.users.some(
           (user) =>
@@ -228,6 +231,7 @@ export function createAdministrationRepository(
           actorUserId,
         );
       repositoryContext.users.push(user);
+      repositoryContext.setUserPasswordCopy(user.id, passwordEncrypted);
       if (input.whatsapp)
         repositoryContext.userWhatsapps.set(user.id, input.whatsapp);
       repositoryContext.addAdminAudit(
@@ -443,13 +447,15 @@ export function createAdministrationRepository(
       clinicId: string,
       actorUserId: string,
       userId: string,
-      passwordHash: string,
+      password: PasswordToStore,
     ) {
+      const { passwordHash, passwordEncrypted } = passwordColumns(password);
       const user = repositoryContext.users.find(
         (item) => item.clinicId === clinicId && item.id === userId,
       );
       if (!user) return false;
       user.passwordHash = passwordHash;
+      repositoryContext.setUserPasswordCopy(user.id, passwordEncrypted);
       user.sessionVersion = (user.sessionVersion ?? 0) + 1;
       user.updatedAt = now();
       repositoryContext.addAdminAudit(
@@ -461,6 +467,32 @@ export function createAdministrationRepository(
         clinicId,
       );
       return true;
+    },
+
+    async findUserPasswordEncrypted(clinicId: string, userId: string) {
+      const user = repositoryContext.users.find(
+        (item) => item.clinicId === clinicId && item.id === userId,
+      );
+      if (!user) return { found: false, encrypted: null };
+      return {
+        found: true,
+        encrypted: repositoryContext.userPasswordCopies.get(user.id) ?? null,
+      };
+    },
+
+    async recordUserPasswordViewed(
+      clinicId: string,
+      actorUserId: string,
+      userId: string,
+    ) {
+      repositoryContext.addAdminAudit(
+        actorUserId,
+        "user.password_viewed",
+        "user",
+        userId,
+        { viewedUserId: userId },
+        clinicId,
+      );
     },
 
     async getOwnProfile(clinicId: string, userId: string) {
@@ -846,7 +878,8 @@ export function createAdministrationRepository(
         .filter((item) => item.clinicId === clinicId)
         .sort(
           (left, right) =>
-            Number(Boolean(left.revokedAt)) - Number(Boolean(right.revokedAt)) ||
+            Number(Boolean(left.revokedAt)) -
+              Number(Boolean(right.revokedAt)) ||
             right.createdAt.localeCompare(left.createdAt),
         )
         .map(publicIntegrationKey);

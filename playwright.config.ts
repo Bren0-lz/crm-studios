@@ -4,6 +4,9 @@ process.env.NODE_ENV = "test";
 process.env.STORAGE_MODE = "memory";
 process.env.WEB_ORIGIN = "http://127.0.0.1:4173";
 process.env.JWT_SECRET = "isolated-e2e-secret-with-at-least-32-characters";
+// Chave fixa só dos testes (32 bytes em base64) para a cópia cifrada das senhas.
+process.env.PASSWORD_ENCRYPTION_KEY =
+  "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=";
 
 export default defineConfig({
   testDir: "./e2e",

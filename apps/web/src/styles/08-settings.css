@@ -435,6 +435,51 @@
   white-space: nowrap;
 }
 
+/* Senha de acesso: cartões "Senha atual" e "Nova senha" (lado a lado no form-grid). */
+.password-card {
+  display: grid;
+  align-content: start;
+  gap: var(--space-2);
+  min-width: 0;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--paper);
+}
+
+.password-card.is-modified {
+  border-color: var(--green);
+}
+
+.password-card-title {
+  color: var(--ink);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.password-field {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.password-field > input {
+  flex: 1;
+  min-width: 0;
+}
+
+.password-mask {
+  flex: 1;
+  color: var(--muted);
+  font-size: var(--text-md);
+  letter-spacing: 0.15em;
+}
+
+.password-card > .field-hint,
+.password-card > .form-error {
+  margin: 0;
+}
+
 /* Painel estreito (metade da grade de Configurações): ações descem para baixo dos dados. */
 @container (max-width: 460px) {
   .admin-user-row {

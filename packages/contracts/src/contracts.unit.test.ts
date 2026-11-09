@@ -1957,6 +1957,26 @@ describe("lead duplicates", () => {
   });
 });
 
+describe("histórico de senhas", () => {
+  it("rotula a redefinição e a consulta da senha em Configurações", () => {
+    const actions = historyActions.filter((item) =>
+      ["user.password_reset", "user.password_viewed"].includes(item.action),
+    );
+    expect(actions).toEqual([
+      {
+        action: "user.password_reset",
+        module: "settings",
+        label: "Senha redefinida",
+      },
+      {
+        action: "user.password_viewed",
+        module: "settings",
+        label: "Senha visualizada",
+      },
+    ]);
+  });
+});
+
 describe("textos de interface sem nome antigo nem código interno (QM15)", () => {
   it("rotula permissões e histórico sem 'movimenta'", () => {
     const labels = [
