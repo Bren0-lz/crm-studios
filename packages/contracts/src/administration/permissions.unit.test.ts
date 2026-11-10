@@ -100,6 +100,29 @@ describe("operation permissions", () => {
       normalizePermissions(["reports.view", "reports.campaigns_export"]),
     ).toEqual(["reports.view"]);
   });
+  it("explica cada permissão com nome simples e descrição própria", () => {
+    for (const module of appModuleSchema.options) {
+      const names = permissionCatalog
+        .filter((item) => item.module === module)
+        .map((item) => item.name);
+      expect(new Set(names).size).toBe(names.length);
+    }
+    for (const item of permissionCatalog) {
+      expect(item.name.length).toBeLessThanOrEqual(45);
+      expect(item.description).not.toMatch(/registros acessíveis/);
+      expect(item.description).not.toContain(item.key);
+      expect(item.description.length).toBeGreaterThanOrEqual(30);
+      expect(item.description).toMatch(/[.)]$/);
+    }
+    // A descrição avisa quando a opção depende de outra além do acesso à área.
+    for (const item of permissionCatalog)
+      for (const dependency of item.dependencies.filter(
+        (key) => key !== `${item.module}.view` && key.startsWith(item.module),
+      ))
+        expect(item.description).toContain(
+          permissionCatalog.find((entry) => entry.key === dependency)!.name,
+        );
+  });
   it("denies missing prerequisites and normalizes duplicates in catalog order", () => {
     expect(normalizePermissions(["finance.receive"])).toEqual([]);
     expect(

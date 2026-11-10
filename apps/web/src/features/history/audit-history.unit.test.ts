@@ -144,7 +144,10 @@ describe("readable audit history", () => {
     const original = JSON.stringify(input);
     expect(formatAuditEvent(input).details).toEqual([
       { label: "Acessos concedidos", value: "Visualizar Histórico" },
-      { label: "Acessos removidos", value: "Financeiro: Receber pagamento" },
+      {
+        label: "Acessos removidos",
+        value: "Financeiro: Registrar pagamento recebido",
+      },
     ]);
     expect(JSON.stringify(input)).toBe(original);
     expect(

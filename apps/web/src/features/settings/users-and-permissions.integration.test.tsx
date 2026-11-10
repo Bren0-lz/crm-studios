@@ -248,10 +248,10 @@ describe("users and permissions", () => {
       "Configurações",
     ]) {
       expect(
-        within(dialog).getByLabelText(`${module}: Visualizar módulo`),
+        within(dialog).getByLabelText(new RegExp(`^${module}: Acessar `)),
       ).not.toBeChecked();
       expect(
-        within(dialog).getByLabelText(`Selecionar bloco ${module}`),
+        within(dialog).getByLabelText(`Marcar todas de ${module}`),
       ).not.toBeChecked();
     }
     expect(
@@ -265,40 +265,42 @@ describe("users and permissions", () => {
 
     // Marcar Editar marca Ver; desmarcar Ver desmarca Editar.
     fireEvent.click(
-      within(dialog).getByLabelText("Selecionar bloco Relatórios"),
+      within(dialog).getByLabelText("Marcar todas de Relatórios"),
     );
     expect(
-      within(dialog).getByLabelText("Relatórios: Visualizar módulo"),
+      within(dialog).getByLabelText("Relatórios: Acessar os relatórios"),
     ).toBeChecked();
     fireEvent.click(
-      within(dialog).getByLabelText("Relatórios: Visualizar módulo"),
+      within(dialog).getByLabelText("Relatórios: Acessar os relatórios"),
     );
     expect(
-      within(dialog).getByLabelText("Selecionar bloco Relatórios"),
+      within(dialog).getByLabelText("Marcar todas de Relatórios"),
     ).not.toBeChecked();
-    fireEvent.click(within(dialog).getByLabelText("Turmas: Visualizar módulo"));
+    fireEvent.click(within(dialog).getByLabelText("Turmas: Acessar as turmas"));
 
     // Admin: acesso total, sem checkboxes nem cópia; voltar a usuário comum mantém o que estava marcado.
     fireEvent.change(type, { target: { value: "admin" } });
     expect(within(dialog).getByText(/Acesso total/)).toBeInTheDocument();
     expect(
-      within(dialog).queryByLabelText("Clientes: Visualizar módulo"),
+      within(dialog).queryByLabelText("Clientes: Acessar os clientes"),
     ).not.toBeInTheDocument();
     expect(
       within(dialog).queryByLabelText("Copiar permissões de…"),
     ).not.toBeInTheDocument();
     fireEvent.change(type, { target: { value: "user" } });
     expect(
-      within(dialog).getByLabelText("Turmas: Visualizar módulo"),
+      within(dialog).getByLabelText("Turmas: Acessar as turmas"),
     ).toBeChecked();
-    fireEvent.click(within(dialog).getByLabelText("Turmas: Visualizar módulo"));
-    fireEvent.click(within(dialog).getByLabelText("Selecionar bloco Agenda"));
-    fireEvent.click(within(dialog).getByLabelText("Selecionar bloco Clientes"));
+    fireEvent.click(within(dialog).getByLabelText("Turmas: Acessar as turmas"));
+    fireEvent.click(within(dialog).getByLabelText("Marcar todas de Agenda"));
+    fireEvent.click(within(dialog).getByLabelText("Marcar todas de Clientes"));
     fireEvent.click(
-      within(dialog).getByLabelText("Planos e sessões: Visualizar módulo"),
+      within(dialog).getByLabelText(
+        "Planos e sessões: Acessar planos e sessões",
+      ),
     );
     fireEvent.click(
-      within(dialog).getByLabelText("Prontuários: Visualizar módulo"),
+      within(dialog).getByLabelText("Prontuários: Acessar os prontuários"),
     );
 
     fireEvent.change(within(dialog).getByLabelText("Nome completo"), {
@@ -650,33 +652,33 @@ describe("users and permissions", () => {
       within(dialog).getByText(/Permissões copiadas de Carla Reis/),
     ).toBeInTheDocument();
     expect(
-      within(dialog).getByLabelText("Agenda: Visualizar módulo"),
+      within(dialog).getByLabelText("Agenda: Acessar a agenda"),
     ).toBeChecked();
     expect(
-      within(dialog).getByLabelText("Selecionar bloco Agenda"),
+      within(dialog).getByLabelText("Marcar todas de Agenda"),
     ).not.toBeChecked();
     expect(
-      within(dialog).getByLabelText("Clientes: Visualizar módulo"),
+      within(dialog).getByLabelText("Clientes: Acessar os clientes"),
     ).toBeChecked();
     expect(
-      within(dialog).getByLabelText("Selecionar bloco Prontuários"),
+      within(dialog).getByLabelText("Marcar todas de Prontuários"),
     ).not.toBeChecked();
     expect(
-      within(dialog).getByLabelText("Selecionar bloco Prontuários"),
+      within(dialog).getByLabelText("Marcar todas de Prontuários"),
     ).toHaveProperty("indeterminate", true);
     expect(
       within(dialog).getByLabelText(
-        "Prontuários: Gerenciar aparelhos, exercícios e treinos",
+        "Prontuários: Cadastrar aparelhos, exercícios e treinos",
       ),
     ).not.toBeChecked();
     expect(
-      within(dialog).getByLabelText("Financeiro: Visualizar módulo"),
+      within(dialog).getByLabelText("Financeiro: Acessar o financeiro"),
     ).not.toBeChecked();
     // Continua editável depois de copiar.
     fireEvent.click(
-      within(dialog).getByLabelText("Clientes: Visualizar módulo"),
+      within(dialog).getByLabelText("Clientes: Acessar os clientes"),
     );
-    fireEvent.click(within(dialog).getByLabelText("Selecionar bloco Agenda"));
+    fireEvent.click(within(dialog).getByLabelText("Marcar todas de Agenda"));
 
     fireEvent.change(within(dialog).getByLabelText("Nome completo"), {
       target: { value: "Ana Lima" },
@@ -741,7 +743,7 @@ describe("users and permissions", () => {
       "Instrutora de Pilates",
     );
     expect(
-      within(dialog).getByLabelText("Financeiro: Visualizar módulo"),
+      within(dialog).getByLabelText("Financeiro: Acessar o financeiro"),
     ).toBeChecked();
     const copy = within(dialog).getByLabelText("Copiar permissões de…");
     expect(
@@ -749,15 +751,15 @@ describe("users and permissions", () => {
     ).not.toBeInTheDocument();
     fireEvent.change(copy, { target: { value: carlaUser.id } });
     expect(
-      within(dialog).getByLabelText("Financeiro: Visualizar módulo"),
+      within(dialog).getByLabelText("Financeiro: Acessar o financeiro"),
     ).not.toBeChecked();
     expect(
-      within(dialog).getByLabelText("Selecionar bloco Prontuários"),
+      within(dialog).getByLabelText("Marcar todas de Prontuários"),
     ).not.toBeChecked();
     expect(
-      within(dialog).getByLabelText("Selecionar bloco Prontuários"),
+      within(dialog).getByLabelText("Marcar todas de Prontuários"),
     ).toHaveProperty("indeterminate", true);
-    fireEvent.click(within(dialog).getByLabelText("Selecionar bloco Clientes"));
+    fireEvent.click(within(dialog).getByLabelText("Marcar todas de Clientes"));
     fireEvent.change(within(dialog).getByLabelText("Cargo"), {
       target: { value: "" },
     });
@@ -805,16 +807,16 @@ describe("users and permissions", () => {
     expect(within(dialog).getByLabelText("Tipo")).toHaveValue("admin");
     expect(within(dialog).getByText(/Acesso total/)).toBeInTheDocument();
     expect(
-      within(dialog).queryByLabelText("Agenda: Visualizar módulo"),
+      within(dialog).queryByLabelText("Agenda: Acessar a agenda"),
     ).not.toBeInTheDocument();
     fireEvent.change(within(dialog).getByLabelText("Tipo"), {
       target: { value: "user" },
     });
     expect(
-      within(dialog).getByLabelText("Agenda: Visualizar módulo"),
+      within(dialog).getByLabelText("Agenda: Acessar a agenda"),
     ).not.toBeChecked();
     expect(
-      within(dialog).getByLabelText("Configurações: Visualizar módulo"),
+      within(dialog).getByLabelText("Configurações: Acessar as configurações"),
     ).not.toBeChecked();
   });
 
@@ -898,7 +900,7 @@ describe("users and permissions", () => {
     );
     const dialog = screen.getByRole("dialog", { name: "Editar Maria Souza" });
     fireEvent.click(
-      within(dialog).getByLabelText("Selecionar bloco Financeiro"),
+      within(dialog).getByLabelText("Marcar todas de Financeiro"),
     );
     fireEvent.submit(
       within(dialog).getByLabelText("Nome completo").closest("form")!,

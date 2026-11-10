@@ -33,9 +33,9 @@ function BlockToggle({
         onChange={(event) =>
           onChange(togglePermissions(value, keys, event.target.checked))
         }
-        aria-label={`Selecionar bloco ${name}`}
+        aria-label={`Marcar todas de ${name}`}
       />
-      Selecionar bloco · {count}/{keys.length}
+      Marcar todas · {count}/{keys.length}
     </label>
   );
 }
@@ -58,7 +58,7 @@ export function PermissionEditor({
             type="search"
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            placeholder="Ex.: estornar, agendar, exportar"
+            placeholder="Ex.: receber, agendar, baixar planilha"
           />
         </label>
         <button
@@ -117,8 +117,10 @@ export function PermissionEditor({
         );
       })}
       <p className="muted-copy">
-        Operações exigem visualizar o módulo. Administração é exclusiva de
-        administradores.
+        A primeira opção de cada área (&quot;Acessar…&quot;) é obrigatória: sem
+        ela, as outras daquela área ficam desmarcadas. Ao marcar uma opção, o
+        sistema marca junto o que ela precisa. Usuários e permissões só podem
+        ser alterados por administradores.
       </p>
     </div>
   );
