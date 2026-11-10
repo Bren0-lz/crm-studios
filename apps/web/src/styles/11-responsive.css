@@ -163,12 +163,6 @@
     min-width: 0;
   }
 
-  .topbar .environment-dot {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
   .clinic-label {
     display: none;
   }
