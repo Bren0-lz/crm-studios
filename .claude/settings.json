@@ -38,5 +38,16 @@
       "Edit(docs/PLANO_*)",
       "Write(docs/PLANO_*)"
     ]
+  },
+  "extraKnownMarketplaces": {
+    "caveman": {
+      "source": {
+        "source": "github",
+        "repo": "JuliusBrussee/caveman"
+      }
+    }
+  },
+  "enabledPlugins": {
+    "caveman@caveman": true
   }
 }
