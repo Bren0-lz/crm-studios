@@ -51,7 +51,9 @@ export function createReportsRepository(
         .map((item) => [item.id, item.businessLine ?? null]),
     );
     for (const plan of repositoryContext
-      .scoped(repositoryContext.patientPlans)
+      .withoutTrashedPatients(
+        repositoryContext.scoped(repositoryContext.patientPlans),
+      )
       .filter((item) => item.clinicId === clinicId && !item.sourceTabId)) {
       const base = {
         sourceId: plan.id,
@@ -97,7 +99,9 @@ export function createReportsRepository(
         });
     }
     for (const tab of repositoryContext
-      .scoped(repositoryContext.patientTabs)
+      .withoutTrashedPatients(
+        repositoryContext.scoped(repositoryContext.patientTabs),
+      )
       .filter((item) => item.clinicId === clinicId && item.closedAt)) {
       const items = [
         ...tab.items.map((item) => ({
@@ -180,7 +184,8 @@ export function createReportsRepository(
         firstSaleAt.set(item.patientId, item.occurredAt);
     }
     const billing: SalesBilling = {
-      receivables: repositoryContext.receivables
+      receivables: repositoryContext
+        .withoutTrashedPatients(repositoryContext.receivables)
         .filter((item) => item.clinicId === clinicId)
         .flatMap((item) => {
           const sourceId = item.planId ?? tabSources.get(item.id);
@@ -207,7 +212,9 @@ export function createReportsRepository(
       sales,
       billing,
       appointments: repositoryContext
-        .scoped(repositoryContext.appointments)
+        .withoutTrashedPatients(
+          repositoryContext.scoped(repositoryContext.appointments),
+        )
         .filter((item) => item.clinicId === clinicId),
     };
   }
@@ -329,7 +336,9 @@ export function createReportsRepository(
       const inScope = (item: { professionalId: string }) =>
         !professionalIds || professionalIds.includes(item.professionalId);
       const appointmentsToday = repositoryContext
-        .scoped(repositoryContext.appointments)
+        .withoutTrashedPatients(
+          repositoryContext.scoped(repositoryContext.appointments),
+        )
         .filter(
           (item) =>
             item.clinicId === clinicId &&
@@ -352,10 +361,15 @@ export function createReportsRepository(
           (item) => item.status === "completed",
         ).length,
         patientsActive: repositoryContext.patients.filter(
-          (item) => item.clinicId === clinicId && item.status === "active",
+          (item) =>
+            item.clinicId === clinicId &&
+            item.status === "active" &&
+            !repositoryContext.isTrashed("patients", item.id),
         ).length,
         noShowsThisMonth: repositoryContext
-          .scoped(repositoryContext.appointments)
+          .withoutTrashedPatients(
+            repositoryContext.scoped(repositoryContext.appointments),
+          )
           .filter(
             (item) =>
               item.clinicId === clinicId &&
@@ -417,7 +431,10 @@ export function createReportsRepository(
       patientId: string,
     ): Promise<SaleMovement[] | null> {
       const exists = repositoryContext.patients.some(
-        (item) => item.clinicId === clinicId && item.id === patientId,
+        (item) =>
+          item.clinicId === clinicId &&
+          item.id === patientId &&
+          !repositoryContext.isTrashed("patients", item.id),
       );
       if (!exists) return null;
       const data = await salesSources(clinicId);
@@ -430,7 +447,9 @@ export function createReportsRepository(
       to: string,
     ): Promise<ManagementReport> {
       const appointments = repositoryContext
-        .scoped(repositoryContext.appointments)
+        .withoutTrashedPatients(
+          repositoryContext.scoped(repositoryContext.appointments),
+        )
         .filter((item) => {
           const date = localDate(new Date(item.startsAt));
           return item.clinicId === clinicId && date >= from && date <= to;
@@ -494,10 +513,14 @@ export function createReportsRepository(
         (item) => item.status === "no_show",
       ).length;
       const openReceivables = repositoryContext
-        .scoped(repositoryContext.receivables)
+        .withoutTrashedPatients(
+          repositoryContext.scoped(repositoryContext.receivables),
+        )
         .filter((item) => item.clinicId === clinicId && item.status === "open");
       const paidInPeriod = repositoryContext
-        .scoped(repositoryContext.receivables)
+        .withoutTrashedPatients(
+          repositoryContext.scoped(repositoryContext.receivables),
+        )
         .filter((item) => {
           if (
             item.clinicId !== clinicId ||
@@ -511,7 +534,9 @@ export function createReportsRepository(
       const planMovements = repositoryContext.sessionMovements.filter(
         (item) => {
           const plan = repositoryContext
-            .scoped(repositoryContext.patientPlans)
+            .withoutTrashedPatients(
+              repositoryContext.scoped(repositoryContext.patientPlans),
+            )
             .find(
               (candidate) =>
                 candidate.id === item.planId && candidate.clinicId === clinicId,
@@ -525,7 +550,9 @@ export function createReportsRepository(
         0,
       );
       const activePlans = repositoryContext
-        .scoped(repositoryContext.patientPlans)
+        .withoutTrashedPatients(
+          repositoryContext.scoped(repositoryContext.patientPlans),
+        )
         .filter(
           (item) => item.clinicId === clinicId && item.status === "active",
         );

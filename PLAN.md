@@ -1492,3 +1492,15 @@ filtros ficam no `dashboard-studios` (EN11–EN13 têm só a parte da API aqui).
 - **Gate:** gate completo + `npm run test:mysql`
 - **Status:** DONE
 
+### LX2 — Financeiro do cliente na lixeira fora de Relatórios e Financeiro
+
+- **Pedido (10/11/2026):** o financeiro de um cliente na lixeira sai dos relatórios e também da
+  tela Financeiro (decisão do dono: os dois iguais); restaurar o cliente devolve tudo.
+- **Escopo:** filtro no repositório (memória e MySQL; helper `patientNotTrashed` em
+  `storage/mysql/sql.ts`, `withoutTrashedPatients` na memória): vendas e histórico de vendas,
+  gerencial (atendimentos, planos ativos, sessões, contas em aberto, receita por serviço),
+  dashboard, DRE, caixa/movimentos, contas a receber e totais do mês, comandas do estoque e
+  lista de planos sem cliente informado. Comissões e folha continuam como estão.
+- **Gate:** gate completo + `npm run test:mysql`
+- **Status:** DONE
+

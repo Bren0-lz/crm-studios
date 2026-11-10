@@ -18,6 +18,7 @@ import {
   branchOrDefault,
   localMonth,
   localToday,
+  patientNotTrashed,
   writeAndRead,
 } from "./sql.js";
 import {
@@ -585,7 +586,7 @@ export function createFinanceOperationsRepository(
       const branchIds = context.branchReadIds();
       return context.inTransaction(async (client) => {
         const receivables = await client.query<ReceivableRow>(
-          `SELECT ${receivableColumns} FROM receivables r JOIN patients p ON p.id=r.patient_id AND p.clinic_id=r.clinic_id WHERE r.clinic_id=$1 AND ${branchClause("r.branch_id", 2)}`,
+          `SELECT ${receivableColumns} FROM receivables r JOIN patients p ON p.id=r.patient_id AND p.clinic_id=r.clinic_id WHERE r.clinic_id=$1 AND p.deleted_at IS NULL AND ${branchClause("r.branch_id", 2)}`,
           [clinicId, branchIds],
         );
         const payables = await client.query<PayableRow>(
@@ -608,7 +609,7 @@ export function createFinanceOperationsRepository(
           [clinicId, branchIds],
         );
         const ids = await client.query<{ id: string }>(
-          `SELECT id FROM patient_tabs WHERE clinic_id=$1 AND ${branchClause("branch_id", 2)}`,
+          `SELECT id FROM patient_tabs WHERE clinic_id=$1 AND ${patientNotTrashed("patient_id")} AND ${branchClause("branch_id", 2)}`,
           [clinicId, branchIds],
         );
         const scopedProfessionals = new Set(
