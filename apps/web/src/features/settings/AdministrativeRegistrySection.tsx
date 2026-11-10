@@ -253,7 +253,7 @@ function RegistryEditor({
               </>
             ) : (
               <label>
-                Nome
+                {form.kind === "room" ? "Nome da sala" : "Nome"}
                 <input
                   required
                   minLength={2}
@@ -265,7 +265,7 @@ function RegistryEditor({
             )}
             {form.kind === "room" && (
               <label>
-                Capacidade
+                Capacidade de atendimento simultâneo
                 <input
                   required
                   type="number"
