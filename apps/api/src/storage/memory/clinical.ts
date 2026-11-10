@@ -4,6 +4,8 @@ import type {
   AssessmentTemplateInput,
   ClinicalAddendum,
   ClinicalAddendumInput,
+  ClinicalAlert,
+  ClinicalAlertInput,
   ClinicalAssessment,
   ClinicalAssessmentInput,
   ClinicalAttachment,
@@ -20,6 +22,7 @@ import type {
   TreatmentClosure,
   TreatmentClosureInput,
 } from "@crm/contracts";
+import { compareClinicalAlerts } from "@crm/contracts";
 import {
   assertClinicalWritePermission,
   inspectClinicalAttachment,
@@ -204,8 +207,9 @@ export function createClinicalRepository(
           clinicId,
           patientId,
         ),
+        // Inclui versões antigas e arquivadas: as avaliações já registradas usam os campos delas.
         templates: repositoryContext.assessmentTemplates.filter(
-          (item) => item.clinicId === clinicId && item.active,
+          (item) => item.clinicId === clinicId,
         ),
         assessments: repositoryContext.clinicalAssessments
           .filter(
@@ -265,6 +269,20 @@ export function createClinicalRepository(
                 .has(item.patientId),
           )
           .sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
+        alerts: repositoryContext.clinicalAlerts
+          .filter(
+            (item) =>
+              item.clinicId === clinicId &&
+              !item.archivedAt &&
+              repositoryContext
+                .patientIds(clinicId, patientId)
+                .has(item.patientId),
+          )
+          .map(({ archivedAt: _, ...item }) => {
+            void _;
+            return item;
+          })
+          .sort(compareClinicalAlerts),
       };
     },
 
@@ -573,6 +591,44 @@ export function createClinicalRepository(
         record.id,
       );
       return addendum;
+    },
+
+    async createClinicalAlert(
+      clinicId: string,
+      authorUserId: string,
+      input: ClinicalAlertInput,
+    ) {
+      const patient = repositoryContext.patients.find(
+        (item) => item.clinicId === clinicId && item.id === input.patientId,
+      );
+      const author = repositoryContext.users.find(
+        (item) => item.clinicId === clinicId && item.id === authorUserId,
+      );
+      if (!patient || !author)
+        throw new DomainError(
+          "CLINICAL_CONTEXT_NOT_FOUND",
+          "Cliente ou autor não encontrado.",
+          404,
+        );
+      const alert: ClinicalAlert = {
+        ...input,
+        id: uuid(),
+        clinicId,
+        authorName: author.fullName,
+        createdAt: now(),
+      };
+      repositoryContext.clinicalAlerts.push({ ...alert });
+      return alert;
+    },
+
+    async archiveClinicalAlert(clinicId: string, alertId: string) {
+      const alert = repositoryContext.clinicalAlerts.find(
+        (item) =>
+          item.clinicId === clinicId && item.id === alertId && !item.archivedAt,
+      );
+      if (!alert) return false;
+      alert.archivedAt = now();
+      return true;
     },
 
     async listClinicalAccessEvents(clinicId: string, patientId: string) {

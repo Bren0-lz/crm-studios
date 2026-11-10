@@ -1,30 +1,68 @@
 import { automaticPatientTagger } from "./automatic-tags.js";
 import { clientSegments } from "./client-segments.js";
 import {
+  guidedSales,
+  guidedSubscriptions,
+  guidedWaitlist,
+} from "./guided-plans.js";
+import {
   matchesPatientProfile,
   matchesPatientSegment,
   guidedPatientInputSchema,
   isAutomaticPatientTag,
+  INCOMPLETE_REGISTRATION_TAG,
+  MISSING_CPF_TAG,
+  INVALID_CPF_TAG,
+  MISSING_EMAIL_TAG,
+  patientTagKey,
   OVERDUE_PAYMENT_TAG,
   patientExportFilterSchema,
+  patientAuditLabels,
   patientInputSchema,
+  patientUpdateInputSchema,
   patientListQuerySchema,
   patientTagInputSchema,
   patientTagUpdateSchema,
+  samePatientDiscount,
   saoPauloToday,
   type AppModule,
+  type GuidedPatientInput,
   type GuidedPatientResult,
+  type Patient,
+  type PatientInput,
   type PatientImportResult,
   type PatientOption,
 } from "@crm/contracts";
 import { z } from "zod";
 import type { RouteContext } from "../../infrastructure/route-context.js";
+import { publishAppointmentsCreated } from "../../infrastructure/domain-events.js";
 import { DomainError } from "../../repository.js";
 import {
   filterPatientsForExport,
+  patientLeadOriginLabels,
   patientsToCsv,
   patientsToXlsx,
 } from "./patient-export.js";
+
+/**
+ * Quantas cobranças já usaram o desconto é gravado pelo sistema: a tela não define. O mesmo
+ * desconto (tipo, valor e alcance) mantém a contagem; um desconto novo começa do zero.
+ */
+function withDiscountUsage<T extends Pick<PatientInput, "discount">>(
+  input: T,
+  current?: Pick<Patient, "discount"> | null,
+): T {
+  if (!input.discount) return input;
+  const { usedCharges: _ignored, ...discount } = input.discount;
+  void _ignored;
+  const usedCharges = samePatientDiscount(current?.discount, input.discount)
+    ? (current?.discount?.usedCharges ?? 0)
+    : 0;
+  return {
+    ...input,
+    discount: { ...discount, ...(usedCharges ? { usedCharges } : {}) },
+  };
+}
 
 export function registerPatientsRoutes(context: RouteContext) {
   const {
@@ -35,9 +73,13 @@ export function registerPatientsRoutes(context: RouteContext) {
     assertPermissions,
     assertNoHoliday,
     assertServiceAvailable,
+    assertInstallmentsAllowed,
+    withServerFirstCharge,
     patientTagNotFound,
     analyzePatientImport,
+    recordChanges,
     requestAccess,
+    events,
   } = context;
 
   const taggerFor = (request: Parameters<typeof requestAccess.get>[0]) =>
@@ -47,14 +89,31 @@ export function registerPatientsRoutes(context: RouteContext) {
       requestAccess.get(request)?.modules ?? [],
     );
 
-  /** "Pagamento atrasado" é automática (QC7): não pode ser criada nem renomeada à mão. */
+  /**
+   * "Pagamento atrasado" (QC7), "Falta CPF" (B6-05), "Cadastro incompleto" e "Sem e-mail" (CD3)
+   * são automáticas: não podem ser criadas nem renomeadas à mão.
+   */
   function assertManualTagName(name: string | undefined) {
-    if (name !== undefined && isAutomaticPatientTag(name))
-      throw new DomainError(
-        "PATIENT_TAG_AUTOMATIC",
-        `“${OVERDUE_PAYMENT_TAG}” é uma etiqueta automática: aparece sozinha para clientes com parcela vencida.`,
-        400,
-      );
+    if (name === undefined || !isAutomaticPatientTag(name)) return;
+    const key = patientTagKey(name);
+    const reasons: [string, string][] = [
+      [MISSING_CPF_TAG, "clientes sem CPF"],
+      [INVALID_CPF_TAG, "clientes importados com CPF errado"],
+      [
+        INCOMPLETE_REGISTRATION_TAG,
+        "clientes importados sem WhatsApp ou sem contato de emergência",
+      ],
+      [MISSING_EMAIL_TAG, "clientes importados sem e-mail"],
+      [OVERDUE_PAYMENT_TAG, "clientes com parcela vencida"],
+    ];
+    const [tag, reason] =
+      reasons.find(([item]) => patientTagKey(item) === key) ??
+      reasons[reasons.length - 1]!;
+    throw new DomainError(
+      "PATIENT_TAG_AUTOMATIC",
+      `“${tag}” é uma etiqueta automática: aparece sozinha para ${reason}.`,
+      400,
+    );
   }
 
   app.get("/patients/segments", { preHandler: authenticate }, async (request) =>
@@ -80,13 +139,13 @@ export function registerPatientsRoutes(context: RouteContext) {
     const patients = (await repository.listPatients(clinicId, query.search))
       .map(tag)
       .filter(
-      (patient) =>
-        matchesPatientProfile(patient, query) &&
-        matchesPatientSegment(
-          summary.find((item) => item.patientId === patient.id),
-          query.segment,
-        ),
-    );
+        (patient) =>
+          matchesPatientProfile(patient, query) &&
+          matchesPatientSegment(
+            summary.find((item) => item.patientId === patient.id),
+            query.segment,
+          ),
+      );
     if (!query.withoutGroup) return patients;
     const ids = new Set(
       await repository.listSubscriberIdsWithoutGroup(clinicId),
@@ -132,16 +191,21 @@ export function registerPatientsRoutes(context: RouteContext) {
             requestAccess.get(request)?.permissions.includes("finance.view"),
           )
         : [];
-      const [patients, plans, withoutGroupIds, tag] = await Promise.all([
-        repository.listPatients(clinicId, filters.search),
-        filters.activePlan === undefined
-          ? Promise.resolve([])
-          : repository.listPatientPlans(clinicId),
-        filters.withoutGroup
-          ? repository.listSubscriberIdsWithoutGroup(clinicId)
-          : Promise.resolve(null),
-        taggerFor(request),
-      ]);
+      const [patients, plans, withoutGroupIds, tag, leadOrigins] =
+        await Promise.all([
+          repository.listPatients(clinicId, filters.search),
+          filters.activePlan === undefined
+            ? Promise.resolve([])
+            : repository.listPatientPlans(clinicId),
+          filters.withoutGroup
+            ? repository.listSubscriberIdsWithoutGroup(clinicId)
+            : Promise.resolve(null),
+          taggerFor(request),
+          columns.includes("leadOrigin")
+            ? repository.listPatientLeadOrigins(clinicId)
+            : Promise.resolve([]),
+        ]);
+      const extras = { leadOrigins: patientLeadOriginLabels(leadOrigins) };
       const filtered = filterPatientsForExport(
         patients.map(tag).filter((patient) =>
           matchesPatientSegment(
@@ -172,10 +236,10 @@ export function registerPatientsRoutes(context: RouteContext) {
             "Content-Type",
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
           )
-          .send(await patientsToXlsx(rows, columns));
+          .send(await patientsToXlsx(rows, columns, extras));
       return reply
         .header("Content-Type", "text/csv; charset=utf-8")
-        .send(patientsToCsv(rows, columns));
+        .send(patientsToCsv(rows, columns, extras));
     },
   );
 
@@ -188,9 +252,18 @@ export function registerPatientsRoutes(context: RouteContext) {
         clinicId,
         await withConfiguredTags(
           clinicId,
-          patientInputSchema.parse(request.body),
+          withDiscountUsage(patientInputSchema.parse(request.body)),
         ),
       );
+      // Depois do commit: aviso de cliente novo (TG3).
+      await events.publish({
+        type: "patient.created",
+        clinicId,
+        actorUserId: request.user.sub,
+        patientId: patient.id,
+        fullName: patient.fullName,
+        origin: "form",
+      });
       return reply.status(201).send(patient);
     },
   );
@@ -203,7 +276,42 @@ export function registerPatientsRoutes(context: RouteContext) {
     "/patients/guided",
     { preHandler: authenticate },
     async (request, reply) => {
-      const input = guidedPatientInputSchema.parse(request.body);
+      const parsed = guidedPatientInputSchema.parse(request.body);
+      const clinicId = request.user.clinicId;
+      // 1º pagamento proporcional recalculado aqui, com a turma de cada plano.
+      let input: GuidedPatientInput = parsed;
+      if (parsed.next === "plan") {
+        const additionalPlans = parsed.additionalPlans
+          ? await Promise.all(
+              parsed.additionalPlans.map(
+                async (item) =>
+                  ({
+                    ...item,
+                    plan: await withServerFirstCharge(
+                      clinicId,
+                      item.plan,
+                      "groupId" in item ? item.groupId : undefined,
+                    ),
+                  }) as typeof item,
+              ),
+            )
+          : undefined;
+        input = {
+          ...parsed,
+          plan: await withServerFirstCharge(
+            clinicId,
+            parsed.plan,
+            parsed.groupId,
+          ),
+          ...(additionalPlans ? { additionalPlans } : {}),
+        };
+      } else if (parsed.next === "single")
+        input = {
+          ...parsed,
+          plan: await withServerFirstCharge(clinicId, parsed.plan),
+        };
+      const sales = guidedSales(input);
+      const booked = sales.flatMap((sale) => sale.appointments);
       assertPermissions(
         request,
         "patients.create",
@@ -211,21 +319,59 @@ export function registerPatientsRoutes(context: RouteContext) {
         ...(input.next === "plan" || input.next === "single"
           ? ["plans.create" as const]
           : []),
-        ...(input.next === "plan" && input.groupId
+        ...(guidedSubscriptions(input).some((item) => item.groupId)
           ? ["groups.enroll" as const]
           : []),
+        ...(guidedWaitlist(input).length ? ["waitlist.manage" as const] : []),
+        // Contrato e sessões vendidos junto: as mesmas permissões da contratação de plano.
+        ...(sales.some((sale) => sale.appointments.length)
+          ? ["agenda.create" as const]
+          : []),
+        ...(sales.some((sale) => sale.document)
+          ? ["contracts.issue" as const, "contracts.status" as const]
+          : []),
       );
-      const clinicId = request.user.clinicId;
-      const patient = await withConfiguredTags(clinicId, input.patient);
+      const patient = await withConfiguredTags(
+        clinicId,
+        withDiscountUsage(input.patient),
+      );
       if (input.next === "demonstration") {
         await assertNoHoliday(clinicId, [input.appointment.startsAt]);
         await assertServiceAvailable(clinicId, [input.appointment]);
       }
+      if (booked.length) {
+        await assertNoHoliday(
+          clinicId,
+          booked.map((item) => item.startsAt),
+        );
+        await assertServiceAvailable(clinicId, booked);
+      }
+      // Limite de parcelas da forma e do plano em cada item: principal, adicionais e avulsos.
+      if (input.next === "single")
+        await assertInstallmentsAllowed(clinicId, input.plan);
+      for (const item of guidedSubscriptions(input))
+        await assertInstallmentsAllowed(clinicId, item.plan);
       const result: GuidedPatientResult =
         await repository.createPatientWithNextStep(clinicId, request.user.sub, {
           ...input,
           patient,
         });
+      // Depois do commit: cliente novo e, se houver, os atendimentos marcados (um aviso só).
+      await events.publish({
+        type: "patient.created",
+        clinicId,
+        actorUserId: request.user.sub,
+        patientId: result.patient.id,
+        fullName: result.patient.fullName,
+        origin: "guided",
+      });
+      await publishAppointmentsCreated(events, clinicId, request.user.sub, [
+        ...(result.appointment ? [result.appointment] : []),
+        ...(result.appointments ?? []),
+        ...(result.additionalPlans ?? []).flatMap(
+          (item) => item.appointments ?? [],
+        ),
+      ]);
       return reply.status(201).send(result);
     },
   );
@@ -307,17 +453,35 @@ export function registerPatientsRoutes(context: RouteContext) {
       const [firstError] = analysis.errors;
       if (firstError)
         throw new DomainError("PATIENT_IMPORT_INVALID_FILE", firstError, 400);
-      const inputs = analysis.rows.flatMap((row) =>
-        row.status === "valid" && row.input ? [row.input] : [],
+      // Entrega 10: a linha de um cliente já cadastrado com "Outros" mescla esses dados nele.
+      const merges = analysis.rows.filter(
+        (row) =>
+          row.status === "duplicate" &&
+          row.duplicateOf?.kind === "existing" &&
+          row.input?.extraFields,
       );
-      const { created, skipped } = await repository.importPatients(
+      const inputs = analysis.rows.flatMap((row) =>
+        (row.status === "valid" || merges.includes(row)) && row.input
+          ? [row.input]
+          : [],
+      );
+      const { created, skipped, updated } = await repository.importPatients(
         request.user.clinicId,
         inputs,
       );
+      // Importação em lote: um aviso com o total de clientes novos, não um por linha.
+      if (created > 0)
+        await events.publish({
+          type: "patients.imported",
+          clinicId: request.user.clinicId,
+          actorUserId: request.user.sub,
+          created,
+        });
       return {
         created,
-        skipped: skipped + analysis.totals.duplicate,
+        skipped: skipped + analysis.totals.duplicate - merges.length,
         errors: analysis.totals.error,
+        updated,
       };
     },
   );
@@ -327,12 +491,41 @@ export function registerPatientsRoutes(context: RouteContext) {
     { preHandler: authenticate },
     async (request, reply) => {
       const { id } = request.params as { id: string };
+      const input = patientUpdateInputSchema.parse(request.body);
+      // Cadastro anterior: base do desconto já usado e do "antes → depois" no histórico.
+      const previous = z.uuid().safeParse(id).success
+        ? await repository.getPatient(request.user.clinicId, id)
+        : null;
+      // B6-05: cliente importado pode seguir sem CPF, mas o CPF já gravado não pode ser apagado.
+      if (previous?.cpf && !input.cpf)
+        throw new DomainError(
+          "PATIENT_CPF_REQUIRED",
+          "O CPF já cadastrado não pode ser apagado.",
+          400,
+        );
+      // CD1: cadastro antigo sem WhatsApp/contato de emergência segue editável, mas o que já
+      // está gravado não pode ser apagado.
+      if (previous?.whatsapp && !input.whatsapp)
+        throw new DomainError(
+          "PATIENT_WHATSAPP_REQUIRED",
+          "O WhatsApp já cadastrado não pode ser apagado.",
+          400,
+        );
+      if (
+        (previous?.emergencyContactName && !input.emergencyContactName) ||
+        (previous?.emergencyContactPhone && !input.emergencyContactPhone)
+      )
+        throw new DomainError(
+          "PATIENT_EMERGENCY_CONTACT_REQUIRED",
+          "O contato de emergência já cadastrado não pode ser apagado.",
+          400,
+        );
       const patient = await repository.updatePatient(
         request.user.clinicId,
         id,
         await withConfiguredTags(
           request.user.clinicId,
-          patientInputSchema.parse(request.body),
+          withDiscountUsage(input, input.discount ? previous : null),
         ),
       );
       if (!patient)
@@ -340,6 +533,7 @@ export function registerPatientsRoutes(context: RouteContext) {
           code: "PATIENT_NOT_FOUND",
           message: "Cliente não encontrado.",
         });
+      recordChanges(request, previous, patient, patientAuditLabels);
       return (await taggerFor(request))(patient);
     },
   );
@@ -367,6 +561,8 @@ export function registerPatientsRoutes(context: RouteContext) {
         contact: "relationship",
         message: "communications",
         satisfaction: "agenda",
+        // Edição do cadastro: quem vê a ficha vê o que mudou nela.
+        patient_updated: "patients",
       };
       return timeline.filter((item) =>
         requestAccess.get(request)?.modules.includes(sourceModules[item.kind]!),

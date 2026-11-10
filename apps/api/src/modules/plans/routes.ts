@@ -7,13 +7,17 @@ import {
   planTemplateInputSchema,
   planTemplateUpdateSchema,
   planTransitionSchema,
+  planCancellationDetailsSchema,
   planPauseDetailsSchema,
   isRecurringChargeValid,
   recurringSingleChargeIssue,
+  autoRenewPaymentPartsIssue,
+  autoRenewPaymentPartsValid,
   type ApiError,
 } from "@crm/contracts";
 import { z } from "zod";
 import type { RouteContext } from "../../infrastructure/route-context.js";
+import { publishAppointmentsCreated } from "../../infrastructure/domain-events.js";
 import { optionalPatientFilterSchema } from "../../infrastructure/route-utils.js";
 import { DomainError } from "../../repository.js";
 
@@ -25,12 +29,24 @@ export function registerPlansRoutes(context: RouteContext) {
     assertPermissions,
     assertNoHoliday,
     assertServiceAvailable,
+    assertInstallmentsAllowed,
+    withServerFirstCharge,
+    requestAccess,
+    events,
   } = context;
   app.post(
     "/plans/purchases",
     { preHandler: authenticate },
     async (request, reply) => {
-      const input = planPurchaseInputSchema.parse(request.body);
+      const parsed = planPurchaseInputSchema.parse(request.body);
+      const input = {
+        ...parsed,
+        plan: await withServerFirstCharge(
+          request.user.clinicId,
+          parsed.plan,
+          parsed.groupId,
+        ),
+      };
       if (input.groupId) assertPermissions(request, "groups.enroll");
       if (input.appointments.length)
         assertPermissions(request, "agenda.create");
@@ -42,15 +58,20 @@ export function registerPlansRoutes(context: RouteContext) {
           input.appointments.map((item) => item.startsAt),
         );
       await assertServiceAvailable(request.user.clinicId, input.appointments);
-      return reply
-        .status(201)
-        .send(
-          await repository.purchasePatientPlan(
-            request.user.clinicId,
-            request.user.sub,
-            input,
-          ),
-        );
+      await assertInstallmentsAllowed(request.user.clinicId, input.plan);
+      const result = await repository.purchasePatientPlan(
+        request.user.clinicId,
+        request.user.sub,
+        input,
+      );
+      // Sessões reservadas na contratação: um aviso com o resumo (TG3).
+      await publishAppointmentsCreated(
+        events,
+        request.user.clinicId,
+        request.user.sub,
+        result.appointments,
+      );
+      return reply.status(201).send(result);
     },
   );
 
@@ -165,20 +186,36 @@ export function registerPlansRoutes(context: RouteContext) {
       request.user.clinicId,
       request.user.sub,
     );
-    return repository.listPatientPlans(request.user.clinicId, query.patientId);
+    const plans = await repository.listPatientPlans(
+      request.user.clinicId,
+      query.patientId,
+    );
+    // Situação das parcelas só para quem vê o Financeiro (como "Pagamento atrasado").
+    if (requestAccess.get(request)?.modules.includes("finance")) return plans;
+    return plans.map((plan) => {
+      const { paymentSummary, ...rest } = plan;
+      void paymentSummary;
+      return rest;
+    });
   });
 
-  app.post("/plans", { preHandler: authenticate }, async (request, reply) =>
-    reply
+  app.post("/plans", { preHandler: authenticate }, async (request, reply) => {
+    // Sem turma nesta rota: o 1º pagamento proporcional não se aplica.
+    const input = await withServerFirstCharge(
+      request.user.clinicId,
+      patientPlanInputSchema.parse(request.body),
+    );
+    await assertInstallmentsAllowed(request.user.clinicId, input);
+    return reply
       .status(201)
       .send(
         await repository.createPatientPlan(
           request.user.clinicId,
           request.user.sub,
-          patientPlanInputSchema.parse(request.body),
+          input,
         ),
-      ),
-  );
+      );
+  });
 
   app.patch(
     "/plans/:id/status",
@@ -191,6 +228,9 @@ export function registerPlansRoutes(context: RouteContext) {
       const pause = planPauseDetailsSchema.parse(
         (request.body as { pause?: unknown }).pause ?? {},
       );
+      const cancellation = planCancellationDetailsSchema.parse(
+        (request.body as { cancellation?: unknown }).cancellation ?? {},
+      );
 
       assertPermissions(
         request,
@@ -202,6 +242,7 @@ export function registerPlansRoutes(context: RouteContext) {
         id,
         status,
         pause,
+        cancellation,
       );
       if (!plan)
         return reply.status(404).send({
@@ -217,7 +258,11 @@ export function registerPlansRoutes(context: RouteContext) {
     { preHandler: authenticate },
     async (request, reply) => {
       const { id } = request.params as { id: string };
-      const input = planRenewalInputSchema.parse(request.body);
+      // A renovação cobra o valor cheio: nada de 1º pagamento proporcional.
+      const input = await withServerFirstCharge(
+        request.user.clinicId,
+        planRenewalInputSchema.parse(request.body),
+      );
       const current = (
         await repository.listPatientPlans(request.user.clinicId)
       ).find((item) => item.id === id);
@@ -226,6 +271,7 @@ export function registerPlansRoutes(context: RouteContext) {
         !isRecurringChargeValid({
           kind: current.kind,
           installments: input.installments,
+          paymentParts: input.paymentParts,
         })
       )
         throw new DomainError(
@@ -233,6 +279,12 @@ export function registerPlansRoutes(context: RouteContext) {
           recurringSingleChargeIssue,
           400,
         );
+      await assertInstallmentsAllowed(request.user.clinicId, {
+        installments: input.installments,
+        paymentMethod: input.paymentMethod,
+        paymentParts: input.paymentParts,
+        planTemplateId: current?.planTemplateId,
+      });
       const plan = await repository.renewPatientPlan(
         request.user.clinicId,
         request.user.sub,
@@ -253,11 +305,29 @@ export function registerPlansRoutes(context: RouteContext) {
     { preHandler: authenticate },
     async (request, reply) => {
       const { id } = request.params as { id: string };
+      const { autoRenew } = planAutoRenewInputSchema.parse(request.body);
+      if (autoRenew) {
+        const current = (
+          await repository.listPatientPlans(request.user.clinicId)
+        ).find((item) => item.id === id);
+        if (
+          current &&
+          !autoRenewPaymentPartsValid({
+            autoRenew,
+            paymentParts: current.paymentParts,
+          })
+        )
+          throw new DomainError(
+            "AUTO_RENEW_NEEDS_RECURRING_PAYMENT",
+            autoRenewPaymentPartsIssue.message,
+            400,
+          );
+      }
       const plan = await repository.updatePatientPlanAutoRenew(
         request.user.clinicId,
         request.user.sub,
         id,
-        planAutoRenewInputSchema.parse(request.body).autoRenew,
+        autoRenew,
       );
       if (!plan)
         return reply.status(404).send({

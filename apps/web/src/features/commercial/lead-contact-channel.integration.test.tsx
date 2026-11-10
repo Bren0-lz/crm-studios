@@ -11,6 +11,10 @@ import { describe, expect, it, vi } from "vitest";
 import App from "../../App";
 import { storedUser } from "../../test-support/legacy-fixtures";
 import "../../test-support/legacy-setup";
+import {
+  isLeadBoardUrl,
+  leadBoardResponse,
+} from "../../test-support/lead-board";
 
 describe("lead contact channel", () => {
   it("infers the technical channel from the chosen name", () => {
@@ -80,8 +84,8 @@ describe("lead contact channel", () => {
               { id: "k1", name: "Instagram Direct", active: true },
               { id: "k2", name: "whatsapp", active: true },
             ]
-          : url.endsWith("/leads")
-            ? [lead]
+          : isLeadBoardUrl(url)
+            ? leadBoardResponse(url, [lead])
             : [];
       return { ok: true, status: 200, json: async () => body } as Response;
     });

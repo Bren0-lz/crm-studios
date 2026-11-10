@@ -1,11 +1,7 @@
-import {
-  type Patient,
-  patientFirstName,
-  patientProfileLabels,
-  patientProfileValueLabels,
-} from "@crm/contracts";
+import { type Patient, patientFirstName } from "@crm/contracts";
+import { Pencil } from "lucide-react";
 import { useEffect, useState } from "react";
-import { Link, useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
 import { useToast } from "../../shared/feedback/toast-context";
@@ -19,7 +15,7 @@ import { PatientRecordTabs } from "./PatientRecordTabs";
 export function PatientDetailPage() {
   const { id = "" } = useParams();
   const navigate = useNavigate();
-  const { can, canView, canEdit } = useAuthorization();
+  const { can, canEdit } = useAuthorization();
   const toast = useToast();
   const [patient, setPatient] = useState<Patient | null>(null);
   const [error, setError] = useState("");
@@ -63,20 +59,10 @@ export function PatientDetailPage() {
       setBusy(false);
     }
   }
-  // Agenda, planos, financeiro e contratos ficam nas abas da ficha (U14).
-  const links = [
-    { module: "groups", to: "/turmas", label: "Turmas" },
-    {
-      module: "relationship",
-      to: "/relacionamento",
-      label: "Contatos sugeridos",
-    },
-    { module: "communications", to: "/comunicacoes", label: "Comunicações" },
-  ] as const;
   return (
     <>
       <PageHeader
-        eyebrow="Cliente"
+        back={{ to: "/clientes", label: "Voltar aos clientes" }}
         title={patient?.fullName ?? "Detalhes do cliente"}
         description={
           patient
@@ -84,90 +70,38 @@ export function PatientDetailPage() {
             : "Cadastro e acompanhamento"
         }
         action={
-          <Link className="secondary-button" to="/clientes">
-            Voltar aos clientes
-          </Link>
+          <div className="page-actions">
+            {patient && can("patients.update") && (
+              <>
+                <button
+                  className="secondary-button"
+                  disabled={busy}
+                  onClick={() => void changeStatus()}
+                >
+                  {patient.status === "active"
+                    ? "Inativar cliente"
+                    : "Reativar cliente"}
+                </button>
+                <button
+                  className="primary-button"
+                  onClick={() => setEditing(true)}
+                >
+                  <Pencil size={16} aria-hidden="true" />
+                  Editar cadastro
+                </button>
+              </>
+            )}
+          </div>
         }
       />
       {error && <ErrorBanner error={error} />}
       {!patient && !error && <LoadingBlock />}
       {patient && (
-        <>
+        <div className="patient-record">
           <PatientRecordTabs
             patient={patient}
             canEditClinical={canEdit("clinical")}
           />
-          <section className="panel">
-            <div className="panel-head">
-              <h2>Cadastro e acompanhamento</h2>
-              <div className="page-actions">
-                {can("patients.update") && (
-                  <>
-                    <button
-                      className="secondary-button"
-                      onClick={() => setEditing(true)}
-                    >
-                      Editar cadastro
-                    </button>
-                    <button
-                      className="secondary-button"
-                      disabled={busy}
-                      onClick={() => void changeStatus()}
-                    >
-                      {patient.status === "active"
-                        ? "Inativar cliente"
-                        : "Reativar cliente"}
-                    </button>
-                  </>
-                )}
-              </div>
-            </div>
-            <div className="patient-detail-body">
-              <div className="page-actions">
-                {links
-                  .filter((item) => canView(item.module))
-                  .map((item) => (
-                    <Link
-                      className="secondary-button"
-                      key={item.module}
-                      to={`${item.to}?patientId=${encodeURIComponent(id)}`}
-                    >
-                      {item.label}
-                    </Link>
-                  ))}
-              </div>
-              <dl className="patient-detail-fields">
-                {Object.entries(patientProfileLabels).map(([key, label]) => {
-                  const value =
-                    patient[key as keyof typeof patientProfileLabels];
-                  if (
-                    value === undefined ||
-                    value === "" ||
-                    (Array.isArray(value) && !value.length)
-                  )
-                    return null;
-                  return (
-                    <div key={key}>
-                      <dt>{label}</dt>
-                      <dd>
-                        {Array.isArray(value)
-                          ? value.join(", ")
-                          : typeof value === "boolean"
-                            ? value
-                              ? "Sim"
-                              : "Não"
-                            : key === "gender" || key === "clientType"
-                              ? (patientProfileValueLabels[
-                                  value as keyof typeof patientProfileValueLabels
-                                ] ?? value)
-                              : value}
-                      </dd>
-                    </div>
-                  );
-                })}
-              </dl>
-            </div>
-          </section>
           {editing && (
             <PatientModal
               patient={patient}
@@ -179,7 +113,7 @@ export function PatientDetailPage() {
               }}
             />
           )}
-        </>
+        </div>
       )}
     </>
   );

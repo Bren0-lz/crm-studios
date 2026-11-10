@@ -1,5 +1,5 @@
 import type { ClientReport, RetentionReport } from "@crm/contracts";
-import { useEffect, useState, type ReactNode } from "react";
+import { type ReactNode } from "react";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
 import { EmptyState } from "../../shared/components/EmptyState";
@@ -8,32 +8,26 @@ import { LoadingBlock } from "../../shared/components/LoadingBlock";
 import { currency } from "../../shared/lib/formatting";
 import { formatCompetence } from "../finance/index";
 import { formatRate } from "./model";
+import { ReportChart, AgeChart } from "./ReportChart";
+import { useReportQuery, type ReportPeriod } from "./useReportQuery";
 
-export function ClientInsights({ from, to }: { from: string; to: string }) {
+export function ClientInsights({
+  period,
+  view,
+}: {
+  period: ReportPeriod;
+  view: "retention" | "rankings";
+}) {
   const { can } = useAuthorization();
-  const canRetention = can("reports.retention");
-  const canClients = can("reports.clients");
-  const [retention, setRetention] = useState<RetentionReport | null>(null);
-  const [retentionError, setRetentionError] = useState("");
-  const [clients, setClients] = useState<ClientReport | null>(null);
-  const [clientsError, setClientsError] = useState("");
-
-  useEffect(() => {
-    let active = true;
-    if (canRetention)
-      api
-        .retentionReport(from, to)
-        .then((data) => active && setRetention(data))
-        .catch((cause: Error) => active && setRetentionError(cause.message));
-    if (canClients)
-      api
-        .clientReport(from, to)
-        .then((data) => active && setClients(data))
-        .catch((cause: Error) => active && setClientsError(cause.message));
-    return () => {
-      active = false;
-    };
-  }, [from, to, canRetention, canClients]);
+  const canRetention = view === "retention" && can("reports.retention");
+  const canClients = view === "rankings" && can("reports.clients");
+  const { data: retention, error: retentionError } =
+    useReportQuery<RetentionReport>(period, api.retentionReport, canRetention);
+  const { data: clients, error: clientsError } = useReportQuery<ClientReport>(
+    period,
+    api.clientReport,
+    canClients,
+  );
 
   const clientsBody = (content: (report: ClientReport) => ReactNode) =>
     clientsError ? (
@@ -50,8 +44,11 @@ export function ClientInsights({ from, to }: { from: string; to: string }) {
         <section className="panel report-table retention-report">
           <div className="panel-head">
             <div>
-              <span className="eyebrow">Clientes</span>
               <h2>Retenção mês a mês</h2>
+              <p className="panel-context">
+                Meses abrangidos pelo período. O cálculo considera cada mês
+                completo e é limitado ao mês atual; máximo de 24 meses.
+              </p>
             </div>
           </div>
           {retentionError ? (
@@ -65,6 +62,26 @@ export function ClientInsights({ from, to }: { from: string; to: string }) {
             />
           ) : (
             <>
+              <div className="reports-body">
+                <ReportChart
+                  showTable={false}
+                  title="Evolução da retenção mensal"
+                  points={retention.months.map((item) => ({
+                    label: formatCompetence(item.month),
+                    values: [
+                      item.retentionRate === null
+                        ? null
+                        : item.retentionRate * 100,
+                    ],
+                  }))}
+                  series={[
+                    {
+                      label: "Retenção",
+                      format: (value) => Math.round(value) + "%",
+                    },
+                  ]}
+                />
+              </div>
               <div className="forecast-scroll retention-scroll">
                 <table className="forecast-table">
                   <thead>
@@ -111,7 +128,6 @@ export function ClientInsights({ from, to }: { from: string; to: string }) {
           <section className="panel report-table">
             <div className="panel-head">
               <div>
-                <span className="eyebrow">Ranking</span>
                 <h2>Mais sessões concluídas</h2>
               </div>
             </div>
@@ -141,34 +157,6 @@ export function ClientInsights({ from, to }: { from: string; to: string }) {
           <section className="panel report-table">
             <div className="panel-head">
               <div>
-                <span className="eyebrow">Ranking</span>
-                <h2>Mais recebimentos</h2>
-              </div>
-            </div>
-            {clientsBody((report) =>
-              report.topByRevenue.length === 0 ? (
-                <EmptyState
-                  title="Sem recebimentos"
-                  copy="Nenhum recebimento de cliente no período."
-                />
-              ) : (
-                <div className="report-rows ranking-rows">
-                  {report.topByRevenue.map((item, index) => (
-                    <div key={item.patientId}>
-                      <strong>
-                        {index + 1}. {item.patientName}
-                      </strong>
-                      <b>{currency.format(item.receivedInCents / 100)}</b>
-                    </div>
-                  ))}
-                </div>
-              ),
-            )}
-          </section>
-          <section className="panel report-table source-report">
-            <div className="panel-head">
-              <div>
-                <span className="eyebrow">Perfil</span>
                 <h2>Faixa etária</h2>
               </div>
             </div>
@@ -180,20 +168,10 @@ export function ClientInsights({ from, to }: { from: string; to: string }) {
                 />
               ) : (
                 <>
-                  <div className="report-rows age-rows">
-                    {report.ageDistribution.map((item) => (
-                      <div key={item.band}>
-                        <strong>{item.label}</strong>
-                        <span>
-                          {Math.round(
-                            (item.clients / report.activeClients) * 100,
-                          )}
-                          %
-                        </span>
-                        <b>{item.clients}</b>
-                      </div>
-                    ))}
-                  </div>
+                  <AgeChart
+                    items={report.ageDistribution}
+                    total={report.activeClients}
+                  />
                   <p className="retention-summary">
                     {report.activeClients} clientes ativos no período, com a
                     idade na data final.

@@ -1,12 +1,17 @@
 import {
   addDaysToIsoDate,
   isTabCreditPlan,
+  nextPlanPeriod,
   patientTagKey,
+  paymentMethodLabels,
   planDisplayStatus,
   planDisplayStatusLabels,
+  planTypeKind,
   tabCreditAwaitingLabel,
   type PatientPlan,
+  type PlanTemplate,
 } from "@crm/contracts";
+import { currency, shortDate } from "../../shared/lib/formatting";
 
 export const planKindLabels: Record<PatientPlan["kind"], string> = {
   single: "Avulso",
@@ -14,6 +19,18 @@ export const planKindLabels: Record<PatientPlan["kind"], string> = {
   recurring: "Recorrente",
   custom: "Personalizado",
 };
+
+/** Atalho da ficha do cliente: avulso (sessões soltas) ou recorrente (pacotes e períodos). */
+export type PlanCatalogKind = "single" | "recurring";
+
+export function planTemplateCatalogKind(
+  template: PlanTemplate,
+): PlanCatalogKind {
+  const kind = template.planType
+    ? planTypeKind(template.planType)
+    : template.kind;
+  return kind === "single" ? "single" : "recurring";
+}
 
 export type PlanListFilter =
   | "all"
@@ -80,7 +97,8 @@ export function planMatchesSearch(plan: PatientPlan, search: string): boolean {
 
 /** Texto do selo: o crédito da comanda aguarda o atendimento até ser consumido. */
 export function planBadgeLabel(
-  plan: Pick<PatientPlan, "sourceTabId" | "status" | "remainingSessions">,
+  plan: Pick<PatientPlan, "sourceTabId" | "status" | "remainingSessions"> &
+    Partial<Pick<PatientPlan, "kind">>,
 ): string {
   if (
     plan.sourceTabId &&
@@ -111,4 +129,44 @@ export function planSubtitle(plan: PatientPlan): string {
     (name) => !planKey.includes(patientTagKey(name)),
   );
   return missing.length ? `${plan.name} · ${missing.join(", ")}` : plan.name;
+}
+
+/** Texto da renovação: plano seguinte já criado, automática (com a data) ou manual. */
+export function planRenewalLabel(
+  plan: PatientPlan,
+  plans: PatientPlan[],
+): string {
+  if (plan.renewedByPlanId) {
+    const next = plans.find((item) => item.id === plan.renewedByPlanId);
+    return next
+      ? `Renovado a partir de ${shortDate.format(new Date(`${next.validFrom}T12:00:00`))}`
+      : "Renovado";
+  }
+  if (plan.autoRenew && plan.validUntil) {
+    return `Automática em ${shortDate.format(new Date(`${nextPlanPeriod(plan)!.validFrom}T12:00:00`))}`;
+  }
+  return "Manual";
+}
+
+/** Como o plano é pago: forma combinada e quantidade de parcelas ("Cartão · 3 parcelas"). */
+export function planPaymentTerms(
+  plan: Pick<PatientPlan, "paymentMethod" | "installments" | "kind">,
+) {
+  const method = plan.paymentMethod
+    ? paymentMethodLabels[plan.paymentMethod]
+    : "A combinar";
+  if (plan.kind === "recurring") return `${method} · 1 cobrança por ciclo`;
+  return `${method} · ${plan.installments === 1 ? "à vista" : `${plan.installments} parcelas`}`;
+}
+
+/** Situação das parcelas: "1 de 3 pagas · R$ 200,00 em aberto (1 vencida)". */
+export function planPaymentProgress(plan: Pick<PatientPlan, "paymentSummary">) {
+  const summary = plan.paymentSummary;
+  if (!summary) return "";
+  const paid = `${summary.paidCount} de ${summary.installmentCount} ${summary.installmentCount === 1 ? "paga" : "pagas"}`;
+  if (!summary.openCount) return `${paid} · quitado`;
+  const overdue = summary.overdueCount
+    ? ` (${summary.overdueCount} ${summary.overdueCount === 1 ? "vencida" : "vencidas"})`
+    : "";
+  return `${paid} · ${currency.format(summary.openInCents / 100)} em aberto${overdue}`;
 }

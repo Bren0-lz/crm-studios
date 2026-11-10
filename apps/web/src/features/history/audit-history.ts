@@ -1,5 +1,6 @@
 import {
   appModuleLabels,
+  auditChangesOf,
   historyAction,
   patientExportColumnLabels,
   permissionCatalog,
@@ -95,6 +96,13 @@ export function formatAuditEvent(event: AdminAuditEvent) {
         );
       if (typeof metadata.active === "boolean")
         add("Situação", metadata.active ? "Ativo" : "Desativado");
+      break;
+    case "users.dashboard_access_updated":
+      if (typeof metadata.dashboardAccess === "boolean")
+        add(
+          "Painel de vendas",
+          metadata.dashboardAccess ? "Acesso liberado" : "Acesso removido",
+        );
       break;
     case "users.permissions_updated": {
       const current = strings(metadata.permissions);
@@ -208,6 +216,13 @@ export function formatAuditEvent(event: AdminAuditEvent) {
 
   const date = new Date(event.createdAt);
   if (event.module !== "clinical") add("Registro", metadata.subjectName);
+  // Edições: cada campo alterado como "antes → depois" e o motivo informado.
+  for (const change of auditChangesOf(metadata))
+    details.push({
+      label: change.label,
+      value: `${change.before ?? "(vazio)"} → ${change.after ?? "(vazio)"}`,
+    });
+  add("Motivo da alteração", metadata.reason);
   return {
     title:
       historyAction(event.action)?.label ??

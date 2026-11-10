@@ -129,8 +129,7 @@ describe("dashboard appointment actions", () => {
             500,
           );
         const index = appointments.findIndex(
-          (item) =>
-            url.includes(`/${item.id}/`) || url.endsWith(`/${item.id}`),
+          (item) => url.includes(`/${item.id}/`) || url.endsWith(`/${item.id}`),
         );
         const original = appointments[index]!;
         // PATCH sem status é a edição de serviço, sala e observação (QM6/QM7).
@@ -138,15 +137,15 @@ describe("dashboard appointment actions", () => {
           init.method === "PATCH" && !("status" in body)
             ? { ...original, ...body }
             : init.method === "PATCH"
-            ? { ...original, status: body.status as Appointment["status"] }
-            : {
-                ...original,
-                ...body,
-                startsAt: String(body.startsAt),
-                endsAt: new Date(
-                  new Date(String(body.startsAt)).getTime() + 60 * 60_000,
-                ).toISOString(),
-              };
+              ? { ...original, status: body.status as Appointment["status"] }
+              : {
+                  ...original,
+                  ...body,
+                  startsAt: String(body.startsAt),
+                  endsAt: new Date(
+                    new Date(String(body.startsAt)).getTime() + 60 * 60_000,
+                  ).toISOString(),
+                };
         return response(appointments[index]);
       }
       if (url.includes("/dashboard")) {
@@ -194,7 +193,16 @@ describe("dashboard appointment actions", () => {
             attendedPatients: 0,
           },
           changePercent: null,
-          patientsWithoutReturn: [],
+          patientsWithoutReturn:
+            controls.salesReads > 1
+              ? [
+                  {
+                    patientId: "p-retorno",
+                    patientName: "Rosa Retorno",
+                    lastCompletedAt: `${date}T09:00:00.000Z`,
+                  },
+                ]
+              : [],
         });
         if (controls.salesReads === 1 && controls.holdInitialSales)
           await salesGate;
@@ -210,7 +218,6 @@ describe("dashboard appointment actions", () => {
             id: "service",
             name: "Avaliação funcional",
             durationMinutes: 60,
-            priceInCents: 12000,
           },
         ]);
       }
@@ -312,13 +319,12 @@ describe("dashboard appointment actions", () => {
     // 08:00 em São Paulo: o atendimento das 09:00 só libera às 08:45.
     vi.setSystemTime(new Date("2026-10-12T11:00:00.000Z"));
     const { controls } = setup();
-    const complete = await screen.findByRole("button", {
-      name: "Marcar Ana 0 como realizado",
-    });
-    expect(complete).toBeDisabled();
-    expect(complete).toHaveAccessibleDescription(
-      "Disponível a partir de 12/10 às 08:45",
-    );
+    // Agendado: o certinho confirma, e confirmar não depende do horário.
+    expect(
+      await screen.findByRole("button", {
+        name: "Confirmar atendimento de Ana 0",
+      }),
+    ).toBeEnabled();
     const { menu } = await openMenu();
     expect(
       within(menu)
@@ -333,6 +339,48 @@ describe("dashboard appointment actions", () => {
       "Histórico de reagendamentos",
     ]);
     expect(controls.writes).toEqual([]);
+  });
+
+  it("shows an X with the reason while a confirmed appointment cannot be finalized yet (QC3)", async () => {
+    vi.setSystemTime(new Date("2026-10-12T11:00:00.000Z"));
+    const { controls } = setup({ status: "confirmed" });
+    const complete = await screen.findByRole("button", {
+      name: "Marcar Ana 0 como realizado",
+    });
+    expect(complete).toHaveAttribute("aria-disabled", "true");
+    expect(
+      complete.querySelector(".lucide-circle-x, .lucide-x-circle"),
+    ).not.toBeNull();
+    expect(complete).toHaveAccessibleDescription(
+      "Ainda não é possível finalizar: o atendimento só pode ser finalizado a partir de 15 min antes do início. Disponível a partir de 12/10 às 08:45.",
+    );
+    fireEvent.click(complete);
+    expect(controls.writes).toEqual([]);
+  });
+
+  it("confirms a scheduled appointment on the first check and finalizes it on the second", async () => {
+    const { controls } = setup();
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Confirmar atendimento de Ana 0",
+      }),
+    );
+    expect(await screen.findByText("Confirmado")).toBeInTheDocument();
+    expect(controls.writes.map((write) => write.body)).toEqual([
+      { status: "confirmed" },
+    ]);
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Marcar Ana 0 como realizado",
+      }),
+    );
+    await waitFor(() =>
+      expect(screen.queryByText("Ana 0")).not.toBeInTheDocument(),
+    );
+    expect(controls.writes.map((write) => write.body)).toEqual([
+      { status: "confirmed" },
+      { status: "completed" },
+    ]);
   });
 
   it("offers only consultation actions for view-only access and does not fetch patient records", async () => {
@@ -420,7 +468,7 @@ describe("dashboard appointment actions", () => {
     ).toBeInTheDocument();
   });
 
-  it("finalizes a pending appointment, updates metrics and sales, and fills the vacancy", async () => {
+  it("finalizes a pending appointment, updates metrics and clients without return, and fills the vacancy", async () => {
     const { controls } = setup({ count: 6, status: "confirmed" });
     expect(await screen.findByText("Ana 0")).toBeInTheDocument();
     expect(screen.queryByText("Ana 5")).not.toBeInTheDocument();
@@ -438,7 +486,7 @@ describe("dashboard appointment actions", () => {
     expect(controls.writes[0]?.body).toEqual({ status: "completed" });
     expect(controls.dashboardReads).toBe(2);
     expect(controls.salesReads).toBe(2);
-    expect(await screen.findByText(/120,00/)).toBeInTheDocument();
+    expect(await screen.findByText("Rosa Retorno")).toBeInTheDocument();
   });
 
   it("requires confirmation before cancelling and removes it from today's workload", async () => {
@@ -695,17 +743,17 @@ describe("dashboard appointment actions", () => {
     },
   );
 
-  it("keeps refreshed sales when the initial report arrives after the saved change", async () => {
+  it("keeps refreshed clients without return when the initial report arrives after the saved change", async () => {
     const { releaseSales } = setup({ holdInitialSales: true });
     const { menu } = await openMenu();
     fireEvent.click(
       within(menu).getByRole("menuitem", { name: "Finalizar atendimento" }),
     );
-    expect(await screen.findByText(/120,00/)).toBeInTheDocument();
+    expect(await screen.findByText("Rosa Retorno")).toBeInTheDocument();
     await act(async () => {
       releaseSales();
     });
-    expect(screen.getByText(/120,00/)).toBeInTheDocument();
+    expect(screen.getByText("Rosa Retorno")).toBeInTheDocument();
   });
 
   it("blocks actions and duplicate submissions until saving finishes", async () => {

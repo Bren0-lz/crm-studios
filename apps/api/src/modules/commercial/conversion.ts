@@ -1,21 +1,25 @@
 import {
+  extraFieldsSchema,
   leadPatientProfile,
   patientInputSchema,
+  patientOptionalContactShape,
   type Lead,
   type LeadConversionInput,
   type Patient,
-  type PatientInput,
+  type PatientImportInput,
   withoutAutomaticPatientTags,
 } from "@crm/contracts";
 import { DomainError } from "../../repository.js";
 /** Junta ao lead os dados informados na conversão (campos vazios não apagam nada). */
 export function withConversionInput(
   lead: Lead,
-  input: LeadConversionInput = {},
+  input?: LeadConversionInput,
 ): Lead {
   const filled = Object.fromEntries(
-    Object.entries(input).filter(
-      ([, value]) => typeof value === "string" && value.trim() !== "",
+    Object.entries(input ?? {}).filter(
+      ([, value]) =>
+        typeof value === "boolean" ||
+        (typeof value === "string" && value.trim() !== ""),
     ),
   );
   return { ...lead, ...filled };
@@ -24,7 +28,7 @@ export function withConversionInput(
 export function leadConversionData(
   lead: Lead,
   existing?: Patient,
-): PatientInput {
+): PatientImportInput {
   const fields: Record<string, unknown> = { ...leadPatientProfile(lead) };
   if (existing)
     for (const [key, value] of Object.entries(leadPatientProfile(existing)))
@@ -63,7 +67,25 @@ export function leadConversionData(
       "Revise os interesses antes da conversão: até 30 itens, com até 80 caracteres cada.",
       409,
     );
-  return patientInputSchema.parse({
+  // CD1: o cliente novo nasce com WhatsApp e contato de emergência; quem já existia (cadastro
+  // antigo) pode seguir sem eles, como na edição.
+  if (
+    !existing &&
+    (!fields.whatsapp ||
+      !fields.emergencyContactName ||
+      !fields.emergencyContactPhone)
+  )
+    throw new DomainError(
+      "LEAD_CONTACT_REQUIRED",
+      "Informe o WhatsApp e o contato de emergência antes de converter o lead.",
+      400,
+    );
+  const schema = (
+    existing
+      ? patientInputSchema.extend(patientOptionalContactShape)
+      : patientInputSchema
+  ).extend({ extraFields: extraFieldsSchema.optional() });
+  return schema.parse({
     ...fields,
     fullName: existing?.fullName ?? lead.fullName,
     phone: existing?.phone ?? lead.phone,
@@ -71,5 +93,7 @@ export function leadConversionData(
     notes: existing?.notes || lead.notes,
     tags,
     interests,
+    // Entrega 10: o "Outros" do lead vai para o cliente (mesclado com o que ele já tem).
+    ...(lead.extraFields ? { extraFields: lead.extraFields } : {}),
   });
 }

@@ -2,10 +2,9 @@ import type {
   GuidedPatientInput,
   GuidedPatientResult,
   GroupClass,
-  Professional,
-  Room,
-  Service,
+  PlanPurchaseInput,
 } from "@crm/contracts";
+import type { SignatureRequest } from "../contracts/index";
 import { guidedPlanKinds } from "./model";
 
 export type PatientRegistrationResult = GuidedPatientResult & {
@@ -24,16 +23,28 @@ export type GuidedPlanForm = GuidedSingleForm & {
   kind: (typeof guidedPlanKinds)[number];
 };
 
+/** Um dos planos do passo "Assinar um plano", com a turma opcional; `id` só identifica o bloco. */
+export interface GuidedPlanEntry {
+  id: number;
+  form: GuidedPlanForm;
+  groupId: string;
+  /** Documento para o cliente assinar, emitido com o plano (link ao concluir). */
+  document: SignatureRequest | null;
+}
+
+/** Serviço avulso comprado junto com os planos do passo "Assinar um plano". */
+export interface GuidedSingleEntry {
+  id: number;
+  form: GuidedSingleForm;
+  document: SignatureRequest | null;
+  /** Sessões do avulso reservadas com o cadastro (horários enviados ao concluir). */
+  appointments: PlanPurchaseInput["appointments"];
+}
+
 export type GuidedSingleForm = Extract<
   GuidedPatientInput,
   { next: "single" }
 >["plan"];
-
-export type NextStepResources = {
-  services: Service[];
-  professionals: Professional[];
-  rooms: Room[];
-};
 
 export type PatientRecordFilter =
   "all" | "with_email" | "without_email" | "birthday_month";
@@ -49,4 +60,5 @@ export type TimelineFilter =
   | "payments"
   | "contacts"
   | "messages"
-  | "satisfaction";
+  | "satisfaction"
+  | "edits";

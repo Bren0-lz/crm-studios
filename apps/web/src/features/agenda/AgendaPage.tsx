@@ -1,3 +1,12 @@
+import { AgendaNoteCard } from "./AgendaNoteCard";
+import { AgendaNoteModal } from "./AgendaNoteModal";
+import { AgendaNoteDetailsModal } from "./AgendaNoteDetailsModal";
+import type { AgendaNote } from "@crm/contracts";
+import {
+  sortAgendaEntriesWithNotes,
+  storedShowNotes,
+  storeShowNotes,
+} from "./model";
 import { AppointmentAbsenceModal } from "./AppointmentAbsenceModal";
 import { usePatientContext } from "../../shared/hooks/usePatientContext";
 import { PatientContextNotice } from "../../shared/components/PatientContextNotice";
@@ -19,13 +28,15 @@ import {
 } from "@crm/contracts";
 import {
   CalendarDays,
+  CheckCheck,
   ChevronLeft,
   ChevronRight,
   LockKeyhole,
   Plus,
+  Share2,
 } from "lucide-react";
 import { useEffect, useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
 import { EmptyState } from "../../shared/components/EmptyState";
@@ -52,6 +63,8 @@ import { DayEventsModal } from "./DayEventsModal";
 import { GroupSessionCard } from "./GroupSessionCard";
 import { ScheduleBlockCard } from "./ScheduleBlockCard";
 import { ScheduleBlockModal } from "./ScheduleBlockModal";
+import { ShareAgendaModal } from "./ShareAgendaModal";
+import { useAutoFinalizationSettings } from "./useAutoFinalizationSettings";
 import { useToast } from "../../shared/feedback/toast-context";
 import {
   type AgendaView,
@@ -71,7 +84,8 @@ import { AgendaStatusLegend } from "./AgendaStatusLegend";
 import { PendingFinalizationBadge } from "./PendingFinalizationBadge";
 
 export function AgendaPage() {
-  const { can, canView, canEdit } = useAuthorization();
+  const { can, canView, canEdit, user } = useAuthorization();
+  const autoFinalization = useAutoFinalizationSettings();
   const toast = useToast();
   const contextPatientId = usePatientContext();
   const [selectedDate, setSelectedDate] = useState(new Date());
@@ -91,6 +105,14 @@ export function AgendaPage() {
     storeAgendaView(next);
   }
   const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [notes, setNotes] = useState<AgendaNote[]>([]);
+  const [showNotes, setShowNotes] = useState(storedShowNotes);
+  const [ownProfessionalId, setOwnProfessionalId] = useState<string | null>(
+    null,
+  );
+  const [noteModal, setNoteModal] = useState<AgendaNote | "new" | null>(null);
+  const [selectedNote, setSelectedNote] = useState<AgendaNote | null>(null);
+  const [noteReload, setNoteReload] = useState(0);
   const [blocks, setBlocks] = useState<ScheduleBlock[]>([]);
   const [cancellingBlock, setCancellingBlock] = useState<ScheduleBlock | null>(
     null,
@@ -124,6 +146,7 @@ export function AgendaPage() {
     () => newAppointmentRequested && canCreateAppointment,
   );
   const [blockModalOpen, setBlockModalOpen] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
   useEffect(() => {
     if (wantsNewAppointment) {
       const params = new URLSearchParams(location.search);
@@ -180,13 +203,45 @@ export function AgendaPage() {
     highlightedIds.includes(id) ? " agenda-just-saved" : "";
   // Cancelados não ocupam horário: ficam fora das contagens e, por padrão, da agenda.
   const [showCancelled, setShowCancelled] = useState(false);
+  // Filtro "Profissional": vazio mostra a agenda de todos.
+  const [professionalFilter, setProfessionalFilter] = useState("");
+  const byProfessional = <T extends { professionalId?: string | undefined }>(
+    items: T[],
+  ) =>
+    professionalFilter
+      ? items.filter((item) => item.professionalId === professionalFilter)
+      : items;
+  const shownAppointments = byProfessional(appointments);
+  const shownGroupSessions = byProfessional(groupSessions);
+  const shownBlocks = byProfessional(blocks);
+  const shownNotes = showNotes
+    ? notes.filter(
+        (item) =>
+          (!ownProfessionalId ||
+            item.professionalId === null ||
+            item.professionalId === ownProfessionalId) &&
+          (!professionalFilter ||
+            !item.professionalId ||
+            item.professionalId === professionalFilter),
+      )
+    : [];
   const visibleAppointments = showCancelled
-    ? appointments
-    : appointments.filter((item) => item.status !== "cancelled");
+    ? shownAppointments
+    : shownAppointments.filter((item) => item.status !== "cancelled");
   const dayEventCount =
-    appointments.filter((item) => item.status !== "cancelled").length +
-    groupSessions.length +
-    blocks.length;
+    shownAppointments.filter((item) => item.status !== "cancelled").length +
+    shownGroupSessions.length +
+    shownBlocks.length +
+    shownNotes.length;
+  // Sem "Ver agenda de todos os profissionais", a API só devolve a agenda do profissional
+  // ligado ao usuário: a legenda e as colunas da grade acompanham (sem o filtro).
+  const canSeeAllAgenda = can("agenda.view_all");
+  const agendaProfessionals = canSeeAllAgenda
+    ? professionals
+    : professionals.filter((item) => item.id === ownProfessionalId);
+  const professionalColors = new Map(
+    professionals.map((item) => [item.id, item.color]),
+  );
   const selectedAppointment = appointments.find(
     (item) => item.id === selectedAppointmentId,
   );
@@ -257,6 +312,8 @@ export function AgendaPage() {
       api.rooms(),
       api.services(),
       fetchAgendaPatients(canView("patients")),
+      api.agendaNotes(rangeFrom, rangeTo),
+      user?.role === "admin" ? Promise.resolve(null) : api.ownProfile(),
     ])
       .then(
         ([
@@ -268,6 +325,8 @@ export function AgendaPage() {
           roomData,
           serviceData,
           patientData,
+          noteData,
+          profileData,
         ]) => {
           if (!active) return;
           setAppointments(
@@ -277,6 +336,8 @@ export function AgendaPage() {
             ),
           );
           setBlocks(blockData);
+          setNotes(noteData);
+          setOwnProfessionalId(profileData?.professional?.id ?? null);
           setGroupSessions(groupSessionData);
           setHolidays(holidayData);
           setProfessionals(professionalData);
@@ -295,7 +356,16 @@ export function AgendaPage() {
     return () => {
       active = false;
     };
-  }, [contextPatientId, rangeFrom, rangeTo, holidayFrom, holidayTo, canView]);
+  }, [
+    contextPatientId,
+    rangeFrom,
+    rangeTo,
+    holidayFrom,
+    holidayTo,
+    canView,
+    noteReload,
+    user?.role,
+  ]);
   function moveDay(amount: number) {
     setLoading(true);
     setError("");
@@ -326,6 +396,16 @@ export function AgendaPage() {
       start.setDate(start.getDate() - ((start.getDay() + 6) % 7));
     return localIsoDate(start);
   }
+  // "Hoje" mantém a visão e só fica ativo quando o período exibido não contém hoje.
+  const showingToday = periodKey(new Date()) === periodKey(selectedDate);
+  function goToday() {
+    const today = new Date();
+    if (periodKey(today) !== periodKey(selectedDate)) {
+      setLoading(true);
+      setError("");
+    }
+    setSelectedDate(today);
+  }
   /** Leva a agenda à data do (primeiro) atendimento salvo e o destaca. */
   function showSaved(saved: Appointment[]) {
     const first = [...saved].sort((a, b) =>
@@ -345,12 +425,42 @@ export function AgendaPage() {
     <>
       <PatientContextNotice patientId={contextPatientId} patients={patients} />
       <PageHeader
-        eyebrow="Operação diária"
         title="Agenda"
         description="Visualize atendimentos, turmas, profissionais e salas sem conflitos."
         action={
-          (canBlock || canSchedule) && (
+          (canBlock ||
+            canSchedule ||
+            can("agenda.notes") ||
+            agendaProfessionals.length > 0 ||
+            autoFinalization) && (
             <div className="page-actions">
+              {autoFinalization && (
+                <NavLink to="/agenda/concluidos" className="secondary-button">
+                  <CheckCheck size={16} aria-hidden="true" />
+                  Concluídos
+                </NavLink>
+              )}
+              {agendaProfessionals.length > 0 && (
+                <button
+                  className="secondary-button"
+                  onClick={() => setShareOpen(true)}
+                  disabled={loading}
+                  type="button"
+                >
+                  <Share2 size={16} aria-hidden="true" />
+                  Compartilhar agenda
+                </button>
+              )}
+              {can("agenda.notes") && (
+                <button
+                  className="secondary-button"
+                  onClick={() => setNoteModal("new")}
+                  disabled={loading}
+                  type="button"
+                >
+                  Nova nota
+                </button>
+              )}
               {canBlock && can("agenda.blocks_create") && (
                 <button
                   className="secondary-button"
@@ -376,7 +486,9 @@ export function AgendaPage() {
           )
         }
       />
-      {!canSchedule && <ReadOnlyNotice module="agenda" />}
+      {!canSchedule && !can("agenda.notes") && (
+        <ReadOnlyNotice module="agenda" />
+      )}
       {error && <ErrorBanner error={error} />}
       <section className="panel agenda-panel">
         <div className="agenda-toolbar">
@@ -418,7 +530,7 @@ export function AgendaPage() {
                     ? `${shortDate.format(weekStart)} — ${shortDate.format(weekDays[6]!)}`
                     : date === localIsoDate()
                       ? "Hoje"
-                      : shortDate.format(selectedDate)}
+                      : "Voltar para hoje"}
               </small>
             </button>
             <button
@@ -434,8 +546,27 @@ export function AgendaPage() {
             >
               <ChevronRight size={19} />
             </button>
+            <button
+              type="button"
+              className="secondary-button button-sm"
+              onClick={goToday}
+              disabled={showingToday}
+            >
+              Hoje
+            </button>
           </div>
           <div className="agenda-toolbar-end">
+            <label className="checkbox-field">
+              <input
+                type="checkbox"
+                checked={showNotes}
+                onChange={(event) => {
+                  setShowNotes(event.target.checked);
+                  storeShowNotes(event.target.checked);
+                }}
+              />
+              Mostrar notas
+            </label>
             <div
               className="view-toggle"
               role="group"
@@ -463,8 +594,59 @@ export function AgendaPage() {
                 Mês
               </button>
             </div>
+            <label className="checkbox-field agenda-cancelled-toggle">
+              <input
+                type="checkbox"
+                checked={showCancelled}
+                onChange={(event) => setShowCancelled(event.target.checked)}
+              />
+              Mostrar cancelados
+            </label>
+            <AgendaStatusLegend />
+          </div>
+        </div>
+        {(agendaProfessionals.length > 0 || view === "day") && (
+          <div className="agenda-professionals">
+            {agendaProfessionals.length > 0 && (
+              <>
+                <span className="agenda-legend-label">Profissionais</span>
+                <div className="legend" aria-label="Legenda dos profissionais">
+                  {agendaProfessionals.map((professional) => (
+                    <span key={professional.id}>
+                      <i
+                        className="pro-dot"
+                        style={professionalColorStyle(professional.color)}
+                        aria-hidden="true"
+                      />
+                      {professional.fullName.replace(/Dra?\. /, "")}
+                    </span>
+                  ))}
+                </div>
+                {canSeeAllAgenda && (
+                  <label className="agenda-professional-filter">
+                    Profissional
+                    <select
+                      value={professionalFilter}
+                      onChange={(event) =>
+                        setProfessionalFilter(event.target.value)
+                      }
+                    >
+                      <option value="">Todos os profissionais</option>
+                      {professionals.map((professional) => (
+                        <option key={professional.id} value={professional.id}>
+                          {professional.fullName}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                )}
+              </>
+            )}
             {view === "day" && (
-              <div className="view-toggle" aria-label="Formato do dia">
+              <div
+                className="view-toggle agenda-day-layout"
+                aria-label="Formato do dia"
+              >
                 <button
                   className={`tab-button ${dayLayout === "grid" ? "active" : ""}`}
                   onClick={() => setDayLayout("grid")}
@@ -479,32 +661,6 @@ export function AgendaPage() {
                 </button>
               </div>
             )}
-            <label className="checkbox-field agenda-cancelled-toggle">
-              <input
-                type="checkbox"
-                checked={showCancelled}
-                onChange={(event) => setShowCancelled(event.target.checked)}
-              />
-              Mostrar cancelados
-            </label>
-            <AgendaStatusLegend />
-          </div>
-        </div>
-        {professionals.length > 0 && (
-          <div className="agenda-professionals">
-            <span className="agenda-legend-label">Profissionais</span>
-            <div className="legend" aria-label="Legenda dos profissionais">
-              {professionals.map((professional) => (
-                <span key={professional.id}>
-                  <i
-                    className="pro-dot"
-                    style={professionalColorStyle(professional.color)}
-                    aria-hidden="true"
-                  />
-                  {professional.fullName.replace(/Dra?\. /, "")}
-                </span>
-              ))}
-            </div>
           </div>
         )}
         {loading ? (
@@ -525,18 +681,21 @@ export function AgendaPage() {
                 const activeCount = dayAppointments.filter(
                   (item) => item.status !== "cancelled",
                 ).length;
-                const dayBlocks = blocks.filter(
+                const dayBlocks = shownBlocks.filter(
                   (item) =>
                     localIsoDate(new Date(item.startsAt)) === dayKey &&
                     item.status === "active",
                 );
-                const dayGroups = groupSessions.filter(
+                const dayGroups = shownGroupSessions.filter(
                   (item) => localIsoDate(new Date(item.startsAt)) === dayKey,
                 );
                 const dayEvents = sortAgendaEntries({
                   appointments: dayAppointments,
                   groupSessions: dayGroups,
                 });
+                const dayNotes = shownNotes.filter(
+                  (item) => localIsoDate(new Date(item.startsAt)) === dayKey,
+                );
                 const dayHoliday = holidayNames.get(dayKey);
                 return (
                   <div
@@ -552,7 +711,7 @@ export function AgendaPage() {
                       type="button"
                       className="month-day-head"
                       onClick={() => setEventsDay(day)}
-                      aria-label={`${day.toLocaleDateString("pt-BR", { day: "numeric", month: "long", year: "numeric" })}: ${activeCount} atendimentos, ${dayGroups.length} aulas de turma, ${dayBlocks.length} bloqueios${dayHoliday ? `, feriado: ${dayHoliday}` : ""}`}
+                      aria-label={`${day.toLocaleDateString("pt-BR", { day: "numeric", month: "long", year: "numeric" })}: ${activeCount} atendimentos, ${dayGroups.length} aulas de turma, ${dayBlocks.length} bloqueios, ${dayNotes.length} notas${dayHoliday ? `, feriado: ${dayHoliday}` : ""}`}
                     >
                       <strong>{day.getDate()}</strong>
                       {activeCount > 0 && (
@@ -609,9 +768,15 @@ export function AgendaPage() {
                           <span
                             className="month-group"
                             key={entry.session.id}
+                            style={professionalColorStyle(
+                              professionalColors.get(
+                                entry.session.professionalId,
+                              ),
+                            )}
                             title={`${entry.session.groupName} · ${entry.session.professionalName} · ${entry.session.roomName}`}
                           >
                             <span className="month-event-time">
+                              <i className="pro-dot" aria-hidden="true" />
                               <time>
                                 {timeLabel.format(
                                   new Date(entry.session.startsAt),
@@ -631,19 +796,31 @@ export function AgendaPage() {
                       {dayEvents.length > 2 && (
                         <button
                           type="button"
-                          className={`month-more${dayEvents
-                            .slice(2)
-                            .some(
-                              (entry) =>
-                                entry.kind === "appointment" &&
-                                highlightedIds.includes(entry.appointment.id),
-                            )
-                            ? " agenda-just-saved"
-                            : ""}`}
+                          className={`month-more${
+                            dayEvents
+                              .slice(2)
+                              .some(
+                                (entry) =>
+                                  entry.kind === "appointment" &&
+                                  highlightedIds.includes(entry.appointment.id),
+                              )
+                              ? " agenda-just-saved"
+                              : ""
+                          }`}
                           onClick={() => setEventsDay(day)}
                         >
                           +{dayEvents.length - 2}{" "}
                           {dayEvents.length - 2 === 1 ? "evento" : "eventos"}
+                        </button>
+                      )}
+                      {dayNotes.length > 0 && (
+                        <button
+                          type="button"
+                          className="text-button month-note-count"
+                          onClick={() => setEventsDay(day)}
+                        >
+                          {dayNotes.length}{" "}
+                          {dayNotes.length === 1 ? "nota" : "notas"}
                         </button>
                       )}
                       {dayBlocks.length > 0 && (
@@ -665,10 +842,13 @@ export function AgendaPage() {
               const dayAppointments = visibleAppointments.filter(
                 (item) => localIsoDate(new Date(item.startsAt)) === dayKey,
               );
-              const dayBlocks = blocks.filter(
+              const dayBlocks = shownBlocks.filter(
                 (item) => localIsoDate(new Date(item.startsAt)) === dayKey,
               );
-              const dayGroups = groupSessions.filter(
+              const dayGroups = shownGroupSessions.filter(
+                (item) => localIsoDate(new Date(item.startsAt)) === dayKey,
+              );
+              const dayNotes = shownNotes.filter(
                 (item) => localIsoDate(new Date(item.startsAt)) === dayKey,
               );
               const dayHoliday = holidayNames.get(dayKey);
@@ -686,12 +866,19 @@ export function AgendaPage() {
                         Feriado: {dayHoliday}
                       </span>
                     )}
-                    {sortAgendaEntries({
+                    {sortAgendaEntriesWithNotes({
                       appointments: dayAppointments,
                       groupSessions: dayGroups,
                       blocks: dayBlocks,
+                      notes: dayNotes,
                     }).map((entry) =>
-                      entry.kind === "block" ? (
+                      entry.kind === "note" ? (
+                        <AgendaNoteCard
+                          key={entry.note.id}
+                          note={entry.note}
+                          onOpen={() => setSelectedNote(entry.note)}
+                        />
+                      ) : entry.kind === "block" ? (
                         <ScheduleBlockCard
                           compact
                           block={entry.block}
@@ -706,6 +893,9 @@ export function AgendaPage() {
                         <GroupSessionCard
                           compact
                           session={entry.session}
+                          professionalColor={professionalColors.get(
+                            entry.session.professionalId,
+                          )}
                           key={entry.session.id}
                         />
                       ) : (
@@ -754,6 +944,7 @@ export function AgendaPage() {
                     {!dayHoliday &&
                       dayAppointments.length === 0 &&
                       dayBlocks.length === 0 &&
+                      dayNotes.length === 0 &&
                       dayGroups.length === 0 && (
                         <span className="week-empty">Livre</span>
                       )}
@@ -762,17 +953,25 @@ export function AgendaPage() {
               );
             })}
           </div>
-        ) : dayLayout === "grid" && professionals.length > 0 ? (
+        ) : dayLayout === "grid" && agendaProfessionals.length > 0 ? (
           <div className="day-agenda">
             {selectedHoliday && (
               <p className="holiday-notice">Feriado: {selectedHoliday}</p>
             )}
             <DayScheduleGrid
               day={selectedDate}
-              professionals={professionals}
+              professionals={
+                professionalFilter
+                  ? agendaProfessionals.filter(
+                      (item) => item.id === professionalFilter,
+                    )
+                  : agendaProfessionals
+              }
               appointments={visibleAppointments}
-              groupSessions={groupSessions}
-              blocks={blocks}
+              groupSessions={shownGroupSessions}
+              blocks={shownBlocks}
+              notes={shownNotes}
+              onOpenNote={setSelectedNote}
               onOpenAppointment={setSelectedAppointmentId}
               highlightedIds={highlightedIds}
               onCreate={
@@ -786,8 +985,9 @@ export function AgendaPage() {
             />
           </div>
         ) : visibleAppointments.length === 0 &&
-          blocks.length === 0 &&
-          groupSessions.length === 0 ? (
+          shownBlocks.length === 0 &&
+          shownNotes.length === 0 &&
+          shownGroupSessions.length === 0 ? (
           selectedHoliday ? (
             <div className="day-agenda">
               <p className="holiday-notice">Feriado: {selectedHoliday}</p>
@@ -813,12 +1013,19 @@ export function AgendaPage() {
             {selectedHoliday && (
               <p className="holiday-notice">Feriado: {selectedHoliday}</p>
             )}
-            {sortAgendaEntries({
+            {sortAgendaEntriesWithNotes({
               appointments: visibleAppointments,
-              groupSessions,
-              blocks,
+              groupSessions: shownGroupSessions,
+              blocks: shownBlocks,
+              notes: shownNotes,
             }).map((entry) =>
-              entry.kind === "block" ? (
+              entry.kind === "note" ? (
+                <AgendaNoteCard
+                  key={entry.note.id}
+                  note={entry.note}
+                  onOpen={() => setSelectedNote(entry.note)}
+                />
+              ) : entry.kind === "block" ? (
                 <ScheduleBlockCard
                   block={entry.block}
                   key={entry.block.id}
@@ -831,6 +1038,9 @@ export function AgendaPage() {
               ) : entry.kind === "group" ? (
                 <GroupSessionCard
                   session={entry.session}
+                  professionalColor={professionalColors.get(
+                    entry.session.professionalId,
+                  )}
                   key={entry.session.id}
                 />
               ) : (
@@ -905,6 +1115,71 @@ export function AgendaPage() {
           }}
         />
       )}
+      {noteModal && (
+        <AgendaNoteModal
+          date={selectedDate}
+          note={noteModal === "new" ? undefined : noteModal}
+          professionals={professionals}
+          currentProfessionalId={
+            professionalFilter || professionals[0]?.id || ""
+          }
+          ownProfessionalId={ownProfessionalId}
+          onClose={() => setNoteModal(null)}
+          onSaved={() => {
+            setNoteModal(null);
+            setNoteReload((value) => value + 1);
+            toast.success("Nota salva.");
+          }}
+        />
+      )}
+      {selectedNote && (
+        <AgendaNoteDetailsModal
+          note={selectedNote}
+          canManage={
+            can("agenda.notes") &&
+            (!ownProfessionalId ||
+              selectedNote.professionalId === ownProfessionalId)
+          }
+          onClose={() => setSelectedNote(null)}
+          onEdit={() => {
+            setNoteModal(selectedNote);
+            setSelectedNote(null);
+          }}
+          onDeleted={() => {
+            setSelectedNote(null);
+            setNoteReload((value) => value + 1);
+            toast.success("Nota excluída.");
+          }}
+        />
+      )}
+      {shareOpen && (
+        <ShareAgendaModal
+          professionals={agendaProfessionals}
+          initialProfessionalId={
+            professionalFilter ||
+            ownProfessionalId ||
+            agendaProfessionals[0]?.id ||
+            ""
+          }
+          // Começa no período exibido (dia, semana ou mês).
+          initialFrom={
+            view === "month" ? localIsoDate(monthStart) : holidayFrom
+          }
+          initialTo={
+            view === "month"
+              ? localIsoDate(
+                  new Date(
+                    selectedDate.getFullYear(),
+                    selectedDate.getMonth() + 1,
+                    0,
+                    12,
+                  ),
+                )
+              : holidayTo
+          }
+          onClose={() => setShareOpen(false)}
+        />
+      )}
       {blockModalOpen && (
         <ScheduleBlockModal
           date={selectedDate}
@@ -945,9 +1220,7 @@ export function AgendaPage() {
       {rescheduling && (
         <AppointmentRescheduleModal
           appointment={rescheduling}
-          service={services.find(
-            (item) => item.id === rescheduling.serviceId,
-          )}
+          service={services.find((item) => item.id === rescheduling.serviceId)}
           professionals={professionals}
           rooms={rooms}
           onClose={() => setRescheduling(null)}
@@ -1009,20 +1282,29 @@ export function AgendaPage() {
       {eventsDay && (
         <DayEventsModal
           day={eventsDay}
+          notes={shownNotes.filter(
+            (item) =>
+              localIsoDate(new Date(item.startsAt)) === localIsoDate(eventsDay),
+          )}
+          onOpenNote={(note) => {
+            setEventsDay(null);
+            setSelectedNote(note);
+          }}
           holidayName={holidayNames.get(localIsoDate(eventsDay))}
           appointments={visibleAppointments.filter(
             (item) =>
               localIsoDate(new Date(item.startsAt)) === localIsoDate(eventsDay),
           )}
-          groupSessions={groupSessions.filter(
+          groupSessions={shownGroupSessions.filter(
             (item) =>
               localIsoDate(new Date(item.startsAt)) === localIsoDate(eventsDay),
           )}
-          blocks={blocks.filter(
+          blocks={shownBlocks.filter(
             (item) =>
               localIsoDate(new Date(item.startsAt)) ===
                 localIsoDate(eventsDay) && item.status === "active",
           )}
+          professionalColors={professionalColors}
           onClose={() => setEventsDay(null)}
           onOpenAppointment={(id) => {
             setEventsDay(null);

@@ -10,6 +10,10 @@ import { describe, expect, it, vi } from "vitest";
 import App from "../../App";
 import { storedUser } from "../../test-support/legacy-fixtures";
 import "../../test-support/legacy-setup";
+import {
+  isLeadBoardUrl,
+  leadBoardResponse,
+} from "../../test-support/lead-board";
 
 const existingLead = {
   id: "44444444-4444-4444-8444-444444444444",
@@ -74,7 +78,9 @@ function setup(matches: Match[]) {
         json: async () => ({ matches }),
       } as Response;
     }
-    const body = url.endsWith("/leads") ? [existingLead] : [];
+    const body = isLeadBoardUrl(url)
+      ? leadBoardResponse(url, [existingLead])
+      : [];
     return { ok: true, status: 200, json: async () => body } as Response;
   });
   render(

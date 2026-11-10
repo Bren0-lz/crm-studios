@@ -1,3 +1,11 @@
+import {
+  appointmentPricingWithPlan,
+  patientPlansWithService,
+} from "./test-support/legacy-fixtures";
+import {
+  setDocumentText,
+  installDocumentBrowserMocks,
+} from "./test-support/document-editor";
 import { api } from "./api";
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 import {
@@ -27,7 +35,30 @@ import {
   clickMoreAction,
   findMoreAction,
   moreActionNames,
+  fillRequiredContact,
 } from "./test-support/patient-actions";
+import { isLeadBoardUrl, leadBoardResponse } from "./test-support/lead-board";
+import { chooseService } from "./test-support/workflow-ui";
+
+/** Abre o menu "Mais ações" de uma despesa fixa e devolve a opção pedida. */
+async function recurringAction(
+  scope: HTMLElement,
+  description: string,
+  action: string,
+) {
+  const button = within(scope).getByRole("button", {
+    name: `Mais ações de ${description}`,
+  });
+  // Durante o salvamento da linha o menu fica desativado.
+  await vi.waitFor(() => expect(button).toBeEnabled());
+  fireEvent.click(button);
+  return within(scope).findByRole("menuitem", { name: action });
+}
+
+/** Fecha o menu "Mais ações" aberto. */
+function closeRecurringMenu(scope: HTMLElement) {
+  fireEvent.keyDown(within(scope).getByRole("menu"), { key: "Escape" });
+}
 
 vi.stubGlobal("fetch", vi.fn());
 
@@ -66,6 +97,12 @@ describe("configured plan catalog", () => {
     ],
     active: true,
   };
+  const single = {
+    ...second,
+    id: "aa000000-0000-4000-8000-000000000005",
+    name: "Avaliação avulsa",
+    kind: "single",
+  };
   function setupCatalog(
     options: { empty?: boolean; failOnce?: boolean; role?: string } = {},
   ) {
@@ -87,6 +124,7 @@ describe("configured plan catalog", () => {
       : [
           first,
           second,
+          single,
           {
             ...first,
             id: "aa000000-0000-4000-8000-000000000003",
@@ -161,7 +199,7 @@ describe("configured plan catalog", () => {
     return writes;
   }
 
-  it("requires selection, applies defaults without carrying prior fields and sells at a negotiated price", async () => {
+  it("requires selection, applies defaults without carrying prior fields and prices single sessions from the plan", async () => {
     const writes = setupCatalog();
     render(
       <MemoryRouter initialEntries={["/planos"]}>
@@ -195,41 +233,57 @@ describe("configured plan catalog", () => {
     expect(
       screen.queryByRole("option", { name: /Plano incompleto/ }),
     ).not.toBeInTheDocument();
-    expect(screen.getByLabelText("Valor do serviço 1")).toHaveValue("400,00");
-    expect(screen.getByLabelText("Valor do serviço 2")).toHaveValue("50,00");
+    expect(screen.getByLabelText("Valor do serviço 1")).toHaveValue(
+      "R$\u00a0400,00",
+    );
+    expect(screen.getByLabelText("Valor do serviço 1")).toHaveAttribute(
+      "readonly",
+    );
+    expect(screen.getByLabelText("Valor do serviço 2")).toHaveValue(
+      "R$\u00a050,00",
+    );
     expect(screen.getByLabelText("Sessões do serviço 2")).toHaveValue(2);
     expect(screen.getByLabelText("Valor total")).toHaveAttribute("readonly");
     expect(screen.getByLabelText("Sessões do serviço 1")).toHaveValue(8);
     expect(screen.getByRole("group", { name: "Pilates" })).toBeInTheDocument();
     expect(screen.getByLabelText("Modelo")).toHaveValue("recurring");
-    fireEvent.change(screen.getByLabelText("Valor do serviço 1"), {
-      target: { value: "390" },
-    });
+    expect(screen.getByLabelText("Sessões do serviço 1")).toHaveAttribute(
+      "readonly",
+    );
     fireEvent.change(selector, { target: { value: second.id } });
     expect(
       screen.queryByLabelText("Valor do serviço 2"),
     ).not.toBeInTheDocument();
-    expect(screen.getByLabelText("Valor do serviço 1")).toHaveValue("120,50");
+    expect(screen.getByLabelText("Valor do serviço 1")).toHaveValue(
+      "R$\u00a0120,50",
+    );
     expect(screen.getByLabelText("Sessões do serviço 1")).toHaveValue(10);
     expect(
       screen.getByRole("group", { name: "Fisioterapia" }),
     ).toBeInTheDocument();
     expect(screen.getByLabelText("Modelo")).toHaveValue("fixed_package");
-    fireEvent.change(screen.getByLabelText("Valor do serviço 1"), {
-      target: { value: "99.99" },
+    // Avulso: a lista passa a mostrar só os planos avulsos.
+    fireEvent.change(screen.getByLabelText("Modelo"), {
+      target: { value: "single" },
     });
-    expect(
-      screen.getByRole("button", { name: "Criar plano e parcelas" }),
-    ).toBeEnabled();
-    expect(screen.queryByText(/Falta:/)).not.toBeInTheDocument();
+    expect(selector).toHaveValue("");
+    fireEvent.change(selector, { target: { value: single.id } });
+    // Avulso (modelo antigo de 10 sessões): vende uma sessão, pelo preço por sessão.
+    expect(screen.getByLabelText("Sessões do serviço 1")).toHaveValue(1);
+    expect(screen.getByLabelText("Sessões do serviço 1")).toHaveAttribute(
+      "readonly",
+    );
+    expect(screen.getByLabelText("Valor total")).toHaveValue("R$\u00a012,05");
     fireEvent.click(
       screen.getByRole("button", { name: "Criar plano e parcelas" }),
     );
     await waitFor(() => expect(writes).toHaveLength(1));
     expect(writes[0]).toMatchObject({
-      name: second.name,
-      planTemplateId: second.id,
-      totalValueInCents: 9999,
+      name: single.name,
+      planTemplateId: single.id,
+      kind: "single",
+      totalValueInCents: 1205,
+      services: [expect.objectContaining({ totalSessions: 1 })],
     });
   });
 
@@ -312,13 +366,13 @@ describe("configured plan catalog", () => {
       });
     fill("Nome do plano", "Plano completo");
     fill("Tipo de plano", "promotional");
-    fill("Valor total", "125.50");
-    fill("Serviço 1", first.serviceId);
+    fill("Valor total", "125,50");
+    chooseService(dialog, "Serviço 1", "Pilates");
     fill("Sessões do serviço 1", "8");
     fireEvent.click(
       within(dialog).getByRole("button", { name: "Adicionar serviço" }),
     );
-    fill("Valor do serviço 1", "100");
+    fill("Valor do serviço 1", "100,00");
     expect(
       within(dialog).getByRole("button", { name: "Salvar plano" }),
     ).toBeDisabled();
@@ -326,9 +380,9 @@ describe("configured plan catalog", () => {
     expect(
       within(dialog).getByRole("button", { name: "Salvar plano" }),
     ).toHaveAccessibleDescription("Falta: Serviço 2, Valor do serviço 2.");
-    fill("Serviço 2", "77777777-7777-4777-8777-777777777777");
+    chooseService(dialog, "Serviço 2", "Fisioterapia");
     fill("Sessões do serviço 2", "2");
-    fill("Valor do serviço 2", "25.50");
+    fill("Valor do serviço 2", "25,50");
     expect(
       within(dialog).getByRole("button", { name: "Salvar plano" }),
     ).toBeEnabled();
@@ -359,13 +413,13 @@ describe("configured plan catalog", () => {
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
     );
     fireEvent.click(
-      screen.getByRole("button", { name: "Editar plano Plano completo" }),
+      screen.getByRole("button", { name: "Editar Plano completo" }),
     );
     dialog = screen.getByRole("dialog");
     fireEvent.click(
       within(dialog).getByRole("button", { name: "Remover serviço 2" }),
     );
-    fill("Valor total", "100");
+    fill("Valor total", "100,00");
     fireEvent.click(
       within(dialog).getByRole("button", { name: "Salvar plano" }),
     );
@@ -383,11 +437,11 @@ describe("configured plan catalog", () => {
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
     );
     fireEvent.click(
-      screen.getByRole("button", { name: "Desativar plano Plano completo" }),
+      screen.getByRole("button", { name: "Desativar Plano completo" }),
     );
     await waitFor(() => expect(writes).toHaveLength(3));
     expect(writes[2]).toEqual({ active: false });
-    await screen.findByRole("button", { name: "Ativar plano Plano completo" });
+    await screen.findByRole("button", { name: "Ativar Plano completo" });
   });
 
   it("shows the catalog read-only without settings operation permissions", async () => {
@@ -545,6 +599,8 @@ async function openSettingsSection(...names: string[]) {
           ? "Contatos sugeridos"
           : name;
     const tab = await screen.findByRole("tab", { name: label });
+    // As abas ficam desativadas enquanto um salvamento termina: clicar antes disso é ignorado.
+    await waitFor(() => expect(tab).toBeEnabled());
     if (tab.getAttribute("aria-selected") !== "true") fireEvent.click(tab);
     section = document.getElementById(tab.getAttribute("aria-controls")!);
   }
@@ -582,6 +638,8 @@ async function fillAppointmentForm(dialog: HTMLElement, patientName?: string) {
   }
   for (const label of ["Tipo", "Profissional", "Sala", "Serviço"]) {
     const select = within(dialog).getByLabelText(label) as HTMLSelectElement;
+    // "Serviço" espera os planos do cliente (AP7).
+    await waitFor(() => expect(select).toBeEnabled());
     if (!select.value)
       fireEvent.change(select, { target: { value: select.options[1]!.value } });
   }
@@ -591,11 +649,15 @@ async function fillAppointmentForm(dialog: HTMLElement, patientName?: string) {
     fireEvent.click(
       dialog.querySelector<HTMLButtonElement>('[data-date][tabindex="0"]')!,
     );
+    // Escolher o dia mantém o calendário aberto; fecha pelo X.
     expect(
-      within(dialog).queryByRole("region", {
+      within(dialog).getByRole("region", {
         name: "Calendário de agendamento",
       }),
-    ).not.toBeInTheDocument();
+    ).toBeInTheDocument();
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Fechar calendário" }),
+    );
   }
   const time = within(dialog).getByLabelText("Horário");
   if (!(time as HTMLInputElement).value)
@@ -630,6 +692,10 @@ describe("appointment client search and creation", () => {
     );
     vi.mocked(fetch).mockImplementation(async (input, init) => {
       const url = String(input);
+      const pricing =
+        appointmentPricingWithPlan(url) ??
+        patientPlansWithService(url, "77777777-7777-4777-8777-777777777777");
+      if (pricing) return pricing;
       if (init?.method === "POST")
         return url.endsWith("/patients")
           ? response(created, 201)
@@ -656,7 +722,6 @@ describe("appointment client search and creation", () => {
                       {
                         id: "77777777-7777-4777-8777-777777777777",
                         name: "Pilates",
-                        priceInCents: 10000,
                       },
                     ]
                   : [],
@@ -719,6 +784,10 @@ describe("appointment client search and creation", () => {
       name: "Data",
     }).textContent;
     const originalTime = startsAt.value;
+    fireEvent.change(
+      within(appointment).getByRole("combobox", { name: "Cliente" }),
+      { target: { value: "Helena" } },
+    );
     fireEvent.click(
       within(appointment).getByRole("button", { name: "Adicionar cliente" }),
     );
@@ -733,6 +802,10 @@ describe("appointment client search and creation", () => {
     fireEvent.change(within(client).getByLabelText("Nome completo"), {
       target: { value: created.fullName },
     });
+    fireEvent.change(within(client).getByLabelText("CPF"), {
+      target: { value: "52998224725" },
+    });
+    fillRequiredContact(client);
     fireEvent.change(
       within(
         within(client).getByRole("group", { name: /^Contato$/ }),
@@ -765,6 +838,14 @@ describe("appointment client search and creation", () => {
     expect(
       within(appointment).getByLabelText("Número de ocorrências"),
     ).toHaveValue(6);
+    // Agendar exige plano (AP4): espera o plano do cliente entrar no formulário.
+    await waitFor(() =>
+      expect(
+        within(appointment).getByRole("button", {
+          name: "Confirmar atendimento",
+        }),
+      ).toBeEnabled(),
+    );
     fireEvent.click(
       within(appointment).getByRole("button", {
         name: "Confirmar atendimento",
@@ -784,9 +865,13 @@ describe("appointment client search and creation", () => {
     });
   });
 
-  it("closes only the client modal on Escape and keeps the previous selection", async () => {
+  it("closes only the client modal on Escape and keeps the search text", async () => {
     const appointment = await open();
     await fillAppointmentForm(appointment, existing.fullName);
+    fireEvent.change(
+      within(appointment).getByRole("combobox", { name: "Cliente" }),
+      { target: { value: "Helena" } },
+    );
     fireEvent.click(
       within(appointment).getByRole("button", { name: "Adicionar cliente" }),
     );
@@ -797,13 +882,17 @@ describe("appointment client search and creation", () => {
     expect(appointment).toBeInTheDocument();
     expect(
       within(appointment).getByRole("combobox", { name: "Cliente" }),
-    ).toHaveValue(existing.fullName);
+    ).toHaveValue("Helena");
     expect(document.body).toHaveClass("modal-open");
   });
 
   it("keeps both forms and the entered data when client creation fails", async () => {
     const appointment = await open();
     await fillAppointmentForm(appointment, existing.fullName);
+    fireEvent.change(
+      within(appointment).getByRole("combobox", { name: "Cliente" }),
+      { target: { value: "Helena" } },
+    );
     fireEvent.click(
       within(appointment).getByRole("button", { name: "Adicionar cliente" }),
     );
@@ -811,6 +900,10 @@ describe("appointment client search and creation", () => {
     fireEvent.change(within(client).getByLabelText("Nome completo"), {
       target: { value: created.fullName },
     });
+    fireEvent.change(within(client).getByLabelText("CPF"), {
+      target: { value: "52998224725" },
+    });
+    fillRequiredContact(client);
     vi.mocked(fetch).mockResolvedValue(
       response({ code: "DUPLICATE", message: "CPF já cadastrado." }, 409),
     );
@@ -830,7 +923,7 @@ describe("appointment client search and creation", () => {
     ).not.toBeInTheDocument();
     expect(
       within(appointment).getByRole("combobox", { name: "Cliente" }),
-    ).toHaveValue(existing.fullName);
+    ).toHaveValue("Helena");
   });
 
   it("searches CPF and selects a result by keyboard, clearing selection when edited", async () => {
@@ -1111,6 +1204,7 @@ describe("modal closing", () => {
       </MemoryRouter>,
     );
     fireEvent.click(await screen.findByRole("button", { name: "Nova turma" }));
+    await screen.findByRole("dialog", { name: "Nova turma" });
     const backdrop = document.querySelector(".modal-backdrop")!;
     fireEvent.mouseDown(backdrop);
     fireEvent.click(backdrop);
@@ -1469,7 +1563,6 @@ describe("application shell", () => {
                     {
                       id: appointment.serviceId,
                       durationMinutes: 50,
-                      priceInCents: 12000,
                     },
                   ]
                 : [];
@@ -1515,7 +1608,7 @@ describe("application shell", () => {
     ).toBeInTheDocument();
   });
 
-  it("keeps the monthly summary readable and opens detailed lists on demand", async () => {
+  it("navigates the management report tabs", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
     localStorage.setItem(
       "crm.auth.user",
@@ -1545,8 +1638,6 @@ describe("application shell", () => {
             netSalesInCents: 120000,
             grossSalesInCents: 130000,
             cancelledSalesInCents: 10000,
-            receivedInCents: 90000,
-            attendedPatients: 14,
           },
           previousComparable: { from: "2026-08-01", to: "2026-08-15" },
           changePercent: 20,
@@ -1576,21 +1667,18 @@ describe("application shell", () => {
         <App />
       </MemoryRouter>,
     );
-    expect(await screen.findByText("Vendido líquido")).toBeInTheDocument();
-    expect(screen.getByText("Dinheiro recebido")).toBeInTheDocument();
-    expect(screen.getAllByText("Clientes sem retorno")).toHaveLength(2);
-    const details = screen.getByText("Ver vendas e clientes do mês")
-      .parentElement as HTMLDetailsElement;
-    expect(details.open).toBe(false);
-    fireEvent.click(screen.getByText("Ver vendas e clientes do mês"));
-    expect(details.open).toBe(true);
-    expect(screen.getByText("Helena Almeida")).toBeInTheDocument();
     expect(
-      (
-        screen.getByText("Ver outros indicadores da clínica")
-          .parentElement as HTMLDetailsElement
-      ).open,
-    ).toBe(false);
+      await screen.findByRole("heading", { name: "Relatórios gerenciais" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Visão geral" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    fireEvent.click(screen.getByRole("tab", { name: "Clientes" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Sem retorno" }));
+    expect(
+      await screen.findByRole("heading", { name: "Clientes sem retorno" }),
+    ).toBeInTheDocument();
   });
 
   it("shows monthly sales and patients without return directly on the manager dashboard", async () => {
@@ -1611,8 +1699,6 @@ describe("application shell", () => {
             current: {
               to: "2026-09-15",
               netSalesInCents: 120000,
-              receivedInCents: 90000,
-              attendedPatients: 14,
             },
             changePercent: 20,
             patientsWithoutReturn: [
@@ -1641,17 +1727,12 @@ describe("application shell", () => {
       </MemoryRouter>,
     );
     expect(
-      await screen.findByRole("heading", {
-        name: "Vendas e retorno dos clientes",
-      }),
-    ).toBeInTheDocument();
-    expect(screen.getByText(/1\.200,00/)).toBeInTheDocument();
-    expect(
-      screen.getByText("+20% vs. mês anterior comparável"),
+      await screen.findByRole("heading", { name: "Clientes sem retorno" }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("heading", { name: "Clientes sem retorno" }),
-    ).toBeInTheDocument();
+      screen.queryByRole("heading", { name: "Vendas e retorno dos clientes" }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText(/1\.200,00/)).not.toBeInTheDocument();
     expect(screen.getByText("Helena Almeida")).toBeInTheDocument();
     expect(screen.queryByText("Cadastros incompletos")).not.toBeInTheDocument();
     expect(
@@ -1680,68 +1761,6 @@ describe("application shell", () => {
       screen.getByText("admin@movimenta.local · Admin@123"),
     ).toBeInTheDocument();
     expect(screen.queryByText(/^movimenta$/i)).not.toBeInTheDocument();
-  });
-
-  it("opens the SOAP editor for an authenticated clinical user", async () => {
-    localStorage.setItem("crm.auth.token", "test-token");
-    localStorage.setItem(
-      "crm.auth.user",
-      storedUser({
-        id: "22222222-2222-4222-8222-222222222222",
-        fullName: "Aryana Dutra",
-        email: "admin@movimenta.local",
-        role: "owner",
-      }),
-    );
-    vi.mocked(fetch).mockImplementation(async (input) => {
-      const url = String(input);
-      const patient = {
-        id: "99999999-9999-4999-8999-999999999999",
-        fullName: "Helena Almeida",
-      };
-      const body = url.includes("/clinical-workspace/")
-        ? {
-            patient,
-            records: [],
-            templates: [],
-            assessments: [],
-            goals: [],
-            measurements: [],
-            closures: [],
-          }
-        : url.includes("/clinical-records")
-          ? []
-          : url.includes("/patients")
-            ? [patient]
-            : [
-                {
-                  id: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
-                  patientId: patient.id,
-                  patientName: "Helena Almeida",
-                  professionalName: "Dra. Ana Martins",
-                  startsAt: new Date().toISOString(),
-                  status: "completed",
-                },
-              ];
-      return { ok: true, status: 200, json: async () => body } as Response;
-    });
-
-    render(
-      <MemoryRouter initialEntries={["/prontuarios"]}>
-        <App />
-      </MemoryRouter>,
-    );
-    expect(
-      await screen.findByRole("heading", { name: "Prontuários" }),
-    ).toBeInTheDocument();
-    const newRecord = await screen.findByRole("button", {
-      name: "Nova evolução",
-    });
-    fireEvent.click(newRecord);
-    expect(
-      screen.getByRole("heading", { name: "Nova evolução clínica" }),
-    ).toBeInTheDocument();
-    expect(screen.getByLabelText(/S — Subjetivo/)).toBeInTheDocument();
   });
 
   it("opens a plan sale with patient and service data", async () => {
@@ -1870,9 +1889,10 @@ describe("application shell", () => {
     expect(screen.getByLabelText("Primeiro vencimento")).toHaveValue(
       "2026-10-05",
     );
-    fireEvent.change(screen.getByLabelText("Valor do serviço 1"), {
-      target: { value: "420" },
-    });
+    // Plano é fixo: sessões e valor da renovação repetem o plano atual.
+    expect(screen.getByLabelText("Valor do serviço 1")).toHaveAttribute(
+      "readonly",
+    );
     fireEvent.click(
       screen.getByRole("button", { name: "Renovar plano e gerar parcelas" }),
     );
@@ -1881,7 +1901,7 @@ describe("application shell", () => {
     ).toBeInTheDocument();
     expect(renewalBody).toMatchObject({
       validFrom: "2026-10-01",
-      totalValueInCents: 42000,
+      totalValueInCents: 40000,
       autoRenew: true,
     });
     expect(renewalBody).not.toHaveProperty("patientId");
@@ -2063,6 +2083,10 @@ describe("application shell", () => {
     fireEvent.change(screen.getByLabelText("Nome completo"), {
       target: { value: "Helena Pereira" },
     });
+    fireEvent.change(screen.getByLabelText("CPF"), {
+      target: { value: "52998224725" },
+    });
+    fillRequiredContact(document.body);
     fireEvent.change(screen.getByLabelText("WhatsApp"), {
       target: { value: "11 90000-1234" },
     });
@@ -2435,20 +2459,41 @@ describe("application shell", () => {
       within(helenaCard).getByText("Plano termina em 3 dias"),
     ).toBeInTheDocument();
     expect(within(helenaCard).getByText("(11) 98765-4321")).toBeInTheDocument();
-    const whatsapp = within(helenaCard).getByRole("link", { name: /WhatsApp/ });
+    expect(
+      within(helenaCard).queryByRole("link", { name: /WhatsApp/ }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(helenaCard);
+    const helenaDetails = screen.getByRole("dialog", {
+      name: "Pendências de Helena",
+    });
+    const whatsapp = within(helenaDetails).getByRole("link", {
+      name: /WhatsApp/,
+    });
     expect(whatsapp).toHaveAttribute(
       "href",
       `https://wa.me/5511911112222?text=${encodeURIComponent("Oi Helena, seu plano está acabando.")}`,
     );
     expect(whatsapp).toHaveAttribute("target", "_blank");
-    expect(whatsapp).toHaveClass("whatsapp-button", "button-sm");
+    expect(whatsapp).toHaveClass("whatsapp-button");
     expect(whatsapp.getAttribute("rel")).toMatch(/\bnoopener\b/);
+    fireEvent.click(
+      within(helenaDetails).getByRole("button", { name: "Fechar" }),
+    );
     const brunoCard = screen.getByText("Bruno Souza").closest("article")!;
+    fireEvent.click(
+      within(brunoCard).getByText("Veio uma vez há 70 dias e não voltou"),
+    );
+    const brunoDetails = screen.getByRole("dialog", {
+      name: "Pendências de Bruno",
+    });
     expect(
-      within(brunoCard).getByRole("link", { name: /WhatsApp/ }),
+      within(brunoDetails).getByRole("link", { name: /WhatsApp/ }),
     ).toHaveAttribute(
       "href",
       `https://wa.me/5511955556666?text=${encodeURIComponent("Oi Bruno, sentimos sua falta.")}`,
+    );
+    fireEvent.click(
+      within(brunoDetails).getByRole("button", { name: "Fechar" }),
     );
 
     const filters = screen.getByRole("group", { name: "Situação" });
@@ -2462,7 +2507,14 @@ describe("application shell", () => {
     fireEvent.click(within(filters).getByRole("button", { name: /Todas/ }));
 
     fireEvent.click(
-      within(helenaCard).getByRole("button", { name: "Registrar contato" }),
+      within(helenaCard).getByRole("button", {
+        name: "Ver pendências de Helena Almeida",
+      }),
+    );
+    fireEvent.click(
+      within(
+        screen.getByRole("dialog", { name: "Pendências de Helena" }),
+      ).getByRole("button", { name: "Registrar contato" }),
     );
     const dialog = screen.getByRole("dialog", { name: "Registrar contato" });
     expect(
@@ -2978,78 +3030,6 @@ describe("application shell", () => {
     ).toBe(false);
   });
 
-  it("shows the professional CREFITO in the clinical list and print summary", async () => {
-    localStorage.setItem("crm.auth.token", "test-token");
-    localStorage.setItem(
-      "crm.auth.user",
-      storedUser({
-        id: "22222222-2222-4222-8222-222222222222",
-        fullName: "Aryana Dutra",
-        email: "admin@movimenta.local",
-        role: "owner",
-      }),
-    );
-    const patient = {
-      id: "99999999-9999-4999-8999-999999999999",
-      fullName: "Helena Almeida",
-      recordNumber: 12,
-    };
-    const record = {
-      id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
-      appointmentId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
-      patientId: patient.id,
-      professionalId: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
-      status: "finalized",
-      version: 2,
-      authorName: "Aryana Dutra",
-      patientName: "Helena Almeida",
-      professionalName: "Dra. Ana Martins",
-      professionalCrefito: "CREFITO-3 123456-F",
-      appointmentStartsAt: new Date().toISOString(),
-      subjective: "Relato",
-      objective: "Exame",
-      assessment: "Evolução positiva",
-      plan: "Manter",
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-    vi.mocked(fetch).mockImplementation(async (input) => {
-      const url = String(input);
-      const body = url.includes("/clinical-workspace/")
-        ? {
-            patient,
-            records: [record],
-            templates: [],
-            assessments: [],
-            goals: [],
-            measurements: [],
-            closures: [],
-            attachments: [],
-            addenda: [],
-          }
-        : url.includes("/clinical-records")
-          ? [record]
-          : url.includes("/patients")
-            ? [patient]
-            : [];
-      return { ok: true, status: 200, json: async () => body } as Response;
-    });
-    render(
-      <MemoryRouter initialEntries={["/prontuarios"]}>
-        <App />
-      </MemoryRouter>,
-    );
-    expect(
-      await screen.findByText(
-        "Dra. Ana Martins · CREFITO-3 123456-F · versão 2",
-      ),
-    ).toBeInTheDocument();
-    const summary = (
-      await screen.findByText("Prontuário longitudinal")
-    ).closest(".clinical-print-summary")!;
-    expect(summary).toHaveTextContent("Dra. Ana Martins · CREFITO-3 123456-F");
-  });
-
   it("offers the contracts page in the menu and redirects the old documents route", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
     localStorage.setItem(
@@ -3158,12 +3138,54 @@ describe("application shell", () => {
     const posted: Record<string, unknown>[] = [];
     vi.mocked(fetch).mockImplementation(async (input, init) => {
       const url = String(input);
+      if (url.endsWith("/documents/preview")) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            snapshotBody: "Contrato preparado para Helena Almeida.",
+            snapshotContent: {
+              version: 1,
+              doc: {
+                type: "doc",
+                content: [
+                  {
+                    type: "paragraph",
+                    content: [
+                      {
+                        type: "text",
+                        text: "Contrato preparado para Helena Almeida.",
+                      },
+                    ],
+                  },
+                ],
+              },
+            },
+            branding: {
+              name: "Studios Aryana",
+              logoDataUrl: "",
+              timezone: "America/Sao_Paulo",
+            },
+            missingFields: [],
+            templateName: template.name,
+            templateVersion: 1,
+            patientName: patient.fullName,
+          }),
+        } as Response;
+      }
       if (url.endsWith("/documents") && init?.method === "POST") {
         posted.push(JSON.parse(String(init.body)));
         return {
           ok: true,
           status: 201,
-          json: async () => ({ id: "f0f0f0f0-f0f0-4f0f-8f0f-f0f0f0f0f0f0" }),
+          json: async () => ({
+            ...JSON.parse(String(init?.body)),
+            id: "f0f0f0f0-f0f0-4f0f-8f0f-f0f0f0f0f0f0",
+            status: "draft",
+            patientName: patient.fullName,
+            templateName: template.name,
+            snapshotBody: "Contrato preparado para Helena Almeida.",
+          }),
         } as Response;
       }
       const body = url.includes("/document-templates")
@@ -3180,6 +3202,8 @@ describe("application shell", () => {
         <App />
       </MemoryRouter>,
     );
+    fireEvent.click(await screen.findByRole("tab", { name: "Criar modelo" }));
+    fireEvent.click(screen.getByText("Inserir campo automático"));
     expect(
       await within(
         await screen.findByRole("group", { name: "Inserir campo" }),
@@ -3191,13 +3215,16 @@ describe("application shell", () => {
         { name: "CREFITO do profissional" },
       ),
     ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("tab", { name: "Documentos" }));
+    installDocumentBrowserMocks();
+    fireEvent.click(screen.getByRole("button", { name: "Novo documento" }));
     const select = await screen.findByLabelText("Profissional (opcional)");
     expect(
       within(select).getByRole("option", {
         name: "Dra. Ana Martins · CREFITO-3 123456-F",
       }),
     ).toBeInTheDocument();
-    const issue = screen.getByRole("button", { name: "Criar rascunho" });
+    const issue = screen.getByRole("button", { name: "Preparar conteúdo" });
     expect(issue).toBeDisabled();
     fireEvent.change(screen.getByRole("combobox", { name: "Cliente" }), {
       target: { value: patient.fullName },
@@ -3206,11 +3233,42 @@ describe("application shell", () => {
       await screen.findByRole("option", { name: patient.fullName }),
     );
     fireEvent.click(issue);
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Conferir PDF" }),
+    );
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "Criar rascunho" }),
+      ).toBeEnabled(),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Criar rascunho" }));
     await vi.waitFor(() => expect(posted).toHaveLength(1));
     expect(posted[0]).not.toHaveProperty("professionalId");
     expect(posted[0]).not.toHaveProperty("appointmentId");
-    fireEvent.change(select, { target: { value: professional.id } });
-    fireEvent.click(issue);
+    await waitFor(() =>
+      expect(screen.getByText("Fechar", { selector: "button" })).toBeEnabled(),
+    );
+    fireEvent.click(screen.getByText("Fechar", { selector: "button" }));
+    fireEvent.click(screen.getByRole("button", { name: "Novo documento" }));
+    fireEvent.change(screen.getByRole("combobox", { name: "Cliente" }), {
+      target: { value: patient.fullName },
+    });
+    fireEvent.click(
+      await screen.findByRole("option", { name: patient.fullName }),
+    );
+    fireEvent.change(screen.getByLabelText("Profissional (opcional)"), {
+      target: { value: professional.id },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Preparar conteúdo" }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Conferir PDF" }),
+    );
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "Criar rascunho" }),
+      ).toBeEnabled(),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Criar rascunho" }));
     await vi.waitFor(() => expect(posted).toHaveLength(2));
     expect(posted[1]).toMatchObject({
       templateId: template.id,
@@ -3220,6 +3278,7 @@ describe("application shell", () => {
   });
 
   it("issues a draft document and prints the issued content", async () => {
+    installDocumentBrowserMocks();
     localStorage.setItem("crm.auth.token", "test-token");
     localStorage.setItem(
       "crm.auth.user",
@@ -3271,17 +3330,19 @@ describe("application shell", () => {
       </MemoryRouter>,
     );
     expect(
-      await screen.findByText("Contrato de prestação de serviços", {
-        selector: "strong",
-      }),
+      await screen.findByText("Helena Almeida", { selector: "strong" }),
     ).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Imprimir" }),
     ).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Emitir" }));
-    fireEvent.click(
-      await screen.findByRole("button", { name: "Emitir contrato" }),
-    );
+    // A lista mostra só o resumo; as ações ficam em "Ver detalhes".
+    fireEvent.click(screen.getByRole("button", { name: /Ver detalhes/ }));
+    fireEvent.click(await screen.findByRole("button", { name: "Emitir" }));
+    const confirmIssue = await screen.findByRole("button", {
+      name: "Emitir contrato",
+    });
+    await waitFor(() => expect(confirmIssue).toBeEnabled());
+    fireEvent.click(confirmIssue);
     await vi.waitFor(() => expect(patched).toEqual([{ status: "issued" }]));
     fireEvent.click(await screen.findByRole("button", { name: "Imprimir" }));
     const dialog = await screen.findByRole("dialog");
@@ -3347,12 +3408,12 @@ describe("application shell", () => {
         <App />
       </MemoryRouter>,
     );
+    fireEvent.click(await screen.findByRole("tab", { name: "Modelos" }));
     fireEvent.click(await screen.findByRole("button", { name: "Nova versão" }));
     const dialog = await screen.findByRole("dialog");
-    const textarea = within(dialog).getByLabelText(
-      "Conteúdo",
-    ) as HTMLTextAreaElement;
-    expect(textarea.value).toBe(template.body);
+    installDocumentBrowserMocks();
+    const textarea = within(dialog).getByLabelText("Conteúdo");
+    expect(textarea).toHaveTextContent("CONTRATO");
     fireEvent.click(
       within(dialog).getByRole("button", { name: "Criar versão" }),
     );
@@ -3363,7 +3424,7 @@ describe("application shell", () => {
     ).toBeInTheDocument();
     const newBody =
       "CONTRATO v2\n\nCláusula 1: {{paciente_nome}} contrata {{plano_nome}}.";
-    fireEvent.change(textarea, { target: { value: newBody } });
+    setDocumentText(textarea, newBody);
     fireEvent.click(
       within(dialog).getByRole("button", { name: "Criar versão" }),
     );
@@ -3377,7 +3438,12 @@ describe("application shell", () => {
     expect(posted[0]!.url).toContain(
       `/document-templates/${template.id}/versions`,
     );
-    expect(posted[0]!.body).toEqual({ body: newBody });
+    expect(posted[0]!.body).toEqual(
+      expect.objectContaining({
+        body: newBody,
+        content: expect.objectContaining({ version: 1 }),
+      }),
+    );
     expect(
       await screen.findByText("Nova versão de “Contrato padrão” criada."),
     ).toBeInTheDocument();
@@ -3432,29 +3498,51 @@ describe("application shell", () => {
         <App />
       </MemoryRouter>,
     );
-    fireEvent.click(await screen.findByRole("button", { name: "Cancelar" }));
-    const dialog = await screen.findByRole("dialog");
-    expect(
-      within(dialog).getByRole("heading", { name: "Cancelar documento" }),
-    ).toBeInTheDocument();
+    fireEvent.click(
+      await screen.findByRole("button", { name: /Ver detalhes/ }),
+    );
+    const details = await screen.findByRole("dialog");
+    fireEvent.click(
+      within(details).getByRole("button", { name: "Cancelar documento" }),
+    );
+    // Com a confirmação aberta, o modal de detalhes fica inacessível por baixo.
+    const dialog = await screen.findByRole("dialog", {
+      name: "Cancelar documento",
+    });
     expect(
       within(dialog).getAllByText(/Contrato de prestação de serviços/).length,
     ).toBeGreaterThan(0);
     fireEvent.click(within(dialog).getByRole("button", { name: "Voltar" }));
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("dialog", { name: "Cancelar documento" }),
+      ).not.toBeInTheDocument(),
+    );
     expect(patched).toHaveLength(0);
-    fireEvent.click(screen.getByRole("button", { name: "Cancelar" }));
     fireEvent.click(
       within(await screen.findByRole("dialog")).getByRole("button", {
         name: "Cancelar documento",
       }),
     );
+    fireEvent.click(
+      within(
+        await screen.findByRole("dialog", { name: "Cancelar documento" }),
+      ).getByRole("button", { name: "Cancelar documento" }),
+    );
     await vi.waitFor(() => expect(patched).toEqual([{ status: "cancelled" }]));
-    expect(await screen.findByText("Cancelado")).toBeInTheDocument();
+    // Os detalhes continuam abertos com a nova situação e sem a ação de cancelar.
+    const updated = await screen.findByRole("dialog", {
+      name: "Contrato de prestação de serviços",
+    });
+    expect(within(updated).getAllByText("Cancelado").length).toBeGreaterThan(0);
+    expect(
+      within(updated).queryByRole("button", { name: "Cancelar documento" }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(within(updated).getByRole("button", { name: "Fechar" }));
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(
-      screen.queryByRole("button", { name: "Cancelar" }),
-    ).not.toBeInTheDocument();
+      screen.getByText("Cancelado", { selector: ".status-pill" }),
+    ).toBeInTheDocument();
   });
 
   it("records patient satisfaction on a completed appointment and hides the button afterwards", async () => {
@@ -3765,15 +3853,16 @@ describe("application shell", () => {
         <App />
       </MemoryRouter>,
     );
+    fireEvent.click(await screen.findByRole("tab", { name: "Indicadores" }));
     expect(
       await screen.findByText(
-        "4 respostas · 2 promotores · 1 neutros · 1 detratores",
+        "2 de 4 respostas recomendariam o estúdio · 1 insatisfeito",
       ),
     ).toBeInTheDocument();
     const card = screen
-      .getByText("Satisfação (NPS)")
+      .getByText("Satisfação dos clientes")
       .closest("article") as HTMLElement;
-    expect(within(card).getByText("25")).toBeInTheDocument();
+    expect(within(card).getByText("Razoável")).toBeInTheDocument();
     const first = vi
       .mocked(fetch)
       .mock.calls.find(([input]) => String(input).includes("/satisfaction?"));
@@ -3788,12 +3877,10 @@ describe("application shell", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "Atualizar" }));
     expect(
-      await screen.findByText(
-        "0 respostas · 0 promotores · 0 neutros · 0 detratores",
-      ),
+      await screen.findByText("Nenhuma pesquisa respondida no período"),
     ).toBeInTheDocument();
     const updated = screen
-      .getByText("Satisfação (NPS)")
+      .getByText("Satisfação dos clientes")
       .closest("article") as HTMLElement;
     expect(within(updated).getByText("—")).toBeInTheDocument();
     expect(
@@ -3835,7 +3922,7 @@ describe("application shell", () => {
       },
       trials,
       plans: { active: 0, availableSessions: 0, consumedInPeriod: 0 },
-      finance: { openInCents: 0, overdueInCents: 0, paidInPeriodInCents: 0 },
+      finance: { openInCents: 0, overdueInCents: 0 },
       commercial: {
         leadsCreated: 0,
         won: 0,
@@ -3847,27 +3934,13 @@ describe("application shell", () => {
       byService: [],
       bySource: [],
       profitability: {
-        dre: {
-          serviceRevenueInCents: 0,
-          productRevenueInCents: 0,
-          grossRevenueInCents: 0,
-          productCostInCents: 0,
-          grossProfitInCents: 0,
-          operatingExpensesInCents: 0,
-          commissionsInCents: 0,
-          netResultInCents: 0,
-          netMargin: 0,
-        },
         byService: [],
-        byProduct: [],
         operational: {
           groupOccupancyRate: 0,
           activeGroupSeats: 0,
           totalGroupCapacity: 0,
           waitlistCount: 0,
           lowStockCount: 0,
-          productUnitsSold: 0,
-          averageReceiptInCents: 0,
         },
       },
     });
@@ -3910,13 +3983,14 @@ describe("application shell", () => {
         <App />
       </MemoryRouter>,
     );
+    fireEvent.click(await screen.findByRole("tab", { name: "Indicadores" }));
     expect(
       await screen.findByText(
-        "6 agendadas · 4 concluídas · 3 viraram plano em até 30 dias",
+        "3 de 4 fecharam plano em até 30 dias · 6 agendadas",
       ),
     ).toBeInTheDocument();
     const card = screen
-      .getByText("Experimentais")
+      .getByText("Aulas experimentais")
       .closest("article") as HTMLElement;
     expect(within(card).getByText("75%")).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("De"), {
@@ -3927,10 +4001,10 @@ describe("application shell", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "Atualizar" }));
     expect(
-      await screen.findByText("2 agendadas · nenhuma concluída no período"),
+      await screen.findByText("2 agendadas · nenhuma realizada no período"),
     ).toBeInTheDocument();
     const updated = screen
-      .getByText("Experimentais")
+      .getByText("Aulas experimentais")
       .closest("article") as HTMLElement;
     expect(within(updated).getByText("—")).toBeInTheDocument();
   });
@@ -4041,7 +4115,6 @@ describe("application shell", () => {
           from: "2026-01-01",
           to: "2026-01-31",
           topBySessions: [],
-          topByRevenue: [],
           activeClients: 0,
           ageDistribution: bands([0, 0, 0, 0, 0, 0]),
         });
@@ -4063,13 +4136,6 @@ describe("application shell", () => {
               completedSessions: 7,
             },
           ],
-          topByRevenue: [
-            {
-              patientId: "p-3",
-              patientName: "Carla Souza",
-              receivedInCents: 120000,
-            },
-          ],
           activeClients: 4,
           ageDistribution: bands([0, 1, 2, 0, 0, 1]),
         });
@@ -4086,6 +4152,7 @@ describe("application shell", () => {
       </MemoryRouter>,
     );
 
+    fireEvent.click(await screen.findByRole("tab", { name: "Clientes" }));
     const retentionPanel = (
       await screen.findByRole("heading", { name: "Retenção mês a mês" })
     ).closest("section") as HTMLElement;
@@ -4101,19 +4168,21 @@ describe("application shell", () => {
       ),
     ).toBeInTheDocument();
 
-    const sessions = screen
-      .getByRole("heading", { name: "Mais sessões concluídas" })
-      .closest("section") as HTMLElement;
+    fireEvent.click(
+      screen.getByRole("tab", { name: "Ranking e faixa etária" }),
+    );
+    const sessions = (
+      await screen.findByRole("heading", { name: "Mais sessões concluídas" })
+    ).closest("section") as HTMLElement;
     expect(
       await within(sessions).findByText("1. Helena Almeida"),
     ).toBeInTheDocument();
     expect(within(sessions).getByText("12 sessões")).toBeInTheDocument();
     expect(within(sessions).getByText("2. Bruno Costa")).toBeInTheDocument();
-    const revenue = screen
-      .getByRole("heading", { name: "Mais recebimentos" })
-      .closest("section") as HTMLElement;
-    expect(within(revenue).getByText("1. Carla Souza")).toBeInTheDocument();
-    expect(within(revenue).getByText(/R\$\s1\.200,00/)).toBeInTheDocument();
+    // Receita por cliente fica em Vendas › Maiores compradores.
+    expect(
+      screen.queryByRole("heading", { name: "Mais recebimentos" }),
+    ).not.toBeInTheDocument();
     const ages = screen
       .getByRole("heading", { name: "Faixa etária" })
       .closest("section") as HTMLElement;
@@ -4153,17 +4222,18 @@ describe("application shell", () => {
       target: { value: "2026-01-31" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Atualizar" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Retenção" }));
     const january = (
       await screen.findByRole("rowheader", { name: "01/2026" })
     ).closest("tr") as HTMLElement;
     expect(within(january).getByText("—")).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("tab", { name: "Ranking e faixa etária" }),
+    );
     expect(
       await screen.findByText(
         "Nenhum cliente com sessão concluída no período.",
       ),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText("Nenhum recebimento de cliente no período."),
     ).toBeInTheDocument();
     expect(
       screen.getByText("Nenhum cliente ativo no período."),
@@ -4227,7 +4297,6 @@ describe("application shell", () => {
                 completedSessions: 30,
               },
             ],
-            topByRevenue: [],
             activeClients: 1,
             ageDistribution: [
               { band: "0-17", label: "0 a 17 anos", clients: 0 },
@@ -4251,6 +4320,7 @@ describe("application shell", () => {
         <App />
       </MemoryRouter>,
     );
+    fireEvent.click(await screen.findByRole("tab", { name: "Clientes" }));
     const retentionPanel = (
       await screen.findByRole("heading", { name: "Retenção mês a mês" })
     ).closest("section") as HTMLElement;
@@ -4259,6 +4329,9 @@ describe("application shell", () => {
         "A retenção aceita no máximo 24 meses.",
       ),
     ).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("tab", { name: "Ranking e faixa etária" }),
+    );
     expect(await screen.findByText("1. Helena Almeida")).toBeInTheDocument();
     expect(screen.getByText("30 sessões")).toBeInTheDocument();
     expect(screen.getByText("Relatórios gerenciais")).toBeInTheDocument();
@@ -4288,6 +4361,7 @@ describe("application shell", () => {
         <App />
       </MemoryRouter>,
     );
+    fireEvent.click(await screen.findByRole("tab", { name: "Indicadores" }));
     expect(
       await screen.findByText("Não foi possível carregar as experimentais."),
     ).toBeInTheDocument();
@@ -4321,6 +4395,11 @@ describe("application shell", () => {
     };
     let patients = [existing];
     const analysis = {
+      columns: [
+        { index: 0, title: "nome", samples: ["Ana Lima"] },
+        { index: 1, title: "telefone", samples: ["11999990000"] },
+      ],
+      mapping: ["fullName", "phone"],
       rows: [
         {
           line: 2,
@@ -4443,7 +4522,10 @@ describe("application shell", () => {
       .mocked(fetch)
       .mock.calls.find(([url]) => String(url).endsWith("/patients/import"));
     expect(importCall?.[1]?.method).toBe("POST");
-    expect(JSON.parse(String(importCall?.[1]?.body))).toEqual(expectedFile);
+    expect(JSON.parse(String(importCall?.[1]?.body))).toEqual({
+      ...expectedFile,
+      mapping: ["fullName", "phone"],
+    });
     expect(
       await screen.findByRole("button", { name: "Editar Ana Lima" }),
     ).toBeInTheDocument();
@@ -4469,6 +4551,8 @@ describe("application shell", () => {
     vi.mocked(fetch).mockImplementation(async (input) => {
       const body = String(input).endsWith("/patients/import/preview")
         ? {
+            columns: [],
+            mapping: [],
             rows: [],
             errors: ["A planilha precisa de uma coluna de nome."],
             totals: { valid: 0, error: 0, duplicate: 0 },
@@ -4979,306 +5063,6 @@ describe("application shell", () => {
     }
   });
 
-  it("previews a segmented broadcast, shows skipped clients and queues it after confirmation", async () => {
-    localStorage.setItem("crm.auth.token", "test-token");
-    localStorage.setItem(
-      "crm.auth.user",
-      storedUser({
-        id: "22222222-2222-4222-8222-222222222222",
-        fullName: "Aryana Dutra",
-        email: "admin@movimenta.local",
-        role: "owner",
-      }),
-    );
-    const patients = [
-      {
-        id: "99999999-9999-4999-8999-999999999991",
-        recordNumber: "PAC-00001",
-        fullName: "Helena Almeida",
-        phone: "11987654321",
-        email: "helena@exemplo.com",
-        tags: ["pilates"],
-        status: "active",
-      },
-      {
-        id: "99999999-9999-4999-8999-999999999992",
-        recordNumber: "PAC-00002",
-        fullName: "Bruno Lima",
-        phone: "11987654322",
-        tags: ["pilates", "vip"],
-        status: "active",
-      },
-    ];
-    const preview = {
-      preview: true,
-      channel: "email",
-      matched: 3,
-      queued: 1,
-      skipped: [
-        {
-          patientId: "99999999-9999-4999-8999-999999999992",
-          patientName: "Bruno Lima",
-          reason: "no_destination",
-        },
-        {
-          patientId: "99999999-9999-4999-8999-999999999993",
-          patientName: "Carla Souza",
-          reason: "opt_out",
-        },
-      ],
-      sampleBody: "Oi Helena, temos aula especial!",
-    };
-    vi.mocked(fetch).mockImplementation(async (input) => {
-      const url = String(input);
-      if (url.includes("/communications/broadcast/preview"))
-        return { ok: true, status: 200, json: async () => preview } as Response;
-      if (url.includes("/communications/broadcast"))
-        return {
-          ok: true,
-          status: 201,
-          json: async () => ({ ...preview, preview: false }),
-        } as Response;
-      if (url.includes("/communications"))
-        return {
-          ok: true,
-          status: 200,
-          json: async () => ({
-            deliveryMode: "outbox_only",
-            preferences: [],
-            messages: [],
-          }),
-        } as Response;
-      if (url.includes("/patient-tags"))
-        return {
-          ok: true,
-          status: 200,
-          json: async () => [
-            patientTag("pilates", "#2f855a", 2),
-            patientTag("vip", "#7c3aed", 1),
-          ],
-        } as Response;
-      return { ok: true, status: 200, json: async () => patients } as Response;
-    });
-    render(
-      <MemoryRouter initialEntries={["/comunicacoes"]}>
-        <App />
-      </MemoryRouter>,
-    );
-    const panel = (
-      await screen.findByRole("heading", { name: "Comunicado segmentado" })
-    ).closest("section")!;
-    expect(
-      within(panel).getByText(
-        /Realize o envio externamente e registre a conclusão manual/,
-      ),
-    ).toBeInTheDocument();
-    expect(
-      within(panel).queryByRole("button", { name: "Enfileirar comunicado" }),
-    ).not.toBeInTheDocument();
-
-    // As etiquetas configuradas chegam numa busca própria (GET /patient-tags).
-    fireEvent.click(
-      await within(panel).findByRole("button", { name: /^pilates/ }),
-    );
-    fireEvent.change(within(panel).getByLabelText("Situação"), {
-      target: { value: "active" },
-    });
-    fireEvent.change(within(panel).getByLabelText("Plano"), {
-      target: { value: "with" },
-    });
-    fireEvent.click(within(panel).getByLabelText("Só aniversariantes do mês"));
-    fireEvent.change(within(panel).getByLabelText("Canal do comunicado"), {
-      target: { value: "email" },
-    });
-    fireEvent.change(within(panel).getByLabelText("Texto do comunicado"), {
-      target: { value: "Oi {{nome}}, temos aula especial!" },
-    });
-    fireEvent.click(within(panel).getByRole("button", { name: "Ver prévia" }));
-
-    expect(
-      await within(panel).findByText("3 cliente(s) no segmento"),
-    ).toBeInTheDocument();
-    expect(
-      within(panel).getByText("1 entrará(ão) na fila"),
-    ).toBeInTheDocument();
-    expect(within(panel).getByText("2 pulado(s)")).toBeInTheDocument();
-    expect(
-      within(panel).getByText("Oi Helena, temos aula especial!"),
-    ).toBeInTheDocument();
-    expect(within(panel).getByText("Bruno Lima")).toBeInTheDocument();
-    expect(
-      within(panel).getByText("Sem contato cadastrado para o canal"),
-    ).toBeInTheDocument();
-    expect(within(panel).getByText("Carla Souza")).toBeInTheDocument();
-    expect(
-      within(panel).getByText("Não autorizou mensagens neste canal"),
-    ).toBeInTheDocument();
-    const previewCall = vi
-      .mocked(fetch)
-      .mock.calls.find(([url]) =>
-        String(url).includes("/communications/broadcast/preview"),
-      );
-    expect(JSON.parse(String(previewCall?.[1]?.body))).toEqual({
-      segment: {
-        tags: ["pilates"],
-        status: "active",
-        activePlan: true,
-        birthdayMonth: true,
-      },
-      channel: "email",
-      body: "Oi {{nome}}, temos aula especial!",
-    });
-
-    fireEvent.click(
-      within(panel).getByRole("button", { name: "Enfileirar comunicado" }),
-    );
-    const dialog = screen.getByRole("dialog", { name: "Confirmar comunicado" });
-    expect(
-      within(dialog).getByText(/1 mensagem\(ns\) por e-mail/),
-    ).toBeInTheDocument();
-    expect(
-      within(dialog).getByText(
-        /Realize o envio externamente e registre a conclusão manual/,
-      ),
-    ).toBeInTheDocument();
-    expect(
-      vi
-        .mocked(fetch)
-        .mock.calls.some(
-          ([url, init]) =>
-            String(url).endsWith("/communications/broadcast") &&
-            init?.method === "POST",
-        ),
-    ).toBe(false);
-    fireEvent.click(
-      within(dialog).getByRole("button", { name: "Confirmar e enfileirar" }),
-    );
-
-    expect(
-      await screen.findByText(
-        "1 mensagem(ns) do comunicado adicionada(s) à fila; 2 cliente(s) pulado(s).",
-      ),
-    ).toBeInTheDocument();
-    expect(
-      screen.queryByRole("dialog", { name: "Confirmar comunicado" }),
-    ).not.toBeInTheDocument();
-    const sendCall = vi
-      .mocked(fetch)
-      .mock.calls.find(([url]) =>
-        String(url).endsWith("/communications/broadcast"),
-      );
-    expect(sendCall?.[1]?.method).toBe("POST");
-    expect(JSON.parse(String(sendCall?.[1]?.body))).toEqual(
-      JSON.parse(String(previewCall?.[1]?.body)),
-    );
-    expect(
-      within(panel).queryByText("3 cliente(s) no segmento"),
-    ).not.toBeInTheDocument();
-  });
-
-  it("requires broadcast text, discards a stale preview and shows preview errors", async () => {
-    localStorage.setItem("crm.auth.token", "test-token");
-    localStorage.setItem(
-      "crm.auth.user",
-      storedUser({
-        id: "22222222-2222-4222-8222-222222222222",
-        fullName: "Aryana Dutra",
-        email: "admin@movimenta.local",
-        role: "reception",
-      }),
-    );
-    let failPreview = false;
-    vi.mocked(fetch).mockImplementation(async (input) => {
-      const url = String(input);
-      if (url.includes("/communications/broadcast/preview")) {
-        return failPreview
-          ? ({
-              ok: false,
-              status: 400,
-              json: async () => ({
-                code: "VALIDATION_ERROR",
-                message: "Dados inválidos.",
-              }),
-            } as Response)
-          : ({
-              ok: true,
-              status: 200,
-              json: async () => ({
-                preview: true,
-                channel: "whatsapp",
-                matched: 0,
-                queued: 0,
-                skipped: [],
-              }),
-            } as Response);
-      }
-      if (url.includes("/communications"))
-        return {
-          ok: true,
-          status: 200,
-          json: async () => ({
-            deliveryMode: "outbox_only",
-            preferences: [],
-            messages: [],
-          }),
-        } as Response;
-      return { ok: true, status: 200, json: async () => [] } as Response;
-    });
-    render(
-      <MemoryRouter initialEntries={["/comunicacoes"]}>
-        <App />
-      </MemoryRouter>,
-    );
-    const panel = (
-      await screen.findByRole("heading", { name: "Comunicado segmentado" })
-    ).closest("section")!;
-    fireEvent.submit(
-      within(panel).getByLabelText("Texto do comunicado").closest("form")!,
-    );
-    // Sem texto, "Ver prévia" fica desativado dizendo o que falta (QM14).
-    expect(
-      within(panel).getByRole("button", { name: "Ver prévia" }),
-    ).toBeDisabled();
-    expect(
-      within(panel).getByRole("button", { name: "Ver prévia" }),
-    ).toHaveAccessibleDescription("Falta: Texto do comunicado.");
-    expect(
-      vi
-        .mocked(fetch)
-        .mock.calls.some(([url]) => String(url).includes("/broadcast")),
-    ).toBe(false);
-
-    fireEvent.change(within(panel).getByLabelText("Texto do comunicado"), {
-      target: { value: "Aviso geral" },
-    });
-    expect(
-      within(panel).getByRole("button", { name: "Ver prévia" }),
-    ).toBeEnabled();
-    expect(within(panel).queryByText(/Falta:/)).not.toBeInTheDocument();
-    fireEvent.click(within(panel).getByRole("button", { name: "Ver prévia" }));
-    expect(
-      await within(panel).findByText(
-        "Nenhum cliente receberia este comunicado.",
-      ),
-    ).toBeInTheDocument();
-    expect(
-      within(panel).queryByRole("button", { name: "Enfileirar comunicado" }),
-    ).not.toBeInTheDocument();
-
-    fireEvent.change(within(panel).getByLabelText("Texto do comunicado"), {
-      target: { value: "Aviso geral 2" },
-    });
-    expect(
-      within(panel).queryByText("Nenhum cliente receberia este comunicado."),
-    ).not.toBeInTheDocument();
-
-    failPreview = true;
-    fireEvent.click(within(panel).getByRole("button", { name: "Ver prévia" }));
-    expect(
-      await within(panel).findByText("Dados inválidos."),
-    ).toBeInTheDocument();
-  });
-
   it("hides the patient pagination when every patient fits on one page", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
     localStorage.setItem(
@@ -5552,6 +5336,10 @@ describe("application shell", () => {
       "Não é possível agendar em 01/01/2027: é feriado (Aniversário da cidade).";
     vi.mocked(fetch).mockImplementation(async (input, init) => {
       const url = String(input);
+      const pricing =
+        appointmentPricingWithPlan(url) ??
+        patientPlansWithService(url, "77777777-7777-4777-8777-777777777777");
+      if (pricing) return pricing;
       if (init?.method === "POST") {
         return {
           ok: false,
@@ -5581,7 +5369,6 @@ describe("application shell", () => {
                   {
                     id: "77777777-7777-4777-8777-777777777777",
                     name: "Fisioterapia individual",
-                    priceInCents: 12000,
                   },
                 ]
               : url.includes("/patients")
@@ -5636,6 +5423,12 @@ describe("application shell", () => {
     await fillAppointmentForm(
       screen.getByRole("dialog", { name: "Novo atendimento" }),
       "Helena Almeida",
+    );
+    // Agendar exige plano (AP4): espera os planos do cliente.
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "Confirmar atendimento" }),
+      ).toBeEnabled(),
     );
     fireEvent.click(
       screen.getByRole("button", { name: "Confirmar atendimento" }),
@@ -5905,6 +5698,10 @@ describe("application shell", () => {
     let posted: Record<string, unknown> | undefined;
     vi.mocked(fetch).mockImplementation(async (input, init) => {
       const url = String(input);
+      const pricing =
+        appointmentPricingWithPlan(url) ??
+        patientPlansWithService(url, "77777777-7777-4777-8777-777777777777");
+      if (pricing) return pricing;
       if (init?.method === "POST") {
         posted = JSON.parse(String(init.body));
         return {
@@ -5936,7 +5733,6 @@ describe("application shell", () => {
                 {
                   id: "77777777-7777-4777-8777-777777777777",
                   name: "Fisioterapia individual",
-                  priceInCents: 12000,
                 },
               ]
             : url.includes("/patients")
@@ -5976,6 +5772,12 @@ describe("application shell", () => {
     expect(within(dialog).getByLabelText("Horário")).toHaveValue("14:30");
     fireEvent.click(
       within(dialog).getByRole("button", { name: "Fechar calendário" }),
+    );
+    // Agendar exige plano (AP4): espera os planos do cliente.
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "Confirmar atendimento" }),
+      ).toBeEnabled(),
     );
     fireEvent.click(
       screen.getByRole("button", { name: "Confirmar atendimento" }),
@@ -6056,8 +5858,8 @@ describe("application shell", () => {
           }),
         } as Response;
       }
-      const body = url.endsWith("/leads")
-        ? [lead, converted]
+      const body = isLeadBoardUrl(url)
+        ? leadBoardResponse(url, [lead, converted])
         : url.includes("/professionals")
           ? [
               {
@@ -6078,7 +5880,6 @@ describe("application shell", () => {
                   {
                     id: "77777777-7777-4777-8777-777777777777",
                     name: "Pilates",
-                    priceInCents: 9000,
                   },
                 ]
               : [];
@@ -6114,14 +5915,8 @@ describe("application shell", () => {
     expect(within(dialog).getByLabelText("Sala")).toHaveValue(
       "55555555-5555-4555-8555-555555555555",
     );
-    const type = within(dialog).getByLabelText("Tipo");
-    expect(type).toHaveValue("trial");
-    expect(
-      within(type)
-        .getAllByRole("option")
-        .map((item) => item.textContent),
-    ).toEqual(["Experimental", "Avaliação"]);
-    fireEvent.change(type, { target: { value: "evaluation" } });
+    // Lead só agenda aula experimental (AP4): sem escolha de tipo.
+    expect(within(dialog).queryByLabelText("Tipo")).not.toBeInTheDocument();
     fireEvent.click(within(dialog).getByRole("button", { name: "Data" }));
     const chosenDate = dialog.querySelector<HTMLButtonElement>(
       '[data-date][tabindex="0"]',
@@ -6133,6 +5928,9 @@ describe("application shell", () => {
       target: { value: "09:00" },
     });
     expect(within(dialog).getByLabelText("Horário")).toHaveValue("09:00");
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Fechar calendário" }),
+    );
     expect(
       within(dialog).queryByRole("region", {
         name: "Calendário de agendamento",
@@ -6153,14 +5951,14 @@ describe("application shell", () => {
       serviceId: "77777777-7777-4777-8777-777777777777",
       startsAt: new Date(`${chosenDate}T09:00`).toISOString(),
       notes: "",
-      visitType: "evaluation",
+      visitType: "trial",
     });
     conflict = false;
     fireEvent.click(
       within(dialog).getByRole("button", { name: "Confirmar agendamento" }),
     );
     expect(
-      await screen.findByText(/Avaliação agendada para Bruna Lead/),
+      await screen.findByText(/Experimental agendada para Bruna Lead/),
     ).toBeInTheDocument();
     expect(
       screen.queryByRole("dialog", { name: "Agendar experimental" }),
@@ -6334,6 +6132,9 @@ describe("application shell", () => {
     fireEvent.click(
       await screen.findByRole("button", { name: "Contas a pagar (0)" }),
     );
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Despesas fixas" }),
+    );
     const section = (
       await screen.findByRole("heading", { name: "Despesas fixas" })
     ).closest("section")!;
@@ -6365,11 +6166,8 @@ describe("application shell", () => {
     expect(within(section).getAllByText("Encerrada")).toHaveLength(1);
     // Encerrada (mês final já passou) não oferece mais pausar nem encerrar.
     expect(
-      within(section).queryByRole("button", { name: "Pausar Software antigo" }),
-    ).not.toBeInTheDocument();
-    expect(
       within(section).queryByRole("button", {
-        name: "Encerrar Software antigo",
+        name: "Mais ações de Software antigo",
       }),
     ).not.toBeInTheDocument();
     // No próprio mês final ela ainda gera conta: continua ativa, com as ações.
@@ -6378,23 +6176,27 @@ describe("application shell", () => {
       .closest(".finance-row") as HTMLElement;
     expect(within(lastMonthRow).getByText("Ativa")).toBeInTheDocument();
     expect(
-      within(lastMonthRow).getByRole("button", {
-        name: "Pausar Seguro do estúdio",
-      }),
+      await recurringAction(lastMonthRow, "Seguro do estúdio", "Pausar"),
     ).toBeInTheDocument();
     expect(
-      within(lastMonthRow).getByRole("button", {
-        name: "Encerrar Seguro do estúdio",
-      }),
+      within(lastMonthRow).getByRole("menuitem", { name: "Encerrar" }),
     ).toBeInTheDocument();
+    closeRecurringMenu(lastMonthRow);
 
     // Criar: só categorias de despesa no select; depois recarrega o workspace (que gera as contas).
+    // "Nova despesa" é um botão só; a despesa fixa é escolhida no modal.
     fireEvent.click(
-      within(section).getByRole("button", { name: "Nova despesa fixa" }),
+      screen.getAllByRole("button", { name: "Nova despesa" })[0]!,
     );
-    const dialog = await screen.findByRole("dialog", {
-      name: "Nova despesa fixa",
-    });
+    fireEvent.click(
+      within(
+        await screen.findByRole("dialog", { name: "Nova despesa" }),
+      ).getByRole("radio", { name: "Fixa (todo mês)" }),
+    );
+    const dialog = await screen.findByRole("dialog", { name: "Nova despesa" });
+    expect(
+      within(dialog).getByRole("radio", { name: "Fixa (todo mês)" }),
+    ).toBeChecked();
     expect(
       within(dialog).queryByRole("option", { name: "Mensalidades" }),
     ).not.toBeInTheDocument();
@@ -6404,7 +6206,7 @@ describe("application shell", () => {
     });
     expect(createRecurring).toBeDisabled();
     expect(createRecurring).toHaveAccessibleDescription(
-      "Falta: Descrição (pelo menos 3 caracteres), Valor mensal.",
+      "Falta: Descrição (pelo menos 3 caracteres).",
     );
     fireEvent.change(within(dialog).getByLabelText("Descrição"), {
       target: { value: "Contador" },
@@ -6412,8 +6214,8 @@ describe("application shell", () => {
     fireEvent.change(within(dialog).getByLabelText("Fornecedor"), {
       target: { value: "Escritório Silva" },
     });
-    fireEvent.change(within(dialog).getByLabelText("Valor mensal"), {
-      target: { value: "450" },
+    fireEvent.change(within(dialog).getByLabelText("Valor mensal (opcional)"), {
+      target: { value: "450,00" },
     });
     fireEvent.change(within(dialog).getByLabelText("Dia do vencimento"), {
       target: { value: "20" },
@@ -6430,9 +6232,14 @@ describe("application shell", () => {
     fireEvent.click(
       within(dialog).getByRole("button", { name: "Cadastrar despesa fixa" }),
     );
-    expect(await within(section).findByText("Contador")).toBeInTheDocument();
+    // A linha na tabela (o nome também pode aparecer no bloco de avisos de vencimento).
     expect(
-      screen.queryByRole("dialog", { name: "Nova despesa fixa" }),
+      await within(
+        section.querySelector(".recurring-table") as HTMLElement,
+      ).findByText("Contador"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("dialog", { name: "Nova despesa" }),
     ).not.toBeInTheDocument();
     expect(bodies[0]).toMatchObject({ method: "POST" });
     expect(bodies[0]!.body).toEqual({
@@ -6440,8 +6247,10 @@ describe("application shell", () => {
       supplier: "Escritório Silva",
       categoryId: category.id,
       costCenterId: center.id,
+      amountType: "fixed",
       amountInCents: 45000,
       dayOfMonth: 20,
+      reminderDaysBefore: 3,
       startMonth: "2026-10",
       endMonth: "2027-09",
       active: true,
@@ -6450,13 +6259,12 @@ describe("application shell", () => {
 
     // Pausar envia o corpo completo com active:false.
     fireEvent.click(
-      within(section).getByRole("button", { name: "Pausar Aluguel da sala" }),
+      await recurringAction(section, "Aluguel da sala", "Pausar"),
     );
     expect(
-      await within(section).findByRole("button", {
-        name: "Reativar Aluguel da sala",
-      }),
+      await recurringAction(section, "Aluguel da sala", "Reativar"),
     ).toBeInTheDocument();
+    closeRecurringMenu(section);
     expect(bodies[1]!.url).toContain(
       "/finance/recurring-payables/e1e1e1e1-e1e1-4e1e-8e1e-e1e1e1e1e1e1",
     );
@@ -6473,12 +6281,11 @@ describe("application shell", () => {
 
     // Reativar envia active:true explicitamente e recarrega o workspace.
     const loadsBeforeResume = workspaceLoads();
-    fireEvent.click(
-      within(section).getByRole("button", { name: "Reativar Internet" }),
-    );
+    fireEvent.click(await recurringAction(section, "Internet", "Reativar"));
     expect(
-      await within(section).findByRole("button", { name: "Pausar Internet" }),
+      await recurringAction(section, "Internet", "Pausar"),
     ).toBeInTheDocument();
+    closeRecurringMenu(section);
     expect(bodies[2]!.body).toMatchObject({
       description: "Internet",
       active: true,
@@ -6487,9 +6294,7 @@ describe("application shell", () => {
     expect(workspaceLoads()).toBeGreaterThan(loadsBeforeResume);
 
     // Encerrar abre um modal com o último mês e mantém a situação atual.
-    fireEvent.click(
-      within(section).getByRole("button", { name: "Encerrar Internet" }),
-    );
+    fireEvent.click(await recurringAction(section, "Internet", "Encerrar"));
     const endDialog = await screen.findByRole("dialog", {
       name: "Encerrar despesa fixa",
     });
@@ -6610,8 +6415,14 @@ describe("application shell", () => {
       await screen.findByRole("button", { name: "Contas a pagar (0)" }),
     );
     fireEvent.click(
-      await screen.findByRole("button", { name: "Encerrar Aluguel da sala" }),
+      await screen.findByRole("button", { name: "Despesas fixas" }),
     );
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Mais ações de Aluguel da sala",
+      }),
+    );
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Encerrar" }));
     const dialog = await screen.findByRole("dialog", {
       name: "Encerrar despesa fixa",
     });
@@ -6687,6 +6498,9 @@ describe("application shell", () => {
     fireEvent.click(
       await screen.findByRole("button", { name: "Contas a pagar (0)" }),
     );
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Despesas fixas" }),
+    );
     const section = (
       await screen.findByRole("heading", { name: "Despesas fixas" })
     ).closest("section")!;
@@ -6703,6 +6517,9 @@ describe("application shell", () => {
     );
     fireEvent.click(
       await screen.findByRole("button", { name: "Contas a pagar (0)" }),
+    );
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Despesas fixas" }),
     );
     await screen.findByRole("heading", { name: "Despesas fixas" });
     expect(
@@ -7200,6 +7017,11 @@ describe("application shell", () => {
       fireEvent.click(
         within(rowOf("Carla Mendes")).getByRole("button", { name: "Estornar" }),
       );
+      fireEvent.click(
+        within(
+          await screen.findByRole("dialog", { name: "Estornar pagamento" }),
+        ).getByRole("button", { name: "Estornar pagamento" }),
+      );
       await vi.waitFor(() => expect(workspaceLoads()).toBeGreaterThan(loads));
       expect(
         screen.queryByText(/parcelas? selecionadas?$/),
@@ -7215,7 +7037,7 @@ describe("application shell", () => {
         name: "Ajustar valor da parcela",
       });
       fireEvent.change(within(adjust).getByLabelText("Novo valor (R$)"), {
-        target: { value: "200" },
+        target: { value: "200,00" },
       });
       fireEvent.change(within(adjust).getByLabelText("Justificativa"), {
         target: { value: "Desconto combinado" },
@@ -7291,7 +7113,7 @@ describe("application shell", () => {
         "Falta: Novo valor, Justificativa (pelo menos 5 caracteres).",
       );
       fireEvent.change(within(dialog).getByLabelText("Novo valor (R$)"), {
-        target: { value: "199.9" },
+        target: { value: "199,90" },
       });
       fireEvent.change(within(dialog).getByLabelText("Justificativa"), {
         target: { value: "Desc" },
@@ -7359,7 +7181,7 @@ describe("application shell", () => {
         within(dialog).getByRole("button", { name: "Fechar" }),
       ).toBeEnabled();
       fireEvent.change(within(dialog).getByLabelText("Novo valor (R$)"), {
-        target: { value: "200" },
+        target: { value: "200,00" },
       });
       fireEvent.change(within(dialog).getByLabelText("Justificativa"), {
         target: { value: "Desconto combinado" },
@@ -7420,7 +7242,7 @@ describe("application shell", () => {
         name: "Renegociar parcelas",
       });
       fireEvent.change(within(dialog).getByLabelText("Novo valor total (R$)"), {
-        target: { value: "300" },
+        target: { value: "300,00" },
       });
       fireEvent.change(within(dialog).getByLabelText("Número de parcelas"), {
         target: { value: "40" },
@@ -7682,7 +7504,9 @@ describe("application shell", () => {
         await screen.findByRole("heading", { name: "Contas a pagar" })
       ).closest("section")!;
       expect(
-        within(section).getByText(/Despesas da clínica pelo vencimento/),
+        within(section).getByText(
+          /Despesas da clínica por situação e vencimento/,
+        ),
       ).toBeInTheDocument();
 
       const rent = rowOf("Aluguel da sala");
@@ -7756,7 +7580,7 @@ describe("application shell", () => {
         within(section).getByRole("button", { name: "Nova despesa" }),
       );
       expect(
-        await screen.findByRole("dialog", { name: "Nova conta a pagar" }),
+        await screen.findByRole("dialog", { name: "Nova despesa" }),
       ).toBeInTheDocument();
     });
 
@@ -7794,11 +7618,17 @@ describe("application shell", () => {
         "status-pill",
         "open",
       );
+      // Pagamento é pela folha: a lista não tem Pagar nem Estornar.
       expect(
-        within(juliana).getByRole("button", {
+        within(juliana).queryByRole("button", {
           name: "Pagar comissão de Juliana Prado",
         }),
-      ).toHaveClass("primary-button", "button-sm");
+      ).not.toBeInTheDocument();
+      expect(
+        within(section).getByText(
+          /O pagamento das comissões é feito pela folha/,
+        ),
+      ).toBeInTheDocument();
 
       const rafael = rowOf("Rafael Costa");
       expect(
@@ -7807,29 +7637,10 @@ describe("application shell", () => {
         ),
       ).toBeInTheDocument();
       expect(
-        within(rafael).getByRole("button", {
+        within(rafael).queryByRole("button", {
           name: "Estornar comissão de Rafael Costa",
         }),
-      ).toHaveClass("danger-button", "button-sm");
-
-      fireEvent.click(
-        within(juliana).getByRole("button", {
-          name: "Pagar comissão de Juliana Prado",
-        }),
-      );
-      await vi.waitFor(() =>
-        expect(
-          vi
-            .mocked(fetch)
-            .mock.calls.some(
-              ([url, options]) =>
-                options?.method === "POST" &&
-                String(url).includes(
-                  "/finance/commissions/g1g1g1g1-0000-4000-8000-000000000001/pay",
-                ),
-            ),
-        ).toBe(true),
-      );
+      ).not.toBeInTheDocument();
     });
 
     it("shows an empty commissions list with the next step", async () => {
@@ -7949,8 +7760,9 @@ describe("application shell", () => {
       fireEvent.change(within(dialog).getByLabelText("Percentual (%)"), {
         target: { value: "27.5" },
       });
+      // Início no futuro (fixo, longe do relógio): sem prévia de recálculo.
       fireEvent.change(within(dialog).getByLabelText("Vale a partir de"), {
-        target: { value: "2026-11-01" },
+        target: { value: "2099-01-01" },
       });
       fireEvent.click(within(dialog).getByRole("button", { name: "Salvar" }));
       await vi.waitFor(() =>
@@ -7960,7 +7772,7 @@ describe("application shell", () => {
       expect(JSON.parse(String(posts()[0]![1]?.body))).toEqual({
         professionalId: professionals[1]!.id,
         percentage: 27.5,
-        effectiveFrom: "2026-11-01",
+        effectiveFrom: "2099-01-01",
       });
     });
   });
@@ -8347,10 +8159,12 @@ describe("application shell", () => {
 
     // Os cabeçalhos distinguem confirmado de projetado.
     expect(
-      within(table).getByRole("columnheader", { name: "Confirmado" }),
+      within(table).getByRole("columnheader", {
+        name: "Pagamentos confirmados",
+      }),
     ).toBeInTheDocument();
     expect(
-      within(table).getByRole("columnheader", { name: "Projetado" }),
+      within(table).getByRole("columnheader", { name: "Pagamentos em aberto" }),
     ).toBeInTheDocument();
     expect(
       within(table).getByRole("columnheader", { name: "Saldo do mês" }),
@@ -8411,7 +8225,7 @@ describe("application shell", () => {
     expect(firstCells[1]).toHaveClass("cash-out");
     expect(firstCells[2]).toHaveClass("negative");
 
-    // Frase explicativa e legenda do que é Confirmado e Projetado.
+    // Frase explicativa e legenda dos pagamentos confirmados e em aberto.
     expect(
       within(section).getByText(
         /Quanto deve entrar e sair do caixa nos próximos meses/,
@@ -8420,7 +8234,7 @@ describe("application shell", () => {
     const legend = section.querySelector(".forecast-legend")!;
     expect(
       [...legend.querySelectorAll("dt")].map((dt) => dt.textContent),
-    ).toEqual(["Confirmado", "Projetado"]);
+    ).toEqual(["Pagamentos confirmados", "Pagamentos em aberto"]);
     expect(legend).toHaveTextContent("já lançadas e em aberto");
     expect(legend).toHaveTextContent(
       "Renovações automáticas de planos e despesas fixas",
@@ -8819,7 +8633,7 @@ describe("users and permissions", () => {
       within(row("Davi Rocha")).getByText("Nenhum módulo (só Visão geral)"),
     ).toBeInTheDocument();
     expect(
-      within(row("Elisa Prado")).getByText("Vê 1 módulo · 6 permissões"),
+      within(row("Elisa Prado")).getByText("Vê 1 módulo · 8 permissões"),
     ).toBeInTheDocument();
     // Sem padrão por perfil: nem selo de "personalizadas" nem a matriz de padrões.
     expect(
@@ -8885,10 +8699,10 @@ describe("users and permissions", () => {
       "Configurações",
     ]) {
       expect(
-        within(dialog).getByLabelText(`${module}: Visualizar módulo`),
+        within(dialog).getByLabelText(new RegExp(`^${module}: Acessar `)),
       ).not.toBeChecked();
       expect(
-        within(dialog).getByLabelText(`Selecionar bloco ${module}`),
+        within(dialog).getByLabelText(`Marcar todas de ${module}`),
       ).not.toBeChecked();
     }
     expect(
@@ -8902,40 +8716,42 @@ describe("users and permissions", () => {
 
     // Marcar Editar marca Ver; desmarcar Ver desmarca Editar.
     fireEvent.click(
-      within(dialog).getByLabelText("Selecionar bloco Relatórios"),
+      within(dialog).getByLabelText("Marcar todas de Relatórios"),
     );
     expect(
-      within(dialog).getByLabelText("Relatórios: Visualizar módulo"),
+      within(dialog).getByLabelText("Relatórios: Acessar os relatórios"),
     ).toBeChecked();
     fireEvent.click(
-      within(dialog).getByLabelText("Relatórios: Visualizar módulo"),
+      within(dialog).getByLabelText("Relatórios: Acessar os relatórios"),
     );
     expect(
-      within(dialog).getByLabelText("Selecionar bloco Relatórios"),
+      within(dialog).getByLabelText("Marcar todas de Relatórios"),
     ).not.toBeChecked();
-    fireEvent.click(within(dialog).getByLabelText("Turmas: Visualizar módulo"));
+    fireEvent.click(within(dialog).getByLabelText("Turmas: Acessar as turmas"));
 
     // Admin: acesso total, sem checkboxes nem cópia; voltar a usuário comum mantém o que estava marcado.
     fireEvent.change(type, { target: { value: "admin" } });
     expect(within(dialog).getByText(/Acesso total/)).toBeInTheDocument();
     expect(
-      within(dialog).queryByLabelText("Clientes: Visualizar módulo"),
+      within(dialog).queryByLabelText("Clientes: Acessar os clientes"),
     ).not.toBeInTheDocument();
     expect(
       within(dialog).queryByLabelText("Copiar permissões de…"),
     ).not.toBeInTheDocument();
     fireEvent.change(type, { target: { value: "user" } });
     expect(
-      within(dialog).getByLabelText("Turmas: Visualizar módulo"),
+      within(dialog).getByLabelText("Turmas: Acessar as turmas"),
     ).toBeChecked();
-    fireEvent.click(within(dialog).getByLabelText("Turmas: Visualizar módulo"));
-    fireEvent.click(within(dialog).getByLabelText("Selecionar bloco Agenda"));
-    fireEvent.click(within(dialog).getByLabelText("Selecionar bloco Clientes"));
+    fireEvent.click(within(dialog).getByLabelText("Turmas: Acessar as turmas"));
+    fireEvent.click(within(dialog).getByLabelText("Marcar todas de Agenda"));
+    fireEvent.click(within(dialog).getByLabelText("Marcar todas de Clientes"));
     fireEvent.click(
-      within(dialog).getByLabelText("Planos e sessões: Visualizar módulo"),
+      within(dialog).getByLabelText(
+        "Planos e sessões: Acessar planos e sessões",
+      ),
     );
     fireEvent.click(
-      within(dialog).getByLabelText("Prontuários: Visualizar módulo"),
+      within(dialog).getByLabelText("Prontuários: Acessar os prontuários"),
     );
 
     fireEvent.change(within(dialog).getByLabelText("Nome completo"), {
@@ -9017,33 +8833,33 @@ describe("users and permissions", () => {
       within(dialog).getByText(/Permissões copiadas de Carla Reis/),
     ).toBeInTheDocument();
     expect(
-      within(dialog).getByLabelText("Agenda: Visualizar módulo"),
+      within(dialog).getByLabelText("Agenda: Acessar a agenda"),
     ).toBeChecked();
     expect(
-      within(dialog).getByLabelText("Selecionar bloco Agenda"),
+      within(dialog).getByLabelText("Marcar todas de Agenda"),
     ).not.toBeChecked();
     expect(
-      within(dialog).getByLabelText("Clientes: Visualizar módulo"),
+      within(dialog).getByLabelText("Clientes: Acessar os clientes"),
     ).toBeChecked();
     expect(
-      within(dialog).getByLabelText("Selecionar bloco Prontuários"),
+      within(dialog).getByLabelText("Marcar todas de Prontuários"),
     ).not.toBeChecked();
     expect(
-      within(dialog).getByLabelText("Selecionar bloco Prontuários"),
+      within(dialog).getByLabelText("Marcar todas de Prontuários"),
     ).toHaveProperty("indeterminate", true);
     expect(
       within(dialog).getByLabelText(
-        "Prontuários: Gerenciar aparelhos, exercícios e treinos",
+        "Prontuários: Cadastrar aparelhos, exercícios e treinos",
       ),
     ).not.toBeChecked();
     expect(
-      within(dialog).getByLabelText("Financeiro: Visualizar módulo"),
+      within(dialog).getByLabelText("Financeiro: Acessar o financeiro"),
     ).not.toBeChecked();
     // Continua editável depois de copiar.
     fireEvent.click(
-      within(dialog).getByLabelText("Clientes: Visualizar módulo"),
+      within(dialog).getByLabelText("Clientes: Acessar os clientes"),
     );
-    fireEvent.click(within(dialog).getByLabelText("Selecionar bloco Agenda"));
+    fireEvent.click(within(dialog).getByLabelText("Marcar todas de Agenda"));
 
     fireEvent.change(within(dialog).getByLabelText("Nome completo"), {
       target: { value: "Ana Lima" },
@@ -9108,7 +8924,7 @@ describe("users and permissions", () => {
       "Instrutora de Pilates",
     );
     expect(
-      within(dialog).getByLabelText("Financeiro: Visualizar módulo"),
+      within(dialog).getByLabelText("Financeiro: Acessar o financeiro"),
     ).toBeChecked();
     const copy = within(dialog).getByLabelText("Copiar permissões de…");
     expect(
@@ -9116,15 +8932,15 @@ describe("users and permissions", () => {
     ).not.toBeInTheDocument();
     fireEvent.change(copy, { target: { value: carlaUser.id } });
     expect(
-      within(dialog).getByLabelText("Financeiro: Visualizar módulo"),
+      within(dialog).getByLabelText("Financeiro: Acessar o financeiro"),
     ).not.toBeChecked();
     expect(
-      within(dialog).getByLabelText("Selecionar bloco Prontuários"),
+      within(dialog).getByLabelText("Marcar todas de Prontuários"),
     ).not.toBeChecked();
     expect(
-      within(dialog).getByLabelText("Selecionar bloco Prontuários"),
+      within(dialog).getByLabelText("Marcar todas de Prontuários"),
     ).toHaveProperty("indeterminate", true);
-    fireEvent.click(within(dialog).getByLabelText("Selecionar bloco Clientes"));
+    fireEvent.click(within(dialog).getByLabelText("Marcar todas de Clientes"));
     fireEvent.change(within(dialog).getByLabelText("Cargo"), {
       target: { value: "" },
     });
@@ -9172,16 +8988,16 @@ describe("users and permissions", () => {
     expect(within(dialog).getByLabelText("Tipo")).toHaveValue("admin");
     expect(within(dialog).getByText(/Acesso total/)).toBeInTheDocument();
     expect(
-      within(dialog).queryByLabelText("Agenda: Visualizar módulo"),
+      within(dialog).queryByLabelText("Agenda: Acessar a agenda"),
     ).not.toBeInTheDocument();
     fireEvent.change(within(dialog).getByLabelText("Tipo"), {
       target: { value: "user" },
     });
     expect(
-      within(dialog).getByLabelText("Agenda: Visualizar módulo"),
+      within(dialog).getByLabelText("Agenda: Acessar a agenda"),
     ).not.toBeChecked();
     expect(
-      within(dialog).getByLabelText("Configurações: Visualizar módulo"),
+      within(dialog).getByLabelText("Configurações: Acessar as configurações"),
     ).not.toBeChecked();
   });
 
@@ -9265,7 +9081,7 @@ describe("users and permissions", () => {
     );
     const dialog = screen.getByRole("dialog", { name: "Editar Maria Souza" });
     fireEvent.click(
-      within(dialog).getByLabelText("Selecionar bloco Financeiro"),
+      within(dialog).getByLabelText("Marcar todas de Financeiro"),
     );
     fireEvent.submit(
       within(dialog).getByLabelText("Nome completo").closest("form")!,
@@ -9309,7 +9125,7 @@ describe("users and permissions", () => {
     fireEvent.click(
       await screen.findByRole("button", { name: "Redefinir senha" }),
     );
-    const resetDialog = screen.getByRole("dialog", { name: "Redefinir senha" });
+    const resetDialog = screen.getByRole("dialog", { name: "Senha de acesso" });
     fireEvent.change(within(resetDialog).getByLabelText("Nova senha"), {
       target: { value: "NovaSenha123" },
     });
@@ -9364,6 +9180,7 @@ describe("users and permissions", () => {
       customModules: false,
       professionalId: takenId,
       professionalName: "Bruno Lima (agenda)",
+      professional: professional(takenId, "Bruno Lima (agenda)"),
       commissionPercentage: 35,
       commissionEffectiveFrom: "2026-01-01",
     };
@@ -9393,6 +9210,20 @@ describe("users and permissions", () => {
             ok: true,
             status: 200,
             json: async () => handled,
+          } as Response;
+        // Sem comissão lançada no período: a prévia do recálculo vem vazia.
+        if (url.endsWith("/recalculation/preview"))
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              from: "2026-01-01",
+              until: "2026-01-01",
+              items: [],
+              differenceInCents: 0,
+              adjustmentInCents: 0,
+              digest: "b".repeat(64),
+            }),
           } as Response;
         if (url.endsWith("/professionals") && options.professionalsFail)
           return {
@@ -9436,10 +9267,16 @@ describe("users and permissions", () => {
       return screen.getByRole("dialog", { name: `Editar ${name}` });
     }
 
+    // A prévia do recálculo é consulta por POST: não conta como gravação.
     const writes = () =>
       vi
         .mocked(fetch)
-        .mock.calls.filter(([, init]) => init?.method && init.method !== "GET")
+        .mock.calls.filter(
+          ([input, init]) =>
+            init?.method &&
+            init.method !== "GET" &&
+            !String(input).endsWith("/recalculation/preview"),
+        )
         .map(([input, init]) => ({
           method: init!.method!,
           url: String(input),
@@ -9474,25 +9311,7 @@ describe("users and permissions", () => {
       ).toBeInTheDocument();
     });
 
-    it("creates a user with commission in the POST body and links the professional in the same click", async () => {
-      const created = {
-        ...customUser,
-        id: "44444444-4444-4444-8444-444444444444",
-        fullName: "Ana Lima",
-        commissionPercentage: 25,
-        commissionEffectiveFrom: saoPauloToday(),
-      };
-      mockCommission((url, init) => {
-        if (init?.method === "POST" && url.endsWith("/admin/users"))
-          return created;
-        if (init?.method === "PUT" && url.endsWith("/professional"))
-          return {
-            ...created,
-            professionalId: pilatesId,
-            professionalName: "Maria Pilates",
-          };
-        return undefined;
-      });
+    async function openNew() {
       localStorage.setItem("crm.auth.token", "test-token");
       localStorage.setItem("crm.auth.user", storedUser(ownerSession));
       render(
@@ -9502,560 +9321,411 @@ describe("users and permissions", () => {
       );
       await openSettingsSection("Usuários");
       await screen.findByRole("button", { name: "Editar Maria Souza" });
-      fireEvent.click(
-        await screen.findByRole("button", { name: "Novo usuário" }),
-      );
+      fireEvent.click(screen.getByRole("button", { name: "Novo usuário" }));
       const dialog = screen.getByRole("dialog", { name: "Novo usuário" });
-      expect(within(dialog).getByLabelText("Comissão (%)")).toHaveValue(null);
-      expect(within(dialog).getByLabelText("Vale a partir de")).toHaveValue(
-        saoPauloToday(),
+      for (const [label, value] of [
+        ["Nome completo", "Ana Lima"],
+        ["E-mail de acesso", "ana@movimenta.local"],
+        ["Senha inicial", "SenhaForte123"],
+      ])
+        fireEvent.change(within(dialog).getByLabelText(label!), {
+          target: { value },
+        });
+      return dialog;
+    }
+    const save = (dialog: HTMLElement, name = "Salvar alterações") =>
+      fireEvent.click(within(dialog).getByRole("button", { name }));
+    async function chooseExisting(dialog: HTMLElement) {
+      fireEvent.click(within(dialog).getByLabelText("Realiza atendimentos"));
+      fireEvent.change(
+        within(dialog).getByLabelText("Cadastro do profissional"),
+        { target: { value: "existing" } },
       );
-      expect(
-        within(dialog).getByText(/para contar os atendimentos desta pessoa/),
-      ).toBeInTheDocument();
-      const select = await within(dialog).findByLabelText(
-        /Profissional da agenda/,
-      );
-      // Livres: o profissional já ligado a outro usuário não aparece.
-      expect(
-        within(select).getByRole("option", { name: "Nenhum" }),
-      ).toBeInTheDocument();
-      expect(
-        within(select).queryByRole("option", { name: "Bruno Lima (agenda)" }),
-      ).not.toBeInTheDocument();
-      // Sem passos separados.
-      expect(
-        within(dialog).queryByRole("button", { name: "Salvar comissão" }),
-      ).not.toBeInTheDocument();
-      expect(
-        within(dialog).queryByRole("button", { name: "Salvar profissional" }),
-      ).not.toBeInTheDocument();
+      const select = within(dialog).getByLabelText("Profissional da agenda");
+      await within(select).findByRole("option", { name: "Maria Pilates" });
+      return select;
+    }
 
+    it("creates a user and a professional with independent agenda name and commission in one POST", async () => {
+      mockCommission((_url, init) =>
+        init?.method === "POST"
+          ? { ...customUser, fullName: "Ana Lima" }
+          : undefined,
+      );
+      const dialog = await openNew();
+      expect(
+        within(dialog).getByLabelText("Realiza atendimentos"),
+      ).not.toBeChecked();
+      fireEvent.click(within(dialog).getByLabelText("Realiza atendimentos"));
+      expect(within(dialog).getByLabelText("Nome na agenda")).toHaveValue(
+        "Ana Lima",
+      );
+      expect(within(dialog).getByLabelText("Especialidade")).toHaveValue(
+        "Fisioterapia",
+      );
+      expect(
+        within(dialog).getByRole("button", { name: "Criar usuário" }),
+      ).toBeDisabled();
+      fireEvent.change(within(dialog).getByLabelText("Registro profissional"), {
+        target: { value: "CREF 4321" },
+      });
+      fireEvent.change(within(dialog).getByLabelText("Nome na agenda"), {
+        target: { value: "Dra. Ana" },
+      });
       fireEvent.change(within(dialog).getByLabelText("Nome completo"), {
-        target: { value: "Ana Lima" },
+        target: { value: "Ana Lima Souza" },
       });
-      fireEvent.change(within(dialog).getByLabelText("E-mail de acesso"), {
-        target: { value: "ana@movimenta.local" },
-      });
-      fireEvent.change(within(dialog).getByLabelText("Senha inicial"), {
-        target: { value: "SenhaForte123" },
-      });
+      expect(within(dialog).getByLabelText("Nome na agenda")).toHaveValue(
+        "Dra. Ana",
+      );
       fireEvent.change(within(dialog).getByLabelText("Comissão (%)"), {
         target: { value: "25" },
       });
-      fireEvent.change(select, { target: { value: pilatesId } });
-      fireEvent.click(
-        within(dialog).getByRole("button", { name: "Criar usuário" }),
-      );
-      expect(
-        await screen.findByText("Usuário Ana Lima criado."),
-      ).toBeInTheDocument();
-      const sent = writes();
-      expect(sent.map((item) => item.method)).toEqual(["POST", "PUT"]);
-      expect(sent[0]!.body).toEqual({
-        fullName: "Ana Lima",
-        email: "ana@movimenta.local",
-        password: "SenhaForte123",
-        role: "user",
-        permissions: [],
-        commission: { percentage: 25, effectiveFrom: saoPauloToday() },
+      save(dialog, "Criar usuário");
+      await screen.findByText("Usuário Ana Lima criado.");
+      expect(writes()).toHaveLength(1);
+      expect(writes()[0]).toMatchObject({
+        method: "POST",
+        body: {
+          fullName: "Ana Lima Souza",
+          permissions: [],
+          professional: {
+            mode: "create",
+            data: {
+              fullName: "Dra. Ana",
+              crefito: "CREF 4321",
+              specialty: "Fisioterapia",
+              color: "#547A6B",
+            },
+          },
+          commission: { percentage: 25, effectiveFrom: saoPauloToday() },
+        },
       });
-      expect(sent[1]!.url).toContain(`/admin/users/${created.id}/professional`);
-      expect(sent[1]!.body).toEqual({ professionalId: pilatesId });
     });
 
-    it("creates a user without commission or professional with only the POST", async () => {
-      mockCommission((url, init) =>
-        init?.method === "POST" && url.endsWith("/admin/users")
-          ? {
-              ...customUser,
-              id: "44444444-4444-4444-8444-444444444444",
-              fullName: "Ana Lima",
-            }
+    it("creates a user without a professional or commission and without extra writes", async () => {
+      mockCommission((_url, init) =>
+        init?.method === "POST"
+          ? { ...customUser, fullName: "Ana Lima" }
           : undefined,
       );
-      localStorage.setItem("crm.auth.token", "test-token");
-      localStorage.setItem("crm.auth.user", storedUser(ownerSession));
-      render(
-        <MemoryRouter initialEntries={["/configuracoes"]}>
-          <App />
-        </MemoryRouter>,
-      );
-      await openSettingsSection("Usuários");
-      await screen.findByRole("button", { name: "Editar Maria Souza" });
-      fireEvent.click(
-        await screen.findByRole("button", { name: "Novo usuário" }),
-      );
-      const dialog = screen.getByRole("dialog", { name: "Novo usuário" });
-      await within(dialog).findByLabelText(/Profissional da agenda/);
-      fireEvent.change(within(dialog).getByLabelText("Nome completo"), {
-        target: { value: "Ana Lima" },
-      });
-      fireEvent.change(within(dialog).getByLabelText("E-mail de acesso"), {
-        target: { value: "ana@movimenta.local" },
-      });
-      fireEvent.change(within(dialog).getByLabelText("Senha inicial"), {
-        target: { value: "SenhaForte123" },
-      });
-      fireEvent.click(
-        within(dialog).getByRole("button", { name: "Criar usuário" }),
-      );
+      const dialog = await openNew();
       expect(
-        await screen.findByText("Usuário Ana Lima criado."),
-      ).toBeInTheDocument();
+        within(dialog).queryByLabelText("Registro profissional"),
+      ).not.toBeInTheDocument();
+      save(dialog, "Criar usuário");
+      await screen.findByText("Usuário Ana Lima criado.");
       expect(writes().map((item) => item.method)).toEqual(["POST"]);
+      expect(writes()[0]!.body).not.toHaveProperty("professional");
       expect(writes()[0]!.body).not.toHaveProperty("commission");
     });
 
-    it("edits only the commission: PATCH and then PUT with the new rule", async () => {
-      const withRule = {
-        ...otherUser,
-        commissionPercentage: 40,
-        commissionEffectiveFrom: saoPauloToday(),
-      };
-      mockCommission((_url, init) => {
-        if (init?.method === "PATCH") return otherUser;
-        if (init?.method === "PUT") return withRule;
-        return undefined;
-      });
-      const dialog = await openEditor("Bruno Lima");
-      expect(within(dialog).getByLabelText("Comissão (%)")).toHaveValue(35);
+    it("links an available professional, fills their fields and excludes another user's professional", async () => {
+      mockCommission((_url, init) =>
+        init?.method === "POST"
+          ? { ...customUser, fullName: "Ana Lima" }
+          : undefined,
+      );
+      const dialog = await openNew();
+      const select = await chooseExisting(dialog);
       expect(
-        within(dialog).getByText(/Vigente hoje: 35% desde/),
-      ).toBeInTheDocument();
-      fireEvent.change(within(dialog).getByLabelText("Comissão (%)"), {
-        target: { value: "40" },
-      });
-      fireEvent.click(
-        within(dialog).getByRole("button", { name: "Salvar alterações" }),
+        within(select).queryByRole("option", { name: "Bruno Lima (agenda)" }),
+      ).not.toBeInTheDocument();
+      fireEvent.change(select, { target: { value: pilatesId } });
+      expect(within(dialog).getByLabelText("Nome na agenda")).toHaveValue(
+        "Maria Pilates",
       );
       expect(
-        await screen.findByText("Alterações de Bruno Lima salvas."),
-      ).toBeInTheDocument();
-      const sent = writes();
-      expect(sent.map((item) => item.method)).toEqual(["PATCH", "PUT"]);
-      expect(sent[0]!.url).toContain(`/admin/users/${otherUser.id}`);
-      expect(sent[0]!.body).not.toHaveProperty("commission");
-      expect(sent[1]!.url).toContain(`/admin/users/${otherUser.id}/commission`);
-      expect(sent[1]!.body).toEqual({
-        percentage: 40,
-        effectiveFrom: saoPauloToday(),
+        within(dialog).getByLabelText("Registro profissional"),
+      ).toHaveValue("CREF 1234");
+      save(dialog, "Criar usuário");
+      await screen.findByText("Usuário Ana Lima criado.");
+      expect(writes()).toHaveLength(1);
+      expect(writes()[0]!.body).toMatchObject({
+        professional: {
+          mode: "save",
+          id: pilatesId,
+          data: { fullName: "Maria Pilates" },
+        },
       });
     });
 
-    it("edits without touching commission or professional with only the PATCH", async () => {
+    it("saves only changed commission and access data in one PATCH", async () => {
       mockCommission((_url, init) =>
         init?.method === "PATCH" ? otherUser : undefined,
       );
       const dialog = await openEditor("Bruno Lima");
-      expect(
-        await within(dialog).findByLabelText(/Profissional da agenda/),
-      ).toHaveValue(takenId);
+      fireEvent.change(within(dialog).getByLabelText("Comissão (%)"), {
+        target: { value: "40" },
+      });
       fireEvent.change(within(dialog).getByLabelText("Cargo"), {
         target: { value: "Instrutor" },
       });
-      fireEvent.click(
-        within(dialog).getByRole("button", { name: "Salvar alterações" }),
+      fireEvent.submit(
+        within(dialog).getByLabelText("Comissão (%)").closest("form")!,
       );
-      expect(
-        await screen.findByText("Alterações de Bruno Lima salvas."),
-      ).toBeInTheDocument();
+      await screen.findByText("Alterações de Bruno Lima salvas.");
       expect(writes().map((item) => item.method)).toEqual(["PATCH"]);
+      expect(writes()[0]!.body).toMatchObject({
+        jobTitle: "Instrutor",
+        commission: { percentage: 40, effectiveFrom: saoPauloToday() },
+      });
+      expect(writes()[0]!.body).not.toHaveProperty("professional");
     });
 
-    it("keeps what was saved when the commission fails after the PATCH, and retries only what is left", async () => {
+    it("preserves unchanged professional and commission when editing access fields", async () => {
+      mockCommission((_url, init) =>
+        init?.method === "PATCH" ? otherUser : undefined,
+      );
+      const dialog = await openEditor("Bruno Lima");
+      expect(within(dialog).getByLabelText("Nome na agenda")).toHaveValue(
+        "Bruno Lima (agenda)",
+      );
+      fireEvent.change(within(dialog).getByLabelText("Cargo"), {
+        target: { value: "Instrutor" },
+      });
+      save(dialog);
+      await screen.findByText("Alterações de Bruno Lima salvas.");
+      expect(writes()).toHaveLength(1);
+      expect(writes()[0]!.body).not.toHaveProperty("professional");
+      expect(writes()[0]!.body).not.toHaveProperty("commission");
+    });
+
+    it("preserves all entered data and retries the whole PATCH after a commission conflict", async () => {
       let attempt = 0;
-      const renamed = { ...otherUser, fullName: "Bruno Lima Souza" };
-      mockCommission((_url, init) => {
-        if (init?.method === "PATCH") return renamed;
-        if (init?.method === "PUT") {
-          attempt += 1;
-          return attempt === 1
+      mockCommission((_url, init) =>
+        init?.method === "PATCH"
+          ? ++attempt === 1
             ? conflict(
                 "COMMISSION_RULE_DUPLICATE",
-                "Já existe uma regra com essa data.",
+                "Escolha outra data de início.",
               )
-            : { ...renamed, commissionPercentage: 20 };
-        }
-        return undefined;
-      });
+            : otherUser
+          : undefined,
+      );
       const dialog = await openEditor("Bruno Lima");
       fireEvent.change(within(dialog).getByLabelText("Nome completo"), {
-        target: { value: "Bruno Lima Souza" },
+        target: { value: "Nome digitado" },
       });
       fireEvent.change(within(dialog).getByLabelText("Comissão (%)"), {
         target: { value: "20" },
       });
-      fireEvent.click(
-        within(dialog).getByRole("button", { name: "Salvar alterações" }),
+      save(dialog);
+      expect(
+        await screen.findByText("Escolha outra data de início."),
+      ).toHaveClass("form-error");
+      expect(within(dialog).getByLabelText("Nome completo")).toHaveValue(
+        "Nome digitado",
       );
-      const message = await screen.findByText(
-        /Dados do usuário salvos, mas a comissão não foi salva: Já existe uma regra com essa data\./,
-      );
-      expect(message).toHaveClass("form-error");
-      // O formulário continua aberto com o que foi digitado, e a lista já mostra o que foi salvo.
-      const open = screen.getByRole("dialog", {
-        name: "Editar Bruno Lima Souza",
-      });
-      expect(within(open).getByLabelText("Comissão (%)")).toHaveValue(20);
-      const section = screen
-        .getByRole("heading", { name: "Usuários" })
-        .closest("section")!;
-      expect(within(section).getByText("Bruno Lima Souza")).toBeInTheDocument();
-
-      fireEvent.change(within(open).getByLabelText("Vale a partir de"), {
+      expect(within(dialog).getByLabelText("Comissão (%)")).toHaveValue(20);
+      expect(
+        screen.getByRole("button", { name: "Editar Bruno Lima" }),
+      ).toBeInTheDocument();
+      fireEvent.change(within(dialog).getByLabelText("Vale a partir de"), {
         target: { value: "2099-02-01" },
       });
-      fireEvent.click(
-        within(open).getByRole("button", { name: "Salvar alterações" }),
-      );
-      expect(
-        await screen.findByText("Alterações de Bruno Lima Souza salvas."),
-      ).toBeInTheDocument();
-      const sent = writes();
-      expect(sent.map((item) => item.method)).toEqual([
-        "PATCH",
-        "PUT",
-        "PATCH",
-        "PUT",
-      ]);
-      expect(sent[3]!.body).toEqual({
-        percentage: 20,
-        effectiveFrom: "2099-02-01",
+      save(dialog);
+      await screen.findByText("Alterações de Bruno Lima salvas.");
+      expect(writes().map((item) => item.method)).toEqual(["PATCH", "PATCH"]);
+      expect(writes()[1]!.body).toMatchObject({
+        fullName: "Nome digitado",
+        commission: { percentage: 20, effectiveFrom: "2099-02-01" },
       });
     });
 
-    it("keeps the created user when linking the professional fails, retrying with PATCH instead of a new POST", async () => {
-      const created = {
-        ...customUser,
-        id: "44444444-4444-4444-8444-444444444444",
-        fullName: "Ana Lima",
-        email: "ana@movimenta.local",
-      };
+    it("keeps new-user mode after a professional conflict and retries only with POST", async () => {
       let attempt = 0;
-      mockCommission((url, init) => {
-        if (init?.method === "POST" && url.endsWith("/admin/users"))
-          return created;
-        if (init?.method === "PATCH") return created;
-        if (init?.method === "PUT" && url.endsWith("/professional")) {
-          attempt += 1;
-          return attempt === 1
+      mockCommission((_url, init) =>
+        init?.method === "POST"
+          ? ++attempt === 1
             ? conflict(
                 "PROFESSIONAL_ALREADY_LINKED",
                 "Este profissional já está ligado a outro usuário.",
               )
-            : { ...created, professionalId: pilatesId };
-        }
-        return undefined;
-      });
-      localStorage.setItem("crm.auth.token", "test-token");
-      localStorage.setItem("crm.auth.user", storedUser(ownerSession));
-      render(
-        <MemoryRouter initialEntries={["/configuracoes"]}>
-          <App />
-        </MemoryRouter>,
+            : { ...customUser, fullName: "Ana Lima" }
+          : undefined,
       );
-      await openSettingsSection("Usuários");
-      await screen.findByRole("button", { name: "Editar Maria Souza" });
-      fireEvent.click(
-        await screen.findByRole("button", { name: "Novo usuário" }),
+      const dialog = await openNew();
+      const select = await chooseExisting(dialog);
+      fireEvent.change(select, { target: { value: pilatesId } });
+      save(dialog, "Criar usuário");
+      await screen.findByText(
+        "Este profissional já está ligado a outro usuário.",
       );
-      const dialog = screen.getByRole("dialog", { name: "Novo usuário" });
-      fireEvent.change(within(dialog).getByLabelText("Nome completo"), {
-        target: { value: "Ana Lima" },
-      });
-      fireEvent.change(within(dialog).getByLabelText("E-mail de acesso"), {
-        target: { value: "ana@movimenta.local" },
-      });
-      fireEvent.change(within(dialog).getByLabelText("Senha inicial"), {
-        target: { value: "SenhaForte123" },
-      });
-      fireEvent.change(within(dialog).getByLabelText("Comissão (%)"), {
-        target: { value: "10" },
-      });
-      fireEvent.change(
-        await within(dialog).findByLabelText(/Profissional da agenda/),
-        { target: { value: pilatesId } },
+      expect(screen.getByRole("dialog", { name: "Novo usuário" })).toBe(dialog);
+      expect(within(dialog).getByLabelText("E-mail de acesso")).toHaveValue(
+        "ana@movimenta.local",
       );
-      fireEvent.click(
-        within(dialog).getByRole("button", { name: "Criar usuário" }),
-      );
-      expect(
-        await screen.findByText(
-          /Usuário Ana Lima criado, mas a ligação com o profissional da agenda não foi salva/,
-        ),
-      ).toHaveClass("form-error");
-      const open = screen.getByRole("dialog", { name: "Editar Ana Lima" });
-      fireEvent.click(
-        within(open).getByRole("button", { name: "Salvar alterações" }),
-      );
-      expect(
-        await screen.findByText("Usuário Ana Lima criado."),
-      ).toBeInTheDocument();
-      // A comissão foi no POST: não é reenviada (evita vigência repetida).
-      expect(
-        writes().map(
-          (item) => `${item.method} ${item.url.split("/admin/users").at(-1)}`,
-        ),
-      ).toEqual([
-        "POST ",
-        `PUT /${created.id}/professional`,
-        `PATCH /${created.id}`,
-        `PUT /${created.id}/professional`,
-      ]);
+      save(dialog, "Criar usuário");
+      await screen.findByText("Usuário Ana Lima criado.");
+      expect(writes().map((item) => item.method)).toEqual(["POST", "POST"]);
     });
 
-    it("corrects the percentage on the same start date of the current period", async () => {
-      const createdToday = {
-        ...otherUser,
-        commissionPercentage: 20,
-        commissionEffectiveFrom: saoPauloToday(),
-      };
-      const corrected = { ...createdToday, commissionPercentage: 25 };
-      let corrections = 0;
+    it("deactivates while keeping the link and edits inactive professionals for reactivation", async () => {
+      let inactive = false;
       mockCommission((url, init) => {
-        if (init?.method === "PATCH") return createdToday;
-        if (init?.method === "PUT") {
-          corrections += 1;
-          return corrected;
+        if (init?.method === "PATCH") {
+          inactive = true;
+          return {
+            ...otherUser,
+            professional: { ...otherUser.professional, active: false },
+          };
         }
         if (url.endsWith("/admin/users"))
-          return [customUser, corrections ? corrected : createdToday];
+          return [
+            customUser,
+            {
+              ...otherUser,
+              professional: { ...otherUser.professional, active: !inactive },
+            },
+          ];
+        return undefined;
+      });
+      let dialog = await openEditor("Bruno Lima");
+      fireEvent.click(within(dialog).getByLabelText("Realiza atendimentos"));
+      save(dialog);
+      await screen.findByText("Alterações de Bruno Lima salvas.");
+      expect(writes()[0]!.body.professional).toEqual({ mode: "deactivate" });
+      await screen.findByText(
+        "Agenda: Bruno Lima (agenda) (inativo) · Comissão 35%",
+      );
+      fireEvent.click(
+        screen.getByRole("button", { name: "Editar Bruno Lima" }),
+      );
+      dialog = screen.getByRole("dialog", { name: "Editar Bruno Lima" });
+      expect(
+        within(dialog).getByLabelText("Realiza atendimentos"),
+      ).not.toBeChecked();
+      fireEvent.click(within(dialog).getByLabelText("Realiza atendimentos"));
+      expect(within(dialog).getByLabelText("Nome na agenda")).toHaveValue(
+        "Bruno Lima (agenda)",
+      );
+      save(dialog);
+      await screen.findByText("Alterações de Bruno Lima salvas.");
+      expect(writes()[1]!.body).toMatchObject({
+        professional: { mode: "save", id: takenId },
+      });
+    });
+
+    it("corrects the current commission period and warns about future effective dates", async () => {
+      let saved = false;
+      mockCommission((url, init) => {
+        const user = {
+          ...otherUser,
+          commissionPercentage: saved ? 25 : 20,
+          commissionEffectiveFrom: saoPauloToday(),
+        };
+        if (init?.method === "PATCH") {
+          saved = true;
+          return user;
+        }
+        if (url.endsWith("/admin/users")) return [customUser, user];
         return undefined;
       });
       const dialog = await openEditor("Bruno Lima");
-      expect(
-        within(dialog).queryByText("Vai corrigir o percentual desta vigência."),
-      ).not.toBeInTheDocument();
       fireEvent.change(within(dialog).getByLabelText("Comissão (%)"), {
         target: { value: "25" },
       });
       expect(
         within(dialog).getByText("Vai corrigir o percentual desta vigência."),
       ).toBeInTheDocument();
-      fireEvent.click(
-        within(dialog).getByRole("button", { name: "Salvar alterações" }),
-      );
-      expect(
-        await screen.findByText("Alterações de Bruno Lima salvas."),
-      ).toBeInTheDocument();
-      expect(lastCall("PUT").body).toEqual({
-        percentage: 25,
-        effectiveFrom: saoPauloToday(),
-      });
-      const section = screen
-        .getByRole("heading", { name: "Usuários" })
-        .closest("section")!;
-      expect(
-        await within(section).findByText(
-          "Agenda: Bruno Lima (agenda) · Comissão 25%",
-        ),
-      ).toBeInTheDocument();
-    });
-
-    it("shows in the form why a used commission period cannot be corrected", async () => {
-      const createdToday = {
-        ...otherUser,
-        commissionPercentage: 20,
-        commissionEffectiveFrom: saoPauloToday(),
-      };
-      const message =
-        "Esta comissão já foi usada em lançamentos; escolha outra data de início.";
-      mockCommission((url, init) => {
-        if (init?.method === "PATCH") return createdToday;
-        if (init?.method === "PUT")
-          return conflict("COMMISSION_RULE_DUPLICATE", message);
-        if (url.endsWith("/admin/users")) return [customUser, createdToday];
-        return undefined;
-      });
-      const dialog = await openEditor("Bruno Lima");
-      fireEvent.change(within(dialog).getByLabelText("Comissão (%)"), {
-        target: { value: "25" },
-      });
-      fireEvent.click(
-        within(dialog).getByRole("button", { name: "Salvar alterações" }),
-      );
-      const error = await screen.findByText(
-        new RegExp(message.replace(/[.;]/g, "\\$&")),
-      );
-      expect(error).toHaveClass("form-error");
-      expect(
-        screen.getByRole("dialog", { name: "Editar Bruno Lima" }),
-      ).toBeInTheDocument();
-    });
-
-    it("warns that the current percentage keeps applying when the start date is in the future", async () => {
-      mockCommission((_url, init) =>
-        init?.method === "PATCH" || init?.method === "PUT"
-          ? otherUser
-          : undefined,
-      );
-      const dialog = await openEditor("Bruno Lima");
-      expect(within(dialog).queryByText(/Data futura/)).not.toBeInTheDocument();
-      fireEvent.change(within(dialog).getByLabelText("Comissão (%)"), {
-        target: { value: "40" },
-      });
       fireEvent.change(within(dialog).getByLabelText("Vale a partir de"), {
         target: { value: "2099-01-01" },
       });
       expect(
         within(dialog).getByText(
-          `Data futura: o percentual atual (35%) continua valendo até ${futureLabel("2099-01-01")}.`,
+          new RegExp(
+            "Data futura: o percentual atual.*" +
+              futureLabel("2099-01-01").replaceAll(".", "\\."),
+          ),
         ),
       ).toBeInTheDocument();
-      fireEvent.click(
-        within(dialog).getByRole("button", { name: "Salvar alterações" }),
-      );
-      expect(
-        await screen.findByText("Alterações de Bruno Lima salvas."),
-      ).toBeInTheDocument();
-      expect(lastCall("PUT").body).toEqual({
-        percentage: 40,
-        effectiveFrom: "2099-01-01",
+      save(dialog);
+      await screen.findByText("Alterações de Bruno Lima salvas.");
+      expect(writes()[0]!.body).toMatchObject({
+        commission: { percentage: 25, effectiveFrom: "2099-01-01" },
       });
     });
 
-    it("links and unlinks the professional with the same save button", async () => {
-      const linked = {
-        ...customUser,
-        professionalId: pilatesId,
-        professionalName: "Maria Pilates",
-      };
-      mockCommission((url, init) => {
-        if (init?.method === "PATCH")
-          return url.includes(otherUser.id) ? otherUser : customUser;
-        if (init?.method === "PUT" && url.endsWith("/professional"))
-          return linked;
-        return undefined;
-      });
-      let dialog = await openEditor();
-      const select = await within(dialog).findByLabelText(
-        /Profissional da agenda/,
-      );
-      expect(select).toHaveValue("");
-      expect(
-        within(select).getByRole("option", { name: "Maria Pilates" }),
-      ).toBeInTheDocument();
-      expect(
-        within(select).queryByRole("option", { name: "Bruno Lima (agenda)" }),
-      ).not.toBeInTheDocument();
-      fireEvent.change(select, { target: { value: pilatesId } });
-      fireEvent.click(
-        within(dialog).getByRole("button", { name: "Salvar alterações" }),
-      );
-      expect(
-        await screen.findByText("Alterações de Maria Souza salvas."),
-      ).toBeInTheDocument();
-      expect(writes().map((item) => item.method)).toEqual(["PATCH", "PUT"]);
-      expect(lastCall("PUT").url).toContain(
-        `/admin/users/${customUser.id}/professional`,
-      );
-      expect(lastCall("PUT").body).toEqual({ professionalId: pilatesId });
-
-      // Desligar: "Nenhum" envia null.
-      fireEvent.click(
-        screen.getByRole("button", { name: "Editar Bruno Lima" }),
-      );
-      dialog = screen.getByRole("dialog", { name: "Editar Bruno Lima" });
-      fireEvent.change(
-        await within(dialog).findByLabelText(/Profissional da agenda/),
-        { target: { value: "" } },
-      );
-      fireEvent.click(
-        within(dialog).getByRole("button", { name: "Salvar alterações" }),
-      );
-      await vi.waitFor(() =>
-        expect(lastCall("PUT").body).toEqual({ professionalId: null }),
-      );
-      expect(lastCall("PUT").url).toContain(
-        `/admin/users/${otherUser.id}/professional`,
-      );
-    });
-
-    it("lets Enter in the commission fields submit the whole form", async () => {
+    it("validates commission before writing and explains a used-period conflict", async () => {
       mockCommission((_url, init) =>
-        init?.method === "PATCH" || init?.method === "PUT"
-          ? otherUser
+        init?.method === "PATCH"
+          ? conflict(
+              "COMMISSION_RULE_DUPLICATE",
+              "Esta comissão já foi usada em lançamentos; escolha outra data de início.",
+            )
           : undefined,
       );
-      const dialog = await openEditor("Bruno Lima");
-      const percentage = within(dialog).getByLabelText("Comissão (%)");
-      fireEvent.change(within(dialog).getByLabelText("Cargo"), {
-        target: { value: "Instrutor" },
-      });
-      fireEvent.change(percentage, { target: { value: "45" } });
-      // Enter não é mais consumido por uma seção à parte: segue o envio padrão do formulário.
-      expect(fireEvent.keyDown(percentage, { key: "Enter" })).toBe(true);
-      expect(
-        fireEvent.keyDown(within(dialog).getByLabelText("Vale a partir de"), {
-          key: "Enter",
-        }),
-      ).toBe(true);
-      expect(percentage.closest("form")).toBe(
-        within(dialog).getByLabelText("Nome completo").closest("form"),
-      );
-      expect(
-        within(dialog).queryByRole("button", { name: "Salvar comissão" }),
-      ).not.toBeInTheDocument();
-      fireEvent.submit(percentage.closest("form")!);
-      expect(
-        await screen.findByText("Alterações de Bruno Lima salvas."),
-      ).toBeInTheDocument();
-      const sent = writes();
-      expect(sent.map((item) => item.method)).toEqual(["PATCH", "PUT"]);
-      expect(sent[0]!.body).toMatchObject({ jobTitle: "Instrutor" });
-      expect(sent[1]!.body).toEqual({
-        percentage: 45,
-        effectiveFrom: saoPauloToday(),
-      });
-    });
-
-    it("validates the commission before saving anything", async () => {
-      mockCommission(() => undefined);
       const dialog = await openEditor("Bruno Lima");
       fireEvent.change(within(dialog).getByLabelText("Comissão (%)"), {
         target: { value: "" },
       });
-      // Comissão em branco é falta: Salvar desativado dizendo o que fazer (QM14).
-      const saveUser = within(dialog).getByRole("button", {
-        name: "Salvar alterações",
-      });
-      expect(saveUser).toBeDisabled();
-      expect(saveUser).toHaveAccessibleDescription(
-        "Falta: Comissão (%) — para não pagar comissão, informe 0%.",
-      );
-      // 120 já é barrado pelo navegador (max=100); o envio direto também é validado.
+      expect(
+        within(dialog).getByRole("button", { name: "Salvar alterações" }),
+      ).toBeDisabled();
       fireEvent.change(within(dialog).getByLabelText("Comissão (%)"), {
-        target: { value: "120" },
+        target: { value: "101" },
       });
       fireEvent.submit(
-        within(dialog).getByLabelText("Nome completo").closest("form")!,
+        within(dialog).getByLabelText("Comissão (%)").closest("form")!,
       );
       expect(
-        await within(dialog).findByText(
+        await screen.findByText(
           "Informe um percentual de comissão entre 0 e 100.",
         ),
       ).toHaveClass("form-error");
       expect(writes()).toHaveLength(0);
+      fireEvent.change(within(dialog).getByLabelText("Comissão (%)"), {
+        target: { value: "25" },
+      });
+      save(dialog);
+      expect(
+        await screen.findByText(/Esta comissão já foi usada em lançamentos/),
+      ).toHaveClass("form-error");
     });
 
-    it("shows loading and error states for the professionals list without blocking the commission", async () => {
+    it("shows loading until the professional options arrive", async () => {
+      let release!: (items: ReturnType<typeof professional>[]) => void;
+      const pending = new Promise<ReturnType<typeof professional>[]>(
+        (resolve) => {
+          release = resolve;
+        },
+      );
+      mockCommission((url) =>
+        url.endsWith("/professionals") ? pending : undefined,
+      );
+      const dialog = await openEditor();
+      fireEvent.click(within(dialog).getByLabelText("Realiza atendimentos"));
+      fireEvent.change(
+        within(dialog).getByLabelText("Cadastro do profissional"),
+        { target: { value: "existing" } },
+      );
+      expect(dialog.querySelector(".loading-block")).not.toBeNull();
+      release([professional(pilatesId, "Maria Pilates")]);
+      await within(dialog).findByRole("option", { name: "Maria Pilates" });
+      expect(dialog.querySelector(".loading-block")).toBeNull();
+    });
+
+    it("shows list errors with retry without blocking commission or a new professional", async () => {
       mockCommission(() => undefined, { professionalsFail: true });
       const dialog = await openEditor();
-      expect(dialog.querySelector(".loading-block")).not.toBeNull();
+      fireEvent.click(within(dialog).getByLabelText("Realiza atendimentos"));
+      fireEvent.change(
+        within(dialog).getByLabelText("Cadastro do profissional"),
+        { target: { value: "existing" } },
+      );
+      await within(dialog).findByText(/Falha ao listar profissionais/);
       expect(
-        await within(dialog).findByText(/Falha ao listar profissionais\./),
-      ).toBeInTheDocument();
+        within(dialog).getByRole("button", { name: "Tentar novamente" }),
+      ).toBeEnabled();
       expect(within(dialog).getByLabelText("Comissão (%)")).toBeEnabled();
-      fireEvent.click(within(dialog).getByRole("button", { name: "Cancelar" }));
-      fireEvent.click(screen.getByRole("button", { name: "Novo usuário" }));
-      const created = screen.getByRole("dialog", { name: "Novo usuário" });
+      fireEvent.change(
+        within(dialog).getByLabelText("Cadastro do profissional"),
+        { target: { value: "create" } },
+      );
       expect(
-        within(created).getByLabelText("Comissão (%)"),
-      ).toBeInTheDocument();
-      expect(
-        within(created).queryByText(/Depois de criar o usuário/),
-      ).not.toBeInTheDocument();
+        within(dialog).getByLabelText("Registro profissional"),
+      ).toBeEnabled();
     });
   });
 
@@ -10386,8 +10056,13 @@ describe("settings tabs", () => {
     expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual([
       "Clínica",
       "Usuários",
+      "Filiais",
+      "Abas do menu",
       "Planos",
       "Feriados",
+      "Finalização automática",
+      "Formas de pagamento",
+      "Integrações",
       "Etiquetas",
       "Cadastros",
       "Serviços e salas",
@@ -11120,8 +10795,8 @@ describe("view-only modules", () => {
     };
     vi.mocked(fetch).mockImplementation(async (input) => {
       const url = String(input);
-      const body = url.endsWith("/leads")
-        ? [lead]
+      const body = isLeadBoardUrl(url)
+        ? leadBoardResponse(url, [lead])
         : url.includes("/activity")
           ? activity
           : [];
@@ -11417,6 +11092,8 @@ describe("button variants", () => {
     "text-button",
     "danger-button",
     "icon-button",
+    // Etiqueta verde que insere um código nos editores de mensagem.
+    "variable-chip",
   ];
 
   /** Botões da página (fora da barra lateral e do topo) sem uma das variantes padronizadas. */
@@ -11680,20 +11357,15 @@ describe("screens without loose elements", () => {
         <App />
       </MemoryRouter>,
     );
+    fireEvent.click(
+      await screen.findByRole("button", { name: /Helena Almeida/ }),
+    );
     const more = await screen.findByRole("button", { name: "Mais ações" });
-    const actions = more.closest(".clinical-workspace-actions") as HTMLElement;
-    for (const name of ["Nova avaliação", "Nova medição", "Adicionar adendo"]) {
+    // Cabeçalho do prontuário: ação principal visível, o resto no menu.
+    const actions = more.closest(".clinical-chart-actions") as HTMLElement;
+    for (const name of ["Registrar avaliação", "Imprimir", "Exportar"]) {
       expect(within(actions).getByRole("button", { name })).toBeInTheDocument();
     }
-    const output = actions.querySelector(
-      ".clinical-workspace-output-actions",
-    ) as HTMLElement;
-    expect(
-      within(output).getByRole("button", { name: "Imprimir" }),
-    ).toBeInTheDocument();
-    expect(
-      within(output).getByRole("button", { name: "Exportar" }),
-    ).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Novo modelo" }),
     ).not.toBeInTheDocument();
@@ -11708,16 +11380,18 @@ describe("screens without loose elements", () => {
         .getAllByRole("menuitem")
         .map((item) => item.textContent),
     ).toEqual([
-      "Novo modelo",
+      "Nova medição",
       "Novo objetivo",
       "Anexar arquivo",
+      "Novo alerta clínico",
+      "Novo modelo",
       "Encerrar tratamento",
     ]);
     expect(
-      within(menu).getByRole("menuitem", { name: "Novo modelo" }),
+      within(menu).getByRole("menuitem", { name: "Nova medição" }),
     ).toHaveFocus();
     fireEvent.keyDown(
-      within(menu).getByRole("menuitem", { name: "Novo modelo" }),
+      within(menu).getByRole("menuitem", { name: "Nova medição" }),
       { key: "ArrowDown" },
     );
     expect(
@@ -11740,7 +11414,12 @@ describe("screens without loose elements", () => {
     localStorage.setItem("crm.auth.token", "test-token");
     localStorage.setItem("crm.auth.user", storedUser(owner));
     vi.mocked(fetch).mockImplementation(
-      async () => ({ ok: true, status: 200, json: async () => [] }) as Response,
+      async (input) =>
+        ({
+          ok: true,
+          status: 200,
+          json: async () => leadBoardResponse(input, []) ?? [],
+        }) as Response,
     );
     render(
       <MemoryRouter initialEntries={["/comercial"]}>
@@ -11777,7 +11456,9 @@ describe("screens without loose elements", () => {
       updatedAt: "2026-09-01T12:00:00.000Z",
     };
     vi.mocked(fetch).mockImplementation(async (input) => {
-      const body = String(input).endsWith("/leads") ? [lead] : [];
+      const body = isLeadBoardUrl(String(input))
+        ? leadBoardResponse(String(input), [lead])
+        : [];
       return { ok: true, status: 200, json: async () => body } as Response;
     });
     render(
@@ -11825,7 +11506,9 @@ describe("screens without loose elements", () => {
     expect(enroll).toHaveClass("secondary-button");
     expect(container.querySelector(".group-actions-bar")).toBeNull();
     fireEvent.click(enroll);
-    const dialog = screen.getByRole("dialog", { name: "Nova matrícula" });
+    const dialog = await screen.findByRole("dialog", {
+      name: "Nova matrícula",
+    });
     expect(dialog).toHaveClass("modal-wide");
     expect(
       within(dialog).getByRole("heading", { name: "Dados da matrícula" }),
@@ -11891,7 +11574,8 @@ describe("action modals instead of browser dialogs", () => {
 
     it("asks the loss reason in a modal and sends it with the stage", async () => {
       mockApi(
-        (url) => (url.endsWith("/leads") ? [lead] : undefined),
+        (url) =>
+          isLeadBoardUrl(url) ? leadBoardResponse(url, [lead]) : undefined,
         () => ({ ...lead, stage: "lost", lostReason: "Achou caro" }),
       );
       render(
@@ -11961,7 +11645,8 @@ describe("action modals instead of browser dialogs", () => {
         fullName: "Bruna Lead",
       };
       mockApi(
-        (url) => (url.endsWith("/leads") ? [lead] : undefined),
+        (url) =>
+          isLeadBoardUrl(url) ? leadBoardResponse(url, [lead]) : undefined,
         () => ({
           lead: { ...lead, stage: "won", convertedPatientId: patient.id },
           patient,
@@ -11982,13 +11667,16 @@ describe("action modals instead of browser dialogs", () => {
         name: "Converter lead em cliente",
       });
       expect(
-        within(dialog).getByText(/Bruna Lead passa a ser cliente/),
-      ).toBeInTheDocument();
+        within(dialog).queryByText(/os dados do lead já vieram preenchidos/),
+      ).not.toBeInTheDocument();
       expect(
         within(dialog).getByText("Bruna Lead · (11) 98765-4321"),
       ).toBeInTheDocument();
-      // Os dados opcionais da conversão começam pelo CPF.
-      expect(within(dialog).getByLabelText("CPF")).toHaveFocus();
+      // Mesmo cadastro do "Novo cliente": o nome do lead vem preenchido e recebe o foco.
+      expect(within(dialog).getByLabelText("Nome completo")).toHaveFocus();
+      expect(within(dialog).getByLabelText("Nome completo")).toHaveValue(
+        "Bruna Lead",
+      );
       fireEvent.click(within(dialog).getByRole("button", { name: "Voltar" }));
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
       expect(writes()).toHaveLength(0);
@@ -12001,8 +11689,15 @@ describe("action modals instead of browser dialogs", () => {
       dialog = await screen.findByRole("dialog", {
         name: "Converter lead em cliente",
       });
+      expect(
+        within(dialog).getByRole("button", { name: "Converter em cliente" }),
+      ).toBeDisabled();
+      fireEvent.change(within(dialog).getByLabelText("CPF"), {
+        target: { value: "52998224725" },
+      });
+      fillRequiredContact(dialog);
       fireEvent.click(
-        within(dialog).getByRole("button", { name: "Confirmar" }),
+        within(dialog).getByRole("button", { name: "Converter em cliente" }),
       );
       await vi.waitFor(() =>
         expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
@@ -12010,15 +11705,12 @@ describe("action modals instead of browser dialogs", () => {
       expect(writes()).toHaveLength(1);
       expect(String(writes()[0]![0])).toContain(`/leads/${lead.id}/convert`);
       expect(writes()[0]![1]?.method).toBe("POST");
-      expect(JSON.parse(String(writes()[0]![1]?.body))).toEqual({
-        cpf: "",
-        emergencyContactName: "",
-        emergencyContactPhone: "",
-        postalCode: "",
+      expect(JSON.parse(String(writes()[0]![1]?.body))).toMatchObject({
+        cpf: "52998224725",
+        fullName: "Bruna Lead",
+        phone: "11987654321",
+        emergencyContactName: "Contato de Emergência",
         address: "",
-        neighborhood: "",
-        city: "",
-        state: "",
       });
     });
 
@@ -12038,7 +11730,10 @@ describe("action modals instead of browser dialogs", () => {
         return {
           ok: true,
           status: 200,
-          json: async () => (String(input).endsWith("/leads") ? [lead] : []),
+          json: async () =>
+            isLeadBoardUrl(String(input))
+              ? leadBoardResponse(String(input), [lead])
+              : [],
         } as Response;
       });
       render(
@@ -12054,8 +11749,12 @@ describe("action modals instead of browser dialogs", () => {
       const dialog = await screen.findByRole("dialog", {
         name: "Converter lead em cliente",
       });
+      fireEvent.change(within(dialog).getByLabelText("CPF"), {
+        target: { value: "52998224725" },
+      });
+      fillRequiredContact(dialog);
       fireEvent.click(
-        within(dialog).getByRole("button", { name: "Confirmar" }),
+        within(dialog).getByRole("button", { name: "Converter em cliente" }),
       );
       expect(
         await within(dialog).findByText(
@@ -12136,91 +11835,6 @@ describe("action modals instead of browser dialogs", () => {
     expect(JSON.parse(String(writes()[0]![1]?.body))).toEqual({
       status: "cancelled",
     });
-  });
-
-  it("finalizes a clinical record after a confirmation saying it cannot be edited anymore", async () => {
-    const patient = {
-      id: "99999999-9999-4999-8999-999999999999",
-      fullName: "Helena Almeida",
-      recordNumber: 12,
-    };
-    const record = {
-      id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
-      appointmentId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
-      patientId: patient.id,
-      professionalId: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
-      status: "draft",
-      version: 1,
-      authorName: "Aryana Dutra",
-      patientName: "Helena Almeida",
-      professionalName: "Dra. Ana Martins",
-      professionalCrefito: "CREFITO-3 123456-F",
-      appointmentStartsAt: new Date().toISOString(),
-      subjective: "Relato",
-      objective: "Exame",
-      assessment: "Evolução positiva",
-      plan: "Manter",
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-    mockApi(
-      (url) =>
-        url.includes("/clinical-workspace/")
-          ? {
-              patient,
-              records: [record],
-              templates: [],
-              assessments: [],
-              goals: [],
-              measurements: [],
-              closures: [],
-              attachments: [],
-              addenda: [],
-            }
-          : url.includes("/clinical-records")
-            ? [record]
-            : url.includes("/patients")
-              ? [patient]
-              : undefined,
-      () => ({
-        ...record,
-        status: "finalized",
-        finalizedAt: new Date().toISOString(),
-      }),
-    );
-    render(
-      <MemoryRouter initialEntries={["/prontuarios"]}>
-        <App />
-      </MemoryRouter>,
-    );
-    fireEvent.click(await screen.findByRole("button", { name: "Finalizar" }));
-    let dialog = await screen.findByRole("dialog", {
-      name: "Finalizar evolução",
-    });
-    expect(
-      within(dialog).getByText(/não poderá mais ser editada/),
-    ).toBeInTheDocument();
-    expect(within(dialog).getByText(/^Helena Almeida · /)).toBeInTheDocument();
-    fireEvent.click(within(dialog).getByRole("button", { name: "Voltar" }));
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-    expect(writes()).toHaveLength(0);
-
-    fireEvent.click(screen.getByRole("button", { name: "Finalizar" }));
-    dialog = await screen.findByRole("dialog", { name: "Finalizar evolução" });
-    fireEvent.click(within(dialog).getByRole("button", { name: "Confirmar" }));
-    await vi.waitFor(() =>
-      expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
-    );
-    expect(writes()).toHaveLength(1);
-    expect(String(writes()[0]![0])).toContain(
-      `/clinical-records/${record.id}/finalize`,
-    );
-    expect(writes()[0]![1]?.method).toBe("POST");
-    await vi.waitFor(() =>
-      expect(
-        screen.queryByRole("button", { name: "Finalizar" }),
-      ).not.toBeInTheDocument(),
-    );
   });
 
   it("cancels a schedule block after a confirmation with the reason and the time", async () => {
@@ -12378,27 +11992,13 @@ describe("screens without the patients module", () => {
     expectOnlyOptions();
   });
 
-  it("opens communications with the client list and the broadcast tags", async () => {
-    renderAs("communications", "/comunicacoes");
-    fireEvent.change(await screen.findByRole("combobox", { name: "Cliente" }), {
-      target: { value: "Helena" },
-    });
-    expect(
-      await screen.findByRole("option", { name: "Helena Almeida" }),
-    ).toBeInTheDocument();
-    const panel = (
-      await screen.findByRole("heading", { name: "Comunicado segmentado" })
-    ).closest("section")!;
-    expect(
-      await within(panel).findByRole("button", { name: /^pilates/ }),
-    ).toBeInTheDocument();
-    expectOnlyOptions();
-  });
-
   it("opens contracts without the clients and plans modules", async () => {
     renderAs("contracts", "/contratos");
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Novo documento" }),
+    );
     expect(
-      await screen.findByRole("button", { name: "Criar rascunho" }),
+      await screen.findByRole("button", { name: "Preparar conteúdo" }),
     ).toBeDisabled();
     fireEvent.change(screen.getByRole("combobox", { name: "Cliente" }), {
       target: { value: "Helena" },
@@ -12408,7 +12008,7 @@ describe("screens without the patients module", () => {
     ).toBeInTheDocument();
     fireEvent.click(screen.getByRole("option", { name: "Helena Almeida" }));
     expect(
-      screen.getByRole("button", { name: "Criar rascunho" }),
+      screen.getByRole("button", { name: "Preparar conteúdo" }),
     ).toBeEnabled();
     expectOnlyOptions();
     expect(
@@ -12423,7 +12023,9 @@ describe("screens without the patients module", () => {
     fireEvent.click(
       await screen.findByRole("button", { name: "Matricular cliente" }),
     );
-    const dialog = screen.getByRole("dialog", { name: "Nova matrícula" });
+    const dialog = await screen.findByRole("dialog", {
+      name: "Nova matrícula",
+    });
     fireEvent.change(
       within(dialog).getByRole("combobox", { name: "Cliente" }),
       {
@@ -12704,6 +12306,7 @@ describe("configured patient tags", () => {
     localStorage.setItem("crm.auth.token", "test-token");
     localStorage.setItem("crm.auth.user", storedUser(admin));
     const patient = {
+      cpf: "52998224725",
       id: "99999999-9999-4999-8999-999999999999",
       recordNumber: "PAC-00001",
       fullName: "Helena Almeida",
@@ -12744,7 +12347,15 @@ describe("configured patient tags", () => {
       within(filter)
         .getAllByRole("button")
         .map((button) => button.textContent),
-    ).toEqual(["Pilates1", "VIP0", "Pagamento atrasado0"]);
+    ).toEqual([
+      "Pilates1",
+      "VIP0",
+      "Pagamento atrasado0",
+      "Falta CPF0",
+      "CPF inválido0",
+      "Cadastro incompleto0",
+      "Sem e-mail0",
+    ]);
     expect(
       within(filter)
         .getByRole("button", { name: /^VIP/ })
@@ -12828,52 +12439,6 @@ describe("configured patient tags", () => {
     fireEvent.change(cpf, { target: { value: "52998224725" } });
     expect(cpf).toHaveValue("529.982.247-25");
     expect(cpf).not.toHaveAttribute("aria-invalid");
-  });
-
-  it("shows the configured tags with their colors in the segmented broadcast", async () => {
-    localStorage.setItem("crm.auth.token", "test-token");
-    localStorage.setItem("crm.auth.user", storedUser(admin));
-    vi.mocked(fetch).mockImplementation(async (input) => {
-      const url = String(input);
-      if (url.includes("/patient-tags"))
-        return jsonResponse([
-          patientTag("Pilates", "#276749", 1),
-          patientTag("VIP", "#7c3aed", 0),
-        ]);
-      if (url.includes("/communications"))
-        return jsonResponse({
-          deliveryMode: "outbox_only",
-          preferences: [],
-          messages: [],
-        });
-      return jsonResponse([
-        {
-          id: "99999999-9999-4999-8999-999999999999",
-          fullName: "Helena Almeida",
-          tags: ["Pilates"],
-        },
-      ]);
-    });
-    render(
-      <MemoryRouter initialEntries={["/comunicacoes"]}>
-        <App />
-      </MemoryRouter>,
-    );
-    const panel = (
-      await screen.findByRole("heading", { name: "Comunicado segmentado" })
-    ).closest("section")!;
-    const group = await within(panel).findByRole("group", {
-      name: "Etiquetas (qualquer uma)",
-    });
-    expect(
-      within(group)
-        .getAllByRole("button")
-        .map((button) => button.textContent),
-    ).toEqual(["Pilates1", "VIP0"]);
-    const vip = within(group).getByRole("button", { name: /^VIP/ });
-    expect(vip.style.getPropertyValue("--tag-color")).toBe("#7c3aed");
-    fireEvent.click(vip);
-    expect(vip).toHaveAttribute("aria-pressed", "true");
   });
 
   describe("in the appointment details (Agenda › Dados do cliente)", () => {
@@ -13157,8 +12722,8 @@ describe("guided client registration", () => {
         ]);
       if (url.includes("/services"))
         return jsonResponse([
-          { id: pilatesId, name: "Pilates", priceInCents: 9000 },
-          { id: physioId, name: "Fisioterapia", priceInCents: 12000 },
+          { id: pilatesId, name: "Pilates" },
+          { id: physioId, name: "Fisioterapia" },
         ]);
       if (url.includes("/groups/workspace?"))
         return jsonResponse({
@@ -13189,6 +12754,10 @@ describe("guided client registration", () => {
     fireEvent.change(within(dialog).getByLabelText("Nome completo"), {
       target: { value: "Marina Costa" },
     });
+    fireEvent.change(within(dialog).getByLabelText("CPF"), {
+      target: { value: "52998224725" },
+    });
+    fillRequiredContact(dialog);
     fireEvent.change(within(dialog).getAllByLabelText("Telefone")[0]!, {
       target: { value: "11987654321" },
     });
@@ -13205,7 +12774,7 @@ describe("guided client registration", () => {
     });
   }
 
-  it("asks what the client will do and only registers when chosen 'Só cadastrar por enquanto'", async () => {
+  it("asks what the client will do and only registers when nothing is added", async () => {
     const posts = mockApi(() => jsonResponse({ patient: created }, 201));
     renderAs(storedUser(admin));
     const dialog = await openNewClient();
@@ -13214,19 +12783,19 @@ describe("guided client registration", () => {
     });
     expect(
       within(question)
-        .getAllByRole("radio")
-        .map((radio) => radio.closest("label")?.textContent),
+        .getAllByRole("button")
+        .map((button) => button.getAttribute("aria-label")),
     ).toEqual([
-      "Aula de demonstração",
-      "Assinar um plano",
-      "Serviço avulso",
-      "Só cadastrar por enquanto",
+      "Agendar aula experimental",
+      "Adicionar plano",
+      "Adicionar serviço avulso",
+      "Adicionar produto",
     ]);
     expect(
-      within(question).getByRole("radio", {
-        name: "Só cadastrar por enquanto",
-      }),
-    ).toBeChecked();
+      within(question).getByText(
+        "Nada adicionado: só o cadastro do cliente será salvo.",
+      ),
+    ).toBeInTheDocument();
     fireEvent.click(
       within(dialog).getByRole("button", { name: "Salvar cliente" }),
     );
@@ -13237,8 +12806,8 @@ describe("guided client registration", () => {
       screen.queryByRole("dialog", { name: "Novo cliente" }),
     ).not.toBeInTheDocument();
     expect(
-      screen.getByRole("dialog", { name: "Cliente cadastrado" }),
-    ).toBeInTheDocument();
+      screen.queryByRole("dialog", { name: "Cliente cadastrado" }),
+    ).not.toBeInTheDocument();
     expect(posts).toHaveLength(1);
     expect(posts[0]).toMatchObject({
       patient: { fullName: "Marina Costa", phone: "11987654321" },
@@ -13274,7 +12843,7 @@ describe("guided client registration", () => {
     renderAs(storedUser(admin));
     const dialog = await openNewClient();
     fireEvent.click(
-      within(dialog).getByRole("radio", { name: "Aula de demonstração" }),
+      within(dialog).getByRole("button", { name: "Agendar aula experimental" }),
     );
     const service = await within(dialog).findByLabelText("Serviço");
     expect(service).toHaveValue(pilatesId);
@@ -13288,15 +12857,15 @@ describe("guided client registration", () => {
     });
     fireEvent.click(
       within(dialog).getByRole("button", {
-        name: "Salvar e agendar demonstração",
+        name: "Salvar e agendar aula experimental",
       }),
     );
     expect(
-      await screen.findByText(/Aula de demonstração agendada para/),
+      await screen.findByText(/Aula experimental agendada para/),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("dialog", { name: "Cliente cadastrado" }),
-    ).toBeInTheDocument();
+      screen.queryByRole("dialog", { name: "Cliente cadastrado" }),
+    ).not.toBeInTheDocument();
     expect(posts[0]).toEqual({
       next: "demonstration",
       patient: expect.objectContaining({ fullName: "Marina Costa" }),
@@ -13326,7 +12895,7 @@ describe("guided client registration", () => {
     renderAs(storedUser(admin));
     const dialog = await openNewClient();
     fireEvent.click(
-      within(dialog).getByRole("radio", { name: "Aula de demonstração" }),
+      within(dialog).getByRole("button", { name: "Agendar aula experimental" }),
     );
     await within(dialog).findByLabelText("Serviço");
     fireEvent.change(within(dialog).getByLabelText("Data e horário"), {
@@ -13334,7 +12903,7 @@ describe("guided client registration", () => {
     });
     fireEvent.click(
       within(dialog).getByRole("button", {
-        name: "Salvar e agendar demonstração",
+        name: "Salvar e agendar aula experimental",
       }),
     );
     expect(
@@ -13346,8 +12915,8 @@ describe("guided client registration", () => {
       "Marina Costa",
     );
     expect(
-      within(dialog).getByRole("radio", { name: "Aula de demonstração" }),
-    ).toBeChecked();
+      within(dialog).getByRole("group", { name: "Aula experimental" }),
+    ).toBeInTheDocument();
     expect(within(dialog).getByLabelText("Data e horário")).toHaveValue(
       "2026-10-06T09:00",
     );
@@ -13357,7 +12926,7 @@ describe("guided client registration", () => {
     fail = false;
     fireEvent.click(
       within(dialog).getByRole("button", {
-        name: "Salvar e agendar demonstração",
+        name: "Salvar e agendar aula experimental",
       }),
     );
     expect(
@@ -13366,41 +12935,55 @@ describe("guided client registration", () => {
     expect(posts).toHaveLength(2);
   });
 
-  it("subscribes a plan with an optional class of the same service and warns about the waiting list", async () => {
+  it("subscribes a group class plan with a required class of the same service and warns about the waiting list", async () => {
     const posts = mockApi((body) =>
       jsonResponse(
-        {
-          patient: created,
-          plan: {
-            id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
-            patientId: created.id,
-            patientName: created.fullName,
-            serviceName: "Pilates",
-            ...(body.plan as object),
-            status: "active",
-            remainingSessions: 8,
-          },
-          enrollment: body.groupId
-            ? {
-                id: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
-                clinicId: created.clinicId,
-                groupId: body.groupId,
+        body.next === "waitlist"
+          ? {
+              patient: created,
+              waitlistEntries: [
+                {
+                  id: "ffffffff-ffff-4fff-8fff-ffffffffffff",
+                  patientId: created.id,
+                  kind: "service",
+                  serviceId: pilatesId,
+                  itemName: "Pilates",
+                  status: "waiting",
+                },
+              ],
+            }
+          : {
+              patient: created,
+              plan: {
+                id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
                 patientId: created.id,
                 patientName: created.fullName,
-                status: "waitlisted",
-                queuePosition: 2,
-                enrolledAt: "2026-10-04T12:00:00.000Z",
-                updatedAt: "2026-10-04T12:00:00.000Z",
-              }
-            : undefined,
-        },
+                serviceName: "Pilates",
+                ...(body.plan as object),
+                status: "active",
+                remainingSessions: 8,
+              },
+              enrollment: body.groupId
+                ? {
+                    id: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+                    clinicId: created.clinicId,
+                    groupId: body.groupId,
+                    patientId: created.id,
+                    patientName: created.fullName,
+                    status: "waitlisted",
+                    queuePosition: 2,
+                    enrolledAt: "2026-10-04T12:00:00.000Z",
+                    updatedAt: "2026-10-04T12:00:00.000Z",
+                  }
+                : undefined,
+            },
         201,
       ),
     );
     renderAs(storedUser(admin));
     const dialog = await openNewClient();
     fireEvent.click(
-      within(dialog).getByRole("radio", { name: "Assinar um plano" }),
+      within(dialog).getByRole("button", { name: "Adicionar plano" }),
     );
     const catalog = await within(dialog).findByLabelText("Plano cadastrado");
     expect(catalog).toHaveValue("");
@@ -13411,72 +12994,64 @@ describe("guided client registration", () => {
         .getAllByRole("option")
         .map((item) => item.textContent),
     ).toEqual(["Pacote fixo", "Recorrente"]);
+    const turma = await within(dialog).findByLabelText("Turma");
+    expect(turma).toHaveValue("");
+    expect(turma).toBeRequired();
     expect(
       within(dialog).getByText(
-        "A turma pode ser escolhida depois com o responsável.",
+        "Plano de aulas em grupo: escolha a turma do cliente.",
       ),
     ).toBeInTheDocument();
-    const turma = await within(dialog).findByLabelText("Turma (opcional)");
-    expect(turma).toHaveValue("");
     // Só turmas ativas do serviço do plano, com o responsável e as vagas.
     expect(
       within(turma)
         .getAllByRole("option")
         .map((item) => item.textContent),
     ).toEqual([
-      "Escolher depois",
+      "Selecione a turma",
       expect.stringMatching(/^Pilates 1 — .* · Dra\. Ana Martins · 3 vagas$/),
       expect.stringMatching(
         /^Pilates 2 — .* · Prof\. Bruno Lima · turma cheia \(lista de espera\)$/,
       ),
     ]);
     fireEvent.change(turma, { target: { value: groups[1]!.id } });
-    fireEvent.change(within(dialog).getByLabelText("Sessões do serviço 1"), {
-      target: { value: "8" },
-    });
-    fireEvent.change(within(dialog).getByLabelText("Valor do serviço 1"), {
-      target: { value: "480" },
-    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Sim, colocar na lista de espera" }),
+    );
+    // TW3: turma cheia não vende plano: somem sessões, valores e pagamento.
+    expect(
+      within(dialog).queryByLabelText("Sessões do serviço 1"),
+    ).not.toBeInTheDocument();
     // Trocar o plano limpa a turma escolhida (ela é de outro serviço).
     fireEvent.change(catalog, { target: { value: physioTemplate.id } });
-    expect(within(dialog).getByLabelText("Turma (opcional)")).toHaveValue("");
+    expect(within(dialog).getByLabelText("Turma")).toHaveValue("");
     expect(
-      within(within(dialog).getByLabelText("Turma (opcional)")).getAllByRole(
-        "option",
-      ),
+      within(within(dialog).getByLabelText("Turma")).getAllByRole("option"),
     ).toHaveLength(2);
     fireEvent.change(catalog, { target: { value: pilatesTemplate.id } });
-    fireEvent.change(within(dialog).getByLabelText("Turma (opcional)"), {
+    fireEvent.change(within(dialog).getByLabelText("Turma"), {
       target: { value: groups[1]!.id },
     });
     fireEvent.click(
-      within(dialog).getByRole("button", { name: "Salvar e criar plano" }),
+      screen.getByRole("button", { name: "Sim, colocar na lista de espera" }),
     );
-    const nextSteps = await screen.findByRole("dialog", {
-      name: "Cliente cadastrado",
-    });
+    fireEvent.click(
+      within(dialog).getByRole("button", {
+        name: "Salvar e colocar na lista de espera",
+      }),
+    );
     expect(
-      screen.getByText(
-        /A turma Pilates 2 está cheia: o cliente entrou na lista de espera \(posição 2\)/,
+      await screen.findByText(
+        /Turma cheia: o cliente entrou na Lista de espera de Pilates, sem plano nem cobrança\./,
       ),
     ).toBeInTheDocument();
     expect(
-      within(nextSteps).getByText(
-        "Na lista de espera de Pilates 2 · posição 2",
-      ),
-    ).toBeInTheDocument();
-    expect(posts[0]).toMatchObject({
-      next: "plan",
-      groupId: groups[1]!.id,
-      plan: {
-        planTemplateId: pilatesTemplate.id,
-        kind: "fixed_package",
-        name: "Pilates 2x semana",
-        services: [
-          { serviceId: pilatesId, totalSessions: 8, totalValueInCents: 48000 },
-        ],
-        totalValueInCents: 48000,
-      },
+      screen.queryByRole("dialog", { name: "Cliente cadastrado" }),
+    ).not.toBeInTheDocument();
+    expect(posts[0]).toEqual({
+      next: "waitlist",
+      patient: expect.objectContaining({ fullName: expect.any(String) }),
+      waitlist: [{ serviceId: pilatesId, groupId: groups[1]!.id }],
     });
   });
 
@@ -13502,21 +13077,19 @@ describe("guided client registration", () => {
     renderAs(storedUser(admin));
     const dialog = await openNewClient();
     fireEvent.click(
-      within(dialog).getByRole("radio", { name: "Serviço avulso" }),
+      within(dialog).getByRole("button", { name: "Adicionar serviço avulso" }),
     );
     const catalog = await within(dialog).findByLabelText("Plano cadastrado");
     fireEvent.change(catalog, { target: { value: singleTemplate.id } });
     expect(within(dialog).queryByLabelText("Modelo")).not.toBeInTheDocument();
-    expect(
-      within(dialog).queryByLabelText("Turma (opcional)"),
-    ).not.toBeInTheDocument();
+    expect(within(dialog).queryByLabelText(/^Turma/)).not.toBeInTheDocument();
     fireEvent.click(
       within(dialog).getByRole("button", {
         name: "Salvar e criar serviço avulso",
       }),
     );
     expect(
-      await screen.findByText(/Serviço avulso .* criado/),
+      await screen.findByText("“Serviço avulso” criado."),
     ).toBeInTheDocument();
     expect(posts[0]).toMatchObject({
       next: "single",
@@ -13535,11 +13108,16 @@ describe("guided client registration", () => {
     mockApi(() => jsonResponse({ patient: created }, 201));
     renderAs(customUser(["patients"]));
     let dialog = await openNewClient();
+    // Sem Agenda nem Planos: só a venda de produtos (que vem com Clientes).
     expect(
-      within(dialog).queryByRole("group", {
-        name: "O que o cliente vai fazer?",
-      }),
-    ).not.toBeInTheDocument();
+      within(
+        within(dialog).getByRole("group", {
+          name: "O que o cliente vai fazer?",
+        }),
+      )
+        .getAllByRole("button")
+        .map((button) => button.getAttribute("aria-label")),
+    ).toEqual(["Adicionar produto"]);
     expect(
       within(dialog).getByRole("button", { name: "Salvar cliente" }),
     ).toBeInTheDocument();
@@ -13552,9 +13130,9 @@ describe("guided client registration", () => {
     });
     expect(
       within(question)
-        .getAllByRole("radio")
-        .map((radio) => radio.closest("label")?.textContent),
-    ).toEqual(["Aula de demonstração", "Só cadastrar por enquanto"]);
+        .getAllByRole("button")
+        .map((button) => button.getAttribute("aria-label")),
+    ).toEqual(["Agendar aula experimental", "Adicionar produto"]);
     cleanup();
 
     // Edita Planos mas não Turmas: plano sem o campo de turma (e sem buscar as turmas).
@@ -13565,20 +13143,18 @@ describe("guided client registration", () => {
     });
     expect(
       within(question)
-        .getAllByRole("radio")
-        .map((radio) => radio.closest("label")?.textContent),
+        .getAllByRole("button")
+        .map((button) => button.getAttribute("aria-label")),
     ).toEqual([
-      "Assinar um plano",
-      "Serviço avulso",
-      "Só cadastrar por enquanto",
+      "Adicionar plano",
+      "Adicionar serviço avulso",
+      "Adicionar produto",
     ]);
     fireEvent.click(
-      within(dialog).getByRole("radio", { name: "Assinar um plano" }),
+      within(dialog).getByRole("button", { name: "Adicionar plano" }),
     );
     await within(dialog).findByLabelText("Plano cadastrado");
-    expect(
-      within(dialog).queryByLabelText("Turma (opcional)"),
-    ).not.toBeInTheDocument();
+    expect(within(dialog).queryByLabelText(/^Turma/)).not.toBeInTheDocument();
     expect(
       within(dialog).getByText(
         "A turma pode ser escolhida depois com o responsável.",
@@ -14140,3 +13716,8 @@ describe("history page", () => {
     ).toBeInTheDocument();
   });
 });
+
+vi.mock("./features/contracts/document-pdf", () => ({
+  generateDocumentPdf: async () =>
+    new Blob(["%PDF-1.7\nTest contract"], { type: "application/pdf" }),
+}));

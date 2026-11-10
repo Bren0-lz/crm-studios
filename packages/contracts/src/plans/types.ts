@@ -1,7 +1,9 @@
 import { z } from "zod";
+import type { paymentMethodSchema } from "../common/model.js";
 import {
   patientPlanInputSchema,
   planCatalogInputSchema,
+  planCancellationDetailsSchema,
   planPauseDetailsSchema,
   planRenewalInputSchema,
   planServiceInputSchema,
@@ -54,6 +56,8 @@ export interface PatientPlan extends Omit<
   PatientPlanInput,
   "planTemplateId" | "services"
 > {
+  /** Filial a que pertence (ver `branches`). */
+  branchId?: string;
   sourceTabId?: string;
   sourceAppointmentId?: string;
   serviceId: string;
@@ -73,13 +77,34 @@ export interface PatientPlan extends Omit<
   updatedAt: string;
   cancelledAt?: string;
   cancelledValueInCents?: number;
+  /** Valor devolvido ao cliente no cancelamento (estorno), quando houve. */
+  refundedInCents?: number;
+  /** Forma de pagamento do estorno e a conta paga que o lançou no Financeiro. */
+  refundPaymentMethod?: z.infer<typeof paymentMethodSchema>;
+  refundPayableId?: string;
+  refundNote?: string;
   /** Pausa em andamento: início, motivo e previsão de retorno. */
   pausedAt?: string;
   pauseReason?: string;
   pauseExpectedReturn?: string;
+  /** Situação das parcelas do plano (só na listagem; ausente sem cobrança). */
+  paymentSummary?: PlanPaymentSummary;
+}
+
+/** Parcelas do plano por situação; canceladas ficam fora. */
+export interface PlanPaymentSummary {
+  installmentCount: number;
+  paidCount: number;
+  openCount: number;
+  overdueCount: number;
+  paidInCents: number;
+  openInCents: number;
 }
 
 export type PlanPauseDetails = z.infer<typeof planPauseDetailsSchema>;
+export type PlanCancellationDetails = z.infer<
+  typeof planCancellationDetailsSchema
+>;
 
 export interface SessionMovement {
   groupAttendanceId?: string;

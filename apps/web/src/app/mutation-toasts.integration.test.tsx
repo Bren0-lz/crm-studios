@@ -79,7 +79,10 @@ async function successToast(text: string) {
   return message;
 }
 
-function renderGroups(enrollmentResponse: Record<string, unknown>) {
+function renderGroups(
+  enrollmentResponse: Record<string, unknown>,
+  groupWorkspace: typeof workspace = workspace,
+) {
   login();
   vi.mocked(fetch).mockImplementation(async (input, options) => {
     const url = String(input);
@@ -89,7 +92,7 @@ function renderGroups(enrollmentResponse: Record<string, unknown>) {
         : options?.method === "POST"
           ? {}
           : url.includes("/groups/workspace?")
-            ? workspace
+            ? groupWorkspace
             : url.includes("/patients/options")
               ? [
                   {
@@ -108,11 +111,14 @@ function renderGroups(enrollmentResponse: Record<string, unknown>) {
   );
 }
 
-async function enrollHelena() {
-  fireEvent.click(
-    await screen.findByRole("button", { name: "Matricular cliente" }),
-  );
-  const dialog = screen.getByRole("dialog", { name: "Nova matrícula" });
+async function enrollHelena(openDialog?: HTMLElement) {
+  if (!openDialog)
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Matricular cliente" }),
+    );
+  const dialog =
+    openDialog ??
+    (await screen.findByRole("dialog", { name: "Nova matrícula" }));
   fireEvent.change(within(dialog).getByLabelText("Turma"), {
     target: { value: group.id },
   });
@@ -138,17 +144,33 @@ describe("toasts de sucesso nas gravações", () => {
   });
 
   it("tells when the enrollment went to the waitlist", async () => {
-    renderGroups({
-      ...enrolled,
-      id: "e3333333-3333-4333-8333-333333333333",
-      patientId: "f3333333-3333-4333-8333-333333333333",
-      patientName: "Helena Almeida",
-      status: "waitlisted",
-      queuePosition: 2,
-    });
-    await enrollHelena();
+    renderGroups(
+      {
+        ...enrolled,
+        id: "e3333333-3333-4333-8333-333333333333",
+        patientId: "f3333333-3333-4333-8333-333333333333",
+        patientName: "Helena Almeida",
+        status: "waitlisted",
+        queuePosition: 2,
+      },
+      { ...workspace, groups: [{ ...group, activeEnrollments: 4 }] },
+    );
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Matricular cliente" }),
+    );
+    // Turma cheia: o seletor avisa da lista de espera, como no cadastro guiado.
+    const dialog = await screen.findByRole("dialog", { name: "Nova matrícula" });
+    expect(
+      within(within(dialog).getByLabelText("Turma")).getByRole("option", {
+        name: /^Pilates Turma A — .* · turma cheia \(lista de espera\)$/,
+      }),
+    ).toBeInTheDocument();
+    await enrollHelena(dialog);
+    fireEvent.click(
+      screen.getByRole("button", { name: "Sim, colocar na lista de espera" }),
+    );
     await successToast(
-      "Helena entrou na lista de espera em Pilates Turma A (posição 2).",
+      "Turma cheia: Helena entrou na lista de espera de Pilates Turma A (posição 2).",
     );
   });
 
@@ -159,7 +181,13 @@ describe("toasts de sucesso nas gravações", () => {
       vi.useRealTimers();
     });
     renderGroups({});
-    fireEvent.click(await screen.findByRole("button", { name: /14 de out/ }));
+    fireEvent.click(await screen.findByRole("button", { name: "Abrir turma" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Frequência e reposições" }));
+    fireEvent.click(
+      within(
+        await screen.findByRole("table", { name: "Aulas de Outubro de 2026" }),
+      ).getByRole("button", { name: /14 de out\./ }),
+    );
     const dialog = screen.getByRole("dialog", { name: group.name });
     fireEvent.change(within(dialog).getByLabelText("Frequência de Ana Nova"), {
       target: { value: "present" },

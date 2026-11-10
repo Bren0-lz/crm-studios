@@ -9,12 +9,62 @@ import {
   legacyPermissions,
   normalizePermissions,
   permissionCatalog,
+  permissionEditModules,
   permissionKeys,
   resolvePermissionInput,
   togglePermissions,
 } from "../permissions.js";
 
 describe("operation permissions", () => {
+  it("grants the sales suppliers tab only explicitly and on top of the clients view", () => {
+    expect(effectivePermissions("admin")).toContain(
+      "patients.suppliers_manage",
+    );
+    expect(legacyPermissions("user", ["patients"], ["patients"])).not.toContain(
+      "patients.suppliers_manage",
+    );
+    expect(normalizePermissions(["patients.suppliers_manage"])).toEqual([]);
+    expect(togglePermissions([], ["patients.suppliers_manage"], true)).toEqual([
+      "patients.view",
+      "patients.suppliers_manage",
+    ]);
+  });
+  it("grants group renaming independently and only explicitly", () => {
+    expect(effectivePermissions("admin")).toContain("groups.rename");
+    expect(legacyPermissions("user", ["groups"], ["groups"])).not.toContain(
+      "groups.rename",
+    );
+    expect(normalizePermissions(["groups.rename"])).toEqual([]);
+    expect(togglePermissions([], ["groups.rename"], true)).toEqual([
+      "groups.view",
+      "groups.rename",
+    ]);
+  });
+  it("keeps the groups overview for whoever already viewed groups, as a view-only operation", () => {
+    expect(effectivePermissions("admin")).toContain("groups.overview");
+    expect(legacyPermissions("user", ["groups"], [])).toContain(
+      "groups.overview",
+    );
+    expect(normalizePermissions(["groups.overview"])).toEqual([]);
+    expect(togglePermissions([], ["groups.overview"], true)).toEqual([
+      "groups.view",
+      "groups.overview",
+    ]);
+    // Retirar a visão geral não tira a edição de Turmas de quem a tinha.
+    const editing = legacyPermissions("user", ["groups"], ["groups"]).filter(
+      (key) => key !== "groups.overview",
+    );
+    expect(permissionEditModules(editing)).toEqual(["groups"]);
+  });
+  it("keeps agenda notes explicit and dependent on agenda visibility", () => {
+    expect(legacyPermissions("user", ["agenda"], ["agenda"])).not.toContain(
+      "agenda.notes",
+    );
+    expect(normalizePermissions(["agenda.notes"])).toEqual([]);
+    expect(normalizePermissions(["agenda.view", "agenda.notes"])).toContain(
+      "agenda.notes",
+    );
+  });
   it("requires explicit grants for new catalog operations instead of inferring them from legacy settings", () => {
     const legacy = legacyPermissions("user", ["settings"], ["settings"]);
     expect(legacy).not.toContain("settings.plans_create");
@@ -42,6 +92,36 @@ describe("operation permissions", () => {
       if (!item.key.endsWith(".view"))
         expect(item.dependencies).toContain(`${item.module}.view`);
     }
+    expect(
+      permissionCatalog.find((item) => item.key === "reports.campaigns_export")
+        ?.dependencies,
+    ).toEqual(["reports.view", "reports.campaigns"]);
+    expect(
+      normalizePermissions(["reports.view", "reports.campaigns_export"]),
+    ).toEqual(["reports.view"]);
+  });
+  it("explica cada permissão com nome simples e descrição própria", () => {
+    for (const module of appModuleSchema.options) {
+      const names = permissionCatalog
+        .filter((item) => item.module === module)
+        .map((item) => item.name);
+      expect(new Set(names).size).toBe(names.length);
+    }
+    for (const item of permissionCatalog) {
+      expect(item.name.length).toBeLessThanOrEqual(45);
+      expect(item.description).not.toMatch(/registros acessíveis/);
+      expect(item.description).not.toContain(item.key);
+      expect(item.description.length).toBeGreaterThanOrEqual(30);
+      expect(item.description).toMatch(/[.)]$/);
+    }
+    // A descrição avisa quando a opção depende de outra além do acesso à área.
+    for (const item of permissionCatalog)
+      for (const dependency of item.dependencies.filter(
+        (key) => key !== `${item.module}.view` && key.startsWith(item.module),
+      ))
+        expect(item.description).toContain(
+          permissionCatalog.find((entry) => entry.key === dependency)!.name,
+        );
   });
   it("denies missing prerequisites and normalizes duplicates in catalog order", () => {
     expect(normalizePermissions(["finance.receive"])).toEqual([]);
@@ -73,7 +153,16 @@ describe("operation permissions", () => {
       [],
     );
     expect(view).toContain("clinical.export");
-    expect(view).toContain("reports.export");
+    expect(view).toEqual(
+      expect.arrayContaining([
+        "reports.management_export",
+        "reports.clients_export",
+        "reports.sales_export",
+      ]),
+    );
+    expect(view).not.toContain("reports.dre_export");
+    expect(view).not.toContain("reports.campaigns");
+    expect(view).not.toContain("reports.campaigns_export");
     expect(view).not.toContain("patients.export");
     expect(view).not.toContain("patients.inventory_view");
     const edit = legacyPermissions("user", ["agenda"], ["agenda"]);

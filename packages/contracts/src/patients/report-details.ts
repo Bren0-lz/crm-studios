@@ -18,7 +18,6 @@ export const clientDetailsColumns = [
   "occupation",
   "source",
   "level",
-  "clientType",
   "clientSince",
   "imageConsent",
   "interests",
@@ -34,6 +33,8 @@ export const clientDetailsColumns = [
   "productQuantity",
   "pendingReceivables",
   "overdueReceivables",
+  "discount",
+  "discountGranted",
 ] as const;
 export type ClientDetailsColumn = (typeof clientDetailsColumns)[number];
 export const clientDetailsColumnLabels: Record<ClientDetailsColumn, string> = {
@@ -54,7 +55,6 @@ export const clientDetailsColumnLabels: Record<ClientDetailsColumn, string> = {
   occupation: "Profissão",
   source: "Origem",
   level: "Nível",
-  clientType: "Tipo de cliente",
   clientSince: "Cliente desde",
   imageConsent: "Uso de imagem",
   interests: "Interesses",
@@ -70,6 +70,8 @@ export const clientDetailsColumnLabels: Record<ClientDetailsColumn, string> = {
   productQuantity: "Quantidade de produtos",
   pendingReceivables: "Contas pendentes",
   overdueReceivables: "Contas atrasadas",
+  discount: "Desconto dos planos",
+  discountGranted: "Descontos concedidos no período",
 };
 export const clientDetailsFilterSchema = patientProfileFilterSchema
   .extend({
@@ -77,6 +79,8 @@ export const clientDetailsFilterSchema = patientProfileFilterSchema
     to: z.iso.date(),
     search: z.string().trim().max(160).optional(),
     status: z.enum(["active", "inactive"]).optional(),
+    /** Clientes com ou sem desconto configurado. */
+    discount: z.enum(["with", "without"]).optional(),
     columns: z
       .string()
       .transform((value) => value.split(","))

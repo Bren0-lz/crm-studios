@@ -14,7 +14,10 @@ import {
   type KeyboardEvent,
 } from "react";
 import { api } from "../../api";
-import { computeFloatingPosition } from "./calendar-position";
+import {
+  computeFloatingPosition,
+  scrollNeededBelow,
+} from "./calendar-position";
 
 type Props = {
   value: string;
@@ -57,6 +60,22 @@ const timeLabel = new Intl.DateTimeFormat("pt-BR", {
   hour: "2-digit",
   minute: "2-digit",
 });
+
+/** Largura do calendário (a viewport estreita reduz no cálculo). */
+const PANEL_WIDTH = 360;
+
+/** Primeiro ancestral que rola verticalmente (o corpo do modal) ou a própria página. */
+function scrollableAncestor(element: HTMLElement): Element | null {
+  for (let node = element.parentElement; node; node = node.parentElement) {
+    const { overflowY } = getComputedStyle(node);
+    if (
+      (overflowY === "auto" || overflowY === "scroll") &&
+      node.scrollHeight > node.clientHeight
+    )
+      return node;
+  }
+  return document.scrollingElement;
+}
 
 function capitalize(value: string) {
   return value.charAt(0).toUpperCase() + value.slice(1);
@@ -195,52 +214,63 @@ export function AppointmentDateTimePicker({
     };
   }, [expanded]);
 
-  // O painel flutua em position: fixed (escapa do overflow do modal) e é recalculado
-  // a cada rolagem/redimensionamento para nunca ficar cortado na viewport.
+  // O painel flutua em position: fixed (escapa do overflow do modal) e abre sempre para
+  // baixo do gatilho. Ao abrir, se não couber, rola o conteúdo (o corpo do modal) para dar
+  // espaço. Depois só acompanha o gatilho quando a página/modal rola; a rolagem dentro do
+  // próprio painel é ignorada, e a posição não depende da altura do painel — assim ele não
+  // treme nem troca de lado ao rolar ou ao carregar a agenda.
   useLayoutEffect(() => {
     const panel = panelRef.current;
     const trigger = triggerRef.current;
     if (!expanded || !panel || !trigger) return;
+    function viewportBox() {
+      const viewport = window.visualViewport;
+      return {
+        top: viewport?.offsetTop ?? 0,
+        left: viewport?.offsetLeft ?? 0,
+        width: viewport?.width ?? window.innerWidth,
+        height: viewport?.height ?? window.innerHeight,
+      };
+    }
     function positionPanel() {
       if (!panel || !trigger) return;
-      const viewport = window.visualViewport;
-      panel.style.removeProperty("--calendar-max-height");
-      panel.style.removeProperty("--calendar-width");
-      const natural = panel.getBoundingClientRect();
       const position = computeFloatingPosition({
         trigger: trigger.getBoundingClientRect(),
-        panel: { width: natural.width, height: natural.height },
-        viewport: {
-          top: viewport?.offsetTop ?? 0,
-          left: viewport?.offsetLeft ?? 0,
-          width: viewport?.width ?? window.innerWidth,
-          height: viewport?.height ?? window.innerHeight,
-        },
+        panelWidth: PANEL_WIDTH,
+        viewport: viewportBox(),
       });
-      panel.style.setProperty("--calendar-top", `${position.top}px`);
-      panel.style.setProperty("--calendar-left", `${position.left}px`);
-      panel.style.setProperty("--calendar-width", `${position.width}px`);
-      panel.style.setProperty(
-        "--calendar-max-height",
-        `${position.maxHeight}px`,
-      );
-      panel.dataset.placement = position.placement;
+      const values: Record<string, string> = {
+        "--calendar-top": `${position.top}px`,
+        "--calendar-left": `${position.left}px`,
+        "--calendar-width": `${position.width}px`,
+        "--calendar-max-height": `${position.maxHeight}px`,
+      };
+      for (const [name, value] of Object.entries(values))
+        if (panel.style.getPropertyValue(name) !== value)
+          panel.style.setProperty(name, value);
       panel.dataset.align = position.align;
     }
+    function onScroll(event: Event) {
+      if (event.target instanceof Node && panel?.contains(event.target)) return;
+      positionPanel();
+    }
+    const needed = scrollNeededBelow({
+      trigger: trigger.getBoundingClientRect(),
+      panelHeight: panel.scrollHeight,
+      viewport: viewportBox(),
+    });
+    if (needed > 0) {
+      const container = scrollableAncestor(trigger);
+      if (container) container.scrollTop += needed;
+    }
     positionPanel();
-    const observer =
-      typeof ResizeObserver === "undefined"
-        ? null
-        : new ResizeObserver(() => positionPanel());
-    observer?.observe(panel);
     window.addEventListener("resize", positionPanel);
-    document.addEventListener("scroll", positionPanel, true);
+    document.addEventListener("scroll", onScroll, true);
     window.visualViewport?.addEventListener("resize", positionPanel);
     window.visualViewport?.addEventListener("scroll", positionPanel);
     return () => {
-      observer?.disconnect();
       window.removeEventListener("resize", positionPanel);
-      document.removeEventListener("scroll", positionPanel, true);
+      document.removeEventListener("scroll", onScroll, true);
       window.visualViewport?.removeEventListener("resize", positionPanel);
       window.visualViewport?.removeEventListener("scroll", positionPanel);
     };
@@ -352,15 +382,28 @@ export function AppointmentDateTimePicker({
               item.id !== excludeAppointmentId &&
               matchesResource(item),
           )
-          .map((item) => ({ ...item, kind: "Atendimento" })),
+          .map((item) => ({
+            ...item,
+            kind: "Atendimento",
+            activity: item.serviceName,
+          })),
         ...data.groups
           .filter(
             (item) => item.status !== "cancelled" && matchesResource(item),
           )
-          .map((item) => ({ ...item, kind: "Turma" })),
+          .map((item) => ({
+            ...item,
+            kind: "Turma",
+            activity: item.groupName,
+          })),
         ...data.blocks
           .filter((item) => item.status === "active" && matchesResource(item))
-          .map((item) => ({ ...item, kind: "Bloqueio" })),
+          // O motivo do bloqueio fica fora do resumo (pode ser pessoal).
+          .map((item) => ({
+            ...item,
+            kind: "Bloqueio",
+            activity: "Horário bloqueado",
+          })),
       ].sort(
         (a, b) =>
           a.startsAt.localeCompare(b.startsAt) || a.kind.localeCompare(b.kind),
@@ -421,9 +464,12 @@ export function AppointmentDateTimePicker({
             </span>
           </button>
         </div>
-        <label className="appointment-time-field">
-          <span className="sr-only">Horário</span>
+        <div className="appointment-time-field">
+          <label className="sr-only" htmlFor={`${id}-time`}>
+            Horário
+          </label>
           <input
+            id={`${id}-time`}
             ref={timeRef}
             type="time"
             required
@@ -431,7 +477,7 @@ export function AppointmentDateTimePicker({
             value={time}
             onChange={(event) => onChange(`${date}T${event.target.value}`)}
           />
-        </label>
+        </div>
       </div>
       {expanded && (
         <div
@@ -509,9 +555,13 @@ export function AppointmentDateTimePicker({
                           tabIndex={key === focusedDate ? 0 : -1}
                           onFocus={() => setFocusedDate(key)}
                           onKeyDown={(event) => onDayKeyDown(event, day)}
+                          // Escolher o dia mantém o calendário aberto para conferir a
+                          // agenda dele; fecha pelo X, Esc ou clique fora.
                           onClick={() => {
                             onChange(`${key}T${time}`);
-                            closeCalendar();
+                            setFocusedDate(key);
+                            if (day.getMonth() !== month.getMonth())
+                              setMonth(firstOfMonth(day));
                           }}
                         >
                           <span className="appointment-calendar-day-number">
@@ -588,12 +638,29 @@ export function AppointmentDateTimePicker({
                         // Show the portion occupying this day, including overnight reservations.
                         const startsBefore = dateKey(start) < date;
                         const endsAfter = dateKey(end) > date;
+                        // O nome do cliente não aparece: o resumo mostra só o que ocupa
+                        // o horário (atividade, profissional e sala).
+                        const resources = [item.professionalName, item.roomName]
+                          .filter(Boolean)
+                          .join(" · ");
                         return (
                           <li key={`${item.kind}-${item.id}`}>
-                            <time>
-                              {startsBefore ? "00:00" : timeLabel.format(start)}
-                              –{endsAfter ? "24:00" : timeLabel.format(end)}
-                            </time>
+                            <div className="appointment-calendar-event-main">
+                              <time>
+                                {startsBefore
+                                  ? "00:00"
+                                  : timeLabel.format(start)}
+                                –{endsAfter ? "24:00" : timeLabel.format(end)}
+                              </time>
+                              <span className="appointment-calendar-event-activity">
+                                {item.activity}
+                              </span>
+                              {resources && (
+                                <span className="appointment-calendar-event-resources">
+                                  {resources}
+                                </span>
+                              )}
+                            </div>
                             <span className="appointment-calendar-event-kind">
                               {item.kind}
                             </span>

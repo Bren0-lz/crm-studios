@@ -17,10 +17,6 @@ export const patientProfileFilterSchema = z.object({
     emptyQueryToUndefined,
     z.enum(["female", "male", "other", "undisclosed"]).optional(),
   ),
-  clientType: z.preprocess(
-    emptyQueryToUndefined,
-    z.enum(["fixed", "rotating"]).optional(),
-  ),
   segment: z.preprocess(
     emptyQueryToUndefined,
     z
@@ -59,7 +55,6 @@ export function matchesPatientProfile(
     source?: string | undefined;
     interests?: string[] | undefined;
     gender?: string | undefined;
-    clientType?: string | undefined;
     email?: string | undefined;
   },
   filter: PatientProfileFilter,
@@ -81,7 +76,6 @@ export function matchesPatientProfile(
   return (
     (!filter.interest || patient.interests?.includes(filter.interest)) &&
     (!filter.gender || filter.gender === patient.gender) &&
-    (!filter.clientType || filter.clientType === patient.clientType) &&
     (filter.record !== "with_email" || Boolean(patient.email)) &&
     (filter.record !== "without_email" || !patient.email)
   );

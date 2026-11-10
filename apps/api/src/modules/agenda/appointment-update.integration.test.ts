@@ -1,8 +1,10 @@
+import { withAppointmentPlan } from "../../test-support/appointment-plan.js";
 import type { AdminAuditEvent, Appointment } from "@crm/contracts";
 import { afterEach, describe, expect, it } from "vitest";
 import { buildApp } from "../../app.js";
 import { MemoryClinicRepository } from "../../memory-repository.js";
 import { authenticatedApp } from "../../test-support/legacy-fixtures.js";
+import { addLegacyTabService } from "../../test-support/legacy-tab-service.js";
 import "../../test-support/legacy-setup.js";
 
 const clinicId = "11111111-1111-4111-8111-111111111111";
@@ -15,7 +17,7 @@ afterEach(async () => {
 
 /** Ana e Paulo, duas salas, um serviço livre e outro só para Ana na primeira sala. */
 async function scenario() {
-  const { app, token } = await authenticatedApp();
+  const { app, token, repository } = await authenticatedApp();
   apps.push(app);
   const headers = { authorization: `Bearer ${token}` };
   const [professionals, rooms] = await Promise.all([
@@ -30,7 +32,7 @@ async function scenario() {
         method: "POST",
         url: "/services",
         headers,
-        payload: { priceInCents: 5_000, color: "#547A6B", ...payload },
+        payload,
       })
     ).json<{ id: string; name: string }>();
   const free = await createService({ name: "Avaliação", durationMinutes: 30 });
@@ -54,26 +56,42 @@ async function scenario() {
       method: "POST",
       url: "/appointments",
       headers,
-      payload: {
-        patientId,
-        serviceId: free.id,
-        professionalId,
-        roomId,
-        startsAt,
-        notes,
-        visitType: "regular",
-      },
+      payload: await withAppointmentPlan(
+        app,
+        {
+          patientId,
+          serviceId: free.id,
+          professionalId,
+          roomId,
+          startsAt,
+          notes,
+          visitType: "regular",
+        },
+        headers,
+      ),
     });
     expect(response.statusCode).toBe(201);
     return response.json<Appointment>();
   };
-  const edit = (id: string, payload: Record<string, unknown>) =>
-    app.inject({
+  const edit = async (id: string, payload: Record<string, unknown>) => {
+    const current = await repository.findAppointment(clinicId, id);
+    const prepared = current
+      ? await withAppointmentPlan(
+          app,
+          { ...current, ...payload, planId: undefined },
+          headers,
+        )
+      : payload;
+    return app.inject({
       method: "PATCH",
       url: `/appointments/${id}`,
       headers,
-      payload,
+      payload: {
+        ...payload,
+        ...("planId" in prepared ? { planId: prepared.planId } : {}),
+      },
     });
+  };
   return {
     app,
     headers,
@@ -258,9 +276,10 @@ describe("PATCH /appointments/:id (QM6)", () => {
     const tab = await repository.openPatientTab(clinicId, ownerId, {
       patientId: patients[0]!.id,
     });
-    const updatedTab = await repository.createPatientTabAppointment(
+    const updatedTab = await addLegacyTabService(
+      repository,
+      undefined,
       clinicId,
-      ownerId,
       tab.id,
       {
         professionalId: professionals[0]!.id,
@@ -269,6 +288,7 @@ describe("PATCH /appointments/:id (QM6)", () => {
         startsAt: "2031-05-12T13:00:00.000Z",
         visitType: "regular",
       },
+      15000,
     );
     const appointmentId = updatedTab.services![0]!.appointmentId;
     await expect(
@@ -283,7 +303,10 @@ describe("PATCH /appointments/:id (QM6)", () => {
       appointmentId,
       { serviceId: services[0]!.id, roomId: rooms[1]!.id, notes: "Sala 2" },
     );
-    expect(sameService).toMatchObject({ roomId: rooms[1]!.id, notes: "Sala 2" });
+    expect(sameService).toMatchObject({
+      roomId: rooms[1]!.id,
+      notes: "Sala 2",
+    });
   });
 
   it("requires the reschedule permission", async () => {

@@ -1,7 +1,10 @@
 import {
   type PatientPlan,
+  withPlanFirstCharge,
   planPeriodEnd,
+  planPixChargeMessage,
   planPeriodMonths,
+  planTemplateSaleServices,
   type PlanTemplate,
   planTypeKind,
   type Service,
@@ -19,22 +22,44 @@ import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
 import { EmptyState } from "../../shared/components/EmptyState";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
+import { usePaymentMethodSettings } from "../../shared/hooks/usePaymentMethodSettings";
 import { currency } from "../../shared/lib/formatting";
 import type { GuidedSingleForm } from "./types";
-import { MoneyInput } from "../../shared/components/MoneyInput";
-import { PlanInstallmentsField } from "../plans/index";
+import {
+  PlanFirstChargeFields,
+  PlanPaymentFields,
+  withFirstChargeChoice,
+} from "../plans/index";
 
 export function GuidedPlanFields<T extends GuidedSingleForm>({
   form,
   setForm,
   onServiceChange,
   kindField,
+  patientName,
+  pixKey,
+  pixTemplate,
+  groupSlots,
+  waitlisted = false,
   children,
 }: {
   form: T;
   setForm: Dispatch<SetStateAction<T>>;
   onServiceChange?: () => void;
   kindField?: ReactNode;
+  /** Nome do cliente para a mensagem de cobrança Pix. */
+  patientName: string;
+  /** Chave Pix da clínica; `null` enquanto carrega. */
+  pixKey: string | null;
+  /** Modelo da mensagem configurado pela clínica; vazio = texto padrão. */
+  pixTemplate: string;
+  /** Horários da turma escolhida: base do 1º pagamento proporcional. */
+  groupSlots?: readonly { weekday: number }[] | undefined;
+  /**
+   * Turma escolhida cheia (TW3): o cliente vai para a Lista de espera, sem plano vendido. Fica
+   * só a escolha do plano e da turma; pagamento, valores e datas ficam para quando abrir vaga.
+   */
+  waitlisted?: boolean;
   children?: ReactNode;
 }) {
   const { can } = useAuthorization();
@@ -43,6 +68,7 @@ export function GuidedPlanFields<T extends GuidedSingleForm>({
   const [services, setServices] = useState<Service[] | null>(null);
   const [templates, setTemplates] = useState<PlanTemplate[]>([]);
   const [loadError, setLoadError] = useState("");
+  const paymentSettings = usePaymentMethodSettings();
   useEffect(() => {
     let active = true;
     Promise.all([api.services(), api.planTemplates()])
@@ -100,6 +126,8 @@ export function GuidedPlanFields<T extends GuidedSingleForm>({
         Configurações › Planos.
       </p>
     );
+  // Sessões e valor seguem o plano cadastrado; o avulso é uma sessão.
+  const singleSale = single || ("kind" in form && form.kind === "single");
   return (
     <div className="form-grid">
       <label className={single ? "span-2" : undefined}>
@@ -115,8 +143,15 @@ export function GuidedPlanFields<T extends GuidedSingleForm>({
               ...form,
               planTemplateId: template?.id ?? "",
               name: template?.name ?? "",
-              services: template?.services.map((entry) => ({ ...entry })) ?? [],
-              totalValueInCents: template?.totalValueInCents ?? 0,
+              services: template ? planTemplateSaleServices(template) : [],
+              totalValueInCents: template
+                ? planTemplateSaleServices(template).reduce(
+                    (sum, item) => sum + item.totalValueInCents,
+                    0,
+                  )
+                : 0,
+              // Valor novo: as formas picadas voltam a uma (a forma escolhida fica).
+              paymentParts: undefined,
               ...("kind" in form
                 ? (() => {
                     const kind = template?.planType
@@ -148,136 +183,183 @@ export function GuidedPlanFields<T extends GuidedSingleForm>({
           ))}
         </select>
       </label>
-      {kindField}
-      {form.services.map((entry, index) => (
-        <fieldset
-          className="form-fieldset span-2 form-grid"
-          key={entry.serviceId}
-        >
-          <legend>
-            {services.find((item) => item.id === entry.serviceId)?.name ??
-              "Serviço"}
-          </legend>
+      {waitlisted ? (
+        <>
+          {children}
+          <p className="span-2 muted-copy">
+            Turma cheia: o cliente vai para a Lista de espera do serviço. A
+            forma de pagamento e o contrato ficam para quando abrir vaga.
+          </p>
+        </>
+      ) : (
+        <>
+          {kindField}
+          {form.services.map((entry, index) => (
+            <fieldset
+              className="form-fieldset span-2 form-grid"
+              key={entry.serviceId}
+            >
+              <legend>
+                {services.find((item) => item.id === entry.serviceId)?.name ??
+                  "Serviço"}
+              </legend>
+              <label>
+                Sessões do serviço {index + 1}
+                <input
+                  required
+                  type="number"
+                  min="1"
+                  max="1000"
+                  readOnly
+                  value={entry.totalSessions}
+                />
+              </label>
+              <label>
+                Valor do serviço {index + 1}
+                <input
+                  readOnly
+                  value={currency.format(entry.totalValueInCents / 100)}
+                />
+              </label>
+              <p className="span-2 muted-copy">
+                {singleSale
+                  ? "Avulso: uma sessão, pelo preço por sessão do plano."
+                  : "Sessões e valor seguem o plano cadastrado."}
+              </p>
+            </fieldset>
+          ))}
+          <label className="span-2">
+            Valor total
+            <input
+              readOnly
+              value={currency.format(form.totalValueInCents / 100)}
+            />
+          </label>
           <label>
-            Sessões do serviço {index + 1}
+            Início
             <input
               required
-              type="number"
-              min="1"
-              max="1000"
-              value={entry.totalSessions}
+              type="date"
+              value={form.validFrom}
+              onChange={(event) => {
+                const template = templates.find(
+                  (item) => item.id === form.planTemplateId,
+                );
+                setForm({
+                  ...form,
+                  validFrom: event.target.value,
+                  ...(template?.planType && planPeriodMonths(template.planType)
+                    ? {
+                        validUntil: planPeriodEnd(
+                          template.planType,
+                          event.target.value,
+                        ),
+                      }
+                    : {}),
+                });
+              }}
+            />
+          </label>
+          <label>
+            Fim da validade
+            <input
+              type="date"
+              value={form.validUntil}
               onChange={(event) =>
                 setForm({
                   ...form,
-                  services: form.services.map((item, position) =>
-                    position === index
-                      ? { ...item, totalSessions: Number(event.target.value) }
-                      : item,
-                  ),
+                  validUntil: event.target.value,
+                  autoRenew: Boolean(event.target.value) && form.autoRenew,
                 })
               }
             />
           </label>
           <label>
-            Valor do serviço {index + 1}
-            <MoneyInput
+            Primeiro vencimento
+            <input
               required
-              valueInCents={entry.totalValueInCents}
-              onChange={(cents) => {
-                const entries = form.services.map((item, position) =>
-                  position === index
-                    ? {
-                        ...item,
-                        totalValueInCents: cents ?? 0,
-                      }
-                    : item,
-                );
-                setForm({
-                  ...form,
-                  services: entries,
-                  totalValueInCents: entries.reduce(
-                    (sum, item) => sum + item.totalValueInCents,
-                    0,
-                  ),
-                });
-              }}
+              type="date"
+              value={form.firstDueDate}
+              onChange={(event) =>
+                setForm({ ...form, firstDueDate: event.target.value })
+              }
             />
           </label>
-        </fieldset>
-      ))}
-      <label className="span-2">
-        Valor total
-        <input readOnly value={currency.format(form.totalValueInCents / 100)} />
-      </label>
-      <label>
-        Início
-        <input
-          required
-          type="date"
-          value={form.validFrom}
-          onChange={(event) => {
-            const template = templates.find(
-              (item) => item.id === form.planTemplateId,
-            );
-            setForm({
+          {"kind" in form && (
+            <PlanFirstChargeFields
+              plan={{ ...form, kind: form.kind as PatientPlan["kind"] }}
+              slots={groupSlots}
+              onChange={(choice) =>
+                setForm((current) => withFirstChargeChoice(current, choice))
+              }
+            />
+          )}
+          <label className="checkbox-field span-2">
+            <input
+              type="checkbox"
+              disabled={!form.validUntil}
+              checked={Boolean(form.autoRenew)}
+              onChange={(event) =>
+                setForm({ ...form, autoRenew: event.target.checked })
+              }
+            />
+            Renovar automaticamente ao fim da validade, com as mesmas condições
+          </label>
+          <PlanPaymentFields
+            plan={{
               ...form,
-              validFrom: event.target.value,
-              ...(template?.planType && planPeriodMonths(template.planType)
-                ? {
-                    validUntil: planPeriodEnd(
-                      template.planType,
-                      event.target.value,
+              kind:
+                "kind" in form ? (form.kind as PatientPlan["kind"]) : undefined,
+            }}
+            settings={paymentSettings}
+            template={templates.find((item) => item.id === form.planTemplateId)}
+            onChange={(fields) => setForm({ ...form, ...fields })}
+          />
+          {form.paymentMethod === "pix" &&
+            !form.paymentParts &&
+            (pixKey === null ? (
+              <LoadingBlock />
+            ) : pixKey ? (
+              <label className="span-2">
+                Mensagem do Pix (enviada pelo WhatsApp ao salvar)
+                <textarea
+                  readOnly
+                  rows={4}
+                  value={planPixChargeMessage({
+                    patientName: patientName.trim() || "cliente",
+                    planName: form.name || "Plano",
+                    totalValueInCents: form.totalValueInCents,
+                    installments: form.installments,
+                    totalSessions: form.services.reduce(
+                      (sum, entry) => sum + entry.totalSessions,
+                      0,
                     ),
-                  }
-                : {}),
-            });
-          }}
-        />
-      </label>
-      <label>
-        Fim da validade
-        <input
-          type="date"
-          value={form.validUntil}
-          onChange={(event) =>
-            setForm({
-              ...form,
-              validUntil: event.target.value,
-              autoRenew: Boolean(event.target.value) && form.autoRenew,
-            })
-          }
-        />
-      </label>
-      <PlanInstallmentsField
-        kind={"kind" in form ? (form.kind as PatientPlan["kind"]) : undefined}
-        installments={form.installments}
-        firstDueDate={form.firstDueDate}
-        validUntil={form.validUntil}
-        onChange={(installments) => setForm({ ...form, installments })}
-      />
-      <label>
-        Primeiro vencimento
-        <input
-          required
-          type="date"
-          value={form.firstDueDate}
-          onChange={(event) =>
-            setForm({ ...form, firstDueDate: event.target.value })
-          }
-        />
-      </label>
-      <label className="checkbox-field span-2">
-        <input
-          type="checkbox"
-          disabled={!form.validUntil}
-          checked={Boolean(form.autoRenew)}
-          onChange={(event) =>
-            setForm({ ...form, autoRenew: event.target.checked })
-          }
-        />
-        Renovar automaticamente ao fim da validade, com as mesmas condições
-      </label>
-      {children}
+                    pixKey,
+                    template: pixTemplate,
+                    ...("kind" in form
+                      ? (() => {
+                          const terms = withPlanFirstCharge(
+                            { ...form, kind: form.kind as PatientPlan["kind"] },
+                            groupSlots,
+                          );
+                          return {
+                            firstChargeInCents: terms.proratedChargeInCents,
+                            manualFirstCharge: terms.manualFirstCharge,
+                          };
+                        })()
+                      : {}),
+                  })}
+                />
+              </label>
+            ) : (
+              <p className="span-2 muted-copy">
+                Nenhuma chave Pix cadastrada: informe a chave em Configurações ›
+                Dados da clínica para enviar a cobrança ao cliente.
+              </p>
+            ))}
+          {children}
+        </>
+      )}
     </div>
   );
 }

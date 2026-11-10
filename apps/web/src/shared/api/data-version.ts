@@ -12,29 +12,49 @@ export type DataDomain =
   | "history"
   | "clinical"
   | "contracts"
-  | "relationship";
+  | "relationship"
+  | "waitlist"
+  | "crm"
+  | "communications";
 
 /** Mapa mutação → domínios afetados. A primeira regra que casar com o caminho vale. */
 const mutationRules: [RegExp, DataDomain[]][] = [
   // Consultas feitas por POST (prévias) e sessão não alteram dados.
   [/\/preview(?:$|[/?])|^\/auth\//, []],
-  // Fechar/cancelar comanda gera cobrança, baixa estoque, cria crédito de sessão e
-  // vincula atendimentos.
+  // Fechar/cancelar comanda (ou registrar venda de produtos) gera cobrança, baixa estoque,
+  // cria crédito de sessão e vincula atendimentos.
   [
-    /^\/patient-tabs(?:\/|$)/,
+    /^\/(?:patient-tabs|product-sales)(?:\/|$)/,
     ["inventory", "finance", "plans", "agenda", "history"],
   ],
   [/^\/inventory\//, ["inventory"]],
+  [/^\/waitlist(?:\/|$)/, ["waitlist", "history"]],
   [/^\/plans(?:\/|$|\?)/, ["plans", "finance", "history"]],
   [/^\/plan-(?:catalog|templates)(?:\/|$)/, ["plans"]],
+  // Pedido ao fornecedor cadastra produtos e dá entrada no estoque.
+  [
+    /^\/finance\/suppliers\/[^/]+\/orders$/,
+    ["finance", "inventory", "history"],
+  ],
   [/^\/finance\//, ["finance", "history"]],
-  [/^\/admin\/users\/[^/]+\/commission$/, ["finance"]],
+  [/^\/admin\/users(?:\/[^/]+)?$/, ["agenda", "finance", "history"]],
+  [
+    /^\/admin\/users\/[^/]+\/(?:commission|professional)$/,
+    ["agenda", "finance", "history"],
+  ],
+  // Nome e cor do profissional ligado aparecem na agenda.
+  [/^\/me\/profile$/, ["agenda"]],
+  [/^\/agenda-notes(?:\/|$|\?)/, ["agenda", "history"]],
   // Status do atendimento consome sessão do plano e entra no dashboard e na ficha.
   [
     /^\/(?:appointments|group-sessions|group-replacements|group-enrollments|groups|schedule-blocks|holidays)(?:\/|$)/,
     ["agenda", "plans", "finance", "history"],
   ],
-  [/^\/leads\/[^/]+\/appointments$/, ["agenda", "history"]],
+  [/^\/leads\/[^/]+\/appointments$/, ["agenda", "history", "crm"]],
+  // Converter o lead cadastra o cliente (lista de clientes e participante do evento).
+  [/^\/leads\/[^/]+\/convert$/, ["patients", "history", "crm"]],
+  // Tarefas e etapas dos leads alimentam o sino (tarefas comerciais vencidas).
+  [/^\/(?:leads|lead-tasks|events)(?:\/|$|\?)/, ["crm"]],
   [/^\/patients(?:\/|$)|^\/patient-tags(?:\/|$)/, ["patients", "history"]],
   [
     /^\/(?:clinical-[a-z-]+|therapeutic-goals|treatment-closures|assessment-templates)(?:\/|$)/,
@@ -43,6 +63,8 @@ const mutationRules: [RegExp, DataDomain[]][] = [
   [/^\/(?:documents|document-templates)(?:\/|$)/, ["contracts", "history"]],
   // Contato registrado (ex.: parabéns enviados) tira o aniversariante do sino (QM13).
   [/^\/relationship\/activities(?:\/|$)/, ["relationship"]],
+  // Campanhas automáticas e envios registrados mudam a fila e o sino.
+  [/^\/communications\/auto-campaigns(?:\/|$)/, ["communications"]],
 ];
 
 export function domainsForMutation(method: string, path: string): DataDomain[] {

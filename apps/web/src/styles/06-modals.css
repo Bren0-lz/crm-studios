@@ -20,7 +20,10 @@
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  margin-bottom: 6px;
+  margin-bottom: calc(var(--space-2) - 1px);
+}
+.patient-picker > .patient-picker-header > label {
+  display: inline-block;
 }
 .patient-picker > input {
   width: 100%;
@@ -29,20 +32,24 @@
   z-index: 2;
 }
 .patient-picker-results {
+  display: flex;
+  flex-direction: column;
   position: absolute;
   top: 100%;
   left: 0;
   right: 0;
   z-index: 1;
   max-height: min(240px, 40dvh);
-  overflow-y: auto;
-  overscroll-behavior: contain;
+  overflow: hidden;
   background: var(--paper);
   border: 1px solid var(--line);
   border-radius: 8px;
   box-shadow: 0 8px 24px rgba(17, 32, 27, 0.18);
 }
 .patient-picker-results ul {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   list-style: none;
   padding: 0;
   margin: 0;
@@ -64,6 +71,18 @@
 .patient-picker-results li[aria-selected="true"] {
   background: var(--mint);
   font-weight: 700;
+}
+.patient-picker-results p {
+  flex-shrink: 0;
+}
+.patient-picker-footer {
+  flex-shrink: 0;
+  padding: var(--space-2);
+  border-top: 1px solid var(--line);
+  background: var(--paper);
+}
+.patient-picker-footer > button {
+  width: 100%;
 }
 
 .patient-picker-results[popover] {
@@ -188,9 +207,9 @@
   max-height: calc(100dvh - 2 * var(--modal-viewport-gap));
   overflow: hidden;
   padding: 0;
-  border-radius: 21px;
+  border-radius: var(--radius-lg);
   background: var(--paper);
-  box-shadow: 0 28px 80px rgba(17, 32, 27, 0.22);
+  box-shadow: 0 16px 48px rgba(17, 32, 27, 0.18);
 }
 
 .modal-head {
@@ -226,7 +245,6 @@
 
 .modal-head h2 {
   margin: 0;
-  font-family: "Manrope", sans-serif;
   font-size: var(--text-2xl);
 }
 
@@ -234,15 +252,6 @@
   margin: var(--space-2) 0 0;
   color: var(--muted);
   font-size: var(--text-xs);
-}
-
-.sidebar-scrim {
-  position: fixed;
-  inset: 0;
-  z-index: 19;
-  display: none;
-  border: 0;
-  background: rgba(18, 35, 30, 0.38);
 }
 
 .modal-head button {
@@ -287,52 +296,6 @@
 .fixed-patient strong {
   font-size: var(--text-lg);
 }
-.next-step-content {
-  display: grid;
-  gap: var(--space-5);
-}
-.next-step-options {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--space-4);
-}
-.next-step-card {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: var(--space-3);
-  min-width: 0;
-  padding: var(--space-4);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-md);
-  overflow-wrap: anywhere;
-}
-.next-step-card > svg {
-  color: var(--green);
-}
-.next-step-card h3 {
-  margin: 0;
-  font-size: var(--text-lg);
-}
-.next-step-card p {
-  margin: 0;
-  color: var(--muted);
-  font-size: var(--text-md);
-  line-height: 1.5;
-}
-.next-step-card > button {
-  margin-top: auto;
-}
-
-@media (max-width: 700px) {
-  .next-step-options {
-    grid-template-columns: 1fr;
-  }
-  .next-step-card {
-    align-items: stretch;
-  }
-}
-
 .form-fieldset {
   min-width: 0;
   margin: 0;
@@ -342,11 +305,216 @@
   background: #f7f8f5;
 }
 
+/* Bloco de um dos planos do cadastro guiado: "Remover plano" abaixo dos campos. */
+.guided-plan-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: var(--space-4);
+}
+
+/*
+ * Item do cadastro guiado (plano, avulso, produto, aula): entra deslizando com a borda
+ * realçada e, ao ser removido, recolhe antes de sair — para ficar claro o que mudou.
+ */
+.guided-item {
+  animation: guided-item-enter 0.9s ease-out;
+}
+.guided-item-leaving {
+  overflow: hidden;
+  pointer-events: none;
+  animation: guided-item-leave 0.32s ease-in forwards;
+}
+@keyframes guided-item-enter {
+  0% {
+    opacity: 0;
+    transform: translateY(calc(var(--space-3) * -1));
+    border-color: var(--green-2);
+    box-shadow: 0 0 0 var(--space-1) rgb(38 112 95 / 35%);
+  }
+  30% {
+    opacity: 1;
+    transform: none;
+    border-color: var(--green-2);
+    box-shadow: 0 0 0 var(--space-1) rgb(38 112 95 / 35%);
+  }
+  100% {
+    border-color: var(--line);
+    box-shadow: 0 0 0 0 rgb(38 112 95 / 0%);
+  }
+}
+@keyframes guided-item-leave {
+  0% {
+    max-height: 200vh;
+    opacity: 1;
+    transform: none;
+    border-color: var(--red);
+  }
+  60% {
+    opacity: 0;
+    transform: translateX(var(--space-6));
+  }
+  100% {
+    max-height: 0;
+    padding-block: 0;
+    margin-block: 0;
+    border-width: 0;
+    opacity: 0;
+    transform: translateX(var(--space-6));
+  }
+}
+
+/* Aviso "Plano 2 adicionado logo abaixo." / "Produto removido da sacola.". */
+.guided-item-notice {
+  min-height: 0;
+  margin: 0;
+}
+.guided-item-notice > span {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--mint);
+  color: var(--green);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  animation: guided-item-notice 0.35s ease-out;
+}
+@keyframes guided-item-notice {
+  from {
+    opacity: 0;
+    transform: translateY(calc(var(--space-1) * -1));
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .guided-item,
+  .guided-item-leaving,
+  .guided-item-notice > span {
+    animation: none;
+  }
+}
+
+/*
+ * Formas de pagamento (pagamento picado): cada forma é um bloco com a mesma animação dos
+ * itens do cadastro guiado; abaixo, "Adicionar forma de pagamento" e a soma das formas.
+ */
+.payment-parts > .field-hint {
+  margin: 0 0 var(--space-3);
+}
+.payment-parts-list {
+  display: grid;
+  gap: var(--space-3);
+}
+.payment-part {
+  background: var(--paper);
+}
+.payment-part-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+.payment-parts-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+}
+.payment-parts-total {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+.payment-parts-total strong {
+  color: var(--ink);
+  font-size: var(--text-md);
+  font-variant-numeric: tabular-nums;
+}
+.payment-parts-issue {
+  margin: var(--space-2) 0 0;
+  color: var(--red);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+/* "O que o cliente vai fazer?": um botão "Adicionar" para cada item do cadastro guiado. */
+.guided-add > .field-hint {
+  margin: 0 0 var(--space-3);
+}
+.guided-add-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+  gap: var(--space-3);
+}
+.guided-add-option {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--paper);
+  box-shadow: var(--shadow-sm);
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    background-color 0.15s ease;
+}
+.guided-add-option:hover:not(:disabled) {
+  border-color: var(--green);
+  background: #fff;
+}
+.guided-add-option:focus-visible {
+  outline: 2px solid var(--green);
+  outline-offset: 2px;
+}
+.guided-add-option:disabled {
+  box-shadow: none;
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+.guided-add-icon {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: var(--space-6);
+  height: var(--space-6);
+  border-radius: var(--radius-sm);
+  background: var(--mint);
+  color: var(--green);
+}
+.guided-add-text {
+  display: grid;
+  gap: calc(var(--space-1) - 2px);
+  min-width: 0;
+}
+.guided-add-text strong {
+  font-size: var(--text-md);
+  font-weight: 600;
+}
+.guided-add-text small {
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+
 .form-fieldset legend {
   padding: 0 6px;
   color: #4d5b55;
   font-size: var(--text-sm);
-  font-weight: 800;
+  font-weight: 600;
 }
 
 .form-fieldset.emergency-fieldset {
@@ -356,12 +524,30 @@
 .form-fieldset.emergency-fieldset legend {
   color: var(--red);
 }
+/* "Usar os dados do cliente" (CD1): abaixo dos campos do contato. */
+.form-fieldset.emergency-fieldset > .secondary-button {
+  margin-top: var(--space-3);
+}
 
 .form-fieldset-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
   align-items: start;
   gap: 14px;
+}
+
+/* Alinha a caixa com a base dos campos vizinhos, que têm rótulo acima. */
+.form-fieldset-grid > .checkbox-field {
+  align-self: end;
+}
+
+/* Despesa pontual: escolha se a data informada é o vencimento ou o lançamento. */
+.expense-date-field {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
+  font-size: var(--text-sm);
 }
 
 .field-with-hint {
@@ -395,6 +581,237 @@ p.field-hint {
   box-shadow: 0 0 0 3px rgba(155, 67, 60, 0.12);
 }
 
+/* Recorrência com datas escolhidas à mão (formulário de atendimento). */
+.recurrence-count {
+  align-self: center;
+  margin: 0;
+}
+.recurrence-dates {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: #f7f8f5;
+}
+.recurrence-dates-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.recurrence-dates-head h4 {
+  margin: 0 0 var(--space-1);
+  font-size: var(--text-sm);
+}
+.recurrence-dates-head p {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--text-xs);
+  line-height: 1.45;
+}
+.recurrence-dates-head button {
+  flex: 0 0 auto;
+}
+.recurrence-date-row {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-2);
+}
+.recurrence-date-row .appointment-date-picker {
+  flex: 1;
+}
+.recurrence-date-row .icon-button {
+  min-height: calc(var(--space-6) + 19px);
+}
+/* Pacote com dias e horários fixos: dia da semana + horário em cada linha. */
+.package-slot-row label {
+  flex: 1;
+  min-width: 0;
+}
+.package-preview summary {
+  cursor: pointer;
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+.package-preview ol {
+  display: grid;
+  gap: var(--space-1);
+  margin: var(--space-2) 0 0;
+  padding-left: var(--space-5);
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+/* Plano avulso: dias fixos de cada serviço e o resumo das sessões geradas. */
+.plan-schedule-details {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--paper);
+}
+.plan-schedule-details > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  font-size: var(--text-md);
+  font-weight: 600;
+  list-style: none;
+}
+.plan-schedule-details > summary::-webkit-details-marker {
+  display: none;
+}
+.plan-schedule-details > summary:hover {
+  background: var(--cream);
+}
+.plan-schedule-details > summary:focus-visible {
+  outline: 2px solid var(--green-2);
+  outline-offset: 2px;
+}
+.plan-schedule-details[open] > summary {
+  border-bottom: 1px solid var(--line);
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+}
+.plan-schedule-details > .clinical-form {
+  display: grid;
+  gap: var(--space-4);
+  padding: var(--space-4);
+}
+.plan-schedule-details .field-hint {
+  margin: 0;
+}
+.plan-service-schedule {
+  margin: 0;
+  padding: var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: #fff;
+}
+/* Legenda como título dentro da caixa, e não cortando a borda. */
+.plan-service-schedule legend {
+  float: left;
+  grid-column: 1 / -1;
+  width: 100%;
+  margin: 0;
+  padding: 0 0 var(--space-3);
+  border-bottom: 1px solid var(--line);
+  font-size: var(--text-md);
+  font-weight: 600;
+}
+.plan-service-schedule .recurrence-dates {
+  background: var(--cream);
+}
+.plan-session-summary {
+  display: grid;
+  gap: var(--space-3);
+}
+.plan-session-summary-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-1) var(--space-3);
+}
+.plan-session-summary-head h4 {
+  margin: 0;
+  font-size: var(--text-md);
+  font-weight: 600;
+}
+.plan-session-summary-head .panel-context {
+  margin: 0;
+}
+.plan-session-list {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+/* Número | data e detalhes (situação logo abaixo) | ações. */
+.plan-session-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-areas:
+    "number when actions"
+    "number status actions";
+  align-items: center;
+  column-gap: var(--space-3);
+  row-gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: #fff;
+}
+.plan-session-number {
+  grid-area: number;
+  display: inline-grid;
+  place-items: center;
+  align-self: start;
+  width: calc(var(--space-6) - 4px);
+  height: calc(var(--space-6) - 4px);
+  border-radius: 50%;
+  background: var(--cream);
+  color: var(--muted);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+.plan-session-when {
+  grid-area: when;
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+  font-size: var(--text-md);
+}
+.plan-session-when strong {
+  font-weight: 600;
+}
+.plan-session-when small {
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+.plan-session-status {
+  grid-area: status;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.plan-session-status:empty {
+  display: none;
+}
+.plan-session-actions {
+  grid-area: actions;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-2);
+}
+/* Sem situação (verificando ou já agendada): uma linha só. */
+.plan-session-row:not(:has(.plan-session-status:not(:empty))) {
+  grid-template-areas: "number when actions";
+}
+@media (max-width: 700px) {
+  /* audit: mobile-ok selo do número com 28px + coluna flexível cabem em 390px */
+  .plan-session-row {
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-areas:
+      "number when"
+      "number status"
+      "number actions";
+  }
+  .plan-session-row:not(:has(.plan-session-status:not(:empty))) {
+    grid-template-areas:
+      "number when"
+      "number actions";
+  }
+  .plan-session-actions {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+}
+
 .appointment-date-picker {
   position: relative;
   min-width: 0;
@@ -415,6 +832,12 @@ p.field-hint {
   margin-bottom: 8px;
   font-size: var(--text-sm);
   font-weight: 600;
+}
+.appointment-date-picker:has(.appointment-time-field > input:required)
+  > .appointment-date-label::after {
+  content: "*" / "";
+  margin-left: var(--space-1);
+  color: #b44d36;
 }
 .appointment-date-fields {
   display: grid;
@@ -457,8 +880,8 @@ p.field-hint {
   width: 100%;
   min-height: 43px;
 }
-/* Flutua em position: fixed (escapa do overflow do modal); topo, esquerda, largura e
-   altura máxima vêm do cálculo em calendar-position.ts para nunca ficar cortado. */
+/* Flutua em position: fixed (escapa do overflow do modal), sempre abaixo do gatilho; topo,
+   esquerda, largura e altura máxima vêm de calendar-position.ts (rola por dentro). */
 .appointment-calendar {
   position: fixed;
   z-index: 10;
@@ -472,7 +895,7 @@ p.field-hint {
   margin: 0;
   padding: calc(var(--space-4) + 2px);
   border: 1px solid #e1e6e0;
-  border-radius: 16px;
+  border-radius: var(--radius-md);
   background: #fffefa;
   color: var(--ink);
   box-shadow:
@@ -702,7 +1125,29 @@ p.field-hint {
   font-variant-numeric: tabular-nums;
   font-weight: 500;
 }
+/* audit: mobile-ok horário curto ao lado do texto, que quebra/encolhe no celular */
+.appointment-calendar-event-main {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  column-gap: var(--space-2);
+  row-gap: calc(var(--space-1) - 2px);
+  min-width: 0;
+}
+.appointment-calendar-event-activity {
+  overflow: hidden;
+  color: var(--ink);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.appointment-calendar-event-resources {
+  grid-column: 2;
+  color: #68766f;
+  font-size: var(--text-xs);
+  line-height: 1.4;
+}
 .appointment-calendar-summary .appointment-calendar-event-kind {
+  flex-shrink: 0;
+  align-self: flex-start;
   padding: 3px 7px;
   border-radius: 5px;
   background: #f0f3ee;
@@ -756,8 +1201,6 @@ p.field-hint {
 /* Rodapé de formulário fora de modal: botão em tamanho normal, alinhado à direita. */
 .clinical-form > .modal-actions,
 .receipt-content > .modal-actions,
-.communication-compose form > .modal-actions,
-.reminder-generator > .modal-actions,
 .document-form > .modal-actions,
 .activity-form > .modal-actions {
   margin-top: 0;
@@ -767,18 +1210,7 @@ p.field-hint {
   grid-column: 1 / -1;
 }
 
-/* Comanda (QM5): avisos com altura reservada e rodapé com o destrutivo separado à esquerda. */
-.tab-messages {
-  display: grid;
-  gap: var(--space-2);
-  min-height: var(--space-7);
-  margin-bottom: var(--space-3);
-}
-
-.tab-messages > p {
-  margin: 0;
-}
-
+/* Rodapé com o destrutivo separado à esquerda (QM5). */
 .tab-footer {
   flex-wrap: wrap;
   justify-content: space-between;
@@ -841,4 +1273,299 @@ p.field-hint {
 /* Contatos do lead: o registro ocupa a linha inteira. */
 .activity-form > .span-2 {
   grid-column: 1 / -1;
+}
+
+/* Resumo da turma escolhida no cadastro/vínculo de plano. */
+.group-details {
+  display: grid;
+  gap: var(--space-3);
+  margin-top: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--paper);
+}
+
+.group-details header {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  color: var(--green);
+}
+
+.group-details header div {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.group-details header strong {
+  color: var(--ink);
+  font-size: var(--text-md);
+  font-weight: 600;
+}
+
+.group-details header small {
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+
+.group-details-slots {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.group-details-slots li {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--mint);
+  color: var(--ink);
+  font-size: var(--text-md);
+}
+
+.group-details-slots li span:last-child {
+  font-weight: 600;
+}
+
+.group-details-info {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-5);
+  margin: 0;
+}
+
+.group-details-info dt {
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+
+.group-details-info dd {
+  margin: 0;
+  color: var(--ink);
+  font-size: var(--text-md);
+}
+
+/* Campo de arquivo com orientação de formato/tamanho (ou o arquivo anexado) logo abaixo. */
+.file-field {
+  display: grid;
+  gap: var(--space-2);
+}
+
+/* Desconto do plano no cadastro: resumo e botão que abre o modal. */
+.discount-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.discount-summary > .muted-copy {
+  margin: 0;
+}
+
+/* No fim do bloco do plano/serviço avulso, separado dos termos acima. */
+.plan-discount {
+  margin-top: var(--space-4);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--line);
+}
+
+/* Sacola do cadastro: itens, descontos e total, como no carrinho de uma loja. */
+.order-summary {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.order-lines {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Item novo na sacola: entra com fundo realçado que some aos poucos. */
+.order-lines > li {
+  border-radius: var(--radius-sm);
+  animation: order-line-enter 1.2s ease-out;
+}
+@keyframes order-line-enter {
+  0% {
+    opacity: 0;
+    background: var(--mint);
+    transform: translateY(calc(var(--space-2) * -1));
+  }
+  25% {
+    opacity: 1;
+    background: var(--mint);
+    transform: none;
+  }
+  100% {
+    background: transparent;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .order-lines > li {
+    animation: none;
+  }
+}
+
+.order-line,
+.order-totals > div {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--space-3);
+  font-size: var(--text-md);
+}
+
+.order-line > span:first-child {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.order-line .muted-copy {
+  margin: 0;
+  font-size: var(--text-sm);
+}
+
+.order-line .numeric-value,
+.order-totals dd {
+  margin: 0;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.order-discount {
+  color: var(--green);
+}
+
+.order-totals {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--line);
+}
+
+.order-total {
+  font-size: var(--text-lg);
+  font-weight: 600;
+}
+
+.order-summary > .muted-copy {
+  margin: 0;
+  font-size: var(--text-sm);
+}
+
+.order-summary > .plan-discount {
+  margin-top: 0;
+}
+
+/* Prévia das parcelas (plano, sacola do cadastro e venda de produtos). */
+.installments-preview {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--paper);
+}
+
+.installments-preview > summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-1) var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  cursor: pointer;
+  font-size: var(--text-md);
+  font-weight: 600;
+}
+
+.installments-preview > summary .muted-copy {
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: 400;
+}
+
+.installments-preview > summary:focus-visible {
+  outline: 2px solid var(--green);
+  outline-offset: 2px;
+}
+
+.installments-preview-list {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0 var(--space-4);
+  list-style: none;
+}
+
+.installments-preview-list > li {
+  display: grid;
+  gap: var(--space-1);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--line);
+}
+
+.installments-preview-head,
+.installments-preview-parts > div,
+.installments-preview-totals > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.installments-preview-head {
+  font-size: var(--text-md);
+}
+
+.installments-preview-head > span {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-2);
+}
+
+.installments-preview-head .muted-copy {
+  margin: 0;
+  font-size: var(--text-sm);
+}
+
+.installments-preview-parts {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding-left: var(--space-3);
+  border-left: 2px solid var(--line);
+  font-size: var(--text-sm);
+}
+
+.installments-preview-parts dd,
+.installments-preview-totals dd,
+.installments-preview-head .numeric-value {
+  margin: 0;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.installments-preview-totals {
+  display: grid;
+  gap: var(--space-2);
+  margin: var(--space-3) var(--space-4) 0;
+  padding: var(--space-3) 0 var(--space-4);
+  border-top: 1px solid var(--line);
+  font-size: var(--text-md);
+}
+
+.installments-preview-note {
+  margin: 0;
+  padding: 0 var(--space-4) var(--space-4);
+  font-size: var(--text-sm);
 }

@@ -17,17 +17,63 @@ import type {
   AdminUserInput,
   AdminUserUpdate,
   AuditHistoryFilters,
+  ClinicBranding,
   ClinicSettings,
   ClinicSettingsInput,
+  PaymentMethodSettings,
+  PaymentMethodSettingsInput,
   HistoryActor,
+  NavTabLabel,
+  OwnPasswordChange,
+  OwnProfile,
+  OwnProfileUpdate,
   Professional,
   Room,
   Service,
   UserSummary,
 } from "@crm/contracts";
+import type { Branch, BranchInput } from "@crm/contracts";
+import type {
+  IntegrationKey,
+  IntegrationKeyCreated,
+  IntegrationKeyInput,
+  TelegramLinkCode,
+  TelegramStatus,
+} from "@crm/contracts";
+import { TOKEN_KEY, storeUser, type Session } from "../session";
 import { request } from "../transport";
 
 export const administrationApi = {
+  /** Perfil do usuário logado (página "Meu perfil"). */
+  ownProfile: () => request<OwnProfile>("/me/profile"),
+  updateOwnProfile: (input: OwnProfileUpdate) =>
+    request<OwnProfile>("/me/profile", {
+      method: "PUT",
+      body: JSON.stringify(input),
+    }),
+  /** Troca a própria senha; a API encerra as outras sessões e devolve um token novo. */
+  changeOwnPassword: async (input: OwnPasswordChange) => {
+    const session = await request<Session>("/me/password", {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+    localStorage.setItem(TOKEN_KEY, session.token);
+    storeUser(session.user);
+    return session;
+  },
+  /** Filiais ativas que o usuário logado acessa (seletor do cabeçalho). */
+  branches: () => request<Branch[]>("/branches"),
+  adminBranches: () => request<Branch[]>("/admin/branches"),
+  createBranch: (input: BranchInput) =>
+    request<Branch>("/admin/branches", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  updateBranch: (id: string, input: BranchInput) =>
+    request<Branch>(`/admin/branches/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(input),
+    }),
   createProfessional: (input: ProfessionalInput) =>
     request<Professional>("/professionals", {
       method: "POST",
@@ -42,10 +88,14 @@ export const administrationApi = {
     }),
   revokeAdminUserSessions: (id: string) =>
     request<void>(`/admin/users/${id}/revoke-sessions`, { method: "POST" }),
-  clinicBranding: () =>
-    request<{ name: string; logoDataUrl: string; timezone: string }>(
-      "/clinic/branding",
-    ),
+  clinicBranding: () => request<ClinicBranding>("/clinic/branding"),
+  /** Nomes das abas do menu (padrão onde o admin não renomeou). */
+  navTabLabels: () => request<NavTabLabel[]>("/clinic/nav-tabs"),
+  saveNavTabLabels: (tabs: NavTabLabel[]) =>
+    request<NavTabLabel[]>("/admin/nav-tabs", {
+      method: "PUT",
+      body: JSON.stringify({ tabs }),
+    }),
   administrativeRegistry: () =>
     request<AdministrativeRegistryWorkspace>("/admin/registry"),
   updateAdministrativeRegistry: (
@@ -75,7 +125,11 @@ export const administrationApi = {
       method: "POST",
       body: JSON.stringify(input),
     }),
-  updateAdminUser: (id: string, input: AdminUserUpdate) =>
+  /** `recalculationDigest`: prévia confirmada do recálculo das comissões já lançadas. */
+  updateAdminUser: (
+    id: string,
+    input: AdminUserUpdate & { recalculationDigest?: string },
+  ) =>
     request<AdminUser>(`/admin/users/${id}`, {
       method: "PATCH",
       body: JSON.stringify(input),
@@ -90,11 +144,45 @@ export const administrationApi = {
       method: "POST",
       body: JSON.stringify({ password }),
     }),
+  /** Senha atual do usuário (só admin). Cada chamada fica registrada no histórico. */
+  revealUserPassword: (id: string) =>
+    request<{ password: string }>(`/admin/users/${id}/reveal-password`, {
+      method: "POST",
+    }),
   clinicSettings: () => request<ClinicSettings>("/admin/clinic-settings"),
+  /** Parcelamento aceito por forma de pagamento (todos leem; só o admin altera). */
+  paymentMethodSettings: () =>
+    request<PaymentMethodSettings>("/clinic/payment-methods"),
+  savePaymentMethodSettings: (input: PaymentMethodSettingsInput) =>
+    request<PaymentMethodSettings>("/admin/payment-methods", {
+      method: "PUT",
+      body: JSON.stringify(input),
+    }),
   updateClinicSettings: (input: ClinicSettingsInput) =>
     request<ClinicSettings>("/admin/clinic-settings", {
       method: "PUT",
       body: JSON.stringify(input),
+    }),
+  /** Chaves da API externa (dashboard de vendas); o token só vem na criação. */
+  integrationKeys: () => request<IntegrationKey[]>("/integration-keys"),
+  createIntegrationKey: (input: IntegrationKeyInput) =>
+    request<IntegrationKeyCreated>("/integration-keys", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  revokeIntegrationKey: (id: string) =>
+    request<IntegrationKey>(`/integration-keys/${id}/revoke`, {
+      method: "POST",
+    }),
+  /** Telegram (TG1): situação do usuário logado, código de vínculo e desvincular. */
+  telegramStatus: () => request<TelegramStatus>("/integrations/telegram"),
+  createTelegramLinkCode: () =>
+    request<TelegramLinkCode>("/integrations/telegram/link-code", {
+      method: "POST",
+    }),
+  unlinkTelegram: () =>
+    request<TelegramStatus>("/integrations/telegram/link", {
+      method: "DELETE",
     }),
   adminAuditEvents: () => request<AdminAuditEvent[]>("/admin/audit-events"),
   auditHistory: (cursor?: string, filters: AuditHistoryFilters = {}) => {

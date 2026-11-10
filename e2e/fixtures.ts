@@ -8,21 +8,21 @@ import {
 } from "@playwright/test";
 import { buildApp } from "../apps/api/src/app.js";
 import { MemoryClinicRepository } from "../apps/api/src/memory-repository.js";
+import { nextTestCpf } from "../apps/api/src/test-support/cpf.js";
 
-type ApiServer = { url: string };
+/** API real do teste; o repositório dá acesso a dados que só existem no link (ex.: token do recibo). */
+type ApiServer = { url: string; repository: MemoryClinicRepository };
 
 export const test = base.extend<{
   apiServer: ApiServer;
   api: APIRequestContext;
 }>({
   apiServer: async ({ browserName: _browserName }, use) => {
-    const app = await buildApp({
-      repository: new MemoryClinicRepository(false),
-      logger: false,
-    });
+    const repository = new MemoryClinicRepository(false);
+    const app = await buildApp({ repository, logger: false });
     try {
       const url = await app.listen({ port: 0, host: "127.0.0.1" });
-      await use({ url });
+      await use({ url, repository });
     } finally {
       await app.close();
     }
@@ -75,10 +75,52 @@ export async function login(
 
 export async function seedPatient(api: APIRequestContext, name: string) {
   const response = await api.post("/patients", {
-    data: { fullName: name, phone: "11999991234", tags: [] },
+    data: {
+      fullName: name,
+      cpf: nextTestCpf(),
+      phone: "11999991234",
+      whatsapp: "11999991234",
+      emergencyContactName: name,
+      emergencyContactPhone: "11999991234",
+      tags: [],
+    },
   });
   expect(response.status()).toBe(201);
   return response.json();
+}
+
+/** Plano real para os cenários que precisam agendar atendimento normal (AP3). */
+export async function seedPatientPlan(
+  api: APIRequestContext,
+  patientId: string,
+  serviceId: string,
+) {
+  const services = [{ serviceId, totalSessions: 32, totalValueInCents: 0 }];
+  const template = await api.post("/plan-templates", {
+    data: {
+      name: `Plano do cenário ${patientId.slice(0, 8)}`,
+      services,
+      totalValueInCents: 0,
+    },
+  });
+  expect(template.status(), await template.text()).toBe(201);
+  const plan = await api.post("/plans", {
+    data: {
+      patientId,
+      planTemplateId: (await template.json()).id,
+      name: "Plano do cenário",
+      kind: "fixed_package",
+      services,
+      totalValueInCents: 0,
+      installments: 1,
+      validFrom: "2000-01-01",
+      validUntil: "2199-12-31",
+      firstDueDate: clinicToday(),
+      autoRenew: false,
+    },
+  });
+  expect(plan.status(), await plan.text()).toBe(201);
+  return plan.json() as Promise<{ id: string }>;
 }
 
 export async function selectPatient(dialog: Locator, name: string) {
@@ -94,8 +136,11 @@ export async function chooseAppointmentTime(
 ) {
   await dialog.getByRole("button", { name: "Data", exact: true }).click();
   await dialog.locator(`[data-date="${date}"]`).click();
+  // O calendário permanece aberto para conferir a agenda do dia escolhido.
   await dialog.getByLabel("Horário", { exact: true }).fill(time);
-  await dialog.getByLabel("Horário", { exact: true }).press("Escape");
+  await dialog
+    .getByRole("button", { name: "Fechar calendário", exact: true })
+    .click();
   await expect(
     dialog.getByRole("region", {
       name: "Calendário de agendamento",

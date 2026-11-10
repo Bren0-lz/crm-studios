@@ -70,6 +70,7 @@ const credit = {
   patientId: bruna,
   patientName: "Bruna Souza",
   sourceSessionId: sessionId["2026-10-13"],
+  sourceGroupId: group.id,
   status: "available",
   createdAt: "2026-10-13T22:00:00Z",
 };
@@ -116,7 +117,7 @@ const workspace = (credits: unknown[]) => ({
   replacementCredits: credits,
 });
 
-function renderGroups(
+async function renderGroups(
   credits: unknown[],
   book: () => { ok: boolean; status: number; body: unknown } = () => ({
     ok: true,
@@ -139,7 +140,10 @@ function renderGroups(
   );
   vi.mocked(fetch).mockImplementation(async (input, options) => {
     const url = String(input);
-    if (options?.method === "POST" && url.includes("/group-replacements/book")) {
+    if (
+      options?.method === "POST" &&
+      url.includes("/group-replacements/book")
+    ) {
       const result = book();
       return {
         ok: result.ok,
@@ -155,6 +159,8 @@ function renderGroups(
       <App />
     </MemoryRouter>,
   );
+  fireEvent.click(await screen.findByRole("button", { name: "Abrir turma" }));
+  fireEvent.click(screen.getByRole("tab", { name: "Frequência e reposições" }));
 }
 
 beforeEach(() => {
@@ -166,7 +172,7 @@ afterEach(() => vi.useRealTimers());
 
 describe("replacement booking", () => {
   it("offers only future sessions with seats, other than the source, and confirms with a toast", async () => {
-    renderGroups([credit]);
+    await renderGroups([credit]);
     const book = await screen.findByRole("button", {
       name: "Reservar reposição",
     });
@@ -178,15 +184,13 @@ describe("replacement booking", () => {
     fireEvent.change(await screen.findByLabelText("Crédito de reposição"), {
       target: { value: credit.id },
     });
-    expect(book).toHaveAccessibleDescription(
-      "Falta: Encontro de reposição.",
-    );
+    expect(book).toHaveAccessibleDescription("Falta: Encontro de reposição.");
     const target = screen.getByLabelText("Encontro de reposição");
     expect(
       within(target)
         .getAllByRole("option")
         .map((item) => item.textContent),
-    ).toEqual(["Selecione", "20/10 · 18:00 · 3 vagas"]);
+    ).toEqual(["Selecione", "Pilates Turma A · 20/10 · 18:00 · 3 vagas"]);
     fireEvent.change(target, { target: { value: sessionId["2026-10-20"] } });
     expect(book).toBeEnabled();
     expect(screen.queryByText(/Falta:/)).not.toBeInTheDocument();
@@ -210,7 +214,7 @@ describe("replacement booking", () => {
   });
 
   it("shows the API error inline and in a toast", async () => {
-    renderGroups([credit], () => ({
+    await renderGroups([credit], () => ({
       ok: false,
       status: 409,
       body: {
@@ -234,7 +238,7 @@ describe("replacement booking", () => {
   });
 
   it("shows an empty state when there is no replacement credit", async () => {
-    renderGroups([{ ...credit, status: "used" }]);
+    await renderGroups([{ ...credit, status: "used" }]);
     expect(
       await screen.findByText("Nenhum crédito de reposição disponível"),
     ).toBeInTheDocument();

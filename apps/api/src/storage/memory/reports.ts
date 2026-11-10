@@ -4,26 +4,338 @@ import {
   type ManagementReport,
   type SaleMovement,
   type SalesReport,
+  type SalesPeriodReport,
+  type TeamProductionSources,
   allocatePlanRevenue,
+  productItemName,
+  productNeedsRestock,
 } from "@crm/contracts";
-import { buildSalesReport } from "../../modules/reports/sales-report.js";
+import { commissionAmount } from "../../modules/finance/commission-calculation.js";
+import { competencesBetween } from "../../modules/reports/team-finance.js";
+import { commissionCandidates } from "./commission-operations.js";
+import {
+  buildSalesReport,
+  buildSalesPeriodReport,
+  patientSalesHistory,
+  type SalesBilling,
+  withContractedHistory,
+  withPatientContacts,
+  withTabDiscounts,
+} from "../../modules/reports/sales-report.js";
 import type { MemoryRepositoryContext } from "./context.js";
 import { localDate, now, today } from "./helpers.js";
 
 export function createReportsRepository(
   repositoryContext: MemoryRepositoryContext,
 ) {
+  async function salesSources(clinicId: string) {
+    const sales: SaleMovement[] = [];
+    // Linha no painel de cada serviço/produto vendido, como o cadastro tem hoje (inclusive
+    // inativos); serviço que não existe mais sai com o nome vendido e linha `null`.
+    const registry = new Map(
+      repositoryContext.services
+        .filter((item) => item.clinicId === clinicId)
+        .map((item) => [item.id, item]),
+    );
+    const serviceLine = (id: string, soldName: string) => {
+      const service = registry.get(id);
+      return {
+        id,
+        name: service?.name ?? soldName,
+        businessLine: service?.businessLine ?? null,
+      };
+    };
+    const productLines = new Map(
+      repositoryContext.products
+        .filter((item) => item.clinicId === clinicId)
+        .map((item) => [item.id, item.businessLine ?? null]),
+    );
+    for (const plan of repositoryContext
+      .scoped(repositoryContext.patientPlans)
+      .filter((item) => item.clinicId === clinicId && !item.sourceTabId)) {
+      const base = {
+        sourceId: plan.id,
+        sourceType: "plan" as const,
+        patientId: plan.patientId,
+        patientName: plan.patientName,
+        itemName: `${plan.name} (${plan.serviceName})`,
+        quantity: 1,
+        ...(plan.kind === "single" ? { planKind: "single" as const } : {}),
+        // Todos os serviços do plano (o valor da venda conta inteiro em cada um).
+        services: plan.services.length
+          ? plan.services.map((item) =>
+              serviceLine(item.serviceId, item.serviceName),
+            )
+          : [serviceLine(plan.serviceId, plan.serviceName)],
+      };
+      const customerDiscountInCents = repositoryContext.receivables
+        .filter((item) => item.planId === plan.id)
+        .reduce((sum, item) => sum + (item.customerDiscountInCents ?? 0), 0);
+      sales.push({
+        ...base,
+        id: `${plan.id}:sale`,
+        kind: "sale",
+        occurredAt: plan.createdAt,
+        amountInCents: plan.totalValueInCents,
+        ...(customerDiscountInCents ? { customerDiscountInCents } : {}),
+        ...(repositoryContext.receivables.some(
+          (item) => item.planId === plan.id && item.manualAmount,
+        )
+          ? { manualFirstCharge: true as const }
+          : {}),
+      });
+      if (plan.cancelledAt)
+        sales.push({
+          ...base,
+          id: `${plan.id}:cancellation`,
+          kind: "cancellation",
+          occurredAt: plan.cancelledAt,
+          saleOccurredAt: plan.createdAt,
+          amountInCents: -(
+            plan.cancelledValueInCents ?? plan.totalValueInCents
+          ),
+        });
+    }
+    for (const tab of repositoryContext
+      .scoped(repositoryContext.patientTabs)
+      .filter((item) => item.clinicId === clinicId && item.closedAt)) {
+      const items = [
+        ...tab.items.map((item) => ({
+          ...item,
+          sourceType: "product" as const,
+          services: [],
+          businessLine: productLines.get(item.productId) ?? null,
+        })),
+        ...(tab.services ?? []).map((item) => ({
+          id: item.id,
+          productName: item.serviceName,
+          quantity: 1,
+          totalInCents: item.amountInCents,
+          unitCostInCents: undefined,
+          sourceType: "service" as const,
+          services: [serviceLine(item.serviceId, item.serviceName)],
+          businessLine: undefined,
+        })),
+      ];
+      for (const item of items) {
+        const base = {
+          sourceId: tab.id,
+          sourceType: item.sourceType,
+          patientId: tab.patientId,
+          patientName: tab.patientName,
+          itemName:
+            item.sourceType === "product"
+              ? productItemName(item)
+              : item.productName,
+          quantity: item.quantity,
+          services: item.services,
+          ...(item.businessLine === undefined
+            ? {}
+            : { businessLine: item.businessLine }),
+          ...(tab.receivableId ? { receivableId: tab.receivableId } : {}),
+        };
+        sales.push({
+          ...base,
+          id: `${item.id}:sale`,
+          kind: "sale",
+          occurredAt: tab.closedAt!,
+          amountInCents: item.totalInCents,
+          ...(item.unitCostInCents === undefined
+            ? {}
+            : { costInCents: item.quantity * item.unitCostInCents }),
+        });
+        if (tab.cancelledAt)
+          sales.push({
+            ...base,
+            id: `${item.id}:cancellation`,
+            kind: "cancellation",
+            occurredAt: tab.cancelledAt,
+            saleOccurredAt: tab.closedAt!,
+            amountInCents: -item.totalInCents,
+          });
+      }
+    }
+    withTabDiscounts(
+      sales,
+      new Map(
+        repositoryContext.patientTabs
+          .filter((tab) => tab.clinicId === clinicId && tab.receivableId)
+          .map((tab) => [
+            tab.id,
+            repositoryContext.receivables.find(
+              (item) => item.id === tab.receivableId,
+            )?.customerDiscountInCents ?? 0,
+          ]),
+      ),
+    );
+    const tabSources = new Map(
+      repositoryContext.patientTabs
+        .filter((tab) => tab.clinicId === clinicId && tab.receivableId)
+        .map((tab) => [tab.receivableId!, tab.id]),
+    );
+    const firstSaleAt = new Map<string, string>();
+    for (const item of sales) {
+      const first = firstSaleAt.get(item.patientId);
+      if (item.kind === "sale" && (!first || item.occurredAt < first))
+        firstSaleAt.set(item.patientId, item.occurredAt);
+    }
+    const billing: SalesBilling = {
+      receivables: repositoryContext.receivables
+        .filter((item) => item.clinicId === clinicId)
+        .flatMap((item) => {
+          const sourceId = item.planId ?? tabSources.get(item.id);
+          return sourceId
+            ? [
+                {
+                  sourceId,
+                  status: item.status,
+                  amountInCents: item.amountInCents,
+                  dueDate: item.dueDate,
+                  ...(item.settlementDiscountInCents
+                    ? {
+                        settlementDiscountInCents:
+                          item.settlementDiscountInCents,
+                      }
+                    : {}),
+                },
+              ]
+            : [];
+        }),
+      firstSaleAt,
+    };
+    return {
+      sales,
+      billing,
+      appointments: repositoryContext
+        .scoped(repositoryContext.appointments)
+        .filter((item) => item.clinicId === clinicId),
+    };
+  }
+
   return {
+    async listTeamProduction(
+      clinicId: string,
+      from: string,
+      to: string,
+    ): Promise<TeamProductionSources> {
+      const inPeriod = (value: string) => {
+        const date = localDate(new Date(value));
+        return date >= from && date <= to;
+      };
+      const consumedPlan = (
+        match: (
+          movement: (typeof repositoryContext.sessionMovements)[number],
+        ) => boolean,
+      ) =>
+        repositoryContext.sessionMovements.find(
+          (movement) => movement.kind === "consumption" && match(movement),
+        )?.planId;
+      const individual = repositoryContext
+        .scoped(repositoryContext.appointments)
+        .filter(
+          (item) =>
+            item.clinicId === clinicId &&
+            item.patientId &&
+            item.status === "completed" &&
+            // Aula experimental é gratuita: não gera valor para a equipe.
+            item.visitType !== "trial" &&
+            inPeriod(item.startsAt),
+        )
+        .map((item) => {
+          const planId = consumedPlan(
+            (movement) => movement.appointmentId === item.id,
+          );
+          return {
+            professionalId: item.professionalId,
+            professionalName: item.professionalName,
+            serviceId: item.serviceId,
+            serviceName: item.serviceName,
+            ...(planId ? { planId } : {}),
+          };
+        });
+      const collective = repositoryContext.groupAttendance
+        .filter(
+          (item) =>
+            item.clinicId === clinicId &&
+            (item.status === "present" || item.outcome === "present"),
+        )
+        .flatMap((item) => {
+          const meeting = repositoryContext.groupSessions.find(
+              (entry) =>
+                entry.clinicId === clinicId &&
+                entry.id === item.sessionId &&
+                entry.status !== "cancelled" &&
+                inPeriod(entry.startsAt),
+            ),
+            group = repositoryContext
+              .scoped(repositoryContext.groupClasses)
+              .find(
+                (entry) =>
+                  entry.clinicId === clinicId && entry.id === meeting?.groupId,
+              );
+          if (!meeting || !group) return [];
+          const planId = consumedPlan(
+            (movement) => movement.groupAttendanceId === item.id,
+          );
+          return [
+            {
+              professionalId: meeting.professionalId,
+              professionalName: meeting.professionalName,
+              serviceId: group.serviceId,
+              serviceName: group.serviceName,
+              ...(planId ? { planId } : {}),
+            },
+          ];
+        });
+      const competences = competencesBetween(from, to);
+      return {
+        sessions: [...individual, ...collective],
+        commissions: repositoryContext
+          .scopedCommissions()
+          .filter(
+            (item) =>
+              item.clinicId === clinicId &&
+              competences.includes(item.competence),
+          )
+          .map((item) => ({
+            professionalId: item.professionalId,
+            professionalName: item.professionalName,
+            competence: item.competence,
+            amountInCents: item.amountInCents,
+            status: item.status,
+          })),
+        pendingCommissions: competences.flatMap((competence) =>
+          commissionCandidates(repositoryContext, clinicId, competence)
+            .filter(({ source }) =>
+              repositoryContext.professionalInBranchScope(
+                source.professionalId,
+              ),
+            )
+            .map(({ source, rule, baseAmountInCents }) => ({
+              professionalId: source.professionalId,
+              professionalName: source.professionalName,
+              amountInCents: commissionAmount(rule, baseAmountInCents),
+            })),
+        ),
+      };
+    },
+
     async getDashboard(
       clinicId: string,
       date: string,
+      professionalIds?: readonly string[],
     ): Promise<DashboardSummary> {
       const month = date.slice(0, 7);
-      const appointmentsToday = repositoryContext.appointments.filter(
-        (item) =>
-          item.clinicId === clinicId &&
-          localDate(new Date(item.startsAt)) === date,
-      );
+      const inScope = (item: { professionalId: string }) =>
+        !professionalIds || professionalIds.includes(item.professionalId);
+      const appointmentsToday = repositoryContext
+        .scoped(repositoryContext.appointments)
+        .filter(
+          (item) =>
+            item.clinicId === clinicId &&
+            inScope(item) &&
+            localDate(new Date(item.startsAt)) === date,
+        );
       return {
         date,
         appointmentsToday: appointmentsToday.length,
@@ -42,12 +354,15 @@ export function createReportsRepository(
         patientsActive: repositoryContext.patients.filter(
           (item) => item.clinicId === clinicId && item.status === "active",
         ).length,
-        noShowsThisMonth: repositoryContext.appointments.filter(
-          (item) =>
-            item.clinicId === clinicId &&
-            item.startsAt.startsWith(month) &&
-            item.status === "no_show",
-        ).length,
+        noShowsThisMonth: repositoryContext
+          .scoped(repositoryContext.appointments)
+          .filter(
+            (item) =>
+              item.clinicId === clinicId &&
+              inScope(item) &&
+              item.startsAt.startsWith(month) &&
+              item.status === "no_show",
+          ).length,
         nextAppointments: appointmentsToday
           .filter(
             (item) =>
@@ -62,87 +377,51 @@ export function createReportsRepository(
       clinicId: string,
       month: string,
     ): Promise<SalesReport> {
-      const sales: SaleMovement[] = [];
-      for (const plan of repositoryContext.patientPlans.filter(
-        (item) => item.clinicId === clinicId && !item.sourceTabId,
-      )) {
-        const base = {
-          sourceId: plan.id,
-          sourceType: "plan" as const,
-          patientId: plan.patientId,
-          patientName: plan.patientName,
-          itemName: `${plan.name} (${plan.serviceName})`,
-          quantity: 1,
-        };
-        sales.push({
-          ...base,
-          id: `${plan.id}:sale`,
-          kind: "sale",
-          occurredAt: plan.createdAt,
-          amountInCents: plan.totalValueInCents,
-        });
-        if (plan.cancelledAt)
-          sales.push({
-            ...base,
-            id: `${plan.id}:cancellation`,
-            kind: "cancellation",
-            occurredAt: plan.cancelledAt,
-            amountInCents: -(
-              plan.cancelledValueInCents ?? plan.totalValueInCents
-            ),
-          });
-      }
-      for (const tab of repositoryContext.patientTabs.filter(
-        (item) => item.clinicId === clinicId && item.closedAt,
-      )) {
-        const items = [
-          ...tab.items.map((item) => ({
-            ...item,
-            sourceType: "product" as const,
-          })),
-          ...(tab.services ?? []).map((item) => ({
-            id: item.id,
-            productName: item.serviceName,
-            quantity: 1,
-            totalInCents: item.amountInCents,
-            sourceType: "service" as const,
-          })),
-        ];
-        for (const item of items) {
-          const base = {
-            sourceId: tab.id,
-            sourceType: item.sourceType,
-            patientId: tab.patientId,
-            patientName: tab.patientName,
-            itemName: item.productName,
-            quantity: item.quantity,
-            ...(tab.receivableId ? { receivableId: tab.receivableId } : {}),
-          };
-          sales.push({
-            ...base,
-            id: `${item.id}:sale`,
-            kind: "sale",
-            occurredAt: tab.closedAt!,
-            amountInCents: item.totalInCents,
-          });
-          if (tab.cancelledAt)
-            sales.push({
-              ...base,
-              id: `${item.id}:cancellation`,
-              kind: "cancellation",
-              occurredAt: tab.cancelledAt,
-              amountInCents: -item.totalInCents,
-            });
-        }
-      }
+      const data = await salesSources(clinicId);
       return buildSalesReport(
         month,
-        sales,
-        repositoryContext.receivedPayments(clinicId),
-        repositoryContext.appointments.filter(
-          (item) => item.clinicId === clinicId,
+        data.sales,
+        data.billing,
+        data.appointments,
+      );
+    },
+    async getSalesPeriodReport(
+      clinicId: string,
+      from: string,
+      to: string,
+    ): Promise<SalesPeriodReport> {
+      const data = await salesSources(clinicId);
+      return withPatientContacts(
+        withContractedHistory(
+          buildSalesPeriodReport(
+            from,
+            to,
+            data.sales,
+            data.billing,
+            data.appointments,
+          ),
+          data.sales,
+        ),
+        new Map(
+          repositoryContext.patients
+            .filter((item) => item.clinicId === clinicId)
+            .map((item) => [
+              item.id,
+              { phone: item.phone, whatsapp: item.whatsapp },
+            ]),
         ),
       );
+    },
+    async listPatientSales(
+      clinicId: string,
+      patientId: string,
+    ): Promise<SaleMovement[] | null> {
+      const exists = repositoryContext.patients.some(
+        (item) => item.clinicId === clinicId && item.id === patientId,
+      );
+      if (!exists) return null;
+      const data = await salesSources(clinicId);
+      return patientSalesHistory(data.sales, patientId);
     },
 
     async getManagementReport(
@@ -150,10 +429,12 @@ export function createReportsRepository(
       from: string,
       to: string,
     ): Promise<ManagementReport> {
-      const appointments = repositoryContext.appointments.filter((item) => {
-        const date = localDate(new Date(item.startsAt));
-        return item.clinicId === clinicId && date >= from && date <= to;
-      });
+      const appointments = repositoryContext
+        .scoped(repositoryContext.appointments)
+        .filter((item) => {
+          const date = localDate(new Date(item.startsAt));
+          return item.clinicId === clinicId && date >= from && date <= to;
+        });
       const attendance = (completed: number, noShows: number) => {
         const decided = completed + noShows;
         return decided ? Math.round((completed / decided) * 100) : 0;
@@ -183,10 +464,12 @@ export function createReportsRepository(
           })
           .filter((item) => item.appointments > 0)
           .sort((a, b) => b.appointments - a.appointments);
-      const leads = repositoryContext.leads.filter((item) => {
-        const date = localDate(new Date(item.createdAt));
-        return item.clinicId === clinicId && date >= from && date <= to;
-      });
+      const leads = repositoryContext
+        .scoped(repositoryContext.leads)
+        .filter((item) => {
+          const date = localDate(new Date(item.createdAt));
+          return item.clinicId === clinicId && date >= from && date <= to;
+        });
       const sources = [...new Set(leads.map((item) => item.source))];
       const bySource = sources
         .map((source) => {
@@ -210,25 +493,29 @@ export function createReportsRepository(
       const noShows = appointments.filter(
         (item) => item.status === "no_show",
       ).length;
-      const openReceivables = repositoryContext.receivables.filter(
-        (item) => item.clinicId === clinicId && item.status === "open",
-      );
-      const paidInPeriod = repositoryContext.receivables.filter((item) => {
-        if (
-          item.clinicId !== clinicId ||
-          item.status !== "paid" ||
-          !item.paidAt
-        )
-          return false;
-        const date = localDate(new Date(item.paidAt));
-        return date >= from && date <= to;
-      });
+      const openReceivables = repositoryContext
+        .scoped(repositoryContext.receivables)
+        .filter((item) => item.clinicId === clinicId && item.status === "open");
+      const paidInPeriod = repositoryContext
+        .scoped(repositoryContext.receivables)
+        .filter((item) => {
+          if (
+            item.clinicId !== clinicId ||
+            item.status !== "paid" ||
+            !item.paidAt
+          )
+            return false;
+          const date = localDate(new Date(item.paidAt));
+          return date >= from && date <= to;
+        });
       const planMovements = repositoryContext.sessionMovements.filter(
         (item) => {
-          const plan = repositoryContext.patientPlans.find(
-            (candidate) =>
-              candidate.id === item.planId && candidate.clinicId === clinicId,
-          );
+          const plan = repositoryContext
+            .scoped(repositoryContext.patientPlans)
+            .find(
+              (candidate) =>
+                candidate.id === item.planId && candidate.clinicId === clinicId,
+            );
           const date = localDate(new Date(item.createdAt));
           return plan && item.kind !== "credit" && date >= from && date <= to;
         },
@@ -237,9 +524,11 @@ export function createReportsRepository(
         (sum, item) => sum + item.quantity,
         0,
       );
-      const activePlans = repositoryContext.patientPlans.filter(
-        (item) => item.clinicId === clinicId && item.status === "active",
-      );
+      const activePlans = repositoryContext
+        .scoped(repositoryContext.patientPlans)
+        .filter(
+          (item) => item.clinicId === clinicId && item.status === "active",
+        );
       const won = leads.filter((item) => item.stage === "won").length;
       const lost = leads.filter((item) => item.stage === "lost").length;
       const responseTimes = leads
@@ -265,93 +554,20 @@ export function createReportsRepository(
         const date = localDate(new Date(value));
         return date >= from && date <= to;
       };
-      const paidProductTabs = repositoryContext.patientTabs.filter((tab) => {
-        if (tab.clinicId !== clinicId || tab.status !== "closed") return false;
-        const receivable = repositoryContext.receivables.find(
-          (item) => item.id === tab.receivableId && item.status === "paid",
-        );
-        return inPeriod(receivable?.paidAt);
-      });
-      const productReceivableIds = new Set(
-        paidProductTabs.flatMap((item) =>
-          item.receivableId ? [item.receivableId] : [],
-        ),
-      );
-      const productRevenueInCents = paidProductTabs.reduce(
-        (sum, item) => sum + item.totalInCents,
-        0,
-      );
-      const productCostInCents = paidProductTabs.reduce(
-        (sum, tab) =>
-          sum +
-          tab.items.reduce(
-            (itemSum, item) => itemSum + item.quantity * item.unitCostInCents,
-            0,
-          ),
-        0,
-      );
-      const serviceRevenueInCents = paidInPeriod
-        .filter((item) => !productReceivableIds.has(item.id))
-        .reduce((sum, item) => sum + item.amountInCents, 0);
-      const operatingExpensesInCents = repositoryContext.payables
-        .filter(
-          (item) =>
-            item.clinicId === clinicId &&
-            item.status === "paid" &&
-            inPeriod(item.paidAt),
-        )
-        .reduce((sum, item) => sum + item.amountInCents, 0);
-      const paidCommissions = repositoryContext.commissions.filter(
+      const paidCommissions = repositoryContext.scopedCommissions().filter(
         (item) =>
           item.clinicId === clinicId &&
           item.status === "paid" &&
+          // Paga pela folha: a saída já está nas despesas pagas.
+          !item.payrollPayableId &&
           inPeriod(item.paidAt),
       );
-      const commissionsInCents = paidCommissions.reduce(
-        (sum, item) => sum + item.amountInCents,
-        0,
-      );
-      const grossRevenueInCents = serviceRevenueInCents + productRevenueInCents;
-      const grossProfitInCents = grossRevenueInCents - productCostInCents;
-      const netResultInCents =
-        grossProfitInCents - operatingExpensesInCents - commissionsInCents;
       const percentage = (part: number, total: number) =>
         total ? Math.round((part / total) * 1000) / 10 : 0;
-      const byProduct = repositoryContext.products
-        .filter((product) => product.clinicId === clinicId)
-        .map((product) => {
-          const soldItems = paidProductTabs.flatMap((tab) =>
-            tab.items.filter((item) => item.productId === product.id),
-          );
-          const unitsSold = soldItems.reduce(
-            (sum, item) => sum + item.quantity,
-            0,
-          );
-          const revenueInCents = soldItems.reduce(
-            (sum, item) => sum + item.totalInCents,
-            0,
-          );
-          const costInCents = soldItems.reduce(
-            (sum, item) => sum + item.quantity * item.unitCostInCents,
-            0,
-          );
-          const grossProfitInCents = revenueInCents - costInCents;
-          return {
-            id: product.id,
-            name: product.name,
-            unitsSold,
-            revenueInCents,
-            costInCents,
-            grossProfitInCents,
-            grossMargin: percentage(grossProfitInCents, revenueInCents),
-          };
-        })
-        .filter((item) => item.unitsSold > 0)
-        .sort((a, b) => b.revenueInCents - a.revenueInCents);
       const serviceRevenue = new Map<string, number>();
-      for (const plan of repositoryContext.patientPlans.filter(
-        (item) => item.clinicId === clinicId,
-      )) {
+      for (const plan of repositoryContext
+        .scoped(repositoryContext.patientPlans)
+        .filter((item) => item.clinicId === clinicId)) {
         const received = paidInPeriod
           .filter((item) => item.planId === plan.id)
           .reduce((sum, item) => sum + item.amountInCents, 0);
@@ -373,9 +589,9 @@ export function createReportsRepository(
           ).length;
           const serviceCommissions = paidCommissions
             .filter((commission) => {
-              const appointment = repositoryContext.appointments.find(
-                (item) => item.id === commission.appointmentId,
-              );
+              const appointment = repositoryContext
+                .scoped(repositoryContext.appointments)
+                .find((item) => item.id === commission.appointmentId);
               return appointment?.serviceId === service.id;
             })
             .reduce((sum, item) => sum + item.amountInCents, 0);
@@ -394,9 +610,9 @@ export function createReportsRepository(
           (item) => item.completedAppointments > 0 || item.revenueInCents > 0,
         )
         .sort((a, b) => b.revenueInCents - a.revenueInCents);
-      const groups = repositoryContext.groupClasses.filter(
-        (item) => item.clinicId === clinicId && item.active,
-      );
+      const groups = repositoryContext
+        .scoped(repositoryContext.groupClasses)
+        .filter((item) => item.clinicId === clinicId && item.active);
       const activeGroupSeats = groups.reduce(
         (sum, item) => sum + item.activeEnrollments,
         0,
@@ -417,12 +633,14 @@ export function createReportsRepository(
         if (!item.patientId) return false;
         const start = new Date(item.startsAt).getTime();
         const limit = start + 30 * 24 * 60 * 60 * 1000;
-        return repositoryContext.patientPlans.some((plan) => {
-          if (plan.clinicId !== clinicId || plan.patientId !== item.patientId)
-            return false;
-          const createdAt = new Date(plan.createdAt).getTime();
-          return createdAt >= start && createdAt <= limit;
-        });
+        return repositoryContext
+          .scoped(repositoryContext.patientPlans)
+          .some((plan) => {
+            if (plan.clinicId !== clinicId || plan.patientId !== item.patientId)
+              return false;
+            const createdAt = new Date(plan.createdAt).getTime();
+            return createdAt >= start && createdAt <= limit;
+          });
       }).length;
       return {
         from,
@@ -456,7 +674,8 @@ export function createReportsRepository(
         plans: {
           active: activePlans.length,
           availableSessions: activePlans.reduce(
-            (sum, item) => sum + item.remainingSessions,
+            // Recorrente além do saldo nominal (saldo negativo) não desconta dos outros.
+            (sum, item) => sum + Math.max(0, item.remainingSessions),
             0,
           ),
           consumedInPeriod: Math.max(0, -netMovement),
@@ -469,16 +688,6 @@ export function createReportsRepository(
           overdueInCents: openReceivables
             .filter((item) => item.dueDate < today())
             .reduce((sum, item) => sum + item.amountInCents, 0),
-          paidInPeriodInCents: repositoryContext.receiptEvents
-            .filter((event) => {
-              const receivable = repositoryContext.receivables.find(
-                (item) => item.id === event.receivableId,
-              );
-              return (
-                receivable?.clinicId === clinicId && inPeriod(event.occurredAt)
-              );
-            })
-            .reduce((sum, event) => sum + event.amountInCents, 0),
         },
         commercial: {
           leadsCreated: leads.length,
@@ -495,10 +704,12 @@ export function createReportsRepository(
             : 0,
         },
         byProfessional: breakdown(
-          repositoryContext.professionals.map((item) => ({
-            id: item.id,
-            name: item.fullName,
-          })),
+          repositoryContext
+            .scoped(repositoryContext.professionals)
+            .map((item) => ({
+              id: item.id,
+              name: item.fullName,
+            })),
           (appointment) => appointment.professionalId,
         ),
         byService: breakdown(
@@ -510,19 +721,7 @@ export function createReportsRepository(
         ),
         bySource,
         profitability: {
-          dre: {
-            serviceRevenueInCents,
-            productRevenueInCents,
-            grossRevenueInCents,
-            productCostInCents,
-            grossProfitInCents,
-            operatingExpensesInCents,
-            commissionsInCents,
-            netResultInCents,
-            netMargin: percentage(netResultInCents, grossRevenueInCents),
-          },
           byService: byServiceProfitability,
-          byProduct,
           operational: {
             groupOccupancyRate: percentage(
               activeGroupSeats,
@@ -534,23 +733,12 @@ export function createReportsRepository(
               (sum, item) => sum + item.waitlistCount,
               0,
             ),
-            lowStockCount: repositoryContext.products.filter(
-              (item) =>
-                item.clinicId === clinicId &&
-                item.currentStock <= item.minimumStock,
-            ).length,
-            productUnitsSold: byProduct.reduce(
-              (sum, item) => sum + item.unitsSold,
-              0,
-            ),
-            averageReceiptInCents: paidInPeriod.length
-              ? Math.round(
-                  paidInPeriod.reduce(
-                    (sum, item) => sum + item.amountInCents,
-                    0,
-                  ) / paidInPeriod.length,
-                )
-              : 0,
+            lowStockCount: repositoryContext
+              .scoped(repositoryContext.products)
+              .filter(
+                (item) =>
+                  item.clinicId === clinicId && productNeedsRestock(item),
+              ).length,
           },
         },
       };

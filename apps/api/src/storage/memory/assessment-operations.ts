@@ -1,6 +1,7 @@
-import type {
-  AssessmentTemplateInput,
-  AssessmentTemplate,
+import {
+  assessmentTemplateFamilyId,
+  type AssessmentTemplateInput,
+  type AssessmentTemplate,
 } from "@crm/contracts";
 import { DomainError } from "../../repository.js";
 import type { MemoryRepositoryContext } from "./context.js";
@@ -65,6 +66,51 @@ export function createAssessmentOperationsRepository(
         template.id,
       );
       return structuredClone(template);
+    },
+
+    async listAssessmentTemplates(clinicId: string) {
+      return structuredClone(
+        context.assessmentTemplates
+          .filter((item) => item.clinicId === clinicId)
+          .sort(
+            (a, b) =>
+              a.name.localeCompare(b.name, "pt-BR") || b.version - a.version,
+          ),
+      );
+    },
+
+    async setAssessmentTemplateActive(
+      clinicId: string,
+      actorUserId: string,
+      id: string,
+      active: boolean,
+    ) {
+      const target = context.assessmentTemplates.find(
+        (item) => item.clinicId === clinicId && item.id === id,
+      );
+      if (!target) return null;
+      const familyId = assessmentTemplateFamilyId(target);
+      const family = context.assessmentTemplates.filter(
+        (item) =>
+          item.clinicId === clinicId &&
+          assessmentTemplateFamilyId(item) === familyId,
+      );
+      for (const item of family) item.active = active;
+      context.recordAudit(
+        clinicId,
+        actorUserId,
+        active
+          ? "assessment.template_restored"
+          : "assessment.template_archived",
+        "assessment_template",
+        { name: target.name },
+        familyId,
+      );
+      return structuredClone(
+        family.reduce((latest, item) =>
+          item.version > latest.version ? item : latest,
+        ),
+      );
     },
   };
 }

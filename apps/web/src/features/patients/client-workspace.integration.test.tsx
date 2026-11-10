@@ -1,3 +1,4 @@
+import { nextTestCpf } from "../../../../api/src/test-support/cpf.js";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it } from "vitest";
@@ -8,6 +9,7 @@ describe("client workspace against the API", () => {
   it("opens a client, changes status and preserves the contextual navigation", async () => {
     const { repository } = await setupApi();
     const patient = await repository.createPatient(clinicId, {
+      cpf: nextTestCpf(),
       fullName: "Cliente do prontuário",
       phone: "11988887777",
       tags: [],

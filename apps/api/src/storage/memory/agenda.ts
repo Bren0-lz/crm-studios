@@ -1,5 +1,7 @@
 import {
+  agendaConflict,
   isAppointmentPendingFinalization,
+  type AgendaConflict,
   type Appointment,
   type AppointmentInput,
   type AppointmentRescheduleEvent,
@@ -22,6 +24,7 @@ import {
   type ReplacementBookingInput,
   type ScheduleBlock,
   type ScheduleBlockInput,
+  recurringOccurrenceStarts,
 } from "@crm/contracts";
 import { clinicDateOf } from "../../modules/finance/daily-cash.js";
 import {
@@ -30,7 +33,12 @@ import {
   zonedTimeToUtc,
 } from "../../modules/groups/group-schedule.js";
 import { assertAppointmentStarted } from "../../modules/agenda/appointment-start.js";
-import { DomainError } from "../../repository.js";
+import {
+  DomainError,
+  type AgendaSlotProbe,
+  type AppointmentCreateOptions,
+  type AutoCampaignRedemptionWrite,
+} from "../../repository.js";
 import type { MemoryRepositoryContext } from "./context.js";
 import { now, today, uuid } from "./helpers.js";
 
@@ -50,6 +58,25 @@ export function createAgendaRepository(
       enrollment.startsOn = clinicDate(timestamp);
     }
   };
+  const recordRedemption = (
+    clinicId: string,
+    patientId: string,
+    appointmentId: string,
+    promotion: AutoCampaignRedemptionWrite,
+  ) =>
+    repositoryContext.autoCampaignRedemptions.push({
+      id: uuid(),
+      clinicId,
+      ...(promotion.source === "manual" ? { source: "manual" as const } : {}),
+      campaignId: promotion.campaignId,
+      patientId,
+      occurrenceKey: promotion.occurrenceKey,
+      appointmentId,
+      redeemedOn: promotion.redeemedOn,
+      ...(promotion.blockedUntil
+        ? { blockedUntil: promotion.blockedUntil }
+        : {}),
+    });
   return {
     async listHolidays(clinicId: string, from?: string, to?: string) {
       return (repositoryContext.holidays.get(clinicId) ?? [])
@@ -123,6 +150,7 @@ export function createAgendaRepository(
         .filter(
           (item) =>
             item.clinicId === clinicId &&
+            repositoryContext.inBranchScope(item) &&
             item.startsAt < to &&
             item.endsAt > from,
         )
@@ -135,12 +163,46 @@ export function createAgendaRepository(
         .filter(
           (item) =>
             item.clinicId === clinicId &&
+            repositoryContext.inBranchScope(item) &&
             isAppointmentPendingFinalization(item, instant),
         )
         .sort((a, b) => a.startsAt.localeCompare(b.startsAt));
     },
 
-    async createAppointment(clinicId: string, input: AppointmentInput) {
+    async autoFinalizeAppointments(
+      clinicId: string,
+      cutoff: string,
+      at: string,
+    ) {
+      const limit = Date.parse(cutoff);
+      // Todas as filiais da clínica, independente do escopo da requisição.
+      const due = repositoryContext.appointments.filter(
+        (item) =>
+          item.clinicId === clinicId &&
+          (item.status === "scheduled" || item.status === "confirmed") &&
+          Date.parse(item.endsAt) <= limit,
+      );
+      let finalized = 0;
+      for (const appointment of due) {
+        try {
+          repositoryContext.consumeSession(appointment);
+        } catch {
+          // Sem saldo ou crédito preso a comanda: fica pendente para a equipe resolver.
+          continue;
+        }
+        appointment.status = "completed";
+        appointment.autoCompletedAt = at;
+        appointment.updatedAt = at;
+        finalized += 1;
+      }
+      return finalized;
+    },
+
+    async createAppointment(
+      clinicId: string,
+      input: AppointmentInput,
+      options?: AppointmentCreateOptions,
+    ) {
       const patient = repositoryContext.patients.find(
         (item) => item.id === input.patientId && item.clinicId === clinicId,
       );
@@ -150,10 +212,19 @@ export function createAgendaRepository(
           "Cliente, profissional, sala ou serviço não encontrado.",
           404,
         );
-      return repositoryContext.insertAppointment(clinicId, input, {
-        patientId: patient.id,
-        patientName: patient.fullName,
-      });
+      const appointment = await repositoryContext.insertAppointment(
+        clinicId,
+        input,
+        { patientId: patient.id, patientName: patient.fullName },
+      );
+      if (options?.promotion)
+        recordRedemption(
+          clinicId,
+          patient.id,
+          appointment.id,
+          options.promotion,
+        );
+      return appointment;
     },
 
     async createLeadAppointment(
@@ -214,6 +285,15 @@ export function createAgendaRepository(
           "Profissional, sala ou serviço não encontrado.",
           404,
         );
+      repositoryContext.resourceBranch(appointment, professional, room);
+      const planId =
+        input.planId !== undefined
+          ? repositoryContext.appointmentPlanId(
+              clinicId,
+              { ...appointment, planId: input.planId },
+              appointment.patientId,
+            )
+          : appointment.planId;
       const startsAt = new Date(input.startsAt);
       const endsAt = new Date(
         startsAt.getTime() + service.durationMinutes * 60_000,
@@ -221,7 +301,8 @@ export function createAgendaRepository(
       if (
         appointment.startsAt === startsAt.toISOString() &&
         appointment.professionalId === professional.id &&
-        appointment.roomId === room.id
+        appointment.roomId === room.id &&
+        planId === appointment.planId
       )
         return appointment;
       const overlaps = (from: string, to: string) =>
@@ -301,6 +382,8 @@ export function createAgendaRepository(
         roomName: room.name,
         updatedAt: event.createdAt,
       });
+      if (planId) appointment.planId = planId;
+      else delete appointment.planId;
       repositoryContext.appointmentReschedules.push(event);
       return appointment;
     },
@@ -353,6 +436,60 @@ export function createAgendaRepository(
           404,
         );
       const serviceChanged = service.id !== appointment.serviceId;
+      const patientId = input.patientId ?? appointment.patientId;
+      const patientChanged = patientId !== appointment.patientId;
+      const patient = patientChanged
+        ? repositoryContext.patients.find(
+            (item) =>
+              item.clinicId === clinicId &&
+              item.id === patientId &&
+              item.status === "active",
+          )
+        : undefined;
+      if (patientChanged && (!appointment.patientId || !patient))
+        throw new DomainError(
+          "RELATED_RECORD_NOT_FOUND",
+          "Cliente ativo não encontrado.",
+          404,
+        );
+      if (
+        patientChanged &&
+        (repositoryContext.patientTabs.some(
+          (tab) =>
+            tab.clinicId === clinicId &&
+            tab.services?.some((item) => item.appointmentId === appointmentId),
+        ) ||
+          repositoryContext.patientPlans.some(
+            (plan) =>
+              plan.clinicId === clinicId &&
+              plan.sourceAppointmentId === appointmentId,
+          ) ||
+          repositoryContext.clinicalRecords.some(
+            (record) =>
+              record.clinicId === clinicId &&
+              record.appointmentId === appointmentId,
+          ))
+      )
+        throw new DomainError(
+          "APPOINTMENT_PATIENT_LOCKED",
+          "Este atendimento já possui registros financeiros ou clínicos: o cliente não pode ser alterado.",
+          409,
+        );
+      const planId =
+        input.planId !== undefined || patientChanged || serviceChanged
+          ? repositoryContext.appointmentPlanId(
+              clinicId,
+              {
+                ...appointment,
+                serviceId: service.id,
+                planId:
+                  input.planId ??
+                  (patientChanged ? undefined : appointment.planId),
+              },
+              patientId,
+            )
+          : appointment.planId;
+
       // Crédito da comanda/plano de origem é do serviço original: trocar quebraria o vínculo.
       if (
         serviceChanged &&
@@ -379,6 +516,8 @@ export function createAgendaRepository(
       );
       if (
         !serviceChanged &&
+        !patientChanged &&
+        planId === appointment.planId &&
         appointment.roomId === room.id &&
         (appointment.notes ?? "") === notes
       )
@@ -391,16 +530,14 @@ export function createAgendaRepository(
           item.clinicId === clinicId &&
           item.id !== appointmentId &&
           item.status !== "cancelled" &&
-          (item.professionalId === professionalId ||
-            item.roomId === room.id) &&
+          (item.professionalId === professionalId || item.roomId === room.id) &&
           overlaps(item.startsAt, item.endsAt),
       );
       const blockConflict = repositoryContext.scheduleBlocks.some(
         (item) =>
           item.clinicId === clinicId &&
           item.status === "active" &&
-          (item.professionalId === professionalId ||
-            item.roomId === room.id) &&
+          (item.professionalId === professionalId || item.roomId === room.id) &&
           overlaps(item.startsAt, item.endsAt),
       );
       const groupConflict =
@@ -431,6 +568,9 @@ export function createAgendaRepository(
           409,
         );
       const previous = {
+        patientId: appointment.patientId,
+        patientName: appointment.patientName,
+        planId: appointment.planId,
         serviceId: appointment.serviceId,
         serviceName: appointment.serviceName,
         roomId: appointment.roomId,
@@ -445,6 +585,12 @@ export function createAgendaRepository(
         endsAt: endsAt.toISOString(),
         updatedAt: now(),
       });
+      if (patient) {
+        appointment.patientId = patient.id;
+        appointment.patientName = patient.fullName;
+      }
+      if (planId) appointment.planId = planId;
+      else delete appointment.planId;
       if (notes) appointment.notes = notes;
       else delete appointment.notes;
       repositoryContext.recordAudit(
@@ -455,6 +601,9 @@ export function createAgendaRepository(
         {
           previous,
           current: {
+            patientId: appointment.patientId,
+            patientName: appointment.patientName,
+            planId: appointment.planId,
             serviceId: service.id,
             serviceName: service.name,
             roomId: room.id,
@@ -479,32 +628,97 @@ export function createAgendaRepository(
         .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
     },
 
+    async findAgendaConflicts(clinicId: string, slots: AgendaSlotProbe[]) {
+      const conflicts: AgendaConflict[] = [];
+      for (const slot of slots) {
+        const startsAt = new Date(slot.startsAt);
+        const endsAt = new Date(slot.endsAt);
+        const overlaps = (from: string, to: string) =>
+          new Date(from) < endsAt && new Date(to) > startsAt;
+        const sameResource = (item: {
+          professionalId?: string | undefined;
+          roomId?: string | undefined;
+        }) =>
+          item.professionalId === slot.professionalId ||
+          item.roomId === slot.roomId;
+        const appointment = repositoryContext.appointments.some(
+          (item) =>
+            item.clinicId === clinicId &&
+            item.status !== "cancelled" &&
+            sameResource(item) &&
+            overlaps(item.startsAt, item.endsAt),
+        );
+        if (appointment) {
+          conflicts.push(agendaConflict(slot.key, "appointment"));
+          continue;
+        }
+        const block = repositoryContext.scheduleBlocks.some(
+          (item) =>
+            item.clinicId === clinicId &&
+            item.status === "active" &&
+            sameResource(item) &&
+            overlaps(item.startsAt, item.endsAt),
+        );
+        if (block) {
+          conflicts.push(agendaConflict(slot.key, "block"));
+          continue;
+        }
+        const group =
+          repositoryContext.groupSessions.some((session) => {
+            const owner = repositoryContext.groupClasses.find(
+              (item) => item.id === session.groupId,
+            );
+            return (
+              session.clinicId === clinicId &&
+              session.status !== "cancelled" &&
+              Boolean(owner) &&
+              sameResource(owner!) &&
+              overlaps(session.startsAt, session.endsAt)
+            );
+          }) ||
+          repositoryContext.hasWeeklyGroupSlotConflict(
+            clinicId,
+            slot.professionalId,
+            slot.roomId,
+            startsAt,
+            endsAt,
+          );
+        if (group) conflicts.push(agendaConflict(slot.key, "group"));
+      }
+      return conflicts;
+    },
+
     async createRecurringAppointments(
       clinicId: string,
       input: RecurringAppointmentInput,
+      options?: AppointmentCreateOptions,
     ) {
       const originalLength = repositoryContext.appointments.length;
       const seriesId = uuid();
       const appointments: Appointment[] = [];
       try {
-        for (let index = 0; index < input.occurrences; index += 1) {
-          const startsAt = new Date(input.startsAt);
-          startsAt.setUTCDate(
-            startsAt.getUTCDate() + index * input.intervalWeeks * 7,
-          );
+        for (const startsAt of recurringOccurrenceStarts(input)) {
           const appointment =
             await repositoryContext.operations.createAppointment(clinicId, {
               patientId: input.patientId,
+              ...(input.planId ? { planId: input.planId } : {}),
               professionalId: input.professionalId,
               roomId: input.roomId,
               serviceId: input.serviceId,
-              startsAt: startsAt.toISOString(),
+              startsAt,
               notes: input.notes,
               visitType: input.visitType,
             });
           appointment.seriesId = seriesId;
           appointments.push(appointment);
         }
+        if (options?.promotion)
+          recordRedemption(
+            clinicId,
+            input.patientId,
+            appointments[0]!.id,
+            options.promotion,
+          );
         return appointments;
       } catch (error) {
         repositoryContext.appointments.splice(originalLength);
@@ -517,6 +731,7 @@ export function createAgendaRepository(
         .filter(
           (item) =>
             item.clinicId === clinicId &&
+            repositoryContext.inBranchScope(item) &&
             item.status === "active" &&
             item.startsAt < to &&
             item.endsAt > from,
@@ -588,9 +803,13 @@ export function createAgendaRepository(
           "O bloqueio conflita com um atendimento ou bloqueio existente.",
           409,
         );
+      const branchId = repositoryContext.resourceBranch(
+        ...[professional, room].filter((item) => item !== undefined),
+      );
       const timestamp = now();
       const block: ScheduleBlock = {
         ...input,
+        branchId,
         id: uuid(),
         clinicId,
         ...(professional ? { professionalName: professional.fullName } : {}),
@@ -621,17 +840,26 @@ export function createAgendaRepository(
       repositoryContext.ensureGroupSessions(clinicId, groupSessionHorizon(), {
         renewBefore: new Date(groupSessionHorizon().getTime() - 7 * 86_400_000),
       });
+      const groups = repositoryContext.groupClasses.filter(
+        (item) =>
+          item.clinicId === clinicId && repositoryContext.inBranchScope(item),
+      );
+      const groupIds = new Set(groups.map((group) => group.id));
+      const sessionIds = new Set(
+        repositoryContext.groupSessions
+          .filter((session) => groupIds.has(session.groupId))
+          .map((session) => session.id),
+      );
       return {
-        groups: repositoryContext.groupClasses.filter(
-          (item) => item.clinicId === clinicId,
-        ),
+        groups,
         enrollments: repositoryContext.groupEnrollments.filter(
-          (item) => item.clinicId === clinicId,
+          (item) => item.clinicId === clinicId && groupIds.has(item.groupId),
         ),
         sessions: repositoryContext.groupSessions
           .filter(
             (item) =>
               item.clinicId === clinicId &&
+              groupIds.has(item.groupId) &&
               item.startsAt < to &&
               item.endsAt > from,
           )
@@ -639,6 +867,7 @@ export function createAgendaRepository(
         attendance: repositoryContext.groupAttendance.filter(
           (item) =>
             item.clinicId === clinicId &&
+            sessionIds.has(item.sessionId) &&
             repositoryContext.groupSessions.some(
               (session) =>
                 session.id === item.sessionId &&
@@ -646,8 +875,17 @@ export function createAgendaRepository(
                 session.endsAt > from,
             ),
         ),
-        replacementCredits: repositoryContext.replacementCredits.filter(
-          (item) => item.clinicId === clinicId,
+        replacementCredits: repositoryContext.replacementCredits.flatMap(
+          (item) => {
+            if (item.clinicId !== clinicId) return [];
+            const source = repositoryContext.groupSessions.find(
+              (session) =>
+                session.clinicId === clinicId &&
+                sessionIds.has(session.id) &&
+                session.id === item.sourceSessionId,
+            );
+            return source ? [{ ...item, sourceGroupId: source.groupId }] : [];
+          },
         ),
       };
     },
@@ -682,6 +920,7 @@ export function createAgendaRepository(
           409,
         );
       repositoryContext.assertGroupScheduleAvailable(clinicId, input);
+      const branchId = repositoryContext.resourceBranch(professional, room);
       const sequence =
         Math.max(
           0,
@@ -695,9 +934,10 @@ export function createAgendaRepository(
         ) + 1;
       const group: GroupClass = {
         ...input,
+        branchId,
         id: uuid(),
         clinicId,
-        name: groupClassName(service.name, sequence),
+        name: input.name ?? groupClassName(service.name, sequence),
         sequence,
         serviceName: service.name,
         professionalName: professional.fullName,
@@ -711,6 +951,20 @@ export function createAgendaRepository(
       repositoryContext.ensureGroupSessions(clinicId, groupSessionHorizon(), {
         groupId: group.id,
       });
+      return group;
+    },
+
+    async renameGroupClass(clinicId: string, groupId: string, name: string) {
+      const group = repositoryContext.groupClasses.find(
+        (item) => item.clinicId === clinicId && item.id === groupId,
+      );
+      if (!group) return null;
+      repositoryContext.resourceBranch(group);
+      group.name = name;
+      for (const session of repositoryContext.groupSessions) {
+        if (session.clinicId === clinicId && session.groupId === groupId)
+          session.groupName = name;
+      }
       return group;
     },
 
@@ -780,13 +1034,6 @@ export function createAgendaRepository(
           (item) => item.groupId === groupId && item.status === "waitlisted",
         )
         .sort((a, b) => (a.queuePosition ?? 0) - (b.queuePosition ?? 0));
-      for (
-        let index = 0;
-        index < Math.min(input.capacity - activeCount, waitlist.length);
-        index += 1
-      ) {
-        promote(waitlist[index]!);
-      }
       waitlist
         .filter((item) => item.status === "waitlisted")
         .forEach((item, index) => {
@@ -882,20 +1129,6 @@ export function createAgendaRepository(
       enrollment.updatedAt = now();
       // Só a matrícula ativa ganha fim; quem estava na espera nunca participou.
       if (wasActive) enrollment.endedOn = clinicDate(enrollment.updatedAt);
-      if (wasActive) {
-        const next = repositoryContext.groupEnrollments
-          .filter(
-            (item) =>
-              item.groupId === enrollment.groupId &&
-              item.status === "waitlisted",
-          )
-          .sort(
-            (a, b) =>
-              (a.queuePosition ?? 0) - (b.queuePosition ?? 0) ||
-              a.enrolledAt.localeCompare(b.enrolledAt),
-          )[0];
-        if (next) promote(next);
-      }
       const remaining = repositoryContext.groupEnrollments
         .filter(
           (item) =>
@@ -912,6 +1145,46 @@ export function createAgendaRepository(
       return enrollment;
     },
 
+    async confirmGroupEnrollment(clinicId: string, enrollmentId: string) {
+      const enrollment = repositoryContext.groupEnrollments.find(
+        (item) => item.clinicId === clinicId && item.id === enrollmentId,
+      );
+      const group = repositoryContext.groupClasses.find(
+        (item) =>
+          item.clinicId === clinicId &&
+          item.id === enrollment?.groupId &&
+          item.active &&
+          repositoryContext.inBranchScope(item),
+      );
+      if (!enrollment || !group) return null;
+      if (enrollment.status !== "waitlisted")
+        throw new DomainError(
+          "WAITLIST_REQUIRED",
+          "O cliente não está na lista de espera de uma turma ativa.",
+          409,
+        );
+      const active = repositoryContext.groupEnrollments.filter(
+        (item) => item.groupId === group.id && item.status === "active",
+      ).length;
+      if (active >= group.capacity)
+        throw new DomainError(
+          "GROUP_FULL",
+          "A turma está cheia. A vaga não está mais disponível.",
+          409,
+        );
+      promote(enrollment);
+      repositoryContext.groupEnrollments
+        .filter(
+          (item) => item.groupId === group.id && item.status === "waitlisted",
+        )
+        .sort((a, b) => (a.queuePosition ?? 0) - (b.queuePosition ?? 0))
+        .forEach((item, index) => {
+          item.queuePosition = index + 1;
+        });
+      repositoryContext.refreshGroupCounts(group);
+      return enrollment;
+    },
+
     async listGroupSessions(clinicId: string, from: string, to: string) {
       const until = clampGroupSessionUntil(new Date(to));
       repositoryContext.ensureGroupSessions(clinicId, until, {
@@ -922,6 +1195,7 @@ export function createAgendaRepository(
           (item) =>
             item.clinicId === clinicId &&
             item.status !== "cancelled" &&
+            repositoryContext.groupInBranchScope(item.groupId) &&
             item.startsAt < to &&
             item.endsAt > from,
         )
@@ -1115,6 +1389,8 @@ export function createAgendaRepository(
         repositoryContext.restoreSession(appointment);
       }
       appointment.status = status;
+      // Desfecho registrado pela equipe substitui o da finalização automática.
+      if (previousStatus !== status) delete appointment.autoCompletedAt;
       if (absenceReason !== undefined)
         appointment.absenceReason = absenceReason;
       appointment.updatedAt = now();

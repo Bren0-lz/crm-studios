@@ -42,12 +42,12 @@ export function DailyCashSection() {
       <section className="panel finance-panel">
         <div className="panel-head">
           <div>
-            <span className="eyebrow">
+            <h2>Caixa do dia</h2>
+            <p className="panel-context">
               {cash
                 ? `Movimentos de ${formatIsoDate(cash.date)}`
                 : "Movimentos"}
-            </span>
-            <h2>Caixa do dia</h2>
+            </p>
             <p className="panel-help">
               Tudo o que entrou e saiu do caixa no dia escolhido, separado por
               forma de pagamento.
@@ -102,6 +102,14 @@ export function DailyCashSection() {
                   <span>Saldo</span>
                   <strong>{currency.format(cash.balanceInCents / 100)}</strong>
                 </li>
+                {cash.totalDiscountInCents ? (
+                  <li>
+                    <span>Descontos na baixa</span>
+                    <strong>
+                      {currency.format(cash.totalDiscountInCents / 100)}
+                    </strong>
+                  </li>
+                ) : null}
               </ul>
             </div>
             <div className="daily-cash-groups">
@@ -157,6 +165,14 @@ export function DailyCashSection() {
                             {movement.counterpart && (
                               <span>{movement.counterpart}</span>
                             )}
+                            {movement.discountInCents ? (
+                              <span>
+                                Desconto de{" "}
+                                {currency.format(
+                                  movement.discountInCents / 100,
+                                )}
+                              </span>
+                            ) : null}
                           </div>
                           <strong
                             className={`finance-amount ${amount.effect < 0 ? "cash-out" : "cash-in"}`}

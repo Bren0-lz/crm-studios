@@ -19,7 +19,8 @@ export function ActionModal({
   eyebrow: string;
   title: string;
   subtitle: string;
-  effect: ReactNode;
+  /** Explicação do efeito; omitida quando o formulário já basta. */
+  effect?: ReactNode;
   confirmLabel?: string;
   danger?: boolean;
   validate?: () => string;
@@ -42,6 +43,8 @@ export function ActionModal({
   const blocked = missing.length > 0;
   async function submit(event: FormEvent) {
     event.preventDefault();
+    // Confirmações abertas dentro de outro formulário não submetem o formulário de origem.
+    event.stopPropagation();
     if (saving || blocked) return;
     const problem = validate?.() ?? "";
     if (problem) {
@@ -52,6 +55,8 @@ export function ActionModal({
     setSaving(true);
     try {
       await onConfirm();
+      // Quem confirma pode manter o modal aberto (ex.: prévia antes de salvar).
+      setSaving(false);
     } catch (cause) {
       setError((cause as Error).message);
       setSaving(false);
@@ -75,7 +80,7 @@ export function ActionModal({
         noValidate
         onSubmit={(event) => void submit(event)}
       >
-        <p className="span-2">{effect}</p>
+        {effect && <p className="span-2">{effect}</p>}
         {children}
         {error && (
           <div className="form-error span-2" role="alert">

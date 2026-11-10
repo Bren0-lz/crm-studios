@@ -1,9 +1,7 @@
+import { nextTestCpf } from "../../../../api/src/test-support/cpf.js";
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import {
-  clinicalResourceInputSchema,
-  type ClinicalResourceKind,
-} from "@crm/contracts";
+import { clinicalResourceInputSchema } from "@crm/contracts";
 import {
   actorId,
   captureDownloads,
@@ -11,182 +9,56 @@ import {
   setupApi,
 } from "../../test-support/api-server";
 import { open, change, expand, save } from "../../test-support/workflow-ui";
+import type { EditableResourceKind } from "./ClinicalResourceEditor";
 
 describe("clinical resource workflows through real HTTP handlers", () => {
-  it("validates questionnaire answers and preserves their published model in viewing and printing", async () => {
+  it("offers no evolution sections, even when legacy evolutions exist", async () => {
     const { repository } = await setupApi();
     const patient = await repository.createPatient(clinicId, {
-      fullName: "Cliente do questionário",
+      cpf: nextTestCpf(),
+      fullName: "Cliente sem evolução",
       phone: "11988887777",
       tags: [],
     });
-    const [professional] = await repository.listProfessionals(clinicId);
-    const [room] = await repository.listRooms(clinicId);
-    const [service] = await repository.listServices(clinicId);
-    const appointment = await repository.createAppointment(clinicId, {
-      patientId: patient.id,
-      professionalId: professional!.id,
-      roomId: room!.id,
-      serviceId: service!.id,
-      startsAt: "2040-06-01T12:00:00Z",
-      visitType: "trial",
-    });
-    const template = await repository.saveClinicalResource(
+    await repository.saveClinicalResource(
       clinicId,
       actorId,
       clinicalResourceInputSchema.parse({
         kind: "evolution_template",
-        name: "Ficha publicada completa",
-        format: "questionnaire",
+        name: "Modelo antigo de evolução",
+        format: "text",
         status: "published",
-        fields: [
-          {
-            key: "secao",
-            label: "Dados clínicos",
-            type: "section",
-            required: false,
-          },
-          {
-            key: "curta",
-            label: "Resposta curta",
-            type: "text",
-            required: true,
-          },
-          {
-            key: "longa",
-            label: "Resposta longa",
-            type: "long_text",
-            required: false,
-          },
-          {
-            key: "numero",
-            label: "Intensidade",
-            type: "number",
-            min: 0,
-            max: 10,
-            unit: "pontos",
-            required: false,
-          },
-          {
-            key: "autorizado",
-            label: "Autorizado",
-            type: "boolean",
-            required: false,
-          },
-          {
-            key: "escolha",
-            label: "Escolha",
-            type: "select",
-            options: ["A", "B"],
-            required: false,
-          },
-          {
-            key: "atividades",
-            label: "Atividades",
-            type: "multiselect",
-            options: ["Mobilidade", "Força"],
-            required: false,
-          },
-          {
-            key: "opcional",
-            label: "Sem resposta",
-            type: "text",
-            required: false,
-          },
-        ],
+        body: "Texto antigo",
       }),
     );
     open(`/clientes/${patient.id}`);
     fireEvent.click(await screen.findByRole("tab", { name: "Prontuário" }));
-    await screen.findByText("Modelos, evoluções e treinos", { exact: true });
-    const panel = expand("Modelos, evoluções e treinos");
     fireEvent.click(
-      await within(panel).findByRole("button", { name: "Novo registro" }),
+      await screen.findByRole("tab", { name: "Treinos e documentos" }),
     );
-    const dialog = screen.getByRole("dialog", { name: "Novo registro" });
-    change("Nome", "Evolução por questionário", dialog);
-    change("Atendimento", appointment.id, dialog);
-    change("Modelo", template.id, dialog);
-    // Resposta obrigatória do modelo em branco: Salvar desativado com o que falta (QM14).
-    expect(
-      within(dialog).getByRole("button", { name: "Salvar" }),
-    ).toBeDisabled();
-    expect(
-      within(dialog).getByRole("button", { name: "Salvar" }),
-    ).toHaveAccessibleDescription("Falta: Resposta curta.");
-    // A API continua recusando o envio direto do formulário.
-    fireEvent.submit(
-      within(dialog).getByRole("button", { name: "Salvar" }).closest("form")!,
-    );
-    await within(dialog).findByText(/Preencha Resposta curta/);
-    change("Resposta curta", "Mobilidade funcional", dialog);
-    expect(within(dialog).getByRole("button", { name: "Salvar" })).toBeEnabled();
-    expect(within(dialog).queryByText(/Falta:/)).not.toBeInTheDocument();
-    change(
-      "Resposta longa",
-      "Cliente apresentou evolução clínica positiva",
-      dialog,
-    );
-    change("Intensidade (pontos)", "5", dialog);
-    change("Autorizado", "true", dialog);
-    change("Escolha", "B", dialog);
-    const multiple = within(dialog).getByLabelText(
-      "Atividades",
-    ) as HTMLSelectElement;
-    for (const option of multiple.options) option.selected = true;
-    fireEvent.change(multiple);
-    await save("Novo registro");
-    change("Data inicial", "2040-01-01", panel);
-    change("Data final", "2040-12-31", panel);
-    const card = (
-      await within(panel).findByRole("heading", {
-        name: "Evolução por questionário",
-      })
-    ).closest("article")!;
-    fireEvent.click(within(card).getByRole("button", { name: "Visualizar" }));
-    const view = screen.getByRole("dialog");
-    expect(view).toHaveTextContent(/Autorizado:\s*Sim/);
-    expect(view).toHaveTextContent("Mobilidade, Força");
-    expect(view).toHaveTextContent(/Intensidade:\s*5/);
-    fireEvent.click(within(view).getByRole("button", { name: "Fechar" }));
-    fireEvent.click(within(card).getByRole("button", { name: "Editar" }));
-    const editing = screen.getByRole("dialog", { name: "Editar registro" });
-    change("Autorizado", "false", editing);
-    await save("Editar registro");
-    fireEvent.click(within(card).getByRole("button", { name: "Visualizar" }));
-    const revised = screen.getByRole("dialog");
-    expect(revised).toHaveTextContent(/Autorizado:\s*Não/);
-    expect(revised).toHaveTextContent("Histórico de alterações");
-    fireEvent.click(within(revised).getByRole("button", { name: "Fechar" }));
-    vi.spyOn(window, "print").mockImplementation(() => {});
-    fireEvent.click(
-      within(panel).getByRole("button", { name: "Imprimir período" }),
-    );
-    await waitFor(() => expect(window.print).toHaveBeenCalled());
-    fireEvent(window, new Event("afterprint"));
-    const record = (
-      await repository.listClinicalResources(clinicId, actorId, patient.id)
-    ).find((item) => item.name === "Evolução por questionário")!;
-    expect(record.templateSnapshot?.fields).toHaveLength(8);
-    expect(record.data).toMatchObject({
-      kind: "evolution",
-      templateId: template.id,
-      values: {
-        curta: "Mobilidade funcional",
-        numero: 5,
-        autorizado: false,
-        escolha: "B",
-        atividades: ["Mobilidade", "Força"],
-      },
+    await screen.findByText("Treinos, relatórios e prescrições", {
+      exact: true,
     });
-    expect(record.history[0]?.data).toMatchObject({
-      kind: "evolution",
-      values: { autorizado: true },
-    });
+    const panel = expand("Treinos, relatórios e prescrições");
+    await within(panel).findByRole("button", { name: "Novo registro" });
+    const sections = within(panel)
+      .getAllByRole("option")
+      .map((option) => option.textContent);
+    expect(sections).toEqual([
+      "Aparelhos",
+      "Exercícios e procedimentos",
+      "Treinos",
+      "Treinos executados",
+      "Relatórios e prescrições",
+    ]);
+    expect(
+      within(panel).queryByText("Modelo antigo de evolução"),
+    ).not.toBeInTheDocument();
   });
   it("preserves the longitudinal history, validates attachments and exports the client record", async () => {
     const { repository } = await setupApi();
     const patient = await repository.createPatient(clinicId, {
+      cpf: nextTestCpf(),
       fullName: "Cliente longitudinal",
       phone: "11988887777",
       tags: [],
@@ -215,6 +87,9 @@ describe("clinical resource workflows through real HTTP handlers", () => {
     const downloads = captureDownloads();
     open(`/clientes/${patient.id}`);
     fireEvent.click(await screen.findByRole("tab", { name: "Prontuário" }));
+    fireEvent.click(
+      await screen.findByRole("tab", { name: "Plano e medições" }),
+    );
     fireEvent.click(
       await screen.findByRole("button", { name: "Marcar alcançado" }),
     );
@@ -259,6 +134,7 @@ describe("clinical resource workflows through real HTTP handlers", () => {
     });
     change("Observações", "Avaliação anexada pela equipe", dialog);
     await save("Novo anexo clínico", "Anexar arquivo");
+    fireEvent.click(screen.getByRole("tab", { name: "Arquivos" }));
     expect(
       await screen.findByText("avaliacao.pdf", { exact: true }),
     ).toBeInTheDocument();
@@ -273,31 +149,20 @@ describe("clinical resource workflows through real HTTP handlers", () => {
   it.each([
     "equipment",
     "exercise",
-    "evolution_template",
-    "evolution",
     "training",
     "training_execution",
     "clinical_document",
   ] as const)(
     "creates and reads back a %s from the client context",
-    async (kind: ClinicalResourceKind) => {
+    async (kind: EditableResourceKind) => {
       const { repository } = await setupApi();
       const patient = await repository.createPatient(clinicId, {
+        cpf: nextTestCpf(),
         fullName: "Cliente de recursos",
         phone: "11988887777",
         tags: [],
       });
       const [professional] = await repository.listProfessionals(clinicId);
-      const [room] = await repository.listRooms(clinicId);
-      const [service] = await repository.listServices(clinicId);
-      const appointment = await repository.createAppointment(clinicId, {
-        patientId: patient.id,
-        professionalId: professional!.id,
-        roomId: room!.id,
-        serviceId: service!.id,
-        startsAt: "2040-06-01T12:00:00Z",
-        visitType: "regular",
-      });
       const equipment = await repository.saveClinicalResource(
         clinicId,
         actorId,
@@ -337,8 +202,13 @@ describe("clinical resource workflows through real HTTP handlers", () => {
       );
       open(`/clientes/${patient.id}`);
       fireEvent.click(await screen.findByRole("tab", { name: "Prontuário" }));
-      await screen.findByText("Modelos, evoluções e treinos", { exact: true });
-      const panel = expand("Modelos, evoluções e treinos");
+      fireEvent.click(
+        await screen.findByRole("tab", { name: "Treinos e documentos" }),
+      );
+      await screen.findByText("Treinos, relatórios e prescrições", {
+        exact: true,
+      });
+      const panel = expand("Treinos, relatórios e prescrições");
       await within(panel).findByRole("button", { name: "Novo registro" });
       change("Seção", kind, panel);
       fireEvent.click(
@@ -352,18 +222,6 @@ describe("clinical resource workflows through real HTTP handlers", () => {
       if (kind === "exercise") {
         change("Aparelho", equipment.id, dialog);
         change("Vídeo", "https://example.com/exercicio", dialog);
-      }
-      if (kind === "evolution_template") {
-        change("Conteúdo do modelo", "Texto clínico padronizado", dialog);
-        change("Situação", "published", dialog);
-      }
-      if (kind === "evolution") {
-        change("Atendimento", appointment.id, dialog);
-        change("Formato", "soap", dialog);
-        for (const label of ["Subjetivo", "Objetivo", "Avaliação", "Plano"])
-          change(label, `Conteúdo ${label}`, dialog);
-        fireEvent.click(within(dialog).getByLabelText(equipment.name));
-        fireEvent.click(within(dialog).getByLabelText(exercise.name));
       }
       if (kind === "training") {
         change("Adicionar exercício", exercise.id, dialog);
@@ -402,7 +260,7 @@ describe("clinical resource workflows through real HTTP handlers", () => {
           name: "Fechar",
         }),
       );
-      if (kind === "evolution" || kind === "clinical_document") {
+      if (kind === "clinical_document") {
         fireEvent.click(
           within(card).getByRole("button", { name: "Finalizar" }),
         );

@@ -1,22 +1,36 @@
-import { formatTaxId, whatsappLink, type PaymentReceipt } from "@crm/contracts";
-import { MessageCircle } from "lucide-react";
-import { Logo } from "../../shared/components/Logo";
+import {
+  whatsappLink,
+  type PaymentReceipt,
+  type ReceiptSignatureShare,
+  type ReceiptSignatureSummary,
+} from "@crm/contracts";
+import { MessageCircle, Printer } from "lucide-react";
 import { Modal } from "../../shared/components/Modal";
-import { currency } from "../../shared/lib/formatting";
-import { paymentMethodOptions, receiptMessage } from "./model";
-
-const money = (cents: number) => currency.format(cents / 100);
+import {
+  receiptMessage,
+  receiptMomentLabel,
+  receiptSignatureLabels,
+  receiptSignatureSteps,
+} from "./model";
+import { ReceiptContent } from "./ReceiptContent";
+import { ReceiptSignatureWhatsapp } from "./ReceiptSignatureWhatsapp";
 
 export function ReceiptModal({
   receipt,
+  share,
+  tracking,
+  onSent,
   onClose,
 }: {
   receipt: PaymentReceipt;
+  /** Recibo para assinatura da baixa: o WhatsApp leva o link em vez do texto do recibo. */
+  share?: ReceiptSignatureShare | null;
+  /** Recibo para assinatura em vigor: situação e datas de envio, visualização e assinatura. */
+  tracking?: ReceiptSignatureSummary | undefined;
+  /** Envio do recibo registrado: a página recarrega para o `tracking` refletir o envio. */
+  onSent?: () => void;
   onClose: () => void;
 }) {
-  const method =
-    paymentMethodOptions.find((item) => item.value === receipt.paymentMethod)
-      ?.label ?? receipt.paymentMethod;
   const message = receiptMessage(receipt);
   const whatsapp = receipt.patientPhone
     ? whatsappLink(receipt.patientPhone, message)
@@ -27,57 +41,54 @@ export function ReceiptModal({
       subtitle={receipt.receiptNumber}
       onClose={onClose}
     >
-      <div className="receipt-content">
-        <Logo />
-        <div className="receipt-clinic">
-          <strong>{receipt.clinicLegalName || receipt.clinicName}</strong>
-          {receipt.clinicTaxId && (
-            <span>CNPJ/CPF {formatTaxId(receipt.clinicTaxId)}</span>
-          )}
-          {receipt.clinicAddress && <span>{receipt.clinicAddress}</span>}
-        </div>
-        <p>
-          Recebemos de <strong>{receipt.patientName}</strong> o valor de{" "}
-          <strong>{money(receipt.amountInCents)}</strong>, referente a{" "}
-          {receipt.description}.
-        </p>
-        <dl>
-          <div>
-            <dt>Pagamento</dt>
-            <dd>{method}</dd>
-          </div>
-          <div>
-            <dt>Data</dt>
-            <dd>{new Date(receipt.paidAt).toLocaleString("pt-BR")}</dd>
-          </div>
-          {receipt.discountInCents ? (
-            <div>
-              <dt>Desconto</dt>
-              <dd>{money(receipt.discountInCents)}</dd>
-            </div>
-          ) : null}
-          {receipt.interestInCents ? (
-            <div>
-              <dt>Juros</dt>
-              <dd>{money(receipt.interestInCents)}</dd>
-            </div>
-          ) : null}
-        </dl>
-        <div className="modal-actions print-hidden">
-          <a
-            className="whatsapp-button"
-            href={whatsapp}
-            target="_blank"
-            rel="noopener noreferrer"
+      <ReceiptContent receipt={receipt}>
+        {tracking && (
+          <section
+            className="receipt-tracking print-hidden"
+            aria-label="Assinatura do recibo"
           >
-            <MessageCircle size={16} aria-hidden="true" />
-            Enviar por WhatsApp
-          </a>
-          <button className="primary-button" onClick={() => window.print()}>
+            <div className="receipt-tracking-head">
+              <h3>Assinatura do recibo</h3>
+              <span
+                className={`status-pill ${tracking.status === "signed" ? "paid" : "open"}`}
+              >
+                {receiptSignatureLabels[tracking.status]}
+              </span>
+            </div>
+            <dl>
+              {receiptSignatureSteps(tracking).map((step) => (
+                <div key={step.key} className={step.at ? undefined : "pending"}>
+                  <dt>{step.label}</dt>
+                  <dd>{step.at ? receiptMomentLabel(step.at) : "Ainda não"}</dd>
+                </div>
+              ))}
+            </dl>
+          </section>
+        )}
+        <div className="modal-actions receipt-actions print-hidden">
+          <button
+            type="button"
+            className="secondary-button"
+            onClick={() => window.print()}
+          >
+            <Printer size={16} aria-hidden="true" />
             Imprimir recibo
           </button>
+          {share ? (
+            <ReceiptSignatureWhatsapp share={share} onSent={onSent} />
+          ) : (
+            <a
+              className="whatsapp-button"
+              href={whatsapp}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <MessageCircle size={16} aria-hidden="true" />
+              Enviar por WhatsApp
+            </a>
+          )}
         </div>
-      </div>
+      </ReceiptContent>
     </Modal>
   );
 }

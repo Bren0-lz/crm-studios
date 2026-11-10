@@ -1,23 +1,28 @@
+import { UserAgendaFields } from "./UserAgendaFields";
+import { useUserAgenda } from "./useUserAgenda";
+import { CommissionRecalculationNotice } from "../finance/index";
 import {
   legacyPermissions,
   saoPauloToday,
   userRoleSchema,
   type AdminUser,
+  type AdminUserCommissionInput,
+  type Branch,
+  type CommissionRecalculationPreview,
   type PermissionKey,
-  type Professional,
   type UserRole,
 } from "@crm/contracts";
 import { useEffect, useState, type FormEvent } from "react";
 import { api } from "../../api";
 import { PermissionEditor } from "../../PermissionEditor";
-import { LoadingBlock } from "../../shared/components/LoadingBlock";
+import { CurrencyField } from "../../shared/components/CurrencyField";
 import { useMissingFields } from "../../shared/components/MissingFields";
+import { PhoneInput } from "../../shared/components/PhoneInput";
 import { Modal, ModalCancelButton } from "../../shared/components/Modal";
 import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
-import { roleLabels } from "../../shared/lib/formatting";
+import { roleLabels, sentence } from "../../shared/lib/formatting";
 import {
   isoDateLabel,
-  loadCommissionProfessionals,
   parsePercentage,
   percentageLabel,
   percentageText,
@@ -27,24 +32,21 @@ import {
 export function UserFormModal({
   user,
   users,
-  onUserUpdated,
   onClose,
   onSaved,
 }: {
   user: AdminUser | null;
   users: AdminUser[];
-  onUserUpdated: (updated: AdminUser) => void;
   onClose: () => void;
   onSaved: (saved: AdminUser) => void;
 }) {
-  // Usuário já gravado (o editado ou o recém-criado numa falha parcial): a próxima tentativa
-  // é PATCH, nunca outro POST.
-  const [current, setCurrent] = useState<AdminUser | null>(user);
+  const current = user;
   const [fullName, setFullName] = useState(user?.fullName ?? "");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [role, setRole] = useState<UserRole>(user?.role ?? "user");
   const [jobTitle, setJobTitle] = useState(user?.jobTitle ?? "");
+  const [whatsapp, setWhatsapp] = useState(user?.whatsapp ?? "");
   // Usuário comum novo (ou admin sendo rebaixado) começa com tudo desmarcado: não há padrão.
   const [selectedPermissions, setSelectedPermissions] = useState<
     PermissionKey[]
@@ -61,29 +63,50 @@ export function UserFormModal({
     percentageText(user?.commissionPercentage),
   );
   const [effectiveFrom, setEffectiveFrom] = useState(today);
-  const [savedCommission, setSavedCommission] = useState({
+  const [savedCommission] = useState({
     percentage: parsePercentage(percentageText(user?.commissionPercentage)),
     effectiveFrom: today,
   });
-  const [professionals, setProfessionals] = useState<Professional[] | null>(
-    null,
+  // Folha de pagamento: só quem recebe salário entra nela (a folha não cadastra ninguém).
+  const [receivesSalary, setReceivesSalary] = useState(
+    user?.salaryInCents !== undefined,
   );
-  const [professionalsError, setProfessionalsError] = useState("");
-  const [selectedProfessional, setSelectedProfessional] = useState(
-    user?.professionalId ?? "",
+  const [salary, setSalary] = useState(user?.salaryInCents ?? 0);
+  const agenda = useUserAgenda(user, users, fullName);
+  // Filiais: só aparecem quando a rede tem mais de uma (admin sempre acessa todas).
+  const [branches, setBranches] = useState<Branch[]>([]);
+  const [allBranches, setAllBranches] = useState(user?.allBranches ?? true);
+  const [branchIds, setBranchIds] = useState<string[]>(user?.branchIds ?? []);
+  const [dashboardAccess, setDashboardAccess] = useState(
+    user?.dashboardAccess ?? false,
   );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  // Prévia do recálculo das comissões já lançadas e as regras que ela descreve.
+  const [recalculation, setRecalculation] = useState<{
+    key: string;
+    data: CommissionRecalculationPreview;
+  } | null>(null);
   const dirty = useFormDirty({
+    allBranches,
+    branchIds,
     fullName,
     email,
     password,
     role,
     jobTitle,
+    whatsapp,
     selectedPermissions,
     percentage,
     effectiveFrom,
-    selectedProfessional,
+    receivesSalary,
+    salary,
+    agenda: {
+      attends: agenda.attends,
+      mode: agenda.mode,
+      selected: agenda.selected,
+      draft: agenda.draft,
+    },
   });
   const isAdmin = role === "admin";
   // Fontes para copiar: usuários comuns já cadastrados, menos o próprio.
@@ -93,30 +116,20 @@ export function UserFormModal({
 
   useEffect(() => {
     let active = true;
-    loadCommissionProfessionals(
-      (items) => {
-        if (active) setProfessionals(items);
-      },
-      (message) => {
-        if (active) setProfessionalsError(message);
-      },
-    );
+    api
+      .adminBranches()
+      .then((items) => {
+        if (active && Array.isArray(items))
+          setBranches(items.filter((item) => item.active));
+      })
+      .catch(() => {
+        // Sem a lista, o acesso às filiais fica como está.
+      });
     return () => {
       active = false;
     };
   }, []);
-
-  // Livres: sem os já ligados a outros usuários; o do próprio usuário continua na lista.
-  const taken = new Set(
-    users
-      .filter((item) => item.id !== current?.id && item.professionalId)
-      .map((item) => item.professionalId),
-  );
-  const professionalOptions = (professionals ?? []).filter(
-    (item) =>
-      item.id === current?.professionalId ||
-      (item.active && !taken.has(item.id)),
-  );
+  const choosesBranches = branches.length > 1 && !isAdmin;
 
   const typedPercentage = parsePercentage(percentage);
   const commissionChanged =
@@ -144,6 +157,7 @@ export function UserFormModal({
 
   // O que falta: o botão principal fica desativado listando os campos (QM14).
   const missing = useMissingFields([
+    ...agenda.missing,
     ...(fullName.trim().length < 3
       ? ["Nome completo (pelo menos 3 caracteres)"]
       : []),
@@ -155,7 +169,20 @@ export function UserFormModal({
       ? ["Comissão (%) — para não pagar comissão, informe 0%"]
       : []),
     ...(commissionChanged && !effectiveFrom ? ["Vale a partir de"] : []),
+    ...(receivesSalary && salary <= 0 ? ["Salário mensal"] : []),
   ]);
+
+  const commission =
+    commissionChanged && typedPercentage !== undefined
+      ? { percentage: typedPercentage, effectiveFrom }
+      : undefined;
+  // Regras que o salvamento grava; a prévia do recálculo vale só para estas.
+  const commissionRules: AdminUserCommissionInput[] = commission
+    ? [commission]
+    : [];
+  const recalculationKey = JSON.stringify(commissionRules);
+  const confirmedRecalculation =
+    recalculation?.key === recalculationKey ? recalculation.data : null;
 
   /** Regra do percentual informado (não é falta de campo). */
   function commissionError() {
@@ -170,14 +197,18 @@ export function UserFormModal({
     return "";
   }
 
-  /**
-   * Um botão grava tudo: dados e módulos (POST/PATCH), depois a ligação com o profissional
-   * e a comissão (PUT), cada um só se mudou. Se um PUT falhar, o que já foi gravado fica.
-   */
+  // O servidor grava todo o formulário em uma única transação.
   async function submit(event: FormEvent) {
     event.preventDefault();
     if (saving) return;
-    const invalid = commissionError();
+    const invalid =
+      commissionError() ||
+      (whatsapp && whatsapp.length < 10
+        ? "Informe o WhatsApp com DDD, por exemplo (11) 99999-9999."
+        : "") ||
+      (choosesBranches && !allBranches && branchIds.length === 0
+        ? "Selecione ao menos uma filial."
+        : "");
     if (invalid) {
       setError(invalid);
       return;
@@ -185,21 +216,62 @@ export function UserFormModal({
     setSaving(true);
     setError("");
     // Admin ou nada marcado grava `null` (admin: acesso total; usuário comum: nenhum módulo).
-    const permissions = { permissions: isAdmin ? [] : selectedPermissions };
+    const permissions = {
+      permissions: isAdmin ? [] : selectedPermissions,
+      ...(choosesBranches
+        ? {
+            branchAccess: {
+              allBranches,
+              branchIds: allBranches ? [] : branchIds,
+            },
+          }
+        : {}),
+    };
     const title = jobTitle.trim();
-    const commission =
-      commissionChanged && typedPercentage !== undefined
-        ? { percentage: typedPercentage, effectiveFrom }
-        : undefined;
+    // Edição: só envia o salário quando muda (ausente mantém o gravado).
+    const nextSalary = receivesSalary ? salary : null;
+    const salaryInput =
+      nextSalary !== (current?.salaryInCents ?? null)
+        ? { salaryInCents: nextSalary }
+        : {};
     let latest: AdminUser;
     try {
+      // Regra com início até hoje recalcula as comissões já lançadas: mostra antes o que muda.
+      // Trocando o profissional ligado no mesmo salvamento, a prévia (feita com o vínculo
+      // atual) não vale: o servidor recalcula sem conferir.
+      let digest = confirmedRecalculation?.digest;
+      if (
+        current &&
+        !agenda.operation &&
+        !digest &&
+        commissionRules.some((rule) => rule.effectiveFrom <= today)
+      ) {
+        const data = await api.commissionRecalculationPreview({
+          userId: current.id,
+          rules: commissionRules,
+        });
+        if (data.items.length) {
+          setRecalculation({ key: recalculationKey, data });
+          return;
+        }
+        digest = data.digest;
+      }
       latest = current
         ? await api.updateAdminUser(current.id, {
             fullName: fullName.trim(),
             role,
             active: current.active,
             jobTitle: title,
+            // Ausente mantém o número gravado; vazio remove.
+            ...(whatsapp !== (current.whatsapp ?? "") ? { whatsapp } : {}),
             ...permissions,
+            ...(dashboardAccess !== (current.dashboardAccess ?? false)
+              ? { dashboardAccess }
+              : {}),
+            ...salaryInput,
+            ...(commission ? { commission } : {}),
+            ...(agenda.operation ? { professional: agenda.operation } : {}),
+            ...(digest ? { recalculationDigest: digest } : {}),
           })
         : await api.createAdminUser({
             fullName: fullName.trim(),
@@ -207,43 +279,18 @@ export function UserFormModal({
             password,
             role,
             ...(title ? { jobTitle: title } : {}),
+            ...(whatsapp ? { whatsapp } : {}),
             ...permissions,
+            ...(dashboardAccess ? { dashboardAccess } : {}),
+            ...salaryInput,
             ...(commission ? { commission } : {}),
+            ...(agenda.operation ? { professional: agenda.operation } : {}),
           });
-    } catch (cause) {
-      setError(userSaveErrorMessage(cause));
-      setSaving(false);
-      return;
-    }
-    // Na criação a comissão já foi junto no POST.
-    const commissionByPut = current !== null ? commission : undefined;
-    if (commission && !commissionByPut) {
-      setSavedCommission({ percentage: commission.percentage, effectiveFrom });
-    }
-    let failed: "professional" | "commission" = "professional";
-    try {
-      if (selectedProfessional !== (latest.professionalId ?? "")) {
-        latest = await api.setUserProfessional(
-          latest.id,
-          selectedProfessional || null,
-        );
-      }
-      failed = "commission";
-      if (commissionByPut) {
-        latest = await api.setUserCommission(latest.id, commissionByPut);
-      }
       onSaved(latest);
     } catch (cause) {
-      const saved = latest;
-      setCurrent(saved);
-      onUserUpdated(saved);
-      const part =
-        failed === "professional"
-          ? "a ligação com o profissional da agenda não foi salva"
-          : "a comissão não foi salva";
-      setError(
-        `${current ? "Dados do usuário salvos" : `Usuário ${saved.fullName} criado`}, mas ${part}: ${(cause as Error).message} Ajuste e clique em “Salvar alterações” de novo.`,
-      );
+      setError(userSaveErrorMessage(cause));
+      setRecalculation(null);
+    } finally {
       setSaving(false);
     }
   }
@@ -289,6 +336,7 @@ export function UserFormModal({
               <input
                 type="password"
                 required
+                maxLength={128}
                 autoComplete="new-password"
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
@@ -318,10 +366,18 @@ export function UserFormModal({
             onChange={(event) => setJobTitle(event.target.value)}
           />
         </label>
+        <div className="field-with-hint">
+          <label>
+            WhatsApp
+            <PhoneInput value={whatsapp} onChange={setWhatsapp} />
+          </label>
+          <small className="field-hint">
+            Usado para compartilhar a agenda do profissional.
+          </small>
+        </div>
         {!current && (
           <p className="muted-copy span-2">
-            A senha precisa de letra maiúscula, minúscula e número. O cargo é só
-            informativo: o acesso vem dos módulos abaixo.
+            O cargo é só informativo: o acesso vem dos módulos abaixo.
           </p>
         )}
         <fieldset className="form-fieldset span-2">
@@ -368,6 +424,79 @@ export function UserFormModal({
             </div>
           )}
         </fieldset>
+        {choosesBranches && (
+          <fieldset className="form-fieldset span-2">
+            <legend>Filiais</legend>
+            <label className="checkbox-field">
+              <input
+                type="checkbox"
+                checked={allBranches}
+                onChange={(event) => setAllBranches(event.target.checked)}
+              />
+              Acessa todas as filiais
+            </label>
+            {!allBranches &&
+              branches.map((branch) => (
+                <label className="checkbox-field" key={branch.id}>
+                  <input
+                    type="checkbox"
+                    checked={branchIds.includes(branch.id)}
+                    onChange={(event) =>
+                      setBranchIds((current) =>
+                        event.target.checked
+                          ? [...current, branch.id]
+                          : current.filter((id) => id !== branch.id),
+                      )
+                    }
+                  />
+                  {branch.name}
+                </label>
+              ))}
+          </fieldset>
+        )}
+        <fieldset className="form-fieldset span-2">
+          <legend>Painel de vendas</legend>
+          <label className="checkbox-field">
+            <input
+              type="checkbox"
+              checked={dashboardAccess}
+              onChange={(event) => setDashboardAccess(event.target.checked)}
+            />
+            Acessa o painel de vendas
+          </label>
+          <p className="muted-copy">
+            Permissão especial: vale também para o admin, que só entra no painel
+            com ela marcada. No painel, a pessoa vê e faz só o que as permissões
+            acima permitem.
+          </p>
+        </fieldset>
+        <UserAgendaFields agenda={agenda} />
+        <fieldset className="form-fieldset span-2">
+          <legend>Folha de pagamento</legend>
+          <label className="checkbox-field">
+            <input
+              type="checkbox"
+              checked={receivesSalary}
+              onChange={(event) => setReceivesSalary(event.target.checked)}
+            />
+            Recebe salário
+          </label>
+          {receivesSalary && (
+            <div className="form-fieldset-grid">
+              <CurrencyField
+                label="Salário mensal"
+                required
+                value={salary}
+                onChange={setSalary}
+              />
+            </div>
+          )}
+          <p className="muted-copy">
+            {receivesSalary
+              ? "Entra na folha de pagamento (Financeiro › Folha) com este salário e, se atende, as comissões."
+              : "Sem salário, a pessoa fica fora da folha de pagamento; só as comissões de quem atende continuam sendo pagas por ela."}
+          </p>
+        </fieldset>
         <fieldset className="form-fieldset span-2">
           <legend>Comissão</legend>
           <div className="commission-editor">
@@ -396,8 +525,8 @@ export function UserFormModal({
             </div>
             <p className="muted-copy">
               {current?.commissionPercentage !== undefined
-                ? `Vigente hoje: ${percentageLabel.format(current.commissionPercentage)}%${current.commissionEffectiveFrom ? ` desde ${isoDateLabel(current.commissionEffectiveFrom)}` : ""}. Um percentual ou data novos criam uma nova vigência; o histórico é mantido.`
-                : "Percentual sobre os atendimentos desta pessoa. Deixe em branco se ela não recebe comissão."}
+                ? `${sentence(`Vigente hoje: ${percentageLabel.format(current.commissionPercentage)}%${current.commissionEffectiveFrom ? ` desde ${isoDateLabel(current.commissionEffectiveFrom)}` : ""}, sobre o valor pago pelo cliente`)} Um percentual ou data novos criam uma nova vigência; o histórico é mantido.`
+                : "Percentual sobre o valor que o cliente pagou em cada atendimento desta pessoa (comanda ou sessão do plano, já com desconto). Atendimento sem cobrança não gera comissão. Deixe em branco se ela não recebe comissão."}
             </p>
             {sameStart && (
               <p className="muted-copy" role="status">
@@ -407,41 +536,15 @@ export function UserFormModal({
             {futureStart && (
               <p className="muted-copy" role="status">
                 {current?.commissionPercentage !== undefined
-                  ? `Data futura: o percentual atual (${percentageLabel.format(current.commissionPercentage)}%) continua valendo até ${isoDateLabel(effectiveFrom)}.`
-                  : `Data futura: a comissão só passa a valer em ${isoDateLabel(effectiveFrom)}.`}
+                  ? `Data futura: o percentual atual (${percentageLabel.format(current.commissionPercentage)}%) continua valendo até ${sentence(isoDateLabel(effectiveFrom))}`
+                  : `Data futura: a comissão só passa a valer em ${sentence(isoDateLabel(effectiveFrom))}`}
               </p>
             )}
-            {professionals === null && !professionalsError ? (
-              <LoadingBlock />
-            ) : professionalsError ? (
-              <div className="form-error" role="alert">
-                Não foi possível carregar os profissionais da agenda:{" "}
-                {professionalsError}
-              </div>
-            ) : (
-              <label>
-                Profissional da agenda (opcional)
-                <select
-                  value={selectedProfessional}
-                  onChange={(event) =>
-                    setSelectedProfessional(event.target.value)
-                  }
-                >
-                  <option value="">Nenhum</option>
-                  {professionalOptions.map((item) => (
-                    <option value={item.id} key={item.id}>
-                      {item.fullName}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            )}
-            <p className="muted-copy">
-              Ligue o profissional da agenda para contar os atendimentos desta
-              pessoa na comissão.
-            </p>
           </div>
         </fieldset>
+        {confirmedRecalculation && (
+          <CommissionRecalculationNotice preview={confirmedRecalculation} />
+        )}
         {error && <div className="form-error span-2">{error}</div>}
         {missing.hint}
         <div className="modal-actions span-2">
@@ -453,9 +556,11 @@ export function UserFormModal({
           >
             {saving
               ? "Salvando…"
-              : current
-                ? "Salvar alterações"
-                : "Criar usuário"}
+              : confirmedRecalculation
+                ? "Confirmar e recalcular"
+                : current
+                  ? "Salvar alterações"
+                  : "Criar usuário"}
           </button>
         </div>
       </form>

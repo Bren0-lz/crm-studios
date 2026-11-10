@@ -1,6 +1,17 @@
+import { withQuotedPrefix } from "../common/model.js";
 import { z } from "zod";
-import { competenceMonthSchema } from "../common/model.js";
-import { patientFirstName } from "../communications/model.js";
+import {
+  addDaysToIsoDate,
+  competenceMonthSchema,
+  paymentMethodSchema,
+} from "../common/model.js";
+import { serviceBusinessLineSchema } from "../administration/business-line.js";
+import { maxInstallmentsLimit } from "./installments.js";
+import { paymentPartsSchema } from "./payment-parts.js";
+import {
+  fillMessageTemplate,
+  patientFirstName,
+} from "../communications/model.js";
 
 /**
  * Descrição da cobrança gerada ao fechar a comanda: data de abertura (dia local da clínica,
@@ -18,21 +29,15 @@ export function tabReceivableDescription(
  * Regra de comissão do próprio usuário (`commission_rules.user_id`), sem exigir profissional
  * ligado. Vale nos atendimentos do profissional da agenda ligado ao usuário a partir de
  * `effectiveFrom` e prevalece sobre a regra do profissional (Financeiro); nova vigência cria
- * uma regra nova (o histórico é mantido).
+ * uma regra nova (o histórico é mantido). Só existe a comissão geral: um percentual sobre o
+ * valor que o cliente pagou pelo atendimento (sem comissão por serviço nem valor fixo).
  */
 export const commissionTermsSchema = z
   .object({
-    kind: z.enum(["percentage", "fixed"]).optional(),
-    serviceId: z.uuid().optional(),
-    fixedAmountInCents: z.number().int().min(0).max(2147483647).optional(),
     effectiveUntil: z.iso.date().optional(),
     percentage: z.number().min(0).max(100),
     effectiveFrom: z.iso.date(),
   })
-  .refine(
-    (value) => value.kind !== "fixed" || value.fixedAmountInCents !== undefined,
-    { message: "Informe o valor fixo.", path: ["fixedAmountInCents"] },
-  )
   .refine(
     (value) =>
       !value.effectiveUntil || value.effectiveUntil >= value.effectiveFrom,
@@ -43,20 +48,198 @@ export const commissionTermsSchema = z
   );
 export const adminUserCommissionInputSchema = commissionTermsSchema;
 
-export const productInputSchema = z.object({
+/**
+ * Rótulos dos códigos de tamanho gravados antes de os tamanhos virem da categoria (escala fixa de
+ * roupas). Tamanho novo é gravado com o próprio nome que a categoria definiu ("38", "500 ml").
+ */
+export const legacyProductSizeLabels: Record<string, string> = {
+  pp: "PP",
+  p: "P",
+  m: "M",
+  g: "G",
+  gg: "GG",
+  unique: "Tamanho único",
+  baby_look_pp: "Baby look PP",
+  baby_look_p: "Baby look P",
+  baby_look_m: "Baby look M",
+  baby_look_g: "Baby look G",
+  baby_look_gg: "Baby look GG",
+};
+
+/** Um tamanho: o nome definido na categoria do produto (ou um código antigo da escala fixa). */
+export const productSizeSchema = z.string().trim().min(1).max(40);
+export type ProductSize = z.infer<typeof productSizeSchema>;
+
+/** Quantos tamanhos uma categoria (e um produto) pode ter. */
+export const maxProductSizes = 40;
+
+const sizeKey = (size: string) => size.trim().toLocaleLowerCase("pt-BR");
+
+/** Tamanhos sem repetição (ignorando maiúsculas), na ordem em que foram informados. */
+export function sortProductSizes(sizes: readonly ProductSize[]): ProductSize[] {
+  const seen = new Set<string>();
+  return sizes.filter((size) => {
+    const key = sizeKey(size);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+/** Lista de tamanhos (categoria ou produto): cada um uma vez só, na ordem informada. */
+export const productSizesSchema = z
+  .array(productSizeSchema)
+  .max(maxProductSizes)
+  .refine((sizes) => new Set(sizes.map(sizeKey)).size === sizes.length, {
+    message: "Cada tamanho entra uma vez só.",
+  });
+
+/** Campos do produto usados pelo aviso de reposição. */
+interface RestockFields {
+  currentStock: number;
+  restockAlertAt: number | null | undefined;
+  sizes: readonly ProductSize[];
+  sizeStock: readonly ProductSizeStock[];
+}
+
+/**
+ * Tamanhos configurados com saldo no aviso de reposição ou abaixo, na ordem do produto. Cada
+ * tamanho conta sozinho: com aviso em 5, P com 2 entra mesmo que M tenha 10.
+ */
+export function productRestockSizes(
+  product: Omit<RestockFields, "currentStock">,
+): ProductSize[] {
+  const limit = product.restockAlertAt;
+  if (!limit) return [];
+  return product.sizes.filter(
+    (size) =>
+      (product.sizeStock.find((entry) => entry.size === size)?.currentStock ??
+        0) <= limit,
+  );
+}
+
+/**
+ * Produto pede reposição: sem estoque ou, com aviso de reposição, saldo total no limite ou
+ * abaixo — ou algum tamanho no limite ou abaixo (ver `productRestockSizes`).
+ */
+export function productNeedsRestock(product: RestockFields) {
+  return (
+    product.currentStock <= Math.max(0, product.restockAlertAt ?? 0) ||
+    productRestockSizes(product).length > 0
+  );
+}
+
+/** Saldo de uma chave de estoque do produto: um tamanho, ou `null` para o estoque sem tamanho. */
+export interface ProductSizeStock {
+  size: ProductSize | null;
+  currentStock: number;
+}
+
+export function productSizeLabel(size: ProductSize | null | undefined) {
+  return size ? (legacyProductSizeLabels[size] ?? size) : "Sem tamanho";
+}
+
+/** Nome do item vendido com o tamanho, quando houver ("Camiseta · M"). */
+export function productItemName(item: {
+  productName: string;
+  size?: ProductSize | undefined;
+}) {
+  return item.size
+    ? `${item.productName} · ${productSizeLabel(item.size)}`
+    : item.productName;
+}
+
+/**
+ * Saldos por tamanho mostrados no estoque: todos os tamanhos configurados (mesmo zerados) e,
+ * fora deles, só as chaves que ainda têm saldo (tamanho removido ou estoque de antes dos
+ * tamanhos), para poderem ser baixadas. Produto sem tamanhos e sem sobras devolve lista vazia.
+ */
+export function productSizeStock(
+  sizes: readonly ProductSize[],
+  rows: readonly ProductSizeStock[],
+): ProductSizeStock[] {
+  const stockOf = (size: ProductSize | null) =>
+    rows
+      .filter((row) => row.size === size)
+      .reduce((sum, row) => sum + row.currentStock, 0);
+  const configured = (size: ProductSize | null) =>
+    sizes.length ? size !== null && sizes.includes(size) : size === null;
+  const keys = [
+    ...new Set<ProductSize | null>([...sizes, ...rows.map((row) => row.size)]),
+  ].filter((size) => size !== null);
+  return [...keys, null]
+    .filter(
+      (size) =>
+        (sizes.length > 0 && configured(size)) ||
+        (!configured(size) && stockOf(size) > 0),
+    )
+    .map((size) => ({ size, currentStock: stockOf(size) }));
+}
+
+const productBaseSchema = z.object({
   categoryId: z.uuid().nullable().optional(),
   brandId: z.uuid().nullable().optional(),
   name: z.string().trim().min(2).max(160),
-  sku: z.string().trim().min(1).max(60),
+  /** Ausente = gerado automaticamente (cadastro) ou mantém o atual (edição). */
+  sku: z.string().trim().min(1).max(60).optional(),
   unit: z.string().trim().min(1).max(20).default("un"),
   costInCents: z.number().int().min(0),
-  salePriceInCents: z.number().int().min(0),
+  /** `null` = preço ainda não definido: o produto fica cadastrado, mas não pode ser vendido. */
+  salePriceInCents: z.number().int().min(0).nullable(),
   initialStock: z.number().int().min(0).max(1_000_000).default(0),
-  minimumStock: z.number().int().min(0).max(1_000_000).default(0),
+  /**
+   * Aviso de reposição (opcional): o produto pede reposição quando o saldo total chega a esta
+   * quantidade ou menos. `null` = sem aviso; ausente = nenhum (cadastro) ou mantém o atual (edição).
+   */
+  restockAlertAt: z.number().int().min(1).max(1_000_000).nullable().optional(),
+  /** Vazio = sem distinção por tamanhos; ausente = nenhum (cadastro) ou mantém os atuais (edição). */
+  sizes: productSizesSchema.optional(),
+  /**
+   * Linha no painel de vendas (como a do serviço; só categoriza o painel); `null` = sem
+   * classificação. Ausente = `null` no cadastro e mantém a atual na edição; `null` explícito na
+   * edição limpa.
+   */
+  businessLine: serviceBusinessLineSchema.nullable().optional(),
 });
+
+export const productInputSchema = productBaseSchema
+  .extend({
+    /** Estoque inicial de cada tamanho (produto com tamanhos usa este no lugar de `initialStock`). */
+    initialSizeStock: z
+      .array(
+        z.object({
+          size: productSizeSchema,
+          quantity: z.number().int().min(0).max(1_000_000),
+        }),
+      )
+      .max(maxProductSizes)
+      .optional(),
+  })
+  .superRefine((value, context) => {
+    const sizes = value.sizes ?? [];
+    const initial = value.initialSizeStock ?? [];
+    if (sizes.length && value.initialStock > 0)
+      context.addIssue({
+        code: "custom",
+        message: "Informe o estoque inicial por tamanho.",
+        path: ["initialStock"],
+      });
+    if (
+      initial.some((entry) => !sizes.includes(entry.size)) ||
+      new Set(initial.map((entry) => entry.size)).size !== initial.length
+    )
+      context.addIssue({
+        code: "custom",
+        message:
+          "O estoque inicial deve usar os tamanhos do produto, uma vez cada.",
+        path: ["initialSizeStock"],
+      });
+  });
 
 export const stockMovementInputSchema = z.object({
   productId: z.uuid(),
+  /** Obrigatório para produto com tamanhos; ausente = estoque sem tamanho. */
+  size: productSizeSchema.optional(),
   kind: z.enum(["purchase", "adjustment_in", "adjustment_out", "loss"]),
   quantity: z.number().int().min(1).max(1_000_000),
   notes: z.string().trim().min(3).max(500),
@@ -69,19 +252,13 @@ export const patientTabInputSchema = z.object({
 
 export const patientTabItemInputSchema = z.object({
   productId: z.uuid(),
+  size: productSizeSchema.optional(),
   quantity: z.number().int().min(1).max(10_000),
 });
 
 export const receivableStatusSchema = z.enum(["open", "paid", "cancelled"]);
 
-export const paymentMethodSchema = z.enum([
-  "pix",
-  "card",
-  "cash",
-  "bank_transfer",
-  "boleto",
-  "other",
-]);
+export { paymentMethodSchema };
 
 export const paymentTimingSchema = z.object({
   paidAt: z.iso.datetime({ offset: true }).optional(),
@@ -92,9 +269,21 @@ export const financialDatesSchema = paymentTimingSchema.extend({
   dueDate: z.iso.date().optional(),
   reason: z.string().trim().min(3).max(500),
 });
+/** Parcelas do pagamento na própria forma (ex.: cartão em 3x); ausente = à vista. */
+export const paymentInstallmentsSchema = z
+  .number()
+  .int()
+  .min(1)
+  .max(maxInstallmentsLimit)
+  .optional();
 export const paymentInputSchema = z.object({
   ...paymentTimingSchema.shape,
   paymentMethod: paymentMethodSchema.default("pix"),
+});
+
+/** Pagamento de conta a pagar: uma forma ou várias (picado), somando o valor da conta. */
+export const payableSettlementSchema = paymentInputSchema.extend({
+  payments: paymentPartsSchema.optional(),
 });
 
 export const patientTabCloseInputSchema = z
@@ -103,32 +292,168 @@ export const patientTabCloseInputSchema = z
     categoryId: z.uuid().optional(),
     settlement: z.enum(["paid", "receivable"]),
     paymentMethod: paymentMethodSchema.optional(),
+    paymentInstallments: paymentInstallmentsSchema,
+    /**
+     * Pagamento picado: as formas e o valor de cada uma, somando o total. Pago agora, são as
+     * formas recebidas; a receber, as previstas (sugeridas na baixa).
+     */
+    payments: paymentPartsSchema.optional(),
     dueDate: z.iso.date(),
   })
   .refine(
-    (value) => value.settlement !== "paid" || Boolean(value.paymentMethod),
+    (value) =>
+      value.settlement !== "paid" ||
+      Boolean(value.paymentMethod) ||
+      Boolean(value.payments?.length),
     { message: "Informe a forma de pagamento.", path: ["paymentMethod"] },
   );
 
-export const productUpdateSchema = productInputSchema
+/** Cancelamento de comanda: `refundPayment` estorna antes o pagamento já recebido. */
+/** `reason`: motivo do cancelamento, guardado na venda (texto livre, opcional na API). */
+export const patientTabCancelInputSchema = z
+  .object({
+    refundPayment: z.boolean().default(false),
+    reason: z.string().trim().max(500).optional(),
+  })
+  .default({ refundPayment: false });
+
+export const productUpdateSchema = productBaseSchema
   .omit({ initialStock: true })
-  .extend({ active: z.boolean().default(true) });
+  .extend({
+    active: z.boolean().default(true),
+    /**
+     * Novo saldo de cada tamanho, definido no próprio cadastro: a diferença para o saldo atual
+     * vira um ajuste no histórico de estoque. Ausente = saldos não mudam.
+     */
+    sizeQuantities: z
+      .array(
+        z.object({
+          size: productSizeSchema,
+          quantity: z.number().int().min(0).max(1_000_000),
+        }),
+      )
+      .max(maxProductSizes)
+      .optional(),
+  })
+  .superRefine((value, context) => {
+    const entries = value.sizeQuantities ?? [];
+    if (
+      (value.sizes &&
+        entries.some((entry) => !value.sizes!.includes(entry.size))) ||
+      new Set(entries.map((entry) => entry.size)).size !== entries.length
+    )
+      context.addIssue({
+        code: "custom",
+        message:
+          "As quantidades devem usar os tamanhos do produto, uma vez cada.",
+        path: ["sizeQuantities"],
+      });
+  });
 export const patientTabItemUpdateSchema = z.object({
   quantity: z.number().int().min(1).max(10000),
   unitPriceInCents: z.number().int().min(0).max(2147483647),
 });
-export const patientTabServiceInputSchema = z.object({
-  appointmentId: z.uuid(),
-  amountInCents: z.number().int().min(0).max(2147483647).optional(),
-});
+/** Venda de produtos em uma etapa: abre, preenche e fecha a comanda na mesma transação. */
+export const productSaleInputSchema = z
+  .object({
+    patientId: z.uuid(),
+    notes: z.string().trim().max(500).optional().or(z.literal("")),
+    items: z
+      .array(
+        z.object({
+          productId: z.uuid(),
+          size: productSizeSchema.optional(),
+          quantity: z.number().int().min(1).max(10_000),
+          unitPriceInCents: z.number().int().min(0).max(2147483647).optional(),
+        }),
+      )
+      .min(1, "Adicione ao menos um produto.")
+      .max(50)
+      .refine(
+        (items) =>
+          new Set(items.map((item) => `${item.productId}:${item.size ?? ""}`))
+            .size === items.length,
+        { message: "Cada produto entra uma vez só na venda." },
+      ),
+    costCenterId: z.uuid().optional(),
+    categoryId: z.uuid().optional(),
+    settlement: z.enum(["paid", "receivable"]),
+    paymentMethod: paymentMethodSchema.optional(),
+    paymentInstallments: paymentInstallmentsSchema,
+    /**
+     * Pagamento picado: as formas e o valor de cada uma, somando o total. Pago agora, são as
+     * formas recebidas; a receber, as previstas (sugeridas na baixa).
+     */
+    payments: paymentPartsSchema.optional(),
+    dueDate: z.iso.date(),
+    /**
+     * Desconto dado na venda (dos itens e do pedido), já abatido dos preços enviados em
+     * `items`. Fica registrado na cobrança da comanda, para o Financeiro e os relatórios.
+     */
+    discountInCents: z.number().int().min(0).max(2147483647).optional(),
+  })
+  .refine(
+    (value) =>
+      value.settlement !== "paid" ||
+      Boolean(value.paymentMethod) ||
+      Boolean(value.payments?.length),
+    { message: "Informe a forma de pagamento.", path: ["paymentMethod"] },
+  );
+/** Recorrência do valor contratado com o fornecedor. */
+export const supplierBillingCycleSchema = z.enum([
+  "one_time",
+  "monthly",
+  "quarterly",
+  "yearly",
+]);
 export const supplierInputSchema = z.object({
   name: z.string().trim().min(2).max(160),
   kind: z.enum(["person", "company"]),
   document: z.string().trim().max(30).default(""),
   phone: z.string().trim().max(30).default(""),
+  whatsapp: z.string().trim().max(30).default(""),
   email: z.email().optional().or(z.literal("")),
+  hiredOn: z.iso.date().optional(),
+  contractAmountInCents: z.number().int().min(0).max(2147483647).optional(),
+  billingCycle: supplierBillingCycleSchema.default("one_time"),
+  paymentMethod: paymentMethodSchema.optional(),
+  installments: z.number().int().min(1).max(120).default(1),
+  paymentTerms: z.string().trim().max(300).default(""),
+  orders: z.string().max(2000).default(""),
+  contracts: z.string().max(2000).default(""),
   notes: z.string().max(1000).default(""),
   active: z.boolean().default(true),
+});
+/**
+ * Pedido feito ao fornecedor: valor total e itens recebidos. Cada item aponta um produto já
+ * cadastrado (`productId`) ou cadastra um novo (`productName`), sem preço de venda até alguém
+ * defini-lo; a quantidade entra no estoque como compra.
+ */
+export const supplierOrderInputSchema = z.object({
+  orderedOn: z.iso.date(),
+  number: z.string().trim().max(60).default(""),
+  totalInCents: z.number().int().min(0).max(2147483647),
+  notes: z.string().trim().max(1000).default(""),
+  items: z
+    .array(
+      z
+        .object({
+          productId: z.uuid().optional(),
+          productName: z.string().trim().min(2).max(160).optional(),
+          size: productSizeSchema.optional(),
+          quantity: z.number().int().min(1).max(1_000_000),
+          unitCostInCents: z.number().int().min(0).max(2147483647).optional(),
+        })
+        .refine(
+          (item) => Boolean(item.productId) !== Boolean(item.productName),
+          {
+            message: "Escolha um produto cadastrado ou informe o nome do novo.",
+            path: ["productId"],
+          },
+        ),
+    )
+    .min(1, "Informe ao menos um item do pedido.")
+    .max(100),
 });
 export const manualReceivableInputSchema = z.object({
   postedOn: z.iso.date().optional(),
@@ -159,6 +484,22 @@ export const categoryDreInputSchema = z.object({
     "financial_result",
   ]),
 });
+/** Nome de cada grupo da DRE (tela, impressão e planilha). */
+export const dreGroupLabels: Record<
+  z.infer<typeof categoryDreInputSchema>["dreGroup"],
+  string
+> = {
+  unclassified: "Não classificado",
+  service_revenue: "Receita de serviços",
+  product_revenue: "Receita de produtos",
+  tax: "Impostos e deduções",
+  service_cost: "Custos de serviços",
+  product_cost: "Custos de produtos",
+  variable_cost: "Custos variáveis",
+  fixed_expense: "Despesas fixas",
+  depreciation: "Depreciação",
+  financial_result: "Resultado financeiro",
+};
 export const dreFilterSchema = z
   .object({
     from: z.iso.date(),
@@ -220,18 +561,49 @@ export const payableInputSchema = z.object({
   notes: z.string().trim().max(1000).optional().or(z.literal("")),
 });
 
+/** Despesa fixa de valor fixo (internet, aluguel) ou variável (água, luz). */
+export const recurringPayableAmountTypeSchema = z.enum(["fixed", "variable"]);
+
+/** Valor do mês de uma conta gerada por despesa fixa (`PUT /finance/payables/:id/amount`). */
+export const payableAmountInputSchema = z.object({
+  amountInCents: z
+    .number("Informe o valor do mês.")
+    .int("Informe o valor do mês.")
+    .min(1, "Informe o valor do mês."),
+});
+
 export const recurringPayableInputSchema = z
   .object({
     description: z.string().trim().min(3).max(200),
     supplier: z.string().trim().max(160).optional().or(z.literal("")),
     categoryId: z.uuid(),
-    costCenterId: z.uuid(),
-    amountInCents: z.number().int().min(1),
+    /** Opcional, como na despesa pontual. */
+    costCenterId: z.uuid().optional(),
+    /**
+     * Na variável, `amountInCents` é a estimativa (0 = sem estimativa); o valor de cada mês é
+     * informado na conta.
+     */
+    amountType: recurringPayableAmountTypeSchema.default("fixed"),
+    amountInCents: z.number().int().min(0),
     dayOfMonth: z.number().int().min(1).max(28),
+    /** Dias de antecedência do aviso no sino; ausente, não avisa. */
+    reminderDaysBefore: z
+      .number("Informe os dias de antecedência do aviso.")
+      .int("Informe os dias de antecedência do aviso.")
+      .min(0, "O aviso vai de 0 a 30 dias antes do vencimento.")
+      .max(30, "O aviso vai de 0 a 30 dias antes do vencimento.")
+      .optional(),
     startMonth: competenceMonthSchema,
     endMonth: competenceMonthSchema.optional(),
     active: z.boolean().default(true),
   })
+  .refine(
+    (value) => value.amountType === "variable" || value.amountInCents > 0,
+    {
+      message: "Informe o valor mensal.",
+      path: ["amountInCents"],
+    },
+  )
   .refine((value) => !value.endMonth || value.endMonth >= value.startMonth, {
     message: "O mês final não pode ser anterior ao mês inicial.",
     path: ["endMonth"],
@@ -284,6 +656,104 @@ export function recurringPayableDueDate(
   return `${competence}-${String(dayOfMonth).padStart(2, "0")}`;
 }
 
+/** Conta de despesa fixa que já entrou no prazo de aviso e ainda não foi paga. */
+export interface RecurringPayableReminder {
+  recurringPayableId: string;
+  description: string;
+  competence: string;
+  dueDate: string;
+  /** Primeiro dia do aviso (vencimento menos os dias de antecedência). */
+  remindFrom: string;
+  /** Valor da conta gerada; sem conta ainda, o valor (ou a estimativa) da despesa fixa. */
+  amountInCents: number;
+  amountType: "fixed" | "variable";
+  /** Valor variável do mês ainda não informado. */
+  amountPending: boolean;
+  /** Conta a pagar já gerada para a competência, se houver. */
+  payableId?: string | undefined;
+}
+
+/**
+ * Avisos das despesas fixas com antecedência configurada: cada conta em aberto cujo
+ * prazo de aviso já começou (inclusive vencidas) e as competências do mês atual e do
+ * próximo ainda não geradas, quando o aviso já começou. Contas pagas ou canceladas saem.
+ */
+export function recurringPayableReminders(
+  models: Array<{
+    id: string;
+    description: string;
+    amountType?: "fixed" | "variable" | undefined;
+    amountInCents: number;
+    dayOfMonth: number;
+    reminderDaysBefore?: number | undefined;
+    startMonth: string;
+    endMonth?: string | undefined;
+    resumedFromMonth?: string | undefined;
+    active: boolean;
+  }>,
+  payables: Array<{
+    id: string;
+    recurringPayableId?: string | undefined;
+    competence?: string | undefined;
+    dueDate: string;
+    amountInCents: number;
+    status: "open" | "paid" | "cancelled";
+    amountPending?: boolean | undefined;
+  }>,
+  today: string,
+): RecurringPayableReminder[] {
+  const currentMonth = today.slice(0, 7);
+  const upcoming = [currentMonth, nextCompetence(currentMonth)];
+  const reminders: RecurringPayableReminder[] = [];
+  for (const model of models) {
+    if (model.reminderDaysBefore === undefined) continue;
+    const amountType = model.amountType ?? "fixed";
+    const linked = payables.filter(
+      (item) => item.recurringPayableId === model.id && item.competence,
+    );
+    const remindFromOf = (dueDate: string) =>
+      addDaysToIsoDate(dueDate, -model.reminderDaysBefore!);
+    for (const payable of linked) {
+      const remindFrom = remindFromOf(payable.dueDate);
+      if (payable.status !== "open" || remindFrom > today) continue;
+      reminders.push({
+        recurringPayableId: model.id,
+        description: model.description,
+        competence: payable.competence!,
+        dueDate: payable.dueDate,
+        remindFrom,
+        amountInCents: payable.amountInCents,
+        amountType,
+        amountPending: payable.amountPending === true,
+        payableId: payable.id,
+      });
+    }
+    const due = recurringPayableCompetences(model, upcoming[1]!);
+    for (const competence of upcoming) {
+      if (!due.includes(competence)) continue;
+      if (linked.some((item) => item.competence === competence)) continue;
+      const dueDate = recurringPayableDueDate(competence, model.dayOfMonth);
+      const remindFrom = remindFromOf(dueDate);
+      if (remindFrom > today) continue;
+      reminders.push({
+        recurringPayableId: model.id,
+        description: model.description,
+        competence,
+        dueDate,
+        remindFrom,
+        amountInCents: model.amountInCents,
+        amountType,
+        amountPending: amountType === "variable",
+      });
+    }
+  }
+  return reminders.sort(
+    (a, b) =>
+      a.dueDate.localeCompare(b.dueDate) ||
+      a.description.localeCompare(b.description, "pt-BR"),
+  );
+}
+
 // Caixa do dia (`GET /finance/daily-cash?date=`)
 
 export const dailyCashFilterSchema = z.object({
@@ -303,6 +773,12 @@ export const financeForecastFilterSchema = z.object({
 
 /** Baixa de parcela (U39): desconto, juros e valor recebido (parcial gera nova parcela). */
 export const receivableSettlementSchema = paymentInputSchema.extend({
+  paymentInstallments: paymentInstallmentsSchema,
+  /**
+   * Pagamento picado: formas e valores recebidos nesta baixa. A soma é o valor recebido
+   * (`receivedInCents` é ignorado); faltando, o saldo vira nova parcela como no parcial.
+   */
+  payments: paymentPartsSchema.optional(),
   discountInCents: z.number().int().min(0).default(0),
   interestInCents: z.number().int().min(0).default(0),
   /** Sem valor = recebe o valor final inteiro. */
@@ -351,4 +827,119 @@ export function settlementBreakdown(
       error: "O valor recebido não pode passar do valor final.",
     };
   return result;
+}
+
+/**
+ * Mensagem pronta para falar com o cliente sobre uma parcela em aberto: em atraso, avisa e
+ * pergunta se aconteceu algo; a vencer, só lembra. A equipe pode editar antes de enviar.
+ */
+export function receivableContactMessage(input: {
+  patientName: string;
+  description: string;
+  amountInCents: number;
+  dueDate: string;
+  overdue: boolean;
+}): string {
+  const [year, month, day] = input.dueDate.split("-");
+  const amount = new Intl.NumberFormat("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+  }).format(input.amountInCents / 100);
+  const installment = `a parcela "${input.description}" de ${amount}`;
+  const due = `${day}/${month}/${year}`;
+  const greeting = `Olá, ${patientFirstName(input.patientName)}! Tudo bem?`;
+  return input.overdue
+    ? `${greeting} Notamos que ${installment}, com vencimento em ${due}, ainda está em aberto. Aconteceu alguma coisa? Se precisar, podemos combinar juntos a melhor forma de pagamento.`
+    : `${greeting} Passando para lembrar que ${installment} vence em ${due}. Qualquer dúvida, estamos à disposição.`;
+}
+
+/** Variáveis do modelo da mensagem de cobrança Pix (Configurações › Dados da clínica). */
+export const pixMessageVariables = [
+  { code: "{{nome}}", label: "Nome", example: "Marina" },
+  {
+    code: "{{nome_completo}}",
+    label: "Nome completo",
+    example: "Marina Costa",
+  },
+  { code: "{{plano}}", label: "Plano", example: "Pilates 2x semana" },
+  { code: "{{sessoes}}", label: "Sessões", example: "8 sessões" },
+  { code: "{{valor_total}}", label: "Valor total", example: "R$ 480,00" },
+  { code: "{{valor_sessao}}", label: "Valor por sessão", example: "R$ 60,00" },
+  { code: "{{parcelas}}", label: "Parcelas", example: "3" },
+  {
+    code: "{{valor_parcela}}",
+    label: "Valor da 1ª parcela",
+    example: "R$ 160,00",
+  },
+  {
+    code: "{{chave_pix}}",
+    label: "Chave Pix",
+    example: "financeiro@clinica.com.br",
+  },
+] as const;
+
+/**
+ * Mensagem de cobrança por Pix do plano vendido no cadastro: valor proporcional às sessões
+ * (preço por sessão), a primeira cobrança (parcela ou ciclo) e a chave da clínica. Com
+ * `template` preenchido, usa o modelo da clínica (`pixMessageVariables`); vazio, o texto padrão.
+ */
+export function planPixChargeMessage(input: {
+  patientName: string;
+  planName: string;
+  totalValueInCents: number;
+  installments: number;
+  totalSessions: number;
+  pixKey: string;
+  template?: string | undefined;
+  /**
+   * Plano recorrente: cobrança proporcional às aulas até o 1º vencimento
+   * (`proratedChargeInCents`), paga antes da 1ª mensalidade cheia.
+   */
+  firstChargeInCents?: number | undefined;
+  /** 1º pagamento informado à mão na venda (cálculo proporcional desligado). */
+  manualFirstCharge?: boolean | undefined;
+  /** Desconto do cliente no 1º pagamento (o valor cobrado já vem com ele descontado). */
+  discountInCents?: number | undefined;
+}): string {
+  const money = (cents: number) =>
+    new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" })
+      .format(cents / 100)
+      .replace(/\u00a0/g, " ");
+  const installments = Math.max(1, input.installments);
+  // Mesma divisão de `planInstallmentSchedule`: o resto vai nos primeiros centavos.
+  const discount = Math.max(0, input.discountInCents ?? 0);
+  const firstCharge =
+    (input.firstChargeInCents ??
+      Math.floor(input.totalValueInCents / installments) +
+        (input.totalValueInCents % installments ? 1 : 0)) - discount;
+  const sessions = `${input.totalSessions} ${input.totalSessions === 1 ? "sessão" : "sessões"}`;
+  const sessionValue =
+    input.totalSessions > 0
+      ? money(Math.round(input.totalValueInCents / input.totalSessions))
+      : "";
+  if (input.template?.trim())
+    return fillMessageTemplate(input.template, {
+      nome: patientFirstName(input.patientName),
+      nome_completo: input.patientName.trim(),
+      plano: input.planName,
+      sessoes: sessions,
+      valor_total: money(input.totalValueInCents),
+      valor_sessao: sessionValue,
+      parcelas: String(installments),
+      valor_parcela: money(firstCharge),
+      chave_pix: input.pixKey,
+    });
+  const perSession = sessionValue ? ` (${sessionValue} por sessão)` : "";
+  const prorated = input.firstChargeInCents !== undefined;
+  const withDiscount = discount
+    ? `, já com o seu desconto de ${money(discount)}`
+    : "";
+  const charge = input.manualFirstCharge
+    ? `o ${withQuotedPrefix("plano", input.planName)} tem ${sessions} por ${money(input.totalValueInCents)}${perSession}; o 1º pagamento, com o valor combinado na venda, é de ${money(firstCharge)}${withDiscount}; depois, ${money(input.totalValueInCents)} por mês`
+    : prorated
+    ? `o ${withQuotedPrefix("plano", input.planName)} tem ${sessions} por ${money(input.totalValueInCents)}${perSession}; o 1º pagamento, proporcional às aulas até o 1º vencimento, é de ${money(firstCharge)}${withDiscount}; depois, ${money(input.totalValueInCents)} por mês`
+    : installments > 1
+      ? `o ${withQuotedPrefix("plano", input.planName)} tem ${sessions} por ${money(input.totalValueInCents)}${perSession}, em ${installments} parcelas; a 1ª parcela é de ${money(firstCharge)}${withDiscount}`
+      : `o valor do ${withQuotedPrefix("plano", input.planName)} é de ${money(firstCharge)}${withDiscount}, referente a ${sessions}${perSession}`;
+  return `Olá, ${patientFirstName(input.patientName)}! Tudo bem? Seja bem-vindo(a)! Para confirmar, ${charge}. Chave Pix: ${input.pixKey}. Assim que fizer o pagamento, envie o comprovante por aqui. Obrigado!`;
 }

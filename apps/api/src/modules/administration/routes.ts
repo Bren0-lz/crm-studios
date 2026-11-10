@@ -6,16 +6,39 @@ import {
   adminUserInputSchema,
   adminUserProfessionalInputSchema,
   adminUserUpdateSchema,
+  autoFinalizationSettingsInputSchema,
+  commissionRecalculationConfirmationSchema,
+  paymentMethodSettingsInputSchema,
   clinicSettingsInputSchema,
   isValidTaxId,
+  navTabLabelsInputSchema,
   passwordResetSchema,
   type PermissionMatrixItem,
 } from "@crm/contracts";
-import { hash } from "bcryptjs";
+import { createRateLimiter } from "../../infrastructure/rate-limit.js";
 import type { RouteContext } from "../../infrastructure/route-context.js";
+import {
+  preparePassword,
+  revealPassword,
+} from "../../security/password-storage.js";
+
+/** Regras de comissão gravadas pelo usuário recalculam as comissões já lançadas. */
+function recalculationOf(body: unknown) {
+  const { recalculationDigest } =
+    commissionRecalculationConfirmationSchema.parse(body);
+  return recalculationDigest ? { expectedDigest: recalculationDigest } : {};
+}
+
+/** Consultas de senha por admin a cada minuto (cada uma gera um registro de auditoria). */
+export const PASSWORD_REVEAL_LIMIT = 20;
 
 export function registerAdministrationRoutes(context: RouteContext) {
-  const { app, authenticate, repository, visibleHistory } = context;
+  const { app, authenticate, autoFinalizer, repository, visibleHistory } =
+    context;
+  const passwordReveals = createRateLimiter({
+    limit: PASSWORD_REVEAL_LIMIT,
+    windowMs: 60_000,
+  });
 
   app.post(
     "/admin/users/:id/revoke-sessions",
@@ -46,7 +69,8 @@ export function registerAdministrationRoutes(context: RouteContext) {
             request.user.clinicId,
             request.user.sub,
             input,
-            await hash(input.password, 12),
+            await preparePassword(input.password),
+            recalculationOf(request.body),
           ),
         );
     },
@@ -62,6 +86,7 @@ export function registerAdministrationRoutes(context: RouteContext) {
         request.user.sub,
         id,
         adminUserUpdateSchema.parse(request.body),
+        recalculationOf(request.body),
       );
       if (!user)
         return reply.status(404).send({
@@ -82,7 +107,7 @@ export function registerAdministrationRoutes(context: RouteContext) {
         request.user.clinicId,
         request.user.sub,
         id,
-        await hash(password, 12),
+        await preparePassword(password),
       );
       if (!updated)
         return reply.status(404).send({
@@ -90,6 +115,56 @@ export function registerAdministrationRoutes(context: RouteContext) {
           message: "Usuário não encontrado.",
         });
       return { updated: true };
+    },
+  );
+
+  /**
+   * Mostra a senha atual do usuário ao admin (POST: não fica em cache, pré-carga nem log de URL).
+   * A consulta é auditada antes da resposta; se a auditoria falhar, a senha não sai. Erros de
+   * decifragem ou de gravação viram uma mensagem genérica, sem o detalhe original.
+   */
+  app.post(
+    "/admin/users/:id/reveal-password",
+    { preHandler: authenticate },
+    async (request, reply) => {
+      reply.header("Cache-Control", "no-store");
+      const { id } = z.object({ id: z.uuid() }).parse(request.params);
+      const { clinicId, sub } = request.user;
+      const limited = passwordReveals.hit(`${clinicId}:${sub}`);
+      if (!limited.allowed)
+        return reply
+          .status(429)
+          .header("retry-after", String(limited.retryAfter))
+          .send({
+            code: "TOO_MANY_REQUESTS",
+            message:
+              "Muitas consultas de senha em pouco tempo. Aguarde um minuto e tente de novo.",
+          });
+      const stored = await repository.findUserPasswordEncrypted(clinicId, id);
+      if (!stored.found)
+        return reply.status(404).send({
+          code: "USER_NOT_FOUND",
+          message: "Usuário não encontrado.",
+        });
+      if (!stored.encrypted)
+        return reply.status(409).send({
+          code: "PASSWORD_NOT_AVAILABLE",
+          message:
+            "A senha atual não está disponível para visualização. Ela ficará disponível após uma nova troca de senha.",
+        });
+      let password: string;
+      try {
+        password = revealPassword(stored.encrypted);
+        await repository.recordUserPasswordViewed(clinicId, sub, id);
+      } catch {
+        // Sem o objeto de erro no log: a mensagem do banco pode carregar dados sensíveis.
+        request.log.error("Falha ao visualizar a senha de um usuário.");
+        return reply.status(500).send({
+          code: "PASSWORD_REVEAL_FAILED",
+          message: "Não foi possível visualizar a senha.",
+        });
+      }
+      return { password };
     },
   );
 
@@ -128,6 +203,7 @@ export function registerAdministrationRoutes(context: RouteContext) {
         request.user.sub,
         id,
         adminUserCommissionInputSchema.parse(request.body),
+        recalculationOf(request.body),
       );
       if (!user)
         return reply.status(404).send({
@@ -144,8 +220,68 @@ export function registerAdministrationRoutes(context: RouteContext) {
       name: settings?.name ?? "Studios Aryana",
       logoDataUrl: settings?.logoDataUrl ?? "",
       timezone: settings?.timezone ?? "America/Sao_Paulo",
+      // Dados da empresa para o cabeçalho e a prévia de contratos.
+      legalName: settings?.legalName ?? "",
+      taxId: settings?.taxId ?? "",
+      address: settings?.address ?? "",
+      phone: settings?.phone ?? "",
+      email: settings?.email ?? "",
+      // Chave Pix para a cobrança enviada no cadastro do cliente.
+      pixKey: settings?.pixKey ?? "",
+      pixMessageTemplate: settings?.pixMessageTemplate ?? "",
     };
   });
+  // Nomes das abas do menu (o admin pode renomeá-los; a chave da aba não muda).
+  app.get("/clinic/nav-tabs", { preHandler: authenticate }, async (request) =>
+    repository.listNavTabLabels(request.user.clinicId),
+  );
+  app.put("/admin/nav-tabs", { preHandler: authenticate }, async (request) =>
+    repository.saveNavTabLabels(
+      request.user.clinicId,
+      navTabLabelsInputSchema.parse(request.body),
+    ),
+  );
+
+  // Finalização automática: todos leem (a agenda mostra os concluídos); só o admin altera.
+  app.get(
+    "/clinic/auto-finalization",
+    { preHandler: authenticate },
+    async (request) =>
+      repository.getAutoFinalizationSettings(request.user.clinicId),
+  );
+  app.put(
+    "/admin/auto-finalization",
+    { preHandler: authenticate },
+    async (request) => {
+      const saved = await repository.updateAutoFinalizationSettings(
+        request.user.clinicId,
+        request.user.sub,
+        autoFinalizationSettingsInputSchema.parse(request.body),
+      );
+      // Ao ligar ou encurtar a espera, o que já venceu é finalizado na hora.
+      await autoFinalizer.run(request.user.clinicId, { force: true });
+      return saved;
+    },
+  );
+
+  // Parcelamento por forma de pagamento: todos leem (as vendas limitam as parcelas); só o admin altera.
+  app.get(
+    "/clinic/payment-methods",
+    { preHandler: authenticate },
+    async (request) =>
+      repository.getPaymentMethodSettings(request.user.clinicId),
+  );
+  app.put(
+    "/admin/payment-methods",
+    { preHandler: authenticate },
+    async (request) =>
+      repository.updatePaymentMethodSettings(
+        request.user.clinicId,
+        request.user.sub,
+        paymentMethodSettingsInputSchema.parse(request.body),
+      ),
+  );
+
   app.get(
     "/admin/clinic-settings",
     { preHandler: authenticate },

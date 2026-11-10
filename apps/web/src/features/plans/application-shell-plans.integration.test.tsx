@@ -51,17 +51,12 @@ describe("application shell", () => {
       </MemoryRouter>,
     );
     expect(
-      await screen.findByRole("heading", {
-        name: "Vendas e retorno dos clientes",
-      }),
-    ).toBeInTheDocument();
-    expect(screen.getByText(/1\.200,00/)).toBeInTheDocument();
-    expect(
-      screen.getByText("+20% vs. mês anterior comparável"),
+      await screen.findByRole("heading", { name: "Clientes sem retorno" }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("heading", { name: "Clientes sem retorno" }),
-    ).toBeInTheDocument();
+      screen.queryByRole("heading", { name: "Vendas e retorno dos clientes" }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText(/1\.200,00/)).not.toBeInTheDocument();
     expect(screen.getByText("Helena Almeida")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Ver todos (1)" })).toHaveAttribute(
       "href",
@@ -203,9 +198,13 @@ describe("application shell", () => {
     expect(screen.getByLabelText("Primeiro vencimento")).toHaveValue(
       "2026-10-05",
     );
-    fireEvent.change(screen.getByLabelText("Valor do serviço 1"), {
-      target: { value: "420" },
-    });
+    // Plano é fixo: sessões e valor da renovação repetem o plano atual.
+    expect(screen.getByLabelText("Sessões do serviço 1")).toHaveAttribute(
+      "readonly",
+    );
+    expect(screen.getByLabelText("Valor do serviço 1")).toHaveAttribute(
+      "readonly",
+    );
     fireEvent.click(
       screen.getByRole("button", { name: "Renovar plano e gerar parcelas" }),
     );
@@ -214,7 +213,7 @@ describe("application shell", () => {
     ).toBeInTheDocument();
     expect(renewalBody).toMatchObject({
       validFrom: "2026-10-01",
-      totalValueInCents: 42000,
+      totalValueInCents: 40000,
       autoRenew: true,
     });
     expect(renewalBody).not.toHaveProperty("patientId");

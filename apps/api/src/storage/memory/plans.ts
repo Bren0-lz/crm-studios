@@ -1,20 +1,32 @@
 import { clinicDateOf } from "../../modules/finance/daily-cash.js";
 import {
   nextPlanPeriod,
+  planPaymentSummary,
   validityAfterPause,
   planTemplateInputSchema,
+  planTemplateStoredSchema,
+  planTemplateUpdateChangesTerms,
   type PatientPlan,
   type PatientPlanInput,
   type PlanCatalogEntry,
   type PlanCatalogInput,
   type PlanRenewalInput,
+  planRefundCategoryName,
+  planRefundPayableDescription,
+  type Payable,
+  type PaymentMethod,
+  type PlanCancellationDetails,
   type PlanPauseDetails,
   type PlanStatus,
   type PlanTemplate,
   type PlanTemplateInput,
   type PlanTemplateUpdate,
+  renewalPlanPayment,
 } from "@crm/contracts";
-import { validatePlanComposition } from "../../modules/plans/plan-services.js";
+import {
+  assertRefundWithinPlan,
+  validatePlanComposition,
+} from "../../modules/plans/plan-services.js";
 import { DomainError } from "../../repository.js";
 import type { MemoryRepositoryContext } from "./context.js";
 import { CLINIC_ID, now, today, uuid } from "./helpers.js";
@@ -22,6 +34,64 @@ import { CLINIC_ID, now, today, uuid } from "./helpers.js";
 export function createPlansRepository(
   repositoryContext: MemoryRepositoryContext,
 ) {
+  /** Categoria de despesa dos estornos; criada na primeira vez (grupo "Impostos e deduções"). */
+  function refundCategory(clinicId: string) {
+    const found = repositoryContext.financialCategories.find(
+      (item) =>
+        item.clinicId === clinicId &&
+        item.kind === "expense" &&
+        item.name === planRefundCategoryName,
+    );
+    if (found) return found;
+    const created = {
+      id: uuid(),
+      clinicId,
+      name: planRefundCategoryName,
+      kind: "expense" as const,
+      active: true,
+      dreGroup: "tax" as const,
+    };
+    repositoryContext.financialCategories.push(created);
+    return created;
+  }
+
+  /** Lança o estorno do cancelamento como conta já paga (saída de caixa) e devolve o id. */
+  function recordRefundPayable(
+    plan: PatientPlan,
+    amountInCents: number,
+    paymentMethod: PaymentMethod,
+    note: string | undefined,
+  ) {
+    const category = refundCategory(plan.clinicId);
+    const timestamp = plan.updatedAt;
+    const postedOn = clinicDateOf(
+      new Date(timestamp),
+      repositoryContext.clinicSettings.timezone,
+    );
+    const payable: Payable = {
+      id: uuid(),
+      clinicId: plan.clinicId,
+      branchId: plan.branchId ?? repositoryContext.writeBranchId(plan.clinicId),
+      description: planRefundPayableDescription(plan.patientName, plan.name),
+      supplier: plan.patientName,
+      ...(note ? { notes: note } : {}),
+      categoryId: category.id,
+      categoryName: category.name,
+      dueDate: postedOn,
+      amountInCents,
+      postedOn,
+      dreCompetence: postedOn.slice(0, 7),
+      status: "paid",
+      paymentMethod,
+      paidAt: timestamp,
+      overdue: false,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    };
+    repositoryContext.payables.push(payable);
+    return payable.id;
+  }
+
   return {
     async listPlanTemplates(clinicId: string) {
       return repositoryContext.planTemplates
@@ -38,8 +108,10 @@ export function createPlansRepository(
       input = planTemplateInputSchema.parse(input);
       repositoryContext.assertTemplateServices(clinicId, input.services);
       const timestamp = now();
+      const { maxInstallments, ...fields } = input;
       const item: PlanTemplate = {
-        ...structuredClone(input),
+        ...structuredClone(fields),
+        ...(maxInstallments ? { maxInstallments } : {}),
         id: uuid(),
         clinicId,
         active: true,
@@ -74,11 +146,16 @@ export function createPlansRepository(
         services: input.services ?? item.services,
       };
       if (merged.active || merged.services.length)
-        planTemplateInputSchema.parse(merged);
+        (planTemplateUpdateChangesTerms(input)
+          ? planTemplateInputSchema
+          : planTemplateStoredSchema
+        ).parse(merged);
       if (input.services || input.active)
         repositoryContext.assertTemplateServices(clinicId, merged.services);
       const previous = structuredClone(item);
       Object.assign(item, structuredClone(input), { updatedAt: now() });
+      // null apaga o limite próprio (volta a valer só o da forma de pagamento).
+      if (!item.maxInstallments) delete item.maxInstallments;
       repositoryContext.addAdminAudit(
         actorUserId,
         "plan_template.updated",
@@ -188,9 +265,25 @@ export function createPlansRepository(
         .filter(
           (plan) =>
             plan.clinicId === clinicId &&
-            (!patientId || plan.patientId === patientId),
+            // Planos do cliente valem em todas as filiais (cadastro único).
+            (patientId
+              ? plan.patientId === patientId
+              : repositoryContext.inBranchScope(plan)),
         )
-        .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+        .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+        .map((plan) => {
+          const paymentSummary = planPaymentSummary(
+            repositoryContext.receivables
+              .filter(
+                (item) => item.clinicId === clinicId && item.planId === plan.id,
+              )
+              .map((item) => ({
+                ...item,
+                overdue: item.status === "open" && item.dueDate < currentDate,
+              })),
+          );
+          return paymentSummary ? { ...plan, paymentSummary } : plan;
+        });
     },
 
     async createPatientPlan(
@@ -389,6 +482,8 @@ export function createPlansRepository(
             ),
             totalValueInCents: plan.totalValueInCents,
             installments: plan.installments,
+            // A renovação segue as formas recorrentes (as "só da primeira vez" saem).
+            ...renewalPlanPayment(plan),
             autoRenew: true,
             ...period,
           },
@@ -406,6 +501,7 @@ export function createPlansRepository(
       planId: string,
       status: PlanStatus,
       pause: PlanPauseDetails = {},
+      cancellation: PlanCancellationDetails = {},
     ) {
       const plan = repositoryContext.patientPlans.find(
         (item) => item.clinicId === clinicId && item.id === planId,
@@ -425,6 +521,8 @@ export function createPlansRepository(
         );
       }
       if (plan.status === status) return plan;
+      if (status === "cancelled")
+        assertRefundWithinPlan(plan, cancellation.refundedInCents);
       const previous = plan.status;
       plan.status = status;
       plan.updatedAt = now();
@@ -455,6 +553,18 @@ export function createPlansRepository(
         plan.cancelledValueInCents = repositoryContext.receivables
           .filter((item) => item.planId === plan.id && item.status === "open")
           .reduce((sum, item) => sum + item.amountInCents, 0);
+        if (cancellation.refundedInCents) {
+          plan.refundedInCents = cancellation.refundedInCents;
+          plan.refundPaymentMethod = cancellation.refundPaymentMethod!;
+          if (cancellation.refundNote)
+            plan.refundNote = cancellation.refundNote;
+          plan.refundPayableId = recordRefundPayable(
+            plan,
+            cancellation.refundedInCents,
+            cancellation.refundPaymentMethod!,
+            cancellation.refundNote,
+          );
+        }
         for (const receivable of repositoryContext.receivables) {
           if (receivable.planId === plan.id && receivable.status === "open") {
             receivable.status = "cancelled";

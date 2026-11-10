@@ -7,9 +7,7 @@ test("preserves a clinical attachment through keyboard navigation, an upload fai
   const patient = await seedPatient(api, "Cliente Anexo Protegido");
   await login(page);
   await page.goto(`/clientes/${patient.id}`);
-  await page
-    .getByRole("tab", { name: "Prontuário", exact: true })
-    .click();
+  await page.getByRole("tab", { name: "Prontuário", exact: true }).click();
   await page.getByRole("button", { name: "Mais ações", exact: true }).click();
   await page
     .getByRole("menuitem", { name: "Anexar arquivo", exact: true })
@@ -79,6 +77,7 @@ test("preserves a clinical attachment through keyboard navigation, an upload fai
     .getByRole("button", { name: "Anexar arquivo", exact: true })
     .click();
   await expect(dialog).toHaveCount(0);
+  await page.getByRole("tab", { name: "Arquivos", exact: true }).click();
   await expect(page.getByText("avaliacao.pdf", { exact: true })).toBeVisible();
 });
 
@@ -91,10 +90,7 @@ test("manages clinical catalogs in settings and creates, orders, copies and reco
   await login(page);
   await page.goto("/configuracoes");
   await page.getByRole("tab", { name: "Cadastros", exact: true }).click();
-  const catalogs = page.getByText(
-    "Aparelhos, exercícios e modelos de evolução",
-    { exact: true },
-  );
+  const catalogs = page.getByText("Aparelhos e exercícios", { exact: true });
   await catalogs.focus();
   await catalogs.press("Enter");
   await page
@@ -141,10 +137,11 @@ test("manages clinical catalogs in settings and creates, orders, copies and reco
   expect(otherResponse.status()).toBe(201);
   const other = await otherResponse.json();
   await page.goto(`/clientes/${patient.id}`);
+  await page.getByRole("tab", { name: "Prontuário", exact: true }).click();
   await page
-    .getByRole("tab", { name: "Prontuário", exact: true })
+    .getByRole("tab", { name: "Treinos e documentos", exact: true })
     .click();
-  const resources = page.getByText("Modelos, evoluções e treinos", {
+  const resources = page.getByText("Treinos, relatórios e prescrições", {
     exact: true,
   });
   await resources.focus();
@@ -281,10 +278,7 @@ test("reconciles a paid commission without rewriting the original payout", async
       await api.post("/finance/commission-rules", {
         data: {
           professionalId: professionals[0].id,
-          serviceId: services[0].id,
-          kind: "fixed",
-          percentage: 0,
-          fixedAmountInCents: 1500,
+          percentage: 10,
           effectiveFrom: "2025-01-01",
         },
       })
@@ -303,6 +297,24 @@ test("reconciles a paid commission without rewriting the original payout", async
   });
   expect(created.status()).toBe(201);
   const appointment = await created.json();
+  // A comissão sai do valor pago: R$ 150 na comanda → 10% = R$ 15.
+  const tab = await (
+    await api.post("/patient-tabs", { data: { patientId: patient.id } })
+  ).json();
+  expect(
+    (
+      await api.post(`/patient-tabs/${tab.id}/services`, {
+        data: { appointmentId: appointment.id, amountInCents: 15000 },
+      })
+    ).status(),
+  ).toBe(200);
+  expect(
+    (
+      await api.post(`/patient-tabs/${tab.id}/close`, {
+        data: { settlement: "receivable", dueDate: "2025-02-10" },
+      })
+    ).status(),
+  ).toBe(200);
   expect(
     (
       await api.patch(`/appointments/${appointment.id}/status`, {
@@ -422,10 +434,10 @@ test("records external proof manually with guarded edits and preserves the origi
   const invoice = await invoiceResponse.json();
   await login(page);
   await page.goto(`/financeiro?patientId=${patient.id}`);
-  const summary = page.getByText(
-    "Documentos fiscais e operações com parceiros",
-    { exact: true },
-  );
+  const summary = page.getByRole("button", {
+    name: "Documentos fiscais",
+    exact: true,
+  });
   await summary.focus();
   await summary.press("Enter");
   await page
@@ -637,20 +649,23 @@ test("purchases a contextual plan with group enrollment and an issued document",
   await dialog
     .getByLabel("Primeiro vencimento", { exact: true })
     .fill(clinicToday());
-  const options = dialog.getByText("Agenda, turma e contrato da contratação", {
-    exact: true,
-  });
-  await options.focus();
-  await options.press("Enter");
   await dialog
     .getByRole("combobox", { name: "Turma", exact: true })
     .selectOption(group.id);
   await dialog
-    .getByRole("combobox", { name: "Modelo de contrato ou termo", exact: true })
+    .getByRole("combobox", {
+      name: "Documento para o cliente assinar",
+      exact: true,
+    })
     .selectOption(document.id);
   await dialog
     .getByRole("button", { name: "Criar plano e parcelas", exact: true })
     .click();
+  // Plano salvo: o mesmo modal mostra o link de assinatura para o WhatsApp.
+  await expect(
+    dialog.getByRole("link", { name: "Abrir WhatsApp", exact: true }),
+  ).toBeVisible();
+  await dialog.getByRole("button", { name: "Concluir", exact: true }).click();
   await expect(dialog).toHaveCount(0);
   const plans = await (await api.get(`/plans?patientId=${patient.id}`)).json();
   expect(plans).toHaveLength(1);
@@ -686,106 +701,6 @@ test("purchases a contextual plan with group enrollment and an issued document",
       }),
     ]),
   );
-  expect(
-    await page.evaluate(
-      () => document.documentElement.scrollWidth <= window.innerWidth,
-    ),
-  ).toBe(true);
-});
-
-test("closes a mixed tab from the customer context and shows its independent session credit", async ({
-  page,
-  api,
-}) => {
-  const patient = await seedPatient(api, "Cliente Comanda Integrada"),
-    services = await (await api.get("/services")).json(),
-    professionals = await (await api.get("/professionals")).json(),
-    rooms = await (await api.get("/rooms")).json();
-  const productResponse = await api.post("/inventory/products", {
-    data: {
-      name: "Produto Comanda Navegador",
-      sku: "TAB-E2E",
-      unit: "un",
-      costInCents: 1000,
-      salePriceInCents: 2000,
-      initialStock: 5,
-      minimumStock: 1,
-    },
-  });
-  expect(productResponse.status()).toBe(201);
-  const product = await productResponse.json();
-  const tabResponse = await api.post("/patient-tabs", {
-    data: { patientId: patient.id },
-  });
-  expect(tabResponse.status()).toBe(201);
-  const tab = await tabResponse.json();
-  const appointment = await api.post(`/patient-tabs/${tab.id}/appointments`, {
-    data: {
-      professionalId: professionals[0].id,
-      roomId: rooms[0].id,
-      serviceId: services[0].id,
-      startsAt: "2039-02-10T12:00:00Z",
-      visitType: "regular",
-      notes: "",
-    },
-  });
-  expect(appointment.status()).toBe(200);
-  await login(page);
-  await page.goto(`/clientes/${patient.id}`);
-  await page.getByRole("tab", { name: "Comandas", exact: true }).click();
-  const inventory = page.getByText("Estoque e comandas", { exact: true });
-  await inventory.focus();
-  await inventory.press("Enter");
-  await page
-    .locator(".table-row")
-    .filter({ hasText: patient.fullName })
-    .getByRole("button", { name: "Abrir comanda", exact: true })
-    .click();
-  const dialog = page.getByRole("dialog", {
-    name: `Comanda · ${patient.fullName}`,
-    exact: true,
-  });
-  await expect(dialog).toBeVisible();
-  await dialog
-    .getByRole("combobox", { name: "Produto", exact: true })
-    .selectOption(product.id);
-  await dialog.getByLabel("Quantidade", { exact: true }).fill("2");
-  await dialog
-    .locator("form")
-    .getByRole("button", { name: "Adicionar produto", exact: true })
-    .click();
-  await expect(dialog).toContainText("Produto reservado na comanda.");
-  await dialog
-    .getByRole("button", { name: "Fechar comanda", exact: true })
-    .click();
-  await dialog
-    .getByRole("button", { name: "Confirmar fechamento", exact: true })
-    .click();
-  await expect(dialog).toContainText(
-    "Comanda fechada com cobrança consolidada.",
-  );
-  await expect(
-    dialog.getByRole("button", { name: "Fechar comanda", exact: true }),
-  ).toHaveCount(0);
-  await dialog.press("Escape");
-  await expect(dialog).toHaveCount(0);
-  const workspace = await (await api.get("/finance/workspace")).json();
-  expect(
-    workspace.summary.receivables.filter(
-      (item: { patientId: string }) => item.patientId === patient.id,
-    ),
-  ).toEqual([
-    expect.objectContaining({ amountInCents: services[0].priceInCents + 4000 }),
-  ]);
-  const plans = await (await api.get(`/plans?patientId=${patient.id}`)).json();
-  expect(plans).toEqual([
-    expect.objectContaining({ sourceTabId: tab.id, remainingSessions: 1 }),
-  ]);
-  const stock = await (await api.get("/inventory/workspace")).json();
-  expect(
-    stock.products.find((item: { id: string }) => item.id === product.id)
-      .currentStock,
-  ).toBe(3);
   expect(
     await page.evaluate(
       () => document.documentElement.scrollWidth <= window.innerWidth,

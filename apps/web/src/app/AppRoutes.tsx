@@ -6,18 +6,27 @@ import { hasSession } from "../api";
 import { useAuthorization } from "../authorization-context";
 import { AgendaPage } from "../features/agenda/AgendaPage";
 import { PendingFinalizationPage } from "../features/agenda/PendingFinalizationPage";
+import { CompletedAppointmentsPage } from "../features/agenda/CompletedAppointmentsPage";
 import { LoginPage } from "../features/auth/LoginPage";
 import { ClinicalRecordsPage } from "../features/clinical/ClinicalRecordsPage";
+import { EventDetailPage } from "../features/events/EventDetailPage";
+import { EventsPage } from "../features/events/EventsPage";
 import { CommercialPage } from "../features/commercial/CommercialPage";
+import { CampaignSenderPage } from "../features/communications/campaigns/CampaignSenderPage";
 import { CommunicationsPage } from "../features/communications/CommunicationsPage";
 import { DocumentsPage } from "../features/contracts/DocumentsPage";
+import { PublicSignaturePage } from "../features/contracts/PublicSignaturePage";
 import { DashboardPage } from "../features/dashboard/DashboardPage";
 import { FinancePage } from "../features/finance/FinancePage";
+import { PublicReceiptSignaturePage } from "../features/finance/PublicReceiptSignaturePage";
+import { SalesPage } from "../features/sales/SalesPage";
 import { GroupsPage } from "../features/groups/GroupsPage";
 import { HistoryPage } from "../features/history/HistoryPage";
 import { PatientsPage } from "../features/patients/PatientsPage";
 import { PlansPage } from "../features/plans/PlansPage";
+import { ProfilePage } from "../features/profile/ProfilePage";
 import { RelationshipPage } from "../features/relationship/RelationshipPage";
+import { WaitlistPage } from "../features/waitlist/WaitlistPage";
 import { ReportsPage } from "../features/reports/ReportsPage";
 import { SettingsPage } from "../features/settings/SettingsPage";
 import { LoadingBlock } from "../shared/components/LoadingBlock";
@@ -38,6 +47,15 @@ export function AppRoutes() {
     canView(module) ? element : <Navigate to="/" replace />;
   return (
     <Routes>
+      {/* Link enviado ao cliente: aberto sem login, fora do Shell da equipe. */}
+      <Route
+        path="/assinar-contrato/:token"
+        element={<PublicSignaturePage />}
+      />
+      <Route
+        path="/assinar-recibo/:token"
+        element={<PublicReceiptSignaturePage />}
+      />
       <Route
         path="/login"
         element={
@@ -74,6 +92,10 @@ export function AppRoutes() {
                   element={allow("agenda", <PendingFinalizationPage />)}
                 />
                 <Route
+                  path="/agenda/concluidos"
+                  element={allow("agenda", <CompletedAppointmentsPage />)}
+                />
+                <Route
                   path="/turmas"
                   element={allow("groups", <GroupsPage />)}
                 />
@@ -102,12 +124,28 @@ export function AppRoutes() {
                   element={allow("crm", <CommercialPage />)}
                 />
                 <Route
+                  path="/eventos"
+                  element={allow("events", <EventsPage />)}
+                />
+                <Route
+                  path="/eventos/:id"
+                  element={allow("events", <EventDetailPage />)}
+                />
+                <Route
                   path="/relacionamento"
                   element={allow("relationship", <RelationshipPage />)}
                 />
                 <Route
+                  path="/lista-de-espera"
+                  element={allow("waitlist", <WaitlistPage />)}
+                />
+                <Route
                   path="/comunicacoes"
                   element={allow("communications", <CommunicationsPage />)}
+                />
+                <Route
+                  path="/comunicacoes/campanhas/:campaignId"
+                  element={allow("communications", <CampaignSenderPage />)}
                 />
                 <Route
                   path="/contratos"
@@ -122,6 +160,10 @@ export function AppRoutes() {
                   element={allow("clinical", <ClinicalRecordsPage />)}
                 />
                 <Route
+                  path="/vendas"
+                  element={allow("patients", <SalesPage />)}
+                />
+                <Route
                   path="/financeiro"
                   element={allow("finance", <FinancePage />)}
                 />
@@ -133,6 +175,7 @@ export function AppRoutes() {
                   path="/relatorios"
                   element={allow("reports", <ReportsPage />)}
                 />
+                <Route path="/perfil" element={<ProfilePage />} />
                 <Route
                   path="/configuracoes"
                   element={allow("settings", <SettingsPage />)}

@@ -58,7 +58,7 @@ describe("application shell", () => {
       </MemoryRouter>,
     );
     fireEvent.click(await screen.findByRole("button", { name: "Nova turma" }));
-    expect(screen.queryByLabelText("Nome")).not.toBeInTheDocument();
+    expect(screen.getByLabelText(/Nome da turma/)).toBeInTheDocument();
     fireEvent.change(await screen.findByLabelText("Serviço"), {
       target: { value: group.serviceId },
     });

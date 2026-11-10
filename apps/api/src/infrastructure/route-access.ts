@@ -1,6 +1,7 @@
 import {
   permissionCatalog,
   type AppModule,
+  type IntegrationScope,
   type PermissionKey,
 } from "@crm/contracts";
 
@@ -12,19 +13,28 @@ export interface ModuleRequirement {
   permission: PermissionKey;
 }
 /**
- * - `public`: sem login (saúde e login).
+ * - `public`: sem login (saúde, login, links de assinatura de documento e de recibo e o
+ *   webhook do Telegram, que confere o próprio segredo).
  * - `login`: basta estar logado (usuário ativo).
  * - `admin`: Administração, sempre só do usuário admin (não é módulo configurável).
  * - lista de módulos: o usuário precisa de TODOS os níveis listados.
  * - `{ anyOf: [...] }`: basta UM dos níveis listados (leituras de apoio usadas por várias
  *   telas). O 403 usa o código do primeiro módulo e cita todos na mensagem.
+ * - `{ apiKey, requires }`: API externa (`/external/v1`), só com chave de integração que tenha o
+ *   escopo; a chave age com as permissões do admin que a criou, e `requires` são as dele.
  */
 export type RouteAccess =
   | "public"
   | "login"
   | "admin"
   | ModuleRequirement[]
-  | { anyOf: ModuleRequirement[] };
+  | { anyOf: ModuleRequirement[] }
+  | ExternalAccess;
+
+export interface ExternalAccess {
+  apiKey: IntegrationScope;
+  requires: ModuleRequirement[];
+}
 
 const view = (...modules: AppModule[]): ModuleRequirement[] =>
   modules.map((module) => ({
@@ -43,6 +53,15 @@ const operation = (...keys: PermissionKey[]): ModuleRequirement[] =>
       permission,
     };
   });
+
+/**
+ * Rota da API externa. Sem `requires`, a rota repassa a chamada à rota interna equivalente,
+ * que confere as permissões como para qualquer usuário.
+ */
+const external = (
+  scope: IntegrationScope,
+  ...requires: ModuleRequirement[][]
+): ExternalAccess => ({ apiKey: scope, requires: requires.flat() });
 
 /** Explicit authorization policy for every registered route. Startup rejects unmapped routes.
  * View permissions authorize module reads; operation permissions authorize individual actions.
@@ -63,6 +82,10 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
   "POST /auth/login": "public",
   "POST /auth/logout-all": "login",
   "GET /me": "login",
+  "GET /me/profile": "login",
+  "PUT /me/profile": "login",
+  "POST /me/password": "login",
+  "GET /branches": "login",
 
   // Administração (só admin).
   "POST /admin/users/:id/revoke-sessions": "admin",
@@ -70,9 +93,20 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
   "POST /admin/users": "admin",
   "PATCH /admin/users/:id": "admin",
   "POST /admin/users/:id/reset-password": "admin",
+  "POST /admin/users/:id/reveal-password": "admin",
   "PUT /admin/users/:id/professional": "admin",
   "PUT /admin/users/:id/commission": "admin",
   "GET /clinic/branding": "login",
+  "GET /clinic/nav-tabs": "login",
+  "PUT /admin/nav-tabs": "admin",
+  "GET /admin/branches": "admin",
+  "POST /admin/branches": "admin",
+  "PUT /admin/branches/:id": "admin",
+  "GET /clinic/auto-finalization": "login",
+  "PUT /admin/auto-finalization": "admin",
+  "GET /clinic/payment-methods": "login",
+  "PUT /admin/payment-methods": "admin",
+  "PUT /admin/pro-labore": "admin",
   "GET /admin/clinic-settings": "admin",
   "PUT /admin/clinic-settings": "admin",
   "PUT /relationship/settings": "admin",
@@ -82,12 +116,27 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
   "GET /history/audit-events": view("history"),
   "GET /history/actors": view("history"),
   "GET /admin/permission-matrix": "admin",
+  // Chaves da API externa (dashboard de vendas): só admin cria, lista e revoga.
+  "GET /integration-keys": "admin",
+  "POST /integration-keys": "admin",
+  "POST /integration-keys/:id/revoke": "admin",
+  // Telegram (TG1): cada usuário vincula o próprio chat (o perfil é conferido na rota); a
+  // configuração e o envio sob demanda são do admin; o webhook é público com segredo.
+  "GET /integrations/telegram": "login",
+  "POST /integrations/telegram/link-code": "login",
+  "DELETE /integrations/telegram/link": "login",
+  "PUT /integrations/telegram/settings": "admin",
+  "POST /integrations/telegram/outbox/drain": "admin",
+  "POST /integrations/telegram/webhook/:secret": "public",
   "GET /patients/export": operation("patients.export"),
 
   // Visão geral e leituras de apoio da agenda: só login.
   "GET /dashboard": "login",
   // Sino do cabeçalho: cada contagem é filtrada pelos módulos dentro da rota.
   "GET /notifications": "login",
+  // Preferências do sino: cada usuário lê e grava só as suas.
+  "GET /notifications/preferences": "login",
+  "PUT /notifications/preferences": "login",
   "GET /holidays": viewAny("agenda", "groups", "crm", "clinical"),
   "GET /professionals": viewAny(
     "agenda",
@@ -98,11 +147,31 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
     "crm",
   ),
   "GET /rooms": viewAny("agenda", "groups", "crm"),
-  "GET /services": viewAny("agenda", "groups", "plans", "crm", "settings"),
+  // Eventos: serviço do evento e filtro da lista.
+  "GET /services": viewAny(
+    "agenda",
+    "groups",
+    "plans",
+    "crm",
+    "events",
+    "settings",
+  ),
   "GET /appointments/options": view("clinical"),
   "GET /appointments": viewAny("agenda"),
   "GET /appointments/:id/reschedules": viewAny("agenda"),
   "GET /appointments/pending-finalization": viewAny("agenda"),
+  "GET /appointments/completed": viewAny("agenda"),
+  "GET /appointments/promotions": operation("agenda.create"),
+  "GET /appointments/pricing": operation("agenda.create"),
+  "GET /waitlist": view("waitlist"),
+  "GET /waitlist/options": view("waitlist"),
+  "POST /waitlist": operation("waitlist.manage"),
+  "PATCH /waitlist/:id": operation("waitlist.manage"),
+  "DELETE /waitlist/:id": operation("waitlist.manage"),
+  "GET /agenda-notes": view("agenda"),
+  "POST /agenda-notes": operation("agenda.notes"),
+  "PATCH /agenda-notes/:id": operation("agenda.notes"),
+  "DELETE /agenda-notes/:id": operation("agenda.notes"),
   "GET /schedule-blocks": viewAny("agenda"),
   "GET /group-sessions": viewAny("groups", "agenda"),
 
@@ -112,6 +181,7 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
   "POST /services": operation("agenda.services_create"),
   "POST /appointments": operation("agenda.create"),
   "POST /appointments/recurring": operation("agenda.recurring"),
+  "POST /appointments/conflicts": operation("agenda.create"),
   "POST /appointments/:id/successor": operation("agenda.reschedule"),
   "PUT /appointments/:id/schedule": operation("agenda.reschedule"),
   "PATCH /appointments/:id": operation("agenda.reschedule"),
@@ -127,7 +197,9 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
   "GET /groups/workspace": view("groups"),
   "POST /groups": operation("groups.create"),
   "PUT /groups/:id": operation("groups.update"),
+  "PATCH /groups/:id/name": operation("groups.rename"),
   "POST /group-enrollments": operation("groups.enroll"),
+  "POST /group-enrollments/:id/confirm": operation("groups.enroll"),
   "POST /group-enrollments/:id/cancel": operation("groups.cancel_enrollment"),
   "PUT /group-sessions/:sessionId/attendance/:patientId":
     operation("groups.attendance"),
@@ -159,6 +231,7 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
     "groups",
     "plans",
     "clinical",
+    "waitlist",
   ),
   "POST /patients": operation("patients.create"),
   // Cadastro guiado (T064): a rota exige também editar o módulo do passo (agenda/plans/groups).
@@ -189,12 +262,19 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
     "finance.external_records_manage",
   ),
   "GET /inventory/workspace": operation("patients.inventory_view"),
+  "GET /inventory/suppliers": operation("patients.suppliers_manage"),
   "POST /inventory/products": operation("patients.products_create"),
   "POST /inventory/movements": operation("patients.stock_move"),
   "POST /patient-tabs": operation("patients.tabs_create"),
   "POST /patient-tabs/:id/items": operation("patients.tabs_items"),
   "POST /patient-tabs/:id/close": operation("patients.tabs_close"),
   "POST /patient-tabs/:id/cancel": operation("patients.tabs_cancel"),
+  "GET /patient-tabs/:id/payment": operation("patients.inventory_view"),
+  "POST /product-sales": operation(
+    "patients.tabs_create",
+    "patients.tabs_items",
+    "patients.tabs_close",
+  ),
 
   "GET /plan-templates": viewAny("settings", "plans"),
   "POST /plan-templates": operation("settings.plans_create"),
@@ -220,6 +300,12 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
   // Duplicidade no cadastro/edição do lead: só id e nome de quem tem o mesmo contato.
   "GET /leads/duplicates": { anyOf: operation("crm.create", "crm.update") },
   "GET /leads": view("crm"),
+  // Funil paginado (colunas com total) e valores dos filtros.
+  "GET /leads/board": view("crm"),
+  "GET /leads/board/:stage": view("crm"),
+  "GET /leads/filter-options": view("crm"),
+  "GET /leads/stages": view("crm"),
+  "PUT /leads/stages": operation("crm.stages_manage"),
   "GET /leads/:id/activity": view("crm"),
   "PUT /leads/:id": operation("crm.update"),
   "POST /leads": operation("crm.create"),
@@ -232,6 +318,16 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
     "agenda.create",
   ),
   "PATCH /lead-tasks/:id/status": operation("crm.tasks_status"),
+  // Eventos do comercial (participantes são leads ligados ao evento).
+  "GET /events": view("events"),
+  "GET /events/:id": view("events"),
+  "GET /events/:id/participants/export.xlsx": view("events"),
+  "POST /events/:id/import/preview": operation("crm.create"),
+  "POST /events/:id/import": operation("crm.create"),
+  "POST /events": operation("events.manage"),
+  "PUT /events/:id": operation("events.manage"),
+  "DELETE /events/:id": operation("events.manage"),
+  "DELETE /events/:id/participants/:leadId": operation("events.manage"),
 
   // Contatos sugeridos (relacionamento).
   "GET /relationship/settings": viewAny("relationship", "settings"),
@@ -245,6 +341,7 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
     "communications.messages",
   ),
   "GET /communications": view("communications"),
+  "GET /communications/preferences": view("communications"),
   "PUT /communications/preferences": operation("communications.preferences"),
   "POST /communications/messages": operation("communications.messages"),
   "POST /communications/broadcast/preview": operation(
@@ -254,6 +351,39 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
   "POST /communications/reminders/generate": operation(
     "communications.reminders",
   ),
+  "GET /communications/templates": view("communications"),
+  "GET /communications/template-images/:id": view("communications"),
+  "POST /communications/templates": operation("communications.templates"),
+  "PUT /communications/templates/:id": operation("communications.templates"),
+  "POST /communications/templates/:id/archive": operation(
+    "communications.templates",
+  ),
+  "GET /communications/auto-campaigns": view("communications"),
+  "GET /communications/auto-campaigns/queue": view("communications"),
+  "GET /communications/auto-campaigns/products": view("communications"),
+  "POST /communications/auto-campaigns": operation("communications.campaigns"),
+  "PUT /communications/auto-campaigns/:id": operation(
+    "communications.campaigns",
+  ),
+  "DELETE /communications/auto-campaigns/:id": operation(
+    "communications.campaigns",
+  ),
+  "POST /communications/auto-campaigns/deliveries": operation(
+    "communications.campaigns",
+  ),
+  "DELETE /communications/auto-campaigns/deliveries/:id": operation(
+    "communications.campaigns",
+  ),
+  "GET /communications/campaigns": view("communications"),
+  "GET /communications/campaigns/filter-options": view("communications"),
+  "GET /communications/campaigns/:id": view("communications"),
+  "POST /communications/campaigns/preview": operation(
+    "communications.campaigns",
+  ),
+  "POST /communications/campaigns": operation("communications.campaigns"),
+  "POST /communications/campaigns/:id/recipients/:recipientId": operation(
+    "communications.campaigns",
+  ),
 
   // Contratos.
   "GET /document-templates": view("contracts"),
@@ -261,10 +391,69 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
   "POST /document-templates/:id/versions": operation(
     "contracts.templates_version",
   ),
+  "POST /document-templates/:id/restore": operation(
+    "contracts.templates_version",
+  ),
+  "DELETE /document-templates/:id": operation("contracts.templates_delete"),
   "POST /documents/:id/signature": operation("contracts.status"),
   "GET /documents/:id/signature/content": view("contracts"),
+  "POST /documents/:id/signature-link": operation("contracts.status"),
+  "GET /documents/:id/signature-link": view("contracts"),
+  // Link de assinatura enviado ao cliente (sem login; o token identifica o documento).
+  "GET /public/document-signatures/:token": "public",
+  "POST /public/document-signatures/:token": "public",
+  // Link do recibo enviado ao cliente (sem login; o token identifica o recibo).
+  "GET /public/receipt-signatures/:token": "public",
+  "POST /public/receipt-signatures/:token": "public",
+  // API externa de vendas (chave de integração; ver `modules/external/endpoints.ts`).
+  "GET /external/v1": external("sales:read"),
+  "POST /external/v1/auth/login": external("sales:read"),
+  "GET /external/v1/branches": external("sales:read"),
+  "GET /external/v1/groups": external("sales:read", view("groups", "plans")),
+  "GET /external/v1/groups/:id": external(
+    "sales:read",
+    view("groups", "plans"),
+  ),
+  "GET /external/v1/patients": external("sales:read", view("patients")),
+  // Ficha: o nome sempre; os dados só com Clientes (conferido na rota).
+  "GET /external/v1/patients/:id": external("sales:read"),
+  "GET /external/v1/patients/:id/payments": external(
+    "sales:read",
+    view("finance"),
+  ),
+  "GET /external/v1/overdue": external("sales:read", view("finance")),
+  "GET /external/v1/patients/:id/plans": external("sales:read"),
+  "GET /external/v1/services": external("sales:read"),
+  "GET /external/v1/professionals": external("sales:read"),
+  "GET /external/v1/plan-catalog": external("sales:read"),
+  "GET /external/v1/leads": external("sales:read"),
+  "GET /external/v1/leads/board": external("sales:read"),
+  "GET /external/v1/leads/insights": external("sales:read"),
+  "GET /external/v1/leads/stages": external("sales:read"),
+  "GET /external/v1/leads/filter-options": external("sales:read"),
+  "GET /external/v1/leads/:id/activity": external("sales:read"),
+  "GET /external/v1/waitlist": external("sales:read"),
+  "GET /external/v1/sales": external("sales:read"),
+  "GET /external/v1/sales/period": external("sales:read"),
+  "GET /external/v1/finance/summary": external("sales:read"),
+  "POST /external/v1/leads": external("sales:write"),
+  "PUT /external/v1/leads/:id": external("sales:write"),
+  "PATCH /external/v1/leads/:id/stage": external("sales:write"),
+  "POST /external/v1/leads/:id/contacts": external("sales:write"),
+  "POST /external/v1/leads/:id/tasks": external("sales:write"),
+  "PATCH /external/v1/lead-tasks/:id/status": external("sales:write"),
+  "POST /external/v1/leads/:id/convert": external("sales:write"),
+  "POST /external/v1/patients": external("sales:write"),
+  "POST /external/v1/group-enrollments": external("sales:write"),
+  "POST /external/v1/group-enrollments/:id/cancel": external("sales:write"),
+  "POST /external/v1/plans/purchases": external("sales:write"),
+  "POST /external/v1/waitlist": external("sales:write"),
+  "PATCH /external/v1/waitlist/:id": external("sales:write"),
+  "DELETE /external/v1/waitlist/:id": external("sales:write"),
   "GET /documents": view("contracts"),
   "POST /documents": operation("contracts.issue"),
+  "POST /documents/preview": operation("contracts.issue"),
+  "PATCH /documents/:id": operation("contracts.issue"),
   "PATCH /documents/:id/status": {
     anyOf: operation("contracts.status", "contracts.cancel"),
   },
@@ -305,6 +494,12 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
   "POST /clinical-records/:id/finalize": operation("clinical.finalize"),
   "POST /clinical-attachments": operation("clinical.attachments_create"),
   "POST /clinical-addenda": operation("clinical.addenda_create"),
+  "POST /clinical-alerts": operation("clinical.records_update"),
+  "DELETE /clinical-alerts/:id": operation("clinical.records_update"),
+  "GET /assessment-templates": view("clinical"),
+  "PATCH /assessment-templates/:id/status": operation(
+    "clinical.templates_create",
+  ),
   "POST /assessment-templates/drafts": operation("clinical.templates_create"),
   "PUT /assessment-templates/:id": operation("clinical.templates_create"),
   "POST /assessment-templates": operation("clinical.templates_create"),
@@ -318,16 +513,18 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
   "PUT /inventory/products/:id": operation("patients.products_update"),
   "PUT /patient-tabs/:id/items/:itemId": operation("patients.tabs_items"),
   "DELETE /patient-tabs/:id/items/:itemId": operation("patients.tabs_items"),
-  "GET /patient-tabs/:id/appointment-options": operation("patients.tabs_items"),
-  "POST /patient-tabs/:id/services": operation("patients.tabs_items"),
   "DELETE /patient-tabs/:id/services/:itemId": operation("patients.tabs_items"),
-  "POST /patient-tabs/:id/appointments": operation(
-    "patients.tabs_items",
-    "agenda.create",
-  ),
+  // Fornecedores também ficam em Vendas de produtos › Fornecedores (patients.suppliers_manage);
+  // a lista dessa aba sai de GET /inventory/suppliers.
   "GET /finance/suppliers": view("finance"),
-  "POST /finance/suppliers": operation("finance.suppliers_manage"),
-  "PUT /finance/suppliers/:id": operation("finance.suppliers_manage"),
+  "POST /finance/suppliers": {
+    anyOf: operation("finance.suppliers_manage", "patients.suppliers_manage"),
+  },
+  "PUT /finance/suppliers/:id": {
+    anyOf: operation("finance.suppliers_manage", "patients.suppliers_manage"),
+  },
+  "GET /finance/suppliers/:id/orders": view("finance"),
+  "POST /finance/suppliers/:id/orders": operation("finance.suppliers_manage"),
   "POST /finance/receivables": operation("finance.receivables_create"),
   "PUT /finance/classifications/:kind/:id": operation("finance.classify"),
   "PUT /finance/categories/:id/dre": operation("finance.classify"),
@@ -335,6 +532,10 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
   "GET /finance/dre": view("finance"),
   "GET /finance/summary": view("finance"),
   "GET /finance/receivables/:id/receipt": view("finance"),
+  "GET /finance/receivables/:id/receipt-signature": view("finance"),
+  "POST /finance/receivables/:id/receipt-signature/sent":
+    operation("finance.receive"),
+  "GET /finance/receivables/:id/contact": view("finance"),
   "GET /finance/workspace": view("finance"),
   "GET /finance/daily-cash": view("finance"),
   "GET /finance/forecast": view("finance"),
@@ -348,6 +549,20 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
   ),
   "POST /finance/renegotiations": operation("finance.renegotiate"),
   "POST /finance/commission-rules": operation("finance.commission_rules"),
+  "POST /finance/commission-rules/recalculation/preview": operation(
+    "finance.commission_rules",
+  ),
+  "GET /finance/payroll": operation("finance.payroll_view"),
+  "GET /finance/payroll/employees": operation("finance.payroll_view"),
+  "PUT /finance/payroll/employees/:id": operation("finance.payroll_manage"),
+  "POST /finance/payroll/entries": operation("finance.payroll_manage"),
+  "DELETE /finance/payroll/entries/:id": operation("finance.payroll_manage"),
+  "POST /finance/payroll/advances": operation("finance.payroll_manage"),
+  "DELETE /finance/payroll/advances/:id": operation("finance.payroll_manage"),
+  "POST /finance/payroll/launch": operation("finance.payroll_manage"),
+  "POST /finance/payroll/payables/:id/cancel": operation(
+    "finance.payroll_manage",
+  ),
   "POST /finance/commissions/generate": operation(
     "finance.commissions_generate",
   ),
@@ -370,26 +585,62 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
   "POST /finance/payables": operation("finance.payables_create"),
   "POST /finance/payables/:id/pay": operation("finance.payables_pay"),
   "POST /finance/payables/:id/reverse": operation("finance.payables_reverse"),
+  "GET /finance/receivables/:id/proofs": view("finance"),
+  "POST /finance/receivables/:id/proofs": operation("finance.receive"),
+  "GET /finance/payables/:id/proofs": view("finance"),
+  "POST /finance/payables/:id/proofs": operation("finance.payables_pay"),
+  "GET /finance/commission-account-payments/:id/proofs": view("finance"),
+  "POST /finance/commission-account-payments/:id/proofs": operation(
+    "finance.commissions_pay",
+  ),
+  "GET /finance/payment-proofs/:id/content": view("finance"),
+  // A permissão de excluir é a de anexar no tipo do registro (conferida na rota).
+  "DELETE /finance/payment-proofs/:id": view("finance"),
+  "PUT /finance/payables/:id/amount": operation("finance.recurring_update"),
   "POST /finance/receivables/:id/reverse": operation(
     "finance.receivables_reverse",
   ),
 
-  // Relatórios (só leitura).
+  // Relatórios (só leitura). Cada planilha tem sua própria permissão de exportação.
   "GET /reports/dre": operation("reports.dre"),
-  "GET /reports/dre/export": operation("reports.dre", "reports.export"),
+  "GET /reports/dre/export": operation("reports.dre", "reports.dre_export"),
+  "GET /reports/dre/export.xlsx": operation(
+    "reports.dre",
+    "reports.dre_export",
+  ),
   "GET /reports/management": operation("reports.management"),
+  "GET /reports/financial": operation("reports.dre"),
+  "GET /reports/financial/export": operation(
+    "reports.dre",
+    "reports.financial_export",
+  ),
   "GET /reports/retention": operation("reports.retention"),
   "GET /reports/clients/details": operation("reports.clients"),
   "GET /reports/clients/details/export": operation(
     "reports.clients",
-    "reports.export",
+    "reports.clients_export",
+  ),
+  "GET /reports/clients/details/export.xlsx": operation(
+    "reports.clients",
+    "reports.clients_export",
   ),
   "GET /reports/clients": operation("reports.clients"),
+  "GET /reports/sales/period": operation("reports.sales"),
+  "GET /reports/sales/period.xlsx": operation(
+    "reports.sales",
+    "reports.sales_export",
+  ),
+  "GET /reports/campaigns": operation("reports.campaigns"),
+  "GET /reports/campaigns.xlsx": operation(
+    "reports.campaigns",
+    "reports.campaigns_export",
+  ),
   "GET /reports/sales": operation("reports.sales"),
-  "GET /reports/sales.xlsx": operation("reports.sales", "reports.export"),
-  "GET /reports/management.csv": operation(
+  "GET /reports/sales/patients/:id": operation("reports.sales"),
+  "GET /reports/sales.xlsx": operation("reports.sales", "reports.sales_export"),
+  "GET /reports/management.xlsx": operation(
     "reports.management",
-    "reports.export",
+    "reports.management_export",
   ),
 };
 
@@ -400,7 +651,9 @@ export const moduleDeniedCodes: Record<AppModule, string> = {
   patients: "COMMERCIAL_ACCESS_DENIED",
   plans: "COMMERCIAL_ACCESS_DENIED",
   crm: "COMMERCIAL_ACCESS_DENIED",
+  events: "COMMERCIAL_ACCESS_DENIED",
   relationship: "COMMERCIAL_ACCESS_DENIED",
+  waitlist: "COMMERCIAL_ACCESS_DENIED",
   communications: "COMMERCIAL_ACCESS_DENIED",
   contracts: "COMMERCIAL_ACCESS_DENIED",
   settings: "COMMERCIAL_ACCESS_DENIED",

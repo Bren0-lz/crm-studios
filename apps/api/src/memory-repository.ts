@@ -1,14 +1,24 @@
+import { createAgendaNotesRepository } from "./storage/memory/agenda-notes.js";
+import { createWaitlistRepository } from "./storage/memory/waitlist.js";
+import { createEventsRepository } from "./storage/memory/events.js";
+import { createBranchesRepository } from "./storage/memory/branches.js";
 import { createCommissionReconciliationRepository } from "./storage/memory/commission-reconciliation.js";
 import { createExternalOperationsRepository } from "./storage/memory/external-operations.js";
+import { createPaymentProofsRepository } from "./storage/memory/payment-proofs.js";
+import { createReceiptSignaturesRepository } from "./storage/memory/receipt-signatures.js";
+import { createTelegramRepository } from "./storage/memory/telegram.js";
 import { createPlanPurchasesRepository } from "./storage/memory/plan-purchases.js";
 import { createClinicWriteLock } from "./storage/memory/write-lock.js";
 import { createFinancialDatesRepository } from "./storage/memory/financial-dates.js";
 import { createRegistryRepository } from "./storage/memory/registry.js";
 import { createAgendaLinksRepository } from "./storage/memory/agenda-links.js";
 import { createDocumentSignaturesRepository } from "./storage/memory/document-signatures.js";
+import { createDocumentSignatureLinksRepository } from "./storage/memory/document-signature-links.js";
 import { createAssessmentOperationsRepository } from "./storage/memory/assessment-operations.js";
 import { createCommissionOperationsRepository } from "./storage/memory/commission-operations.js";
+import { createPayrollRepository } from "./storage/memory/payroll.js";
 import { createFinanceOperationsRepository } from "./storage/memory/finance-operations.js";
+import { createSupplierOrdersRepository } from "./storage/memory/supplier-orders.js";
 import { createClinicalResourcesRepository } from "./storage/memory/clinical-resources.js";
 import { createGroupOperationsRepository } from "./storage/memory/group-operations.js";
 import { createPatientManagementRepository } from "./storage/memory/patient-management.js";
@@ -18,23 +28,71 @@ import { createAdministrationRepository } from "./storage/memory/administration.
 import { createAgendaRepository } from "./storage/memory/agenda.js";
 import { createClinicalRepository } from "./storage/memory/clinical.js";
 import { createCommercialRepository } from "./storage/memory/commercial.js";
+import { createCampaignsRepository } from "./storage/memory/campaigns.js";
+import { createAutoCampaignsRepository } from "./storage/memory/auto-campaigns.js";
 import { createCommunicationsRepository } from "./storage/memory/communications.js";
 import { MemoryRepositoryContext } from "./storage/memory/context.js";
 import { createContractsRepository } from "./storage/memory/contracts.js";
 import { createFinanceRepository } from "./storage/memory/finance.js";
+import { createProductSalesRepository } from "./storage/memory/product-sales.js";
 import { createPatientsRepository } from "./storage/memory/patients.js";
 import { createPlansRepository } from "./storage/memory/plans.js";
 import { createRelationshipRepository } from "./storage/memory/relationship.js";
 import { createReportsRepository } from "./storage/memory/reports.js";
 
 export class MemoryClinicRepository implements ClinicRepository {
+  readonly listWaitlist: ClinicRepository["listWaitlist"];
+  readonly createWaitlistEntry: ClinicRepository["createWaitlistEntry"];
+  readonly updateWaitlistEntry: ClinicRepository["updateWaitlistEntry"];
+  readonly deleteWaitlistEntry: ClinicRepository["deleteWaitlistEntry"];
+  readonly listEvents: ClinicRepository["listEvents"];
+  readonly getEvent: ClinicRepository["getEvent"];
+  readonly createEvent: ClinicRepository["createEvent"];
+  readonly updateEvent: ClinicRepository["updateEvent"];
+  readonly deleteEvent: ClinicRepository["deleteEvent"];
+  readonly removeEventParticipant: ClinicRepository["removeEventParticipant"];
+  readonly listPatientLeadOrigins: ClinicRepository["listPatientLeadOrigins"];
+
+  readonly listAgendaNotes: ClinicRepository["listAgendaNotes"];
+  readonly createAgendaNotes: ClinicRepository["createAgendaNotes"];
+  readonly updateAgendaNote: ClinicRepository["updateAgendaNote"];
+  readonly deleteAgendaNote: ClinicRepository["deleteAgendaNote"];
+
+  readonly branchScope: ClinicRepository["branchScope"];
+  readonly listBranches: ClinicRepository["listBranches"];
+  readonly saveBranch: ClinicRepository["saveBranch"];
   readonly getCommissionReconciliationPreview: ClinicRepository["getCommissionReconciliationPreview"];
   readonly reconcileCommission: ClinicRepository["reconcileCommission"];
+  readonly autoReconcileCommissions: ClinicRepository["autoReconcileCommissions"];
   readonly settleCommissionAccount: ClinicRepository["settleCommissionAccount"];
   readonly reverseCommissionAccountPayment: ClinicRepository["reverseCommissionAccountPayment"];
   readonly listExternalOperations: ClinicRepository["listExternalOperations"];
   readonly createExternalOperation: ClinicRepository["createExternalOperation"];
   readonly getExternalOperationContent: ClinicRepository["getExternalOperationContent"];
+  readonly listPaymentProofs: ClinicRepository["listPaymentProofs"];
+  readonly listPaymentProofEntityIds: ClinicRepository["listPaymentProofEntityIds"];
+  readonly createPaymentProof: ClinicRepository["createPaymentProof"];
+  readonly getPaymentProofContent: ClinicRepository["getPaymentProofContent"];
+  readonly deletePaymentProof: ClinicRepository["deletePaymentProof"];
+  readonly findPaymentProofEntity: ClinicRepository["findPaymentProofEntity"];
+  readonly listReceiptSignatures: ClinicRepository["listReceiptSignatures"];
+  readonly markReceiptSignatureSent: ClinicRepository["markReceiptSignatureSent"];
+  readonly openPublicReceiptSignature: ClinicRepository["openPublicReceiptSignature"];
+  readonly signPublicReceiptSignature: ClinicRepository["signPublicReceiptSignature"];
+  readonly getTelegramSettings: ClinicRepository["getTelegramSettings"];
+  readonly saveTelegramSettings: ClinicRepository["saveTelegramSettings"];
+  readonly getTelegramLink: ClinicRepository["getTelegramLink"];
+  readonly listTelegramLinks: ClinicRepository["listTelegramLinks"];
+  readonly findTelegramLinksByChat: ClinicRepository["findTelegramLinksByChat"];
+  readonly getTelegramReceiptReminderSentOn: ClinicRepository["getTelegramReceiptReminderSentOn"];
+  readonly claimTelegramReceiptReminder: ClinicRepository["claimTelegramReceiptReminder"];
+  readonly deleteTelegramLink: ClinicRepository["deleteTelegramLink"];
+  readonly createTelegramLinkCode: ClinicRepository["createTelegramLinkCode"];
+  readonly linkTelegramChat: ClinicRepository["linkTelegramChat"];
+  readonly enqueueTelegramMessages: ClinicRepository["enqueueTelegramMessages"];
+  readonly claimTelegramOutbox: ClinicRepository["claimTelegramOutbox"];
+  readonly recordTelegramDelivery: ClinicRepository["recordTelegramDelivery"];
+  readonly listTelegramOutbox: ClinicRepository["listTelegramOutbox"];
   readonly purchasePatientPlan: ClinicRepository["purchasePatientPlan"];
   readonly getAdministrativeRegistry: ClinicRepository["getAdministrativeRegistry"];
   readonly updateAdministrativeRegistry: ClinicRepository["updateAdministrativeRegistry"];
@@ -50,21 +108,48 @@ export class MemoryClinicRepository implements ClinicRepository {
   readonly updateGroupSessionProfessional: ClinicRepository["updateGroupSessionProfessional"];
   readonly revokeUserSessions: ClinicRepository["revokeUserSessions"];
   readonly completeManualMessage: ClinicRepository["completeManualMessage"];
+  readonly listMessageTemplates: ClinicRepository["listMessageTemplates"];
+  readonly getMessageTemplateImage: ClinicRepository["getMessageTemplateImage"];
+  readonly createMessageTemplate: ClinicRepository["createMessageTemplate"];
+  readonly updateMessageTemplate: ClinicRepository["updateMessageTemplate"];
+  readonly setMessageTemplateArchived: ClinicRepository["setMessageTemplateArchived"];
+  readonly listAutoCampaigns: ClinicRepository["listAutoCampaigns"];
+  readonly getAutoCampaign: ClinicRepository["getAutoCampaign"];
+  readonly createAutoCampaign: ClinicRepository["createAutoCampaign"];
+  readonly updateAutoCampaign: ClinicRepository["updateAutoCampaign"];
+  readonly deleteAutoCampaign: ClinicRepository["deleteAutoCampaign"];
+  readonly listAutoCampaignDeliveries: ClinicRepository["listAutoCampaignDeliveries"];
+  readonly saveAutoCampaignDelivery: ClinicRepository["saveAutoCampaignDelivery"];
+  readonly listAutoCampaignRedemptions: ClinicRepository["listAutoCampaignRedemptions"];
+  readonly deleteAutoCampaignDelivery: ClinicRepository["deleteAutoCampaignDelivery"];
+  readonly getAutoCampaignSourceData: ClinicRepository["getAutoCampaignSourceData"];
+  readonly listWhatsappCampaigns: ClinicRepository["listWhatsappCampaigns"];
+  readonly getWhatsappCampaign: ClinicRepository["getWhatsappCampaign"];
+  readonly createWhatsappCampaign: ClinicRepository["createWhatsappCampaign"];
+  readonly setWhatsappCampaignRecipientStatus: ClinicRepository["setWhatsappCampaignRecipientStatus"];
+  readonly listWhatsappCampaignRedemptions: ClinicRepository["listWhatsappCampaignRedemptions"];
   readonly saveAssessmentTemplate: ClinicRepository["saveAssessmentTemplate"];
+  readonly listAssessmentTemplates: ClinicRepository["listAssessmentTemplates"];
+  readonly setAssessmentTemplateActive: ClinicRepository["setAssessmentTemplateActive"];
   readonly createAbsenceSuccessor: ClinicRepository["createAbsenceSuccessor"];
   readonly recordDocumentSignature: ClinicRepository["recordDocumentSignature"];
   readonly getDocumentSignatureContent: ClinicRepository["getDocumentSignatureContent"];
+  readonly createDocumentSignatureLink: ClinicRepository["createDocumentSignatureLink"];
+  readonly getDocumentSignatureLink: ClinicRepository["getDocumentSignatureLink"];
+  readonly openPublicSignatureDocument: ClinicRepository["openPublicSignatureDocument"];
+  readonly signPublicDocument: ClinicRepository["signPublicDocument"];
   readonly listClinicalResources: ClinicRepository["listClinicalResources"];
   readonly saveClinicalResource: ClinicRepository["saveClinicalResource"];
   readonly finalizeClinicalResource: ClinicRepository["finalizeClinicalResource"];
   readonly listClinicalSources: ClinicRepository["listClinicalSources"];
   readonly updateProduct: ClinicRepository["updateProduct"];
   readonly updatePatientTabItem: ClinicRepository["updatePatientTabItem"];
-  readonly addPatientTabService: ClinicRepository["addPatientTabService"];
+  readonly createProductSale: ClinicRepository["createProductSale"];
   readonly removePatientTabService: ClinicRepository["removePatientTabService"];
-  readonly createPatientTabAppointment: ClinicRepository["createPatientTabAppointment"];
   readonly listSuppliers: ClinicRepository["listSuppliers"];
   readonly saveSupplier: ClinicRepository["saveSupplier"];
+  readonly listSupplierOrders: ClinicRepository["listSupplierOrders"];
+  readonly createSupplierOrder: ClinicRepository["createSupplierOrder"];
   readonly createManualReceivable: ClinicRepository["createManualReceivable"];
   readonly classifyFinancialEntry: ClinicRepository["classifyFinancialEntry"];
   readonly setCategoryDreGroup: ClinicRepository["setCategoryDreGroup"];
@@ -74,7 +159,8 @@ export class MemoryClinicRepository implements ClinicRepository {
   private readonly administration: ReturnType<
     typeof createAdministrationRepository
   >;
-  private readonly finance: ReturnType<typeof createFinanceRepository>;
+  private readonly finance: ReturnType<typeof createFinanceRepository> &
+    ReturnType<typeof createCommissionOperationsRepository>;
   private readonly relationship: ReturnType<
     typeof createRelationshipRepository
   >;
@@ -87,16 +173,22 @@ export class MemoryClinicRepository implements ClinicRepository {
   private readonly communications: ReturnType<
     typeof createCommunicationsRepository
   >;
+  private readonly campaigns: ReturnType<typeof createCampaignsRepository>;
   private readonly contracts: ReturnType<typeof createContractsRepository>;
   constructor(withRichDemo = false) {
     this.context = new MemoryRepositoryContext(withRichDemo);
     this.context.operations = this;
+    this.branchScope = this.context.branchScope;
+    const branches = createBranchesRepository(this.context);
+    this.listBranches = branches.listBranches;
+    this.saveBranch = branches.saveBranch;
     const reconciliation = createCommissionReconciliationRepository(
       this.context,
     );
     this.getCommissionReconciliationPreview =
       reconciliation.getCommissionReconciliationPreview;
     this.reconcileCommission = reconciliation.reconcileCommission;
+    this.autoReconcileCommissions = reconciliation.autoReconcileCommissions;
     this.settleCommissionAccount = reconciliation.settleCommissionAccount;
     this.reverseCommissionAccountPayment =
       reconciliation.reverseCommissionAccountPayment;
@@ -105,6 +197,36 @@ export class MemoryClinicRepository implements ClinicRepository {
     this.createExternalOperation = externalOperations.createExternalOperation;
     this.getExternalOperationContent =
       externalOperations.getExternalOperationContent;
+    const paymentProofs = createPaymentProofsRepository(this.context);
+    this.listPaymentProofs = paymentProofs.listPaymentProofs;
+    this.listPaymentProofEntityIds = paymentProofs.listPaymentProofEntityIds;
+    this.createPaymentProof = paymentProofs.createPaymentProof;
+    this.getPaymentProofContent = paymentProofs.getPaymentProofContent;
+    this.deletePaymentProof = paymentProofs.deletePaymentProof;
+    this.findPaymentProofEntity = paymentProofs.findPaymentProofEntity;
+    const receiptSignatures = createReceiptSignaturesRepository(this.context);
+    this.listReceiptSignatures = receiptSignatures.listReceiptSignatures;
+    this.markReceiptSignatureSent = receiptSignatures.markReceiptSignatureSent;
+    this.openPublicReceiptSignature =
+      receiptSignatures.openPublicReceiptSignature;
+    this.signPublicReceiptSignature =
+      receiptSignatures.signPublicReceiptSignature;
+    const telegram = createTelegramRepository(this.context);
+    this.getTelegramSettings = telegram.getTelegramSettings;
+    this.saveTelegramSettings = telegram.saveTelegramSettings;
+    this.getTelegramLink = telegram.getTelegramLink;
+    this.listTelegramLinks = telegram.listTelegramLinks;
+    this.findTelegramLinksByChat = telegram.findTelegramLinksByChat;
+    this.getTelegramReceiptReminderSentOn =
+      telegram.getTelegramReceiptReminderSentOn;
+    this.claimTelegramReceiptReminder = telegram.claimTelegramReceiptReminder;
+    this.deleteTelegramLink = telegram.deleteTelegramLink;
+    this.createTelegramLinkCode = telegram.createTelegramLinkCode;
+    this.linkTelegramChat = telegram.linkTelegramChat;
+    this.enqueueTelegramMessages = telegram.enqueueTelegramMessages;
+    this.claimTelegramOutbox = telegram.claimTelegramOutbox;
+    this.recordTelegramDelivery = telegram.recordTelegramDelivery;
+    this.listTelegramOutbox = telegram.listTelegramOutbox;
     this.purchasePatientPlan = createPlanPurchasesRepository(
       this.context,
     ).purchasePatientPlan;
@@ -129,12 +251,12 @@ export class MemoryClinicRepository implements ClinicRepository {
     const financeOperations = createFinanceOperationsRepository(this.context);
     this.updateProduct = financeOperations.updateProduct;
     this.updatePatientTabItem = financeOperations.updatePatientTabItem;
-    this.addPatientTabService = financeOperations.addPatientTabService;
     this.removePatientTabService = financeOperations.removePatientTabService;
-    this.createPatientTabAppointment =
-      financeOperations.createPatientTabAppointment;
     this.listSuppliers = financeOperations.listSuppliers;
     this.saveSupplier = financeOperations.saveSupplier;
+    const supplierOrders = createSupplierOrdersRepository(this.context);
+    this.listSupplierOrders = supplierOrders.listSupplierOrders;
+    this.createSupplierOrder = supplierOrders.createSupplierOrder;
     this.createManualReceivable = financeOperations.createManualReceivable;
     this.classifyFinancialEntry = financeOperations.classifyFinancialEntry;
     this.setCategoryDreGroup = financeOperations.setCategoryDreGroup;
@@ -144,6 +266,25 @@ export class MemoryClinicRepository implements ClinicRepository {
     ).setFinancialDates;
     this.relationship = createRelationshipRepository(this.context);
     this.agenda = createAgendaRepository(this.context);
+    const waitlist = createWaitlistRepository(this.context);
+    this.listWaitlist = waitlist.listWaitlist;
+    this.createWaitlistEntry = waitlist.createWaitlistEntry;
+    this.updateWaitlistEntry = waitlist.updateWaitlistEntry;
+    this.deleteWaitlistEntry = waitlist.deleteWaitlistEntry;
+    const events = createEventsRepository(this.context);
+    this.listEvents = events.listEvents;
+    this.getEvent = events.getEvent;
+    this.createEvent = events.createEvent;
+    this.updateEvent = events.updateEvent;
+    this.deleteEvent = events.deleteEvent;
+    this.removeEventParticipant = events.removeEventParticipant;
+    this.listPatientLeadOrigins = events.listPatientLeadOrigins;
+    const agendaNotes = createAgendaNotesRepository(this.context);
+    this.listAgendaNotes = agendaNotes.listAgendaNotes;
+    this.createAgendaNotes = agendaNotes.createAgendaNotes;
+    this.updateAgendaNote = agendaNotes.updateAgendaNote;
+    this.deleteAgendaNote = agendaNotes.deleteAgendaNote;
+
     this.createAbsenceSuccessor = createAgendaLinksRepository(
       this.context,
     ).createAbsenceSuccessor;
@@ -156,9 +297,13 @@ export class MemoryClinicRepository implements ClinicRepository {
     this.patients = createPatientsRepository(this.context);
     this.plans = createPlansRepository(this.context);
     this.clinical = createClinicalRepository(this.context);
-    this.saveAssessmentTemplate = createAssessmentOperationsRepository(
+    const assessmentOperations = createAssessmentOperationsRepository(
       this.context,
-    ).saveAssessmentTemplate;
+    );
+    this.saveAssessmentTemplate = assessmentOperations.saveAssessmentTemplate;
+    this.listAssessmentTemplates = assessmentOperations.listAssessmentTemplates;
+    this.setAssessmentTemplateActive =
+      assessmentOperations.setAssessmentTemplateActive;
     const clinicalResources = createClinicalResourcesRepository(this.context);
     this.listClinicalResources = clinicalResources.listClinicalResources;
     this.listClinicalSources = clinicalResources.listClinicalSources;
@@ -166,10 +311,30 @@ export class MemoryClinicRepository implements ClinicRepository {
     this.finalizeClinicalResource = clinicalResources.finalizeClinicalResource;
     this.commercial = createCommercialRepository(this.context);
     this.communications = createCommunicationsRepository(this.context);
+    this.campaigns = createCampaignsRepository(this.context);
+    const autoCampaigns = createAutoCampaignsRepository(this.context);
+    this.listAutoCampaigns = autoCampaigns.listAutoCampaigns;
+    this.getAutoCampaign = autoCampaigns.getAutoCampaign;
+    this.createAutoCampaign = autoCampaigns.createAutoCampaign;
+    this.updateAutoCampaign = autoCampaigns.updateAutoCampaign;
+    this.deleteAutoCampaign = autoCampaigns.deleteAutoCampaign;
+    this.listAutoCampaignDeliveries = autoCampaigns.listAutoCampaignDeliveries;
+    this.saveAutoCampaignDelivery = autoCampaigns.saveAutoCampaignDelivery;
+    this.listAutoCampaignRedemptions =
+      autoCampaigns.listAutoCampaignRedemptions;
+    this.deleteAutoCampaignDelivery = autoCampaigns.deleteAutoCampaignDelivery;
+    this.getAutoCampaignSourceData = autoCampaigns.getAutoCampaignSourceData;
     this.contracts = createContractsRepository(this.context);
     const signatures = createDocumentSignaturesRepository(this.context);
     this.recordDocumentSignature = signatures.recordDocumentSignature;
     this.getDocumentSignatureContent = signatures.getDocumentSignatureContent;
+    const signatureLinks = createDocumentSignatureLinksRepository(this.context);
+    this.createDocumentSignatureLink =
+      signatureLinks.createDocumentSignatureLink;
+    this.getDocumentSignatureLink = signatureLinks.getDocumentSignatureLink;
+    this.openPublicSignatureDocument =
+      signatureLinks.openPublicSignatureDocument;
+    this.signPublicDocument = signatureLinks.signPublicDocument;
 
     this.revokeUserSessions = this.administration.revokeUserSessions;
     this.findUserByEmail = this.administration.findUserByEmail;
@@ -180,8 +345,36 @@ export class MemoryClinicRepository implements ClinicRepository {
     this.createAdminUser = this.administration.createAdminUser;
     this.updateAdminUser = this.administration.updateAdminUser;
     this.resetAdminUserPassword = this.administration.resetAdminUserPassword;
+    this.findUserPasswordEncrypted =
+      this.administration.findUserPasswordEncrypted;
+    this.recordUserPasswordViewed =
+      this.administration.recordUserPasswordViewed;
+    this.getOwnProfile = this.administration.getOwnProfile;
+    this.updateOwnProfile = this.administration.updateOwnProfile;
     this.getClinicSettings = this.administration.getClinicSettings;
     this.updateClinicSettings = this.administration.updateClinicSettings;
+    this.getAutoFinalizationSettings =
+      this.administration.getAutoFinalizationSettings;
+    this.updateAutoFinalizationSettings =
+      this.administration.updateAutoFinalizationSettings;
+    this.getPaymentMethodSettings =
+      this.administration.getPaymentMethodSettings;
+    this.updatePaymentMethodSettings =
+      this.administration.updatePaymentMethodSettings;
+    this.getProLaboreSettings = this.administration.getProLaboreSettings;
+    this.updateProLaboreSettings = this.administration.updateProLaboreSettings;
+    this.listNavTabLabels = this.administration.listNavTabLabels;
+    this.saveNavTabLabels = this.administration.saveNavTabLabels;
+    this.getNotificationPreferences =
+      this.administration.getNotificationPreferences;
+    this.saveNotificationPreferences =
+      this.administration.saveNotificationPreferences;
+    this.listIntegrationKeys = this.administration.listIntegrationKeys;
+    this.createIntegrationKey = this.administration.createIntegrationKey;
+    this.revokeIntegrationKey = this.administration.revokeIntegrationKey;
+    this.findIntegrationKeyByTokenHash =
+      this.administration.findIntegrationKeyByTokenHash;
+    this.touchIntegrationKey = this.administration.touchIntegrationKey;
     this.listAdminAuditEvents = this.administration.listAdminAuditEvents;
     this.listHistoryActors = this.administration.listHistoryActors;
     this.listAdminAuditPage = this.administration.listAdminAuditPage;
@@ -200,6 +393,13 @@ export class MemoryClinicRepository implements ClinicRepository {
     this.addPatientTabItem = this.finance.addPatientTabItem;
     this.closePatientTab = this.finance.closePatientTab;
     this.cancelPatientTab = this.finance.cancelPatientTab;
+    this.patientTabPayment = this.finance.patientTabPayment;
+    this.createProductSale = createProductSalesRepository(this.context, {
+      openPatientTab: this.finance.openPatientTab,
+      addPatientTabItem: this.finance.addPatientTabItem,
+      updatePatientTabItem: financeOperations.updatePatientTabItem,
+      closePatientTab: this.finance.closePatientTab,
+    }).createProductSale;
     this.getFinancialSummary = this.finance.getFinancialSummary;
     this.settleReceivable = this.finance.settleReceivable;
     this.reverseReceivablePayment = this.finance.reverseReceivablePayment;
@@ -211,6 +411,7 @@ export class MemoryClinicRepository implements ClinicRepository {
     this.createPayable = this.finance.createPayable;
     this.settlePayable = this.finance.settlePayable;
     this.reversePayablePayment = this.finance.reversePayablePayment;
+    this.setPayableAmount = this.finance.setPayableAmount;
     this.listRecurringPayables = this.finance.listRecurringPayables;
     this.createRecurringPayable = this.finance.createRecurringPayable;
     this.updateRecurringPayable = this.finance.updateRecurringPayable;
@@ -219,10 +420,23 @@ export class MemoryClinicRepository implements ClinicRepository {
       this.finance.generateDueRecurringPayables;
     this.renegotiateReceivables = this.finance.renegotiateReceivables;
     this.createCommissionRule = this.finance.createCommissionRule;
+    this.previewCommissionRecalculation =
+      this.finance.previewCommissionRecalculation;
+    const payroll = createPayrollRepository(this.context);
+    this.listPayrollEmployees = payroll.listPayrollEmployees;
+    this.updatePayrollEmployee = payroll.updatePayrollEmployee;
+    this.getPayroll = payroll.getPayroll;
+    this.launchPayroll = payroll.launchPayroll;
+    this.createPayrollEntry = payroll.createPayrollEntry;
+    this.deletePayrollEntry = payroll.deletePayrollEntry;
+    this.createPayrollAdvance = payroll.createPayrollAdvance;
+    this.deletePayrollAdvance = payroll.deletePayrollAdvance;
+    this.cancelPayrollLaunch = payroll.cancelPayrollLaunch;
     this.generateCommissions = this.finance.generateCommissions;
     this.settleCommission = this.finance.settleCommission;
     this.reverseCommission = this.finance.reverseCommission;
     this.getDailyCash = this.finance.getDailyCash;
+    this.listCashMovements = this.finance.listCashMovements;
     this.listReceivedPayments = this.finance.listReceivedPayments;
     this.getRelationshipSettings = this.relationship.getRelationshipSettings;
     this.updateRelationshipSettings =
@@ -241,6 +455,7 @@ export class MemoryClinicRepository implements ClinicRepository {
     this.listAppointments = this.agenda.listAppointments;
     this.listPendingFinalizationAppointments =
       this.agenda.listPendingFinalizationAppointments;
+    this.autoFinalizeAppointments = this.agenda.autoFinalizeAppointments;
     this.createAppointment = this.agenda.createAppointment;
     this.createLeadAppointment = this.agenda.createLeadAppointment;
     this.rescheduleAppointment = this.agenda.rescheduleAppointment;
@@ -248,6 +463,7 @@ export class MemoryClinicRepository implements ClinicRepository {
     this.findAppointmentServiceId = this.agenda.findAppointmentServiceId;
     this.findAppointment = this.agenda.findAppointment;
     this.updateAppointment = this.agenda.updateAppointment;
+    this.findAgendaConflicts = this.agenda.findAgendaConflicts;
     this.createRecurringAppointments = this.agenda.createRecurringAppointments;
     this.listScheduleBlocks = this.agenda.listScheduleBlocks;
     this.createScheduleBlock = this.agenda.createScheduleBlock;
@@ -255,8 +471,10 @@ export class MemoryClinicRepository implements ClinicRepository {
     this.getGroupWorkspace = this.agenda.getGroupWorkspace;
     this.createGroupClass = this.agenda.createGroupClass;
     this.updateGroupClass = this.agenda.updateGroupClass;
+    this.renameGroupClass = this.agenda.renameGroupClass;
     this.createGroupEnrollment = this.agenda.createGroupEnrollment;
     this.cancelGroupEnrollment = this.agenda.cancelGroupEnrollment;
+    this.confirmGroupEnrollment = this.agenda.confirmGroupEnrollment;
     this.listGroupSessions = this.agenda.listGroupSessions;
     this.recordGroupAttendance = groupOperations.recordGroupAttendance;
     this.completeGroupSession = this.agenda.completeGroupSession;
@@ -264,7 +482,10 @@ export class MemoryClinicRepository implements ClinicRepository {
     this.updateAppointmentStatus = this.agenda.updateAppointmentStatus;
     this.getDashboard = this.reports.getDashboard;
     this.getSalesReport = this.reports.getSalesReport;
+    this.getSalesPeriodReport = this.reports.getSalesPeriodReport;
+    this.listPatientSales = this.reports.listPatientSales;
     this.getManagementReport = this.reports.getManagementReport;
+    this.listTeamProduction = this.reports.listTeamProduction;
     this.listPatients = this.patients.listPatients;
     this.createPatient = this.patients.createPatient;
     this.createPatientWithNextStep = this.patients.createPatientWithNextStep;
@@ -307,10 +528,18 @@ export class MemoryClinicRepository implements ClinicRepository {
     this.getClinicalAttachmentContent =
       this.clinical.getClinicalAttachmentContent;
     this.createClinicalAddendum = this.clinical.createClinicalAddendum;
+    this.createClinicalAlert = this.clinical.createClinicalAlert;
+    this.archiveClinicalAlert = this.clinical.archiveClinicalAlert;
     this.listClinicalAccessEvents = this.clinical.listClinicalAccessEvents;
     this.listLeads = this.commercial.listLeads;
+    this.listLeadStagePage = this.commercial.listLeadStagePage;
+    this.summarizeLeads = this.commercial.summarizeLeads;
+    this.listLeadFilterOptions = this.commercial.listLeadFilterOptions;
+    this.listLeadStages = this.commercial.listLeadStages;
+    this.saveLeadStages = this.commercial.saveLeadStages;
     this.findLeadDuplicates = this.commercial.findLeadDuplicates;
     this.createLead = this.commercial.createLead;
+    this.importEventParticipants = this.commercial.importEventParticipants;
     this.updateLead = this.commercial.updateLead;
     this.moveLead = this.commercial.moveLead;
     this.convertLead = this.commercial.convertLead;
@@ -325,12 +554,29 @@ export class MemoryClinicRepository implements ClinicRepository {
     this.queueManualMessage = this.communications.queueManualMessage;
     this.queueBroadcastMessages = this.communications.queueBroadcastMessages;
     this.generateReminders = this.communications.generateReminders;
+    this.listMessageTemplates = this.campaigns.listMessageTemplates;
+    this.getMessageTemplateImage = this.campaigns.getMessageTemplateImage;
+    this.createMessageTemplate = this.campaigns.createMessageTemplate;
+    this.updateMessageTemplate = this.campaigns.updateMessageTemplate;
+    this.setMessageTemplateArchived = this.campaigns.setMessageTemplateArchived;
+    this.listWhatsappCampaigns = this.campaigns.listWhatsappCampaigns;
+    this.getWhatsappCampaign = this.campaigns.getWhatsappCampaign;
+    this.createWhatsappCampaign = this.campaigns.createWhatsappCampaign;
+    this.setWhatsappCampaignRecipientStatus =
+      this.campaigns.setWhatsappCampaignRecipientStatus;
+    this.listWhatsappCampaignRedemptions =
+      this.campaigns.listWhatsappCampaignRedemptions;
     this.listDocumentTemplates = this.contracts.listDocumentTemplates;
     this.createDocumentTemplate = this.contracts.createDocumentTemplate;
     this.createDocumentTemplateVersion =
       this.contracts.createDocumentTemplateVersion;
+    this.restoreDocumentTemplateVersion =
+      this.contracts.restoreDocumentTemplateVersion;
+    this.deleteDocumentTemplate = this.contracts.deleteDocumentTemplate;
     this.listIssuedDocuments = this.contracts.listIssuedDocuments;
     this.createIssuedDocument = this.contracts.createIssuedDocument;
+    this.previewDocument = this.contracts.previewDocument;
+    this.updateDocumentDraft = this.contracts.updateDocumentDraft;
     this.updateIssuedDocumentStatus = this.contracts.updateIssuedDocumentStatus;
     // All clinics share the in-memory collections. One instance-wide guard
     // keeps composed rollback isolated from writes in any other clinic.
@@ -373,6 +619,22 @@ export class MemoryClinicRepository implements ClinicRepository {
     typeof createAdministrationRepository
   >["resetAdminUserPassword"];
 
+  readonly findUserPasswordEncrypted: ReturnType<
+    typeof createAdministrationRepository
+  >["findUserPasswordEncrypted"];
+
+  readonly recordUserPasswordViewed: ReturnType<
+    typeof createAdministrationRepository
+  >["recordUserPasswordViewed"];
+
+  readonly getOwnProfile: ReturnType<
+    typeof createAdministrationRepository
+  >["getOwnProfile"];
+
+  readonly updateOwnProfile: ReturnType<
+    typeof createAdministrationRepository
+  >["updateOwnProfile"];
+
   readonly getClinicSettings: ReturnType<
     typeof createAdministrationRepository
   >["getClinicSettings"];
@@ -380,6 +642,35 @@ export class MemoryClinicRepository implements ClinicRepository {
   readonly updateClinicSettings: ReturnType<
     typeof createAdministrationRepository
   >["updateClinicSettings"];
+
+  readonly getAutoFinalizationSettings: ReturnType<
+    typeof createAdministrationRepository
+  >["getAutoFinalizationSettings"];
+
+  readonly getProLaboreSettings: ReturnType<
+    typeof createAdministrationRepository
+  >["getProLaboreSettings"];
+
+  readonly updateProLaboreSettings: ReturnType<
+    typeof createAdministrationRepository
+  >["updateProLaboreSettings"];
+
+  readonly updateAutoFinalizationSettings: ReturnType<
+    typeof createAdministrationRepository
+  >["updateAutoFinalizationSettings"];
+
+  readonly getPaymentMethodSettings: ClinicRepository["getPaymentMethodSettings"];
+  readonly updatePaymentMethodSettings: ClinicRepository["updatePaymentMethodSettings"];
+
+  readonly listNavTabLabels: ClinicRepository["listNavTabLabels"];
+  readonly saveNavTabLabels: ClinicRepository["saveNavTabLabels"];
+  readonly getNotificationPreferences: ClinicRepository["getNotificationPreferences"];
+  readonly saveNotificationPreferences: ClinicRepository["saveNotificationPreferences"];
+  readonly listIntegrationKeys: ClinicRepository["listIntegrationKeys"];
+  readonly createIntegrationKey: ClinicRepository["createIntegrationKey"];
+  readonly revokeIntegrationKey: ClinicRepository["revokeIntegrationKey"];
+  readonly findIntegrationKeyByTokenHash: ClinicRepository["findIntegrationKeyByTokenHash"];
+  readonly touchIntegrationKey: ClinicRepository["touchIntegrationKey"];
 
   readonly listAdminAuditEvents: ReturnType<
     typeof createAdministrationRepository
@@ -453,6 +744,10 @@ export class MemoryClinicRepository implements ClinicRepository {
     typeof createFinanceRepository
   >["cancelPatientTab"];
 
+  readonly patientTabPayment: ReturnType<
+    typeof createFinanceRepository
+  >["patientTabPayment"];
+
   readonly getFinancialSummary: ReturnType<
     typeof createFinanceRepository
   >["getFinancialSummary"];
@@ -497,6 +792,10 @@ export class MemoryClinicRepository implements ClinicRepository {
     typeof createFinanceRepository
   >["reversePayablePayment"];
 
+  readonly setPayableAmount: ReturnType<
+    typeof createFinanceRepository
+  >["setPayableAmount"];
+
   readonly listRecurringPayables: ReturnType<
     typeof createFinanceRepository
   >["listRecurringPayables"];
@@ -521,13 +820,21 @@ export class MemoryClinicRepository implements ClinicRepository {
     typeof createFinanceRepository
   >["renegotiateReceivables"];
 
-  readonly createCommissionRule: ReturnType<
-    typeof createFinanceRepository
-  >["createCommissionRule"];
+  readonly listPayrollEmployees: ClinicRepository["listPayrollEmployees"];
+  readonly updatePayrollEmployee: ClinicRepository["updatePayrollEmployee"];
+  readonly getPayroll: ClinicRepository["getPayroll"];
+  readonly launchPayroll: ClinicRepository["launchPayroll"];
+  readonly createPayrollEntry: ClinicRepository["createPayrollEntry"];
+  readonly deletePayrollEntry: ClinicRepository["deletePayrollEntry"];
+  readonly createPayrollAdvance: ClinicRepository["createPayrollAdvance"];
+  readonly deletePayrollAdvance: ClinicRepository["deletePayrollAdvance"];
+  readonly cancelPayrollLaunch: ClinicRepository["cancelPayrollLaunch"];
 
-  readonly generateCommissions: ReturnType<
-    typeof createFinanceRepository
-  >["generateCommissions"];
+  readonly createCommissionRule: ClinicRepository["createCommissionRule"];
+
+  readonly previewCommissionRecalculation: ClinicRepository["previewCommissionRecalculation"];
+
+  readonly generateCommissions: ClinicRepository["generateCommissions"];
 
   readonly settleCommission: ReturnType<
     typeof createFinanceRepository
@@ -540,6 +847,10 @@ export class MemoryClinicRepository implements ClinicRepository {
   readonly getDailyCash: ReturnType<
     typeof createFinanceRepository
   >["getDailyCash"];
+
+  readonly listCashMovements: ReturnType<
+    typeof createFinanceRepository
+  >["listCashMovements"];
 
   readonly listReceivedPayments: ReturnType<
     typeof createFinanceRepository
@@ -601,6 +912,10 @@ export class MemoryClinicRepository implements ClinicRepository {
     typeof createAgendaRepository
   >["listPendingFinalizationAppointments"];
 
+  readonly autoFinalizeAppointments: ReturnType<
+    typeof createAgendaRepository
+  >["autoFinalizeAppointments"];
+
   readonly createAppointment: ReturnType<
     typeof createAgendaRepository
   >["createAppointment"];
@@ -627,6 +942,10 @@ export class MemoryClinicRepository implements ClinicRepository {
   readonly listAppointmentReschedules: ReturnType<
     typeof createAgendaRepository
   >["listAppointmentReschedules"];
+
+  readonly findAgendaConflicts: ReturnType<
+    typeof createAgendaRepository
+  >["findAgendaConflicts"];
 
   readonly createRecurringAppointments: ReturnType<
     typeof createAgendaRepository
@@ -656,10 +975,17 @@ export class MemoryClinicRepository implements ClinicRepository {
     typeof createAgendaRepository
   >["updateGroupClass"];
 
+  readonly renameGroupClass: ReturnType<
+    typeof createAgendaRepository
+  >["renameGroupClass"];
+
   readonly createGroupEnrollment: ReturnType<
     typeof createAgendaRepository
   >["createGroupEnrollment"];
 
+  readonly confirmGroupEnrollment: ReturnType<
+    typeof createAgendaRepository
+  >["confirmGroupEnrollment"];
   readonly cancelGroupEnrollment: ReturnType<
     typeof createAgendaRepository
   >["cancelGroupEnrollment"];
@@ -688,13 +1014,25 @@ export class MemoryClinicRepository implements ClinicRepository {
     typeof createReportsRepository
   >["getDashboard"];
 
+  readonly getSalesPeriodReport: ReturnType<
+    typeof createReportsRepository
+  >["getSalesPeriodReport"];
+
   readonly getSalesReport: ReturnType<
     typeof createReportsRepository
   >["getSalesReport"];
 
+  readonly listPatientSales: ReturnType<
+    typeof createReportsRepository
+  >["listPatientSales"];
+
   readonly getManagementReport: ReturnType<
     typeof createReportsRepository
   >["getManagementReport"];
+
+  readonly listTeamProduction: ReturnType<
+    typeof createReportsRepository
+  >["listTeamProduction"];
 
   readonly listPatients: ReturnType<
     typeof createPatientsRepository
@@ -852,6 +1190,14 @@ export class MemoryClinicRepository implements ClinicRepository {
     typeof createClinicalRepository
   >["createClinicalAddendum"];
 
+  readonly createClinicalAlert: ReturnType<
+    typeof createClinicalRepository
+  >["createClinicalAlert"];
+
+  readonly archiveClinicalAlert: ReturnType<
+    typeof createClinicalRepository
+  >["archiveClinicalAlert"];
+
   readonly listClinicalAccessEvents: ReturnType<
     typeof createClinicalRepository
   >["listClinicalAccessEvents"];
@@ -860,8 +1206,17 @@ export class MemoryClinicRepository implements ClinicRepository {
     typeof createCommercialRepository
   >["listLeads"];
 
+  readonly listLeadStagePage: ClinicRepository["listLeadStagePage"];
+  readonly summarizeLeads: ClinicRepository["summarizeLeads"];
+  readonly listLeadFilterOptions: ClinicRepository["listLeadFilterOptions"];
+  readonly listLeadStages: ClinicRepository["listLeadStages"];
+  readonly saveLeadStages: ClinicRepository["saveLeadStages"];
   readonly findLeadDuplicates: ClinicRepository["findLeadDuplicates"];
   readonly updateLead: ClinicRepository["updateLead"];
+  readonly importEventParticipants: ReturnType<
+    typeof createCommercialRepository
+  >["importEventParticipants"];
+
   readonly createLead: ReturnType<
     typeof createCommercialRepository
   >["createLead"];
@@ -919,11 +1274,23 @@ export class MemoryClinicRepository implements ClinicRepository {
   readonly createDocumentTemplateVersion: ReturnType<
     typeof createContractsRepository
   >["createDocumentTemplateVersion"];
+  readonly restoreDocumentTemplateVersion: ReturnType<
+    typeof createContractsRepository
+  >["restoreDocumentTemplateVersion"];
+  readonly deleteDocumentTemplate: ReturnType<
+    typeof createContractsRepository
+  >["deleteDocumentTemplate"];
 
   readonly listIssuedDocuments: ReturnType<
     typeof createContractsRepository
   >["listIssuedDocuments"];
 
+  readonly previewDocument: ReturnType<
+    typeof createContractsRepository
+  >["previewDocument"];
+  readonly updateDocumentDraft: ReturnType<
+    typeof createContractsRepository
+  >["updateDocumentDraft"];
   readonly createIssuedDocument: ReturnType<
     typeof createContractsRepository
   >["createIssuedDocument"];

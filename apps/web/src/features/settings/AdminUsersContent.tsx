@@ -8,7 +8,11 @@ import { ErrorBanner } from "../../shared/components/ErrorBanner";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
 import { roleLabels } from "../../shared/lib/formatting";
 import { countLabel } from "../patients/index";
-import { userAccessSummary, userCommissionSummary } from "./model";
+import {
+  lacksWhatsapp,
+  userAccessSummary,
+  userCommissionSummary,
+} from "./model";
 import { ResetPasswordModal } from "./ResetPasswordModal";
 import { UserActiveModal } from "./UserActiveModal";
 import { UserFormModal } from "./UserFormModal";
@@ -107,9 +111,19 @@ export function AdminUsersContent() {
                   <small className="admin-user-email">{item.email}</small>
                   <small>{userAccessSummary(item)}</small>
                   <small>{userCommissionSummary(item)}</small>
-                  {!item.active && (
+                  {(!item.active || lacksWhatsapp(item)) && (
                     <div className="admin-user-tags">
-                      <span className="status-pill cancelled">Inativo</span>
+                      {!item.active && (
+                        <span className="status-pill cancelled">Inativo</span>
+                      )}
+                      {lacksWhatsapp(item) && (
+                        <span
+                          className="status-pill paused"
+                          title="Profissional da agenda sem WhatsApp: o “Compartilhar agenda” pede o número a cada envio."
+                        >
+                          Sem WhatsApp
+                        </span>
+                      )}
                     </div>
                   )}
                 </div>
@@ -162,17 +176,6 @@ export function AdminUsersContent() {
         <UserFormModal
           user={userForm === "new" ? null : userForm}
           users={users ?? []}
-          onUserUpdated={(updated) =>
-            setUsers((current) =>
-              current
-                ? current.some((item) => item.id === updated.id)
-                  ? current.map((item) =>
-                      item.id === updated.id ? updated : item,
-                    )
-                  : [...current, updated]
-                : current,
-            )
-          }
           onClose={() => setUserForm(null)}
           onSaved={(saved) =>
             finish(

@@ -1,6 +1,8 @@
 import { usePatientContext } from "../../shared/hooks/usePatientContext";
 import { PatientContextNotice } from "../../shared/components/PatientContextNotice";
-import { GroupOperationsPanel } from "./GroupOperationsPanel";
+import { GroupDetailsModal } from "./GroupDetailsModal";
+import { ActionModal } from "../../shared/components/ActionModal";
+import { WaitlistContactModal } from "./WaitlistContactModal";
 import {
   type GroupClass,
   type GroupWorkspace,
@@ -10,14 +12,25 @@ import {
   type Service,
   describeGroupSchedule,
   groupClassName,
+  groupClassRenameSchema,
   patientFirstName,
   saoPauloToday,
+  serviceAvailableFor,
+  withPrefix,
 } from "@crm/contracts";
 import { useToast } from "../../shared/feedback/toast-context";
-import { Plus, UserMinus, UserPlus, UsersRound } from "lucide-react";
+import {
+  LayoutList,
+  Plus,
+  Table2,
+  UserMinus,
+  UserPlus,
+  UsersRound,
+} from "lucide-react";
 import { EmptyState } from "../../shared/components/EmptyState";
-import { useEffect, useState } from "react";
+import { type KeyboardEvent, useEffect, useId, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
+import { createPortal } from "react-dom";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
 import { PatientPicker } from "../../PatientPicker";
@@ -26,25 +39,36 @@ import { LoadingBlock } from "../../shared/components/LoadingBlock";
 import { PageHeader } from "../../shared/components/PageHeader";
 import { ReadOnlyNotice } from "../../shared/components/ReadOnlyNotice";
 import {
+  clinicIsoDate,
   groupEnrollmentToast,
+  groupVacancyLabel,
   groupOperationRange,
   groupSeatsLabel,
   groupSlotLabel,
 } from "../../shared/lib/formatting";
+import { useClinicTimezone } from "../../shared/hooks/useClinicTimezone";
 import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
 import { GroupModal } from "./GroupModal";
 import { GroupSlotsEditor } from "./GroupSlotsEditor";
+import { GroupsOverviewTab } from "./GroupsOverviewTab";
+import { groupCalendarRange } from "./model";
 import {
   missingLabels,
   useMissingFields,
 } from "../../shared/components/MissingFields";
 
+const groupTabs = [
+  { key: "turmas", label: "Turmas", icon: LayoutList },
+  { key: "visao-geral", label: "Visão geral", icon: Table2 },
+] as const;
+type GroupTabKey = (typeof groupTabs)[number]["key"];
+
 /**
  * Consultas independentes: se o workspace falhar, serviços, profissionais, salas e clientes
  * continuam disponíveis para "Nova turma" e "Matricular cliente".
  */
-function fetchGroupsData() {
-  const dates = groupOperationRange();
+function fetchGroupsData(month: string) {
+  const dates = groupCalendarRange(month);
   return Promise.allSettled([
     api.groupWorkspace(dates.from, dates.to),
     api.patientOptions(),
@@ -55,7 +79,29 @@ function fetchGroupsData() {
 }
 
 export function GroupsPage() {
-  const { can, canEdit } = useAuthorization();
+  const { can, canEdit, canView } = useAuthorization();
+  const tabsId = useId();
+  const [activeTab, setActiveTab] = useState<GroupTabKey>("turmas");
+  // "Visão geral" tem permissão própria; sem ela, a página mostra só a lista de turmas, sem abas.
+  const tabs = groupTabs.filter(
+    (tab) => tab.key !== "visao-geral" || can("groups.overview"),
+  );
+  const showTabs = tabs.length > 1;
+  function moveTabFocus(
+    event: KeyboardEvent<HTMLButtonElement>,
+    index: number,
+  ) {
+    let next: number;
+    if (event.key === "ArrowRight") next = (index + 1) % tabs.length;
+    else if (event.key === "ArrowLeft")
+      next = (index - 1 + tabs.length) % tabs.length;
+    else if (event.key === "Home") next = 0;
+    else if (event.key === "End") next = tabs.length - 1;
+    else return;
+    event.preventDefault();
+    setActiveTab(tabs[next]!.key);
+    document.getElementById(`${tabsId}-${tabs[next]!.key}-tab`)?.focus();
+  }
   const toast = useToast();
   const contextPatientId = usePatientContext();
   const weekDayNames = [
@@ -68,6 +114,7 @@ export function GroupsPage() {
     "Sábado",
   ];
   const [workspace, setWorkspace] = useState<GroupWorkspace | null>(null);
+  const [confirmWaitlist, setConfirmWaitlist] = useState(false);
   const [patients, setPatients] = useState<PatientOption[]>([]);
   const [professionals, setProfessionals] = useState<Professional[]>([]);
   const [rooms, setRooms] = useState<Room[]>([]);
@@ -76,7 +123,13 @@ export function GroupsPage() {
   const [loading, setLoading] = useState(true);
   const canManage = canEdit("groups");
   // Atalho de Clientes ("Assinantes sem turma vinculada"): `?matricular=<cliente>` abre a matrícula.
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const offerId = canView("patients") ? searchParams.get("oferecer") : null;
+  function closeOffer() {
+    const next = new URLSearchParams(searchParams);
+    next.delete("oferecer");
+    setSearchParams(next, { replace: true });
+  }
   const enrollPatientId = canManage
     ? (searchParams.get("matricular") ?? "")
     : "";
@@ -85,11 +138,34 @@ export function GroupsPage() {
   );
   const [saving, setSaving] = useState(false);
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
+  const timezone = useClinicTimezone();
+  // Mês do calendário de aulas e mês cujo período está carregado no workspace.
+  const [calendarMonth, setCalendarMonth] = useState(() =>
+    saoPauloToday().slice(0, 7),
+  );
+  const [loadedMonth, setLoadedMonth] = useState<string | null>(null);
+  const [monthError, setMonthError] = useState<{
+    month: string;
+    message: string;
+  } | null>(null);
+  const [monthAttempt, setMonthAttempt] = useState(0);
+  // Só a consulta mais recente do workspace é aplicada (navegação rápida entre meses).
+  const workspaceRequest = useRef(0);
+  const [initialSessionId, setInitialSessionId] = useState<
+    string | undefined
+  >();
+  const [handledSessionId, setHandledSessionId] = useState<
+    string | undefined
+  >();
+  const linkedSessionId = searchParams.get("sessionId") ?? undefined;
+  const [editingName, setEditingName] = useState("");
+  const [renameError, setRenameError] = useState("");
   const [editingCapacity, setEditingCapacity] = useState(1);
   const [editingSlots, setEditingSlots] = useState<GroupClass["weeklySlots"]>(
     [],
   );
   const [groupForm, setGroupForm] = useState({
+    name: "",
     serviceId: "",
     professionalId: "",
     roomId: "",
@@ -127,10 +203,15 @@ export function GroupsPage() {
   );
   function applyGroupsData(
     results: Awaited<ReturnType<typeof fetchGroupsData>>,
+    month: string,
+    request: number,
   ) {
     const [data, patientData, professionalData, roomData, serviceData] =
       results;
-    if (data.status === "fulfilled") setWorkspace(data.value);
+    if (data.status === "fulfilled" && request === workspaceRequest.current) {
+      setWorkspace(data.value);
+      setLoadedMonth(month);
+    }
     if (patientData.status === "fulfilled") setPatients(patientData.value);
     if (professionalData.status === "fulfilled")
       setProfessionals(professionalData.value);
@@ -139,26 +220,72 @@ export function GroupsPage() {
     const failure = results.find((result) => result.status === "rejected");
     if (failure) setError((failure.reason as Error).message);
   }
+  /** Recarrega tudo no período do mês visível, preservando mês e dia escolhidos. */
   async function load() {
     setLoading(true);
     setError("");
+    const request = ++workspaceRequest.current;
     try {
-      applyGroupsData(await fetchGroupsData());
+      applyGroupsData(
+        await fetchGroupsData(calendarMonth),
+        calendarMonth,
+        request,
+      );
     } finally {
       setLoading(false);
     }
   }
   useEffect(() => {
     let active = true;
-    void fetchGroupsData().then((results) => {
+    const month = saoPauloToday().slice(0, 7);
+    const request = ++workspaceRequest.current;
+    void fetchGroupsData(month).then((results) => {
       if (!active) return;
-      applyGroupsData(results);
+      applyGroupsData(results, month, request);
       setLoading(false);
     });
     return () => {
       active = false;
     };
   }, []);
+  // Navegação do calendário: consulta o período do novo mês; respostas antigas são descartadas.
+  useEffect(() => {
+    if (loadedMonth === null || calendarMonth === loadedMonth) return;
+    let active = true;
+    const request = ++workspaceRequest.current;
+    const dates = groupCalendarRange(calendarMonth);
+    api.groupWorkspace(dates.from, dates.to).then(
+      (data) => {
+        if (!active || request !== workspaceRequest.current) return;
+        setWorkspace(data);
+        setLoadedMonth(calendarMonth);
+      },
+      (cause: unknown) => {
+        if (!active || request !== workspaceRequest.current) return;
+        setMonthError({
+          month: calendarMonth,
+          message: (cause as Error).message,
+        });
+      },
+    );
+    return () => {
+      active = false;
+    };
+  }, [calendarMonth, loadedMonth, monthAttempt]);
+  function changeCalendarMonth(month: string) {
+    setMonthError(null);
+    setCalendarMonth(month);
+  }
+  function retryCalendarMonth() {
+    setMonthError(null);
+    setMonthAttempt((value) => value + 1);
+  }
+  const calendarError =
+    monthError?.month === calendarMonth ? monthError.message : "";
+  const calendarLoading =
+    loadedMonth !== null && calendarMonth !== loadedMonth && !calendarError;
+  // Indicadores gerais seguem o recorte operacional, qualquer que seja o mês visível.
+  const operationRange = groupOperationRange();
   /** Executa a gravação; o texto devolvido pela ação vira o aviso de sucesso. */
   async function run(action: () => Promise<string>) {
     setError("");
@@ -172,6 +299,28 @@ export function GroupsPage() {
       setSaving(false);
     }
   }
+  async function submitEnrollment() {
+    setError("");
+    setSaving(true);
+    try {
+      const enrollment = await api.createGroupEnrollment(enrollmentForm);
+      setConfirmWaitlist(false);
+      closeGroupDialogs();
+      toast.success(
+        groupEnrollmentToast(
+          enrollment,
+          workspace?.groups.find((item) => item.id === enrollment.groupId)
+            ?.name,
+        ),
+      );
+      await load();
+    } catch (cause) {
+      setError((cause as Error).message);
+      throw cause;
+    } finally {
+      setSaving(false);
+    }
+  }
   const activeEnrollments =
     workspace?.enrollments.filter((item) => item.status === "active") ?? [];
   const selectedGroup = workspace?.groups.find(
@@ -180,6 +329,11 @@ export function GroupsPage() {
   const newGroupService = services.find(
     (item) => item.id === groupForm.serviceId,
   );
+  // Só quem atende o serviço escolhido (Configurações → "Profissionais que atendem").
+  const groupProfessionals = professionals.filter(
+    (item) =>
+      !newGroupService || serviceAvailableFor(newGroupService, item.id, ""),
+  );
   const nextGroupSequence =
     Math.max(
       0,
@@ -187,15 +341,51 @@ export function GroupsPage() {
         .filter((item) => item.serviceId === groupForm.serviceId)
         .map((item) => item.sequence),
     ) + 1;
+  const suggestedName = newGroupService
+    ? groupClassName(newGroupService.name, nextGroupSequence)
+    : "Selecione o serviço para ver o nome da turma";
+  // Turma cheia avisa no seletor: a matrícula vai para a lista de espera (TW1).
   const groupOptionLabel = (group: GroupClass) =>
-    `${group.name} — ${describeGroupSchedule(group.weeklySlots ?? [])}`;
+    `${group.name} — ${describeGroupSchedule(group.weeklySlots ?? [])}${
+      group.activeEnrollments >= group.capacity
+        ? ` · ${groupVacancyLabel(group)}`
+        : ""
+    }`;
   const editDirty = useFormDirty(
-    { editingCapacity, editingSlots },
+    { editingName, editingCapacity, editingSlots },
     Boolean(selectedGroup),
   );
+  // Sincroniza uma nova URL com os dados carregados, sem reabrir após gravações.
+  if (linkedSessionId !== handledSessionId) {
+    const session = workspace?.sessions.find(
+      (item) => item.id === linkedSessionId,
+    );
+    const group = workspace?.groups.find(
+      (item) => item.id === session?.groupId,
+    );
+    if (!linkedSessionId || group) {
+      setHandledSessionId(linkedSessionId);
+      if (group && session) {
+        changeCalendarMonth(
+          clinicIsoDate(session.startsAt, timezone).slice(0, 7),
+        );
+        setGroupDialog(null);
+        setInitialSessionId(linkedSessionId);
+        setSelectedGroupId(group.id);
+        setEditingCapacity(group.capacity);
+        setEditingName(group.name);
+        setRenameError("");
+        setEditingSlots(group.weeklySlots ?? []);
+      }
+    }
+  }
   function openGroup(group: GroupClass) {
+    changeCalendarMonth(clinicIsoDate(new Date(), timezone).slice(0, 7));
+    setInitialSessionId(undefined);
     setSelectedGroupId(group.id);
     setEditingCapacity(group.capacity);
+    setEditingName(group.name);
+    setRenameError("");
     setEditingSlots(group.weeklySlots ?? []);
   }
   function closeGroupDialogs() {
@@ -204,9 +394,39 @@ export function GroupsPage() {
   }
   return (
     <>
+      {confirmWaitlist &&
+        createPortal(
+          <ActionModal
+            eyebrow="Lista de espera"
+            title="Turma cheia"
+            subtitle="Deseja colocar o cliente na lista de espera desta turma?"
+            confirmLabel="Sim, colocar na lista de espera"
+            onClose={() => setConfirmWaitlist(false)}
+            onConfirm={submitEnrollment}
+          />,
+          document.body,
+        )}
+      {offerId && workspace && (
+        <WaitlistContactModal
+          enrollment={workspace.enrollments.find((item) => item.id === offerId)}
+          group={workspace.groups.find(
+            (item) =>
+              item.id ===
+              workspace.enrollments.find(
+                (enrollment) => enrollment.id === offerId,
+              )?.groupId,
+          )}
+          canConfirm={can("groups.enroll")}
+          onClose={closeOffer}
+          onConfirmed={async () => {
+            await load();
+            toast.success("Matrícula confirmada após aceite do cliente.");
+            closeOffer();
+          }}
+        />
+      )}
       <PatientContextNotice patientId={contextPatientId} patients={patients} />
       <PageHeader
-        eyebrow="Operação coletiva"
         title="Turmas"
         description="Capacidade, lista de espera e horários fixos reservados na agenda."
         action={
@@ -232,8 +452,10 @@ export function GroupsPage() {
           )
         }
       />
-      {!canManage && <ReadOnlyNotice module="groups" />}
-      {error && <ErrorBanner error={error} />}
+      {!canManage && !can("groups.rename") && (
+        <ReadOnlyNotice module="groups" />
+      )}
+      {error && !selectedGroup && !groupDialog && <ErrorBanner error={error} />}
       {loading && !workspace ? (
         <LoadingBlock />
       ) : (
@@ -253,7 +475,10 @@ export function GroupsPage() {
               <span>Encontros</span>
               <strong>
                 {workspace?.sessions.filter(
-                  (item) => item.status === "scheduled",
+                  (item) =>
+                    item.status === "scheduled" &&
+                    new Date(item.startsAt) >= new Date(operationRange.from) &&
+                    new Date(item.startsAt) <= new Date(operationRange.to),
                 ).length ?? 0}
               </strong>
               <small>agendados</small>
@@ -263,6 +488,7 @@ export function GroupsPage() {
             <GroupModal
               title="Nova turma"
               subtitle="Configure os dados e horários fixos."
+              initialFocus="select"
               busy={saving}
               dirty={createDirty}
               onClose={closeGroupDialogs}
@@ -275,8 +501,15 @@ export function GroupsPage() {
                     onSubmit={(event) => {
                       event.preventDefault();
                       void run(async () => {
-                        const created = await api.createGroupClass(groupForm);
+                        const { name, ...input } = groupForm;
+                        const created = await api.createGroupClass({
+                          ...input,
+                          ...(can("groups.rename") && name.trim()
+                            ? { name: name.trim() }
+                            : {}),
+                        });
                         setGroupForm({
+                          name: "",
                           serviceId: "",
                           professionalId: "",
                           roomId: "",
@@ -284,7 +517,7 @@ export function GroupsPage() {
                           weeklySlots: [],
                         });
                         closeGroupDialogs();
-                        return `Turma ${created.name} criada.`;
+                        return `${withPrefix("Turma", created.name)} criada.`;
                       });
                     }}
                   >
@@ -295,17 +528,49 @@ export function GroupsPage() {
                         número de vagas.
                       </p>
                       <div className="group-modal-field-grid">
+                        {can("groups.rename") && (
+                          <label>
+                            Nome da turma
+                            <input
+                              value={groupForm.name}
+                              maxLength={120}
+                              placeholder={suggestedName}
+                              disabled={saving}
+                              onChange={(event) =>
+                                setGroupForm({
+                                  ...groupForm,
+                                  name: event.target.value,
+                                })
+                              }
+                            />
+                            <span className="field-hint">
+                              Opcional. Deixe vazio para usar o nome automático.
+                            </span>
+                          </label>
+                        )}
                         <label>
                           Serviço
                           <select
                             required
                             value={groupForm.serviceId}
-                            onChange={(event) =>
+                            onChange={(event) => {
+                              const service = services.find(
+                                (item) => item.id === event.target.value,
+                              );
                               setGroupForm({
                                 ...groupForm,
                                 serviceId: event.target.value,
-                              })
-                            }
+                                professionalId:
+                                  service &&
+                                  !serviceAvailableFor(
+                                    service,
+                                    groupForm.professionalId,
+                                    "",
+                                  )
+                                    ? ""
+                                    : groupForm.professionalId,
+                              });
+                            }}
                           >
                             <option value="">Selecione</option>
                             {services.map((item) => (
@@ -328,7 +593,7 @@ export function GroupsPage() {
                             }
                           >
                             <option value="">Selecione</option>
-                            {professionals.map((item) => (
+                            {groupProfessionals.map((item) => (
                               <option key={item.id} value={item.id}>
                                 {item.fullName}
                               </option>
@@ -391,16 +656,11 @@ export function GroupsPage() {
                     <section className="group-modal-section">
                       <h3>Resumo da turma</h3>
                       <div className="group-next-session" aria-live="polite">
-                        {newGroupService ? (
-                          <strong>
-                            {groupClassName(
-                              newGroupService.name,
-                              nextGroupSequence,
-                            )}
-                          </strong>
-                        ) : (
-                          "Selecione o serviço para ver o nome da turma"
-                        )}
+                        <strong>
+                          {can("groups.rename") && groupForm.name.trim()
+                            ? groupForm.name.trim()
+                            : suggestedName}
+                        </strong>
                         <br />
                         {describeGroupSchedule(groupForm.weeklySlots)}
                       </div>
@@ -436,17 +696,12 @@ export function GroupsPage() {
                     onSubmit={(event) => {
                       event.preventDefault();
                       if (!enrollmentForm.patientId) return;
-                      void run(async () => {
-                        const enrollment =
-                          await api.createGroupEnrollment(enrollmentForm);
-                        closeGroupDialogs();
-                        return groupEnrollmentToast(
-                          enrollment,
-                          workspace?.groups.find(
-                            (item) => item.id === enrollment.groupId,
-                          )?.name,
-                        );
-                      });
+                      const group = workspace?.groups.find(
+                        (item) => item.id === enrollmentForm.groupId,
+                      );
+                      if (group && group.activeEnrollments >= group.capacity)
+                        setConfirmWaitlist(true);
+                      else void submitEnrollment().catch(() => undefined);
                     }}
                   >
                     <section className="group-modal-section">
@@ -520,7 +775,47 @@ export function GroupsPage() {
             </GroupModal>
           )}
 
-          <section className="panel groups-wide">
+          {showTabs && (
+            <div
+              className="settings-tabs groups-tabs"
+              role="tablist"
+              aria-label="Seções de turmas"
+            >
+              {tabs.map((tab, index) => (
+                <button
+                  key={tab.key}
+                  id={`${tabsId}-${tab.key}-tab`}
+                  type="button"
+                  role="tab"
+                  className="text-button settings-tab"
+                  aria-selected={activeTab === tab.key}
+                  aria-controls={`${tabsId}-${tab.key}-panel`}
+                  tabIndex={activeTab === tab.key ? 0 : -1}
+                  onClick={() => setActiveTab(tab.key)}
+                  onKeyDown={(event) => moveTabFocus(event, index)}
+                >
+                  <tab.icon size={18} aria-hidden="true" />
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+          )}
+          {showTabs && activeTab === "visao-geral" && workspace && (
+            <GroupsOverviewTab
+              id={`${tabsId}-visao-geral-panel`}
+              labelledBy={`${tabsId}-visao-geral-tab`}
+              workspace={workspace}
+              weekDayNames={weekDayNames}
+              showRevenue={canView("plans")}
+            />
+          )}
+          <section
+            className="panel groups-wide"
+            id={`${tabsId}-turmas-panel`}
+            role={showTabs ? "tabpanel" : undefined}
+            aria-labelledby={showTabs ? `${tabsId}-turmas-tab` : undefined}
+            hidden={showTabs && activeTab !== "turmas"}
+          >
             <h2>Turmas</h2>
             <p className="group-panel-copy">
               Acompanhe ocupação, participantes e lista de espera.
@@ -581,19 +876,106 @@ export function GroupsPage() {
             </div>
           </section>
 
-          {selectedGroup && (
-            <GroupModal
-              title={selectedGroup.name}
-              subtitle={`${describeGroupSchedule(selectedGroup.weeklySlots ?? [])} · ${selectedGroup.professionalName}`}
+          {selectedGroup && workspace && (
+            <GroupDetailsModal
+              key={`${selectedGroup.id}-${initialSessionId ?? ""}`}
+              group={selectedGroup}
+              workspace={workspace}
+              professionals={professionals}
+              service={services.find(
+                (item) => item.id === selectedGroup.serviceId,
+              )}
+              initialSessionId={initialSessionId}
+              calendar={{
+                month: calendarMonth,
+                loading: calendarLoading,
+                error: calendarError,
+                onMonthChange: changeCalendarMonth,
+                onRetry: retryCalendarMonth,
+              }}
+              onChanged={load}
               busy={saving}
               dirty={editDirty}
+              error={error}
               onClose={closeGroupDialogs}
             >
               <div className="group-modal-sections">
-                {error && <ErrorBanner error={error} />}
-                <section className="group-modal-section">
+                <section className="group-modal-section group-summary">
                   <h3>Dados da turma</h3>
-                  <dl className="patient-detail-fields">
+                  {can("groups.rename") ? (
+                    <form
+                      className="group-modal-form"
+                      onSubmit={(event) => {
+                        event.preventDefault();
+                        const parsed = groupClassRenameSchema.safeParse({
+                          name: editingName,
+                        });
+                        if (!parsed.success) {
+                          setRenameError(parsed.error.issues[0]!.message);
+                          return;
+                        }
+                        setRenameError("");
+                        setSaving(true);
+                        void api
+                          .renameGroupClass(selectedGroup.id, parsed.data)
+                          .then(async (updated) => {
+                            toast.success(
+                              `Nome da turma alterado para ${updated.name}.`,
+                            );
+                            closeGroupDialogs();
+                            await load();
+                          })
+                          .catch((cause: unknown) => {
+                            setRenameError((cause as Error).message);
+                          })
+                          .finally(() => setSaving(false));
+                      }}
+                    >
+                      <label>
+                        Nome da turma
+                        <input
+                          required
+                          maxLength={120}
+                          value={editingName}
+                          disabled={saving}
+                          aria-invalid={Boolean(renameError)}
+                          aria-describedby={
+                            renameError ? `${tabsId}-rename-error` : undefined
+                          }
+                          onChange={(event) =>
+                            setEditingName(event.target.value)
+                          }
+                        />
+                      </label>
+                      {renameError && (
+                        <p
+                          className="form-error"
+                          role="alert"
+                          id={`${tabsId}-rename-error`}
+                        >
+                          {renameError}
+                        </p>
+                      )}
+                      <div className="modal-actions">
+                        <button
+                          className="primary-button"
+                          disabled={
+                            saving || editingName.trim() === selectedGroup.name
+                          }
+                        >
+                          Salvar nome
+                        </button>
+                      </div>
+                    </form>
+                  ) : (
+                    <dl className="group-summary-fields">
+                      <div>
+                        <dt>Nome da turma</dt>
+                        <dd>{selectedGroup.name}</dd>
+                      </div>
+                    </dl>
+                  )}
+                  <dl className="group-summary-fields">
                     <div>
                       <dt>Serviço</dt>
                       <dd>{selectedGroup.serviceName}</dd>
@@ -606,23 +988,40 @@ export function GroupsPage() {
                       <dt>Sala</dt>
                       <dd>{selectedGroup.roomName}</dd>
                     </div>
+                  </dl>
+                  <dl className="group-summary-details">
                     <div>
                       <dt>Horário</dt>
                       <dd>
-                        {(selectedGroup.weeklySlots ?? []).length
-                          ? selectedGroup.weeklySlots
-                              .map((slot) => groupSlotLabel(slot, weekDayNames))
-                              .join(", ")
-                          : "Horários ainda não definidos"}
+                        {(selectedGroup.weeklySlots ?? []).length ? (
+                          <ul className="group-summary-slots">
+                            {selectedGroup.weeklySlots.map((slot) => (
+                              <li key={`${slot.weekday}-${slot.startTime}`}>
+                                <span>{weekDayNames[slot.weekday]}</span>{" "}
+                                <span>
+                                  {slot.startTime}–{slot.endTime}
+                                </span>
+                              </li>
+                            ))}
+                          </ul>
+                        ) : (
+                          "Horários ainda não definidos"
+                        )}
                       </dd>
                     </div>
-                    <div>
+                    <div className="group-summary-occupancy">
                       <dt>Matriculados</dt>
                       <dd>
-                        {groupSeatsLabel(
-                          selectedGroup.activeEnrollments,
-                          selectedGroup.capacity,
-                        )}
+                        <strong>
+                          {groupSeatsLabel(
+                            selectedGroup.activeEnrollments,
+                            selectedGroup.capacity,
+                          )}
+                        </strong>
+                        <span className="group-summary-capacity">
+                          Capacidade: {selectedGroup.capacity}{" "}
+                          {selectedGroup.capacity === 1 ? "pessoa" : "pessoas"}
+                        </span>
                       </dd>
                     </div>
                   </dl>
@@ -664,7 +1063,7 @@ export function GroupsPage() {
                                 weeklySlots: editingSlots,
                               });
                               closeGroupDialogs();
-                              return `Turma ${selectedGroup.name} atualizada.`;
+                              return `${withPrefix("Turma", selectedGroup.name)} atualizada.`;
                             });
                           }}
                         >
@@ -691,7 +1090,8 @@ export function GroupsPage() {
                               {selectedGroup.activeEnrollments === 1
                                 ? "matriculado"
                                 : "matriculados"}{" "}
-                              · Sala {selectedGroup.roomName} comporta até{" "}
+                              · {withPrefix("Sala", selectedGroup.roomName)}{" "}
+                              comporta até{" "}
                               {rooms.find(
                                 (item) => item.id === selectedGroup.roomId,
                               )?.capacity ?? "—"}{" "}
@@ -761,18 +1161,9 @@ export function GroupsPage() {
                   </div>
                 </section>
               </div>
-            </GroupModal>
+            </GroupDetailsModal>
           )}
         </div>
-      )}
-      {/* Encontros depois das turmas: a tela abre mostrando as turmas. */}
-      {workspace && (
-        <GroupOperationsPanel
-          workspace={workspace}
-          professionals={professionals}
-          onChanged={load}
-          initialSessionId={searchParams.get("sessionId") ?? undefined}
-        />
       )}
     </>
   );

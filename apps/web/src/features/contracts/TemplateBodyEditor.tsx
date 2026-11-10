@@ -1,80 +1,195 @@
 import {
   documentTemplateVariables,
-  previewDocumentTemplate,
+  formatPhone,
+  missingDocumentValue,
+  documentContentFromText,
+  fillDocumentContent,
+  documentContentText,
+  type DocumentContent,
+  type ClinicBranding,
+  type DocumentTemplateValues,
 } from "@crm/contracts";
-import { useId, useRef } from "react";
+import { Maximize2, Minimize2 } from "lucide-react";
+import { useEffect, useId, useRef, useState } from "react";
+import { DocumentPaper } from "./DocumentPaper";
+import { RichDocumentEditor } from "./RichDocumentEditor";
+
+/** Campos da clínica que vêm de Configurações (e não do exemplo) na prévia. */
+const clinicFields = {
+  clinica_nome: "name",
+  clinica_razao_social: "legalName",
+  clinica_cnpj: "taxId",
+  clinica_endereco: "address",
+  clinica_telefone: "phone",
+  clinica_email: "email",
+} as const satisfies Partial<
+  Record<keyof DocumentTemplateValues, keyof ClinicBranding>
+>;
+
+function clinicValue(
+  branding: ClinicBranding | null | undefined,
+  field: keyof ClinicBranding,
+) {
+  const value = branding?.[field];
+  return typeof value === "string" ? value.trim() : "";
+}
 
 /**
  * Conteúdo do modelo com botões "Inserir campo" (inserem `{{variavel}}` na posição do cursor)
- * e a prévia com um cliente de exemplo.
+ * e a prévia do documento final numa folha, com os dados da clínica e um cliente de exemplo.
+ * `studio` deixa o editor e a folha lado a lado ocupando a largura toda, com opção de ampliar
+ * só a folha; nele o texto também fica numa folha e as duas rolam juntas.
  */
 export function TemplateBodyEditor({
   value,
   onChange,
-  rows = 8,
+  content,
   disabled = false,
+  branding,
+  studio = false,
 }: {
   value: string;
-  onChange: (value: string) => void;
+  onChange: (value: string, content: DocumentContent) => void;
+  content?: DocumentContent | undefined;
   rows?: number;
   disabled?: boolean;
+  branding?: ClinicBranding | null | undefined;
+  studio?: boolean;
 }) {
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const id = useId();
+  const [previewOnly, setPreviewOnly] = useState(false);
+  const editorCanvas = useRef<HTMLDivElement>(null);
+  const previewCanvas = useRef<HTMLDivElement>(null);
 
-  function insert(key: string) {
-    const textarea = textareaRef.current;
-    const token = `{{${key}}}`;
-    const start = textarea?.selectionStart ?? value.length;
-    const end = textarea?.selectionEnd ?? value.length;
-    onChange(value.slice(0, start) + token + value.slice(end));
-    requestAnimationFrame(() => {
-      if (!textarea) return;
-      textarea.focus();
-      const cursor = start + token.length;
-      textarea.setSelectionRange(cursor, cursor);
-    });
+  // Rolar uma folha rola a outra na mesma proporção (as alturas diferem pelo cabeçalho).
+  useEffect(() => {
+    const editor = editorCanvas.current;
+    const preview = previewCanvas.current;
+    if (!studio || previewOnly || !editor || !preview) return;
+    let following: HTMLElement | null = null;
+    let frame = 0;
+    function follow(source: HTMLElement, target: HTMLElement) {
+      if (following === source) return;
+      const range = source.scrollHeight - source.clientHeight;
+      const ratio = range > 0 ? source.scrollTop / range : 0;
+      following = target;
+      target.scrollTop = ratio * (target.scrollHeight - target.clientHeight);
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        following = null;
+      });
+    }
+    const onEditorScroll = () => follow(editor, preview);
+    const onPreviewScroll = () => follow(preview, editor);
+    editor.addEventListener("scroll", onEditorScroll);
+    preview.addEventListener("scroll", onPreviewScroll);
+    return () => {
+      cancelAnimationFrame(frame);
+      editor.removeEventListener("scroll", onEditorScroll);
+      preview.removeEventListener("scroll", onPreviewScroll);
+    };
+  }, [studio, previewOnly]);
+
+  // Com os dados da clínica carregados, a prévia mostra o que a emissão vai mostrar,
+  // inclusive "não informado" no que falta no cadastro.
+  const clinicLoaded = Boolean(clinicValue(branding, "name"));
+  const overrides: Partial<DocumentTemplateValues> = {};
+  const missingClinicFields: string[] = [];
+  if (clinicLoaded) {
+    for (const variable of documentTemplateVariables) {
+      if (!(variable.key in clinicFields)) continue;
+      const key = variable.key as keyof typeof clinicFields;
+      const filled = clinicValue(branding, clinicFields[key]);
+      if (key === "clinica_razao_social") {
+        // Razão social em branco cai no nome da clínica, como na emissão.
+        overrides[key] = filled || clinicValue(branding, "name");
+        continue;
+      }
+      overrides[key] = filled
+        ? key === "clinica_telefone"
+          ? formatPhone(filled)
+          : filled
+        : missingDocumentValue;
+      if (!filled && value.includes(`{{${key}}}`))
+        missingClinicFields.push(variable.label);
+    }
   }
 
-  return (
-    <div className="template-body-editor">
-      <div className="template-body-input">
-        <label htmlFor={`${id}-body`}>Conteúdo</label>
-        <div
-          className="template-fields"
-          role="group"
-          aria-label="Inserir campo"
-        >
-          <span>Inserir campo:</span>
-          {documentTemplateVariables.map((variable) => (
-            <button
-              key={variable.key}
-              type="button"
-              className="secondary-button button-sm"
-              disabled={disabled}
-              onMouseDown={(event) => event.preventDefault()}
-              onClick={() => insert(variable.key)}
-            >
-              {variable.label}
-            </button>
-          ))}
-        </div>
-        <textarea
-          id={`${id}-body`}
-          ref={textareaRef}
-          required
-          rows={rows}
-          disabled={disabled}
-          value={value}
-          onChange={(event) => onChange(event.target.value)}
+  const source = content ?? documentContentFromText(value);
+  const exampleValues = Object.fromEntries(
+    documentTemplateVariables.map((variable) => [
+      variable.key,
+      variable.example,
+    ]),
+  );
+  const previewContent = fillDocumentContent(source, {
+    ...exampleValues,
+    ...overrides,
+  });
+  const preview = (
+    <section
+      className="template-preview"
+      aria-labelledby={`${id}-preview`}
+      aria-describedby={
+        missingClinicFields.length > 0 ? `${id}-missing` : undefined
+      }
+    >
+      <div className="template-preview-head">
+        <h3 id={`${id}-preview`}>Prévia do documento final</h3>
+        {studio && (
+          <button
+            type="button"
+            className="secondary-button button-sm"
+            aria-pressed={previewOnly}
+            onClick={() => setPreviewOnly((current) => !current)}
+          >
+            {previewOnly ? (
+              <Minimize2 size={15} aria-hidden="true" />
+            ) : (
+              <Maximize2 size={15} aria-hidden="true" />
+            )}
+            {previewOnly ? "Mostrar editor" : "Ampliar prévia"}
+          </button>
+        )}
+      </div>
+      <p className="template-preview-copy">
+        Dados da clínica do cadastro e um cliente de exemplo.
+      </p>
+      {missingClinicFields.length > 0 && (
+        <p className="field-hint" id={`${id}-missing`}>
+          Sem cadastro em Configurações › Clínica:{" "}
+          {missingClinicFields.join(", ")}. Na emissão, aparece “não informado”.
+        </p>
+      )}
+      <div className="document-paper-canvas" ref={previewCanvas}>
+        <DocumentPaper
+          body={documentContentText(previewContent)}
+          content={previewContent}
+          branding={branding}
         />
       </div>
-      <section className="template-preview" aria-labelledby={`${id}-preview`}>
-        <h3 id={`${id}-preview`}>Prévia com cliente de exemplo</h3>
-        <p>
-          {previewDocumentTemplate(value) || "O texto do modelo aparece aqui."}
-        </p>
-      </section>
+    </section>
+  );
+
+  return (
+    <div
+      className={[
+        "template-body-editor",
+        studio ? "template-studio" : "",
+        previewOnly ? "preview-only" : "",
+      ]
+        .filter(Boolean)
+        .join(" ")}
+    >
+      <div className="template-body-input" hidden={previewOnly}>
+        <RichDocumentEditor
+          value={source}
+          disabled={disabled}
+          canvasRef={studio ? editorCanvas : undefined}
+          onChange={(next) => onChange(documentContentText(next), next)}
+        />
+      </div>
+      {preview}
     </div>
   );
 }

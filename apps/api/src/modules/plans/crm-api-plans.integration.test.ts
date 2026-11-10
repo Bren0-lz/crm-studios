@@ -1,3 +1,9 @@
+import {
+  appointmentInputSchema,
+  leadAppointmentInputSchema,
+} from "@crm/contracts";
+import { withAppointmentPlan } from "../../test-support/appointment-plan.js";
+import { nextTestCpf } from "../../test-support/cpf.js";
 import { describe, expect, it, vi } from "vitest";
 import {
   type UserRole,
@@ -9,6 +15,7 @@ import {
 } from "../../test-support/legacy-fixtures.js";
 import "../../test-support/legacy-setup.js";
 import { patchStatusAt } from "../../test-support/clock.js";
+import { testPatientContact } from "../../test-support/patient-contact.js";
 
 describe("CRM API", () => {
   it("treats an empty client filter as every client in plans and clinical records", async () => {
@@ -34,7 +41,7 @@ describe("CRM API", () => {
   });
 
   it("reports trial conversion when the client gets a plan within 30 days of a completed trial", async () => {
-    const { app, token } = await authenticatedApp();
+    const { app, token, repository } = await authenticatedApp();
     const headers = { authorization: `Bearer ${token}` };
     const [patients, professionals, rooms, services] = await Promise.all([
       app.inject({ method: "GET", url: "/patients", headers }),
@@ -74,6 +81,31 @@ describe("CRM API", () => {
       visitType: string,
       owner: { patientId: string } | { leadId: string },
     ) => {
+      // Relatório mantém avaliações/atendimentos históricos sem vínculo anteriores à AP3.
+      if (visitType !== "trial") {
+        const historical =
+          "leadId" in owner
+            ? await repository.createLeadAppointment(
+                "11111111-1111-4111-8111-111111111111",
+                owner.leadId,
+                leadAppointmentInputSchema.parse({
+                  ...base,
+                  startsAt,
+                  visitType,
+                }),
+              )
+            : await repository.createAppointment(
+                "11111111-1111-4111-8111-111111111111",
+                appointmentInputSchema.parse({
+                  ...base,
+                  patientId: owner.patientId,
+                  startsAt,
+                  visitType,
+                }),
+              );
+        expect(historical).not.toBeNull();
+        return historical!.id;
+      }
       const response =
         "leadId" in owner
           ? await app.inject({
@@ -86,12 +118,16 @@ describe("CRM API", () => {
               method: "POST",
               url: "/appointments",
               headers,
-              payload: {
-                ...base,
-                patientId: owner.patientId,
-                startsAt,
-                visitType,
-              },
+              payload: await withAppointmentPlan(
+                app,
+                {
+                  ...base,
+                  patientId: owner.patientId,
+                  startsAt,
+                  visitType,
+                },
+                headers,
+              ),
             });
       expect(response.statusCode).toBe(201);
       return response.json().id as string;
@@ -185,6 +221,7 @@ describe("CRM API", () => {
     try {
       vi.setSystemTime(new Date("2032-03-08T15:00:00.000Z"));
       const conversion = await app.inject({
+        payload: { cpf: nextTestCpf(), ...testPatientContact },
         method: "POST",
         url: `/leads/${convertedLead}/convert`,
         headers: {
@@ -269,7 +306,7 @@ describe("CRM API", () => {
       professionalId: professionals.json()[0].id,
       roomId: rooms.json()[0].id,
       serviceId: services.json()[0].id,
-      visitType: "evaluation",
+      visitType: "trial",
     };
     const done = await app.inject({
       method: "POST",
@@ -387,7 +424,7 @@ describe("CRM API", () => {
     expect(management.json().appointments).toMatchObject({
       total: 2,
       completed: 1,
-      byVisitType: { regular: 0, trial: 0, evaluation: 2 },
+      byVisitType: { regular: 0, trial: 2, evaluation: 0 },
     });
 
     // Linha do tempo de qualquer cliente não mostra o atendimento do lead.
@@ -423,7 +460,7 @@ describe("CRM API", () => {
         headers: laterHeaders,
       });
       expect(sales.statusCode).toBe(200);
-      expect(sales.json().previousComparable.attendedPatients).toBe(0);
+      expect(sales.json().previousComparable.buyers).toBe(0);
       expect(sales.json().patientsWithoutReturn).toEqual([]);
     } finally {
       vi.useRealTimers();
@@ -645,6 +682,93 @@ describe("CRM API", () => {
       payload: renewal,
     });
     expect(cancelled.statusCode).toBe(409);
+
+    // Cancelamento com estorno ao cliente: o valor fica registrado no plano.
+    const refunded = await app.inject({
+      method: "POST",
+      url: "/plans",
+      headers,
+      payload: await configuredPlan(app, payload),
+    });
+    const tooHigh = await app.inject({
+      method: "PATCH",
+      url: `/plans/${refunded.json().id}/status`,
+      headers,
+      payload: {
+        status: "cancelled",
+        cancellation: {
+          refundedInCents: refunded.json().totalValueInCents + 1,
+          refundPaymentMethod: "pix",
+        },
+      },
+    });
+    expect(tooHigh.statusCode).toBe(400);
+    expect(tooHigh.json().code).toBe("PLAN_REFUND_TOO_HIGH");
+    const withoutMethod = await app.inject({
+      method: "PATCH",
+      url: `/plans/${refunded.json().id}/status`,
+      headers,
+      payload: {
+        status: "cancelled",
+        cancellation: { refundedInCents: 5000 },
+      },
+    });
+    expect(withoutMethod.statusCode).toBe(400);
+    const withRefund = await app.inject({
+      method: "PATCH",
+      url: `/plans/${refunded.json().id}/status`,
+      headers,
+      payload: {
+        status: "cancelled",
+        cancellation: {
+          refundedInCents: 5000,
+          refundPaymentMethod: "pix",
+          refundNote: "Pix",
+        },
+      },
+    });
+    expect(withRefund.statusCode).toBe(200);
+    expect(withRefund.json()).toMatchObject({
+      status: "cancelled",
+      refundedInCents: 5000,
+      refundPaymentMethod: "pix",
+      refundNote: "Pix",
+    });
+    // O estorno sai do caixa: conta paga na categoria de estornos, ligada ao plano.
+    const summary = await app.inject({
+      method: "GET",
+      url: "/finance/workspace",
+      headers,
+    });
+    const refundPayable = (
+      summary.json() as {
+        payables: {
+          id: string;
+          status: string;
+          amountInCents: number;
+          paymentMethod?: string;
+          categoryName: string;
+          description: string;
+        }[];
+      }
+    ).payables.find((item) => item.id === withRefund.json().refundPayableId);
+    expect(refundPayable).toMatchObject({
+      status: "paid",
+      amountInCents: 5000,
+      paymentMethod: "pix",
+      categoryName: "Estornos a clientes",
+    });
+    expect(refundPayable?.description).toContain("Estorno ao cliente");
+    const timeline = await app.inject({
+      method: "GET",
+      url: `/patients/${refunded.json().patientId}/timeline`,
+      headers,
+    });
+    expect(
+      (timeline.json() as { id: string; detail?: string }[]).find(
+        (entry) => entry.id === `plan_cancelled:${refunded.json().id}`,
+      )?.detail,
+    ).toMatch(/estornado ao cliente R\$\s50,00/);
     await app.close();
   });
 
@@ -707,7 +831,15 @@ describe("CRM API", () => {
           method: "POST",
           url: "/patients",
           headers,
-          payload: { fullName, phone, tags: [] },
+          payload: {
+            cpf: nextTestCpf(),
+            fullName,
+            phone,
+            whatsapp: phone,
+            emergencyContactName: fullName,
+            emergencyContactPhone: phone,
+            tags: [],
+          },
         });
         expect(response.statusCode).toBe(201);
         return response.json().id as string;

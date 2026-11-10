@@ -1,7 +1,9 @@
+import { nextTestCpf } from "../../test-support/cpf.js";
 import { afterEach, describe, expect, it } from "vitest";
 import { buildApp } from "../../app.js";
 import { MemoryClinicRepository } from "../../memory-repository.js";
 import { atInstant } from "../../test-support/clock.js";
+import { addLegacyTabService } from "../../test-support/legacy-tab-service.js";
 const clinicId = "11111111-1111-4111-8111-111111111111",
   actorId = "22222222-2222-4222-8222-222222222222";
 const apps: Awaited<ReturnType<typeof buildApp>>[] = [];
@@ -28,7 +30,6 @@ describe("mixed tabs and financial classification", () => {
       costInCents: 1000,
       salePriceInCents: 2000,
       initialStock: 10,
-      minimumStock: 2,
     });
     const tab = await repository.openPatientTab(clinicId, actorId, {
       patientId: patient!.id,
@@ -95,9 +96,10 @@ describe("mixed tabs and financial classification", () => {
       ),
     ).toHaveLength(1);
   });
-  it("adds a service in the same operation as scheduling and rolls back a conflicting reservation", async () => {
+  it("closes a legacy tab with a service into a managed session credit", async () => {
     const { repository } = await setup();
     const patient = await repository.createPatient(clinicId, {
+      cpf: nextTestCpf(),
       fullName: "Cliente avulso",
       phone: "11999999999",
       tags: [],
@@ -116,14 +118,16 @@ describe("mixed tabs and financial classification", () => {
       visitType: "regular" as const,
       notes: "",
     };
-    const updated = await repository.createPatientTabAppointment(
+    const updated = await addLegacyTabService(
+      repository,
+      undefined,
       clinicId,
-      actorId,
       tab.id,
       input,
+      15000,
     );
     expect(updated.services).toHaveLength(1);
-    expect(updated.totalInCents).toBe(service!.priceInCents);
+    expect(updated.totalInCents).toBe(15000);
     const appointmentId = updated.services![0]!.appointmentId;
     await expect(
       atInstant("2039-02-12T12:00:00Z", () =>
@@ -134,14 +138,6 @@ describe("mixed tabs and financial classification", () => {
         ),
       ),
     ).rejects.toMatchObject({ code: "NO_SESSION_BALANCE" });
-    await expect(
-      repository.createPatientTabAppointment(clinicId, actorId, tab.id, input),
-    ).rejects.toMatchObject({ code: "APPOINTMENT_CONFLICT" });
-    await expect(
-      repository.addPatientTabService(clinicId, actorId, tab.id, {
-        appointmentId: updated.services![0]!.appointmentId,
-      }),
-    ).rejects.toMatchObject({ code: "APPOINTMENT_ALREADY_BILLED" });
     expect(
       (
         await repository.listAppointments(
@@ -315,5 +311,59 @@ describe("mixed tabs and financial classification", () => {
       payload: {},
     });
     expect(forbidden.statusCode).toBe(403);
+  });
+  it("stores supplier hiring, payment, orders and contracts and clears optional fields on edit", async () => {
+    const { app, headers } = await setup();
+    const created = await app.inject({
+      method: "POST",
+      url: "/finance/suppliers",
+      headers,
+      payload: {
+        name: "Locadora de aparelhos",
+        kind: "company",
+        document: "11222333000181",
+        phone: "1133334444",
+        whatsapp: "11988887777",
+        hiredOn: "2026-09-01",
+        contractAmountInCents: 360000,
+        billingCycle: "yearly",
+        paymentMethod: "boleto",
+        installments: 12,
+        paymentTerms: "Vencimento todo dia 5",
+        orders: "Pedido 42: 3 reformers",
+        contracts: "Contrato 2026/07",
+      },
+    });
+    expect(created.statusCode).toBe(201);
+    const supplier = created.json();
+    const { hiredOn, contractAmountInCents, paymentMethod, ...rest } = supplier;
+    expect({ hiredOn, contractAmountInCents, paymentMethod }).toEqual({
+      hiredOn: "2026-09-01",
+      contractAmountInCents: 360000,
+      paymentMethod: "boleto",
+    });
+    expect(rest).toMatchObject({
+      whatsapp: "11988887777",
+      billingCycle: "yearly",
+      installments: 12,
+      orders: "Pedido 42: 3 reformers",
+      contracts: "Contrato 2026/07",
+    });
+    const updated = await app.inject({
+      method: "PUT",
+      url: `/finance/suppliers/${supplier.id}`,
+      headers,
+      payload: { ...rest, installments: 1 },
+    });
+    expect(updated.statusCode).toBe(200);
+    expect(updated.json()).not.toHaveProperty("hiredOn");
+    expect(updated.json()).not.toHaveProperty("paymentMethod");
+    const invalid = await app.inject({
+      method: "POST",
+      url: "/finance/suppliers",
+      headers,
+      payload: { name: "Sem parcelas", kind: "person", installments: 0 },
+    });
+    expect(invalid.statusCode).toBe(400);
   });
 });

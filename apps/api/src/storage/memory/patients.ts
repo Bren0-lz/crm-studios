@@ -1,16 +1,35 @@
 import {
+  auditChangesOf,
   formatSequenceNumber,
   type GuidedPatientInput,
   overduePatientIds,
+  mergeExtraFields,
   parseSequenceNumber,
   type GuidedPatientResult,
   type Patient,
-  type PatientInput,
+  type PatientImportInput,
+  type PatientUpdateInput,
   type PatientTagInput,
   patientTagKey,
   type PatientTagUpdate,
+  type WaitlistEntry,
+  waitlistDesiredGroupNote,
 } from "@crm/contracts";
-import { buildPatientTimeline } from "../../modules/patients/patient-timeline.js";
+import {
+  guidedPlansResult,
+  guidedSales,
+  guidedSubscriptions,
+  guidedWaitlist,
+} from "../../modules/patients/guided-plans.js";
+import {
+  assertPlanEnrollmentSeat,
+  validatePurchaseSchedule,
+} from "../../modules/plans/purchase.js";
+import { bookPlanAppointments, issuePlanDocument } from "./plan-purchases.js";
+import {
+  buildPatientTimeline,
+  patientEditAction,
+} from "../../modules/patients/patient-timeline.js";
 import {
   DomainError,
   patientTagDuplicateError,
@@ -42,6 +61,7 @@ export function createPatientsRepository(
           normalized
             ? [
                 item.fullName,
+                item.nickname,
                 item.cpf,
                 item.email,
                 item.phone,
@@ -62,7 +82,7 @@ export function createPatientsRepository(
         .sort((a, b) => a.fullName.localeCompare(b.fullName, "pt-BR"));
     },
 
-    async createPatient(clinicId: string, input: PatientInput) {
+    async createPatient(clinicId: string, input: PatientImportInput) {
       const duplicatedCpf = input.cpf
         ? repositoryContext.patients.some(
             (item) => item.clinicId === clinicId && item.cpf === input.cpf,
@@ -87,7 +107,9 @@ export function createPatientsRepository(
             0,
             ...repositoryContext.patients
               .filter((item) => item.clinicId === clinicId)
-              .map((item) => parseSequenceNumber("PAC", item.recordNumber) ?? 0),
+              .map(
+                (item) => parseSequenceNumber("PAC", item.recordNumber) ?? 0,
+              ),
           ) + 1,
         ),
         status: "active",
@@ -111,16 +133,26 @@ export function createPatientsRepository(
         repositoryContext.receivables,
         repositoryContext.sessionMovements,
         repositoryContext.groupEnrollments,
+        repositoryContext.waitlistEntries,
+        repositoryContext.issuedDocuments,
         repositoryContext.adminAuditEvents,
       ];
       const lengths = collections.map((collection) => collection.length);
       try {
-        if (input.next === "plan" && input.groupId) {
+        const subscriptions = guidedSubscriptions(input);
+        // Sessões do avulso: serviços e vigência do plano, no máximo as sessões compradas.
+        for (const sale of guidedSales(input))
+          validatePurchaseSchedule(
+            sale,
+            repositoryContext.clinicSettings.timezone,
+          );
+        for (const item of subscriptions) {
+          if (!item.groupId) continue;
           const group = repositoryContext.groupClasses.find(
-            (item) =>
-              item.clinicId === clinicId &&
-              item.id === input.groupId &&
-              item.active,
+            (entry) =>
+              entry.clinicId === clinicId &&
+              entry.id === item.groupId &&
+              entry.active,
           );
           if (!group)
             throw new DomainError(
@@ -129,8 +161,8 @@ export function createPatientsRepository(
               404,
             );
           if (
-            !input.plan.services.some(
-              (item) => item.serviceId === group.serviceId,
+            !item.plan.services.some(
+              (entry) => entry.serviceId === group.serviceId,
             )
           )
             throw new DomainError(
@@ -139,10 +171,49 @@ export function createPatientsRepository(
               400,
             );
         }
+        // Turma cheia (TW3): a turma desejada fica nas observações da Lista de espera.
+        const waitlist = guidedWaitlist(input).map((item) => {
+          if (!item.groupId) return { serviceId: item.serviceId, notes: "" };
+          const group = repositoryContext.groupClasses.find(
+            (entry) =>
+              entry.clinicId === clinicId &&
+              entry.id === item.groupId &&
+              entry.serviceId === item.serviceId,
+          );
+          if (!group)
+            throw new DomainError(
+              "GROUP_SERVICE_MISMATCH",
+              "A turma escolhida não é do serviço da lista de espera.",
+              400,
+            );
+          return {
+            serviceId: item.serviceId,
+            notes: waitlistDesiredGroupNote(group.name),
+          };
+        });
         const patient = await repositoryContext.operations.createPatient(
           clinicId,
           input.patient,
         );
+        const createWaitlist = async () => {
+          const entries: WaitlistEntry[] = [];
+          for (const item of waitlist)
+            entries.push(
+              await repositoryContext.operations.createWaitlistEntry(
+                clinicId,
+                actorUserId,
+                {
+                  ...item,
+                  patientId: patient.id,
+                  kind: "service",
+                  productId: null,
+                },
+              ),
+            );
+          return entries;
+        };
+        if (input.next === "waitlist")
+          return { patient, waitlistEntries: await createWaitlist() };
         if (input.next === "demonstration")
           return {
             patient,
@@ -156,29 +227,49 @@ export function createPatientsRepository(
             ),
           };
         if (input.next === "none") return { patient };
-        const plan = await repositoryContext.operations.createPatientPlan(
-          clinicId,
-          actorUserId,
-          {
-            ...input.plan,
-            patientId: patient.id,
-            kind: input.next === "plan" ? input.plan.kind : "single",
-          },
-        );
-        if (input.next === "plan" && input.groupId)
-          return {
-            patient,
-            plan,
-            enrollment:
-              await repositoryContext.operations.createGroupEnrollment(
+        const created: NonNullable<GuidedPatientResult["additionalPlans"]> = [];
+        for (const item of guidedSales(input)) {
+          const plan = await repositoryContext.operations.createPatientPlan(
+            clinicId,
+            actorUserId,
+            { ...item.plan, patientId: patient.id },
+          );
+          const enrollment = item.groupId
+            ? await repositoryContext.operations.createGroupEnrollment(
                 clinicId,
-                {
-                  groupId: input.groupId,
-                  patientId: patient.id,
-                },
-              ),
-          };
-        return { patient, plan };
+                { groupId: item.groupId, patientId: patient.id },
+              )
+            : undefined;
+          assertPlanEnrollmentSeat(enrollment);
+          const appointments = await bookPlanAppointments(
+            repositoryContext,
+            clinicId,
+            plan,
+            item.appointments,
+          );
+          const document = item.document
+            ? await issuePlanDocument(
+                repositoryContext,
+                clinicId,
+                actorUserId,
+                plan,
+                item.document,
+              )
+            : undefined;
+          created.push({
+            plan,
+            ...(enrollment ? { enrollment } : {}),
+            ...(appointments.length ? { appointments } : {}),
+            ...(document ? { document } : {}),
+          });
+        }
+        if (input.next === "single") return { patient, ...created[0]! };
+        return guidedPlansResult(
+          patient,
+          created,
+          input,
+          await createWaitlist(),
+        );
       } catch (error) {
         collections.forEach((collection, index) => {
           collection.length = lengths[index]!;
@@ -187,39 +278,81 @@ export function createPatientsRepository(
       }
     },
 
-    async importPatients(clinicId: string, inputs: PatientInput[]) {
+    async importPatients(clinicId: string, inputs: PatientImportInput[]) {
       const digits = (value: string | undefined) =>
         (value ?? "").replace(/\D/g, "");
-      const cpfs = new Set<string>();
-      const phones = new Set<string>();
+      const cpfs = new Map<string, Patient>();
+      const phones = new Map<string, Patient>();
+      const canonical = (patient: Patient) =>
+        (patient.mergedIntoPatientId &&
+          repositoryContext.patients.find(
+            (item) => item.id === patient.mergedIntoPatientId,
+          )) ||
+        patient;
       for (const item of repositoryContext.patients) {
         if (item.clinicId !== clinicId) continue;
-        if (digits(item.cpf)) cpfs.add(digits(item.cpf));
-        phones.add(digits(item.phone));
+        if (digits(item.cpf) && !cpfs.has(digits(item.cpf)))
+          cpfs.set(digits(item.cpf), canonical(item));
+        if (!phones.has(digits(item.phone)))
+          phones.set(digits(item.phone), canonical(item));
       }
       // Decide tudo antes de gravar: a importação é tudo ou nada.
-      const accepted: PatientInput[] = [];
+      const accepted: PatientImportInput[] = [];
+      const merges: [Patient, PatientImportInput["extraFields"]][] = [];
+      const acceptedKeys = new Set<string>();
       let skipped = 0;
       for (const input of inputs) {
         const cpf = digits(input.cpf);
         const phone = digits(input.phone);
-        if ((cpf && cpfs.has(cpf)) || phones.has(phone)) {
+        const existing = (cpf && cpfs.get(cpf)) || phones.get(phone);
+        if (existing) {
+          // Entrega 10: o cliente já cadastrado recebe o "Outros" da linha (mescla sem apagar).
+          if (input.extraFields) merges.push([existing, input.extraFields]);
+          else skipped += 1;
+          continue;
+        }
+        if (
+          (cpf && acceptedKeys.has(`cpf:${cpf}`)) ||
+          acceptedKeys.has(phone)
+        ) {
           skipped += 1;
           continue;
         }
-        if (cpf) cpfs.add(cpf);
-        phones.add(phone);
+        if (cpf) acceptedKeys.add(`cpf:${cpf}`);
+        acceptedKeys.add(phone);
         accepted.push(input);
       }
-      for (const input of accepted)
-        await repositoryContext.operations.createPatient(clinicId, input);
-      return { created: accepted.length, skipped };
+      const timestamp = now();
+      for (const [patient, extraFields] of merges) {
+        patient.extraFields = mergeExtraFields(
+          patient.extraFields,
+          extraFields,
+        );
+        patient.updatedAt = timestamp;
+      }
+      // CD3: a marca da importação libera as etiquetas "Cadastro incompleto" e "Sem e-mail".
+      const importedAt = timestamp;
+      for (const { invalidCpf, ...input } of accepted) {
+        const patient = await repositoryContext.operations.createPatient(
+          clinicId,
+          input,
+        );
+        const stored = repositoryContext.patients.find(
+          (item) => item.id === patient.id,
+        );
+        if (stored) {
+          stored.importedAt = importedAt;
+          // CPF errado da planilha: o cliente fica com "CPF inválido" até ter um CPF.
+          if (invalidCpf) stored.importedInvalidCpf = invalidCpf;
+        }
+      }
+      return { created: accepted.length, skipped, updated: merges.length };
     },
 
     async updatePatient(
       clinicId: string,
       patientId: string,
-      input: PatientInput,
+      input: PatientUpdateInput,
     ) {
       const patient = repositoryContext.patients.find(
         (item) => item.clinicId === clinicId && item.id === patientId,
@@ -240,6 +373,7 @@ export function createPatientsRepository(
           409,
         );
       Object.assign(patient, input, { updatedAt: now() });
+      if (!input.cpf) delete patient.cpf;
       for (const collection of [
         repositoryContext.appointments,
         repositoryContext.clinicalRecords,
@@ -428,6 +562,35 @@ export function createPatientsRepository(
           clinicId,
           { patientId },
         ),
+        edits: repositoryContext.adminAuditEvents
+          .filter(
+            (event) =>
+              event.clinicId === clinicId &&
+              event.action === patientEditAction &&
+              event.entityId === patientId,
+          )
+          .map((event) => ({
+            id: event.id,
+            occurredAt: event.createdAt,
+            actorName: event.actorName,
+            changes: auditChangesOf(event.metadata),
+            reason:
+              typeof event.metadata.reason === "string"
+                ? event.metadata.reason
+                : undefined,
+          })),
+        receipts: repositoryContext.receiptSignatures
+          .filter(
+            (item) =>
+              item.clinicId === clinicId && item.patientId === patientId,
+          )
+          .map((item) => ({
+            ...item,
+            description:
+              repositoryContext.receivables.find(
+                (receivable) => receivable.id === item.receivableId,
+              )?.description ?? "",
+          })),
       });
     },
   };

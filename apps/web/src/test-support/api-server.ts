@@ -2,6 +2,7 @@ import { afterEach, expect, vi } from "vitest";
 import { cleanup } from "@testing-library/react";
 import { buildApp } from "../../../api/src/app.js";
 import { MemoryClinicRepository } from "../../../api/src/memory-repository.js";
+import type { BuildAppOptions } from "../../../api/src/infrastructure/route-utils.js";
 
 // The browser transformer gives modules HTTP URLs; API configuration remains
 // explicit and isolated instead of resolving a filesystem .env in jsdom.
@@ -10,6 +11,8 @@ vi.mock("../../../api/src/config.js", () => ({
     NODE_ENV: "test",
     WEB_ORIGIN: "http://localhost:5173",
     JWT_SECRET: "isolated-dom-api-tests-with-at-least-32-characters",
+    // Chave fixa só dos testes (32 bytes em base64) para a cópia cifrada das senhas.
+    PASSWORD_ENCRYPTION_KEY: "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=",
   },
 }));
 
@@ -43,9 +46,11 @@ export function captureDownloads() {
 }
 
 /** Real HTTP handlers and an isolated repository, without opening a port. */
-export async function setupApi() {
+export async function setupApi(
+  options: Pick<BuildAppOptions, "telegram"> = {},
+) {
   const repository = new MemoryClinicRepository(false);
-  const app = await buildApp({ repository, logger: false });
+  const app = await buildApp({ repository, logger: false, ...options });
   servers.push(app);
   const token = app.jwt.sign({ sub: actorId, clinicId, role: "admin" });
   const headers = { authorization: `Bearer ${token}` };

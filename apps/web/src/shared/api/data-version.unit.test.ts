@@ -17,6 +17,9 @@ describe("versão dos dados por domínio", () => {
         "history",
       ]),
     );
+    expect(domainsForMutation("POST", "/product-sales")).toEqual(
+      expect.arrayContaining(["finance", "inventory", "history"]),
+    );
     expect(domainsForMutation("POST", "/plans")).toEqual(
       expect.arrayContaining(["plans", "finance", "history"]),
     );
@@ -28,6 +31,13 @@ describe("versão dos dados por domínio", () => {
     );
     expect(
       domainsForMutation("POST", "/finance/receivables/r1/reverse"),
+    ).toContain("finance");
+    // Envio do recibo registrado (RC3): o "enviado em" do Financeiro recarrega.
+    expect(
+      domainsForMutation(
+        "POST",
+        "/finance/receivables/r1/receipt-signature/sent",
+      ),
     ).toContain("finance");
     expect(domainsForMutation("PATCH", "/appointments/a1/status")).toEqual(
       expect.arrayContaining(["agenda", "plans", "finance", "history"]),
@@ -41,6 +51,18 @@ describe("versão dos dados por domínio", () => {
     expect(domainsForMutation("POST", "/relationship/activities")).toEqual([
       "relationship",
     ]);
+    // Tarefas comerciais entram no sino.
+    expect(domainsForMutation("POST", "/leads/l1/tasks")).toEqual(["crm"]);
+    expect(domainsForMutation("PATCH", "/lead-tasks/t1/status")).toEqual([
+      "crm",
+    ]);
+    expect(domainsForMutation("POST", "/leads/l1/appointments")).toEqual(
+      expect.arrayContaining(["agenda", "crm"]),
+    );
+    // Converter o lead cadastra o cliente.
+    expect(domainsForMutation("POST", "/leads/l1/convert")).toEqual(
+      expect.arrayContaining(["patients", "crm"]),
+    );
   });
 
   it("ignora leituras, prévias e sessão", () => {
@@ -48,6 +70,23 @@ describe("versão dos dados por domínio", () => {
     expect(domainsForMutation("POST", "/patients/merge/preview")).toEqual([]);
     expect(domainsForMutation("POST", "/patients/import/preview")).toEqual([]);
     expect(domainsForMutation("POST", "/auth/login")).toEqual([]);
+  });
+
+  it("atualiza agenda, comissões e histórico após salvar o cadastro unificado", () => {
+    for (const [method, path] of [
+      ["POST", "/admin/users"],
+      ["PATCH", "/admin/users/ana"],
+      ["PUT", "/admin/users/ana/professional"],
+      ["PUT", "/admin/users/ana/commission"],
+    ]) {
+      expect(domainsForMutation(method!, path!)).toEqual(
+        expect.arrayContaining(["agenda", "finance", "history"]),
+      );
+    }
+    expect(domainsForMutation("GET", "/admin/users")).toEqual([]);
+    expect(
+      domainsForMutation("POST", "/admin/users/ana/reset-password"),
+    ).toEqual([]);
   });
 
   it("avisa os assinantes e muda só a versão dos domínios afetados", () => {

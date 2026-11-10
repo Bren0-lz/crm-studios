@@ -1,198 +1,54 @@
 import { ClinicalResourcesPanel } from "../clinical/index";
-import { SuppliersSection } from "../finance/index";
-import {
-  clinicCatalogLabels,
-  type ClinicCatalogEntry,
-  type ClinicCatalogKind,
-} from "@crm/contracts";
-import { useEffect, useState, type FormEvent } from "react";
-import { api } from "../../api";
+import type { ClinicCatalogKind } from "@crm/contracts";
+import { Activity, Megaphone } from "lucide-react";
 import { useAuthorization } from "../../authorization-context";
-import { useToast } from "../../shared/feedback/toast-context";
-import { EmptyState } from "../../shared/components/EmptyState";
-import { ErrorBanner } from "../../shared/components/ErrorBanner";
-import { LoadingBlock } from "../../shared/components/LoadingBlock";
-import { Modal, ModalCancelButton } from "../../shared/components/Modal";
-import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
+import { CatalogSection } from "./CatalogSection";
+import { ReportTabs, type ReportTab } from "../reports/index";
 
+type Group = "commercial" | "clinical";
+const groups: ReportTab<Group>[] = [
+  { key: "commercial", label: "Comercial", icon: Megaphone },
+  { key: "clinical", label: "Clínico", icon: Activity },
+];
+const groupKinds: Record<Group, ClinicCatalogKind[]> = {
+  commercial: ["lead_source", "lead_channel", "lead_lost_reason"],
+  clinical: ["muscle_group"],
+};
+
+/**
+ * Cadastros compartilhados em sub-abas; cada lista carrega na primeira visita.
+ * Categorias e marcas de produtos ficam em Vendas de produtos › Categorias e marcas;
+ * fornecedores, em Vendas de produtos › Fornecedores.
+ */
 export function ClinicCatalogsContent() {
-  const { user, can } = useAuthorization();
-  const toast = useToast();
-  const [kind, setKind] = useState<ClinicCatalogKind>("interest");
-  const [items, setItems] = useState<ClinicCatalogEntry[] | null>(null);
-  const [error, setError] = useState("");
-  const [editor, setEditor] = useState<ClinicCatalogEntry | "new" | null>(null);
-  const [name, setName] = useState("");
-  const [active, setActive] = useState(true);
-  const [parentId, setParentId] = useState("");
-  const [saving, setSaving] = useState(false);
-  const dirty = useFormDirty({ name, active, parentId }, Boolean(editor));
-  useEffect(() => {
-    let alive = true;
-    api
-      .clinicCatalog(kind)
-      .then((data) => {
-        if (alive) setItems(data);
-      })
-      .catch((cause: Error) => {
-        if (alive) setError(cause.message);
-      });
-    return () => {
-      alive = false;
-    };
-  }, [kind]);
-  function open(item: ClinicCatalogEntry | "new") {
-    setName(item === "new" ? "" : item.name);
-    setActive(item === "new" ? true : item.active);
-    setParentId(item === "new" ? "" : (item.parentId ?? ""));
-    setEditor(item);
-  }
-  async function save(event: FormEvent) {
-    event.preventDefault();
-    setSaving(true);
-    setError("");
-    try {
-      await api.saveClinicCatalog(
-        kind,
-        {
-          name,
-          active,
-          ...(kind === "product_category"
-            ? { parentId: parentId || null }
-            : {}),
-        },
-        editor && editor !== "new" ? editor.id : undefined,
-      );
-      toast.success(
-        editor && editor !== "new" ? "Item atualizado." : "Item cadastrado.",
-      );
-      setItems(await api.clinicCatalog(kind));
-      setEditor(null);
-    } catch (cause) {
-      setError((cause as Error).message);
-    } finally {
-      setSaving(false);
-    }
-  }
+  const { can } = useAuthorization();
+
   return (
-    <div className="settings-panel-body">
-      <div className="list-toolbar">
-        <label>
-          Cadastro
-          <select
-            value={kind}
-            onChange={(event) => (
-              setKind(event.target.value as ClinicCatalogKind),
-              setItems(null),
-              setError("")
-            )}
-          >
-            {Object.entries(clinicCatalogLabels).map(([key, label]) => (
-              <option key={key} value={key}>
-                {label}
-              </option>
+    <div className="settings-panel-body catalog-settings">
+      <ReportTabs sub label="Grupos de cadastros" tabs={groups}>
+        {(group) => (
+          <div className="catalog-groups">
+            {groupKinds[group].map((kind) => (
+              <CatalogSection key={kind} kind={kind} />
             ))}
-          </select>
-        </label>
-        {user?.role === "admin" && (
-          <button className="primary-button" onClick={() => open("new")}>
-            Novo cadastro
-          </button>
-        )}
-      </div>
-      {error && <ErrorBanner error={error} />}
-      {!items ? (
-        !error && <LoadingBlock />
-      ) : items.length === 0 ? (
-        <EmptyState
-          title="Nenhum cadastro"
-          copy="Adicione os itens utilizados pela clínica."
-        />
-      ) : (
-        items.map((item) => (
-          <div className="table-row" key={item.id}>
-            <strong>
-              {item.parentId
-                ? `${items.find((parent) => parent.id === item.parentId)?.name ?? "Categoria"} / `
-                : ""}
-              {item.name}
-            </strong>
-            <span>{item.active ? "Ativo" : "Inativo"}</span>
-            {user?.role === "admin" && (
-              <button className="secondary-button" onClick={() => open(item)}>
-                Editar
-              </button>
+            {group === "clinical" && can("clinical.view") && (
+              <section className="catalog-section">
+                <header className="catalog-section-head">
+                  <div>
+                    <h3>Aparelhos e exercícios</h3>
+                    <p>Recursos compartilhados nos prontuários.</p>
+                  </div>
+                </header>
+                <ClinicalResourcesPanel
+                  patientId=""
+                  patients={[]}
+                  catalogOnly
+                />
+              </section>
             )}
           </div>
-        ))
-      )}
-      {editor && (
-        <Modal
-          title={editor === "new" ? "Novo cadastro" : "Editar cadastro"}
-          subtitle={clinicCatalogLabels[kind]}
-          busy={saving}
-          dirty={dirty}
-          onClose={() => setEditor(null)}
-        >
-          <form className="clinical-form" onSubmit={save}>
-            {error && <ErrorBanner error={error} />}
-            <label>
-              Nome
-              <input
-                required
-                minLength={2}
-                maxLength={80}
-                value={name}
-                onChange={(event) => setName(event.target.value)}
-              />
-            </label>
-            {kind === "product_category" && (
-              <label>
-                Categoria principal
-                <select
-                  value={parentId}
-                  onChange={(event) => setParentId(event.target.value)}
-                  disabled={items?.some(
-                    (item) => editor !== "new" && item.parentId === editor.id,
-                  )}
-                >
-                  <option value="">Categoria principal (sem vínculo)</option>
-                  {items
-                    ?.filter(
-                      (item) =>
-                        !item.parentId &&
-                        (item.active || item.id === parentId) &&
-                        (editor === "new" || item.id !== editor.id),
-                    )
-                    .map((item) => (
-                      <option value={item.id} key={item.id}>
-                        {item.name}
-                      </option>
-                    ))}
-                </select>
-              </label>
-            )}
-            <label className="checkbox-field">
-              <input
-                type="checkbox"
-                checked={active}
-                onChange={(event) => setActive(event.target.checked)}
-              />
-              Ativo
-            </label>
-            <div className="modal-actions">
-              <ModalCancelButton disabled={saving}>Cancelar</ModalCancelButton>
-              <button className="primary-button" disabled={saving}>
-                Salvar
-              </button>
-            </div>
-          </form>
-        </Modal>
-      )}
-      {can("finance.view") && <SuppliersSection />}
-      {can("clinical.view") && (
-        <ClinicalResourcesPanel patientId="" patients={[]} catalogOnly />
-      )}
+        )}
+      </ReportTabs>
     </div>
   );
 }

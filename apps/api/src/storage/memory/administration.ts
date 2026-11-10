@@ -1,4 +1,16 @@
+import { prepareUserAgenda } from "./user-agenda.js";
+import { syncUserPayroll } from "./user-payroll.js";
 import {
+  defaultAutoFinalizationSettings,
+  resolveNavTabLabels,
+  resolveNotificationPreferences,
+  resolvePaymentMethodSettings,
+  type PaymentMethodSettingsInput,
+  type AutoFinalizationSettings,
+  defaultProLaboreSettings,
+  type ProLaboreSettings,
+  type ProLaboreSettingsInput,
+  type AutoFinalizationSettingsInput,
   resolvePermissionInput,
   saoPauloToday,
   type AdminAuditPage,
@@ -7,6 +19,12 @@ import {
   type AuditHistoryFilters,
   type ClinicSettingsInput,
   type HistoryActor,
+  type IntegrationKey,
+  type IntegrationKeyInput,
+  type NavTabLabelsInput,
+  type NotificationPreferences,
+  type OwnProfile,
+  type OwnProfileUpdate,
   type Professional,
   type ProfessionalInput,
   type Room,
@@ -18,13 +36,41 @@ import {
   DomainError,
   lastAdminError,
   type AuthenticatedUser,
+  type CommissionRecalculationRequest,
+  passwordColumns,
+  type PasswordToStore,
 } from "../../repository.js";
+import { userCommissionDrafts } from "../../modules/finance/commission-recalculation.js";
 import type { MemoryRepositoryContext } from "./context.js";
+import { createMemoryCommissionRecalculation } from "./commission-recalculation.js";
 import { CLINIC_ID, now, uuid } from "./helpers.js";
 
 export function createAdministrationRepository(
   repositoryContext: MemoryRepositoryContext,
 ) {
+  const commissions = createMemoryCommissionRecalculation(repositoryContext);
+  function ownProfileOf(user: AuthenticatedUser): OwnProfile {
+    const professional = repositoryContext.linkedProfessional(
+      user.clinicId,
+      user.id,
+    );
+    return {
+      id: user.id,
+      fullName: user.fullName,
+      email: user.email,
+      role: user.role,
+      ...(user.jobTitle ? { jobTitle: user.jobTitle } : {}),
+      avatarDataUrl: repositoryContext.userAvatars.get(user.id) ?? "",
+      professional: professional
+        ? {
+            id: professional.id,
+            fullName: professional.fullName,
+            color: professional.color,
+          }
+        : null,
+    };
+  }
+
   return {
     async revokeUserSessions(
       clinicId: string,
@@ -116,6 +162,7 @@ export function createAdministrationRepository(
           { professionalId, previousProfessionalId },
           clinicId,
         );
+        syncUserPayroll(repositoryContext, actorUserId, user, undefined);
       }
       return repositoryContext.toAdminUser(user);
     },
@@ -124,8 +171,10 @@ export function createAdministrationRepository(
       clinicId: string,
       actorUserId: string,
       input: AdminUserInput,
-      passwordHash: string,
+      password: PasswordToStore,
+      recalculation?: CommissionRecalculationRequest,
     ) {
+      const { passwordHash, passwordEncrypted } = passwordColumns(password);
       if (
         repositoryContext.users.some(
           (user) =>
@@ -153,14 +202,38 @@ export function createAdministrationRepository(
         customModules: false,
         passwordHash,
         active: true,
+        dashboardAccess: input.dashboardAccess ?? false,
         createdAt: timestamp,
         updatedAt: timestamp,
       };
+      if (input.branchAccess)
+        repositoryContext.validateUserBranchAccess(user, input.branchAccess);
+      if (input.commission)
+        repositoryContext.validateUserCommissionRule(
+          clinicId,
+          user.id,
+          input.commission,
+        );
+      const saveAgenda = prepareUserAgenda(
+        repositoryContext,
+        user,
+        input,
+        actorUserId,
+      );
       repositoryContext.setUserPermissions(
         user,
         resolvePermissionInput(input.role, input),
       );
+      if (input.branchAccess)
+        repositoryContext.setUserBranchAccess(
+          user,
+          input.branchAccess,
+          actorUserId,
+        );
       repositoryContext.users.push(user);
+      repositoryContext.setUserPasswordCopy(user.id, passwordEncrypted);
+      if (input.whatsapp)
+        repositoryContext.userWhatsapps.set(user.id, input.whatsapp);
       repositoryContext.addAdminAudit(
         actorUserId,
         "user.created",
@@ -172,6 +245,15 @@ export function createAdministrationRepository(
         },
         clinicId,
       );
+      if (user.dashboardAccess)
+        repositoryContext.addAdminAudit(
+          actorUserId,
+          "users.dashboard_access_updated",
+          "user",
+          user.id,
+          { dashboardAccess: true, previousDashboardAccess: false },
+          clinicId,
+        );
       if (user.customModules)
         repositoryContext.addAdminAudit(
           actorUserId,
@@ -194,6 +276,21 @@ export function createAdministrationRepository(
           user.id,
           input.commission,
         );
+      saveAgenda();
+      syncUserPayroll(
+        repositoryContext,
+        actorUserId,
+        user,
+        input.salaryInCents ?? null,
+      );
+      // Usuário novo ligado a um profissional que já tem comissões: recalcula pelas regras novas.
+      if (recalculation)
+        commissions.apply(
+          clinicId,
+          actorUserId,
+          { userId: user.id },
+          userCommissionDrafts(input),
+        );
       return repositoryContext.toAdminUser(user);
     },
 
@@ -202,6 +299,7 @@ export function createAdministrationRepository(
       actorUserId: string,
       userId: string,
       input: AdminUserUpdate,
+      recalculation?: CommissionRecalculationRequest,
     ) {
       const user = repositoryContext.users.find(
         (item) => item.clinicId === clinicId && item.id === userId,
@@ -228,8 +326,37 @@ export function createAdministrationRepository(
         )
       )
         throw lastAdminError();
+      if (input.branchAccess)
+        repositoryContext.validateUserBranchAccess(user, input.branchAccess);
+      if (input.commission)
+        repositoryContext.validateUserCommissionRule(
+          clinicId,
+          userId,
+          input.commission,
+        );
+      if (recalculation)
+        commissions.check(
+          clinicId,
+          { userId },
+          userCommissionDrafts(input),
+          recalculation.expectedDigest,
+        );
+      const saveAgenda = prepareUserAgenda(
+        repositoryContext,
+        user,
+        input,
+        actorUserId,
+      );
       const previousPermissions = [...user.permissions];
       const previousRole = user.role;
+      if (input.branchAccess)
+        repositoryContext.setUserBranchAccess(
+          user,
+          input.branchAccess,
+          actorUserId,
+        );
+      const previousDashboardAccess = user.dashboardAccess ?? false;
+      user.dashboardAccess = input.dashboardAccess ?? previousDashboardAccess;
       user.fullName = input.fullName;
       user.role = input.role;
       user.active = input.active;
@@ -237,6 +364,11 @@ export function createAdministrationRepository(
         const jobTitle = input.jobTitle.trim();
         if (jobTitle) user.jobTitle = jobTitle;
         else delete user.jobTitle;
+      }
+      if (input.whatsapp !== undefined) {
+        if (input.whatsapp)
+          repositoryContext.userWhatsapps.set(user.id, input.whatsapp);
+        else repositoryContext.userWhatsapps.delete(user.id);
       }
       repositoryContext.setUserPermissions(
         user,
@@ -258,6 +390,18 @@ export function createAdministrationRepository(
         },
         clinicId,
       );
+      if (user.dashboardAccess !== previousDashboardAccess)
+        repositoryContext.addAdminAudit(
+          actorUserId,
+          "users.dashboard_access_updated",
+          "user",
+          user.id,
+          {
+            dashboardAccess: user.dashboardAccess,
+            previousDashboardAccess,
+          },
+          clinicId,
+        );
       if (
         JSON.stringify(previousPermissions) !== JSON.stringify(user.permissions)
       )
@@ -275,6 +419,27 @@ export function createAdministrationRepository(
           },
           clinicId,
         );
+      if (input.commission)
+        repositoryContext.addUserCommissionRule(
+          clinicId,
+          actorUserId,
+          userId,
+          input.commission,
+        );
+      saveAgenda();
+      syncUserPayroll(
+        repositoryContext,
+        actorUserId,
+        user,
+        input.salaryInCents,
+      );
+      if (recalculation)
+        commissions.apply(
+          clinicId,
+          actorUserId,
+          { userId },
+          userCommissionDrafts(input),
+        );
       return repositoryContext.toAdminUser(user);
     },
 
@@ -282,13 +447,15 @@ export function createAdministrationRepository(
       clinicId: string,
       actorUserId: string,
       userId: string,
-      passwordHash: string,
+      password: PasswordToStore,
     ) {
+      const { passwordHash, passwordEncrypted } = passwordColumns(password);
       const user = repositoryContext.users.find(
         (item) => item.clinicId === clinicId && item.id === userId,
       );
       if (!user) return false;
       user.passwordHash = passwordHash;
+      repositoryContext.setUserPasswordCopy(user.id, passwordEncrypted);
       user.sessionVersion = (user.sessionVersion ?? 0) + 1;
       user.updatedAt = now();
       repositoryContext.addAdminAudit(
@@ -300,6 +467,78 @@ export function createAdministrationRepository(
         clinicId,
       );
       return true;
+    },
+
+    async findUserPasswordEncrypted(clinicId: string, userId: string) {
+      const user = repositoryContext.users.find(
+        (item) => item.clinicId === clinicId && item.id === userId,
+      );
+      if (!user) return { found: false, encrypted: null };
+      return {
+        found: true,
+        encrypted: repositoryContext.userPasswordCopies.get(user.id) ?? null,
+      };
+    },
+
+    async recordUserPasswordViewed(
+      clinicId: string,
+      actorUserId: string,
+      userId: string,
+    ) {
+      repositoryContext.addAdminAudit(
+        actorUserId,
+        "user.password_viewed",
+        "user",
+        userId,
+        { viewedUserId: userId },
+        clinicId,
+      );
+    },
+
+    async getOwnProfile(clinicId: string, userId: string) {
+      const user = repositoryContext.users.find(
+        (item) => item.clinicId === clinicId && item.id === userId,
+      );
+      if (!user) return null;
+      return ownProfileOf(user);
+    },
+
+    async updateOwnProfile(
+      clinicId: string,
+      userId: string,
+      input: OwnProfileUpdate,
+    ) {
+      const user = repositoryContext.users.find(
+        (item) => item.clinicId === clinicId && item.id === userId,
+      );
+      if (!user) return null;
+      const professional = repositoryContext.linkedProfessional(
+        clinicId,
+        userId,
+      );
+      user.fullName = input.fullName;
+      user.updatedAt = now();
+      if (input.avatarDataUrl !== undefined) {
+        if (input.avatarDataUrl)
+          repositoryContext.userAvatars.set(user.id, input.avatarDataUrl);
+        else repositoryContext.userAvatars.delete(user.id);
+      }
+      if (professional) {
+        if (input.agendaName) professional.fullName = input.agendaName;
+        if (input.agendaColor) professional.color = input.agendaColor;
+      }
+      repositoryContext.addAdminAudit(
+        userId,
+        "user.profile_updated",
+        "user",
+        user.id,
+        {
+          fullName: user.fullName,
+          ...(professional ? { agendaName: professional.fullName } : {}),
+        },
+        clinicId,
+      );
+      return ownProfileOf(user);
     },
 
     async getClinicSettings(clinicId: string) {
@@ -331,6 +570,100 @@ export function createAdministrationRepository(
         clinicId,
       );
       return repositoryContext.clinicSettings;
+    },
+
+    async getAutoFinalizationSettings(
+      clinicId: string,
+    ): Promise<AutoFinalizationSettings> {
+      return (
+        repositoryContext.autoFinalizationSettings.get(clinicId) ?? {
+          ...defaultAutoFinalizationSettings,
+        }
+      );
+    },
+
+    async getProLaboreSettings(clinicId: string): Promise<ProLaboreSettings> {
+      return {
+        ...(repositoryContext.proLaboreSettings.get(clinicId) ??
+          defaultProLaboreSettings),
+      };
+    },
+
+    async updateProLaboreSettings(
+      clinicId: string,
+      actorUserId: string,
+      input: ProLaboreSettingsInput,
+    ) {
+      const saved: ProLaboreSettings = {
+        percentage: Math.round(input.percentage * 100) / 100,
+        base: input.base,
+        updatedAt: now(),
+      };
+      repositoryContext.proLaboreSettings.set(clinicId, saved);
+      repositoryContext.addAdminAudit(
+        actorUserId,
+        "clinic.pro_labore_updated",
+        "clinic",
+        clinicId,
+        { percentage: saved.percentage, base: saved.base },
+        clinicId,
+      );
+      return { ...saved };
+    },
+
+    async updateAutoFinalizationSettings(
+      clinicId: string,
+      actorUserId: string,
+      input: AutoFinalizationSettingsInput,
+    ) {
+      const saved: AutoFinalizationSettings = {
+        enabled: input.enabled,
+        delayMinutes: input.delayMinutes,
+        updatedAt: now(),
+      };
+      repositoryContext.autoFinalizationSettings.set(clinicId, saved);
+      repositoryContext.addAdminAudit(
+        actorUserId,
+        "clinic.auto_finalization_updated",
+        "clinic",
+        clinicId,
+        { enabled: input.enabled, delayMinutes: input.delayMinutes },
+        clinicId,
+      );
+      return { ...saved };
+    },
+
+    async getPaymentMethodSettings(clinicId: string) {
+      const saved = repositoryContext.paymentMethodSettings.get(clinicId);
+      return resolvePaymentMethodSettings(saved?.methods, saved?.updatedAt);
+    },
+
+    async updatePaymentMethodSettings(
+      clinicId: string,
+      actorUserId: string,
+      input: PaymentMethodSettingsInput,
+    ) {
+      const current = repositoryContext.paymentMethodSettings.get(clinicId);
+      const saved = resolvePaymentMethodSettings(
+        [
+          ...input.methods,
+          ...(current?.methods ?? []).filter(
+            (item) =>
+              !input.methods.some((entry) => entry.method === item.method),
+          ),
+        ],
+        now(),
+      );
+      repositoryContext.paymentMethodSettings.set(clinicId, saved);
+      repositoryContext.addAdminAudit(
+        actorUserId,
+        "clinic.payment_methods_updated",
+        "clinic",
+        clinicId,
+        { methods: saved.methods },
+        clinicId,
+      );
+      return saved;
     },
 
     async listAdminAuditEvents(clinicId: string) {
@@ -437,14 +770,27 @@ export function createAdministrationRepository(
     },
 
     async listProfessionals(clinicId: string) {
-      return repositoryContext.professionals.filter(
-        (item) => item.clinicId === clinicId && item.active,
-      );
+      return repositoryContext.professionals
+        .filter(
+          (item) =>
+            item.clinicId === clinicId &&
+            item.active &&
+            repositoryContext.inBranchScope(item),
+        )
+        .map((item): Professional => {
+          // WhatsApp do usuário ligado: só aparece quando informado.
+          const userId = repositoryContext.professionalUsers.get(item.id);
+          const whatsapp = userId
+            ? repositoryContext.userWhatsapps.get(userId)
+            : undefined;
+          return whatsapp ? { ...item, whatsapp } : item;
+        });
     },
 
     async createProfessional(clinicId: string, input: ProfessionalInput) {
       const professional: Professional = {
         ...input,
+        branchId: repositoryContext.writeBranchId(clinicId),
         id: uuid(),
         clinicId,
         active: true,
@@ -455,12 +801,21 @@ export function createAdministrationRepository(
 
     async listRooms(clinicId: string) {
       return repositoryContext.rooms.filter(
-        (item) => item.clinicId === clinicId && item.active,
+        (item) =>
+          item.clinicId === clinicId &&
+          item.active &&
+          repositoryContext.inBranchScope(item),
       );
     },
 
     async createRoom(clinicId: string, input: RoomInput) {
-      const room: Room = { ...input, id: uuid(), clinicId, active: true };
+      const room: Room = {
+        ...input,
+        branchId: repositoryContext.writeBranchId(clinicId),
+        id: uuid(),
+        clinicId,
+        active: true,
+      };
       repositoryContext.rooms.push(room);
       return room;
     },
@@ -476,6 +831,7 @@ export function createAdministrationRepository(
         professionalIds: [],
         roomIds: [],
         ...input,
+        businessLine: input.businessLine ?? null,
         id: uuid(),
         clinicId,
         active: true,
@@ -483,5 +839,116 @@ export function createAdministrationRepository(
       repositoryContext.services.push(service);
       return service;
     },
+
+    async listNavTabLabels(clinicId: string) {
+      return resolveNavTabLabels(
+        repositoryContext.navTabLabels.get(clinicId) ?? [],
+      );
+    },
+
+    async saveNavTabLabels(clinicId: string, input: NavTabLabelsInput) {
+      repositoryContext.navTabLabels.set(
+        clinicId,
+        input.tabs.map((item) => ({ ...item })),
+      );
+      return resolveNavTabLabels(input.tabs);
+    },
+
+    async getNotificationPreferences(clinicId: string, userId: string) {
+      return resolveNotificationPreferences(
+        repositoryContext.notificationPreferences.get(`${clinicId}:${userId}`),
+      );
+    },
+
+    async saveNotificationPreferences(
+      clinicId: string,
+      userId: string,
+      input: NotificationPreferences,
+    ) {
+      const preferences = resolveNotificationPreferences(input);
+      repositoryContext.notificationPreferences.set(
+        `${clinicId}:${userId}`,
+        preferences,
+      );
+      return preferences;
+    },
+
+    async listIntegrationKeys(clinicId: string) {
+      return repositoryContext.integrationKeys
+        .filter((item) => item.clinicId === clinicId)
+        .sort(
+          (left, right) =>
+            Number(Boolean(left.revokedAt)) -
+              Number(Boolean(right.revokedAt)) ||
+            right.createdAt.localeCompare(left.createdAt),
+        )
+        .map(publicIntegrationKey);
+    },
+
+    async createIntegrationKey(
+      clinicId: string,
+      actorUserId: string,
+      input: IntegrationKeyInput,
+      secret: { prefix: string; tokenHash: string },
+    ) {
+      const actor = repositoryContext.users.find(
+        (user) => user.clinicId === clinicId && user.id === actorUserId,
+      );
+      const key = {
+        id: uuid(),
+        clinicId,
+        tokenHash: secret.tokenHash,
+        name: input.name,
+        prefix: secret.prefix,
+        scopes: [...input.scopes],
+        createdByUserId: actorUserId,
+        createdByName: actor?.fullName ?? "",
+        createdAt: now(),
+      };
+      repositoryContext.integrationKeys.push(key);
+      return publicIntegrationKey(key);
+    },
+
+    async revokeIntegrationKey(clinicId: string, id: string) {
+      const key = repositoryContext.integrationKeys.find(
+        (item) => item.clinicId === clinicId && item.id === id,
+      );
+      if (!key) return null;
+      key.revokedAt ??= now();
+      return publicIntegrationKey(key);
+    },
+
+    async findIntegrationKeyByTokenHash(tokenHash: string) {
+      const key = repositoryContext.integrationKeys.find(
+        (item) => item.tokenHash === tokenHash && !item.revokedAt,
+      );
+      return key
+        ? { clinicId: key.clinicId, key: publicIntegrationKey(key) }
+        : null;
+    },
+
+    async touchIntegrationKey(clinicId: string, id: string) {
+      const key = repositoryContext.integrationKeys.find(
+        (item) => item.clinicId === clinicId && item.id === id,
+      );
+      if (key) key.lastUsedAt = now();
+    },
+  };
+}
+
+/** Chave sem o hash do token nem a clínica (formato público da API). */
+function publicIntegrationKey(
+  key: IntegrationKey & { clinicId: string; tokenHash: string },
+): IntegrationKey {
+  return {
+    id: key.id,
+    name: key.name,
+    prefix: key.prefix,
+    scopes: [...key.scopes],
+    createdByUserId: key.createdByUserId,
+    createdByName: key.createdByName,
+    createdAt: key.createdAt,
+    ...(key.lastUsedAt ? { lastUsedAt: key.lastUsedAt } : {}),
+    ...(key.revokedAt ? { revokedAt: key.revokedAt } : {}),
   };
 }

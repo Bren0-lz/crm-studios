@@ -2,6 +2,11 @@ import { useState } from "react";
 import { ActionModal } from "../../shared/components/ActionModal";
 import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
 
+/** Valor da opção "+ Nova …" no fim do select (definido junto dos tipos de despesa). */
+export { CREATE_OPTION_VALUE } from "./expense-kind";
+
+/** Cadastro rápido de categoria ou centro de custo, aberto por cima do modal da despesa. */
+
 export function FinanceRegistryModal({
   kind,
   onClose,

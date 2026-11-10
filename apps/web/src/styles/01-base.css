@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Cormorant+Garamond:wght@600&family=Manrope:wght@600;700;800&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500;1,600;1,700&family=Cormorant+Garamond:wght@600&display=swap");
 
 :root {
   color: #26342f;
@@ -17,11 +17,19 @@
   --terracotta: #c96f50;
   --amber: #d3a349;
   --red: #b85d53;
+  /* Vermelho forte para fundo com texto branco (barra de pendências): #963f35 = 6,86:1. */
+  --danger-strong: #963f35;
   /* Verde do WhatsApp escurecido para texto branco com contraste AA: #075e54 = 7,67:1 e o hover
      #064c44 = 9,88:1 (o #25d366 da marca dá só 1,98:1 com branco). */
   --whatsapp: #075e54;
   --whatsapp-hover: #064c44;
-  --shadow: 0 18px 55px rgba(34, 50, 44, 0.09);
+  /* Prévia das campanhas: fundo da conversa e balão enviado como no WhatsApp. */
+  --wa-chat: #efeae2;
+  --wa-bubble: #d9fdd3;
+  --wa-meta: #667781;
+  /* Sombras curtas: profundidade só onde há sobreposição (popover, modal, login). */
+  --shadow: 0 1px 2px rgba(34, 50, 44, 0.06), 0 6px 16px rgba(34, 50, 44, 0.06);
+  --shadow-sm: 0 1px 2px rgba(34, 50, 44, 0.05);
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
@@ -44,9 +52,9 @@
   --text-3xl: 30px;
   --text-4xl: 42px;
   /* Títulos fluidos (crescem com a largura da tela). */
-  --text-fluid-lg: clamp(20px, 2vw, 28px);
-  --text-fluid-xl: clamp(30px, 3vw, 42px);
-  --text-display: clamp(42px, 5.5vw, 76px);
+  --text-fluid-lg: clamp(18px, 1.6vw, 22px);
+  --text-fluid-xl: clamp(22px, 2vw, 28px);
+  --text-display: clamp(28px, 3vw, 36px);
 }
 
 * {
@@ -84,6 +92,11 @@ html {
 ::-webkit-scrollbar-corner {
   background: transparent;
 }
+/* O menu lateral não pode ter scrollbar-width: no Chrome 121+ essa propriedade faz o
+   navegador ignorar os ::-webkit-scrollbar e voltar à barra cinza padrão (com setas). */
+.main-nav::-webkit-scrollbar {
+  width: var(--space-2);
+}
 .main-nav::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.18) padding-box;
 }
@@ -99,6 +112,9 @@ html {
   .main-nav {
     scrollbar-color: rgba(255, 255, 255, 0.24) transparent;
   }
+  .notification-banner ul {
+    scrollbar-color: color-mix(in srgb, var(--danger-strong) 40%, #fff) transparent;
+  }
 }
 
 body {
@@ -107,9 +123,8 @@ body {
   min-height: 100vh;
 }
 
-/* Modal ou gaveta aberta: a página de trás não rola. */
-html.modal-open,
-body.modal-open {
+/* A trava fica só no html: overflow no body muda a referência dos elementos sticky. */
+html.modal-open {
   overflow: hidden;
 }
 /* Sem a calha reservada: o padding-right do body (useBodyScrollLock) ocupa o lugar da
@@ -133,6 +148,119 @@ select {
 
 button {
   cursor: pointer;
+}
+
+/* QV3: elementos nativos com a aparência do design system, não a do navegador. As regras de
+   elemento ficam em :where() (especificidade zero): a classe de cada tela continua valendo. */
+
+/* Fieldset e legend sem a moldura, o recuo e o espaço padrão do navegador. */
+:where(fieldset) {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+:where(legend) {
+  padding: 0;
+  color: var(--ink);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+/* Summary (de details): sem o triângulo padrão; chevron próprio, que gira ao abrir. O
+   chevron é decorativo (conteúdo vazio): o leitor de tela já anuncia "recolhido/expandido". */
+:where(summary) {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  cursor: pointer;
+  list-style: none;
+}
+:where(summary)::-webkit-details-marker {
+  display: none;
+}
+:where(summary)::after {
+  flex: none;
+  width: var(--space-2);
+  height: var(--space-2);
+  margin-left: auto;
+  border-right: 2px solid var(--muted);
+  border-bottom: 2px solid var(--muted);
+  content: "";
+  /* O quadrado girado fica abaixo do centro; o deslocamento o alinha ao texto. */
+  transform: translateY(-25%) rotate(45deg);
+  transition: transform 0.15s;
+}
+:where(details[open] > summary)::after {
+  transform: translateY(25%) rotate(-135deg);
+}
+:where(summary):focus-visible {
+  outline: 2px solid var(--green-2);
+  outline-offset: 2px;
+}
+@media (prefers-reduced-motion: reduce) {
+  :where(summary)::after {
+    transition: none;
+  }
+}
+
+/* Tabelas: cabeçalho à esquerda e em 600; o visual completo é o da .dre-table abaixo. */
+:where(table) {
+  border-collapse: collapse;
+}
+:where(caption) {
+  text-align: left;
+}
+:where(th) {
+  font-weight: 600;
+  text-align: left;
+}
+
+/* Tabela do design system: cabeçalho em faixa creme com rótulo pequeno em caixa alta, linhas
+   separadas por --line e valores numéricos/monetários à direita (.numeric-value). */
+.dre-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.dre-table th,
+.dre-table td {
+  padding: var(--space-3);
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+}
+.dre-table th {
+  font-weight: 600;
+  text-align: left;
+}
+.dre-table thead {
+  background: var(--cream);
+}
+.dre-table thead th {
+  color: var(--muted);
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+}
+.dre-table .numeric-value {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.dre-table tbody tr:last-child > * {
+  border-bottom: 0;
+}
+
+/* Links: verde da marca, sublinhado discreto, hover mais escuro e foco visível. */
+:where(a) {
+  color: var(--green-2);
+  text-decoration-line: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.2em;
+}
+:where(a):hover {
+  color: var(--green);
+}
+:where(a):focus-visible {
+  outline: 2px solid var(--green-2);
+  outline-offset: 2px;
 }
 
 .brand {
@@ -161,74 +289,48 @@ button {
   min-height: 100vh;
   flex-direction: column;
   justify-content: space-between;
-  padding: clamp(32px, 6vw, 84px);
+  padding: clamp(var(--space-6), 5vw, var(--space-8));
   color: white;
-  background:
-    radial-gradient(
-      circle at 76% 17%,
-      rgba(220, 236, 230, 0.14) 0 15%,
-      transparent 15.4%
-    ),
-    linear-gradient(145deg, #123e35, #1c5e4e);
+  background: #153f36;
 }
 
 .story-copy {
-  max-width: 680px;
+  max-width: 520px;
   margin: auto 0;
 }
 
 .eyebrow {
-  margin: 0 0 13px;
-  color: var(--terracotta);
-  font-size: var(--text-xs);
-  font-weight: 800;
-  letter-spacing: 1.8px;
-  text-transform: uppercase;
+  display: block;
+  margin: 0 0 var(--space-1);
+  color: var(--muted);
+  font-size: var(--text-sm);
+  font-weight: 500;
 }
 
 .eyebrow.light {
+  margin-bottom: var(--space-3);
   color: #9ccfc0;
 }
 
 .story-copy h1 {
-  max-width: 650px;
   margin: 0;
-  font-family: "Manrope", sans-serif;
   font-size: var(--text-display);
-  line-height: 0.98;
-  letter-spacing: -3.5px;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
 }
 
 .story-copy > p:last-child {
-  max-width: 530px;
-  margin: 27px 0 0;
+  margin: var(--space-4) 0 0;
   color: #c7d9d3;
-  font-size: var(--text-xl);
-  line-height: 1.65;
+  font-size: var(--text-lg);
+  line-height: 1.5;
 }
 
 .story-note {
-  display: flex;
-  align-items: center;
-  gap: 10px;
+  margin: 0;
   color: #b6ccc5;
   font-size: var(--text-sm);
-}
-
-.story-note span {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-3);
-}
-
-.story-note span::before {
-  flex: none;
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: #87bead;
-  box-shadow: 0 0 0 5px rgba(135, 190, 173, 0.12);
-  content: "";
 }
 
 .login-panel {
@@ -240,19 +342,18 @@ button {
 }
 
 .login-card {
-  width: min(100%, 440px);
-  padding: clamp(28px, 4vw, 46px);
-  border: 1px solid rgba(229, 226, 218, 0.8);
-  border-radius: 28px;
+  width: min(100%, 420px);
+  padding: clamp(var(--space-5), 4vw, var(--space-7));
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
   background: var(--paper);
   box-shadow: var(--shadow);
 }
 
 .login-card h2 {
-  margin: 38px 0 9px;
-  font-family: "Manrope", sans-serif;
-  font-size: var(--text-3xl);
-  letter-spacing: -1px;
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-2xl);
+  font-weight: 600;
 }
 
 .login-card > p {
@@ -277,15 +378,15 @@ button {
   gap: 7px;
   color: #4d5b55;
   font-size: var(--text-sm);
-  font-weight: 700;
+  font-weight: 600;
 }
 
 input,
 select,
 textarea {
   width: 100%;
-  border: 1px solid #dcd9d0;
-  border-radius: 11px;
+  border: 1px solid #d6d3c9;
+  border-radius: var(--radius-sm);
   outline: none;
   background: white;
   color: var(--ink);
@@ -297,7 +398,7 @@ textarea {
 
 input,
 select {
-  min-height: 44px;
+  min-height: calc(var(--space-6) + var(--space-2));
   padding: 0 13px;
 }
 
@@ -312,6 +413,30 @@ input[type="radio"] {
   padding: 0;
   accent-color: var(--green);
   cursor: pointer;
+}
+
+/* Seleção de arquivo: botão no padrão dos secundários, centralizado na altura do campo. */
+input[type="file"] {
+  padding: calc(var(--space-1) + 1px) var(--space-1);
+  border-style: dashed;
+  background: var(--paper);
+  color: var(--muted);
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+input[type="file"]::file-selector-button {
+  margin-right: var(--space-3);
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid #d8dfd7;
+  border-radius: var(--radius-sm);
+  background: white;
+  color: var(--green);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+input[type="file"]:hover::file-selector-button {
+  background: var(--mint);
 }
 
 textarea {
@@ -422,11 +547,21 @@ select option:disabled {
   select option:disabled {
     cursor: not-allowed;
   }
+  /* Lista sempre abaixo do campo (sem inverter para cima), limitada ao espaço até o fim da tela. */
+  select.select-opens-down::picker(select) {
+    position-area: block-end span-inline-end;
+    position-try-fallbacks: none;
+    max-block-size: min(calc(var(--space-8) * 5), calc(100% - var(--space-2)));
+  }
+  select option[value="__create__"] {
+    border-top: 1px solid var(--line);
+    color: var(--green);
+    font-weight: 600;
+  }
 }
 
 .date-button,
-.icon-button,
-.menu-button {
+.icon-button {
   border: 0;
   border-radius: calc(var(--radius-md) - 1px);
 }
@@ -470,7 +605,8 @@ select option:disabled {
   color: #b44d36;
 }
 
-/* Mensagem de validação abaixo do campo (substitui o balão do navegador). */
+/* Balão de validação abaixo do campo (substitui o balão do navegador e recebe os erros
+   de envio que citam o campo, como "Já existe um cliente com este CPF."). */
 [aria-invalid="true"] {
   border-color: #b44d36;
 }
@@ -478,9 +614,41 @@ select option:disabled {
   content: attr(data-message);
 }
 .inline-field-error {
-  color: #a3412c;
-  font-size: var(--text-xs);
-  font-weight: 700;
+  position: relative;
+  display: block;
+  width: fit-content;
+  max-width: 100%;
+  margin-top: var(--space-1);
+  padding: calc(var(--space-1) + 2px) var(--space-3);
+  border-radius: var(--radius-sm);
+  background: #a3412c;
+  box-shadow: var(--shadow);
+  color: #fff;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  line-height: 1.35;
+}
+/* Seta do balão apontando para o campo. */
+.inline-field-error::after {
+  content: "";
+  position: absolute;
+  bottom: 100%;
+  left: var(--space-4);
+  border: calc(var(--space-1) + 2px) solid transparent;
+  border-top-width: 0;
+  border-bottom-color: #a3412c;
+}
+/* O aviso do rodapé já está no campo: fica só para leitores de tela. */
+.form-error.is-at-field {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 /* Texto só para leitores de tela. */

@@ -27,6 +27,7 @@ describe("date fields (V6)", () => {
       "features/agenda/AppointmentForm.tsx",
       "features/agenda/AppointmentRescheduleModal.tsx",
       "features/commercial/LeadAppointmentModal.tsx",
+      "features/plan-purchase/PlanScheduleSummary.tsx",
     ]);
   });
 });

@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import App from "../App";
 import { storedUser } from "../test-support/legacy-fixtures";
 import "../test-support/legacy-setup";
+import { isLeadBoardUrl, leadBoardResponse } from "../test-support/lead-board";
 
 describe("screens without loose elements", () => {
   const owner = {
@@ -42,20 +43,15 @@ describe("screens without loose elements", () => {
         <App />
       </MemoryRouter>,
     );
+    fireEvent.click(
+      await screen.findByRole("button", { name: /Helena Almeida/ }),
+    );
     const more = await screen.findByRole("button", { name: "Mais ações" });
-    const actions = more.closest(".clinical-workspace-actions") as HTMLElement;
-    for (const name of ["Nova avaliação", "Nova medição", "Adicionar adendo"]) {
+    // Cabeçalho do prontuário: ação principal visível, o resto no menu.
+    const actions = more.closest(".clinical-chart-actions") as HTMLElement;
+    for (const name of ["Registrar avaliação", "Imprimir", "Exportar"]) {
       expect(within(actions).getByRole("button", { name })).toBeInTheDocument();
     }
-    const output = actions.querySelector(
-      ".clinical-workspace-output-actions",
-    ) as HTMLElement;
-    expect(
-      within(output).getByRole("button", { name: "Imprimir" }),
-    ).toBeInTheDocument();
-    expect(
-      within(output).getByRole("button", { name: "Exportar" }),
-    ).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Novo modelo" }),
     ).not.toBeInTheDocument();
@@ -70,16 +66,18 @@ describe("screens without loose elements", () => {
         .getAllByRole("menuitem")
         .map((item) => item.textContent),
     ).toEqual([
-      "Novo modelo",
+      "Nova medição",
       "Novo objetivo",
       "Anexar arquivo",
+      "Novo alerta clínico",
+      "Novo modelo",
       "Encerrar tratamento",
     ]);
     expect(
-      within(menu).getByRole("menuitem", { name: "Novo modelo" }),
+      within(menu).getByRole("menuitem", { name: "Nova medição" }),
     ).toHaveFocus();
     fireEvent.keyDown(
-      within(menu).getByRole("menuitem", { name: "Novo modelo" }),
+      within(menu).getByRole("menuitem", { name: "Nova medição" }),
       { key: "ArrowDown" },
     );
     expect(
@@ -102,7 +100,12 @@ describe("screens without loose elements", () => {
     localStorage.setItem("crm.auth.token", "test-token");
     localStorage.setItem("crm.auth.user", storedUser(owner));
     vi.mocked(fetch).mockImplementation(
-      async () => ({ ok: true, status: 200, json: async () => [] }) as Response,
+      async (input) =>
+        ({
+          ok: true,
+          status: 200,
+          json: async () => leadBoardResponse(input, []) ?? [],
+        }) as Response,
     );
     render(
       <MemoryRouter initialEntries={["/comercial"]}>
@@ -139,7 +142,9 @@ describe("screens without loose elements", () => {
       updatedAt: "2026-09-01T12:00:00.000Z",
     };
     vi.mocked(fetch).mockImplementation(async (input) => {
-      const body = String(input).endsWith("/leads") ? [lead] : [];
+      const body = isLeadBoardUrl(String(input))
+        ? leadBoardResponse(String(input), [lead])
+        : [];
       return { ok: true, status: 200, json: async () => body } as Response;
     });
     render(
@@ -187,7 +192,9 @@ describe("screens without loose elements", () => {
     expect(enroll).toHaveClass("secondary-button");
     expect(container.querySelector(".group-actions-bar")).toBeNull();
     fireEvent.click(enroll);
-    const dialog = await screen.findByRole("dialog", { name: "Nova matrícula" });
+    const dialog = await screen.findByRole("dialog", {
+      name: "Nova matrícula",
+    });
     expect(dialog).toHaveClass("modal-wide");
     expect(
       within(dialog).getByRole("heading", { name: "Dados da matrícula" }),

@@ -33,12 +33,12 @@ export function FinanceForecastSection() {
       <section className="panel finance-panel">
         <div className="panel-head">
           <div>
-            <span className="eyebrow">
+            <h2>Previsão</h2>
+            <p className="panel-context">
               {forecast
                 ? `${formatCompetence(forecast.startMonth)} a ${formatCompetence(forecast.endMonth)}`
                 : "Próximos meses"}
-            </span>
-            <h2>Previsão</h2>
+            </p>
             <p className="panel-help">
               Quanto deve entrar e sair do caixa nos próximos meses, mês a mês.
             </p>
@@ -74,14 +74,14 @@ export function FinanceForecastSection() {
           <div className="forecast-body">
             <dl className="forecast-legend" aria-label="Legenda da previsão">
               <div>
-                <dt>Confirmado</dt>
+                <dt>Pagamentos confirmados</dt>
                 <dd>
                   Parcelas de clientes e contas a pagar já lançadas e em aberto,
                   pelo vencimento.
                 </dd>
               </div>
               <div>
-                <dt>Projetado</dt>
+                <dt>Pagamentos em aberto</dt>
                 <dd>
                   Renovações automáticas de planos e despesas fixas que ainda
                   vão ser lançadas.
@@ -110,10 +110,10 @@ export function FinanceForecastSection() {
                       Mês
                     </th>
                     <th scope="colgroup" colSpan={3}>
-                      Confirmado
+                      Pagamentos confirmados
                     </th>
                     <th scope="colgroup" colSpan={3}>
-                      Projetado
+                      Pagamentos em aberto
                     </th>
                     <th scope="col" rowSpan={2}>
                       Saldo do mês

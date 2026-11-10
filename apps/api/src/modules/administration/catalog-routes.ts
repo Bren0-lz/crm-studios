@@ -17,13 +17,15 @@ export function registerCatalogRoutes({
   app.put(
     "/admin/registry/:id",
     { preHandler: authenticate },
-    async (request) =>
-      repository.updateAdministrativeRegistry(
+    async (request) => {
+      const input = administrativeRegistryInputSchema.parse(request.body);
+      return repository.updateAdministrativeRegistry(
         request.user.clinicId,
         request.user.sub,
         z.object({ id: z.uuid() }).parse(request.params).id,
-        administrativeRegistryInputSchema.parse(request.body),
-      ),
+        input,
+      );
+    },
   );
   app.get(
     "/clinic-catalogs/:kind",

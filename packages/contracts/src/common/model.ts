@@ -1,5 +1,15 @@
 import { z } from "zod";
 
+/** Formas de pagamento (recebimentos, despesas e a forma combinada do plano). */
+export const paymentMethodSchema = z.enum([
+  "pix",
+  "card",
+  "cash",
+  "bank_transfer",
+  "boleto",
+  "other",
+]);
+
 export function phoneDigits(value: string): string {
   return value.replace(/\D/g, "").slice(0, 11);
 }
@@ -15,6 +25,31 @@ export function formatPhone(value: string): string {
   if (number.length <= 4) return `(${area}) ${number}`;
   const split = number.length === 9 ? 5 : 4;
   return `(${area}) ${number.slice(0, split)}-${number.slice(split)}`;
+}
+
+/**
+ * Separa DDD e número para planilhas: `11999998888` → `{ ddd: "11", number: "99999-8888" }`.
+ * Aceita o prefixo 55. Número fora do padrão brasileiro com DDD (10 ou 11 dígitos) volta
+ * como foi cadastrado, com o DDD vazio.
+ */
+export function splitPhone(value: string | undefined | null): {
+  ddd: string;
+  number: string;
+} {
+  const text = (value ?? "").trim();
+  let digits = text.replace(/\D/g, "");
+  if (digits.startsWith("55") && (digits.length === 12 || digits.length === 13))
+    digits = digits.slice(2);
+  if (/^\+/.test(text) && !text.startsWith("+55"))
+    return { ddd: "", number: text };
+  if (digits.length !== 10 && digits.length !== 11)
+    return { ddd: "", number: text };
+  const number = digits.slice(2),
+    split = number.length === 9 ? 5 : 4;
+  return {
+    ddd: digits.slice(0, 2),
+    number: `${number.slice(0, split)}-${number.slice(split)}`,
+  };
 }
 
 export function cpfDigits(value: string): string {
@@ -82,15 +117,20 @@ export function isValidCnpj(value: string): boolean {
   );
 }
 
-// CPF até 11 dígitos e CNPJ a partir do 12º; também formata valores parciais.
-export function formatTaxId(value: string): string {
-  const digits = cnpjDigits(value);
-  if (digits.length <= 11) return formatCpf(digits);
-  return digits
+// 00.000.000/0000-00; também formata valores parciais para uso durante a digitação.
+export function formatCnpj(value: string): string {
+  return cnpjDigits(value)
     .replace(/^(\d{2})(\d)/, "$1.$2")
     .replace(/^(\d{2})\.(\d{3})(\d)/, "$1.$2.$3")
     .replace(/^(\d{2})\.(\d{3})\.(\d{3})(\d)/, "$1.$2.$3/$4")
     .replace(/^(\d{2})\.(\d{3})\.(\d{3})\/(\d{4})(\d)/, "$1.$2.$3/$4-$5");
+}
+
+// CPF até 11 dígitos e CNPJ a partir do 12º; também formata valores parciais.
+export function formatTaxId(value: string): string {
+  const digits = cnpjDigits(value);
+  if (digits.length <= 11) return formatCpf(digits);
+  return formatCnpj(digits);
 }
 
 /** CPF (11 dígitos) ou CNPJ (14 dígitos) com os dígitos verificadores corretos. */
@@ -147,6 +187,41 @@ export function joinWithAnd(items: string[]): string {
   return items.length <= 1
     ? (items[0] ?? "")
     : `${items.slice(0, -1).join(", ")} e ${items.at(-1)}`;
+}
+
+const comparableLabel = (value: string) =>
+  value.normalize("NFD").replace(/[̀-ͯ]/g, "").toLocaleLowerCase("pt-BR");
+
+/**
+ * Rótulo "prefixo + nome" sem repetir a palavra (QV5): `withPrefix("Sala", "Pilates")` →
+ * "Sala Pilates", mas `withPrefix("Sala", "Sala de Dança")` → "Sala de Dança" (ignora caixa e
+ * acento; o prefixo só conta como repetido se vier como palavra inteira no início do nome).
+ */
+export function withPrefix(prefix: string, name: string): string {
+  const trimmed = name.trim();
+  const head = comparableLabel(prefix.trim());
+  const text = comparableLabel(trimmed);
+  const repeated =
+    head.length > 0 &&
+    text.startsWith(head) &&
+    !/[\p{L}\p{N}]/u.test(text.charAt(head.length));
+  return repeated || !trimmed ? trimmed || prefix : `${prefix} ${trimmed}`;
+}
+
+/**
+ * Igual a `withPrefix`, com o nome entre aspas: `Modelo “Anamnese”`, mas `“Modelo padrão”`
+ * quando o nome já começa com o prefixo (QV5). `quotes` troca as aspas (ex.: `['"', '"']`).
+ */
+export function withQuotedPrefix(
+  prefix: string,
+  name: string,
+  quotes: readonly [string, string] = ["“", "”"],
+): string {
+  const trimmed = name.trim();
+  const quoted = `${quotes[0]}${trimmed}${quotes[1]}`;
+  return trimmed && withPrefix(prefix, trimmed) === trimmed
+    ? quoted
+    : `${prefix} ${quoted}`;
 }
 
 export function addDaysToIsoDate(value: string, days: number): string {

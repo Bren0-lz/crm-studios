@@ -1,30 +1,38 @@
-import type { AdminUser, PatientTag, Professional } from "@crm/contracts";
+import {
+  type AdminUser,
+  type AutoFinalizationSettingsInput,
+  maxInstallmentsLimit,
+  paymentMethodLabels,
+  type PatientTag,
+  type PaymentMethodInstallments,
+} from "@crm/contracts";
 import {
   type LucideIcon,
   Building2,
+  CalendarCheck,
   CalendarDays,
+  CreditCard,
+  MapPin,
+  PanelLeft,
   HeartHandshake,
+  KeyRound,
   PackageOpen,
   Stethoscope,
   Tags,
   Users,
 } from "lucide-react";
-import { api, ApiClientError } from "../../api";
+import { ApiClientError } from "../../api";
 import { shortDate } from "../../shared/lib/formatting";
-import type { RelationshipDeadlineKey, SettingsTabKey } from "./types";
+import type {
+  AutoFinalizationDraft,
+  AutoFinalizationUnit,
+  PaymentMethodDraft,
+  RelationshipDeadlineKey,
+  SettingsTabKey,
+} from "./types";
 
 export function isoDateLabel(value: string) {
   return shortDate.format(new Date(`${value}T12:00:00`));
-}
-
-export function loadCommissionProfessionals(
-  onLoaded: (items: Professional[]) => void,
-  onError: (message: string) => void,
-) {
-  api
-    .professionals()
-    .then(onLoaded)
-    .catch((cause: Error) => onError(cause.message));
 }
 
 export function parsePercentage(text: string) {
@@ -121,6 +129,24 @@ export const settingsTabs: Array<{
     adminOnly: true,
   },
   {
+    key: "branches",
+    label: "Filiais",
+    title: "Filiais",
+    description:
+      "Cadastre as unidades da rede; cada uma tem agenda, equipe e financeiro próprios.",
+    icon: MapPin,
+    adminOnly: true,
+  },
+  {
+    key: "menu",
+    label: "Abas do menu",
+    title: "Abas do menu",
+    description:
+      "Renomeie as abas do menu lateral para combinar com a rotina da clínica.",
+    icon: PanelLeft,
+    adminOnly: true,
+  },
+  {
     key: "plans",
     label: "Planos",
     title: "Planos",
@@ -136,6 +162,33 @@ export const settingsTabs: Array<{
     adminOnly: true,
   },
   {
+    key: "autoFinalization",
+    label: "Finalização automática",
+    title: "Finalização automática",
+    description:
+      "Conclua sozinhos os atendimentos que ficaram sem desfecho depois do horário.",
+    icon: CalendarCheck,
+    adminOnly: true,
+  },
+  {
+    key: "paymentMethods",
+    label: "Formas de pagamento",
+    title: "Formas de pagamento",
+    description:
+      "Defina quais formas aceitam parcelamento e até quantas vezes, nas vendas e nas baixas.",
+    icon: CreditCard,
+    adminOnly: true,
+  },
+  {
+    key: "integrations",
+    label: "Integrações",
+    title: "Integrações",
+    description:
+      "Crie chaves para outros sistemas, como o dashboard de vendas, consultarem e gravarem dados pela API.",
+    icon: KeyRound,
+    adminOnly: true,
+  },
+  {
     key: "tags",
     label: "Etiquetas",
     title: "Etiquetas",
@@ -147,7 +200,7 @@ export const settingsTabs: Array<{
     key: "catalogs",
     label: "Cadastros",
     title: "Cadastros da clínica",
-    description: "Interesses, níveis e classificações compartilhadas.",
+    description: "Listas compartilhadas do comercial e do clínico.",
     icon: Tags,
   },
   {
@@ -170,12 +223,18 @@ export const settingsTabs: Array<{
 
 /** Aba aberta por `/configuracoes?secao=`; os nomes antigos continuam valendo. */
 const sectionTabs: Record<string, SettingsTabKey> = {
+  usuarios: "users",
+  filiais: "branches",
+  abas: "menu",
   etiquetas: "tags",
   planos: "plans",
   cadastros: "catalogs",
   servicos: "registry",
   salas: "registry",
   profissionais: "registry",
+  finalizacao: "autoFinalization",
+  pagamentos: "paymentMethods",
+  integracoes: "integrations",
 };
 
 export function settingsTabFromSection(
@@ -195,16 +254,19 @@ export function userAccessSummary(user: AdminUser) {
   return `Vê ${view} ${view === 1 ? "módulo" : "módulos"} · ${user.permissions?.length ?? 0} permissões`;
 }
 
+/** Usuário ligado a um profissional da agenda e sem WhatsApp (o "Compartilhar agenda" fica sem contato). */
+export function lacksWhatsapp(user: AdminUser) {
+  return Boolean(user.professionalId) && !user.whatsapp;
+}
+
 export function userCommissionSummary(user: AdminUser) {
   const agenda = user.professionalId
-    ? `Agenda: ${user.professionalName ?? "profissional ligado"}`
+    ? `Agenda: ${user.professionalName ?? "profissional ligado"}${user.professional?.active === false ? " (inativo)" : ""}`
     : "Sem profissional da agenda";
   const commission =
     user.commissionPercentage === undefined
       ? "Sem comissão vigente"
-      : user.commissionKind === "fixed"
-        ? `Comissão fixa ${(user.commissionFixedAmountInCents ?? 0) / 100} reais`
-        : `Comissão ${percentageLabel.format(user.commissionPercentage)}%`;
+      : `Comissão ${percentageLabel.format(user.commissionPercentage)}%`;
   return `${agenda} · ${commission}`;
 }
 
@@ -213,4 +275,88 @@ export function userSaveErrorMessage(cause: unknown) {
     return "A clínica precisa de pelo menos um admin ativo. Torne outro usuário admin antes de rebaixar ou desativar este.";
   }
   return (cause as Error).message;
+}
+
+export const autoFinalizationUnits: Record<
+  AutoFinalizationUnit,
+  { label: string; minutes: number }
+> = {
+  minutes: { label: "Minutos", minutes: 1 },
+  hours: { label: "Horas", minutes: 60 },
+  days: { label: "Dias", minutes: 1440 },
+};
+
+/** Maior unidade que representa o tempo sem fração (90 min fica em minutos). */
+export function autoFinalizationDraft(
+  input: AutoFinalizationSettingsInput,
+): AutoFinalizationDraft {
+  const unit: AutoFinalizationUnit =
+    input.delayMinutes > 0 && input.delayMinutes % 1440 === 0
+      ? "days"
+      : input.delayMinutes > 0 && input.delayMinutes % 60 === 0
+        ? "hours"
+        : "minutes";
+  return {
+    enabled: input.enabled,
+    amount: String(input.delayMinutes / autoFinalizationUnits[unit].minutes),
+    unit,
+  };
+}
+
+/** Minutos do formulário; vazio ou inválido vira NaN. */
+export function draftDelayMinutes(draft: AutoFinalizationDraft) {
+  const amount = draft.amount.trim() === "" ? Number.NaN : Number(draft.amount);
+  return amount * autoFinalizationUnits[draft.unit].minutes;
+}
+
+/** Exemplo com um atendimento que termina às 10:00. */
+export function autoFinalizationExample(delayMinutes: number) {
+  const total = 10 * 60 + delayMinutes;
+  const days = Math.floor(total / 1440);
+  const minutes = total % 1440;
+  const time = `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
+  const when =
+    days === 0
+      ? `às ${time}`
+      : days === 1
+        ? `no dia seguinte, às ${time}`
+        : `${days} dias depois, às ${time}`;
+  return `Um atendimento que termina às 10:00 vira realizado ${when}, se ninguém registrar o desfecho antes.`;
+}
+
+/** Formulário das formas de pagamento: quem não aceita parcelamento fica sem máximo. */
+export function paymentMethodDrafts(
+  methods: PaymentMethodInstallments[],
+): PaymentMethodDraft[] {
+  return methods.map((item) => ({
+    method: item.method,
+    acceptsInstallments: item.acceptsInstallments,
+    maxInstallments: item.acceptsInstallments
+      ? String(item.maxInstallments)
+      : "",
+  }));
+}
+
+/** Primeiro problema do formulário, ou "" quando todas as formas estão válidas. */
+export function paymentMethodDraftIssue(drafts: PaymentMethodDraft[]) {
+  const invalid = drafts.find((item) => {
+    if (!item.acceptsInstallments) return false;
+    const max = Number(item.maxInstallments);
+    return !Number.isInteger(max) || max < 2 || max > maxInstallmentsLimit;
+  });
+  return invalid
+    ? `${paymentMethodLabels[invalid.method]}: informe de 2 a ${maxInstallmentsLimit} parcelas.`
+    : "";
+}
+
+export function paymentMethodsFromDrafts(
+  drafts: PaymentMethodDraft[],
+): PaymentMethodInstallments[] {
+  return drafts.map((item) => ({
+    method: item.method,
+    acceptsInstallments: item.acceptsInstallments,
+    maxInstallments: item.acceptsInstallments
+      ? Number(item.maxInstallments)
+      : 1,
+  }));
 }

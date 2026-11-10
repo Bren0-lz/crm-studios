@@ -1,3 +1,5 @@
+import { nextTestCpf } from "../../test-support/cpf.js";
+import { sellSessionForAppointment } from "../../test-support/commission-billing.js";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { randomUUID } from "node:crypto";
 import {
@@ -14,6 +16,7 @@ async function setup() {
   vi.setSystemTime(new Date("2039-06-05T18:00:00Z"));
   const repository = new MemoryClinicRepository(),
     patient = await repository.createPatient(clinicId, {
+      cpf: nextTestCpf(),
       fullName: "Cliente conciliação",
       phone: "11988887777",
       tags: [],
@@ -23,11 +26,8 @@ async function setup() {
     [service] = await repository.listServices(clinicId);
   await repository.createCommissionRule(clinicId, {
     professionalId: professional!.id,
-    kind: "fixed",
-    fixedAmountInCents: 1500,
-    percentage: 0,
+    percentage: 10,
     effectiveFrom: "2039-01-01",
-    serviceId: service!.id,
   });
   const appointment = await repository.createAppointment(clinicId, {
     patientId: patient.id,
@@ -38,6 +38,7 @@ async function setup() {
     visitType: "regular",
     notes: "",
   });
+  await sellSessionForAppointment(repository, clinicId, actorId, appointment, 15000);
   await repository.updateAppointmentStatus(
     clinicId,
     appointment.id,
@@ -111,6 +112,7 @@ describe("commission reconciliation", () => {
         ).statusCode,
       ).toBe(403);
       await reconcile(repository, commission.id);
+      // O saldo conciliado agora é pago pela folha de pagamento.
       const url = `/finance/commissions/${commission.id}/accounts/${professional.id}/pay`;
       expect(
         (
@@ -120,8 +122,8 @@ describe("commission reconciliation", () => {
             headers,
             payload: { expectedAmountInCents: -1500 },
           })
-        ).statusCode,
-      ).toBe(403);
+        ).json().code,
+      ).toBe("COMMISSION_PAID_BY_PAYROLL");
       expect(
         (
           await app.inject({

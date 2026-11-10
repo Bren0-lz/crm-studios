@@ -1,11 +1,10 @@
-import type { ClinicalSource } from "@crm/contracts";
 import type { ClinicalResource, ClinicalResourceInput } from "@crm/contracts";
 import type {
   AssessmentTemplate,
   AssessmentTemplateInput,
   ClinicalAccessEvent,
-  ClinicalAddendum,
-  ClinicalAddendumInput,
+  ClinicalAlert,
+  ClinicalAlertInput,
   ClinicalAssessment,
   ClinicalAssessmentInput,
   ClinicalAttachment,
@@ -13,9 +12,6 @@ import type {
   ClinicalAttachmentInput,
   ClinicalMeasurement,
   ClinicalMeasurementInput,
-  ClinicalRecord,
-  ClinicalRecordInput,
-  ClinicalRecordRevision,
   ClinicalWorkspace,
   TherapeuticGoal,
   TherapeuticGoalInput,
@@ -26,14 +22,17 @@ import type {
 import { request } from "../transport";
 
 export const clinicalApi = {
+  assessmentTemplates: () =>
+    request<AssessmentTemplate[]>("/assessment-templates"),
+  setAssessmentTemplateActive: (id: string, active: boolean) =>
+    request<AssessmentTemplate>(`/assessment-templates/${id}/status`, {
+      method: "PATCH",
+      body: JSON.stringify({ active }),
+    }),
   saveAssessmentTemplate: (input: AssessmentTemplateInput, id?: string) =>
     request<AssessmentTemplate>(
       id ? `/assessment-templates/${id}` : "/assessment-templates/drafts",
       { method: id ? "PUT" : "POST", body: JSON.stringify(input) },
-    ),
-  clinicalSources: (patientId = "") =>
-    request<ClinicalSource[]>(
-      `/clinical-sources${patientId ? "?patientId=" + encodeURIComponent(patientId) : ""}`,
     ),
   clinicalResourceCatalog: () =>
     request<ClinicalResource[]>("/clinical-resources/catalog"),
@@ -50,21 +49,6 @@ export const clinicalApi = {
     request<ClinicalResource>(`/clinical-resources/${id}/finalize`, {
       method: "POST",
     }),
-  clinicalRecords: (patientId = "") =>
-    request<ClinicalRecord[]>(
-      `/clinical-records?patientId=${encodeURIComponent(patientId)}`,
-    ),
-  saveClinicalRecord: (input: ClinicalRecordInput) =>
-    request<ClinicalRecord>("/clinical-records", {
-      method: "POST",
-      body: JSON.stringify(input),
-    }),
-  finalizeClinicalRecord: (id: string) =>
-    request<ClinicalRecord>(`/clinical-records/${id}/finalize`, {
-      method: "POST",
-    }),
-  clinicalRecordRevisions: (id: string) =>
-    request<ClinicalRecordRevision[]>(`/clinical-records/${id}/revisions`),
   clinicalWorkspace: (patientId: string) =>
     request<ClinicalWorkspace>(`/clinical-workspace/${patientId}`),
   exportClinicalWorkspace: (patientId: string) =>
@@ -80,11 +64,13 @@ export const clinicalApi = {
     }),
   clinicalAttachmentContent: (id: string) =>
     request<ClinicalAttachmentContent>(`/clinical-attachments/${id}/content`),
-  createClinicalAddendum: (input: ClinicalAddendumInput) =>
-    request<ClinicalAddendum>("/clinical-addenda", {
+  createClinicalAlert: (input: ClinicalAlertInput) =>
+    request<ClinicalAlert>("/clinical-alerts", {
       method: "POST",
       body: JSON.stringify(input),
     }),
+  archiveClinicalAlert: (id: string) =>
+    request<void>(`/clinical-alerts/${id}`, { method: "DELETE" }),
   createAssessmentTemplate: (input: AssessmentTemplateInput) =>
     request<AssessmentTemplate>("/assessment-templates", {
       method: "POST",

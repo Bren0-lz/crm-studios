@@ -8,6 +8,12 @@
 @import "./styles/08-settings.css";
 @import "./styles/09-finance.css";
 @import "./styles/10-commercial-communications.css";
+@import "./styles/13-campaigns.css";
+@import "./styles/14-profile.css";
 @import "./styles/11-responsive.css";
 
 @import "./styles/12-client-workspace.css";
+@import "./styles/15-reports.css";
+@import "./styles/16-sales.css";
+@import "./styles/17-waitlist.css";
+@import "./styles/18-events.css";

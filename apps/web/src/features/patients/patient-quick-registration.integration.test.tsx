@@ -30,6 +30,103 @@ async function openNewClient() {
 }
 
 describe("quick client registration", () => {
+  it("requires CPF and blocks an invalid CPF before sending the registration", async () => {
+    login();
+    vi.mocked(fetch).mockImplementation(
+      async () => ({ ok: true, status: 200, json: async () => [] }) as Response,
+    );
+    const dialog = await openNewClient();
+    fireEvent.change(within(dialog).getByLabelText("Nome completo"), {
+      target: { value: "Cliente CPF obrigatório" },
+    });
+    fireEvent.change(
+      within(
+        within(dialog).getByRole("group", { name: "Contato" }),
+      ).getByLabelText("Telefone"),
+      { target: { value: "11999998888" } },
+    );
+    fireEvent.change(
+      within(
+        within(dialog).getByRole("group", { name: "Contato" }),
+      ).getByLabelText("WhatsApp"),
+      { target: { value: "11999998888" } },
+    );
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Usar os dados do cliente" }),
+    );
+    const save = within(dialog).getByRole("button", { name: "Salvar cliente" });
+    expect(save).toBeDisabled();
+    expect(within(dialog).getByText("Falta: CPF.")).toBeVisible();
+    const cpf = within(dialog).getByLabelText("CPF");
+    fireEvent.change(cpf, {
+      target: { value: "11111111111" },
+    });
+    fireEvent.submit(save.closest("form")!);
+    expect(
+      await within(dialog).findByText("Informe um CPF válido.", {
+        selector: ".form-error",
+      }),
+    ).toBeVisible();
+    expect(
+      vi
+        .mocked(fetch)
+        .mock.calls.some(([, options]) => options?.method === "POST"),
+    ).toBe(false);
+    fireEvent.change(cpf, {
+      target: { value: "52998224725" },
+    });
+    expect(save).toBeEnabled();
+  });
+  it("requires WhatsApp and emergency contact and copies the client's own data (CD1)", async () => {
+    login();
+    vi.mocked(fetch).mockImplementation(
+      async () => ({ ok: true, status: 200, json: async () => [] }) as Response,
+    );
+    const dialog = await openNewClient();
+    const contact = within(dialog).getByRole("group", { name: "Contato" });
+    const emergency = within(dialog).getByRole("group", {
+      name: "Contato de emergência",
+    });
+    // À vista, fora de "Mais informações": campo obrigatório não fica escondido.
+    expect(emergency.closest("details")).toBeNull();
+    expect(within(contact).getByLabelText("WhatsApp")).toBeRequired();
+    expect(within(emergency).getByLabelText("Nome")).toBeRequired();
+    expect(within(emergency).getByLabelText("Telefone")).toBeRequired();
+    fireEvent.change(within(dialog).getByLabelText("Nome completo"), {
+      target: { value: "Cliente Sem Contato" },
+    });
+    fireEvent.change(within(dialog).getByLabelText("CPF"), {
+      target: { value: "52998224725" },
+    });
+    fireEvent.change(within(contact).getByLabelText("Telefone"), {
+      target: { value: "11999998888" },
+    });
+    expect(
+      within(dialog).getByText(
+        "Falta: WhatsApp, Nome do contato de emergência, Telefone do contato de emergência.",
+      ),
+    ).toBeVisible();
+    fireEvent.change(within(contact).getByLabelText("WhatsApp"), {
+      target: { value: "11977776666" },
+    });
+    // Quem não tem contato de emergência repete o próprio nome e telefone.
+    fireEvent.click(
+      within(emergency).getByRole("button", {
+        name: "Usar os dados do cliente",
+      }),
+    );
+    expect(within(emergency).getByLabelText("Nome")).toHaveValue(
+      "Cliente Sem Contato",
+    );
+    expect(within(emergency).getByLabelText("Telefone")).toHaveValue(
+      "(11) 99999-8888",
+    );
+    expect(within(dialog).queryByText(/^Falta:/)).toBeNull();
+    expect(
+      within(dialog).getByRole("button", { name: "Salvar cliente" }),
+    ).toBeEnabled();
+  });
+
   it("keeps the essentials visible and collapses the rest under Mais informações", async () => {
     login();
     vi.mocked(fetch).mockImplementation(
@@ -38,6 +135,7 @@ describe("quick client registration", () => {
     const dialog = await openNewClient();
     for (const label of [
       "Nome completo",
+      "CPF",
       "Telefone",
       "E-mail",
       "Data de nascimento",
@@ -47,7 +145,7 @@ describe("quick client registration", () => {
       .getByText("Mais informações")
       .closest("details")!;
     expect(more).not.toHaveAttribute("open");
-    expect(more).toContainElement(within(dialog).getByLabelText("CPF"));
+    expect(within(dialog).getByLabelText("CPF")).toBeRequired();
     expect(more).toContainElement(within(dialog).getByLabelText("Observações"));
   });
 
@@ -79,6 +177,53 @@ describe("quick client registration", () => {
     expect(within(dialog).getByLabelText("Bairro")).toHaveValue("Sé");
     expect(within(dialog).getByLabelText("Cidade")).toHaveValue("São Paulo");
     expect(within(dialog).getByLabelText("UF")).toHaveValue("SP");
+  });
+
+  it("asks the residence details that match the chosen residence type", async () => {
+    login();
+    vi.mocked(fetch).mockImplementation(
+      async () => ({ ok: true, status: 200, json: async () => [] }) as Response,
+    );
+    const dialog = await openNewClient();
+    const address = within(dialog).getByRole("group", { name: "Endereço" });
+    for (const label of ["CEP", "Endereço", "Número", "Complemento"])
+      expect(within(address).getByLabelText(label)).toBeInTheDocument();
+    expect(
+      within(address).queryByLabelText("Número do apartamento"),
+    ).not.toBeInTheDocument();
+
+    fireEvent.change(within(address).getByLabelText("Tipo de residência"), {
+      target: { value: "apartment" },
+    });
+    for (const label of ["Nome do edifício", "Bloco/torre", "Andar"])
+      expect(within(address).getByLabelText(label)).toBeInTheDocument();
+    fireEvent.change(within(address).getByLabelText("Número do apartamento"), {
+      target: { value: "302" },
+    });
+
+    fireEvent.change(within(address).getByLabelText("Tipo de residência"), {
+      target: { value: "condominium" },
+    });
+    expect(within(address).getByLabelText("Nome do condomínio")).toBeInTheDocument();
+    expect(within(address).getByLabelText("Quadra/bloco")).toBeInTheDocument();
+    expect(within(address).queryByLabelText("Andar")).not.toBeInTheDocument();
+    // O número digitado para o apartamento continua no campo da unidade.
+    expect(within(address).getByLabelText("Número da casa/lote")).toHaveValue(
+      "302",
+    );
+
+    fireEvent.change(within(address).getByLabelText("Tipo de residência"), {
+      target: { value: "house" },
+    });
+    expect(
+      within(address).queryByLabelText("Número da casa/lote"),
+    ).not.toBeInTheDocument();
+    fireEvent.change(within(address).getByLabelText("Tipo de residência"), {
+      target: { value: "condominium" },
+    });
+    expect(within(address).getByLabelText("Número da casa/lote")).toHaveValue(
+      "",
+    );
   });
 
   it("masks partial CEPs", () => {

@@ -9,10 +9,12 @@ import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import App from "../../App";
 import {
+  appointmentPricingWithPlan,
   fillAppointmentForm,
   storedUser,
 } from "../../test-support/legacy-fixtures";
 import "../../test-support/legacy-setup";
+import { fillRequiredContact } from "../../test-support/patient-actions";
 
 describe("appointment client search and creation", () => {
   const existing = {
@@ -42,6 +44,8 @@ describe("appointment client search and creation", () => {
     );
     vi.mocked(fetch).mockImplementation(async (input, init) => {
       const url = String(input);
+      const pricing = appointmentPricingWithPlan(url);
+      if (pricing) return pricing;
       if (init?.method === "POST")
         return url.endsWith("/patients")
           ? response(created, 201)
@@ -68,7 +72,6 @@ describe("appointment client search and creation", () => {
                       {
                         id: "77777777-7777-4777-8777-777777777777",
                         name: "Pilates",
-                        priceInCents: 10000,
                       },
                     ]
                   : [],
@@ -131,6 +134,10 @@ describe("appointment client search and creation", () => {
       name: "Data",
     }).textContent;
     const originalTime = startsAt.value;
+    fireEvent.change(
+      within(appointment).getByRole("combobox", { name: "Cliente" }),
+      { target: { value: "Helena" } },
+    );
     fireEvent.click(
       within(appointment).getByRole("button", { name: "Adicionar cliente" }),
     );
@@ -145,6 +152,10 @@ describe("appointment client search and creation", () => {
     fireEvent.change(within(client).getByLabelText("Nome completo"), {
       target: { value: created.fullName },
     });
+    fireEvent.change(within(client).getByLabelText("CPF"), {
+      target: { value: "52998224725" },
+    });
+    fillRequiredContact(client);
     fireEvent.change(
       within(
         within(client).getByRole("group", { name: /^Contato$/ }),
@@ -177,6 +188,14 @@ describe("appointment client search and creation", () => {
     expect(
       within(appointment).getByLabelText("Número de ocorrências"),
     ).toHaveValue(6);
+    // Agendar exige plano (AP4): espera o plano do cliente entrar no formulário.
+    await waitFor(() =>
+      expect(
+        within(appointment).getByRole("button", {
+          name: "Confirmar atendimento",
+        }),
+      ).toBeEnabled(),
+    );
     fireEvent.click(
       within(appointment).getByRole("button", {
         name: "Confirmar atendimento",
@@ -196,9 +215,13 @@ describe("appointment client search and creation", () => {
     });
   });
 
-  it("closes only the client modal on Escape and keeps the previous selection", async () => {
+  it("closes only the client modal on Escape and keeps the search text", async () => {
     const appointment = await open();
     await fillAppointmentForm(appointment, existing.fullName);
+    fireEvent.change(
+      within(appointment).getByRole("combobox", { name: "Cliente" }),
+      { target: { value: "Helena" } },
+    );
     fireEvent.click(
       within(appointment).getByRole("button", { name: "Adicionar cliente" }),
     );
@@ -209,13 +232,17 @@ describe("appointment client search and creation", () => {
     expect(appointment).toBeInTheDocument();
     expect(
       within(appointment).getByRole("combobox", { name: "Cliente" }),
-    ).toHaveValue(existing.fullName);
+    ).toHaveValue("Helena");
     expect(document.body).toHaveClass("modal-open");
   });
 
   it("keeps both forms and the entered data when client creation fails", async () => {
     const appointment = await open();
     await fillAppointmentForm(appointment, existing.fullName);
+    fireEvent.change(
+      within(appointment).getByRole("combobox", { name: "Cliente" }),
+      { target: { value: "Helena" } },
+    );
     fireEvent.click(
       within(appointment).getByRole("button", { name: "Adicionar cliente" }),
     );
@@ -223,6 +250,10 @@ describe("appointment client search and creation", () => {
     fireEvent.change(within(client).getByLabelText("Nome completo"), {
       target: { value: created.fullName },
     });
+    fireEvent.change(within(client).getByLabelText("CPF"), {
+      target: { value: "52998224725" },
+    });
+    fillRequiredContact(client);
     vi.mocked(fetch).mockResolvedValue(
       response({ code: "DUPLICATE", message: "CPF já cadastrado." }, 409),
     );
@@ -242,7 +273,7 @@ describe("appointment client search and creation", () => {
     ).not.toBeInTheDocument();
     expect(
       within(appointment).getByRole("combobox", { name: "Cliente" }),
-    ).toHaveValue(existing.fullName);
+    ).toHaveValue("Helena");
   });
 
   it("searches CPF and selects a result by keyboard, clearing selection when edited", async () => {

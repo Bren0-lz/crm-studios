@@ -9,152 +9,203 @@ import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
 import { ActionModal } from "../../shared/components/ActionModal";
 import { CpfInput } from "../../shared/components/CpfInput";
 import { PhoneInput } from "../../shared/components/PhoneInput";
-import { formatCep, lookupCep } from "../../shared/lib/cep";
+import { PatientProfileFields } from "../patients/index";
 
 /**
- * Conversão do lead: CPF, contato de emergência e endereço (que o lead não guarda) são
- * pedidos aqui, todos opcionais.
+ * Conversão do lead: o mesmo cadastro do "Novo cliente", já preenchido com o que o lead
+ * guarda; o que ainda não foi informado fica em branco. CPF, WhatsApp e contato de emergência
+ * são obrigatórios (CD1).
  */
 export function LeadConvertModal({
   lead,
+  eyebrow = "CRM comercial",
+  title = "Converter lead em cliente",
+  confirmLabel = "Converter em cliente",
   onClose,
   onConfirm,
 }: {
   lead: Lead;
+  /** Módulo de origem (ex.: "Eventos"); o padrão é o CRM comercial. */
+  eyebrow?: string;
+  title?: string;
+  confirmLabel?: string;
   onClose: () => void;
   onConfirm: (input: LeadConversionInput) => Promise<void>;
 }) {
   const [form, setForm] = useState<LeadConversionInput>({
+    fullName: lead.fullName,
     cpf: lead.cpf ?? "",
-    emergencyContactName: lead.emergencyContactName ?? "",
-    emergencyContactPhone: lead.emergencyContactPhone ?? "",
+    phone: lead.phone,
+    whatsapp: lead.whatsapp ?? "",
+    email: lead.email ?? "",
+    birthDate: lead.birthDate ?? "",
     postalCode: lead.postalCode ?? "",
+    residenceType: lead.residenceType ?? "",
     address: lead.address ?? "",
+    addressNumber: lead.addressNumber ?? "",
+    complement: lead.complement ?? "",
+    buildingName: lead.buildingName ?? "",
+    block: lead.block ?? "",
+    floor: lead.floor ?? "",
+    unit: lead.unit ?? "",
+    referencePoint: lead.referencePoint ?? "",
     neighborhood: lead.neighborhood ?? "",
     city: lead.city ?? "",
     state: lead.state ?? "",
+    occupation: lead.occupation ?? "",
+    source: lead.source ?? "",
+    gender: lead.gender ?? "",
+    clientSince: lead.clientSince ?? "",
+    imageConsent: lead.imageConsent ?? false,
+    emergencyContactName: lead.emergencyContactName ?? "",
+    emergencyContactPhone: lead.emergencyContactPhone ?? "",
+    notes: lead.notes ?? "",
   });
-  const [cepStatus, setCepStatus] = useState("");
   const dirty = useFormDirty(form);
   const field = <K extends keyof LeadConversionInput>(
     key: K,
     value: LeadConversionInput[K],
   ) => setForm((current) => ({ ...current, [key]: value }));
-
-  async function changeCep(value: string) {
-    const formatted = formatCep(value);
-    field("postalCode", formatted);
-    if (formatted.replace(/\D/g, "").length !== 8) {
-      setCepStatus("");
-      return;
-    }
-    setCepStatus("Buscando endereço…");
-    try {
-      const found = await lookupCep(formatted);
-      if (!found) {
-        setCepStatus("CEP não encontrado. Preencha o endereço manualmente.");
-        return;
-      }
-      setForm((current) => ({
-        ...current,
-        ...(found.address ? { address: found.address } : {}),
-        ...(found.neighborhood ? { neighborhood: found.neighborhood } : {}),
-        ...(found.city ? { city: found.city } : {}),
-        ...(found.state ? { state: found.state } : {}),
-      }));
-      setCepStatus("Endereço preenchido pelo CEP. Confira o número.");
-    } catch {
-      setCepStatus("Não foi possível consultar o CEP. Preencha manualmente.");
-    }
-  }
+  const missing = [
+    ...(form.fullName?.trim() ? [] : ["Nome completo"]),
+    ...(form.cpf.trim() ? [] : ["CPF"]),
+    ...(form.phone?.trim() ? [] : ["Telefone"]),
+    ...(form.whatsapp?.trim() ? [] : ["WhatsApp"]),
+    ...(form.emergencyContactName?.trim()
+      ? []
+      : ["Nome do contato de emergência"]),
+    ...(form.emergencyContactPhone?.trim()
+      ? []
+      : ["Telefone do contato de emergência"]),
+  ];
 
   return (
     <ActionModal
-      eyebrow="CRM comercial"
-      title="Converter lead em cliente"
+      eyebrow={eyebrow}
+      title={title}
       subtitle={`${lead.fullName} · ${formatPhone(lead.phone)}`}
-      effect={`${lead.fullName} passa a ser cliente: se já houver um cliente com o mesmo telefone, e-mail ou CPF, o lead é ligado a ele; senão, um cadastro novo é criado. Os agendamentos experimentais vão para o cliente e o lead vai para a coluna Ganhos. Os dados abaixo são opcionais e completam o cadastro.`}
-      validate={() =>
-        form.cpf && !isValidCpf(form.cpf) ? "Informe um CPF válido." : ""
-      }
+      confirmLabel={confirmLabel}
+      validate={() => (!isValidCpf(form.cpf) ? "Informe um CPF válido." : "")}
+      missing={missing}
       dirty={dirty}
       onConfirm={() => onConfirm(form)}
       onClose={onClose}
     >
-      <label>
+      <label className="span-2">
+        Nome completo
+        <input
+          required
+          maxLength={160}
+          value={form.fullName ?? ""}
+          onChange={(event) => field("fullName", event.target.value)}
+        />
+      </label>
+      <label className="span-2">
         CPF
         <CpfInput
-          value={form.cpf ?? ""}
+          required
+          value={form.cpf}
           onChange={(cpf) => field("cpf", cpf)}
         />
       </label>
-      <label>
-        Contato de emergência
-        <input
-          maxLength={120}
-          value={form.emergencyContactName ?? ""}
-          onChange={(event) =>
-            field("emergencyContactName", event.target.value)
+      <fieldset className="form-fieldset span-2">
+        <legend>Contato</legend>
+        <div className="form-fieldset-grid">
+          <label>
+            Telefone
+            <PhoneInput
+              required
+              value={form.phone ?? ""}
+              onChange={(digits) => field("phone", digits)}
+            />
+          </label>
+          <label>
+            WhatsApp
+            <PhoneInput
+              required
+              value={form.whatsapp ?? ""}
+              onChange={(digits) => field("whatsapp", digits)}
+            />
+          </label>
+        </div>
+      </fieldset>
+      <fieldset className="form-fieldset emergency-fieldset span-2">
+        <legend>Contato de emergência</legend>
+        <div className="form-fieldset-grid">
+          <label>
+            Nome
+            <input
+              autoComplete="off"
+              maxLength={160}
+              placeholder="Ex.: Maria Souza (mãe)"
+              required
+              value={form.emergencyContactName ?? ""}
+              onChange={(event) =>
+                field("emergencyContactName", event.target.value)
+              }
+            />
+          </label>
+          <label>
+            Telefone
+            <PhoneInput
+              required
+              value={form.emergencyContactPhone ?? ""}
+              onChange={(digits) => field("emergencyContactPhone", digits)}
+            />
+          </label>
+        </div>
+        {/* Quem não tem contato de emergência repete o próprio nome e telefone. */}
+        <button
+          className="secondary-button"
+          type="button"
+          disabled={!form.fullName?.trim() && !form.phone?.trim()}
+          onClick={() =>
+            setForm((current) => ({
+              ...current,
+              emergencyContactName: current.fullName ?? "",
+              emergencyContactPhone: current.phone ?? "",
+            }))
           }
+        >
+          Usar os dados do cliente
+        </button>
+      </fieldset>
+      <label>
+        E-mail
+        <input
+          type="email"
+          value={form.email ?? ""}
+          onChange={(event) => field("email", event.target.value)}
         />
       </label>
       <label>
-        Telefone de emergência
-        <PhoneInput
-          value={form.emergencyContactPhone ?? ""}
-          onChange={(value) => field("emergencyContactPhone", value)}
+        Data de nascimento
+        <input
+          type="date"
+          value={form.birthDate ?? ""}
+          onChange={(event) => field("birthDate", event.target.value)}
         />
       </label>
-      <div className="field-with-hint">
-        <label>
-          CEP
-          <input
-            inputMode="numeric"
-            autoComplete="postal-code"
-            placeholder="00000-000"
-            maxLength={9}
-            value={form.postalCode ?? ""}
-            onChange={(event) => void changeCep(event.target.value)}
+      <details className="more-info span-2" open>
+        <summary>Mais informações</summary>
+        <div className="form-grid">
+          <PatientProfileFields
+            form={form}
+            onChange={(key, value) =>
+              setForm((current) => ({ ...current, [key]: value }))
+            }
           />
-        </label>
-        {cepStatus && (
-          <small className="field-hint" role="status">
-            {cepStatus}
-          </small>
-        )}
-      </div>
-      <label className="span-2">
-        Endereço
-        <input
-          maxLength={300}
-          value={form.address ?? ""}
-          onChange={(event) => field("address", event.target.value)}
-        />
-      </label>
-      <label>
-        Bairro
-        <input
-          maxLength={100}
-          value={form.neighborhood ?? ""}
-          onChange={(event) => field("neighborhood", event.target.value)}
-        />
-      </label>
-      <label>
-        Cidade
-        <input
-          maxLength={100}
-          value={form.city ?? ""}
-          onChange={(event) => field("city", event.target.value)}
-        />
-      </label>
-      <label>
-        UF
-        <input
-          maxLength={2}
-          value={form.state ?? ""}
-          onChange={(event) => field("state", event.target.value.toUpperCase())}
-        />
-      </label>
+          <label className="span-2">
+            Observações
+            <textarea
+              rows={3}
+              maxLength={2000}
+              value={form.notes ?? ""}
+              onChange={(event) => field("notes", event.target.value)}
+            />
+          </label>
+        </div>
+      </details>
     </ActionModal>
   );
 }

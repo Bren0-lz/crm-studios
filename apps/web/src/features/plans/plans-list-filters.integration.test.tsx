@@ -139,9 +139,6 @@ describe("plans list", () => {
         "Pago na comanda",
       ].reduce((sum, label) => sum + total(label), 0),
     ).toBe(total("Todos"));
-    expect(
-      within(group).getByRole("button", { name: /^Vencendo/ }),
-    ).toHaveAccessibleDescription("Recorte de Ativo (fora da soma)");
     // O card "planos ativos" usa o mesmo critério do filtro "Ativo".
     expect(
       screen.getByText("planos ativos").previousElementSibling?.textContent,

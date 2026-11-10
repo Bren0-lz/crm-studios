@@ -1,12 +1,16 @@
 import { z } from "zod";
 import {
+  agendaConflictCheckInputSchema,
   appointmentInputSchema,
+  appointmentPromotionSchema,
   appointmentRescheduleInputSchema,
   appointmentStatusSchema,
+  autoFinalizationSettingsInputSchema,
   appointmentUpdateInputSchema,
   appointmentVisitTypeSchema,
   groupAttendanceInputSchema,
   groupClassInputSchema,
+  groupClassRenameSchema,
   groupClassUpdateSchema,
   groupEnrollmentInputSchema,
   groupWeeklySlotsSchema,
@@ -23,6 +27,8 @@ export type AppointmentVisitType = z.infer<typeof appointmentVisitTypeSchema>;
 
 export type AppointmentInput = z.infer<typeof appointmentInputSchema>;
 
+export type AppointmentPromotion = z.infer<typeof appointmentPromotionSchema>;
+
 export type AppointmentRescheduleInput = z.infer<
   typeof appointmentRescheduleInputSchema
 >;
@@ -35,6 +41,17 @@ export type RecurringAppointmentInput = z.infer<
   typeof recurringAppointmentInputSchema
 >;
 
+export type AgendaConflictCheckInput = z.infer<
+  typeof agendaConflictCheckInputSchema
+>;
+
+/** Conflito de um horário planejado: atendimento, aula de turma, bloqueio, feriado ou outro item do próprio lote. */
+export interface AgendaConflict {
+  key: string;
+  kind: "appointment" | "group" | "block" | "holiday" | "batch";
+  label: string;
+}
+
 export type LeadAppointmentInput = z.infer<typeof leadAppointmentInputSchema>;
 
 export type ScheduleBlockInput = z.infer<typeof scheduleBlockInputSchema>;
@@ -42,6 +59,8 @@ export type ScheduleBlockInput = z.infer<typeof scheduleBlockInputSchema>;
 export type GroupWeeklySlot = z.infer<typeof groupWeeklySlotsSchema>[number];
 
 export type GroupClassInput = z.infer<typeof groupClassInputSchema>;
+
+export type GroupClassRenameInput = z.infer<typeof groupClassRenameSchema>;
 
 export type GroupClassUpdateInput = z.infer<typeof groupClassUpdateSchema>;
 
@@ -59,6 +78,8 @@ export type ReplacementBookingInput = z.infer<
  * repete o nome do lead (`leadName`) para a agenda exibir o nome sem ramificar.
  */
 export interface Appointment extends Omit<AppointmentInput, "patientId"> {
+  /** Filial a que pertence (ver `branches`). */
+  branchId?: string;
   predecessorId?: string;
   absenceReason?: string;
   id: string;
@@ -76,6 +97,8 @@ export interface Appointment extends Omit<AppointmentInput, "patientId"> {
   createdAt: string;
   updatedAt: string;
   seriesId?: string;
+  /** Quando a finalização automática marcou como realizado (ausente = registrado pela equipe). */
+  autoCompletedAt?: string;
 }
 
 export interface AppointmentRescheduleEvent {
@@ -98,6 +121,8 @@ export interface AppointmentRescheduleEvent {
 }
 
 export interface ScheduleBlock extends ScheduleBlockInput {
+  /** Filial a que pertence (ver `branches`). */
+  branchId?: string;
   id: string;
   clinicId: string;
   professionalName?: string;
@@ -108,6 +133,8 @@ export interface ScheduleBlock extends ScheduleBlockInput {
 }
 
 export interface GroupClass extends GroupClassInput {
+  /** Filial a que pertence (ver `branches`). */
+  branchId?: string;
   id: string;
   clinicId: string;
   name: string;
@@ -136,6 +163,8 @@ export interface GroupEnrollment extends GroupEnrollmentInput {
 }
 
 export interface GroupSession {
+  /** Filial a que pertence (ver `branches`). */
+  branchId?: string;
   id: string;
   clinicId: string;
   groupId: string;
@@ -183,12 +212,17 @@ export interface GroupWorkspace {
   enrollments: GroupEnrollment[];
   sessions: GroupSession[];
   attendance: GroupAttendance[];
-  replacementCredits: ReplacementCredit[];
+  replacementCredits: (ReplacementCredit & { sourceGroupId: string })[];
 }
 
 export type ClinicalAppointmentOption = Pick<
   Appointment,
-  "id" | "startsAt" | "patientName" | "professionalName" | "status"
+  | "id"
+  | "patientId"
+  | "startsAt"
+  | "patientName"
+  | "professionalName"
+  | "status"
 >;
 
 export interface AppointmentReportBreakdown {
@@ -207,4 +241,13 @@ export interface Holiday extends HolidayInput {
   id: string;
   clinicId: string;
   createdAt: string;
+}
+
+export type AutoFinalizationSettingsInput = z.infer<
+  typeof autoFinalizationSettingsInputSchema
+>;
+
+export interface AutoFinalizationSettings extends AutoFinalizationSettingsInput {
+  /** Última alteração (ausente = nunca configurada, valem os padrões). */
+  updatedAt?: string;
 }

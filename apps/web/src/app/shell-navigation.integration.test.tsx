@@ -77,13 +77,21 @@ describe("shell navigation", () => {
         "Planos e sessões",
         "Prontuários",
       ],
-      Relacionamento: ["CRM comercial", "Contatos sugeridos", "Comunicações"],
+      Relacionamento: [
+        "CRM comercial",
+        "Eventos",
+        "Contatos sugeridos",
+        "Lista de espera",
+        "Comunicações",
+      ],
       Gestão: [
         "Contratos",
+        "Vendas de produtos",
         "Financeiro",
         "Relatórios",
         "Histórico",
         "Configurações",
+        "Meu perfil",
       ],
     };
     for (const [name, labels] of Object.entries(expected)) {
@@ -118,9 +126,12 @@ describe("shell navigation", () => {
         within(nav).queryByRole("group", { name: "Relacionamento" }),
       ).not.toBeInTheDocument();
       expect(
-        within(nav).queryByRole("group", { name: "Gestão" }) !== null,
-      ).toBe(modules.includes("finance"));
-      expect(within(nav).getAllByRole("link")).toHaveLength(modules.length + 1);
+        within(nav).getByRole("group", { name: "Gestão" }),
+      ).toBeInTheDocument();
+      expect(
+        within(nav).getByRole("link", { name: "Meu perfil" }),
+      ).toHaveAttribute("href", "/perfil");
+      expect(within(nav).getAllByRole("link")).toHaveLength(modules.length + 2);
       expect(screen.queryByRole("button", { name: "SOS" }) !== null).toBe(
         modules.includes("agenda"),
       );
@@ -128,16 +139,29 @@ describe("shell navigation", () => {
     },
   );
 
-  it("preserves navigation guards and closes the mobile menu when a link is selected", async () => {
-    renderShell(["agenda"], true);
-    const toggle = screen.getByRole("button", { name: "Abrir menu" });
-    fireEvent.click(toggle);
-    expect(toggle).toHaveAttribute("aria-expanded", "true");
-    fireEvent.click(screen.getByRole("link", { name: "Agenda" }));
-    expect(screen.getByLabelText("Rota atual")).toHaveTextContent(/^\/$/);
-    expect(toggle).toHaveAttribute("aria-expanded", "false");
-    await waitFor(() => expect(api.me).toHaveBeenCalled());
-  });
+  it.each([false, true])(
+    "keeps navigation available without opening the phone menu when guarded=%s",
+    async (block) => {
+      renderShell(["agenda"], block);
+      const nav = screen.getByRole("navigation", {
+        name: "Navegação principal",
+      });
+      // O botão de abrir/fechar existe, mas o CSS só o mostra no celular (até 700px).
+      expect(
+        screen.getByRole("button", { name: "Abrir menu" }),
+      ).toHaveAttribute("aria-expanded", "false");
+      fireEvent.click(screen.getByRole("link", { name: "Agenda" }));
+      expect(screen.getByLabelText("Rota atual")).toHaveTextContent(
+        block ? /^\/$/ : /^\/agenda$/,
+      );
+      expect(nav).toBeVisible();
+      expect(within(nav).getByRole("link", { name: "Agenda" })).toHaveAttribute(
+        "title",
+        "Agenda",
+      );
+      await waitFor(() => expect(api.me).toHaveBeenCalled());
+    },
+  );
 
   it("opens SOS from the header in a viewport portal, retrieves contacts and restores focus", async () => {
     vi.spyOn(api, "emergencyContact").mockResolvedValue({

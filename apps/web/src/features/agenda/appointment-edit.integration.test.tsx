@@ -8,6 +8,10 @@ import {
   AuthorizationContext,
 } from "../../authorization-context";
 import { jsonResponse } from "../../test-support/http";
+import {
+  appointmentPricingWithPlan,
+  fixturePlanId,
+} from "../../test-support/legacy-fixtures";
 import "../../test-support/legacy-setup";
 import { AppointmentDetailsModal } from "./AppointmentDetailsModal";
 
@@ -28,7 +32,6 @@ const pilates = {
   id: "44444444-4444-4444-8444-444444444444",
   name: "Pilates",
   durationMinutes: 60,
-  priceInCents: 9000,
   color: "#547A6B",
   professionalIds: [],
   roomIds: [],
@@ -37,7 +40,6 @@ const depilation = {
   id: "77777777-7777-4777-8777-777777777777",
   name: "Depilação pernas",
   durationMinutes: 45,
-  priceInCents: 12000,
   color: "#db8290",
   professionalIds: [carolina],
   roomIds: [aestheticsRoom],
@@ -46,7 +48,6 @@ const massage = {
   id: "88888888-8888-4888-8888-888888888888",
   name: "Massagem",
   durationMinutes: 50,
-  priceInCents: 10000,
   color: "#db8290",
   professionalIds: [beatriz],
   roomIds: [],
@@ -105,6 +106,8 @@ function mount(
 function mockApi(saved: Appointment) {
   vi.mocked(fetch).mockImplementation(async (input, init) => {
     const url = new URL(String(input), "http://localhost");
+    const pricing = appointmentPricingWithPlan(String(input));
+    if (pricing) return pricing;
     if (init?.method === "PATCH") return jsonResponse(saved);
     if (url.pathname.endsWith("/services"))
       return jsonResponse([pilates, depilation, massage]);
@@ -131,14 +134,18 @@ describe("appointment details footer and edit (QM6)", () => {
       }),
     ).toHaveClass("danger-button");
     const main = within(groups[1] as HTMLElement);
+    for (const name of ["Editar", "Remarcar atendimento"])
+      expect(main.getByRole("button", { name })).toBeInTheDocument();
+    // Fluxo de presença numa linha própria, abaixo da gestão do atendimento.
+    const attendance = within(
+      footer.querySelector<HTMLElement>(".appointment-attendance-actions")!,
+    );
     for (const name of [
-      "Editar",
-      "Remarcar atendimento",
       "Confirmar presença",
       "Marcar falta",
       "Marcar como realizado",
     ])
-      expect(main.getByRole("button", { name })).toBeInTheDocument();
+      expect(attendance.getByRole("button", { name })).toBeInTheDocument();
 
     const css = readFileSync(
       `${process.cwd()}/src/styles/05-agenda.css`,
@@ -216,6 +223,15 @@ describe("appointment details footer and edit (QM6)", () => {
     fireEvent.change(within(dialog).getByLabelText("Observação"), {
       target: { value: "Chegar 10 min antes" },
     });
+    // Trocar o serviço exige plano do cliente com o novo serviço (AP4).
+    await vi.waitFor(() =>
+      expect(within(dialog).getByLabelText("Plano")).toHaveValue(fixturePlanId),
+    );
+    await vi.waitFor(() =>
+      expect(
+        within(dialog).getByRole("button", { name: "Salvar alterações" }),
+      ).toBeEnabled(),
+    );
     fireEvent.click(
       within(dialog).getByRole("button", { name: "Salvar alterações" }),
     );
@@ -229,6 +245,7 @@ describe("appointment details footer and edit (QM6)", () => {
       serviceId: depilation.id,
       roomId: aestheticsRoom,
       notes: "Chegar 10 min antes",
+      planId: fixturePlanId,
     });
     // Volta aos detalhes depois de salvar.
     expect(

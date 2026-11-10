@@ -1,4 +1,5 @@
 import {
+  act,
   fireEvent,
   render,
   screen,
@@ -13,6 +14,10 @@ import {
   relationshipSettingsFixture,
   storedUser,
 } from "../../test-support/legacy-fixtures";
+import {
+  documentEditor,
+  setDocumentText,
+} from "../../test-support/document-editor";
 import "../../test-support/legacy-setup";
 
 describe("settings tabs", () => {
@@ -81,8 +86,13 @@ describe("settings tabs", () => {
     expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual([
       "Clínica",
       "Usuários",
+      "Filiais",
+      "Abas do menu",
       "Planos",
       "Feriados",
+      "Finalização automática",
+      "Formas de pagamento",
+      "Integrações",
       "Etiquetas",
       "Cadastros",
       "Serviços e salas",
@@ -224,7 +234,6 @@ describe("settings tabs", () => {
                 id: "s1",
                 name: "Pilates em grupo",
                 durationMinutes: 60,
-                priceInCents: 0,
                 color: "#547A6B",
                 active: true,
               },
@@ -245,18 +254,40 @@ describe("settings tabs", () => {
     expect(
       await screen.findByRole("tab", { name: "Serviços e salas" }),
     ).toHaveAttribute("aria-selected", "true");
-    const panel = screen.getByRole("tabpanel");
+    const panel = screen.getByRole("tabpanel", { name: "Serviços e salas" });
     expect(
       within(panel).getByRole("heading", {
         name: "Serviços, salas e profissionais",
       }),
     ).toBeInTheDocument();
     expect(
+      within(panel)
+        .getAllByRole("tab")
+        .map((tab) => tab.textContent),
+    ).toEqual(["Serviços", "Salas", "Profissionais"]);
+    expect(
+      within(panel).getByRole("tab", { name: "Serviços" }),
+    ).toHaveAttribute("aria-selected", "true");
+    expect(
       await within(panel).findByText("Pilates em grupo"),
     ).toBeInTheDocument();
     const catalogs = await openSettingsSection("Cadastros");
     expect(
       within(catalogs).queryByText("Serviços, salas e profissionais"),
+    ).not.toBeInTheDocument();
+    expect(
+      within(catalogs)
+        .getAllByRole("tab")
+        .map((tab) => tab.textContent),
+    ).toEqual(["Comercial", "Clínico"]);
+    expect(
+      within(catalogs).getByRole("tab", { name: "Comercial" }),
+    ).toHaveAttribute("aria-selected", "true");
+    expect(
+      await within(catalogs).findByRole("region", { name: "Origens" }),
+    ).toBeInTheDocument();
+    expect(
+      within(catalogs).queryByRole("region", { name: "Interesses" }),
     ).not.toBeInTheDocument();
   });
 
@@ -440,6 +471,54 @@ describe("settings tabs", () => {
       ).toHaveLength(1);
     },
   );
+
+  it("saves the Pix key and message template with the chosen variables and previews it", async () => {
+    localStorage.setItem("crm.auth.token", "test-token");
+    localStorage.setItem("crm.auth.user", storedUser(owner));
+    mockSettings();
+    render(
+      <MemoryRouter initialEntries={["/configuracoes"]}>
+        <App />
+      </MemoryRouter>,
+    );
+    fireEvent.change(await screen.findByLabelText("Chave Pix"), {
+      target: { value: "financeiro@aryana.com.br" },
+    });
+    const message = screen.getByRole("textbox", { name: "Mensagem do Pix" });
+    expect(screen.getByText(/^Prévia: Olá, Marina!/)).toBeInTheDocument();
+    setDocumentText(message, "Oi {{nome}}! ");
+    act(() => {
+      documentEditor(message).commands.focus("end");
+    });
+    const toolbar = screen.getByRole("toolbar", {
+      name: "Inserir dados na mensagem do Pix",
+    });
+    fireEvent.click(
+      within(toolbar).getByRole("button", { name: "Inserir valor por sessão" }),
+    );
+    // O código aparece como etiqueta verde, igual às mensagens padrão.
+    expect(within(message).getByText("Valor por sessão")).toHaveClass(
+      "document-field",
+    );
+    fireEvent.click(
+      within(toolbar).getByRole("button", { name: "Inserir chave pix" }),
+    );
+    expect(
+      screen.getByText("Prévia: Oi Marina! R$ 60,00 financeiro@aryana.com.br"),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Salvar configurações" }),
+    );
+    await waitFor(() => {
+      const put = vi
+        .mocked(fetch)
+        .mock.calls.find(([, init]) => init?.method === "PUT");
+      expect(JSON.parse(String(put?.[1]?.body))).toMatchObject({
+        pixKey: "financeiro@aryana.com.br",
+        pixMessageTemplate: "Oi {{nome}}! {{valor_sessao}} {{chave_pix}}",
+      });
+    });
+  });
 
   it("keeps a clinic draft after a failed save, blocks duplicate writes and isolates user refreshes", async () => {
     localStorage.setItem("crm.auth.token", "test-token");

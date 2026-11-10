@@ -65,7 +65,6 @@ describe("application shell", () => {
                     {
                       id: appointment.serviceId,
                       durationMinutes: 50,
-                      priceInCents: 12000,
                     },
                   ]
                 : [];
@@ -294,6 +293,9 @@ describe("application shell", () => {
     fireEvent.change(screen.getByLabelText("Nome completo"), {
       target: { value: "Helena Pereira" },
     });
+    fireEvent.change(screen.getByLabelText("CPF"), {
+      target: { value: "52998224725" },
+    });
     fireEvent.change(screen.getByLabelText("WhatsApp"), {
       target: { value: "11 90000-1234" },
     });
@@ -354,11 +356,32 @@ describe("application shell", () => {
         amountInCents: 18000,
       },
       {
+        id: "receipt_signed:3",
+        kind: "receipt_signed",
+        occurredAt: "2026-09-11T15:00:00.000Z",
+        title: "Recibo assinado pelo cliente",
+        detail: "Pilates 1x · R$ 180,00 · por Helena Almeida",
+      },
+      {
+        id: "receipt_sent:3",
+        kind: "receipt_sent",
+        occurredAt: "2026-09-10T14:00:00.000Z",
+        title: "Recibo enviado para assinatura",
+        detail: "Pilates 1x · R$ 180,00",
+      },
+      {
         id: "satisfaction:4",
         kind: "satisfaction",
         occurredAt: "2026-09-05T13:00:00.000Z",
         title: "Avaliação de satisfação",
         score: 9,
+      },
+      {
+        id: "patient_updated:5",
+        kind: "patient_updated",
+        occurredAt: "2026-09-01T13:00:00.000Z",
+        title: "Cadastro editado por Aryana Dutra",
+        detail: "Apelido: (vazio) → Tres QA · Motivo: Pedido da cliente",
       },
     ];
     vi.mocked(fetch).mockImplementation(async (input) => {
@@ -398,11 +421,32 @@ describe("application shell", () => {
     expect(
       within(history).getByText("Pagamento estornado"),
     ).toBeInTheDocument();
+    // RC4: envio e assinatura do recibo da baixa ficam junto dos pagamentos.
+    expect(
+      within(history).getByText("Recibo enviado para assinatura"),
+    ).toBeInTheDocument();
+    expect(
+      within(history).getByText("Recibo assinado pelo cliente"),
+    ).toBeInTheDocument();
+    expect(within(history).getByText(/11 de set\./)).toBeInTheDocument();
     expect(
       within(history).queryByText("Atendimento de Pilates"),
     ).not.toBeInTheDocument();
     expect(
       within(history).queryByText("Avaliação de satisfação"),
+    ).not.toBeInTheDocument();
+    // Edições do cadastro também ficam no histórico da ficha, com filtro próprio.
+    fireEvent.click(within(history).getByRole("button", { name: "Cadastro" }));
+    expect(
+      within(history).getByText("Cadastro editado por Aryana Dutra"),
+    ).toBeInTheDocument();
+    expect(
+      within(history).getByText(
+        "Apelido: (vazio) → Tres QA · Motivo: Pedido da cliente",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      within(history).queryByText("Pagamento recebido"),
     ).not.toBeInTheDocument();
     fireEvent.click(within(history).getByRole("button", { name: "Todos" }));
     expect(
@@ -624,7 +668,6 @@ describe("application shell", () => {
                 completedSessions: 30,
               },
             ],
-            topByRevenue: [],
             activeClients: 1,
             ageDistribution: [
               { band: "0-17", label: "0 a 17 anos", clients: 0 },
@@ -648,6 +691,7 @@ describe("application shell", () => {
         <App />
       </MemoryRouter>,
     );
+    fireEvent.click(await screen.findByRole("tab", { name: "Clientes" }));
     const retentionPanel = (
       await screen.findByRole("heading", { name: "Retenção mês a mês" })
     ).closest("section") as HTMLElement;
@@ -656,6 +700,9 @@ describe("application shell", () => {
         "A retenção aceita no máximo 24 meses.",
       ),
     ).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("tab", { name: "Ranking e faixa etária" }),
+    );
     expect(await screen.findByText("1. Helena Almeida")).toBeInTheDocument();
     expect(screen.getByText("30 sessões")).toBeInTheDocument();
     expect(screen.getByText("Relatórios gerenciais")).toBeInTheDocument();
@@ -689,6 +736,11 @@ describe("application shell", () => {
     };
     let patients = [existing];
     const analysis = {
+      columns: [
+        { index: 0, title: "nome", samples: ["Ana Lima", "Helena A."] },
+        { index: 1, title: "telefone", samples: ["11999990000", "123"] },
+      ],
+      mapping: ["fullName", "phone"],
       rows: [
         {
           line: 2,
@@ -815,7 +867,10 @@ describe("application shell", () => {
       .mocked(fetch)
       .mock.calls.find(([url]) => String(url).endsWith("/patients/import"));
     expect(importCall?.[1]?.method).toBe("POST");
-    expect(JSON.parse(String(importCall?.[1]?.body))).toEqual(expectedFile);
+    expect(JSON.parse(String(importCall?.[1]?.body))).toEqual({
+      ...expectedFile,
+      mapping: ["fullName", "phone"],
+    });
     expect(
       await screen.findByRole("button", { name: "Editar Ana Lima" }),
     ).toBeInTheDocument();
@@ -825,6 +880,152 @@ describe("application shell", () => {
         .mock.calls.filter(([url]) => String(url).includes("/patients?search="))
         .length,
     ).toBe(2);
+  });
+
+  it("lets the user choose which system field each spreadsheet column fills", async () => {
+    localStorage.setItem("crm.auth.token", "test-token");
+    localStorage.setItem(
+      "crm.auth.user",
+      storedUser({
+        id: "22222222-2222-4222-8222-222222222222",
+        fullName: "Aryana Dutra",
+        email: "admin@movimenta.local",
+        role: "owner",
+      }),
+    );
+    const columns = [
+      { index: 0, title: "Aluno", samples: ["Dora Mapeada"] },
+      { index: 1, title: "Documento", samples: ["529.982.247-25"] },
+      { index: 2, title: "Cel.", samples: ["21988883333"] },
+      { index: 3, title: "", samples: [] },
+    ];
+    const mapped = {
+      columns,
+      mapping: ["fullName", "cpf", "phone", null],
+      rows: [
+        {
+          line: 2,
+          status: "valid",
+          fullName: "Dora Mapeada",
+          phone: "21988883333",
+          input: {
+            fullName: "Dora Mapeada",
+            cpf: "52998224725",
+            phone: "21988883333",
+            tags: [],
+          },
+        },
+      ],
+      errors: [],
+      totals: { valid: 1, error: 0, duplicate: 0 },
+    };
+    const previews: Array<{ mapping?: unknown[] }> = [];
+    vi.mocked(fetch).mockImplementation(async (input, init) => {
+      const url = String(input);
+      let body: unknown = [];
+      if (url.endsWith("/patients/import/preview")) {
+        const request = JSON.parse(String(init?.body)) as {
+          mapping?: (string | null)[];
+        };
+        previews.push(request);
+        const mapping = request.mapping ?? [null, null, null, null];
+        body =
+          mapping.includes("fullName") && mapping.includes("phone")
+            ? { ...mapped, mapping }
+            : {
+                columns,
+                mapping,
+                rows: [],
+                errors: ["Escolha a coluna de nome e telefone da planilha."],
+                totals: { valid: 0, error: 0, duplicate: 0 },
+              };
+      } else if (url.endsWith("/patients/import")) {
+        body = { created: 1, skipped: 0, errors: 0 };
+      }
+      return { ok: true, status: 200, json: async () => body } as Response;
+    });
+    render(
+      <MemoryRouter initialEntries={["/clientes"]}>
+        <App />
+      </MemoryRouter>,
+    );
+    await screen.findByRole("button", { name: "Mais" });
+    clickMoreAction("Importar");
+    const dialog = screen.getByRole("dialog", { name: "Importar clientes" });
+    const content =
+      "Aluno;Documento;Cel.;\nDora Mapeada;529.982.247-25;21988883333;\n";
+    fireEvent.change(within(dialog).getByLabelText("Planilha de clientes"), {
+      target: {
+        files: [new File([content], "minha.csv", { type: "text/csv" })],
+      },
+    });
+    expect(
+      await within(dialog).findByText(
+        "Escolha a coluna de nome e telefone da planilha.",
+      ),
+    ).toBeInTheDocument();
+    expect(within(dialog).getByText("Ex.: 529.982.247-25")).toBeInTheDocument();
+    expect(within(dialog).getByText("Sem valores")).toBeInTheDocument();
+    const nameSelect = within(dialog).getByLabelText(
+      "Dado do sistema para a coluna Aluno",
+    );
+    expect(nameSelect).toHaveValue("");
+    expect(
+      within(dialog).getByLabelText("Dado do sistema para a Coluna 4"),
+    ).toBeInTheDocument();
+
+    fireEvent.change(nameSelect, { target: { value: "fullName" } });
+    await within(dialog).findByText(
+      "Escolha a coluna de nome e telefone da planilha.",
+    );
+    fireEvent.change(
+      within(dialog).getByLabelText("Dado do sistema para a coluna Documento"),
+      { target: { value: "cpf" } },
+    );
+    // Escolher Telefone numa coluna e depois em outra deixa a primeira como "Não importar".
+    fireEvent.change(
+      within(dialog).getByLabelText("Dado do sistema para a Coluna 4"),
+      { target: { value: "phone" } },
+    );
+    // Sem WhatsApp, contato de emergência e e-mail: etiquetas automáticas da CD3.
+    expect(
+      await within(dialog).findByText(
+        "Pronta para importar · sem WhatsApp ou contato de emergência (etiqueta “Cadastro incompleto”) · sem e-mail (etiqueta “Sem e-mail”)",
+      ),
+    ).toBeInTheDocument();
+    fireEvent.change(
+      within(dialog).getByLabelText("Dado do sistema para a coluna Cel."),
+      { target: { value: "phone" } },
+    );
+    await vi.waitFor(() => expect(previews).toHaveLength(5));
+    expect(previews.map((preview) => preview.mapping)).toEqual([
+      undefined,
+      ["fullName", null, null, null],
+      ["fullName", "cpf", null, null],
+      ["fullName", "cpf", null, "phone"],
+      ["fullName", "cpf", "phone", null],
+    ]);
+    expect(
+      within(dialog).getByLabelText("Dado do sistema para a Coluna 4"),
+    ).toHaveValue("");
+
+    fireEvent.click(
+      await within(dialog).findByRole("button", { name: "Importar 1 cliente" }),
+    );
+    expect(
+      await within(dialog).findByText(/1 cliente importado/),
+    ).toBeInTheDocument();
+    const importCall = vi
+      .mocked(fetch)
+      .mock.calls.find(([url]) => String(url).endsWith("/patients/import"));
+    expect(JSON.parse(String(importCall?.[1]?.body))).toMatchObject({
+      fileName: "minha.csv",
+      mapping: ["fullName", "cpf", "phone", null],
+    });
+    // O mapeamento fica salvo para a próxima planilha com os mesmos títulos.
+    expect(
+      JSON.parse(localStorage.getItem("crm.patientImportMapping") ?? "{}"),
+    ).toMatchObject({ mapping: ["fullName", "cpf", "phone", null] });
   });
 
   it("shows general spreadsheet errors and keeps import disabled", async () => {
@@ -841,6 +1042,8 @@ describe("application shell", () => {
     vi.mocked(fetch).mockImplementation(async (input) => {
       const body = String(input).endsWith("/patients/import/preview")
         ? {
+            columns: [],
+            mapping: [],
             rows: [],
             errors: ["A planilha precisa de uma coluna de nome."],
             totals: { valid: 0, error: 0, duplicate: 0 },
@@ -1013,6 +1216,10 @@ describe("application shell", () => {
       expect(within(dialog).getByLabelText("Observações")).toBeChecked();
       fireEvent.click(within(dialog).getByLabelText("Excel (.xlsx)"));
       fireEvent.click(within(dialog).getByLabelText("Observações"));
+      // Origem do cliente convertido de lead (EN3b): opcional, fora das padrão.
+      const leadOrigin = within(dialog).getByLabelText("Origem: evento/lead");
+      expect(leadOrigin).not.toBeChecked();
+      fireEvent.click(leadOrigin);
       fireEvent.click(within(dialog).getByRole("button", { name: "Exportar" }));
 
       await vi.waitFor(() => expect(createObjectURL).toHaveBeenCalled());
@@ -1023,7 +1230,7 @@ describe("application shell", () => {
         .searchParams;
       expect(query.get("format")).toBe("xlsx");
       expect(query.get("columns")).toBe(
-        "fullName,recordNumber,cpf,phone,whatsapp,email,birthDate,tags,status,emergencyContactName,emergencyContactPhone,createdAt",
+        "fullName,recordNumber,cpf,phone,whatsapp,email,birthDate,tags,status,emergencyContactName,emergencyContactPhone,createdAt,leadOrigin",
       );
       expect(query.get("search")).toBe("Hel");
       expect(query.get("status")).toBe("active");
@@ -1317,203 +1524,6 @@ describe("application shell", () => {
       URL.createObjectURL = originalCreate;
       URL.revokeObjectURL = originalRevoke;
     }
-  });
-
-  it("previews a segmented broadcast, shows skipped clients and queues it after confirmation", async () => {
-    localStorage.setItem("crm.auth.token", "test-token");
-    localStorage.setItem(
-      "crm.auth.user",
-      storedUser({
-        id: "22222222-2222-4222-8222-222222222222",
-        fullName: "Aryana Dutra",
-        email: "admin@movimenta.local",
-        role: "owner",
-      }),
-    );
-    const patients = [
-      {
-        id: "99999999-9999-4999-8999-999999999991",
-        recordNumber: "PAC-00001",
-        fullName: "Helena Almeida",
-        phone: "11987654321",
-        email: "helena@exemplo.com",
-        tags: ["pilates"],
-        status: "active",
-      },
-      {
-        id: "99999999-9999-4999-8999-999999999992",
-        recordNumber: "PAC-00002",
-        fullName: "Bruno Lima",
-        phone: "11987654322",
-        tags: ["pilates", "vip"],
-        status: "active",
-      },
-    ];
-    const preview = {
-      preview: true,
-      channel: "email",
-      matched: 3,
-      queued: 1,
-      skipped: [
-        {
-          patientId: "99999999-9999-4999-8999-999999999992",
-          patientName: "Bruno Lima",
-          reason: "no_destination",
-        },
-        {
-          patientId: "99999999-9999-4999-8999-999999999993",
-          patientName: "Carla Souza",
-          reason: "opt_out",
-        },
-      ],
-      sampleBody: "Oi Helena, temos aula especial!",
-    };
-    vi.mocked(fetch).mockImplementation(async (input) => {
-      const url = String(input);
-      if (url.includes("/communications/broadcast/preview"))
-        return { ok: true, status: 200, json: async () => preview } as Response;
-      if (url.includes("/communications/broadcast"))
-        return {
-          ok: true,
-          status: 201,
-          json: async () => ({ ...preview, preview: false }),
-        } as Response;
-      if (url.includes("/communications"))
-        return {
-          ok: true,
-          status: 200,
-          json: async () => ({
-            deliveryMode: "outbox_only",
-            preferences: [],
-            messages: [],
-          }),
-        } as Response;
-      if (url.includes("/patient-tags"))
-        return {
-          ok: true,
-          status: 200,
-          json: async () => [
-            patientTag("pilates", "#2f855a", 2),
-            patientTag("vip", "#7c3aed", 1),
-          ],
-        } as Response;
-      return { ok: true, status: 200, json: async () => patients } as Response;
-    });
-    render(
-      <MemoryRouter initialEntries={["/comunicacoes"]}>
-        <App />
-      </MemoryRouter>,
-    );
-    const panel = (
-      await screen.findByRole("heading", { name: "Comunicado segmentado" })
-    ).closest("section")!;
-    expect(
-      within(panel).getByText(
-        /Realize o envio externamente e registre a conclusão manual/,
-      ),
-    ).toBeInTheDocument();
-    expect(
-      within(panel).queryByRole("button", { name: "Enfileirar comunicado" }),
-    ).not.toBeInTheDocument();
-
-    // As etiquetas configuradas chegam numa busca própria (GET /patient-tags).
-    fireEvent.click(
-      await within(panel).findByRole("button", { name: /^pilates/ }),
-    );
-    fireEvent.change(within(panel).getByLabelText("Situação"), {
-      target: { value: "active" },
-    });
-    fireEvent.change(within(panel).getByLabelText("Plano"), {
-      target: { value: "with" },
-    });
-    fireEvent.click(within(panel).getByLabelText("Só aniversariantes do mês"));
-    fireEvent.change(within(panel).getByLabelText("Canal do comunicado"), {
-      target: { value: "email" },
-    });
-    fireEvent.change(within(panel).getByLabelText("Texto do comunicado"), {
-      target: { value: "Oi {{nome}}, temos aula especial!" },
-    });
-    fireEvent.click(within(panel).getByRole("button", { name: "Ver prévia" }));
-
-    expect(
-      await within(panel).findByText("3 cliente(s) no segmento"),
-    ).toBeInTheDocument();
-    expect(
-      within(panel).getByText("1 entrará(ão) na fila"),
-    ).toBeInTheDocument();
-    expect(within(panel).getByText("2 pulado(s)")).toBeInTheDocument();
-    expect(
-      within(panel).getByText("Oi Helena, temos aula especial!"),
-    ).toBeInTheDocument();
-    expect(within(panel).getByText("Bruno Lima")).toBeInTheDocument();
-    expect(
-      within(panel).getByText("Sem contato cadastrado para o canal"),
-    ).toBeInTheDocument();
-    expect(within(panel).getByText("Carla Souza")).toBeInTheDocument();
-    expect(
-      within(panel).getByText("Não autorizou mensagens neste canal"),
-    ).toBeInTheDocument();
-    const previewCall = vi
-      .mocked(fetch)
-      .mock.calls.find(([url]) =>
-        String(url).includes("/communications/broadcast/preview"),
-      );
-    expect(JSON.parse(String(previewCall?.[1]?.body))).toEqual({
-      segment: {
-        tags: ["pilates"],
-        status: "active",
-        activePlan: true,
-        birthdayMonth: true,
-      },
-      channel: "email",
-      body: "Oi {{nome}}, temos aula especial!",
-    });
-
-    fireEvent.click(
-      within(panel).getByRole("button", { name: "Enfileirar comunicado" }),
-    );
-    const dialog = screen.getByRole("dialog", { name: "Confirmar comunicado" });
-    expect(
-      within(dialog).getByText(/1 mensagem\(ns\) por e-mail/),
-    ).toBeInTheDocument();
-    expect(
-      within(dialog).getByText(
-        /Realize o envio externamente e registre a conclusão manual/,
-      ),
-    ).toBeInTheDocument();
-    expect(
-      vi
-        .mocked(fetch)
-        .mock.calls.some(
-          ([url, init]) =>
-            String(url).endsWith("/communications/broadcast") &&
-            init?.method === "POST",
-        ),
-    ).toBe(false);
-    fireEvent.click(
-      within(dialog).getByRole("button", { name: "Confirmar e enfileirar" }),
-    );
-
-    expect(
-      await screen.findByText(
-        "1 mensagem(ns) do comunicado adicionada(s) à fila; 2 cliente(s) pulado(s).",
-      ),
-    ).toBeInTheDocument();
-    expect(
-      screen.queryByRole("dialog", { name: "Confirmar comunicado" }),
-    ).not.toBeInTheDocument();
-    const sendCall = vi
-      .mocked(fetch)
-      .mock.calls.find(([url]) =>
-        String(url).endsWith("/communications/broadcast"),
-      );
-    expect(sendCall?.[1]?.method).toBe("POST");
-    expect(JSON.parse(String(sendCall?.[1]?.body))).toEqual(
-      JSON.parse(String(previewCall?.[1]?.body)),
-    );
-    expect(
-      within(panel).queryByText("3 cliente(s) no segmento"),
-    ).not.toBeInTheDocument();
   });
 
   it("hides the patient pagination when every patient fits on one page", async () => {

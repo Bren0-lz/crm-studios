@@ -1,8 +1,11 @@
+import { nextTestCpf } from "../../test-support/cpf.js";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  clientDetailsColumnLabels,
   clinicalResourceInputSchema,
   type ClientDetailsReport,
 } from "@crm/contracts";
+import ExcelJS from "exceljs";
 import { buildApp } from "../../app.js";
 import { MemoryClinicRepository } from "../../memory-repository.js";
 const clinicId = "11111111-1111-4111-8111-111111111111",
@@ -23,6 +26,7 @@ describe("client detail reports", () => {
       authorization: `Bearer ${app.jwt.sign({ sub: actorId, clinicId, role: "admin" })}`,
     };
     const patient = await repository.createPatient(clinicId, {
+      cpf: nextTestCpf(),
       fullName: "Cliente relatório detalhado",
       phone: "11988887777",
       tags: [],
@@ -31,6 +35,7 @@ describe("client detail reports", () => {
       interests: ["Pilates"],
     });
     await repository.createPatient("99999999-9999-4999-8999-999999999999", {
+      cpf: nextTestCpf(),
       fullName: "Cliente relatório detalhado externo",
       phone: "11988887777",
       tags: [],
@@ -101,7 +106,6 @@ describe("client detail reports", () => {
       costInCents: 500,
       salePriceInCents: 1000,
       initialStock: 10,
-      minimumStock: 1,
     });
     const tab = await repository.openPatientTab(clinicId, actorId, {
       patientId: patient.id,
@@ -153,6 +157,22 @@ describe("client detail reports", () => {
       pendingReceivables: 1,
     });
     expect(exported).toEqual(june);
+    const xlsx = await app.inject({
+      url: `/reports/clients/details/export.xlsx${path}`,
+      headers,
+    });
+    expect(xlsx.statusCode).toBe(200);
+    expect(xlsx.headers["content-disposition"]).toContain(
+      "clientes-2039-06-01-2039-06-30.xlsx",
+    );
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(xlsx.rawPayload as unknown as ExcelJS.Buffer);
+    const sheet = workbook.getWorksheet("Clientes")!;
+    expect((sheet.getRow(1).values as unknown[]).slice(1)).toEqual(
+      june.columns.map((column) => clientDetailsColumnLabels[column]),
+    );
+    expect(sheet.getCell("A2").value).toBe(june.rows[0]!.values.fullName);
+    expect(sheet.autoFilter).toBeTruthy();
     expect(await repository.listAdminAuditEvents(clinicId)).toEqual(
       expect.arrayContaining([
         expect.objectContaining({

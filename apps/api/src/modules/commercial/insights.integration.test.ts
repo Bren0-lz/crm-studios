@@ -1,3 +1,4 @@
+import { nextTestCpf } from "../../test-support/cpf.js";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { buildApp } from "../../app.js";
 import { MemoryClinicRepository } from "../../memory-repository.js";
@@ -9,6 +10,7 @@ import {
   type Lead,
   type LeadInsights,
 } from "@crm/contracts";
+import { testPatientContact } from "../../test-support/patient-contact.js";
 const clinicId = "11111111-1111-4111-8111-111111111111",
   actorId = "22222222-2222-4222-8222-222222222222",
   apps: Awaited<ReturnType<typeof buildApp>>[] = [];
@@ -129,12 +131,26 @@ describe("commercial filters and conversion", () => {
       payload: { cpf: "111.111.111-11" },
     });
     expect(invalid.statusCode).toBe(400);
+    // CD1: o cliente novo precisa de WhatsApp e contato de emergência.
+    const withoutContact = await app.inject({
+      method: "POST",
+      url: `/leads/${created.json().id}/convert`,
+      headers,
+      payload: { cpf: "52998224725", emergencyContactName: "Joana Mãe" },
+    });
+    expect(withoutContact.statusCode).toBe(400);
+    expect(withoutContact.json()).toEqual({
+      code: "LEAD_CONTACT_REQUIRED",
+      message:
+        "Informe o WhatsApp e o contato de emergência antes de converter o lead.",
+    });
     const converted = await app.inject({
       method: "POST",
       url: `/leads/${created.json().id}/convert`,
       headers,
       payload: {
         cpf: "52998224725",
+        whatsapp: "11977776666",
         emergencyContactName: "Joana Mãe",
         emergencyContactPhone: "11988887777",
         address: "Rua das Flores, 10",
@@ -157,6 +173,59 @@ describe("commercial filters and conversion", () => {
     await app.close();
   });
 
+  it("applies the client registration fields reviewed on conversion without erasing blank ones", async () => {
+    const { app, token } = await authenticatedApp();
+    const headers = { authorization: `Bearer ${token}` };
+    const created = await app.inject({
+      method: "POST",
+      url: "/leads",
+      headers,
+      payload: {
+        fullName: "Lead Revisado",
+        phone: "11966665555",
+        email: "lead@exemplo.com",
+        source: "Indicação",
+        interest: "Pilates",
+        notes: "Prefere manhã",
+      },
+    });
+    expect(created.statusCode).toBe(201);
+    const converted = await app.inject({
+      method: "POST",
+      url: `/leads/${created.json().id}/convert`,
+      headers,
+      payload: {
+        cpf: "52998224725",
+        fullName: "Lead Revisado Silva",
+        phone: "11966665555",
+        email: "",
+        whatsapp: "11955554444",
+        // Quem não tem contato de emergência repete o próprio nome e telefone.
+        emergencyContactName: "Lead Revisado Silva",
+        emergencyContactPhone: "11966665555",
+        birthDate: "1990-05-10",
+        occupation: "Professora",
+        gender: "female",
+        imageConsent: true,
+        notes: "",
+      },
+    });
+    expect(converted.statusCode).toBe(200);
+    expect(converted.json().patient).toMatchObject({
+      fullName: "Lead Revisado Silva",
+      phone: "11966665555",
+      email: "lead@exemplo.com",
+      whatsapp: "11955554444",
+      birthDate: "1990-05-10",
+      occupation: "Professora",
+      gender: "female",
+      imageConsent: true,
+      source: "Indicação",
+      notes: "Prefere manhã",
+    });
+    expect(converted.json().lead).toMatchObject({ stage: "won" });
+    await app.close();
+  });
   it("edits unconverted leads with explicit permission and preserves their activity", async () => {
     const repository = new MemoryClinicRepository(),
       app = await buildApp({ repository, logger: false });
@@ -228,7 +297,10 @@ describe("commercial filters and conversion", () => {
         })
       ).statusCode,
     ).toBe(403);
-    await repository.convertLead(clinicId, actorId, lead.id);
+    await repository.convertLead(clinicId, actorId, lead.id, {
+      cpf: lead.cpf ?? nextTestCpf(),
+      ...testPatientContact,
+    });
     expect(
       (
         await app.inject({
@@ -243,6 +315,7 @@ describe("commercial filters and conversion", () => {
   it("transfers optional registration fields and tags, preserving existing choices and avoiding duplicate customers", async () => {
     const repository = new MemoryClinicRepository(),
       patient = await repository.createPatient(clinicId, {
+        cpf: "52998224725",
         fullName: "Cliente existente",
         phone: "11955554444",
         tags: [],
@@ -265,7 +338,9 @@ describe("commercial filters and conversion", () => {
         tags: ["Indicação comercial"],
       }),
     );
-    const converted = await repository.convertLead(clinicId, actorId, lead.id);
+    const converted = await repository.convertLead(clinicId, actorId, lead.id, {
+      cpf: lead.cpf ?? nextTestCpf(),
+    });
     expect(converted).toMatchObject({
       reusedExisting: true,
       lead: { stage: "won" },
@@ -282,7 +357,9 @@ describe("commercial filters and conversion", () => {
     expect(converted!.patient.tags).toContain("Indicação comercial");
     expect(converted!.patient.interests).toEqual(["Mobilidade", "Pilates"]);
     expect(
-      (await repository.convertLead(clinicId, actorId, lead.id))!.patient.id,
+      (await repository.convertLead(clinicId, actorId, lead.id, {
+        cpf: lead.cpf ?? nextTestCpf(),
+      }))!.patient.id,
     ).toBe(patient.id);
     expect(
       (await repository.listPatients(clinicId)).filter(

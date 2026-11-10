@@ -1,8 +1,13 @@
+import { withAppointmentPlan } from "../../test-support/appointment-plan.js";
+import { nextTestCpf } from "../../test-support/cpf.js";
 import {
   type Appointment,
   type Lead,
   documentTemplateVariables,
   groupClassName,
+  INCOMPLETE_REGISTRATION_TAG,
+  MISSING_EMAIL_TAG,
+  withoutAutomaticPatientTags,
 } from "@crm/contracts";
 import ExcelJS from "exceljs";
 import { describe, expect, it, vi } from "vitest";
@@ -26,6 +31,7 @@ import {
   reissuedHeaders,
 } from "../../test-support/clock.js";
 import { localParts, zonedTimeToUtc } from "../groups/group-schedule.js";
+import { testPatientContact } from "../../test-support/patient-contact.js";
 
 describe("CRM API", () => {
   it("allows the web app to send every write method through CORS", async () => {
@@ -65,6 +71,9 @@ describe("CRM API", () => {
       payload: {
         fullName: "Joana de Souza",
         phone: "11999990000",
+        whatsapp: "11999990000",
+        emergencyContactName: "Joana de Souza",
+        emergencyContactPhone: "11999990000",
         cpf: "12345678909",
         tags: ["Avaliação"],
       },
@@ -133,6 +142,9 @@ describe("CRM API", () => {
         payload: {
           fullName: "Joana de Souza",
           phone: "11999990000",
+          whatsapp: "11999990000",
+          emergencyContactName: "Joana de Souza",
+          emergencyContactPhone: "11999990000",
           cpf: "12345678909",
           tags: [],
         },
@@ -144,7 +156,15 @@ describe("CRM API", () => {
       method: "POST",
       url: "/patients",
       headers,
-      payload: { fullName: "Rita Sequência", phone: "11999990001", tags: [] },
+      payload: {
+        cpf: nextTestCpf(),
+        fullName: "Rita Sequência",
+        phone: "11999990001",
+        whatsapp: "11999990001",
+        emergencyContactName: "Rita Sequência",
+        emergencyContactPhone: "11999990001",
+        tags: [],
+      },
     });
     expect(next.json().recordNumber).toBe("PAC-00125");
     const [professional, room, service] = await Promise.all([
@@ -159,13 +179,17 @@ describe("CRM API", () => {
         method: "POST",
         url: "/appointments",
         headers,
-        payload: {
-          patientId: patient.id,
-          professionalId: professional.json()[0].id,
-          roomId: room.json()[0].id,
-          serviceId: service.json()[0].id,
-          startsAt: startsAt.toISOString(),
-        },
+        payload: await withAppointmentPlan(
+          app,
+          {
+            patientId: patient.id,
+            professionalId: professional.json()[0].id,
+            roomId: room.json()[0].id,
+            serviceId: service.json()[0].id,
+            startsAt: startsAt.toISOString(),
+          },
+          headers,
+        ),
       })
     ).json();
     const updated = await app.inject({
@@ -175,6 +199,9 @@ describe("CRM API", () => {
       payload: {
         fullName: "Joana Pereira",
         phone: "11988887777",
+        whatsapp: "11988887777",
+        emergencyContactName: "Joana Pereira",
+        emergencyContactPhone: "11988887777",
         cpf: patient.cpf,
         tags: ["Retorno"],
       },
@@ -200,7 +227,15 @@ describe("CRM API", () => {
         method: "POST",
         url: "/patients",
         headers,
-        payload: { fullName: "Outra Pessoa", phone: "11911112222", tags: [] },
+        payload: {
+          cpf: nextTestCpf(),
+          fullName: "Outra Pessoa",
+          phone: "11911112222",
+          whatsapp: "11911112222",
+          emergencyContactName: "Outra Pessoa",
+          emergencyContactPhone: "11911112222",
+          tags: [],
+        },
       })
     ).json();
     const duplicate = await app.inject({
@@ -210,6 +245,9 @@ describe("CRM API", () => {
       payload: {
         fullName: other.fullName,
         phone: other.phone,
+        whatsapp: other.phone,
+        emergencyContactName: other.fullName,
+        emergencyContactPhone: other.phone,
         cpf: patient.cpf,
         tags: [],
       },
@@ -249,7 +287,7 @@ describe("CRM API", () => {
           method: "POST",
           url: "/appointments",
           headers,
-          payload,
+          payload: await withAppointmentPlan(app, payload, headers),
         })
       ).statusCode,
     ).toBe(201);
@@ -259,7 +297,7 @@ describe("CRM API", () => {
           method: "POST",
           url: "/appointments",
           headers,
-          payload,
+          payload: await withAppointmentPlan(app, payload, headers),
         })
       ).statusCode,
     ).toBe(409);
@@ -290,7 +328,14 @@ describe("CRM API", () => {
         method: "POST",
         url: "/appointments",
         headers,
-        payload: { ...payload, startsAt: at(0) },
+        payload: await withAppointmentPlan(
+          app,
+          {
+            ...payload,
+            startsAt: at(0),
+          },
+          headers,
+        ),
       })
     ).json();
     expect(
@@ -299,7 +344,14 @@ describe("CRM API", () => {
           method: "POST",
           url: "/appointments",
           headers,
-          payload: { ...payload, startsAt: at(2) },
+          payload: await withAppointmentPlan(
+            app,
+            {
+              ...payload,
+              startsAt: at(2),
+            },
+            headers,
+          ),
         })
       ).statusCode,
     ).toBe(201);
@@ -410,7 +462,11 @@ describe("CRM API", () => {
       method: "POST",
       url: "/appointments",
       headers,
-      payload: { ...payload, startsAt: at(0) },
+      payload: await withAppointmentPlan(
+        app,
+        { ...payload, startsAt: at(0) },
+        headers,
+      ),
     });
     expect(regular.statusCode).toBe(201);
     expect(regular.json().visitType).toBe("regular");
@@ -418,7 +474,15 @@ describe("CRM API", () => {
       method: "POST",
       url: "/appointments",
       headers,
-      payload: { ...payload, startsAt: at(2), visitType: "evaluation" },
+      payload: await withAppointmentPlan(
+        app,
+        {
+          ...payload,
+          startsAt: at(2),
+          visitType: "evaluation",
+        },
+        headers,
+      ),
     });
     expect(evaluation.statusCode).toBe(201);
     expect(evaluation.json().visitType).toBe("evaluation");
@@ -426,20 +490,32 @@ describe("CRM API", () => {
       method: "POST",
       url: "/appointments",
       headers,
-      payload: { ...payload, startsAt: at(4), visitType: "vip" },
+      payload: await withAppointmentPlan(
+        app,
+        {
+          ...payload,
+          startsAt: at(4),
+          visitType: "vip",
+        },
+        headers,
+      ),
     });
     expect(invalid.statusCode).toBe(400);
     const series = await app.inject({
       method: "POST",
       url: "/appointments/recurring",
       headers,
-      payload: {
-        ...payload,
-        startsAt: at(4),
-        visitType: "trial",
-        occurrences: 2,
-        intervalWeeks: 1,
-      },
+      payload: await withAppointmentPlan(
+        app,
+        {
+          ...payload,
+          startsAt: at(4),
+          visitType: "trial",
+          occurrences: 2,
+          intervalWeeks: 1,
+        },
+        headers,
+      ),
     });
     expect(series.statusCode).toBe(201);
     expect(series.json().map((item: Appointment) => item.visitType)).toEqual([
@@ -590,13 +666,17 @@ describe("CRM API", () => {
       method: "POST",
       url: "/appointments",
       headers,
-      payload: {
-        patientId: patients.json()[0].id,
-        professionalId: payload.professionalId,
-        roomId: rooms.json()[1].id,
-        serviceId: payload.serviceId,
-        startsAt: payload.startsAt,
-      },
+      payload: await withAppointmentPlan(
+        app,
+        {
+          patientId: patients.json()[0].id,
+          professionalId: payload.professionalId,
+          roomId: rooms.json()[1].id,
+          serviceId: payload.serviceId,
+          startsAt: payload.startsAt,
+        },
+        headers,
+      ),
     });
     expect(sameProfessional.statusCode).toBe(409);
     expect(sameProfessional.json()).toMatchObject({
@@ -658,13 +738,11 @@ describe("CRM API", () => {
         visitType: "evaluation",
       },
     });
-    expect(evaluation.statusCode).toBe(201);
-    expect(evaluation.json()).toMatchObject({
-      leadId,
-      visitType: "evaluation",
-    });
+    expect(evaluation.statusCode).toBe(409);
+    expect(evaluation.json()).toMatchObject({ code: "PLAN_REQUIRED" });
 
     const converted = await app.inject({
+      payload: { cpf: nextTestCpf(), ...testPatientContact },
       method: "POST",
       url: `/leads/${leadId}/convert`,
       headers,
@@ -684,7 +762,7 @@ describe("CRM API", () => {
   });
 
   it("moves the lead appointments to the new client on conversion", async () => {
-    const { app, token } = await authenticatedApp();
+    const { app, token, repository } = await authenticatedApp();
     const headers = { authorization: `Bearer ${token}` };
     const [professionals, rooms, services] = await Promise.all([
       app.inject({ method: "GET", url: "/professionals", headers }),
@@ -719,21 +797,22 @@ describe("CRM API", () => {
         visitType: "trial",
       },
     });
-    const evaluation = await app.inject({
-      method: "POST",
-      url: `/leads/${leadId}/appointments`,
-      headers,
-      payload: {
+    // Avaliação histórica de lead anterior à AP3: a conversão continua preservando-a.
+    const evaluation = await repository.createLeadAppointment(
+      "11111111-1111-4111-8111-111111111111",
+      leadId,
+      {
         ...payload,
         startsAt: "2031-05-20T13:00:00.000Z",
         visitType: "evaluation",
       },
-    });
+    );
     expect(trial.statusCode).toBe(201);
-    expect(evaluation.statusCode).toBe(201);
-    const ids = [trial.json().id as string, evaluation.json().id as string];
+    expect(evaluation).not.toBeNull();
+    const ids = [trial.json().id as string, evaluation!.id];
 
     const conversion = await app.inject({
+      payload: { cpf: nextTestCpf(), ...testPatientContact },
       method: "POST",
       url: `/leads/${leadId}/convert`,
       headers,
@@ -770,7 +849,7 @@ describe("CRM API", () => {
     expect(timeline.statusCode).toBe(200);
     for (const id of ids) expect(JSON.stringify(timeline.json())).toContain(id);
 
-    // Finalizar consome sessão do plano do cliente.
+    // A experimental convertida continua gratuita e não consome o plano.
     const plan = await app.inject({
       method: "POST",
       url: "/plans",
@@ -791,8 +870,8 @@ describe("CRM API", () => {
       }),
     });
     expect(plan.statusCode).toBe(201);
-    // Desfecho e evolução só depois do início (atendimentos em 15 e 16/05/2031).
-    const afterStart = "2031-05-20T12:00:00.000Z";
+    // Desfecho e evolução só depois do início dos dois atendimentos.
+    const afterStart = "2031-05-20T14:00:00.000Z";
     const completed = await patchStatusAt(app, headers, afterStart, ids[0]!, {
       status: "completed",
     });
@@ -802,6 +881,21 @@ describe("CRM API", () => {
       (plans.json() as { id: string; remainingSessions: number }[]).find(
         (item) => item.id === plan.json().id,
       )?.remainingSessions,
+    ).toBe(4);
+    // A avaliação do cliente continua consumindo uma sessão, pelo caminho histórico.
+    const evaluated = await patchStatusAt(app, headers, afterStart, ids[1]!, {
+      status: "completed",
+    });
+    expect(evaluated.statusCode, evaluated.body).toBe(200);
+    const afterEvaluation = await app.inject({
+      method: "GET",
+      url: "/plans",
+      headers,
+    });
+    expect(
+      (
+        afterEvaluation.json() as { id: string; remainingSessions: number }[]
+      ).find((item) => item.id === plan.json().id)?.remainingSessions,
     ).toBe(3);
 
     // Prontuário e NPS passam a ser aceitos.
@@ -866,12 +960,13 @@ describe("CRM API", () => {
         roomId: rooms.json()[0].id,
         serviceId: services.json()[0].id,
         startsAt: "2031-05-06T13:00:00.000Z",
-        visitType: "evaluation",
+        visitType: "trial",
       },
     });
     expect(appointment.statusCode).toBe(201);
 
     const conversion = await app.inject({
+      payload: { cpf: nextTestCpf(), ...testPatientContact },
       method: "POST",
       url: `/leads/${leadId}/convert`,
       headers,
@@ -891,7 +986,7 @@ describe("CRM API", () => {
     expect(moved).toMatchObject({
       patientId: existing.id,
       patientName: existing.fullName,
-      visitType: "evaluation",
+      visitType: "trial",
     });
     expect(moved).not.toHaveProperty("leadId");
     expect(moved).not.toHaveProperty("leadName");
@@ -1057,6 +1152,7 @@ describe("CRM API", () => {
     });
     expect(moved.json().stage).toBe("contacted");
     const conversion = await app.inject({
+      payload: { cpf: nextTestCpf(), ...testPatientContact },
       method: "POST",
       url: `/leads/${created.json().id}/convert`,
       headers,
@@ -1089,9 +1185,12 @@ describe("CRM API", () => {
       url: `/patients/${patient.id}`,
       headers,
       payload: {
+        cpf: nextTestCpf(),
         fullName: patient.fullName,
         phone: patient.phone,
         whatsapp: "(11) 90000-1234",
+        emergencyContactName: patient.emergencyContactName,
+        emergencyContactPhone: patient.emergencyContactPhone,
         email: "contato@example.com",
         tags: patient.tags,
       },
@@ -1111,29 +1210,26 @@ describe("CRM API", () => {
       payload: { patientId: patient.id, channel: "email", body: "Olá" },
     });
     expect(byEmail.json().recipient).toBe("contato@example.com");
+    // CD1: o WhatsApp gravado não se apaga (o envio pelo telefone, para quem não tem
+    // WhatsApp, fica em patient-contact-required.integration.test.ts).
     const withoutWhatsapp = await app.inject({
       method: "PUT",
       url: `/patients/${patient.id}`,
       headers,
       payload: {
+        cpf: nextTestCpf(),
         fullName: patient.fullName,
         phone: patient.phone,
         whatsapp: "",
+        emergencyContactName: patient.emergencyContactName,
+        emergencyContactPhone: patient.emergencyContactPhone,
         tags: patient.tags,
       },
     });
-    expect(withoutWhatsapp.json().whatsapp).toBe("");
-    const fallback = await app.inject({
-      method: "POST",
-      url: "/communications/messages",
-      headers,
-      payload: {
-        patientId: patient.id,
-        channel: "whatsapp",
-        body: "Olá de novo",
-      },
+    expect(withoutWhatsapp.statusCode).toBe(400);
+    expect(withoutWhatsapp.json()).toMatchObject({
+      code: "PATIENT_WHATSAPP_REQUIRED",
     });
-    expect(fallback.json().recipient).toBe(patient.phone);
     await app.close();
   });
 
@@ -1338,7 +1434,7 @@ describe("CRM API", () => {
       method: "POST",
       url: "/appointments/recurring",
       headers,
-      payload: input,
+      payload: await withAppointmentPlan(app, input, headers),
     });
     expect(recurring.statusCode).toBe(201);
     expect(recurring.json()).toHaveLength(3);
@@ -1366,7 +1462,14 @@ describe("CRM API", () => {
       method: "POST",
       url: "/appointments",
       headers,
-      payload: { ...input, startsAt: blockedStart.toISOString() },
+      payload: await withAppointmentPlan(
+        app,
+        {
+          ...input,
+          startsAt: blockedStart.toISOString(),
+        },
+        headers,
+      ),
     });
     expect(conflicting.statusCode).toBe(409);
     await app.inject({
@@ -1378,7 +1481,14 @@ describe("CRM API", () => {
       method: "POST",
       url: "/appointments",
       headers,
-      payload: { ...input, startsAt: blockedStart.toISOString() },
+      payload: await withAppointmentPlan(
+        app,
+        {
+          ...input,
+          startsAt: blockedStart.toISOString(),
+        },
+        headers,
+      ),
     });
     expect(afterCancellation.statusCode).toBe(201);
     await app.close();
@@ -1471,7 +1581,6 @@ describe("CRM API", () => {
         from: string;
         to: string;
         topBySessions: { patientId: string; completedSessions: number }[];
-        topByRevenue: { patientId: string; receivedInCents: number }[];
         activeClients: number;
         ageDistribution: { band: string; clients: number }[];
       };
@@ -1504,7 +1613,16 @@ describe("CRM API", () => {
           method: "POST",
           url: "/patients",
           headers,
-          payload: { fullName, phone, birthDate, tags: [] },
+          payload: {
+            cpf: nextTestCpf(),
+            fullName,
+            phone,
+            whatsapp: phone,
+            emergencyContactName: fullName,
+            emergencyContactPhone: phone,
+            birthDate,
+            tags: [],
+          },
         });
         expect(response.statusCode).toBe(201);
         return response.json().id as string;
@@ -1514,13 +1632,17 @@ describe("CRM API", () => {
           method: "POST",
           url: "/appointments",
           headers,
-          payload: {
-            patientId,
-            professionalId: professionals.json()[0].id,
-            roomId: rooms.json()[0].id,
-            serviceId: services.json()[0].id,
-            startsAt,
-          },
+          payload: await withAppointmentPlan(
+            app,
+            {
+              patientId,
+              professionalId: professionals.json()[0].id,
+              roomId: rooms.json()[0].id,
+              serviceId: services.json()[0].id,
+              startsAt,
+            },
+            headers,
+          ),
         });
         expect(created.statusCode).toBe(201);
         const completed = await app.inject({
@@ -1612,13 +1734,8 @@ describe("CRM API", () => {
         adult,
         noDate,
       ]);
-      expect(
-        after.topByRevenue.find((item) => item.patientId === noDate)
-          ?.receivedInCents,
-      ).toBe(12_000);
-      expect(after.topByRevenue.some((item) => item.patientId === adult)).toBe(
-        false,
-      );
+      // Receita por cliente fica em Vendas (maiores compradores), não aqui.
+      expect(after).not.toHaveProperty("topByRevenue");
       expect(after.activeClients - before.activeClients).toBe(2);
       const bandDelta = (band: string) =>
         after.ageDistribution.find((item) => item.band === band)!.clients -
@@ -1630,9 +1747,6 @@ describe("CRM API", () => {
       // Fora do período: nada dos novos clientes nos rankings.
       const april = await clientsReport("?from=2034-04-01&to=2034-04-30");
       expect(april.topBySessions.some((item) => item.patientId === adult)).toBe(
-        false,
-      );
-      expect(april.topByRevenue.some((item) => item.patientId === noDate)).toBe(
         false,
       );
 
@@ -1812,13 +1926,19 @@ describe("CRM API", () => {
       method: "POST",
       url: "/appointments",
       headers,
-      payload: {
-        patientId: patient.id,
-        professionalId: professionals.json()[0].id,
-        roomId: rooms.json()[0].id,
-        serviceId: services.json()[0].id,
-        startsAt: new Date(Date.now() - 40 * 24 * 60 * 60 * 1000).toISOString(),
-      },
+      payload: await withAppointmentPlan(
+        app,
+        {
+          patientId: patient.id,
+          professionalId: professionals.json()[0].id,
+          roomId: rooms.json()[0].id,
+          serviceId: services.json()[0].id,
+          startsAt: new Date(
+            Date.now() - 40 * 24 * 60 * 60 * 1000,
+          ).toISOString(),
+        },
+        headers,
+      ),
     });
     expect(appointment.statusCode).toBe(201);
     const draft = await app.inject({
@@ -2006,9 +2126,16 @@ describe("CRM API", () => {
     expect(updatedGroup.statusCode).toBe(200);
     expect(updatedGroup.json()).toMatchObject({
       capacity: 2,
-      activeEnrollments: 2,
-      waitlistCount: 0,
+      activeEnrollments: 1,
+      waitlistCount: 1,
     });
+    const accepted = await app.inject({
+      method: "POST",
+      url: `/group-enrollments/${waiting.json().id}/confirm`,
+      headers,
+    });
+    expect(accepted.statusCode).toBe(200);
+    expect(accepted.json().status).toBe("active");
     expect(updatedGroup.json().weeklySlots).toHaveLength(2);
     const tooSmall = await app.inject({
       method: "PUT",
@@ -2135,18 +2262,22 @@ describe("CRM API", () => {
       }
       return zonedTimeToUtc(date, time, timezone).toISOString();
     };
-    const book = (startsAt: string) =>
+    const book = async (startsAt: string) =>
       app.inject({
         method: "POST",
         url: "/appointments",
         headers,
-        payload: {
-          patientId: patients.json()[0].id,
-          professionalId: professional.id,
-          roomId: room.id,
-          serviceId: service.id,
-          startsAt,
-        },
+        payload: await withAppointmentPlan(
+          app,
+          {
+            patientId: patients.json()[0].id,
+            professionalId: professional.id,
+            roomId: room.id,
+            serviceId: service.id,
+            startsAt,
+          },
+          headers,
+        ),
       });
     const createGroup = (startTime: string, endTime: string) =>
       app.inject({
@@ -2199,8 +2330,12 @@ describe("CRM API", () => {
           url: "/patients",
           headers,
           payload: {
+            cpf: nextTestCpf(),
             fullName: "Rita Relacionamento",
             phone: "11955554444",
+            whatsapp: "11955554444",
+            emergencyContactName: "Rita Relacionamento",
+            emergencyContactPhone: "11955554444",
             birthDate: "1990-10-10",
             tags: [],
           },
@@ -2423,8 +2558,12 @@ describe("CRM API", () => {
           url: "/patients",
           headers: headers(),
           payload: {
+            cpf: nextTestCpf(),
             fullName: "Nair Detratora",
             phone: "11944443333",
+            whatsapp: "11944443333",
+            emergencyContactName: "Nair Detratora",
+            emergencyContactPhone: "11944443333",
             tags: [],
           },
         })
@@ -2514,9 +2653,12 @@ describe("CRM API", () => {
             url: "/patients",
             headers,
             payload: {
+              cpf: nextTestCpf(),
               fullName,
               phone: "11955554444",
               whatsapp: "11966665555",
+              emergencyContactName: fullName,
+              emergencyContactPhone: "11955554444",
               ...(birthDate ? { birthDate } : {}),
               tags: [],
             },
@@ -3005,6 +3147,9 @@ describe("CRM API", () => {
       payload: {
         fullName: "Cliente Existente",
         phone: "21977776666",
+        whatsapp: "21977776666",
+        emergencyContactName: "Cliente Existente",
+        emergencyContactPhone: "21977776666",
         cpf: "98765432100",
         tags: [],
       },
@@ -3012,11 +3157,11 @@ describe("CRM API", () => {
     expect(existing.statusCode).toBe(201);
     const csv = [
       "Nome;Telefone;CPF;E-mail",
-      "Ana Importada;(21) 98888-1111;;ana@example.com",
+      "Ana Importada;(21) 98888-1111;52998224725;ana@example.com",
       "Bruno Importado;21988882222;123.456.789-09;",
       "X;;;",
-      "Outra Existente;21 97777-6666;;",
-      "Ana Repetida;21988881111;;",
+      "Outra Existente;21 97777-6666;11144477735;",
+      "Ana Repetida;21988881111;39053344705;",
     ].join("\n");
     const file = {
       fileName: "clientes.CSV",
@@ -3065,7 +3210,12 @@ describe("CRM API", () => {
       payload: file,
     });
     expect(imported.statusCode).toBe(200);
-    expect(imported.json()).toEqual({ created: 2, skipped: 2, errors: 1 });
+    expect(imported.json()).toEqual({
+      created: 2,
+      skipped: 2,
+      errors: 1,
+      updated: 0,
+    });
     const listed = await app.inject({
       method: "GET",
       url: "/patients?search=Importad",
@@ -3084,7 +3234,12 @@ describe("CRM API", () => {
       payload: file,
     });
     expect(again.statusCode).toBe(200);
-    expect(again.json()).toEqual({ created: 0, skipped: 4, errors: 1 });
+    expect(again.json()).toEqual({
+      created: 0,
+      skipped: 4,
+      errors: 1,
+      updated: 0,
+    });
     const relisted = await app.inject({
       method: "GET",
       url: "/patients?search=Importad",
@@ -3094,9 +3249,14 @@ describe("CRM API", () => {
 
     const workbook = new ExcelJS.Workbook();
     const sheet = workbook.addWorksheet("Clientes");
-    sheet.addRow(["Nome completo", "Celular", "Data de nascimento"]);
-    sheet.addRow(["Carla Planilha", "(31) 99999-0001", "05/06/1985"]);
-    sheet.addRow(["Ana Importada", "21988881111", null]);
+    sheet.addRow(["Nome completo", "Celular", "Data de nascimento", "CPF"]);
+    sheet.addRow([
+      "Carla Planilha",
+      "(31) 99999-0001",
+      "05/06/1985",
+      "01234567890",
+    ]);
+    sheet.addRow(["Ana Importada", "21988881111", null, "39053344705"]);
     const xlsx = {
       fileName: "clientes.xlsx",
       contentBase64: Buffer.from(await workbook.xlsx.writeBuffer()).toString(
@@ -3132,7 +3292,12 @@ describe("CRM API", () => {
       headers,
       payload: xlsx,
     });
-    expect(xlsxImport.json()).toEqual({ created: 1, skipped: 1, errors: 0 });
+    expect(xlsxImport.json()).toEqual({
+      created: 1,
+      skipped: 1,
+      errors: 0,
+      updated: 0,
+    });
 
     const onlyErrors = {
       fileName: "erros.csv",
@@ -3147,7 +3312,97 @@ describe("CRM API", () => {
       payload: onlyErrors,
     });
     expect(noneValid.statusCode).toBe(200);
-    expect(noneValid.json()).toEqual({ created: 0, skipped: 0, errors: 1 });
+    expect(noneValid.json()).toEqual({
+      created: 0,
+      skipped: 0,
+      errors: 1,
+      updated: 0,
+    });
+    await app.close();
+  });
+
+  it("imports a spreadsheet with custom titles using the chosen column mapping", async () => {
+    const { app, token } = await authenticatedApp();
+    const headers = { authorization: `Bearer ${token}` };
+    const csv = [
+      "Aluno;Documento;Prefixo;Cel.;Cidade natal;Código",
+      "Dora Mapeada;529.982.247-25;21;98888-3333;Niterói;A1",
+    ].join("\n");
+    const file = {
+      fileName: "minha-planilha.csv",
+      contentBase64: Buffer.from(csv, "utf8").toString("base64"),
+    };
+
+    const automatic = await app.inject({
+      method: "POST",
+      url: "/patients/import/preview",
+      headers,
+      payload: file,
+    });
+    expect(automatic.statusCode).toBe(200);
+    expect(automatic.json()).toMatchObject({
+      errors: ["Escolha a coluna de nome e telefone da planilha."],
+      rows: [],
+      mapping: [null, null, null, null, null, null],
+      columns: [
+        { index: 0, title: "Aluno", samples: ["Dora Mapeada"] },
+        { index: 1, title: "Documento" },
+        { index: 2, title: "Prefixo" },
+        { index: 3, title: "Cel." },
+        { index: 4, title: "Cidade natal" },
+        { index: 5, title: "Código" },
+      ],
+    });
+
+    const mapping = ["fullName", "cpf", "phoneAreaCode", "phone", "city", null];
+    const preview = await app.inject({
+      method: "POST",
+      url: "/patients/import/preview",
+      headers,
+      payload: { ...file, mapping },
+    });
+    expect(preview.json()).toMatchObject({
+      errors: [],
+      mapping,
+      totals: { valid: 1, error: 0, duplicate: 0 },
+    });
+
+    const repeated = await app.inject({
+      method: "POST",
+      url: "/patients/import/preview",
+      headers,
+      payload: { ...file, mapping: ["fullName", "phone", null, "phone"] },
+    });
+    expect(repeated.statusCode).toBe(400);
+    expect(JSON.stringify(repeated.json())).toContain(
+      "O campo Telefone foi escolhido em mais de uma coluna.",
+    );
+
+    const imported = await app.inject({
+      method: "POST",
+      url: "/patients/import",
+      headers,
+      payload: { ...file, mapping },
+    });
+    expect(imported.json()).toEqual({
+      created: 1,
+      skipped: 0,
+      errors: 0,
+      updated: 0,
+    });
+    const listed = await app.inject({
+      method: "GET",
+      url: "/patients?search=Dora",
+      headers,
+    });
+    expect(listed.json()).toMatchObject([
+      {
+        fullName: "Dora Mapeada",
+        phone: "21988883333",
+        cpf: "52998224725",
+        city: "Niterói",
+      },
+    ]);
     await app.close();
   });
 
@@ -3290,7 +3545,14 @@ describe("CRM API", () => {
       ).json() as Array<{
         tags: string[];
       }>;
-      const used = [...new Set(patients.flatMap((patient) => patient.tags))];
+      // Etiquetas automáticas ("Falta CPF", "Pagamento atrasado") não são configuradas.
+      const used = [
+        ...new Set(
+          patients.flatMap((patient) =>
+            withoutAutomaticPatientTags(patient.tags),
+          ),
+        ),
+      ];
       expect(tags.map((tag) => tag.name).sort()).toEqual([...used].sort());
       const names = tags.map((tag) => tag.name);
       expect(names).toEqual(
@@ -3348,8 +3610,12 @@ describe("CRM API", () => {
         url: "/patients",
         headers,
         payload: {
+          cpf: nextTestCpf(),
           fullName: "Gabi Gestante",
           phone: "11933330001",
+          whatsapp: "11933330001",
+          emergencyContactName: "Gabi Gestante",
+          emergencyContactPhone: "11933330001",
           tags: ["Gestante T062", "Inventada", "Outra"],
         },
       });
@@ -3364,8 +3630,12 @@ describe("CRM API", () => {
         url: "/patients",
         headers,
         payload: {
+          cpf: nextTestCpf(),
           fullName: "Gabi Gestante",
           phone: "11933330001",
+          whatsapp: "11933330001",
+          emergencyContactName: "Gabi Gestante",
+          emergencyContactPhone: "11933330001",
           tags: ["gestante t062", "GESTANTE T062"],
         },
       });
@@ -3377,8 +3647,12 @@ describe("CRM API", () => {
         url: `/patients/${patientId}`,
         headers,
         payload: {
+          cpf: nextTestCpf(),
           fullName: "Gabi Gestante",
           phone: "11933330001",
+          whatsapp: "11933330001",
+          emergencyContactName: "Gabi Gestante",
+          emergencyContactPhone: "11933330001",
           tags: ["Inventada"],
         },
       });
@@ -3482,7 +3756,15 @@ describe("CRM API", () => {
         method: "PUT",
         url: `/patients/${patientId}`,
         headers,
-        payload: { fullName: "Gabi Gestante", phone: "11933330001", tags: [] },
+        payload: {
+          cpf: nextTestCpf(),
+          fullName: "Gabi Gestante",
+          phone: "11933330001",
+          whatsapp: "11933330001",
+          emergencyContactName: "Gabi Gestante",
+          emergencyContactPhone: "11933330001",
+          tags: [],
+        },
       });
       expect(cleared.statusCode).toBe(200);
       const deleted = await app.inject({
@@ -3554,6 +3836,7 @@ describe("CRM API", () => {
       });
       expect(lead.statusCode).toBe(201);
       const converted = await app.inject({
+        payload: { cpf: nextTestCpf(), ...testPatientContact },
         method: "POST",
         url: `/leads/${lead.json().id}/convert`,
         headers,
@@ -3569,8 +3852,12 @@ describe("CRM API", () => {
         url: `/patients/${patientId}`,
         headers,
         payload: {
+          cpf: nextTestCpf(),
           fullName: "Lia Convertida",
           phone: "11933330009",
+          whatsapp: "11933330009",
+          emergencyContactName: "Lia Convertida",
+          emergencyContactPhone: "11933330009",
           tags: ["Convertido do CRM"],
         },
       });
@@ -3582,9 +3869,9 @@ describe("CRM API", () => {
       const { app, token } = await authenticatedApp();
       const headers = { authorization: `Bearer ${token}` };
       const csv = [
-        "Nome;Telefone;Etiquetas",
-        "Iara Importada;21966660001;pos-operatorio, ESPORTIVO",
-        "Ivo Importado;21966660002;Pós-operatório, Desconhecida",
+        "Nome;Telefone;Etiquetas;CPF",
+        "Iara Importada;21966660001;pos-operatorio, ESPORTIVO;52998224725",
+        "Ivo Importado;21966660002;Pós-operatório, Desconhecida;98765432100",
       ].join("\n");
       const file = {
         fileName: "clientes.csv",
@@ -3618,7 +3905,12 @@ describe("CRM API", () => {
         headers,
         payload: file,
       });
-      expect(imported.json()).toEqual({ created: 1, skipped: 0, errors: 1 });
+      expect(imported.json()).toEqual({
+      created: 1,
+      skipped: 0,
+      errors: 1,
+      updated: 0,
+    });
       const listed = (
         await app.inject({
           method: "GET",
@@ -3629,7 +3921,13 @@ describe("CRM API", () => {
       expect(listed).toHaveLength(1);
       expect(listed[0]).toMatchObject({
         fullName: "Iara Importada",
-        tags: ["Pós-operatório", "Esportivo"],
+        // Sem WhatsApp, contato de emergência e e-mail: etiquetas automáticas da CD3 no fim.
+        tags: [
+          "Pós-operatório",
+          "Esportivo",
+          INCOMPLETE_REGISTRATION_TAG,
+          MISSING_EMAIL_TAG,
+        ],
       });
       await app.close();
     });
@@ -3646,10 +3944,20 @@ describe("CRM API", () => {
           method: "POST",
           url: "/patients",
           headers,
-          payload,
+          payload: {
+            cpf: nextTestCpf(),
+            whatsapp: payload.phone,
+            emergencyContactName: payload.fullName,
+            emergencyContactPhone: payload.phone,
+            ...payload,
+          },
         });
         expect(response.statusCode).toBe(201);
-        return response.json() as { id: string; recordNumber: string };
+        return response.json() as {
+          id: string;
+          recordNumber: string;
+          cpf: string;
+        };
       };
       const ana = await create({
         fullName: 'Ana; "Exportada"',
@@ -3701,10 +4009,10 @@ describe("CRM API", () => {
         /^attachment; filename="clientes-\d{4}-\d{2}-\d{2}\.csv"$/,
       );
       expect(csvLines(all.body)[0]).toBe(
-        "nome;prontuário;cpf;telefone;whatsapp;email;nascimento;etiquetas;situação;contato de emergência;telefone de emergência;observações;cadastrado em",
+        "Nome;Prontuário;CPF;DDD (Telefone);Telefone;DDD (WhatsApp);WhatsApp;E-mail;Nascimento;Etiquetas;Situação;Contato de emergência;DDD (Telefone de emergência);Telefone de emergência;Observações;Cadastrado em",
       );
       expect(all.body).toContain(
-        `\r\n"Ana; ""Exportada""";${ana.recordNumber};;11911110001;;ana.exporta@example.com;20/03/1990;${tag}, vip;ativo;;;"Linha 1\nLinha 2";`,
+        `\r\n"Ana; ""Exportada""";${ana.recordNumber};${ana.cpf};11;91111-0001;11;91111-0001;ana.exporta@example.com;20/03/1990;${tag}, vip;ativo;"Ana; ""Exportada""";11;91111-0001;"Linha 1\nLinha 2";`,
       );
 
       const chosen = await app.inject({
@@ -3714,9 +4022,9 @@ describe("CRM API", () => {
       });
       expect(chosen.statusCode).toBe(200);
       expect(csvLines(chosen.body)).toEqual([
-        "nome;telefone",
-        '"Ana; ""Exportada""";11911110001',
-        "Bruno Exportado;11911110002",
+        "Nome;DDD (Telefone);Telefone",
+        '"Ana; ""Exportada""";11;91111-0001',
+        "Bruno Exportado;11;91111-0002",
       ]);
       await app.close();
     });
@@ -3725,7 +4033,7 @@ describe("CRM API", () => {
       const { app, headers } = await setup();
       const response = await app.inject({
         method: "GET",
-        url: `/patients/export?format=xlsx&columns=fullName,tags,birthDate&tags=${tag}`,
+        url: `/patients/export?format=xlsx&columns=fullName,phone,tags,birthDate&tags=${tag}`,
         headers,
       });
       expect(response.statusCode).toBe(200);
@@ -3742,10 +4050,24 @@ describe("CRM API", () => {
         .slice(1)
         .map((row) => row.slice(1));
       expect(values).toEqual([
-        ["nome", "nascimento", "etiquetas"],
-        ['Ana; "Exportada"', "20/03/1990", `${tag}, vip`],
-        ["Bruno Exportado", "02/07/1988", tag],
+        ["Nome", "DDD (Telefone)", "Telefone", "Nascimento", "Etiquetas"],
+        [
+          'Ana; "Exportada"',
+          "11",
+          "91111-0001",
+          new Date("1990-03-20T00:00:00Z"),
+          `${tag}, vip`,
+        ],
+        [
+          "Bruno Exportado",
+          "11",
+          "91111-0002",
+          new Date("1988-07-02T00:00:00Z"),
+          tag,
+        ],
       ]);
+      expect(sheet.autoFilter).toBe("A1:E3");
+      expect(sheet.getCell("A1").font).toMatchObject({ bold: true });
       await app.close();
     });
 
@@ -3838,7 +4160,7 @@ describe("CRM API", () => {
         expect(empty.statusCode).toBe(200);
         expect(empty.headers["content-type"]).toBe("text/csv; charset=utf-8");
         const emptyLines = csvLines(empty.body);
-        expect(emptyLines[0]?.split(";")).toHaveLength(13);
+        expect(emptyLines[0]?.split(";")).toHaveLength(16);
         expect(emptyLines).toHaveLength(patients.length + 1);
         await app.close();
       } finally {
@@ -3943,7 +4265,13 @@ describe("CRM API", () => {
           method: "POST",
           url: "/patients",
           headers,
-          payload,
+          payload: {
+            cpf: nextTestCpf(),
+            whatsapp: payload.phone,
+            emergencyContactName: payload.fullName,
+            emergencyContactPhone: payload.phone,
+            ...payload,
+          },
         });
         expect(response.statusCode).toBe(201);
         return response.json() as { id: string; fullName: string };
@@ -4214,8 +4542,12 @@ describe("CRM API", () => {
         url: "/patients",
         headers,
         payload: {
+          cpf: nextTestCpf(),
           fullName: "Maximiliano Comunicado",
           phone: "11922220005",
+          whatsapp: "11922220005",
+          emergencyContactName: "Maximiliano Comunicado",
+          emergencyContactPhone: "11922220005",
           tags: [tag],
         },
       });
@@ -4320,6 +4652,15 @@ describe("CRM API", () => {
       installments: 2,
       firstDueDate: "2026-01-10",
     };
+    // Plano avulso: uma sessão de um serviço (AP5).
+    const singleTerms = {
+      ...planTerms,
+      services: [
+        { serviceId: SERVICE_ID, totalSessions: 1, totalValueInCents: 40000 },
+      ],
+      name: "Sessão avulsa",
+      totalSessions: 1,
+    };
     async function setup() {
       const { app, token } = await authenticatedApp();
       const headers = { authorization: `Bearer ${token}` };
@@ -4338,6 +4679,11 @@ describe("CRM API", () => {
           headers: as,
           payload: {
             ...payload,
+            patient: {
+              cpf: nextTestCpf(),
+              ...testPatientContact,
+              ...(payload.patient as object),
+            },
             ...(payload.plan
               ? {
                   plan: {
@@ -4411,6 +4757,54 @@ describe("CRM API", () => {
       };
     }
 
+    it("keeps the payment method chosen for the plan and the single service", async () => {
+      const { app, headers, guided } = await setup();
+      const plan = await guided({
+        next: "plan",
+        patient: { fullName: "Pix Guiado", phone: "11955550101" },
+        plan: { ...planTerms, kind: "fixed_package", paymentMethod: "pix" },
+      });
+      expect(plan.statusCode, plan.body).toBe(201);
+      expect(plan.json().plan).toMatchObject({ paymentMethod: "pix" });
+      const stored = await app.inject({
+        method: "GET",
+        url: `/plans?patientId=${plan.json().patient.id as string}`,
+        headers,
+      });
+      expect(stored.json()).toEqual([
+        expect.objectContaining({ paymentMethod: "pix" }),
+      ]);
+      const single = await guided({
+        next: "single",
+        patient: { fullName: "Cartão Guiado", phone: "11955550102" },
+        plan: {
+          ...singleTerms,
+          installments: 1,
+          validUntil: "",
+          paymentMethod: "card",
+        },
+      });
+      expect(single.statusCode, single.body).toBe(201);
+      expect(single.json().plan).toMatchObject({
+        kind: "single",
+        paymentMethod: "card",
+      });
+      const undecided = await guided({
+        next: "plan",
+        patient: { fullName: "A Combinar Guiado", phone: "11955550103" },
+        plan: { ...planTerms, kind: "fixed_package" },
+      });
+      expect(undecided.statusCode, undecided.body).toBe(201);
+      expect(undecided.json().plan).not.toHaveProperty("paymentMethod");
+      const invalid = await guided({
+        next: "plan",
+        patient: { fullName: "Forma Inválida", phone: "11955550104" },
+        plan: { ...planTerms, kind: "fixed_package", paymentMethod: "cheque" },
+      });
+      expect(invalid.statusCode).toBe(400);
+      await app.close();
+    });
+
     it("schedules the demonstration class with holiday, conflict and tag checks, all or nothing", async () => {
       const { app, headers, roomId, guided, findPatients } = await setup();
       await configureTags(app, headers, ["Experimental T064"]);
@@ -4425,6 +4819,9 @@ describe("CRM API", () => {
         patient: {
           fullName: "Demo Guiada",
           phone: "11955550001",
+          whatsapp: "11955550001",
+          emergencyContactName: "Demo Guiada",
+          emergencyContactPhone: "11955550001",
           tags: ["experimental t064"],
         },
         appointment: { ...appointment, notes: "Primeira aula" },
@@ -4483,6 +4880,9 @@ describe("CRM API", () => {
         patient: {
           fullName: "Etiqueta Guiada",
           phone: "11955550004",
+          whatsapp: "11955550004",
+          emergencyContactName: "Etiqueta Guiada",
+          emergencyContactPhone: "11955550004",
           tags: ["vip"],
         },
         appointment: { ...appointment, startsAt: "2031-03-26T13:00:00.000Z" },
@@ -4581,8 +4981,9 @@ describe("CRM API", () => {
       ).json().receivables as { planId?: string }[];
       expect(
         receivables.filter((item) => item.planId === withGroupBody.plan.id),
-        // Recorrente: uma cobrança por ciclo.
-      ).toHaveLength(1);
+        // Recorrente: uma cobrança por ciclo, mais a proporcional das aulas da turma
+        // do início (01/01) até a véspera do 1º vencimento (10/01).
+      ).toHaveLength(2);
 
       // Turma de outro serviço: nada fica gravado.
       const mismatch = await guided({
@@ -4612,7 +5013,7 @@ describe("CRM API", () => {
           services: [
             {
               serviceId: "99999999-9999-4999-8999-999999999999",
-              totalSessions: 8,
+              totalSessions: 1,
               totalValueInCents: planTerms.totalValueInCents,
             },
           ],
@@ -4648,6 +5049,216 @@ describe("CRM API", () => {
         expect(invalid.json()).toMatchObject({ code: "VALIDATION_ERROR" });
       }
       expect(await findPatients("Tipo Errado")).toEqual([]);
+      await app.close();
+    });
+
+    it("creates several plans and single services at once, each plan with its own optional group", async () => {
+      const { app, headers, guided, findPatients, createGroup } = await setup();
+      const groupId = await createGroup(SERVICE_ID);
+      const otherGroupId = await createGroup(OTHER_SERVICE_ID);
+      const otherTerms = await configuredPlan(app, {
+        ...planTerms,
+        name: "Dança mensal",
+        serviceId: OTHER_SERVICE_ID,
+        services: [
+          {
+            serviceId: OTHER_SERVICE_ID,
+            totalSessions: 4,
+            totalValueInCents: 20000,
+          },
+        ],
+        totalSessions: 4,
+        totalValueInCents: 20000,
+      });
+      const otherPlan = {
+        ...otherTerms,
+        kind: "recurring",
+        installments: 1,
+      };
+      const created = await guided({
+        next: "plan",
+        patient: { fullName: "Dois Planos", phone: "11966670001" },
+        plan: { ...planTerms, kind: "fixed_package" },
+        groupId,
+        additionalPlans: [
+          { plan: otherPlan, groupId: otherGroupId },
+          { plan: { ...otherPlan, kind: "fixed_package" }, groupId: "" },
+          {
+            plan: {
+              ...otherTerms,
+              services: otherTerms.services.map((entry) => ({
+                ...entry,
+                totalSessions: 1,
+              })),
+              totalSessions: 1,
+              kind: "single",
+              installments: 1,
+              validUntil: "",
+            },
+          },
+        ],
+      });
+      expect(created.statusCode, created.body).toBe(201);
+      const body = created.json();
+      expect(body.plan).toMatchObject({
+        name: "Pilates mensal",
+        kind: "fixed_package",
+      });
+      expect(body.enrollment).toMatchObject({ groupId });
+      expect(body.additionalPlans).toEqual([
+        {
+          plan: expect.objectContaining({
+            name: "Dança mensal",
+            kind: "recurring",
+            patientId: body.patient.id,
+          }),
+          enrollment: expect.objectContaining({ groupId: otherGroupId }),
+        },
+        {
+          plan: expect.objectContaining({
+            name: "Dança mensal",
+            kind: "fixed_package",
+          }),
+        },
+        {
+          plan: expect.objectContaining({ kind: "single" }),
+        },
+      ]);
+      const stored = (
+        await app.inject({
+          method: "GET",
+          url: `/plans?patientId=${body.patient.id as string}`,
+          headers,
+        })
+      ).json() as unknown[];
+      expect(stored).toHaveLength(4);
+
+      // A mesma turma em dois planos: recusado na validação.
+      const repeatedGroup = await guided({
+        next: "plan",
+        patient: { fullName: "Turma Repetida", phone: "11966670002" },
+        plan: { ...planTerms, kind: "fixed_package" },
+        groupId,
+        additionalPlans: [
+          {
+            plan: { ...planTerms, kind: "recurring", installments: 1 },
+            groupId,
+          },
+        ],
+      });
+      expect(repeatedGroup.statusCode).toBe(400);
+      expect(repeatedGroup.json()).toMatchObject({ code: "VALIDATION_ERROR" });
+      // Serviço avulso não tem turma.
+      const singleWithGroup = await guided({
+        next: "plan",
+        patient: { fullName: "Avulso Com Turma", phone: "11966670004" },
+        plan: { ...planTerms, kind: "fixed_package" },
+        additionalPlans: [
+          {
+            plan: { ...otherTerms, kind: "single", installments: 1 },
+            groupId: otherGroupId,
+          },
+        ],
+      });
+      expect(singleWithGroup.statusCode).toBe(400);
+      expect(await findPatients("Avulso Com Turma")).toEqual([]);
+
+      // Turma de outro serviço no plano adicional: nada fica gravado.
+      const plansBefore = (
+        await app.inject({ method: "GET", url: "/plans", headers })
+      ).json().length as number;
+      const mismatch = await guided({
+        next: "plan",
+        patient: { fullName: "Adicional Errado", phone: "11966670003" },
+        plan: { ...planTerms, kind: "fixed_package" },
+        additionalPlans: [{ plan: otherPlan, groupId }],
+      });
+      expect(mismatch.statusCode).toBe(400);
+      expect(mismatch.json()).toMatchObject({ code: "GROUP_SERVICE_MISMATCH" });
+      expect(await findPatients("Adicional Errado")).toEqual([]);
+      expect(
+        (await app.inject({ method: "GET", url: "/plans", headers })).json(),
+      ).toHaveLength(plansBefore);
+      await app.close();
+    });
+
+    it("computes the prorated first charge of each guided plan from its class", async () => {
+      const { app, headers, guided, createGroup } = await setup();
+      // Primeira turma do teste: às segundas. De 10/12/2025 a 09/01/2026 são 4 segundas;
+      // de 01/01 a 09/01, 1 (05/01): 1/4 no início e a mensalidade cheia em 10/01.
+      const groupId = await createGroup(SERVICE_ID);
+      const created = await guided({
+        next: "plan",
+        patient: { fullName: "Proporcional Guiado", phone: "11966670010" },
+        plan: {
+          ...planTerms,
+          kind: "recurring",
+          installments: 1,
+          // Valor enviado pela tela é descartado: o servidor calcula pela turma.
+          proratedChargeInCents: 1,
+        },
+        groupId,
+      });
+      expect(created.statusCode, created.body).toBe(201);
+      const receivables = (
+        (
+          await app.inject({
+            method: "GET",
+            url: "/finance/workspace",
+            headers,
+          })
+        ).json().summary.receivables as {
+          planId?: string;
+          dueDate: string;
+          amountInCents: number;
+        }[]
+      ).filter((item) => item.planId === created.json().plan.id);
+      expect(
+        receivables
+          .sort((a, b) => a.dueDate.localeCompare(b.dueDate))
+          .map((item) => [item.dueDate, item.amountInCents]),
+      ).toEqual([
+        ["2026-01-01", 10_000],
+        ["2026-01-10", 40_000],
+      ]);
+      await app.close();
+    });
+
+    it("checks the installment limit of every plan in the guided registration", async () => {
+      const { app, headers, guided, findPatients } = await setup();
+      const saved = await app.inject({
+        method: "PUT",
+        url: "/admin/payment-methods",
+        headers,
+        payload: {
+          methods: [
+            { method: "pix", acceptsInstallments: false, maxInstallments: 1 },
+          ],
+        },
+      });
+      expect(saved.statusCode).toBe(200);
+      // O principal está dentro do limite; o adicional no Pix em 2x, não.
+      const additionalTerms = await configuredPlan(app, planTerms);
+      const refused = await guided({
+        next: "plan",
+        patient: { fullName: "Adicional Parcelado", phone: "11966670009" },
+        plan: { ...planTerms, kind: "fixed_package", paymentMethod: "card" },
+        additionalPlans: [
+          {
+            plan: {
+              ...additionalTerms,
+              kind: "fixed_package",
+              paymentMethod: "pix",
+            },
+          },
+        ],
+      });
+      expect(refused.statusCode).toBe(400);
+      expect(refused.json()).toMatchObject({
+        code: "INSTALLMENTS_NOT_ALLOWED",
+        message: "Pix não aceita parcelamento: use 1 parcela.",
+      });
+      expect(await findPatients("Adicional Parcelado")).toEqual([]);
       await app.close();
     });
 
@@ -4693,16 +5304,23 @@ describe("CRM API", () => {
         plan: { ...planTerms, kind: "recurring", installments: 1 },
         groupId: fullGroupId,
       });
+      // Venda com turma cheia é recusada (TW3); a espera da turma vem de Turmas, sem plano novo.
       const waitlisted = await create({
         next: "plan",
         patient: { fullName: "Filtro Espera", phone: "11977771005" },
         plan: { ...planTerms, kind: "recurring", installments: 1 },
-        groupId: fullGroupId,
       });
+      const waitlistEnroll = await app.inject({
+        method: "POST",
+        url: "/group-enrollments",
+        headers,
+        payload: { groupId: fullGroupId, patientId: waitlisted.patient.id },
+      });
+      expect(waitlistEnroll.json()).toMatchObject({ status: "waitlisted" });
       await create({
         next: "single",
         patient: { fullName: "Filtro Avulso", phone: "11977771006" },
-        plan: planTerms,
+        plan: singleTerms,
       });
       const paused = await create({
         next: "plan",
@@ -4757,7 +5375,7 @@ describe("CRM API", () => {
       });
       expect(exported.statusCode).toBe(200);
       expect(exported.body.slice(1).replace(/\r\n$/, "").split("\r\n")).toEqual(
-        ["nome", "Filtro Espera", "Filtro Outra Turma", "Filtro Sem Turma"],
+        ["Nome", "Filtro Espera", "Filtro Outra Turma", "Filtro Sem Turma"],
       );
       await app.close();
     });
@@ -4767,6 +5385,7 @@ describe("CRM API", () => {
         await setup();
       const groupId = await createGroup(SERVICE_ID);
       const patient = (name: string) => ({
+        cpf: nextTestCpf(),
         fullName: name,
         phone: "11988880001",
       });
@@ -4822,7 +5441,7 @@ describe("CRM API", () => {
         {
           next: "single",
           patient: patient("Perm Avulso Negado"),
-          plan: planTerms,
+          plan: singleTerms,
         },
         patientsOnly,
       );

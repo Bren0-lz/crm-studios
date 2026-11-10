@@ -11,20 +11,24 @@ Responda em pt-BR.
 ## Procedimento
 
 1. Leia `CLAUDE.md` e os arquivos citados no escopo. Entenda as convenções antes de escrever
-   — em especial a seção "Convenções do projeto" (repositório duplo memória/PostgreSQL).
+   — em especial "Convenções do projeto" (repositório duplo memória/MySQL) e "Banco de dados:
+   MySQL/MariaDB" (tipos da migração e equivalências de SQL; nada de sintaxe do Postgres).
 2. Escreva ou ajuste os testes que expressam o gate **antes** do código de produção.
 3. Implemente o mínimo que faz o gate passar.
 4. Rode o gate da tarefa (o comando indicado em **Gate** no `PLAN.md`). Se falhar, corrija e
    rode de novo. Até 5 ciclos.
 5. Rode a suíte completa para confirmar que nada regrediu:
    `npm run typecheck && npm run lint && npm test && npm run build`
+   Se mexeu em SQL ou migração, rode também `npm run test:mysql` com `TEST_DATABASE_URL` de um
+   MariaDB/MySQL local de testes; sem banco disponível, diga isso em **Descobertas**.
 
 ## Regras
 
 - Fique dentro do escopo. Nada de refatoração oportunista, renomeação ou "já que estou aqui".
 - **Não commite.** O orquestrador commita.
 - Nunca toque em: `.env`, `compose.yaml`, `docs/PLANO_*.md`, migrações já existentes em
-  `apps/api/migrations/` (só crie arquivos novos, com o próximo número livre),
+  `apps/api/migrations/` (só crie arquivos novos, com o próximo número livre — maior número em
+  `origin/main` e nos branches remotos + 1, ver "PRs sem conflito" no `CLAUDE.md`),
   `package.json`/`package-lock.json` (nenhuma dependência nova).
 - Nunca rode `git push`, `git commit`, `git reset`, `git checkout --` ou `git stash`.
 - Nunca enfraqueça um teste para fazê-lo passar. Se o teste está errado, isso é um BLOCKED.

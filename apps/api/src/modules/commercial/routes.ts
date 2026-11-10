@@ -2,19 +2,24 @@ import { z } from "zod";
 import {
   leadFilterSchema,
   matchesLead,
-  buildLeadInsights,
   leadContactInputSchema,
   leadDuplicateQuerySchema,
   leadInputSchema,
+  eventLeadInputSchema,
   leadConversionInputSchema,
   leadMoveSchema,
   leadTaskInputSchema,
   leadTaskStatusSchema,
+  leadStagesInputSchema,
+  leadStageParamSchema,
+  parseLeadPageQuery,
+  type LeadBoard,
 } from "@crm/contracts";
 import type { RouteContext } from "../../infrastructure/route-context.js";
+import { stageNotFoundError } from "./stages.js";
 
 export function registerCommercialRoutes(context: RouteContext) {
-  const { app, authenticate, repository } = context;
+  const { app, authenticate, repository, events } = context;
 
   app.get("/leads", { preHandler: authenticate }, async (request) => {
     const filter = leadFilterSchema.parse(request.query),
@@ -26,12 +31,77 @@ export function registerCommercialRoutes(context: RouteContext) {
   app.get("/leads/insights", { preHandler: authenticate }, async (request) => {
     const filter = leadFilterSchema.parse(request.query),
       settings = await repository.getClinicSettings(request.user.clinicId);
-    return buildLeadInsights(
-      (await repository.listLeads(request.user.clinicId)).filter((lead) =>
-        matchesLead(lead, filter, settings?.timezone),
-      ),
+    return repository.summarizeLeads(
+      request.user.clinicId,
+      filter,
+      settings?.timezone,
     );
   });
+
+  // Funil paginado: cada coluna traz só a primeira página e o total da etapa, para não
+  // carregar todos os leads da clínica de uma vez.
+  app.get(
+    "/leads/board",
+    { preHandler: authenticate },
+    async (request): Promise<LeadBoard> => {
+      const { filter, page } = parseLeadPageQuery(request.query),
+        settings = await repository.getClinicSettings(request.user.clinicId),
+        stages = await repository.listLeadStages(request.user.clinicId);
+      return {
+        columns: await Promise.all(
+          stages.map(({ stage }) =>
+            repository.listLeadStagePage(
+              request.user.clinicId,
+              stage,
+              filter,
+              { ...page, offset: 0 },
+              settings?.timezone,
+            ),
+          ),
+        ),
+      };
+    },
+  );
+
+  app.get(
+    "/leads/board/:stage",
+    { preHandler: authenticate },
+    async (request) => {
+      const { stage } = leadStageParamSchema.parse(request.params),
+        { filter, page } = parseLeadPageQuery(request.query),
+        settings = await repository.getClinicSettings(request.user.clinicId);
+      if (
+        !(await repository.listLeadStages(request.user.clinicId)).some(
+          (item) => item.stage === stage,
+        )
+      )
+        throw stageNotFoundError();
+      return repository.listLeadStagePage(
+        request.user.clinicId,
+        stage,
+        filter,
+        page,
+        settings?.timezone,
+      );
+    },
+  );
+
+  app.get(
+    "/leads/filter-options",
+    { preHandler: authenticate },
+    async (request) => repository.listLeadFilterOptions(request.user.clinicId),
+  );
+
+  // Etapas do funil da clínica: nomes, etapas novas e removidas e a etapa final.
+  app.get("/leads/stages", { preHandler: authenticate }, async (request) =>
+    repository.listLeadStages(request.user.clinicId),
+  );
+  app.put("/leads/stages", { preHandler: authenticate }, async (request) =>
+    repository.saveLeadStages(
+      request.user.clinicId,
+      leadStagesInputSchema.parse(request.body),
+    ),
+  );
 
   app.get(
     "/leads/duplicates",
@@ -44,16 +114,18 @@ export function registerCommercialRoutes(context: RouteContext) {
     }),
   );
 
-  app.post("/leads", { preHandler: authenticate }, async (request, reply) =>
-    reply
+  app.post("/leads", { preHandler: authenticate }, async (request, reply) => {
+    const participant =
+      typeof request.body === "object" &&
+      request.body !== null &&
+      "eventId" in request.body;
+    const input = (participant ? eventLeadInputSchema : leadInputSchema).parse(
+      request.body,
+    );
+    return reply
       .status(201)
-      .send(
-        await repository.createLead(
-          request.user.clinicId,
-          leadInputSchema.parse(request.body),
-        ),
-      ),
-  );
+      .send(await repository.createLead(request.user.clinicId, input));
+  });
 
   app.put(
     "/leads/:id",
@@ -111,6 +183,16 @@ export function registerCommercialRoutes(context: RouteContext) {
         return reply.status(404).send({
           code: "LEAD_NOT_FOUND",
           message: "Lead não encontrado.",
+        });
+      // Só cadastro criado é cliente novo; conversão para cliente já existente não avisa.
+      if (!conversion.reusedExisting)
+        await events.publish({
+          type: "patient.created",
+          clinicId: request.user.clinicId,
+          actorUserId: request.user.sub,
+          patientId: conversion.patient.id,
+          fullName: conversion.patient.fullName,
+          origin: "lead",
         });
       return conversion;
     },

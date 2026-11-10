@@ -75,7 +75,7 @@ const workspace = {
   replacementCredits: [],
 };
 
-function renderGroups() {
+function renderGroups(full = false) {
   localStorage.setItem("crm.auth.token", "test-token");
   localStorage.setItem(
     "crm.auth.user",
@@ -95,7 +95,17 @@ function renderGroups() {
             ...JSON.parse(String(options.body)),
           }
         : url.includes("/groups/workspace?")
-          ? workspace
+          ? {
+              ...workspace,
+              groups: [
+                {
+                  ...group,
+                  activeEnrollments: full
+                    ? group.capacity
+                    : group.activeEnrollments,
+                },
+              ],
+            }
           : url.includes("/patients/options")
             ? [
                 {
@@ -115,16 +125,66 @@ function renderGroups() {
 }
 
 describe("group enrollment period", () => {
+  it("does not enroll in a full group until the waitlist confirmation is accepted", async () => {
+    renderGroups(true);
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Matricular cliente" }),
+    );
+    const dialog = await screen.findByRole("dialog", {
+      name: "Nova matrícula",
+    });
+    fireEvent.change(within(dialog).getByLabelText("Turma"), {
+      target: { value: group.id },
+    });
+    fireEvent.change(
+      within(dialog).getByRole("combobox", { name: "Cliente" }),
+      { target: { value: "Helena Almeida" } },
+    );
+    fireEvent.click(
+      await within(dialog).findByRole("option", { name: "Helena Almeida" }),
+    );
+    fireEvent.click(within(dialog).getByRole("button", { name: "Matricular" }));
+    const confirmation = screen.getByRole("dialog", { name: "Turma cheia" });
+    expect(confirmation.closest(".modal-backdrop")?.parentElement).toBe(
+      document.body,
+    );
+    const writes = () =>
+      vi
+        .mocked(fetch)
+        .mock.calls.filter(
+          ([url, options]) =>
+            String(url).endsWith("/group-enrollments") &&
+            options?.method === "POST",
+        );
+    expect(writes()).toHaveLength(0);
+    fireEvent.click(
+      within(confirmation).getByRole("button", { name: "Voltar" }),
+    );
+    expect(writes()).toHaveLength(0);
+    fireEvent.click(within(dialog).getByRole("button", { name: "Matricular" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Sim, colocar na lista de espera" }),
+    );
+    await vi.waitFor(() => expect(writes()).toHaveLength(1));
+  });
   it("lists in each session only the clients enrolled on that date", async () => {
-    // 18/10/2026: 14/10 fica em "Anteriores" (recolhida) e 21/10 em "Próximas".
+    // 18/10/2026: 14/10 e 21/10 aparecem no calendário de outubro.
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(new Date("2026-10-18T15:00:00Z"));
     onTestFinished(() => {
       vi.useRealTimers();
     });
     renderGroups();
-    fireEvent.click(await screen.findByRole("button", { name: /Anteriores/ }));
-    fireEvent.click(screen.getByRole("button", { name: /14 de out/ }));
+    fireEvent.click(await screen.findByRole("button", { name: "Abrir turma" }));
+    fireEvent.click(
+      screen.getByRole("tab", { name: "Frequência e reposições" }),
+    );
+    const calendar = await screen.findByRole("table", {
+      name: "Aulas de Outubro de 2026",
+    });
+    fireEvent.click(
+      within(calendar).getByRole("button", { name: /14 de out\./ }),
+    );
     let dialog = screen.getByRole("dialog", { name: group.name });
     expect(
       within(dialog).getByLabelText("Frequência de Bia Antiga"),
@@ -132,9 +192,13 @@ describe("group enrollment period", () => {
     expect(
       within(dialog).queryByLabelText("Frequência de Ana Nova"),
     ).not.toBeInTheDocument();
-    fireEvent.click(within(dialog).getAllByRole("button", { name: "Fechar" })[0]!);
+    fireEvent.click(
+      within(dialog).getAllByRole("button", { name: "Fechar" })[0]!,
+    );
 
-    fireEvent.click(screen.getByRole("button", { name: /21 de out/ }));
+    fireEvent.click(
+      within(calendar).getByRole("button", { name: /21 de out\./ }),
+    );
     dialog = screen.getByRole("dialog", { name: group.name });
     expect(
       within(dialog).getByLabelText("Frequência de Ana Nova"),
@@ -149,7 +213,9 @@ describe("group enrollment period", () => {
     fireEvent.click(
       await screen.findByRole("button", { name: "Matricular cliente" }),
     );
-    const dialog = screen.getByRole("dialog", { name: "Nova matrícula" });
+    const dialog = await screen.findByRole("dialog", {
+      name: "Nova matrícula",
+    });
     const start = within(dialog).getByLabelText("Início da matrícula");
     expect(start).toHaveValue(saoPauloToday());
     fireEvent.change(start, { target: { value: "2026-10-17" } });

@@ -12,6 +12,7 @@ import {
   fireEvent,
   render,
   screen,
+  waitFor,
   within,
 } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
@@ -181,7 +182,7 @@ describe("users and permissions", () => {
       within(row("Davi Rocha")).getByText("Nenhum módulo (só Visão geral)"),
     ).toBeInTheDocument();
     expect(
-      within(row("Elisa Prado")).getByText("Vê 1 módulo · 6 permissões"),
+      within(row("Elisa Prado")).getByText("Vê 1 módulo · 8 permissões"),
     ).toBeInTheDocument();
     // Sem padrão por perfil: nem selo de "personalizadas" nem a matriz de padrões.
     expect(
@@ -247,10 +248,10 @@ describe("users and permissions", () => {
       "Configurações",
     ]) {
       expect(
-        within(dialog).getByLabelText(`${module}: Visualizar módulo`),
+        within(dialog).getByLabelText(new RegExp(`^${module}: Acessar `)),
       ).not.toBeChecked();
       expect(
-        within(dialog).getByLabelText(`Selecionar bloco ${module}`),
+        within(dialog).getByLabelText(`Marcar todas de ${module}`),
       ).not.toBeChecked();
     }
     expect(
@@ -264,40 +265,42 @@ describe("users and permissions", () => {
 
     // Marcar Editar marca Ver; desmarcar Ver desmarca Editar.
     fireEvent.click(
-      within(dialog).getByLabelText("Selecionar bloco Relatórios"),
+      within(dialog).getByLabelText("Marcar todas de Relatórios"),
     );
     expect(
-      within(dialog).getByLabelText("Relatórios: Visualizar módulo"),
+      within(dialog).getByLabelText("Relatórios: Acessar os relatórios"),
     ).toBeChecked();
     fireEvent.click(
-      within(dialog).getByLabelText("Relatórios: Visualizar módulo"),
+      within(dialog).getByLabelText("Relatórios: Acessar os relatórios"),
     );
     expect(
-      within(dialog).getByLabelText("Selecionar bloco Relatórios"),
+      within(dialog).getByLabelText("Marcar todas de Relatórios"),
     ).not.toBeChecked();
-    fireEvent.click(within(dialog).getByLabelText("Turmas: Visualizar módulo"));
+    fireEvent.click(within(dialog).getByLabelText("Turmas: Acessar as turmas"));
 
     // Admin: acesso total, sem checkboxes nem cópia; voltar a usuário comum mantém o que estava marcado.
     fireEvent.change(type, { target: { value: "admin" } });
     expect(within(dialog).getByText(/Acesso total/)).toBeInTheDocument();
     expect(
-      within(dialog).queryByLabelText("Clientes: Visualizar módulo"),
+      within(dialog).queryByLabelText("Clientes: Acessar os clientes"),
     ).not.toBeInTheDocument();
     expect(
       within(dialog).queryByLabelText("Copiar permissões de…"),
     ).not.toBeInTheDocument();
     fireEvent.change(type, { target: { value: "user" } });
     expect(
-      within(dialog).getByLabelText("Turmas: Visualizar módulo"),
+      within(dialog).getByLabelText("Turmas: Acessar as turmas"),
     ).toBeChecked();
-    fireEvent.click(within(dialog).getByLabelText("Turmas: Visualizar módulo"));
-    fireEvent.click(within(dialog).getByLabelText("Selecionar bloco Agenda"));
-    fireEvent.click(within(dialog).getByLabelText("Selecionar bloco Clientes"));
+    fireEvent.click(within(dialog).getByLabelText("Turmas: Acessar as turmas"));
+    fireEvent.click(within(dialog).getByLabelText("Marcar todas de Agenda"));
+    fireEvent.click(within(dialog).getByLabelText("Marcar todas de Clientes"));
     fireEvent.click(
-      within(dialog).getByLabelText("Planos e sessões: Visualizar módulo"),
+      within(dialog).getByLabelText(
+        "Planos e sessões: Acessar planos e sessões",
+      ),
     );
     fireEvent.click(
-      within(dialog).getByLabelText("Prontuários: Visualizar módulo"),
+      within(dialog).getByLabelText("Prontuários: Acessar os prontuários"),
     );
 
     fireEvent.change(within(dialog).getByLabelText("Nome completo"), {
@@ -345,6 +348,273 @@ describe("users and permissions", () => {
     prompt.mockRestore();
   });
 
+  it("accepts a simple initial password, without uppercase or numbers", async () => {
+    localStorage.setItem("crm.auth.token", "test-token");
+    localStorage.setItem("crm.auth.user", storedUser(ownerSession));
+    mockAdmin(
+      (url, init) =>
+        init?.method === "POST" && url.endsWith("/admin/users")
+          ? {
+              ...customUser,
+              id: "55555555-5555-4555-8555-555555555555",
+              fullName: "Breno Luiz",
+            }
+          : undefined,
+      [adminUser, customUser],
+    );
+    render(
+      <MemoryRouter initialEntries={["/configuracoes"]}>
+        <App />
+      </MemoryRouter>,
+    );
+    await openSettingsSection("Usuários");
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Novo usuário" }),
+    );
+    const dialog = screen.getByRole("dialog", { name: "Novo usuário" });
+    fireEvent.change(within(dialog).getByLabelText("Nome completo"), {
+      target: { value: "Breno Luiz" },
+    });
+    fireEvent.change(within(dialog).getByLabelText("E-mail de acesso"), {
+      target: { value: "breno@movimenta.local" },
+    });
+    fireEvent.change(within(dialog).getByLabelText("Senha inicial"), {
+      target: { value: "senhafraca" },
+    });
+    fireEvent.submit(
+      within(dialog).getByLabelText("Nome completo").closest("form")!,
+    );
+    expect(
+      await screen.findByText("Usuário Breno Luiz criado."),
+    ).toBeInTheDocument();
+    expect(lastCall("POST").body).toMatchObject({ password: "senhafraca" });
+  });
+
+  it("saves the user's WhatsApp on create and only sends it on edit when it changes", async () => {
+    localStorage.setItem("crm.auth.token", "test-token");
+    localStorage.setItem("crm.auth.user", storedUser(ownerSession));
+    const withWhatsapp = { ...customUser, whatsapp: "11988887777" };
+    mockAdmin(
+      (url, init) =>
+        init?.method === "POST" && url.endsWith("/admin/users")
+          ? {
+              ...customUser,
+              id: "66666666-6666-4666-8666-666666666666",
+              fullName: "Breno Luiz",
+            }
+          : init?.method === "PATCH"
+            ? withWhatsapp
+            : undefined,
+      [adminUser, withWhatsapp],
+    );
+    render(
+      <MemoryRouter initialEntries={["/configuracoes"]}>
+        <App />
+      </MemoryRouter>,
+    );
+    await openSettingsSection("Usuários");
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Novo usuário" }),
+    );
+    const dialog = screen.getByRole("dialog", { name: "Novo usuário" });
+    fireEvent.change(within(dialog).getByLabelText("Nome completo"), {
+      target: { value: "Breno Luiz" },
+    });
+    fireEvent.change(within(dialog).getByLabelText("E-mail de acesso"), {
+      target: { value: "breno@movimenta.local" },
+    });
+    fireEvent.change(within(dialog).getByLabelText("Senha inicial"), {
+      target: { value: "senha" },
+    });
+    const whatsapp = within(dialog).getByLabelText("WhatsApp");
+    fireEvent.change(whatsapp, { target: { value: "2199887" } });
+    fireEvent.submit(whatsapp.closest("form")!);
+    expect(
+      await within(dialog).findByText(/Informe o WhatsApp com DDD/),
+    ).toHaveClass("form-error");
+    fireEvent.change(whatsapp, { target: { value: "21998877665" } });
+    expect(whatsapp).toHaveValue("(21) 99887-7665");
+    fireEvent.submit(whatsapp.closest("form")!);
+    expect(
+      await screen.findByText("Usuário Breno Luiz criado."),
+    ).toBeInTheDocument();
+    expect(lastCall("POST").body).toMatchObject({ whatsapp: "21998877665" });
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Editar Maria Souza" }),
+    );
+    const edit = screen.getByRole("dialog", { name: "Editar Maria Souza" });
+    expect(within(edit).getByLabelText("WhatsApp")).toHaveValue(
+      "(11) 98888-7777",
+    );
+    fireEvent.submit(within(edit).getByLabelText("WhatsApp").closest("form")!);
+    expect(
+      await screen.findByText("Alterações de Maria Souza salvas."),
+    ).toBeInTheDocument();
+    expect(lastCall("PATCH").body).not.toHaveProperty("whatsapp");
+  });
+
+  it("marks agenda professionals without WhatsApp in the user list", async () => {
+    localStorage.setItem("crm.auth.token", "test-token");
+    localStorage.setItem("crm.auth.user", storedUser(ownerSession));
+    const professionalLink = (id: string, name: string) => ({
+      professionalId: id,
+      professionalName: name,
+    });
+    mockAdmin(undefined, [
+      adminUser,
+      { ...customUser, ...professionalLink("p1", "Maria Souza") },
+      {
+        ...carlaUser,
+        whatsapp: "11988887777",
+        ...professionalLink("p2", "Carla Reis"),
+      },
+    ]);
+    render(
+      <MemoryRouter initialEntries={["/configuracoes?secao=usuarios"]}>
+        <App />
+      </MemoryRouter>,
+    );
+    const maria = (await screen.findByText("Maria Souza")).closest("article")!;
+    expect(within(maria).getByText("Sem WhatsApp")).toHaveClass("status-pill");
+    // Com WhatsApp, ou sem profissional da agenda (admin), não há selo.
+    const carla = screen.getByText("Carla Reis").closest("article")!;
+    expect(within(carla).queryByText("Sem WhatsApp")).not.toBeInTheDocument();
+    expect(screen.getAllByText("Sem WhatsApp")).toHaveLength(1);
+  });
+
+  it("grants the sales dashboard access, also to an admin, sending it only when it changes", async () => {
+    localStorage.setItem("crm.auth.token", "test-token");
+    localStorage.setItem("crm.auth.user", storedUser(ownerSession));
+    mockAdmin(
+      (_url, init) =>
+        init?.method === "PATCH"
+          ? { ...adminUser, dashboardAccess: true }
+          : undefined,
+      [adminUser],
+    );
+    render(
+      <MemoryRouter initialEntries={["/configuracoes"]}>
+        <App />
+      </MemoryRouter>,
+    );
+    await openSettingsSection("Usuários");
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Editar Aryana Dutra" }),
+    );
+    const edit = screen.getByRole("dialog", { name: "Editar Aryana Dutra" });
+    // Admin tem acesso total ao CRM, mas o painel de vendas começa desmarcado.
+    const access = within(edit).getByRole("checkbox", {
+      name: "Acessa o painel de vendas",
+    });
+    expect(access).not.toBeChecked();
+    fireEvent.submit(access.closest("form")!);
+    expect(
+      await screen.findByText("Alterações de Aryana Dutra salvas."),
+    ).toBeInTheDocument();
+    expect(lastCall("PATCH").body).not.toHaveProperty("dashboardAccess");
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Editar Aryana Dutra" }),
+    );
+    const again = screen.getByRole("dialog", { name: "Editar Aryana Dutra" });
+    fireEvent.click(
+      within(again).getByRole("checkbox", {
+        name: "Acessa o painel de vendas",
+      }),
+    );
+    fireEvent.submit(
+      within(again)
+        .getByRole("checkbox", { name: "Acessa o painel de vendas" })
+        .closest("form")!,
+    );
+    await waitFor(() =>
+      expect(lastCall("PATCH").body).toMatchObject({ dashboardAccess: true }),
+    );
+  });
+
+  it("marks on the user who receives a salary and how much, sending it only when it changes", async () => {
+    localStorage.setItem("crm.auth.token", "test-token");
+    localStorage.setItem("crm.auth.user", storedUser(ownerSession));
+    const salaried = { ...customUser, salaryInCents: 180000 };
+    mockAdmin(
+      (url, init) =>
+        init?.method === "POST" && url.endsWith("/admin/users")
+          ? {
+              ...salaried,
+              id: "66666666-6666-4666-8666-666666666666",
+              fullName: "Breno Luiz",
+            }
+          : init?.method === "PATCH"
+            ? { ...customUser }
+            : undefined,
+      [adminUser, salaried],
+    );
+    render(
+      <MemoryRouter initialEntries={["/configuracoes"]}>
+        <App />
+      </MemoryRouter>,
+    );
+    await openSettingsSection("Usuários");
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Novo usuário" }),
+    );
+    const dialog = screen.getByRole("dialog", { name: "Novo usuário" });
+    fireEvent.change(within(dialog).getByLabelText("Nome completo"), {
+      target: { value: "Breno Luiz" },
+    });
+    fireEvent.change(within(dialog).getByLabelText("E-mail de acesso"), {
+      target: { value: "breno@movimenta.local" },
+    });
+    fireEvent.change(within(dialog).getByLabelText("Senha inicial"), {
+      target: { value: "senha" },
+    });
+    const receives = within(dialog).getByRole("checkbox", {
+      name: "Recebe salário",
+    });
+    expect(receives).not.toBeChecked();
+    expect(
+      within(dialog).queryByLabelText("Salário mensal (R$)"),
+    ).not.toBeInTheDocument();
+    fireEvent.click(receives);
+    // Marcado sem valor: o salário falta.
+    expect(
+      within(dialog).getByRole("button", { name: "Criar usuário" }),
+    ).toBeDisabled();
+    fireEvent.change(within(dialog).getByLabelText("Salário mensal (R$)"), {
+      target: { value: "1800,00" },
+    });
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Criar usuário" }),
+    );
+    expect(
+      await screen.findByText("Usuário Breno Luiz criado."),
+    ).toBeInTheDocument();
+    expect(lastCall("POST").body).toMatchObject({ salaryInCents: 180000 });
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Editar Maria Souza" }),
+    );
+    const edit = screen.getByRole("dialog", { name: "Editar Maria Souza" });
+    expect(
+      within(edit).getByRole("checkbox", { name: "Recebe salário" }),
+    ).toBeChecked();
+    expect(within(edit).getByLabelText("Salário mensal (R$)")).toHaveValue(
+      "1.800,00",
+    );
+    // Desmarcar tira da folha: envia `null`.
+    fireEvent.click(
+      within(edit).getByRole("checkbox", { name: "Recebe salário" }),
+    );
+    fireEvent.click(
+      within(edit).getByRole("button", { name: "Salvar alterações" }),
+    );
+    expect(
+      await screen.findByText("Alterações de Maria Souza salvas."),
+    ).toBeInTheDocument();
+    expect(lastCall("PATCH").body).toMatchObject({ salaryInCents: null });
+  });
+
   it("copies permissions from another common user when creating, still editable before saving", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
     localStorage.setItem("crm.auth.user", storedUser(ownerSession));
@@ -382,33 +652,33 @@ describe("users and permissions", () => {
       within(dialog).getByText(/Permissões copiadas de Carla Reis/),
     ).toBeInTheDocument();
     expect(
-      within(dialog).getByLabelText("Agenda: Visualizar módulo"),
+      within(dialog).getByLabelText("Agenda: Acessar a agenda"),
     ).toBeChecked();
     expect(
-      within(dialog).getByLabelText("Selecionar bloco Agenda"),
+      within(dialog).getByLabelText("Marcar todas de Agenda"),
     ).not.toBeChecked();
     expect(
-      within(dialog).getByLabelText("Clientes: Visualizar módulo"),
+      within(dialog).getByLabelText("Clientes: Acessar os clientes"),
     ).toBeChecked();
     expect(
-      within(dialog).getByLabelText("Selecionar bloco Prontuários"),
+      within(dialog).getByLabelText("Marcar todas de Prontuários"),
     ).not.toBeChecked();
     expect(
-      within(dialog).getByLabelText("Selecionar bloco Prontuários"),
+      within(dialog).getByLabelText("Marcar todas de Prontuários"),
     ).toHaveProperty("indeterminate", true);
     expect(
       within(dialog).getByLabelText(
-        "Prontuários: Gerenciar aparelhos, exercícios e treinos",
+        "Prontuários: Cadastrar aparelhos, exercícios e treinos",
       ),
     ).not.toBeChecked();
     expect(
-      within(dialog).getByLabelText("Financeiro: Visualizar módulo"),
+      within(dialog).getByLabelText("Financeiro: Acessar o financeiro"),
     ).not.toBeChecked();
     // Continua editável depois de copiar.
     fireEvent.click(
-      within(dialog).getByLabelText("Clientes: Visualizar módulo"),
+      within(dialog).getByLabelText("Clientes: Acessar os clientes"),
     );
-    fireEvent.click(within(dialog).getByLabelText("Selecionar bloco Agenda"));
+    fireEvent.click(within(dialog).getByLabelText("Marcar todas de Agenda"));
 
     fireEvent.change(within(dialog).getByLabelText("Nome completo"), {
       target: { value: "Ana Lima" },
@@ -473,7 +743,7 @@ describe("users and permissions", () => {
       "Instrutora de Pilates",
     );
     expect(
-      within(dialog).getByLabelText("Financeiro: Visualizar módulo"),
+      within(dialog).getByLabelText("Financeiro: Acessar o financeiro"),
     ).toBeChecked();
     const copy = within(dialog).getByLabelText("Copiar permissões de…");
     expect(
@@ -481,15 +751,15 @@ describe("users and permissions", () => {
     ).not.toBeInTheDocument();
     fireEvent.change(copy, { target: { value: carlaUser.id } });
     expect(
-      within(dialog).getByLabelText("Financeiro: Visualizar módulo"),
+      within(dialog).getByLabelText("Financeiro: Acessar o financeiro"),
     ).not.toBeChecked();
     expect(
-      within(dialog).getByLabelText("Selecionar bloco Prontuários"),
+      within(dialog).getByLabelText("Marcar todas de Prontuários"),
     ).not.toBeChecked();
     expect(
-      within(dialog).getByLabelText("Selecionar bloco Prontuários"),
+      within(dialog).getByLabelText("Marcar todas de Prontuários"),
     ).toHaveProperty("indeterminate", true);
-    fireEvent.click(within(dialog).getByLabelText("Selecionar bloco Clientes"));
+    fireEvent.click(within(dialog).getByLabelText("Marcar todas de Clientes"));
     fireEvent.change(within(dialog).getByLabelText("Cargo"), {
       target: { value: "" },
     });
@@ -537,16 +807,16 @@ describe("users and permissions", () => {
     expect(within(dialog).getByLabelText("Tipo")).toHaveValue("admin");
     expect(within(dialog).getByText(/Acesso total/)).toBeInTheDocument();
     expect(
-      within(dialog).queryByLabelText("Agenda: Visualizar módulo"),
+      within(dialog).queryByLabelText("Agenda: Acessar a agenda"),
     ).not.toBeInTheDocument();
     fireEvent.change(within(dialog).getByLabelText("Tipo"), {
       target: { value: "user" },
     });
     expect(
-      within(dialog).getByLabelText("Agenda: Visualizar módulo"),
+      within(dialog).getByLabelText("Agenda: Acessar a agenda"),
     ).not.toBeChecked();
     expect(
-      within(dialog).getByLabelText("Configurações: Visualizar módulo"),
+      within(dialog).getByLabelText("Configurações: Acessar as configurações"),
     ).not.toBeChecked();
   });
 
@@ -630,7 +900,7 @@ describe("users and permissions", () => {
     );
     const dialog = screen.getByRole("dialog", { name: "Editar Maria Souza" });
     fireEvent.click(
-      within(dialog).getByLabelText("Selecionar bloco Financeiro"),
+      within(dialog).getByLabelText("Marcar todas de Financeiro"),
     );
     fireEvent.submit(
       within(dialog).getByLabelText("Nome completo").closest("form")!,
@@ -674,7 +944,7 @@ describe("users and permissions", () => {
     fireEvent.click(
       await screen.findByRole("button", { name: "Redefinir senha" }),
     );
-    const resetDialog = screen.getByRole("dialog", { name: "Redefinir senha" });
+    const resetDialog = screen.getByRole("dialog", { name: "Senha de acesso" });
     fireEvent.change(within(resetDialog).getByLabelText("Nova senha"), {
       target: { value: "Bb2" },
     });
@@ -732,6 +1002,7 @@ describe("users and permissions", () => {
       customModules: false,
       professionalId: takenId,
       professionalName: "Bruno Lima (agenda)",
+      professional: professional(takenId, "Bruno Lima (agenda)"),
       commissionPercentage: 35,
       commissionEffectiveFrom: "2026-01-01",
     };
@@ -741,6 +1012,15 @@ describe("users and permissions", () => {
         status: 409,
         json: async () => ({ code, message }),
       }) as Response;
+
+    const emptyRecalculation = {
+      from: saoPauloToday(),
+      until: saoPauloToday(),
+      items: [],
+      differenceInCents: 0,
+      adjustmentInCents: 0,
+      digest: "b".repeat(64),
+    };
 
     function mockCommission(
       handler: (url: string, init?: RequestInit) => unknown,
@@ -761,6 +1041,13 @@ describe("users and permissions", () => {
             ok: true,
             status: 200,
             json: async () => handled,
+          } as Response;
+        // Sem comissão lançada no período: a prévia do recálculo vem vazia.
+        if (url.endsWith("/recalculation/preview"))
+          return {
+            ok: true,
+            status: 200,
+            json: async () => emptyRecalculation,
           } as Response;
         if (url.endsWith("/professionals") && options.professionalsFail)
           return {
@@ -804,10 +1091,16 @@ describe("users and permissions", () => {
       return screen.getByRole("dialog", { name: `Editar ${name}` });
     }
 
+    // A prévia do recálculo é consulta por POST: não conta como gravação.
     const writes = () =>
       vi
         .mocked(fetch)
-        .mock.calls.filter(([, init]) => init?.method && init.method !== "GET")
+        .mock.calls.filter(
+          ([input, init]) =>
+            init?.method &&
+            init.method !== "GET" &&
+            !String(input).endsWith("/recalculation/preview"),
+        )
         .map(([input, init]) => ({
           method: init!.method!,
           url: String(input),
@@ -842,25 +1135,7 @@ describe("users and permissions", () => {
       ).toBeInTheDocument();
     });
 
-    it("creates a user with commission in the POST body and links the professional in the same click", async () => {
-      const created = {
-        ...customUser,
-        id: "44444444-4444-4444-8444-444444444444",
-        fullName: "Ana Lima",
-        commissionPercentage: 25,
-        commissionEffectiveFrom: saoPauloToday(),
-      };
-      mockCommission((url, init) => {
-        if (init?.method === "POST" && url.endsWith("/admin/users"))
-          return created;
-        if (init?.method === "PUT" && url.endsWith("/professional"))
-          return {
-            ...created,
-            professionalId: pilatesId,
-            professionalName: "Maria Pilates",
-          };
-        return undefined;
-      });
+    async function openNew() {
       localStorage.setItem("crm.auth.token", "test-token");
       localStorage.setItem("crm.auth.user", storedUser(ownerSession));
       render(
@@ -870,571 +1145,484 @@ describe("users and permissions", () => {
       );
       await openSettingsSection("Usuários");
       await screen.findByRole("button", { name: "Editar Maria Souza" });
-      fireEvent.click(
-        await screen.findByRole("button", { name: "Novo usuário" }),
-      );
+      fireEvent.click(screen.getByRole("button", { name: "Novo usuário" }));
       const dialog = screen.getByRole("dialog", { name: "Novo usuário" });
-      expect(within(dialog).getByLabelText("Comissão (%)")).toHaveValue(null);
-      expect(within(dialog).getByLabelText("Vale a partir de")).toHaveValue(
-        saoPauloToday(),
+      for (const [label, value] of [
+        ["Nome completo", "Ana Lima"],
+        ["E-mail de acesso", "ana@movimenta.local"],
+        ["Senha inicial", "SenhaForte123"],
+      ])
+        fireEvent.change(within(dialog).getByLabelText(label!), {
+          target: { value },
+        });
+      return dialog;
+    }
+    const save = (dialog: HTMLElement, name = "Salvar alterações") =>
+      fireEvent.click(within(dialog).getByRole("button", { name }));
+    async function chooseExisting(dialog: HTMLElement) {
+      fireEvent.click(within(dialog).getByLabelText("Realiza atendimentos"));
+      fireEvent.change(
+        within(dialog).getByLabelText("Cadastro do profissional"),
+        { target: { value: "existing" } },
       );
-      expect(
-        within(dialog).getByText(/para contar os atendimentos desta pessoa/),
-      ).toBeInTheDocument();
-      const select = await within(dialog).findByLabelText(
-        /Profissional da agenda/,
-      );
-      // Livres: o profissional já ligado a outro usuário não aparece.
-      expect(
-        within(select).getByRole("option", { name: "Nenhum" }),
-      ).toBeInTheDocument();
-      expect(
-        within(select).queryByRole("option", { name: "Bruno Lima (agenda)" }),
-      ).not.toBeInTheDocument();
-      // Sem passos separados.
-      expect(
-        within(dialog).queryByRole("button", { name: "Salvar comissão" }),
-      ).not.toBeInTheDocument();
-      expect(
-        within(dialog).queryByRole("button", { name: "Salvar profissional" }),
-      ).not.toBeInTheDocument();
+      const select = within(dialog).getByLabelText("Profissional da agenda");
+      await within(select).findByRole("option", { name: "Maria Pilates" });
+      return select;
+    }
 
+    it("creates a user and a professional with independent agenda name and commission in one POST", async () => {
+      mockCommission((_url, init) =>
+        init?.method === "POST"
+          ? { ...customUser, fullName: "Ana Lima" }
+          : undefined,
+      );
+      const dialog = await openNew();
+      expect(
+        within(dialog).getByLabelText("Realiza atendimentos"),
+      ).not.toBeChecked();
+      fireEvent.click(within(dialog).getByLabelText("Realiza atendimentos"));
+      expect(within(dialog).getByLabelText("Nome na agenda")).toHaveValue(
+        "Ana Lima",
+      );
+      expect(within(dialog).getByLabelText("Especialidade")).toHaveValue(
+        "Fisioterapia",
+      );
+      expect(
+        within(dialog).getByRole("button", { name: "Criar usuário" }),
+      ).toBeDisabled();
+      fireEvent.change(within(dialog).getByLabelText("Registro profissional"), {
+        target: { value: "CREF 4321" },
+      });
+      fireEvent.change(within(dialog).getByLabelText("Nome na agenda"), {
+        target: { value: "Dra. Ana" },
+      });
       fireEvent.change(within(dialog).getByLabelText("Nome completo"), {
-        target: { value: "Ana Lima" },
+        target: { value: "Ana Lima Souza" },
       });
-      fireEvent.change(within(dialog).getByLabelText("E-mail de acesso"), {
-        target: { value: "ana@movimenta.local" },
-      });
-      fireEvent.change(within(dialog).getByLabelText("Senha inicial"), {
-        target: { value: "SenhaForte123" },
-      });
+      expect(within(dialog).getByLabelText("Nome na agenda")).toHaveValue(
+        "Dra. Ana",
+      );
       fireEvent.change(within(dialog).getByLabelText("Comissão (%)"), {
         target: { value: "25" },
       });
-      fireEvent.change(select, { target: { value: pilatesId } });
-      fireEvent.click(
-        within(dialog).getByRole("button", { name: "Criar usuário" }),
-      );
-      expect(
-        await screen.findByText("Usuário Ana Lima criado."),
-      ).toBeInTheDocument();
-      const sent = writes();
-      expect(sent.map((item) => item.method)).toEqual(["POST", "PUT"]);
-      expect(sent[0]!.body).toEqual({
-        fullName: "Ana Lima",
-        email: "ana@movimenta.local",
-        password: "SenhaForte123",
-        role: "user",
-        permissions: [],
-        commission: { percentage: 25, effectiveFrom: saoPauloToday() },
+      save(dialog, "Criar usuário");
+      await screen.findByText("Usuário Ana Lima criado.");
+      expect(writes()).toHaveLength(1);
+      expect(writes()[0]).toMatchObject({
+        method: "POST",
+        body: {
+          fullName: "Ana Lima Souza",
+          permissions: [],
+          professional: {
+            mode: "create",
+            data: {
+              fullName: "Dra. Ana",
+              crefito: "CREF 4321",
+              specialty: "Fisioterapia",
+              color: "#547A6B",
+            },
+          },
+          commission: { percentage: 25, effectiveFrom: saoPauloToday() },
+        },
       });
-      expect(sent[1]!.url).toContain(`/admin/users/${created.id}/professional`);
-      expect(sent[1]!.body).toEqual({ professionalId: pilatesId });
     });
 
-    it("creates a user without commission or professional with only the POST", async () => {
-      mockCommission((url, init) =>
-        init?.method === "POST" && url.endsWith("/admin/users")
-          ? {
-              ...customUser,
-              id: "44444444-4444-4444-8444-444444444444",
-              fullName: "Ana Lima",
-            }
+    it("offers only the general commission, on the value the client paid", async () => {
+      mockCommission(() => undefined);
+      const dialog = await openNew();
+      expect(within(dialog).getByText("Comissão")).toBeInTheDocument();
+      expect(
+        within(dialog).getByText(/sobre o valor que o cliente pagou/),
+      ).toBeInTheDocument();
+      expect(
+        within(dialog).queryByText("Comissão por serviço"),
+      ).not.toBeInTheDocument();
+      expect(
+        within(dialog).queryByRole("button", { name: "Adicionar serviço" }),
+      ).not.toBeInTheDocument();
+      expect(
+        within(dialog).queryByLabelText("Tipo de comissão"),
+      ).not.toBeInTheDocument();
+    });
+
+    it("creates a user without a professional or commission and without extra writes", async () => {
+      mockCommission((_url, init) =>
+        init?.method === "POST"
+          ? { ...customUser, fullName: "Ana Lima" }
           : undefined,
       );
-      localStorage.setItem("crm.auth.token", "test-token");
-      localStorage.setItem("crm.auth.user", storedUser(ownerSession));
-      render(
-        <MemoryRouter initialEntries={["/configuracoes"]}>
-          <App />
-        </MemoryRouter>,
-      );
-      await openSettingsSection("Usuários");
-      await screen.findByRole("button", { name: "Editar Maria Souza" });
-      fireEvent.click(
-        await screen.findByRole("button", { name: "Novo usuário" }),
-      );
-      const dialog = screen.getByRole("dialog", { name: "Novo usuário" });
-      await within(dialog).findByLabelText(/Profissional da agenda/);
-      // O que falta fica listado e ligado ao botão desativado (QM14).
-      const createUser = within(dialog).getByRole("button", {
-        name: "Criar usuário",
-      });
-      expect(createUser).toBeDisabled();
-      expect(createUser).toHaveAccessibleDescription(
-        "Falta: Nome completo (pelo menos 3 caracteres), E-mail de acesso, Senha inicial.",
-      );
-      fireEvent.change(within(dialog).getByLabelText("Nome completo"), {
-        target: { value: "Ana Lima" },
-      });
-      fireEvent.change(within(dialog).getByLabelText("E-mail de acesso"), {
-        target: { value: "ana@movimenta.local" },
-      });
-      expect(createUser).toHaveAccessibleDescription("Falta: Senha inicial.");
-      fireEvent.change(within(dialog).getByLabelText("Senha inicial"), {
-        target: { value: "SenhaForte123" },
-      });
-      expect(createUser).toBeEnabled();
-      expect(within(dialog).queryByText(/Falta:/)).not.toBeInTheDocument();
-      fireEvent.click(
-        within(dialog).getByRole("button", { name: "Criar usuário" }),
-      );
+      const dialog = await openNew();
       expect(
-        await screen.findByText("Usuário Ana Lima criado."),
-      ).toBeInTheDocument();
+        within(dialog).queryByLabelText("Registro profissional"),
+      ).not.toBeInTheDocument();
+      save(dialog, "Criar usuário");
+      await screen.findByText("Usuário Ana Lima criado.");
       expect(writes().map((item) => item.method)).toEqual(["POST"]);
+      expect(writes()[0]!.body).not.toHaveProperty("professional");
       expect(writes()[0]!.body).not.toHaveProperty("commission");
     });
 
-    it("edits only the commission: PATCH and then PUT with the new rule", async () => {
-      const withRule = {
-        ...otherUser,
-        commissionPercentage: 40,
-        commissionEffectiveFrom: saoPauloToday(),
-      };
-      mockCommission((_url, init) => {
-        if (init?.method === "PATCH") return otherUser;
-        if (init?.method === "PUT") return withRule;
-        return undefined;
-      });
-      const dialog = await openEditor("Bruno Lima");
-      expect(within(dialog).getByLabelText("Comissão (%)")).toHaveValue(35);
+    it("links an available professional, fills their fields and excludes another user's professional", async () => {
+      mockCommission((_url, init) =>
+        init?.method === "POST"
+          ? { ...customUser, fullName: "Ana Lima" }
+          : undefined,
+      );
+      const dialog = await openNew();
+      const select = await chooseExisting(dialog);
       expect(
-        within(dialog).getByText(/Vigente hoje: 35% desde/),
-      ).toBeInTheDocument();
-      fireEvent.change(within(dialog).getByLabelText("Comissão (%)"), {
-        target: { value: "40" },
-      });
-      fireEvent.click(
-        within(dialog).getByRole("button", { name: "Salvar alterações" }),
+        within(select).queryByRole("option", { name: "Bruno Lima (agenda)" }),
+      ).not.toBeInTheDocument();
+      fireEvent.change(select, { target: { value: pilatesId } });
+      expect(within(dialog).getByLabelText("Nome na agenda")).toHaveValue(
+        "Maria Pilates",
       );
       expect(
-        await screen.findByText("Alterações de Bruno Lima salvas."),
-      ).toBeInTheDocument();
-      const sent = writes();
-      expect(sent.map((item) => item.method)).toEqual(["PATCH", "PUT"]);
-      expect(sent[0]!.url).toContain(`/admin/users/${otherUser.id}`);
-      expect(sent[0]!.body).not.toHaveProperty("commission");
-      expect(sent[1]!.url).toContain(`/admin/users/${otherUser.id}/commission`);
-      expect(sent[1]!.body).toEqual({
-        percentage: 40,
-        effectiveFrom: saoPauloToday(),
+        within(dialog).getByLabelText("Registro profissional"),
+      ).toHaveValue("CREF 1234");
+      save(dialog, "Criar usuário");
+      await screen.findByText("Usuário Ana Lima criado.");
+      expect(writes()).toHaveLength(1);
+      expect(writes()[0]!.body).toMatchObject({
+        professional: {
+          mode: "save",
+          id: pilatesId,
+          data: { fullName: "Maria Pilates" },
+        },
       });
     });
 
-    it("edits without touching commission or professional with only the PATCH", async () => {
+    it("shows the retroactive recalculation before saving and sends the confirmed preview", async () => {
+      const preview = {
+        from: "2026-03-01",
+        until: saoPauloToday(),
+        items: [
+          {
+            commissionId: "c1",
+            professionalId: takenId,
+            professionalName: "Bruno Lima (agenda)",
+            competence: "2026-03",
+            sourceDate: "2026-03-10",
+            status: "paid",
+            mode: "adjustment",
+            previousAmountInCents: 1000,
+            amountInCents: 4000,
+            differenceInCents: 3000,
+            ruleSnapshot: { percentage: 40, effectiveFrom: "2026-03-01" },
+          },
+        ],
+        differenceInCents: 3000,
+        adjustmentInCents: 3000,
+        digest: "c".repeat(64),
+      };
+      mockCommission((url, init) =>
+        url.endsWith("/recalculation/preview")
+          ? preview
+          : init?.method === "PATCH"
+            ? otherUser
+            : undefined,
+      );
+      const dialog = await openEditor("Bruno Lima");
+      fireEvent.change(within(dialog).getByLabelText("Comissão (%)"), {
+        target: { value: "40" },
+      });
+      fireEvent.change(within(dialog).getByLabelText("Vale a partir de"), {
+        target: { value: "2026-03-01" },
+      });
+      fireEvent.submit(
+        within(dialog).getByLabelText("Comissão (%)").closest("form")!,
+      );
+      expect(
+        await within(dialog).findByText(/Esta mudança recalcula 1 comissão/),
+      ).toBeInTheDocument();
+      expect(writes()).toEqual([]);
+      fireEvent.click(
+        within(dialog).getByRole("button", { name: "Confirmar e recalcular" }),
+      );
+      await screen.findByText("Alterações de Bruno Lima salvas.");
+      expect(writes()).toHaveLength(1);
+      expect(writes()[0]!.body).toMatchObject({
+        commission: { percentage: 40, effectiveFrom: "2026-03-01" },
+        recalculationDigest: "c".repeat(64),
+      });
+    });
+
+    it("saves only changed commission and access data in one PATCH", async () => {
       mockCommission((_url, init) =>
         init?.method === "PATCH" ? otherUser : undefined,
       );
       const dialog = await openEditor("Bruno Lima");
-      expect(
-        await within(dialog).findByLabelText(/Profissional da agenda/),
-      ).toHaveValue(takenId);
+      fireEvent.change(within(dialog).getByLabelText("Comissão (%)"), {
+        target: { value: "40" },
+      });
       fireEvent.change(within(dialog).getByLabelText("Cargo"), {
         target: { value: "Instrutor" },
       });
-      fireEvent.click(
-        within(dialog).getByRole("button", { name: "Salvar alterações" }),
+      fireEvent.submit(
+        within(dialog).getByLabelText("Comissão (%)").closest("form")!,
       );
-      expect(
-        await screen.findByText("Alterações de Bruno Lima salvas."),
-      ).toBeInTheDocument();
+      await screen.findByText("Alterações de Bruno Lima salvas.");
       expect(writes().map((item) => item.method)).toEqual(["PATCH"]);
+      expect(writes()[0]!.body).toMatchObject({
+        jobTitle: "Instrutor",
+        commission: { percentage: 40, effectiveFrom: saoPauloToday() },
+      });
+      expect(writes()[0]!.body).not.toHaveProperty("professional");
     });
 
-    it("keeps what was saved when the commission fails after the PATCH, and retries only what is left", async () => {
+    it("preserves unchanged professional and commission when editing access fields", async () => {
+      mockCommission((_url, init) =>
+        init?.method === "PATCH" ? otherUser : undefined,
+      );
+      const dialog = await openEditor("Bruno Lima");
+      expect(within(dialog).getByLabelText("Nome na agenda")).toHaveValue(
+        "Bruno Lima (agenda)",
+      );
+      fireEvent.change(within(dialog).getByLabelText("Cargo"), {
+        target: { value: "Instrutor" },
+      });
+      save(dialog);
+      await screen.findByText("Alterações de Bruno Lima salvas.");
+      expect(writes()).toHaveLength(1);
+      expect(writes()[0]!.body).not.toHaveProperty("professional");
+      expect(writes()[0]!.body).not.toHaveProperty("commission");
+    });
+
+    it("preserves all entered data and retries the whole PATCH after a commission conflict", async () => {
       let attempt = 0;
-      const renamed = { ...otherUser, fullName: "Bruno Lima Souza" };
-      mockCommission((_url, init) => {
-        if (init?.method === "PATCH") return renamed;
-        if (init?.method === "PUT") {
-          attempt += 1;
-          return attempt === 1
+      mockCommission((_url, init) =>
+        init?.method === "PATCH"
+          ? ++attempt === 1
             ? conflict(
                 "COMMISSION_RULE_DUPLICATE",
-                "Já existe uma regra com essa data.",
+                "Escolha outra data de início.",
               )
-            : { ...renamed, commissionPercentage: 20 };
-        }
-        return undefined;
-      });
+            : otherUser
+          : undefined,
+      );
       const dialog = await openEditor("Bruno Lima");
       fireEvent.change(within(dialog).getByLabelText("Nome completo"), {
-        target: { value: "Bruno Lima Souza" },
+        target: { value: "Nome digitado" },
       });
       fireEvent.change(within(dialog).getByLabelText("Comissão (%)"), {
         target: { value: "20" },
       });
-      fireEvent.click(
-        within(dialog).getByRole("button", { name: "Salvar alterações" }),
+      save(dialog);
+      expect(
+        await screen.findByText("Escolha outra data de início."),
+      ).toHaveClass("form-error");
+      expect(within(dialog).getByLabelText("Nome completo")).toHaveValue(
+        "Nome digitado",
       );
-      const message = await screen.findByText(
-        /Dados do usuário salvos, mas a comissão não foi salva: Já existe uma regra com essa data\./,
-      );
-      expect(message).toHaveClass("form-error");
-      // O formulário continua aberto com o que foi digitado, e a lista já mostra o que foi salvo.
-      const open = screen.getByRole("dialog", {
-        name: "Editar Bruno Lima Souza",
-      });
-      expect(within(open).getByLabelText("Comissão (%)")).toHaveValue(20);
-      const section = screen
-        .getByRole("heading", { name: "Usuários" })
-        .closest("section")!;
-      expect(within(section).getByText("Bruno Lima Souza")).toBeInTheDocument();
-
-      fireEvent.change(within(open).getByLabelText("Vale a partir de"), {
+      expect(within(dialog).getByLabelText("Comissão (%)")).toHaveValue(20);
+      expect(
+        screen.getByRole("button", { name: "Editar Bruno Lima" }),
+      ).toBeInTheDocument();
+      fireEvent.change(within(dialog).getByLabelText("Vale a partir de"), {
         target: { value: "2099-02-01" },
       });
-      fireEvent.click(
-        within(open).getByRole("button", { name: "Salvar alterações" }),
-      );
-      expect(
-        await screen.findByText("Alterações de Bruno Lima Souza salvas."),
-      ).toBeInTheDocument();
-      const sent = writes();
-      expect(sent.map((item) => item.method)).toEqual([
-        "PATCH",
-        "PUT",
-        "PATCH",
-        "PUT",
-      ]);
-      expect(sent[3]!.body).toEqual({
-        percentage: 20,
-        effectiveFrom: "2099-02-01",
+      save(dialog);
+      await screen.findByText("Alterações de Bruno Lima salvas.");
+      expect(writes().map((item) => item.method)).toEqual(["PATCH", "PATCH"]);
+      expect(writes()[1]!.body).toMatchObject({
+        fullName: "Nome digitado",
+        commission: { percentage: 20, effectiveFrom: "2099-02-01" },
       });
     });
 
-    it("keeps the created user when linking the professional fails, retrying with PATCH instead of a new POST", async () => {
-      const created = {
-        ...customUser,
-        id: "44444444-4444-4444-8444-444444444444",
-        fullName: "Ana Lima",
-        email: "ana@movimenta.local",
-      };
+    it("keeps new-user mode after a professional conflict and retries only with POST", async () => {
       let attempt = 0;
-      mockCommission((url, init) => {
-        if (init?.method === "POST" && url.endsWith("/admin/users"))
-          return created;
-        if (init?.method === "PATCH") return created;
-        if (init?.method === "PUT" && url.endsWith("/professional")) {
-          attempt += 1;
-          return attempt === 1
+      mockCommission((_url, init) =>
+        init?.method === "POST"
+          ? ++attempt === 1
             ? conflict(
                 "PROFESSIONAL_ALREADY_LINKED",
                 "Este profissional já está ligado a outro usuário.",
               )
-            : { ...created, professionalId: pilatesId };
-        }
-        return undefined;
-      });
-      localStorage.setItem("crm.auth.token", "test-token");
-      localStorage.setItem("crm.auth.user", storedUser(ownerSession));
-      render(
-        <MemoryRouter initialEntries={["/configuracoes"]}>
-          <App />
-        </MemoryRouter>,
+            : { ...customUser, fullName: "Ana Lima" }
+          : undefined,
       );
-      await openSettingsSection("Usuários");
-      await screen.findByRole("button", { name: "Editar Maria Souza" });
-      fireEvent.click(
-        await screen.findByRole("button", { name: "Novo usuário" }),
+      const dialog = await openNew();
+      const select = await chooseExisting(dialog);
+      fireEvent.change(select, { target: { value: pilatesId } });
+      save(dialog, "Criar usuário");
+      await screen.findByText(
+        "Este profissional já está ligado a outro usuário.",
       );
-      const dialog = screen.getByRole("dialog", { name: "Novo usuário" });
-      fireEvent.change(within(dialog).getByLabelText("Nome completo"), {
-        target: { value: "Ana Lima" },
-      });
-      fireEvent.change(within(dialog).getByLabelText("E-mail de acesso"), {
-        target: { value: "ana@movimenta.local" },
-      });
-      fireEvent.change(within(dialog).getByLabelText("Senha inicial"), {
-        target: { value: "SenhaForte123" },
-      });
-      fireEvent.change(within(dialog).getByLabelText("Comissão (%)"), {
-        target: { value: "10" },
-      });
-      fireEvent.change(
-        await within(dialog).findByLabelText(/Profissional da agenda/),
-        { target: { value: pilatesId } },
+      expect(screen.getByRole("dialog", { name: "Novo usuário" })).toBe(dialog);
+      expect(within(dialog).getByLabelText("E-mail de acesso")).toHaveValue(
+        "ana@movimenta.local",
       );
-      fireEvent.click(
-        within(dialog).getByRole("button", { name: "Criar usuário" }),
-      );
-      expect(
-        await screen.findByText(
-          /Usuário Ana Lima criado, mas a ligação com o profissional da agenda não foi salva/,
-        ),
-      ).toHaveClass("form-error");
-      const open = screen.getByRole("dialog", { name: "Editar Ana Lima" });
-      fireEvent.click(
-        within(open).getByRole("button", { name: "Salvar alterações" }),
-      );
-      expect(
-        await screen.findByText("Usuário Ana Lima criado."),
-      ).toBeInTheDocument();
-      // A comissão foi no POST: não é reenviada (evita vigência repetida).
-      expect(
-        writes().map(
-          (item) => `${item.method} ${item.url.split("/admin/users").at(-1)}`,
-        ),
-      ).toEqual([
-        "POST ",
-        `PUT /${created.id}/professional`,
-        `PATCH /${created.id}`,
-        `PUT /${created.id}/professional`,
-      ]);
+      save(dialog, "Criar usuário");
+      await screen.findByText("Usuário Ana Lima criado.");
+      expect(writes().map((item) => item.method)).toEqual(["POST", "POST"]);
     });
 
-    it("corrects the percentage on the same start date of the current period", async () => {
-      const createdToday = {
-        ...otherUser,
-        commissionPercentage: 20,
-        commissionEffectiveFrom: saoPauloToday(),
-      };
-      const corrected = { ...createdToday, commissionPercentage: 25 };
-      let corrections = 0;
+    it("deactivates while keeping the link and edits inactive professionals for reactivation", async () => {
+      let inactive = false;
       mockCommission((url, init) => {
-        if (init?.method === "PATCH") return createdToday;
-        if (init?.method === "PUT") {
-          corrections += 1;
-          return corrected;
+        if (init?.method === "PATCH") {
+          inactive = true;
+          return {
+            ...otherUser,
+            professional: { ...otherUser.professional, active: false },
+          };
         }
         if (url.endsWith("/admin/users"))
-          return [customUser, corrections ? corrected : createdToday];
+          return [
+            customUser,
+            {
+              ...otherUser,
+              professional: { ...otherUser.professional, active: !inactive },
+            },
+          ];
+        return undefined;
+      });
+      let dialog = await openEditor("Bruno Lima");
+      fireEvent.click(within(dialog).getByLabelText("Realiza atendimentos"));
+      save(dialog);
+      await screen.findByText("Alterações de Bruno Lima salvas.");
+      expect(writes()[0]!.body.professional).toEqual({ mode: "deactivate" });
+      await screen.findByText(
+        "Agenda: Bruno Lima (agenda) (inativo) · Comissão 35%",
+      );
+      fireEvent.click(
+        screen.getByRole("button", { name: "Editar Bruno Lima" }),
+      );
+      dialog = screen.getByRole("dialog", { name: "Editar Bruno Lima" });
+      expect(
+        within(dialog).getByLabelText("Realiza atendimentos"),
+      ).not.toBeChecked();
+      fireEvent.click(within(dialog).getByLabelText("Realiza atendimentos"));
+      expect(within(dialog).getByLabelText("Nome na agenda")).toHaveValue(
+        "Bruno Lima (agenda)",
+      );
+      save(dialog);
+      await screen.findByText("Alterações de Bruno Lima salvas.");
+      expect(writes()[1]!.body).toMatchObject({
+        professional: { mode: "save", id: takenId },
+      });
+    });
+
+    it("corrects the current commission period and warns about future effective dates", async () => {
+      let saved = false;
+      mockCommission((url, init) => {
+        const user = {
+          ...otherUser,
+          commissionPercentage: saved ? 25 : 20,
+          commissionEffectiveFrom: saoPauloToday(),
+        };
+        if (init?.method === "PATCH") {
+          saved = true;
+          return user;
+        }
+        if (url.endsWith("/admin/users")) return [customUser, user];
         return undefined;
       });
       const dialog = await openEditor("Bruno Lima");
-      expect(
-        within(dialog).queryByText("Vai corrigir o percentual desta vigência."),
-      ).not.toBeInTheDocument();
       fireEvent.change(within(dialog).getByLabelText("Comissão (%)"), {
         target: { value: "25" },
       });
       expect(
         within(dialog).getByText("Vai corrigir o percentual desta vigência."),
       ).toBeInTheDocument();
-      fireEvent.click(
-        within(dialog).getByRole("button", { name: "Salvar alterações" }),
-      );
-      expect(
-        await screen.findByText("Alterações de Bruno Lima salvas."),
-      ).toBeInTheDocument();
-      expect(lastCall("PUT").body).toEqual({
-        percentage: 25,
-        effectiveFrom: saoPauloToday(),
-      });
-      const section = screen
-        .getByRole("heading", { name: "Usuários" })
-        .closest("section")!;
-      expect(
-        await within(section).findByText(
-          "Agenda: Bruno Lima (agenda) · Comissão 25%",
-        ),
-      ).toBeInTheDocument();
-    });
-
-    it("shows in the form why a used commission period cannot be corrected", async () => {
-      const createdToday = {
-        ...otherUser,
-        commissionPercentage: 20,
-        commissionEffectiveFrom: saoPauloToday(),
-      };
-      const message =
-        "Esta comissão já foi usada em lançamentos; escolha outra data de início.";
-      mockCommission((url, init) => {
-        if (init?.method === "PATCH") return createdToday;
-        if (init?.method === "PUT")
-          return conflict("COMMISSION_RULE_DUPLICATE", message);
-        if (url.endsWith("/admin/users")) return [customUser, createdToday];
-        return undefined;
-      });
-      const dialog = await openEditor("Bruno Lima");
-      fireEvent.change(within(dialog).getByLabelText("Comissão (%)"), {
-        target: { value: "25" },
-      });
-      fireEvent.click(
-        within(dialog).getByRole("button", { name: "Salvar alterações" }),
-      );
-      const error = await screen.findByText(
-        new RegExp(message.replace(/[.;]/g, "\\$&")),
-      );
-      expect(error).toHaveClass("form-error");
-      expect(
-        screen.getByRole("dialog", { name: "Editar Bruno Lima" }),
-      ).toBeInTheDocument();
-    });
-
-    it("warns that the current percentage keeps applying when the start date is in the future", async () => {
-      mockCommission((_url, init) =>
-        init?.method === "PATCH" || init?.method === "PUT"
-          ? otherUser
-          : undefined,
-      );
-      const dialog = await openEditor("Bruno Lima");
-      expect(within(dialog).queryByText(/Data futura/)).not.toBeInTheDocument();
-      fireEvent.change(within(dialog).getByLabelText("Comissão (%)"), {
-        target: { value: "40" },
-      });
       fireEvent.change(within(dialog).getByLabelText("Vale a partir de"), {
         target: { value: "2099-01-01" },
       });
       expect(
         within(dialog).getByText(
-          `Data futura: o percentual atual (35%) continua valendo até ${futureLabel("2099-01-01")}.`,
+          new RegExp(
+            "Data futura: o percentual atual.*" +
+              futureLabel("2099-01-01").replaceAll(".", "\\."),
+          ),
         ),
       ).toBeInTheDocument();
-      fireEvent.click(
-        within(dialog).getByRole("button", { name: "Salvar alterações" }),
-      );
-      expect(
-        await screen.findByText("Alterações de Bruno Lima salvas."),
-      ).toBeInTheDocument();
-      expect(lastCall("PUT").body).toEqual({
-        percentage: 40,
-        effectiveFrom: "2099-01-01",
+      save(dialog);
+      await screen.findByText("Alterações de Bruno Lima salvas.");
+      expect(writes()[0]!.body).toMatchObject({
+        commission: { percentage: 25, effectiveFrom: "2099-01-01" },
       });
     });
 
-    it("links and unlinks the professional with the same save button", async () => {
-      const linked = {
-        ...customUser,
-        professionalId: pilatesId,
-        professionalName: "Maria Pilates",
-      };
-      mockCommission((url, init) => {
-        if (init?.method === "PATCH")
-          return url.includes(otherUser.id) ? otherUser : customUser;
-        if (init?.method === "PUT" && url.endsWith("/professional"))
-          return linked;
-        return undefined;
-      });
-      let dialog = await openEditor();
-      const select = await within(dialog).findByLabelText(
-        /Profissional da agenda/,
-      );
-      expect(select).toHaveValue("");
-      expect(
-        within(select).getByRole("option", { name: "Maria Pilates" }),
-      ).toBeInTheDocument();
-      expect(
-        within(select).queryByRole("option", { name: "Bruno Lima (agenda)" }),
-      ).not.toBeInTheDocument();
-      fireEvent.change(select, { target: { value: pilatesId } });
-      fireEvent.click(
-        within(dialog).getByRole("button", { name: "Salvar alterações" }),
-      );
-      expect(
-        await screen.findByText("Alterações de Maria Souza salvas."),
-      ).toBeInTheDocument();
-      expect(writes().map((item) => item.method)).toEqual(["PATCH", "PUT"]);
-      expect(lastCall("PUT").url).toContain(
-        `/admin/users/${customUser.id}/professional`,
-      );
-      expect(lastCall("PUT").body).toEqual({ professionalId: pilatesId });
-
-      // Desligar: "Nenhum" envia null.
-      fireEvent.click(
-        screen.getByRole("button", { name: "Editar Bruno Lima" }),
-      );
-      dialog = screen.getByRole("dialog", { name: "Editar Bruno Lima" });
-      fireEvent.change(
-        await within(dialog).findByLabelText(/Profissional da agenda/),
-        { target: { value: "" } },
-      );
-      fireEvent.click(
-        within(dialog).getByRole("button", { name: "Salvar alterações" }),
-      );
-      await vi.waitFor(() =>
-        expect(lastCall("PUT").body).toEqual({ professionalId: null }),
-      );
-      expect(lastCall("PUT").url).toContain(
-        `/admin/users/${otherUser.id}/professional`,
-      );
-    });
-
-    it("lets Enter in the commission fields submit the whole form", async () => {
+    it("validates commission before writing and explains a used-period conflict", async () => {
       mockCommission((_url, init) =>
-        init?.method === "PATCH" || init?.method === "PUT"
-          ? otherUser
+        init?.method === "PATCH"
+          ? conflict(
+              "COMMISSION_RULE_DUPLICATE",
+              "Esta comissão já foi usada em lançamentos; escolha outra data de início.",
+            )
           : undefined,
       );
-      const dialog = await openEditor("Bruno Lima");
-      const percentage = within(dialog).getByLabelText("Comissão (%)");
-      fireEvent.change(within(dialog).getByLabelText("Cargo"), {
-        target: { value: "Instrutor" },
-      });
-      fireEvent.change(percentage, { target: { value: "45" } });
-      // Enter não é mais consumido por uma seção à parte: segue o envio padrão do formulário.
-      expect(fireEvent.keyDown(percentage, { key: "Enter" })).toBe(true);
-      expect(
-        fireEvent.keyDown(within(dialog).getByLabelText("Vale a partir de"), {
-          key: "Enter",
-        }),
-      ).toBe(true);
-      expect(percentage.closest("form")).toBe(
-        within(dialog).getByLabelText("Nome completo").closest("form"),
-      );
-      expect(
-        within(dialog).queryByRole("button", { name: "Salvar comissão" }),
-      ).not.toBeInTheDocument();
-      fireEvent.submit(percentage.closest("form")!);
-      expect(
-        await screen.findByText("Alterações de Bruno Lima salvas."),
-      ).toBeInTheDocument();
-      const sent = writes();
-      expect(sent.map((item) => item.method)).toEqual(["PATCH", "PUT"]);
-      expect(sent[0]!.body).toMatchObject({ jobTitle: "Instrutor" });
-      expect(sent[1]!.body).toEqual({
-        percentage: 45,
-        effectiveFrom: saoPauloToday(),
-      });
-    });
-
-    it("validates the commission before saving anything", async () => {
-      mockCommission(() => undefined);
       const dialog = await openEditor("Bruno Lima");
       fireEvent.change(within(dialog).getByLabelText("Comissão (%)"), {
         target: { value: "" },
       });
-      // Comissão em branco é falta: Salvar desativado dizendo o que fazer (QM14).
-      const saveUser = within(dialog).getByRole("button", {
-        name: "Salvar alterações",
-      });
-      expect(saveUser).toBeDisabled();
-      expect(saveUser).toHaveAccessibleDescription(
-        "Falta: Comissão (%) — para não pagar comissão, informe 0%.",
-      );
-      // 120 já é barrado pelo navegador (max=100); o envio direto também é validado.
+      expect(
+        within(dialog).getByRole("button", { name: "Salvar alterações" }),
+      ).toBeDisabled();
       fireEvent.change(within(dialog).getByLabelText("Comissão (%)"), {
-        target: { value: "120" },
+        target: { value: "101" },
       });
       fireEvent.submit(
-        within(dialog).getByLabelText("Nome completo").closest("form")!,
+        within(dialog).getByLabelText("Comissão (%)").closest("form")!,
       );
       expect(
-        await within(dialog).findByText(
+        await screen.findByText(
           "Informe um percentual de comissão entre 0 e 100.",
         ),
       ).toHaveClass("form-error");
       expect(writes()).toHaveLength(0);
+      fireEvent.change(within(dialog).getByLabelText("Comissão (%)"), {
+        target: { value: "25" },
+      });
+      save(dialog);
+      expect(
+        await screen.findByText(/Esta comissão já foi usada em lançamentos/),
+      ).toHaveClass("form-error");
     });
 
-    it("shows loading and error states for the professionals list without blocking the commission", async () => {
+    it("shows loading until the professional options arrive", async () => {
+      let release!: (items: ReturnType<typeof professional>[]) => void;
+      const pending = new Promise<ReturnType<typeof professional>[]>(
+        (resolve) => {
+          release = resolve;
+        },
+      );
+      mockCommission((url) =>
+        url.endsWith("/professionals") ? pending : undefined,
+      );
+      const dialog = await openEditor();
+      fireEvent.click(within(dialog).getByLabelText("Realiza atendimentos"));
+      fireEvent.change(
+        within(dialog).getByLabelText("Cadastro do profissional"),
+        { target: { value: "existing" } },
+      );
+      expect(dialog.querySelector(".loading-block")).not.toBeNull();
+      release([professional(pilatesId, "Maria Pilates")]);
+      await within(dialog).findByRole("option", { name: "Maria Pilates" });
+      expect(dialog.querySelector(".loading-block")).toBeNull();
+    });
+
+    it("shows list errors with retry without blocking commission or a new professional", async () => {
       mockCommission(() => undefined, { professionalsFail: true });
       const dialog = await openEditor();
-      expect(dialog.querySelector(".loading-block")).not.toBeNull();
+      fireEvent.click(within(dialog).getByLabelText("Realiza atendimentos"));
+      fireEvent.change(
+        within(dialog).getByLabelText("Cadastro do profissional"),
+        { target: { value: "existing" } },
+      );
+      await within(dialog).findByText(/Falha ao listar profissionais/);
       expect(
-        await within(dialog).findByText(/Falha ao listar profissionais\./),
-      ).toBeInTheDocument();
+        within(dialog).getByRole("button", { name: "Tentar novamente" }),
+      ).toBeEnabled();
       expect(within(dialog).getByLabelText("Comissão (%)")).toBeEnabled();
-      fireEvent.click(within(dialog).getByRole("button", { name: "Cancelar" }));
-      fireEvent.click(screen.getByRole("button", { name: "Novo usuário" }));
-      const created = screen.getByRole("dialog", { name: "Novo usuário" });
+      fireEvent.change(
+        within(dialog).getByLabelText("Cadastro do profissional"),
+        { target: { value: "create" } },
+      );
       expect(
-        within(created).getByLabelText("Comissão (%)"),
-      ).toBeInTheDocument();
-      expect(
-        within(created).queryByText(/Depois de criar o usuário/),
-      ).not.toBeInTheDocument();
+        within(dialog).getByLabelText("Registro profissional"),
+      ).toBeEnabled();
     });
   });
 

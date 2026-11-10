@@ -1,6 +1,8 @@
 import {
+  assessmentTemplateActiveInputSchema,
   assessmentTemplateInputSchema,
   clinicalAddendumInputSchema,
+  clinicalAlertInputSchema,
   clinicalAssessmentInputSchema,
   clinicalAttachmentInputSchema,
   clinicalMeasurementInputSchema,
@@ -9,8 +11,10 @@ import {
   therapeuticGoalStatusSchema,
   treatmentClosureInputSchema,
 } from "@crm/contracts";
+import { z } from "zod";
 import type { RouteContext } from "../../infrastructure/route-context.js";
 import { optionalPatientFilterSchema } from "../../infrastructure/route-utils.js";
+import { DomainError } from "../../repository.js";
 
 export function registerClinicalRoutes(context: RouteContext) {
   const { app, authenticate, repository } = context;
@@ -174,6 +178,66 @@ export function registerClinicalRoutes(context: RouteContext) {
         ),
   );
 
+  app.post(
+    "/clinical-alerts",
+    { preHandler: authenticate },
+    async (request, reply) =>
+      reply
+        .status(201)
+        .send(
+          await repository.createClinicalAlert(
+            request.user.clinicId,
+            request.user.sub,
+            clinicalAlertInputSchema.parse(request.body),
+          ),
+        ),
+  );
+
+  app.delete(
+    "/clinical-alerts/:id",
+    { preHandler: authenticate },
+    async (request, reply) => {
+      const { id } = z.object({ id: z.uuid() }).parse(request.params);
+      const archived = await repository.archiveClinicalAlert(
+        request.user.clinicId,
+        id,
+      );
+      if (!archived)
+        throw new DomainError(
+          "CLINICAL_ALERT_NOT_FOUND",
+          "Alerta clínico não encontrado.",
+          404,
+        );
+      return reply.status(204).send();
+    },
+  );
+
+  app.get(
+    "/assessment-templates",
+    { preHandler: authenticate },
+    async (request) =>
+      repository.listAssessmentTemplates(request.user.clinicId),
+  );
+  app.patch(
+    "/assessment-templates/:id/status",
+    { preHandler: authenticate },
+    async (request) => {
+      const { id } = z.object({ id: z.uuid() }).parse(request.params);
+      const template = await repository.setAssessmentTemplateActive(
+        request.user.clinicId,
+        request.user.sub,
+        id,
+        assessmentTemplateActiveInputSchema.parse(request.body).active,
+      );
+      if (!template)
+        throw new DomainError(
+          "ASSESSMENT_TEMPLATE_NOT_FOUND",
+          "Modelo não encontrado.",
+          404,
+        );
+      return template;
+    },
+  );
   app.post(
     "/assessment-templates/drafts",
     { preHandler: authenticate },

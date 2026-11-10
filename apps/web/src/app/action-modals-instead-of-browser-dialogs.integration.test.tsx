@@ -4,6 +4,8 @@ import { describe, expect, it, vi } from "vitest";
 import App from "../App";
 import { storedUser } from "../test-support/legacy-fixtures";
 import "../test-support/legacy-setup";
+import { isLeadBoardUrl, leadBoardResponse } from "../test-support/lead-board";
+import { fillRequiredContact } from "../test-support/patient-actions";
 
 describe("action modals instead of browser dialogs", () => {
   const owner = {
@@ -63,7 +65,8 @@ describe("action modals instead of browser dialogs", () => {
 
     it("asks the loss reason in a modal and sends it with the stage", async () => {
       mockApi(
-        (url) => (url.endsWith("/leads") ? [lead] : undefined),
+        (url) =>
+          isLeadBoardUrl(url) ? leadBoardResponse(url, [lead]) : undefined,
         () => ({ ...lead, stage: "lost", lostReason: "Achou caro" }),
       );
       render(
@@ -133,7 +136,8 @@ describe("action modals instead of browser dialogs", () => {
         fullName: "Bruna Lead",
       };
       mockApi(
-        (url) => (url.endsWith("/leads") ? [lead] : undefined),
+        (url) =>
+          isLeadBoardUrl(url) ? leadBoardResponse(url, [lead]) : undefined,
         () => ({
           lead: { ...lead, stage: "won", convertedPatientId: patient.id },
           patient,
@@ -154,13 +158,16 @@ describe("action modals instead of browser dialogs", () => {
         name: "Converter lead em cliente",
       });
       expect(
-        within(dialog).getByText(/Bruna Lead passa a ser cliente/),
-      ).toBeInTheDocument();
+        within(dialog).queryByText(/os dados do lead já vieram preenchidos/),
+      ).not.toBeInTheDocument();
       expect(
         within(dialog).getByText("Bruna Lead · (11) 98765-4321"),
       ).toBeInTheDocument();
-      // Os dados opcionais da conversão (U19) vêm primeiro: o foco abre no CPF.
-      expect(within(dialog).getByLabelText("CPF")).toHaveFocus();
+      // Mesmo cadastro do "Novo cliente": o nome do lead vem preenchido e recebe o foco.
+      expect(within(dialog).getByLabelText("Nome completo")).toHaveFocus();
+      expect(within(dialog).getByLabelText("Nome completo")).toHaveValue(
+        "Bruna Lead",
+      );
       fireEvent.click(within(dialog).getByRole("button", { name: "Voltar" }));
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
       expect(writes()).toHaveLength(0);
@@ -173,8 +180,15 @@ describe("action modals instead of browser dialogs", () => {
       dialog = await screen.findByRole("dialog", {
         name: "Converter lead em cliente",
       });
+      expect(
+        within(dialog).getByRole("button", { name: "Converter em cliente" }),
+      ).toBeDisabled();
+      fireEvent.change(within(dialog).getByLabelText("CPF"), {
+        target: { value: "52998224725" },
+      });
+      fillRequiredContact(dialog);
       fireEvent.click(
-        within(dialog).getByRole("button", { name: "Confirmar" }),
+        within(dialog).getByRole("button", { name: "Converter em cliente" }),
       );
       await vi.waitFor(() =>
         expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
@@ -182,12 +196,9 @@ describe("action modals instead of browser dialogs", () => {
       expect(writes()).toHaveLength(1);
       expect(String(writes()[0]![0])).toContain(`/leads/${lead.id}/convert`);
       expect(writes()[0]![1]?.method).toBe("POST");
-      // Sem dados opcionais preenchidos: campos vazios, que a API ignora.
-      expect(
-        Object.values(JSON.parse(String(writes()[0]![1]?.body))).every(
-          (value) => value === "",
-        ),
-      ).toBe(true);
+      expect(JSON.parse(String(writes()[0]![1]?.body))).toMatchObject({
+        cpf: "52998224725",
+      });
     });
 
     it("keeps the modal open with the API error", async () => {
@@ -206,7 +217,10 @@ describe("action modals instead of browser dialogs", () => {
         return {
           ok: true,
           status: 200,
-          json: async () => (String(input).endsWith("/leads") ? [lead] : []),
+          json: async () =>
+            isLeadBoardUrl(String(input))
+              ? leadBoardResponse(String(input), [lead])
+              : [],
         } as Response;
       });
       render(
@@ -222,8 +236,12 @@ describe("action modals instead of browser dialogs", () => {
       const dialog = await screen.findByRole("dialog", {
         name: "Converter lead em cliente",
       });
+      fireEvent.change(within(dialog).getByLabelText("CPF"), {
+        target: { value: "52998224725" },
+      });
+      fillRequiredContact(dialog);
       fireEvent.click(
-        within(dialog).getByRole("button", { name: "Confirmar" }),
+        within(dialog).getByRole("button", { name: "Converter em cliente" }),
       );
       expect(
         await within(dialog).findByText(
@@ -304,91 +322,6 @@ describe("action modals instead of browser dialogs", () => {
     expect(JSON.parse(String(writes()[0]![1]?.body))).toEqual({
       status: "cancelled",
     });
-  });
-
-  it("finalizes a clinical record after a confirmation saying it cannot be edited anymore", async () => {
-    const patient = {
-      id: "99999999-9999-4999-8999-999999999999",
-      fullName: "Helena Almeida",
-      recordNumber: 12,
-    };
-    const record = {
-      id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
-      appointmentId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
-      patientId: patient.id,
-      professionalId: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
-      status: "draft",
-      version: 1,
-      authorName: "Aryana Dutra",
-      patientName: "Helena Almeida",
-      professionalName: "Dra. Ana Martins",
-      professionalCrefito: "CREFITO-3 123456-F",
-      appointmentStartsAt: new Date().toISOString(),
-      subjective: "Relato",
-      objective: "Exame",
-      assessment: "Evolução positiva",
-      plan: "Manter",
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-    mockApi(
-      (url) =>
-        url.includes("/clinical-workspace/")
-          ? {
-              patient,
-              records: [record],
-              templates: [],
-              assessments: [],
-              goals: [],
-              measurements: [],
-              closures: [],
-              attachments: [],
-              addenda: [],
-            }
-          : url.includes("/clinical-records")
-            ? [record]
-            : url.includes("/patients")
-              ? [patient]
-              : undefined,
-      () => ({
-        ...record,
-        status: "finalized",
-        finalizedAt: new Date().toISOString(),
-      }),
-    );
-    render(
-      <MemoryRouter initialEntries={["/prontuarios"]}>
-        <App />
-      </MemoryRouter>,
-    );
-    fireEvent.click(await screen.findByRole("button", { name: "Finalizar" }));
-    let dialog = await screen.findByRole("dialog", {
-      name: "Finalizar evolução",
-    });
-    expect(
-      within(dialog).getByText(/não poderá mais ser editada/),
-    ).toBeInTheDocument();
-    expect(within(dialog).getByText(/^Helena Almeida · /)).toBeInTheDocument();
-    fireEvent.click(within(dialog).getByRole("button", { name: "Voltar" }));
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-    expect(writes()).toHaveLength(0);
-
-    fireEvent.click(screen.getByRole("button", { name: "Finalizar" }));
-    dialog = await screen.findByRole("dialog", { name: "Finalizar evolução" });
-    fireEvent.click(within(dialog).getByRole("button", { name: "Confirmar" }));
-    await vi.waitFor(() =>
-      expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
-    );
-    expect(writes()).toHaveLength(1);
-    expect(String(writes()[0]![0])).toContain(
-      `/clinical-records/${record.id}/finalize`,
-    );
-    expect(writes()[0]![1]?.method).toBe("POST");
-    await vi.waitFor(() =>
-      expect(
-        screen.queryByRole("button", { name: "Finalizar" }),
-      ).not.toBeInTheDocument(),
-    );
   });
 
   it("cancels a schedule block after a confirmation with the reason and the time", async () => {

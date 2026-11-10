@@ -1,3 +1,4 @@
+import { nextTestCpf } from "../../test-support/cpf.js";
 import { describe, expect, it } from "vitest";
 import { randomUUID } from "node:crypto";
 import { guidedPatientInputSchema } from "@crm/contracts";
@@ -12,8 +13,12 @@ describe("memory transactions across clinics", () => {
     const input = guidedPatientInputSchema.parse({
       next: "plan",
       patient: {
+        cpf: nextTestCpf(),
         fullName: "Cadastro que será revertido",
         phone: "11988887777",
+        whatsapp: "11988887777",
+        emergencyContactName: "Cadastro que será revertido",
+        emergencyContactPhone: "11988887777",
       },
       plan: {
         planTemplateId: randomUUID(),
@@ -35,6 +40,7 @@ describe("memory transactions across clinics", () => {
     const [failed, foreign] = await Promise.allSettled([
       repository.createPatientWithNextStep(clinicId, actorId, input),
       repository.createPatient(otherClinicId, {
+        cpf: nextTestCpf(),
         fullName: "Cliente preservado de outra clínica",
         phone: "11955554444",
         tags: [],

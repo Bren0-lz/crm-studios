@@ -4,7 +4,11 @@ import type {
   ContactSuggestion,
   LeadStage,
 } from "@crm/contracts";
-import { type RelationshipSettings, fillPatientMessage } from "@crm/contracts";
+import {
+  type RelationshipSettings,
+  defaultLeadStageLabels,
+  fillPatientMessage,
+} from "@crm/contracts";
 import { api } from "../../api";
 
 export function addDaysToIsoDate(value: string, days: number) {
@@ -49,32 +53,32 @@ export const leadStages: Array<{
 }> = [
   {
     value: "new_contact",
-    label: "Novos",
+    label: defaultLeadStageLabels.new_contact,
     hint: "Leads recém-cadastrados aparecem aqui.",
   },
   {
     value: "contacted",
-    label: "Em contato",
+    label: defaultLeadStageLabels.contacted,
     hint: "Mova para cá quem já recebeu o primeiro contato.",
   },
   {
     value: "evaluation",
-    label: "Avaliação",
+    label: defaultLeadStageLabels.evaluation,
     hint: "Leads com avaliação ou aula experimental marcada.",
   },
   {
     value: "proposal",
-    label: "Proposta",
+    label: defaultLeadStageLabels.proposal,
     hint: "Leads que receberam proposta de plano.",
   },
   {
     value: "won",
-    label: "Ganhos",
+    label: defaultLeadStageLabels.won,
     hint: "Leads convertidos em cliente ficam aqui.",
   },
   {
     value: "lost",
-    label: "Perdidos",
+    label: defaultLeadStageLabels.lost,
     hint: "Leads perdidos ficam aqui, com o motivo.",
   },
 ];

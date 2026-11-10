@@ -1,9 +1,9 @@
 import {
   type Professional,
-  type Service,
   type AdminUser,
   type CommissionRuleInput,
   type AdminUserCommissionInput,
+  type CommissionRecalculationPreview,
   saoPauloToday,
 } from "@crm/contracts";
 import { useEffect, useState } from "react";
@@ -11,10 +11,12 @@ import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
 import { ActionModal } from "../../shared/components/ActionModal";
 import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
-import { CurrencyField } from "../../shared/components/CurrencyField";
 import { ErrorBanner } from "../../shared/components/ErrorBanner";
-export type CommissionRuleDraft =
-  CommissionRuleInput | (AdminUserCommissionInput & { userId: string });
+import { CommissionRecalculationNotice } from "./CommissionRecalculationNotice";
+/** `recalculationDigest`: prévia confirmada do recálculo das comissões já lançadas. */
+export type CommissionRuleDraft = (
+  CommissionRuleInput | (AdminUserCommissionInput & { userId: string })
+) & { recalculationDigest?: string };
 export function CommissionRuleModal({
   professionals,
   onClose,
@@ -30,37 +32,31 @@ export function CommissionRuleModal({
     ),
     [userId, setUserId] = useState(""),
     [origin, setOrigin] = useState("professional"),
-    [services, setServices] = useState<Service[]>([]),
     [users, setUsers] = useState<AdminUser[]>([]),
     [error, setError] = useState("");
   const [percentage, setPercentage] = useState("30"),
-    [fixed, setFixed] = useState(0),
-    [kind, setKind] = useState<"percentage" | "fixed">("percentage"),
-    [serviceId, setServiceId] = useState(""),
     [effectiveFrom, setEffectiveFrom] = useState(saoPauloToday()),
-    [effectiveUntil, setEffectiveUntil] = useState("");
+    [effectiveUntil, setEffectiveUntil] = useState(""),
+    // Prévia do recálculo e a regra que ela descreve (mudar um campo pede outra prévia).
+    [preview, setPreview] = useState<{
+      key: string;
+      data: CommissionRecalculationPreview;
+    } | null>(null);
   const dirty = useFormDirty({
     professionalId,
     userId,
     origin,
     percentage,
-    fixed,
-    kind,
-    serviceId,
     effectiveFrom,
     effectiveUntil,
   });
   useEffect(() => {
+    if (user?.role !== "admin") return;
     let alive = true;
-    Promise.all([
-      api.services(),
-      user?.role === "admin" ? api.adminUsers() : Promise.resolve([]),
-    ])
-      .then(([serviceData, userData]) => {
-        if (alive) {
-          setServices(serviceData);
-          setUsers(userData);
-        }
+    api
+      .adminUsers()
+      .then((userData) => {
+        if (alive) setUsers(userData);
       })
       .catch((cause: Error) => {
         if (alive) setError(cause.message);
@@ -70,28 +66,57 @@ export function CommissionRuleModal({
     };
   }, [user?.role]);
   const value = Number(percentage.replace(",", "."));
+  const terms: AdminUserCommissionInput = {
+    percentage: value,
+    effectiveFrom,
+    ...(effectiveUntil ? { effectiveUntil } : {}),
+  };
+  const owner = origin === "user" ? { userId } : { professionalId };
+  const key = JSON.stringify({ owner, terms });
+  const confirmed = preview?.key === key ? preview.data : null;
+  // Regra que começa no passado: mostra antes o que muda nas comissões já lançadas.
+  async function save() {
+    let digest = confirmed?.digest;
+    if (!confirmed && effectiveFrom <= saoPauloToday()) {
+      const data = await api.commissionRecalculationPreview({
+        ...owner,
+        rules: [terms],
+      });
+      if (data.items.length) {
+        setPreview({ key, data });
+        return;
+      }
+      digest = data.digest;
+    }
+    try {
+      await onConfirm({
+        ...terms,
+        ...owner,
+        ...(digest ? { recalculationDigest: digest } : {}),
+      } as CommissionRuleDraft);
+    } catch (cause) {
+      // Prévia recusada (comissões mudaram): o próximo Salvar pede outra.
+      setPreview(null);
+      throw cause;
+    }
+  }
   return (
     <ActionModal
       eyebrow="Comissões"
       title="Nova regra de comissão"
-      subtitle="Regra geral ou específica de serviço"
-      effect="A regra do usuário prevalece sobre a do profissional. Em cada origem, a regra do serviço prevalece sobre a geral. Os lançamentos preservam a regra utilizada."
-      confirmLabel="Salvar"
+      subtitle="Percentual sobre o valor pago pelo cliente"
+      effect="A comissão é um percentual do valor que o cliente pagou pelo atendimento (comanda ou sessão do plano, já com desconto); atendimento sem cobrança não gera comissão. A regra do usuário prevalece sobre a do profissional. Com início no passado, as comissões já lançadas a partir dessa data são recalculadas: as em aberto mudam de valor e as já pagas ganham um ajuste no próximo pagamento."
+      confirmLabel={confirmed ? "Confirmar e recalcular" : "Salvar"}
       missing={[
         ...((origin === "user" ? userId : professionalId)
           ? []
           : [origin === "user" ? "Usuário" : "Profissional"]),
-        ...(kind === "percentage" && percentage.trim() === ""
-          ? ["Percentual (%)"]
-          : []),
+        ...(percentage.trim() === "" ? ["Percentual (%)"] : []),
         ...(effectiveFrom ? [] : ["Vale a partir de"]),
       ]}
       // Regras, não faltas: percentual fora de 0–100 e vigência invertida.
       validate={() => {
-        if (
-          kind === "percentage" &&
-          (!Number.isFinite(value) || value < 0 || value > 100)
-        )
+        if (!Number.isFinite(value) || value < 0 || value > 100)
           return "Informe um percentual entre 0 e 100.";
         if (effectiveUntil && effectiveUntil < effectiveFrom)
           return "Revise a vigência da regra.";
@@ -99,21 +124,7 @@ export function CommissionRuleModal({
       }}
       dirty={dirty}
       onClose={onClose}
-      onConfirm={() => {
-        const terms = {
-          ...(kind === "fixed" ? { kind } : {}),
-          percentage: kind === "fixed" ? 0 : value,
-          ...(kind === "fixed" ? { fixedAmountInCents: fixed } : {}),
-          ...(serviceId ? { serviceId } : {}),
-          effectiveFrom,
-          ...(effectiveUntil ? { effectiveUntil } : {}),
-        };
-        return onConfirm(
-          origin === "user"
-            ? { ...terms, userId }
-            : { ...terms, professionalId },
-        );
-      }}
+      onConfirm={save}
     >
       {error && <ErrorBanner error={error} />}
       {user?.role === "admin" && (
@@ -162,44 +173,16 @@ export function CommissionRuleModal({
         </label>
       )}
       <label>
-        Serviço
-        <select
-          value={serviceId}
-          onChange={(event) => setServiceId(event.target.value)}
-        >
-          <option value="">Todos os serviços</option>
-          {services.map((item) => (
-            <option key={item.id} value={item.id}>
-              {item.name}
-            </option>
-          ))}
-        </select>
+        Percentual (%)
+        <input
+          type="number"
+          min={0}
+          max={100}
+          step="0.01"
+          value={percentage}
+          onChange={(event) => setPercentage(event.target.value)}
+        />
       </label>
-      <label>
-        Tipo de comissão
-        <select
-          value={kind}
-          onChange={(event) => setKind(event.target.value as typeof kind)}
-        >
-          <option value="percentage">Percentual sobre o preço da tabela</option>
-          <option value="fixed">Valor fixo por presença</option>
-        </select>
-      </label>
-      {kind === "fixed" ? (
-        <CurrencyField label="Valor fixo" value={fixed} onChange={setFixed} />
-      ) : (
-        <label>
-          Percentual (%)
-          <input
-            type="number"
-            min={0}
-            max={100}
-            step="0.01"
-            value={percentage}
-            onChange={(event) => setPercentage(event.target.value)}
-          />
-        </label>
-      )}
       <label>
         Vale a partir de
         <input
@@ -218,6 +201,7 @@ export function CommissionRuleModal({
           onChange={(event) => setEffectiveUntil(event.target.value)}
         />
       </label>
+      {confirmed && <CommissionRecalculationNotice preview={confirmed} />}
     </ActionModal>
   );
 }

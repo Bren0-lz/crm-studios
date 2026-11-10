@@ -56,7 +56,14 @@ describe("CRM API", () => {
         headers: { authorization: `Bearer ${login.json().token as string}` },
       };
     }
-    const newPatient = { fullName: "Cliente Permissão", phone: "11977770000" };
+    const newPatient = {
+      fullName: "Cliente Permissão",
+      phone: "11977770000",
+      whatsapp: "11977770000",
+      emergencyContactName: "Cliente Permissão",
+      emergencyContactPhone: "11977770000",
+      cpf: "52998224725",
+    };
 
     it("lets a reception user with the finance module use /finance", async () => {
       const { app, token } = await authenticatedApp();
@@ -657,6 +664,54 @@ describe("CRM API", () => {
       await app.close();
     });
 
+    it("says which field and rule failed when a new user is invalid", async () => {
+      const { app, token } = await authenticatedApp();
+      const owner = { authorization: `Bearer ${token}` };
+      const create = (payload: Record<string, unknown>) =>
+        app.inject({
+          method: "POST",
+          url: "/admin/users",
+          headers: owner,
+          payload: {
+            fullName: "Breno Luiz",
+            email: "breno@teste.local",
+            password: "SenhaForte123",
+            role: "user",
+            ...payload,
+          },
+        });
+      const cases: [Record<string, unknown>, string][] = [
+        [{ password: "" }, "Senha: Informe a senha."],
+        [{ email: "breno" }, "E-mail: Informe um e-mail válido."],
+        [{ fullName: "Br" }, "Nome: Use pelo menos 3 caracteres."],
+        [
+          {
+            professional: {
+              mode: "create",
+              data: {
+                fullName: "Breno Luiz",
+                crefito: "123",
+                specialty: "Fisioterapia",
+                color: "#ee2222",
+              },
+            },
+          },
+          "Registro profissional: Use pelo menos 4 caracteres.",
+        ],
+        [
+          { commission: { percentage: 140, effectiveFrom: "2026-10-24" } },
+          "Comissão (%): Informe um valor de até 100.",
+        ],
+      ];
+      for (const [payload, message] of cases) {
+        const response = await create(payload);
+        expect(response.statusCode).toBe(400);
+        expect(response.json()).toEqual({ code: "VALIDATION_ERROR", message });
+      }
+      // Senha sem exigência de maiúscula, minúscula ou número.
+      expect((await create({ password: "1234" })).statusCode).toBe(201);
+    });
+
     it("never lets the clinic lose its last active admin", async () => {
       const { app, token } = await authenticatedApp();
       const owner = { authorization: `Bearer ${token}` };
@@ -739,6 +794,48 @@ describe("CRM API", () => {
       ).rejects.toMatchObject({ code: "LAST_ADMIN", statusCode: 409 });
       await app.close();
     });
+  });
+
+  it("stores the clinic Pix key and shares it with every logged user", async () => {
+    const { app, token } = await authenticatedApp();
+    const owner = { authorization: `Bearer ${token}` };
+    const saved = await app.inject({
+      method: "PUT",
+      url: "/admin/clinic-settings",
+      headers: owner,
+      payload: {
+        name: "Studios Aryana",
+        timezone: "America/Sao_Paulo",
+        pixKey: "  financeiro@aryana.com.br ",
+        pixMessageTemplate: " Olá, {{nome}}! Chave: {{chave_pix}} ",
+      },
+    });
+    expect(saved.statusCode, saved.body).toBe(200);
+    expect(saved.json()).toMatchObject({
+      pixKey: "financeiro@aryana.com.br",
+      pixMessageTemplate: "Olá, {{nome}}! Chave: {{chave_pix}}",
+    });
+    const branding = await app.inject({
+      method: "GET",
+      url: "/clinic/branding",
+      headers: owner,
+    });
+    expect(branding.json()).toMatchObject({
+      pixKey: "financeiro@aryana.com.br",
+      pixMessageTemplate: "Olá, {{nome}}! Chave: {{chave_pix}}",
+    });
+    const tooLong = await app.inject({
+      method: "PUT",
+      url: "/admin/clinic-settings",
+      headers: owner,
+      payload: {
+        name: "Studios Aryana",
+        timezone: "America/Sao_Paulo",
+        pixMessageTemplate: "x".repeat(1001),
+      },
+    });
+    expect(tooLong.statusCode).toBe(400);
+    await app.close();
   });
 
   it("validates the clinic CPF/CNPJ check digits and stores it formatted", async () => {

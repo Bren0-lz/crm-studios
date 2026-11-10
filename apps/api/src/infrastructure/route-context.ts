@@ -5,20 +5,37 @@ import {
 import {
   type AdminAuditEvent,
   type ApiError,
+  BRANCH_HEADER,
+  EXTERNAL_USER_TOKEN_HEADER,
+  type BranchScope,
   type AppModule,
   appModuleLabels,
+  type AuditChange,
+  type AuditFieldLabel,
   broadcastInputSchema,
+  changeReasonSchema,
+  diffAuditFields,
   historyAction,
+  installmentsIssue,
+  installmentsLimit,
+  INTEGRATION_TOKEN_PREFIX,
+  type IntegrationKey,
+  type IntegrationScope,
+  type PaymentMethod,
   type PatientImportAnalysis,
   patientImportFileSchema,
-  type PatientInput,
   permissionCatalog,
   type PermissionKey,
   resolvePatientTags,
   withoutAutomaticPatientTags,
   saoPauloToday,
+  withPlanFirstCharge,
+  planAllowsProratedCharge,
   serviceAvailableFor,
   type UserSummary,
+  withPrefix,
+  ptBrValidationError,
+  validationErrorMessage,
 } from "@crm/contracts";
 import cors from "@fastify/cors";
 import jwt from "@fastify/jwt";
@@ -26,31 +43,96 @@ import type { FastifyReply, FastifyRequest } from "fastify";
 import Fastify from "fastify";
 import { z } from "zod";
 import { config } from "../config.js";
+import { createAutoFinalizer } from "../modules/agenda/auto-finalization.js";
+import { hashIntegrationToken } from "../modules/integrations/tokens.js";
 import { buildBroadcast } from "../modules/communications/broadcast.js";
-import {
-  decodeCsvText,
-  parseCsv,
-  readXlsxRows,
-  validatePatientImport,
-} from "../modules/patients/patient-import.js";
-import { DomainError } from "../repository.js";
+import { validatePatientImport } from "../modules/patients/patient-import.js";
+import { readSpreadsheetFile } from "./spreadsheet.js";
+import { type AuthenticatedUser, DomainError } from "../repository.js";
 import {
   moduleDeniedCodes,
   type ModuleRequirement,
   ROUTE_ACCESS,
 } from "./route-access.js";
+
+/** Requisições por minuto de cada chave de integração (API externa). */
+export const INTEGRATION_RATE_LIMIT = 120;
 import { type BuildAppOptions } from "./route-utils.js";
+import {
+  createDomainEventPublisher,
+  domainEventTypes,
+} from "./domain-events.js";
+import { telegramIntegrationFromEnv } from "./telegram-client.js";
+import { createTelegramService } from "../modules/integrations/telegram.js";
+import { createReceiptSignedTelegramHandler } from "../modules/integrations/telegram-receipts.js";
+import {
+  createAppointmentsCreatedTelegramHandler,
+  createPatientCreatedTelegramHandler,
+  createPatientsImportedTelegramHandler,
+} from "../modules/integrations/telegram-new-records.js";
+
+// Regras padrão do zod em pt-BR: a resposta 400 diz ao usuário o que corrigir.
+z.config({ customError: ptBrValidationError });
 
 export async function createRouteContext({
   repository,
   logger = true,
+  trustProxy = config.TRUST_PROXY,
+  events: injectedEvents,
+  telegram: injectedTelegram,
 }: BuildAppOptions) {
-  const app = Fastify({ logger, bodyLimit: 8 * 1024 * 1024 });
+  const app = Fastify({
+    logger,
+    bodyLimit: 8 * 1024 * 1024,
+    // Só os N últimos saltos, nunca `true`: confiar em qualquer X-Forwarded-For deixa o
+    // cliente escolher o IP gravado na assinatura e burlar o bloqueio de tentativas de login.
+    ...(trustProxy > 0
+      ? { trustProxy: (_address: string, hop: number) => hop < trustProxy }
+      : {}),
+  });
+
+  // Assinante que falha não desfaz a operação de origem: só fica no log.
+  const events = createDomainEventPublisher((error, event) =>
+    app.log.error({ err: error, event: event.type }, "domain event handler"),
+  );
+  // O publicador injetado continua recebendo os eventos, sem substituir os consumidores
+  // internos. Sua falha também é isolada pelo publicador local.
+  if (injectedEvents)
+    for (const type of domainEventTypes)
+      events.subscribe(type, (event) => injectedEvents.publish(event));
+
+  // Telegram: sem token, desligado (a fila não recebe nada e a tela avisa).
+  const telegram = createTelegramService({
+    repository,
+    integration:
+      injectedTelegram === undefined
+        ? telegramIntegrationFromEnv()
+        : injectedTelegram,
+    log: app.log,
+  });
+  events.subscribe(
+    "receipt.signed",
+    createReceiptSignedTelegramHandler({ repository, telegram }),
+  );
+  events.subscribe(
+    "appointments.created",
+    createAppointmentsCreatedTelegramHandler({ repository, telegram }),
+  );
+  events.subscribe(
+    "patient.created",
+    createPatientCreatedTelegramHandler({ repository, telegram }),
+  );
+  events.subscribe(
+    "patients.imported",
+    createPatientsImportedTelegramHandler({ repository, telegram }),
+  );
 
   const loginAttempts = new Map<
     string,
     { failures: number; blockedUntil?: number }
   >();
+
+  const autoFinalizer = createAutoFinalizer(repository);
 
   const webOrigins = new Set([config.WEB_ORIGIN]);
 
@@ -77,6 +159,44 @@ export async function createRouteContext({
 
   await app.register(jwt, { secret: config.JWT_SECRET });
 
+  // Cada requisição ganha o próprio contexto de filial (gravado no `authenticate`).
+  app.addHook("onRequest", (_request, _reply, done) =>
+    repository.branchScope.open(done),
+  );
+
+  /**
+   * O que mudou em cada edição (PUT/PATCH): o motivo opcional (`changeReason` no corpo) e os
+   * campos alterados informados pela rota (`recordChanges`). Vão para o evento da operação.
+   */
+  const editRecords = new WeakMap<
+    FastifyRequest,
+    { reason?: string; changes?: AuditChange[] }
+  >();
+
+  // Tira o `changeReason` do corpo antes das rotas validarem: os schemas não mudam.
+  app.addHook("preValidation", async (request) => {
+    if (request.method !== "PUT" && request.method !== "PATCH") return;
+    const body = request.body;
+    if (!body || typeof body !== "object" || Array.isArray(body)) return;
+    if (!("changeReason" in body)) return;
+    const { changeReason, ...rest } = body as Record<string, unknown>;
+    const reason = changeReasonSchema.parse(changeReason ?? undefined);
+    request.body = rest;
+    if (reason) editRecords.set(request, { reason });
+  });
+
+  /** Guarda os campos alterados pela edição; o histórico os mostra como "antes → depois". */
+  function recordChanges(
+    request: FastifyRequest,
+    before: object | null | undefined,
+    after: object | null | undefined,
+    labels: Record<string, AuditFieldLabel>,
+  ) {
+    const changes = diffAuditFields(before, after, labels);
+    editRecords.set(request, { ...editRecords.get(request), changes });
+    return changes;
+  }
+
   app.setErrorHandler((error, _request, reply) => {
     if (error instanceof DomainError) {
       return reply.status(error.statusCode).send({
@@ -85,10 +205,15 @@ export async function createRouteContext({
         ...(error.details === undefined ? {} : { details: error.details }),
       } satisfies ApiError);
     }
-    if (typeof error === "object" && error !== null && "issues" in error) {
+    if (
+      typeof error === "object" &&
+      error !== null &&
+      "issues" in error &&
+      Array.isArray(error.issues)
+    ) {
       return reply.status(400).send({
         code: "VALIDATION_ERROR",
-        message: "Revise os dados informados.",
+        message: validationErrorMessage(error.issues),
       } satisfies ApiError);
     }
     app.log.error(error);
@@ -131,6 +256,12 @@ export async function createRouteContext({
         message: "Sua sessão expirou. Entre novamente.",
       } satisfies ApiError);
     }
+    // O token do painel de vendas só vale na API externa, junto da chave de integração.
+    if (request.user.kind === "dashboard")
+      return reply.status(401).send({
+        code: "UNAUTHORIZED",
+        message: "Sua sessão expirou. Entre novamente.",
+      } satisfies ApiError);
     const user = await repository.findUserById(
       request.user.clinicId,
       request.user.sub,
@@ -148,6 +279,191 @@ export async function createRouteContext({
       modules: user.modules,
       permissions: user.permissions,
     });
+    const scope = await resolveBranchScope(request, user);
+    if ("code" in scope) return reply.status(403).send(scope);
+    repository.branchScope.set(scope);
+    // Falha da finalização automática não pode derrubar a requisição do usuário.
+    try {
+      await autoFinalizer.run(request.user.clinicId);
+    } catch (error) {
+      request.log.error(error);
+    }
+  }
+
+  const dashboardAccessDenied = {
+    code: "DASHBOARD_ACCESS_DENIED",
+    message:
+      "Seu usuário não tem acesso ao painel de vendas. Peça a um administrador para liberar em Administração › Usuários.",
+  } satisfies ApiError;
+
+  /** Chave de integração da requisição da API externa (gravada no `authenticateApiKey`). */
+  const integrationKeys = new WeakMap<FastifyRequest, IntegrationKey>();
+  /** Janela de 1 minuto de requisições e último registro de uso de cada chave. */
+  const integrationUsage = new Map<
+    string,
+    { windowStartedAt: number; count: number; touchedAt: number }
+  >();
+
+  /**
+   * API externa (`/external/v1`): valida a chave de integração (`Authorization: Bearer crm_…`)
+   * pelo hash, o escopo e o limite por minuto. A requisição segue como o admin que criou a
+   * chave: permissões, filiais e histórico dele; criador desativado invalida a chave.
+   */
+  function authenticateApiKey(scope: IntegrationScope) {
+    return async (request: FastifyRequest, reply: FastifyReply) => {
+      const header = request.headers.authorization ?? "";
+      const token = header.startsWith("Bearer ") ? header.slice(7).trim() : "";
+      const found = token.startsWith(INTEGRATION_TOKEN_PREFIX)
+        ? await repository.findIntegrationKeyByTokenHash(
+            hashIntegrationToken(token),
+          )
+        : null;
+      const invalid = {
+        code: "INTEGRATION_KEY_INVALID",
+        message: "Chave de integração inválida ou revogada.",
+      } satisfies ApiError;
+      if (!found) return reply.status(401).send(invalid);
+      const { clinicId, key } = found;
+      const nowMs = Date.now();
+      const usage = integrationUsage.get(key.id) ?? {
+        windowStartedAt: nowMs,
+        count: 0,
+        touchedAt: 0,
+      };
+      if (nowMs - usage.windowStartedAt >= 60_000) {
+        usage.windowStartedAt = nowMs;
+        usage.count = 0;
+      }
+      usage.count += 1;
+      integrationUsage.set(key.id, usage);
+      if (usage.count > INTEGRATION_RATE_LIMIT) {
+        const retryAfter = Math.ceil(
+          (usage.windowStartedAt + 60_000 - nowMs) / 1000,
+        );
+        return reply
+          .status(429)
+          .header("retry-after", String(retryAfter))
+          .send({
+            code: "RATE_LIMITED",
+            message: `Limite de ${INTEGRATION_RATE_LIMIT} requisições por minuto atingido. Tente novamente em ${retryAfter}s.`,
+          } satisfies ApiError);
+      }
+      if (!key.scopes.includes(scope))
+        return reply.status(403).send({
+          code: "INTEGRATION_SCOPE_DENIED",
+          message: `Esta chave não tem o escopo ${scope}.`,
+          details: { scope },
+        } satisfies ApiError);
+      const userToken = request.headers[EXTERNAL_USER_TOKEN_HEADER];
+      const actor =
+        typeof userToken === "string" && userToken
+          ? await dashboardUser(clinicId, userToken)
+          : await repository.findUserById(clinicId, key.createdByUserId);
+      if (actor && "code" in actor)
+        return reply
+          .status(actor.code === "DASHBOARD_ACCESS_DENIED" ? 403 : 401)
+          .send(actor);
+      const user = actor;
+      if (!user) return reply.status(401).send(invalid);
+      request.user = {
+        sub: user.id,
+        clinicId,
+        role: user.role,
+        sessionVersion: user.sessionVersion ?? 0,
+      };
+      integrationKeys.set(request, key);
+      requestAccess.set(request, {
+        modules: user.modules,
+        permissions: user.permissions,
+      });
+      const branchScope = await resolveBranchScope(request, user);
+      if ("code" in branchScope) return reply.status(403).send(branchScope);
+      repository.branchScope.set(branchScope);
+      // Último uso: no máximo uma gravação por minuto; falha não derruba a chamada.
+      if (nowMs - usage.touchedAt >= 60_000) {
+        usage.touchedAt = nowMs;
+        try {
+          await repository.touchIntegrationKey(clinicId, key.id);
+        } catch (error) {
+          request.log.error(error);
+        }
+      }
+    };
+  }
+
+  /**
+   * Usuário do token do painel de vendas (`X-CRM-User-Token`, emitido no login externo): da
+   * mesma clínica da chave, ativo, sem sessões revogadas e ainda com acesso ao painel — tirar
+   * a permissão derruba o acesso na próxima chamada.
+   */
+  async function dashboardUser(
+    clinicId: string,
+    token: string,
+  ): Promise<AuthenticatedUser | ApiError> {
+    const expired = {
+      code: "USER_TOKEN_INVALID",
+      message: "Sua sessão no painel de vendas expirou. Entre novamente.",
+    } satisfies ApiError;
+    let payload: FastifyRequest["user"];
+    try {
+      payload = app.jwt.verify<FastifyRequest["user"]>(token);
+    } catch {
+      return expired;
+    }
+    if (payload.kind !== "dashboard" || payload.clinicId !== clinicId)
+      return expired;
+    const user = await repository.findUserById(clinicId, payload.sub);
+    if (!user || (payload.sessionVersion ?? 0) !== (user.sessionVersion ?? 0))
+      return expired;
+    if (!user.dashboardAccess) return dashboardAccessDenied;
+    return user;
+  }
+
+  /** Filiais ativas que o usuário acessa (admin e "todas as filiais": todas as ativas). */
+  async function accessibleBranches(user: AuthenticatedUser) {
+    const branches = (await repository.listBranches(user.clinicId)).filter(
+      (branch) => branch.active,
+    );
+    return user.role === "admin" || (user.allBranches ?? true)
+      ? branches
+      : branches.filter((branch) => user.branchIds?.includes(branch.id));
+  }
+
+  /**
+   * Escopo de filial da requisição: com `X-Branch-Id`, só essa filial (403 se o usuário não a
+   * acessa); sem o cabeçalho, todas as filiais do usuário (`null` = toda a rede). Gravação sem
+   * cabeçalho vai para a filial padrão, ou para a primeira do usuário se ele não a acessa.
+   */
+  async function resolveBranchScope(
+    request: FastifyRequest,
+    user: AuthenticatedUser,
+  ): Promise<BranchScope | ApiError> {
+    const header = request.headers[BRANCH_HEADER];
+    // "all" = consolidado explícito (ficha do cliente: histórico de todas as filiais).
+    const requested =
+      typeof header === "string" && header.trim() !== "all"
+        ? header.trim()
+        : "";
+    const branches = await accessibleBranches(user);
+    if (requested) {
+      if (!branches.some((branch) => branch.id === requested))
+        return {
+          code: "BRANCH_ACCESS_DENIED",
+          message: "Seu usuário não tem acesso a esta filial.",
+        };
+      return { branchIds: [requested], writeBranchId: requested };
+    }
+    if (branches.length === 0)
+      return {
+        code: "BRANCH_ACCESS_DENIED",
+        message: "Seu usuário não tem acesso a nenhuma filial ativa.",
+      };
+    const everything = user.role === "admin" || (user.allBranches ?? true);
+    const write = branches.find((branch) => branch.isDefault) ?? branches[0]!;
+    return {
+      branchIds: everything ? null : branches.map((branch) => branch.id),
+      writeBranchId: write.id,
+    };
   }
 
   /** Primeiro requisito que o usuário da requisição não cumpre (403 com `moduleDenied`). */
@@ -245,6 +561,13 @@ export async function createRouteContext({
     if (!access)
       throw new Error(`Rota sem acesso definido em ROUTE_ACCESS: ${key}`);
     if (access === "public") return;
+    if (typeof access === "object" && "apiKey" in access) {
+      routeOptions.preHandler = [
+        authenticateApiKey(access.apiKey),
+        requireModules(access.requires),
+      ];
+      return;
+    }
     routeOptions.preHandler = [
       authenticate,
       ...(access === "admin"
@@ -267,7 +590,11 @@ export async function createRouteContext({
       !["POST", "PUT", "PATCH", "DELETE"].includes(request.method) ||
       reply.statusCode < 200 ||
       reply.statusCode >= 300 ||
+      // API externa: a gravação repassada à rota interna já entra no histórico por lá.
+      route.startsWith("/external/") ||
+      route.startsWith("/agenda-notes") ||
       route.startsWith("/admin/users") ||
+      route.startsWith("/admin/branches") ||
       route === "/admin/clinic-settings" ||
       route.startsWith("/patient-tags") ||
       route.startsWith("/plan-templates") ||
@@ -295,6 +622,9 @@ export async function createRouteContext({
       params: request.params,
       statusCode: reply.statusCode,
     };
+    const edit = editRecords.get(request);
+    if (edit?.changes) metadata.changes = edit.changes;
+    if (edit?.reason) metadata.reason = edit.reason;
     const params = request.params as Record<string, unknown>;
     let entityId = z.uuid().safeParse(params.id).data;
     if (typeof payload === "string" && payload.startsWith("{")) {
@@ -391,10 +721,99 @@ export async function createRouteContext({
       )
         throw new DomainError(
           "SERVICE_NOT_AVAILABLE",
-          `O serviço ${service.name} não é atendido por este profissional ou nesta sala.`,
+          `O ${withPrefix("serviço", service.name)} não é atendido por este profissional ou nesta sala.`,
           409,
         );
     }
+  }
+
+  /**
+   * Cobrança proporcional do plano recorrente, calculada aqui a partir dos horários da turma
+   * (`groupId`). O valor enviado pela tela é descartado: sem turma, ou fora da regra, não há
+   * cobrança proporcional. Com o cálculo desligado (`manualFirstCharge`, só no recorrente),
+   * vale o valor do 1º pagamento informado (cobrado no início do plano).
+   */
+  async function withServerFirstCharge<
+    T extends Parameters<typeof withPlanFirstCharge>[0],
+  >(clinicId: string, plan: T, groupId?: string): Promise<T> {
+    if (
+      plan.manualFirstCharge &&
+      planAllowsProratedCharge(plan) &&
+      plan.proratedChargeInCents === undefined
+    )
+      throw new DomainError(
+        "FIRST_CHARGE_REQUIRED",
+        "Informe o valor do 1º pagamento.",
+        400,
+      );
+    const today = saoPauloToday();
+    const slots = groupId
+      ? (
+          await repository.getGroupWorkspace(clinicId, today, today)
+        ).groups.find((group) => group.id === groupId)?.weeklySlots
+      : undefined;
+    return withPlanFirstCharge(plan, slots) as T;
+  }
+
+  /**
+   * Recusa (400 `INSTALLMENTS_NOT_ALLOWED`) parcelas acima do aceito pela forma de pagamento
+   * (Configurações › Formas de pagamento) e pelo plano do catálogo (`maxInstallments`).
+   * Sem forma escolhida ("a combinar"), vale só o limite do plano.
+   */
+  async function assertInstallmentsAllowed(
+    clinicId: string,
+    input: {
+      installments: number | undefined;
+      paymentMethod?: PaymentMethod | undefined;
+      planTemplateId?: string | undefined;
+      /** Plano picado: cada forma com as cobranças dela. */
+      paymentParts?:
+        | readonly { paymentMethod: PaymentMethod; installments: number }[]
+        | undefined;
+      /** Pagamento picado: cada forma com o parcelamento nela. */
+      payments?:
+        | readonly {
+            paymentMethod: PaymentMethod;
+            paymentInstallments?: number | undefined;
+          }[]
+        | undefined;
+    },
+  ): Promise<void> {
+    const parts =
+      input.paymentParts?.map((part) => ({
+        installments: part.installments,
+        paymentMethod: part.paymentMethod,
+      })) ??
+      input.payments?.map((part) => ({
+        installments: part.paymentInstallments,
+        paymentMethod: part.paymentMethod,
+      }));
+    if (parts?.length) {
+      for (const part of parts)
+        await assertInstallmentsAllowed(clinicId, {
+          ...part,
+          planTemplateId: input.planTemplateId,
+        });
+      return;
+    }
+    if (!input.installments || input.installments <= 1) return;
+    const [settings, templates] = await Promise.all([
+      repository.getPaymentMethodSettings(clinicId),
+      input.planTemplateId
+        ? repository.listPlanTemplates(clinicId)
+        : Promise.resolve([]),
+    ]);
+    const limit = installmentsLimit({
+      settings,
+      paymentMethod: input.paymentMethod,
+      template: templates.find((item) => item.id === input.planTemplateId),
+    });
+    const issue = installmentsIssue(
+      input.installments,
+      limit,
+      input.paymentMethod,
+    );
+    if (issue) throw new DomainError("INSTALLMENTS_NOT_ALLOWED", issue, 400);
   }
 
   /**
@@ -402,10 +821,10 @@ export async function createRouteContext({
    * diferenciar maiúsculas/acentos) ou recusa com 400 listando as desconhecidas. Etiquetas
    * automáticas ("Pagamento atrasado") são calculadas na leitura: informadas à mão, são ignoradas.
    */
-  async function withConfiguredTags(
+  async function withConfiguredTags<T extends { tags: string[] }>(
     clinicId: string,
-    input: PatientInput,
-  ): Promise<PatientInput> {
+    input: T,
+  ): Promise<T> {
     const manualTags = withoutAutomaticPatientTags(input.tags);
     if (manualTags.length === 0) return { ...input, tags: manualTags };
     const { tags, unknown } = resolvePatientTags(
@@ -427,45 +846,17 @@ export async function createRouteContext({
     message: "Etiqueta não encontrada.",
   } satisfies ApiError;
 
-  const patientImportMaxBytes = 2 * 1024 * 1024;
-
   async function analyzePatientImport(
     clinicId: string,
     body: unknown,
   ): Promise<PatientImportAnalysis> {
     const file = patientImportFileSchema.parse(body);
-    const extension = /\.([^.]+)$/.exec(file.fileName)?.[1]?.toLowerCase();
-    if (extension !== "csv" && extension !== "xlsx")
-      throw new DomainError(
-        "PATIENT_IMPORT_UNSUPPORTED_FILE",
-        "Formato não suportado. Envie uma planilha .csv ou .xlsx.",
-        400,
-      );
-    const buffer = Buffer.from(file.contentBase64, "base64");
-    if (buffer.length > patientImportMaxBytes)
-      throw new DomainError(
-        "PATIENT_IMPORT_TOO_LARGE",
-        "O arquivo passa de 2 MB. Divida a planilha em partes menores.",
-        413,
-      );
-    let rows: string[][];
-    try {
-      rows =
-        extension === "csv"
-          ? parseCsv(decodeCsvText(buffer))
-          : await readXlsxRows(buffer);
-    } catch {
-      throw new DomainError(
-        "PATIENT_IMPORT_INVALID_FILE",
-        "Não foi possível ler a planilha. Verifique se o arquivo não está corrompido.",
-        400,
-      );
-    }
+    const rows = await readSpreadsheetFile(file, "PATIENT_IMPORT");
     const [patients, tags] = await Promise.all([
       repository.listPatients(clinicId),
       repository.listPatientTags(clinicId),
     ]);
-    return validatePatientImport(rows, patients, tags);
+    return validatePatientImport(rows, patients, tags, file.mapping);
   }
 
   // Comunicado segmentado: a prévia não grava nada; o envio só enfileira
@@ -507,14 +898,23 @@ export async function createRouteContext({
     app,
     loginAttempts,
     repository,
+    events,
+    telegram,
     toUserSummary,
     authenticate,
+    autoFinalizer,
     requestAccess,
+    integrationKeys,
+    dashboardAccessDenied,
+    accessibleBranches,
     visibleHistory,
+    recordChanges,
     withConfiguredTags,
     assertPermissions,
     assertNoHoliday,
     assertServiceAvailable,
+    assertInstallmentsAllowed,
+    withServerFirstCharge,
     patientTagNotFound,
     analyzePatientImport,
     planBroadcast,

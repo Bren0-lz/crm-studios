@@ -1,0 +1,437 @@
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
+import { describe, expect, it, vi } from "vitest";
+import App from "../../App";
+import { storedUser } from "../../test-support/legacy-fixtures";
+import "../../test-support/legacy-setup";
+import {
+  isLeadBoardUrl,
+  leadBoardResponse,
+} from "../../test-support/lead-board";
+
+const lead = {
+  id: "44444444-4444-4444-8444-444444444444",
+  clinicId: "11111111-1111-4111-8111-111111111111",
+  fullName: "Bruna Lead",
+  phone: "11987654321",
+  source: "Instagram",
+  interest: "Pilates",
+  stage: "new_contact",
+  tags: [],
+  openTasks: 0,
+  overdueTasks: 0,
+  createdAt: "2026-09-01T12:00:00.000Z",
+  updatedAt: "2026-09-01T12:00:00.000Z",
+};
+
+type Stage = { stage: string; label: string; kind: string };
+const kind = (stage: string) =>
+  stage === "won" ? "won" : stage === "lost" ? "lost" : "open";
+const defaults: Stage[] = [
+  ["new_contact", "Novos"],
+  ["contacted", "Em contato"],
+  ["evaluation", "Avaliação"],
+  ["proposal", "Proposta"],
+  ["won", "Ganhos"],
+  ["lost", "Perdidos"],
+].map(([stage, label]) => ({
+  stage: stage!,
+  label: label!,
+  kind: kind(stage!),
+}));
+
+/** API em memória só para o funil: a resposta do PUT imita a regra da chave `won`. */
+function setup(role: string, reject?: string) {
+  localStorage.setItem("crm.auth.token", "test-token");
+  localStorage.setItem(
+    "crm.auth.user",
+    storedUser({
+      id: "22222222-2222-4222-8222-222222222222",
+      fullName: "Equipe",
+      email: "equipe@movimenta.local",
+      role,
+    }),
+  );
+  let stages = defaults;
+  let created = 0;
+  const puts: Array<{
+    stages: Array<{ stage?: string; label: string; final?: boolean }>;
+  }> = [];
+  vi.mocked(fetch).mockImplementation(async (input, init) => {
+    const url = String(input);
+    let body: unknown = [];
+    if (url.endsWith("/leads/stages")) {
+      if (init?.method === "PUT") {
+        const payload = JSON.parse(String(init.body));
+        puts.push(payload);
+        if (reject)
+          return {
+            ok: false,
+            status: 409,
+            json: async () => ({ message: reject }),
+          } as Response;
+        const finalIndex = payload.stages.findIndex(
+          (item: { final?: boolean }) => item.final,
+        );
+        stages = payload.stages.map(
+          (item: { stage?: string; label: string }, index: number) => {
+            const stage =
+              index === finalIndex
+                ? "won"
+                : !item.stage || (finalIndex >= 0 && item.stage === "won")
+                  ? `stage_novo${(created += 1)}`
+                  : item.stage;
+            return { stage, label: item.label, kind: kind(stage) };
+          },
+        );
+      }
+      body = stages;
+    } else if (isLeadBoardUrl(url)) body = leadBoardResponse(url, [lead]);
+    return { ok: true, status: 200, json: async () => body } as Response;
+  });
+  render(
+    <MemoryRouter initialEntries={["/comercial"]}>
+      <App />
+    </MemoryRouter>,
+  );
+  return puts;
+}
+
+const columns = () =>
+  screen
+    .getAllByRole("region")
+    .filter((item) => item.classList.contains("kanban-column"))
+    .map((item) => item.getAttribute("aria-label"));
+
+describe("configurable lead funnel", () => {
+  it("renames a stage with the column pencil", async () => {
+    const puts = setup("owner");
+    await screen.findByRole("region", { name: "Proposta" });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Editar etapa Proposta" }),
+    );
+    const dialog = await screen.findByRole("dialog", { name: "Editar etapa" });
+    const name = within(dialog).getByLabelText("Nome da etapa");
+    fireEvent.change(name, { target: { value: "novos" } });
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Salvar etapa" }),
+    );
+    expect(
+      await within(dialog).findByText("Já existe uma etapa com esse nome."),
+    ).toBeInTheDocument();
+    expect(puts).toHaveLength(0);
+
+    fireEvent.change(name, { target: { value: "  Negociação " } });
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Salvar etapa" }),
+    );
+    await waitFor(() => expect(puts).toHaveLength(1));
+    expect(puts[0]!.stages[3]).toEqual({
+      stage: "proposal",
+      label: "Negociação",
+    });
+    expect(
+      await screen.findByRole("region", { name: "Negociação" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Proposta" })).toBeNull();
+    expect(
+      within(screen.getByLabelText("Etapa de Bruna Lead")).getByRole("option", {
+        name: "Negociação",
+      }),
+    ).toBeInTheDocument();
+  });
+
+  it("adds a final stage in the chosen position and removes a stage", async () => {
+    const puts = setup("owner");
+    await screen.findByRole("region", { name: "Proposta" });
+    fireEvent.click(screen.getByRole("button", { name: "Adicionar etapa" }));
+    const dialog = await screen.findByRole("dialog", {
+      name: "Adicionar etapa",
+    });
+    fireEvent.change(within(dialog).getByLabelText("Nome da etapa"), {
+      target: { value: "Matrícula" },
+    });
+    expect(within(dialog).getByLabelText(/Posição no funil/)).toHaveValue(
+      "proposal",
+    );
+    fireEvent.click(
+      within(dialog).getByLabelText("Etapa final do funil (ganhos)"),
+    );
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Adicionar etapa" }),
+    );
+    await waitFor(() => expect(puts).toHaveLength(1));
+    expect(puts[0]!.stages.map((item) => item.label)).toEqual([
+      "Novos",
+      "Em contato",
+      "Avaliação",
+      "Proposta",
+      "Matrícula",
+      "Ganhos",
+      "Perdidos",
+    ]);
+    expect(puts[0]!.stages[4]).toEqual({ label: "Matrícula", final: true });
+    await screen.findByRole("region", { name: "Matrícula" });
+    expect(columns()).toEqual([
+      "Novos",
+      "Em contato",
+      "Avaliação",
+      "Proposta",
+      "Matrícula",
+      "Ganhos",
+      "Perdidos",
+    ]);
+
+    // A antiga etapa final virou etapa comum e pode ser removida.
+    fireEvent.click(
+      screen.getByRole("button", { name: "Editar etapa Ganhos" }),
+    );
+    const edit = await screen.findByRole("dialog", { name: "Editar etapa" });
+    fireEvent.click(
+      within(edit).getByRole("button", { name: "Remover etapa" }),
+    );
+    await waitFor(() => expect(puts).toHaveLength(2));
+    expect(puts[1]!.stages.map((item) => item.label)).not.toContain("Ganhos");
+    await waitFor(() =>
+      expect(screen.queryByRole("region", { name: "Ganhos" })).toBeNull(),
+    );
+  });
+
+  it("keeps the final and lost stages protected in the form", async () => {
+    setup("owner");
+    await screen.findByRole("region", { name: "Ganhos" });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Editar etapa Ganhos" }),
+    );
+    let dialog = await screen.findByRole("dialog", { name: "Editar etapa" });
+    expect(
+      within(dialog).getByLabelText("Etapa final do funil (ganhos)"),
+    ).toBeChecked();
+    expect(
+      within(dialog).getByLabelText("Etapa final do funil (ganhos)"),
+    ).toBeDisabled();
+    expect(
+      within(dialog).queryByRole("button", { name: "Remover etapa" }),
+    ).toBeNull();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Voltar" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Editar etapa Perdidos" }),
+    );
+    dialog = await screen.findByRole("dialog", { name: "Editar etapa" });
+    expect(
+      within(dialog).queryByLabelText("Etapa final do funil (ganhos)"),
+    ).toBeNull();
+    expect(
+      within(dialog).queryByRole("button", { name: "Remover etapa" }),
+    ).toBeNull();
+  });
+
+  it("shows the API refusal when the stage still has leads", async () => {
+    setup(
+      "owner",
+      'A etapa "Novos" tem 1 lead. Mova-os para outra etapa antes de removê-la.',
+    );
+    await screen.findByRole("region", { name: "Novos" });
+    fireEvent.click(screen.getByRole("button", { name: "Editar etapa Novos" }));
+    const dialog = await screen.findByRole("dialog", { name: "Editar etapa" });
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Remover etapa" }),
+    );
+    expect(
+      await within(dialog).findByText(
+        'A etapa "Novos" tem 1 lead. Mova-os para outra etapa antes de removê-la.',
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Novos" })).toBeInTheDocument();
+  });
+
+  it("reorders the funnel by dragging a column header", async () => {
+    const puts = setup("owner");
+    await screen.findByRole("region", { name: "Proposta" });
+    const header = within(
+      screen.getByRole("region", { name: "Proposta" }),
+    ).getByRole("banner");
+    expect(header).toHaveAttribute("draggable", "true");
+    const transfer = {
+      setData: vi.fn(),
+      setDragImage: vi.fn(),
+      effectAllowed: "",
+      dropEffect: "",
+    };
+    fireEvent.dragStart(header, { dataTransfer: transfer });
+    expect(transfer.setDragImage).toHaveBeenCalledWith(
+      screen.getByRole("region", { name: "Proposta" }),
+      24,
+      16,
+    );
+    const target = screen.getByRole("region", { name: "Em contato" });
+    fireEvent.dragOver(target, { dataTransfer: transfer });
+    expect(target).toHaveClass("drag-over");
+    fireEvent.drop(target, { dataTransfer: transfer });
+    expect(columns()).toEqual([
+      "Novos",
+      "Proposta",
+      "Em contato",
+      "Avaliação",
+      "Ganhos",
+      "Perdidos",
+    ]);
+    await waitFor(() => expect(puts).toHaveLength(1));
+    expect(puts[0]!.stages).toEqual([
+      { stage: "new_contact", label: "Novos" },
+      { stage: "proposal", label: "Proposta" },
+      { stage: "contacted", label: "Em contato" },
+      { stage: "evaluation", label: "Avaliação" },
+      { stage: "won", label: "Ganhos" },
+      { stage: "lost", label: "Perdidos" },
+    ]);
+
+    // Para a direita: a etapa ocupa o lugar da coluna de destino.
+    fireEvent.dragStart(
+      within(screen.getByRole("region", { name: "Novos" })).getByRole("banner"),
+      { dataTransfer: transfer },
+    );
+    fireEvent.drop(screen.getByRole("region", { name: "Perdidos" }), {
+      dataTransfer: transfer,
+    });
+    await waitFor(() => expect(puts).toHaveLength(2));
+    expect(columns()).toEqual([
+      "Proposta",
+      "Em contato",
+      "Avaliação",
+      "Ganhos",
+      "Perdidos",
+      "Novos",
+    ]);
+  });
+
+  it("keeps the horizontal scroll and slides the columns to their new place", async () => {
+    const puts = setup("owner");
+    await screen.findByRole("region", { name: "Proposta" });
+    // jsdom não tem layout: cada coluna fica 200px à direita da anterior.
+    const rect = vi
+      .spyOn(HTMLElement.prototype, "getBoundingClientRect")
+      .mockImplementation(function (this: HTMLElement) {
+        const index = this.classList.contains("kanban-column")
+          ? [...(this.parentElement?.children ?? [])].indexOf(this)
+          : 0;
+        return { left: index * 200 } as DOMRect;
+      });
+    const animate = vi.fn(() => ({ finished: Promise.resolve() }));
+    Object.defineProperty(HTMLElement.prototype, "animate", {
+      configurable: true,
+      value: animate,
+    });
+    try {
+      const board = document.querySelector(".kanban-board") as HTMLElement;
+      board.scrollLeft = 300;
+      const transfer = { setData: vi.fn(), effectAllowed: "", dropEffect: "" };
+      fireEvent.dragStart(
+        within(screen.getByRole("region", { name: "Novos" })).getByRole(
+          "banner",
+        ),
+        { dataTransfer: transfer },
+      );
+      fireEvent.drop(screen.getByRole("region", { name: "Avaliação" }), {
+        dataTransfer: transfer,
+      });
+      expect(board).toHaveClass("reordering");
+      expect(board.scrollLeft).toBe(300);
+      expect(columns().slice(0, 3)).toEqual([
+        "Em contato",
+        "Avaliação",
+        "Novos",
+      ]);
+      // Novos sai de 0 para 400px; Em contato e Avaliação voltam 200px cada.
+      expect(animate).toHaveBeenCalledTimes(3);
+      expect(animate).toHaveBeenCalledWith(
+        [{ transform: "translateX(-400px)" }, { transform: "translateX(0)" }],
+        expect.objectContaining({ duration: 220 }),
+      );
+      expect(animate).toHaveBeenCalledWith(
+        [{ transform: "translateX(200px)" }, { transform: "translateX(0)" }],
+        expect.objectContaining({ duration: 220 }),
+      );
+      await waitFor(() => expect(board).not.toHaveClass("reordering"));
+      await waitFor(() => expect(puts).toHaveLength(1));
+      expect(board.scrollLeft).toBe(300);
+    } finally {
+      rect.mockRestore();
+      delete (HTMLElement.prototype as { animate?: unknown }).animate;
+    }
+  });
+
+  it("restores the previous order when saving the new order fails", async () => {
+    setup("owner", "Etapa do funil não encontrada.");
+    await screen.findByRole("region", { name: "Proposta" });
+    const transfer = { setData: vi.fn(), effectAllowed: "", dropEffect: "" };
+    fireEvent.dragStart(
+      within(screen.getByRole("region", { name: "Perdidos" })).getByRole(
+        "banner",
+      ),
+      { dataTransfer: transfer },
+    );
+    fireEvent.drop(screen.getByRole("region", { name: "Novos" }), {
+      dataTransfer: transfer,
+    });
+    expect(
+      await screen.findByText("Etapa do funil não encontrada."),
+    ).toBeInTheDocument();
+    expect(columns()).toEqual([
+      "Novos",
+      "Em contato",
+      "Avaliação",
+      "Proposta",
+      "Ganhos",
+      "Perdidos",
+    ]);
+  });
+
+  it("moves a stage with the position field of the edit form", async () => {
+    const puts = setup("owner");
+    await screen.findByRole("region", { name: "Avaliação" });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Editar etapa Avaliação" }),
+    );
+    const dialog = await screen.findByRole("dialog", { name: "Editar etapa" });
+    const position = within(dialog).getByLabelText(/Posição no funil/);
+    expect(position).toHaveValue("contacted");
+    fireEvent.change(position, { target: { value: "" } });
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Salvar etapa" }),
+    );
+    await waitFor(() => expect(puts).toHaveLength(1));
+    expect(puts[0]!.stages.map((item) => item.stage)).toEqual([
+      "evaluation",
+      "new_contact",
+      "contacted",
+      "proposal",
+      "won",
+      "lost",
+    ]);
+    await waitFor(() => expect(columns()[0]).toBe("Avaliação"));
+  });
+
+  it("hides the funnel editing without the explicit permission", async () => {
+    setup("reception");
+    await screen.findByRole("region", { name: "Novos" });
+    expect(
+      screen.getByRole("button", { name: "Novo lead" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Adicionar etapa" }),
+    ).toBeNull();
+    expect(screen.queryByRole("button", { name: /Editar etapa/ })).toBeNull();
+    expect(
+      within(screen.getByRole("region", { name: "Novos" })).getByRole("banner"),
+    ).not.toHaveAttribute("draggable", "true");
+  });
+});

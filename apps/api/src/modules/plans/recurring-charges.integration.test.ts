@@ -1,8 +1,10 @@
+import { withAppointmentPlan } from "../../test-support/appointment-plan.js";
 import { describe, expect, it } from "vitest";
 import {
   authenticatedApp,
   configuredPlan,
 } from "../../test-support/legacy-fixtures.js";
+import { patchStatusAt } from "../../test-support/clock.js";
 import "../../test-support/legacy-setup.js";
 
 describe("recurring plan charges", () => {
@@ -75,6 +77,252 @@ describe("recurring plan charges", () => {
       payload: { ...renewal, installments: 1 },
     });
     expect(renewed.statusCode).toBe(201);
+    await app.close();
+  });
+
+  it("computes the prorated first charge from the class on the server", async () => {
+    const { app, token } = await authenticatedApp();
+    const headers = { authorization: `Bearer ${token}` };
+    const [patients, services, professionals, rooms] = await Promise.all(
+      ["/patients", "/services", "/professionals", "/rooms"].map((url) =>
+        app.inject({ method: "GET", url, headers }),
+      ),
+    );
+    const serviceId = services!.json()[0].id as string;
+    const plan = await configuredPlan(app, {
+      patientId: patients!.json()[0].id as string,
+      serviceId,
+      name: "Pilates 2x",
+      kind: "recurring" as const,
+      totalSessions: 8,
+      validFrom: "2026-10-01",
+      validUntil: "2026-10-31",
+      totalValueInCents: 40_000,
+      installments: 1,
+      firstDueDate: "2026-10-15",
+    });
+    const receivablesOf = async (planId: string) =>
+      (
+        (
+          await app.inject({
+            method: "GET",
+            url: "/finance/workspace",
+            headers,
+          })
+        ).json().summary.receivables as {
+          planId?: string;
+          dueDate: string;
+          amountInCents: number;
+        }[]
+      ).filter((item) => item.planId === planId);
+
+    // Sem turma, o valor enviado pela tela é ignorado: só a mensalidade cheia.
+    const withoutGroup = await app.inject({
+      method: "POST",
+      url: "/plans",
+      headers,
+      payload: { ...plan, proratedChargeInCents: 100 },
+    });
+    expect(withoutGroup.statusCode).toBe(201);
+    expect(await receivablesOf(withoutGroup.json().id)).toMatchObject([
+      { dueDate: "2026-10-15", amountInCents: 40_000 },
+    ]);
+
+    // Turma de segunda e quarta: o ciclo de 15/09 a 14/10 tem 9 aulas e de 01/10 a 14/10
+    // há 4 (5, 7, 12, 14). Pré-pago: 4/9 do valor no início e a mensalidade cheia em 15/10.
+    // Às 20h, fora dos atendimentos demo (semeados a partir de hoje): às 7h a turma
+    // conflitava com o atendimento demo das segundas e o teste falhava conforme o dia.
+    const group = await app.inject({
+      method: "POST",
+      url: "/groups",
+      headers,
+      payload: {
+        capacity: 1,
+        serviceId,
+        professionalId: professionals!.json()[0].id,
+        roomId: rooms!.json()[0].id,
+        // Fora dos horários dos atendimentos demo (06:00 a 14:00 conforme o fuso).
+        weeklySlots: [
+          { weekday: 1, startTime: "20:00", endTime: "21:00" },
+          { weekday: 3, startTime: "20:00", endTime: "21:00" },
+        ],
+      },
+    });
+    expect(group.statusCode, group.body).toBe(201);
+    const purchase = await app.inject({
+      method: "POST",
+      url: "/plans/purchases",
+      headers,
+      payload: {
+        idempotencyKey: "0f0f0f0f-0f0f-4f0f-8f0f-0f0f0f0f0f0f",
+        plan: { ...plan, proratedChargeInCents: 100 },
+        groupId: group.json().id,
+      },
+    });
+    expect(purchase.statusCode, purchase.body).toBe(201);
+    const charges = (await receivablesOf(purchase.json().plan.id)).sort(
+      (a, b) => a.dueDate.localeCompare(b.dueDate),
+    );
+    expect(charges).toMatchObject([
+      { dueDate: "2026-10-01", amountInCents: 17_778 },
+      { dueDate: "2026-10-15", amountInCents: 40_000 },
+    ]);
+    for (const charge of charges)
+      expect(charge).not.toHaveProperty("manualAmount");
+
+    // Cálculo proporcional desligado: vale o valor informado, marcado como manual.
+    const missing = await app.inject({
+      method: "POST",
+      url: "/plans/purchases",
+      headers,
+      payload: {
+        idempotencyKey: "1f1f1f1f-1f1f-4f1f-8f1f-1f1f1f1f1f1f",
+        plan: { ...plan, manualFirstCharge: true },
+        groupId: group.json().id,
+      },
+    });
+    expect(missing.statusCode).toBe(400);
+    expect(missing.json()).toMatchObject({ code: "FIRST_CHARGE_REQUIRED" });
+    const manual = await app.inject({
+      method: "POST",
+      url: "/plans/purchases",
+      headers,
+      payload: {
+        idempotencyKey: "2f2f2f2f-2f2f-4f2f-8f2f-2f2f2f2f2f2f",
+        plan: {
+          ...plan,
+          manualFirstCharge: true,
+          proratedChargeInCents: 31_500,
+        },
+        groupId: group.json().id,
+      },
+    });
+    expect(manual.statusCode, manual.body).toBe(201);
+    const manualCharges = (await receivablesOf(manual.json().plan.id)).sort(
+      (a, b) => a.dueDate.localeCompare(b.dueDate),
+    );
+    expect(manualCharges).toMatchObject([
+      { dueDate: "2026-10-01", amountInCents: 31_500, manualAmount: true },
+      { dueDate: "2026-10-15", amountInCents: 40_000 },
+    ]);
+    expect(manualCharges[1]).not.toHaveProperty("manualAmount");
+    // Relatório de vendas: a venda aparece com o 1º pagamento manual.
+    const today = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "America/Sao_Paulo",
+    }).format(new Date());
+    const sales = await app.inject({
+      method: "GET",
+      url: `/reports/sales/period?from=${today}&to=${today}`,
+      headers,
+    });
+    expect(sales.statusCode).toBe(200);
+    const saleOf = (planId: string) =>
+      (
+        sales.json().sales as { sourceId: string; manualFirstCharge?: true }[]
+      ).find((item) => item.sourceId === planId);
+    expect(saleOf(manual.json().plan.id)).toMatchObject({
+      manualFirstCharge: true,
+    });
+    expect(saleOf(purchase.json().plan.id)).not.toHaveProperty(
+      "manualFirstCharge",
+    );
+    await app.close();
+  });
+
+  it("lets a recurring plan go past its nominal balance, unlike a package", async () => {
+    const { app, token } = await authenticatedApp();
+    const headers = { authorization: `Bearer ${token}` };
+    const [patients, professionals, rooms] = await Promise.all(
+      ["/patients", "/professionals", "/rooms"].map((url) =>
+        app.inject({ method: "GET", url, headers }),
+      ),
+    );
+    const patientId = patients!.json()[0].id as string;
+    const service = await app.inject({
+      method: "POST",
+      url: "/services",
+      headers,
+      payload: {
+        name: "Pilates em dupla",
+        durationMinutes: 50,
+        color: "#547A6B",
+      },
+    });
+    const serviceId = service.json().id as string;
+    const completeAt = async (startsAt: string, planId: string) => {
+      const created = await app.inject({
+        method: "POST",
+        url: "/appointments",
+        headers,
+        payload: await withAppointmentPlan(
+          app,
+          {
+            patientId,
+            serviceId,
+            professionalId: professionals!.json()[0].id,
+            roomId: rooms!.json()[0].id,
+            startsAt,
+            visitType: "regular",
+            planId,
+          },
+          headers,
+        ),
+      });
+      if (created.statusCode !== 201) return created;
+      return patchStatusAt(app, headers, startsAt, created.json().id, {
+        status: "completed",
+      });
+    };
+    const buy = async (kind: "recurring" | "fixed_package", month: string) => {
+      const created = await app.inject({
+        method: "POST",
+        url: "/plans",
+        headers,
+        payload: await configuredPlan(app, {
+          patientId,
+          serviceId,
+          name: `Plano ${kind}`,
+          kind,
+          totalSessions: 1,
+          validFrom: `${month}-01`,
+          validUntil: `${month}-28`,
+          totalValueInCents: 10_000,
+          installments: 1,
+          firstDueDate: `${month}-01`,
+        }),
+      });
+      expect(created.statusCode, created.body).toBe(201);
+      return created.json().id as string;
+    };
+    const remaining = async (planId: string) =>
+      (
+        (
+          await app.inject({ method: "GET", url: "/plans", headers })
+        ).json() as {
+          id: string;
+          remainingSessions: number;
+        }[]
+      ).find((item) => item.id === planId)?.remainingSessions;
+
+    // Recorrente com saldo nominal de 1: a 2ª aula do ciclo passa e o saldo fica negativo.
+    const recurring = await buy("recurring", "2030-03");
+    expect(
+      (await completeAt("2030-03-11T13:00:00.000Z", recurring)).statusCode,
+    ).toBe(200);
+    expect(
+      (await completeAt("2030-03-13T13:00:00.000Z", recurring)).statusCode,
+    ).toBe(200);
+    expect(await remaining(recurring)).toBe(-1);
+
+    // Pacote fechado continua bloqueando sem saldo.
+    const fixed = await buy("fixed_package", "2030-04");
+    expect(
+      (await completeAt("2030-04-08T13:00:00.000Z", fixed)).statusCode,
+    ).toBe(200);
+    const refused = await completeAt("2030-04-10T13:00:00.000Z", fixed);
+    expect(refused.statusCode).toBe(409);
+    expect(refused.json()).toMatchObject({ code: "PLAN_REQUIRED" });
+    expect(await remaining(fixed)).toBe(0);
     await app.close();
   });
 });

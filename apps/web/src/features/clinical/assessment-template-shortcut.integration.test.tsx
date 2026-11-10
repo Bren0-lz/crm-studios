@@ -63,16 +63,19 @@ describe("assessment without templates", () => {
       </MemoryRouter>,
     );
     fireEvent.click(
-      await screen.findByRole("button", { name: "Nova avaliação" }),
+      await screen.findByRole("button", { name: /Helena Almeida/ }),
+    );
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Registrar avaliação" }),
     );
     const assessment = screen.getByRole("dialog", {
-      name: "Nova avaliação configurável",
+      name: "Registrar avaliação",
     });
     expect(
       within(assessment).getByText("Nenhum modelo de avaliação"),
     ).toBeInTheDocument();
     expect(
-      within(assessment).getByRole("button", { name: "Registrar avaliação" }),
+      within(assessment).getByRole("button", { name: "Preencher formulário" }),
     ).toBeDisabled();
     fireEvent.click(
       within(assessment).getByRole("button", { name: "Criar modelo" }),
@@ -97,13 +100,16 @@ describe("assessment without templates", () => {
       { target: { value: "Queixa principal" } },
     );
     expect(publish).toBeEnabled();
-    expect(within(templateDialog).queryByText(/Falta:/)).not.toBeInTheDocument();
+    expect(
+      within(templateDialog).queryByText(/Falta:/),
+    ).not.toBeInTheDocument();
     fireEvent.click(
       within(templateDialog).getByRole("button", { name: "Publicar modelo" }),
     );
+    // Publicado, o modelo já abre para preenchimento.
     expect(
-      await screen.findByRole("combobox", { name: "Modelo" }),
-    ).toHaveDisplayValue("Avaliação postural · v1");
+      await within(assessment).findByText("Avaliação postural · Fisioterapia"),
+    ).toBeInTheDocument();
     expect(templateWrites).toHaveLength(1);
     expect(templateWrites[0]).toMatchObject({
       name: "Avaliação postural",
@@ -114,7 +120,7 @@ describe("assessment without templates", () => {
     ).not.toBeInTheDocument();
     expect(screen.getByLabelText("Queixa principal")).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "Registrar avaliação" }),
+      within(assessment).getByRole("button", { name: "Registrar avaliação" }),
     ).toBeEnabled();
   });
 });

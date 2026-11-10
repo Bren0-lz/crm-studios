@@ -1,3 +1,4 @@
+import { nextTestCpf } from "../../test-support/cpf.js";
 import {
   guidedPatientInputSchema,
   patientPlanInputSchema,
@@ -113,7 +114,14 @@ describe("plan catalog", () => {
       expect(
         guidedPatientInputSchema.safeParse({
           next,
-          patient: { fullName: "Cliente teste", phone: "11988887777" },
+          patient: {
+            cpf: nextTestCpf(),
+            fullName: "Cliente teste",
+            phone: "11988887777",
+            whatsapp: "11988887777",
+            emergencyContactName: "Cliente teste",
+            emergencyContactPhone: "11988887777",
+          },
           plan: terms,
         }).success,
       ).toBe(false);
@@ -232,8 +240,6 @@ describe("plan catalog", () => {
     const foreignService = await repository.createService(foreignClinic, {
       name: "Serviço externo",
       durationMinutes: 60,
-      priceInCents: 0,
-      color: "#64748b",
     });
     const foreign = await repository.createPlanTemplate(
       foreignClinic,
@@ -296,7 +302,14 @@ describe("plan catalog", () => {
       headers,
       payload: {
         next: "plan",
-        patient: { fullName: "Cliente sem plano válido", phone: "11987651234" },
+        patient: {
+          cpf: nextTestCpf(),
+          fullName: "Cliente sem plano válido",
+          phone: "11987651234",
+          whatsapp: "11987651234",
+          emergencyContactName: "Cliente sem plano válido",
+          emergencyContactPhone: "11987651234",
+        },
         plan: { ...terms, planTemplateId: foreign.id },
       },
     });
@@ -312,8 +325,12 @@ describe("plan catalog", () => {
       repository.createPatientWithNextStep(clinicId, ownerId, {
         next: "single",
         patient: {
+          cpf: nextTestCpf(),
           fullName: "Cliente sem serviço",
           phone: "11987651235",
+          whatsapp: "11987651235",
+          emergencyContactName: "Cliente sem serviço",
+          emergencyContactPhone: "11987651235",
           tags: [],
         },
         plan: {
@@ -497,5 +514,70 @@ describe("periodic plan templates", () => {
       remainingSessions: 48,
       totalValueInCents: 16000,
     });
+  });
+});
+
+describe("single plan templates", () => {
+  it("keeps a single plan to one session of one service in the catalog and in the sale", async () => {
+    const { app, headers } = await setup();
+    const single = (totalSessions: number) => ({
+      name: "Avaliação",
+      planType: "single",
+      kind: "single",
+      totalValueInCents: 15000,
+      services: [{ serviceId, totalSessions, totalValueInCents: 15000 }],
+    });
+    const several = await app.inject({
+      method: "POST",
+      url: "/plan-templates",
+      headers,
+      payload: single(4),
+    });
+    expect(several.statusCode).toBe(400);
+    expect(several.json()).toMatchObject({ code: "VALIDATION_ERROR" });
+    const created = await app.inject({
+      method: "POST",
+      url: "/plan-templates",
+      headers,
+      payload: single(1),
+    });
+    expect(created.statusCode, created.body).toBe(201);
+    const template = created.json();
+    const editedToSeveral = await app.inject({
+      method: "PATCH",
+      url: `/plan-templates/${template.id as string}`,
+      headers,
+      payload: { services: single(2).services },
+    });
+    expect(editedToSeveral.statusCode).toBe(400);
+    const renamed = await app.inject({
+      method: "PATCH",
+      url: `/plan-templates/${template.id as string}`,
+      headers,
+      payload: { name: "Avaliação inicial" },
+    });
+    expect(renamed.statusCode, renamed.body).toBe(200);
+    const sale = (totalSessions: number) =>
+      app.inject({
+        method: "POST",
+        url: "/plans",
+        headers,
+        payload: {
+          ...terms,
+          name: "Avaliação inicial",
+          kind: "single",
+          planTemplateId: template.id,
+          services: [{ serviceId, totalSessions, totalValueInCents: 15000 }],
+          totalSessions,
+          totalValueInCents: 15000,
+          installments: 1,
+        },
+      });
+    const severalSold = await sale(3);
+    expect(severalSold.statusCode).toBe(400);
+    expect(severalSold.json()).toMatchObject({ code: "VALIDATION_ERROR" });
+    const sold = await sale(1);
+    expect(sold.statusCode, sold.body).toBe(201);
+    expect(sold.json()).toMatchObject({ kind: "single", totalSessions: 1 });
   });
 });

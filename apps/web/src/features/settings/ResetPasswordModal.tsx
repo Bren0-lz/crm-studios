@@ -1,10 +1,14 @@
 import type { AdminUser } from "@crm/contracts";
-import { useState, type FormEvent } from "react";
+import { Eye, EyeOff } from "lucide-react";
+import { useId, useState, type FormEvent } from "react";
 import { api } from "../../api";
+import { useAuthorization } from "../../authorization-context";
 import { useMissingFields } from "../../shared/components/MissingFields";
 import { Modal, ModalCancelButton } from "../../shared/components/Modal";
 import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
+import { CurrentPassword } from "./CurrentPassword";
 
+/** Senha de acesso: o admin consulta a senha atual ou define uma nova. */
 export function ResetPasswordModal({
   user,
   onClose,
@@ -14,13 +18,15 @@ export function ResetPasswordModal({
   onClose: () => void;
   onDone: () => void;
 }) {
+  // A regra que vale é a da API; aqui só esconde o olho de quem não é admin.
+  const canReveal = useAuthorization().user?.role === "admin";
+  const newPasswordId = useId();
   const [password, setPassword] = useState("");
+  const [showNew, setShowNew] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const dirty = useFormDirty(password);
-  const missing = useMissingFields(
-    password ? [] : ["Nova senha"],
-  );
+  const missing = useMissingFields(password ? [] : ["Nova senha"]);
   async function submit(event: FormEvent) {
     event.preventDefault();
     if (saving) return;
@@ -28,6 +34,8 @@ export function ResetPasswordModal({
     setError("");
     try {
       await api.resetAdminPassword(user.id, password);
+      setPassword("");
+      setShowNew(false);
       onDone();
     } catch (cause) {
       setError((cause as Error).message);
@@ -36,7 +44,7 @@ export function ResetPasswordModal({
   }
   return (
     <Modal
-      title="Redefinir senha"
+      title="Senha de acesso"
       subtitle={`${user.fullName} · ${user.email}`}
       eyebrow="Usuários"
       busy={saving}
@@ -44,19 +52,48 @@ export function ResetPasswordModal({
       onClose={onClose}
     >
       <form className="form-grid" onSubmit={(event) => void submit(event)}>
-        <label className="span-2">
-          Nova senha
-          <input
-            type="password"
-            required
-            autoComplete="new-password"
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-          />
-        </label>
         <p className="muted-copy span-2">
-          A senha precisa de letra maiúscula, minúscula e número.
+          Consulte a senha atual ou defina uma nova senha.
         </p>
+        {canReveal && (
+          // Remonta ao salvar ou trocar de usuário: a senha consultada some da tela.
+          <CurrentPassword
+            key={`${user.id}-${saving}`}
+            userId={user.id}
+            disabled={saving}
+          />
+        )}
+        <div
+          className={`password-card${password ? " is-modified" : ""}${canReveal ? "" : " span-2"}`}
+        >
+          <label className="password-card-title" htmlFor={newPasswordId}>
+            Nova senha
+          </label>
+          <div className="password-field">
+            <input
+              id={newPasswordId}
+              type={showNew ? "text" : "password"}
+              required
+              autoComplete="new-password"
+              placeholder="Digite a nova senha"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+            />
+            <button
+              type="button"
+              className="icon-button"
+              aria-label={showNew ? "Ocultar nova senha" : "Mostrar nova senha"}
+              disabled={saving}
+              onClick={() => setShowNew((value) => !value)}
+            >
+              {showNew ? (
+                <EyeOff size={16} aria-hidden="true" />
+              ) : (
+                <Eye size={16} aria-hidden="true" />
+              )}
+            </button>
+          </div>
+        </div>
         {error && <div className="form-error span-2">{error}</div>}
         {missing.hint}
         <div className="modal-actions span-2">

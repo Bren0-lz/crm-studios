@@ -1,104 +1,327 @@
-import type { PoolClient } from "pg";
+import type { PoolClient } from "./infrastructure/mysql-client.js";
+import {
+  clinicDateOf,
+  DEFAULT_CLINIC_TIMEZONE,
+} from "./modules/finance/daily-cash.js";
+import { insertRows } from "./storage/mysql/sql.js";
 import {
   buildDemoScenarios,
+  demoMessageTemplates,
+  demoPlanTemplates,
   demoProfessionals,
   demoRooms,
   demoServices,
   demoUserId,
 } from "./demo-scenarios.js";
 
+const at = (value: string | null | undefined) =>
+  value ? new Date(value) : null;
+const ignore = { onDuplicate: "ignore" } as const;
+
 // Called inside the same transaction as the original demonstration seed.
-export async function seedDemoScenarios(client: PoolClient) {
+export async function seedDemoScenarios(client: PoolClient, branchId: string) {
   const data = buildDemoScenarios();
-  await client.query(
-    `INSERT INTO professionals (id, clinic_id, full_name, crefito, specialty, color, active)
-    SELECT id, "clinicId", "fullName", crefito, specialty, color, active
-    FROM jsonb_to_recordset($1::jsonb) AS x(id uuid, "clinicId" uuid, "fullName" text, crefito text, specialty text, color text, active boolean)
-    ON CONFLICT DO NOTHING`,
-    [JSON.stringify(demoProfessionals)],
+  const clinicId = data.plans[0]!.clinicId;
+  await insertRows(
+    client,
+    "professionals",
+    demoProfessionals.map((item) => ({
+      id: item.id,
+      clinic_id: item.clinicId,
+      branch_id: branchId,
+      full_name: item.fullName,
+      crefito: item.crefito,
+      specialty: item.specialty,
+      color: item.color,
+      active: item.active,
+    })),
+    ignore,
   );
-  await client.query(
-    `INSERT INTO rooms (id, clinic_id, name, capacity, active)
-    SELECT id, "clinicId", name, capacity, active
-    FROM jsonb_to_recordset($1::jsonb) AS x(id uuid, "clinicId" uuid, name text, capacity integer, active boolean)
-    ON CONFLICT DO NOTHING`,
-    [JSON.stringify(demoRooms)],
+  await insertRows(
+    client,
+    "rooms",
+    demoRooms.map((item) => ({
+      id: item.id,
+      clinic_id: item.clinicId,
+      branch_id: branchId,
+      name: item.name,
+      capacity: item.capacity,
+      active: item.active,
+    })),
+    ignore,
   );
-  await client.query(
-    `INSERT INTO services (id, clinic_id, name, duration_minutes, price_in_cents, color, professional_ids, room_ids, active)
-    SELECT id, "clinicId", name, "durationMinutes", "priceInCents", color, coalesce("professionalIds", '{}'), coalesce("roomIds", '{}'), active
-    FROM jsonb_to_recordset($1::jsonb) AS x(id uuid, "clinicId" uuid, name text, "durationMinutes" integer, "priceInCents" integer, color text, "professionalIds" uuid[], "roomIds" uuid[], active boolean)
-    ON CONFLICT DO NOTHING`,
-    [JSON.stringify(demoServices)],
+  await insertRows(
+    client,
+    "services",
+    demoServices.map((item) => ({
+      id: item.id,
+      clinic_id: item.clinicId,
+      name: item.name,
+      duration_minutes: item.durationMinutes,
+      professional_ids: item.professionalIds ?? [],
+      room_ids: item.roomIds ?? [],
+      business_line: item.businessLine,
+      active: item.active,
+    })),
+    ignore,
   );
-  await client.query(
-    `INSERT INTO patient_plans (id, clinic_id, patient_id, service_id, name, kind, total_sessions, remaining_sessions, valid_from, valid_until, total_value_in_cents, installments, first_due_date, status, cancelled_at, cancelled_value_in_cents, auto_renew, created_at, updated_at)
-    SELECT id, "clinicId", "patientId", "serviceId", name, kind::plan_kind, "totalSessions", "remainingSessions", "validFrom"::date, "validUntil"::date, "totalValueInCents", installments, "firstDueDate"::date, status::plan_status, "cancelledAt"::timestamptz, coalesce("cancelledValueInCents", 0), "autoRenew", "createdAt"::timestamptz, "updatedAt"::timestamptz
-    FROM jsonb_to_recordset($1::jsonb) AS x(id uuid, "clinicId" uuid, "patientId" uuid, "serviceId" uuid, name text, kind text, "totalSessions" integer, "remainingSessions" integer, "validFrom" text, "validUntil" text, "totalValueInCents" integer, installments integer, "firstDueDate" text, status text, "cancelledAt" text, "cancelledValueInCents" integer, "autoRenew" boolean, "createdAt" text, "updatedAt" text)
-    ON CONFLICT DO NOTHING`,
-    [JSON.stringify(data.plans)],
+  // Serviço que já tem plano avulso ativo (ex.: criado pela 0026 ou pelo cadastro) não ganha
+  // outro do seed: no máximo 1 avulso por serviço.
+  const existingSingles = await client.query<{ serviceId: string; id: string }>(
+    `SELECT pts.service_id AS "serviceId", pt.id
+     FROM plan_template_services pts
+     JOIN plan_templates pt ON pt.id = pts.template_id AND pt.clinic_id = pts.clinic_id
+     WHERE pts.clinic_id = $1 AND pt.active = 1
+       AND (pt.plan_type = 'single' OR (pt.plan_type IS NULL AND pt.kind = 'single'))`,
+    [clinicId],
   );
-  await client.query(
-    `INSERT INTO patient_plan_services (clinic_id,plan_id,service_id,position,service_name,total_sessions,remaining_sessions,total_value_in_cents)
-     SELECT pp.clinic_id,pp.id,pp.service_id,0,s.name,pp.total_sessions,pp.remaining_sessions,pp.total_value_in_cents
-     FROM patient_plans pp JOIN services s ON s.id=pp.service_id WHERE pp.id=ANY($1::uuid[]) ON CONFLICT DO NOTHING`,
-    [data.plans.map((plan) => plan.id)],
+  const singlePlanTemplates = demoPlanTemplates.filter(
+    (item) =>
+      !existingSingles.rows.some(
+        (row) =>
+          row.serviceId === item.services[0]!.serviceId && row.id !== item.id,
+      ),
   );
-  await client.query(
-    `INSERT INTO appointments (id, clinic_id, patient_id, professional_id, room_id, service_id, starts_at, ends_at, status, created_at, updated_at)
-    SELECT id, "clinicId", "patientId", "professionalId", "roomId", "serviceId", "startsAt"::timestamptz, "endsAt"::timestamptz, status::appointment_status, "createdAt"::timestamptz, "updatedAt"::timestamptz
-    FROM jsonb_to_recordset($1::jsonb) AS x(id uuid, "clinicId" uuid, "patientId" uuid, "professionalId" uuid, "roomId" uuid, "serviceId" uuid, "startsAt" text, "endsAt" text, status text, "createdAt" text, "updatedAt" text)
-    ON CONFLICT DO NOTHING`,
-    [JSON.stringify(data.appointments)],
+  await insertRows(
+    client,
+    "plan_templates",
+    singlePlanTemplates.map((item) => ({
+      id: item.id,
+      clinic_id: item.clinicId,
+      name: item.name,
+      total_value_in_cents: item.totalValueInCents,
+      service_id: item.services[0]!.serviceId,
+      kind: item.kind,
+      total_sessions: item.services[0]!.totalSessions,
+      plan_type: item.planType,
+      active: item.active,
+    })),
+    ignore,
   );
-  await client.query(
-    `INSERT INTO session_movements (id, clinic_id, plan_id, service_id, appointment_id, kind, quantity, reason, actor_user_id, created_at)
-    SELECT id, $2::uuid, "planId", "serviceId", "appointmentId", kind::session_movement_kind, quantity, reason, $3::uuid, "createdAt"::timestamptz
-    FROM jsonb_to_recordset($1::jsonb) AS x(id uuid, "planId" uuid, "serviceId" uuid, "appointmentId" uuid, kind text, quantity integer, reason text, "createdAt" text)
-    ON CONFLICT DO NOTHING`,
-    [JSON.stringify(data.movements), data.plans[0]!.clinicId, demoUserId],
+  await insertRows(
+    client,
+    "plan_template_services",
+    singlePlanTemplates.flatMap((item) =>
+      item.services.map((entry, position) => ({
+        clinic_id: item.clinicId,
+        template_id: item.id,
+        service_id: entry.serviceId,
+        position,
+        total_sessions: entry.totalSessions,
+        total_value_in_cents: entry.totalValueInCents,
+      })),
+    ),
+    ignore,
   );
-  await client.query(
-    `INSERT INTO receivables (id, clinic_id, patient_id, plan_id, description, installment_number, installment_count, due_date, amount_in_cents, status, paid_at, payment_method, created_at, updated_at)
-    SELECT id, "clinicId", "patientId", "planId", description, "installmentNumber", "installmentCount", "dueDate"::date, "amountInCents", status::receivable_status, "paidAt"::timestamptz, "paymentMethod", "createdAt"::timestamptz, "updatedAt"::timestamptz
-    FROM jsonb_to_recordset($1::jsonb) AS x(id uuid, "clinicId" uuid, "patientId" uuid, "planId" uuid, description text, "installmentNumber" integer, "installmentCount" integer, "dueDate" text, "amountInCents" integer, status text, "paidAt" text, "paymentMethod" text, "createdAt" text, "updatedAt" text)
-    ON CONFLICT DO NOTHING`,
-    [JSON.stringify(data.receivables)],
+  await insertRows(
+    client,
+    "patient_plans",
+    data.plans.map((plan) => ({
+      id: plan.id,
+      clinic_id: plan.clinicId,
+      branch_id: branchId,
+      patient_id: plan.patientId,
+      service_id: plan.serviceId,
+      name: plan.name,
+      kind: plan.kind,
+      total_sessions: plan.totalSessions,
+      remaining_sessions: plan.remainingSessions,
+      valid_from: plan.validFrom,
+      valid_until: plan.validUntil ?? null,
+      total_value_in_cents: plan.totalValueInCents,
+      installments: plan.installments,
+      first_due_date: plan.firstDueDate,
+      status: plan.status,
+      cancelled_at: at(plan.cancelledAt),
+      cancelled_value_in_cents: plan.cancelledValueInCents ?? 0,
+      auto_renew: plan.autoRenew,
+      created_at: at(plan.createdAt),
+      updated_at: at(plan.updatedAt),
+    })),
+    ignore,
   );
-  await client.query(
-    `INSERT INTO financial_events (id, clinic_id, receivable_id, actor_user_id, kind, amount_in_cents, created_at)
-    SELECT id, $2::uuid, "receivableId", $3::uuid, kind, "amountInCents", "createdAt"::timestamptz
-    FROM jsonb_to_recordset($1::jsonb) AS x(id uuid, "receivableId" uuid, kind text, "amountInCents" integer, "createdAt" text)
-    ON CONFLICT DO NOTHING`,
-    [JSON.stringify(data.financialEvents), data.plans[0]!.clinicId, demoUserId],
+  const services = new Map(
+    demoServices.map((service) => [service.id, service]),
   );
-  await client.query(
-    `INSERT INTO group_classes (id, clinic_id, name, sequence, service_id, professional_id, room_id, capacity, weekly_slots, active, created_at)
-    SELECT id, "clinicId", name, sequence, "serviceId", "professionalId", "roomId", capacity, "weeklySlots", active, "createdAt"::timestamptz
-    FROM jsonb_to_recordset($1::jsonb) AS x(id uuid, "clinicId" uuid, name text, sequence integer, "serviceId" uuid, "professionalId" uuid, "roomId" uuid, capacity integer, "weeklySlots" jsonb, active boolean, "createdAt" text)
-    ON CONFLICT DO NOTHING`,
-    [JSON.stringify(data.groups)],
+  await insertRows(
+    client,
+    "patient_plan_services",
+    data.plans.map((plan) => ({
+      clinic_id: plan.clinicId,
+      plan_id: plan.id,
+      service_id: plan.serviceId,
+      position: 0,
+      service_name: services.get(plan.serviceId)?.name ?? plan.name,
+      total_sessions: plan.totalSessions,
+      remaining_sessions: plan.remainingSessions,
+      total_value_in_cents: plan.totalValueInCents,
+    })),
+    ignore,
   );
-  await client.query(
-    `INSERT INTO group_enrollments (id, clinic_id, group_id, patient_id, status, enrolled_at, updated_at, ended_at)
-    SELECT id, "clinicId", "groupId", "patientId", status, "enrolledAt"::timestamptz, "updatedAt"::timestamptz,
-      CASE WHEN status = 'cancelled' THEN "updatedAt"::timestamptz END
-    FROM jsonb_to_recordset($1::jsonb) AS x(id uuid, "clinicId" uuid, "groupId" uuid, "patientId" uuid, status text, "enrolledAt" text, "updatedAt" text)
-    ON CONFLICT DO NOTHING`,
-    [JSON.stringify(data.enrollments)],
+  await insertRows(
+    client,
+    "appointments",
+    data.appointments.map((item) => ({
+      id: item.id,
+      clinic_id: item.clinicId,
+      branch_id: branchId,
+      patient_id: item.patientId,
+      professional_id: item.professionalId,
+      room_id: item.roomId,
+      service_id: item.serviceId,
+      starts_at: at(item.startsAt),
+      ends_at: at(item.endsAt),
+      status: item.status,
+      created_at: at(item.createdAt),
+      updated_at: at(item.updatedAt),
+    })),
+    ignore,
   );
-  await client.query(
-    `INSERT INTO group_sessions (id, clinic_id, group_id, starts_at, ends_at, status, created_at)
-    SELECT id, "clinicId", "groupId", "startsAt"::timestamptz, "endsAt"::timestamptz, status, "createdAt"::timestamptz
-    FROM jsonb_to_recordset($1::jsonb) AS x(id uuid, "clinicId" uuid, "groupId" uuid, "startsAt" text, "endsAt" text, status text, "createdAt" text)
-    ON CONFLICT DO NOTHING`,
-    [JSON.stringify(data.sessions)],
+  await insertRows(
+    client,
+    "session_movements",
+    data.movements.map((item) => ({
+      id: item.id,
+      clinic_id: clinicId,
+      plan_id: item.planId,
+      service_id: item.serviceId,
+      appointment_id: item.appointmentId ?? null,
+      kind: item.kind,
+      quantity: item.quantity,
+      reason: item.reason,
+      actor_user_id: demoUserId,
+      created_at: at(item.createdAt),
+    })),
+    ignore,
   );
-  await client.query(
-    `INSERT INTO group_attendance (id, clinic_id, session_id, patient_id, status, notes, recorded_by_user_id, recorded_at)
-    SELECT id, "clinicId", "sessionId", "patientId", status, notes, $2::uuid, "recordedAt"::timestamptz
-    FROM jsonb_to_recordset($1::jsonb) AS x(id uuid, "clinicId" uuid, "sessionId" uuid, "patientId" uuid, status text, notes text, "recordedAt" text)
-    ON CONFLICT DO NOTHING`,
-    [JSON.stringify(data.attendance), demoUserId],
+  await insertRows(
+    client,
+    "receivables",
+    data.receivables.map((item) => ({
+      id: item.id,
+      clinic_id: item.clinicId,
+      branch_id: branchId,
+      patient_id: item.patientId,
+      plan_id: item.planId ?? null,
+      description: item.description,
+      installment_number: item.installmentNumber,
+      installment_count: item.installmentCount,
+      due_date: item.dueDate,
+      amount_in_cents: item.amountInCents,
+      status: item.status,
+      paid_at: at(item.paidAt),
+      payment_method: item.paymentMethod ?? null,
+      posted_on: clinicDateOf(item.createdAt, DEFAULT_CLINIC_TIMEZONE),
+      competence: clinicDateOf(item.createdAt, DEFAULT_CLINIC_TIMEZONE).slice(
+        0,
+        7,
+      ),
+      created_at: at(item.createdAt),
+      updated_at: at(item.updatedAt),
+    })),
+    ignore,
+  );
+  await insertRows(
+    client,
+    "financial_events",
+    data.financialEvents.map((item) => ({
+      id: item.id,
+      clinic_id: clinicId,
+      receivable_id: item.receivableId,
+      actor_user_id: demoUserId,
+      kind: item.kind,
+      amount_in_cents: item.amountInCents,
+      created_at: at(item.createdAt),
+    })),
+    ignore,
+  );
+  await insertRows(
+    client,
+    "receipt_signatures",
+    data.receiptSignatures.map((item) => ({
+      id: item.id,
+      clinic_id: item.clinicId,
+      receivable_id: item.receivableId,
+      paid_at: at(item.paidAt),
+      amount_in_cents: item.amountInCents,
+      token: item.token,
+      created_at: at(item.createdAt),
+    })),
+    ignore,
+  );
+  await insertRows(
+    client,
+    "group_classes",
+    data.groups.map((item) => ({
+      id: item.id,
+      clinic_id: item.clinicId,
+      branch_id: branchId,
+      name: item.name,
+      sequence: item.sequence,
+      service_id: item.serviceId,
+      professional_id: item.professionalId,
+      room_id: item.roomId,
+      capacity: item.capacity,
+      weekly_slots: item.weeklySlots,
+      active: item.active,
+      created_at: at(item.createdAt),
+    })),
+    ignore,
+  );
+  await insertRows(
+    client,
+    "group_enrollments",
+    data.enrollments.map((item) => ({
+      id: item.id,
+      clinic_id: item.clinicId,
+      group_id: item.groupId,
+      patient_id: item.patientId,
+      status: item.status,
+      enrolled_at: at(item.enrolledAt),
+      updated_at: at(item.updatedAt),
+      ended_at: item.status === "cancelled" ? at(item.updatedAt) : null,
+    })),
+    ignore,
+  );
+  await insertRows(
+    client,
+    "group_sessions",
+    data.sessions.map((item) => ({
+      id: item.id,
+      clinic_id: item.clinicId,
+      group_id: item.groupId,
+      starts_at: at(item.startsAt),
+      ends_at: at(item.endsAt),
+      status: item.status,
+      created_at: at(item.createdAt),
+    })),
+    ignore,
+  );
+  await insertRows(
+    client,
+    "group_attendance",
+    data.attendance.map((item) => ({
+      id: item.id,
+      clinic_id: item.clinicId,
+      session_id: item.sessionId,
+      patient_id: item.patientId,
+      status: item.status,
+      notes: item.notes ?? null,
+      recorded_by_user_id: demoUserId,
+      recorded_at: at(item.recordedAt),
+    })),
+    ignore,
+  );
+  await insertRows(
+    client,
+    "message_templates",
+    demoMessageTemplates.map((item) => ({
+      id: item.id,
+      clinic_id: clinicId,
+      title: item.title,
+      body: item.body,
+      created_by: demoUserId,
+    })),
+    ignore,
   );
 }

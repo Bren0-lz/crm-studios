@@ -1,4 +1,5 @@
 import {
+  documentContentFromText,
   effectivePermissions,
   permissionEditModules,
   permissionModules,
@@ -24,6 +25,12 @@ import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import App from "../../App";
 import { api } from "../../api";
+import { installDocumentBrowserMocks } from "../../test-support/document-editor";
+
+vi.mock("../contracts/document-pdf", () => ({
+  generateDocumentPdf: async () =>
+    new Blob(["%PDF-1.7\nContract"], { type: "application/pdf" }),
+}));
 
 const clinicId = "11111111-1111-4111-8111-111111111111";
 const timestamp = "2026-10-12T12:00:00Z";
@@ -50,9 +57,8 @@ const service: Service = {
   clinicId,
   name: "Pilates",
   active: true,
+  businessLine: "studio",
   durationMinutes: 50,
-  priceInCents: 16000,
-  color: "#276749",
 };
 const template: PlanTemplate = {
   id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
@@ -137,6 +143,7 @@ function workspace(patient: Patient): ClinicalWorkspace {
     closures: [],
     attachments: [],
     addenda: [],
+    alerts: [],
   };
 }
 
@@ -175,11 +182,7 @@ beforeEach(() => {
     patientId: breno.id,
     patientName: breno.fullName,
   });
-  vi.spyOn(api, "communications").mockResolvedValue({
-    deliveryMode: "outbox_only",
-    messages: [],
-    preferences: [],
-  });
+  vi.spyOn(api, "communicationPreferences").mockResolvedValue([]);
   vi.spyOn(api, "documentTemplates").mockResolvedValue([
     {
       id: template.id,
@@ -200,8 +203,6 @@ beforeEach(() => {
     attendance: [],
     replacementCredits: [],
   });
-  vi.spyOn(api, "clinicalRecords").mockResolvedValue([]);
-  vi.spyOn(api, "clinicalAppointmentOptions").mockResolvedValue([]);
   vi.spyOn(api, "clinicalWorkspace").mockImplementation(async (id) =>
     workspace(id === ana.id ? ana : breno),
   );
@@ -246,18 +247,68 @@ describe("searchable client selection across modules", () => {
     fireEvent.change(catalog, { target: { value: template.id } });
     expect(save).toBeDisabled();
     await selectBreno(dialog, "Breno");
+    // Plano de aulas em grupo: só salva com a turma escolhida.
+    expect(save).toBeDisabled();
+    const purchase = vi.spyOn(api, "purchasePlan").mockResolvedValue({
+      plan: { ...plan, patientId: breno.id, patientName: breno.fullName },
+      appointments: [],
+    });
+    fireEvent.change(await within(dialog).findByLabelText("Turma"), {
+      target: { value: group.id },
+    });
     fireEvent.click(save);
     await waitFor(() =>
-      expect(api.createPlan).toHaveBeenCalledWith(
-        expect.objectContaining({ patientId: breno.id }),
+      expect(purchase).toHaveBeenCalledWith(
+        expect.objectContaining({
+          groupId: group.id,
+          plan: expect.objectContaining({ patientId: breno.id }),
+        }),
       ),
     );
+    expect(api.createPlan).not.toHaveBeenCalled();
   });
 
   it("clears a linked contract plan on client edits and issues for the new selection", async () => {
-    const create = vi.spyOn(api, "createDocument");
+    installDocumentBrowserMocks();
+    const snapshotBody = `Contrato para ${breno.fullName}. Condições combinadas.`;
+    const snapshotContent = documentContentFromText(snapshotBody);
+    const branding = {
+      name: "Studios Aryana",
+      logoDataUrl: "",
+      timezone: "America/Sao_Paulo",
+    };
+    vi.spyOn(api, "previewDocument").mockResolvedValue({
+      snapshotBody,
+      snapshotContent,
+      branding,
+      missingFields: [],
+      templateName: "Contrato padrão",
+      templateVersion: 1,
+      patientName: breno.fullName,
+    });
+    const create = vi
+      .spyOn(api, "createDocument")
+      .mockImplementation(async (input) => ({
+        ...input,
+        id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+        clinicId,
+        snapshotBody,
+        snapshotContent,
+        branding,
+        templateName: "Contrato padrão",
+        templateVersion: 1,
+        patientName: breno.fullName,
+        status: "draft",
+        createdAt: timestamp,
+        updatedAt: timestamp,
+      }));
     page("/contratos");
-    const save = await screen.findByRole("button", { name: "Criar rascunho" });
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Novo documento" }),
+    );
+    const save = await screen.findByRole("button", {
+      name: "Preparar conteúdo",
+    });
     expect(save).toBeDisabled();
     const input = screen.getByRole("combobox", { name: "Cliente" });
     fireEvent.change(input, {
@@ -272,42 +323,21 @@ describe("searchable client selection across modules", () => {
     expect(save).toBeDisabled();
     await selectBreno(document.body);
     fireEvent.click(save);
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Conferir PDF" }),
+    );
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "Criar rascunho" }),
+      ).toBeEnabled(),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Criar rascunho" }));
     await waitFor(() =>
       expect(create).toHaveBeenCalledWith(
         expect.objectContaining({ patientId: breno.id }),
       ),
     );
     expect(create.mock.calls[0]![0]).not.toHaveProperty("planId");
-  });
-
-  it("requires a valid client for messages and preferences and retains remote selection after reload", async () => {
-    const queue = vi.spyOn(api, "queueMessage");
-    page("/comunicacoes");
-    const panel = (
-      await screen.findByRole("heading", { name: "Adicionar à fila" })
-    ).closest("section")!;
-    const save = within(panel).getByRole("button", {
-      name: "Adicionar à fila",
-    });
-    const preference = within(panel).getByLabelText("WhatsApp permitido");
-    expect(preference).toBeDisabled();
-    fireEvent.change(within(panel).getByLabelText("Mensagem administrativa"), {
-      target: { value: "Olá, seu plano está pronto." },
-    });
-    expect(save).toBeDisabled();
-    const input = await selectBreno(panel);
-    expect(preference).toBeEnabled();
-    fireEvent.click(save);
-    await waitFor(() =>
-      expect(queue).toHaveBeenCalledWith(
-        expect.objectContaining({ patientId: breno.id }),
-      ),
-    );
-    await screen.findByText("Mensagem adicionada à fila com segurança.");
-    expect(input).toHaveValue(breno.fullName);
-    fireEvent.change(input, { target: { value: "Outro" } });
-    expect(preference).toBeDisabled();
-    expect(save).toBeDisabled();
   });
 
   it("enrolls the chosen search result and preserves the client supplied by a shortcut", async () => {
@@ -345,7 +375,7 @@ describe("searchable client selection across modules", () => {
     );
   });
 
-  it("clears the clinical workspace and ignores results for a previous client", async () => {
+  it("opens the chosen client's chart and ignores results for a previous client", async () => {
     let finishOld!: (data: ClinicalWorkspace) => void;
     vi.mocked(api.clinicalWorkspace).mockImplementation((id) =>
       id === ana.id
@@ -354,32 +384,35 @@ describe("searchable client selection across modules", () => {
           })
         : Promise.resolve(workspace(breno)),
     );
+    vi.mocked(api.patientOptions).mockResolvedValue([ana, breno]);
     page("/prontuarios");
-    const input = await screen.findByRole("combobox", { name: "Cliente" });
-    expect(input).toHaveValue(ana.fullName);
-    fireEvent.change(input, { target: { value: "12345678909" } });
+    const search = await screen.findByRole("searchbox", {
+      name: "Buscar cliente",
+    });
+    // Nenhum prontuário abre sozinho: a equipe escolhe o cliente na lista.
+    expect(api.clinicalWorkspace).not.toHaveBeenCalled();
+    fireEvent.change(search, { target: { value: "breno" } });
     expect(
-      screen.getByText(/Busque e selecione um cliente/),
-    ).toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", { name: "Nova avaliação" }),
+      screen.queryByRole("button", { name: new RegExp(ana.fullName) }),
     ).not.toBeInTheDocument();
+    fireEvent.change(search, { target: { value: "" } });
     fireEvent.click(
-      await screen.findByRole("option", { name: breno.fullName }),
+      screen.getByRole("button", { name: new RegExp(ana.fullName) }),
     );
     await waitFor(() =>
-      expect(api.clinicalWorkspace).toHaveBeenCalledWith(breno.id),
+      expect(api.clinicalWorkspace).toHaveBeenCalledWith(ana.id),
     );
-    await screen.findAllByText(`Objetivo de ${breno.fullName}`);
+    fireEvent.click(
+      screen.getByRole("button", { name: new RegExp(breno.fullName) }),
+    );
+    expect(
+      await screen.findByRole("heading", { level: 2, name: breno.fullName }),
+    ).toBeInTheDocument();
     await act(async () => {
       finishOld(workspace(ana));
     });
     expect(
-      screen.queryByText(`Objetivo de ${ana.fullName}`),
-    ).not.toBeInTheDocument();
-    fireEvent.change(input, { target: { value: "" } });
-    expect(
-      screen.queryByText(`Objetivo de ${breno.fullName}`),
+      screen.queryByRole("heading", { level: 2, name: ana.fullName }),
     ).not.toBeInTheDocument();
     expect(api.clinicalWorkspace).not.toHaveBeenCalledWith("");
   });

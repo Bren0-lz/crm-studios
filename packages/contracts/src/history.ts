@@ -7,6 +7,21 @@ export const historyActions: {
   label: string;
 }[] = [
   {
+    action: "agenda.note_created",
+    module: "agenda",
+    label: "Nota da agenda criada",
+  },
+  {
+    action: "agenda.note_updated",
+    module: "agenda",
+    label: "Nota da agenda editada",
+  },
+  {
+    action: "agenda.note_deleted",
+    module: "agenda",
+    label: "Nota da agenda excluída",
+  },
+  {
     action: "external.operation_recorded",
     module: "finance",
     label: "Operação externa registrada",
@@ -15,6 +30,21 @@ export const historyActions: {
     action: "external.operation_downloaded",
     module: "finance",
     label: "Comprovante de operação externa baixado",
+  },
+  {
+    action: "finance.payment_proof_attached",
+    module: "finance",
+    label: "Comprovante de pagamento anexado",
+  },
+  {
+    action: "finance.payment_proof_downloaded",
+    module: "finance",
+    label: "Comprovante de pagamento baixado",
+  },
+  {
+    action: "finance.payment_proof_deleted",
+    module: "finance",
+    label: "Comprovante de pagamento excluído",
   },
   {
     action: "plan.purchased",
@@ -27,6 +57,11 @@ export const historyActions: {
     label: "Relatório de clientes exportado",
   },
   { action: "reports.dre_exported", module: "reports", label: "DRE exportada" },
+  {
+    action: "reports.campaigns_exported",
+    module: "reports",
+    label: "Relatório de campanhas exportado",
+  },
   {
     action: "user.sessions_revoked",
     module: "settings",
@@ -41,6 +76,16 @@ export const historyActions: {
     action: "assessment.template_saved",
     module: "clinical",
     label: "Modelo de avaliação salvo",
+  },
+  {
+    action: "assessment.template_archived",
+    module: "clinical",
+    label: "Modelo de avaliação arquivado",
+  },
+  {
+    action: "assessment.template_restored",
+    module: "clinical",
+    label: "Modelo de avaliação reativado",
   },
   {
     action: "catalog.saved",
@@ -58,6 +103,36 @@ export const historyActions: {
     label: "Registro clínico finalizado",
   },
   {
+    action: "message_template.saved",
+    module: "communications",
+    label: "Mensagem padrão salva",
+  },
+  {
+    action: "message_template.archived",
+    module: "communications",
+    label: "Mensagem padrão arquivada ou reativada",
+  },
+  {
+    action: "campaign.created",
+    module: "communications",
+    label: "Campanha de WhatsApp criada",
+  },
+  {
+    action: "auto_campaign.created",
+    module: "communications",
+    label: "Campanha automática criada",
+  },
+  {
+    action: "auto_campaign.updated",
+    module: "communications",
+    label: "Campanha automática alterada",
+  },
+  {
+    action: "auto_campaign.deleted",
+    module: "communications",
+    label: "Campanha automática excluída",
+  },
+  {
     action: "message.manual_completion",
     module: "communications",
     label: "Conclusão manual de mensagem registrada",
@@ -71,6 +146,16 @@ export const historyActions: {
     action: "document.signature_downloaded",
     module: "contracts",
     label: "Cópia assinada consultada",
+  },
+  {
+    action: "document.signature_link_created",
+    module: "contracts",
+    label: "Link de assinatura gerado",
+  },
+  {
+    action: "document.signature_link_renewed",
+    module: "contracts",
+    label: "Link de assinatura renovado",
   },
   {
     action: "product.updated",
@@ -157,14 +242,36 @@ export const historyActions: {
   { action: "user.created", module: "settings", label: "Usuário cadastrado" },
   { action: "user.updated", module: "settings", label: "Usuário atualizado" },
   {
+    action: "user.profile_updated",
+    module: "settings",
+    label: "Perfil próprio atualizado",
+  },
+  { action: "branch.created", module: "settings", label: "Filial cadastrada" },
+  { action: "branch.updated", module: "settings", label: "Filial atualizada" },
+  {
+    action: "users.branches_updated",
+    module: "settings",
+    label: "Filiais do usuário alteradas",
+  },
+  {
     action: "user.password_reset",
     module: "settings",
     label: "Senha redefinida",
   },
   {
+    action: "user.password_viewed",
+    module: "settings",
+    label: "Senha visualizada",
+  },
+  {
     action: "users.permissions_updated",
     module: "settings",
     label: "Permissões de acesso alteradas",
+  },
+  {
+    action: "users.dashboard_access_updated",
+    module: "settings",
+    label: "Acesso ao painel de vendas alterado",
   },
   {
     action: "users.commission_updated",
@@ -180,6 +287,16 @@ export const historyActions: {
     action: "clinic.updated",
     module: "settings",
     label: "Dados da clínica atualizados",
+  },
+  {
+    action: "clinic.auto_finalization_updated",
+    module: "settings",
+    label: "Finalização automática alterada",
+  },
+  {
+    action: "clinic.payment_methods_updated",
+    module: "settings",
+    label: "Formas de pagamento alteradas",
   },
   {
     action: "patient_tag.created",
@@ -236,6 +353,11 @@ export const historyActions: {
     action: "payable.cancellation",
     module: "finance",
     label: "Conta a pagar cancelada",
+  },
+  {
+    action: "payable.amount_informed",
+    module: "finance",
+    label: "Valor do mês informado",
   },
   {
     action: "appointment.rescheduled",
@@ -372,6 +494,11 @@ export const historyActions: {
     label: "Adendo clínico registrado",
   },
   {
+    action: "clinical.alert_created",
+    module: "clinical",
+    label: "Alerta clínico registrado",
+  },
+  {
     action: "clinical.template_created",
     module: "clinical",
     label: "Modelo de avaliação criado",
@@ -402,9 +529,59 @@ export const historyActions: {
     label: "Recebíveis renegociados",
   },
   {
+    action: "payroll.employee_created",
+    module: "finance",
+    label: "Colaborador cadastrado na folha",
+  },
+  {
+    action: "payroll.employee_updated",
+    module: "finance",
+    label: "Colaborador da folha atualizado",
+  },
+  {
+    action: "payroll.entry_created",
+    module: "finance",
+    label: "Desconto ou recompensa adicionado na folha",
+  },
+  {
+    action: "payroll.entry_deleted",
+    module: "finance",
+    label: "Desconto ou recompensa removido da folha",
+  },
+  {
+    action: "payroll.advance_created",
+    module: "finance",
+    label: "Vale registrado para colaborador",
+  },
+  {
+    action: "payroll.advance_deleted",
+    module: "finance",
+    label: "Vale removido",
+  },
+  {
+    action: "payroll.launched",
+    module: "finance",
+    label: "Folha de pagamento lançada",
+  },
+  {
+    action: "payroll.launch_cancelled",
+    module: "finance",
+    label: "Lançamento da folha desfeito",
+  },
+  {
     action: "commission.reconciled",
     module: "finance",
     label: "Comissão conciliada com a origem",
+  },
+  {
+    action: "commission.auto_reconciled",
+    module: "finance",
+    label: "Comissão conciliada automaticamente após mudança na origem",
+  },
+  {
+    action: "commission.recalculated",
+    module: "finance",
+    label: "Comissões recalculadas pela regra nova",
   },
   {
     action: "commission.account_paid",

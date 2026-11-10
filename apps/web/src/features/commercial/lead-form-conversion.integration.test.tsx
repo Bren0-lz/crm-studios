@@ -10,9 +10,13 @@ import { describe, expect, it, vi } from "vitest";
 import App from "../../App";
 import { storedUser } from "../../test-support/legacy-fixtures";
 import "../../test-support/legacy-setup";
+import {
+  isLeadBoardUrl,
+  leadBoardResponse,
+} from "../../test-support/lead-board";
 
 describe("lean lead form", () => {
-  it("creates a lead with name and phone and asks CPF, emergency contact and address on conversion", async () => {
+  it("creates a lead with name and phone and converts it with the client registration form prefilled", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
     localStorage.setItem(
       "crm.auth.user",
@@ -55,7 +59,7 @@ describe("lean lead form", () => {
             }),
           } as Response;
       }
-      const body = url.endsWith("/leads") ? leads : [];
+      const body = isLeadBoardUrl(url) ? leadBoardResponse(url, leads) : [];
       return { ok: true, status: 200, json: async () => body } as Response;
     });
     render(
@@ -90,26 +94,85 @@ describe("lean lead form", () => {
     const card = (await screen.findByText("Lead Enxuto")).closest(
       "article",
     ) as HTMLElement;
+    const createdNotice = await screen.findByRole("status");
+    expect(createdNotice).toHaveTextContent("Lead Lead Enxuto cadastrado.");
+    fireEvent.click(
+      within(createdNotice).getByRole("button", { name: "Fechar aviso" }),
+    );
     fireEvent.click(within(card).getByRole("button", { name: "Converter" }));
     const convert = screen.getByRole("dialog", {
       name: "Converter lead em cliente",
     });
+    // Mesmo cadastro do "Novo cliente", já preenchido com o que o lead tem.
+    expect(within(convert).getByLabelText("Nome completo")).toHaveValue(
+      "Lead Enxuto",
+    );
+    const contact = within(convert).getByRole("group", { name: "Contato" });
+    expect(within(contact).getByLabelText("Telefone")).toHaveValue(
+      "(11) 97777-6666",
+    );
+    expect(within(convert).getByLabelText("E-mail")).toHaveValue("");
+    expect(within(convert).getByLabelText("CPF")).toHaveValue("");
     fireEvent.change(within(convert).getByLabelText("CPF"), {
       target: { value: "529.982.247-25" },
     });
-    fireEvent.change(within(convert).getByLabelText("Contato de emergência"), {
+    // CD1: WhatsApp e contato de emergência obrigatórios na conversão.
+    expect(
+      within(convert).getByRole("button", { name: "Converter em cliente" }),
+    ).toBeDisabled();
+    expect(
+      within(convert).getByText(
+        "Falta: WhatsApp, Nome do contato de emergência, Telefone do contato de emergência.",
+      ),
+    ).toBeVisible();
+    fireEvent.change(within(contact).getByLabelText("WhatsApp"), {
+      target: { value: "11977776666" },
+    });
+    const emergency = within(convert).getByRole("group", {
+      name: "Contato de emergência",
+    });
+    expect(within(emergency).getByLabelText("Nome")).toBeRequired();
+    expect(within(emergency).getByLabelText("Telefone")).toBeRequired();
+    fireEvent.click(
+      within(emergency).getByRole("button", {
+        name: "Usar os dados do cliente",
+      }),
+    );
+    expect(within(emergency).getByLabelText("Nome")).toHaveValue("Lead Enxuto");
+    expect(within(emergency).getByLabelText("Telefone")).toHaveValue(
+      "(11) 97777-6666",
+    );
+    fireEvent.change(within(emergency).getByLabelText("Nome"), {
       target: { value: "Joana Mãe" },
     });
     fireEvent.change(within(convert).getByLabelText("Endereço"), {
       target: { value: "Rua das Flores, 10" },
     });
-    fireEvent.click(within(convert).getByRole("button", { name: "Confirmar" }));
+    fireEvent.click(
+      within(convert).getByRole("button", { name: "Converter em cliente" }),
+    );
     await waitFor(() => expect(posts).toHaveLength(2));
     expect(posts[1]!.url).toMatch(/\/convert$/);
     expect(posts[1]!.body).toMatchObject({
+      fullName: "Lead Enxuto",
+      phone: "11977776666",
       cpf: "52998224725",
+      whatsapp: "11977776666",
       emergencyContactName: "Joana Mãe",
+      emergencyContactPhone: "11977776666",
       address: "Rua das Flores, 10",
     });
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("dialog", { name: "Converter lead em cliente" }),
+      ).not.toBeInTheDocument(),
+    );
+    const won = screen.getByRole("region", { name: "Ganhos" });
+    expect(within(won).getByText("Lead Enxuto")).toBeInTheDocument();
+    expect(within(won).getByRole("banner")).toHaveTextContent("Ganhos1");
+    expect(
+      within(screen.getByRole("region", { name: "Novos" })).getByRole("banner"),
+    ).toHaveTextContent("Novos0");
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
   });
 });

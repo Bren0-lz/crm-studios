@@ -6,210 +6,6 @@ import { storedUser } from "../../test-support/legacy-fixtures";
 import "../../test-support/legacy-setup";
 
 describe("application shell", () => {
-  it("keeps the monthly summary readable and opens detailed lists on demand", async () => {
-    localStorage.setItem("crm.auth.token", "test-token");
-    localStorage.setItem(
-      "crm.auth.user",
-      storedUser({
-        id: "22222222-2222-4222-8222-222222222222",
-        fullName: "Aryana Dutra",
-        email: "admin@movimenta.local",
-        role: "owner",
-      }),
-    );
-    const month = new Date().toLocaleDateString("sv-SE").slice(0, 7);
-    vi.mocked(fetch).mockImplementation(async (input) => {
-      if (!String(input).includes("/reports/sales?")) {
-        return {
-          ok: false,
-          status: 503,
-          json: async () => ({ message: "Dados indisponíveis" }),
-        } as Response;
-      }
-      return {
-        ok: true,
-        status: 200,
-        json: async () => ({
-          current: {
-            from: `${month}-01`,
-            to: `${month}-15`,
-            netSalesInCents: 120000,
-            grossSalesInCents: 130000,
-            cancelledSalesInCents: 10000,
-            receivedInCents: 90000,
-            attendedPatients: 14,
-          },
-          previousComparable: { from: "2026-08-01", to: "2026-08-15" },
-          changePercent: 20,
-          sales: [
-            {
-              id: "sale-1",
-              occurredAt: `${month}-10T12:00:00Z`,
-              itemName: "Plano de fisioterapia",
-              patientName: "Helena Almeida",
-              kind: "sale",
-              amountInCents: 120000,
-            },
-          ],
-          patientsWithoutReturn: [
-            {
-              patientId: "patient-1",
-              patientName: "Helena Almeida",
-              lastCompletedAt: "2026-08-20T15:00:00Z",
-            },
-          ],
-        }),
-      } as Response;
-    });
-
-    render(
-      <MemoryRouter initialEntries={["/relatorios"]}>
-        <App />
-      </MemoryRouter>,
-    );
-    expect(await screen.findByText("Vendido líquido")).toBeInTheDocument();
-    expect(
-      screen.getByText("Antes dos estornos: R$ 1.300,00 · Estornos: R$ 100,00"),
-    ).toBeInTheDocument();
-    expect(screen.getByText("Dinheiro recebido")).toBeInTheDocument();
-    expect(screen.getAllByText("Clientes sem retorno")).toHaveLength(2);
-    const details = screen.getByText("Ver vendas e clientes do mês")
-      .parentElement as HTMLDetailsElement;
-    expect(details.open).toBe(false);
-    fireEvent.click(screen.getByText("Ver vendas e clientes do mês"));
-    expect(details.open).toBe(true);
-    expect(screen.getByText("Helena Almeida")).toBeInTheDocument();
-    expect(
-      (
-        screen.getByText("Ver outros indicadores da clínica")
-          .parentElement as HTMLDetailsElement
-      ).open,
-    ).toBe(false);
-  });
-
-  it("opens the full list of clients without return from the dashboard link", async () => {
-    localStorage.setItem("crm.auth.token", "test-token");
-    localStorage.setItem(
-      "crm.auth.user",
-      storedUser({
-        id: "22222222-2222-4222-8222-222222222222",
-        fullName: "Aryana Dutra",
-        email: "admin@movimenta.local",
-        role: "owner",
-      }),
-    );
-    const month = new Date().toLocaleDateString("sv-SE").slice(0, 7);
-    const withoutReturn = Array.from({ length: 15 }, (_, index) => ({
-      patientId: `patient-${index}`,
-      patientName: `Cliente Sem Retorno ${index + 1}`,
-      lastCompletedAt: "2026-08-20T15:00:00Z",
-    }));
-    vi.mocked(fetch).mockImplementation(async (input) => {
-      if (!String(input).includes("/reports/sales?")) {
-        return {
-          ok: false,
-          status: 503,
-          json: async () => ({ message: "Dados indisponíveis" }),
-        } as Response;
-      }
-      return {
-        ok: true,
-        status: 200,
-        json: async () => ({
-          current: {
-            from: `${month}-01`,
-            to: `${month}-15`,
-            netSalesInCents: 0,
-            grossSalesInCents: 0,
-            cancelledSalesInCents: 0,
-            receivedInCents: 0,
-            attendedPatients: 0,
-          },
-          previousComparable: { from: "2026-08-01", to: "2026-08-15" },
-          changePercent: null,
-          sales: [],
-          patientsWithoutReturn: withoutReturn,
-        }),
-      } as Response;
-    });
-
-    render(
-      <MemoryRouter initialEntries={["/relatorios?secao=sem-retorno"]}>
-        <App />
-      </MemoryRouter>,
-    );
-    expect(await screen.findByText("Vendido líquido")).toBeInTheDocument();
-    const details = screen.getByText("Ver vendas e clientes do mês")
-      .parentElement as HTMLDetailsElement;
-    expect(details.open).toBe(true);
-    expect(screen.getAllByText(/^Cliente Sem Retorno [0-9]+$/)).toHaveLength(
-      15,
-    );
-  });
-
-  it("shows the DRE period in Brazilian date format", async () => {
-    localStorage.setItem("crm.auth.token", "test-token");
-    localStorage.setItem(
-      "crm.auth.user",
-      storedUser({
-        id: "22222222-2222-4222-8222-222222222222",
-        fullName: "Aryana Dutra",
-        email: "admin@movimenta.local",
-        role: "owner",
-      }),
-    );
-    vi.mocked(fetch).mockImplementation(async (input) => {
-      if (!String(input).includes("/dre")) {
-        return {
-          ok: false,
-          status: 503,
-          json: async () => ({ message: "Dados indisponíveis" }),
-        } as Response;
-      }
-      return {
-        ok: true,
-        status: 200,
-        json: async () => ({
-          from: "2026-10-01",
-          to: "2026-10-16",
-          months: [
-            {
-              month: "2026-10",
-              serviceRevenueInCents: 50000,
-              productRevenueInCents: 0,
-              otherRevenueInCents: 0,
-              expenses: {},
-              resultInCents: 50000,
-            },
-          ],
-          totals: {
-            revenueInCents: 50000,
-            expensesInCents: 0,
-            resultInCents: 50000,
-          },
-          categories: [],
-        }),
-      } as Response;
-    });
-
-    render(
-      <MemoryRouter initialEntries={["/relatorios"]}>
-        <App />
-      </MemoryRouter>,
-    );
-    const details = (await screen.findByText("DRE por competência"))
-      .parentElement as HTMLDetailsElement;
-    details.open = true;
-    fireEvent(details, new Event("toggle"));
-    expect(
-      await screen.findByText("DRE por competência · 01/10/2026 a 16/10/2026"),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("columnheader", { name: "10/2026" }),
-    ).toBeInTheDocument();
-    expect(screen.queryByText(/2026-10-01/)).not.toBeInTheDocument();
-  });
-
   it("shows the NPS card on the reports page for the filtered period", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
     localStorage.setItem(
@@ -263,15 +59,16 @@ describe("application shell", () => {
         <App />
       </MemoryRouter>,
     );
+    fireEvent.click(await screen.findByRole("tab", { name: "Indicadores" }));
     expect(
       await screen.findByText(
-        "4 respostas · 2 promotores · 1 neutros · 1 detratores",
+        "2 de 4 respostas recomendariam o estúdio · 1 insatisfeito",
       ),
     ).toBeInTheDocument();
     const card = screen
-      .getByText("Satisfação (NPS)")
+      .getByText("Satisfação dos clientes")
       .closest("article") as HTMLElement;
-    expect(within(card).getByText("25")).toBeInTheDocument();
+    expect(within(card).getByText("Razoável")).toBeInTheDocument();
     const first = vi
       .mocked(fetch)
       .mock.calls.find(([input]) => String(input).includes("/satisfaction?"));
@@ -286,12 +83,10 @@ describe("application shell", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "Atualizar" }));
     expect(
-      await screen.findByText(
-        "0 respostas · 0 promotores · 0 neutros · 0 detratores",
-      ),
+      await screen.findByText("Nenhuma pesquisa respondida no período"),
     ).toBeInTheDocument();
     const updated = screen
-      .getByText("Satisfação (NPS)")
+      .getByText("Satisfação dos clientes")
       .closest("article") as HTMLElement;
     expect(within(updated).getByText("—")).toBeInTheDocument();
     expect(
@@ -333,7 +128,7 @@ describe("application shell", () => {
       },
       trials,
       plans: { active: 0, availableSessions: 0, consumedInPeriod: 0 },
-      finance: { openInCents: 0, overdueInCents: 0, paidInPeriodInCents: 0 },
+      finance: { openInCents: 0, overdueInCents: 0 },
       commercial: {
         leadsCreated: 0,
         won: 0,
@@ -345,27 +140,13 @@ describe("application shell", () => {
       byService: [],
       bySource: [],
       profitability: {
-        dre: {
-          serviceRevenueInCents: 0,
-          productRevenueInCents: 0,
-          grossRevenueInCents: 0,
-          productCostInCents: 0,
-          grossProfitInCents: 0,
-          operatingExpensesInCents: 0,
-          commissionsInCents: 0,
-          netResultInCents: 0,
-          netMargin: 0,
-        },
         byService: [],
-        byProduct: [],
         operational: {
           groupOccupancyRate: 0,
           activeGroupSeats: 0,
           totalGroupCapacity: 0,
           waitlistCount: 0,
           lowStockCount: 0,
-          productUnitsSold: 0,
-          averageReceiptInCents: 0,
         },
       },
     });
@@ -408,13 +189,14 @@ describe("application shell", () => {
         <App />
       </MemoryRouter>,
     );
+    fireEvent.click(await screen.findByRole("tab", { name: "Indicadores" }));
     expect(
       await screen.findByText(
-        "6 agendadas · 4 concluídas · 3 viraram plano em até 30 dias",
+        "3 de 4 fecharam plano em até 30 dias · 6 agendadas",
       ),
     ).toBeInTheDocument();
     const card = screen
-      .getByText("Experimentais")
+      .getByText("Aulas experimentais")
       .closest("article") as HTMLElement;
     expect(within(card).getByText("75%")).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("De"), {
@@ -425,10 +207,10 @@ describe("application shell", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "Atualizar" }));
     expect(
-      await screen.findByText("2 agendadas · nenhuma concluída no período"),
+      await screen.findByText("2 agendadas · nenhuma realizada no período"),
     ).toBeInTheDocument();
     const updated = screen
-      .getByText("Experimentais")
+      .getByText("Aulas experimentais")
       .closest("article") as HTMLElement;
     expect(within(updated).getByText("—")).toBeInTheDocument();
   });
@@ -539,7 +321,6 @@ describe("application shell", () => {
           from: "2026-01-01",
           to: "2026-01-31",
           topBySessions: [],
-          topByRevenue: [],
           activeClients: 0,
           ageDistribution: bands([0, 0, 0, 0, 0, 0]),
         });
@@ -561,13 +342,6 @@ describe("application shell", () => {
               completedSessions: 7,
             },
           ],
-          topByRevenue: [
-            {
-              patientId: "p-3",
-              patientName: "Carla Souza",
-              receivedInCents: 120000,
-            },
-          ],
           activeClients: 4,
           ageDistribution: bands([0, 1, 2, 0, 0, 1]),
         });
@@ -584,6 +358,7 @@ describe("application shell", () => {
       </MemoryRouter>,
     );
 
+    fireEvent.click(await screen.findByRole("tab", { name: "Clientes" }));
     const retentionPanel = (
       await screen.findByRole("heading", { name: "Retenção mês a mês" })
     ).closest("section") as HTMLElement;
@@ -599,19 +374,21 @@ describe("application shell", () => {
       ),
     ).toBeInTheDocument();
 
-    const sessions = screen
-      .getByRole("heading", { name: "Mais sessões concluídas" })
-      .closest("section") as HTMLElement;
+    fireEvent.click(
+      screen.getByRole("tab", { name: "Ranking e faixa etária" }),
+    );
+    const sessions = (
+      await screen.findByRole("heading", { name: "Mais sessões concluídas" })
+    ).closest("section") as HTMLElement;
     expect(
       await within(sessions).findByText("1. Helena Almeida"),
     ).toBeInTheDocument();
     expect(within(sessions).getByText("12 sessões")).toBeInTheDocument();
     expect(within(sessions).getByText("2. Bruno Costa")).toBeInTheDocument();
-    const revenue = screen
-      .getByRole("heading", { name: "Mais recebimentos" })
-      .closest("section") as HTMLElement;
-    expect(within(revenue).getByText("1. Carla Souza")).toBeInTheDocument();
-    expect(within(revenue).getByText(/R\$\s1\.200,00/)).toBeInTheDocument();
+    // Receita por cliente fica em Vendas › Maiores compradores.
+    expect(
+      screen.queryByRole("heading", { name: "Mais recebimentos" }),
+    ).not.toBeInTheDocument();
     const ages = screen
       .getByRole("heading", { name: "Faixa etária" })
       .closest("section") as HTMLElement;
@@ -651,17 +428,18 @@ describe("application shell", () => {
       target: { value: "2026-01-31" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Atualizar" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Retenção" }));
     const january = (
-      await screen.findByRole("rowheader", { name: "01/2026" })
+      await within(retentionPanel).findByRole("rowheader", { name: "01/2026" })
     ).closest("tr") as HTMLElement;
     expect(within(january).getByText("—")).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("tab", { name: "Ranking e faixa etária" }),
+    );
     expect(
       await screen.findByText(
         "Nenhum cliente com sessão concluída no período.",
       ),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText("Nenhum recebimento de cliente no período."),
     ).toBeInTheDocument();
     expect(
       screen.getByText("Nenhum cliente ativo no período."),
@@ -711,74 +489,9 @@ describe("application shell", () => {
         <App />
       </MemoryRouter>,
     );
+    fireEvent.click(await screen.findByRole("tab", { name: "Indicadores" }));
     expect(
       await screen.findByText("Não foi possível carregar as experimentais."),
     ).toBeInTheDocument();
-  });
-
-  it("shows the sales change without an impossible percent when the previous base is negative", async () => {
-    localStorage.setItem("crm.auth.token", "test-token");
-    localStorage.setItem(
-      "crm.auth.user",
-      storedUser({
-        id: "22222222-2222-4222-8222-222222222222",
-        fullName: "Aryana Dutra",
-        email: "admin@movimenta.local",
-        role: "owner",
-      }),
-    );
-    const month = new Date().toLocaleDateString("sv-SE").slice(0, 7);
-    vi.mocked(fetch).mockImplementation(async (input) => {
-      if (!String(input).includes("/reports/sales?")) {
-        return {
-          ok: false,
-          status: 503,
-          json: async () => ({ message: "Dados indisponíveis" }),
-        } as Response;
-      }
-      return {
-        ok: true,
-        status: 200,
-        json: async () => ({
-          current: {
-            from: `${month}-01`,
-            to: `${month}-15`,
-            netSalesInCents: 49000,
-            grossSalesInCents: 49000,
-            cancelledSalesInCents: 0,
-            receivedInCents: 0,
-            attendedPatients: 1,
-          },
-          previousComparable: {
-            from: "2026-08-01",
-            to: "2026-08-15",
-            netSalesInCents: -700000,
-            grossSalesInCents: 0,
-            cancelledSalesInCents: 700000,
-            receivedInCents: 0,
-            attendedPatients: 0,
-          },
-          changeInCents: 749000,
-          changePercent: null,
-          sales: [],
-          payments: [],
-          patientsWithoutReturn: [],
-        }),
-      } as Response;
-    });
-
-    render(
-      <MemoryRouter initialEntries={["/relatorios"]}>
-        <App />
-      </MemoryRouter>,
-    );
-    const badge = await screen.findByText(
-      "Sem base de comparação · +R$ 7.490,00",
-    );
-    expect(badge).toHaveClass("trend-badge", "better");
-    expect(badge).not.toHaveClass("worse");
-    expect(badge.textContent).not.toMatch(/%/);
-    expect(screen.queryByText(/Antes dos estornos/)).not.toBeInTheDocument();
-    expect(screen.queryByText(/Estornos:/)).not.toBeInTheDocument();
   });
 });

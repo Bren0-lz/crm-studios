@@ -1,28 +1,39 @@
 import {
-  patientInputSchema,
+  EXTRA_FIELD_VALUE_MAX,
+  EXTRA_FIELDS_MAX_KEYS,
+  PATIENT_IMPORT_EXTRA_FIELD,
+  extraFieldsFromRow,
+  isValidCpf,
+  patientImportFieldLabels,
+  patientImportPhoneFields,
+  patientImportInputSchema,
   patientProfileLabels,
   patientProfileValueLabels,
+  patientResidenceTypeLabels,
   resolvePatientTags,
   withoutAutomaticPatientTags,
   type Patient,
   type PatientImportAnalysis,
+  type PatientImportColumn,
   type PatientImportDuplicate,
+  type PatientImportField,
   type PatientImportRow,
-  type PatientInput,
+  type PatientImportInput,
   type PatientTag,
 } from "@crm/contracts";
-import ExcelJS from "exceljs";
+import {
+  decodeCsvText,
+  parseCsv,
+  readXlsxRows,
+} from "../../infrastructure/spreadsheet.js";
+export { decodeCsvText, parseCsv, readXlsxRows };
 
-type ImportField =
-  | keyof typeof patientProfileLabels
-  | "fullName"
-  | "cpf"
-  | "phone"
-  | "whatsapp"
-  | "email"
-  | "birthDate"
-  | "tags"
-  | "notes";
+type PhoneField = (typeof patientImportPhoneFields)[number];
+/** Campos com valor próprio (os `*AreaCode` só completam o telefone; "Outros" vai à parte). */
+type ImportField = Exclude<
+  PatientImportField,
+  `${PhoneField}AreaCode` | typeof PATIENT_IMPORT_EXTRA_FIELD
+>;
 
 /** Cabeçalhos aceitos, já normalizados (minúsculas, sem acentos, só letras e números). */
 const profileHeaderSynonyms = Object.fromEntries(
@@ -62,6 +73,8 @@ const headerSynonyms: Partial<Record<ImportField, readonly string[]>> = {
   ],
   tags: ["etiquetas", "etiqueta", "tags", "tag"],
   notes: ["observacoes", "observacao", "obs", "notas", "anotacoes"],
+  emergencyContactName: ["contatodeemergencia", "contatoemergencia"],
+  emergencyContactPhone: ["telefonedeemergencia", "telefoneemergencia"],
 };
 
 const fieldLabels: Record<ImportField, string> = {
@@ -74,6 +87,8 @@ const fieldLabels: Record<ImportField, string> = {
   birthDate: "data de nascimento",
   tags: "etiquetas",
   notes: "observações",
+  emergencyContactName: "contato de emergência",
+  emergencyContactPhone: "telefone de emergência",
 };
 
 function normalizeHeader(value: string): string {
@@ -82,120 +97,6 @@ function normalizeHeader(value: string): string {
     .replace(/[̀-ͯ]/g, "")
     .toLowerCase()
     .replace(/[^a-z0-9]/g, "");
-}
-
-function detectSeparator(text: string): ";" | "," {
-  let semicolons = 0;
-  let commas = 0;
-  let quoted = false;
-  for (const char of text) {
-    if (char === '"') quoted = !quoted;
-    else if (!quoted && (char === "\n" || char === "\r")) break;
-    else if (!quoted && char === ";") semicolons += 1;
-    else if (!quoted && char === ",") commas += 1;
-  }
-  return semicolons >= commas && semicolons > 0 ? ";" : ",";
-}
-
-/**
- * Decodifica o conteúdo de um CSV: UTF-8 quando válido; senão Windows-1252 (Latin-1),
- * padrão do "CSV" salvo pelo Excel em português.
- */
-export function decodeCsvText(bytes: Uint8Array): string {
-  try {
-    return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
-  } catch {
-    return new TextDecoder("windows-1252").decode(bytes);
-  }
-}
-
-/** Lê CSV com separador `;` ou `,` (detectado pela primeira linha), aspas duplas e BOM. */
-export function parseCsv(text: string): string[][] {
-  const source = text.startsWith("﻿") ? text.slice(1) : text;
-  if (source.length === 0) return [];
-  const separator = detectSeparator(source);
-  const rows: string[][] = [];
-  let row: string[] = [];
-  let cell = "";
-  let quoted = false;
-  for (let index = 0; index < source.length; index += 1) {
-    const char = source[index];
-    if (quoted) {
-      if (char === '"') {
-        if (source[index + 1] === '"') {
-          cell += '"';
-          index += 1;
-        } else {
-          quoted = false;
-        }
-      } else {
-        cell += char;
-      }
-    } else if (char === '"') {
-      quoted = true;
-    } else if (char === separator) {
-      row.push(cell);
-      cell = "";
-    } else if (char === "\r" || char === "\n") {
-      if (char === "\r" && source[index + 1] === "\n") index += 1;
-      row.push(cell);
-      rows.push(row);
-      row = [];
-      cell = "";
-    } else {
-      cell += char;
-    }
-  }
-  if (cell.length > 0 || row.length > 0) {
-    row.push(cell);
-    rows.push(row);
-  }
-  return rows;
-}
-
-function isoDateFromUtc(date: Date): string {
-  return date.toISOString().slice(0, 10);
-}
-
-function cellToString(value: ExcelJS.CellValue): string {
-  if (value === null || value === undefined) return "";
-  if (value instanceof Date) return isoDateFromUtc(value);
-  if (typeof value === "string") return value;
-  if (typeof value === "number" || typeof value === "boolean")
-    return String(value);
-  if ("richText" in value)
-    return value.richText.map((part) => part.text).join("");
-  // Em planilhas reais o texto de um link pode vir como rich text.
-  if ("hyperlink" in value)
-    return cellToString(value.text as ExcelJS.CellValue);
-  if ("formula" in value || "sharedFormula" in value) {
-    const result = value.result;
-    if (result === undefined) return "";
-    if (result instanceof Date) return isoDateFromUtc(result);
-    return typeof result === "object" ? "" : String(result);
-  }
-  return "";
-}
-
-/** Lê as linhas da primeira aba de um XLSX como texto (datas viram aaaa-mm-dd). */
-export async function readXlsxRows(buffer: Buffer): Promise<string[][]> {
-  const workbook = new ExcelJS.Workbook();
-  await workbook.xlsx.load(
-    buffer as unknown as Parameters<typeof workbook.xlsx.load>[0],
-  );
-  const sheet = workbook.worksheets[0];
-  if (!sheet) return [];
-  const rows: string[][] = [];
-  const columnCount = sheet.columnCount;
-  for (let rowNumber = 1; rowNumber <= sheet.rowCount; rowNumber += 1) {
-    const row = sheet.getRow(rowNumber);
-    const cells: string[] = [];
-    for (let column = 1; column <= columnCount; column += 1) {
-      cells.push(cellToString(row.getCell(column).value));
-    }
-    rows.push(cells);
-  }
-  return rows;
 }
 
 function isBlankRow(row: readonly string[]): boolean {
@@ -211,15 +112,25 @@ function validDate(year: number, month: number, day: number): boolean {
   );
 }
 
-/** Aceita dd/mm/aaaa ou aaaa-mm-dd; devolve aaaa-mm-dd ou null se inválida. */
+/**
+ * Ano com dois dígitos ("05/03/90"): até o ano atual vira 20aa, depois dele 19aa
+ * (em 2026, "05" é 2005 e "90" é 1990).
+ */
+function fullYear(digits: string, today = new Date()): number {
+  const year = Number(digits);
+  if (digits.length !== 2) return year;
+  return year <= today.getUTCFullYear() % 100 ? 2000 + year : 1900 + year;
+}
+
+/** Aceita dd/mm/aaaa, dd/mm/aa ou aaaa-mm-dd; devolve aaaa-mm-dd ou null se inválida. */
 function parseBirthDate(value: string): string | null {
-  const br = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(value);
+  const br = /^(\d{1,2})\/(\d{1,2})\/(\d{4}|\d{2})$/.exec(value);
   const iso = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
   let year: number;
   let month: number;
   let day: number;
   if (br) {
-    [day, month, year] = [Number(br[1]), Number(br[2]), Number(br[3])];
+    [day, month, year] = [Number(br[1]), Number(br[2]), fullYear(br[3]!)];
   } else if (iso) {
     [year, month, day] = [Number(iso[1]), Number(iso[2]), Number(iso[3])];
   } else {
@@ -241,6 +152,8 @@ function issueMessage(field: ImportField): string {
       return "telefone deve ter DDD (10 ou 11 dígitos).";
     case "whatsapp":
       return "WhatsApp deve ter DDD (10 ou 11 dígitos).";
+    case "emergencyContactPhone":
+      return "telefone de emergência deve ter DDD (10 ou 11 dígitos).";
     case "email":
       return "e-mail inválido.";
     case "birthDate":
@@ -256,8 +169,31 @@ function digitsOnly(value: string | undefined): string {
   return (value ?? "").replace(/\D/g, "");
 }
 
-function emptyAnalysis(error: string): PatientImportAnalysis {
+/**
+ * Telefone com o código do Brasil ("+55 11 98765-4321"): tira o 55 do começo. Com 12 ou 13
+ * dígitos o número nunca é válido como está, então não há como confundir com o DDD 55.
+ */
+function withoutCountryCode(text: string): string {
+  const digits = digitsOnly(text);
+  return /^55\d{10,11}$/.test(digits) ? digits.slice(2) : text;
+}
+
+/**
+ * CPF que o Excel guardou como número perde os zeros da frente ("01234567890" vira
+ * "1234567890"): só dígitos, com 9 ou 10, são completados com zeros à esquerda.
+ */
+function withLeadingZeros(cpf: string): string {
+  return /^\d{9,10}$/.test(cpf) ? cpf.padStart(11, "0") : cpf;
+}
+
+function emptyAnalysis(
+  error: string,
+  columns: PatientImportColumn[] = [],
+  mapping: (PatientImportField | null)[] = [],
+): PatientImportAnalysis {
   return {
+    columns,
+    mapping,
     rows: [],
     errors: [error],
     totals: { valid: 0, error: 0, duplicate: 0 },
@@ -265,15 +201,66 @@ function emptyAnalysis(error: string): PatientImportAnalysis {
 }
 
 /**
- * Analisa as linhas lidas de CSV/XLSX: a primeira linha não vazia é o cabeçalho. Cada linha vira
- * `valid`, `error` (com mensagens em pt-BR) ou `duplicate` (CPF ou telefone já na base ou em uma
- * linha válida anterior do arquivo). Com `configuredTags`, etiqueta fora da lista é erro da linha
- * e as aceitas passam a usar a grafia configurada (sem diferenciar maiúsculas/acentos).
+ * Reconhece as colunas pelo título (sem diferenciar maiúsculas, acentos e pontuação):
+ * `mapping[i]` é o campo da coluna `i` ou `null`. "DDD (Telefone)", como na planilha exportada,
+ * vira o DDD separado do telefone correspondente. Cada campo fica com a primeira coluna que o usa.
+ */
+export function detectPatientImportMapping(
+  header: readonly string[],
+): (PatientImportField | null)[] {
+  const used = new Set<PatientImportField>();
+  return header.map((title) => {
+    const normalized = normalizeHeader(title);
+    const ddd = normalized.startsWith("ddd") ? normalized.slice(3) : undefined;
+    for (const [field, synonyms] of Object.entries(headerSynonyms) as [
+      ImportField,
+      readonly string[],
+    ][]) {
+      const candidate: PatientImportField | undefined = synonyms.includes(
+        normalized,
+      )
+        ? field
+        : ddd &&
+            synonyms.includes(ddd) &&
+            (patientImportPhoneFields as readonly string[]).includes(field)
+          ? (`${field as PhoneField}AreaCode` as const)
+          : undefined;
+      if (candidate && !used.has(candidate)) {
+        used.add(candidate);
+        return candidate;
+      }
+    }
+    return null;
+  });
+}
+
+function importColumns(
+  header: readonly string[],
+  dataRows: readonly (readonly string[])[],
+): PatientImportColumn[] {
+  return header.map((title, index) => {
+    const samples: string[] = [];
+    for (const row of dataRows) {
+      const text = (row[index] ?? "").trim();
+      if (text) samples.push(text.slice(0, 80));
+      if (samples.length === 3) break;
+    }
+    return { index, title: title.trim(), samples };
+  });
+}
+
+/**
+ * Analisa as linhas lidas de CSV/XLSX: a primeira linha não vazia é o cabeçalho. `mapping` diz o
+ * campo de cada coluna (ausente = reconhecido pelo título, ver `detectPatientImportMapping`).
+ * Cada linha vira `valid`, `error` (com mensagens em pt-BR) ou `duplicate` (CPF ou telefone já na
+ * base ou em uma linha válida anterior do arquivo). Com `configuredTags`, etiqueta fora da lista é
+ * erro da linha e as aceitas passam a usar a grafia configurada (sem diferenciar maiúsculas/acentos).
  */
 export function validatePatientImport(
   rows: readonly (readonly string[])[],
   existingPatients: readonly Patient[],
   configuredTags?: readonly Pick<PatientTag, "name">[],
+  mapping?: readonly (PatientImportField | null)[],
 ): PatientImportAnalysis {
   const headerIndex = rows.findIndex((row) => !isBlankRow(row));
   const header = headerIndex >= 0 ? rows[headerIndex] : undefined;
@@ -282,24 +269,49 @@ export function validatePatientImport(
       "O arquivo está vazio. Inclua um cabeçalho com as colunas nome e telefone.",
     );
 
+  // Linhas de dados podem ter mais células que o cabeçalho (coluna sem título); colunas vazias
+  // no fim (comuns em XLSX com formatação) ficam de fora.
+  const width = rows.reduce((max, row, index) => {
+    if (index < headerIndex) return max;
+    let last = row.length;
+    while (last > max && (row[last - 1] ?? "").trim() === "") last -= 1;
+    return Math.max(max, last);
+  }, 0);
+  const titles = Array.from(
+    { length: width },
+    (_, index) => header[index] ?? "",
+  );
+  const appliedMapping = mapping
+    ? titles.map((_, index) => mapping[index] ?? null)
+    : detectPatientImportMapping(titles);
+  const columnInfo = importColumns(
+    titles,
+    rows.slice(headerIndex + 1).filter((row) => !isBlankRow(row)),
+  );
+
   const columns = new Map<ImportField, number>();
-  header.forEach((title, index) => {
-    const normalized = normalizeHeader(title);
-    for (const [field, synonyms] of Object.entries(headerSynonyms) as [
-      ImportField,
-      readonly string[],
-    ][]) {
-      if (!columns.has(field) && synonyms.includes(normalized))
-        columns.set(field, index);
-    }
+  // A planilha exportada separa o telefone em "DDD (Telefone)" + "Telefone".
+  const dddColumns = new Map<ImportField, number>();
+  // "Outros": várias colunas, cada uma vira `{ título: valor }` em `extraFields`.
+  const extraColumns: number[] = [];
+  appliedMapping.forEach((field, index) => {
+    if (!field) return;
+    if (field === PATIENT_IMPORT_EXTRA_FIELD) extraColumns.push(index);
+    else if (field.endsWith("AreaCode"))
+      dddColumns.set(field.slice(0, -"AreaCode".length) as PhoneField, index);
+    else columns.set(field as ImportField, index);
   });
   const missing = (["fullName", "phone"] as const).filter(
     (field) => !columns.has(field),
   );
   if (missing.length > 0) {
-    const names = missing.map((field) => fieldLabels[field]).join(" e ");
+    const names = missing
+      .map((field) => patientImportFieldLabels[field].toLowerCase())
+      .join(" e ");
     return emptyAnalysis(
-      `Coluna obrigatória ausente: ${names}. A primeira linha da planilha deve ter os títulos das colunas (ex.: Nome, Telefone).`,
+      `Escolha a coluna de ${names} da planilha.`,
+      columnInfo,
+      appliedMapping,
     );
   }
 
@@ -321,14 +333,29 @@ export function validatePatientImport(
     const line = index + 1;
     const value = (field: ImportField): string => {
       const column = columns.get(field);
-      return column === undefined ? "" : (row[column] ?? "").trim();
+      const text = column === undefined ? "" : (row[column] ?? "").trim();
+      const dddColumn = dddColumns.get(field);
+      const ddd = digitsOnly(dddColumn === undefined ? "" : row[dddColumn]);
+      if (ddd.length === 2 && /^\d{8,9}$/.test(digitsOnly(text)))
+        return ddd + digitsOnly(text);
+      if (field === "cpf") return withLeadingZeros(text);
+      return (patientImportPhoneFields as readonly string[]).includes(field)
+        ? withoutCountryCode(text)
+        : text;
     };
 
     const fullName = value("fullName");
     const phone = value("phone");
     const errors: string[] = [];
     const raw: Record<string, unknown> = { fullName, phone };
-    for (const field of ["cpf", "whatsapp", "email", "notes"] as const) {
+    for (const field of [
+      "cpf",
+      "whatsapp",
+      "email",
+      "notes",
+      "emergencyContactName",
+      "emergencyContactPhone",
+    ] as const) {
       const text = value(field);
       if (text) raw[field] = text;
     }
@@ -359,22 +386,41 @@ export function validatePatientImport(
           : /^(não|nao|false|0)$/i.test(text)
             ? false
             : text;
-      else if (key === "gender" || key === "clientType")
+      else if (key === "gender")
         raw[key] =
           Object.entries(patientProfileValueLabels).find(
+            ([, label]) => normalizeHeader(label) === normalizeHeader(text),
+          )?.[0] ?? text;
+      else if (key === "residenceType")
+        raw[key] =
+          Object.entries(patientResidenceTypeLabels).find(
             ([, label]) => normalizeHeader(label) === normalizeHeader(text),
           )?.[0] ?? text;
       else if (key === "clientSince") raw[key] = parseBirthDate(text) ?? text;
       else raw[key] = text;
     }
-    const parsed = patientInputSchema.safeParse(raw);
+    const extraFields = extraFieldsFromRow(titles, extraColumns, row);
+    if (extraFields) raw.extraFields = extraFields;
+    // CPF pode faltar na planilha (B6-05): o cliente entra com a etiqueta "Falta CPF". CPF
+    // errado não barra a linha: o cliente entra sem CPF e com a etiqueta "CPF inválido".
+    if (typeof raw.cpf === "string" && !isValidCpf(raw.cpf)) {
+      if (digitsOnly(raw.cpf)) raw.invalidCpf = raw.cpf.slice(0, 40);
+      delete raw.cpf;
+    }
+    const parsed = patientImportInputSchema.safeParse(raw);
     if (!parsed.success) {
       const fields = new Set<ImportField>();
+      let extraInvalid = false;
       for (const issue of parsed.error.issues) {
         const field = issue.path[0];
-        if (typeof field === "string" && field in fieldLabels)
+        if (field === "extraFields") extraInvalid = true;
+        else if (typeof field === "string" && field in fieldLabels)
           fields.add(field as ImportField);
       }
+      if (extraInvalid)
+        errors.push(
+          `Linha ${line}: "${patientImportFieldLabels[PATIENT_IMPORT_EXTRA_FIELD]}" aceita até ${EXTRA_FIELDS_MAX_KEYS} colunas, cada valor com até ${EXTRA_FIELD_VALUE_MAX} caracteres.`,
+        );
       for (const field of fields) {
         errors.push(
           field === "phone" && phone === ""
@@ -400,7 +446,7 @@ export function validatePatientImport(
       continue;
     }
 
-    const input: PatientInput = parsed.data;
+    const input: PatientImportInput = parsed.data;
     const cpfKey = digitsOnly(input.cpf);
     const phoneKey = digitsOnly(input.phone);
     let duplicateOf: PatientImportDuplicate | undefined;
@@ -446,5 +492,11 @@ export function validatePatientImport(
 
   const totals = { valid: 0, error: 0, duplicate: 0 };
   for (const row of result) totals[row.status] += 1;
-  return { rows: result, errors: [], totals };
+  return {
+    columns: columnInfo,
+    mapping: appliedMapping,
+    rows: result,
+    errors: [],
+    totals,
+  };
 }

@@ -1,4 +1,8 @@
-import type { AppModule } from "@crm/contracts";
+import {
+  leadAppointmentNotesMaxLength,
+  patientNotesMaxLength,
+  type AppModule,
+} from "@crm/contracts";
 import {
   cleanup,
   fireEvent,
@@ -12,6 +16,7 @@ import { describe, expect, it, vi } from "vitest";
 import App from "../../App";
 import { storedUser } from "../../test-support/legacy-fixtures";
 import "../../test-support/legacy-setup";
+import { fillRequiredContact } from "../../test-support/patient-actions";
 
 describe("guided client registration", () => {
   const admin = {
@@ -84,7 +89,7 @@ describe("guided client registration", () => {
       activeEnrollments: 1,
       waitlistCount: 0,
       active: true,
-      weeklySlots: [{ weekday: 1, startTime: "08:00", durationMinutes: 60 }],
+      weeklySlots: [{ weekday: 1, startTime: "08:00", endTime: "09:00" }],
       createdAt: "2026-01-01T00:00:00.000Z",
       ...extra,
     };
@@ -134,8 +139,8 @@ describe("guided client registration", () => {
         ]);
       if (url.includes("/services"))
         return jsonResponse([
-          { id: pilatesId, name: "Pilates", priceInCents: 9000 },
-          { id: physioId, name: "Fisioterapia", priceInCents: 12000 },
+          { id: pilatesId, name: "Pilates" },
+          { id: physioId, name: "Fisioterapia" },
         ]);
       if (url.includes("/groups/workspace?"))
         return jsonResponse({
@@ -166,6 +171,10 @@ describe("guided client registration", () => {
     fireEvent.change(within(dialog).getByLabelText("Nome completo"), {
       target: { value: "Marina Costa" },
     });
+    fireEvent.change(within(dialog).getByLabelText("CPF"), {
+      target: { value: "52998224725" },
+    });
+    fillRequiredContact(dialog);
     fireEvent.change(within(dialog).getAllByLabelText("Telefone")[0]!, {
       target: { value: "11987654321" },
     });
@@ -182,7 +191,7 @@ describe("guided client registration", () => {
     });
   }
 
-  it("asks what the client will do and only registers when chosen 'Só cadastrar por enquanto'", async () => {
+  it("asks what the client will do and only registers when nothing is added", async () => {
     const posts = mockApi(() => jsonResponse({ patient: created }, 201));
     renderAs(storedUser(admin));
     const dialog = await openNewClient();
@@ -191,19 +200,19 @@ describe("guided client registration", () => {
     });
     expect(
       within(question)
-        .getAllByRole("radio")
-        .map((radio) => radio.closest("label")?.textContent),
+        .getAllByRole("button")
+        .map((button) => button.getAttribute("aria-label")),
     ).toEqual([
-      "Aula de demonstração",
-      "Assinar um plano",
-      "Serviço avulso",
-      "Só cadastrar por enquanto",
+      "Agendar aula experimental",
+      "Adicionar plano",
+      "Adicionar serviço avulso",
+      "Adicionar produto",
     ]);
     expect(
-      within(question).getByRole("radio", {
-        name: "Só cadastrar por enquanto",
-      }),
-    ).toBeChecked();
+      within(question).getByText(
+        "Nada adicionado: só o cadastro do cliente será salvo.",
+      ),
+    ).toBeInTheDocument();
     fireEvent.click(
       within(dialog).getByRole("button", { name: "Salvar cliente" }),
     );
@@ -214,8 +223,8 @@ describe("guided client registration", () => {
       screen.queryByRole("dialog", { name: "Novo cliente" }),
     ).not.toBeInTheDocument();
     expect(
-      screen.getByRole("dialog", { name: "Cliente cadastrado" }),
-    ).toBeInTheDocument();
+      screen.queryByRole("dialog", { name: "Cliente cadastrado" }),
+    ).not.toBeInTheDocument();
     expect(posts).toHaveLength(1);
     expect(posts[0]).toMatchObject({
       patient: { fullName: "Marina Costa", phone: "11987654321" },
@@ -223,6 +232,131 @@ describe("guided client registration", () => {
     expect(posts[0]).not.toHaveProperty("next");
     expect(posts[0]).not.toHaveProperty("appointment");
     expect(posts[0]).not.toHaveProperty("plan");
+  });
+
+  it("sells only a product: registers the client and then the sale", async () => {
+    const bottle = {
+      id: "e1111111-1111-4111-8111-111111111111",
+      clinicId: created.clinicId,
+      name: "Garrafa térmica",
+      unit: "un",
+      active: true,
+      salePriceInCents: 5_000,
+      currentStock: 5,
+      sizes: [],
+      sizeStock: [],
+    };
+    const sales: Array<Record<string, unknown>> = [];
+    const posts = mockApi(() => jsonResponse({ patient: created }, 201));
+    const base = vi.mocked(fetch).getMockImplementation()!;
+    vi.mocked(fetch).mockImplementation(async (input, init) => {
+      const url = String(input);
+      if (url.includes("/inventory/workspace"))
+        return jsonResponse({ products: [bottle], movements: [] });
+      if (init?.method === "POST" && url.endsWith("/product-sales")) {
+        sales.push(JSON.parse(String(init.body)) as Record<string, unknown>);
+        return jsonResponse({ totalInCents: 5_000 }, 201);
+      }
+      return base(input, init);
+    });
+    renderAs(storedUser(admin));
+    const dialog = await openNewClient();
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Adicionar produto" }),
+    );
+    const productBlock = within(dialog).getByRole("group", { name: "Produto" });
+    fireEvent.change(await within(productBlock).findByLabelText("Produto"), {
+      target: { value: bottle.id },
+    });
+    // O preço vem do cadastro do produto e não muda neste modal.
+    const price =
+      within(productBlock).getByLabelText<HTMLInputElement>("Preço unitário");
+    expect(price).toHaveAttribute("readonly");
+    expect(price.value).toMatch(/^R\$\s50,00$/);
+    // O menu de adicionar fica depois do último item, logo acima da sacola.
+    const menu = within(dialog).getByRole("group", {
+      name: "O que o cliente vai fazer?",
+    });
+    const bag = within(dialog).getByRole("group", { name: "Sacola" });
+    expect(
+      productBlock.compareDocumentPosition(menu) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+      menu.compareDocumentPosition(bag) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Salvar e registrar venda" }),
+    );
+    await waitFor(() => expect(sales).toHaveLength(1));
+    expect(posts).toHaveLength(1);
+    expect(posts[0]).not.toHaveProperty("next");
+    expect(sales[0]).toMatchObject({
+      patientId: created.id,
+      items: [{ productId: bottle.id, quantity: 1 }],
+    });
+  });
+
+  it("keeps a demonstration class apart from plans and single services", async () => {
+    mockApi(() => jsonResponse({ patient: created }, 201));
+    renderAs(storedUser(admin));
+    const dialog = await openNewClient();
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Agendar aula experimental" }),
+    );
+    expect(
+      within(dialog).getByRole("button", { name: "Adicionar plano" }),
+    ).toBeDisabled();
+    expect(
+      within(dialog).getByRole("button", { name: "Adicionar serviço avulso" }),
+    ).toBeDisabled();
+    fireEvent.click(
+      within(dialog).getByRole("button", {
+        name: "Remover aula experimental",
+      }),
+    );
+    expect(
+      within(dialog).queryByRole("group", { name: "Aula experimental" }),
+    ).not.toBeInTheDocument();
+    expect(
+      within(dialog).getByRole("button", { name: "Adicionar plano" }),
+    ).toBeEnabled();
+    expect(
+      within(dialog).getByRole("button", { name: "Salvar cliente" }),
+    ).toBeInTheDocument();
+  });
+
+  it("announces each item added or removed and animates the removal", async () => {
+    mockApi(() => jsonResponse({ patient: created }, 201));
+    renderAs(storedUser(admin));
+    const dialog = await openNewClient();
+    const status = within(dialog).getByRole("status");
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Adicionar plano" }),
+    );
+    expect(status).toHaveTextContent("Plano adicionado logo abaixo.");
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Adicionar plano" }),
+    );
+    expect(status).toHaveTextContent("Plano 2 adicionado logo abaixo.");
+    // Sem movimento reduzido, o bloco recolhe antes de sair.
+    const original = window.matchMedia;
+    window.matchMedia = ((query: string) =>
+      ({ matches: true, media: query }) as MediaQueryList) as typeof original;
+    try {
+      const second = within(dialog).getByRole("group", { name: "Plano 2" });
+      fireEvent.click(
+        within(second).getByRole("button", { name: "Remover plano 2" }),
+      );
+      expect(second).toHaveClass("guided-item-leaving");
+      fireEvent.animationEnd(second);
+      expect(
+        within(dialog).queryByRole("group", { name: "Plano 2" }),
+      ).not.toBeInTheDocument();
+      expect(status).toHaveTextContent("Plano 2 removido.");
+    } finally {
+      window.matchMedia = original;
+    }
   });
 
   it("books a demonstration class with service, professional, room and time", async () => {
@@ -251,7 +385,7 @@ describe("guided client registration", () => {
     renderAs(storedUser(admin));
     const dialog = await openNewClient();
     fireEvent.click(
-      within(dialog).getByRole("radio", { name: "Aula de demonstração" }),
+      within(dialog).getByRole("button", { name: "Agendar aula experimental" }),
     );
     const service = await within(dialog).findByLabelText("Serviço");
     expect(service).toHaveValue(pilatesId);
@@ -265,15 +399,15 @@ describe("guided client registration", () => {
     });
     fireEvent.click(
       within(dialog).getByRole("button", {
-        name: "Salvar e agendar demonstração",
+        name: "Salvar e agendar aula experimental",
       }),
     );
     expect(
-      await screen.findByText(/Aula de demonstração agendada para/),
+      await screen.findByText(/Aula experimental agendada para/),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("dialog", { name: "Cliente cadastrado" }),
-    ).toBeInTheDocument();
+      screen.queryByRole("dialog", { name: "Cliente cadastrado" }),
+    ).not.toBeInTheDocument();
     expect(posts[0]).toEqual({
       next: "demonstration",
       patient: expect.objectContaining({ fullName: "Marina Costa" }),
@@ -285,6 +419,25 @@ describe("guided client registration", () => {
         notes: "",
       },
     });
+  });
+
+  it("limits the notes to what the API accepts, so a long text never fails the registration", async () => {
+    mockApi(() => jsonResponse({ patient: created }, 201));
+    renderAs(storedUser(admin));
+    const dialog = await openNewClient();
+    // Reunião de 02/11/2026 (B2-03): mais de 2.000 caracteres davam 400 só ao salvar.
+    expect(within(dialog).getByLabelText("Observações")).toHaveAttribute(
+      "maxLength",
+      String(patientNotesMaxLength),
+    );
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Agendar aula experimental" }),
+    );
+    await within(dialog).findByLabelText("Serviço");
+    expect(within(dialog).getByLabelText("Observação")).toHaveAttribute(
+      "maxLength",
+      String(leadAppointmentNotesMaxLength),
+    );
   });
 
   it("keeps the form filled and shows the API error when the guided registration fails", async () => {
@@ -303,7 +456,7 @@ describe("guided client registration", () => {
     renderAs(storedUser(admin));
     const dialog = await openNewClient();
     fireEvent.click(
-      within(dialog).getByRole("radio", { name: "Aula de demonstração" }),
+      within(dialog).getByRole("button", { name: "Agendar aula experimental" }),
     );
     await within(dialog).findByLabelText("Serviço");
     fireEvent.change(within(dialog).getByLabelText("Data e horário"), {
@@ -311,7 +464,7 @@ describe("guided client registration", () => {
     });
     fireEvent.click(
       within(dialog).getByRole("button", {
-        name: "Salvar e agendar demonstração",
+        name: "Salvar e agendar aula experimental",
       }),
     );
     expect(
@@ -323,8 +476,8 @@ describe("guided client registration", () => {
       "Marina Costa",
     );
     expect(
-      within(dialog).getByRole("radio", { name: "Aula de demonstração" }),
-    ).toBeChecked();
+      within(dialog).getByRole("group", { name: "Aula experimental" }),
+    ).toBeInTheDocument();
     expect(within(dialog).getByLabelText("Data e horário")).toHaveValue(
       "2026-10-06T09:00",
     );
@@ -334,7 +487,7 @@ describe("guided client registration", () => {
     fail = false;
     fireEvent.click(
       within(dialog).getByRole("button", {
-        name: "Salvar e agendar demonstração",
+        name: "Salvar e agendar aula experimental",
       }),
     );
     expect(
@@ -343,41 +496,63 @@ describe("guided client registration", () => {
     expect(posts).toHaveLength(2);
   });
 
-  it("subscribes a plan with an optional class of the same service and warns about the waiting list", async () => {
+  it("subscribes a group class plan with a required class of the same service and warns about the waiting list", async () => {
     const posts = mockApi((body) =>
       jsonResponse(
-        {
-          patient: created,
-          plan: {
-            id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
-            patientId: created.id,
-            patientName: created.fullName,
-            serviceName: "Pilates",
-            ...(body.plan as object),
-            status: "active",
-            remainingSessions: 8,
-          },
-          enrollment: body.groupId
-            ? {
-                id: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
-                clinicId: created.clinicId,
-                groupId: body.groupId,
+        body.next === "waitlist"
+          ? {
+              patient: created,
+              waitlistEntries: [
+                {
+                  id: "ffffffff-ffff-4fff-8fff-ffffffffffff",
+                  clinicId: created.clinicId,
+                  patientId: created.id,
+                  patientName: created.fullName,
+                  patientPhone: created.phone,
+                  kind: "service",
+                  serviceId: pilatesId,
+                  productId: null,
+                  itemName: "Pilates",
+                  status: "waiting",
+                  notes: "Turma desejada: Pilates 2",
+                  createdAt: "2026-10-04T12:00:00.000Z",
+                  updatedAt: "2026-10-04T12:00:00.000Z",
+                  resolvedAt: null,
+                },
+              ],
+            }
+          : {
+              patient: created,
+              plan: {
+                id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
                 patientId: created.id,
                 patientName: created.fullName,
-                status: "waitlisted",
-                queuePosition: 2,
-                enrolledAt: "2026-10-04T12:00:00.000Z",
-                updatedAt: "2026-10-04T12:00:00.000Z",
-              }
-            : undefined,
-        },
+                serviceName: "Pilates",
+                ...(body.plan as object),
+                status: "active",
+                remainingSessions: 8,
+              },
+              enrollment: body.groupId
+                ? {
+                    id: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+                    clinicId: created.clinicId,
+                    groupId: body.groupId,
+                    patientId: created.id,
+                    patientName: created.fullName,
+                    status: "waitlisted",
+                    queuePosition: 2,
+                    enrolledAt: "2026-10-04T12:00:00.000Z",
+                    updatedAt: "2026-10-04T12:00:00.000Z",
+                  }
+                : undefined,
+            },
         201,
       ),
     );
     renderAs(storedUser(admin));
     const dialog = await openNewClient();
     fireEvent.click(
-      within(dialog).getByRole("radio", { name: "Assinar um plano" }),
+      within(dialog).getByRole("button", { name: "Adicionar plano" }),
     );
     const catalog = await within(dialog).findByLabelText("Plano cadastrado");
     expect(catalog).toHaveValue("");
@@ -391,71 +566,505 @@ describe("guided client registration", () => {
     // V7: o bloco de cada serviço do plano usa a borda e o raio do padrão.
     for (const group of dialog.querySelectorAll("fieldset fieldset"))
       expect(group).toHaveClass("form-fieldset");
+    // Plano é fixo: sessões e valor vêm do plano cadastrado.
+    expect(
+      within(dialog).getByLabelText("Sessões do serviço 1"),
+    ).toHaveAttribute("readonly");
+    expect(within(dialog).getByLabelText("Valor do serviço 1")).toHaveAttribute(
+      "readonly",
+    );
+    const turma = await within(dialog).findByLabelText("Turma");
+    expect(turma).toHaveValue("");
+    expect(turma).toBeRequired();
+    // Plano de aulas em grupo: a turma é obrigatória e trava o salvamento.
     expect(
       within(dialog).getByText(
-        "A turma pode ser escolhida depois com o responsável.",
+        "Plano de aulas em grupo: escolha a turma do cliente.",
       ),
     ).toBeInTheDocument();
-    const turma = await within(dialog).findByLabelText("Turma (opcional)");
-    expect(turma).toHaveValue("");
+    expect(
+      within(dialog).getByRole("button", { name: "Salvar e criar plano" }),
+    ).toBeDisabled();
+    expect(within(dialog).getByText(/^Falta:/)).toHaveTextContent("Turma");
     // Só turmas ativas do serviço do plano, com o responsável e as vagas.
     expect(
       within(turma)
         .getAllByRole("option")
         .map((item) => item.textContent),
     ).toEqual([
-      "Escolher depois",
+      "Selecione a turma",
       expect.stringMatching(/^Pilates 1 — .* · Dra\. Ana Martins · 3 vagas$/),
       expect.stringMatching(
         /^Pilates 2 — .* · Prof\. Bruno Lima · turma cheia \(lista de espera\)$/,
       ),
     ]);
+    expect(
+      within(dialog).queryByRole("region", { name: /^Detalhes da turma/ }),
+    ).not.toBeInTheDocument();
     fireEvent.change(turma, { target: { value: groups[1]!.id } });
-    fireEvent.change(within(dialog).getByLabelText("Sessões do serviço 1"), {
-      target: { value: "8" },
-    });
-    fireEvent.change(within(dialog).getByLabelText("Valor do serviço 1"), {
-      target: { value: "480" },
-    });
-    // Trocar o plano limpa a turma escolhida (ela é de outro serviço).
-    fireEvent.change(catalog, { target: { value: physioTemplate.id } });
-    expect(within(dialog).getByLabelText("Turma (opcional)")).toHaveValue("");
-    expect(
-      within(within(dialog).getByLabelText("Turma (opcional)")).getAllByRole(
-        "option",
-      ),
-    ).toHaveLength(2);
-    fireEvent.change(catalog, { target: { value: pilatesTemplate.id } });
-    fireEvent.change(within(dialog).getByLabelText("Turma (opcional)"), {
-      target: { value: groups[1]!.id },
-    });
     fireEvent.click(
-      within(dialog).getByRole("button", { name: "Salvar e criar plano" }),
+      screen.getByRole("button", { name: "Sim, colocar na lista de espera" }),
     );
-    const nextSteps = await screen.findByRole("dialog", {
-      name: "Cliente cadastrado",
+    // Escolhida a turma, aparecem os dias e horários para repassar ao cliente.
+    const details = within(dialog).getByRole("region", {
+      name: "Detalhes da turma Pilates 2",
     });
+    expect(within(details).getByText("Prof. Bruno Lima")).toBeInTheDocument();
     expect(
-      screen.getByText(
-        /A turma Pilates 2 está cheia: o cliente entrou na lista de espera \(posição 2\)/,
+      within(details)
+        .getAllByRole("listitem")
+        .map((item) => item.textContent),
+    ).toEqual(["Segunda-feira08:00 às 09:00"]);
+    expect(within(details).getByText(/^Turma cheia/)).toBeInTheDocument();
+    // TW3: turma cheia não vende plano: some pagamento, valores e datas.
+    expect(
+      within(dialog).getByText(
+        /^Turma cheia: o cliente vai para a Lista de espera/,
       ),
     ).toBeInTheDocument();
     expect(
-      within(nextSteps).getByText(
-        "Na lista de espera de Pilates 2 · posição 2",
+      within(dialog).queryByLabelText("Sessões do serviço 1"),
+    ).not.toBeInTheDocument();
+    expect(
+      within(dialog).queryByLabelText("Primeiro vencimento"),
+    ).not.toBeInTheDocument();
+    expect(
+      within(dialog).queryByLabelText("Forma de pagamento"),
+    ).not.toBeInTheDocument();
+    // Trocar o plano limpa a turma escolhida (ela é de outro serviço).
+    fireEvent.change(catalog, { target: { value: physioTemplate.id } });
+    expect(within(dialog).getByLabelText("Turma")).toHaveValue("");
+    expect(
+      within(within(dialog).getByLabelText("Turma")).getAllByRole("option"),
+    ).toHaveLength(2);
+    fireEvent.change(catalog, { target: { value: pilatesTemplate.id } });
+    fireEvent.change(within(dialog).getByLabelText("Turma"), {
+      target: { value: groups[1]!.id },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Sim, colocar na lista de espera" }),
+    );
+    fireEvent.click(
+      within(dialog).getByRole("button", {
+        name: "Salvar e colocar na lista de espera",
+      }),
+    );
+    expect(
+      await screen.findByText(
+        /Turma cheia: o cliente entrou na Lista de espera de Pilates, sem plano nem cobrança\./,
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("dialog", { name: "Cliente cadastrado" }),
+    ).not.toBeInTheDocument();
+    expect(posts[0]).toEqual({
+      next: "waitlist",
+      patient: expect.objectContaining({ fullName: expect.any(String) }),
+      waitlist: [{ serviceId: pilatesId, groupId: groups[1]!.id }],
+    });
+  });
+
+  it("keeps the class optional when no service of the plan has an active class", async () => {
+    const posts = mockApi((body) =>
+      jsonResponse(
+        {
+          patient: created,
+          plan: {
+            id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+            patientId: created.id,
+            patientName: created.fullName,
+            ...(body.plan as object),
+            status: "active",
+            remainingSessions: 8,
+          },
+        },
+        201,
+      ),
+    );
+    // Só a turma inativa de Pilates: o plano não é de aulas em grupo.
+    const base = vi.mocked(fetch).getMockImplementation()!;
+    vi.mocked(fetch).mockImplementation(async (input, init) =>
+      String(input).includes("/groups/workspace?")
+        ? jsonResponse({ groups: [groups[3]], enrollments: [], sessions: [] })
+        : base(input, init),
+    );
+    renderAs(storedUser(admin));
+    const dialog = await openNewClient();
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Adicionar plano" }),
+    );
+    fireEvent.change(await within(dialog).findByLabelText("Plano cadastrado"), {
+      target: { value: pilatesTemplate.id },
+    });
+    const turma = await within(dialog).findByLabelText("Turma (opcional)");
+    expect(turma).not.toBeRequired();
+    expect(
+      within(dialog).getByText(
+        "A turma pode ser escolhida depois com o responsável.",
+      ),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Salvar e criar plano" }),
+    );
+    await waitFor(() => expect(posts).toHaveLength(1));
+    expect(posts[0]).not.toHaveProperty("groupId");
+  });
+
+  it("subscribes several plans at once, each with its own class", async () => {
+    const planResult = (plan: object, id: string) => ({
+      id,
+      patientId: created.id,
+      patientName: created.fullName,
+      ...plan,
+      status: "active",
+      remainingSessions: 8,
+    });
+    const posts = mockApi((body) => {
+      const additional = body.additionalPlans as {
+        plan: object;
+        groupId?: string;
+      }[];
+      return jsonResponse(
+        {
+          patient: created,
+          plan: planResult(
+            body.plan as object,
+            "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+          ),
+          additionalPlans: additional.map((entry) => ({
+            plan: planResult(
+              entry.plan,
+              "dddddddd-dddd-4ddd-8ddd-ddddddddddd2",
+            ),
+            enrollment: {
+              id: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+              clinicId: created.clinicId,
+              groupId: entry.groupId,
+              patientId: created.id,
+              patientName: created.fullName,
+              status: "active",
+              enrolledAt: "2026-10-04T12:00:00.000Z",
+              updatedAt: "2026-10-04T12:00:00.000Z",
+            },
+          })),
+        },
+        201,
+      );
+    });
+    renderAs(storedUser(admin));
+    const dialog = await openNewClient();
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Adicionar plano" }),
+    );
+    fireEvent.change(await within(dialog).findByLabelText("Plano cadastrado"), {
+      target: { value: pilatesTemplate.id },
+    });
+    // Um plano só: o bloco tem o próprio botão de remover.
+    expect(
+      within(dialog).getByRole("button", { name: "Remover plano" }),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Adicionar plano" }),
+    );
+    const first = within(dialog).getByRole("group", { name: "Plano 1" });
+    const second = within(dialog).getByRole("group", { name: "Plano 2" });
+    // O segundo plano ainda sem escolha trava o salvamento.
+    expect(
+      within(dialog).getByRole("button", { name: "Salvar e criar plano" }),
+    ).toBeDisabled();
+    fireEvent.change(await within(second).findByLabelText("Plano cadastrado"), {
+      target: { value: physioTemplate.id },
+    });
+    fireEvent.change(within(second).getByLabelText("Modelo"), {
+      target: { value: "recurring" },
+    });
+    const secondGroup = await within(second).findByLabelText("Turma");
+    expect(
+      within(secondGroup)
+        .getAllByRole("option")
+        .map((item) => item.textContent),
+    ).toEqual([
+      "Selecione a turma",
+      expect.stringMatching(/^Fisioterapia 1 — /),
+    ]);
+    fireEvent.change(secondGroup, { target: { value: groups[2]!.id } });
+    // Cada plano de aulas em grupo exige a própria turma.
+    expect(
+      within(dialog).getByRole("button", { name: "Salvar e criar plano" }),
+    ).toBeDisabled();
+    expect(within(dialog).getByText(/^Falta:/)).toHaveTextContent(
+      "Plano 1: Turma",
+    );
+    fireEvent.change(within(first).getByLabelText("Turma"), {
+      target: { value: groups[0]!.id },
+    });
+    // Um terceiro plano adicionado e removido não vai para o cadastro.
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Adicionar plano" }),
+    );
+    fireEvent.click(
+      within(within(dialog).getByRole("group", { name: "Plano 3" })).getByRole(
+        "button",
+        { name: "Remover plano 3" },
+      ),
+    );
+    expect(
+      within(dialog).queryByRole("group", { name: "Plano 3" }),
+    ).not.toBeInTheDocument();
+    expect(within(first).getByLabelText("Plano cadastrado")).toHaveValue(
+      pilatesTemplate.id,
+    );
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Salvar e criar plano" }),
+    );
+    expect(
+      await screen.findByText(
+        "Planos “Pilates 2x semana” e “Fisioterapia” criados. Matrícula feita na turma Fisioterapia 1.",
+      ),
+    ).toBeInTheDocument();
+    expect(posts).toHaveLength(1);
+    expect(posts[0]).toMatchObject({
+      next: "plan",
+      groupId: groups[0]!.id,
+      plan: { planTemplateId: pilatesTemplate.id, kind: "fixed_package" },
+      additionalPlans: [
+        {
+          groupId: groups[2]!.id,
+          plan: {
+            planTemplateId: physioTemplate.id,
+            kind: "recurring",
+            installments: 1,
+            services: [
+              {
+                serviceId: physioId,
+                totalSessions: 8,
+                totalValueInCents: 48000,
+              },
+            ],
+          },
+        },
+      ],
+    });
+  });
+
+  it("mixes a plan with single services in the same registration", async () => {
+    const planResult = (plan: object, id: string) => ({
+      id,
+      patientId: created.id,
+      patientName: created.fullName,
+      ...plan,
+      status: "active",
+      remainingSessions: 1,
+    });
+    const posts = mockApi((body) =>
+      jsonResponse(
+        {
+          patient: created,
+          plan: planResult(
+            body.plan as object,
+            "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+          ),
+          additionalPlans: (body.additionalPlans as { plan: object }[]).map(
+            (entry) => ({
+              plan: planResult(
+                entry.plan,
+                "dddddddd-dddd-4ddd-8ddd-ddddddddddd2",
+              ),
+            }),
+          ),
+        },
+        201,
+      ),
+    );
+    renderAs(storedUser(admin));
+    const dialog = await openNewClient();
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Adicionar plano" }),
+    );
+    fireEvent.change(await within(dialog).findByLabelText("Plano cadastrado"), {
+      target: { value: pilatesTemplate.id },
+    });
+    fireEvent.change(await within(dialog).findByLabelText("Turma"), {
+      target: { value: groups[0]!.id },
+    });
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Adicionar serviço avulso" }),
+    );
+    const single = within(dialog).getByRole("group", {
+      name: "Serviço avulso",
+    });
+    // Avulso: só os planos do tipo avulso, sem modelo nem turma.
+    const catalog = await within(single).findByLabelText("Plano cadastrado");
+    expect(
+      within(catalog)
+        .getAllByRole("option")
+        .map((item) => item.getAttribute("value")),
+    ).toEqual(["", singleTemplate.id]);
+    expect(within(single).queryByLabelText("Modelo")).not.toBeInTheDocument();
+    expect(within(single).queryByLabelText(/^Turma/)).not.toBeInTheDocument();
+    expect(
+      within(dialog).getByRole("button", { name: "Salvar e criar plano" }),
+    ).toBeDisabled();
+    fireEvent.change(catalog, { target: { value: singleTemplate.id } });
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Salvar e criar plano" }),
+    );
+    expect(
+      await screen.findByText(
+        "Plano “Pilates 2x semana” criado. “Serviço avulso” criado.",
       ),
     ).toBeInTheDocument();
     expect(posts[0]).toMatchObject({
       next: "plan",
-      groupId: groups[1]!.id,
+      plan: { planTemplateId: pilatesTemplate.id, kind: "fixed_package" },
+      additionalPlans: [
+        {
+          plan: {
+            planTemplateId: singleTemplate.id,
+            kind: "single",
+            installments: 1,
+            totalValueInCents: 9000,
+          },
+        },
+      ],
+    });
+    expect(
+      (posts[0]!.additionalPlans as Record<string, unknown>[])[0],
+    ).not.toHaveProperty("groupId");
+  });
+
+  it("charges the classes before the first due date of a recurring plan at the start", async () => {
+    const posts = mockApi((body) =>
+      jsonResponse(
+        {
+          patient: created,
+          plan: {
+            id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+            patientId: created.id,
+            patientName: created.fullName,
+            serviceName: "Pilates",
+            ...(body.plan as object),
+            status: "active",
+            remainingSessions: 8,
+          },
+        },
+        201,
+      ),
+    );
+    renderAs(storedUser(admin));
+    const dialog = await openNewClient();
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Adicionar plano" }),
+    );
+    fireEvent.change(await within(dialog).findByLabelText("Plano cadastrado"), {
+      target: { value: pilatesTemplate.id },
+    });
+    fireEvent.change(within(dialog).getByLabelText("Modelo"), {
+      target: { value: "recurring" },
+    });
+    fireEvent.change(within(dialog).getByLabelText("Início"), {
+      target: { value: "2026-10-01" },
+    });
+    fireEvent.change(within(dialog).getByLabelText("Primeiro vencimento"), {
+      target: { value: "2026-10-15" },
+    });
+    expect(
+      within(dialog).getByText(
+        /^Escolha a turma para calcular a cobrança proporcional/,
+      ),
+    ).toBeInTheDocument();
+    // Pilates 1 é às segundas: 4 aulas no ciclo de 15/09 a 14/10 (21 e 28/09, 5 e 12/10),
+    // 2 delas de 01/10 a 14/10. Pré-pago: 2/4 no início e a mensalidade cheia em 15/10.
+    fireEvent.change(await within(dialog).findByLabelText("Turma"), {
+      target: { value: groups[0]!.id },
+    });
+    const note = within(dialog).getByText(/^Cobrança proporcional/);
+    expect(note).toHaveTextContent(
+      /R\$\s240,00 em 01\/10\/2026 \(2 aulas da turma de 01\/10\/2026 a 14\/10\/2026, de 4 aulas no ciclo de 15\/09\/2026 a 14\/10\/2026\)\. A partir de 15\/10\/2026, R\$\s480,00 por mês\./,
+    );
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Salvar e criar plano" }),
+    );
+    await waitFor(() => expect(posts).toHaveLength(1));
+    expect(posts[0]).toMatchObject({
+      next: "plan",
+      groupId: groups[0]!.id,
       plan: {
-        planTemplateId: pilatesTemplate.id,
-        kind: "fixed_package",
-        name: "Pilates 2x semana",
-        services: [
-          { serviceId: pilatesId, totalSessions: 8, totalValueInCents: 48000 },
-        ],
+        kind: "recurring",
+        installments: 1,
         totalValueInCents: 48000,
+        firstDueDate: "2026-10-15",
+        proratedChargeInCents: 24000,
+      },
+    });
+    expect(posts[0]!.plan).not.toHaveProperty("manualFirstCharge");
+  });
+
+  it("lets the user turn off the prorated first charge and type its value", async () => {
+    const posts = mockApi((body) =>
+      jsonResponse(
+        {
+          patient: created,
+          plan: {
+            id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+            patientId: created.id,
+            patientName: created.fullName,
+            serviceName: "Pilates",
+            ...(body.plan as object),
+            status: "active",
+            remainingSessions: 8,
+          },
+        },
+        201,
+      ),
+    );
+    renderAs(storedUser(admin));
+    const dialog = await openNewClient();
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Adicionar plano" }),
+    );
+    fireEvent.change(await within(dialog).findByLabelText("Plano cadastrado"), {
+      target: { value: pilatesTemplate.id },
+    });
+    fireEvent.change(within(dialog).getByLabelText("Modelo"), {
+      target: { value: "recurring" },
+    });
+    fireEvent.change(within(dialog).getByLabelText("Início"), {
+      target: { value: "2026-10-01" },
+    });
+    fireEvent.change(within(dialog).getByLabelText("Primeiro vencimento"), {
+      target: { value: "2026-10-15" },
+    });
+    fireEvent.change(await within(dialog).findByLabelText("Turma"), {
+      target: { value: groups[0]!.id },
+    });
+    const toggle = within(dialog).getByLabelText(
+      "Calcular o 1º pagamento proporcional às aulas até o vencimento",
+    );
+    expect(toggle).toBeChecked();
+    fireEvent.click(toggle);
+    expect(
+      within(dialog).queryByText(/^Cobrança proporcional/),
+    ).not.toBeInTheDocument();
+    // Começa do valor que seria cobrado (o proporcional) e aceita outro.
+    const amount = within(dialog).getByLabelText("Valor do 1º pagamento (R$)");
+    expect(amount).toHaveValue("240,00");
+    fireEvent.change(amount, { target: { value: "315,00" } });
+    expect(
+      within(dialog).getByText(/^Valor informado manualmente/),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Salvar e criar plano" }),
+    );
+    await waitFor(() => expect(posts).toHaveLength(1));
+    expect(posts[0]).toMatchObject({
+      next: "plan",
+      groupId: groups[0]!.id,
+      plan: {
+        kind: "recurring",
+        totalValueInCents: 48000,
+        manualFirstCharge: true,
+        proratedChargeInCents: 31500,
       },
     });
   });
@@ -482,28 +1091,22 @@ describe("guided client registration", () => {
     renderAs(storedUser(admin));
     const dialog = await openNewClient();
     fireEvent.click(
-      within(dialog).getByRole("radio", { name: "Serviço avulso" }),
+      within(dialog).getByRole("button", { name: "Adicionar serviço avulso" }),
     );
     const catalog = await within(dialog).findByLabelText("Plano cadastrado");
     fireEvent.change(catalog, { target: { value: singleTemplate.id } });
     expect(within(dialog).queryByLabelText("Modelo")).not.toBeInTheDocument();
-    expect(
-      within(dialog).queryByLabelText("Turma (opcional)"),
-    ).not.toBeInTheDocument();
+    expect(within(dialog).queryByLabelText(/^Turma/)).not.toBeInTheDocument();
     fireEvent.click(
       within(dialog).getByRole("button", {
         name: "Salvar e criar serviço avulso",
       }),
     );
     expect(
-      await screen.findByText(/Serviço avulso .* criado/),
+      await screen.findByText("“Serviço avulso” criado."),
     ).toBeInTheDocument();
-    const nextSteps = screen.getByRole("dialog", {
-      name: "Cliente cadastrado",
-    });
-    expect(within(nextSteps).getByText("Plano vinculado")).toBeInTheDocument();
     expect(
-      within(nextSteps).queryByRole("button", { name: "Vincular a plano" }),
+      screen.queryByRole("dialog", { name: "Cliente cadastrado" }),
     ).not.toBeInTheDocument();
     expect(posts[0]).toMatchObject({
       next: "single",
@@ -516,6 +1119,347 @@ describe("guided client registration", () => {
     });
     expect(posts[0]!.plan).not.toHaveProperty("kind");
     expect(posts[0]).not.toHaveProperty("groupId");
+  });
+
+  describe("payment method", () => {
+    /** Plano criado pela API ecoando os termos enviados, e a chave Pix da clínica. */
+    function mockPlanSale(pixKey: string, pixMessageTemplate = "") {
+      const posts = mockApi((body) =>
+        jsonResponse(
+          {
+            patient: created,
+            plan: {
+              id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+              patientId: created.id,
+              patientName: created.fullName,
+              serviceName: "Pilates",
+              serviceId: pilatesId,
+              ...(body.plan as object),
+              totalSessions: 8,
+              status: "active",
+              remainingSessions: 8,
+            },
+          },
+          201,
+        ),
+      );
+      const base = vi.mocked(fetch).getMockImplementation()!;
+      vi.mocked(fetch).mockImplementation(async (input, init) =>
+        String(input).includes("/clinic/branding")
+          ? jsonResponse({
+              name: "Studios Aryana",
+              logoDataUrl: "",
+              pixKey,
+              pixMessageTemplate,
+            })
+          : base(input, init),
+      );
+      renderAs(storedUser(admin));
+      return posts;
+    }
+    async function choosePlanWithPix() {
+      const dialog = await openNewClient();
+      fireEvent.click(
+        within(dialog).getByRole("button", { name: "Adicionar plano" }),
+      );
+      const catalog = await within(dialog).findByLabelText("Plano cadastrado");
+      fireEvent.change(catalog, { target: { value: pilatesTemplate.id } });
+      fireEvent.change(await within(dialog).findByLabelText("Turma"), {
+        target: { value: groups[0]!.id },
+      });
+      // Nunca sem forma de pagamento: o plano já começa no Pix.
+      const method = within(dialog).getByLabelText("Forma de pagamento");
+      expect(method).toHaveValue("pix");
+      fireEvent.change(method, { target: { value: "pix" } });
+      return dialog;
+    }
+
+    it("sends the Pix key and the default message with the value per session", async () => {
+      const posts = mockPlanSale("financeiro@aryana.com.br");
+      const dialog = await choosePlanWithPix();
+      const preview = await within(dialog).findByLabelText(
+        "Mensagem do Pix (enviada pelo WhatsApp ao salvar)",
+      );
+      expect((preview as HTMLTextAreaElement).value).toContain(
+        "o plano “Pilates 2x semana” tem 8 sessões por R$ 480,00 (R$ 60,00 por sessão), em 3 parcelas; a 1ª parcela é de R$ 160,00. Chave Pix: financeiro@aryana.com.br.",
+      );
+      fireEvent.click(
+        within(dialog).getByRole("button", { name: "Salvar e criar plano" }),
+      );
+      const charge = await screen.findByRole("dialog", {
+        name: "Enviar cobrança Pix",
+      });
+      expect(posts[0]).toMatchObject({
+        next: "plan",
+        plan: { planTemplateId: pilatesTemplate.id, paymentMethod: "pix" },
+      });
+      const link = within(charge).getByRole("link", {
+        name: "Enviar Pix pelo WhatsApp",
+      });
+      const href = link.getAttribute("href")!;
+      expect(href.startsWith("https://wa.me/5511987654321?text=")).toBe(true);
+      expect(decodeURIComponent(href.split("?text=")[1]!)).toBe(
+        "Olá, Marina! Tudo bem? Seja bem-vindo(a)! Para confirmar, o plano “Pilates 2x semana” tem 8 sessões por R$ 480,00 (R$ 60,00 por sessão), em 3 parcelas; a 1ª parcela é de R$ 160,00. Chave Pix: financeiro@aryana.com.br. Assim que fizer o pagamento, envie o comprovante por aqui. Obrigado!",
+      );
+      fireEvent.click(within(charge).getByRole("button", { name: "Concluir" }));
+      expect(
+        await screen.findByText("Plano “Pilates 2x semana” criado."),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByRole("dialog", { name: "Enviar cobrança Pix" }),
+      ).not.toBeInTheDocument();
+    });
+
+    it("charges the first installment already with the plan discount", async () => {
+      const posts = mockPlanSale("financeiro@aryana.com.br");
+      const dialog = await choosePlanWithPix();
+      // O desconto fica no fim do bloco do plano, não no cadastro do cliente.
+      const planBlock = within(dialog).getByRole("group", { name: "Plano" });
+      expect(
+        within(planBlock).getByText("Sem desconto neste plano."),
+      ).toBeVisible();
+      fireEvent.click(
+        within(planBlock).getByRole("button", { name: "Configurar desconto" }),
+      );
+      const discount = await screen.findByRole("dialog", {
+        name: "Desconto do plano",
+      });
+      fireEvent.click(within(discount).getByLabelText("Valor (R$)"));
+      fireEvent.change(
+        within(discount).getByLabelText("Valor do desconto (R$)"),
+        { target: { value: "20,00" } },
+      );
+      fireEvent.click(
+        within(discount).getByRole("button", { name: "Aplicar desconto" }),
+      );
+      await waitFor(() =>
+        expect(
+          screen.queryByRole("dialog", { name: "Desconto do plano" }),
+        ).toBeNull(),
+      );
+      expect(
+        within(planBlock).getByText(
+          /R\$\s20,00 de desconto · só no próximo pagamento/,
+        ),
+      ).toBeVisible();
+      const bag = within(dialog).getByRole("group", { name: "Sacola" });
+      expect(within(bag).getByText("Desconto do plano")).toBeVisible();
+      expect(within(bag).getByText("Total").closest("div")).toHaveTextContent(
+        /R\$\s460,00/,
+      );
+      fireEvent.click(
+        within(dialog).getByRole("button", { name: "Salvar e criar plano" }),
+      );
+      const charge = await screen.findByRole("dialog", {
+        name: "Enviar cobrança Pix",
+      });
+      expect(posts[0]).toMatchObject({
+        plan: {
+          discount: { type: "amount", amountInCents: 2000, scope: "once" },
+        },
+      });
+      expect(posts[0]!.patient).not.toHaveProperty("discount");
+      const href = within(charge)
+        .getByRole("link", { name: "Enviar Pix pelo WhatsApp" })
+        .getAttribute("href")!;
+      expect(decodeURIComponent(href.split("?text=")[1]!)).toContain(
+        "em 3 parcelas; a 1ª parcela é de R$ 140,00, já com o seu desconto de R$ 20,00. Chave Pix:",
+      );
+    });
+
+    it("sells a product with its own discount and a general discount on the bag", async () => {
+      const bottle = {
+        id: "e1111111-1111-4111-8111-111111111111",
+        clinicId: created.clinicId,
+        name: "Garrafa térmica",
+        unit: "un",
+        active: true,
+        salePriceInCents: 5_000,
+        currentStock: 5,
+        sizes: [],
+        sizeStock: [],
+      };
+      const sales: Array<Record<string, unknown>> = [];
+      const posts = mockPlanSale("");
+      const base = vi.mocked(fetch).getMockImplementation()!;
+      vi.mocked(fetch).mockImplementation(async (input, init) => {
+        const url = String(input);
+        if (url.includes("/inventory/workspace"))
+          return jsonResponse({ products: [bottle], movements: [] });
+        if (init?.method === "POST" && url.endsWith("/product-sales")) {
+          sales.push(JSON.parse(String(init.body)) as Record<string, unknown>);
+          return jsonResponse({ totalInCents: 8_100 }, 201);
+        }
+        return base(input, init);
+      });
+      const dialog = await openNewClient();
+      fireEvent.click(
+        within(dialog).getByRole("button", { name: "Adicionar plano" }),
+      );
+      fireEvent.change(
+        await within(dialog).findByLabelText("Plano cadastrado"),
+        {
+          target: { value: pilatesTemplate.id },
+        },
+      );
+      fireEvent.change(await within(dialog).findByLabelText("Turma"), {
+        target: { value: groups[0]!.id },
+      });
+      fireEvent.click(
+        within(dialog).getByRole("button", { name: "Adicionar produto" }),
+      );
+      const productBlock = within(dialog).getByRole("group", {
+        name: "Produto",
+      });
+      fireEvent.change(await within(productBlock).findByLabelText("Produto"), {
+        target: { value: bottle.id },
+      });
+      fireEvent.change(within(productBlock).getByLabelText("Quantidade"), {
+        target: { value: "2" },
+      });
+      // Desconto do produto: só porcentagem/valor, sem alcance de cobranças.
+      fireEvent.click(
+        within(productBlock).getByRole("button", {
+          name: "Configurar desconto",
+        }),
+      );
+      const productDiscount = await screen.findByRole("dialog", {
+        name: "Desconto do produto",
+      });
+      expect(
+        within(productDiscount).queryByText("Onde o desconto vale"),
+      ).toBeNull();
+      fireEvent.change(
+        within(productDiscount).getByLabelText("Porcentagem de desconto (%)"),
+        { target: { value: "10" } },
+      );
+      fireEvent.click(
+        within(productDiscount).getByRole("button", {
+          name: "Aplicar desconto",
+        }),
+      );
+      await waitFor(() =>
+        expect(
+          screen.queryByRole("dialog", { name: "Desconto do produto" }),
+        ).toBeNull(),
+      );
+      // Desconto geral sobre plano + produto (R$ 480 + R$ 90), configurado na sacola.
+      const bag = within(dialog).getByRole("group", { name: "Sacola" });
+      fireEvent.click(
+        within(bag).getByRole("button", { name: "Configurar desconto" }),
+      );
+      const general = await screen.findByRole("dialog", {
+        name: "Desconto geral",
+      });
+      fireEvent.click(within(general).getByLabelText("Valor (R$)"));
+      fireEvent.change(
+        within(general).getByLabelText("Valor do desconto (R$)"),
+        { target: { value: "57,00" } },
+      );
+      fireEvent.click(
+        within(general).getByRole("button", { name: "Aplicar desconto" }),
+      );
+      await waitFor(() =>
+        expect(
+          screen.queryByRole("dialog", { name: "Desconto geral" }),
+        ).toBeNull(),
+      );
+      const items = within(bag).getByRole("list", { name: "Itens da sacola" });
+      expect(items).toHaveTextContent("Pilates 2x semana");
+      expect(items).toHaveTextContent("Garrafa térmica");
+      expect(
+        within(bag).getByText("Subtotal").closest("div"),
+      ).toHaveTextContent(/R\$\s580,00/);
+      expect(
+        within(bag).getByText("Descontos dos itens").closest("div"),
+      ).toHaveTextContent(/R\$\s10,00/);
+      expect(
+        within(bag).getByText("Desconto geral").closest("div"),
+      ).toHaveTextContent(/R\$\s57,00/);
+      expect(within(bag).getByText("Total").closest("div")).toHaveTextContent(
+        /R\$\s513,00/,
+      );
+      fireEvent.click(
+        within(dialog).getByRole("button", { name: "Salvar e criar plano" }),
+      );
+      await waitFor(() => expect(sales).toHaveLength(1));
+      // O plano leva a parte dele do desconto geral; o produto vai com o preço descontado.
+      expect(posts[0]).toMatchObject({
+        plan: {
+          planTemplateId: pilatesTemplate.id,
+          orderDiscountInCents: 4_800,
+        },
+      });
+      expect(sales[0]).toMatchObject({
+        patientId: created.id,
+        items: [{ productId: bottle.id, quantity: 2, unitPriceInCents: 4_050 }],
+        settlement: "paid",
+        paymentMethod: "pix",
+      });
+    });
+
+    it("uses the message configured by the clinic", async () => {
+      mockPlanSale(
+        "financeiro@aryana.com.br",
+        "Oi {{nome}}, {{sessoes}} do {{plano}}: {{parcelas}}x de {{valor_parcela}}. Pix {{chave_pix}}",
+      );
+      const dialog = await choosePlanWithPix();
+      const expected =
+        "Oi Marina, 8 sessões do Pilates 2x semana: 3x de R$ 160,00. Pix financeiro@aryana.com.br";
+      expect(
+        await within(dialog).findByLabelText(
+          "Mensagem do Pix (enviada pelo WhatsApp ao salvar)",
+        ),
+      ).toHaveValue(expected);
+      fireEvent.click(
+        within(dialog).getByRole("button", { name: "Salvar e criar plano" }),
+      );
+      const charge = await screen.findByRole("dialog", {
+        name: "Enviar cobrança Pix",
+      });
+      const href = within(charge)
+        .getByRole("link", { name: "Enviar Pix pelo WhatsApp" })
+        .getAttribute("href")!;
+      expect(decodeURIComponent(href.split("?text=")[1]!)).toBe(expected);
+    });
+
+    it("explains where to register the Pix key and only saves the method without it", async () => {
+      const posts = mockPlanSale("");
+      const dialog = await choosePlanWithPix();
+      expect(
+        await within(dialog).findByText(/Nenhuma chave Pix cadastrada/),
+      ).toBeInTheDocument();
+      fireEvent.click(
+        within(dialog).getByRole("button", { name: "Salvar e criar plano" }),
+      );
+      expect(
+        await screen.findByText("Plano “Pilates 2x semana” criado."),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByRole("dialog", { name: "Enviar cobrança Pix" }),
+      ).not.toBeInTheDocument();
+      expect(posts[0]).toMatchObject({ plan: { paymentMethod: "pix" } });
+    });
+
+    it("sends another method without a Pix charge", async () => {
+      const posts = mockPlanSale("financeiro@aryana.com.br");
+      const dialog = await choosePlanWithPix();
+      fireEvent.change(within(dialog).getByLabelText("Forma de pagamento"), {
+        target: { value: "card" },
+      });
+      expect(
+        within(dialog).queryByLabelText(
+          "Mensagem do Pix (enviada pelo WhatsApp ao salvar)",
+        ),
+      ).not.toBeInTheDocument();
+      fireEvent.click(
+        within(dialog).getByRole("button", { name: "Salvar e criar plano" }),
+      );
+      expect(
+        await screen.findByText("Plano “Pilates 2x semana” criado."),
+      ).toBeInTheDocument();
+      expect(posts[0]).toMatchObject({ plan: { paymentMethod: "card" } });
+    });
   });
 
   describe("single service catalog", () => {
@@ -549,13 +1493,11 @@ describe("guided client registration", () => {
             {
               id: pilatesId,
               name: "Pilates",
-              priceInCents: 9000,
               durationMinutes: 50,
             },
             {
               id: massageId,
               name: "Massagem",
-              priceInCents: 15000,
               durationMinutes: 60,
             },
           ]);
@@ -566,7 +1508,9 @@ describe("guided client registration", () => {
     async function chooseSingle() {
       const dialog = await openNewClient();
       fireEvent.click(
-        within(dialog).getByRole("radio", { name: "Serviço avulso" }),
+        within(dialog).getByRole("button", {
+          name: "Adicionar serviço avulso",
+        }),
       );
       return dialog;
     }
@@ -637,11 +1581,16 @@ describe("guided client registration", () => {
     mockApi(() => jsonResponse({ patient: created }, 201));
     renderAs(customUser(["patients"]));
     let dialog = await openNewClient();
+    // Sem Agenda nem Planos: só a venda de produtos (que vem com Clientes).
     expect(
-      within(dialog).queryByRole("group", {
-        name: "O que o cliente vai fazer?",
-      }),
-    ).not.toBeInTheDocument();
+      within(
+        within(dialog).getByRole("group", {
+          name: "O que o cliente vai fazer?",
+        }),
+      )
+        .getAllByRole("button")
+        .map((button) => button.getAttribute("aria-label")),
+    ).toEqual(["Adicionar produto"]);
     expect(
       within(dialog).getByRole("button", { name: "Salvar cliente" }),
     ).toBeInTheDocument();
@@ -654,9 +1603,9 @@ describe("guided client registration", () => {
     });
     expect(
       within(question)
-        .getAllByRole("radio")
-        .map((radio) => radio.closest("label")?.textContent),
-    ).toEqual(["Aula de demonstração", "Só cadastrar por enquanto"]);
+        .getAllByRole("button")
+        .map((button) => button.getAttribute("aria-label")),
+    ).toEqual(["Agendar aula experimental", "Adicionar produto"]);
     cleanup();
 
     // Edita Planos mas não Turmas: plano sem o campo de turma (e sem buscar as turmas).
@@ -667,20 +1616,18 @@ describe("guided client registration", () => {
     });
     expect(
       within(question)
-        .getAllByRole("radio")
-        .map((radio) => radio.closest("label")?.textContent),
+        .getAllByRole("button")
+        .map((button) => button.getAttribute("aria-label")),
     ).toEqual([
-      "Assinar um plano",
-      "Serviço avulso",
-      "Só cadastrar por enquanto",
+      "Adicionar plano",
+      "Adicionar serviço avulso",
+      "Adicionar produto",
     ]);
     fireEvent.click(
-      within(dialog).getByRole("radio", { name: "Assinar um plano" }),
+      within(dialog).getByRole("button", { name: "Adicionar plano" }),
     );
     await within(dialog).findByLabelText("Plano cadastrado");
-    expect(
-      within(dialog).queryByLabelText("Turma (opcional)"),
-    ).not.toBeInTheDocument();
+    expect(within(dialog).queryByLabelText(/^Turma/)).not.toBeInTheDocument();
     expect(
       within(dialog).getByText(
         "A turma pode ser escolhida depois com o responsável.",

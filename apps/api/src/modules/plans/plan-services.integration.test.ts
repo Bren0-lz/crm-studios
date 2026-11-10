@@ -1,5 +1,8 @@
+import { nextTestCpf } from "../../test-support/cpf.js";
 import {
   allocatePlanRevenue,
+  defaultContractTemplateBody,
+  formatCpf,
   guidedPatientInputSchema,
   patientPlanInputSchema,
   planRenewalInputSchema,
@@ -7,11 +10,14 @@ import {
   saoPauloToday,
 } from "@crm/contracts";
 import { randomUUID } from "node:crypto";
-import { Pool } from "pg";
+import type { Database as Pool } from "../../infrastructure/mysql-client.js";
+import {
+  createTestDatabase,
+  type TestDatabase,
+} from "../../test-support/mysql-database.js";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { runMigrations, seedDemoData } from "../../database.js";
 import { MemoryClinicRepository } from "../../memory-repository.js";
-import { PostgresClinicRepository } from "../../postgres-repository.js";
+import { MysqlClinicRepository } from "../../mysql-repository.js";
 import type { ClinicRepository } from "../../repository.js";
 import { atInstant } from "../../test-support/clock.js";
 
@@ -76,8 +82,8 @@ describe("service composition validation and allocation", () => {
   });
 });
 
-for (const backend of ["memory", "postgres"] as const) {
-  describe.skipIf(backend === "postgres" && !process.env.TEST_DATABASE_URL)(
+for (const backend of ["memory", "mysql"] as const) {
+  describe.skipIf(backend === "mysql" && !process.env.TEST_DATABASE_URL)(
     `${backend}: plans with independent services`,
     () => {
       let repository: ClinicRepository;
@@ -87,74 +93,17 @@ for (const backend of ["memory", "postgres"] as const) {
       const templateIds: string[] = [];
       const groupIds: string[] = [];
       const documentTemplateIds: string[] = [];
+      let database: TestDatabase | undefined;
       beforeAll(async () => {
         if (backend === "memory") repository = new MemoryClinicRepository();
         else {
-          pool = new Pool({
-            connectionString: process.env.TEST_DATABASE_URL,
-            ssl: false,
-          });
-          await runMigrations(pool);
-          await seedDemoData(pool);
-          repository = new PostgresClinicRepository(pool);
+          database = await createTestDatabase("planservices");
+          pool = database.pool;
+          repository = new MysqlClinicRepository(pool);
         }
-      });
+      }, 60_000);
       afterAll(async () => {
-        if (!pool) return;
-        await pool.query(
-          "DELETE FROM issued_documents WHERE patient_id=ANY($1::uuid[])",
-          [patientIds],
-        );
-        await pool.query(
-          "DELETE FROM document_templates WHERE id=ANY($1::uuid[])",
-          [documentTemplateIds],
-        );
-        await pool.query(
-          "DELETE FROM financial_events WHERE receivable_id IN (SELECT id FROM receivables WHERE patient_id=ANY($1::uuid[]))",
-          [patientIds],
-        );
-        await pool.query(
-          "DELETE FROM session_movements WHERE plan_id IN (SELECT id FROM patient_plans WHERE patient_id=ANY($1::uuid[]))",
-          [patientIds],
-        );
-        await pool.query(
-          "DELETE FROM appointments WHERE patient_id=ANY($1::uuid[])",
-          [patientIds],
-        );
-        await pool.query(
-          "DELETE FROM group_enrollments WHERE patient_id=ANY($1::uuid[])",
-          [patientIds],
-        );
-        await pool.query(
-          "DELETE FROM group_sessions WHERE group_id=ANY($1::uuid[])",
-          [groupIds],
-        );
-        await pool.query("DELETE FROM group_classes WHERE id=ANY($1::uuid[])", [
-          groupIds,
-        ]);
-        await pool.query(
-          "DELETE FROM receivables WHERE patient_id=ANY($1::uuid[])",
-          [patientIds],
-        );
-        await pool.query(
-          "UPDATE patient_plans SET renewed_from_plan_id=NULL WHERE patient_id=ANY($1::uuid[])",
-          [patientIds],
-        );
-        await pool.query(
-          "DELETE FROM patient_plans WHERE patient_id=ANY($1::uuid[])",
-          [patientIds],
-        );
-        await pool.query("DELETE FROM patients WHERE id=ANY($1::uuid[])", [
-          patientIds,
-        ]);
-        await pool.query(
-          "DELETE FROM plan_templates WHERE id=ANY($1::uuid[])",
-          [templateIds],
-        );
-        await pool.query("DELETE FROM services WHERE id=ANY($1::uuid[])", [
-          serviceIds,
-        ]);
-        await pool.end();
+        await database?.drop();
       });
       async function setup() {
         const marker = `multiservice-${randomUUID()}`;
@@ -163,14 +112,13 @@ for (const backend of ["memory", "postgres"] as const) {
             const service = await repository.createService(clinicId, {
               name: `${marker}-${name}`,
               durationMinutes: 30,
-              priceInCents: 100,
-              color: "#64748b",
             });
             serviceIds.push(service.id);
             return service;
           }),
         );
         const patient = await repository.createPatient(clinicId, {
+          cpf: nextTestCpf(),
           fullName: marker,
           phone: "11999991234",
           tags: [],
@@ -291,6 +239,46 @@ for (const backend of ["memory", "postgres"] as const) {
         ).toMatchObject([{ serviceId: services[0]!.id, quantity: 1 }]);
         expect(movements.reduce((sum, item) => sum + item.quantity, 0)).toBe(
           sold.remainingSessions,
+        );
+      });
+      it("fills the standard contract with the plan terms and the clinic and client data", async () => {
+        const { plan, patient } = await setup();
+        const clinic = (await repository.getClinicSettings(clinicId))!;
+        const documentTemplate = await repository.createDocumentTemplate(
+          clinicId,
+          {
+            name: `multiservice-${randomUUID()}`,
+            kind: "contract",
+            body: defaultContractTemplateBody,
+          },
+        );
+        documentTemplateIds.push(documentTemplate.id);
+        const document = await repository.createIssuedDocument(
+          clinicId,
+          actorId,
+          {
+            patientId: plan.patientId,
+            planId: plan.id,
+            templateId: documentTemplate.id,
+            title: "Contrato padrão",
+          },
+        );
+        const value = new Intl.NumberFormat("pt-BR", {
+          style: "currency",
+          currency: "BRL",
+        }).format(2);
+        expect(document.snapshotBody).not.toContain("{{");
+        expect(document.snapshotBody).toContain(
+          `CONTRATADA: ${clinic.legalName || clinic.name}, nome fantasia ${clinic.name}`,
+        );
+        expect(document.snapshotBody).toContain(
+          `inscrito(a) no CPF sob o nº ${formatCpf(patient.cpf ?? "")}, residente em não informado.`,
+        );
+        expect(document.snapshotBody).toContain(
+          `o valor total de ${value}, em 3 parcela(s).`,
+        );
+        expect(document.snapshotBody).toContain(
+          "Este contrato vigora de 01/01/2049 a 31/12/2051,",
         );
       });
       it("keeps sold terms after catalog changes, renews inactive templates and allocates actual receipts", async () => {
@@ -471,8 +459,12 @@ for (const backend of ["memory", "postgres"] as const) {
           guidedPatientInputSchema.parse({
             next: "plan",
             patient: {
+              cpf: nextTestCpf(),
               fullName: `multiservice-${randomUUID()}`,
               phone: "11999991235",
+              whatsapp: "11999991235",
+              emergencyContactName: `multiservice-${randomUUID()}`,
+              emergencyContactPhone: "11999991235",
             },
             plan: {
               ...input,

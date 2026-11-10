@@ -1,4 +1,5 @@
 import type {
+  AuditChange,
   Appointment,
   AppointmentStatus,
   CommunicationChannel,
@@ -24,7 +25,53 @@ export interface PatientTimelineSources {
   contacts: ContactActivity[];
   messages: OutboundMessage[];
   surveys: SatisfactionSurvey[];
+  /** Edições do cadastro do cliente registradas no Histórico (auditoria). */
+  edits?: PatientTimelineEdit[];
+  /** Recibos para assinatura das baixas (inclusive os cancelados pelo estorno). */
+  receipts?: PatientTimelineReceipt[];
 }
+
+/** Recibo da baixa com a descrição da parcela: envio, 1ª visualização e assinatura. */
+export interface PatientTimelineReceipt {
+  id: string;
+  patientId: string;
+  description: string;
+  amountInCents: number;
+  sentAt?: string | undefined;
+  firstViewedAt?: string | undefined;
+  signedAt?: string | undefined;
+  signerName?: string | undefined;
+}
+
+/** Ação do Histórico gravada ao editar o cliente (PUT /patients/:id e PATCH …/status). */
+export const patientEditAction = "operation.patients.update";
+
+/** Uma edição do cadastro: quem, quando, o que mudou e o motivo informado. */
+export interface PatientTimelineEdit {
+  id: string;
+  occurredAt: string;
+  actorName?: string | undefined;
+  changes: AuditChange[];
+  reason?: string | undefined;
+}
+
+/** "Apelido: (vazio) → Tres QA; Telefone: … · Motivo: …". */
+function editDetail(edit: PatientTimelineEdit) {
+  const changes = edit.changes
+    .map(
+      (change) =>
+        `${change.label}: ${change.before ?? "(vazio)"} → ${change.after ?? "(vazio)"}`,
+    )
+    .join("; ");
+  return [changes, edit.reason ? `Motivo: ${edit.reason}` : ""]
+    .filter(Boolean)
+    .join(" · ");
+}
+
+const refundCurrency = new Intl.NumberFormat("pt-BR", {
+  style: "currency",
+  currency: "BRL",
+});
 
 const appointmentStatusLabels: Record<AppointmentStatus, string> = {
   scheduled: "Agendado",
@@ -125,7 +172,9 @@ export function buildPatientTimeline(
         kind: "plan_cancelled",
         occurredAt: plan.cancelledAt,
         title: `Plano cancelado: ${plan.name}`,
-        detail: plan.serviceName,
+        detail: plan.refundedInCents
+          ? `${plan.serviceName} · estornado ao cliente ${refundCurrency.format(plan.refundedInCents / 100)}`
+          : plan.serviceName,
         amountInCents: -(plan.cancelledValueInCents ?? plan.totalValueInCents),
       });
   }
@@ -142,6 +191,35 @@ export function buildPatientTimeline(
         : item.description,
       amountInCents: item.amountInCents,
     });
+  }
+
+  // Recibo da baixa (RC4): cada etapa vira um evento; o valor fica no texto (não é entrada).
+  for (const item of own(sources.receipts ?? [])) {
+    const detail = `${item.description} · ${refundCurrency.format(item.amountInCents / 100)}`;
+    const steps = [
+      ["receipt_sent", item.sentAt, "Recibo enviado para assinatura", detail],
+      [
+        "receipt_viewed",
+        item.firstViewedAt,
+        "Recibo visualizado pelo cliente",
+        detail,
+      ],
+      [
+        "receipt_signed",
+        item.signedAt,
+        "Recibo assinado pelo cliente",
+        item.signerName ? `${detail} · por ${item.signerName}` : detail,
+      ],
+    ] as const;
+    for (const [kind, occurredAt, title, text] of steps)
+      if (occurredAt)
+        entries.push({
+          id: `${kind}:${item.id}`,
+          kind,
+          occurredAt,
+          title,
+          detail: text,
+        });
   }
 
   for (const item of own(sources.contacts))
@@ -175,6 +253,21 @@ export function buildPatientTimeline(
       ...(item.comment ? { detail: item.comment } : {}),
       score: item.score,
     });
+
+  // Edição sem diferença registrada nem motivo não diz nada ao cliente.
+  for (const edit of sources.edits ?? []) {
+    const detail = editDetail(edit);
+    if (!detail) continue;
+    entries.push({
+      id: `patient_updated:${edit.id}`,
+      kind: "patient_updated",
+      occurredAt: edit.occurredAt,
+      title: edit.actorName
+        ? `Cadastro editado por ${edit.actorName}`
+        : "Cadastro editado",
+      detail,
+    });
+  }
 
   return entries.sort(
     (a, b) =>

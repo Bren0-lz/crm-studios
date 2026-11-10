@@ -11,14 +11,14 @@ está em `PLAN.md` (tarefas) e `STATE.md` (tarefa atual + diário). As regras pe
 - **Próxima tarefa:** QM15 (sem "movimenta", UUID ou código de seed na interface).
 - **Faltam:** QM15–QM17, a Fase 3 (QV1–QV9), QR1 (e2e dos críticos) e QR2 (revisão manual).
 - **Gates nesta máquina:** rode com `TEST_DATABASE_URL` vazia (`export TEST_DATABASE_URL=`). O
-  `.env` local aponta para um banco que não responde, e as variáveis reais ficam na Vercel.
+  `.env` local aponta para um banco que não responde, e as variáveis reais ficam no hPanel da Hostinger.
 
 ## Preparar a máquina nova
 
 1. Node 22 ou mais novo. No Windows, use `npm.cmd` se o PowerShell bloquear `npm`.
 2. `git clone` do repositório e `npm ci` na raiz.
 3. Para o e2e: `npx playwright install chromium`.
-4. `.env` não vai para o git. Copie da máquina antiga, ou monte a partir de `.env.example`. Sem `TEST_DATABASE_URL`, os testes de PostgreSQL ficam `skip`. Com ela, `npm test`
+4. `.env` não vai para o git. Copie da máquina antiga, ou monte a partir de `.env.example`. Sem `TEST_DATABASE_URL`, os testes de MySQL ficam `skip`. Com ela, `npm test`
    também roda esses testes contra o banco (use só um banco exclusivo de testes).
 5. Conferir o gate antes de continuar:
    `npm run typecheck && npm run lint && npm test && npm run build && node apps/web/scripts/audit-panels.cjs`.
@@ -45,9 +45,9 @@ está em `PLAN.md` (tarefas) e `STATE.md` (tarefa atual + diário). As regras pe
   - "Abrir ficha" no aviso de lead duplicado aparece mesmo sem acesso ao módulo de clientes, e a
     conversão de lead ainda compara telefone/CPF sem normalizar (QM10).
   - "Serviço avulso" é cadastrado em Configurações › Planos, não em Serviços e salas (QM12).
-- **Migrações novas ainda não rodadas num PostgreSQL real:** `0081` (fim da matrícula em turma),
-  `0082` (rótulo do histórico de créditos de comanda) e `0083` (remove a etiqueta manual
-  "Pagamento atrasado"). A próxima livre é a `0084`.
+- **Banco:** desde 30/10/2026 é MySQL/MariaDB e as migrações recomeçaram em `0001_schema.sql`.
+  Número da próxima e regras de SQL: `CLAUDE.md` ("PRs sem conflito" e "Banco de dados:
+  MySQL/MariaDB").
 - **Seed:** um banco já semeado só recebe os vínculos de serviço, profissional e sala da demo
   (QM3) se o seed for rodado de novo. O SQL novo do seed também não foi testado num banco real.
 - **API de presença em turma:** aceita presença em sessão futura; só a tela bloqueia (QM8).
@@ -64,7 +64,7 @@ está em `PLAN.md` (tarefas) e `STATE.md` (tarefa atual + diário). As regras pe
   - screens-without-the-patients-module "opens groups and lists clients in a new enrollment".
 - O timeout dos testes é 20s, porque a máquina é lenta com OneDrive; não reduza.
 - `npm test` leva de 10 a 15 min: rode em segundo plano. Se o `.env` tiver `TEST_DATABASE_URL` e o
-  banco não responder, as suítes PostgreSQL dão timeout no `beforeAll`, a API falha e os testes
+  banco não responder, as suítes MySQL dão timeout no `beforeAll`, a API falha e os testes
   da web nem rodam.
 - Nunca conclua ou registre atendimento "de hoje às X h" em teste sem fixar o relógio depois do
   início (`test-support/clock.ts`, QF1).
@@ -79,5 +79,3 @@ está em `PLAN.md` (tarefas) e `STATE.md` (tarefa atual + diário). As regras pe
   só com foco (QC10).
 - Use as ferramentas de edição, não scripts que reescrevem arquivos inteiros; um script assim já
   corrompeu a `AgendaPage.tsx`. Os avisos "LF will be replaced by CRLF" nos commits são normais.
-- Com o Session pooler do Supabase, `EMAXCONNSESSION` aparece quando há API local ou `tsx watch`
-  segurando conexões. Encerre esses processos e espere uns 3 minutos antes de rodar o gate.

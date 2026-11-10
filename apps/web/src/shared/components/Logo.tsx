@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { hasSession, api } from "../../api";
-export function Logo() {
+import { initials } from "../lib/formatting";
+
+export function Logo({ compactMark = false }: { compactMark?: boolean }) {
   const [branding, setBranding] = useState<{
     name: string;
     logoDataUrl: string;
@@ -32,7 +34,14 @@ export function Logo() {
           alt={branding.name}
         />
       ) : (
-        <span className="brand-name">Studios Aryana</span>
+        <>
+          <span className="brand-name">Studios Aryana</span>
+          {compactMark && (
+            <span className="brand-monogram" aria-hidden="true">
+              {initials(branding?.name ?? "Studios Aryana")}
+            </span>
+          )}
+        </>
       )}
     </div>
   );

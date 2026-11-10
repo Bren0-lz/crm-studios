@@ -1,28 +1,63 @@
 import {
   commissionGenerationInputSchema,
+  commissionRecalculationConfirmationSchema,
+  commissionRecalculationPreviewInputSchema,
   commissionRuleInputSchema,
   costCenterInputSchema,
   dailyCashFilterSchema,
   financeForecastFilterSchema,
   financialCategoryInputSchema,
+  patientTabCancelInputSchema,
   patientTabCloseInputSchema,
   patientTabInputSchema,
   patientTabItemInputSchema,
+  payableAmountInputSchema,
   payableInputSchema,
-  paymentInputSchema,
+  payableSettlementSchema,
   receivableSettlementSchema,
   productInputSchema,
+  productSaleInputSchema,
   receivableAdjustmentInputSchema,
   receivableRenegotiationInputSchema,
   recurringPayableInputSchema,
   saoPauloToday,
   stockMovementInputSchema,
+  type PaymentMethod,
+  type PaymentPart,
+  type ReceivableContact,
 } from "@crm/contracts";
 import type { RouteContext } from "../../infrastructure/route-context.js";
+import { DomainError } from "../../repository.js";
 import { buildFinanceForecast } from "./finance-forecast.js";
+import { payrollAdvanceOnlyError, payrollOnlyError } from "./payroll.js";
+import { receiptSignatureShare } from "./receipt-signature-share.js";
 
 export function registerFinanceRoutes(context: RouteContext) {
-  const { app, authenticate, repository, assertPermissions } = context;
+  const {
+    app,
+    authenticate,
+    repository,
+    assertPermissions,
+    assertInstallmentsAllowed,
+  } = context;
+
+  /** Pago na hora com parcelas na forma (ex.: cartão 3x): respeita a configuração da forma. */
+  const assertPaymentInstallments = (
+    clinicId: string,
+    input: {
+      settlement: "paid" | "receivable";
+      paymentMethod?: PaymentMethod | undefined;
+      paymentInstallments?: number | undefined;
+      payments?: PaymentPart[] | undefined;
+    },
+  ) =>
+    input.settlement === "paid"
+      ? assertInstallmentsAllowed(clinicId, {
+          installments: input.paymentInstallments,
+          paymentMethod: input.paymentMethod,
+          payments: input.payments,
+        })
+      : Promise.resolve();
 
   app.get(
     "/inventory/workspace",
@@ -100,11 +135,13 @@ export function registerFinanceRoutes(context: RouteContext) {
     { preHandler: authenticate },
     async (request, reply) => {
       const { id } = request.params as { id: string };
+      const input = patientTabCloseInputSchema.parse(request.body);
+      await assertPaymentInstallments(request.user.clinicId, input);
       const tab = await repository.closePatientTab(
         request.user.clinicId,
         request.user.sub,
         id,
-        patientTabCloseInputSchema.parse(request.body),
+        input,
       );
       if (!tab)
         return reply.status(404).send({
@@ -116,14 +153,57 @@ export function registerFinanceRoutes(context: RouteContext) {
   );
 
   app.post(
+    "/product-sales",
+    { preHandler: authenticate },
+    async (request, reply) => {
+      const input = productSaleInputSchema.parse(request.body);
+      await assertPaymentInstallments(request.user.clinicId, input);
+      return reply
+        .status(201)
+        .send(
+          await repository.createProductSale(
+            request.user.clinicId,
+            request.user.sub,
+            input,
+          ),
+        );
+    },
+  );
+
+  app.get(
+    "/patient-tabs/:id/payment",
+    { preHandler: authenticate },
+    async (request, reply) => {
+      const { id } = request.params as { id: string };
+      const payment = await repository.patientTabPayment(
+        request.user.clinicId,
+        id,
+      );
+      if (payment === undefined)
+        return reply.status(404).send({
+          code: "PATIENT_TAB_NOT_FOUND",
+          message: "Comanda não encontrada.",
+        });
+      return { payment };
+    },
+  );
+
+  app.post(
     "/patient-tabs/:id/cancel",
     { preHandler: authenticate },
     async (request, reply) => {
       const { id } = request.params as { id: string };
+      const input = patientTabCancelInputSchema.parse(
+        request.body ?? undefined,
+      );
+      // Estornar pelo cancelamento da venda dispensa as permissões do Financeiro.
+      if (input.refundPayment)
+        assertPermissions(request, "patients.tabs_refund");
       const tab = await repository.cancelPatientTab(
         request.user.clinicId,
         request.user.sub,
         id,
+        input,
       );
       if (!tab)
         return reply.status(404).send({
@@ -151,20 +231,29 @@ export function registerFinanceRoutes(context: RouteContext) {
         interestInCents,
         receivedInCents,
         balanceDueDate,
+        paymentInstallments,
+        payments,
         ...timing
       } = receivableSettlementSchema.parse(request.body ?? {});
       const { id } = request.params as { id: string };
+      await assertInstallmentsAllowed(request.user.clinicId, {
+        installments: paymentInstallments,
+        paymentMethod: timing.paymentMethod,
+        payments,
+      });
       const receivable = await repository.settleReceivable(
         request.user.clinicId,
         request.user.sub,
         id,
-        timing.paymentMethod,
+        payments?.[0]?.paymentMethod ?? timing.paymentMethod,
         timing,
         {
           discountInCents,
           interestInCents,
           ...(receivedInCents === undefined ? {} : { receivedInCents }),
           ...(balanceDueDate === undefined ? {} : { balanceDueDate }),
+          ...(paymentInstallments === undefined ? {} : { paymentInstallments }),
+          ...(payments?.length ? { payments } : {}),
         },
       );
       if (!receivable)
@@ -216,6 +305,55 @@ export function registerFinanceRoutes(context: RouteContext) {
     },
   );
 
+  // Recibo para assinatura da baixa (RC3): link e contato para o "Enviar recibo pelo
+  // WhatsApp"; o POST registra o clique (o sistema não sabe se a mensagem saiu).
+  app.get(
+    "/finance/receivables/:id/receipt-signature",
+    { preHandler: authenticate },
+    async (request) => {
+      const { id } = request.params as { id: string };
+      return receiptSignatureShare(repository, request.user.clinicId, id);
+    },
+  );
+
+  app.post(
+    "/finance/receivables/:id/receipt-signature/sent",
+    { preHandler: authenticate },
+    async (request) => {
+      const { id } = request.params as { id: string };
+      return receiptSignatureShare(repository, request.user.clinicId, id, {
+        markSent: true,
+      });
+    },
+  );
+
+  app.get(
+    "/finance/receivables/:id/contact",
+    { preHandler: authenticate },
+    async (request, reply): Promise<ReceivableContact | undefined> => {
+      const { id } = request.params as { id: string };
+      const { clinicId } = request.user;
+      const receivable = (
+        await repository.getFinancialSummary(clinicId)
+      ).receivables.find((item) => item.id === id);
+      const patient =
+        receivable &&
+        (await repository.getPatient(clinicId, receivable.patientId));
+      if (!receivable || !patient)
+        return reply.status(404).send({
+          code: "RECEIVABLE_NOT_FOUND",
+          message: "Conta a receber não encontrada.",
+        });
+      return {
+        receivableId: receivable.id,
+        patientId: patient.id,
+        patientName: patient.fullName,
+        phone: patient.phone,
+        whatsapp: patient.whatsapp || undefined,
+      };
+    },
+  );
+
   app.get(
     "/finance/workspace",
     { preHandler: authenticate },
@@ -225,7 +363,17 @@ export function registerFinanceRoutes(context: RouteContext) {
         request.user.clinicId,
         request.user.sub,
       );
-      return repository.getFinancialWorkspace(request.user.clinicId);
+      const clinicId = request.user.clinicId;
+      const [workspace, receivables, payables] = await Promise.all([
+        repository.getFinancialWorkspace(clinicId),
+        repository.listPaymentProofEntityIds(clinicId, "receivable"),
+        repository.listPaymentProofEntityIds(clinicId, "payable"),
+      ]);
+      // Comprovantes de baixa estornada continuam acessíveis na parcela/despesa reaberta.
+      return {
+        ...workspace,
+        paymentProofEntityIds: { receivables, payables },
+      };
     },
   );
 
@@ -344,18 +492,47 @@ export function registerFinanceRoutes(context: RouteContext) {
         ),
   );
 
+  // Regra com início no passado recalcula as comissões já lançadas (mesma transação).
   app.post(
     "/finance/commission-rules",
     { preHandler: authenticate },
-    async (request, reply) =>
-      reply
-        .status(201)
-        .send(
-          await repository.createCommissionRule(
-            request.user.clinicId,
-            commissionRuleInputSchema.parse(request.body),
-          ),
+    async (request, reply) => {
+      const { recalculationDigest } =
+        commissionRecalculationConfirmationSchema.parse(request.body);
+      return reply.status(201).send(
+        await repository.createCommissionRule(
+          request.user.clinicId,
+          commissionRuleInputSchema.parse(request.body),
+          {
+            actorId: request.user.sub,
+            ...(recalculationDigest
+              ? { expectedDigest: recalculationDigest }
+              : {}),
+          },
         ),
+      );
+    },
+  );
+
+  // Prévia do recálculo antes de salvar (regra do profissional ou, só admin, do usuário).
+  app.post(
+    "/finance/commission-rules/recalculation/preview",
+    { preHandler: authenticate },
+    async (request) => {
+      const input = commissionRecalculationPreviewInputSchema.parse(
+        request.body,
+      );
+      if (input.userId && request.user.role !== "admin")
+        throw new DomainError(
+          "ADMIN_ACCESS_REQUIRED",
+          "Esta operação é restrita a usuários admin.",
+          403,
+        );
+      return repository.previewCommissionRecalculation(
+        request.user.clinicId,
+        input,
+      );
+    },
   );
 
   app.post(
@@ -371,19 +548,9 @@ export function registerFinanceRoutes(context: RouteContext) {
   app.post(
     "/finance/commissions/:id/pay",
     { preHandler: authenticate },
-    async (request, reply) => {
-      const { id } = request.params as { id: string };
-      const commission = await repository.settleCommission(
-        request.user.clinicId,
-        request.user.sub,
-        id,
-      );
-      if (!commission)
-        return reply.status(404).send({
-          code: "COMMISSION_NOT_FOUND",
-          message: "Comissão não encontrada ou já paga.",
-        });
-      return commission;
+    // Comissão é paga pela folha de pagamento (Financeiro › Folha).
+    async () => {
+      throw payrollOnlyError();
     },
   );
 
@@ -439,8 +606,8 @@ export function registerFinanceRoutes(context: RouteContext) {
     { preHandler: authenticate },
     async (request, reply) => {
       const input = payableInputSchema.parse(request.body);
-      if (input.commissionId)
-        assertPermissions(request, "finance.commissions_pay");
+      // Comissão é paga pela folha de pagamento, não por despesa avulsa.
+      if (input.commissionId) throw payrollOnlyError();
       return reply
         .status(201)
         .send(
@@ -458,7 +625,9 @@ export function registerFinanceRoutes(context: RouteContext) {
     { preHandler: authenticate },
     async (request, reply) => {
       const { id } = request.params as { id: string };
-      const input = paymentInputSchema.parse(request.body ?? {});
+      const { payments, ...input } = payableSettlementSchema.parse(
+        request.body ?? {},
+      );
       const current = (
         await repository.getFinancialWorkspace(request.user.clinicId)
       ).payables.find((item) => item.id === id);
@@ -468,8 +637,32 @@ export function registerFinanceRoutes(context: RouteContext) {
         request.user.clinicId,
         request.user.sub,
         id,
-        input.paymentMethod,
+        payments?.[0]?.paymentMethod ?? input.paymentMethod,
         input,
+        payments,
+      );
+      if (!payable)
+        return reply.status(404).send({
+          code: "PAYABLE_NOT_FOUND",
+          message: "Conta a pagar não encontrada.",
+        });
+      return payable;
+    },
+  );
+
+  app.put(
+    "/finance/payables/:id/amount",
+    { preHandler: authenticate },
+    async (request, reply) => {
+      const { id } = request.params as { id: string };
+      const { amountInCents } = payableAmountInputSchema.parse(
+        request.body ?? {},
+      );
+      const payable = await repository.setPayableAmount(
+        request.user.clinicId,
+        request.user.sub,
+        id,
+        amountInCents,
       );
       if (!payable)
         return reply.status(404).send({
@@ -488,6 +681,7 @@ export function registerFinanceRoutes(context: RouteContext) {
       const current = (
         await repository.getFinancialWorkspace(request.user.clinicId)
       ).payables.find((item) => item.id === id);
+      if (current?.payrollAdvance) throw payrollAdvanceOnlyError();
       if (current?.commissionId)
         assertPermissions(request, "finance.commissions_reverse");
       const payable = await repository.reversePayablePayment(

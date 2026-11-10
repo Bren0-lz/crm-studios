@@ -1,3 +1,4 @@
+import { defaultNotificationPreferences } from "@crm/contracts";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter, useLocation } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
@@ -29,17 +30,39 @@ function login(access?: { modules: string[] }) {
 
 function LocationProbe() {
   const location = useLocation();
-  return <output data-testid="location">{location.pathname}</output>;
+  return (
+    <output data-testid="location">
+      {location.pathname}
+      {location.search}
+    </output>
+  );
 }
 
-/** `/notifications` responde com `notifications`; o resto da tela recebe listas vazias. */
+/**
+ * `/notifications` responde com `notifications` e as preferências com o padrão (ou
+ * `preferences`); o resto da tela recebe listas vazias.
+ */
 function mockApi(
   notifications: () => Promise<Response> | Response,
   dashboard: object = { date: "2026-10-16", nextAppointments: [] },
+  preferences: object = defaultNotificationPreferences,
 ) {
-  vi.mocked(fetch).mockImplementation(async (input) => {
+  vi.mocked(fetch).mockImplementation(async (input, init) => {
     const url = String(input);
+    if (url.includes("/notifications/preferences"))
+      return json(
+        init?.method === "PUT" ? JSON.parse(String(init.body)) : preferences,
+      );
     if (url.includes("/notifications")) return notifications();
+    if (url.includes("/inventory/workspace"))
+      return json({
+        products: [],
+        movements: [],
+        tabs: [],
+        lowStockCount: 0,
+        inventoryCostInCents: 0,
+        openTabsInCents: 0,
+      });
     return {
       ok: true,
       status: 200,
@@ -174,7 +197,9 @@ describe("header menus", () => {
         "Não foi possível carregar as notificações.",
       ),
     ).toBeVisible();
-    fireEvent.click(within(panel).getByRole("button", { name: "Tentar novamente" }));
+    fireEvent.click(
+      within(panel).getByRole("button", { name: "Tentar novamente" }),
+    );
     expect(
       await within(panel).findByRole("button", {
         name: /Atendimentos a finalizar/,
@@ -183,6 +208,86 @@ describe("header menus", () => {
     expect(
       within(panel).queryByText("Não foi possível carregar as notificações."),
     ).not.toBeInTheDocument();
+  });
+
+  it("reminds of scheduled callbacks: lead tasks, snoozed contacts and pause returns", async () => {
+    login();
+    mockApi(() =>
+      json({
+        date: "2026-10-16",
+        birthdaysToday: 0,
+        overdueReceivables: 0,
+        pendingFinalization: 0,
+        overdueLeadTasks: 2,
+        snoozedContactsDue: 1,
+        pauseReturnsDue: 3,
+      }),
+    );
+    renderApp();
+    const bell = await screen.findByRole("button", {
+      name: "Notificações: 6 pendências",
+    });
+    fireEvent.click(bell);
+    const panel = screen.getByRole("dialog", { name: "Notificações" });
+    expect(
+      within(panel).getByRole("button", {
+        name: /Contatos adiados para retomar/,
+      }),
+    ).toHaveTextContent("1");
+    expect(
+      within(panel).getByRole("button", {
+        name: /Retornos de pausa previstos/,
+      }),
+    ).toHaveTextContent("3");
+    const tasks = within(panel).getByRole("button", {
+      name: /Tarefas comerciais vencidas/,
+    });
+    expect(tasks).toHaveTextContent("2");
+    fireEvent.click(tasks);
+    expect(await screen.findByTestId("location")).toHaveTextContent(
+      "/comercial",
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /^Notificações/ }));
+    fireEvent.click(
+      within(screen.getByRole("dialog", { name: "Notificações" })).getByRole(
+        "button",
+        { name: /Contatos adiados para retomar/ },
+      ),
+    );
+    expect(screen.getByTestId("location")).toHaveTextContent("/relacionamento");
+
+    fireEvent.click(screen.getByRole("button", { name: /^Notificações/ }));
+    fireEvent.click(
+      within(screen.getByRole("dialog", { name: "Notificações" })).getByRole(
+        "button",
+        { name: /Retornos de pausa previstos/ },
+      ),
+    );
+    expect(screen.getByTestId("location")).toHaveTextContent("/planos");
+  });
+
+  it("asks to restock products and opens the stock tab", async () => {
+    login();
+    mockApi(() =>
+      json({
+        date: "2026-10-16",
+        pendingFinalization: 0,
+        lowStockProducts: 4,
+      }),
+    );
+    renderApp();
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Notificações: 4 pendências",
+      }),
+    );
+    const restock = within(
+      screen.getByRole("dialog", { name: "Notificações" }),
+    ).getByRole("button", { name: /Estoque para repor/ });
+    expect(restock).toHaveTextContent("4");
+    fireEvent.click(restock);
+    expect(await screen.findByTestId("location")).toHaveTextContent("/vendas");
   });
 
   it("only shows the groups of the modules the user can see", async () => {
@@ -194,6 +299,10 @@ describe("header menus", () => {
         birthdaysToday: 5,
         overdueReceivables: 7,
         pendingFinalization: 1,
+        overdueLeadTasks: 4,
+        snoozedContactsDue: 2,
+        pauseReturnsDue: 6,
+        lowStockProducts: 3,
       }),
     );
     renderApp();
@@ -209,6 +318,9 @@ describe("header menus", () => {
     ).toBeVisible();
     expect(panel).not.toHaveTextContent("Parcelas vencidas");
     expect(panel).not.toHaveTextContent("Aniversariantes");
+    expect(panel).not.toHaveTextContent("Tarefas comerciais");
+    expect(panel).not.toHaveTextContent("Contatos adiados");
+    expect(panel).not.toHaveTextContent("Retornos de pausa");
   });
 
   it("does not ask for notifications without agenda, finance or relationship", async () => {
@@ -230,32 +342,292 @@ describe("header menus", () => {
     ).toBe(false);
   });
 
-  it("opens the user menu with profile data, settings and logout", async () => {
+  it("keeps profile, settings and logout in the sidebar", async () => {
     login();
     vi.mocked(fetch).mockImplementation(
       async () => ({ ok: true, status: 200, json: async () => [] }) as Response,
     );
     renderApp();
+    const header = await screen.findByRole("banner");
+    expect(
+      within(header).queryByRole("button", { name: "Menu do usuário" }),
+    ).not.toBeInTheDocument();
+    const sidebar = screen.getByRole("complementary");
+    expect(
+      within(sidebar).getByRole("link", { name: "Meu perfil" }),
+    ).toHaveAttribute("href", "/perfil");
     fireEvent.click(
-      await screen.findByRole("button", { name: "Menu do usuário" }),
-    );
-    const panel = screen.getByRole("dialog", { name: "Menu do usuário" });
-    expect(panel).toHaveTextContent("admin@movimenta.local");
-    fireEvent.click(
-      within(panel).getByRole("button", { name: "Configurações" }),
+      within(sidebar).getByRole("link", { name: "Configurações" }),
     );
     expect(
       await screen.findByRole("heading", { level: 1, name: /Configurações/ }),
     ).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Menu do usuário" }));
     fireEvent.click(
-      within(screen.getByRole("dialog", { name: "Menu do usuário" })).getByRole(
-        "button",
-        { name: "Sair" },
-      ),
+      within(sidebar).getByRole("button", { name: "Sair: Aryana Dutra" }),
     );
     await vi.waitFor(() =>
       expect(localStorage.getItem("crm.auth.token")).toBeNull(),
     );
+  });
+});
+
+describe("notification banner, alerts and settings", () => {
+  const summary = {
+    date: "2026-10-16",
+    birthdaysToday: 2,
+    overdueReceivables: 3,
+    pendingFinalization: 1,
+  };
+
+  it("highlights the chosen groups in a fixed header alert without a close button", async () => {
+    sessionStorage.clear();
+    login();
+    mockApi(() => json(summary));
+    renderApp();
+    const banner = await screen.findByRole("region", { name: "Alertas" });
+    expect(banner).toHaveTextContent("4 pendências pedem atenção");
+    // Padrão: parcelas vencidas e atendimentos a finalizar em destaque; aniversários não.
+    expect(
+      within(banner).getByRole("button", { name: /Parcelas vencidas/ }),
+    ).toHaveTextContent("3");
+    expect(banner).not.toHaveTextContent("Aniversariantes");
+    expect(
+      screen.getByRole("button", { name: "Notificações: 6 pendências" }),
+    ).toHaveClass("is-alerting");
+
+    fireEvent.click(
+      within(banner).getByRole("button", { name: /Atendimentos a finalizar/ }),
+    );
+    expect(screen.getByTestId("location")).toHaveTextContent(
+      "/agenda/a-finalizar",
+    );
+
+    // Fica fixo no cabeçalho, sem botão de fechar.
+    const fixed = screen.getByRole("region", { name: "Alertas" });
+    expect(screen.getByRole("banner")).toContainElement(fixed);
+    expect(
+      within(fixed).queryByRole("button", { name: "Dispensar alertas" }),
+    ).not.toBeInTheDocument();
+    sessionStorage.clear();
+  });
+
+  it("follows the saved preferences: hidden groups and no banner", async () => {
+    sessionStorage.clear();
+    login();
+    mockApi(() => json(summary), undefined, {
+      ...defaultNotificationPreferences,
+      hiddenKinds: ["birthdays"],
+      showBanner: false,
+    });
+    renderApp();
+    expect(
+      await screen.findByRole("button", { name: "Notificações: 4 pendências" }),
+    ).toBeVisible();
+    expect(
+      screen.queryByRole("region", { name: "Alertas" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("saves the user's settings and applies them right away", async () => {
+    sessionStorage.clear();
+    login();
+    mockApi(() => json(summary));
+    renderApp();
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Notificações: 6 pendências" }),
+    );
+    fireEvent.click(
+      within(screen.getByRole("dialog", { name: "Notificações" })).getByRole(
+        "button",
+        { name: "Configurar" },
+      ),
+    );
+    const modal = await screen.findByRole("dialog", {
+      name: "Configurar notificações",
+    });
+    // Só os grupos dos módulos do usuário (admin vê todos).
+    expect(
+      within(modal).getByRole("checkbox", {
+        name: "Destacar Recibos não assinados no topo da tela",
+      }),
+    ).toBeChecked();
+    expect(
+      within(modal).getByRole("checkbox", {
+        name: "Mostrar Campanhas automáticas no sino",
+      }),
+    ).toBeChecked();
+    fireEvent.click(
+      within(modal).getByRole("checkbox", {
+        name: "Mostrar Parcelas vencidas no sino",
+      }),
+    );
+    expect(
+      within(modal).getByRole("checkbox", {
+        name: "Destacar Parcelas vencidas no topo da tela",
+      }),
+    ).toBeDisabled();
+    fireEvent.click(
+      within(modal).getByRole("checkbox", {
+        name: "Destacar Aniversariantes de hoje no topo da tela",
+      }),
+    );
+    fireEvent.click(
+      within(modal).getByRole("checkbox", {
+        name: "Tocar um som quando surgir uma pendência nova",
+      }),
+    );
+    fireEvent.change(
+      within(modal).getByRole("combobox", {
+        name: /Conferir novas pendências a cada/,
+      }),
+      { target: { value: "15" } },
+    );
+    fireEvent.click(
+      within(modal).getByRole("button", { name: "Salvar preferências" }),
+    );
+    await vi.waitFor(() =>
+      expect(
+        screen.queryByRole("dialog", { name: "Configurar notificações" }),
+      ).not.toBeInTheDocument(),
+    );
+    const saved = vi
+      .mocked(fetch)
+      .mock.calls.find(
+        ([input, init]) =>
+          String(input).includes("/notifications/preferences") &&
+          init?.method === "PUT",
+      );
+    expect(JSON.parse(String(saved?.[1]?.body))).toEqual({
+      hiddenKinds: ["overdueReceivables"],
+      highlightedKinds: [
+        "overdueReceivables",
+        "unsignedReceipts",
+        "pendingFinalization",
+        "groupVacancies",
+        "overdueLeadTasks",
+        "birthdays",
+      ],
+      showBanner: true,
+      showToasts: true,
+      playSound: true,
+      refreshMinutes: 15,
+    });
+    expect(
+      await screen.findByRole("button", { name: "Notificações: 3 pendências" }),
+    ).toBeVisible();
+    const banner = screen.getByRole("region", { name: "Alertas" });
+    expect(banner).toHaveTextContent("Aniversariantes de hoje");
+    expect(banner).not.toHaveTextContent("Parcelas vencidas");
+  });
+
+  it("shows the clients who have not signed the receipt in the bell and in the banner", async () => {
+    login();
+    mockApi(() =>
+      json({ date: "2026-10-16", overdueReceivables: 0, unsignedReceipts: 2 }),
+    );
+    renderApp();
+    const bell = await screen.findByRole("button", {
+      name: "Notificações: 2 pendências",
+    });
+    // Destacado por padrão: entra também na faixa de alertas.
+    const banner = screen.getByRole("region", { name: "Alertas" });
+    expect(
+      within(banner).getByRole("button", { name: /Recibos não assinados/ }),
+    ).toHaveAccessibleDescription("2 clientes ainda não assinaram o recibo");
+    fireEvent.click(bell);
+    const panel = screen.getByRole("dialog", { name: "Notificações" });
+    const group = within(panel).getByRole("button", {
+      name: /Recibos não assinados/,
+    });
+    expect(group).toHaveTextContent("2 clientes ainda não assinaram o recibo");
+    expect(group).toHaveTextContent("2");
+    fireEvent.click(group);
+    expect(screen.getByTestId("location")).toHaveTextContent(
+      "/financeiro?recibo=nao-assinado",
+    );
+  });
+
+  it("leaves the receipt reminder out when the API does not send it", async () => {
+    login();
+    mockApi(() => json({ date: "2026-10-16", overdueReceivables: 1 }));
+    renderApp();
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Notificações: 1 pendência" }),
+    );
+    expect(
+      within(screen.getByRole("dialog", { name: "Notificações" })).queryByRole(
+        "button",
+        { name: /Recibos não assinados/ },
+      ),
+    ).not.toBeInTheDocument();
+  });
+
+  it("warns on screen when a new pending item shows up", async () => {
+    sessionStorage.clear();
+    login();
+    let overdue = 1;
+    mockApi(() => json({ date: "2026-10-16", overdueReceivables: overdue }));
+    renderApp();
+    const bell = await screen.findByRole("button", {
+      name: "Notificações: 1 pendência",
+    });
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    overdue = 3;
+    // Abrir o sino confere de novo.
+    fireEvent.click(bell);
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("Nova pendência");
+    expect(alert).toHaveTextContent("Parcelas vencidas: 3");
+    fireEvent.click(within(alert).getByRole("button", { name: "Ver" }));
+    expect(screen.getByTestId("location")).toHaveTextContent("/financeiro");
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("stays quiet when on-screen warnings are turned off", async () => {
+    sessionStorage.clear();
+    login();
+    let overdue = 1;
+    mockApi(
+      () => json({ date: "2026-10-16", overdueReceivables: overdue }),
+      undefined,
+      { ...defaultNotificationPreferences, showToasts: false },
+    );
+    renderApp();
+    const bell = await screen.findByRole("button", {
+      name: "Notificações: 1 pendência",
+    });
+    overdue = 3;
+    fireEvent.click(bell);
+    expect(
+      await screen.findByRole("button", { name: "Notificações: 3 pendências" }),
+    ).toBeVisible();
+    expect(screen.queryByText("Nova pendência")).not.toBeInTheDocument();
+  });
+
+  it("opens and closes the collapsible side menu used on phones", async () => {
+    login();
+    vi.mocked(fetch).mockImplementation(
+      async () => ({ ok: true, status: 200, json: async () => [] }) as Response,
+    );
+    const { container } = renderApp();
+    const toggle = await screen.findByRole("button", { name: "Abrir menu" });
+    const shell = container.querySelector(".app-shell");
+    expect(toggle).toHaveAttribute("aria-controls", "main-sidebar");
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    expect(shell).toHaveClass("menu-open");
+    fireEvent.click(screen.getByRole("button", { name: "Fechar menu" }));
+    expect(shell).not.toHaveClass("menu-open");
+
+    fireEvent.click(toggle);
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(shell).not.toHaveClass("menu-open");
+
+    fireEvent.click(toggle);
+    const sidebar = screen.getByRole("complementary");
+    fireEvent.click(within(sidebar).getByRole("link", { name: "Agenda" }));
+    expect(shell).not.toHaveClass("menu-open");
   });
 });

@@ -10,6 +10,10 @@ import { describe, expect, it, vi } from "vitest";
 import App from "../../App";
 import { storedUser } from "../../test-support/legacy-fixtures";
 import "../../test-support/legacy-setup";
+import {
+  isLeadBoardUrl,
+  leadBoardResponse,
+} from "../../test-support/lead-board";
 
 function catalog(names: string[]) {
   return names.map((name, index) => ({
@@ -61,8 +65,8 @@ describe("lead origin and interest selects", () => {
         ? catalog(["Instagram", "Indicação", "Inativo"])
         : url.endsWith("/clinic-catalogs/interest")
           ? catalog(["Pilates", "Dançaterapia"])
-          : url.endsWith("/leads")
-            ? [legacy]
+          : isLeadBoardUrl(url)
+            ? leadBoardResponse(url, [legacy])
             : [];
       return { ok: true, status: 200, json: async () => body } as Response;
     });

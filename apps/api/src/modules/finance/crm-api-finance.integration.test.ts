@@ -1,3 +1,4 @@
+import { withAppointmentPlan } from "../../test-support/appointment-plan.js";
 import { saoPauloToday } from "@crm/contracts";
 import { describe, expect, it, vi } from "vitest";
 import {
@@ -10,6 +11,7 @@ import {
 } from "../../test-support/legacy-fixtures.js";
 import "../../test-support/legacy-setup.js";
 import { patchStatusAt } from "../../test-support/clock.js";
+import { salariedEmployeeViaApi } from "../../test-support/payroll-users.js";
 
 describe("CRM API", () => {
   it("links users to agenda professionals and sets their commission rule, owner only", async () => {
@@ -362,11 +364,54 @@ describe("CRM API", () => {
       app.inject({ method: "GET", url: "/rooms", headers }),
       app.inject({ method: "GET", url: "/services", headers }),
     ]);
-    const service = services.json()[0] as { id: string; priceInCents: number };
+    const service = services.json()[0] as { id: string };
+    // Serviço não tem preço: a base da comissão sem plano é a sessão do plano avulso.
+    const singlePlan = await app.inject({
+      method: "POST",
+      url: "/plan-templates",
+      headers,
+      payload: {
+        name: "Sessão avulsa",
+        totalValueInCents: 18000,
+        planType: "single",
+        kind: "single",
+        services: [
+          { serviceId: service.id, totalSessions: 1, totalValueInCents: 18000 },
+        ],
+      },
+    });
+    expect(singlePlan.statusCode).toBe(201);
     const completedAppointment = async (
       professionalId: string,
       startsAt: string,
     ) => {
+      // A comissão sai do valor pago: o cliente compra a sessão avulsa do dia (R$ 180).
+      const day = startsAt.slice(0, 10);
+      const sold = await app.inject({
+        method: "POST",
+        url: "/plans",
+        headers,
+        payload: {
+          patientId: patients.json()[0].id,
+          planTemplateId: singlePlan.json().id,
+          name: "Sessão avulsa",
+          kind: "single",
+          totalValueInCents: 18000,
+          services: [
+            {
+              serviceId: service.id,
+              totalSessions: 1,
+              totalValueInCents: 18000,
+            },
+          ],
+          installments: 1,
+          firstDueDate: day,
+          validFrom: day,
+          validUntil: day,
+          autoRenew: false,
+        },
+      });
+      expect(sold.statusCode).toBe(201);
       const created = await app.inject({
         method: "POST",
         url: "/appointments",
@@ -377,9 +422,10 @@ describe("CRM API", () => {
           roomId: rooms.json()[0].id,
           serviceId: service.id,
           startsAt,
+          planId: sold.json().id,
         },
       });
-      expect(created.statusCode).toBe(201);
+      expect(created.statusCode, created.body).toBe(201);
       const done = await patchStatusAt(
         app,
         headers,
@@ -448,7 +494,7 @@ describe("CRM API", () => {
     );
     const unlinkedProfessional = await completedAppointment(
       other,
-      "2031-05-20T15:00:00.000Z",
+      "2031-05-21T15:00:00.000Z",
     );
 
     const generate = () =>
@@ -477,14 +523,15 @@ describe("CRM API", () => {
     expect(entries.get(withUserRule)).toMatchObject({
       professionalId: ana,
       percentage: 35,
-      amountInCents: Math.round((service.priceInCents * 35) / 100),
+      amountInCents: Math.round((18000 * 35) / 100),
     });
     expect(entries.get(unlinkedProfessional)).toMatchObject({
       professionalId: other,
       percentage: 20,
     });
 
-    // Gerar de novo não duplica nem recalcula.
+    // Regra retroativa do usuário (desde 01/05) recalcula o lançamento de 06/05 na gravação;
+    // o de 20/05 segue com a regra de 15/05, mais recente. Gerar de novo não duplica.
     await app.inject({
       method: "PUT",
       url: `/admin/users/${user.json().id}/commission`,
@@ -494,7 +541,11 @@ describe("CRM API", () => {
     const second = await generate();
     expect(second.json()).toHaveLength(3);
     expect(byAppointment(second.json()).get(beforeUserRule)).toMatchObject({
-      percentage: 10,
+      percentage: 50,
+      amountInCents: Math.round((18000 * 50) / 100),
+    });
+    expect(byAppointment(second.json()).get(withUserRule)).toMatchObject({
+      percentage: 35,
     });
 
     // A regra de 15/05 já gerou lançamento: corrigir o percentual dela é bloqueado.
@@ -510,17 +561,25 @@ describe("CRM API", () => {
       message:
         "Esta comissão já foi usada em lançamentos; escolha outra data de início.",
     });
-    // A regra de 01/05 (sem lançamentos) ainda pode ser corrigida.
-    const correctable = await app.inject({
+    // A de 01/05 também passou a ter lançamento (o recálculo de 06/05): corrigir pede outra
+    // data de início, que recalcula de novo.
+    const usedByRecalculation = await app.inject({
       method: "PUT",
       url: `/admin/users/${user.json().id}/commission`,
       headers,
       payload: { percentage: 45, effectiveFrom: "2031-05-01" },
     });
+    expect(usedByRecalculation.statusCode).toBe(409);
+    const correctable = await app.inject({
+      method: "PUT",
+      url: `/admin/users/${user.json().id}/commission`,
+      headers,
+      payload: { percentage: 45, effectiveFrom: "2031-05-02" },
+    });
     expect(correctable.statusCode).toBe(200);
-    expect(
-      byAppointment((await generate()).json()).get(withUserRule),
-    ).toMatchObject({ percentage: 35 });
+    const corrected = byAppointment((await generate()).json());
+    expect(corrected.get(withUserRule)).toMatchObject({ percentage: 35 });
+    expect(corrected.get(beforeUserRule)).toMatchObject({ percentage: 45 });
     await app.close();
   });
 
@@ -644,6 +703,80 @@ describe("CRM API", () => {
       commissionPercentage: 30,
       commissionEffectiveFrom: "2021-01-01",
     });
+    await app.close();
+  });
+
+  it("returns the client contact of a receivable to finance users only", async () => {
+    const { app, token } = await authenticatedApp();
+    const headers = { authorization: `Bearer ${token}` };
+    const clinicId = "11111111-1111-4111-8111-111111111111";
+    await seedRoleUsers(app);
+    const headersAs = (role: UserRole) => ({
+      authorization: `Bearer ${app.jwt.sign({ sub: roleSub(app, role), clinicId, role: tokenRole(role) })}`,
+    });
+    const [patientsResponse, servicesResponse] = await Promise.all([
+      app.inject({ method: "GET", url: "/patients", headers }),
+      app.inject({ method: "GET", url: "/services", headers }),
+    ]);
+    const patient = patientsResponse.json()[0];
+    const service = servicesResponse.json()[0];
+    const date = saoPauloToday();
+    const plan = await app.inject({
+      method: "POST",
+      url: "/plans",
+      headers,
+      payload: await configuredPlan(app, {
+        services: [
+          { serviceId: service.id, totalSessions: 1, totalValueInCents: 9_000 },
+        ],
+        patientId: patient.id,
+        serviceId: service.id,
+        name: "Plano para cobrança",
+        kind: "fixed_package",
+        totalSessions: 1,
+        validFrom: date,
+        totalValueInCents: 9_000,
+        installments: 1,
+        firstDueDate: date,
+      }),
+    });
+    expect(plan.statusCode).toBe(201);
+    const workspace = await app.inject({
+      method: "GET",
+      url: "/finance/workspace",
+      headers,
+    });
+    const receivable = workspace
+      .json()
+      .summary.receivables.find(
+        (item: { patientId: string }) => item.patientId === patient.id,
+      );
+    const contact = await app.inject({
+      method: "GET",
+      url: `/finance/receivables/${receivable.id}/contact`,
+      headers: headersAs("finance"),
+    });
+    expect(contact.statusCode).toBe(200);
+    expect(contact.json()).toEqual({
+      receivableId: receivable.id,
+      patientId: patient.id,
+      patientName: patient.fullName,
+      phone: patient.phone,
+      ...(patient.whatsapp ? { whatsapp: patient.whatsapp } : {}),
+    });
+    const missing = await app.inject({
+      method: "GET",
+      url: "/finance/receivables/99999999-9999-4999-8999-999999999999/contact",
+      headers,
+    });
+    expect(missing.statusCode).toBe(404);
+    expect(missing.json().code).toBe("RECEIVABLE_NOT_FOUND");
+    const denied = await app.inject({
+      method: "GET",
+      url: `/finance/receivables/${receivable.id}/contact`,
+      headers: headersAs("physiotherapist"),
+    });
+    expect(denied.statusCode).toBe(403);
     await app.close();
   });
 
@@ -879,13 +1012,17 @@ describe("CRM API", () => {
         method: "POST",
         url: "/appointments",
         headers,
-        payload: {
-          patientId: patients.json()[0].id,
-          professionalId: professionals.json()[0].id,
-          roomId: rooms.json()[0].id,
-          serviceId: services.json()[0].id,
-          startsAt: "2031-03-10T13:00:00.000Z",
-        },
+        payload: await withAppointmentPlan(
+          app,
+          {
+            patientId: patients.json()[0].id,
+            professionalId: professionals.json()[0].id,
+            roomId: rooms.json()[0].id,
+            serviceId: services.json()[0].id,
+            startsAt: "2031-03-10T13:00:00.000Z",
+          },
+          headers,
+        ),
       });
       expect(appointment.statusCode).toBe(201);
       await app.inject({
@@ -921,11 +1058,34 @@ describe("CRM API", () => {
         headers,
       });
       expect(reversed.statusCode).toBe(200);
+      // A comissão é paga pela folha: a despesa da folha sai em dinheiro.
       at("2031-03-11T02:40:00.000Z");
+      const employeeId = await salariedEmployeeViaApi(app, headers, {
+        name: "Profissional do caixa",
+        professionalId: professionals.json()[0].id,
+        salaryInCents: null,
+      });
+      const launched = await app.inject({
+        method: "POST",
+        url: "/finance/payroll/launch",
+        headers,
+        payload: {
+          competence: "2031-03",
+          employeeIds: [employeeId],
+          dueDate: "2031-03-10",
+          categoryId: workspace
+            .json()
+            .categories.find(
+              (item: { kind: string }) => item.kind === "expense",
+            ).id,
+        },
+      });
+      expect(launched.statusCode).toBe(201);
       const commissionPaid = await app.inject({
         method: "POST",
-        url: `/finance/commissions/${commission.id}/pay`,
+        url: `/finance/payables/${launched.json().payables[0].id}/pay`,
         headers,
+        payload: { paymentMethod: "cash" },
       });
       expect(commissionPaid.statusCode).toBe(200);
 
@@ -964,7 +1124,7 @@ describe("CRM API", () => {
           balanceInCents: 0,
         },
         {
-          paymentMethod: "unspecified",
+          paymentMethod: "cash",
           inflowInCents: 0,
           outflowInCents: commission.amountInCents,
           balanceInCents: -commission.amountInCents,
@@ -979,7 +1139,7 @@ describe("CRM API", () => {
         ["receipt", 12_000],
         ["payable", 4_000],
         ["receipt_reversal", -12_000],
-        ["commission", commission.amountInCents],
+        ["payable", commission.amountInCents],
       ]);
       expect(cash.movements[2]).toMatchObject({
         occurredAt: "2031-03-11T02:30:00.000Z",
@@ -1202,6 +1362,84 @@ describe("CRM API", () => {
       });
       expect(denied.statusCode).toBe(403);
       await app.close();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("accepts a fixed expense without cost center and generates its bills without one", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-10T15:00:00.000Z"));
+    try {
+      const { app, token } = await authenticatedApp();
+      const headers = { authorization: `Bearer ${token}` };
+      const workspace = async () =>
+        (
+          await app.inject({
+            method: "GET",
+            url: "/finance/workspace",
+            headers,
+          })
+        ).json();
+      const before = await workspace();
+      const category = before.categories.find(
+        (item: { kind: string }) => item.kind === "expense",
+      );
+      const base = {
+        description: "Faxina mensal",
+        categoryId: category.id,
+        amountInCents: 30_000,
+        dayOfMonth: 15,
+        startMonth: "2026-10",
+      };
+      const created = await app.inject({
+        method: "POST",
+        url: "/finance/recurring-payables",
+        headers,
+        payload: base,
+      });
+      expect(created.statusCode).toBe(201);
+      expect(created.json()).not.toHaveProperty("costCenterId");
+      expect(created.json().costCenterName).toBe("");
+      const model = created.json() as { id: string };
+
+      const bill = (await workspace()).payables.find(
+        (item: { recurringPayableId?: string }) =>
+          item.recurringPayableId === model.id,
+      );
+      expect(bill).toMatchObject({
+        competence: "2026-10",
+        amountInCents: 30_000,
+      });
+      expect(bill).not.toHaveProperty("costCenterId");
+
+      // Informado, o centro precisa existir; e dá para tirá-lo de novo na edição.
+      const unknown = await app.inject({
+        method: "PUT",
+        url: `/finance/recurring-payables/${model.id}`,
+        headers,
+        payload: {
+          ...base,
+          costCenterId: "99999999-9999-4999-8999-999999999999",
+        },
+      });
+      expect(unknown.statusCode).toBe(404);
+      const withCenter = await app.inject({
+        method: "PUT",
+        url: `/finance/recurring-payables/${model.id}`,
+        headers,
+        payload: { ...base, costCenterId: before.costCenters[0].id },
+      });
+      expect(withCenter.statusCode).toBe(200);
+      expect(withCenter.json().costCenterId).toBe(before.costCenters[0].id);
+      const without = await app.inject({
+        method: "PUT",
+        url: `/finance/recurring-payables/${model.id}`,
+        headers,
+        payload: base,
+      });
+      expect(without.statusCode).toBe(200);
+      expect(without.json()).not.toHaveProperty("costCenterId");
     } finally {
       vi.useRealTimers();
     }
@@ -1551,13 +1789,17 @@ describe("CRM API", () => {
       method: "POST",
       url: "/appointments",
       headers,
-      payload: {
-        patientId: patients.json()[0].id,
-        professionalId: professionals.json()[0].id,
-        roomId: rooms.json()[0].id,
-        serviceId: services.json()[0].id,
-        startsAt,
-      },
+      payload: await withAppointmentPlan(
+        app,
+        {
+          patientId: patients.json()[0].id,
+          professionalId: professionals.json()[0].id,
+          roomId: rooms.json()[0].id,
+          serviceId: services.json()[0].id,
+          startsAt,
+        },
+        headers,
+      ),
     });
     const completed = await patchStatusAt(
       app,
@@ -1591,12 +1833,13 @@ describe("CRM API", () => {
     });
     expect(first.json()).toHaveLength(1);
     expect(second.json()).toHaveLength(1);
+    // Pagar comissão avulsa foi substituído pela folha de pagamento.
     const paid = await app.inject({
       method: "POST",
       url: `/finance/commissions/${first.json()[0].id}/pay`,
       headers,
     });
-    expect(paid.json().status).toBe("paid");
+    expect(paid.json().code).toBe("COMMISSION_PAID_BY_PAYROLL");
     workspace = await app.inject({
       method: "GET",
       url: "/finance/workspace",
@@ -1625,7 +1868,6 @@ describe("CRM API", () => {
         costInCents: 2000,
         salePriceInCents: 4500,
         initialStock: 5,
-        minimumStock: 2,
       },
     });
     expect(product.statusCode).toBe(201);
@@ -1700,7 +1942,7 @@ describe("CRM API", () => {
     expect(soldReport.json().current).toMatchObject({
       grossSalesInCents: 9000,
       netSalesInCents: 9000,
-      receivedInCents: 9000,
+      payment: { paidInCents: 9000, openInCents: 0, overdueInCents: 0 },
     });
     const paidCancellation = await app.inject({
       method: "POST",
@@ -1745,8 +1987,10 @@ describe("CRM API", () => {
     expect(cancelledReport.json().current).toMatchObject({
       grossSalesInCents: 9000,
       cancelledSalesInCents: 9000,
+      cancelledInPeriodSalesInCents: 9000,
       netSalesInCents: 0,
-      receivedInCents: 0,
+      // Conta da comanda cancelada sai da situação de pagamento.
+      payment: { paidInCents: 0, openInCents: 0, overdueInCents: 0 },
     });
     const duplicateCancellation = await app.inject({
       method: "POST",

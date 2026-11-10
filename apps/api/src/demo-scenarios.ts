@@ -5,6 +5,7 @@ import type {
   GroupEnrollment,
   GroupSession,
   PatientPlan,
+  PlanTemplate,
   Professional,
   Receivable,
   Room,
@@ -13,6 +14,7 @@ import type {
 } from "@crm/contracts";
 import { groupClassName } from "@crm/contracts";
 import { demoPatients } from "./demo-patients.js";
+import { createSignatureToken } from "./modules/signatures/signature-evidence.js";
 
 export const demoClinicId = "11111111-1111-4111-8111-111111111111";
 export const demoUserId = "22222222-2222-4222-8222-222222222222";
@@ -34,15 +36,15 @@ const stamp = (offset: number, hour = 12) =>
   `${date(offset)}T${String(hour).padStart(2, "0")}:00:00-03:00`;
 
 // Vínculos realistas (QM3): Dançaterapia com Clara na Sala de Dança, Pilates com Beatriz na
-// Sala Pilates; Depilação e Massoterapia com Carolina na Sala Estética.
+// Sala Pilates; Depilação e Massoterapia com Carolina na Sala Estética. No painel, Depilação é
+// Estética e Massoterapia fica sem classificação ("Outros").
 export const demoServices: Service[] = [
   {
     id: id(1, 1),
     clinicId: demoClinicId,
     name: "Dançaterapia",
+    businessLine: "studio",
     durationMinutes: 60,
-    priceInCents: 7500,
-    color: "#9a6bc4",
     professionalIds: [id(2, 1)],
     roomIds: [id(3, 1)],
     active: true,
@@ -51,9 +53,8 @@ export const demoServices: Service[] = [
     id: id(1, 2),
     clinicId: demoClinicId,
     name: "Pilates individual",
+    businessLine: "studio",
     durationMinutes: 50,
-    priceInCents: 15000,
-    color: "#6699a1",
     professionalIds: [id(2, 2)],
     roomIds: [id(3, 2)],
     active: true,
@@ -62,9 +63,8 @@ export const demoServices: Service[] = [
     id: id(1, 3),
     clinicId: demoClinicId,
     name: "Depilação pernas",
+    businessLine: "aesthetics",
     durationMinutes: 45,
-    priceInCents: 12000,
-    color: "#db8290",
     professionalIds: [id(2, 3)],
     roomIds: [id(3, 3)],
     active: true,
@@ -73,9 +73,8 @@ export const demoServices: Service[] = [
     id: id(1, 4),
     clinicId: demoClinicId,
     name: "Depilação axilas",
+    businessLine: "aesthetics",
     durationMinutes: 30,
-    priceInCents: 5500,
-    color: "#e7a16f",
     professionalIds: [id(2, 3)],
     roomIds: [id(3, 3)],
     active: true,
@@ -84,14 +83,39 @@ export const demoServices: Service[] = [
     id: id(1, 5),
     clinicId: demoClinicId,
     name: "Massoterapia",
+    businessLine: null,
     durationMinutes: 60,
-    priceInCents: 17000,
-    color: "#89a96b",
     professionalIds: [id(2, 3)],
     roomIds: [id(3, 3)],
     active: true,
   },
 ];
+/** Serviço não tem preço: a sessão avulsa de cada serviço é vendida como plano avulso. */
+export const demoPlanTemplates: PlanTemplate[] = (
+  [
+    [1, 7500],
+    [2, 15000],
+    [3, 12000],
+    [4, 5500],
+    [5, 17000],
+  ] as const
+).map(([number, value]) => {
+  const service = demoServices[number - 1]!;
+  return {
+    id: id(13, number),
+    clinicId: demoClinicId,
+    name: `${service.name} (avulso)`,
+    totalValueInCents: value,
+    services: [
+      { serviceId: service.id, totalSessions: 1, totalValueInCents: value },
+    ],
+    planType: "single",
+    kind: "single",
+    active: true,
+    createdAt: "2026-01-01T12:00:00.000Z",
+    updatedAt: "2026-01-01T12:00:00.000Z",
+  };
+});
 export const demoProfessionals: Professional[] = [
   {
     id: id(2, 1),
@@ -152,12 +176,25 @@ export type DemoFinancialEvent = {
   amountInCents: number;
   createdAt: string;
 };
+/** Recibo para assinatura de uma parcela paga da demonstração (RC3), ainda não enviado. */
+export type DemoReceiptSignature = {
+  id: string;
+  clinicId: string;
+  receivableId: string;
+  patientId: string;
+  paidAt: string;
+  amountInCents: number;
+  token: string;
+  createdAt: string;
+};
 export type DemoData = {
   plans: PatientPlan[];
   appointments: Appointment[];
   movements: SessionMovement[];
   receivables: Receivable[];
   financialEvents: DemoFinancialEvent[];
+  /** Um recibo por parcela paga, para o "Enviar recibo pelo WhatsApp". */
+  receiptSignatures: DemoReceiptSignature[];
   groups: GroupClass[];
   enrollments: GroupEnrollment[];
   sessions: GroupSession[];
@@ -535,15 +572,47 @@ export function buildDemoScenarios(): DemoData {
     session.attendanceCount = attendance.filter(
       (item) => item.sessionId === session.id,
     ).length;
+  const receiptSignatures = receivables
+    .filter((item) => item.status === "paid" && item.paidAt)
+    .map((item, index) => ({
+      id: id(14, index + 1),
+      clinicId: item.clinicId,
+      receivableId: item.id,
+      patientId: item.patientId,
+      paidAt: item.paidAt!,
+      amountInCents: item.amountInCents,
+      token: createSignatureToken(),
+      createdAt: item.paidAt!,
+    }));
   return {
     plans,
     appointments,
     movements,
     receivables,
     financialEvents,
+    receiptSignatures,
     groups,
     enrollments,
     sessions,
     attendance,
   };
 }
+
+/** Mensagens padrão de exemplo para as campanhas de WhatsApp (sem imagens). */
+export const demoMessageTemplates = [
+  {
+    id: "7e5a0c10-0000-4000-8000-000000000001",
+    title: "Convite para aula experimental",
+    body: "Olá, {{nome}}! Tudo bem? 😊\nAbrimos novos horários de *Pilates* e queremos te convidar para uma aula experimental gratuita. Quer que eu reserve um horário para você?",
+  },
+  {
+    id: "7e5a0c10-0000-4000-8000-000000000002",
+    title: "Sentimos sua falta",
+    body: "Oi, {{nome}}! Sentimos sua falta por aqui 💚\nQue tal voltar a cuidar do corpo com a gente? Esta semana temos condições especiais para retorno.",
+  },
+  {
+    id: "7e5a0c10-0000-4000-8000-000000000003",
+    title: "Aviso de feriado",
+    body: "Olá, {{nome}}! Passando para avisar que no feriado o estúdio estará fechado. Suas aulas seguem normalmente nos outros dias. Qualquer dúvida, é só chamar!",
+  },
+] as const;

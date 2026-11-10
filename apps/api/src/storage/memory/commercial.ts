@@ -2,7 +2,25 @@ import {
   leadConversionData,
   withConversionInput,
 } from "../../modules/commercial/conversion.js";
-import { findLeadDuplicates, type LeadDuplicateQuery } from "@crm/contracts";
+import {
+  countEventParticipantPlans,
+  planEventParticipants,
+} from "../../modules/commercial/event-participants.js";
+import {
+  eventLeadSource,
+  buildLeadFilterOptions,
+  buildLeadInsights,
+  findLeadDuplicates,
+  firstOpenLeadStage,
+  matchesLead,
+  mergeExtraFields,
+  resolveLeadStages,
+  type LeadDuplicateQuery,
+  type LeadFilter,
+  type LeadPage,
+  type LeadStagesInput,
+  type LeadStagePage,
+} from "@crm/contracts";
 import type {
   Lead,
   LeadActivity,
@@ -11,11 +29,17 @@ import type {
   LeadConversion,
   LeadConversionInput,
   LeadInput,
+  ExtraFields,
   LeadStage,
   LeadTask,
   LeadTaskInput,
   LeadTaskStatus,
 } from "@crm/contracts";
+import {
+  planLeadStages,
+  stageNotEmptyError,
+  stageNotFoundError,
+} from "../../modules/commercial/stages.js";
 import { DomainError } from "../../repository.js";
 import type { MemoryRepositoryContext } from "./context.js";
 import { now, uuid } from "./helpers.js";
@@ -23,10 +47,71 @@ import { now, uuid } from "./helpers.js";
 export function createCommercialRepository(
   repositoryContext: MemoryRepositoryContext,
 ) {
-  return {
+  const filteredLeads = async (
+    clinicId: string,
+    filter: LeadFilter,
+    timezone?: string,
+  ) =>
+    (await repository.listLeads(clinicId)).filter((lead) =>
+      matchesLead(lead, filter, timezone),
+    );
+  async function createLead(
+    clinicId: string,
+    input: LeadInput & { extraFields?: ExtraFields },
+  ) {
+    if (
+      input.responsibleUserId &&
+      !repositoryContext.users.some(
+        (user) =>
+          user.clinicId === clinicId && user.id === input.responsibleUserId,
+      )
+    )
+      throw new DomainError(
+        "RESPONSIBLE_USER_NOT_FOUND",
+        "Responsável não encontrado.",
+        404,
+      );
+    // Participante de evento: origem "Evento: <nome>" e a filial do evento (se tiver).
+    const event = input.eventId
+      ? repositoryContext.events.find(
+          (item) =>
+            item.clinicId === clinicId &&
+            item.id === input.eventId &&
+            (!item.branchId || repositoryContext.inBranchScope(item)),
+        )
+      : undefined;
+    if (input.eventId && !event)
+      throw new DomainError("EVENT_NOT_FOUND", "Evento não encontrado.", 404);
+    const timestamp = now();
+    const responsibleName = input.responsibleUserId
+      ? repositoryContext.users.find(
+          (user) => user.id === input.responsibleUserId,
+        )?.fullName
+      : undefined;
+    const lead: Lead = {
+      ...input,
+      ...(event ? { source: eventLeadSource(event.name) } : {}),
+      branchId: event?.branchId ?? repositoryContext.writeBranchId(clinicId),
+      id: uuid(),
+      clinicId,
+      stage: firstOpenLeadStage(await repository.listLeadStages(clinicId)),
+      ...(responsibleName ? { responsibleName } : {}),
+      openTasks: 0,
+      overdueTasks: 0,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    };
+    repositoryContext.leads.push(lead);
+    return lead;
+  }
+
+  const repository = {
     async listLeads(clinicId: string) {
       return repositoryContext.leads
-        .filter((lead) => lead.clinicId === clinicId)
+        .filter(
+          (lead) =>
+            lead.clinicId === clinicId && repositoryContext.inBranchScope(lead),
+        )
         .map((lead) => {
           const tasks = repositoryContext.leadTasks.filter(
             (task) => task.clinicId === clinicId && task.leadId === lead.id,
@@ -69,38 +154,58 @@ export function createCommercialRepository(
       );
     },
 
-    async createLead(clinicId: string, input: LeadInput) {
-      if (
-        input.responsibleUserId &&
-        !repositoryContext.users.some(
-          (user) =>
-            user.clinicId === clinicId && user.id === input.responsibleUserId,
-        )
-      )
-        throw new DomainError(
-          "RESPONSIBLE_USER_NOT_FOUND",
-          "Responsável não encontrado.",
-          404,
-        );
+    createLead,
+    async importEventParticipants(
+      clinicId: string,
+      eventId: string,
+      inputs: (LeadInput & { extraFields?: ExtraFields })[],
+    ) {
+      const patients = repositoryContext.patients
+        .filter((item) => item.clinicId === clinicId)
+        .map((item) => ({
+          ...item,
+          canonicalId: item.mergedIntoPatientId ?? item.id,
+        }));
+      const participants = repositoryContext.leads.filter(
+        (lead) => lead.clinicId === clinicId && lead.eventId === eventId,
+      );
+      const plans = planEventParticipants(inputs, patients, participants);
+      const created: Lead[] = [];
+      try {
+        for (const plan of plans) {
+          if (plan.kind === "skip") continue;
+          created.push(await createLead(clinicId, { ...plan.input, eventId }));
+        }
+      } catch (error) {
+        for (const lead of created)
+          repositoryContext.leads.splice(
+            repositoryContext.leads.indexOf(lead),
+            1,
+          );
+        throw error;
+      }
+      // Cliente já cadastrado: o participante entra ligado a ele, como um lead convertido.
       const timestamp = now();
-      const responsibleName = input.responsibleUserId
-        ? repositoryContext.users.find(
-            (user) => user.id === input.responsibleUserId,
-          )?.fullName
-        : undefined;
-      const lead: Lead = {
-        ...input,
-        id: uuid(),
-        clinicId,
-        stage: "new_contact",
-        ...(responsibleName ? { responsibleName } : {}),
-        openTasks: 0,
-        overdueTasks: 0,
-        createdAt: timestamp,
-        updatedAt: timestamp,
-      };
-      repositoryContext.leads.push(lead);
-      return lead;
+      let index = 0;
+      for (const plan of plans) {
+        if (plan.kind === "skip") continue;
+        const lead = created[index++]!;
+        if (plan.kind !== "link") continue;
+        lead.convertedPatientId = plan.patientId;
+        lead.stage = "won";
+        repositoryContext.leadConvertedAt.set(lead.id, lead.createdAt);
+        const patient = repositoryContext.patients.find(
+          (item) => item.clinicId === clinicId && item.id === plan.patientId,
+        );
+        if (patient && plan.input.extraFields) {
+          patient.extraFields = mergeExtraFields(
+            patient.extraFields,
+            plan.input.extraFields,
+          );
+          patient.updatedAt = timestamp;
+        }
+      }
+      return countEventParticipantPlans(plans);
     },
 
     async updateLead(
@@ -133,7 +238,10 @@ export function createCommercialRepository(
           "Responsável não encontrado.",
           404,
         );
-      Object.assign(lead, input, { updatedAt: now() });
+      // O vínculo com o evento é do cadastro; a edição não troca.
+      const changes: LeadInput = { ...input };
+      delete changes.eventId;
+      Object.assign(lead, changes, { updatedAt: now() });
       if (responsible) lead.responsibleName = responsible.fullName;
       else delete lead.responsibleName;
       repositoryContext.recordAudit(
@@ -170,6 +278,12 @@ export function createCommercialRepository(
           "Use a conversão para marcar o lead como ganho.",
         );
       }
+      if (
+        !(await repository.listLeadStages(clinicId)).some(
+          (item) => item.stage === stage,
+        )
+      )
+        throw stageNotFoundError();
       lead.stage = stage;
       if (stage === "lost" && lostReason) lead.lostReason = lostReason;
       else delete lead.lostReason;
@@ -208,11 +322,11 @@ export function createCommercialRepository(
       let patient = repositoryContext.patients.find(
         (item) =>
           item.clinicId === clinicId &&
-          (item.phone === lead.phone ||
+          (item.phone === source.phone ||
             Boolean(
-              lead.email &&
+              source.email &&
               item.email?.toLocaleLowerCase() ===
-                lead.email.toLocaleLowerCase(),
+                source.email.toLocaleLowerCase(),
             ) ||
             Boolean(source.cpf && item.cpf === source.cpf)),
       );
@@ -226,8 +340,15 @@ export function createCommercialRepository(
       const data = leadConversionData(source, patient);
       for (const tag of data.tags)
         repositoryContext.ensurePatientTag(clinicId, tag);
-      if (patient) Object.assign(patient, data, { updatedAt: now() });
-      else
+      if (patient) {
+        // Entrega 10: o "Outros" do lead é mesclado com o do cliente, sem apagar nada.
+        const extraFields = mergeExtraFields(
+          patient.extraFields,
+          data.extraFields,
+        );
+        Object.assign(patient, data, { updatedAt: now() });
+        if (extraFields) patient.extraFields = extraFields;
+      } else
         patient = await repositoryContext.operations.createPatient(
           clinicId,
           data,
@@ -245,6 +366,7 @@ export function createCommercialRepository(
       lead.stage = "won";
       delete lead.lostReason;
       lead.updatedAt = now();
+      repositoryContext.leadConvertedAt.set(lead.id, lead.updatedAt);
       return { lead, patient, reusedExisting };
     },
 
@@ -293,6 +415,7 @@ export function createCommercialRepository(
         clinicId,
         leadId,
         actorName: actor.fullName,
+        reached: input.reached ?? true,
         occurredAt: input.occurredAt ?? now(),
         createdAt: now(),
       };
@@ -363,5 +486,58 @@ export function createCommercialRepository(
       if (lead) repositoryContext.refreshLeadTaskStats(lead);
       return task;
     },
+
+    async listLeadStagePage(
+      clinicId: string,
+      stage: LeadStage,
+      filter: LeadFilter,
+      page: LeadPage,
+      timezone?: string,
+    ): Promise<LeadStagePage> {
+      const leads = (await filteredLeads(clinicId, filter, timezone)).filter(
+        (lead) => lead.stage === stage,
+      );
+      return {
+        stage,
+        total: leads.length,
+        overdue: leads.filter((lead) => lead.overdueTasks > 0).length,
+        leads: leads.slice(page.offset, page.offset + page.limit),
+      };
+    },
+
+    async summarizeLeads(
+      clinicId: string,
+      filter: LeadFilter,
+      timezone?: string,
+    ) {
+      return buildLeadInsights(await filteredLeads(clinicId, filter, timezone));
+    },
+
+    async listLeadFilterOptions(clinicId: string) {
+      return buildLeadFilterOptions(await repository.listLeads(clinicId));
+    },
+
+    async listLeadStages(clinicId: string) {
+      return resolveLeadStages(
+        repositoryContext.leadStages.get(clinicId) ?? [],
+      );
+    },
+
+    async saveLeadStages(clinicId: string, input: LeadStagesInput) {
+      const plan = planLeadStages(
+        await repository.listLeadStages(clinicId),
+        input,
+      );
+      // Etapas valem para a rede: conta os leads de todas as filiais.
+      for (const item of plan.mustBeEmpty) {
+        const leads = repositoryContext.leads.filter(
+          (lead) => lead.clinicId === clinicId && lead.stage === item.stage,
+        ).length;
+        if (leads) throw stageNotEmptyError(item, leads);
+      }
+      repositoryContext.leadStages.set(clinicId, plan.stages);
+      return repository.listLeadStages(clinicId);
+    },
   };
+  return repository;
 }

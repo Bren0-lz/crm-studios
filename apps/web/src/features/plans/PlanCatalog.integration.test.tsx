@@ -18,6 +18,7 @@ import {
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import App from "../../App";
+import { chooseService } from "../../test-support/workflow-ui";
 import { api } from "../../api";
 const serviceId = "77777777-7777-4777-8777-777777777777";
 const template: PlanTemplate = {
@@ -79,9 +80,8 @@ beforeEach(() => {
       clinicId: template.clinicId,
       name: "Dançaterapia",
       active: true,
+      businessLine: "studio",
       durationMinutes: 50,
-      priceInCents: 16000,
-      color: "#000000",
     },
   ]);
   vi.spyOn(api, "planTemplates").mockResolvedValue([template]);
@@ -107,15 +107,13 @@ describe("plan types and weekly sessions", () => {
     fireEvent.change(within(dialog).getByLabelText("Nome do plano"), {
       target: { value: template.name },
     });
-    fireEvent.change(within(dialog).getByLabelText("Serviço 1"), {
-      target: { value: serviceId },
-    });
+    chooseService(dialog, "Serviço 1", "Dançaterapia");
     fireEvent.change(
       within(dialog).getByLabelText("Sessões por semana do serviço 1"),
       { target: { value: "2" } },
     );
     fireEvent.change(within(dialog).getByLabelText("Valor total"), {
-      target: { value: "160" },
+      target: { value: "160,00" },
     });
     expect(
       within(dialog).getByText(/8 sessões no período/),
@@ -197,7 +195,7 @@ describe("plan types and weekly sessions", () => {
       8,
     );
     expect(within(dialog).getByLabelText("Valor do serviço 1")).toHaveValue(
-      "160,00",
+      "R$\u00a0160,00",
     );
     expect(within(dialog).getByLabelText("Fim da validade")).toHaveValue(
       "2026-11-09",
@@ -208,13 +206,17 @@ describe("plan types and weekly sessions", () => {
     expect(within(dialog).getByLabelText("Fim da validade")).toHaveValue(
       "2026-12-09",
     );
-    fireEvent.click(within(dialog).getByRole("checkbox"));
-    expect(within(dialog).getByRole("checkbox")).toBeChecked();
+    fireEvent.click(within(dialog).getByRole("checkbox", { name: /renova/i }));
+    expect(
+      within(dialog).getByRole("checkbox", { name: /renova/i }),
+    ).toBeChecked();
     fireEvent.change(within(dialog).getByLabelText("Plano cadastrado"), {
       target: { value: promo.id },
     });
     expect(within(dialog).getByLabelText("Fim da validade")).toHaveValue("");
-    expect(within(dialog).getByRole("checkbox")).not.toBeChecked();
+    expect(
+      within(dialog).getByRole("checkbox", { name: /renova/i }),
+    ).not.toBeChecked();
   });
   it("charges a recurring plan once per cycle and warns about installments after the validity", async () => {
     vi.mocked(api.planTemplates).mockResolvedValue([template]);
@@ -248,6 +250,54 @@ describe("plan types and weekly sessions", () => {
       "A última parcela vence em 10/12/2026, depois do fim da validade (09/11/2026).",
     );
   });
+  it("previews each installment of the sale with its due date and how the value is split", async () => {
+    vi.mocked(api.planTemplates).mockResolvedValue([template]);
+    page("/planos");
+    fireEvent.click(await screen.findByRole("button", { name: "Novo plano" }));
+    const dialog = screen.getByRole("dialog");
+    await waitFor(() =>
+      expect(
+        within(dialog).getByLabelText("Plano cadastrado"),
+      ).not.toBeDisabled(),
+    );
+    fireEvent.change(within(dialog).getByLabelText("Primeiro vencimento"), {
+      target: { value: "2026-10-10" },
+    });
+    fireEvent.change(within(dialog).getByLabelText("Plano cadastrado"), {
+      target: { value: template.id },
+    });
+    const preview = within(dialog)
+      .getByText("Ver parcelas")
+      .closest("details")!;
+    expect(within(preview).getByText("1 cobrança de R$ 160,00")).toBeVisible();
+    expect(preview).toHaveTextContent(
+      "Plano recorrente: as próximas cobranças são geradas a cada renovação.",
+    );
+
+    fireEvent.change(within(dialog).getByLabelText("Modelo"), {
+      target: { value: "fixed_package" },
+    });
+    fireEvent.change(within(dialog).getByLabelText("Parcelas"), {
+      target: { value: "3" },
+    });
+    expect(
+      within(preview).getByText("3 parcelas · R$ 160,00"),
+    ).toBeInTheDocument();
+    const rows = within(
+      within(preview).getByRole("list", { name: "Parcelas previstas" }),
+    ).getAllByRole("listitem");
+    expect(
+      rows.map((row) => row.querySelector(".muted-copy")?.textContent),
+    ).toEqual(["vence 10/10/2026", "vence 10/11/2026", "vence 10/12/2026"]);
+    expect(rows[0]).toHaveTextContent("Parcela 1/3");
+    expect(rows[0]).toHaveTextContent(
+      /Valor do plano \(R\$ 160,00\) ÷ 3\s*R\$\s53,33/,
+    );
+    expect(rows[0]).toHaveTextContent(
+      /Centavo do arredondamento da divisão\s*R\$\s0,01/,
+    );
+    expect(rows[1]).not.toHaveTextContent("Centavo");
+  });
   it("keeps the catalog read-only for settings viewers", async () => {
     vi.mocked(api.me).mockRestore();
     session(["settings.view"]);
@@ -274,12 +324,12 @@ describe("plan types and weekly sessions", () => {
     );
     const dialog = screen.getByRole("dialog");
     fireEvent.change(within(dialog).getByLabelText("Valor total"), {
-      target: { value: "180" },
+      target: { value: "180,00" },
     });
     fireEvent.click(
       within(dialog).getByRole("button", { name: "Salvar plano" }),
     );
     await within(dialog).findByText("Falha ao salvar");
-    expect(within(dialog).getByLabelText("Valor total")).toHaveValue("180");
+    expect(within(dialog).getByLabelText("Valor total")).toHaveValue("180,00");
   });
 });

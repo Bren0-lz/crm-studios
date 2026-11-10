@@ -2,14 +2,21 @@ import { z } from "zod";
 import type { Appointment, GroupEnrollment } from "../agenda/types.js";
 import type { BroadcastSkipReason } from "../communications/types.js";
 import type { PatientPlan } from "../plans/types.js";
+import type { IssuedDocument } from "../contracts/types.js";
+import type { WaitlistEntry } from "../waitlist/types.js";
+import type { ExtraFields } from "../common/extra-fields.js";
 import {
   clientAgeBandSchema,
   guidedPatientInputSchema,
   leadStageSchema,
   patientExportColumnSchema,
   patientExportFilterSchema,
+  patientImportFieldSchema,
   patientImportFileSchema,
+  patientImportInputSchema,
+  patientUpdateInputSchema,
   patientInputSchema,
+  patientDiscountSchema,
   patientListQuerySchema,
   patientStatusSchema,
   patientTagCategorySchema,
@@ -20,6 +27,14 @@ import {
 export type PatientStatus = z.infer<typeof patientStatusSchema>;
 
 export type PatientInput = z.infer<typeof patientInputSchema>;
+
+/** Cliente vindo da planilha: o CPF pode faltar (B6-05). */
+export type PatientImportInput = z.infer<typeof patientImportInputSchema>;
+
+/** Edição do cliente: o CPF pode seguir vazio, mas não ser apagado (B6-05). */
+export type PatientUpdateInput = z.infer<typeof patientUpdateInputSchema>;
+
+export type PatientDiscount = z.infer<typeof patientDiscountSchema>;
 
 export type PatientTagInput = z.infer<typeof patientTagInputSchema>;
 export type PatientTagCategory = z.infer<typeof patientTagCategorySchema>;
@@ -43,6 +58,15 @@ export interface PatientTag {
 
 export type PatientExportColumn = z.infer<typeof patientExportColumnSchema>;
 
+/**
+ * Um lead convertido no cliente (EN3b, coluna "Origem: evento/lead" da exportação).
+ * `patientId` já segue a mescla (cliente que ficou); `eventName` só quando o lead veio de evento.
+ */
+export interface PatientLeadOrigin {
+  patientId: string;
+  eventName?: string;
+}
+
 export type PatientExportFilter = z.infer<typeof patientExportFilterSchema>;
 
 export type GuidedPatientInput = z.infer<typeof guidedPatientInputSchema>;
@@ -56,6 +80,22 @@ export interface GuidedPatientResult {
   plan?: PatientPlan;
   /** `status: "waitlisted"` quando a turma estava cheia. */
   enrollment?: GroupEnrollment;
+  /** Documento do `plan` emitido para assinatura (quando enviado). */
+  document?: IssuedDocument;
+  /** Sessões reservadas do avulso `plan` (quando enviadas). */
+  appointments?: Appointment[];
+  /**
+   * Demais planos de `additionalPlans`, na mesma ordem, cada um com a sua matrícula, o
+   * documento emitido e as sessões reservadas.
+   */
+  additionalPlans?: {
+    plan: PatientPlan;
+    enrollment?: GroupEnrollment;
+    document?: IssuedDocument;
+    appointments?: Appointment[];
+  }[];
+  /** Entradas da Lista de espera criadas para os serviços de turma cheia (TW3). */
+  waitlistEntries?: WaitlistEntry[];
 }
 
 export type PatientListQuery = z.infer<typeof patientListQuerySchema>;
@@ -67,11 +107,40 @@ export interface PatientWithoutReturn {
   patientName: string;
   lastCompletedAt: string;
   nextAppointmentAt?: string;
+  /** Contato do cadastro, para o botão de WhatsApp da lista. */
+  phone?: string;
+  whatsapp?: string;
+  /** Tudo o que o cliente já contratou (todo o histórico, sem repetir), para o filtro da lista. */
+  contracted?: ContractedItem[];
 }
 
-export interface Patient extends PatientInput {
+/**
+ * Item já contratado pelo cliente: plano, plano avulso, produto ou serviço de comanda antiga,
+ * pelo nome da venda.
+ */
+export interface ContractedItem {
+  sourceType: "plan" | "single" | "service" | "product";
+  itemName: string;
+}
+
+export interface Patient extends Omit<
+  PatientInput,
+  "cpf" | "whatsapp" | "emergencyContactName" | "emergencyContactPhone"
+> {
+  /** Cadastros antigos e duplicados já mesclados podem não ter CPF. */
+  cpf?: string | undefined;
+  /** Cadastros antigos e importados podem estar sem WhatsApp ou contato de emergência (CD1). */
+  whatsapp?: string | undefined;
+  emergencyContactName?: string | undefined;
+  emergencyContactPhone?: string | undefined;
   inactiveAt?: string;
   mergedIntoPatientId?: string;
+  /** Data da importação pela planilha (CD3); ausente em cadastro manual. */
+  importedAt?: string;
+  /** CPF errado que veio na planilha (o cliente entrou sem CPF e com "CPF inválido"). */
+  importedInvalidCpf?: string;
+  /** Colunas "Outros" da importação (`{ título: valor }`); ausente quando não há nenhuma. */
+  extraFields?: ExtraFields | undefined;
   id: string;
   clinicId: string;
   recordNumber: string;
@@ -114,9 +183,15 @@ export type PatientTimelineKind =
   | "plan_cancelled"
   | "payment"
   | "payment_reversal"
+  /** Recibo para assinatura da baixa: enviado, 1ª visualização e assinatura do cliente. */
+  | "receipt_sent"
+  | "receipt_viewed"
+  | "receipt_signed"
   | "contact"
   | "message"
-  | "satisfaction";
+  | "satisfaction"
+  /** Edição do cadastro do cliente (diferenças e motivo, como no Histórico geral). */
+  | "patient_updated";
 
 /**
  * Evento do histórico do cliente (`GET /patients/:id/timeline`, mais recentes
@@ -162,14 +237,28 @@ export interface PatientImportRow {
   fullName: string;
   phone: string;
   /** Presente em linhas `valid` e `duplicate`. */
-  input?: PatientInput;
+  input?: PatientImportInput;
   /** Mensagens em pt-BR, presentes em linhas `error`. */
   errors?: string[];
   /** Presente em linhas `duplicate`. */
   duplicateOf?: PatientImportDuplicate;
 }
 
+export type PatientImportField = z.infer<typeof patientImportFieldSchema>;
+
+/** Coluna da planilha enviada: título do cabeçalho e até 3 valores de exemplo. */
+export interface PatientImportColumn {
+  /** Posição da coluna (0 = primeira). */
+  index: number;
+  title: string;
+  samples: string[];
+}
+
 export interface PatientImportAnalysis {
+  /** Colunas do cabeçalho, para a tela de mapeamento (vazio se o arquivo não tem cabeçalho). */
+  columns: PatientImportColumn[];
+  /** Mapeamento aplicado: `mapping[i]` é o campo da coluna `i` (`null` = não importada). */
+  mapping: (PatientImportField | null)[];
   rows: PatientImportRow[];
   /** Problemas gerais do arquivo (ex.: coluna obrigatória ausente); quando há algum, `rows` fica vazio. */
   errors: string[];
@@ -183,4 +272,6 @@ export interface PatientImportResult {
   created: number;
   skipped: number;
   errors: number;
+  /** Clientes já cadastrados cujo "Outros" foi mesclado pela reimportação (entrega 10). */
+  updated: number;
 }

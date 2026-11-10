@@ -4,7 +4,7 @@ import {
   type ClientDetailsReport,
   type PatientProfileFilter,
 } from "@crm/contracts";
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { Link } from "react-router-dom";
 import { createPortal } from "react-dom";
 import { api } from "../../api";
@@ -12,23 +12,18 @@ import { useAuthorization } from "../../authorization-context";
 import { ErrorBanner } from "../../shared/components/ErrorBanner";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
 import { EmptyState } from "../../shared/components/EmptyState";
-import { localIsoDate } from "../../shared/lib/formatting";
+import { useReportQuery, type ReportPeriod } from "./useReportQuery";
 type Filters = PatientProfileFilter & {
-  from: string;
-  to: string;
   search: string;
   status?: "active" | "inactive" | undefined;
+  discount?: "with" | "without" | undefined;
 };
-export function ClientDetailsSection() {
+export function ClientDetailsSection({ period }: { period: ReportPeriod }) {
   const { can } = useAuthorization();
-  const [opened, setOpened] = useState(false),
-    [filter, setFilter] = useState<Filters>({
-      from: `${localIsoDate().slice(0, 4)}-01-01`,
-      to: localIsoDate(),
+  const [filter, setFilter] = useState<Filters>({
       search: "",
     }),
     [applied, setApplied] = useState<Filters>(filter),
-    [report, setReport] = useState<ClientDetailsReport | null>(null),
     [columns, setColumns] = useState<ClientDetailsColumn[]>([
       "fullName",
       "recordNumber",
@@ -38,25 +33,27 @@ export function ClientDetailsSection() {
       "attendanceCount",
       "attendanceRate",
     ]),
-    [error, setError] = useState(""),
-    [busy, setBusy] = useState(false),
+    [exportError, setExportError] = useState({ period, message: "" }),
+    [exporting, setBusy] = useState(false),
     [printed, setPrinted] = useState<ClientDetailsReport | null>(null);
-  async function load() {
-    setBusy(true);
-    setError("");
-    setReport(null);
-    try {
-      const data = await api.clientDetailsReport(filter);
-      setApplied({ ...filter });
-      setReport(data);
-      setColumns((current) =>
-        current.filter((column) => data.availableColumns.includes(column)),
-      );
-    } catch (cause) {
-      setError((cause as Error).message);
-    } finally {
-      setBusy(false);
-    }
+  const loader = useCallback(
+    (from: string, to: string) =>
+      api.clientDetailsReport({ ...applied, from, to }),
+    [applied],
+  );
+  const {
+    data: report,
+    error: queryError,
+    loading,
+  } = useReportQuery(period, loader);
+  const busy = loading || exporting;
+  const error =
+    queryError || (exportError.period === period ? exportError.message : "");
+  const selectedColumns = columns.filter((column) =>
+    report?.availableColumns.includes(column),
+  );
+  function load() {
+    setApplied({ ...filter });
   }
   function display(value: string | number | boolean | undefined) {
     if (typeof value === "boolean") return value ? "Sim" : "Não";
@@ -79,7 +76,15 @@ export function ClientDetailsSection() {
           <thead>
             <tr>
               {selected.map((column) => (
-                <th scope="col" key={column}>
+                <th
+                  scope="col"
+                  className={
+                    typeof data.rows[0]?.values[column] === "number"
+                      ? "numeric-value"
+                      : undefined
+                  }
+                  key={column}
+                >
                   {clientDetailsColumnLabels[column]}
                 </th>
               ))}
@@ -89,7 +94,14 @@ export function ClientDetailsSection() {
             {data.rows.map((row) => (
               <tr key={row.id}>
                 {selected.map((column) => (
-                  <td key={column}>
+                  <td
+                    className={
+                      typeof row.values[column] === "number"
+                        ? "numeric-value"
+                        : undefined
+                    }
+                    key={column}
+                  >
                     {column === "fullName" &&
                     can("patients.view") &&
                     !printing ? (
@@ -109,124 +121,106 @@ export function ClientDetailsSection() {
     );
   }
   async function exportReport(print = false) {
-    if (!columns.length) {
-      setError("Selecione pelo menos uma coluna.");
+    if (!selectedColumns.length) {
+      setExportError({ period, message: "Selecione pelo menos uma coluna." });
       return;
     }
     setBusy(true);
-    setError("");
+    setExportError({ period, message: "" });
     try {
-      const data = await api.clientDetailsReport({ ...applied, columns }, true);
+      const input = {
+        ...applied,
+        from: period.from,
+        to: period.to,
+        columns: selectedColumns,
+      };
       if (print) {
+        const data = await api.clientDetailsReport(input, true);
         setPrinted(data);
         requestAnimationFrame(() => {
           window.print();
           setPrinted(null);
         });
       } else {
-        const escape = (value: unknown) => {
-            let text = String(value ?? "");
-            if (/^[=+@-]/.test(text)) text = "'" + text;
-            return `"${text.replaceAll('"', '""')}"`;
-          },
-          rows = [
-            data.columns.map((column) => clientDetailsColumnLabels[column]),
-            ...data.rows.map((row) =>
-              data.columns.map((column) => display(row.values[column])),
-            ),
-          ],
-          blob = new Blob(
-            [
-              "\ufeff" +
-                rows.map((row) => row.map(escape).join(";")).join("\r\n"),
-            ],
-            { type: "text/csv;charset=utf-8" },
-          ),
+        const blob = await api.clientDetailsReportXlsx(input),
           url = URL.createObjectURL(blob),
           link = document.createElement("a");
         link.href = url;
-        link.download = `clientes-${data.from}-${data.to}.csv`;
+        link.download = `clientes-${period.from}-${period.to}.xlsx`;
         link.click();
         URL.revokeObjectURL(url);
       }
     } catch (cause) {
-      setError((cause as Error).message);
+      setExportError({ period, message: (cause as Error).message });
     } finally {
       setBusy(false);
     }
   }
   return (
     <section className="panel">
-      <details
-        onToggle={(event) => {
-          if (event.currentTarget.open && !opened) {
-            setOpened(true);
+      <div className="panel-head">
+        <div>
+          <h2>Clientes, frequência, aparelhos e produtos</h2>
+          <p className="panel-context">
+            Consulte os clientes e escolha os dados que deseja exportar.
+          </p>
+        </div>
+      </div>
+      <div className="reports-body">
+        <form
+          className="form-grid"
+          onSubmit={(event) => {
+            event.preventDefault();
             void load();
-          }
-        }}
-      >
-        <summary className="panel-head">
-          Clientes, frequência, aparelhos e produtos
-        </summary>
-        {opened && (
-          <div className="inventory-body">
-            <form
-              className="form-grid"
-              onSubmit={(event) => {
-                event.preventDefault();
-                void load();
-              }}
+          }}
+        >
+          <label>
+            Buscar cliente
+            <input
+              maxLength={160}
+              value={filter.search}
+              onChange={(event) =>
+                setFilter({ ...filter, search: event.target.value })
+              }
+            />
+          </label>
+          <label>
+            Situação
+            <select
+              value={filter.status ?? ""}
+              onChange={(event) =>
+                setFilter({
+                  ...filter,
+                  status: (event.target.value ||
+                    undefined) as Filters["status"],
+                })
+              }
             >
-              <label>
-                De
-                <input
-                  required
-                  type="date"
-                  value={filter.from}
-                  onChange={(event) =>
-                    setFilter({ ...filter, from: event.target.value })
-                  }
-                />
-              </label>
-              <label>
-                Até
-                <input
-                  required
-                  type="date"
-                  min={filter.from}
-                  value={filter.to}
-                  onChange={(event) =>
-                    setFilter({ ...filter, to: event.target.value })
-                  }
-                />
-              </label>
-              <label>
-                Buscar cliente
-                <input
-                  maxLength={160}
-                  value={filter.search}
-                  onChange={(event) =>
-                    setFilter({ ...filter, search: event.target.value })
-                  }
-                />
-              </label>
-              <label>
-                Situação
-                <select
-                  value={filter.status ?? ""}
-                  onChange={(event) =>
-                    setFilter({
-                      ...filter,
-                      status: (event.target.value ||
-                        undefined) as Filters["status"],
-                    })
-                  }
-                >
-                  <option value="">Todas</option>
-                  <option value="active">Ativos</option>
-                  <option value="inactive">Inativos</option>
-                </select>
-              </label>
+              <option value="">Todas</option>
+              <option value="active">Ativos</option>
+              <option value="inactive">Inativos</option>
+            </select>
+          </label>
+          <label>
+            Desconto
+            <select
+              value={filter.discount ?? ""}
+              onChange={(event) =>
+                setFilter({
+                  ...filter,
+                  discount: (event.target.value ||
+                    undefined) as Filters["discount"],
+                })
+              }
+            >
+              <option value="">Todos</option>
+              <option value="with">Com desconto</option>
+              <option value="without">Sem desconto</option>
+            </select>
+          </label>
+          <details className="report-filter-advanced">
+            <summary>Filtros avançados</summary>
+            <div className="form-grid">
               {(
                 [
                   ["city", "Cidade"],
@@ -271,23 +265,6 @@ export function ClientDetailsSection() {
                 </select>
               </label>
               <label>
-                Tipo de cliente
-                <select
-                  value={filter.clientType ?? ""}
-                  onChange={(event) =>
-                    setFilter({
-                      ...filter,
-                      clientType: (event.target.value ||
-                        undefined) as Filters["clientType"],
-                    })
-                  }
-                >
-                  <option value="">Todos</option>
-                  <option value="fixed">Fixo</option>
-                  <option value="rotating">Rotativo</option>
-                </select>
-              </label>
-              <label>
                 Segmento
                 <select
                   value={filter.segment ?? ""}
@@ -313,66 +290,66 @@ export function ClientDetailsSection() {
                   )}
                 </select>
               </label>
-              <button className="primary-button" disabled={busy}>
-                Consultar clientes
-              </button>
-            </form>
-            {error && <ErrorBanner error={error} />}
-            {busy && <LoadingBlock />}
-            {report && (
-              <>
-                <details>
-                  <summary>Selecionar colunas</summary>
-                  <div className="form-grid">
-                    {report.availableColumns.map((column) => (
-                      <label className="checkbox-field" key={column}>
-                        <input
-                          type="checkbox"
-                          checked={columns.includes(column)}
-                          onChange={(event) =>
-                            setColumns((current) =>
-                              event.target.checked
-                                ? [...current, column]
-                                : current.filter((item) => item !== column),
-                            )
-                          }
-                        />
-                        {clientDetailsColumnLabels[column]}
-                      </label>
-                    ))}
-                  </div>
-                </details>
-                {report.rows.length ? (
-                  table(report, columns)
-                ) : (
-                  <EmptyState
-                    title="Nenhum cliente encontrado"
-                    copy="Revise os filtros e o período."
-                  />
-                )}
-                {can("reports.export") && (
-                  <div className="page-actions">
-                    <button
-                      disabled={busy || !columns.length}
-                      className="secondary-button"
-                      onClick={() => void exportReport()}
-                    >
-                      Exportar clientes
-                    </button>
-                    <button
-                      disabled={busy || !columns.length}
-                      className="secondary-button"
-                      onClick={() => void exportReport(true)}
-                    >
-                      Imprimir clientes
-                    </button>
-                  </div>
-                )}
-              </>
+            </div>
+          </details>
+          <button className="primary-button" disabled={busy}>
+            Consultar clientes
+          </button>
+        </form>
+        {error && <ErrorBanner error={error} />}
+        {loading && <LoadingBlock />}
+        {report && (
+          <>
+            <details>
+              <summary>Selecionar colunas</summary>
+              <div className="form-grid">
+                {report.availableColumns.map((column) => (
+                  <label className="checkbox-field" key={column}>
+                    <input
+                      type="checkbox"
+                      checked={columns.includes(column)}
+                      onChange={(event) =>
+                        setColumns((current) =>
+                          event.target.checked
+                            ? [...current, column]
+                            : current.filter((item) => item !== column),
+                        )
+                      }
+                    />
+                    {clientDetailsColumnLabels[column]}
+                  </label>
+                ))}
+              </div>
+            </details>
+            {report.rows.length ? (
+              table(report, selectedColumns)
+            ) : (
+              <EmptyState
+                title="Nenhum cliente encontrado"
+                copy="Revise os filtros e o período."
+              />
             )}
-          </div>
+            {can("reports.clients_export") && (
+              <div className="page-actions">
+                <button
+                  disabled={busy || !selectedColumns.length}
+                  className="secondary-button"
+                  onClick={() => void exportReport()}
+                >
+                  Exportar clientes
+                </button>
+                <button
+                  disabled={busy || !columns.length}
+                  className="secondary-button"
+                  onClick={() => void exportReport(true)}
+                >
+                  Imprimir clientes
+                </button>
+              </div>
+            )}
+          </>
         )}
-      </details>
+      </div>
       {printed &&
         createPortal(
           <div className="clinical-print-sheet">

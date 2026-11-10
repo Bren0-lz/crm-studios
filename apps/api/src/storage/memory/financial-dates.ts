@@ -3,6 +3,7 @@ import type { MemoryRepositoryContext } from "./context.js";
 import { DomainError } from "../../repository.js";
 import { clinicDateOf } from "../../modules/finance/daily-cash.js";
 import { uuid, now } from "./helpers.js";
+import { latestPaymentBatch } from "../../modules/finance/payment-parts.js";
 export function createFinancialDatesRepository(
   context: MemoryRepositoryContext,
 ) {
@@ -34,21 +35,22 @@ export function createFinancialDatesRepository(
           "A data de pagamento exige um lançamento pago.",
           409,
         );
-      const event =
+      // Pagamento picado: um evento por forma; a correção vale para todos da última baixa.
+      const batch: Array<{
+        id: string;
+        occurredAt: string;
+        availableAt?: string | undefined;
+      }> =
         kind === "receivable"
-          ? context.receiptEvents
-              .filter(
-                (item) => item.receivableId === id && item.kind === "payment",
-              )
-              .at(-1)
-          : context.payablePaymentEvents
-              .filter(
-                (item) =>
-                  item.clinicId === clinicId &&
-                  item.payableId === id &&
-                  item.kind === "payment",
-              )
-              .at(-1);
+          ? latestPaymentBatch(
+              context.receiptEvents.filter((item) => item.receivableId === id),
+            )
+          : latestPaymentBatch(
+              context.payablePaymentEvents.filter(
+                (item) => item.clinicId === clinicId && item.payableId === id,
+              ),
+            );
+      const event = batch.at(-1);
       if (
         entry.status === "paid" &&
         (input.paidAt || input.availableAt) &&
@@ -82,33 +84,34 @@ export function createFinancialDatesRepository(
         entry.status === "paid" &&
         event &&
         (input.paidAt || input.availableAt)
-      ) {
-        const correction = context.financialDateCorrections
-          .filter(
-            (item) =>
-              item.clinicId === clinicId &&
-              item.kind === kind &&
-              item.eventId === event.id,
-          )
-          .at(-1);
-        context.financialDateCorrections.push({
-          id: uuid(),
-          clinicId,
-          kind,
-          eventId: event.id,
-          occurredAt:
-            input.paidAt ?? correction?.occurredAt ?? event.occurredAt,
-          availableAt:
-            input.availableAt ??
-            correction?.availableAt ??
-            event.availableAt ??
-            input.paidAt ??
-            event.occurredAt,
-          reason: input.reason,
-          actorId: actorUserId,
-          createdAt: now(),
-        });
-      }
+      )
+        for (const event of batch) {
+          const correction = context.financialDateCorrections
+            .filter(
+              (item) =>
+                item.clinicId === clinicId &&
+                item.kind === kind &&
+                item.eventId === event.id,
+            )
+            .at(-1);
+          context.financialDateCorrections.push({
+            id: uuid(),
+            clinicId,
+            kind,
+            eventId: event.id,
+            occurredAt:
+              input.paidAt ?? correction?.occurredAt ?? event.occurredAt,
+            availableAt:
+              input.availableAt ??
+              correction?.availableAt ??
+              event.availableAt ??
+              input.paidAt ??
+              event.occurredAt,
+            reason: input.reason,
+            actorId: actorUserId,
+            createdAt: now(),
+          });
+        }
       entry.overdue =
         entry.status === "open" &&
         entry.dueDate <

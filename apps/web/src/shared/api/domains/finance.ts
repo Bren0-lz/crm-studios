@@ -1,4 +1,15 @@
 import type {
+  PayrollAdvanceInput,
+  PayrollEmployee,
+  PayrollEntry,
+  PayrollEntryInput,
+  PayrollLaunchInput,
+  PayrollLaunchResult,
+  PayrollSummary,
+} from "@crm/contracts";
+import type {
+  CommissionRecalculationPreview,
+  CommissionRecalculationPreviewInput,
   CommissionReconciliationPreview,
   CommissionReconciliationInput,
   CommissionReconciliation,
@@ -10,6 +21,12 @@ import type {
   ExternalOperationContent,
 } from "@crm/contracts";
 import type {
+  PublicSignatureInput,
+  PublicReceiptSignature,
+  ReceiptSignatureShare,
+} from "@crm/contracts";
+import type {
+  ReceivableContact,
   PaymentTiming,
   FinancialDatesInput,
   SettlementAdjustments,
@@ -25,12 +42,14 @@ import type {
   PatientTabInput,
   PatientTabItemInput,
   PatientTabItemUpdate,
-  PatientTabServiceInput,
   PatientTabCloseInput,
-  TabAppointmentOption,
-  AppointmentInput,
+  PatientTabCancelInput,
+  PatientTabPayment,
+  ProductSaleInput,
   Supplier,
   SupplierInput,
+  SupplierOrder,
+  SupplierOrderInput,
   ManualReceivableInput,
   Receivable,
   FinancialClassification,
@@ -54,13 +73,24 @@ import type {
   Payable,
   PayableInput,
   PaymentMethod,
+  PaymentPart,
   PaymentReceipt,
   ReceivableRenegotiation,
   ReceivableRenegotiationInput,
   RecurringPayable,
   RecurringPayableInput,
+  PaymentProof,
+  PaymentProofContent,
+  PaymentProofEntity,
+  PaymentProofInput,
 } from "@crm/contracts";
-import { request } from "../transport";
+import { request, requestBlob } from "../transport";
+
+const proofPath: Record<PaymentProofEntity, string> = {
+  receivable: "receivables",
+  payable: "payables",
+  commission_account_payment: "commission-account-payments",
+};
 
 export const financeApi = {
   commissionReconciliation: (id: string) =>
@@ -71,15 +101,6 @@ export const financeApi = {
     request<CommissionReconciliation>(
       `/finance/commissions/${id}/reconciliation`,
       { method: "POST", body: JSON.stringify(input) },
-    ),
-  settleCommissionAccount: (
-    id: string,
-    professionalId: string,
-    expectedAmountInCents: number,
-  ) =>
-    request<CommissionAccountPayment>(
-      `/finance/commissions/${id}/accounts/${professionalId}/pay`,
-      { method: "POST", body: JSON.stringify({ expectedAmountInCents }) },
     ),
   reverseCommissionAccountPayment: (id: string) =>
     request<CommissionAccountPayment>(
@@ -95,6 +116,25 @@ export const financeApi = {
       method: "POST",
       body: JSON.stringify(input),
     }),
+  paymentProofs: (entity: PaymentProofEntity, id: string) =>
+    request<PaymentProof[]>(`/finance/${proofPath[entity]}/${id}/proofs`),
+  createPaymentProof: (
+    entity: PaymentProofEntity,
+    id: string,
+    input: PaymentProofInput,
+  ) =>
+    request<PaymentProof>(`/finance/${proofPath[entity]}/${id}/proofs`, {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  paymentProofContent: (id: string) =>
+    request<PaymentProofContent>(`/finance/payment-proofs/${id}/content`),
+  /** Comprovante enviado por engano: sai da lista; o motivo fica no histórico. */
+  deletePaymentProof: (id: string, reason: string) =>
+    request<PaymentProof>(`/finance/payment-proofs/${id}`, {
+      method: "DELETE",
+      body: JSON.stringify({ reason }),
+    }),
   externalOperationContent: (id: string) =>
     request<ExternalOperationContent>(
       `/finance/external-operations/${id}/content`,
@@ -108,7 +148,9 @@ export const financeApi = {
       method: "PUT",
       body: JSON.stringify(input),
     }),
-  inventoryWorkspace: () => request<InventoryWorkspace>("/inventory/workspace"),
+  /** `options`: `allBranches` na ficha do cliente (comandas de todas as filiais). */
+  inventoryWorkspace: (options?: RequestInit) =>
+    request<InventoryWorkspace>("/inventory/workspace", options),
   createProduct: (input: ProductInput) =>
     request<Product>("/inventory/products", {
       method: "POST",
@@ -147,38 +189,45 @@ export const financeApi = {
     request<PatientTab>(`/patient-tabs/${id}/items/${itemId}`, {
       method: "DELETE",
     }),
-  tabAppointmentOptions: (id: string, from: string, to: string) =>
-    request<TabAppointmentOption[]>(
-      `/patient-tabs/${id}/appointment-options?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
-    ),
-  addPatientTabService: (id: string, input: PatientTabServiceInput) =>
-    request<PatientTab>(`/patient-tabs/${id}/services`, {
-      method: "POST",
-      body: JSON.stringify(input),
-    }),
   removePatientTabService: (id: string, itemId: string) =>
     request<PatientTab>(`/patient-tabs/${id}/services/${itemId}`, {
       method: "DELETE",
-    }),
-  createPatientTabAppointment: (
-    id: string,
-    input: Omit<AppointmentInput, "patientId">,
-  ) =>
-    request<PatientTab>(`/patient-tabs/${id}/appointments`, {
-      method: "POST",
-      body: JSON.stringify(input),
     }),
   closePatientTab: (id: string, input: PatientTabCloseInput) =>
     request<PatientTab>(`/patient-tabs/${id}/close`, {
       method: "POST",
       body: JSON.stringify(input),
     }),
-  cancelPatientTab: (id: string) =>
-    request<PatientTab>(`/patient-tabs/${id}/cancel`, { method: "POST" }),
+  /** `refundPayment`: estorna o pagamento recebido no mesmo cancelamento. */
+  cancelPatientTab: (id: string, input?: PatientTabCancelInput) =>
+    request<PatientTab>(`/patient-tabs/${id}/cancel`, {
+      method: "POST",
+      ...(input ? { body: JSON.stringify(input) } : {}),
+    }),
+  /** Pagamento da venda (cobrança do fechamento), sem exigir acesso ao Financeiro. */
+  patientTabPayment: (id: string) =>
+    request<{ payment: PatientTabPayment | null }>(
+      `/patient-tabs/${id}/payment`,
+    ),
+  /** Venda de produtos em uma etapa (abre, preenche e fecha a comanda). */
+  createProductSale: (input: ProductSaleInput) =>
+    request<PatientTab>("/product-sales", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
   suppliers: () => request<Supplier[]>("/finance/suppliers"),
+  /** Lista da aba Fornecedores de Vendas de produtos (permissão própria). */
+  salesSuppliers: () => request<Supplier[]>("/inventory/suppliers"),
   saveSupplier: (input: SupplierInput, id?: string) =>
     request<Supplier>(id ? `/finance/suppliers/${id}` : "/finance/suppliers", {
       method: id ? "PUT" : "POST",
+      body: JSON.stringify(input),
+    }),
+  supplierOrders: (supplierId: string) =>
+    request<SupplierOrder[]>(`/finance/suppliers/${supplierId}/orders`),
+  createSupplierOrder: (supplierId: string, input: SupplierOrderInput) =>
+    request<SupplierOrder>(`/finance/suppliers/${supplierId}/orders`, {
+      method: "POST",
       body: JSON.stringify(input),
     }),
   createManualReceivable: (input: ManualReceivableInput) =>
@@ -209,12 +258,22 @@ export const financeApi = {
     request<DreReport>(
       `/reports/dre${exporting ? "/export" : ""}?from=${from}&to=${to}${costCenterId ? `&costCenterId=${costCenterId}` : ""}`,
     ),
-  setUserCommission: (id: string, input: AdminUserCommissionInput) =>
+  /** Planilha Excel da DRE por competência. */
+  dreReportXlsx: (from: string, to: string) =>
+    requestBlob(
+      `/reports/dre/export.xlsx?${new URLSearchParams({ from, to })}`,
+    ),
+  setUserCommission: (
+    id: string,
+    input: AdminUserCommissionInput & { recalculationDigest?: string },
+  ) =>
     request<AdminUser>(`/admin/users/${id}/commission`, {
       method: "PUT",
       body: JSON.stringify(input),
     }),
-  financialSummary: () => request<FinancialSummary>("/finance/summary"),
+  /** `options`: `allBranches` na ficha do cliente (cobranças de todas as filiais). */
+  financialSummary: (options?: RequestInit) =>
+    request<FinancialSummary>("/finance/summary", options),
   settleReceivable: (
     id: string,
     paymentMethod: PaymentMethod = "pix",
@@ -241,30 +300,97 @@ export const financeApi = {
         body: JSON.stringify({ amountInCents, reason }),
       },
     ),
+  receivableContact: (id: string) =>
+    request<ReceivableContact>(`/finance/receivables/${id}/contact`),
   paymentReceipt: (id: string) =>
     request<PaymentReceipt>(`/finance/receivables/${id}/receipt`),
+  /** Recibo para assinatura em vigor da parcela: link e contato (não marca o envio). */
+  receiptSignatureShare: (receivableId: string) =>
+    request<ReceiptSignatureShare>(
+      `/finance/receivables/${receivableId}/receipt-signature`,
+    ),
+  /** Registra o clique em "Enviar recibo pelo WhatsApp" (o primeiro envio fica). */
+  markReceiptSignatureSent: (receivableId: string) =>
+    request<ReceiptSignatureShare>(
+      `/finance/receivables/${receivableId}/receipt-signature/sent`,
+      { method: "POST" },
+    ),
+  /** Link público: o cliente abre o recibo sem login (registra a visualização). */
+  publicReceiptSignature: (token: string) =>
+    request<PublicReceiptSignature>(
+      `/public/receipt-signatures/${encodeURIComponent(token)}`,
+    ),
+  signPublicReceipt: (token: string, input: PublicSignatureInput) =>
+    request<PublicReceiptSignature>(
+      `/public/receipt-signatures/${encodeURIComponent(token)}`,
+      { method: "POST", body: JSON.stringify(input) },
+    ),
   financialWorkspace: () => request<FinancialWorkspace>("/finance/workspace"),
   renegotiateReceivables: (input: ReceivableRenegotiationInput) =>
     request<ReceivableRenegotiation>("/finance/renegotiations", {
       method: "POST",
       body: JSON.stringify(input),
     }),
-  createCommissionRule: (input: CommissionRuleInput) =>
+  /** `recalculationDigest`: prévia confirmada; as comissões alcançadas são recalculadas. */
+  createCommissionRule: (
+    input: CommissionRuleInput & { recalculationDigest?: string },
+  ) =>
     request<CommissionRule>("/finance/commission-rules", {
       method: "POST",
       body: JSON.stringify(input),
     }),
+  commissionRecalculationPreview: (
+    input: CommissionRecalculationPreviewInput,
+  ) =>
+    request<CommissionRecalculationPreview>(
+      "/finance/commission-rules/recalculation/preview",
+      { method: "POST", body: JSON.stringify(input) },
+    ),
   generateCommissions: (competence: string) =>
     request<CommissionEntry[]>("/finance/commissions/generate", {
       method: "POST",
       body: JSON.stringify({ competence }),
     }),
-  settleCommission: (id: string) =>
-    request<CommissionEntry>(`/finance/commissions/${id}/pay`, {
+  /** Folha da competência; `branchIds` vazio = todas as filiais acessíveis. */
+  payroll: (competence: string, branchIds: string[], options?: RequestInit) =>
+    request<PayrollSummary>(
+      `/finance/payroll?competence=${competence}${branchIds.length ? `&branchIds=${branchIds.join(",")}` : ""}`,
+      options,
+    ),
+  payrollEmployees: (options?: RequestInit) =>
+    request<PayrollEmployee[]>("/finance/payroll/employees", options),
+  /** Desconto ou recompensa do mês; o salário fixo não muda pela folha. */
+  createPayrollEntry: (input: PayrollEntryInput, options?: RequestInit) =>
+    request<PayrollEntry>("/finance/payroll/entries", {
+      ...options,
       method: "POST",
+      body: JSON.stringify(input),
     }),
-  reverseCommission: (id: string) =>
-    request<CommissionEntry>(`/finance/commissions/${id}/reverse`, {
+  deletePayrollEntry: (id: string, options?: RequestInit) =>
+    request<void>(`/finance/payroll/entries/${id}`, {
+      ...options,
+      method: "DELETE",
+    }),
+  createPayrollAdvance: (input: PayrollAdvanceInput, options?: RequestInit) =>
+    request<PayrollEntry>("/finance/payroll/advances", {
+      ...options,
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  deletePayrollAdvance: (id: string, options?: RequestInit) =>
+    request<void>(`/finance/payroll/advances/${id}`, {
+      ...options,
+      method: "DELETE",
+    }),
+  launchPayroll: (input: PayrollLaunchInput, options?: RequestInit) =>
+    request<PayrollLaunchResult>("/finance/payroll/launch", {
+      ...options,
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  cancelPayrollLaunch: (payableId: string, options?: RequestInit) =>
+    request<Payable>(`/finance/payroll/payables/${payableId}/cancel`, {
+      ...options,
       method: "POST",
     }),
   createFinancialCategory: (input: FinancialCategoryInput) =>
@@ -286,10 +412,21 @@ export const financeApi = {
     id: string,
     paymentMethod: PaymentMethod = "pix",
     timing?: PaymentTiming,
+    /** Pagamento picado: as formas somam o valor da conta. */
+    payments?: PaymentPart[],
   ) =>
     request<Payable>(`/finance/payables/${id}/pay`, {
       method: "POST",
-      body: JSON.stringify({ paymentMethod, ...timing }),
+      body: JSON.stringify({
+        paymentMethod,
+        ...timing,
+        ...(payments?.length ? { payments } : {}),
+      }),
+    }),
+  setPayableAmount: (id: string, amountInCents: number) =>
+    request<Payable>(`/finance/payables/${id}/amount`, {
+      method: "PUT",
+      body: JSON.stringify({ amountInCents }),
     }),
   reversePayable: (id: string) =>
     request<Payable>(`/finance/payables/${id}/reverse`, { method: "POST" }),

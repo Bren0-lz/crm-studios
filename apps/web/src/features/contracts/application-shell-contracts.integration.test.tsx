@@ -1,4 +1,14 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import {
+  setDocumentText,
+  installDocumentBrowserMocks,
+} from "../../test-support/document-editor";
+import {
+  fireEvent,
+  render,
+  screen,
+  within,
+  waitFor,
+} from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import App from "../../App";
@@ -82,12 +92,54 @@ describe("application shell", () => {
     const posted: Record<string, unknown>[] = [];
     vi.mocked(fetch).mockImplementation(async (input, init) => {
       const url = String(input);
+      if (url.endsWith("/documents/preview")) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            snapshotBody: "Contrato preparado para Helena Almeida.",
+            snapshotContent: {
+              version: 1,
+              doc: {
+                type: "doc",
+                content: [
+                  {
+                    type: "paragraph",
+                    content: [
+                      {
+                        type: "text",
+                        text: "Contrato preparado para Helena Almeida.",
+                      },
+                    ],
+                  },
+                ],
+              },
+            },
+            branding: {
+              name: "Studios Aryana",
+              logoDataUrl: "",
+              timezone: "America/Sao_Paulo",
+            },
+            missingFields: [],
+            templateName: template.name,
+            templateVersion: 1,
+            patientName: patient.fullName,
+          }),
+        } as Response;
+      }
       if (url.endsWith("/documents") && init?.method === "POST") {
         posted.push(JSON.parse(String(init.body)));
         return {
           ok: true,
           status: 201,
-          json: async () => ({ id: "f0f0f0f0-f0f0-4f0f-8f0f-f0f0f0f0f0f0" }),
+          json: async () => ({
+            ...JSON.parse(String(init?.body)),
+            id: "f0f0f0f0-f0f0-4f0f-8f0f-f0f0f0f0f0f0",
+            status: "draft",
+            patientName: patient.fullName,
+            templateName: template.name,
+            snapshotBody: "Contrato preparado para Helena Almeida.",
+          }),
         } as Response;
       }
       const body = url.includes("/document-templates")
@@ -104,6 +156,8 @@ describe("application shell", () => {
         <App />
       </MemoryRouter>,
     );
+    fireEvent.click(await screen.findByRole("tab", { name: "Criar modelo" }));
+    fireEvent.click(screen.getByText("Inserir campo automático"));
     const fields = await screen.findByRole("group", { name: "Inserir campo" });
     expect(
       within(fields).getByRole("button", { name: "Profissional" }),
@@ -111,13 +165,16 @@ describe("application shell", () => {
     expect(
       within(fields).getByRole("button", { name: "CREFITO do profissional" }),
     ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("tab", { name: "Documentos" }));
+    installDocumentBrowserMocks();
+    fireEvent.click(screen.getByRole("button", { name: "Novo documento" }));
     const select = await screen.findByLabelText("Profissional (opcional)");
     expect(
       within(select).getByRole("option", {
         name: "Dra. Ana Martins · CREFITO-3 123456-F",
       }),
     ).toBeInTheDocument();
-    const issue = screen.getByRole("button", { name: "Criar rascunho" });
+    const issue = screen.getByRole("button", { name: "Preparar conteúdo" });
     expect(issue).toBeDisabled();
     // Sem cliente, o botão diz o que falta (QM14).
     expect(issue).toHaveAccessibleDescription("Falta: Cliente.");
@@ -130,11 +187,42 @@ describe("application shell", () => {
     expect(issue).toBeEnabled();
     expect(issue).not.toHaveAttribute("aria-describedby");
     fireEvent.click(issue);
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Conferir PDF" }),
+    );
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "Criar rascunho" }),
+      ).toBeEnabled(),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Criar rascunho" }));
     await vi.waitFor(() => expect(posted).toHaveLength(1));
     expect(posted[0]).not.toHaveProperty("professionalId");
     expect(posted[0]).not.toHaveProperty("appointmentId");
-    fireEvent.change(select, { target: { value: professional.id } });
-    fireEvent.click(issue);
+    await waitFor(() =>
+      expect(screen.getByText("Fechar", { selector: "button" })).toBeEnabled(),
+    );
+    fireEvent.click(screen.getByText("Fechar", { selector: "button" }));
+    fireEvent.click(screen.getByRole("button", { name: "Novo documento" }));
+    fireEvent.change(screen.getByRole("combobox", { name: "Cliente" }), {
+      target: { value: patient.fullName },
+    });
+    fireEvent.click(
+      await screen.findByRole("option", { name: patient.fullName }),
+    );
+    fireEvent.change(screen.getByLabelText("Profissional (opcional)"), {
+      target: { value: professional.id },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Preparar conteúdo" }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Conferir PDF" }),
+    );
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "Criar rascunho" }),
+      ).toBeEnabled(),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Criar rascunho" }));
     await vi.waitFor(() => expect(posted).toHaveLength(2));
     expect(posted[1]).toMatchObject({
       templateId: template.id,
@@ -144,6 +232,7 @@ describe("application shell", () => {
   });
 
   it("issues a draft document and prints the issued content", async () => {
+    installDocumentBrowserMocks();
     localStorage.setItem("crm.auth.token", "test-token");
     localStorage.setItem(
       "crm.auth.user",
@@ -195,17 +284,19 @@ describe("application shell", () => {
       </MemoryRouter>,
     );
     expect(
-      await screen.findByText("Contrato de prestação de serviços", {
-        selector: "strong",
-      }),
+      await screen.findByText("Helena Almeida", { selector: "strong" }),
     ).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Imprimir" }),
     ).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Emitir" }));
-    fireEvent.click(
-      await screen.findByRole("button", { name: "Emitir contrato" }),
-    );
+    // A lista mostra só o resumo; as ações ficam em "Ver detalhes".
+    fireEvent.click(screen.getByRole("button", { name: /Ver detalhes/ }));
+    fireEvent.click(await screen.findByRole("button", { name: "Emitir" }));
+    const confirmIssue = await screen.findByRole("button", {
+      name: "Emitir contrato",
+    });
+    await waitFor(() => expect(confirmIssue).toBeEnabled());
+    fireEvent.click(confirmIssue);
     await vi.waitFor(() => expect(patched).toEqual([{ status: "issued" }]));
     fireEvent.click(await screen.findByRole("button", { name: "Imprimir" }));
     const dialog = await screen.findByRole("dialog");
@@ -271,12 +362,12 @@ describe("application shell", () => {
         <App />
       </MemoryRouter>,
     );
+    fireEvent.click(await screen.findByRole("tab", { name: "Modelos" }));
     fireEvent.click(await screen.findByRole("button", { name: "Nova versão" }));
     const dialog = await screen.findByRole("dialog");
-    const textarea = within(dialog).getByLabelText(
-      "Conteúdo",
-    ) as HTMLTextAreaElement;
-    expect(textarea.value).toBe(template.body);
+    installDocumentBrowserMocks();
+    const textarea = within(dialog).getByLabelText("Conteúdo");
+    expect(textarea).toHaveTextContent("CONTRATO");
     fireEvent.click(
       within(dialog).getByRole("button", { name: "Criar versão" }),
     );
@@ -287,7 +378,7 @@ describe("application shell", () => {
     ).toBeInTheDocument();
     const newBody =
       "CONTRATO v2\n\nCláusula 1: {{paciente_nome}} contrata {{plano_nome}}.";
-    fireEvent.change(textarea, { target: { value: newBody } });
+    setDocumentText(textarea, newBody);
     fireEvent.click(
       within(dialog).getByRole("button", { name: "Criar versão" }),
     );
@@ -301,11 +392,99 @@ describe("application shell", () => {
     expect(posted[0]!.url).toContain(
       `/document-templates/${template.id}/versions`,
     );
-    expect(posted[0]!.body).toEqual({ body: newBody });
+    expect(posted[0]!.body).toEqual(
+      expect.objectContaining({
+        body: newBody,
+        content: expect.objectContaining({ version: 1 }),
+      }),
+    );
     expect(
       await screen.findByText("Nova versão de “Contrato padrão” criada."),
     ).toBeInTheDocument();
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("deletes a template with all its versions after confirming", async () => {
+    localStorage.setItem("crm.auth.token", "test-token");
+    localStorage.setItem(
+      "crm.auth.user",
+      storedUser({
+        id: "22222222-2222-4222-8222-222222222222",
+        fullName: "Aryana Dutra",
+        email: "admin@movimenta.local",
+        role: "owner",
+      }),
+    );
+    const base = {
+      kind: "contract",
+      body: "CONTRATO\n\n{{clinica_nome}} e {{paciente_nome}} firmam.",
+      createdAt: new Date().toISOString(),
+    };
+    const templates = [
+      {
+        ...base,
+        id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        name: "Contrato teste",
+        version: 2,
+        active: true,
+      },
+      {
+        ...base,
+        id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+        name: "Contrato teste",
+        version: 1,
+        active: false,
+      },
+      {
+        ...base,
+        id: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        name: "Contrato padrão",
+        version: 1,
+        active: true,
+      },
+    ];
+    const deleted: string[] = [];
+    vi.mocked(fetch).mockImplementation(async (input, init) => {
+      const url = String(input);
+      if (init?.method === "DELETE") {
+        deleted.push(url);
+        return { ok: true, status: 204, json: async () => null } as Response;
+      }
+      const body = url.endsWith("/document-templates") ? templates : [];
+      return { ok: true, status: 200, json: async () => body } as Response;
+    });
+    render(
+      <MemoryRouter initialEntries={["/contratos"]}>
+        <App />
+      </MemoryRouter>,
+    );
+    fireEvent.click(await screen.findByRole("tab", { name: "Modelos" }));
+    expect(
+      screen.getAllByRole("button", { name: /^Excluir modelo/ }),
+    ).toHaveLength(2);
+    fireEvent.click(
+      screen.getByRole("button", { name: "Excluir modelo Contrato teste" }),
+    );
+    const dialog = await screen.findByRole("dialog");
+    expect(
+      within(dialog).getByText(/Os contratos já criados com ele continuam/),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Excluir modelo" }),
+    );
+    await vi.waitFor(() =>
+      expect(deleted).toEqual([
+        expect.stringContaining(
+          "/document-templates/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        ),
+      ]),
+    );
+    expect(
+      await screen.findByText("Modelo “Contrato teste” excluído."),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.queryByText("Contrato teste")).not.toBeInTheDocument();
+    expect(screen.getByText("Contrato padrão")).toBeInTheDocument();
   });
 
   it("cancels a document after confirming in a modal", async () => {
@@ -356,28 +535,55 @@ describe("application shell", () => {
         <App />
       </MemoryRouter>,
     );
-    fireEvent.click(await screen.findByRole("button", { name: "Cancelar" }));
-    const dialog = await screen.findByRole("dialog");
-    expect(
-      within(dialog).getByRole("heading", { name: "Cancelar documento" }),
-    ).toBeInTheDocument();
+    fireEvent.click(
+      await screen.findByRole("button", { name: /Ver detalhes/ }),
+    );
+    const details = await screen.findByRole("dialog");
+    fireEvent.click(
+      within(details).getByRole("button", { name: "Cancelar documento" }),
+    );
+    // Com a confirmação aberta, o modal de detalhes fica inacessível por baixo.
+    const dialog = await screen.findByRole("dialog", {
+      name: "Cancelar documento",
+    });
     expect(
       within(dialog).getAllByText(/Contrato de prestação de serviços/).length,
     ).toBeGreaterThan(0);
     fireEvent.click(within(dialog).getByRole("button", { name: "Voltar" }));
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("dialog", { name: "Cancelar documento" }),
+      ).not.toBeInTheDocument(),
+    );
     expect(patched).toHaveLength(0);
-    fireEvent.click(screen.getByRole("button", { name: "Cancelar" }));
     fireEvent.click(
       within(await screen.findByRole("dialog")).getByRole("button", {
         name: "Cancelar documento",
       }),
     );
+    fireEvent.click(
+      within(
+        await screen.findByRole("dialog", { name: "Cancelar documento" }),
+      ).getByRole("button", { name: "Cancelar documento" }),
+    );
     await vi.waitFor(() => expect(patched).toEqual([{ status: "cancelled" }]));
-    expect(await screen.findByText("Cancelado")).toBeInTheDocument();
+    // Os detalhes continuam abertos com a nova situação e sem a ação de cancelar.
+    const updated = await screen.findByRole("dialog", {
+      name: "Contrato de prestação de serviços",
+    });
+    expect(within(updated).getAllByText("Cancelado").length).toBeGreaterThan(0);
+    expect(
+      within(updated).queryByRole("button", { name: "Cancelar documento" }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(within(updated).getByRole("button", { name: "Fechar" }));
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(
-      screen.queryByRole("button", { name: "Cancelar" }),
-    ).not.toBeInTheDocument();
+      screen.getByText("Cancelado", { selector: ".status-pill" }),
+    ).toBeInTheDocument();
   });
 });
+
+vi.mock("./document-pdf", () => ({
+  generateDocumentPdf: async () =>
+    new Blob(["%PDF-1.7\nTest contract"], { type: "application/pdf" }),
+}));

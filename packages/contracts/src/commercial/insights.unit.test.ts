@@ -132,8 +132,8 @@ describe("commercial indicators", () => {
       overdueTasks: 5,
       withoutContact: 1,
       lostReasons: [
-        { name: "Preço", leads: 1 },
         { name: "Não informado", leads: 1 },
+        { name: "Preço", leads: 1 },
       ],
     });
     expect(result.sources.map((item) => item.name)).toEqual([

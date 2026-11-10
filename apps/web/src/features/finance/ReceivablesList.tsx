@@ -4,8 +4,13 @@ import { useAuthorization } from "../../authorization-context";
 import { EmptyState } from "../../shared/components/EmptyState";
 import { currency, shortDate } from "../../shared/lib/formatting";
 import {
+  hasUnsignedReceipt,
   normalizeSearch,
+  receiptMomentLabel,
+  receiptSignatureLabels,
+  receiptSignatureSteps,
   receivableFilterLabels,
+  receivableInstallmentLine,
   receivableSituation,
   signedCurrency,
 } from "./model";
@@ -17,7 +22,9 @@ export function ReceivablesList({
   filter,
   search,
   selected,
+  unsignedOnly,
   onFilterChange,
+  onUnsignedOnlyChange,
   onSearchChange,
   onSelectedChange,
   onRenegotiate,
@@ -25,13 +32,19 @@ export function ReceivablesList({
   onReverse,
   onAdjust,
   onReceipt,
+  onProofs,
+  onContact,
+  proofIds,
 }: {
   receivables: Receivable[];
   canManage: boolean;
   filter: ReceivableFilter;
   search: string;
   selected: string[];
+  /** Recorte "Recibo não assinado" (RC4), somado ao filtro por situação. */
+  unsignedOnly: boolean;
   onFilterChange: (filter: ReceivableFilter) => void;
+  onUnsignedOnlyChange: (value: boolean) => void;
   onSearchChange: (value: string) => void;
   onSelectedChange: (ids: string[]) => void;
   onRenegotiate: () => void;
@@ -39,6 +52,10 @@ export function ReceivablesList({
   onReverse: (id: string) => void;
   onAdjust: (item: Receivable) => void;
   onReceipt: (id: string) => void;
+  onProofs: (item: Receivable) => void;
+  onContact: (item: Receivable, overdue: boolean) => void;
+  /** Parcelas com comprovante: os da baixa estornada seguem acessíveis. */
+  proofIds?: ReadonlySet<string>;
 }) {
   const { can } = useAuthorization();
   if (receivables.length === 0) {
@@ -56,9 +73,15 @@ export function ReceivablesList({
   }));
   const term = normalizeSearch(search);
   // Contadores sobre a lista já buscada: a soma das abas é sempre igual a "Todas".
-  const searched = rows.filter(
+  const matchingSearch = rows.filter(
     (row) => !term || normalizeSearch(row.item.patientName).includes(term),
   );
+  const unsignedCount = matchingSearch.filter((row) =>
+    hasUnsignedReceipt(row.item),
+  ).length;
+  const searched = unsignedOnly
+    ? matchingSearch.filter((row) => hasUnsignedReceipt(row.item))
+    : matchingSearch;
   const count = (key: Exclude<ReceivableFilter, "all">) =>
     searched.filter((row) => row.situation.key === key).length;
   const counts: Record<ReceivableFilter, number> = {
@@ -106,6 +129,14 @@ export function ReceivablesList({
             ),
           )}
         </div>
+        <button
+          type="button"
+          className="tag-filter"
+          aria-pressed={unsignedOnly}
+          onClick={() => onUnsignedOnlyChange(!unsignedOnly)}
+        >
+          Recibo não assinado <small>{unsignedCount}</small>
+        </button>
         <div className="search-box">
           <Search size={18} />
           <input
@@ -170,6 +201,7 @@ export function ReceivablesList({
             onClick={() => {
               onFilterChange("all");
               onSearchChange("");
+              onUnsignedOnlyChange(false);
             }}
           >
             Limpar filtros
@@ -182,9 +214,9 @@ export function ReceivablesList({
           <div className="finance-row finance-head" aria-hidden="true">
             {canManage && <span />}
             <span>Cliente e plano</span>
-            <span>Vencimento</span>
-            <span className="finance-amount">Valor</span>
-            <span>Situação</span>
+            <span className="finance-col-center">Vencimento</span>
+            <span className="finance-amount finance-col-center">Valor</span>
+            <span className="finance-col-center">Situação</span>
             <span className="finance-actions">Ações</span>
           </div>
           {visible.map(({ item, situation }) => (
@@ -204,6 +236,11 @@ export function ReceivablesList({
               <div className="finance-item">
                 <strong title={item.patientName}>{item.patientName}</strong>
                 <span title={item.description}>{item.description}</span>
+                {receivableInstallmentLine(item) && (
+                  <span className="finance-installment">
+                    {receivableInstallmentLine(item)}
+                  </span>
+                )}
               </div>
               <span className="finance-due">
                 <span className="finance-label">Vencimento </span>
@@ -225,14 +262,32 @@ export function ReceivablesList({
                   {signedCurrency(item.amountInCents)}
                 </strong>
               )}
-              <span>
+              <span className="finance-situation">
                 {item.status !== "cancelled" && (
                   <span className={`status-pill ${situation.pill}`}>
                     {situation.label}
                   </span>
                 )}
+                {item.status === "paid" && item.receiptSignature && (
+                  <>
+                    <span
+                      className={`status-pill ${item.receiptSignature.status === "signed" ? "paid" : "open"}`}
+                    >
+                      {receiptSignatureLabels[item.receiptSignature.status]}
+                    </span>
+                    <ReceiptLatestStep summary={item.receiptSignature} />
+                  </>
+                )}
               </span>
               <div className="finance-actions">
+                {item.status === "open" && (
+                  <button
+                    className="secondary-button button-sm"
+                    onClick={() => onContact(item, situation.key === "overdue")}
+                  >
+                    Entrar em contato
+                  </button>
+                )}
                 {canManage &&
                   item.status === "open" &&
                   can("finance.adjust") && (
@@ -249,6 +304,15 @@ export function ReceivablesList({
                     onClick={() => onReceipt(item.id)}
                   >
                     Recibo
+                  </button>
+                )}
+                {(item.status === "paid" || proofIds?.has(item.id)) && (
+                  <button
+                    className="secondary-button button-sm"
+                    aria-label={`Comprovantes de ${item.description}`}
+                    onClick={() => onProofs(item)}
+                  >
+                    Comprovantes
                   </button>
                 )}
                 {canManage &&
@@ -277,5 +341,26 @@ export function ReceivablesList({
         </div>
       )}
     </>
+  );
+}
+
+/**
+ * Só a etapa mais recente do recibo (ex.: "Assinado em 06 de nov. às 22:56"), para a linha
+ * não crescer; as três datas ficam no título e no modal do recibo.
+ */
+function ReceiptLatestStep({
+  summary,
+}: {
+  summary: Parameters<typeof receiptSignatureSteps>[0];
+}) {
+  const done = receiptSignatureSteps(summary).flatMap((step) =>
+    step.at ? [`${step.label} ${receiptMomentLabel(step.at)}`] : [],
+  );
+  const latest = done.at(-1);
+  if (!latest) return null;
+  return (
+    <small className="receipt-step" title={done.join("\n")}>
+      {latest}
+    </small>
   );
 }

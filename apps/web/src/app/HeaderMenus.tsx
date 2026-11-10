@@ -1,17 +1,7 @@
-import type { NotificationsSummary, UserSummary } from "@crm/contracts";
-import {
-  Bell,
-  Cake,
-  CalendarClock,
-  LogOut,
-  Settings,
-  WalletCards,
-} from "lucide-react";
+import { Bell, BellRing, Settings2 } from "lucide-react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
-import { api } from "../api";
-import { useAuthorization } from "../authorization-context";
-import { useDataVersion } from "../shared/hooks/useDataVersion";
-import { initials, roleLabels } from "../shared/lib/formatting";
+import type { NotificationCenter } from "./notification-center";
+import { NotificationSettingsModal } from "./NotificationSettingsModal";
 
 /** Painel suspenso do cabeçalho: fecha com Esc, clique fora ou ao escolher um item. */
 function HeaderPopover({
@@ -76,220 +66,121 @@ function HeaderPopover({
   );
 }
 
-interface NotificationGroup {
-  key: string;
-  label: string;
-  detail: string;
-  count: number;
-  to: string;
-  icon: ReactNode;
-}
-
-/**
- * Grupos do sino (QM13), cada um só para quem vê o módulo: aniversariantes de hoje
- * (Relacionamento), parcelas vencidas (Financeiro) e atendimentos a finalizar (Agenda).
- * Grupos zerados não aparecem.
- */
-function notificationGroups(
-  summary: NotificationsSummary | null,
-  canView: (module: "relationship" | "finance" | "agenda") => boolean,
-): NotificationGroup[] {
-  if (!summary) return [];
-  const groups: NotificationGroup[] = [];
-  if (canView("relationship") && (summary.birthdaysToday ?? 0) > 0)
-    groups.push({
-      key: "birthdays",
-      label: "Aniversariantes de hoje",
-      detail: "Envie os parabéns em Relacionamento",
-      count: summary.birthdaysToday ?? 0,
-      to: "/relacionamento",
-      icon: <Cake size={16} aria-hidden="true" />,
-    });
-  if (canView("finance") && (summary.overdueReceivables ?? 0) > 0)
-    groups.push({
-      key: "overdue",
-      label: "Parcelas vencidas",
-      detail: "Em aberto com vencimento já passado",
-      count: summary.overdueReceivables ?? 0,
-      to: "/financeiro",
-      icon: <WalletCards size={16} aria-hidden="true" />,
-    });
-  if (canView("agenda") && (summary.pendingFinalization ?? 0) > 0)
-    groups.push({
-      key: "pending",
-      label: "Atendimentos a finalizar",
-      detail: "Já passaram e seguem agendados ou confirmados",
-      count: summary.pendingFinalization ?? 0,
-      to: "/agenda/a-finalizar",
-      icon: <CalendarClock size={16} aria-hidden="true" />,
-    });
-  return groups;
-}
-
 export function NotificationsMenu({
+  center,
   onNavigate,
 }: {
+  center: NotificationCenter;
   onNavigate: (to: string) => void;
 }) {
-  const { canView } = useAuthorization();
-  const watched =
-    canView("relationship") || canView("finance") || canView("agenda");
-  // Recarga silenciosa quando agenda, financeiro, clientes ou contatos mudam (QC6).
-  const version = useDataVersion("agenda", "finance", "patients", "relationship");
-  const [summary, setSummary] = useState<NotificationsSummary | null>(null);
-  const [error, setError] = useState("");
-  const [attempt, setAttempt] = useState(0);
-  useEffect(() => {
-    if (!watched) return;
-    let active = true;
-    api
-      .notifications()
-      .then((data) => {
-        if (!active) return;
-        setSummary(data);
-        setError("");
-      })
-      .catch(() => {
-        if (active) setError("Não foi possível carregar as notificações.");
-      });
-    return () => {
-      active = false;
-    };
-  }, [watched, version, attempt]);
-  const groups = notificationGroups(summary, canView);
+  const { groups, highlighted, error, loading, refresh } = center;
+  const [configuring, setConfiguring] = useState(false);
   const total = groups.reduce((sum, group) => sum + group.count, 0);
-  const loading = watched && summary === null && !error;
+  // Grupo destacado com pendência: o sino ganha cor de alerta para chamar a atenção.
+  const alerting = highlighted.length > 0;
   return (
-    <HeaderPopover
-      label="Notificações"
-      triggerLabel={
-        total > 0
-          ? `Notificações: ${total} ${total === 1 ? "pendência" : "pendências"}`
-          : "Notificações"
-      }
-      triggerClassName="icon-button header-bell"
-      // Abrir o sino confere de novo (os atendimentos a finalizar mudam com a hora).
-      onOpen={() => setAttempt((value) => value + 1)}
-      trigger={
-        <>
-          <Bell size={19} />
-          {total > 0 && (
-            <span className="header-bell-count" aria-hidden="true">
-              {total > 99 ? "99+" : total}
-            </span>
-          )}
-        </>
-      }
-    >
-      {(close) => (
-        <>
-          <strong className="header-popover-title">Notificações</strong>
-          {error && (
-            <div className="header-notifications-error">
-              <p className="form-error" role="alert">
-                {error}
-              </p>
+    <>
+      <HeaderPopover
+        label="Notificações"
+        triggerLabel={
+          total > 0
+            ? `Notificações: ${total} ${total === 1 ? "pendência" : "pendências"}`
+            : "Notificações"
+        }
+        triggerClassName={`icon-button header-bell${alerting ? " is-alerting" : ""}`}
+        // Abrir o sino confere de novo (os atendimentos a finalizar mudam com a hora).
+        onOpen={refresh}
+        trigger={
+          <>
+            {alerting ? <BellRing size={19} /> : <Bell size={19} />}
+            {total > 0 && (
+              <span className="header-bell-count" aria-hidden="true">
+                {total > 99 ? "99+" : total}
+              </span>
+            )}
+          </>
+        }
+      >
+        {(close) => (
+          <>
+            <div className="header-popover-head">
+              <strong className="header-popover-title">Notificações</strong>
               <button
                 type="button"
-                className="secondary-button button-sm"
-                onClick={() => setAttempt((value) => value + 1)}
-              >
-                Tentar novamente
-              </button>
-            </div>
-          )}
-          {loading ? (
-            <div
-              className="header-notifications-skeleton"
-              role="status"
-              aria-label="Carregando notificações"
-            >
-              <span />
-              <span />
-              <span />
-            </div>
-          ) : groups.length > 0 ? (
-            <ul className="header-notifications">
-              {groups.map((group) => (
-                <li key={group.key}>
-                  <button
-                    type="button"
-                    className="text-button header-notification-item"
-                    onClick={() => {
-                      close();
-                      onNavigate(group.to);
-                    }}
-                  >
-                    {group.icon}
-                    <span>
-                      <strong>{group.label}</strong>
-                      <small>{group.detail}</small>
-                    </span>
-                    <span className="header-notification-count">
-                      {group.count}
-                    </span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            !error && <p className="muted-copy">Nada pendente.</p>
-          )}
-        </>
-      )}
-    </HeaderPopover>
-  );
-}
-
-export function UserMenu({
-  user,
-  onNavigate,
-  onLogout,
-}: {
-  user: UserSummary;
-  onNavigate: (to: string) => void;
-  onLogout: () => void;
-}) {
-  const { canView } = useAuthorization();
-  return (
-    <HeaderPopover
-      label="Menu do usuário"
-      triggerClassName="top-avatar"
-      trigger={initials(user.fullName)}
-    >
-      {(close) => (
-        <>
-          <div className="header-user">
-            <strong>{user.fullName}</strong>
-            <small>{user.email}</small>
-            <small>{user.jobTitle ?? roleLabels[user.role]}</small>
-          </div>
-          <div className="header-user-actions">
-            {canView("settings") && (
-              <button
-                type="button"
-                className="action-menu-item"
+                className="text-button button-sm"
                 onClick={() => {
                   close();
-                  onNavigate("/configuracoes");
+                  setConfiguring(true);
                 }}
               >
-                <Settings size={16} /> Configurações
+                <Settings2 size={15} aria-hidden="true" />
+                Configurar
               </button>
+            </div>
+            {error && (
+              <div className="header-notifications-error">
+                <p className="form-error" role="alert">
+                  {error}
+                </p>
+                <button
+                  type="button"
+                  className="secondary-button button-sm"
+                  onClick={refresh}
+                >
+                  Tentar novamente
+                </button>
+              </div>
             )}
-            <button
-              type="button"
-              className="action-menu-item"
-              onClick={() => {
-                close();
-                onLogout();
-              }}
-            >
-              <LogOut size={16} /> Sair
-            </button>
-          </div>
-        </>
+            {loading ? (
+              <div
+                className="header-notifications-skeleton"
+                role="status"
+                aria-label="Carregando notificações"
+              >
+                <span />
+                <span />
+                <span />
+              </div>
+            ) : groups.length > 0 ? (
+              <ul className="header-notifications">
+                {groups.map((group) => (
+                  <li key={group.key}>
+                    <button
+                      type="button"
+                      className={`text-button header-notification-item${
+                        highlighted.includes(group) ? " is-highlighted" : ""
+                      }`}
+                      onClick={() => {
+                        close();
+                        onNavigate(group.to);
+                      }}
+                    >
+                      {group.icon}
+                      <span>
+                        <strong>{group.label}</strong>
+                        <small>{group.detail}</small>
+                      </span>
+                      <span className="header-notification-count">
+                        {group.count}
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              !error && <p className="muted-copy">Nada pendente.</p>
+            )}
+          </>
+        )}
+      </HeaderPopover>
+      {configuring && (
+        <NotificationSettingsModal
+          availableKinds={center.availableKinds}
+          preferences={center.preferences}
+          onSave={center.savePreferences}
+          onClose={() => setConfiguring(false)}
+        />
       )}
-    </HeaderPopover>
+    </>
   );
 }

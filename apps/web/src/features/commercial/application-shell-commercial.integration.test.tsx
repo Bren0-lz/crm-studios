@@ -4,6 +4,10 @@ import { describe, expect, it, vi } from "vitest";
 import App from "../../App";
 import { storedUser } from "../../test-support/legacy-fixtures";
 import "../../test-support/legacy-setup";
+import {
+  isLeadBoardUrl,
+  leadBoardResponse,
+} from "../../test-support/lead-board";
 
 describe("application shell", () => {
   it("books a trial class for a lead from the CRM card", async () => {
@@ -74,8 +78,8 @@ describe("application shell", () => {
           }),
         } as Response;
       }
-      const body = url.endsWith("/leads")
-        ? [lead, converted]
+      const body = isLeadBoardUrl(url)
+        ? leadBoardResponse(url, [lead, converted])
         : url.includes("/professionals")
           ? [
               {
@@ -96,7 +100,6 @@ describe("application shell", () => {
                   {
                     id: "77777777-7777-4777-8777-777777777777",
                     name: "Pilates",
-                    priceInCents: 9000,
                   },
                 ]
               : [];
@@ -132,14 +135,11 @@ describe("application shell", () => {
     expect(within(dialog).getByLabelText("Sala")).toHaveValue(
       "55555555-5555-4555-8555-555555555555",
     );
-    const type = within(dialog).getByLabelText("Tipo");
-    expect(type).toHaveValue("trial");
+    // Lead só agenda aula experimental (AP4): sem escolha de tipo.
+    expect(within(dialog).queryByLabelText("Tipo")).not.toBeInTheDocument();
     expect(
-      within(type)
-        .getAllByRole("option")
-        .map((item) => item.textContent),
-    ).toEqual(["Experimental", "Avaliação"]);
-    fireEvent.change(type, { target: { value: "evaluation" } });
+      within(dialog).getByText(/Lead agenda só aula experimental/),
+    ).toBeInTheDocument();
     fireEvent.click(within(dialog).getByRole("button", { name: "Data" }));
     const chosenDate = dialog.querySelector<HTMLButtonElement>(
       '[data-date][tabindex="0"]',
@@ -165,6 +165,9 @@ describe("application shell", () => {
     ).toBeEnabled();
     expect(within(dialog).queryByText(/Falta:/)).not.toBeInTheDocument();
     expect(within(dialog).getByLabelText("Horário")).toHaveValue("09:00");
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Fechar calendário" }),
+    );
     expect(
       within(dialog).queryByRole("region", {
         name: "Calendário de agendamento",
@@ -185,14 +188,14 @@ describe("application shell", () => {
       serviceId: "77777777-7777-4777-8777-777777777777",
       startsAt: new Date(`${chosenDate}T09:00`).toISOString(),
       notes: "",
-      visitType: "evaluation",
+      visitType: "trial",
     });
     conflict = false;
     fireEvent.click(
       within(dialog).getByRole("button", { name: "Confirmar agendamento" }),
     );
     expect(
-      await screen.findByText(/Avaliação agendada para Bruna Lead/),
+      await screen.findByText(/Experimental agendada para Bruna Lead/),
     ).toBeInTheDocument();
     expect(
       screen.queryByRole("dialog", { name: "Agendar experimental" }),

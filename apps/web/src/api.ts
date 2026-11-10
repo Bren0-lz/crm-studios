@@ -9,6 +9,7 @@ import { patientsApi } from "./shared/api/domains/patients";
 import { plansApi } from "./shared/api/domains/plans";
 import { relationshipApi } from "./shared/api/domains/relationship";
 import { reportsApi } from "./shared/api/domains/reports";
+import { waitlistApi } from "./shared/api/domains/waitlist";
 
 export const api = {
   ...administrationApi,
@@ -21,6 +22,7 @@ export const api = {
   ...commercialApi,
   ...communicationsApi,
   ...relationshipApi,
+  ...waitlistApi,
   ...contractsApi,
 };
 export { ApiClientError } from "./shared/api/ApiClientError";
@@ -33,3 +35,9 @@ export {
   storeUser,
 } from "./shared/api/session";
 export type { Session } from "./shared/api/session";
+export {
+  allBranches,
+  BRANCH_CHANGED_EVENT,
+  getStoredBranchId,
+  storeBranchId,
+} from "./shared/api/branch";

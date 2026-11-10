@@ -36,14 +36,72 @@ export function validationMessage(field: Field) {
 export function clearInlineValidation(field: Field) {
   if (field.getAttribute("aria-invalid") !== "true") return;
   field.removeAttribute("aria-invalid");
+  field.removeAttribute("data-form-error");
   const container = field.closest("label") ?? field.parentElement;
   container?.querySelector(":scope > .inline-field-error")?.remove();
   field.removeAttribute("aria-description");
 }
 
+/** Artigos ignorados ao comparar mensagem e rótulo ("Informe a data e o horário" ~ "Data e horário"). */
+const IGNORED_WORDS = new Set(["o", "a", "os", "as", "um", "uma", "uns", "umas"]);
+
+function normalizeWords(text: string) {
+  return text
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/\([^)]*\)/g, " ")
+    .split(/[^a-z0-9]+/)
+    .filter((word) => word && !IGNORED_WORDS.has(word))
+    .join(" ");
+}
+
+/** Texto do rótulo de um campo, sem o texto das opções, de botões e de mensagens de erro. */
+function labelText(field: Field) {
+  const texts: string[] = [];
+  for (const label of Array.from(field.labels ?? [])) {
+    const walker = label.ownerDocument.createTreeWalker(
+      label,
+      NodeFilter.SHOW_TEXT,
+    );
+    for (let node = walker.nextNode(); node; node = walker.nextNode())
+      if (
+        !node.parentElement?.closest(
+          "select, textarea, button, .inline-field-error, [aria-hidden='true']",
+        )
+      )
+        texts.push(node.textContent ?? "");
+  }
+  return texts.join(" ") || field.getAttribute("aria-label") || "";
+}
+
 /**
- * Troca os balões nativos do navegador ("Preencha este campo") por mensagens abaixo do
+ * Campo do formulário que a mensagem de erro cita pelo rótulo ("Já existe um cliente com
+ * este CPF." → campo "CPF"). Vence o rótulo mais longo citado; mensagens genéricas
+ * ("Não foi possível…") não apontam campo.
+ */
+export function fieldForMessage(scope: ParentNode, message: string) {
+  const text = ` ${normalizeWords(message)} `;
+  if (text.startsWith(" nao foi possivel ")) return null;
+  let best: { field: Field; length: number } | null = null;
+  for (const field of Array.from(
+    scope.querySelectorAll<Field>("input, select, textarea"),
+  )) {
+    if (field.disabled || ["hidden", "submit", "button"].includes(field.type))
+      continue;
+    const label = normalizeWords(labelText(field));
+    if (label.length < 3 || !text.includes(` ${label} `)) continue;
+    if (!best || label.length > best.length)
+      best = { field, length: label.length };
+  }
+  return best?.field ?? null;
+}
+
+/**
+ * Troca os balões nativos do navegador ("Preencha este campo") por balões abaixo do
  * campo, em todo o sistema. Foca o primeiro campo inválido; a mensagem some ao corrigir.
+ * Erros mostrados depois do envio (`.form-error`, ex.: "Já existe um cliente com este
+ * CPF.") também vão para o campo que citam, que recebe o foco.
  */
 export function installInlineValidation(root: Document) {
   let focusedInRound = false;
@@ -62,16 +120,18 @@ export function installInlineValidation(root: Document) {
     }
     return error;
   }
+  function showError(field: Field, message: string) {
+    field.setAttribute("aria-invalid", "true");
+    // Leitores de tela leem a mensagem como descrição do campo.
+    field.setAttribute("aria-description", message);
+    errorFor(field)?.setAttribute("data-message", message);
+  }
   function onInvalid(event: Event) {
     if (!isField(event.target)) return;
     event.preventDefault();
     const field = event.target;
-    const error = errorFor(field);
-    field.setAttribute("aria-invalid", "true");
-    const message = validationMessage(field);
-    // Leitores de tela leem a mensagem como descrição do campo.
-    field.setAttribute("aria-description", message);
-    error?.setAttribute("data-message", message);
+    field.removeAttribute("data-form-error");
+    showError(field, validationMessage(field));
     if (!focusedInRound) {
       focusedInRound = true;
       field.focus();
@@ -95,10 +155,73 @@ export function installInlineValidation(root: Document) {
       ?.querySelector(":scope > .inline-field-error")
       ?.setAttribute("data-message", message);
   }
+
+  // Erro de envio → campo citado. O aviso do rodapé fica só para leitores de tela.
+  const fieldOfError = new WeakMap<Element, Field>();
+  function forget(error: Element) {
+    const field = fieldOfError.get(error);
+    fieldOfError.delete(error);
+    error.classList.remove("is-at-field");
+    if (field?.hasAttribute("data-form-error")) clearInlineValidation(field);
+  }
+  function onFormError(error: HTMLElement) {
+    const message = error.textContent?.trim() ?? "";
+    if (error.getAttribute("data-shown-message") === message) return;
+    error.setAttribute("data-shown-message", message);
+    forget(error);
+    if (!message) return;
+    const scope =
+      error.closest("form") ??
+      error.closest("[role='dialog']") ??
+      error.parentElement;
+    const field = scope && fieldForMessage(scope, message);
+    if (!field) {
+      error.scrollIntoView?.({ block: "nearest" });
+      return;
+    }
+    showError(field, message);
+    field.setAttribute("data-form-error", "true");
+    fieldOfError.set(error, field);
+    error.classList.add("is-at-field");
+    field.focus({ preventScroll: true });
+    field.scrollIntoView?.({ block: "center" });
+  }
+  const formErrorsIn = (node: Node) =>
+    node instanceof Element
+      ? [
+          ...(node.matches(".form-error") ? [node] : []),
+          ...Array.from(node.querySelectorAll(".form-error")),
+        ]
+      : [];
+  const observer = new MutationObserver((records) => {
+    const changed = new Set<HTMLElement>();
+    for (const record of records) {
+      record.removedNodes.forEach((node) => formErrorsIn(node).forEach(forget));
+      record.addedNodes.forEach((node) =>
+        formErrorsIn(node).forEach((error) =>
+          changed.add(error as HTMLElement),
+        ),
+      );
+      const target =
+        record.target instanceof Element
+          ? record.target
+          : record.target.parentElement;
+      const error = target?.closest<HTMLElement>(".form-error");
+      if (error) changed.add(error);
+    }
+    changed.forEach((error) => error.isConnected && onFormError(error));
+  });
+  observer.observe(root.body ?? root.documentElement, {
+    childList: true,
+    subtree: true,
+    characterData: true,
+  });
+
   root.addEventListener("invalid", onInvalid, true);
   root.addEventListener("input", onEdit, true);
   root.addEventListener("change", onEdit, true);
   return () => {
+    observer.disconnect();
     root.removeEventListener("invalid", onInvalid, true);
     root.removeEventListener("input", onEdit, true);
     root.removeEventListener("change", onEdit, true);

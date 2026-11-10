@@ -1,5 +1,9 @@
-import type { DocumentTemplate } from "@crm/contracts";
-import { useState, type FormEvent } from "react";
+import {
+  documentContentFromText,
+  type ClinicBranding,
+  type DocumentTemplate,
+} from "@crm/contracts";
+import { useRef, useState, type FormEvent } from "react";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
 import { Modal, ModalCancelButton } from "../../shared/components/Modal";
@@ -8,21 +12,34 @@ import { TemplateBodyEditor } from "./TemplateBodyEditor";
 
 export function TemplateVersionModal({
   template,
+  branding,
   onClose,
   onCreated,
 }: {
   template: DocumentTemplate;
+  branding?: ClinicBranding | null | undefined;
   onClose: () => void;
   onCreated: () => void;
 }) {
   const { can } = useAuthorization();
   const [body, setBody] = useState(template.body);
+  const [content, setContent] = useState(
+    template.content ?? documentContentFromText(template.body),
+  );
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
-  const dirty = useFormDirty(body);
+  const savingRef = useRef(false);
+  const dirty = useFormDirty({ body, content });
   async function submit(event: FormEvent) {
     event.preventDefault();
-    if (body.trim() === template.body.trim()) {
+    if (savingRef.current) return;
+    if (
+      body.trim() === template.body.trim() &&
+      JSON.stringify(content) ===
+        JSON.stringify(
+          template.content ?? documentContentFromText(template.body),
+        )
+    ) {
       setError("Altere o conteúdo para criar uma nova versão.");
       return;
     }
@@ -30,14 +47,16 @@ export function TemplateVersionModal({
       setError("O conteúdo precisa ter pelo menos 20 caracteres.");
       return;
     }
+    savingRef.current = true;
     setSaving(true);
     setError("");
     try {
-      await api.createDocumentTemplateVersion(template.id, body);
+      await api.createDocumentTemplateVersion(template.id, body, content);
       onCreated();
     } catch (cause) {
       setError((cause as Error).message);
       setSaving(false);
+      savingRef.current = false;
     }
   }
   return (
@@ -45,18 +64,27 @@ export function TemplateVersionModal({
       title="Nova versão"
       subtitle={`${template.name} · versão ${template.version + 1}`}
       eyebrow="Modelos"
+      wide
+      className="template-version-modal"
       busy={saving}
       dirty={dirty}
       onClose={onClose}
     >
       {can("contracts.templates_version") && (
-        <form className="form-grid" onSubmit={(event) => void submit(event)}>
-          <div className="span-2">
+        <form
+          className="form-grid template-version-form"
+          onSubmit={(event) => void submit(event)}>
+          <div className="span-2 template-version-editor">
             <TemplateBodyEditor
               value={body}
-              rows={12}
+              content={content}
               disabled={saving}
-              onChange={setBody}
+              studio
+              branding={branding}
+              onChange={(body, content) => {
+                setBody(body);
+                setContent(content);
+              }}
             />
           </div>
           {error && <div className="span-2 form-error">{error}</div>}

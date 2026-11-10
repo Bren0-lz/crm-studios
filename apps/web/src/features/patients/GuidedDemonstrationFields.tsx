@@ -1,4 +1,9 @@
-import type { Professional, Room, Service } from "@crm/contracts";
+import {
+  leadAppointmentNotesMaxLength,
+  type Professional,
+  type Room,
+  type Service,
+} from "@crm/contracts";
 import { type Dispatch, type SetStateAction, useEffect, useState } from "react";
 import { api } from "../../api";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
@@ -50,8 +55,8 @@ export function GuidedDemonstrationFields({
   )
     return (
       <p className="muted-copy">
-        Cadastre serviço, profissional e sala antes de agendar a aula de
-        demonstração.
+        Cadastre serviço, profissional e sala antes de agendar a aula
+        experimental.
       </p>
     );
   return (
@@ -113,6 +118,7 @@ export function GuidedDemonstrationFields({
         Observação
         <textarea
           rows={2}
+          maxLength={leadAppointmentNotesMaxLength}
           value={value.notes}
           onChange={(e) => setValue({ ...value, notes: e.target.value })}
         />

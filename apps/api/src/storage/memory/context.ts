@@ -1,4 +1,22 @@
-import type { ExternalOperation } from "@crm/contracts";
+import {
+  planHasSessionBalance,
+  starterAssessmentTemplates,
+} from "@crm/contracts";
+import type {
+  ExternalOperation,
+  PaymentProof,
+  ReceiptSignature,
+} from "@crm/contracts";
+import type {
+  StoredMessageTemplate,
+  StoredMessageTemplateImage,
+  StoredWhatsappCampaign,
+} from "./campaigns.js";
+import type {
+  StoredAutoCampaign,
+  StoredAutoCampaignDelivery,
+  StoredAutoCampaignRedemption,
+} from "./auto-campaigns.js";
 import type { CommissionPaymentEvent } from "@crm/contracts";
 import type { PlanPurchaseResult } from "@crm/contracts";
 import type {
@@ -6,8 +24,24 @@ import type {
   FinancialDateCorrection,
 } from "@crm/contracts";
 import type { PaymentTiming } from "@crm/contracts";
-import type { Supplier } from "@crm/contracts";
-import type { ClinicalResource, ClinicCatalogEntry } from "@crm/contracts";
+import type { PaymentPart } from "@crm/contracts";
+import { resolvePaymentParts } from "@crm/contracts";
+import {
+  assertPaymentParts,
+  latestPaymentBatch,
+  storedPaymentParts,
+} from "../../modules/finance/payment-parts.js";
+import type { Supplier, SupplierOrder } from "@crm/contracts";
+import type {
+  ClinicalResource,
+  ClinicCatalogEntry,
+  NavTabLabel,
+  NotificationPreferences,
+  IntegrationKey,
+  AutoFinalizationSettings,
+  PaymentMethodSettings,
+  ProLaboreSettings,
+} from "@crm/contracts";
 import {
   type AdminAuditEvent,
   type AdminUser,
@@ -19,9 +53,12 @@ import {
   type AppointmentRescheduleEvent,
   type AppointmentStatus,
   formatSequenceNumber,
+  documentTemplateValues,
+  renderDocumentTemplate,
   type AssessmentTemplate,
   type ClinicalAccessEvent,
   type ClinicalAddendum,
+  type ClinicalAlert,
   type ClinicalAssessment,
   type ClinicalAttachmentContent,
   type ClinicalMeasurement,
@@ -62,10 +99,17 @@ import {
   type PermissionKey,
   permissionModules,
   type PlanCatalogEntry,
+  discountedPlanInstallments,
+  hasManualFirstCharge,
+  planProratedChargeCount,
   planInstallmentSchedule,
+  withPlanPaymentParts,
   type PlanTemplate,
   type PlanTemplateInput,
   type Product,
+  type ProductSize,
+  productNeedsRestock,
+  productSizeStock,
   type Professional,
   type Receivable,
   type ReceivableRenegotiation,
@@ -84,12 +128,14 @@ import {
   type TreatmentClosure,
 } from "@crm/contracts";
 import { hashSync } from "bcryptjs";
-import { demoPatients } from "../../demo-patients.js";
+import { demoCpf, demoPatients } from "../../demo-patients.js";
 import {
   buildDemoScenarios,
+  demoMessageTemplates,
   demoProfessionals,
   demoRooms,
   demoServices,
+  demoPlanTemplates,
 } from "../../demo-scenarios.js";
 import { clinicDateOf } from "../../modules/finance/daily-cash.js";
 import {
@@ -106,8 +152,11 @@ import {
 } from "../../modules/plans/plan-services.js";
 import type { ClinicRepository } from "../../repository.js";
 import { type AuthenticatedUser, DomainError } from "../../repository.js";
+import type { Branch, UserBranchAccess } from "@crm/contracts";
+import { BranchScopeStore } from "../branch-scope.js";
 import {
   CLINIC_ID,
+  DEFAULT_BRANCH_ID,
   dateAt,
   now,
   type StoredRecurringPayable,
@@ -117,9 +166,175 @@ import {
 
 export class MemoryRepositoryContext {
   operations!: ClinicRepository;
+  readonly branchScope = new BranchScopeStore();
+  readonly branches: Branch[] = [
+    {
+      id: DEFAULT_BRANCH_ID,
+      clinicId: CLINIC_ID,
+      name: "Matriz",
+      active: true,
+      isDefault: true,
+      phones: [],
+    },
+  ];
+
+  /** Filial padrão da clínica (criada na primeira consulta, como o gatilho do PostgreSQL). */
+  defaultBranchId(clinicId: string) {
+    const current = this.branches.find(
+      (branch) => branch.clinicId === clinicId && branch.isDefault,
+    );
+    if (current) return current.id;
+    const branch: Branch = {
+      id: uuid(),
+      clinicId,
+      name: "Matriz",
+      active: true,
+      isDefault: true,
+      phones: [],
+    };
+    this.branches.push(branch);
+    return branch.id;
+  }
+
+  /** Filial do registro; os anteriores às filiais ficam na padrão. */
+  branchOf(item: { clinicId: string; branchId?: string }) {
+    return item.branchId ?? this.defaultBranchId(item.clinicId);
+  }
+
+  /** O registro está nas filiais da leitura em curso? */
+  inBranchScope(item: { clinicId: string; branchId?: string }) {
+    const ids = this.branchScope.readIds();
+    return !ids || ids.includes(this.branchOf(item));
+  }
+
+  /** Valida as filiais sem alterar o usuário ou a auditoria. */
+  validateUserBranchAccess(user: AuthenticatedUser, access: UserBranchAccess) {
+    const branchIds = access.allBranches ? [] : [...new Set(access.branchIds)];
+    if (
+      branchIds.some(
+        (id) =>
+          !this.branches.some(
+            (branch) => branch.clinicId === user.clinicId && branch.id === id,
+          ),
+      )
+    )
+      throw new DomainError("BRANCH_NOT_FOUND", "Filial não encontrada.", 404);
+    return branchIds;
+  }
+
+  setUserBranchAccess(
+    user: AuthenticatedUser,
+    access: UserBranchAccess,
+    actorUserId: string,
+  ) {
+    const branchIds = this.validateUserBranchAccess(user, access);
+    user.allBranches = access.allBranches;
+    user.branchIds = branchIds;
+    this.addAdminAudit(
+      actorUserId,
+      "users.branches_updated",
+      "user",
+      user.id,
+      { allBranches: user.allBranches, branchIds },
+      user.clinicId,
+    );
+  }
+
+  /** O profissional (e o que é dele: comissões, acertos) está nas filiais da leitura? */
+  professionalInBranchScope(professionalId: string) {
+    const professional = this.professionals.find(
+      (item) => item.id === professionalId,
+    );
+    return professional
+      ? this.inBranchScope(professional)
+      : this.branchScope.readIds() === null;
+  }
+
+  /** Só os registros das filiais da leitura em curso (relatórios e painéis). */
+  scoped<T extends { clinicId: string; branchId?: string }>(items: T[]) {
+    return items.filter((item) => this.inBranchScope(item));
+  }
+
+  /** Comissões dos profissionais das filiais da leitura em curso. */
+  scopedCommissions() {
+    return this.commissions.filter((item) =>
+      this.professionalInBranchScope(item.professionalId),
+    );
+  }
+
+  /** A turma está nas filiais da leitura em curso? */
+  groupInBranchScope(groupId: string) {
+    const group = this.groupClasses.find((item) => item.id === groupId);
+    return Boolean(group && this.inBranchScope(group));
+  }
+
+  /** Recusa (403) gravar em filial fora das filiais da requisição. */
+  assertBranchInScope(branchId: string) {
+    const ids = this.branchScope.readIds();
+    if (ids && !ids.includes(branchId))
+      throw new DomainError(
+        "BRANCH_ACCESS_DENIED",
+        "Este registro é de uma filial que não está selecionada.",
+        403,
+      );
+  }
+
+  /**
+   * Filial comum aos recursos (profissional, sala, turma…) de uma gravação: recusa mistura de
+   * filiais (409 BRANCH_MISMATCH) e filial fora do escopo da requisição (403).
+   */
+  resourceBranch(...items: { clinicId: string; branchId?: string }[]) {
+    return this.sameBranch(
+      "Profissional e sala precisam ser da mesma filial.",
+      ...items,
+    );
+  }
+
+  /** Como `resourceBranch`, com a mensagem própria da operação. */
+  sameBranch(
+    message: string,
+    ...items: { clinicId: string; branchId?: string }[]
+  ) {
+    const ids = new Set(items.map((item) => this.branchOf(item)));
+    if (ids.size > 1) throw new DomainError("BRANCH_MISMATCH", message, 409);
+    const [branchId] = [...ids];
+    this.assertBranchInScope(branchId!);
+    return branchId!;
+  }
+
+  /** Filial em que a requisição em curso grava. */
+  writeBranchId(clinicId: string) {
+    return this.branchScope.writeId() ?? this.defaultBranchId(clinicId);
+  }
   readonly externalOperations: (ExternalOperation & {
     contentBase64: string;
   })[] = [];
+  readonly paymentProofs: (PaymentProof & {
+    contentBase64: string;
+    deletedAt?: string;
+    deletedByUserId?: string;
+    deletionReason?: string;
+  })[] = [];
+  /** Recibos para assinatura: um por baixa de parcela (a situação é calculada na leitura). */
+  readonly receiptSignatures: Omit<ReceiptSignature, "status">[] = [];
+
+  /** Estorno da baixa: os comprovantes ficam no histórico, marcados como da baixa estornada. */
+  markPaymentProofsReversed(
+    clinicId: string,
+    entityType: PaymentProof["entityType"],
+    entityId: string,
+  ) {
+    const timestamp = now();
+    for (const proof of this.paymentProofs)
+      if (
+        proof.clinicId === clinicId &&
+        proof.entityType === entityType &&
+        proof.entityId === entityId &&
+        !proof.reversedAt &&
+        !proof.deletedAt
+      )
+        proof.reversedAt = timestamp;
+  }
   readonly planPurchases = new Map<
     string,
     { fingerprint: string; result: PlanPurchaseResult }
@@ -132,6 +347,13 @@ export class MemoryRepositoryContext {
   readonly commissionAccountPayments: import("@crm/contracts").CommissionAccountPayment[] =
     [];
   readonly commissionPaymentEvents: CommissionPaymentEvent[] = [];
+  /** Descontos e recompensas da folha (`payroll_entries`). */
+  readonly payrollEntries: (import("@crm/contracts").PayrollEntry & {
+    createdByUserId: string;
+  })[] = [];
+  /** Colaboradores da folha de pagamento (`payroll_employees`). */
+  readonly payrollEmployees: import("./payroll.js").PayrollEmployeeRecord[] =
+    [];
   readonly planTemplates: PlanTemplate[] = [];
 
   readonly appointmentReschedules: AppointmentRescheduleEvent[] = [];
@@ -174,6 +396,17 @@ export class MemoryRepositoryContext {
       active: true,
       createdAt: now(),
     },
+    // Fichas iniciais (mesmo conteúdo da migração 0101).
+    ...starterAssessmentTemplates.map(
+      (template, index): AssessmentTemplate => ({
+        ...structuredClone(template),
+        id: `c1000000-0000-4000-8000-00000000000${index + 2}`,
+        clinicId: CLINIC_ID,
+        version: 1,
+        active: true,
+        createdAt: now(),
+      }),
+    ),
   ];
 
   readonly clinicalAssessments: ClinicalAssessment[] = [];
@@ -188,12 +421,17 @@ export class MemoryRepositoryContext {
 
   readonly clinicalAddenda: ClinicalAddendum[] = [];
 
+  /** Alertas clínicos; `archivedAt` marca os removidos (o histórico fica). */
+  readonly clinicalAlerts: (ClinicalAlert & { archivedAt?: string })[] = [];
+
   readonly clinicalAccessEvents: ClinicalAccessEvent[] = [];
 
   readonly adminAuditEvents: AdminAuditEvent[] = [];
 
   readonly relationshipSettings = new Map<string, RelationshipSettings>();
 
+  readonly agendaNotes: import("@crm/contracts").AgendaNote[] = [];
+  readonly waitlistEntries: import("./waitlist.js").WaitlistRow[] = [];
   readonly holidays = new Map<string, Holiday[]>();
 
   readonly contactActivities: ContactActivity[] = [];
@@ -252,9 +490,10 @@ export class MemoryRepositoryContext {
     id: string;
     clinicId: string;
     userId: string;
-    kind?: AdminUserCommissionInput["kind"];
-    fixedAmountInCents?: number | undefined;
-    serviceId?: string | undefined;
+    /** Só em regras antigas (comissão por serviço ou valor fixo), que não valem mais. */
+    kind?: "percentage" | "fixed";
+    fixedAmountInCents?: number;
+    serviceId?: string;
     effectiveUntil?: string | undefined;
     percentage: number;
     effectiveFrom: string;
@@ -305,6 +544,11 @@ export class MemoryRepositoryContext {
 
   readonly leads: Lead[] = [];
 
+  /** Lead id → quando virou cliente (no MySQL vem do `lead_stage_history`). */
+  readonly leadConvertedAt = new Map<string, string>();
+
+  readonly events: import("./events.js").EventRow[] = [];
+
   readonly leadContacts: LeadContact[] = [];
 
   readonly leadTasks: LeadTask[] = [];
@@ -315,12 +559,60 @@ export class MemoryRepositoryContext {
     OutboundMessage & { idempotencyKey: string }
   > = [];
 
+  readonly messageTemplates: StoredMessageTemplate[] = [];
+
+  readonly messageTemplateImages: StoredMessageTemplateImage[] = [];
+
+  readonly whatsappCampaigns: StoredWhatsappCampaign[] = [];
+
+  readonly autoCampaigns: StoredAutoCampaign[] = [];
+
+  readonly autoCampaignDeliveries: StoredAutoCampaignDelivery[] = [];
+
+  readonly autoCampaignRedemptions: StoredAutoCampaignRedemption[] = [];
+
   readonly documentTemplates: DocumentTemplate[] = [];
 
   readonly issuedDocuments: IssuedDocument[] = [];
 
   /** Ligação profissional da agenda → usuário (`professionals.user_id` no PostgreSQL). */
   readonly professionalUsers = new Map<string, string>();
+
+  /** Foto do perfil por usuário (`users.avatar_data_url` no PostgreSQL). */
+  readonly userAvatars = new Map<string, string>();
+
+  /** Preferências do sino por usuário (`user_notification_preferences` no PostgreSQL). */
+  readonly notificationPreferences = new Map<string, NotificationPreferences>();
+
+  /** Chaves da API externa (`integration_api_keys` no MySQL), com o hash do token. */
+  readonly integrationKeys: (IntegrationKey & {
+    clinicId: string;
+    tokenHash: string;
+  })[] = [];
+
+  /** Telegram (TG1): vínculos, códigos de vínculo, fila de saída e perfis que vinculam. */
+  readonly telegram: import("./telegram.js").TelegramMemoryState = {
+    links: [],
+    codes: [],
+    outbox: [],
+    linkRoles: new Map(),
+    receiptReminderSentOn: new Map(),
+  };
+
+  /** WhatsApp por usuário (`users.whatsapp` no PostgreSQL). */
+  readonly userWhatsapps = new Map<string, string>();
+
+  /**
+   * Cópia cifrada da senha por usuário (`users.password_encrypted` no MySQL). Fica fora de
+   * `users` para nunca sair em `toAdminUser`/`toUserSummary`; só `findUserPasswordEncrypted` lê.
+   */
+  readonly userPasswordCopies = new Map<string, string>();
+
+  /** Grava a cópia nova ou, quando só veio o hash, apaga a anterior (que já não confere). */
+  setUserPasswordCopy(userId: string, encrypted: string | null) {
+    if (encrypted) this.userPasswordCopies.set(userId, encrypted);
+    else this.userPasswordCopies.delete(userId);
+  }
 
   readonly users: AuthenticatedUser[] = [
     {
@@ -335,6 +627,7 @@ export class MemoryRepositoryContext {
       customModules: false,
       passwordHash: hashSync("Admin@123", 10),
       active: true,
+      dashboardAccess: false,
       createdAt: now(),
       updatedAt: now(),
     },
@@ -383,18 +676,16 @@ export class MemoryRepositoryContext {
       id: "77777777-7777-4777-8777-777777777777",
       clinicId: CLINIC_ID,
       name: "Fisioterapia individual",
+      businessLine: "studio",
       durationMinutes: 50,
-      priceInCents: 18000,
-      color: "#d96f4b",
       active: true,
     },
     {
       id: "88888888-8888-4888-8888-888888888888",
       clinicId: CLINIC_ID,
       name: "Avaliação funcional",
+      businessLine: null,
       durationMinutes: 60,
-      priceInCents: 22000,
-      color: "#3d7c78",
       active: true,
     },
   ];
@@ -477,12 +768,31 @@ export class MemoryRepositoryContext {
   }
   readonly clinicalResources: ClinicalResource[] = [];
   readonly clinicCatalogEntries: ClinicCatalogEntry[] = [];
+  /** Abas do menu renomeadas, por clínica. */
+  readonly navTabLabels = new Map<string, NavTabLabel[]>();
+  /** Finalização automática configurada, por clínica (sem entrada = padrão). */
+  readonly autoFinalizationSettings = new Map<
+    string,
+    AutoFinalizationSettings
+  >();
+  /** Parcelamento por forma de pagamento, por clínica (sem entrada = até 36x em todas). */
+  readonly paymentMethodSettings = new Map<string, PaymentMethodSettings>();
+  /** Pró-labore configurado, por clínica (sem entrada = padrão). */
+  readonly proLaboreSettings = new Map<string, ProLaboreSettings>();
+  /** Funil editado, por clínica (sem entrada = etapas padrão). */
+  readonly leadStages = new Map<
+    string,
+    Array<{ stage: string; label: string }>
+  >();
   readonly groupAttendance: GroupAttendance[] = [];
 
   readonly replacementCredits: ReplacementCredit[] = [];
 
   readonly suppliers: Supplier[] = [];
+  readonly supplierOrders: SupplierOrder[] = [];
   readonly products: Product[] = [];
+  /** Saldo por produto e chave de estoque ("" = sem tamanho); `currentStock` é a soma. */
+  readonly productStocks = new Map<string, Map<string, number>>();
 
   readonly stockMovements: StockMovement[] = [];
 
@@ -496,18 +806,42 @@ export class MemoryRepositoryContext {
       for (const tag of patient.tags)
         this.ensurePatientTag(patient.clinicId, tag);
     if (!withRichDemo) return;
+    Object.assign(this.branches[0]!, {
+      street: "Rua das Flores",
+      number: "100",
+      neighborhood: "Centro",
+      city: "Campinas",
+      state: "SP",
+    });
     const data = buildDemoScenarios();
     this.professionals.push(...demoProfessionals);
     this.rooms.push(...demoRooms);
     this.services.push(...demoServices);
+    this.planTemplates.push(...demoPlanTemplates);
     this.appointments.push(...data.appointments);
     this.patientPlans.push(...data.plans);
     this.sessionMovements.push(...data.movements);
     this.receivables.push(...data.receivables);
+    this.receiptSignatures.push(
+      ...data.receiptSignatures.map((receipt) => ({
+        ...receipt,
+        viewCount: 0,
+        views: [],
+      })),
+    );
     this.groupClasses.push(...data.groups);
     this.groupEnrollments.push(...data.enrollments);
     this.groupSessions.push(...data.sessions);
     this.groupAttendance.push(...data.attendance);
+    const createdAt = new Date().toISOString();
+    this.messageTemplates.push(
+      ...demoMessageTemplates.map((template) => ({
+        ...template,
+        clinicId: CLINIC_ID,
+        createdAt,
+        updatedAt: createdAt,
+      })),
+    );
     this.receiptEvents.push(
       ...data.financialEvents
         .filter((event) => event.kind === "payment")
@@ -537,7 +871,11 @@ export class MemoryRepositoryContext {
       // PAC-00001..00003, como no seed do PostgreSQL; os demo começam em PAC-00004 (QM15).
       recordNumber: formatSequenceNumber("PAC", number),
       fullName,
+      cpf: demoCpf(number),
       phone,
+      whatsapp: phone,
+      emergencyContactName: fullName,
+      emergencyContactPhone: phone,
       tags,
       status: "active",
       createdAt: now(),
@@ -593,24 +931,34 @@ export class MemoryRepositoryContext {
     const professional = this.linkedProfessional(user.clinicId, user.id);
     const today = clinicDateOf(new Date(), this.clinicSettings.timezone);
     const rule = this.userCommissionRuleOn(user.clinicId, user.id, today);
+    const allBranches = user.role === "admin" || (user.allBranches ?? true);
+    const whatsapp = this.userWhatsapps.get(user.id);
+    const salaryInCents = this.payrollEmployees.find(
+      (item) => item.clinicId === user.clinicId && item.userId === user.id,
+    )?.baseSalaryInCents;
     return {
       ...summary,
+      ...(whatsapp ? { whatsapp } : {}),
+      allBranches,
+      branchIds: allBranches ? [] : [...(user.branchIds ?? [])],
+      dashboardAccess: user.dashboardAccess ?? false,
       ...(professional
         ? {
+            professional: {
+              ...structuredClone(professional),
+              branchId: this.branchOf(professional),
+            },
             professionalId: professional.id,
             professionalName: professional.fullName,
           }
         : {}),
       ...(rule
         ? {
-            ...(rule.kind ? { commissionKind: rule.kind } : {}),
-            ...(rule.fixedAmountInCents !== undefined
-              ? { commissionFixedAmountInCents: rule.fixedAmountInCents }
-              : {}),
             commissionPercentage: rule.percentage,
             commissionEffectiveFrom: rule.effectiveFrom,
           }
         : {}),
+      ...(salaryInCents ? { salaryInCents } : {}),
     };
   }
 
@@ -624,9 +972,40 @@ export class MemoryRepositoryContext {
           item.active &&
           item.effectiveFrom <= date &&
           !item.serviceId &&
+          item.kind !== "fixed" &&
           (!item.effectiveUntil || item.effectiveUntil >= date),
       )
       .sort((a, b) => b.effectiveFrom.localeCompare(a.effectiveFrom))[0];
+  }
+
+  validateUserCommissionRule(
+    clinicId: string,
+    userId: string,
+    input: AdminUserCommissionInput,
+  ) {
+    const existing = this.userCommissionRules.find(
+      (item) =>
+        item.clinicId === clinicId &&
+        item.userId === userId &&
+        !item.serviceId &&
+        item.effectiveFrom === input.effectiveFrom,
+    );
+    if (existing) {
+      // Mesma vigência: é uma correção do percentual, desde que a regra não tenha lançamentos.
+      if (
+        existing.percentage === input.percentage &&
+        existing.kind !== "fixed" &&
+        existing.effectiveUntil === input.effectiveUntil
+      )
+        return existing;
+      if (this.commissionEntryRuleIds.has(existing.id))
+        throw new DomainError(
+          "COMMISSION_RULE_DUPLICATE",
+          "Esta comissão já foi usada em lançamentos; escolha outra data de início.",
+          409,
+        );
+    }
+    return existing;
   }
 
   addUserCommissionRule(
@@ -635,41 +1014,18 @@ export class MemoryRepositoryContext {
     userId: string,
     input: AdminUserCommissionInput,
   ) {
-    if (
-      input.serviceId &&
-      !this.services.some(
-        (item) => item.clinicId === clinicId && item.id === input.serviceId,
-      )
-    )
-      throw new DomainError(
-        "SERVICE_NOT_FOUND",
-        "Serviço não encontrado.",
-        404,
-      );
-    const existing = this.userCommissionRules.find(
-      (item) =>
-        item.clinicId === clinicId &&
-        item.userId === userId &&
-        item.serviceId === input.serviceId &&
-        item.effectiveFrom === input.effectiveFrom,
-    );
+    const existing = this.validateUserCommissionRule(clinicId, userId, input);
     if (existing) {
-      // Mesma vigência: é uma correção do percentual, desde que a regra não tenha lançamentos.
       if (
         existing.percentage === input.percentage &&
-        existing.kind === input.kind &&
-        existing.fixedAmountInCents === input.fixedAmountInCents &&
+        existing.kind !== "fixed" &&
         existing.effectiveUntil === input.effectiveUntil
       )
         return;
-      if (this.commissionEntryRuleIds.has(existing.id))
-        throw new DomainError(
-          "COMMISSION_RULE_DUPLICATE",
-          "Esta comissão já foi usada em lançamentos; escolha outra data de início.",
-          409,
-        );
       const previousPercentage = existing.percentage;
-      Object.assign(existing, input);
+      delete existing.kind;
+      delete existing.fixedAmountInCents;
+      Object.assign(existing, input, { active: true });
       this.addAdminAudit(
         actorUserId,
         "users.commission_updated",
@@ -851,6 +1207,11 @@ export class MemoryRepositoryContext {
         records: this.clinicalAddenda,
         module: "clinical",
         action: "clinical.addendum_created",
+      },
+      {
+        records: this.clinicalAlerts,
+        module: "clinical",
+        action: "clinical.alert_created",
       },
       {
         records: this.clinicalAssessments,
@@ -1089,6 +1450,29 @@ export class MemoryRepositoryContext {
 
   readonly planCatalog: PlanCatalogEntry[] = [];
 
+  appointmentPlanId(
+    clinicId: string,
+    input: Omit<AppointmentInput, "patientId">,
+    patientId?: string,
+  ): string | undefined {
+    if (!patientId || input.visitType === "trial" || !input.planId)
+      return undefined;
+    const plan = this.patientPlans.find(
+      (item) =>
+        item.clinicId === clinicId &&
+        item.id === input.planId &&
+        item.patientId === patientId &&
+        item.services.some((service) => service.serviceId === input.serviceId),
+    );
+    if (!plan)
+      throw new DomainError(
+        "PLAN_NOT_FOUND",
+        "Plano do cliente para este serviço não encontrado.",
+        404,
+      );
+    return plan.id;
+  }
+
   insertAppointment(
     clinicId: string,
     input: Omit<AppointmentInput, "patientId">,
@@ -1170,8 +1554,16 @@ export class MemoryRepositoryContext {
       );
     }
 
+    const branchId = this.resourceBranch(professional, room);
+    const planId = this.appointmentPlanId(
+      clinicId,
+      input,
+      "patientId" in owner ? owner.patientId : undefined,
+    );
     const timestamp = now();
     const appointment: Appointment = {
+      ...(planId ? { planId } : {}),
+      branchId,
       professionalId: input.professionalId,
       roomId: input.roomId,
       serviceId: input.serviceId,
@@ -1355,12 +1747,52 @@ export class MemoryRepositoryContext {
     });
   }
 
+  productStockOf(productId: string, size: ProductSize | undefined) {
+    return this.productStocks.get(productId)?.get(size ?? "") ?? 0;
+  }
+
+  /** Recalcula total, aviso de reposição e saldos por tamanho a partir das chaves de estoque. */
+  refreshProductStock(product: Product) {
+    const rows = [...(this.productStocks.get(product.id) ?? new Map())];
+    product.currentStock = rows.reduce((sum, [, stock]) => sum + stock, 0);
+    product.sizeStock = productSizeStock(
+      product.sizes,
+      rows.map(([size, currentStock]) => ({
+        size: (size || null) as ProductSize | null,
+        currentStock,
+      })),
+    );
+    product.lowStock = productNeedsRestock(product);
+  }
+
+  /** Soma `delta` ao saldo do tamanho (recusa saldo negativo) e devolve o novo saldo dele. */
+  changeProductStock(
+    product: Product,
+    size: ProductSize | undefined,
+    delta: number,
+  ) {
+    const balance = this.productStockOf(product.id, size) + delta;
+    if (balance < 0)
+      throw new DomainError(
+        "INSUFFICIENT_STOCK",
+        "O estoque disponível é insuficiente.",
+        409,
+      );
+    const rows = this.productStocks.get(product.id) ?? new Map();
+    rows.set(size ?? "", balance);
+    this.productStocks.set(product.id, rows);
+    this.refreshProductStock(product);
+    product.updatedAt = now();
+    return balance;
+  }
+
   pushStockMovement(
     product: Product,
     kind: StockMovement["kind"],
     quantity: number,
     notes: string,
     patientTabId?: string,
+    size?: ProductSize,
   ) {
     const movement: StockMovement = {
       id: uuid(),
@@ -1368,8 +1800,9 @@ export class MemoryRepositoryContext {
       productId: product.id,
       productName: product.name,
       kind,
+      ...(size ? { size } : {}),
       quantity,
-      balanceAfter: product.currentStock,
+      balanceAfter: this.productStockOf(product.id, size),
       notes,
       ...(patientTabId ? { patientTabId } : {}),
       createdAt: now(),
@@ -1477,12 +1910,14 @@ export class MemoryRepositoryContext {
   insertPatientPlan(
     clinicId: string,
     patient: Patient,
-    input: Omit<PatientPlanInput, "planTemplateId"> & {
+    rawInput: Omit<PatientPlanInput, "planTemplateId"> & {
       planTemplateId?: string | undefined;
     },
     creditReason: string,
     renewedFrom?: PatientPlan,
   ) {
+    // Plano picado: forma e parcelas derivadas das formas; forma única dispensa a lista.
+    const input = withPlanPaymentParts(rawInput);
     const totals = validatePlanComposition(
       input.services,
       input.totalValueInCents,
@@ -1490,9 +1925,14 @@ export class MemoryRepositoryContext {
     );
     const timestamp = now();
     const { planTemplateId, ...terms } = input;
+    // Renovação fica na filial do plano anterior; venda nova, na filial da requisição.
+    const branchId = renewedFrom
+      ? this.branchOf(renewedFrom)
+      : this.writeBranchId(clinicId);
     const plan: PatientPlan = {
       ...terms,
       ...totals,
+      branchId,
       services: input.services.map((item) => ({
         ...item,
         serviceName:
@@ -1529,14 +1969,29 @@ export class MemoryRepositoryContext {
       updatedAt: timestamp,
     };
     if (plan.autoRenew && !plan.validUntil) plan.autoRenew = false;
-    const installments: Receivable[] = planInstallmentSchedule(input).map(
-      (installment) => ({
+    // O desconto é do plano: a renovação segue o do plano anterior, com o que já foi usado.
+    const discounted = discountedPlanInstallments(
+      planInstallmentSchedule(input),
+      input.discount,
+      renewedFrom?.discount,
+      input.orderDiscountInCents,
+    );
+    delete plan.discount;
+    delete plan.orderDiscountInCents;
+    delete plan.manualFirstCharge;
+    if (discounted.discount) plan.discount = discounted.discount;
+    const manualCharges = hasManualFirstCharge(input)
+      ? planProratedChargeCount(input)
+      : 0;
+    const installments: Receivable[] = discounted.installments.map(
+      (installment, index) => ({
         id: uuid(),
         clinicId,
+        branchId,
         patientId: patient.id,
         planId: plan.id,
         patientName: patient.fullName,
-        description: `${plan.name} · ${installment.installmentNumber}/${input.installments}`,
+        description: `${plan.name} · ${installment.installmentNumber}/${discounted.installments.length}`,
         postedOn: clinicDateOf(
           new Date(timestamp),
           this.clinicSettings.timezone,
@@ -1546,9 +2001,25 @@ export class MemoryRepositoryContext {
           this.clinicSettings.timezone,
         ).slice(0, 7),
         installmentNumber: installment.installmentNumber,
-        installmentCount: input.installments,
+        installmentCount: discounted.installments.length,
         dueDate: installment.dueDate,
         amountInCents: installment.amountInCents,
+        // Plano picado: a forma prevista desta cobrança (sugerida na baixa).
+        ...(input.paymentParts && installment.paymentMethod
+          ? {
+              paymentParts: [
+                {
+                  paymentMethod: installment.paymentMethod,
+                  amountInCents: installment.amountInCents,
+                },
+              ],
+            }
+          : {}),
+        ...(installment.customerDiscountInCents
+          ? { customerDiscountInCents: installment.customerDiscountInCents }
+          : {}),
+        // Cobrança proporcional com o valor informado à mão (as primeiras, uma por forma).
+        ...(index < manualCharges ? { manualAmount: true as const } : {}),
         status: "open",
         overdue: false,
         createdAt: timestamp,
@@ -1601,7 +2072,7 @@ export class MemoryRepositoryContext {
   findExpenseClassification(
     clinicId: string,
     categoryId: string,
-    costCenterId: string,
+    costCenterId: string | undefined,
   ) {
     const category = this.financialCategories.find(
       (item) =>
@@ -1610,11 +2081,16 @@ export class MemoryRepositoryContext {
         item.kind === "expense" &&
         item.active,
     );
-    const costCenter = this.costCenters.find(
-      (item) =>
-        item.clinicId === clinicId && item.id === costCenterId && item.active,
-    );
-    if (!category || !costCenter)
+    // Centro de custo é opcional; informado, precisa existir e estar ativo.
+    const costCenter = costCenterId
+      ? this.costCenters.find(
+          (item) =>
+            item.clinicId === clinicId &&
+            item.id === costCenterId &&
+            item.active,
+        )
+      : undefined;
+    if (!category || (costCenterId && !costCenter))
       throw new DomainError(
         "FINANCIAL_CLASSIFICATION_NOT_FOUND",
         "Categoria de despesa ou centro de custo não encontrado.",
@@ -1628,9 +2104,13 @@ export class MemoryRepositoryContext {
       description: input.description,
       ...(input.supplier ? { supplier: input.supplier } : {}),
       categoryId: input.categoryId,
-      costCenterId: input.costCenterId,
+      ...(input.costCenterId ? { costCenterId: input.costCenterId } : {}),
+      amountType: input.amountType,
       amountInCents: input.amountInCents,
       dayOfMonth: input.dayOfMonth,
+      ...(input.reminderDaysBefore !== undefined
+        ? { reminderDaysBefore: input.reminderDaysBefore }
+        : {}),
       startMonth: input.startMonth,
       ...(input.endMonth ? { endMonth: input.endMonth } : {}),
       active: input.active,
@@ -1661,6 +2141,7 @@ export class MemoryRepositoryContext {
     operation: "payment" | "payment_reversal",
     paymentMethod?: PaymentMethod,
     timing?: PaymentTiming,
+    payments?: PaymentPart[],
   ) {
     const payable = this.payables.find(
       (item) => item.clinicId === clinicId && item.id === payableId,
@@ -1675,6 +2156,12 @@ export class MemoryRepositoryContext {
           : "Somente contas pagas podem ser estornadas.",
         409,
       );
+    if (operation === "payment" && payable.amountPending)
+      throw new DomainError(
+        "PAYABLE_AMOUNT_PENDING",
+        "Informe o valor do mês antes de pagar esta conta.",
+        409,
+      );
     const commission = payable.commissionId
       ? this.commissions.find(
           (item) =>
@@ -1687,47 +2174,112 @@ export class MemoryRepositoryContext {
         "Concilie a situação da comissão com a despesa antes de continuar.",
         409,
       );
+    // Despesa da folha: as comissões e os ajustes incluídos pagam (e estornam) junto.
+    const payrollCommissions = this.commissions.filter(
+        (item) =>
+          item.clinicId === clinicId && item.payrollPayableId === payableId,
+      ),
+      payrollAdjustments = this.commissionAdjustments.filter(
+        (item) =>
+          item.clinicId === clinicId && item.payrollPayableId === payableId,
+      );
+    if (
+      [...payrollCommissions, ...payrollAdjustments].some(
+        (item) => item.status !== expected,
+      )
+    )
+      throw new DomainError(
+        "PAYROLL_EXPENSE_STATE",
+        "Uma comissão desta folha mudou de situação; revise a folha antes de continuar.",
+        409,
+      );
+    // Picado: as formas somam o valor da conta; o estorno devolve forma por forma.
+    const parts =
+      operation === "payment"
+        ? resolvePaymentParts({
+            payments,
+            paymentMethod,
+            amountInCents: payable.amountInCents,
+          })
+        : [];
+    if (operation === "payment")
+      assertPaymentParts(parts, payable.amountInCents);
+    const reversedParts =
+      operation === "payment_reversal"
+        ? latestPaymentBatch(
+            this.payablePaymentEvents.filter(
+              (item) =>
+                item.clinicId === clinicId && item.payableId === payableId,
+            ),
+          )
+        : [];
     const previousMethod = payable.paymentMethod;
     payable.status = operation === "payment" ? "paid" : "open";
+    if (operation === "payment_reversal")
+      this.markPaymentProofsReversed(clinicId, "payable", payableId);
     payable.updatedAt = now();
     if (operation === "payment") {
       payable.paidAt = timing?.paidAt ?? payable.updatedAt;
       if (timing?.availableAt) payable.cashAvailableAt = timing.availableAt;
-      payable.paymentMethod = paymentMethod!;
+      payable.paymentMethod = parts[0]!.paymentMethod;
+      const stored = storedPaymentParts(parts);
+      if (stored) payable.paymentParts = stored;
+      else delete payable.paymentParts;
       payable.overdue = false;
     } else {
       delete payable.paidAt;
       delete payable.paymentMethod;
+      delete payable.paymentParts;
       payable.overdue = payable.dueDate < today();
     }
-    if (commission) {
-      commission.status = payable.status as "open" | "paid";
-      if (payable.paidAt) commission.paidAt = payable.paidAt;
-      else delete commission.paidAt;
+    for (const item of [
+      ...(commission ? [commission] : []),
+      ...payrollCommissions,
+      ...payrollAdjustments,
+    ]) {
+      item.status = payable.status as "open" | "paid";
+      if (payable.paidAt) item.paidAt = payable.paidAt;
+      else delete item.paidAt;
     }
-    this.payablePaymentEvents.push({
-      id: uuid(),
-      clinicId,
-      payableId,
-      kind: operation === "payment" ? "payment" : "reversal",
-      occurredAt: timing?.paidAt ?? now(),
-      ...(operation === "payment" && payable.cashAvailableAt
-        ? { availableAt: payable.cashAvailableAt }
-        : {}),
-      amountInCents:
-        operation === "payment"
-          ? payable.amountInCents
-          : -payable.amountInCents,
-      ...((paymentMethod ?? previousMethod)
-        ? { paymentMethod: paymentMethod ?? previousMethod }
-        : {}),
-    });
+    const occurredAt = timing?.paidAt ?? now();
+    const movements =
+      operation === "payment"
+        ? parts.map((part) => ({
+            amountInCents: part.amountInCents,
+            paymentMethod: part.paymentMethod as PaymentMethod | undefined,
+          }))
+        : reversedParts.length
+          ? reversedParts.map((item) => ({
+              amountInCents: -item.amountInCents,
+              paymentMethod: item.paymentMethod,
+            }))
+          : [
+              {
+                amountInCents: -payable.amountInCents,
+                paymentMethod: previousMethod,
+              },
+            ];
+    for (const movement of movements)
+      this.payablePaymentEvents.push({
+        id: uuid(),
+        clinicId,
+        payableId,
+        kind: operation === "payment" ? "payment" : "reversal",
+        occurredAt,
+        ...(operation === "payment" && payable.cashAvailableAt
+          ? { availableAt: payable.cashAvailableAt }
+          : {}),
+        amountInCents: movement.amountInCents,
+        ...(movement.paymentMethod
+          ? { paymentMethod: movement.paymentMethod }
+          : {}),
+      });
     return payable;
   }
 
   consumeSession(appointment: Appointment) {
-    // Atendimento de lead não tem plano: nunca consome sessão.
-    if (!appointment.patientId) return;
+    // Leads e aulas experimentais nunca consomem sessão.
+    if (!appointment.patientId || appointment.visitType === "trial") return;
     const appointmentDate = clinicDateOf(
       new Date(appointment.startsAt),
       this.clinicSettings.timezone,
@@ -1737,6 +2289,7 @@ export class MemoryRepositoryContext {
         (plan) =>
           plan.clinicId === appointment.clinicId &&
           plan.patientId === appointment.patientId &&
+          (!appointment.planId || plan.id === appointment.planId) &&
           (!plan.sourceAppointmentId ||
             plan.sourceAppointmentId === appointment.id) &&
           plan.services.some(
@@ -1758,6 +2311,12 @@ export class MemoryRepositoryContext {
       );
     const plan = plans[0];
     if (!plan) {
+      if (appointment.planId)
+        throw new DomainError(
+          "NO_SESSION_BALANCE",
+          "O plano vinculado não possui saldo de sessões válido para este atendimento.",
+          409,
+        );
       if (
         this.patientTabs.some(
           (t) =>
@@ -1780,7 +2339,8 @@ export class MemoryRepositoryContext {
     const planService = plan.services.find(
       (item) => item.serviceId === appointment.serviceId,
     )!;
-    if (planService.remainingSessions < 1) {
+    // Recorrente: a frequência semanal vale; o ciclo com mais aulas que o saldo nominal passa.
+    if (planService.remainingSessions < 1 && planHasSessionBalance(plan)) {
       throw new DomainError(
         "NO_SESSION_BALANCE",
         "O cliente não possui saldo de sessões para este serviço.",
@@ -1883,7 +2443,8 @@ export class MemoryRepositoryContext {
         const item = this.receivables.find(
           (candidate) => candidate.id === event.receivableId,
         );
-        if (!item || item.clinicId !== clinicId) return null;
+        if (!item || item.clinicId !== clinicId || !this.inBranchScope(item))
+          return null;
         const tab = this.patientTabs.find(
           (candidate) => candidate.receivableId === item.id,
         );
@@ -1911,6 +2472,12 @@ export class MemoryRepositoryContext {
           ...(event.paymentMethod
             ? { paymentMethod: event.paymentMethod }
             : {}),
+          ...(event.kind === "payment" && event.discountInCents
+            ? { discountInCents: event.discountInCents }
+            : {}),
+          ...(event.kind === "payment" && event.balanceReceivableId
+            ? { balanceReceivableId: event.balanceReceivableId }
+            : {}),
         };
       })
       .filter((item): item is ReceivedPayment => item !== null);
@@ -1918,22 +2485,27 @@ export class MemoryRepositoryContext {
 
   renderDocument(
     body: string,
-    patientName: string,
-    planName?: string,
+    patient: Patient,
+    plan?: PatientPlan,
     professional?: Professional,
-    planServices: PatientPlan["services"] = [],
   ) {
-    return body
-      .replaceAll("{{paciente_nome}}", patientName)
-      .replaceAll("{{plano_nome}}", planName ?? "Não vinculado")
-      .replaceAll(
-        "{{plano_servicos}}",
-        formatPlanServices(planServices) || "Não vinculado",
-      )
-      .replaceAll("{{profissional_nome}}", professional?.fullName ?? "")
-      .replaceAll("{{profissional_crefito}}", professional?.crefito ?? "")
-      .replaceAll("{{data_emissao}}", new Date().toLocaleDateString("pt-BR"))
-      .replaceAll("{{clinica_nome}}", this.clinicSettings.name);
+    return renderDocumentTemplate(
+      body,
+      documentTemplateValues({
+        clinic: this.clinicSettings,
+        patient,
+        ...(plan
+          ? {
+              plan: {
+                ...plan,
+                services: formatPlanServices(plan.services),
+              },
+            }
+          : {}),
+        ...(professional ? { professional } : {}),
+        issuedOn: new Date().toLocaleDateString("pt-BR"),
+      }),
+    );
   }
 
   channelAllowed(

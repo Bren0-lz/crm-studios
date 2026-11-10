@@ -1,8 +1,10 @@
-import { fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { nextTestCpf } from "../../../../api/src/test-support/cpf.js";
+import { sellSessionForAppointment } from "../../../../api/src/test-support/commission-billing.js";
+import { fireEvent, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { api } from "../../api";
 import { actorId, clinicId, setupApi } from "../../test-support/api-server";
-import { open, change, expand, save } from "../../test-support/workflow-ui";
+import { open, change, save } from "../../test-support/workflow-ui";
 
 describe("finance workflows through real HTTP handlers", () => {
   it("classifies a supplier expense, combines filters and settles with independent payment and cash dates", async () => {
@@ -12,6 +14,12 @@ describe("finance workflows through real HTTP handlers", () => {
       kind: "company",
       document: "",
       phone: "",
+      whatsapp: "",
+      billingCycle: "one_time",
+      installments: 1,
+      paymentTerms: "",
+      orders: "",
+      contracts: "",
       notes: "",
       active: true,
     });
@@ -26,31 +34,36 @@ describe("finance workflows through real HTTP handlers", () => {
     fireEvent.click(
       await screen.findByRole("button", { name: "Nova despesa" }),
     );
-    let dialog = screen.getByRole("dialog", { name: "Nova conta a pagar" });
+    // O modal abre assim que o workspace carrega.
+    let dialog = await screen.findByRole("dialog", { name: "Nova despesa" });
+    // Fornecedor num campo só, entre os cadastrados.
     await within(dialog).findByRole("option", { name: supplier!.name });
+    fireEvent.click(within(dialog).getByRole("radio", { name: "Lançamento" }));
     for (const [label, value] of [
       ["Descrição", "Compra de faixas"],
-      ["Fornecedor cadastrado", supplier!.id],
-      ["Lançamento", "2040-06-01"],
-      ["Competência", "2040-06"],
-      ["Vencimento", "2040-06-10"],
+      ["Fornecedor", supplier!.id],
+      ["Data do lançamento", "2040-06-10"],
       ["Categoria", category.id],
       ["Centro de custo (opcional)", center.id],
       ["Valor", "75.50"],
-      ["Observações", "Material terapêutico"],
+      ["Observações (opcional)", "Material terapêutico"],
     ])
       change(label!, value!, dialog);
-    await save("Nova conta a pagar", "Cadastrar despesa");
+    await save("Nova despesa", "Cadastrar despesa");
     fireEvent.click(screen.getByRole("button", { name: /^Contas a pagar \(/ }));
-    const filters = expand("Filtrar lançamentos por datas e classificação");
-    await within(filters).findByLabelText("Pesquisar lançamento");
+    const openFilters = async () => {
+      fireEvent.click(
+        screen.getByRole("button", { name: /^Filtrar lançamentos/ }),
+      );
+      return screen.findByRole("dialog", { name: "Filtrar lançamentos" });
+    };
+    let filters = await openFilters();
     await within(filters).findByRole("option", { name: supplier!.name });
     for (const [label, value] of [
       ["Pesquisar lançamento", "FAIXAS"],
       ["Data considerada", "postedOn"],
       ["De", "2040-06-01"],
       ["Até", "2040-06-30"],
-      ["Competência", "2040-06"],
       ["Situação do lançamento", "open"],
       ["Categoria do lançamento", category.id],
       ["Centro de custo do lançamento", center.id],
@@ -58,29 +71,43 @@ describe("finance workflows through real HTTP handlers", () => {
       ["Forma de pagamento do lançamento", "unspecified"],
     ])
       change(label!, value!, filters);
+    fireEvent.click(
+      within(filters).getByRole("button", { name: "Salvar filtros" }),
+    );
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.getByText("8 filtros aplicados")).toBeInTheDocument();
     expect(
       screen.getByText("Compra de faixas", { exact: true }),
     ).toBeInTheDocument();
+    filters = await openFilters();
+    expect(within(filters).getByLabelText("Pesquisar lançamento")).toHaveValue(
+      "FAIXAS",
+    );
     change("Data considerada", "paidAt", filters);
+    // Sem salvar, a lista continua com o filtro anterior.
+    expect(
+      screen.getByText("Compra de faixas", { exact: true }),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      within(filters).getByRole("button", { name: "Salvar filtros" }),
+    );
     expect(
       screen.queryByText("Compra de faixas", { exact: true }),
     ).not.toBeInTheDocument();
     fireEvent.click(
-      within(filters).getByRole("button", {
-        name: "Limpar filtros de lançamentos",
-      }),
+      screen.getByRole("button", { name: "Limpar filtros de lançamentos" }),
     );
+    expect(screen.getByText("Nenhum filtro aplicado")).toBeInTheDocument();
     const row = screen
       .getByText("Compra de faixas", { exact: true })
       .closest<HTMLElement>(".finance-row")!;
     fireEvent.click(within(row).getByRole("button", { name: /^Pagar / }));
     dialog = screen.getByRole("dialog", { name: "Pagar despesa" });
     change("Forma de pagamento usada", "card", dialog);
-    fireEvent.click(
-      within(dialog).getByText("Datas do pagamento e do caixa", {
-        exact: true,
-      }),
-    );
+    expect(
+      within(dialog).getByLabelText("Data e hora do pagamento"),
+    ).toBeDisabled();
+    fireEvent.click(within(dialog).getByLabelText("Pagamento antigo?"));
     change("Data e hora do pagamento", "2040-06-10T10:00", dialog);
     change("Disponibilidade no caixa", "2040-06-12T08:00", dialog);
     await save("Pagar despesa", "Confirmar pagamento");
@@ -91,15 +118,25 @@ describe("finance workflows through real HTTP handlers", () => {
       status: "paid",
       amountInCents: 7550,
       supplierId: supplier!.id,
+      supplier: supplier!.name,
+      // Uma data só: no lançamento, vence no mesmo dia e a DRE usa o mês dela.
+      postedOn: "2040-06-10",
+      dueDate: "2040-06-10",
+      dreCompetence: "2040-06",
       paymentMethod: "card",
       paidAt: new Date("2040-06-10T10:00").toISOString(),
       cashAvailableAt: new Date("2040-06-12T08:00").toISOString(),
     });
-    await waitFor(() =>
-      expect(
-        screen.getByText("Compra de faixas", { exact: true }),
-      ).toBeInTheDocument(),
+    // Paga com data de outro mês: sai da lista do mês e fica em "pagas de meses anteriores".
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Ver pagas de meses anteriores (1)",
+      }),
     );
+    const paidGroup = screen.getByRole("region", { name: /^Pagas/ });
+    expect(
+      within(paidGroup).getByText("Compra de faixas", { exact: true }),
+    ).toBeInTheDocument();
   });
   it("reconciles a paid commission and records a recovery while preserving its original payment", async () => {
     const { repository } = await setupApi();
@@ -109,10 +146,7 @@ describe("finance workflows through real HTTP handlers", () => {
     const [service] = await repository.listServices(clinicId);
     await repository.createCommissionRule(clinicId, {
       professionalId: professional!.id,
-      serviceId: service!.id,
-      kind: "fixed",
-      percentage: 0,
-      fixedAmountInCents: 1500,
+      percentage: 10,
       effectiveFrom: "2039-01-01",
     });
     const appointment = await repository.createAppointment(clinicId, {
@@ -121,9 +155,11 @@ describe("finance workflows through real HTTP handlers", () => {
       roomId: room!.id,
       serviceId: service!.id,
       startsAt: "2039-02-10T12:00:00Z",
-      visitType: "trial",
+      visitType: "regular",
     });
     // Realizado só depois do início do atendimento (QC3): relógio no dia seguinte.
+    // A comissão sai do valor pago: R$ 150 na comanda → 10% = R$ 15.
+    await sellSessionForAppointment(repository, clinicId, actorId, appointment, 15000);
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(new Date("2039-02-11T12:00:00Z"));
     try {
@@ -192,82 +228,66 @@ describe("finance workflows through real HTTP handlers", () => {
     await within(dialog).findByText(
       "Conciliação registrada com ajustes separados da comissão original.",
     );
-    fireEvent.click(
-      within(dialog).getByRole("button", {
+    // O saldo conciliado é pago pela folha: aqui só se consulta.
+    expect(
+      within(dialog).getByText(/Os ajustes em aberto entram na folha/),
+    ).toBeInTheDocument();
+    expect(
+      within(dialog).queryByRole("button", {
         name: "Registrar devolução ao caixa",
       }),
-    );
-    await save("Confirmar baixa conciliada", "Confirmar registro conciliado");
-    await within(dialog).findByText("Baixa conciliada registrada.");
-    const workspace = await repository.getFinancialWorkspace(clinicId);
+    ).not.toBeInTheDocument();
+    let workspace = await repository.getFinancialWorkspace(clinicId);
     expect(
       workspace.commissions.find((item) => item.id === commission.id),
     ).toEqual(original);
     expect(workspace.commissionAdjustments).toMatchObject([
-      { commissionId: commission.id, amountInCents: -1500, status: "paid" },
+      { commissionId: commission.id, amountInCents: -1500, status: "open" },
     ]);
+    // Baixa conciliada registrada antes da folha ainda pode ser estornada aqui.
+    await repository.settleCommissionAccount(
+      clinicId,
+      actorId,
+      commission.id,
+      professional!.id,
+      -1500,
+    );
     fireEvent.click(
-      within(dialog).getByRole("button", { name: "Estornar baixa conciliada" }),
+      within(dialog).getByRole("button", {
+        name: "Atualizar conta conciliada",
+      }),
+    );
+    fireEvent.click(
+      await within(dialog).findByRole("button", {
+        name: "Estornar baixa conciliada",
+      }),
     );
     await save("Estornar baixa conciliada", "Confirmar registro conciliado");
     await within(dialog).findByText(
       "Estorno conciliado registrado sem remover o pagamento original.",
     );
     expect(within(dialog).getByText(/Estornado/)).toBeInTheDocument();
-    vi.useFakeTimers({ toFake: ["Date"] });
-    vi.setSystemTime(new Date("2039-02-11T12:00:00Z"));
-    try {
-      await repository.updateAppointmentStatus(
-        clinicId,
-        appointment.id,
-        "completed",
-      );
-    } finally {
-      vi.useRealTimers();
-    }
-    fireEvent.click(
-      within(dialog).getByRole("button", {
-        name: "Atualizar conta conciliada",
-      }),
-    );
-    await within(dialog).findByLabelText("Motivo da conciliação");
-    change(
-      "Motivo da conciliação",
-      "Presença restaurada após conferência",
-      dialog,
-    );
-    fireEvent.click(
-      within(dialog).getByRole("button", { name: "Confirmar conciliação" }),
-    );
-    const compensate = await within(dialog).findByRole("button", {
-      name: "Compensar saldo zero",
-    });
-    fireEvent.click(compensate);
+    workspace = await repository.getFinancialWorkspace(clinicId);
+    expect(workspace.commissionAdjustments).toMatchObject([
+      { commissionId: commission.id, amountInCents: -1500, status: "open" },
+    ]);
     expect(
-      screen.getByRole("dialog", { name: "Confirmar baixa conciliada" }),
-    ).toHaveTextContent("O saldo zero não gera entrada nem saída no caixa.");
-    await save("Confirmar baixa conciliada", "Confirmar registro conciliado");
-    await waitFor(async () => {
-      const current = await repository.getFinancialWorkspace(clinicId);
-      expect(current.commissionAdjustments).toHaveLength(2);
-      expect(
-        current.commissionAdjustments?.every((item) => item.status === "paid"),
-      ).toBe(true);
-      expect(
-        current.commissions.find((item) => item.id === commission.id),
-      ).toEqual(original);
-    });
+      workspace.commissions.find((item) => item.id === commission.id),
+    ).toEqual(original);
   });
   it("creates a contextual receivable, reclassifies it and changes dates without losing its value", async () => {
     const { repository } = await setupApi();
     const patient = await repository.createPatient(clinicId, {
+      cpf: nextTestCpf(),
       fullName: "Cliente financeiro",
       phone: "11988887777",
       tags: [],
     });
     open(`/financeiro?patientId=${patient.id}`);
-    await screen.findByText("Lançamentos e competência", { exact: true });
-    const panel = expand("Lançamentos e competência");
+    fireEvent.click(await screen.findByRole("button", { name: "Lançamentos" }));
+    const panel = (
+      await screen.findByRole("heading", { name: "Lançamentos e competência" })
+    ).closest("section")!;
     fireEvent.click(
       await within(panel).findByRole("button", {
         name: "Nova conta a receber",
@@ -277,7 +297,7 @@ describe("finance workflows through real HTTP handlers", () => {
       name: "Nova conta a receber",
     });
     change("Descrição", "Sessão avulsa negociada", dialog);
-    change("Valor (R$)", "125.50", dialog);
+    change("Valor (R$)", "125,50", dialog);
     change("Vencimento", "2040-06-10", dialog);
     change("Competência", "2040-06", dialog);
     await save("Nova conta a receber", "Salvar lançamento");
@@ -315,16 +335,21 @@ describe("finance workflows through real HTTP handlers", () => {
   it("registers external proof without changing the linked invoice", async () => {
     const { repository } = await setupApi();
     const patient = await repository.createPatient(clinicId, {
+      cpf: nextTestCpf(),
       fullName: "Cliente fiscal",
       phone: "11988887777",
       tags: [],
     });
     const before = await repository.getFinancialSummary(clinicId);
     open(`/financeiro?patientId=${patient.id}`);
-    await screen.findByText("Documentos fiscais e operações com parceiros", {
-      exact: true,
-    });
-    const panel = expand("Documentos fiscais e operações com parceiros");
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Documentos fiscais" }),
+    );
+    const panel = (
+      await screen.findByRole("heading", {
+        name: "Documentos fiscais e operações com parceiros",
+      })
+    ).closest("section")!;
     fireEvent.click(
       await within(panel).findByRole("button", {
         name: "Registrar operação externa",

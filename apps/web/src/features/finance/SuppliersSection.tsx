@@ -1,226 +1,156 @@
-import type { Supplier, SupplierInput } from "@crm/contracts";
-import { useState } from "react";
+import { formatPhone, type Supplier } from "@crm/contracts";
+import { Plus } from "lucide-react";
+import { useEffect, useState } from "react";
 import { api } from "../../api";
-import { useToast } from "../../shared/feedback/toast-context";
 import { useAuthorization } from "../../authorization-context";
-import { Modal, ModalCancelButton } from "../../shared/components/Modal";
-import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
 import { EmptyState } from "../../shared/components/EmptyState";
 import { ErrorBanner } from "../../shared/components/ErrorBanner";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
-export function SuppliersSection() {
+import { SupplierModal, type SupplierModalTab } from "./SupplierModal";
+import { SupplierOrdersModal } from "./SupplierOrdersModal";
+/**
+ * `embedded` mostra a lista aberta em vez do bloco recolhível; `sales` usa a lista de
+ * Vendas de produtos › Fornecedores, que não exige acesso ao Financeiro.
+ */
+export function SuppliersSection({
+  embedded = false,
+  sales = false,
+}: {
+  embedded?: boolean;
+  sales?: boolean;
+}) {
   const { can } = useAuthorization();
-  const toast = useToast();
+  // Cadastro pelo Financeiro ou pela aba Fornecedores de Vendas de produtos.
+  const canManage =
+    can("finance.suppliers_manage") || can("patients.suppliers_manage");
+  const listSuppliers = () => (sales ? api.salesSuppliers() : api.suppliers());
   const [items, setItems] = useState<Supplier[] | null>(null),
-    [opened, setOpened] = useState(false),
-    [editor, setEditor] = useState<Supplier | "new" | null>(null),
-    [error, setError] = useState(""),
-    [busy, setBusy] = useState(false),
-    [form, setForm] = useState<SupplierInput>({
-      name: "",
-      kind: "company",
-      document: "",
-      phone: "",
-      email: "",
-      notes: "",
-      active: true,
-    });
-  const dirty = useFormDirty(form, Boolean(editor));
+    [opened, setOpened] = useState(embedded),
+    [editor, setEditor] = useState<{
+      supplier: Supplier | "new";
+      tab?: SupplierModalTab;
+    } | null>(null),
+    [ordersOf, setOrdersOf] = useState<Supplier | null>(null),
+    [error, setError] = useState("");
   async function load() {
     setError("");
     try {
-      setItems(await api.suppliers());
+      setItems(await listSuppliers());
     } catch (cause) {
       setError((cause as Error).message);
     }
   }
-  function edit(item: Supplier | "new") {
-    setForm(
-      item === "new"
-        ? {
-            name: "",
-            kind: "company",
-            document: "",
-            phone: "",
-            email: "",
-            notes: "",
-            active: true,
-          }
-        : item,
-    );
-    setEditor(item);
-  }
-  return (
-    <section className="panel">
-      <details
-        onToggle={(event) => {
-          if (event.currentTarget.open && !opened) {
-            setOpened(true);
-            void load();
-          }
-        }}
-      >
-        <summary className="panel-head">Fornecedores</summary>
-        {opened && (
-          <div className="inventory-body">
-            {error && <ErrorBanner error={error} />}
-            {can("finance.suppliers_manage") && (
-              <button className="primary-button" onClick={() => edit("new")}>
-                Novo fornecedor
-              </button>
-            )}
-            {!items ? (
-              !error && <LoadingBlock />
-            ) : !items.length ? (
-              <EmptyState
-                title="Nenhum fornecedor"
-                copy="Cadastre as pessoas e empresas utilizadas nas despesas."
-              />
-            ) : (
-              items.map((item) => (
-                <div className="table-row" key={item.id}>
-                  <strong>{item.name}</strong>
-                  <span>
-                    {item.kind === "company"
-                      ? "Pessoa jurídica"
-                      : "Pessoa física"}{" "}
-                    · {item.active ? "Ativo" : "Inativo"}
-                  </span>
-                  {can("finance.suppliers_manage") && (
-                    <button
-                      className="secondary-button"
-                      onClick={() => edit(item)}
-                    >
-                      Editar
-                    </button>
-                  )}
-                </div>
-              ))
-            )}
-          </div>
-        )}
-      </details>
-      {editor && (
-        <Modal
-          title={editor === "new" ? "Novo fornecedor" : "Editar fornecedor"}
-          subtitle="Desativar mantém os vínculos e o histórico das despesas."
-          busy={busy}
-          dirty={dirty}
-          onClose={() => setEditor(null)}
-        >
-          <form
-            className="clinical-form"
-            onSubmit={async (event) => {
-              event.preventDefault();
-              setBusy(true);
-              setError("");
-              try {
-                await api.saveSupplier(
-                  form,
-                  editor !== "new" ? editor.id : undefined,
-                );
-                toast.success(
-                  editor === "new"
-                    ? "Fornecedor cadastrado."
-                    : "Fornecedor atualizado.",
-                );
-                await load();
-                setEditor(null);
-              } catch (cause) {
-                setError((cause as Error).message);
-              } finally {
-                setBusy(false);
-              }
-            }}
-          >
-            {error && <ErrorBanner error={error} />}
-            <fieldset className="form-fields form-grid" disabled={busy}>
-              <label>
-                Nome
-                <input
-                  required
-                  minLength={2}
-                  maxLength={160}
-                  value={form.name}
-                  onChange={(event) =>
-                    setForm({ ...form, name: event.target.value })
-                  }
-                />
-              </label>
-              <label>
-                Tipo
-                <select
-                  value={form.kind}
-                  onChange={(event) =>
-                    setForm({
-                      ...form,
-                      kind: event.target.value as SupplierInput["kind"],
-                    })
+  useEffect(() => {
+    if (!embedded) return;
+    let alive = true;
+    (sales ? api.salesSuppliers() : api.suppliers())
+      .then((data) => alive && setItems(data))
+      .catch((cause: Error) => alive && setError(cause.message));
+    return () => {
+      alive = false;
+    };
+  }, [embedded, sales]);
+  const create = canManage && (
+    <button
+      className={embedded ? "secondary-button" : "primary-button"}
+      onClick={() => setEditor({ supplier: "new" })}
+    >
+      {embedded && <Plus size={16} aria-hidden="true" />}
+      Novo fornecedor
+    </button>
+  );
+  const list = (
+    <>
+      {error && <ErrorBanner error={error} />}
+      {!embedded && create}
+      {!items ? (
+        !error && <LoadingBlock />
+      ) : !items.length ? (
+        <EmptyState
+          title="Nenhum fornecedor"
+          copy="Cadastre as pessoas e empresas utilizadas nas despesas."
+        />
+      ) : (
+        <div className={embedded ? "catalog-list" : undefined}>
+          {items.map((item) => (
+            <div
+              className={embedded ? "table-row catalog-row" : "table-row"}
+              key={item.id}
+            >
+              <strong>{item.name}</strong>
+              <span>
+                {item.kind === "company" ? "Pessoa jurídica" : "Pessoa física"}{" "}
+                · {item.active ? "Ativo" : "Inativo"}
+                {(item.whatsapp || item.phone) &&
+                  ` · ${formatPhone(item.whatsapp || item.phone)}`}
+              </span>
+              {can("finance.view") && (
+                <button
+                  className="secondary-button"
+                  aria-label={`Pedidos de ${item.name}`}
+                  onClick={() =>
+                    // Quem edita registra pedidos no próprio cadastro; os demais só consultam.
+                    can("finance.suppliers_manage")
+                      ? setEditor({ supplier: item, tab: "pedidos" })
+                      : setOrdersOf(item)
                   }
                 >
-                  <option value="company">Pessoa jurídica</option>
-                  <option value="person">Pessoa física</option>
-                </select>
-              </label>
-              <label>
-                CPF / CNPJ
-                <input
-                  value={form.document}
-                  maxLength={30}
-                  onChange={(event) =>
-                    setForm({ ...form, document: event.target.value })
-                  }
-                />
-              </label>
-              <label>
-                Telefone
-                <input
-                  value={form.phone}
-                  maxLength={30}
-                  onChange={(event) =>
-                    setForm({ ...form, phone: event.target.value })
-                  }
-                />
-              </label>
-              <label>
-                E-mail
-                <input
-                  type="email"
-                  value={form.email ?? ""}
-                  onChange={(event) =>
-                    setForm({ ...form, email: event.target.value })
-                  }
-                />
-              </label>
-              <label>
-                Observações
-                <textarea
-                  value={form.notes}
-                  maxLength={1000}
-                  onChange={(event) =>
-                    setForm({ ...form, notes: event.target.value })
-                  }
-                />
-              </label>
-              <label className="checkbox-field">
-                <input
-                  type="checkbox"
-                  checked={form.active}
-                  onChange={(event) =>
-                    setForm({ ...form, active: event.target.checked })
-                  }
-                />
-                Ativo
-              </label>
-            </fieldset>
-            <div className="modal-actions">
-              <ModalCancelButton disabled={busy}>Cancelar</ModalCancelButton>
-              <button className="primary-button" disabled={busy}>
-                Salvar fornecedor
-              </button>
+                  Pedidos
+                </button>
+              )}
+              {canManage && (
+                <button
+                  className="secondary-button"
+                  onClick={() => setEditor({ supplier: item })}
+                >
+                  Editar
+                </button>
+              )}
             </div>
-          </form>
-        </Modal>
+          ))}
+        </div>
+      )}
+    </>
+  );
+  return (
+    <section className={embedded ? "catalog-section" : "panel"}>
+      {embedded ? (
+        <>
+          <header className="catalog-section-head">
+            <div>
+              <h3>Fornecedores</h3>
+              <p>Pessoas e empresas vinculadas às despesas.</p>
+            </div>
+            {create}
+          </header>
+          {list}
+        </>
+      ) : (
+        <details
+          onToggle={(event) => {
+            if (event.currentTarget.open && !opened) {
+              setOpened(true);
+              void load();
+            }
+          }}
+        >
+          <summary className="panel-head">Fornecedores</summary>
+          {opened && <div className="inventory-body">{list}</div>}
+        </details>
+      )}
+      {ordersOf && (
+        <SupplierOrdersModal
+          supplier={ordersOf}
+          onClose={() => setOrdersOf(null)}
+        />
+      )}
+      {editor && (
+        <SupplierModal
+          supplier={editor.supplier}
+          {...(editor.tab ? { initialTab: editor.tab } : {})}
+          onClose={() => setEditor(null)}
+          onSaved={load}
+        />
       )}
     </section>
   );

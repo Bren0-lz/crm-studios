@@ -1,7 +1,19 @@
 import { z } from "zod";
-import { addDaysToIsoDate, addMonthsToIsoDate } from "../common/model.js";
+import {
+  addDaysToIsoDate,
+  addMonthsToIsoDate,
+  paymentMethodSchema,
+} from "../common/model.js";
+import { patientDiscountSchema } from "./discount.js";
+import {
+  type PlanPaymentPart,
+  paymentPartsTotal,
+  scalePaymentParts,
+  planPaymentPartsSchema,
+} from "../finance/payment-parts.js";
 import type {
   PatientPlan,
+  PlanPaymentSummary,
   PlanServiceInput,
   PlanTerms,
   PlanType,
@@ -50,7 +62,7 @@ export const planTypeLabels: Record<PlanType, string> = {
   quarterly: "Plano trimestral",
   semiannual: "Plano semestral",
   annual: "Plano anual",
-  promotional: "Plano promocional",
+  promotional: "Plano pacote",
 };
 
 export function planPeriodMonths(type?: PlanType | null): number {
@@ -110,9 +122,30 @@ export const planTemplateFieldsSchema = z.object({
   services: planTemplateServicesSchema,
   planType: planTypeSchema.nullable().optional(),
   kind: planKindSchema.nullable().optional(),
+  /** Máximo de parcelas na venda: 1 = não aceita parcelamento; ausente = sem limite próprio. */
+  maxInstallments: z.number().int().min(1).max(36).nullable().optional(),
 });
 
-export const planTemplateInputSchema = planTemplateFieldsSchema
+/** Plano avulso é um atendimento único: um serviço com uma sessão (AP5). */
+export function isSingleSessionPlan(
+  services: readonly { totalSessions: number }[],
+): boolean {
+  return services.length === 1 && services[0]!.totalSessions === 1;
+}
+
+export const singlePlanServicesMessage =
+  "Plano avulso tem uma única sessão de um serviço.";
+
+export const singlePlanServicesIssue = {
+  message: singlePlanServicesMessage,
+  path: ["services"],
+};
+
+/**
+ * Modelo já gravado: período e soma dos serviços. Avulso antigo com várias sessões segue válido
+ * enquanto serviços e tipo não mudam (ativar, desativar, renomear).
+ */
+export const planTemplateStoredSchema = planTemplateFieldsSchema
   .superRefine((value, ctx) => validateTemplatePeriod(value, ctx))
   .refine(
     (value) =>
@@ -123,6 +156,26 @@ export const planTemplateInputSchema = planTemplateFieldsSchema
       path: ["totalValueInCents"],
     },
   );
+
+export const planTemplateInputSchema = planTemplateStoredSchema.refine(
+  (value) =>
+    !isSinglePlanTemplate(value) || isSingleSessionPlan(value.services),
+  singlePlanServicesIssue,
+);
+
+/** Na edição, a regra do avulso vale quando os serviços, o tipo ou o modelo mudam. */
+export function planTemplateUpdateChangesTerms(input: {
+  readonly [key: string]: unknown;
+  services?: unknown;
+  planType?: unknown;
+  kind?: unknown;
+}): boolean {
+  return (
+    input.services !== undefined ||
+    input.planType !== undefined ||
+    input.kind !== undefined
+  );
+}
 
 // Weekly frequencies become a contracted balance; dates remain calendar months.
 export function validateTemplatePeriod(
@@ -152,7 +205,14 @@ export function validateTemplatePeriod(
 export const planTemplateUpdateSchema = planTemplateFieldsSchema
   .partial()
   .extend({ active: z.boolean().optional() })
-  .refine((value) => Object.keys(value).length > 0, "Informe uma alteração.");
+  .refine((value) => Object.keys(value).length > 0, "Informe uma alteração.")
+  .refine(
+    (value) =>
+      !value.services ||
+      !isSinglePlanTemplate(value) ||
+      isSingleSessionPlan(value.services),
+    singlePlanServicesIssue,
+  );
 
 /** Aggregate fields are derived; services own the sold terms and balances. */
 export function planServiceTotals<T extends { services: PlanServiceInput[] }>(
@@ -166,6 +226,20 @@ export function planServiceTotals<T extends { services: PlanServiceInput[] }>(
       0,
     ),
   };
+}
+
+/**
+ * Valor de um serviço vendido pelo preço por sessão da referência: o avulso sai sempre com
+ * uma sessão, inclusive de modelo antigo cadastrado com várias.
+ */
+export function planServiceValueForSessions(
+  reference: Pick<PlanServiceInput, "totalSessions" | "totalValueInCents">,
+  sessions: number,
+): number {
+  if (!Number.isInteger(sessions) || sessions < 1) return 0;
+  return Math.round(
+    (reference.totalValueInCents * sessions) / reference.totalSessions,
+  );
 }
 
 /** Largest remainders with stable service-order ties, using exact integer arithmetic. */
@@ -200,6 +274,126 @@ export function allocatePlanRevenue(
   return shares;
 }
 
+/**
+ * Valor de uma sessão: o do serviço no plano do cliente (valor ÷ sessões contratadas) ou,
+ * sem plano, o valor de referência (`fallbackInCents`, em geral o do plano avulso do serviço).
+ */
+export function sessionValueInCents(
+  planService:
+    Pick<PlanServiceInput, "totalSessions" | "totalValueInCents"> | undefined,
+  fallbackInCents: number,
+): number {
+  return planService && planService.totalSessions > 0
+    ? Math.round(planService.totalValueInCents / planService.totalSessions)
+    : fallbackInCents;
+}
+
+/** Modelo de plano avulso: `planType` "single" ou, sem tipo, `kind` "single". */
+export function isSinglePlanTemplate(template: {
+  planType?: PlanType | null | undefined;
+  kind?: z.infer<typeof planKindSchema> | null | undefined;
+}): boolean {
+  return template.planType
+    ? template.planType === "single"
+    : template.kind === "single";
+}
+
+/**
+ * Serviços vendidos a partir do modelo: plano fixo copia o modelo; avulso sai com uma sessão
+ * do serviço, pelo preço por sessão (também do modelo antigo cadastrado com várias).
+ */
+export function planTemplateSaleServices<
+  T extends Pick<
+    PlanServiceInput,
+    "serviceId" | "totalSessions" | "totalValueInCents"
+  >,
+>(template: {
+  planType?: PlanType | null | undefined;
+  kind?: z.infer<typeof planKindSchema> | null | undefined;
+  services: readonly T[];
+}): T[] {
+  const first = template.services[0];
+  if (!isSinglePlanTemplate(template) || !first)
+    return template.services.map((entry) => ({ ...entry }));
+  return [
+    {
+      ...first,
+      totalSessions: 1,
+      totalValueInCents: planServiceValueForSessions(first, 1),
+    },
+  ];
+}
+
+/**
+ * Sessões por serviço de um plano vendido como pacote fixo: a contratação agenda os horários
+ * em dias fixos na semana até acabar o pacote. Avulso (uma sessão), recorrente ou
+ * personalizado: `undefined`.
+ */
+export function planPackageSessions(plan: {
+  kind: z.infer<typeof planKindSchema>;
+  services: readonly { serviceId: string; totalSessions: number }[];
+}): Record<string, number> | undefined {
+  if (plan.kind !== "fixed_package") return undefined;
+  return Object.fromEntries(
+    plan.services.map((item) => [item.serviceId, item.totalSessions]),
+  );
+}
+
+/**
+ * Serviço não tem preço: o valor de uma sessão avulsa vem do plano avulso
+ * ativo que inclui o serviço (valor ÷ sessões). Com mais de um, vale o cadastrado primeiro.
+ */
+export function singlePlanSessionPrices(
+  templates: readonly {
+    id: string;
+    active: boolean;
+    createdAt: string;
+    planType?: PlanType | null | undefined;
+    kind?: z.infer<typeof planKindSchema> | null | undefined;
+    services: readonly Pick<
+      PlanServiceInput,
+      "serviceId" | "totalSessions" | "totalValueInCents"
+    >[];
+  }[],
+): Map<string, number> {
+  const prices = new Map<string, number>();
+  [...templates]
+    .filter((template) => template.active && isSinglePlanTemplate(template))
+    .sort(
+      (a, b) =>
+        a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id),
+    )
+    .forEach((template) =>
+      template.services.forEach((item) => {
+        if (item.totalSessions > 0 && !prices.has(item.serviceId))
+          prices.set(
+            item.serviceId,
+            Math.round(item.totalValueInCents / item.totalSessions),
+          );
+      }),
+    );
+  return prices;
+}
+
+/**
+ * Valor pago por uma sessão do plano, base da comissão: o valor do serviço no plano com o
+ * desconto do cliente já aplicado nas cobranças (rateado pelo valor do plano), dividido pelas
+ * sessões do serviço. Ex.: plano de R$ 400 com 8 sessões e R$ 40 de desconto → R$ 45.
+ * Mesma conta de `planSessionPaidValue` no MySQL (`storage/mysql/sql.ts`).
+ */
+export function planSessionPaidValueInCents(
+  planService: Pick<PlanServiceInput, "totalSessions" | "totalValueInCents">,
+  planTotalValueInCents: number,
+  planDiscountInCents: number,
+): number {
+  if (planService.totalSessions <= 0 || planTotalValueInCents <= 0) return 0;
+  const finalValue = Math.max(0, planTotalValueInCents - planDiscountInCents);
+  return Math.round(
+    (planService.totalValueInCents * finalValue) /
+      (planTotalValueInCents * planService.totalSessions),
+  );
+}
+
 export const planStatusSchema = z.enum([
   "active",
   "paused",
@@ -214,6 +408,36 @@ export const planPauseDetailsSchema = z.object({
   reason: z.string().trim().max(500).optional().or(z.literal("")),
   expectedReturn: z.iso.date().optional().or(z.literal("")),
 });
+
+/**
+ * Dados opcionais ao cancelar: valor devolvido ao cliente (estorno), forma de pagamento e
+ * observação. Com estorno, a forma é obrigatória: o valor sai do caixa como conta paga.
+ */
+export const planCancellationDetailsSchema = z
+  .object({
+    refundedInCents: z
+      .number()
+      .int("Informe o valor estornado em centavos.")
+      .min(0, "O valor estornado não pode ser negativo.")
+      .optional(),
+    refundPaymentMethod: paymentMethodSchema.optional(),
+    refundNote: z.string().trim().max(500).optional().or(z.literal("")),
+  })
+  .refine((value) => !value.refundedInCents || value.refundPaymentMethod, {
+    message: "Informe a forma de pagamento do estorno.",
+    path: ["refundPaymentMethod"],
+  });
+
+/** Categoria de despesa em que o estorno do cancelamento entra no Financeiro. */
+export const planRefundCategoryName = "Estornos a clientes";
+
+/** Descrição da conta paga que registra o estorno do cancelamento. */
+export function planRefundPayableDescription(
+  patientName: string,
+  planName: string,
+) {
+  return `Estorno ao cliente · ${patientName} · ${planName}`.slice(0, 200);
+}
 
 /** Dias inteiros entre duas datas AAAA-MM-DD (fim − início). */
 export function daysBetweenIsoDates(from: string, to: string) {
@@ -237,10 +461,59 @@ export function validityAfterPause(
 /** Situação exibida: um plano ativo sem saldo aparece como "Esgotado" (não é gravado). */
 export type PlanDisplayStatus = PatientPlan["status"] | "exhausted";
 
+/**
+ * O saldo de sessões limita o uso só fora do recorrente: no plano recorrente o cliente
+ * paga a frequência semanal (ex.: 2x por semana), e um ciclo com mais aulas que o saldo
+ * nominal (9 segundas e quartas num mês) não bloqueia nem esgota o plano.
+ */
+export function planHasSessionBalance(plan: {
+  kind?: PatientPlan["kind"] | null | undefined;
+}) {
+  return plan.kind !== "recurring";
+}
+
+/** Aulas já feitas no ciclo do plano recorrente (pode passar do saldo nominal). */
+export function planUsedSessions(
+  plan: Pick<PatientPlan, "totalSessions" | "remainingSessions">,
+) {
+  return plan.totalSessions - plan.remainingSessions;
+}
+
+/**
+ * Semântica única da barra de progresso do plano: mede as sessões **usadas** (consumidas)
+ * sobre o total contratado — "0 de 8 usadas", "1 de 8 usada". Plano sem saldo de sessões
+ * (recorrente, vale a frequência semanal) ou sem total não tem barra (`tracked: false`).
+ */
+export type PlanSessionProgress =
+  | { tracked: true; used: number; total: number; label: string }
+  | { tracked: false; label: string };
+
+export function planSessionProgress(
+  plan: Pick<PatientPlan, "totalSessions" | "remainingSessions"> & {
+    kind?: PatientPlan["kind"] | null | undefined;
+  },
+): PlanSessionProgress {
+  if (!planHasSessionBalance(plan) || plan.totalSessions <= 0) {
+    return { tracked: false, label: "Sem limite de sessões" };
+  }
+  const total = plan.totalSessions;
+  const used = Math.min(total, Math.max(0, planUsedSessions(plan)));
+  return {
+    tracked: true,
+    used,
+    total,
+    label: `${used} de ${total} ${used === 1 ? "usada" : "usadas"}`,
+  };
+}
+
 export function planDisplayStatus(
-  plan: Pick<PatientPlan, "status" | "remainingSessions">,
+  plan: Pick<PatientPlan, "status" | "remainingSessions"> & {
+    kind?: PatientPlan["kind"] | null | undefined;
+  },
 ): PlanDisplayStatus {
-  return plan.status === "active" && plan.remainingSessions <= 0
+  return plan.status === "active" &&
+    planHasSessionBalance(plan) &&
+    plan.remainingSessions <= 0
     ? "exhausted"
     : plan.status;
 }
@@ -275,8 +548,131 @@ export const recurringSingleChargeIssue =
 export function isRecurringChargeValid(plan: {
   kind?: z.infer<typeof planKindSchema> | null | undefined;
   installments: number;
+  paymentParts?: readonly { installments: number }[] | undefined;
 }) {
-  return plan.kind !== "recurring" || plan.installments === 1;
+  if (plan.kind !== "recurring") return true;
+  // Picado: cada forma gera uma cobrança por ciclo.
+  if (plan.paymentParts && plan.paymentParts.length > 1)
+    return plan.paymentParts.every((part) => part.installments === 1);
+  return plan.installments === 1;
+}
+
+/** As formas do plano picado precisam somar o valor total. */
+export function planPaymentPartsMatch(plan: {
+  totalValueInCents: number;
+  paymentParts?: readonly { amountInCents: number }[] | undefined;
+}) {
+  return (
+    !plan.paymentParts?.length ||
+    paymentPartsTotal(plan.paymentParts) === plan.totalValueInCents
+  );
+}
+
+/** Plano picado: cada forma marcada como só da primeira vez ou recorrente. */
+export function planPaymentRecurrenceChosen(plan: {
+  paymentParts?: readonly { recurring?: boolean | undefined }[] | undefined;
+}) {
+  const parts = plan.paymentParts;
+  return (
+    !parts ||
+    parts.length < 2 ||
+    parts.every((part) => typeof part.recurring === "boolean")
+  );
+}
+
+export const planPaymentRecurrenceIssue = {
+  message:
+    "Marque se cada forma de pagamento é só da primeira vez ou recorrente.",
+  path: ["paymentParts"],
+};
+
+/** Formas que seguem na renovação (ausente = recorrente, como nos planos antigos). */
+export function recurringPlanPaymentParts<
+  T extends { recurring?: boolean | undefined },
+>(parts: readonly T[] | undefined): T[] {
+  return (parts ?? []).filter((part) => part.recurring !== false);
+}
+
+/** Renovação automática com plano picado: ao menos uma forma recorrente. */
+export function autoRenewPaymentPartsValid(plan: {
+  autoRenew?: boolean | null | undefined;
+  paymentParts?: readonly { recurring?: boolean | undefined }[] | undefined;
+}) {
+  return (
+    !plan.autoRenew ||
+    !plan.paymentParts ||
+    plan.paymentParts.length < 2 ||
+    recurringPlanPaymentParts(plan.paymentParts).length > 0
+  );
+}
+
+export const autoRenewPaymentPartsIssue = {
+  message:
+    "Na renovação automática, marque ao menos uma forma de pagamento como recorrente.",
+  path: ["paymentParts"],
+};
+
+/**
+ * Formas da renovação: só as recorrentes, com o valor total repartido entre elas na
+ * proporção do que tinham. Uma só recorrente vira a forma única do plano (sem lista).
+ */
+export function renewalPlanPayment(plan: {
+  totalValueInCents: number;
+  paymentMethod?: z.infer<typeof paymentMethodSchema> | undefined;
+  paymentParts?: readonly PlanPaymentPart[] | undefined;
+}): {
+  paymentMethod?: z.infer<typeof paymentMethodSchema>;
+  paymentParts?: PlanPaymentPart[];
+} {
+  const parts = plan.paymentParts;
+  if (!parts || parts.length < 2)
+    return plan.paymentMethod ? { paymentMethod: plan.paymentMethod } : {};
+  const recurring = recurringPlanPaymentParts(parts);
+  const kept = recurring.length ? recurring : [...parts];
+  if (kept.length === 1) return { paymentMethod: kept[0]!.paymentMethod };
+  return {
+    paymentMethod: kept[0]!.paymentMethod,
+    paymentParts:
+      kept.length === parts.length
+        ? kept.map((part) => ({ ...part }))
+        : scalePaymentParts(kept, plan.totalValueInCents),
+  };
+}
+
+export const planPaymentPartsIssue = {
+  message: "As formas de pagamento precisam somar o valor total do plano.",
+  path: ["paymentParts"],
+};
+
+/**
+ * Termos do plano com as formas aplicadas: forma única vira `paymentMethod`/`installments`
+ * de sempre (sem lista); picado mantém a lista e deriva os dois campos dela.
+ */
+export function withPlanPaymentParts<
+  T extends {
+    installments: number;
+    kind?: z.infer<typeof planKindSchema> | null | undefined;
+    paymentMethod?: z.infer<typeof paymentMethodSchema> | undefined;
+    paymentParts?: PlanPaymentPart[] | undefined;
+  },
+>(plan: T): T {
+  const parts = plan.paymentParts;
+  if (!parts?.length) return plan;
+  const next = { ...plan, paymentMethod: parts[0]!.paymentMethod };
+  if (parts.length === 1) {
+    delete next.paymentParts;
+    return {
+      ...next,
+      installments: plan.kind === "recurring" ? 1 : parts[0]!.installments,
+    };
+  }
+  return {
+    ...next,
+    installments:
+      plan.kind === "recurring"
+        ? 1
+        : parts.reduce((sum, part) => sum + part.installments, 0),
+  };
 }
 
 /**
@@ -297,6 +693,141 @@ export function installmentsBeyondValidity(plan: {
   return lastDueDate > plan.validUntil ? lastDueDate : null;
 }
 
+/** Quantidade de aulas dos horários semanais entre duas datas, inclusive. */
+export function weeklySlotSessionsBetween(
+  slots: readonly { weekday: number }[],
+  from: string,
+  to: string,
+): number {
+  if (!slots.length || to < from) return 0;
+  const days = daysBetweenIsoDates(from, to) + 1;
+  const firstWeekday = new Date(`${from}T12:00:00Z`).getUTCDay();
+  return slots.reduce((sum, slot) => {
+    const offset = (slot.weekday - firstWeekday + 7) % 7;
+    return sum + (offset < days ? Math.floor((days - 1 - offset) / 7) + 1 : 0);
+  }, 0);
+}
+
+export type PlanFirstChargeProration = {
+  /** Aulas da turma do início do plano até a véspera do primeiro vencimento. */
+  sessions: number;
+  /** Aulas do ciclo mensal que termina na véspera do primeiro vencimento. */
+  cycleSessions: number;
+  /** Ciclo de referência: do 1º vencimento menos um mês até a véspera do vencimento. */
+  cycleStart: string;
+  cycleEnd: string;
+  /** A cobrança proporcional vence no início do plano (matrícula). */
+  dueDate: string;
+  amountInCents: number;
+};
+
+/**
+ * Plano recorrente pré-pago: a mensalidade do vencimento (ex.: dia 20) paga o mês que começa
+ * nele (20 a 19). Quem entra antes do 1º vencimento paga à parte, no início, as aulas da turma
+ * até a véspera do vencimento, pelo valor da aula do ciclo de referência (vencimento − 1 mês
+ * até a véspera): valor do plano ÷ aulas do ciclo × aulas do período. Ex.: início 10/11,
+ * vence 20/11, turma seg/qua: 9 aulas de 20/10 a 19/11 e 3 de 10/11 a 19/11 → 3/9 do valor.
+ * Sem turma, fora do recorrente, vencimento no próprio início (ou antes) ou sem aula no
+ * período não há cobrança proporcional (null).
+ */
+export function planFirstChargeProration(
+  plan: {
+    kind?: z.infer<typeof planKindSchema> | null | undefined;
+    totalValueInCents: number;
+    validFrom: string;
+    firstDueDate: string;
+  },
+  slots: readonly { weekday: number }[] | undefined,
+): PlanFirstChargeProration | null {
+  if (
+    plan.kind !== "recurring" ||
+    !slots?.length ||
+    !z.iso.date().safeParse(plan.validFrom).success ||
+    !z.iso.date().safeParse(plan.firstDueDate).success ||
+    plan.firstDueDate <= plan.validFrom
+  )
+    return null;
+  const cycleStart = addMonthsToIsoDate(plan.firstDueDate, -1);
+  const cycleEnd = addDaysToIsoDate(plan.firstDueDate, -1);
+  const cycleSessions = weeklySlotSessionsBetween(slots, cycleStart, cycleEnd);
+  const sessions = weeklySlotSessionsBetween(slots, plan.validFrom, cycleEnd);
+  if (!cycleSessions || !sessions) return null;
+  return {
+    sessions,
+    cycleSessions,
+    cycleStart,
+    cycleEnd,
+    dueDate: plan.validFrom,
+    amountInCents: Math.min(
+      2147483647,
+      Math.round((plan.totalValueInCents * sessions) / cycleSessions),
+    ),
+  };
+}
+
+/**
+ * Plano recorrente que começa antes do 1º vencimento: pode ter a cobrança proporcional
+ * (calculada pela turma ou, com o cálculo desligado, informada à mão).
+ */
+export function planAllowsProratedCharge(plan: {
+  kind?: z.infer<typeof planKindSchema> | null | undefined;
+  validFrom?: string | undefined;
+  firstDueDate?: string | undefined;
+}): boolean {
+  return (
+    plan.kind === "recurring" &&
+    z.iso.date().safeParse(plan.validFrom).success &&
+    z.iso.date().safeParse(plan.firstDueDate).success &&
+    plan.firstDueDate! > plan.validFrom!
+  );
+}
+
+/** 1º pagamento do plano recorrente com valor informado à mão (sem o cálculo proporcional). */
+export function hasManualFirstCharge(plan: {
+  kind?: z.infer<typeof planKindSchema> | null | undefined;
+  manualFirstCharge?: boolean | undefined;
+  proratedChargeInCents?: number | undefined;
+}): boolean {
+  return (
+    plan.kind === "recurring" &&
+    plan.manualFirstCharge === true &&
+    plan.proratedChargeInCents !== undefined
+  );
+}
+
+/**
+ * Termos do plano com a cobrança proporcional às aulas da turma, quando houver. Com o
+ * cálculo desligado (`manualFirstCharge`, só no recorrente), mantém o valor informado.
+ */
+export function withPlanFirstCharge<
+  T extends Parameters<typeof planFirstChargeProration>[0],
+>(
+  plan: T & {
+    proratedChargeInCents?: number | undefined;
+    manualFirstCharge?: boolean | undefined;
+  },
+  slots: readonly { weekday: number }[] | undefined,
+): T & {
+  proratedChargeInCents?: number | undefined;
+  manualFirstCharge?: boolean | undefined;
+} {
+  const terms: T & {
+    proratedChargeInCents?: number | undefined;
+    manualFirstCharge?: boolean | undefined;
+  } = {
+    ...plan,
+  };
+  // Sem valor, o pedido segue assim mesmo: a API recusa ("Informe o valor do 1º pagamento").
+  if (plan.manualFirstCharge && planAllowsProratedCharge(plan))
+    return { ...terms, manualFirstCharge: true };
+  delete terms.proratedChargeInCents;
+  delete terms.manualFirstCharge;
+  const proration = planFirstChargeProration(plan, slots);
+  return proration
+    ? { ...terms, proratedChargeInCents: proration.amountInCents }
+    : terms;
+}
+
 export const planTermsSchema = z.object({
   name: z.string().trim().min(3).max(120),
   services: planServicesSchema,
@@ -306,6 +837,34 @@ export const planTermsSchema = z.object({
   installments: z.number().int().min(1).max(36),
   firstDueDate: z.iso.date(),
   autoRenew: z.boolean().optional(),
+  /** Forma de pagamento combinada na venda (ausente = a combinar). */
+  paymentMethod: paymentMethodSchema.optional(),
+  /**
+   * Plano picado: cada forma com o valor e a quantidade de cobranças dela (ex.: R$ 100 no
+   * Pix em 1 + R$ 200 no cartão em 2). A soma é o valor total; com ela, `paymentMethod` é a
+   * da 1ª forma e `installments` a soma das cobranças (no recorrente, 1 por forma e ciclo).
+   */
+  paymentParts: planPaymentPartsSchema.optional(),
+  /**
+   * Plano recorrente: cobrança proporcional às aulas do início até a véspera do 1º
+   * vencimento (`planFirstChargeProration`), a mais e vencendo no início; ausente = sem ela.
+   */
+  proratedChargeInCents: z.number().int().min(1).max(2147483647).optional(),
+  /**
+   * Plano recorrente com o cálculo proporcional desligado: a cobrança antes do 1º vencimento
+   * é o `proratedChargeInCents` informado na venda (as mensalidades têm o valor cheio).
+   */
+  manualFirstCharge: z.boolean().optional(),
+  /**
+   * Desconto combinado na venda deste plano: vale nas cobranças dele e das renovações,
+   * conforme o alcance. Na renovação, ausente = segue o desconto do plano anterior.
+   */
+  discount: patientDiscountSchema.optional(),
+  /**
+   * Parte do desconto geral do pedido (cadastro com plano e produto) que cabe a este
+   * plano: abate das cobranças geradas na venda, a partir da 1ª. Não segue na renovação.
+   */
+  orderDiscountInCents: z.number().int().min(0).max(2147483647).optional(),
 });
 
 export const validPlanPeriod = (value: PlanTerms) =>
@@ -336,6 +895,13 @@ export const patientPlanInputSchema = planTermsSchema
     path: ["installments"],
   })
   .refine(renewablePlanPeriod, autoRenewIssue)
+  .refine(planPaymentPartsMatch, planPaymentPartsIssue)
+  .refine(planPaymentRecurrenceChosen, planPaymentRecurrenceIssue)
+  .refine(autoRenewPaymentPartsValid, autoRenewPaymentPartsIssue)
+  .refine(
+    (value) => value.kind !== "single" || isSingleSessionPlan(value.services),
+    singlePlanServicesIssue,
+  )
   .refine(
     (value) =>
       value.services.reduce((sum, item) => sum + item.totalValueInCents, 0) ===
@@ -349,6 +915,9 @@ export const patientPlanInputSchema = planTermsSchema
 export const planRenewalInputSchema = planTermsSchema
   .refine(validPlanPeriod, planPeriodIssue)
   .refine(renewablePlanPeriod, autoRenewIssue)
+  .refine(planPaymentPartsMatch, planPaymentPartsIssue)
+  .refine(planPaymentRecurrenceChosen, planPaymentRecurrenceIssue)
+  .refine(autoRenewPaymentPartsValid, autoRenewPaymentPartsIssue)
   .refine(
     (value) =>
       value.services.reduce((sum, item) => sum + item.totalValueInCents, 0) ===
@@ -399,5 +968,62 @@ export function nextPlanPeriod(plan: {
     validFrom,
     validUntil: addDaysToIsoDate(validFrom, days - 1),
     firstDueDate: addDaysToIsoDate(plan.firstDueDate, days),
+  };
+}
+
+/** Número exibido da parcela: o saldo de uma baixa parcial mostra o da parcela de origem. */
+export function receivableDisplayInstallment(item: {
+  installmentNumber: number;
+  balanceOfInstallment?: number | null | undefined;
+}): number {
+  return item.balanceOfInstallment ?? item.installmentNumber;
+}
+
+/**
+ * Resume as parcelas do plano (canceladas ficam fora); null quando não há cobrança. O saldo
+ * de baixa parcial conta junto da parcela de origem: ela só está paga quando o saldo também
+ * está (sem número, cada recebível conta como uma parcela).
+ */
+export function planPaymentSummary(
+  receivables: readonly {
+    status: "open" | "paid" | "cancelled";
+    amountInCents: number;
+    overdue: boolean;
+    installmentNumber?: number;
+    balanceOfInstallment?: number | null | undefined;
+  }[],
+): PlanPaymentSummary | null {
+  const active = receivables.filter((item) => item.status !== "cancelled");
+  if (!active.length) return null;
+  const paid = active.filter((item) => item.status === "paid");
+  const open = active.filter((item) => item.status === "open");
+  const key = (item: (typeof active)[number], index: number) =>
+    item.installmentNumber === undefined
+      ? `#${index}`
+      : String(
+          receivableDisplayInstallment({
+            installmentNumber: item.installmentNumber,
+            balanceOfInstallment: item.balanceOfInstallment,
+          }),
+        );
+  const keys = new Set(active.map(key));
+  const openKeys = new Set(
+    active.map(key).filter((_, index) => active[index]!.status === "open"),
+  );
+  const overdueKeys = new Set(
+    active
+      .map(key)
+      .filter(
+        (_, index) =>
+          active[index]!.status === "open" && active[index]!.overdue,
+      ),
+  );
+  return {
+    installmentCount: keys.size,
+    paidCount: keys.size - openKeys.size,
+    openCount: openKeys.size,
+    overdueCount: overdueKeys.size,
+    paidInCents: paid.reduce((sum, item) => sum + item.amountInCents, 0),
+    openInCents: open.reduce((sum, item) => sum + item.amountInCents, 0),
   };
 }

@@ -1,17 +1,12 @@
 import {
   patientTagKey,
-  type ClinicalAppointmentOption,
-  type ClinicalRecord,
+  type ClinicalMeasurement,
+  type ClinicalWorkspace,
   type Patient,
   type PatientOption,
   type TherapeuticGoal,
 } from "@crm/contracts";
 import { api } from "../../api";
-import {
-  clinicIsoDate,
-  formatIsoDate,
-  timeLabel,
-} from "../../shared/lib/formatting";
 
 export async function fetchAgendaPatients(
   canSeePatients: boolean,
@@ -31,67 +26,142 @@ export function fileToBase64(file: File) {
   });
 }
 
-/** Janela padrão do seletor de atendimento da evolução. */
-export const RECENT_APPOINTMENT_DAYS = 90;
-
-export function clinicalAppointmentLabel(
-  appointment: Pick<
-    ClinicalAppointmentOption,
-    "startsAt" | "patientName" | "professionalName"
-  >,
-) {
-  const date = formatIsoDate(clinicIsoDate(appointment.startsAt));
-  const time = timeLabel.format(new Date(appointment.startsAt));
-  return `${date} ${time} · ${appointment.patientName} · ${appointment.professionalName}`;
-}
-
-/**
- * Atendimentos do mais recente para o mais antigo. Sem `includeOlder`, só os últimos 90 dias
- * (e os próximos, já carregados). A busca casa nome do cliente ou do profissional sem acento,
- * ou a data em DD/MM ou DD/MM/AAAA.
- */
-export function filterClinicalAppointments(
-  appointments: ClinicalAppointmentOption[],
-  query: string,
-  includeOlder: boolean,
-  now = new Date(),
-) {
-  const limit = new Date(now);
-  limit.setDate(limit.getDate() - RECENT_APPOINTMENT_DAYS);
-  const term = patientTagKey(query);
-  return appointments
-    .filter(
-      (appointment) => includeOlder || new Date(appointment.startsAt) >= limit,
-    )
-    .filter(
-      (appointment) =>
-        !term ||
-        patientTagKey(clinicalAppointmentLabel(appointment)).includes(term),
-    )
-    .sort((a, b) => b.startsAt.localeCompare(a.startsAt));
-}
-
-const soapSteps = [
-  ["subjective", "S — Subjetivo"],
-  ["objective", "O — Objetivo"],
-  ["assessment", "A — Avaliação"],
-  ["plan", "P — Plano"],
-] as const;
-
-/** Etapas SOAP ainda vazias: o rascunho aceita, mas finalizar exige as quatro. */
-export function missingSoapSteps(
-  record: Pick<
-    ClinicalRecord,
-    "subjective" | "objective" | "assessment" | "plan"
-  >,
-) {
-  return soapSteps
-    .filter(([key]) => !record[key].trim())
-    .map(([, label]) => label);
-}
-
 export const goalStatusLabels: Record<TherapeuticGoal["status"], string> = {
   active: "Ativo",
   achieved: "Alcançado",
   cancelled: "Cancelado",
 };
+
+/** Busca sem acento pelo nome; lista em ordem alfabética. */
+export function filterClinicalPatients(
+  patients: PatientOption[],
+  query: string,
+) {
+  const term = patientTagKey(query);
+  return patients
+    .filter(
+      (patient) => !term || patientTagKey(patient.fullName).includes(term),
+    )
+    .sort((a, b) => a.fullName.localeCompare(b.fullName, "pt-BR"));
+}
+
+export type ClinicalTimelineKind =
+  "assessment" | "measurement" | "attachment" | "closure";
+
+export const clinicalTimelineKindLabels: Record<ClinicalTimelineKind, string> =
+  {
+    assessment: "Avaliações",
+    measurement: "Medições",
+    attachment: "Arquivos",
+    closure: "Encerramentos",
+  };
+
+export interface ClinicalTimelineEvent {
+  id: string;
+  kind: ClinicalTimelineKind;
+  label: string;
+  date: string;
+  title: string;
+  author: string;
+}
+
+export const closureKindLabels = {
+  discharge: "Alta",
+  referral: "Encaminhamento",
+  abandonment: "Abandono",
+} as const;
+
+/** Tudo o que aconteceu no prontuário, do mais recente para o mais antigo. */
+export function buildClinicalTimeline(
+  workspace: ClinicalWorkspace,
+): ClinicalTimelineEvent[] {
+  return [
+    ...workspace.assessments.map((item) => ({
+      id: `assessment-${item.id}`,
+      kind: "assessment" as const,
+      label: "Avaliação",
+      date: item.createdAt,
+      title: item.templateName,
+      author: item.authorName,
+    })),
+    ...workspace.measurements.map((item) => ({
+      id: `measurement-${item.id}`,
+      kind: "measurement" as const,
+      label: "Medição",
+      date: item.measuredAt,
+      title: `${item.name}: ${item.value} ${item.unit}`,
+      author: item.authorName,
+    })),
+    ...(workspace.attachments ?? []).map((item) => ({
+      id: `attachment-${item.id}`,
+      kind: "attachment" as const,
+      label: "Arquivo",
+      date: item.createdAt,
+      title: item.notes ? `${item.fileName} — ${item.notes}` : item.fileName,
+      author: item.authorName,
+    })),
+    ...workspace.closures.map((item) => ({
+      id: `closure-${item.id}`,
+      kind: "closure" as const,
+      label: closureKindLabels[item.kind],
+      date: item.occurredAt,
+      title: item.summary,
+      author: item.authorName,
+    })),
+  ].sort((a, b) => b.date.localeCompare(a.date));
+}
+
+export interface MeasurementSeries {
+  key: string;
+  name: string;
+  unit: string;
+  /** Do mais antigo para o mais recente. */
+  points: ClinicalMeasurement[];
+}
+
+/** Medições agrupadas por nome e unidade, para o gráfico das medições. */
+export function measurementSeries(
+  measurements: ClinicalMeasurement[],
+): MeasurementSeries[] {
+  const series = new Map<string, MeasurementSeries>();
+  for (const measurement of measurements) {
+    const key = `${patientTagKey(measurement.name)}|${measurement.unit}`;
+    const current = series.get(key) ?? {
+      key,
+      name: measurement.name,
+      unit: measurement.unit,
+      points: [],
+    };
+    current.points.push(measurement);
+    series.set(key, current);
+  }
+  return [...series.values()].map((item) => ({
+    ...item,
+    points: [...item.points].sort((a, b) =>
+      a.measuredAt.localeCompare(b.measuredAt),
+    ),
+  }));
+}
+
+/**
+ * Quanto do caminho entre o valor inicial e a meta já foi percorrido (0–100). Funciona para
+ * metas que sobem (amplitude) e que descem (dor). Sem os dois valores, não há progresso.
+ */
+export function goalProgress(
+  goal: Pick<TherapeuticGoal, "baselineValue" | "targetValue">,
+  latestValue: number | undefined,
+) {
+  if (
+    goal.baselineValue === undefined ||
+    goal.targetValue === undefined ||
+    latestValue === undefined ||
+    goal.baselineValue === goal.targetValue
+  )
+    return undefined;
+  const ratio =
+    (latestValue - goal.baselineValue) /
+    (goal.targetValue - goal.baselineValue);
+  return Math.round(Math.min(1, Math.max(0, ratio)) * 100);
+}
+
+export { patientAge } from "../../shared/lib/formatting";

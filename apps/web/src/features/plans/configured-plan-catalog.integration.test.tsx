@@ -13,6 +13,7 @@ import {
   storedUser,
   withPermissions,
 } from "../../test-support/legacy-fixtures";
+import { chooseService } from "../../test-support/workflow-ui";
 import "../../test-support/legacy-setup";
 
 describe("configured plan catalog", () => {
@@ -50,6 +51,12 @@ describe("configured plan catalog", () => {
     ],
     active: true,
   };
+  const single = {
+    ...second,
+    id: "aa000000-0000-4000-8000-000000000005",
+    name: "Avaliação avulsa",
+    kind: "single",
+  };
   function setupCatalog(
     options: { empty?: boolean; failOnce?: boolean; role?: string } = {},
   ) {
@@ -71,6 +78,7 @@ describe("configured plan catalog", () => {
       : [
           first,
           second,
+          single,
           {
             ...first,
             id: "aa000000-0000-4000-8000-000000000003",
@@ -145,7 +153,7 @@ describe("configured plan catalog", () => {
     return writes;
   }
 
-  it("requires selection, applies defaults without carrying prior fields and sells at a negotiated price", async () => {
+  it("requires selection, applies defaults without carrying prior fields and prices single sessions from the plan", async () => {
     const writes = setupCatalog();
     render(
       <MemoryRouter initialEntries={["/planos"]}>
@@ -172,37 +180,68 @@ describe("configured plan catalog", () => {
     expect(
       screen.queryByRole("option", { name: /Plano incompleto/ }),
     ).not.toBeInTheDocument();
-    expect(screen.getByLabelText("Valor do serviço 1")).toHaveValue("400,00");
-    expect(screen.getByLabelText("Valor do serviço 2")).toHaveValue("50,00");
+    expect(screen.getByLabelText("Valor do serviço 1")).toHaveValue(
+      "R$\u00a0400,00",
+    );
+    expect(screen.getByLabelText("Valor do serviço 1")).toHaveAttribute(
+      "readonly",
+    );
+    expect(screen.getByLabelText("Valor do serviço 2")).toHaveValue(
+      "R$\u00a050,00",
+    );
     expect(screen.getByLabelText("Sessões do serviço 2")).toHaveValue(2);
     expect(screen.getByLabelText("Valor total")).toHaveAttribute("readonly");
     expect(screen.getByLabelText("Sessões do serviço 1")).toHaveValue(8);
     expect(screen.getByRole("group", { name: "Pilates" })).toBeInTheDocument();
     expect(screen.getByLabelText("Modelo")).toHaveValue("recurring");
-    fireEvent.change(screen.getByLabelText("Valor do serviço 1"), {
-      target: { value: "390" },
-    });
+    expect(screen.getByLabelText("Sessões do serviço 1")).toHaveAttribute(
+      "readonly",
+    );
     fireEvent.change(selector, { target: { value: second.id } });
     expect(
       screen.queryByLabelText("Valor do serviço 2"),
     ).not.toBeInTheDocument();
-    expect(screen.getByLabelText("Valor do serviço 1")).toHaveValue("120,50");
+    expect(screen.getByLabelText("Valor do serviço 1")).toHaveValue(
+      "R$\u00a0120,50",
+    );
     expect(screen.getByLabelText("Sessões do serviço 1")).toHaveValue(10);
     expect(
       screen.getByRole("group", { name: "Fisioterapia" }),
     ).toBeInTheDocument();
     expect(screen.getByLabelText("Modelo")).toHaveValue("fixed_package");
-    fireEvent.change(screen.getByLabelText("Valor do serviço 1"), {
-      target: { value: "99.99" },
+    // A lista acompanha o Modelo: recorrente não mostra planos avulsos.
+    expect(
+      screen.queryByRole("option", { name: /Avaliação avulsa/ }),
+    ).not.toBeInTheDocument();
+    // Avulso: o plano recorrente sai da seleção e só os avulsos aparecem.
+    fireEvent.change(screen.getByLabelText("Modelo"), {
+      target: { value: "single" },
     });
+    expect(selector).toHaveValue("");
+    expect(
+      screen.queryByRole("option", { name: /Pacote básico/ }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("option", { name: /Pilates mensal/ }),
+    ).not.toBeInTheDocument();
+    fireEvent.change(selector, { target: { value: single.id } });
+    expect(screen.getByLabelText("Modelo")).toHaveValue("single");
+    // Avulso (modelo antigo de 10 sessões): vende uma sessão, pelo preço por sessão.
+    expect(screen.getByLabelText("Sessões do serviço 1")).toHaveValue(1);
+    expect(screen.getByLabelText("Sessões do serviço 1")).toHaveAttribute(
+      "readonly",
+    );
+    expect(screen.getByLabelText("Valor total")).toHaveValue("R$\u00a012,05");
     fireEvent.click(
       screen.getByRole("button", { name: "Criar plano e parcelas" }),
     );
     await waitFor(() => expect(writes).toHaveLength(1));
     expect(writes[0]).toMatchObject({
-      name: second.name,
-      planTemplateId: second.id,
-      totalValueInCents: 9999,
+      name: single.name,
+      planTemplateId: single.id,
+      kind: "single",
+      totalValueInCents: 1205,
+      services: [expect.objectContaining({ totalSessions: 1 })],
     });
   });
 
@@ -285,13 +324,13 @@ describe("configured plan catalog", () => {
       });
     fill("Nome do plano", "Plano completo");
     fill("Tipo de plano", "promotional");
-    fill("Valor total", "125.50");
-    fill("Serviço 1", first.serviceId);
+    fill("Valor total", "125,50");
+    chooseService(dialog, "Serviço 1", "Pilates");
     fill("Sessões do serviço 1", "8");
     fireEvent.click(
       within(dialog).getByRole("button", { name: "Adicionar serviço" }),
     );
-    fill("Valor do serviço 1", "100");
+    fill("Valor do serviço 1", "100,00");
     expect(
       within(dialog).getByRole("button", { name: "Salvar plano" }),
     ).toBeDisabled();
@@ -299,9 +338,9 @@ describe("configured plan catalog", () => {
     expect(
       within(dialog).getByRole("button", { name: "Salvar plano" }),
     ).toHaveAccessibleDescription("Falta: Serviço 2, Valor do serviço 2.");
-    fill("Serviço 2", "77777777-7777-4777-8777-777777777777");
+    chooseService(dialog, "Serviço 2", "Fisioterapia");
     fill("Sessões do serviço 2", "2");
-    fill("Valor do serviço 2", "25.50");
+    fill("Valor do serviço 2", "25,50");
     expect(
       within(dialog).getByRole("button", { name: "Salvar plano" }),
     ).toBeEnabled();
@@ -332,13 +371,13 @@ describe("configured plan catalog", () => {
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
     );
     fireEvent.click(
-      screen.getByRole("button", { name: "Editar plano Plano completo" }),
+      screen.getByRole("button", { name: "Editar Plano completo" }),
     );
     dialog = screen.getByRole("dialog");
     fireEvent.click(
       within(dialog).getByRole("button", { name: "Remover serviço 2" }),
     );
-    fill("Valor total", "100");
+    fill("Valor total", "100,00");
     fireEvent.click(
       within(dialog).getByRole("button", { name: "Salvar plano" }),
     );
@@ -356,11 +395,66 @@ describe("configured plan catalog", () => {
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
     );
     fireEvent.click(
-      screen.getByRole("button", { name: "Desativar plano Plano completo" }),
+      screen.getByRole("button", { name: "Desativar Plano completo" }),
     );
     await waitFor(() => expect(writes).toHaveLength(3));
     expect(writes[2]).toEqual({ active: false });
-    await screen.findByRole("button", { name: "Ativar plano Plano completo" });
+    await screen.findByRole("button", { name: "Ativar Plano completo" });
+  });
+
+  it("keeps the plan value while changing service rows, without a service table price", async () => {
+    setupCatalog();
+    const originalFetch = vi.mocked(fetch).getMockImplementation()!;
+    vi.mocked(fetch).mockImplementation(async (input, init) => {
+      if (String(input).endsWith("/services"))
+        return {
+          ok: true,
+          status: 200,
+          json: async () => [
+            {
+              id: first.serviceId,
+              name: "Pilates",
+              active: true,
+            },
+            {
+              id: "77777777-7777-4777-8777-777777777777",
+              name: "Fisioterapia",
+              active: true,
+            },
+          ],
+        } as Response;
+      return originalFetch(input, init);
+    });
+    render(
+      <MemoryRouter initialEntries={["/configuracoes"]}>
+        <App />
+      </MemoryRouter>,
+    );
+    fireEvent.click(await screen.findByRole("tab", { name: "Planos" }));
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Editar plano Pilates mensal",
+      }),
+    );
+    const dialog = screen.getByRole("dialog");
+    // Serviço não tem preço: o cadastro do plano não mostra "preço de tabela" nem "total avulso".
+    expect(
+      within(dialog).queryByRole("region", {
+        name: "Preço de tabela dos serviços",
+      }),
+    ).not.toBeInTheDocument();
+    expect(within(dialog).queryByText("Total avulso")).not.toBeInTheDocument();
+    fireEvent.change(within(dialog).getByLabelText("Sessões do serviço 1"), {
+      target: { value: "4" },
+    });
+    expect(within(dialog).getByLabelText("Valor total")).toHaveValue("450,00");
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Remover serviço 2" }),
+    );
+    expect(within(dialog).getByLabelText("Valor total")).toHaveValue("450,00");
+    expect(
+      within(dialog).getByRole("button", { name: "Remover serviço 1" }),
+    ).toBeDisabled();
   });
 
   it("shows the catalog read-only without settings operation permissions", async () => {

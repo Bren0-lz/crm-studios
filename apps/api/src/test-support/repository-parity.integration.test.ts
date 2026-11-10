@@ -1,5 +1,8 @@
+import { nextTestCpf } from "./cpf.js";
 import {
   appointmentStatusSchema,
+  documentContentFromText,
+  documentContentText,
   appointmentInputSchema,
   professionalInputSchema,
   externalOperationInputSchema,
@@ -7,19 +10,26 @@ import {
   clinicSettingsInputSchema,
   guidedPatientInputSchema,
   patientInputSchema,
+  patientImportInputSchema,
   patientPlanInputSchema,
   planTemplateInputSchema,
   saoPauloToday,
+  supplierInputSchema,
 } from "@crm/contracts";
 import { randomUUID } from "node:crypto";
-import { Pool } from "pg";
+import type { Database as Pool } from "../infrastructure/mysql-client.js";
+import { createDatabasePool } from "../database.js";
+import {
+  createTestDatabase,
+  type TestDatabase,
+} from "../test-support/mysql-database.js";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { runMigrations, seedDemoData } from "../database.js";
-import { databaseConnectionConfig } from "../infrastructure/database-connection.js";
 import { MemoryClinicRepository } from "../memory-repository.js";
-import { PostgresClinicRepository } from "../postgres-repository.js";
+import { MysqlClinicRepository } from "../mysql-repository.js";
 import type { ClinicRepository } from "../repository.js";
 import { atInstant } from "./clock.js";
+import { addLegacyTabService } from "./legacy-tab-service.js";
+import { sellSessionForAppointment } from "./commission-billing.js";
 
 const clinicId = "11111111-1111-4111-8111-111111111111";
 const actorId = "22222222-2222-4222-8222-222222222222";
@@ -27,56 +37,39 @@ const serviceId = "77777777-7777-4777-8777-777777777777";
 const professionalId = "44444444-4444-4444-8444-444444444444";
 const roomId = "66666666-6666-4666-8666-666666666666";
 
-for (const storage of ["memory", "postgres"] as const) {
-  describe.skipIf(storage === "postgres" && !process.env.TEST_DATABASE_URL)(
+for (const storage of ["memory", "mysql"] as const) {
+  describe.skipIf(storage === "mysql" && !process.env.TEST_DATABASE_URL)(
     `${storage} repository parity`,
     () => {
       let repository: ClinicRepository;
-      let adminPool: Pool | undefined;
+      let database: TestDatabase | undefined;
       let pool: Pool | undefined;
-      const schema = `parity_${randomUUID().replaceAll("-", "")}`;
 
       beforeAll(async () => {
         if (storage === "memory") return;
-        const connection = databaseConnectionConfig({
-          url: process.env.TEST_DATABASE_URL!,
-          ssl: "auto",
-        });
-        adminPool = new Pool(connection);
-        await adminPool.query(`CREATE SCHEMA ${schema}`);
-        // Own migration registry prevents falling through to the public schema's registry.
-        await adminPool.query(
-          `CREATE TABLE ${schema}.schema_migrations (name text PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now())`,
-        );
-        pool = new Pool({
-          ...connection,
-          options: `-c search_path=${schema},public`,
-        });
-        await runMigrations(pool);
-        await seedDemoData(pool);
-        repository = new PostgresClinicRepository(pool);
-      }, 20_000);
+        database = await createTestDatabase("repositorypa");
+        pool = database.pool;
+        repository = new MysqlClinicRepository(pool);
+      }, 60_000);
 
       beforeEach(() => {
         if (storage === "memory")
           repository = new MemoryClinicRepository(false);
       });
       afterAll(async () => {
-        try {
-          await pool?.end();
-          if (adminPool)
-            await adminPool.query(`DROP SCHEMA IF EXISTS ${schema} CASCADE`);
-        } finally {
-          await adminPool?.end();
-        }
+        await database?.drop();
       });
 
       async function patient(name: string) {
         return repository.createPatient(
           clinicId,
           patientInputSchema.parse({
+            cpf: nextTestCpf(),
             fullName: `${name} ${randomUUID()}`,
             phone: "11988887777",
+            whatsapp: "11988887777",
+            emergencyContactName: `${name} ${randomUUID()}`,
+            emergencyContactPhone: "11988887777",
           }),
         );
       }
@@ -110,6 +103,431 @@ for (const storage of ["memory", "postgres"] as const) {
           }),
         );
       }
+
+      it("filters period sales by inclusive dates and clinic in both repositories", async () => {
+        const client = await patient("Vendas por período");
+        const inside = await atInstant("2062-12-31T03:00:00Z", () =>
+          plan(client.id),
+        );
+        const outside = await atInstant("2063-01-02T03:00:00Z", () =>
+          plan(client.id),
+        );
+        const report = await repository.getSalesPeriodReport(
+          clinicId,
+          "2062-12-31",
+          "2063-01-01",
+        );
+        expect(
+          report.sales
+            .filter((item) => item.patientId === client.id)
+            .map((item) => item.sourceId),
+        ).toEqual([inside.id]);
+        expect(report.sales.map((item) => item.sourceId)).not.toContain(
+          outside.id,
+        );
+        expect(report.summary.netSalesInCents).toBeGreaterThanOrEqual(20000);
+        const branch = await repository.saveBranch(clinicId, actorId, {
+          name: "Relatórios " + randomUUID(),
+        });
+        const scope = { branchIds: [branch!.id], writeBranchId: branch!.id };
+        const branchPlan = await atInstant("2062-12-31T12:00:00Z", () =>
+          repository.branchScope.run(scope, () => plan(client.id)),
+        );
+        const scopedReport = await repository.branchScope.run(scope, () =>
+          repository.getSalesPeriodReport(clinicId, "2062-12-31", "2063-01-01"),
+        );
+        expect(scopedReport.sales.map((item) => item.sourceId)).toEqual([
+          branchPlan.id,
+        ]);
+        expect(scopedReport.summary.netSalesInCents).toBe(20000);
+        const foreign = await repository.getSalesPeriodReport(
+          "99999999-9999-4999-8999-999999999999",
+          "2062-12-31",
+          "2063-01-01",
+        );
+        expect(foreign.sales).toEqual([]);
+        expect(foreign.summary.payment.paidInCents).toBe(0);
+        expect(foreign.patientsWithoutReturn).toEqual([]);
+      });
+
+      it("preserves visual contracts, individual drafts and frozen branding", async () => {
+        const client = await patient("Contrato visual");
+        const content = documentContentFromText(
+          "Contrato para {{paciente_nome}}. Condições do serviço.",
+        );
+        content.doc.content![0]!.content![1]!.marks = [{ type: "bold" }];
+        const template = await repository.createDocumentTemplate(clinicId, {
+          name: "Contrato visual " + randomUUID(),
+          kind: "contract",
+          body: "Texto incompatível será derivado do conteúdo.",
+          content,
+        });
+        expect(template.body).toBe(documentContentText(content));
+        const input = {
+          templateId: template.id,
+          patientId: client.id,
+          title: "Contrato visual do cliente",
+        };
+        const before = (await repository.listIssuedDocuments(clinicId)).length;
+        const preview = await repository.previewDocument(clinicId, input);
+        expect(preview.snapshotBody).toContain(client.fullName);
+        expect((await repository.listIssuedDocuments(clinicId)).length).toBe(
+          before,
+        );
+        const document = await repository.createIssuedDocument(
+          clinicId,
+          actorId,
+          { ...input, content: preview.snapshotContent },
+        );
+        const changed = documentContentFromText(
+          document.snapshotBody +
+            "\n\nCondição individual adicionada ao rascunho.",
+        );
+        const saved = await repository.updateDocumentDraft(
+          clinicId,
+          document.id,
+          { title: input.title, content: changed },
+        );
+        expect(saved).toMatchObject({
+          snapshotBody: documentContentText(changed),
+          snapshotContent: changed,
+          branding: document.branding,
+        });
+        expect(
+          (await repository.listDocumentTemplates(clinicId)).find(
+            (item) => item.id === template.id,
+          )?.content,
+        ).toEqual(content);
+        expect(
+          await repository.updateDocumentDraft(
+            "99999999-9999-4999-8999-999999999999",
+            document.id,
+            { title: input.title, content: changed },
+          ),
+        ).toBeNull();
+        const next = documentContentFromText(
+          "Nova versão do modelo para contratos futuros.",
+        );
+        await repository.createDocumentTemplateVersion(
+          clinicId,
+          template.id,
+          "",
+          next,
+        );
+        const [issued, blocked] = await Promise.allSettled([
+          repository.updateIssuedDocumentStatus(
+            clinicId,
+            document.id,
+            "issued",
+          ),
+          repository.updateDocumentDraft(clinicId, document.id, {
+            title: "Alteração concorrente",
+            content: next,
+          }),
+        ]);
+        expect(issued.status).toBe("fulfilled");
+        expect(blocked.status).toBe("rejected");
+        expect(
+          (await repository.listIssuedDocuments(clinicId)).find(
+            (item) => item.id === document.id,
+          ),
+        ).toMatchObject({
+          snapshotContent: changed,
+          templateVersion: 1,
+          branding: document.branding,
+        });
+      });
+
+      it("records who created each template version and restores an old one", async () => {
+        const name = "Contrato histórico " + randomUUID();
+        const first = await repository.createDocumentTemplate(
+          clinicId,
+          { name, kind: "contract", body: "Primeira redação do contrato." },
+          actorId,
+        );
+        const second = await repository.createDocumentTemplateVersion(
+          clinicId,
+          first.id,
+          "Segunda redação do contrato, revisada.",
+          undefined,
+          { actorId },
+        );
+        expect(first).toMatchObject({ createdById: actorId });
+        expect(first.createdByName).toEqual(expect.any(String));
+        expect(second).toMatchObject({ version: 2, createdById: actorId });
+        await expect(
+          repository.restoreDocumentTemplateVersion(
+            clinicId,
+            second!.id,
+            actorId,
+          ),
+        ).rejects.toMatchObject({ code: "DOCUMENT_TEMPLATE_VERSION_ACTIVE" });
+        const restored = await repository.restoreDocumentTemplateVersion(
+          clinicId,
+          first.id,
+          actorId,
+        );
+        expect(restored).toMatchObject({
+          name,
+          version: 3,
+          active: true,
+          body: first.body,
+          restoredFromVersion: 1,
+          previousVersionId: second!.id,
+          createdById: actorId,
+        });
+        const versions = (await repository.listDocumentTemplates(clinicId))
+          .filter((item) => item.name === name)
+          .map((item) => [item.version, item.active]);
+        expect(versions.sort()).toEqual([
+          [1, false],
+          [2, false],
+          [3, true],
+        ]);
+        expect(
+          await repository.restoreDocumentTemplateVersion(
+            "99999999-9999-4999-8999-999999999999",
+            first.id,
+            actorId,
+          ),
+        ).toBeNull();
+      });
+
+      it("refuses a meeting professional who does not serve the group's service", async () => {
+        await atInstant("2056-01-01T12:00:00Z", async () => {
+          const [linked, other] = await Promise.all(
+            ["Vinculada", "Avulsa"].map((name) =>
+              repository.createProfessional(clinicId, {
+                fullName: `Profissional ${name} ${randomUUID()}`,
+                crefito: `PARITY-${randomUUID().slice(0, 8)}`,
+                specialty: "Pilates",
+                color: "#336699",
+              }),
+            ),
+          );
+          const service = await repository.createService(clinicId, {
+            name: "Serviço restrito " + randomUUID(),
+            durationMinutes: 60,
+            professionalIds: [linked!.id],
+          });
+          const room = await repository.createRoom(clinicId, {
+            name: "Sala restrita " + randomUUID(),
+            capacity: 4,
+          });
+          const group = await repository.createGroupClass(clinicId, {
+            serviceId: service.id,
+            professionalId: linked!.id,
+            roomId: room.id,
+            capacity: 2,
+            weeklySlots: [{ weekday: 3, startTime: "06:00", endTime: "07:00" }],
+          });
+          const { sessions } = await repository.getGroupWorkspace(
+            clinicId,
+            "2056-01-01T00:00:00Z",
+            "2056-02-01T00:00:00Z",
+          );
+          const session = sessions.find((item) => item.groupId === group.id)!;
+          expect(session).toBeDefined();
+          await expect(
+            repository.updateGroupSessionProfessional(
+              clinicId,
+              actorId,
+              session.id,
+              other!.id,
+            ),
+          ).rejects.toMatchObject({ code: "SERVICE_NOT_AVAILABLE" });
+        });
+      });
+
+      it("renames groups without changing sessions, attendance, enrollments or sequence", async () => {
+        await atInstant("2055-01-01T12:00:00Z", async () => {
+          const professional = await repository.createProfessional(clinicId, {
+            fullName: "Profissional nome " + randomUUID(),
+            crefito: `PARITY-${randomUUID().slice(0, 8)}`,
+            specialty: "Pilates",
+            color: "#336699",
+          });
+          const room = await repository.createRoom(clinicId, {
+            name: "Sala nome " + randomUUID(),
+            capacity: 4,
+          });
+          const input = {
+            serviceId,
+            professionalId: professional.id,
+            roomId: room.id,
+            capacity: 2,
+            weeklySlots: [{ weekday: 3, startTime: "06:00", endTime: "07:00" }],
+          };
+          const group = await repository.createGroupClass(clinicId, {
+            ...input,
+            name: "Personalizada",
+          });
+          const original = structuredClone(group);
+          const client = await patient("Nome da turma");
+          await repository.createGroupEnrollment(clinicId, {
+            groupId: group.id,
+            patientId: client.id,
+          });
+          const from = "2055-01-01T00:00:00Z",
+            to = "2055-02-01T00:00:00Z";
+          const initial = await repository.getGroupWorkspace(
+            clinicId,
+            from,
+            to,
+          );
+          const session = initial.sessions.find(
+            (item) => item.groupId === group.id,
+          )!;
+          expect(session).toBeDefined();
+          await repository.recordGroupAttendance(
+            clinicId,
+            actorId,
+            session.id,
+            client.id,
+            { status: "excused_absence" },
+          );
+          const before = structuredClone(
+            await repository.getGroupWorkspace(clinicId, from, to),
+          );
+          const renamed = await repository.renameGroupClass(
+            clinicId,
+            group.id,
+            "Novo nome",
+          );
+          expect(renamed).toMatchObject({
+            ...original,
+            name: "Novo nome",
+            activeEnrollments: 1,
+          });
+          const after = await repository.getGroupWorkspace(clinicId, from, to);
+          expect(
+            after.sessions.filter((item) => item.groupId === group.id),
+          ).toEqual(
+            before.sessions
+              .filter((item) => item.groupId === group.id)
+              .map((item) => ({ ...item, groupName: "Novo nome" })),
+          );
+          // Matrículas com o mesmo enrolledAt podem trocar de ordem no MySQL.
+          // Compare todos os dados por identidade, sem exigir ordem entre empates.
+          const byId = (a: { id: string }, b: { id: string }) =>
+            a.id.localeCompare(b.id);
+          expect([...after.enrollments].sort(byId)).toEqual(
+            [...before.enrollments].sort(byId),
+          );
+          expect(after.attendance).toEqual(before.attendance);
+          expect(after.replacementCredits).toEqual(before.replacementCredits);
+          expect(
+            (await repository.listGroupSessions(clinicId, from, to)).find(
+              (item) => item.id === session.id,
+            )?.groupName,
+          ).toBe("Novo nome");
+          expect(
+            await repository.renameGroupClass(
+              "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+              group.id,
+              "Outra clínica",
+            ),
+          ).toBeNull();
+          expect(
+            await repository.renameGroupClass(
+              clinicId,
+              "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+              "Inexistente",
+            ),
+          ).toBeNull();
+          const branch = (await repository.saveBranch(clinicId, actorId, {
+            name: "Nome filial " + randomUUID(),
+          }))!;
+          await expect(
+            repository.branchScope.run(
+              { branchIds: [branch.id], writeBranchId: branch.id },
+              () =>
+                repository.renameGroupClass(clinicId, group.id, "Outra filial"),
+            ),
+          ).rejects.toMatchObject({
+            code: "BRANCH_ACCESS_DENIED",
+            statusCode: 403,
+          });
+          const next = await repository.createGroupClass(clinicId, {
+            ...input,
+            name: "Novo nome",
+            weeklySlots: [{ weekday: 4, startTime: "06:00", endTime: "07:00" }],
+          });
+          expect(next.name).toBe("Novo nome");
+          expect(next.sequence).toBe(original.sequence + 1);
+        });
+      });
+
+      it("keeps each credit's source group outside the workspace period", async () => {
+        await atInstant("2055-01-01T12:00:00Z", async () => {
+          const client = await patient("Parity Créditos por turma");
+          const groups = [];
+          for (const weekday of [0, 1]) {
+            const group = await repository.createGroupClass(clinicId, {
+              serviceId,
+              professionalId,
+              roomId,
+              capacity: 2,
+              weeklySlots: [{ weekday, startTime: "06:00", endTime: "07:00" }],
+            });
+            groups.push(group);
+            await repository.createGroupEnrollment(clinicId, {
+              groupId: group.id,
+              patientId: client.id,
+              startsOn: "2055-01-01",
+            });
+          }
+          const initial = await repository.getGroupWorkspace(
+            clinicId,
+            "2055-01-01T00:00:00Z",
+            "2055-02-01T00:00:00Z",
+          );
+          const sources = [];
+          for (const group of groups) {
+            const source = initial.sessions.find(
+              (item) => item.groupId === group.id,
+            )!;
+            expect(source).toBeDefined();
+            sources.push(source);
+            await repository.recordGroupAttendance(
+              clinicId,
+              actorId,
+              source.id,
+              client.id,
+              {
+                status: "excused_absence",
+              },
+            );
+          }
+          const later = await repository.getGroupWorkspace(
+            clinicId,
+            "2055-03-01T00:00:00Z",
+            "2055-04-01T00:00:00Z",
+          );
+          const credits = later.replacementCredits.filter(
+            (item) => item.patientId === client.id,
+          );
+          expect(credits).toHaveLength(2);
+          for (const source of sources) {
+            expect(later.sessions.some((item) => item.id === source.id)).toBe(
+              false,
+            );
+            expect(
+              credits.find((item) => item.sourceSessionId === source.id),
+            ).toMatchObject({
+              clinicId,
+              sourceGroupId: source.groupId,
+              status: "available",
+            });
+          }
+          const otherClinic = await repository.getGroupWorkspace(
+            randomUUID(),
+            "2055-03-01T00:00:00Z",
+            "2055-04-01T00:00:00Z",
+          );
+          expect(otherClinic.replacementCredits).toEqual([]);
+        });
+      });
 
       it("counts the whole local day by status, independently of the five pending rows", async () => {
         const date = "2088-10-12";
@@ -184,10 +602,10 @@ for (const storage of ["memory", "postgres"] as const) {
       it("saves every settings section repeatedly with one database connection", async () => {
         const original = await repository.getClinicSettings(clinicId);
         const limitedPool = pool
-          ? new Pool({ ...pool.options, max: 1, connectionTimeoutMillis: 1000 })
+          ? createDatabasePool({ url: pool.url, max: 1 })
           : undefined;
         const settingsRepository = limitedPool
-          ? new PostgresClinicRepository(limitedPool)
+          ? new MysqlClinicRepository(limitedPool)
           : repository;
         try {
           const input = clinicSettingsInputSchema.parse({
@@ -411,6 +829,69 @@ for (const storage of ["memory", "postgres"] as const) {
         }
       });
 
+      it("rolls back a plan purchase when its contract requires the imported client's missing CPF", async () => {
+        const name = `Cliente CP3 ${randomUUID()}`;
+        await repository.importPatients(clinicId, [
+          patientImportInputSchema.parse({
+            fullName: name,
+            phone: "11955549998",
+            tags: [],
+          }),
+        ]);
+        const [created] = await repository.listPatients(clinicId, name);
+        const template = await repository.createDocumentTemplate(clinicId, {
+          name: `Contrato CP3 ${randomUUID()}`,
+          kind: "contract",
+          body: "Contrato de {{paciente_nome}}, CPF {{paciente_cpf}}, para {{plano_nome}}.",
+        });
+        const planTemplate = await repository.createPlanTemplate(
+          clinicId,
+          actorId,
+          planTemplateInputSchema.parse({
+            name: `Plano CP3 ${randomUUID()}`,
+            totalValueInCents: 20000,
+            services: [
+              { serviceId, totalSessions: 4, totalValueInCents: 20000 },
+            ],
+          }),
+        );
+        const input = planPurchaseInputSchema.parse({
+          idempotencyKey: randomUUID(),
+          plan: {
+            planTemplateId: planTemplate.id,
+            patientId: created!.id,
+            name: "Plano CP3",
+            kind: "fixed_package",
+            services: [
+              { serviceId, totalSessions: 4, totalValueInCents: 20000 },
+            ],
+            totalValueInCents: 20000,
+            installments: 2,
+            validFrom: "2059-08-01",
+            validUntil: "2059-08-31",
+            firstDueDate: "2059-08-01",
+          },
+          appointments: [],
+          document: { templateId: template.id, title: "Contrato CP3" },
+        });
+        await expect(
+          repository.purchasePatientPlan(clinicId, actorId, input),
+        ).rejects.toMatchObject({ code: "DOCUMENT_PATIENT_CPF_MISSING" });
+        expect(
+          await repository.listPatientPlans(clinicId, created!.id),
+        ).toEqual([]);
+        expect(
+          (await repository.listIssuedDocuments(clinicId)).filter(
+            (document) => document.patientId === created!.id,
+          ),
+        ).toEqual([]);
+        expect(
+          (await repository.getFinancialSummary(clinicId)).receivables.filter(
+            (receivable) => receivable.patientId === created!.id,
+          ),
+        ).toEqual([]);
+      });
+
       it("purchases plan, schedule and document atomically with concurrent retry protection", async () => {
         const created = await patient("Contratação integrada");
         const services = [
@@ -533,6 +1014,125 @@ for (const storage of ["memory", "postgres"] as const) {
         ).toHaveLength(1);
       });
 
+      it("keeps the current group enrollment when a new plan is purchased for the same class", async () => {
+        const created = await patient("Matrícula reaproveitada");
+        const services = [
+          { serviceId, totalSessions: 4, totalValueInCents: 20000 },
+        ];
+        const group = await repository.createGroupClass(clinicId, {
+          serviceId,
+          professionalId,
+          roomId,
+          capacity: 1,
+          weeklySlots: [{ weekday: 6, startTime: "21:00", endTime: "22:00" }],
+        });
+        const template = await repository.createPlanTemplate(
+          clinicId,
+          actorId,
+          planTemplateInputSchema.parse({
+            name: "Plano da turma " + randomUUID(),
+            totalValueInCents: 20000,
+            services,
+          }),
+        );
+        const purchase = (validFrom: string, validUntil: string) =>
+          repository.purchasePatientPlan(
+            clinicId,
+            actorId,
+            planPurchaseInputSchema.parse({
+              idempotencyKey: randomUUID(),
+              groupId: group.id,
+              plan: {
+                patientId: created.id,
+                planTemplateId: template.id,
+                name: template.name,
+                kind: "fixed_package",
+                services,
+                totalValueInCents: 20000,
+                installments: 1,
+                validFrom,
+                validUntil,
+                firstDueDate: validFrom,
+              },
+            }),
+          );
+        const first = await purchase("2059-04-01", "2059-04-30");
+        expect(first.enrollment).toMatchObject({
+          groupId: group.id,
+          patientId: created.id,
+          status: "active",
+        });
+        // O plano anterior não encerra a matrícula: o novo segue com a mesma, sem erro.
+        const second = await purchase("2059-05-01", "2059-05-31");
+        expect(second.enrollment).toMatchObject({
+          id: first.enrollment!.id,
+          status: "active",
+        });
+        expect(
+          await repository.listPatientPlans(clinicId, created.id),
+        ).toHaveLength(2);
+        const workspace = await repository.getGroupWorkspace(
+          clinicId,
+          new Date().toISOString(),
+          new Date(Date.now() + 86_400_000).toISOString(),
+        );
+        expect(
+          workspace.enrollments.filter(
+            (item) =>
+              item.groupId === group.id && item.patientId === created.id,
+          ),
+        ).toHaveLength(1);
+      });
+
+      it("issues a supplier contract and shares the link with the supplier's WhatsApp", async () => {
+        const supplier = (await repository.saveSupplier(
+          clinicId,
+          actorId,
+          supplierInputSchema.parse({
+            name: "Fornecedor " + randomUUID(),
+            kind: "person",
+            document: "52998224725",
+            whatsapp: "19988887777",
+            contractAmountInCents: 50000,
+          }),
+        ))!;
+        const template = await repository.createDocumentTemplate(clinicId, {
+          name: "Contrato de fornecedor " + randomUUID(),
+          kind: "contract",
+          body: "Contrato com {{fornecedor_nome}}, CPF {{fornecedor_documento}}, cliente {{paciente_nome}}.",
+        });
+        const draft = await repository.createIssuedDocument(clinicId, actorId, {
+          templateId: template.id,
+          supplierId: supplier.id,
+          title: "Contrato do fornecedor",
+        });
+        expect(draft).toMatchObject({
+          supplierId: supplier.id,
+          patientName: supplier.name,
+          snapshotBody: `Contrato com ${supplier.name}, CPF 529.982.247-25, cliente não informado.`,
+        });
+        expect(draft).not.toHaveProperty("patientId");
+        await repository.updateIssuedDocumentStatus(
+          clinicId,
+          draft.id,
+          "issued",
+        );
+        const share = await repository.createDocumentSignatureLink(
+          clinicId,
+          actorId,
+          draft.id,
+        );
+        expect(share).toMatchObject({ patientPhone: "19988887777" });
+        expect(
+          await repository.openPublicSignatureDocument(share!.token, {}),
+        ).toMatchObject({ patientName: supplier.name, status: "pending" });
+        expect(
+          (await repository.listIssuedDocuments(clinicId)).find(
+            (item) => item.id === draft.id,
+          ),
+        ).toMatchObject({ supplierId: supplier.id, status: "issued" });
+      });
+
       // QM15: prontuário sequencial e único; os 3 clientes semente são PAC-00001..00003.
       it("keeps record numbers unique and the seed clients as PAC-00001..00003", async () => {
         const patients = await repository.listPatients(clinicId);
@@ -549,6 +1149,36 @@ for (const storage of ["memory", "postgres"] as const) {
         expect(numbers).not.toContain(created.recordNumber);
       });
 
+      it("generates the product code when it is not informed and keeps it on update", async () => {
+        const fields = {
+          unit: "un",
+          costInCents: 500,
+          salePriceInCents: 1000,
+          initialStock: 0,
+        };
+        const first = await repository.createProduct(clinicId, actorId, {
+          ...fields,
+          name: "Produto sem código",
+        });
+        const second = await repository.createProduct(clinicId, actorId, {
+          ...fields,
+          name: "Outro produto sem código",
+        });
+        expect(first.sku).toMatch(/^PRD-[0-9A-F]{8}$/);
+        expect(second.sku).toMatch(/^PRD-[0-9A-F]{8}$/);
+        expect(second.sku).not.toBe(first.sku);
+        const updated = await repository.updateProduct(
+          clinicId,
+          actorId,
+          first.id,
+          { ...fields, name: "Produto renomeado", active: true },
+        );
+        expect(updated).toMatchObject({
+          name: "Produto renomeado",
+          sku: first.sku,
+        });
+      });
+
       it("closes one mixed tab charge, consumes only its linked service and reverses the credit before cancellation", async () => {
         const created = await patient("Comanda integrada");
         const tab = await repository.openPatientTab(clinicId, actorId, {
@@ -561,15 +1191,15 @@ for (const storage of ["memory", "postgres"] as const) {
           costInCents: 500,
           salePriceInCents: 1000,
           initialStock: 3,
-          minimumStock: 1,
         });
         await repository.addPatientTabItem(clinicId, actorId, tab.id, {
           productId: product.id,
           quantity: 1,
         });
-        const scheduled = await repository.createPatientTabAppointment(
+        const scheduled = await addLegacyTabService(
+          repository,
+          pool,
           clinicId,
-          actorId,
           tab.id,
           appointmentInputSchema.omit({ patientId: true }).parse({
             professionalId,
@@ -577,6 +1207,7 @@ for (const storage of ["memory", "postgres"] as const) {
             serviceId,
             startsAt: "2059-02-02T12:00:00Z",
           }),
+          18000,
         );
         const appointmentId = scheduled.services![0]!.appointmentId;
         await expect(
@@ -761,6 +1392,43 @@ for (const storage of ["memory", "postgres"] as const) {
         expect(record.appointmentId).toBe(appointment.id);
       });
 
+      it("pins clinical alerts by severity and hides archived ones", async () => {
+        const client = await patient("Alerta");
+        const info = await repository.createClinicalAlert(clinicId, actorId, {
+          patientId: client.id,
+          severity: "info",
+          text: "Prefere a sala 2.",
+        });
+        await repository.createClinicalAlert(clinicId, actorId, {
+          patientId: client.id,
+          severity: "critical",
+          text: "Marcapasso: sem eletroterapia.",
+        });
+        let workspace = await repository.getClinicalWorkspace(
+          clinicId,
+          client.id,
+          actorId,
+        );
+        expect(workspace?.alerts.map((alert) => alert.severity)).toEqual([
+          "critical",
+          "info",
+        ]);
+        expect(await repository.archiveClinicalAlert(clinicId, info.id)).toBe(
+          true,
+        );
+        expect(await repository.archiveClinicalAlert(clinicId, info.id)).toBe(
+          false,
+        );
+        workspace = await repository.getClinicalWorkspace(
+          clinicId,
+          client.id,
+          actorId,
+        );
+        expect(workspace?.alerts.map((alert) => alert.text)).toEqual([
+          "Marcapasso: sem eletroterapia.",
+        ]);
+      });
+
       it("persists and finds a patient without exposing the record to another clinic", async () => {
         const created = await patient("Parity Cliente");
         expect(
@@ -774,8 +1442,12 @@ for (const storage of ["memory", "postgres"] as const) {
             randomUUID(),
             created.id,
             patientInputSchema.parse({
+              cpf: nextTestCpf(),
               fullName: "Alteração indevida",
               phone: "11988887777",
+              whatsapp: "11988887777",
+              emergencyContactName: "Alteração indevida",
+              emergencyContactPhone: "11988887777",
             }),
           ),
         ).toBeNull();
@@ -860,6 +1532,78 @@ for (const storage of ["memory", "postgres"] as const) {
             .map((item) => item.quantity)
             .sort(),
         ).toEqual([-1, 1]);
+      });
+
+      it("refunds a paid tab while cancelling it, in one operation", async () => {
+        const created = await patient("Parity Estorno Venda");
+        const tab = await repository.openPatientTab(clinicId, actorId, {
+          patientId: created.id,
+        });
+        const product = await repository.createProduct(clinicId, actorId, {
+          name: "Produto estornado",
+          sku: randomUUID(),
+          unit: "un",
+          costInCents: 500,
+          salePriceInCents: 1000,
+          initialStock: 3,
+        });
+        await repository.addPatientTabItem(clinicId, actorId, tab.id, {
+          productId: product.id,
+          quantity: 2,
+        });
+        const closed = await repository.closePatientTab(
+          clinicId,
+          actorId,
+          tab.id,
+          {
+            settlement: "paid",
+            paymentMethod: "card",
+            paymentInstallments: 2,
+            dueDate: saoPauloToday(),
+          },
+        );
+        expect(
+          await repository.patientTabPayment(clinicId, tab.id),
+        ).toMatchObject({
+          receivableId: closed!.receivableId,
+          status: "paid",
+          amountInCents: 2000,
+          paymentMethod: "card",
+          paymentInstallments: 2,
+        });
+        expect(
+          await repository.patientTabPayment(clinicId, randomUUID()),
+        ).toBeUndefined();
+        await expect(
+          repository.cancelPatientTab(clinicId, actorId, tab.id),
+        ).rejects.toMatchObject({
+          code: "PATIENT_TAB_PAYMENT_REVERSAL_REQUIRED",
+        });
+        const cancelled = await repository.cancelPatientTab(
+          clinicId,
+          actorId,
+          tab.id,
+          { refundPayment: true },
+        );
+        expect(cancelled).toMatchObject({
+          status: "cancelled",
+          paymentStatus: "cancelled",
+        });
+        expect(
+          await repository.patientTabPayment(clinicId, tab.id),
+        ).toMatchObject({ status: "cancelled" });
+        expect(
+          (await repository.getInventoryWorkspace(clinicId)).products.find(
+            (item) => item.id === product.id,
+          )?.currentStock,
+        ).toBe(3);
+        const movements = (
+          await repository.getDailyCash(clinicId, saoPauloToday())
+        ).movements.filter((item) => item.counterpart === created.fullName);
+        expect(movements).toHaveLength(2);
+        expect(
+          movements.reduce((sum, item) => sum + item.amountInCents, 0),
+        ).toBe(0);
       });
 
       it("rejects duplicate payments and reversals while preserving the cash movements", async () => {
@@ -973,8 +1717,12 @@ for (const storage of ["memory", "postgres"] as const) {
         const client = await repository.createPatient(
           clinicId,
           patientInputSchema.parse({
+            cpf: nextTestCpf(),
             fullName: "Parity Birthday " + randomUUID(),
             phone: "11988887777",
+            whatsapp: "11988887777",
+            emergencyContactName: "Parity Birthday " + randomUUID(),
+            emergencyContactPhone: "11988887777",
             birthDate: "1990-01-10",
           }),
         );
@@ -1027,10 +1775,7 @@ for (const storage of ["memory", "postgres"] as const) {
           });
         await repository.createCommissionRule(clinicId, {
           professionalId: professional.id,
-          serviceId,
-          kind: "fixed",
-          percentage: 0,
-          fixedAmountInCents: 1500,
+          percentage: 10,
           effectiveFrom: "2057-01-01",
         });
         const appointment = await repository.createAppointment(
@@ -1041,8 +1786,15 @@ for (const storage of ["memory", "postgres"] as const) {
             roomId: room.id,
             serviceId,
             startsAt: "2057-04-13T15:00:00Z",
-            visitType: "trial",
+            visitType: "regular",
           }),
+        );
+        await sellSessionForAppointment(
+          repository,
+          clinicId,
+          actorId,
+          appointment,
+          15000,
         );
         await atInstant("2057-04-14T12:00:00Z", () =>
           repository.updateAppointmentStatus(
@@ -1142,11 +1894,132 @@ for (const storage of ["memory", "postgres"] as const) {
           code: "COMMISSION_ACCOUNT_PAYMENT_REVERSED",
         });
       });
+      it("reconciles commissions automatically when their origin changes, in the name of who changed it", async () => {
+        const client = await patient("Parity Commission Auto Reconciliation"),
+          professional = await repository.createProfessional(
+            clinicId,
+            professionalInputSchema.parse({
+              fullName: "Paridade Conciliação " + randomUUID(),
+              crefito: "PARITY-54321",
+              specialty: "Pilates",
+              color: "#8b5cf6",
+            }),
+          ),
+          room = await repository.createRoom(clinicId, {
+            name: "Paridade conciliação " + randomUUID().slice(0, 8),
+            capacity: 1,
+          });
+        await repository.createCommissionRule(clinicId, {
+          professionalId: professional.id,
+          percentage: 10,
+          effectiveFrom: "2058-01-01",
+        });
+        const appointment = await repository.createAppointment(
+          clinicId,
+          appointmentInputSchema.parse({
+            patientId: client.id,
+            professionalId: professional.id,
+            roomId: room.id,
+            serviceId,
+            startsAt: "2058-04-13T15:00:00Z",
+            visitType: "regular",
+          }),
+        );
+        await sellSessionForAppointment(
+          repository,
+          clinicId,
+          actorId,
+          appointment,
+          15000,
+        );
+        await atInstant("2058-04-14T12:00:00Z", () =>
+          repository.updateAppointmentStatus(
+            clinicId,
+            appointment.id,
+            "completed",
+          ),
+        );
+        const commission = (
+          await repository.generateCommissions(clinicId, "2058-04")
+        ).find((entry) => entry.appointmentId === appointment.id)!;
+        const scope = { appointmentIds: [appointment.id] },
+          reason = "Conciliação automática: situação do atendimento alterada.";
+        expect(
+          await repository.autoReconcileCommissions(
+            clinicId,
+            actorId,
+            scope,
+            reason,
+          ),
+        ).toBe(0);
+        await atInstant("2058-04-14T12:00:00Z", () =>
+          repository.updateAppointmentStatus(
+            clinicId,
+            appointment.id,
+            "confirmed",
+          ),
+        );
+        expect(
+          await repository.autoReconcileCommissions(
+            clinicId,
+            actorId,
+            { groupSessionIds: [randomUUID()] },
+            reason,
+          ),
+        ).toBe(0);
+        expect(
+          await repository.autoReconcileCommissions(
+            clinicId,
+            actorId,
+            scope,
+            reason,
+          ),
+        ).toBe(1);
+        expect(
+          await repository.autoReconcileCommissions(
+            clinicId,
+            actorId,
+            scope,
+            reason,
+          ),
+        ).toBe(0);
+        const preview = await repository.getCommissionReconciliationPreview(
+          clinicId,
+          commission.id,
+        );
+        expect(preview.changes).toEqual([]);
+        expect(preview.reconciliations).toHaveLength(1);
+        expect(preview.reconciliations[0]).toMatchObject({ actorId, reason });
+        expect(preview.reconciliations[0]!.actorName).not.toBe("");
+        expect(preview.adjustments).toMatchObject([
+          { amountInCents: -1500, actorId, reason, status: "open" },
+        ]);
+        expect(
+          (await repository.listAdminAuditEvents(clinicId)).filter(
+            (event) =>
+              event.action === "commission.auto_reconciled" &&
+              event.entityId === commission.id,
+          ),
+        ).toMatchObject([
+          {
+            actorUserId: actorId,
+            module: "finance",
+            metadata: { reason },
+          },
+        ]);
+      });
       it("rolls back a guided registration when the subsequent plan cannot be created", async () => {
         const name = `Parity Rollback ${randomUUID()}`;
         const input = guidedPatientInputSchema.parse({
           next: "plan",
-          patient: { fullName: name, phone: "11988887777" },
+          patient: {
+            cpf: nextTestCpf(),
+            fullName: name,
+            phone: "11988887777",
+            whatsapp: "11988887777",
+            emergencyContactName: name,
+            emergencyContactPhone: "11988887777",
+          },
           plan: {
             planTemplateId: randomUUID(),
             name: "Plano inexistente",
@@ -1164,6 +2037,95 @@ for (const storage of ["memory", "postgres"] as const) {
           repository.createPatientWithNextStep(clinicId, actorId, input),
         ).rejects.toBeInstanceOf(Error);
         expect(await repository.listPatients(clinicId, name)).toEqual([]);
+      });
+      it("keeps WhatsApp campaign snapshots and progress", async () => {
+        const png =
+          "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
+        const template = await repository.createMessageTemplate(
+          clinicId,
+          actorId,
+          {
+            title: "Paridade",
+            body: "Olá, {{nome}}",
+            images: [
+              {
+                fileName: "a.png",
+                mimeType: "image/png",
+                sizeBytes: 68,
+                dataUrl: png,
+              },
+            ],
+          },
+        );
+        const client = await patient("Campanha");
+        const campaign = await repository.createWhatsappCampaign(
+          clinicId,
+          actorId,
+          {
+            templateId: template.id,
+            name: "Paridade",
+            recipients: [
+              {
+                patientId: client.id,
+                patientName: client.fullName,
+                phone: "11988887777",
+                message: "Olá, Campanha",
+              },
+            ],
+          },
+        );
+        const updated = await repository.updateMessageTemplate(
+          clinicId,
+          actorId,
+          template.id,
+          { title: "Nova", body: "Outro", images: [] },
+        );
+        expect(updated?.images).toEqual([]);
+        const detail = await repository.getWhatsappCampaign(
+          clinicId,
+          campaign.id,
+        );
+        expect(detail).toMatchObject({
+          templateTitle: "Paridade",
+          body: "Olá, {{nome}}",
+          total: 1,
+          sent: 0,
+        });
+        expect(detail?.images.map((image) => image.fileName)).toEqual([
+          "a.png",
+        ]);
+        expect(
+          (
+            await repository.getMessageTemplateImage(
+              clinicId,
+              detail!.images[0]!.id,
+            )
+          )?.dataUrl,
+        ).toBe(png);
+        const result = await repository.setWhatsappCampaignRecipientStatus(
+          clinicId,
+          actorId,
+          campaign.id,
+          campaign.recipients[0]!.id,
+          "sent",
+        );
+        expect(result?.recipient.status).toBe("sent");
+        expect(result?.recipient.handledByName).toBeTruthy();
+        expect(result?.campaign).toMatchObject({ sent: 1 });
+        expect(result?.campaign.completedAt).toBeTruthy();
+        await repository.setMessageTemplateArchived(
+          clinicId,
+          actorId,
+          template.id,
+          true,
+        );
+        await expect(
+          repository.createWhatsappCampaign(clinicId, actorId, {
+            templateId: template.id,
+            name: "Arquivada",
+            recipients: campaign.recipients,
+          }),
+        ).rejects.toMatchObject({ code: "MESSAGE_TEMPLATE_NOT_FOUND" });
       });
     },
   );

@@ -1,3 +1,5 @@
+import { AgendaNoteCard } from "./AgendaNoteCard";
+import type { AgendaNote } from "@crm/contracts";
 import type { Appointment, GroupSession, ScheduleBlock } from "@crm/contracts";
 import { Modal } from "../../shared/components/Modal";
 import { VisitTypeBadge } from "../../shared/components/VisitTypeBadge";
@@ -12,6 +14,9 @@ export function DayEventsModal({
   appointments,
   groupSessions,
   blocks,
+  notes = [],
+  onOpenNote,
+  professionalColors,
   onClose,
   onOpenAppointment,
   onOpenDay,
@@ -21,6 +26,10 @@ export function DayEventsModal({
   appointments: Appointment[];
   groupSessions: GroupSession[];
   blocks: ScheduleBlock[];
+  notes?: AgendaNote[];
+  onOpenNote?: ((note: AgendaNote) => void) | undefined;
+  /** Cor de cada profissional (por id), para a bolinha das aulas de turma. */
+  professionalColors: Map<string, string>;
   onClose: () => void;
   onOpenAppointment: (id: string) => void;
   onOpenDay: () => void;
@@ -46,7 +55,7 @@ export function DayEventsModal({
               endsAt: entry.session.endsAt,
               title: entry.session.groupName,
               detail: `${entry.session.professionalName} · ${entry.session.roomName}`,
-              color: undefined,
+              color: professionalColors.get(entry.session.professionalId),
               appointment: undefined,
             }
           : {
@@ -72,9 +81,9 @@ export function DayEventsModal({
         month: "long",
       })}
       subtitle={
-        count === 0
+        count === 0 && notes.length === 0
           ? "Nenhum evento neste dia."
-          : `${count} ${count === 1 ? "evento" : "eventos"} neste dia.`
+          : `${count + notes.length} ${count + notes.length === 1 ? "evento" : "eventos"} neste dia.`
       }
       onClose={onClose}
     >
@@ -82,6 +91,13 @@ export function DayEventsModal({
         {holidayName && (
           <p className="holiday-notice">Feriado: {holidayName}</p>
         )}
+        {notes.map((note) => (
+          <AgendaNoteCard
+            key={note.id}
+            note={note}
+            onOpen={() => onOpenNote?.(note)}
+          />
+        ))}
         {count > 0 && (
           <ul className="day-events-list">
             {events.map((event) => {

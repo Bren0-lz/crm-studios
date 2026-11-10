@@ -1,19 +1,32 @@
 import type {
+  AgendaNote,
+  AgendaNoteInput,
+  AgendaNoteUpdate,
+  AgendaNoteScope,
+} from "@crm/contracts";
+import type {
   GroupAttendance,
   GroupAttendanceInput,
   ReplacementCredit,
   ReplacementBookingInput,
 } from "@crm/contracts";
 import type {
+  AgendaConflict,
+  AgendaConflictCheckInput,
   Appointment,
   AppointmentInput,
+  AppointmentPricing,
+  AppointmentPromotion,
+  AutoCampaignPromotionOffer,
   AppointmentRescheduleEvent,
   AppointmentRescheduleInput,
   AppointmentStatus,
   AppointmentUpdateInput,
-  ClinicalAppointmentOption,
+  AutoFinalizationSettings,
+  AutoFinalizationSettingsInput,
   GroupClass,
   GroupClassInput,
+  GroupClassRenameInput,
   GroupClassUpdateInput,
   GroupEnrollment,
   GroupEnrollmentInput,
@@ -29,6 +42,26 @@ import type {
 import { request } from "../transport";
 
 export const agendaApi = {
+  agendaNotes: (from: string, to: string) =>
+    request<AgendaNote[]>(
+      `/agenda-notes?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
+    ),
+  createAgendaNotes: (input: AgendaNoteInput) =>
+    request<AgendaNote[]>("/agenda-notes", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  updateAgendaNote: (
+    id: string,
+    input: AgendaNoteUpdate,
+    scope: AgendaNoteScope,
+  ) =>
+    request<AgendaNote[]>(`/agenda-notes/${id}?scope=${scope}`, {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    }),
+  deleteAgendaNote: (id: string, scope: AgendaNoteScope) =>
+    request<void>(`/agenda-notes/${id}?scope=${scope}`, { method: "DELETE" }),
   createAbsenceSuccessor: (id: string, input: AppointmentRescheduleInput) =>
     request<Appointment>(`/appointments/${id}/successor`, {
       method: "POST",
@@ -63,18 +96,44 @@ export const agendaApi = {
     }),
   completeGroupSession: (id: string) =>
     request<GroupSession>(`/group-sessions/${id}/complete`, { method: "POST" }),
-  clinicalAppointmentOptions: (from: string, to: string) =>
-    request<ClinicalAppointmentOption[]>(
-      `/appointments/options?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
-    ),
-  appointments: (from: string, to: string) =>
+  /** `options`: `allBranches` na ficha do cliente (atendimentos de todas as filiais). */
+  appointments: (from: string, to: string, options?: RequestInit) =>
     request<Appointment[]>(
       `/appointments?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
+      options,
     ),
   /** Atendimentos passados ainda agendados/confirmados, de qualquer data (QC2). */
   pendingFinalizationAppointments: () =>
     request<Appointment[]>("/appointments/pending-finalization"),
-  createAppointment: (input: AppointmentInput) =>
+  /** Realizados que começaram no período (pela equipe ou pela finalização automática). */
+  completedAppointments: (from: string, to: string) =>
+    request<Appointment[]>(
+      `/appointments/completed?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
+    ),
+  autoFinalizationSettings: () =>
+    request<AutoFinalizationSettings>("/clinic/auto-finalization"),
+  saveAutoFinalizationSettings: (input: AutoFinalizationSettingsInput) =>
+    request<AutoFinalizationSettings>("/admin/auto-finalization", {
+      method: "PUT",
+      body: JSON.stringify(input),
+    }),
+  /** Promoções de campanhas automáticas que o cliente pode usar se agendar hoje. */
+  appointmentPromotions: (patientId: string) =>
+    request<AutoCampaignPromotionOffer[]>(
+      `/appointments/promotions?patientId=${encodeURIComponent(patientId)}`,
+    ),
+  /** Valor de cada sessão do serviço para o cliente (saldo dos planos e plano avulso). */
+  appointmentPricing: (
+    patientId: string,
+    serviceId: string,
+    startsAt?: string,
+  ) =>
+    request<AppointmentPricing>(
+      `/appointments/pricing?patientId=${encodeURIComponent(patientId)}&serviceId=${encodeURIComponent(serviceId)}${startsAt ? `&startsAt=${encodeURIComponent(startsAt)}` : ""}`,
+    ),
+  createAppointment: (
+    input: AppointmentInput & { promotion?: AppointmentPromotion | undefined },
+  ) =>
     request<Appointment>("/appointments", {
       method: "POST",
       body: JSON.stringify(input),
@@ -92,7 +151,17 @@ export const agendaApi = {
     }),
   appointmentReschedules: (id: string) =>
     request<AppointmentRescheduleEvent[]>(`/appointments/${id}/reschedules`),
-  createRecurringAppointments: (input: RecurringAppointmentInput) =>
+  /** Só leitura: conflitos de horários planejados (ex.: sessões do plano antes de contratar). */
+  agendaConflicts: (input: AgendaConflictCheckInput) =>
+    request<AgendaConflict[]>("/appointments/conflicts", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  createRecurringAppointments: (
+    input: RecurringAppointmentInput & {
+      promotion?: AppointmentPromotion | undefined;
+    },
+  ) =>
     request<Appointment[]>("/appointments/recurring", {
       method: "POST",
       body: JSON.stringify(input),
@@ -144,10 +213,19 @@ export const agendaApi = {
       method: "PUT",
       body: JSON.stringify(input),
     }),
+  renameGroupClass: (id: string, input: GroupClassRenameInput) =>
+    request<GroupClass>(`/groups/${id}/name`, {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    }),
   createGroupEnrollment: (input: GroupEnrollmentInput) =>
     request<GroupEnrollment>("/group-enrollments", {
       method: "POST",
       body: JSON.stringify(input),
+    }),
+  confirmGroupEnrollment: (id: string) =>
+    request<GroupEnrollment>(`/group-enrollments/${id}/confirm`, {
+      method: "POST",
     }),
   cancelGroupEnrollment: (id: string) =>
     request<GroupEnrollment>(`/group-enrollments/${id}/cancel`, {

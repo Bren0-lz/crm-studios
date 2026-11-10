@@ -1,3 +1,4 @@
+import { nextTestCpf } from "../../test-support/cpf.js";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { broadcastInputSchema } from "@crm/contracts";
 import { buildApp } from "../../app.js";
@@ -21,12 +22,14 @@ describe("manual relationship work", () => {
       authorization: `Bearer ${app.jwt.sign({ sub: actorId, clinicId, role: "admin" })}`,
     };
     const patient = await repository.createPatient(clinicId, {
+      cpf: nextTestCpf(),
       fullName: "Cliente aniversariante",
       phone: "11988887777",
       birthDate: "1990-06-10",
       tags: [],
     });
     const declined = await repository.createPatient(clinicId, {
+      cpf: nextTestCpf(),
       fullName: "Cliente sem autorização",
       phone: "11955554444",
       birthDate: "1990-06-10",
@@ -155,16 +158,17 @@ describe("manual relationship work", () => {
   it("uses the same demographic and interest segment for broadcast preview and queuing", async () => {
     const repository = new MemoryClinicRepository();
     const patient = await repository.createPatient(clinicId, {
+      cpf: nextTestCpf(),
       fullName: "Cliente do segmento",
       phone: "11988887777",
       tags: [],
       city: "Campinas",
       gender: "female",
-      clientType: "rotating",
       interests: ["Pilates"],
       level: "Iniciante",
     });
     await repository.createPatient(clinicId, {
+      cpf: nextTestCpf(),
       fullName: "Outra cidade",
       phone: "11955554444",
       tags: [],
@@ -175,7 +179,6 @@ describe("manual relationship work", () => {
       segment: {
         city: "Campinas",
         gender: "female",
-        clientType: "rotating",
         interest: "Pilates",
         level: "Iniciante",
       },

@@ -1,15 +1,20 @@
 import { z } from "zod";
 import {
+  addDaysToIsoDate,
   addMonthsToIsoDate,
   clockTimeSchema,
   joinWithAnd,
+  paymentMethodSchema,
 } from "../common/model.js";
 import type {
+  AgendaConflict,
   Appointment,
   GroupEnrollment,
   GroupSession,
   GroupWeeklySlot,
 } from "./types.js";
+
+type PaymentMethod = z.infer<typeof paymentMethodSchema>;
 
 export const appointmentStatusSchema = z.enum([
   "scheduled",
@@ -30,6 +35,8 @@ export const appointmentVisitTypeSchema = z.enum([
 
 export const appointmentInputSchema = z.object({
   patientId: z.uuid(),
+  /** Plano consumido ao finalizar; opcional em históricos/experimentais, exigido pela API nos demais. */
+  planId: z.uuid().optional(),
   professionalId: z.uuid(),
   roomId: z.uuid(),
   serviceId: z.uuid(),
@@ -38,26 +45,178 @@ export const appointmentInputSchema = z.object({
   visitType: appointmentVisitTypeSchema.default("regular"),
 });
 
+/** Promoção escolhida ao agendar: a campanha e o evento em que o cliente recebeu a mensagem. */
+export const appointmentPromotionSchema = z.object({
+  /** `manual` = campanha manual (WhatsApp); ausente = campanha automática. */
+  source: z.literal("manual").optional(),
+  campaignId: z.uuid(),
+  occurrenceKey: z.string().trim().min(1).max(200),
+});
+
+/** `POST /appointments`: o atendimento e, se for o caso, a promoção que ele usa. */
+export const appointmentCreateInputSchema = appointmentInputSchema.extend({
+  promotion: appointmentPromotionSchema.optional(),
+});
+
 export const appointmentRescheduleInputSchema = z.object({
+  planId: z.uuid().optional(),
   professionalId: z.uuid(),
   roomId: z.uuid(),
   startsAt: z.iso.datetime({ offset: true }),
 });
 
 /**
- * Edição de um atendimento ainda não finalizado (QM6): serviço, sala e observação.
+ * Edição de um atendimento ainda não finalizado: cliente, plano, serviço, sala e observação.
  * Data, horário e profissional mudam só pela remarcação. `notes` vazio limpa a observação.
  */
 export const appointmentUpdateInputSchema = z.object({
+  patientId: z.uuid().optional(),
+  planId: z.uuid().optional(),
   serviceId: z.uuid(),
   roomId: z.uuid(),
   notes: z.string().trim().max(1000).optional().or(z.literal("")),
 });
 
-export const recurringAppointmentInputSchema = appointmentInputSchema.extend({
-  occurrences: z.number().int().min(2).max(52),
-  intervalWeeks: z.number().int().min(1).max(4).default(1),
+/**
+ * Repetição de um atendimento: a cada `intervalWeeks` semanas ou, com `customStartsAt`,
+ * nas datas escolhidas à mão (além de `startsAt`, que é sempre a primeira ocorrência).
+ */
+export const recurringAppointmentInputSchema = appointmentInputSchema
+  .extend({
+    occurrences: z.number().int().min(2).max(52),
+    intervalWeeks: z.number().int().min(1).max(4).default(1),
+    customStartsAt: z
+      .array(z.iso.datetime({ offset: true }))
+      .max(51)
+      .optional(),
+  })
+  .superRefine((input, context) => {
+    if (!input.customStartsAt) return;
+    if (input.customStartsAt.length !== input.occurrences - 1)
+      context.addIssue({
+        code: "custom",
+        path: ["customStartsAt"],
+        message: "Informe uma data para cada ocorrência.",
+      });
+    const times = [input.startsAt, ...input.customStartsAt].map((value) =>
+      new Date(value).getTime(),
+    );
+    if (new Set(times).size !== times.length)
+      context.addIssue({
+        code: "custom",
+        path: ["customStartsAt"],
+        message: "Há datas repetidas na recorrência.",
+      });
+  });
+
+/** `POST /appointments/recurring`: a promoção, se houver, fica com a 1ª ocorrência. */
+export const recurringAppointmentCreateInputSchema =
+  recurringAppointmentInputSchema.and(
+    z.object({ promotion: appointmentPromotionSchema.optional() }),
+  );
+
+/** Início de cada ocorrência da recorrência, em ordem cronológica (ISO UTC). */
+export function recurringOccurrenceStarts(input: {
+  startsAt: string;
+  occurrences: number;
+  intervalWeeks: number;
+  customStartsAt?: string[] | undefined;
+}): string[] {
+  if (input.customStartsAt)
+    return [input.startsAt, ...input.customStartsAt]
+      .map((value) => new Date(value).toISOString())
+      .sort();
+  return Array.from({ length: input.occurrences }, (_, index) => {
+    const startsAt = new Date(input.startsAt);
+    startsAt.setUTCDate(
+      startsAt.getUTCDate() + index * input.intervalWeeks * 7,
+    );
+    return startsAt.toISOString();
+  });
+}
+
+/** Dia fixo da semana (0 = domingo … 6 = sábado) e horário "HH:MM" de um pacote. */
+export interface PackageWeeklySlot {
+  weekday: number;
+  time: string;
+}
+
+/**
+ * Datas de um pacote de sessões com dias e horários fixos na semana: a partir de
+ * `fromDate` (AAAA-MM-DD, inclusive), percorre os dias em ordem e marca cada dia/horário
+ * fixo até completar `count` sessões. Devolve data e hora locais ("AAAA-MM-DDTHH:MM"),
+ * em ordem cronológica e sem repetição; a conversão para UTC fica com quem chama.
+ */
+export function packageScheduleStarts(input: {
+  fromDate: string;
+  slots: PackageWeeklySlot[];
+  count: number;
+}): string[] {
+  const slots = [
+    ...new Map(
+      input.slots
+        .filter(
+          (slot) =>
+            Number.isInteger(slot.weekday) &&
+            slot.weekday >= 0 &&
+            slot.weekday <= 6 &&
+            clockTimeSchema.safeParse(slot.time).success,
+        )
+        .map((slot) => [`${slot.weekday}-${slot.time}`, slot] as const),
+    ).values(),
+  ].sort((a, b) => a.time.localeCompare(b.time));
+  const starts: string[] = [];
+  if (!slots.length || input.count < 1) return starts;
+  for (let offset = 0; starts.length < input.count; offset += 1) {
+    const date = addDaysToIsoDate(input.fromDate, offset);
+    const weekday = new Date(`${date}T00:00:00Z`).getUTCDay();
+    for (const slot of slots) {
+      if (slot.weekday !== weekday || starts.length >= input.count) continue;
+      starts.push(`${date}T${slot.time}`);
+    }
+  }
+  return starts;
+}
+
+/**
+ * `POST /appointments/conflicts`: verifica, sem gravar, se cada horário planejado (ex.: as
+ * sessões de um plano avulso antes de confirmar a contratação) conflita com a agenda.
+ * `key` identifica o item na resposta.
+ */
+export const agendaConflictCheckInputSchema = z.object({
+  items: z
+    .array(
+      z.object({
+        key: z.string().trim().min(1).max(64),
+        professionalId: z.uuid(),
+        roomId: z.uuid(),
+        serviceId: z.uuid(),
+        startsAt: z.iso.datetime({ offset: true }),
+      }),
+    )
+    .min(1)
+    .max(120),
 });
+
+/** Motivo padrão de cada tipo de conflito, como aparece no resumo das sessões. */
+export const agendaConflictLabels = {
+  appointment: "Profissional ou sala com outro atendimento",
+  block: "Horário bloqueado",
+  group: "Horário de turma",
+  holiday: "Feriado",
+  batch: "Outra sessão deste plano no mesmo horário",
+} as const;
+
+export function agendaConflict(
+  key: string,
+  kind: keyof typeof agendaConflictLabels,
+  label: string = agendaConflictLabels[kind],
+): AgendaConflict {
+  return { key, kind, label };
+}
+
+/** Limite da observação da aula experimental: a tela usa o mesmo número no `maxLength`. */
+export const leadAppointmentNotesMaxLength = 1000;
 
 // Atendimento de lead ainda não convertido: só experimental ou avaliação.
 export const leadAppointmentInputSchema = z.object({
@@ -65,7 +224,12 @@ export const leadAppointmentInputSchema = z.object({
   roomId: z.uuid(),
   serviceId: z.uuid(),
   startsAt: z.iso.datetime({ offset: true }),
-  notes: z.string().trim().max(1000).optional().or(z.literal("")),
+  notes: z
+    .string()
+    .trim()
+    .max(leadAppointmentNotesMaxLength)
+    .optional()
+    .or(z.literal("")),
   visitType: z.enum(["trial", "evaluation"]),
 });
 
@@ -171,7 +335,20 @@ export function describeGroupSchedule(
   return `Turma de ${joinWithAnd(parts)}`;
 }
 
+const groupClassNameSchema = z
+  .string()
+  .trim()
+  .min(1, "Informe o nome da turma.")
+  .max(120, "O nome da turma pode ter até 120 caracteres.");
+
+export const groupClassRenameSchema = z
+  .object({
+    name: groupClassNameSchema,
+  })
+  .strict();
+
 export const groupClassInputSchema = z.object({
+  name: groupClassNameSchema.optional(),
   serviceId: z.uuid(),
   professionalId: z.uuid(),
   roomId: z.uuid(),
@@ -244,6 +421,72 @@ export function isAppointmentPendingFinalization(
   );
 }
 
+/** Limite do tempo de espera da finalização automática: 7 dias. */
+export const autoFinalizationMaxDelayMinutes = 7 * 24 * 60;
+
+/**
+ * Finalização automática (por clínica): quando ligada, o atendimento que segue agendado ou
+ * confirmado vira "realizado" depois de `delayMinutes` do término.
+ */
+export const autoFinalizationSettingsInputSchema = z.object({
+  enabled: z.boolean(),
+  delayMinutes: z.number().int().min(0).max(autoFinalizationMaxDelayMinutes),
+});
+
+/** Padrão de clínica que nunca configurou: desligada, 1 hora após o término. */
+export const defaultAutoFinalizationSettings = {
+  enabled: false,
+  delayMinutes: 60,
+} as const;
+
+/** Instante-limite: atendimentos que terminaram até ele já podem ser finalizados. */
+export function autoFinalizationCutoff(now: Date, delayMinutes: number): Date {
+  return new Date(now.getTime() - delayMinutes * 60_000);
+}
+
+/** Pendente de finalização há pelo menos `delayMinutes` (término + espera ≤ agora). */
+export function isAppointmentDueForAutoFinalization(
+  appointment: Pick<Appointment, "status" | "endsAt">,
+  delayMinutes: number,
+  now: Date = new Date(),
+): boolean {
+  return (
+    (appointment.status === "scheduled" ||
+      appointment.status === "confirmed") &&
+    Date.parse(appointment.endsAt) <=
+      autoFinalizationCutoff(now, delayMinutes).getTime()
+  );
+}
+
+/** Tempo de espera por extenso: "imediatamente", "45 minutos", "1 hora e 30 minutos", "2 dias". */
+export function autoFinalizationDelayLabel(delayMinutes: number): string {
+  if (delayMinutes <= 0) return "imediatamente";
+  const days = Math.floor(delayMinutes / 1440);
+  const hours = Math.floor((delayMinutes % 1440) / 60);
+  const minutes = delayMinutes % 60;
+  const parts = [
+    days ? `${days} ${days === 1 ? "dia" : "dias"}` : "",
+    hours ? `${hours} ${hours === 1 ? "hora" : "horas"}` : "",
+    minutes ? `${minutes} ${minutes === 1 ? "minuto" : "minutos"}` : "",
+  ].filter(Boolean);
+  return joinWithAnd(parts);
+}
+
+/** Período da lista de concluídos (instantes com fuso, como a agenda). */
+export const completedAppointmentsQuerySchema = z
+  .object({
+    from: z.iso.datetime({ offset: true }),
+    to: z.iso.datetime({ offset: true }),
+  })
+  .refine((value) => Date.parse(value.from) < Date.parse(value.to), {
+    message: "A data final precisa ser depois da inicial.",
+  })
+  .refine(
+    (value) =>
+      Date.parse(value.to) - Date.parse(value.from) <= 367 * 24 * 3600_000,
+    { message: "Escolha um período de até 1 ano." },
+  );
+
 /**
  * Tolerância (minutos antes do início) para registrar realizado/falta ou vincular evolução
  * clínica a um atendimento. Decisão do dono: constante, sem configuração.
@@ -291,22 +534,160 @@ export const appointmentStatusInputSchema = z.object({
   status: appointmentStatusSchema,
 });
 
+type PlanScheduleItem = {
+  installmentNumber: number;
+  dueDate: string;
+  amountInCents: number;
+  /** Forma prevista da cobrança (a da parte, no plano picado). */
+  paymentMethod?: PaymentMethod;
+};
+
+type PlanSchedulePart = {
+  paymentMethod: PaymentMethod;
+  amountInCents: number;
+  installments: number;
+};
+
 /**
  * Parcelas de um plano: uma por mês a partir do primeiro vencimento (dia
- * limitado ao fim do mês), com o resto da divisão nos primeiros centavos.
+ * limitado ao fim do mês), com o resto da divisão nos primeiros centavos. Com
+ * `proratedChargeInCents` (recorrente que começa antes do 1º vencimento), vem antes
+ * uma cobrança a mais com esse valor, vencendo no início do plano (`validFrom`).
  */
 export function planInstallmentSchedule(plan: {
   totalValueInCents: number;
   installments: number;
   firstDueDate: string;
-}): { installmentNumber: number; dueDate: string; amountInCents: number }[] {
+  validFrom?: string | undefined;
+  proratedChargeInCents?: number | undefined;
+  paymentMethod?: PaymentMethod | undefined;
+  paymentParts?: readonly PlanSchedulePart[] | undefined;
+}): PlanScheduleItem[] {
+  const parts = plan.paymentParts;
+  const method = parts?.[0]?.paymentMethod ?? plan.paymentMethod;
+  const regular =
+    parts && parts.length > 1
+      ? splitPlanSchedule(plan.firstDueDate, parts)
+      : regularPlanSchedule(plan, method);
+  const prorated =
+    plan.proratedChargeInCents && plan.validFrom
+      ? proratedPlanCharges(
+          plan.proratedChargeInCents,
+          plan.validFrom,
+          parts && parts.length > 1 ? parts : undefined,
+          method,
+        )
+      : [];
+  return [...prorated, ...regular].map((item, index) => ({
+    ...item,
+    installmentNumber: index + 1,
+  }));
+}
+
+/**
+ * Quantas cobranças proporcionais (as primeiras de `planInstallmentSchedule`) o plano gera:
+ * uma, ou uma por forma no plano picado; 0 sem `proratedChargeInCents`.
+ */
+export function planProratedChargeCount(plan: {
+  validFrom?: string | undefined;
+  proratedChargeInCents?: number | undefined;
+  paymentParts?: readonly PlanSchedulePart[] | undefined;
+}): number {
+  if (!plan.proratedChargeInCents || !plan.validFrom) return 0;
+  return plan.paymentParts && plan.paymentParts.length > 1
+    ? plan.paymentParts.length
+    : 1;
+}
+
+function regularPlanSchedule(
+  plan: {
+    totalValueInCents: number;
+    installments: number;
+    firstDueDate: string;
+  },
+  method: PaymentMethod | undefined,
+): PlanScheduleItem[] {
   const baseAmount = Math.floor(plan.totalValueInCents / plan.installments);
   const remainder = plan.totalValueInCents % plan.installments;
   return Array.from({ length: plan.installments }, (_, index) => ({
     installmentNumber: index + 1,
     dueDate: addMonthsToIsoDate(plan.firstDueDate, index),
     amountInCents: baseAmount + (index < remainder ? 1 : 0),
+    ...(method ? { paymentMethod: method } : {}),
   }));
+}
+
+/**
+ * Cobrança proporcional: no plano picado, repartida entre as formas na proporção do valor
+ * de cada uma (o resto do arredondamento fica na última).
+ */
+function proratedPlanCharges(
+  amountInCents: number,
+  dueDate: string,
+  parts: readonly PlanSchedulePart[] | undefined,
+  method: PaymentMethod | undefined,
+): PlanScheduleItem[] {
+  if (!parts)
+    return [
+      {
+        installmentNumber: 1,
+        dueDate,
+        amountInCents,
+        ...(method ? { paymentMethod: method } : {}),
+      },
+    ];
+  const total = parts.reduce((sum, part) => sum + part.amountInCents, 0);
+  let used = 0;
+  return parts.map((part, position) => {
+    const amount =
+      position === parts.length - 1
+        ? amountInCents - used
+        : total > 0
+          ? Math.floor((part.amountInCents * amountInCents) / total)
+          : 0;
+    used += amount;
+    return {
+      installmentNumber: position + 1,
+      dueDate,
+      amountInCents: amount,
+      paymentMethod: part.paymentMethod,
+    };
+  });
+}
+
+/**
+ * Plano picado: cada forma divide o próprio valor nas cobranças dela, mês a mês a partir do
+ * 1º vencimento. Ordem: vencimento e depois a ordem das formas.
+ */
+function splitPlanSchedule(
+  firstDueDate: string,
+  parts: readonly PlanSchedulePart[],
+): PlanScheduleItem[] {
+  const charges = parts.flatMap((part, partIndex) => {
+    const count = Math.max(1, part.installments);
+    const base = Math.floor(part.amountInCents / count);
+    const remainder = part.amountInCents % count;
+    return Array.from({ length: count }, (_, index) => ({
+      partIndex,
+      index,
+      dueDate: addMonthsToIsoDate(firstDueDate, index),
+      amountInCents: base + (index < remainder ? 1 : 0),
+      paymentMethod: part.paymentMethod,
+    }));
+  });
+  return charges
+    .sort(
+      (a, b) =>
+        a.dueDate.localeCompare(b.dueDate) ||
+        a.index - b.index ||
+        a.partIndex - b.partIndex,
+    )
+    .map((charge, position) => ({
+      installmentNumber: position + 1,
+      dueDate: charge.dueDate,
+      amountInCents: charge.amountInCents,
+      paymentMethod: charge.paymentMethod,
+    }));
 }
 
 export const holidayInputSchema = z.object({

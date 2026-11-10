@@ -1,4 +1,9 @@
-import type { Appointment, DashboardViewSummary } from "@crm/contracts";
+import {
+  legacyPermissions,
+  type Appointment,
+  type AppModule,
+  type DashboardViewSummary,
+} from "@crm/contracts";
 import {
   fireEvent,
   render,
@@ -9,7 +14,6 @@ import {
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import App from "../../App";
-import { storedUser } from "../../test-support/legacy-fixtures";
 import "../../test-support/legacy-setup";
 
 afterEach(() => {
@@ -54,6 +58,15 @@ function signIn(modules: string[], editModules: string[]) {
       role: "user",
       modules,
       editModules,
+      // A recepção vê a agenda de todos (concedido pela migração 0094).
+      permissions: [
+        ...legacyPermissions(
+          "user",
+          modules as AppModule[],
+          editModules as AppModule[],
+        ),
+        "agenda.view_all",
+      ],
     }),
   );
 }
@@ -281,6 +294,122 @@ describe("appointments pending finalization", () => {
     expect(screen.getByText("Otávio Remarcado")).toBeInTheDocument();
   });
 
+  it("filters by client, professional, status and period and acts only on the visible ones", async () => {
+    signIn(["agenda"], ["agenda"]);
+    let pending = [
+      appointment(
+        "a1",
+        "Paula Pendente",
+        "confirmed",
+        new Date("2026-10-01T13:00:00Z"),
+      ),
+      {
+        ...appointment(
+          "a2",
+          "Otávio Esquecido",
+          "scheduled",
+          new Date("2026-10-10T13:00:00Z"),
+        ),
+        professionalId: "p2",
+        professionalName: "Beatriz Lima",
+      },
+      appointment(
+        "a3",
+        "Pâmela Prado",
+        "scheduled",
+        new Date("2026-10-12T13:00:00Z"),
+      ),
+    ];
+    const patches: string[] = [];
+    vi.mocked(fetch).mockImplementation(async (input, init) => {
+      const url = String(input);
+      if (init?.method === "PATCH") {
+        const id = url.split("/").at(-2)!;
+        patches.push(id);
+        const updated = pending.find((item) => item.id === id)!;
+        pending = pending.filter((item) => item.id !== id);
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ ...updated, status: "completed" }),
+        } as Response;
+      }
+      const body = url.includes("/appointments/pending-finalization")
+        ? pending
+        : [];
+      return { ok: true, status: 200, json: async () => body } as Response;
+    });
+    render(
+      <MemoryRouter initialEntries={["/agenda/a-finalizar"]}>
+        <App />
+      </MemoryRouter>,
+    );
+    const list = await screen.findByRole("list", {
+      name: "Atendimentos a finalizar",
+    });
+    const filters = screen.getByRole("group", { name: "Filtros" });
+    const rows = () => within(list).queryAllByRole("listitem");
+    expect(rows()).toHaveLength(3);
+
+    // Busca sem acento.
+    fireEvent.change(within(filters).getByLabelText("Cliente"), {
+      target: { value: "pa" },
+    });
+    expect(rows()).toHaveLength(2);
+    expect(screen.getByText("2 exibidos com os filtros")).toBeInTheDocument();
+    fireEvent.change(within(filters).getByLabelText("Situação"), {
+      target: { value: "scheduled" },
+    });
+    expect(rows()).toHaveLength(1);
+    expect(within(list).getByText("Pâmela Prado")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Limpar filtros" }));
+    expect(rows()).toHaveLength(3);
+
+    fireEvent.change(within(filters).getByLabelText("Profissional"), {
+      target: { value: "p2" },
+    });
+    expect(rows()).toHaveLength(1);
+    fireEvent.click(screen.getByRole("button", { name: "Limpar filtros" }));
+
+    fireEvent.change(within(filters).getByLabelText("De"), {
+      target: { value: "2026-10-05" },
+    });
+    fireEvent.change(within(filters).getByLabelText("Até"), {
+      target: { value: "2026-10-11" },
+    });
+    expect(rows()).toHaveLength(1);
+    expect(within(list).getByText("Otávio Esquecido")).toBeInTheDocument();
+    fireEvent.change(within(filters).getByLabelText("Até"), {
+      target: { value: "2026-10-06" },
+    });
+    expect(
+      screen.getByText("Nenhum atendimento encontrado"),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Limpar filtros" }));
+
+    // Seleciona tudo, filtra e marca: só o visível é alterado.
+    fireEvent.click(screen.getByLabelText("Selecionar todos"));
+    expect(screen.getByText("3 selecionados")).toBeInTheDocument();
+    fireEvent.change(within(filters).getByLabelText("Profissional"), {
+      target: { value: "p2" },
+    });
+    expect(screen.getByText("1 selecionado")).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Marcar como realizados" }),
+    );
+    const dialog = await screen.findByRole("dialog");
+    expect(
+      within(dialog).getByText("1 atendimento selecionado"),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Marcar como realizados" }),
+    );
+    await waitFor(() =>
+      expect(screen.queryByText("Otávio Esquecido")).not.toBeInTheDocument(),
+    );
+    expect(patches).toEqual(["a2"]);
+  });
+
   it("lists without batch actions for read-only agenda access", async () => {
     signIn(["agenda"], []);
     vi.mocked(fetch).mockImplementation(async (input) => {
@@ -332,59 +461,6 @@ describe("appointments pending finalization", () => {
     );
     expect(
       await screen.findByText("Falha ao carregar os atendimentos."),
-    ).toBeInTheDocument();
-  });
-
-  it("explains that attended clients count only completed appointments", async () => {
-    localStorage.setItem("crm.auth.token", "test-token");
-    localStorage.setItem(
-      "crm.auth.user",
-      storedUser({
-        id: "22222222-2222-4222-8222-222222222222",
-        fullName: "Aryana Dutra",
-        email: "admin@movimenta.local",
-        role: "owner",
-      }),
-    );
-    const period = {
-      from: "2026-10-01",
-      to: "2026-10-12",
-      netSalesInCents: 0,
-      receivedInCents: 0,
-      attendedPatients: 3,
-    };
-    vi.mocked(fetch).mockImplementation(async (input) => {
-      const url = String(input);
-      const body = url.includes("/dashboard")
-        ? dashboard
-        : url.includes("/reports/sales")
-          ? {
-              month: "2026-10",
-              generatedAt: "2026-10-12T12:00:00.000Z",
-              current: period,
-              previousComparable: period,
-              changeInCents: 0,
-              changePercent: null,
-              sales: [],
-              payments: [],
-              patientsWithoutReturn: [],
-            }
-          : [];
-      return { ok: true, status: 200, json: async () => body } as Response;
-    });
-    render(
-      <MemoryRouter initialEntries={["/"]}>
-        <App />
-      </MemoryRouter>,
-    );
-    expect(
-      await screen.findByRole("button", { name: "Ajuda: Clientes atendidos" }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "Ajuda: Sem retorno" }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText(/Conta só atendimentos marcados como realizados/),
     ).toBeInTheDocument();
   });
 

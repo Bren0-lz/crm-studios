@@ -63,3 +63,14 @@ export async function save(title: string, button = "Salvar") {
     ).not.toBeInTheDocument(),
   );
 }
+
+/** Escolhe um serviço no seletor com busca do modelo de plano ("Serviço 1", "Serviço 2"…). */
+export function chooseService(scope: HTMLElement, label: string, name: string) {
+  const input = within(scope).getByRole("combobox", { name: label });
+  fireEvent.focus(input);
+  fireEvent.change(input, { target: { value: name } });
+  const list = within(scope).getByRole("listbox", {
+    name: `${label}: opções`,
+  });
+  fireEvent.click(within(list).getByRole("option", { name }));
+}

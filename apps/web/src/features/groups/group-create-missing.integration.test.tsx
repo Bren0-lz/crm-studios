@@ -53,7 +53,7 @@ describe("creating a group (QM14)", () => {
       </MemoryRouter>,
     );
     fireEvent.click(await screen.findByRole("button", { name: "Nova turma" }));
-    const dialog = screen.getByRole("dialog", { name: "Nova turma" });
+    const dialog = await screen.findByRole("dialog", { name: "Nova turma" });
     const create = within(dialog).getByRole("button", { name: "Criar turma" });
     expect(create).toBeDisabled();
     expect(create).toHaveAccessibleDescription(
@@ -123,9 +123,13 @@ describe("creating a group (QM14)", () => {
       </MemoryRouter>,
     );
     fireEvent.click(
-      (await screen.findAllByRole("button", { name: /Matricular cliente/ }))[0]!,
+      (
+        await screen.findAllByRole("button", { name: /Matricular cliente/ })
+      )[0]!,
     );
-    const dialog = screen.getByRole("dialog", { name: "Nova matrícula" });
+    const dialog = await screen.findByRole("dialog", {
+      name: "Nova matrícula",
+    });
     const enroll = within(dialog).getByRole("button", { name: "Matricular" });
     expect(enroll).toBeDisabled();
     expect(enroll).toHaveAccessibleDescription("Falta: Turma, Cliente.");

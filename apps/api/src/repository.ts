@@ -1,7 +1,52 @@
+import { withQuotedPrefix } from "@crm/contracts";
+import type {
+  WaitlistEntry,
+  WaitlistEntryData,
+  WaitlistEntryUpdate,
+} from "@crm/contracts";
+import type {
+  AgendaConflict,
+  AgendaNote,
+  AgendaNoteInput,
+  AgendaNoteUpdate,
+  AgendaNoteScope,
+} from "@crm/contracts";
+import type {
+  DocumentContent,
+  DocumentDraftInput,
+  DocumentPreview,
+} from "@crm/contracts";
+import type { Branch, BranchInput } from "@crm/contracts";
+import type { OwnProfile, OwnProfileUpdate } from "@crm/contracts";
+import type {
+  AutoCampaign,
+  AutoCampaignDelivery,
+  AutoCampaignDeliveryInput,
+  AutoCampaignPromotion,
+  AutoCampaignRedemption,
+  AutoCampaignTrigger,
+} from "@crm/contracts";
+import type { AutoCampaignSourceData } from "./modules/communications/auto-campaigns.js";
+import type {
+  CampaignRecipientStatus,
+  CampaignRecipientUpdate,
+  MessageImageMimeType,
+  MessageTemplate,
+  MessageTemplateImageContent,
+  WhatsappCampaign,
+  WhatsappCampaignDetail,
+  WhatsappCampaignPromotion,
+  WhatsappCampaignRecipientDraft,
+} from "@crm/contracts";
+import type { BranchScopeStore } from "./storage/branch-scope.js";
 import type {
   ExternalOperation,
   ExternalOperationInput,
   ExternalOperationContent,
+  PaymentProof,
+  PaymentProofContent,
+  PaymentProofEntity,
+  PaymentProofInput,
 } from "@crm/contracts";
 import type { PlanPurchaseInput, PlanPurchaseResult } from "@crm/contracts";
 import type {
@@ -16,13 +61,20 @@ import type {
 import type {
   DocumentSignatureInput,
   DocumentSignatureContent,
+  DocumentSignatureLinkDetails,
+  DocumentSignatureLinkShare,
+  PublicDocumentSignInput,
+  PublicSignatureInput,
+  PublicRequestMetadata,
+  PublicSignatureDocument,
 } from "@crm/contracts";
 import type {
   ProductUpdateInput,
   PatientTabItemUpdate,
-  PatientTabServiceInput,
   Supplier,
   SupplierInput,
+  SupplierOrder,
+  SupplierOrderInput,
   ManualReceivableInput,
   FinancialClassification,
   DreGroup,
@@ -59,6 +111,8 @@ import type {
   ClinicalAccessEvent,
   ClinicalAddendum,
   ClinicalAddendumInput,
+  ClinicalAlert,
+  ClinicalAlertInput,
   ClinicalAssessment,
   ClinicalAssessmentInput,
   ClinicalAttachment,
@@ -72,6 +126,17 @@ import type {
   ClinicalWorkspace,
   ClinicSettings,
   ClinicSettingsInput,
+  AutoFinalizationSettings,
+  AutoFinalizationSettingsInput,
+  PaymentMethodSettings,
+  PaymentMethodSettingsInput,
+  NavTabLabel,
+  NavTabLabelsInput,
+  NotificationPreferences,
+  IntegrationKey,
+  IntegrationKeyInput,
+  TelegramSettings,
+  TelegramSettingsInput,
   CommissionEntry,
   CommissionRule,
   CommissionRuleInput,
@@ -83,7 +148,10 @@ import type {
   ContactSuggestion,
   CostCenter,
   CostCenterInput,
+  CashMovement,
   DailyCash,
+  ProLaboreSettings,
+  ProLaboreSettingsInput,
   DashboardSummary,
   DocumentStatus,
   DocumentTemplate,
@@ -109,6 +177,11 @@ import type {
   InventoryWorkspace,
   IssuedDocument,
   IssuedDocumentInput,
+  CommercialEvent,
+  CommercialEventDetail,
+  PatientLeadOrigin,
+  EventInput,
+  EventListQuery,
   Lead,
   LeadActivity,
   LeadAppointmentInput,
@@ -117,6 +190,13 @@ import type {
   LeadConversion,
   LeadConversionInput,
   LeadDuplicateMatch,
+  LeadFilter,
+  LeadFilterOptions,
+  LeadStageConfig,
+  LeadStagesInput,
+  LeadInsights,
+  LeadPage,
+  LeadStagePage,
   LeadDuplicateQuery,
   LeadInput,
   LeadStage,
@@ -124,14 +204,18 @@ import type {
   LeadTaskInput,
   LeadTaskStatus,
   ManagementReport,
+  TeamProductionSources,
   ManualMessageInput,
   OutboundMessage,
   Patient,
-  PatientInput,
+  PatientImportInput,
+  ExtraFields,
+  PatientUpdateInput,
   PatientPlan,
   PatientPlanInput,
   PatientTab,
   PatientTabCloseInput,
+  PatientTabPayment,
   PatientTabInput,
   PatientTabItemInput,
   PatientTag,
@@ -141,10 +225,13 @@ import type {
   Payable,
   PayableInput,
   PaymentMethod,
+  PaymentPart,
   PaymentReceipt,
+  ReceiptSignature,
   PlanCatalogEntry,
   PlanCatalogInput,
   PlanRenewalInput,
+  PlanCancellationDetails,
   PlanPauseDetails,
   PlanStatus,
   PlanTemplate,
@@ -166,7 +253,9 @@ import type {
   ReplacementCredit,
   Room,
   RoomInput,
+  SaleMovement,
   SalesReport,
+  SalesPeriodReport,
   SatisfactionSurvey,
   SatisfactionSurveyInput,
   ScheduleBlock,
@@ -186,6 +275,12 @@ import type {
 
 export interface AuthenticatedUser extends UserSummary {
   sessionVersion?: number;
+  /** Acessa todas as filiais (admin: sempre). */
+  allBranches?: boolean;
+  /** Filiais do usuário quando `allBranches` é `false`. */
+  branchIds?: string[];
+  /** Acesso ao painel de vendas (permissão especial: nem o admin a tem sem marcar). */
+  dashboardAccess?: boolean;
   clinicId: string;
   /** `true` quando há módulos ou edição gravados para o usuário comum (admin: `false`). */
   customModules: boolean;
@@ -195,7 +290,116 @@ export interface AuthenticatedUser extends UserSummary {
   updatedAt: string;
 }
 
+/** Chat do Telegram vinculado a um usuário (TG1). */
+export interface TelegramLink {
+  clinicId: string;
+  userId: string;
+  chatId: string;
+  linkedAt: string;
+}
+
+/** Resultado de `/vincular <código>`: o vínculo gravado ou o motivo da recusa. */
+export type TelegramLinkAttempt =
+  | {
+      status: "linked";
+      clinicId: string;
+      userId: string;
+      userName: string;
+    }
+  | { status: "invalid" | "expired" | "used" | "forbidden" };
+
+/** Mensagem da fila de saída do Telegram. `clinicId` null: resposta a chat sem vínculo. */
+export interface TelegramOutboxMessage {
+  id: string;
+  clinicId: string | null;
+  chatId: string;
+  message: string;
+  attempts: number;
+  nextAttemptAt: string;
+  lastError?: string;
+  sentAt?: string;
+  failedAt?: string;
+  createdAt: string;
+}
+
+/** Resultado de uma tentativa de envio: enviada, nova tentativa marcada ou desistência. */
+export type TelegramDeliveryResult =
+  | { sentAt: string }
+  | { error: string; nextAttemptAt: string }
+  | { error: string; failedAt: string };
+
+/**
+ * Pedido de recálculo retroativo ao gravar regras de comissão. `expectedDigest` (da prévia
+ * confirmada na tela) recusa a gravação se as comissões mudaram desde a prévia.
+ */
+export interface CommissionRecalculationRequest {
+  expectedDigest?: string;
+}
+
+/** Origens alteradas (atendimentos, presenças ou encontros) cujas comissões serão conferidas. */
+export interface CommissionSourceScope {
+  appointmentIds?: string[];
+  groupAttendanceIds?: string[];
+  groupSessionIds?: string[];
+}
+
 export interface ClinicRepository {
+  /** Lista de espera das filiais da leitura, da entrada mais antiga para a mais nova. */
+  listWaitlist(clinicId: string): Promise<WaitlistEntry[]>;
+  createWaitlistEntry(
+    clinicId: string,
+    actorUserId: string,
+    input: WaitlistEntryData,
+  ): Promise<WaitlistEntry>;
+  updateWaitlistEntry(
+    clinicId: string,
+    actorUserId: string,
+    id: string,
+    input: WaitlistEntryUpdate,
+  ): Promise<WaitlistEntry | null>;
+  deleteWaitlistEntry(clinicId: string, id: string): Promise<boolean>;
+
+  listAgendaNotes(
+    clinicId: string,
+    from: string,
+    to: string,
+    professionalScope?: string,
+  ): Promise<AgendaNote[]>;
+  createAgendaNotes(
+    clinicId: string,
+    actorUserId: string,
+    input: AgendaNoteInput,
+  ): Promise<AgendaNote[]>;
+  updateAgendaNote(
+    clinicId: string,
+    actorUserId: string,
+    id: string,
+    input: AgendaNoteUpdate,
+    scope: AgendaNoteScope,
+    professionalScope?: string,
+  ): Promise<AgendaNote[] | null>;
+  deleteAgendaNote(
+    clinicId: string,
+    actorUserId: string,
+    id: string,
+    scope: AgendaNoteScope,
+    professionalScope?: string,
+  ): Promise<boolean>;
+
+  /** Filial da requisição em curso (ver `storage/branch-scope.ts`). */
+  readonly branchScope: BranchScopeStore;
+  /** Todas as filiais da clínica (ativas e inativas), a padrão primeiro. */
+  listBranches(clinicId: string): Promise<Branch[]>;
+  /**
+   * Cria (`id` ausente) ou altera a filial. `null` = filial inexistente; BRANCH_NAME_DUPLICATE
+   * (409) e BRANCH_DEFAULT_INACTIVE (409, a padrão não pode ser desativada).
+   */
+  saveBranch(
+    clinicId: string,
+    actorUserId: string,
+    input: BranchInput,
+    id?: string,
+  ): Promise<Branch | null>;
   getCommissionReconciliationPreview(
     clinicId: string,
     id: string,
@@ -206,6 +410,17 @@ export interface ClinicRepository {
     id: string,
     input: import("@crm/contracts").CommissionReconciliationInput,
   ): Promise<import("@crm/contracts").CommissionReconciliation>;
+  /**
+   * Concilia sozinha as comissões das origens alteradas que divergem do cálculo atual: grava
+   * a conciliação e os ajustes em nome de `actorId` (quem alterou a origem), com auditoria
+   * `commission.auto_reconciled`. Devolve quantas comissões foram ajustadas.
+   */
+  autoReconcileCommissions(
+    clinicId: string,
+    actorId: string,
+    scope: CommissionSourceScope,
+    reason: string,
+  ): Promise<number>;
   settleCommissionAccount(
     clinicId: string,
     actorId: string,
@@ -231,23 +446,11 @@ export interface ClinicRepository {
     itemId: string,
     input: PatientTabItemUpdate | null,
   ): Promise<PatientTab>;
-  addPatientTabService(
-    clinicId: string,
-    actorUserId: string,
-    tabId: string,
-    input: PatientTabServiceInput,
-  ): Promise<PatientTab>;
   removePatientTabService(
     clinicId: string,
     actorUserId: string,
     tabId: string,
     itemId: string,
-  ): Promise<PatientTab>;
-  createPatientTabAppointment(
-    clinicId: string,
-    actorUserId: string,
-    tabId: string,
-    input: Omit<AppointmentInput, "patientId">,
   ): Promise<PatientTab>;
   listSuppliers(clinicId: string): Promise<Supplier[]>;
   saveSupplier(
@@ -256,6 +459,21 @@ export interface ClinicRepository {
     input: SupplierInput,
     id?: string,
   ): Promise<Supplier | null>;
+  /** Histórico de pedidos do fornecedor, mais recentes primeiro; `null` se ele não existe. */
+  listSupplierOrders(
+    clinicId: string,
+    supplierId: string,
+  ): Promise<SupplierOrder[] | null>;
+  /**
+   * Registra o pedido: cadastra os produtos novos (sem preço de venda) e dá entrada dos itens
+   * no estoque da filial em uso, tudo de uma vez; `null` se o fornecedor não existe.
+   */
+  createSupplierOrder(
+    clinicId: string,
+    actorUserId: string,
+    supplierId: string,
+    input: SupplierOrderInput,
+  ): Promise<SupplierOrder | null>;
   createManualReceivable(
     clinicId: string,
     actorUserId: string,
@@ -387,20 +605,51 @@ export interface ClinicRepository {
     clinicId: string,
     actorUserId: string,
     input: AdminUserInput,
-    passwordHash: string,
+    /** Par de `preparePassword`; texto puro = só o hash, sem cópia consultável (testes e seeds). */
+    password: PasswordToStore,
+    /** Recalcula as comissões alcançadas pelas regras gravadas (mesma transação). */
+    recalculation?: CommissionRecalculationRequest,
   ): Promise<AdminUser>;
   updateAdminUser(
     clinicId: string,
     actorUserId: string,
     userId: string,
     input: AdminUserUpdate,
+    /** Recalcula as comissões alcançadas pelas regras gravadas (mesma transação). */
+    recalculation?: CommissionRecalculationRequest,
   ): Promise<AdminUser | null>;
+  /** Troca a senha (hash e cópia cifrada), derruba as sessões e audita `user.password_reset`. */
   resetAdminUserPassword(
     clinicId: string,
     actorUserId: string,
     userId: string,
-    passwordHash: string,
+    password: PasswordToStore,
   ): Promise<boolean>;
+  /**
+   * Só para `POST /admin/users/:id/reveal-password`: a cópia cifrada da senha do usuário da
+   * clínica. `found: false` = usuário inexistente; `encrypted: null` = sem cópia (senha antiga).
+   */
+  findUserPasswordEncrypted(
+    clinicId: string,
+    userId: string,
+  ): Promise<{ found: boolean; encrypted: string | null }>;
+  /** Audita `user.password_viewed` (sem nenhum valor de senha), antes de a senha ser exibida. */
+  recordUserPasswordViewed(
+    clinicId: string,
+    actorUserId: string,
+    userId: string,
+  ): Promise<void>;
+  /** Perfil do próprio usuário (foto e profissional ligado); `null` = usuário inexistente. */
+  getOwnProfile(clinicId: string, userId: string): Promise<OwnProfile | null>;
+  /**
+   * O usuário altera o próprio nome e foto e, com profissional ligado, o nome e a cor dele na
+   * agenda (mesma transação). `null` = usuário inexistente.
+   */
+  updateOwnProfile(
+    clinicId: string,
+    userId: string,
+    input: OwnProfileUpdate,
+  ): Promise<OwnProfile | null>;
   /**
    * Liga o usuário a um profissional da agenda (`professionals.user_id`) ou desliga (`null`).
    * Um usuário tem no máximo um profissional: ligar outro desliga o anterior. `null` = usuário
@@ -423,6 +672,8 @@ export interface ClinicRepository {
     actorUserId: string,
     userId: string,
     input: AdminUserCommissionInput,
+    /** Recalcula as comissões alcançadas pela regra (mesma transação). */
+    recalculation?: CommissionRecalculationRequest,
   ): Promise<AdminUser | null>;
   getClinicSettings(clinicId: string): Promise<ClinicSettings | null>;
   updateClinicSettings(
@@ -430,6 +681,136 @@ export interface ClinicRepository {
     actorUserId: string,
     input: ClinicSettingsInput,
   ): Promise<ClinicSettings>;
+  /** Finalização automática da clínica (nunca configurada = desligada, 60 min). */
+  getAutoFinalizationSettings(
+    clinicId: string,
+  ): Promise<AutoFinalizationSettings>;
+  /** Pró-labore do relatório financeiro (padrão: 0% do lucro). */
+  getProLaboreSettings(clinicId: string): Promise<ProLaboreSettings>;
+  updateProLaboreSettings(
+    clinicId: string,
+    actorUserId: string,
+    input: ProLaboreSettingsInput,
+  ): Promise<ProLaboreSettings>;
+  updateAutoFinalizationSettings(
+    clinicId: string,
+    actorUserId: string,
+    input: AutoFinalizationSettingsInput,
+  ): Promise<AutoFinalizationSettings>;
+  /** Parcelamento por forma de pagamento (todas as formas; nunca configurado = até 36x). */
+  getPaymentMethodSettings(clinicId: string): Promise<PaymentMethodSettings>;
+  updatePaymentMethodSettings(
+    clinicId: string,
+    actorUserId: string,
+    input: PaymentMethodSettingsInput,
+  ): Promise<PaymentMethodSettings>;
+  /** Nomes das abas do menu da clínica (padrão onde não foram renomeadas), na ordem. */
+  listNavTabLabels(clinicId: string): Promise<NavTabLabel[]>;
+  /** Renomeia as abas do menu da clínica (vale para todas as filiais). */
+  saveNavTabLabels(
+    clinicId: string,
+    input: NavTabLabelsInput,
+  ): Promise<NavTabLabel[]>;
+  /** Preferências do sino de notificações do usuário (padrão se nunca salvas). */
+  getNotificationPreferences(
+    clinicId: string,
+    userId: string,
+  ): Promise<NotificationPreferences>;
+  saveNotificationPreferences(
+    clinicId: string,
+    userId: string,
+    input: NotificationPreferences,
+  ): Promise<NotificationPreferences>;
+  /** Chaves da API externa da clínica (sem o segredo), as revogadas por último. */
+  listIntegrationKeys(clinicId: string): Promise<IntegrationKey[]>;
+  /** Grava a chave pelo hash do token; o token em si nunca é guardado. */
+  createIntegrationKey(
+    clinicId: string,
+    actorUserId: string,
+    input: IntegrationKeyInput,
+    secret: { prefix: string; tokenHash: string },
+  ): Promise<IntegrationKey>;
+  /** Revoga a chave (sem volta); null se não existe na clínica. */
+  revokeIntegrationKey(
+    clinicId: string,
+    id: string,
+  ): Promise<IntegrationKey | null>;
+  /**
+   * Chave ativa (não revogada) pelo hash do token, em qualquer clínica: é o token que diz a
+   * clínica, como o link público de assinatura.
+   */
+  findIntegrationKeyByTokenHash(
+    tokenHash: string,
+  ): Promise<{ clinicId: string; key: IntegrationKey } | null>;
+  /** Registra o último uso da chave. */
+  touchIntegrationKey(clinicId: string, id: string): Promise<void>;
+  /** Telegram (TG1): perfis que podem vincular (sem configuração, o padrão provisório). */
+  getTelegramSettings(clinicId: string): Promise<TelegramSettings>;
+  saveTelegramSettings(
+    clinicId: string,
+    input: TelegramSettingsInput,
+  ): Promise<TelegramSettings>;
+  getTelegramLink(
+    clinicId: string,
+    userId: string,
+  ): Promise<TelegramLink | null>;
+  /** Chats vinculados de usuários ativos da clínica (destino dos avisos). */
+  listTelegramLinks(clinicId: string): Promise<TelegramLink[]>;
+  /**
+   * Vínculos do chat (TG4), de usuários ativos, do mais recente ao mais antigo, em qualquer
+   * clínica: o chat é quem diz a clínica e o usuário dos comandos do bot.
+   */
+  findTelegramLinksByChat(chatId: string): Promise<TelegramLink[]>;
+  /** Dia (aaaa-mm-dd, fuso da clínica) do último aviso de recibos pelo Telegram (TG4). */
+  getTelegramReceiptReminderSentOn(clinicId: string): Promise<string | null>;
+  /**
+   * Reserva o aviso de recibos do dia `sentOn` (aaaa-mm-dd): `true` só para quem gravou
+   * primeiro; `false` se o aviso desse dia já saiu (no máximo um por dia, mesmo em paralelo).
+   */
+  claimTelegramReceiptReminder(
+    clinicId: string,
+    sentOn: string,
+  ): Promise<boolean>;
+  /** Desvincula o chat do usuário; `false` se não havia vínculo. */
+  deleteTelegramLink(clinicId: string, userId: string): Promise<boolean>;
+  /** Grava o código (pelo hash) e apaga os códigos ainda não usados do usuário. */
+  createTelegramLinkCode(
+    clinicId: string,
+    userId: string,
+    code: { codeHash: string; expiresAt: string },
+  ): Promise<void>;
+  /**
+   * `/vincular <código>`, em qualquer clínica (o código diz a clínica): confere validade, uso
+   * e perfil do usuário, marca o código como usado e grava o vínculo, numa transação.
+   */
+  linkTelegramChat(input: {
+    codeHash: string;
+    chatId: string;
+    now: string;
+  }): Promise<TelegramLinkAttempt>;
+  /** Enfileira para envio a partir de `at` (relógio do serviço). */
+  enqueueTelegramMessages(
+    clinicId: string | null,
+    messages: { chatId: string; message: string }[],
+    at: string,
+  ): Promise<void>;
+  /**
+   * Reserva as mensagens vencidas (não enviadas, sem desistência, `nextAttemptAt <= now`) até
+   * `leaseUntil`, para dois drenos simultâneos não mandarem a mesma mensagem. Sem `clinicId`,
+   * de todas as clínicas.
+   */
+  claimTelegramOutbox(options: {
+    now: string;
+    leaseUntil: string;
+    limit: number;
+    clinicId?: string;
+  }): Promise<TelegramOutboxMessage[]>;
+  /** Registra a tentativa; a falha soma uma tentativa e guarda o erro. */
+  recordTelegramDelivery(
+    id: string,
+    result: TelegramDeliveryResult,
+  ): Promise<void>;
+  listTelegramOutbox(clinicId: string): Promise<TelegramOutboxMessage[]>;
   listAdminAuditEvents(clinicId: string): Promise<AdminAuditEvent[]>;
   listAdminAuditPage(
     clinicId: string,
@@ -511,13 +892,22 @@ export interface ClinicRepository {
     clinicId: string,
     patientId: string,
   ): Promise<PatientTimelineEntry[] | null>;
-  getDashboard(clinicId: string, date: string): Promise<DashboardSummary>;
+  /** `professionalIds`: só a agenda desses profissionais (ausente = todos). */
+  getDashboard(
+    clinicId: string,
+    date: string,
+    professionalIds?: readonly string[],
+  ): Promise<DashboardSummary>;
   listPatients(clinicId: string, search?: string): Promise<Patient[]>;
-  createPatient(clinicId: string, input: PatientInput): Promise<Patient>;
+  /**
+   * O CPF só pode faltar em clientes vindos da importação (B6-05); `POST /patients` valida com
+   * `patientInputSchema`, que o exige. Sem CPF, grava `NULL` (nunca `''`, por causa da chave única).
+   */
+  createPatient(clinicId: string, input: PatientImportInput): Promise<Patient>;
   /**
    * Cadastro guiado (`POST /patients/guided`): cria o cliente e o próximo passo — atendimento
-   * experimental, plano (com matrícula opcional em turma de um serviço incluído) ou avulso — tudo ou
-   * nada. Etiquetas e feriados já foram validados na rota; conflitos de agenda, turma
+   * experimental, plano (com matrícula opcional em turma de um serviço incluído; `additionalPlans`
+   * cria mais planos, cada um com a sua turma) ou avulso — tudo ou nada. Etiquetas e feriados já foram validados na rota; conflitos de agenda, turma
    * (`GROUP_OR_PATIENT_NOT_FOUND`, `GROUP_SERVICE_MISMATCH`) e plano usam as regras dos fluxos
    * existentes.
    */
@@ -533,16 +923,18 @@ export interface ClinicRepository {
   listSubscriberIdsWithoutGroup(clinicId: string): Promise<string[]>;
   /**
    * Cria os clientes importados de uma vez (tudo ou nada), ignorando os que já existem na base
-   * no momento da gravação (mesmo CPF ou telefone, comparando só os dígitos).
+   * no momento da gravação (mesmo CPF ou telefone, comparando só os dígitos). O CPF pode faltar.
+   * Linha de cliente já cadastrado com "Outros" mescla o `extraFields` dele (`updated`).
    */
   importPatients(
     clinicId: string,
-    inputs: PatientInput[],
-  ): Promise<{ created: number; skipped: number }>;
+    inputs: PatientImportInput[],
+  ): Promise<{ created: number; skipped: number; updated: number }>;
+  /** O CPF pode seguir vazio (cliente importado sem CPF); sem CPF, grava `NULL`. */
   updatePatient(
     clinicId: string,
     patientId: string,
-    input: PatientInput,
+    input: PatientUpdateInput,
   ): Promise<Patient | null>;
   /** Etiquetas configuradas da clínica, por nome (pt-BR), com quantos clientes usam cada uma. */
   listPlanCatalog(clinicId: string): Promise<PlanCatalogEntry[]>;
@@ -617,9 +1009,21 @@ export interface ClinicRepository {
     clinicId: string,
     now: string,
   ): Promise<Appointment[]>;
+  /**
+   * Finalização automática: marca como realizados os agendados/confirmados de todas as filiais
+   * com término até `cutoff`, gravando `autoCompletedAt = at` e consumindo a sessão do plano.
+   * Quem não puder ser finalizado (ex.: sem saldo) segue pendente. Devolve quantos finalizou.
+   */
+  autoFinalizeAppointments(
+    clinicId: string,
+    cutoff: string,
+    at: string,
+  ): Promise<number>;
+  /** Com `promotion`, grava o uso da promoção junto do atendimento (mesma transação). */
   createAppointment(
     clinicId: string,
     input: AppointmentInput,
+    options?: AppointmentCreateOptions,
   ): Promise<Appointment>;
   rescheduleAppointment(
     clinicId: string,
@@ -652,9 +1056,20 @@ export interface ClinicRepository {
     appointmentId: string,
     input: AppointmentUpdateInput,
   ): Promise<Appointment | null>;
+  /**
+   * Só leitura: para cada horário planejado, o primeiro conflito com a agenda (atendimento
+   * não cancelado, bloqueio ativo ou turma do mesmo profissional ou sala). Sem conflito, o
+   * item não aparece. Feriados e conflitos dentro do próprio lote ficam com a rota.
+   */
+  findAgendaConflicts(
+    clinicId: string,
+    slots: AgendaSlotProbe[],
+  ): Promise<AgendaConflict[]>;
+  /** Com `promotion`, o uso fica ligado à 1ª ocorrência. */
   createRecurringAppointments(
     clinicId: string,
     input: RecurringAppointmentInput,
+    options?: AppointmentCreateOptions,
   ): Promise<Appointment[]>;
   listScheduleBlocks(
     clinicId: string,
@@ -683,10 +1098,19 @@ export interface ClinicRepository {
     groupId: string,
     input: GroupClassUpdateInput,
   ): Promise<GroupClass | null>;
+  renameGroupClass(
+    clinicId: string,
+    groupId: string,
+    name: string,
+  ): Promise<GroupClass | null>;
   createGroupEnrollment(
     clinicId: string,
     input: GroupEnrollmentInput,
   ): Promise<GroupEnrollment>;
+  confirmGroupEnrollment(
+    clinicId: string,
+    enrollmentId: string,
+  ): Promise<GroupEnrollment | null>;
   cancelGroupEnrollment(
     clinicId: string,
     enrollmentId: string,
@@ -740,11 +1164,27 @@ export interface ClinicRepository {
     tabId: string,
     input: PatientTabCloseInput,
   ): Promise<PatientTab | null>;
+  /**
+   * `refundPayment`: estorna antes o pagamento já recebido, na mesma operação.
+   * `reason`: motivo do cancelamento, guardado na comanda.
+   */
   cancelPatientTab(
     clinicId: string,
     actorUserId: string,
     tabId: string,
+    options?: { refundPayment?: boolean; reason?: string | undefined },
   ): Promise<PatientTab | null>;
+  /** Pagamento da comanda: `undefined` = comanda inexistente; `null` = sem cobrança. */
+  patientTabPayment(
+    clinicId: string,
+    tabId: string,
+  ): Promise<PatientTabPayment | null | undefined>;
+  /** Venda de produtos em uma etapa: abre, preenche e fecha a comanda de forma atômica. */
+  createProductSale(
+    clinicId: string,
+    actorUserId: string,
+    input: import("@crm/contracts").ProductSaleInput,
+  ): Promise<PatientTab>;
   createAbsenceSuccessor(
     clinicId: string,
     actorUserId: string,
@@ -791,6 +1231,15 @@ export interface ClinicRepository {
     clinicId: string,
     input: AssessmentTemplateInput,
   ): Promise<AssessmentTemplate>;
+  /** Todas as versões de todos os modelos, inclusive arquivados. */
+  listAssessmentTemplates(clinicId: string): Promise<AssessmentTemplate[]>;
+  /** Arquiva (ou reativa) todas as versões da família; devolve a versão mais recente. */
+  setAssessmentTemplateActive(
+    clinicId: string,
+    actorUserId: string,
+    id: string,
+    active: boolean,
+  ): Promise<AssessmentTemplate | null>;
   createClinicalAssessment(
     clinicId: string,
     authorUserId: string,
@@ -831,6 +1280,13 @@ export interface ClinicRepository {
     authorUserId: string,
     input: ClinicalAddendumInput,
   ): Promise<ClinicalAddendum>;
+  createClinicalAlert(
+    clinicId: string,
+    authorUserId: string,
+    input: ClinicalAlertInput,
+  ): Promise<ClinicalAlert>;
+  /** Tira o alerta do prontuário; `false` se não existe ou já foi removido. */
+  archiveClinicalAlert(clinicId: string, alertId: string): Promise<boolean>;
   listClinicalAccessEvents(
     clinicId: string,
     patientId: string,
@@ -865,6 +1321,48 @@ export interface ClinicRepository {
     actorUserId: string,
     id: string,
   ): Promise<ExternalOperationContent | null>;
+  /** Comprovantes de uma baixa (parcela, despesa ou baixa conciliada), sem o conteúdo. */
+  listPaymentProofs(
+    clinicId: string,
+    entityType: PaymentProofEntity,
+    entityId: string,
+  ): Promise<PaymentProof[]>;
+  /**
+   * Parcelas ou despesas (nas filiais da leitura) com algum comprovante não excluído, inclusive
+   * os de baixa estornada — a tela usa para manter o acesso aos comprovantes após o estorno.
+   */
+  listPaymentProofEntityIds(
+    clinicId: string,
+    entityType: "receivable" | "payable",
+  ): Promise<string[]>;
+  /** Anexa um comprovante a um registro já pago/recebido. */
+  createPaymentProof(
+    clinicId: string,
+    actorUserId: string,
+    entityType: PaymentProofEntity,
+    entityId: string,
+    input: PaymentProofInput,
+  ): Promise<PaymentProof>;
+  getPaymentProofContent(
+    clinicId: string,
+    actorUserId: string,
+    id: string,
+  ): Promise<PaymentProofContent | null>;
+  /**
+   * Exclui um comprovante enviado por engano: sai da lista, o registro e o motivo ficam na
+   * auditoria. `null` = não encontrado (ou fora das filiais da leitura).
+   */
+  deletePaymentProof(
+    clinicId: string,
+    actorUserId: string,
+    id: string,
+    reason: string,
+  ): Promise<PaymentProof | null>;
+  /** Tipo do registro de um comprovante visível (para conferir a permissão de excluir). */
+  findPaymentProofEntity(
+    clinicId: string,
+    id: string,
+  ): Promise<PaymentProofEntity | null>;
   purchasePatientPlan(
     clinicId: string,
     actorUserId: string,
@@ -881,6 +1379,7 @@ export interface ClinicRepository {
     planId: string,
     status: PlanStatus,
     pause?: PlanPauseDetails,
+    cancellation?: PlanCancellationDetails,
   ): Promise<PatientPlan | null>;
   renewPatientPlan(
     clinicId: string,
@@ -925,6 +1424,33 @@ export interface ClinicRepository {
     clinicId: string,
     receivableId: string,
   ): Promise<PaymentReceipt | null>;
+  /**
+   * Recibos para assinatura de uma parcela (um por baixa, inclusive os cancelados pelo
+   * estorno), do mais antigo ao mais novo. Parcela fora das filiais da leitura = lista vazia.
+   */
+  listReceiptSignatures(
+    clinicId: string,
+    receivableId: string,
+  ): Promise<ReceiptSignature[]>;
+  /** Registra o envio do recibo (o primeiro clique fica). `null` = não encontrado. */
+  markReceiptSignatureSent(
+    clinicId: string,
+    receiptId: string,
+  ): Promise<ReceiptSignature | null>;
+  /** Link público: registra a visualização do recibo. `null` = token desconhecido. */
+  openPublicReceiptSignature(
+    token: string,
+    metadata: PublicRequestMetadata,
+  ): Promise<ReceiptSignature | null>;
+  /**
+   * Link público: assina o recibo (uma vez; nunca o cancelado). O evento `receipt.signed`
+   * sai depois do commit, por `signReceipt()` de `modules/finance/receipt-signatures.ts`.
+   */
+  signPublicReceiptSignature(
+    token: string,
+    input: PublicSignatureInput,
+    metadata: PublicRequestMetadata,
+  ): Promise<ReceiptSignature | null>;
   getFinancialWorkspace(clinicId: string): Promise<FinancialWorkspace>;
   createFinancialCategory(
     clinicId: string,
@@ -945,11 +1471,20 @@ export interface ClinicRepository {
     payableId: string,
     paymentMethod: PaymentMethod,
     timing?: PaymentTiming,
+    /** Pagamento picado: as formas somam o valor da conta. */
+    payments?: PaymentPart[],
   ): Promise<Payable | null>;
   reversePayablePayment(
     clinicId: string,
     actorUserId: string,
     payableId: string,
+  ): Promise<Payable | null>;
+  /** Informa o valor do mês de uma conta aberta gerada por despesa fixa. */
+  setPayableAmount(
+    clinicId: string,
+    actorUserId: string,
+    payableId: string,
+    amountInCents: number,
   ): Promise<Payable | null>;
   listRecurringPayables(clinicId: string): Promise<RecurringPayable[]>;
   createRecurringPayable(
@@ -979,10 +1514,97 @@ export interface ClinicRepository {
     actorUserId: string,
     input: ReceivableRenegotiationInput,
   ): Promise<ReceivableRenegotiation>;
+  /**
+   * Com `recalculation`, recalcula na mesma transação as comissões que passam a usar a regra
+   * (abertas mudam de valor; pagas ganham ajuste) e registra `commission.recalculated`.
+   */
   createCommissionRule(
     clinicId: string,
     input: CommissionRuleInput,
+    recalculation?: CommissionRecalculationRequest & { actorId: string },
   ): Promise<CommissionRule>;
+  /** Prévia do recálculo retroativo das regras, sem gravar nada. */
+  previewCommissionRecalculation(
+    clinicId: string,
+    input: import("@crm/contracts").CommissionRecalculationPreviewInput,
+  ): Promise<import("@crm/contracts").CommissionRecalculationPreview>;
+  /** Colaboradores da folha nas filiais da leitura em curso. */
+  listPayrollEmployees(
+    clinicId: string,
+  ): Promise<import("@crm/contracts").PayrollEmployee[]>;
+  /**
+   * Edita um colaborador cadastrado antes do salário no usuário. O de um usuário só muda pelo
+   * cadastro dele: PAYROLL_EMPLOYEE_MANAGED_BY_USER (409). Não há cadastro direto na folha.
+   * O salário fixo não muda por aqui: PAYROLL_SALARY_IMMUTABLE (409).
+   */
+  updatePayrollEmployee(
+    clinicId: string,
+    actorId: string,
+    employeeId: string,
+    input: import("@crm/contracts").PayrollEmployeeInput,
+  ): Promise<import("@crm/contracts").PayrollEmployee | null>;
+  /**
+   * Folha da competência por filial (as pedidas, dentro das da leitura em curso; ausente =
+   * todas). BRANCH_ACCESS_DENIED (403) para filial fora do acesso.
+   */
+  getPayroll(
+    clinicId: string,
+    competence: string,
+    branchIds?: string[],
+  ): Promise<import("@crm/contracts").PayrollSummary>;
+  /**
+   * Lança o que está pendente na competência: uma despesa por colaborador com salário +
+   * comissões + ajustes; pagar a despesa paga as comissões e os ajustes incluídos.
+   * PAYROLL_NOTHING_PENDING (409) quando não há nada a lançar.
+   */
+  launchPayroll(
+    clinicId: string,
+    actorId: string,
+    input: import("@crm/contracts").PayrollLaunchInput,
+  ): Promise<import("@crm/contracts").PayrollLaunchResult>;
+  /**
+   * Desconto ou recompensa do colaborador na competência (entra a lançar). Porcentagem sem
+   * salário fixo: PAYROLL_ENTRY_NO_SALARY (409). `null` = colaborador não encontrado.
+   */
+  createPayrollEntry(
+    clinicId: string,
+    actorId: string,
+    input: import("@crm/contracts").PayrollEntryInput,
+  ): Promise<import("@crm/contracts").PayrollEntry | null>;
+  /**
+   * Remove um desconto/recompensa ainda a lançar. Já numa despesa da folha:
+   * PAYROLL_ENTRY_LAUNCHED (409). `false` = não encontrado.
+   */
+  deletePayrollEntry(
+    clinicId: string,
+    actorId: string,
+    entryId: string,
+  ): Promise<boolean>;
+  /**
+   * Vale do colaborador: cria a despesa já paga (categoria "Folha de pagamento", competência
+   * da DRE = mês do desconto) e o lançamento `advance` que desconta o valor na folha desse mês.
+   * Colaborador inativo: PAYROLL_EMPLOYEE_INACTIVE (409). `null` = não encontrado.
+   */
+  createPayrollAdvance(
+    clinicId: string,
+    actorId: string,
+    input: import("@crm/contracts").PayrollAdvanceInput,
+  ): Promise<import("@crm/contracts").PayrollEntry | null>;
+  /**
+   * Remove um vale ainda a lançar: estorna e cancela a despesa paga. Já numa despesa da
+   * folha: PAYROLL_ENTRY_LAUNCHED (409). `false` = não encontrado.
+   */
+  deletePayrollAdvance(
+    clinicId: string,
+    actorId: string,
+    entryId: string,
+  ): Promise<boolean>;
+  /** Desfaz o lançamento de uma despesa da folha em aberto (os itens voltam a pendentes). */
+  cancelPayrollLaunch(
+    clinicId: string,
+    actorId: string,
+    payableId: string,
+  ): Promise<Payable | null>;
   generateCommissions(
     clinicId: string,
     competence: string,
@@ -998,6 +1620,32 @@ export interface ClinicRepository {
     actorUserId?: string,
   ): Promise<CommissionEntry | null>;
   listLeads(clinicId: string): Promise<Lead[]>;
+  /** Uma página de uma coluna do funil (filtros aplicados) + o total da etapa. */
+  listLeadStagePage(
+    clinicId: string,
+    stage: LeadStage,
+    filter: LeadFilter,
+    page: LeadPage,
+    timezone?: string,
+  ): Promise<LeadStagePage>;
+  /** Indicadores do funil calculados no banco, sem carregar todos os leads. */
+  summarizeLeads(
+    clinicId: string,
+    filter: LeadFilter,
+    timezone?: string,
+  ): Promise<LeadInsights>;
+  /** Valores distintos de origem, interesse, contato, motivo de perda e responsável. */
+  listLeadFilterOptions(clinicId: string): Promise<LeadFilterOptions>;
+  /** Etapas do funil da clínica, na ordem (padrão enquanto a clínica não editar). */
+  listLeadStages(clinicId: string): Promise<LeadStageConfig[]>;
+  /**
+   * Salva o funil inteiro (vale para todas as filiais): nomes, etapas novas e removidas e a
+   * etapa final. Etapa removida ou escolhida como final precisa estar sem leads.
+   */
+  saveLeadStages(
+    clinicId: string,
+    input: LeadStagesInput,
+  ): Promise<LeadStageConfig[]>;
   /**
    * Clientes (não mesclados) e leads não convertidos com o mesmo telefone, e-mail ou CPF
    * (comparação normalizada, ver `matchingContactFields`). Devolve só id e nome.
@@ -1007,6 +1655,16 @@ export interface ClinicRepository {
     query: LeadDuplicateQuery,
   ): Promise<LeadDuplicateMatch[]>;
   createLead(clinicId: string, input: LeadInput): Promise<Lead>;
+  /**
+   * Grava os participantes importados numa transação (EN1): contato que já participa do evento
+   * é ignorado; o que já é cliente entra ligado a ele (`convertedPatientId`, etapa "won") e o
+   * "Outros" da linha é mesclado no cliente.
+   */
+  importEventParticipants(
+    clinicId: string,
+    eventId: string,
+    inputs: (LeadInput & { extraFields?: ExtraFields })[],
+  ): Promise<{ created: number; linked: number; skipped: number }>;
   updateLead(
     clinicId: string,
     actorUserId: string,
@@ -1057,6 +1715,39 @@ export interface ClinicRepository {
     taskId: string,
     status: LeadTaskStatus,
   ): Promise<LeadTask | null>;
+  /** Eventos do comercial visíveis nas filiais da consulta (os da rede sempre), do mais novo. */
+  listEvents(
+    clinicId: string,
+    query?: EventListQuery,
+  ): Promise<CommercialEvent[]>;
+  /** Evento com os participantes (leads ligados, nas filiais da consulta) e os indicadores. */
+  getEvent(clinicId: string, id: string): Promise<CommercialEventDetail | null>;
+  createEvent(
+    clinicId: string,
+    actorUserId: string,
+    input: EventInput,
+  ): Promise<CommercialEvent>;
+  updateEvent(
+    clinicId: string,
+    actorUserId: string,
+    id: string,
+    input: EventInput,
+  ): Promise<CommercialEvent | null>;
+  /** Apaga o evento visível; os participantes continuam como leads, sem evento. */
+  deleteEvent(clinicId: string, id: string): Promise<boolean>;
+  /** Tira o participante (lead visível) do evento; o lead continua no funil. */
+  removeEventParticipant(
+    clinicId: string,
+    eventId: string,
+    leadId: string,
+  ): Promise<boolean>;
+  /**
+   * Leads convertidos em cliente (EN3b, coluna "Origem: evento/lead" da exportação): um item por
+   * lead com `converted_patient_id`, do mais antigo (criação do lead, depois id). `patientId`
+   * segue a mescla; `eventName` vem do evento atual do lead. Clínica toda, sem filtro de filial
+   * (a lista de clientes também não tem).
+   */
+  listPatientLeadOrigins(clinicId: string): Promise<PatientLeadOrigin[]>;
   getCommunicationCenter(clinicId: string): Promise<CommunicationCenter>;
   setCommunicationPreference(
     clinicId: string,
@@ -1076,6 +1767,100 @@ export interface ClinicRepository {
     referenceDate: string,
     options?: import("@crm/contracts").ReminderGenerationOptions,
   ): Promise<ReminderGenerationResult>;
+  /** Acervo de mensagens padrão (inclui arquivadas, com `archivedAt`). */
+  listMessageTemplates(clinicId: string): Promise<MessageTemplate[]>;
+  /** Conteúdo de uma imagem de mensagem padrão (também das trocadas, usadas por campanhas). */
+  getMessageTemplateImage(
+    clinicId: string,
+    imageId: string,
+  ): Promise<MessageTemplateImageContent | null>;
+  createMessageTemplate(
+    clinicId: string,
+    actorUserId: string,
+    input: MessageTemplateWrite,
+  ): Promise<MessageTemplate>;
+  /** Imagens com `id` são mantidas (na ordem enviada); as demais do modelo saem. */
+  updateMessageTemplate(
+    clinicId: string,
+    actorUserId: string,
+    templateId: string,
+    input: MessageTemplateWrite,
+  ): Promise<MessageTemplate | null>;
+  setMessageTemplateArchived(
+    clinicId: string,
+    actorUserId: string,
+    templateId: string,
+    archived: boolean,
+  ): Promise<MessageTemplate | null>;
+  listWhatsappCampaigns(clinicId: string): Promise<WhatsappCampaign[]>;
+  getWhatsappCampaign(
+    clinicId: string,
+    campaignId: string,
+  ): Promise<WhatsappCampaignDetail | null>;
+  /** Grava a campanha com o texto e as imagens atuais do modelo (que precisa estar ativo). */
+  createWhatsappCampaign(
+    clinicId: string,
+    actorUserId: string,
+    input: {
+      templateId: string;
+      name: string;
+      recipients: WhatsappCampaignRecipientDraft[];
+      promotion?: WhatsappCampaignPromotion | undefined;
+    },
+  ): Promise<WhatsappCampaignDetail>;
+  /** Marca enviado/pulado (ou volta a pendente); conclui a campanha quando não sobra pendente. */
+  setWhatsappCampaignRecipientStatus(
+    clinicId: string,
+    actorUserId: string,
+    campaignId: string,
+    recipientId: string,
+    status: CampaignRecipientStatus,
+  ): Promise<CampaignRecipientUpdate | null>;
+  /** Usos das promoções das campanhas manuais (com o status atual do atendimento). */
+  listWhatsappCampaignRedemptions(
+    clinicId: string,
+  ): Promise<AutoCampaignRedemption[]>;
+  /** Campanhas automáticas não excluídas, da mais recente para a mais antiga. */
+  listAutoCampaigns(clinicId: string): Promise<AutoCampaign[]>;
+  getAutoCampaign(
+    clinicId: string,
+    campaignId: string,
+  ): Promise<AutoCampaign | null>;
+  createAutoCampaign(
+    clinicId: string,
+    actorUserId: string,
+    input: AutoCampaignWrite,
+  ): Promise<AutoCampaign>;
+  /** Mensagens com `id` mantêm o histórico de envios; sem `id` ganham um novo. */
+  updateAutoCampaign(
+    clinicId: string,
+    campaignId: string,
+    input: AutoCampaignWrite,
+  ): Promise<AutoCampaign | null>;
+  /** Exclui a campanha (some da fila e das notificações); devolve `false` se não existe. */
+  deleteAutoCampaign(clinicId: string, campaignId: string): Promise<boolean>;
+  /** Envios registrados das campanhas não excluídas. */
+  listAutoCampaignDeliveries(clinicId: string): Promise<AutoCampaignDelivery[]>;
+  /** Registra (ou troca) o envio/não envio de uma mensagem para um evento. */
+  saveAutoCampaignDelivery(
+    clinicId: string,
+    actorUserId: string,
+    input: AutoCampaignDeliveryWrite,
+  ): Promise<AutoCampaignDelivery>;
+  /** Usos de promoção das campanhas não excluídas, com o status atual do atendimento. */
+  listAutoCampaignRedemptions(
+    clinicId: string,
+  ): Promise<AutoCampaignRedemption[]>;
+  /** Desfaz o registro: a mensagem volta a pendente. */
+  deleteAutoCampaignDelivery(
+    clinicId: string,
+    deliveryId: string,
+  ): Promise<boolean>;
+  /** Clientes, planos, atendimentos, parcelas, comandas e pesquisas para as campanhas. */
+  getAutoCampaignSourceData(
+    clinicId: string,
+    surveysFrom: string,
+  ): Promise<Omit<AutoCampaignSourceData, "preferences">>;
   recordDocumentSignature(
     clinicId: string,
     actorUserId: string,
@@ -1087,16 +1872,62 @@ export interface ClinicRepository {
     actorUserId: string,
     id: string,
   ): Promise<DocumentSignatureContent | null>;
+  /** Gera (ou reaproveita) o link público de assinatura de um documento emitido. */
+  createDocumentSignatureLink(
+    clinicId: string,
+    actorUserId: string,
+    documentId: string,
+  ): Promise<DocumentSignatureLinkShare | null>;
+  getDocumentSignatureLink(
+    clinicId: string,
+    documentId: string,
+  ): Promise<DocumentSignatureLinkDetails | null>;
+  /** Abre o documento pelo link público e registra a visualização. */
+  openPublicSignatureDocument(
+    token: string,
+    metadata: PublicRequestMetadata,
+  ): Promise<PublicSignatureDocument | null>;
+  signPublicDocument(
+    token: string,
+    input: PublicDocumentSignInput,
+    metadata: PublicRequestMetadata,
+  ): Promise<PublicSignatureDocument | null>;
   listDocumentTemplates(clinicId: string): Promise<DocumentTemplate[]>;
   createDocumentTemplate(
     clinicId: string,
     input: DocumentTemplateInput,
+    actorId?: string,
   ): Promise<DocumentTemplate>;
   createDocumentTemplateVersion(
     clinicId: string,
     templateId: string,
     body: string,
+    content?: DocumentContent,
+    options?: DocumentTemplateVersionOptions,
   ): Promise<DocumentTemplate | null>;
+  /**
+   * Restaura o texto de uma versão antiga como nova versão ativa do mesmo modelo.
+   * `null` se a versão não existe; erro 409 se ela já é a ativa.
+   */
+  restoreDocumentTemplateVersion(
+    clinicId: string,
+    versionId: string,
+    actorId?: string,
+  ): Promise<DocumentTemplate | null>;
+  /** Exclui o modelo com todas as versões; os contratos já criados guardam a cópia do texto. */
+  deleteDocumentTemplate(
+    clinicId: string,
+    templateId: string,
+  ): Promise<boolean>;
+  previewDocument(
+    clinicId: string,
+    input: IssuedDocumentInput,
+  ): Promise<DocumentPreview>;
+  updateDocumentDraft(
+    clinicId: string,
+    documentId: string,
+    input: DocumentDraftInput,
+  ): Promise<IssuedDocument | null>;
   listIssuedDocuments(clinicId: string): Promise<IssuedDocument[]>;
   createIssuedDocument(
     clinicId: string,
@@ -1113,9 +1944,37 @@ export interface ClinicRepository {
     from: string,
     to: string,
   ): Promise<ManagementReport>;
+  /**
+   * Sessões concluídas no período (atendimentos com cliente e presenças em turma), comissões
+   * geradas nas competências que o período toca e a previsão das que faltam gerar.
+   */
+  listTeamProduction(
+    clinicId: string,
+    from: string,
+    to: string,
+  ): Promise<TeamProductionSources>;
+  getSalesPeriodReport(
+    clinicId: string,
+    from: string,
+    to: string,
+  ): Promise<SalesPeriodReport>;
   getSalesReport(clinicId: string, month: string): Promise<SalesReport>;
+  /** Todas as vendas/estornos do cliente, mais recentes primeiro; null se não existir. */
+  listPatientSales(
+    clinicId: string,
+    patientId: string,
+  ): Promise<SaleMovement[] | null>;
   /** Caixa do dia `date` (aaaa-mm-dd no fuso da clínica). */
   getDailyCash(clinicId: string, date: string): Promise<DailyCash>;
+  /**
+   * Movimentos do caixa (recebimentos, estornos, contas e comissões pagas) com data do
+   * evento entre `from` e `to` (aaaa-mm-dd no fuso da clínica), com o registro de origem.
+   */
+  listCashMovements(
+    clinicId: string,
+    from: string,
+    to: string,
+  ): Promise<CashMovement[]>;
   /**
    * Eventos de recebimento e estorno cuja data, no fuso da clínica, está entre
    * `from` e `to` (aaaa-mm-dd, inclusive), em ordem cronológica.
@@ -1125,6 +1984,20 @@ export interface ClinicRepository {
     from: string,
     to: string,
   ): Promise<ReceivedPayment[]>;
+}
+
+/**
+ * Senha a gravar: o par `{ passwordHash, passwordEncrypted }` de `preparePassword` ou, em
+ * testes e seeds, só o hash (o usuário fica sem cópia consultável).
+ */
+export type PasswordToStore =
+  string | { passwordHash: string; passwordEncrypted: string };
+
+/** Separa o hash e a cópia cifrada (`null` quando só veio o hash). */
+export function passwordColumns(password: PasswordToStore) {
+  return typeof password === "string"
+    ? { passwordHash: password, passwordEncrypted: null }
+    : password;
 }
 
 export class DomainError extends Error {
@@ -1152,7 +2025,7 @@ export function patientTagDuplicateError(name: string) {
 export function patientTagInUseError(name: string, patientCount: number) {
   return new DomainError(
     "PATIENT_TAG_IN_USE",
-    `A etiqueta "${name}" está em uso por ${patientCount} ${patientCount === 1 ? "cliente" : "clientes"}. Retire-a desses clientes antes de excluir.`,
+    `A ${withQuotedPrefix("etiqueta", name, ['"', '"'])} está em uso por ${patientCount} ${patientCount === 1 ? "cliente" : "clientes"}. Retire-a desses clientes antes de excluir.`,
     409,
     { patientCount },
   );
@@ -1165,4 +2038,63 @@ export function lastAdminError() {
     "A clínica precisa de pelo menos um admin ativo. Torne outro usuário admin antes.",
     409,
   );
+}
+
+/** Mensagem padrão já validada pela rota: imagens novas chegam com tipo e tamanho conferidos. */
+export interface AutoCampaignWrite {
+  name: string;
+  trigger: AutoCampaignTrigger;
+  active: boolean;
+  steps: Array<{ id?: string | undefined; offset: number; message: string }>;
+  promotion?: AutoCampaignPromotion | undefined;
+}
+
+export type AutoCampaignDeliveryWrite = AutoCampaignDeliveryInput & {
+  /** Mensagem já preenchida, guardada como estava no envio. */
+  message: string;
+  /** Calculado pela rota quando a campanha é promocional e a mensagem foi enviada. */
+  promotionValidUntil?: string | undefined;
+};
+
+/** Uso de promoção já validado pela rota (oferta vigente para o cliente). */
+export interface AutoCampaignRedemptionWrite {
+  /** `manual` = promoção de campanha manual (WhatsApp); ausente = automática. */
+  source?: "manual" | undefined;
+  campaignId: string;
+  occurrenceKey: string;
+  redeemedOn: string;
+  blockedUntil?: string | undefined;
+}
+
+/** Horário planejado (ainda não gravado) para a verificação de conflitos. */
+export interface AgendaSlotProbe {
+  key: string;
+  professionalId: string;
+  roomId: string;
+  startsAt: string;
+  endsAt: string;
+}
+
+export interface AppointmentCreateOptions {
+  promotion?: AutoCampaignRedemptionWrite | undefined;
+}
+
+/** Quem criou a versão do modelo e, na restauração, de qual versão o texto veio. */
+export interface DocumentTemplateVersionOptions {
+  actorId?: string | undefined;
+  restoredFromVersion?: number | undefined;
+}
+
+export interface MessageTemplateWrite {
+  title: string;
+  body: string;
+  images: Array<
+    | { id: string }
+    | {
+        fileName: string;
+        mimeType: MessageImageMimeType;
+        sizeBytes: number;
+        dataUrl: string;
+      }
+  >;
 }

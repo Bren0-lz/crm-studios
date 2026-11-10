@@ -1,12 +1,13 @@
 import {
-  automaticPatientTagCategory,
+  DEFAULT_PATIENT_TAG_COLOR,
+  INCOMPLETE_REGISTRATION_TAG,
+  INVALID_CPF_TAG,
+  MISSING_CPF_TAG,
+  MISSING_EMAIL_TAG,
   OVERDUE_PAYMENT_TAG,
-  patientTagCategoryColors,
   patientTagDisplayColor,
 } from "@crm/contracts";
 import { PatientProfileFilters } from "./PatientProfileFilters";
-import { InventoryPanel } from "./InventoryPanel";
-import { PatientManagementModal } from "./PatientManagementModal";
 import {
   type Patient,
   type PatientSegmentSummary,
@@ -38,6 +39,7 @@ import { ReadOnlyNotice } from "../../shared/components/ReadOnlyNotice";
 import { TagChoice } from "../../shared/components/TagChoice";
 import { usePatientTags } from "../../shared/hooks/usePatientTags";
 import {
+  automaticPatientTagColor,
   initials,
   tagColorLookup,
   tagCounts,
@@ -50,19 +52,23 @@ import {
 import { PatientExportModal } from "./PatientExportModal";
 import { PatientImportModal } from "./PatientImportModal";
 import { PatientModal } from "./PatientModal";
-import { PatientNextSteps } from "./PatientNextSteps";
-import type {
-  PatientRecordFilter,
-  PatientRegistrationResult,
-  PatientSort,
-} from "./types";
+import type { PatientRecordFilter, PatientSort } from "./types";
 
+const automaticTagHints: Record<string, string> = {
+  [OVERDUE_PAYMENT_TAG]:
+    "Etiqueta automática: cliente com parcela vencida e em aberto.",
+  [MISSING_CPF_TAG]:
+    "Etiqueta automática: cliente sem CPF (importado da planilha). Sai sozinha quando o CPF é preenchido.",
+  [INVALID_CPF_TAG]:
+    "Etiqueta automática: cliente importado da planilha com CPF errado (entrou sem CPF). Sai sozinha quando o CPF correto é preenchido.",
+  [INCOMPLETE_REGISTRATION_TAG]:
+    "Etiqueta automática: cliente importado da planilha sem WhatsApp ou sem contato de emergência. Sai sozinha quando os dois são preenchidos.",
+  [MISSING_EMAIL_TAG]:
+    "Etiqueta automática: cliente importado da planilha sem e-mail. Sai sozinha quando o e-mail é preenchido.",
+};
 export function PatientsPage() {
-  const { can, canEdit, canView, user } = useAuthorization();
+  const { can, canEdit, canView } = useAuthorization();
   const navigate = useNavigate();
-  const [management, setManagement] = useState<"merge" | "inactive" | null>(
-    null,
-  );
   const [segments, setSegments] = useState<PatientSegmentSummary[]>([]);
   const [patients, setPatients] = useState<Patient[]>([]);
   const [filters, setFilters] = useState(defaultPatientFilters);
@@ -72,9 +78,6 @@ export function PatientsPage() {
   const [error, setError] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
   const [editingPatient, setEditingPatient] = useState<Patient | null>(null);
-  const [createdPatient, setCreatedPatient] =
-    useState<PatientRegistrationResult | null>(null);
-  const newPatientButton = useRef<HTMLButtonElement>(null);
   const [importOpen, setImportOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
   // Busca efetivamente aplicada na lista (a do campo só vale depois de "Buscar").
@@ -148,8 +151,15 @@ export function PatientsPage() {
   // Filtro mostra as etiquetas configuradas (com a cor), com quantos clientes da lista têm cada uma.
   const countTag = tagCounts(patients);
   const tagOptions = configuredTags.tags ?? [];
-  // Etiqueta automática (parcela vencida e em aberto): a API só calcula para quem vê o Financeiro.
-  const automaticTagOptions = canView("finance") ? [OVERDUE_PAYMENT_TAG] : [];
+  // Etiquetas automáticas: "Pagamento atrasado" só para quem vê o Financeiro (a API só calcula
+  // para esse perfil); "Falta CPF" (B6-05), "Cadastro incompleto" e "Sem e-mail" (CD3) para todos.
+  const automaticTagOptions = [
+    ...(canView("finance") ? [OVERDUE_PAYMENT_TAG] : []),
+    MISSING_CPF_TAG,
+    INVALID_CPF_TAG,
+    INCOMPLETE_REGISTRATION_TAG,
+    MISSING_EMAIL_TAG,
+  ];
   const activeFilterCount =
     (filters.status !== "all" ? 1 : 0) +
     (filters.record !== "all" ? 1 : 0) +
@@ -183,18 +193,6 @@ export function PatientsPage() {
   }
 
   const moreActions: ActionMenuItem[] = [
-    ...(user?.role === "admin"
-      ? [
-          {
-            label: "Mesclar clientes",
-            onSelect: () => setManagement("merge"),
-          },
-          {
-            label: "Inativar antigos",
-            onSelect: () => setManagement("inactive"),
-          },
-        ]
-      : []),
     ...(canManage && can("patients.import")
       ? [
           {
@@ -217,20 +215,7 @@ export function PatientsPage() {
 
   return (
     <>
-      {management && (
-        <PatientManagementModal
-          mode={management}
-          patients={patients}
-          onClose={() => setManagement(null)}
-          onSaved={(message) => {
-            setManagement(null);
-            setNotice(message);
-            void load(appliedSearch);
-          }}
-        />
-      )}
       <PageHeader
-        eyebrow="Base clínica"
         title="Clientes"
         description="Cadastros, vínculos e informações essenciais em um só lugar."
         action={
@@ -241,7 +226,6 @@ export function PatientsPage() {
             )}
             {canManage && can("patients.create") && (
               <button
-                ref={newPatientButton}
                 className="primary-button"
                 onClick={() => {
                   setNotice("");
@@ -303,101 +287,97 @@ export function PatientsPage() {
         </div>
         {filtersOpen && (
           <div className="patient-filters" id="patient-filters">
-            <PatientProfileFilters
-              patients={patients}
-              value={filters.profile}
-              onSegments={setSegments}
-              onChange={(profile) =>
-                updateFilters((current) => ({ ...current, profile }))
-              }
-            />
-            <div className="filter-group">
-              <span className="filter-label" id="patient-status-filter">
-                Situação
-              </span>
-              <div
-                className="segmented"
-                role="group"
-                aria-labelledby="patient-status-filter"
-              >
-                {(
-                  [
-                    ["all", "Todos"],
-                    ["active", "Ativos"],
-                    ["inactive", "Inativos"],
-                  ] as const
-                ).map(([value, label]) => (
-                  <button
-                    className="segment-button"
-                    type="button"
-                    key={value}
-                    aria-pressed={filters.status === value}
-                    onClick={() =>
-                      updateFilters((current) => ({
-                        ...current,
-                        status: value,
-                      }))
-                    }
-                  >
-                    {label}
-                  </button>
-                ))}
+            <div className="patient-filters-row">
+              <div className="filter-group">
+                <span className="filter-label" id="patient-status-filter">
+                  Situação
+                </span>
+                <div
+                  className="segmented"
+                  role="group"
+                  aria-labelledby="patient-status-filter"
+                >
+                  {(
+                    [
+                      ["all", "Todos"],
+                      ["active", "Ativos"],
+                      ["inactive", "Inativos"],
+                    ] as const
+                  ).map(([value, label]) => (
+                    <button
+                      className="segment-button"
+                      type="button"
+                      key={value}
+                      aria-pressed={filters.status === value}
+                      onClick={() =>
+                        updateFilters((current) => ({
+                          ...current,
+                          status: value,
+                        }))
+                      }
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
-            <label className="filter-group">
-              <span className="filter-label">Cadastro</span>
-              <select
-                value={filters.record}
-                onChange={(event) =>
-                  updateFilters((current) => ({
-                    ...current,
-                    record: event.target.value as PatientRecordFilter,
-                  }))
-                }
-              >
-                <option value="all">Todos</option>
-                <option value="with_email">Com e-mail</option>
-                <option value="without_email">Sem e-mail</option>
-                <option value="birthday_month">Aniversariantes do mês</option>
-              </select>
-            </label>
-            <div className="filter-group">
-              <span className="filter-label">Turmas</span>
-              <label className="checkbox-field">
-                <input
-                  type="checkbox"
-                  checked={filters.withoutGroup}
-                  onChange={(event) => toggleWithoutGroup(event.target.checked)}
-                />
-                Assinantes sem turma vinculada
+              <label className="filter-group">
+                <span className="filter-label">Cadastro</span>
+                <select
+                  value={filters.record}
+                  onChange={(event) =>
+                    updateFilters((current) => ({
+                      ...current,
+                      record: event.target.value as PatientRecordFilter,
+                    }))
+                  }
+                >
+                  <option value="all">Todos</option>
+                  <option value="with_email">Com e-mail</option>
+                  <option value="without_email">Sem e-mail</option>
+                  <option value="birthday_month">Aniversariantes do mês</option>
+                </select>
               </label>
+              <div className="filter-group">
+                <span className="filter-label">Turmas</span>
+                <label className="checkbox-field">
+                  <input
+                    type="checkbox"
+                    checked={filters.withoutGroup}
+                    onChange={(event) =>
+                      toggleWithoutGroup(event.target.checked)
+                    }
+                  />
+                  Assinantes sem turma vinculada
+                </label>
+              </div>
+              <label className="filter-group">
+                <span className="filter-label">Ordenar por</span>
+                <select
+                  value={filters.sort}
+                  onChange={(event) =>
+                    updateFilters((current) => ({
+                      ...current,
+                      sort: event.target.value as PatientSort,
+                    }))
+                  }
+                >
+                  <option value="name_asc">Nome (A–Z)</option>
+                  <option value="name_desc">Nome (Z–A)</option>
+                  <option value="newest">Cadastro mais recente</option>
+                  <option value="oldest">Cadastro mais antigo</option>
+                </select>
+              </label>
+              {activeFilterCount > 0 && (
+                <button
+                  type="button"
+                  className="text-button button-sm clear-filters"
+                  onClick={clearFilters}
+                >
+                  Limpar filtros
+                </button>
+              )}
             </div>
-            <label className="filter-group">
-              <span className="filter-label">Ordenar por</span>
-              <select
-                value={filters.sort}
-                onChange={(event) =>
-                  updateFilters((current) => ({
-                    ...current,
-                    sort: event.target.value as PatientSort,
-                  }))
-                }
-              >
-                <option value="name_asc">Nome (A–Z)</option>
-                <option value="name_desc">Nome (Z–A)</option>
-                <option value="newest">Cadastro mais recente</option>
-                <option value="oldest">Cadastro mais antigo</option>
-              </select>
-            </label>
-            {activeFilterCount > 0 && (
-              <button
-                type="button"
-                className="text-button button-sm clear-filters"
-                onClick={clearFilters}
-              >
-                Limpar filtros
-              </button>
-            )}
             {configuredTags.error ? (
               <div className="filter-group filter-tags">
                 <span className="filter-label">Etiquetas</span>
@@ -429,10 +409,11 @@ export function PatientsPage() {
                         key={`automatic-${name}`}
                         name={name}
                         color={
-                          patientTagCategoryColors[automaticPatientTagCategory]
+                          automaticPatientTagColor(name) ??
+                          DEFAULT_PATIENT_TAG_COLOR
                         }
                         count={countTag(name)}
-                        hint="Etiqueta automática: cliente com parcela vencida e em aberto."
+                        hint={automaticTagHints[name] ?? ""}
                         pressed={filters.tags.includes(name)}
                         onToggle={() => toggleTag(name)}
                       />
@@ -441,6 +422,14 @@ export function PatientsPage() {
                 </div>
               )
             )}
+            <PatientProfileFilters
+              patients={patients}
+              value={filters.profile}
+              onSegments={setSegments}
+              onChange={(profile) =>
+                updateFilters((current) => ({ ...current, profile }))
+              }
+            />
           </div>
         )}
         {loading ? (
@@ -501,7 +490,11 @@ export function PatientsPage() {
                     </span>
                     <div>
                       <strong>{patient.fullName}</strong>
-                      <small>{patient.recordNumber}</small>
+                      <small>
+                        {patient.nickname
+                          ? `${patient.recordNumber} · "${patient.nickname}"`
+                          : patient.recordNumber}
+                      </small>
                     </div>
                   </div>
                   <div className="contact-cell">
@@ -612,7 +605,7 @@ export function PatientsPage() {
             setModalOpen(false);
             setEditingPatient(null);
           }}
-          onSaved={(patient, savedNotice, result) => {
+          onSaved={(patient, savedNotice) => {
             setPatients((current) =>
               [
                 ...current.filter((item) => item.id !== patient.id),
@@ -621,18 +614,7 @@ export function PatientsPage() {
             );
             setNotice(savedNotice ?? "");
             setModalOpen(false);
-            if (!editingPatient) setCreatedPatient(result ?? { patient });
             setEditingPatient(null);
-          }}
-        />
-      )}
-      {createdPatient && (
-        <PatientNextSteps
-          patient={createdPatient.patient}
-          initialResult={createdPatient}
-          onClose={() => {
-            setCreatedPatient(null);
-            requestAnimationFrame(() => newPatientButton.current?.focus());
           }}
         />
       )}
@@ -650,7 +632,6 @@ export function PatientsPage() {
           onClose={() => setExportOpen(false)}
         />
       )}
-      <InventoryPanel />
     </>
   );
 }

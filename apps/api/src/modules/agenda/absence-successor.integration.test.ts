@@ -1,3 +1,4 @@
+import { nextTestCpf } from "../../test-support/cpf.js";
 import { afterEach, describe, expect, it } from "vitest";
 import { MemoryClinicRepository } from "../../memory-repository.js";
 import { buildApp } from "../../app.js";
@@ -13,6 +14,7 @@ describe("linked absence rescheduling", () => {
       app = await buildApp({ repository, logger: false });
     apps.push(app);
     const patient = await repository.createPatient(clinicId, {
+        cpf: nextTestCpf(),
         fullName: "Cliente remarcação",
         phone: "11988888888",
         tags: [],

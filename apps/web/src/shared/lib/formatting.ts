@@ -4,12 +4,10 @@ import type {
   AppointmentVisitType,
   GroupClass,
   GroupEnrollment,
-  LeadAppointmentInput,
 } from "@crm/contracts";
 import {
-  automaticPatientTagCategory,
+  automaticPatientTagCategoryOf,
   formatPhone,
-  isAutomaticPatientTag,
   patientFirstName,
   patientTagCategoryColors,
   type PatientTag,
@@ -44,10 +42,24 @@ export function formatIsoDate(value: string) {
   return `${day}/${month}/${year}`;
 }
 
-export function groupOperationRange() {
-  const from = new Date();
+/** Idade em anos completos na data de referência. */
+export function patientAge(birthDate: string | undefined, now = new Date()) {
+  if (!birthDate) return undefined;
+  const [year, month, day] = birthDate.split("-").map(Number);
+  if (!year || !month || !day) return undefined;
+  let age = now.getFullYear() - year;
+  if (
+    now.getMonth() + 1 < month ||
+    (now.getMonth() + 1 === month && now.getDate() < day)
+  )
+    age -= 1;
+  return age;
+}
+
+export function groupOperationRange(now = new Date()) {
+  const from = new Date(now);
   from.setDate(from.getDate() - 30);
-  const to = new Date();
+  const to = new Date(now);
   to.setDate(to.getDate() + 120);
   return { from: from.toISOString(), to: to.toISOString() };
 }
@@ -63,6 +75,15 @@ export function groupSeatsLabel(enrolled: number, capacity: number) {
   return `${enrolledLabel} · ${freeLabel}`;
 }
 
+/** Vagas da turma nos seletores (plano, cadastro guiado, Turmas): cheia vai para a espera. */
+export function groupVacancyLabel(
+  group: Pick<GroupClass, "capacity" | "activeEnrollments">,
+) {
+  const free = group.capacity - group.activeEnrollments;
+  if (free <= 0) return "turma cheia (lista de espera)";
+  return free === 1 ? "1 vaga" : `${free} vagas`;
+}
+
 /** Aviso da matrícula em turma (QM13): vaga confirmada ou lista de espera, sem gênero. */
 export function groupEnrollmentToast(
   enrollment: Pick<
@@ -72,10 +93,9 @@ export function groupEnrollmentToast(
   groupName?: string,
 ) {
   const name = patientFirstName(enrollment.patientName);
-  const target = groupName ? ` em ${groupName}` : "";
   return enrollment.status === "waitlisted"
-    ? `${name} entrou na lista de espera${target}${enrollment.queuePosition ? ` (posição ${enrollment.queuePosition})` : ""}.`
-    : `Matrícula de ${name} confirmada${target}.`;
+    ? `Turma cheia: ${name} entrou na lista de espera${groupName ? ` de ${groupName}` : ""}${enrollment.queuePosition ? ` (posição ${enrollment.queuePosition})` : ""}.`
+    : `Matrícula de ${name} confirmada${groupName ? ` em ${groupName}` : ""}.`;
 }
 
 export function groupSlotLabel(
@@ -93,11 +113,6 @@ export function initials(name: string) {
     .join("")
     .toUpperCase();
 }
-
-export const leadVisitTypes: LeadAppointmentInput["visitType"][] = [
-  "trial",
-  "evaluation",
-];
 
 export function localIsoDate(date = new Date()) {
   const year = date.getFullYear();
@@ -148,6 +163,31 @@ export const shortDate = new Intl.DateTimeFormat("pt-BR", {
   month: "short",
 });
 
+/**
+ * Fecha a frase com ponto sem repetir o da data abreviada ("01 de nov." já termina em ponto):
+ * `sentence("Plano cancelado em 01 de nov.")` → "Plano cancelado em 01 de nov.".
+ */
+export function sentence(text: string) {
+  return text.endsWith(".") ? text : `${text}.`;
+}
+
+/**
+ * Tempo desde `iso` em forma curta para cartões ("agora", "5min", "3h", "2d"); depois de
+ * 30 dias, a data curta ("01 de out.").
+ */
+export function relativeTime(iso: string, now = new Date()) {
+  const minutes = Math.floor(
+    (now.getTime() - new Date(iso).getTime()) / 60_000,
+  );
+  if (minutes < 1) return "agora";
+  if (minutes < 60) return `${minutes}min`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h`;
+  const days = Math.floor(hours / 24);
+  if (days <= 30) return `${days}d`;
+  return shortDate.format(new Date(iso));
+}
+
 export function statusLabel(status: AppointmentStatus) {
   return {
     scheduled: "Agendado",
@@ -160,6 +200,12 @@ export function statusLabel(status: AppointmentStatus) {
   }[status];
 }
 
+/** Cor de uma etiqueta automática (a da sua categoria); `undefined` se não for automática. */
+export function automaticPatientTagColor(name: string): string | undefined {
+  const category = automaticPatientTagCategoryOf(name);
+  return category ? patientTagCategoryColors[category] : undefined;
+}
+
 export function tagColorLookup(tags: readonly PatientTag[] | null) {
   const colors = new Map(
     (tags ?? []).map((tag) => [
@@ -170,9 +216,7 @@ export function tagColorLookup(tags: readonly PatientTag[] | null) {
   return (name: string) =>
     normalizeTagColor(
       colors.get(patientTagKey(name)) ??
-        (isAutomaticPatientTag(name)
-          ? patientTagCategoryColors[automaticPatientTagCategory]
-          : undefined),
+        automaticPatientTagColor(name),
     );
 }
 

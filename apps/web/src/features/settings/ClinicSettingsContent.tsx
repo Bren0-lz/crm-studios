@@ -1,4 +1,12 @@
-import { formatTaxId, isValidTaxId, type ClinicSettings } from "@crm/contracts";
+import {
+  formatTaxId,
+  isValidTaxId,
+  paymentReceiptMessage,
+  paymentReceiptMessageVariables,
+  pixMessageVariables,
+  planPixChargeMessage,
+  type ClinicSettings,
+} from "@crm/contracts";
 import {
   Building2,
   CheckCircle2,
@@ -6,12 +14,14 @@ import {
   MapPin,
   Save,
   Trash2,
+  Wallet,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { api } from "../../api";
 import { ErrorBanner } from "../../shared/components/ErrorBanner";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
 import { PhoneInput } from "../../shared/components/PhoneInput";
+import { MessageBodyEditor } from "../communications/index";
 import { useSettingsBusy } from "../../shared/workflows/useSettingsBusy";
 import { useUnsavedChangesPrompt } from "./useUnsavedChangesPrompt";
 
@@ -288,6 +298,109 @@ export function ClinicSettingsContent() {
                   }
                 />
               </label>
+            </div>
+          </fieldset>
+          <fieldset
+            disabled={saving}
+            className="settings-clinic-section"
+            aria-labelledby="clinic-payments-title"
+          >
+            <div className="settings-clinic-section-heading">
+              <span className="settings-clinic-section-icon">
+                <Wallet size={20} aria-hidden="true" />
+              </span>
+              <h3 id="clinic-payments-title">Recebimentos</h3>
+              <p>
+                Chave Pix e mensagens enviadas ao cliente nas cobranças e nos
+                recibos.
+              </p>
+            </div>
+            <div className="form-grid">
+              <label className="span-2">
+                Chave Pix
+                <input
+                  autoComplete="off"
+                  maxLength={140}
+                  placeholder="CNPJ, e-mail, telefone ou chave aleatória"
+                  value={settings.pixKey ?? ""}
+                  onChange={(event) =>
+                    setSettings({ ...settings, pixKey: event.target.value })
+                  }
+                />
+              </label>
+              <div className="span-2 field-with-hint">
+                <label id="clinic-pix-message-label">Mensagem do Pix</label>
+                <MessageBodyEditor
+                  labelId="clinic-pix-message-label"
+                  value={settings.pixMessageTemplate ?? ""}
+                  maxLength={1000}
+                  variables={pixMessageVariables}
+                  toolbarLabel="Inserir dados na mensagem do Pix"
+                  formatting={false}
+                  required={false}
+                  disabled={saving}
+                  describedBy="clinic-pix-message-help"
+                  placeholder="Em branco, usa a mensagem padrão com o valor, as sessões, o preço por sessão e a chave."
+                  onChange={(pixMessageTemplate) => {
+                    setSettings((current) =>
+                      current ? { ...current, pixMessageTemplate } : current,
+                    );
+                    setNotice("");
+                  }}
+                />
+                <small id="clinic-pix-message-help" className="field-hint">
+                  {`Prévia: ${planPixChargeMessage({
+                    patientName: "Marina Costa",
+                    planName: "Pilates 2x semana",
+                    totalValueInCents: 48000,
+                    installments: 3,
+                    totalSessions: 8,
+                    pixKey: settings.pixKey?.trim() || "sua chave Pix",
+                    template: settings.pixMessageTemplate,
+                  })}`}
+                </small>
+              </div>
+              <div className="span-2 field-with-hint">
+                <label id="clinic-receipt-message-label">
+                  Mensagem do recibo
+                </label>
+                <MessageBodyEditor
+                  labelId="clinic-receipt-message-label"
+                  value={settings.paymentReceiptMessageTemplate ?? ""}
+                  maxLength={1000}
+                  variables={paymentReceiptMessageVariables}
+                  toolbarLabel="Inserir dados na mensagem do recibo"
+                  formatting={false}
+                  required={false}
+                  disabled={saving}
+                  describedBy="clinic-receipt-message-help"
+                  placeholder="Em branco, usa a mensagem padrão: recebemos seu pagamento, com o valor, a data e o link para assinar o recibo."
+                  onChange={(paymentReceiptMessageTemplate) => {
+                    setSettings((current) =>
+                      current
+                        ? { ...current, paymentReceiptMessageTemplate }
+                        : current,
+                    );
+                    setNotice("");
+                  }}
+                />
+                <small id="clinic-receipt-message-help" className="field-hint">
+                  {`Prévia: ${paymentReceiptMessage({
+                    patientName: "Marina Costa",
+                    amountInCents: 16000,
+                    paidAt: "2026-11-05T15:00:00.000Z",
+                    link: `${window.location.origin}/assinar-recibo/…`,
+                    template: settings.paymentReceiptMessageTemplate,
+                    timeZone: settings.timezone,
+                  })}`}
+                </small>
+              </div>
+              <p className="field-hint span-2">
+                O sino e a faixa de alertas mostram quantos clientes têm recibos
+                pendentes de assinatura assim que o recibo é gerado, sem prazo
+                mínimo ou horário. Cada cliente conta uma vez, mesmo com vários
+                recibos pendentes.
+              </p>
             </div>
           </fieldset>
           {notice && (

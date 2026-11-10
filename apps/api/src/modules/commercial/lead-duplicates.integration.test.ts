@@ -1,3 +1,4 @@
+import { nextTestCpf } from "../../test-support/cpf.js";
 import { afterEach, describe, expect, it } from "vitest";
 import { leadInputSchema, patientInputSchema } from "@crm/contracts";
 import { buildApp } from "../../app.js";
@@ -29,6 +30,9 @@ async function setup() {
     patientInputSchema.parse({
       fullName: "Cliente Duplicidade QM10",
       phone: "(31) 97777-1234",
+      whatsapp: "(31) 97777-1234",
+      emergencyContactName: "Cliente Duplicidade QM10",
+      emergencyContactPhone: "(31) 97777-1234",
       email: "Duplicidade.QM10@Email.com",
       cpf: "529.982.247-25",
     }),
@@ -96,8 +100,12 @@ describe("lead duplicates", () => {
     await repository.createPatient(
       otherClinicId,
       patientInputSchema.parse({
+        cpf: nextTestCpf(),
         fullName: "Outra Clínica",
         phone: "31955554444",
+        whatsapp: "31955554444",
+        emergencyContactName: "Outra Clínica",
+        emergencyContactPhone: "31955554444",
       }),
     );
     const outside = await app.inject({

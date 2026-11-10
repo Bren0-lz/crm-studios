@@ -19,6 +19,7 @@ import {
   patientExportQuery,
 } from "../patient-export";
 import { request, requestBlob } from "../transport";
+import { withChangeReason } from "../change-reason";
 
 export const patientsApi = {
   patientSegments: () => request<PatientSegmentSummary[]>("/patients/segments"),
@@ -31,16 +32,6 @@ export const patientsApi = {
     request<Patient>(`/patients/${id}/status`, {
       method: "PATCH",
       body: JSON.stringify({ status }),
-    }),
-  previewInactivePatients: (months: number) =>
-    request<Patient[]>("/patients/inactivation/preview", {
-      method: "POST",
-      body: JSON.stringify({ months }),
-    }),
-  inactivatePatients: (months: number, patientIds: string[]) =>
-    request<{ changed: number; skipped: number }>("/patients/inactivation", {
-      method: "POST",
-      body: JSON.stringify({ months, patientIds }),
     }),
   previewPatientMerge: (sourceId: string, targetId: string) =>
     request<PatientMergePreview>("/patients/merge/preview", {
@@ -91,10 +82,10 @@ export const patientsApi = {
       method: "POST",
       body: JSON.stringify(input),
     }),
-  updatePatient: (id: string, input: PatientInput) =>
+  updatePatient: (id: string, input: PatientInput, changeReason?: string) =>
     request<Patient>(`/patients/${id}`, {
       method: "PUT",
-      body: JSON.stringify(input),
+      body: JSON.stringify(withChangeReason(input, changeReason)),
     }),
   previewPatientImport: (input: PatientImportFileInput) =>
     request<PatientImportAnalysis>("/patients/import/preview", {

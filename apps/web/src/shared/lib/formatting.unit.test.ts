@@ -5,6 +5,8 @@ import {
   groupSeatsLabel,
   initials,
   localIsoDate,
+  relativeTime,
+  sentence,
   statusLabel,
   toLocalDateTimeInput,
 } from "./formatting";
@@ -16,6 +18,12 @@ describe("display helpers", () => {
     expect(clinicIsoDate(new Date("2040-06-02T01:00:00Z"), "UTC")).toBe(
       "2040-06-02",
     );
+  });
+  it("closes a sentence without doubling the period of a short date", () => {
+    expect(sentence("Plano cancelado em 01 de nov.")).toBe(
+      "Plano cancelado em 01 de nov.",
+    );
+    expect(sentence("Vale até 05/11/2026")).toBe("Vale até 05/11/2026.");
   });
   it("formats ISO dates without timezone conversion", () => {
     expect(formatIsoDate("2026-10-12")).toBe("12/10/2026");
@@ -56,5 +64,17 @@ describe("groupSeatsLabel", () => {
     [5, 4, "5 matriculados · Sem vagas livres"],
   ] as const)("%i de %i vagas", (enrolled, capacity, expected) => {
     expect(groupSeatsLabel(enrolled, capacity)).toBe(expected);
+  });
+});
+
+describe("relativeTime", () => {
+  const now = new Date("2026-10-22T12:00:00Z");
+  it("uses short units up to 30 days and the short date after that", () => {
+    expect(relativeTime("2026-10-22T11:59:40Z", now)).toBe("agora");
+    expect(relativeTime("2026-10-22T11:55:00Z", now)).toBe("5min");
+    expect(relativeTime("2026-10-22T09:00:00Z", now)).toBe("3h");
+    expect(relativeTime("2026-10-20T12:00:00Z", now)).toBe("2d");
+    expect(relativeTime("2026-09-22T12:00:00Z", now)).toBe("30d");
+    expect(relativeTime("2026-08-01T12:00:00Z", now)).toMatch(/^01 de ago/);
   });
 });

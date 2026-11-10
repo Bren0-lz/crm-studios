@@ -1,6 +1,19 @@
 import { patientProfileFilterSchema } from "./segments.js";
 import { z } from "zod";
-import { leadAppointmentInputSchema } from "../agenda/model.js";
+import {
+  appointmentInputSchema,
+  leadAppointmentInputSchema,
+} from "../agenda/model.js";
+import { issuedDocumentFieldsSchema } from "../contracts/model.js";
+import type { AuditFieldLabel } from "../history-changes.js";
+import {
+  EXTRA_FIELDS_LABEL,
+  extraFieldsSchema,
+} from "../common/extra-fields.js";
+import {
+  patientDiscountDescription,
+  patientDiscountSchema,
+} from "../plans/discount.js";
 import {
   cpfDigits,
   emptyQueryToUndefined,
@@ -14,10 +27,16 @@ import {
   autoRenewIssue,
   guidedPlanTermsSchema,
   isRecurringChargeValid,
+  planPaymentRecurrenceChosen,
+  planPaymentRecurrenceIssue,
+  autoRenewPaymentPartsValid,
+  autoRenewPaymentPartsIssue,
   recurringSingleChargeIssue,
   planPeriodIssue,
   renewablePlanPeriod,
   validPlanPeriod,
+  isSingleSessionPlan,
+  singlePlanServicesIssue,
 } from "../plans/model.js";
 import type {
   ClientAgeBand,
@@ -27,8 +46,49 @@ import type {
 
 export const patientStatusSchema = z.enum(["active", "inactive"]);
 
+// O desconto é do plano vendido (ver `plans/discount.ts`); os nomes seguem os antigos.
+export {
+  applyPatientDiscount,
+  discountedInstallments,
+  patientDiscountDescription,
+  patientDiscountOff,
+  patientDiscountRemaining,
+  patientDiscountSchema,
+  patientDiscountScopeSchema,
+  samePatientDiscount,
+} from "../plans/discount.js";
+
+/** Tipo de residência do endereço: define quais detalhes o cadastro pede. */
+export const patientResidenceTypeSchema = z.enum([
+  "house",
+  "apartment",
+  "condominium",
+  "commercial",
+  "other",
+]);
+
+export const patientResidenceTypeLabels: Record<
+  z.infer<typeof patientResidenceTypeSchema>,
+  string
+> = {
+  house: "Casa",
+  apartment: "Apartamento",
+  condominium: "Casa em condomínio",
+  commercial: "Comercial",
+  other: "Outro",
+};
+
 export const patientProfileSchema = z.object({
+  nickname: z.string().trim().max(80).optional(),
+  residenceType: patientResidenceTypeSchema.or(z.literal("")).optional(),
   address: z.string().trim().max(300).optional(),
+  addressNumber: z.string().trim().max(20).optional(),
+  complement: z.string().trim().max(120).optional(),
+  buildingName: z.string().trim().max(120).optional(),
+  block: z.string().trim().max(40).optional(),
+  floor: z.string().trim().max(10).optional(),
+  unit: z.string().trim().max(20).optional(),
+  referencePoint: z.string().trim().max(200).optional(),
   neighborhood: z.string().trim().max(100).optional(),
   city: z.string().trim().max(100).optional(),
   state: z.string().trim().max(2).optional(),
@@ -39,14 +99,30 @@ export const patientProfileSchema = z.object({
   occupation: z.string().trim().max(120).optional(),
   source: z.string().trim().max(120).optional(),
   level: z.string().trim().max(80).optional(),
-  clientType: z.enum(["fixed", "rotating", ""]).optional(),
   clientSince: z.iso.date().optional().or(z.literal("")),
   imageConsent: z.boolean().optional(),
   interests: z.array(z.string().trim().min(1).max(80)).max(30).optional(),
 });
 
+/**
+ * Perfil gravado (JSON `profile`): os campos acima e o desconto, que fica fora da
+ * importação/exportação. `null` retira o desconto (a edição mescla o perfil).
+ */
+export const patientStoredProfileSchema = patientProfileSchema.extend({
+  discount: patientDiscountSchema.nullable().optional(),
+});
+
 export const patientProfileLabels = {
+  nickname: "Apelido",
+  residenceType: "Tipo de residência",
   address: "Endereço",
+  addressNumber: "Número",
+  complement: "Complemento",
+  buildingName: "Edifício/condomínio",
+  block: "Bloco/torre/quadra",
+  floor: "Andar",
+  unit: "Apartamento/casa",
+  referencePoint: "Ponto de referência",
   neighborhood: "Bairro",
   city: "Cidade",
   state: "UF",
@@ -57,36 +133,109 @@ export const patientProfileLabels = {
   occupation: "Profissão",
   source: "Origem",
   level: "Nível",
-  clientType: "Tipo de cliente",
   clientSince: "Cliente desde",
   imageConsent: "Autoriza uso de imagem",
   interests: "Interesses",
 } as const;
 
-export function patientProfile(input: z.infer<typeof patientProfileSchema>) {
-  return patientProfileSchema.parse(input);
+export function patientProfile(
+  input: z.infer<typeof patientStoredProfileSchema>,
+) {
+  return patientStoredProfileSchema.parse(input);
 }
 
+/** Limite das observações do cliente: a tela usa o mesmo número no `maxLength`. */
+export const patientNotesMaxLength = 2000;
+
+/** Telefone obrigatório com DDD, com a mesma mensagem para ausente, vazio ou inválido. */
+function requiredPhoneSchema(message: string) {
+  return z
+    .string({ error: message })
+    .transform((value) => value.replace(/\D/g, ""))
+    .refine((digits) => digits.length === 10 || digits.length === 11, message);
+}
+
+/**
+ * Cadastro manual (completo, rápido, guiado e conversão de lead): CPF, WhatsApp e contato de
+ * emergência obrigatórios (B1-07/B1-10). Quem não tem contato de emergência repete o próprio
+ * nome e telefone. A importação e a edição aceitam esses campos vazios (ver abaixo).
+ */
 export const patientInputSchema = z.object({
-  ...patientProfileSchema.shape,
+  ...patientStoredProfileSchema.shape,
   fullName: z.string().trim().min(3).max(160),
   cpf: z
-    .string()
+    .string({ error: "Informe um CPF válido." })
     .trim()
     .transform(cpfDigits)
-    .refine(
-      (value) => value === "" || isValidCpf(value),
-      "Informe um CPF válido.",
-    )
-    .optional(),
+    .refine((value) => isValidCpf(value), "Informe um CPF válido."),
   email: z.email().optional().or(z.literal("")),
   phone: phoneSchema,
-  whatsapp: optionalPhoneSchema,
+  whatsapp: requiredPhoneSchema("Informe o WhatsApp com DDD."),
   birthDate: z.iso.date().optional().or(z.literal("")),
+  emergencyContactName: z
+    .string({ error: "Informe o nome do contato de emergência." })
+    .trim()
+    .min(1, "Informe o nome do contato de emergência.")
+    .max(160),
+  emergencyContactPhone: requiredPhoneSchema(
+    "Informe o telefone do contato de emergência com DDD.",
+  ),
+  notes: z
+    .string()
+    .trim()
+    .max(patientNotesMaxLength)
+    .optional()
+    .or(z.literal("")),
+  tags: z.array(z.string().trim().min(1).max(40)).max(20).default([]),
+});
+
+/**
+ * CPF que pode faltar (B6-05): vazio vira `undefined`; preenchido precisa ser válido. Usado só na
+ * importação por planilha — no cadastro manual o CPF continua obrigatório.
+ */
+export const optionalCpfSchema = z
+  .string({ error: "Informe um CPF válido." })
+  .trim()
+  .transform(cpfDigits)
+  .refine(
+    (value) => value === "" || isValidCpf(value),
+    "Informe um CPF válido.",
+  )
+  .transform((value) => value || undefined)
+  .optional();
+
+/**
+ * WhatsApp e contato de emergência que podem faltar: na importação (CD3) e na edição de quem
+ * foi cadastrado antes da regra (a rota recusa apagar o que já existe).
+ */
+export const patientOptionalContactShape = {
+  whatsapp: optionalPhoneSchema,
   emergencyContactName: z.string().trim().max(160).optional().or(z.literal("")),
   emergencyContactPhone: optionalPhoneSchema,
-  notes: z.string().trim().max(2000).optional().or(z.literal("")),
-  tags: z.array(z.string().trim().min(1).max(40)).max(20).default([]),
+};
+
+/**
+ * Linha da planilha de importação: igual ao cadastro, mas o CPF, o WhatsApp e o contato de
+ * emergência podem faltar (B6-05).
+ */
+export const patientImportInputSchema = patientInputSchema.extend({
+  ...patientOptionalContactShape,
+  cpf: optionalCpfSchema,
+  /** Colunas mapeadas como "Outros" (entrega 10); a gravação mescla com o que já existe. */
+  extraFields: extraFieldsSchema.optional(),
+  /** CPF da planilha que não confere: o cliente entra sem CPF e com "CPF inválido". */
+  invalidCpf: z.string().trim().max(40).optional(),
+});
+
+/**
+ * Edição do cliente (`PUT /patients/:id`, B6-05): o CPF pode continuar vazio em quem foi
+ * importado sem ele (a etiqueta "Falta CPF" fica até ele ser preenchido); o mesmo vale para o
+ * WhatsApp e o contato de emergência de quem foi cadastrado antes da regra. A rota recusa apagar
+ * o que já está gravado.
+ */
+export const patientUpdateInputSchema = patientInputSchema.extend({
+  ...patientOptionalContactShape,
+  cpf: optionalCpfSchema,
 });
 
 /** Cor das etiquetas criadas sem cor e das importadas na migração 0044. */
@@ -215,32 +364,39 @@ export const patientExportColumnSchema = z.enum(
     "emergencyContactPhone",
     "notes",
     "createdAt",
+    "leadOrigin",
     ...patientProfileSchema.keyof().options,
+    "extraFields",
   ],
   "Coluna de exportação desconhecida.",
 );
 
 export const patientExportColumns = patientExportColumnSchema.options;
 export const patientDefaultExportColumns = patientExportColumns.filter(
-  (column) => !(column in patientProfileLabels),
+  (column) =>
+    !(column in patientProfileLabels) &&
+    column !== "extraFields" &&
+    column !== "leadOrigin",
 );
 
 /** Cabeçalho pt-BR de cada coluna (coerente com o modelo de importação). */
 export const patientExportColumnLabels: Record<PatientExportColumn, string> = {
   ...patientProfileLabels,
-  fullName: "nome",
-  recordNumber: "prontuário",
-  cpf: "cpf",
-  phone: "telefone",
-  whatsapp: "whatsapp",
-  email: "email",
-  birthDate: "nascimento",
-  tags: "etiquetas",
-  status: "situação",
-  emergencyContactName: "contato de emergência",
-  emergencyContactPhone: "telefone de emergência",
-  notes: "observações",
-  createdAt: "cadastrado em",
+  fullName: "Nome",
+  recordNumber: "Prontuário",
+  cpf: "CPF",
+  phone: "Telefone",
+  whatsapp: "WhatsApp",
+  email: "E-mail",
+  birthDate: "Nascimento",
+  tags: "Etiquetas",
+  status: "Situação",
+  emergencyContactName: "Contato de emergência",
+  emergencyContactPhone: "Telefone de emergência",
+  notes: "Observações",
+  createdAt: "Cadastrado em",
+  leadOrigin: "Origem: evento/lead",
+  extraFields: EXTRA_FIELDS_LABEL,
 };
 
 /**
@@ -284,14 +440,93 @@ export const patientExportFilterSchema = z.object({
   ),
 });
 
+/** Plano de assinatura do cadastro guiado (`recurring` ou `fixed_package`). */
+const guidedSubscriptionPlanSchema = guidedPlanTermsSchema
+  .extend({ kind: z.enum(["recurring", "fixed_package"]) })
+  .refine(validPlanPeriod, planPeriodIssue)
+  .refine(isRecurringChargeValid, {
+    message: recurringSingleChargeIssue,
+    path: ["installments"],
+  })
+  .refine(renewablePlanPeriod, autoRenewIssue)
+  .refine(planPaymentRecurrenceChosen, planPaymentRecurrenceIssue)
+  .refine(autoRenewPaymentPartsValid, autoRenewPaymentPartsIssue)
+  .refine(
+    (value) =>
+      value.services.reduce((sum, item) => sum + item.totalValueInCents, 0) ===
+      value.totalValueInCents,
+    {
+      message: "A soma dos serviços deve corresponder ao valor total.",
+      path: ["totalValueInCents"],
+    },
+  );
+
+/** Serviço avulso adicionado junto com os planos do cadastro guiado (plano `single`). */
+const guidedAdditionalSingleSchema = guidedPlanTermsSchema
+  .extend({ kind: z.literal("single") })
+  .refine(
+    (value) => isSingleSessionPlan(value.services),
+    singlePlanServicesIssue,
+  )
+  .refine(validPlanPeriod, planPeriodIssue)
+  .refine(renewablePlanPeriod, autoRenewIssue)
+  .refine(planPaymentRecurrenceChosen, planPaymentRecurrenceIssue)
+  .refine(autoRenewPaymentPartsValid, autoRenewPaymentPartsIssue)
+  .refine(
+    (value) =>
+      value.services.reduce((sum, item) => sum + item.totalValueInCents, 0) ===
+      value.totalValueInCents,
+    {
+      message: "A soma dos serviços deve corresponder ao valor total.",
+      path: ["totalValueInCents"],
+    },
+  );
+
+/**
+ * Documento para o cliente assinar, emitido junto com o plano do cadastro guiado (mesmo
+ * formato da contratação de plano): o link de assinatura sai ao concluir o cadastro.
+ */
+const guidedDocumentSchema = issuedDocumentFieldsSchema
+  .omit({ patientId: true, supplierId: true, planId: true })
+  .optional();
+
+/** Sessões do avulso reservadas no cadastro guiado (mesmas regras da contratação de plano). */
+const guidedAppointmentsSchema = z
+  .array(appointmentInputSchema.omit({ patientId: true }))
+  .max(120)
+  .optional();
+
+const guidedGroupIdSchema = z
+  .uuid()
+  .optional()
+  .or(z.literal("").transform(() => undefined));
+
+/**
+ * Serviço com a turma escolhida cheia (TW3): o cliente vai para a Lista de espera do serviço,
+ * sem plano, cobrança nem contrato. `groupId` é a turma desejada (fica nas observações).
+ */
+export const guidedWaitlistItemSchema = z.object({
+  serviceId: z.uuid(),
+  groupId: guidedGroupIdSchema,
+});
+
+const guidedWaitlistSchema = z.array(guidedWaitlistItemSchema).max(10);
+
 /**
  * `POST /patients/guided`: cria o cliente já com o próximo passo, tudo ou nada.
  * - `none`: só o cadastro (igual a `POST /patients`);
  * - `demonstration`: atendimento experimental (`visitType: "trial"`) com serviço, profissional,
  *   sala e data/hora (mesmas regras de feriado e conflito da agenda);
  * - `plan`: plano `recurring` ou `fixed_package` e, opcionalmente, matrícula na turma `groupId`
- *   (precisa ser de um serviço incluído no plano; turma cheia = lista de espera);
- * - `single`: serviço avulso (plano `single`).
+ *   (precisa ser de um serviço incluído no plano; turma cheia = lista de espera). Em
+ *   `additionalPlans` vão os demais planos do cliente, cada um com a sua turma opcional
+ *   (a mesma turma não pode aparecer duas vezes), e os serviços avulsos (`kind: "single"`,
+ *   sem turma) comprados junto;
+ * - `single`: serviço avulso (plano `single`);
+ * - cada plano pode levar o `document` para o cliente assinar e cada avulso, as sessões
+ *   (`appointments`) reservadas na mesma operação, como na contratação de plano;
+ * - `waitlist`: só a Lista de espera dos serviços cujas turmas escolhidas estão cheias (TW3).
+ *   No passo `plan`, `waitlist` leva os serviços de turma cheia junto dos planos com vaga.
  */
 export const guidedPatientInputSchema = z.discriminatedUnion("next", [
   z.object({ next: z.literal("none"), patient: patientInputSchema }),
@@ -300,39 +535,68 @@ export const guidedPatientInputSchema = z.discriminatedUnion("next", [
     patient: patientInputSchema,
     appointment: leadAppointmentInputSchema.omit({ visitType: true }),
   }),
+  z
+    .object({
+      next: z.literal("plan"),
+      patient: patientInputSchema,
+      plan: guidedSubscriptionPlanSchema,
+      groupId: guidedGroupIdSchema,
+      document: guidedDocumentSchema,
+      additionalPlans: z
+        .array(
+          z.union([
+            z.object({
+              plan: guidedSubscriptionPlanSchema,
+              groupId: guidedGroupIdSchema,
+              document: guidedDocumentSchema,
+              appointments: z.undefined().optional(),
+            }),
+            // Avulso não tem turma: `groupId` informado é recusado.
+            z.object({
+              plan: guidedAdditionalSingleSchema,
+              groupId: z.undefined().optional(),
+              document: guidedDocumentSchema,
+              appointments: guidedAppointmentsSchema,
+            }),
+          ]),
+        )
+        .max(9)
+        .optional(),
+      waitlist: guidedWaitlistSchema.optional(),
+    })
+    .refine(
+      (value) => {
+        const groupIds = [
+          value.groupId,
+          ...(value.additionalPlans ?? []).map((item) => item.groupId),
+        ].filter(Boolean);
+        return new Set(groupIds).size === groupIds.length;
+      },
+      {
+        message: "A mesma turma foi escolhida em mais de um plano.",
+        path: ["additionalPlans"],
+      },
+    ),
   z.object({
-    next: z.literal("plan"),
+    next: z.literal("waitlist"),
     patient: patientInputSchema,
-    plan: guidedPlanTermsSchema
-      .extend({ kind: z.enum(["recurring", "fixed_package"]) })
-      .refine(validPlanPeriod, planPeriodIssue)
-      .refine(isRecurringChargeValid, {
-        message: recurringSingleChargeIssue,
-        path: ["installments"],
-      })
-      .refine(renewablePlanPeriod, autoRenewIssue)
-      .refine(
-        (value) =>
-          value.services.reduce(
-            (sum, item) => sum + item.totalValueInCents,
-            0,
-          ) === value.totalValueInCents,
-        {
-          message: "A soma dos serviços deve corresponder ao valor total.",
-          path: ["totalValueInCents"],
-        },
-      ),
-    groupId: z
-      .uuid()
-      .optional()
-      .or(z.literal("").transform(() => undefined)),
+    waitlist: guidedWaitlistSchema.min(
+      1,
+      "Informe o serviço da lista de espera.",
+    ),
   }),
   z.object({
     next: z.literal("single"),
     patient: patientInputSchema,
     plan: guidedPlanTermsSchema
+      .refine(
+        (value) => isSingleSessionPlan(value.services),
+        singlePlanServicesIssue,
+      )
       .refine(validPlanPeriod, planPeriodIssue)
       .refine(renewablePlanPeriod, autoRenewIssue)
+      .refine(planPaymentRecurrenceChosen, planPaymentRecurrenceIssue)
+      .refine(autoRenewPaymentPartsValid, autoRenewPaymentPartsIssue)
       .refine(
         (value) =>
           value.services.reduce(
@@ -344,6 +608,8 @@ export const guidedPatientInputSchema = z.discriminatedUnion("next", [
           path: ["totalValueInCents"],
         },
       ),
+    document: guidedDocumentSchema,
+    appointments: guidedAppointmentsSchema,
   }),
 ]);
 
@@ -360,14 +626,20 @@ export const patientListQuerySchema = z.object({
   withoutGroup: queryBoolean,
 });
 
-export const leadStageSchema = z.enum([
+/** Etapas padrão do funil, na ordem. A clínica pode renomear, incluir e remover etapas;
+ * `won` (ganhos, só por conversão) e `lost` (perdidos, com motivo) são etapas de sistema. */
+export const defaultLeadStageKeys = [
   "new_contact",
   "contacted",
   "evaluation",
   "proposal",
   "won",
   "lost",
-]);
+] as const;
+/** Chave da etapa: as padrão acima ou `stage_<código>` para as criadas pela clínica. */
+export const leadStageSchema = z
+  .string()
+  .regex(/^[a-z][a-z0-9_]{0,39}$/, "Etapa do funil inválida.");
 
 /** Faixas etárias do relatório de clientes (`unknown` = sem data de nascimento). */
 export const clientAgeBandSchema = z.enum([
@@ -388,10 +660,104 @@ export const clientAgeBandLabels: Record<ClientAgeBand, string> = {
   unknown: "Sem data de nascimento",
 };
 
-/** Arquivo de clientes enviado para prévia/importação: CSV ou XLSX em base64 (até 2 MB decodificado). */
+/**
+ * Opção "Outros" do mapeamento: a coluna sem campo correspondente vai para `extraFields` com o
+ * título como chave. Pode ser escolhida em várias colunas (os demais campos, em uma só).
+ */
+export const PATIENT_IMPORT_EXTRA_FIELD = "extra";
+
+/** Telefones que podem vir com o DDD numa coluna separada da planilha. */
+export const patientImportPhoneFields = [
+  "phone",
+  "whatsapp",
+  "emergencyContactPhone",
+  "guardianPhone",
+] as const;
+
+/**
+ * Dado do sistema que uma coluna da planilha pode preencher na importação. Os `*AreaCode` são o
+ * DDD numa coluna própria, juntado ao número do telefone correspondente.
+ */
+export const patientImportFieldSchema = z.enum(
+  [
+    "fullName",
+    "cpf",
+    "phone",
+    "whatsapp",
+    "email",
+    "birthDate",
+    "tags",
+    "notes",
+    "emergencyContactName",
+    "emergencyContactPhone",
+    ...patientProfileSchema.keyof().options,
+    "phoneAreaCode",
+    "whatsappAreaCode",
+    "emergencyContactPhoneAreaCode",
+    "guardianPhoneAreaCode",
+    PATIENT_IMPORT_EXTRA_FIELD,
+  ],
+  "Campo de importação desconhecido.",
+);
+
+export const patientImportFields = patientImportFieldSchema.options;
+
+/**
+ * Campos sem os quais o cliente não é cadastrado (marcados na tela de importação). O CPF pode
+ * faltar na planilha (B6-05): o cliente entra com a etiqueta automática "Falta CPF".
+ */
+export const patientImportRequiredFields = ["fullName", "phone"] as const;
+
+/** Nome pt-BR de cada campo na tela de mapeamento das colunas. */
+export const patientImportFieldLabels: Record<
+  z.infer<typeof patientImportFieldSchema>,
+  string
+> = {
+  fullName: "Nome",
+  cpf: "CPF",
+  phone: "Telefone",
+  whatsapp: "WhatsApp",
+  email: "E-mail",
+  birthDate: "Nascimento",
+  tags: "Etiquetas",
+  notes: "Observações",
+  emergencyContactName: "Contato de emergência",
+  emergencyContactPhone: "Telefone de emergência",
+  ...patientProfileLabels,
+  phoneAreaCode: "DDD do telefone",
+  whatsappAreaCode: "DDD do WhatsApp",
+  emergencyContactPhoneAreaCode: "DDD do telefone de emergência",
+  guardianPhoneAreaCode: "DDD do telefone do responsável",
+  extra: EXTRA_FIELDS_LABEL,
+};
+
+/**
+ * Arquivo de clientes enviado para prévia/importação: CSV ou XLSX em base64 (até 2 MB decodificado).
+ * `mapping[i]` diz que dado do sistema a coluna `i` da planilha preenche (`null` = não importar);
+ * ausente = colunas reconhecidas pelo título. Um campo não pode estar em duas colunas, exceto
+ * "Outros" (`extra`).
+ */
 export const patientImportFileSchema = z.object({
   fileName: z.string().trim().min(1).max(255),
   contentBase64: z.string().min(1),
+  mapping: z
+    .array(patientImportFieldSchema.nullable())
+    .max(200)
+    .optional()
+    .superRefine((mapping, context) => {
+      const seen = new Set<string>();
+      for (const field of mapping ?? []) {
+        if (!field || field === PATIENT_IMPORT_EXTRA_FIELD) continue;
+        if (seen.has(field)) {
+          context.addIssue({
+            code: "custom",
+            message: `O campo ${patientImportFieldLabels[field]} foi escolhido em mais de uma coluna.`,
+          });
+          return;
+        }
+        seen.add(field);
+      }
+    }),
 });
 
 export const patientProfileValueLabels = {
@@ -399,6 +765,43 @@ export const patientProfileValueLabels = {
   male: "Masculino",
   other: "Outro",
   undisclosed: "Prefere não informar",
-  fixed: "Fixo",
-  rotating: "Rotativo",
 } as const;
+
+/**
+ * Campos do cadastro comparados ao registrar a edição do cliente no Histórico
+ * (`patients.updated`), com o rótulo exibido em cada mudança.
+ */
+export const patientAuditLabels: Record<string, AuditFieldLabel> = {
+  fullName: "Nome",
+  cpf: "CPF",
+  email: "E-mail",
+  phone: "Telefone",
+  whatsapp: "WhatsApp",
+  birthDate: "Data de nascimento",
+  emergencyContactName: "Contato de emergência",
+  emergencyContactPhone: "Telefone de emergência",
+  notes: "Observações",
+  tags: "Etiquetas",
+  ...patientProfileLabels,
+  residenceType: {
+    label: patientProfileLabels.residenceType,
+    format: (value) =>
+      patientResidenceTypeLabels[
+        value as keyof typeof patientResidenceTypeLabels
+      ] ?? null,
+  },
+  gender: {
+    label: patientProfileLabels.gender,
+    format: (value) =>
+      patientProfileValueLabels[
+        value as keyof typeof patientProfileValueLabels
+      ] ?? null,
+  },
+  discount: {
+    label: "Desconto",
+    format: (value) =>
+      patientDiscountDescription(
+        patientDiscountSchema.safeParse(value).data ?? null,
+      ),
+  },
+};

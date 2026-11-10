@@ -1,7 +1,7 @@
 import { CommissionReconciliationModal } from "./CommissionReconciliationModal";
 import {
   matchesFinancialEntry,
-  settlementBreakdown,
+  saoPauloToday,
   type SettlementAdjustments,
   type FinancialEntryFilter,
 } from "@crm/contracts";
@@ -11,16 +11,19 @@ import { PatientContextNotice } from "../../shared/components/PatientContextNoti
 import { ExternalOperationsPanel } from "./ExternalOperationsPanel";
 import { FinanceClassificationPanel } from "./FinanceClassificationPanel";
 import type {
-  CommissionEntry,
   FinancialWorkspace,
+  Payable,
   PaymentTiming,
   PaymentMethod,
+  PaymentPart,
   PaymentReceipt,
   Professional,
+  ReceiptSignatureShare,
   Receivable,
 } from "@crm/contracts";
-import { Building2, Plus, Tags } from "lucide-react";
+import { Building2, Plus, Search, Tags } from "lucide-react";
 import { useEffect, useState } from "react";
+import { useLocation, useSearchParams } from "react-router-dom";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
 import { ErrorBanner } from "../../shared/components/ErrorBanner";
@@ -34,19 +37,39 @@ import {
 } from "./CommissionRuleModal";
 import { CommissionsList } from "./CommissionsList";
 import { DailyCashSection } from "./DailyCashSection";
+import { PayrollSection } from "./PayrollSection";
 import { FinanceForecastSection } from "./FinanceForecastSection";
 import { FinanceRegistryModal } from "./FinanceRegistryModal";
-import { InventorySection } from "./InventorySection";
-import { PayableModal } from "./PayableModal";
+import { PayableAmountModal } from "./PayableAmountModal";
+import { NewExpenseModal } from "./NewExpenseModal";
+import type { ExpenseKind } from "./expense-kind";
 import { PayablesList } from "./PayablesList";
+import { PayablesSummary } from "./PayablesSummary";
+import {
+  hasEntryFilter,
+  isReceiptSignatureShare,
+  matchesPayableSearch,
+} from "./model";
 import { ReceiptModal } from "./ReceiptModal";
+import { ReceiptSignatureWhatsapp } from "./ReceiptSignatureWhatsapp";
 import { ReceivableAdjustModal } from "./ReceivableAdjustModal";
+import { ReceivableContactModal } from "./ReceivableContactModal";
 import { ReceivablesList } from "./ReceivablesList";
+import {
+  ReversePaymentModal,
+  type ReversePaymentTarget,
+} from "./ReversePaymentModal";
 import { RecurringPayablesSection } from "./RecurringPayablesSection";
 import { RenegotiateModal } from "./RenegotiateModal";
 import { SettleModal } from "./SettleModal";
+import { PaymentProofsModal } from "./PaymentProofs";
+import { proofFailureMessage, uploadPaymentProofs } from "./payment-proofs";
 import { useToast } from "../../shared/feedback/toast-context";
 import { useDataVersion } from "../../shared/hooks/useDataVersion";
+import {
+  receivableSettledMessage,
+  receivableSettleTarget,
+} from "./settle-target";
 import type { ReceivableFilter, SettleTarget } from "./types";
 
 export function FinancePage() {
@@ -72,22 +95,68 @@ export function FinancePage() {
     };
   }, []);
   const [data, setData] = useState<FinancialWorkspace | null>(null);
+  // O sino abre direto as contas a pagar (`?aba=contas-a-pagar`).
+  const [searchParams] = useSearchParams();
   const [tab, setTab] = useState<
     | "receivables"
     | "payables"
     | "commissions"
+    | "payroll"
     | "dailyCash"
     | "forecast"
-    | "inventory"
-  >("receivables");
+    | "entries"
+    | "externalOperations"
+  >(() =>
+    searchParams.get("aba") === "contas-a-pagar" ? "payables" : "receivables",
+  );
+  // Já na página, cada clique no sino é uma navegação nova: volta à aba pedida.
+  const location = useLocation();
+  const [seenLocation, setSeenLocation] = useState(location.key);
+  // `&visao=fixas` abre direto as despesas fixas (aviso de vencimento no sino).
+  const requestedPayablesView = () =>
+    searchParams.get("visao") === "fixas" ? "recurring" : "bills";
+  const [payablesView, setPayablesView] = useState<"bills" | "recurring">(
+    requestedPayablesView,
+  );
+  const [payableSearch, setPayableSearch] = useState("");
+  // `?recibo=nao-assinado` (aviso de recibos no sino, RC5) liga o recorte "Recibo não assinado".
+  const unsignedRequested = () => searchParams.get("recibo") === "nao-assinado";
+  const [unsignedReceiptsOnly, setUnsignedReceiptsOnly] =
+    useState(unsignedRequested);
+  if (location.key !== seenLocation) {
+    setSeenLocation(location.key);
+    if (searchParams.get("aba") === "contas-a-pagar") {
+      setTab("payables");
+      setPayablesView(requestedPayablesView());
+    }
+    if (unsignedRequested()) {
+      setTab("receivables");
+      setUnsignedReceiptsOnly(true);
+    }
+  }
   const [professionals, setProfessionals] = useState<Professional[]>([]);
   const [selectedReceivables, setSelectedReceivables] = useState<string[]>([]);
   const [receivableFilter, setReceivableFilter] =
     useState<ReceivableFilter>("all");
   const [receivableSearch, setReceivableSearch] = useState("");
   const [settling, setSettling] = useState<SettleTarget | null>(null);
+  const [viewingProofs, setViewingProofs] = useState<{
+    entity: "receivable" | "payable";
+    id: string;
+    subtitle: string;
+    settled: boolean;
+  } | null>(null);
   const [payableModal, setPayableModal] = useState(false);
+  // Despesa fixa criada pelo "Nova despesa": a lista de despesas fixas recarrega.
+  const [recurringVersion, setRecurringVersion] = useState(0);
+  const [informingPayable, setInformingPayable] = useState<Payable | null>(
+    null,
+  );
   const [adjusting, setAdjusting] = useState<Receivable | null>(null);
+  const [contacting, setContacting] = useState<{
+    receivable: Receivable;
+    overdue: boolean;
+  } | null>(null);
   const [registry, setRegistry] = useState<"category" | "costCenter" | null>(
     null,
   );
@@ -96,9 +165,34 @@ export function FinancePage() {
     string | null
   >(null);
   const [commissionRuleOpen, setCommissionRuleOpen] = useState(false);
-  const [receipt, setReceipt] = useState<PaymentReceipt | null>(null);
+  const [receipt, setReceipt] = useState<{
+    receivableId: string;
+    receipt: PaymentReceipt;
+    share: ReceiptSignatureShare | null;
+  } | null>(null);
+  // Recibo da baixa recém-feita, pronto para o "Enviar recibo pelo WhatsApp" (RC3).
+  const [receiptToSend, setReceiptToSend] =
+    useState<ReceiptSignatureShare | null>(null);
   const [error, setError] = useState("");
   const canManage = canEdit("finance");
+  const canSendReceipt = canManage && can("finance.receive");
+  /** Recibo para assinatura da parcela; sem recibo (ou sem permissão) = `null`. */
+  async function loadReceiptShare(receivableId: string) {
+    if (!canSendReceipt) return null;
+    try {
+      const share: unknown = await api.receiptSignatureShare(receivableId);
+      return isReceiptSignatureShare(share) ? share : null;
+    } catch {
+      return null;
+    }
+  }
+  // Tipos do "Nova despesa" que o perfil pode cadastrar (pontual e/ou fixa).
+  const expenseKinds: ExpenseKind[] = canManage
+    ? [
+        ...(can("finance.payables_create") ? (["single"] as const) : []),
+        ...(can("finance.recurring_create") ? (["recurring"] as const) : []),
+      ]
+    : [];
   async function reload() {
     setData(await api.financialWorkspace());
   }
@@ -126,50 +220,65 @@ export function FinancePage() {
     };
   }, [financeVersion]);
   const toast = useToast();
-  async function reverseReceivable(id: string) {
+  // Estorno só depois da confirmação (valor, forma e "não pode ser desfeita").
+  const [reversing, setReversing] = useState<ReversePaymentTarget | null>(null);
+  function askReverse(kind: ReversePaymentTarget["kind"], id: string) {
+    const item =
+      kind === "receivable"
+        ? data?.summary.receivables.find((entry) => entry.id === id)
+        : data?.payables.find((entry) => entry.id === id);
+    if (!item) return;
+    setReversing({
+      kind,
+      id,
+      description: item.description,
+      amountInCents: item.amountInCents,
+      paymentMethod: item.paymentMethod,
+      paymentInstallments:
+        "paymentInstallments" in item ? item.paymentInstallments : undefined,
+      paymentParts: item.paymentParts,
+    });
+  }
+  async function reverse(target: ReversePaymentTarget) {
     setError("");
-    try {
-      await api.reverseReceivable(id);
+    if (target.kind === "receivable") {
+      await api.reverseReceivable(target.id);
       toast.success("Pagamento estornado.");
       // A parcela mudou de situação: a seleção antiga não vale mais para renegociar.
       setSelectedReceivables([]);
-      await reload();
-    } catch (cause) {
-      setError((cause as Error).message);
-    }
-  }
-  async function reversePayable(id: string) {
-    setError("");
-    try {
-      await api.reversePayable(id);
+    } else {
+      await api.reversePayable(target.id);
       toast.success("Pagamento da conta estornado.");
-      await reload();
-    } catch (cause) {
-      setError((cause as Error).message);
     }
+    setReversing(null);
+    await reload();
   }
   async function settle(
     target: SettleTarget,
     method: PaymentMethod,
     timing?: PaymentTiming,
     adjustments?: SettlementAdjustments,
+    proofs: File[] = [],
+    payments?: PaymentPart[],
   ) {
     if (target.kind === "receivable")
       await api.settleReceivable(target.id, method, timing, adjustments);
-    else await api.settlePayable(target.id, method, timing);
-    const balance =
-      target.kind === "receivable" && adjustments
-        ? settlementBreakdown(target.amountInCents, adjustments).balanceInCents
-        : 0;
+    else await api.settlePayable(target.id, method, timing, payments);
+    // A baixa já está registrada: falha de envio só avisa (dá para anexar depois).
+    const failedProofs = proofs.length
+      ? await uploadPaymentProofs(target.kind, target.id, proofs)
+      : [];
     toast.success(
-      target.kind !== "receivable"
-        ? "Conta paga."
-        : balance > 0
-          ? `Pagamento parcial recebido. O saldo de ${currency.format(balance / 100)} virou uma nova parcela.`
-          : "Pagamento recebido.",
+      target.kind === "receivable"
+        ? receivableSettledMessage(target.amountInCents, adjustments)
+        : "Conta paga.",
     );
+    if (failedProofs.length) toast.error(proofFailureMessage(failedProofs));
     // A baixa foi feita: fecha o modal e, se o recarregamento falhar, avisa na página.
     setSettling(null);
+    setReceiptToSend(null);
+    if (target.kind === "receivable")
+      void loadReceiptShare(target.id).then(setReceiptToSend);
     if (target.kind === "receivable") setSelectedReceivables([]);
     setError("");
     try {
@@ -234,21 +343,6 @@ export function FinancePage() {
     setSelectedReceivables([]);
     await reloadAfterAction();
   }
-  async function toggleCommission(item: CommissionEntry) {
-    setError("");
-    try {
-      if (item.status === "paid") await api.reverseCommission(item.id);
-      else await api.settleCommission(item.id);
-      toast.success(
-        item.status === "paid"
-          ? "Pagamento da comissão estornado."
-          : "Comissão paga.",
-      );
-      await reload();
-    } catch (cause) {
-      setError((cause as Error).message);
-    }
-  }
   async function generateCommissions() {
     setError("");
     try {
@@ -266,6 +360,16 @@ export function FinancePage() {
     setCommissionRuleOpen(false);
     await reloadAfterAction();
   }
+  // Descontos dados na baixa das parcelas pagas neste mês (fuso da clínica).
+  const thisMonth = saoPauloToday().slice(0, 7);
+  const settlementDiscountThisMonth = (data?.summary.receivables ?? [])
+    .filter(
+      (item) =>
+        item.status === "paid" &&
+        item.paidAt &&
+        saoPauloToday(new Date(item.paidAt)).startsWith(thisMonth),
+    )
+    .reduce((sum, item) => sum + (item.settlementDiscountInCents ?? 0), 0);
   return (
     <>
       <PatientContextNotice
@@ -279,7 +383,6 @@ export function FinancePage() {
         }
       />
       <PageHeader
-        eyebrow="Saúde financeira"
         title="Financeiro"
         description="Controle entradas, despesas, pagamentos e fluxo de caixa."
         action={
@@ -301,7 +404,7 @@ export function FinancePage() {
                   <Building2 size={18} /> Novo centro de custo
                 </button>
               )}
-              {can("finance.payables_create") && (
+              {expenseKinds.length > 0 && (
                 <button
                   className="primary-button"
                   onClick={() => setPayableModal(true)}
@@ -315,6 +418,27 @@ export function FinancePage() {
       />
       {!canManage && <ReadOnlyNotice module="finance" />}
       {error && <ErrorBanner error={error} />}
+      {receiptToSend && (
+        <section
+          className="success-banner receipt-send-notice"
+          aria-label="Recibo da baixa"
+        >
+          <span>{`Recibo de ${currency.format(receiptToSend.amountInCents / 100)} pronto para o cliente assinar.`}</span>
+          <div className="receipt-send-actions">
+            <ReceiptSignatureWhatsapp
+              share={receiptToSend}
+              onSent={() => void reloadAfterAction()}
+            />
+            <button
+              type="button"
+              className="secondary-button"
+              onClick={() => setReceiptToSend(null)}
+            >
+              Dispensar
+            </button>
+          </div>
+        </section>
+      )}
       {!data ? (
         <LoadingBlock />
       ) : (
@@ -337,6 +461,8 @@ export function FinancePage() {
               <small className="metric-note">
                 Parcelas de clientes com baixa neste mês, descontados os
                 estornos.
+                {settlementDiscountThisMonth > 0 &&
+                  ` Descontos na baixa: ${currency.format(settlementDiscountThisMonth / 100)}.`}
               </small>
             </article>
             <article className="metric-card">
@@ -388,6 +514,14 @@ export function FinancePage() {
                 Comissões
                 <span className="tab-count">{data.commissions.length}</span>
               </button>
+              {can("finance.payroll_view") && (
+                <button
+                  className={`tab-button ${tab === "payroll" ? "active" : ""}`}
+                  onClick={() => setTab("payroll")}
+                >
+                  Folha
+                </button>
+              )}
               <button
                 className={`tab-button ${tab === "dailyCash" ? "active" : ""}`}
                 onClick={() => setTab("dailyCash")}
@@ -400,27 +534,36 @@ export function FinancePage() {
               >
                 Previsão
               </button>
-              {can("patients.inventory_view") && (
+              <button
+                className={`tab-button ${tab === "entries" ? "active" : ""}`}
+                onClick={() => setTab("entries")}
+              >
+                Lançamentos
+              </button>
+              {can("finance.external_records_view") && (
                 <button
-                  className={`tab-button ${tab === "inventory" ? "active" : ""}`}
-                  onClick={() => setTab("inventory")}
+                  className={`tab-button ${tab === "externalOperations" ? "active" : ""}`}
+                  onClick={() => setTab("externalOperations")}
                 >
-                  Estoque
+                  Documentos fiscais
                 </button>
               )}
             </div>
           </section>
-          {tab === "dailyCash" ? (
+          {tab === "payroll" ? (
+            <PayrollSection />
+          ) : tab === "dailyCash" ? (
             <DailyCashSection />
           ) : tab === "forecast" ? (
             <FinanceForecastSection />
-          ) : tab === "inventory" ? (
-            <InventorySection />
+          ) : tab === "entries" ? (
+            <FinanceClassificationPanel workspace={data} onChanged={reload} />
+          ) : tab === "externalOperations" ? (
+            <ExternalOperationsPanel workspace={data} />
           ) : tab === "receivables" ? (
             <section className="panel finance-panel">
               <div className="panel-head">
                 <div>
-                  <span className="eyebrow">Entradas</span>
                   <h2>Parcelas</h2>
                 </div>
               </div>
@@ -444,71 +587,162 @@ export function FinancePage() {
                 search={receivableSearch}
                 selected={selectedReceivables}
                 onFilterChange={changeReceivableFilter}
+                unsignedOnly={unsignedReceiptsOnly}
+                onUnsignedOnlyChange={setUnsignedReceiptsOnly}
                 onSearchChange={changeReceivableSearch}
                 onSelectedChange={setSelectedReceivables}
                 onRenegotiate={() => setRenegotiating(true)}
                 onSettle={(item) =>
-                  setSettling({
-                    kind: "receivable",
+                  setSettling(
+                    receivableSettleTarget(item, data.summary.receivables),
+                  )
+                }
+                onReverse={(id) => askReverse("receivable", id)}
+                onAdjust={(item) => setAdjusting(item)}
+                onContact={(item, overdue) =>
+                  setContacting({ receivable: item, overdue })
+                }
+                proofIds={
+                  new Set(data.paymentProofEntityIds?.receivables ?? [])
+                }
+                onProofs={(item) =>
+                  setViewingProofs({
+                    entity: "receivable",
                     id: item.id,
-                    title: item.patientName,
-                    description: item.description,
-                    amountInCents: item.amountInCents,
-                    dueDate: item.dueDate,
+                    subtitle: `${item.patientName} · ${item.description}`,
+                    settled: item.status === "paid",
                   })
                 }
-                onReverse={(id) => void reverseReceivable(id)}
-                onAdjust={(item) => setAdjusting(item)}
                 onReceipt={(id) =>
-                  void api
-                    .paymentReceipt(id)
-                    .then(setReceipt)
+                  void Promise.all([
+                    api.paymentReceipt(id),
+                    loadReceiptShare(id),
+                  ])
+                    .then(([receipt, share]) =>
+                      setReceipt({ receivableId: id, receipt, share }),
+                    )
                     .catch((cause: Error) => setError(cause.message))
                 }
               />
             </section>
           ) : tab === "payables" ? (
-            <section className="panel finance-panel">
+            <section
+              className={`panel finance-panel payables-panel ${payablesView === "recurring" ? "recurring-view" : ""}`}
+            >
               <div className="panel-head">
                 <div>
-                  <span className="eyebrow">Saídas</span>
                   <h2>Contas a pagar</h2>
-                  <p className="panel-help">
-                    Despesas da clínica pelo vencimento, em aberto e já pagas.
-                    As despesas fixas logo abaixo geram uma conta por mês
-                    automaticamente.
+                  <p className="panel-context">
+                    Despesas da clínica por situação e vencimento.
                   </p>
                 </div>
+                <div
+                  className="segmented"
+                  role="group"
+                  aria-label="Visão das contas a pagar"
+                >
+                  <button
+                    type="button"
+                    className="segment-button"
+                    aria-pressed={payablesView === "bills"}
+                    onClick={() => setPayablesView("bills")}
+                  >
+                    Contas
+                  </button>
+                  <button
+                    type="button"
+                    className="segment-button"
+                    aria-pressed={payablesView === "recurring"}
+                    onClick={() => setPayablesView("recurring")}
+                  >
+                    Despesas fixas
+                  </button>
+                </div>
               </div>
-              <FinanceEntryFilters
-                workspace={data}
-                value={expenseFilters}
-                onChange={setExpenseFilters}
-                payables
-              />
-              <PayablesList
-                payables={data.payables.filter((item) =>
-                  matchesFinancialEntry(item, expenseFilters, timezone),
-                )}
-                canManage={canManage}
-                onCreate={() => setPayableModal(true)}
-                onReverse={(id) => void reversePayable(id)}
-                onSettle={(item) =>
-                  setSettling({
-                    kind: "payable",
-                    id: item.id,
-                    title: item.description,
-                    description: item.supplier || item.categoryName,
-                    amountInCents: item.amountInCents,
-                  })
-                }
-              />
+              {payablesView === "recurring" ? (
+                <RecurringPayablesSection
+                  refreshKey={recurringVersion}
+                  editable={canManage}
+                  workspace={data}
+                  onGenerated={reload}
+                />
+              ) : (
+                <>
+                  {data.payables.length > 0 && (
+                    <>
+                      <PayablesSummary
+                        payables={data.payables}
+                        today={saoPauloToday()}
+                      />
+                      <div className="payables-toolbar">
+                        <div className="search-box">
+                          <Search size={18} />
+                          <input
+                            type="search"
+                            aria-label="Buscar conta a pagar"
+                            placeholder="Buscar por descrição ou fornecedor"
+                            value={payableSearch}
+                            onChange={(event) =>
+                              setPayableSearch(event.target.value)
+                            }
+                          />
+                        </div>
+                        <FinanceEntryFilters
+                          workspace={data}
+                          value={expenseFilters}
+                          onChange={setExpenseFilters}
+                          payables
+                        />
+                      </div>
+                    </>
+                  )}
+                  <PayablesList
+                    payables={data.payables.filter(
+                      (item) =>
+                        matchesFinancialEntry(item, expenseFilters, timezone) &&
+                        matchesPayableSearch(item, payableSearch),
+                    )}
+                    filtered={
+                      payableSearch.trim() !== "" ||
+                      hasEntryFilter(expenseFilters)
+                    }
+                    canManage={canManage}
+                    onCreate={() => setPayableModal(true)}
+                    onReverse={(id) => askReverse("payable", id)}
+                    onProofs={(item) =>
+                      setViewingProofs({
+                        entity: "payable",
+                        id: item.id,
+                        subtitle: [
+                          item.description,
+                          item.supplier || item.categoryName,
+                        ]
+                          .filter(Boolean)
+                          .join(" · "),
+                        settled: item.status === "paid",
+                      })
+                    }
+                    proofIds={
+                      new Set(data.paymentProofEntityIds?.payables ?? [])
+                    }
+                    onSetAmount={setInformingPayable}
+                    onSettle={(item) =>
+                      setSettling({
+                        kind: "payable",
+                        id: item.id,
+                        title: item.description,
+                        description: item.supplier || item.categoryName,
+                        amountInCents: item.amountInCents,
+                      })
+                    }
+                  />
+                </>
+              )}
             </section>
           ) : (
             <section className="panel finance-panel">
               <div className="panel-head">
                 <div>
-                  <span className="eyebrow">Profissionais</span>
                   <h2>Comissões</h2>
                   <p className="panel-help">
                     Quanto cada profissional tem a receber pelos atendimentos
@@ -519,6 +753,10 @@ export function FinancePage() {
                     Para quem tem usuário ligado, vale a comissão definida no
                     usuário (Configurações › Usuários); a regra daqui só conta
                     enquanto o usuário não tiver uma.
+                  </p>
+                  <p className="panel-help">
+                    O pagamento das comissões é feito pela folha de pagamento
+                    (aba Folha), junto com o salário de cada colaborador.
                   </p>
                 </div>
                 {canManage && (
@@ -552,24 +790,9 @@ export function FinancePage() {
                     : undefined
                 }
                 commissions={data.commissions}
-                canManage={canManage}
-                onToggle={(item) => void toggleCommission(item)}
               />
             </section>
           )}
-          {tab === "payables" && (
-            <RecurringPayablesSection
-              editable={canManage}
-              workspace={data}
-              onGenerated={reload}
-            />
-          )}
-        </>
-      )}
-      {data && (
-        <>
-          <FinanceClassificationPanel workspace={data} onChanged={reload} />
-          <ExternalOperationsPanel workspace={data} />
         </>
       )}
       {reconcilingCommission && (
@@ -580,18 +803,64 @@ export function FinancePage() {
         />
       )}
       {payableModal && data && (
-        <PayableModal
+        <NewExpenseModal
           workspace={data}
+          currentMonth={saoPauloToday().slice(0, 7)}
+          kinds={expenseKinds}
           onClose={() => setPayableModal(false)}
-          onCreated={() => {
-            toast.success("Despesa registrada.");
+          onCreated={(kind) => {
+            toast.success(
+              kind === "single"
+                ? "Despesa registrada."
+                : "Despesa fixa criada.",
+            );
             setPayableModal(false);
-            void reload();
+            // O workspace gera as contas do mês da despesa fixa; a lista vem depois.
+            void reload()
+              .then(() => {
+                if (kind === "recurring") setRecurringVersion((v) => v + 1);
+              })
+              .catch((cause: Error) => setError(cause.message));
+          }}
+        />
+      )}
+      {informingPayable && (
+        <PayableAmountModal
+          payable={informingPayable}
+          onClose={() => setInformingPayable(null)}
+          onSaved={() => {
+            toast.success("Valor do mês informado.");
+            setInformingPayable(null);
+            void reload().catch((cause: Error) => setError(cause.message));
           }}
         />
       )}
       {receipt && (
-        <ReceiptModal receipt={receipt} onClose={() => setReceipt(null)} />
+        <ReceiptModal
+          receipt={receipt.receipt}
+          share={receipt.share}
+          tracking={
+            data?.summary.receivables.find(
+              (item) => item.id === receipt.receivableId,
+            )?.receiptSignature
+          }
+          onSent={() => void reloadAfterAction()}
+          onClose={() => setReceipt(null)}
+        />
+      )}
+      {contacting && (
+        <ReceivableContactModal
+          receivable={contacting.receivable}
+          overdue={contacting.overdue}
+          onClose={() => setContacting(null)}
+        />
+      )}
+      {reversing && (
+        <ReversePaymentModal
+          target={reversing}
+          onConfirm={() => reverse(reversing)}
+          onClose={() => setReversing(null)}
+        />
       )}
       {adjusting && (
         <ReceivableAdjustModal
@@ -625,12 +894,29 @@ export function FinancePage() {
           onConfirm={createCommissionRule}
         />
       )}
+      {viewingProofs && (
+        <PaymentProofsModal
+          entity={viewingProofs.entity}
+          entityId={viewingProofs.id}
+          subtitle={viewingProofs.subtitle}
+          settled={viewingProofs.settled}
+          canAttach={
+            canManage &&
+            can(
+              viewingProofs.entity === "receivable"
+                ? "finance.receive"
+                : "finance.payables_pay",
+            )
+          }
+          onClose={() => setViewingProofs(null)}
+        />
+      )}
       {settling && (
         <SettleModal
           target={settling}
           onClose={() => setSettling(null)}
-          onConfirm={(method, timing, adjustments) =>
-            settle(settling, method, timing, adjustments)
+          onConfirm={(method, timing, adjustments, proofs) =>
+            settle(settling, method, timing, adjustments, proofs)
           }
         />
       )}

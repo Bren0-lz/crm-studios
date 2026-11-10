@@ -55,6 +55,14 @@
     "./relationship": {
       "types": "./src/relationship/index.ts",
       "default": "./src/relationship/index.ts"
+    },
+    "./branches": {
+      "types": "./src/branches/index.ts",
+      "default": "./src/branches/index.ts"
+    },
+    "./waitlist": {
+      "types": "./src/waitlist/index.ts",
+      "default": "./src/waitlist/index.ts"
     }
   },
   "scripts": {

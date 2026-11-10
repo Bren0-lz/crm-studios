@@ -1,6 +1,9 @@
 import {
+  maxInstallmentsLimit,
   planPeriodMonths,
   planSessionsForPeriod,
+  isSinglePlanTemplate,
+  isSingleSessionPlan,
   planTemplateInputSchema,
   planTypeKind,
   planTypeLabels,
@@ -8,8 +11,10 @@ import {
   type PlanType,
   type Service,
 } from "@crm/contracts";
+import { Plus, Trash2 } from "lucide-react";
 import { useState, type FormEvent } from "react";
 import { api } from "../../api";
+import { useAuthorization } from "../../authorization-context";
 import { useMissingFields } from "../../shared/components/MissingFields";
 import { Modal, ModalCancelButton } from "../../shared/components/Modal";
 import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
@@ -19,24 +24,51 @@ import {
   reaisToCents,
 } from "../../shared/lib/formatting";
 import { MoneyInput } from "../../shared/components/MoneyInput";
+import { QuickServiceModal } from "./QuickServiceModal";
+import { ServicePicker } from "./ServicePicker";
 
 export function PlanTemplateModal({
   item,
-  services,
+  services: loadedServices,
   onClose,
   onSaved,
+  onServiceCreated,
 }: {
   item: PlanTemplate | null;
   services: Service[];
   onClose: () => void;
   onSaved: (item: PlanTemplate) => void;
+  /** Serviço cadastrado pelo atalho do plano (a lista de quem abriu também atualiza). */
+  onServiceCreated?: (service: Service) => void;
 }) {
+  const { can } = useAuthorization();
+  // Atalho para cadastrar serviço sem sair do plano; a lista já mostra o novo serviço.
+  const [createdServices, setCreatedServices] = useState<Service[]>([]);
+  const services = [
+    ...loadedServices,
+    ...createdServices.filter(
+      (created) => !loadedServices.some((item) => item.id === created.id),
+    ),
+  ].sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
+  // Linha do plano que receberá o serviço cadastrado no atalho.
+  const [creatingFor, setCreatingFor] = useState<number | null>(null);
+  // Avulso é uma sessão de um serviço (AP5): modelo antigo de várias sessões é ajustado ao editar.
+  const storedSingle = item ? isSinglePlanTemplate(item) : false;
+  const legacySessions =
+    storedSingle && item && !isSingleSessionPlan(item.services)
+      ? item.services.reduce((sum, entry) => sum + entry.totalSessions, 0)
+      : 0;
   const [form, setForm] = useState({
     name: item?.name ?? "",
     value: item ? centsToMoneyText(item.totalValueInCents) : "",
     planType: item?.planType ?? (item ? "" : "monthly"),
+    acceptsInstallments: item?.maxInstallments !== 1,
+    maxInstallments:
+      item?.maxInstallments && item.maxInstallments > 1
+        ? String(item.maxInstallments)
+        : "",
     services: item?.services.length
-      ? item.services.map((entry) => ({
+      ? item.services.slice(0, storedSingle ? 1 : undefined).map((entry) => ({
           serviceId: entry.serviceId,
           sessions: String(entry.totalSessions),
           sessionsPerWeek: entry.sessionsPerWeek
@@ -50,13 +82,21 @@ export function PlanTemplateModal({
   const [error, setError] = useState("");
   const dirty = useFormDirty(form);
   const months = planPeriodMonths(form.planType as PlanType);
+  const single = form.planType ? form.planType === "single" : storedSingle;
+  // Mensal é recorrente: uma cobrança por ciclo, sem parcelamento a configurar.
+  const recurring =
+    (form.planType
+      ? planTypeKind(form.planType as PlanType)
+      : (item?.kind ?? null)) === "recurring";
   const periodSessions = (entry: (typeof form.services)[number]) =>
-    months
-      ? planSessionsForPeriod(
-          form.planType as PlanType,
-          Number(entry.sessionsPerWeek),
-        )
-      : Number(entry.sessions);
+    single
+      ? 1
+      : months
+        ? planSessionsForPeriod(
+            form.planType as PlanType,
+            Number(entry.sessionsPerWeek),
+          )
+        : Number(entry.sessions);
   const total = reaisToCents(form.value);
   const sum = form.services.reduce(
     (value, entry) => value + (reaisToCents(entry.value) ?? 0),
@@ -67,10 +107,19 @@ export function PlanTemplateModal({
     [
       form.name.trim().length < 3 && "Nome do plano (pelo menos 3 caracteres)",
       !item && !form.planType && "Tipo de plano",
+      !recurring &&
+        form.acceptsInstallments &&
+        form.maxInstallments !== "" &&
+        !(
+          Number(form.maxInstallments) >= 2 &&
+          Number(form.maxInstallments) <= maxInstallmentsLimit
+        ) &&
+        `Máximo de parcelas (de 2 a ${maxInstallmentsLimit})`,
       total === null && "Valor total",
       ...form.services.flatMap((entry, index) => [
         !entry.serviceId && `Serviço ${index + 1}`,
-        (months ? !entry.sessionsPerWeek : !entry.sessions) &&
+        !single &&
+          (months ? !entry.sessionsPerWeek : !entry.sessions) &&
           (months
             ? `Sessões por semana do serviço ${index + 1}`
             : `Sessões do serviço ${index + 1}`),
@@ -98,6 +147,13 @@ export function PlanTemplateModal({
       name: form.name,
       totalValueInCents: total,
       planType: form.planType || null,
+      maxInstallments: recurring
+        ? null
+        : !form.acceptsInstallments
+          ? 1
+          : form.maxInstallments
+            ? Number(form.maxInstallments)
+            : null,
       kind: form.planType
         ? planTypeKind(form.planType as PlanType)
         : (item?.kind ?? null),
@@ -130,120 +186,218 @@ export function PlanTemplateModal({
     }
   }
   return (
-    <Modal
-      title={item ? "Editar plano do catálogo" : "Cadastrar plano"}
-      subtitle="Configure o tipo, os serviços, a frequência e o valor total do período."
-      busy={saving}
-      dirty={dirty}
-      onClose={onClose}
-    >
-      <form className="form-grid" onSubmit={(event) => void submit(event)}>
-        <label className="span-2">
-          Nome do plano
-          <input
-            required
-            minLength={3}
-            maxLength={120}
-            value={form.name}
-            onChange={(event) => setForm({ ...form, name: event.target.value })}
-          />
-        </label>
-        <label>
-          Tipo de plano
-          <select
-            required={!item}
-            value={form.planType}
-            onChange={(event) =>
-              setForm({ ...form, planType: event.target.value })
-            }
-          >
-            {item && !item.planType && (
-              <option value="">Manter modelo existente</option>
-            )}
-            {Object.entries(planTypeLabels).map(([type, label]) => (
-              <option value={type} key={type}>
-                {label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          Valor total
-          <MoneyInput
-            required
-            valueInCents={reaisToCents(form.value)}
-            onChange={(cents) => {
-              const value = centsToMoneyText(cents);
-              setForm({
-                ...form,
-                value,
-                services:
-                  form.services.length === 1
-                    ? [{ ...form.services[0]!, value }]
-                    : form.services,
-              });
-            }}
-          />
-        </label>
-        {months > 0 && (
-          <p className="span-2 muted-copy">
-            Período de {months} {months === 1 ? "mês" : "meses"}. Saldo
-            calculado com 4 semanas por mês. O valor informado é o total desse
-            período.
-          </p>
-        )}
-        {form.services.map((entry, index) => (
-          <fieldset className="span-2 form-grid" key={index}>
-            <legend>Serviço {index + 1}</legend>
-            <label>
-              Serviço {index + 1}
-              <select
-                required
-                value={entry.serviceId}
-                onChange={(event) =>
-                  updateRow(index, { serviceId: event.target.value })
-                }
-              >
-                <option value="">Selecione um serviço</option>
-                {services
-                  .filter(
-                    (service) =>
-                      service.active || service.id === entry.serviceId,
-                  )
-                  .map((service) => (
-                    <option
-                      key={service.id}
-                      value={service.id}
-                      disabled={
-                        !service.active ||
-                        form.services.some(
-                          (row, position) =>
-                            position !== index && row.serviceId === service.id,
-                        )
-                      }
-                    >
-                      {service.name}
-                      {!service.active ? " (inativo)" : ""}
-                    </option>
-                  ))}
-              </select>
-            </label>
-            {months ? (
-              <>
+    <>
+      <Modal
+        title={item ? "Editar plano do catálogo" : "Cadastrar plano"}
+        subtitle="Configure o tipo, os serviços, a frequência e o valor total do período."
+        busy={saving}
+        inactive={creatingFor !== null}
+        dirty={dirty}
+        onClose={onClose}
+      >
+        <form className="form-grid" onSubmit={(event) => void submit(event)}>
+          <label className="span-2">
+            Nome do plano
+            <input
+              required
+              minLength={3}
+              maxLength={120}
+              value={form.name}
+              onChange={(event) =>
+                setForm({ ...form, name: event.target.value })
+              }
+            />
+          </label>
+          <label>
+            Tipo de plano
+            <select
+              required={!item}
+              value={form.planType}
+              onChange={(event) =>
+                setForm({
+                  ...form,
+                  planType: event.target.value,
+                  // Avulso: fica só o primeiro serviço, com o valor total do plano.
+                  services:
+                    event.target.value === "single"
+                      ? [{ ...form.services[0]!, value: form.value }]
+                      : form.services,
+                })
+              }
+            >
+              {item && !item.planType && (
+                <option value="">Manter modelo existente</option>
+              )}
+              {Object.entries(planTypeLabels).map(([type, label]) => (
+                <option value={type} key={type}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Valor total
+            <MoneyInput
+              required
+              valueInCents={reaisToCents(form.value)}
+              onChange={(cents) => {
+                const value = centsToMoneyText(cents);
+                setForm({
+                  ...form,
+                  value,
+                  services:
+                    form.services.length === 1
+                      ? [{ ...form.services[0]!, value }]
+                      : form.services,
+                });
+              }}
+            />
+          </label>
+          {!recurring && (
+            <fieldset className="span-2 form-grid">
+              <legend>Parcelamento</legend>
+              <label className="checkbox-field span-2">
+                <input
+                  type="checkbox"
+                  checked={form.acceptsInstallments}
+                  onChange={(event) =>
+                    setForm({
+                      ...form,
+                      acceptsInstallments: event.target.checked,
+                    })
+                  }
+                />
+                Aceita parcelamento
+              </label>
+              {form.acceptsInstallments ? (
                 <label>
-                  Sessões por semana do serviço {index + 1}
+                  Até quantas parcelas
                   <input
-                    required
                     type="number"
-                    min="1"
-                    max="7"
-                    step="1"
-                    value={entry.sessionsPerWeek}
+                    inputMode="numeric"
+                    aria-label="Até quantas parcelas"
+                    min={2}
+                    max={maxInstallmentsLimit}
+                    placeholder="Sem limite próprio"
+                    value={form.maxInstallments}
                     onChange={(event) =>
-                      updateRow(index, { sessionsPerWeek: event.target.value })
+                      setForm({ ...form, maxInstallments: event.target.value })
                     }
                   />
+                  <span className="field-hint">
+                    Vazio: vale o limite da forma de pagamento.
+                  </span>
                 </label>
+              ) : (
+                <p className="span-2 muted-copy">
+                  Vendido só à vista (1 parcela), em qualquer forma de
+                  pagamento.
+                </p>
+              )}
+            </fieldset>
+          )}
+          {months > 0 && (
+            <p className="span-2 muted-copy">
+              Período de {months} {months === 1 ? "mês" : "meses"}. Saldo
+              calculado com 4 semanas por mês. O valor informado é o total desse
+              período.
+            </p>
+          )}
+          {form.services.map((entry, index) => (
+            <fieldset
+              className="span-2 form-grid plan-template-service"
+              key={index}
+            >
+              <legend>Serviço {index + 1}</legend>
+              <div className="span-2 form-grid plan-template-service-fields">
+                <ServicePicker
+                  label="Serviço"
+                  srLabel={` ${index + 1}`}
+                  services={services}
+                  value={entry.serviceId}
+                  unavailableIds={form.services
+                    .filter((_, position) => position !== index)
+                    .map((row) => row.serviceId)
+                    .filter(Boolean)}
+                  disabled={saving}
+                  onChange={(serviceId) => updateRow(index, { serviceId })}
+                  onCreate={
+                    can("agenda.services_create")
+                      ? () => setCreatingFor(index)
+                      : undefined
+                  }
+                  action={
+                    <button
+                      type="button"
+                      className="icon-button plan-template-service-remove"
+                      disabled={form.services.length === 1 || saving}
+                      aria-label={`Remover serviço ${index + 1}`}
+                      title={`Remover serviço ${index + 1}`}
+                      onClick={() =>
+                        setForm({
+                          ...form,
+                          services: form.services.filter(
+                            (_, position) => position !== index,
+                          ),
+                        })
+                      }
+                    >
+                      <Trash2 size={16} aria-hidden="true" />
+                    </button>
+                  }
+                />
+                {single ? null : months ? (
+                  <>
+                    <label>
+                      Sessões por semana
+                      <span className="sr-only"> do serviço {index + 1}</span>
+                      <input
+                        required
+                        type="number"
+                        min="1"
+                        max="7"
+                        step="1"
+                        value={entry.sessionsPerWeek}
+                        onChange={(event) =>
+                          updateRow(index, {
+                            sessionsPerWeek: event.target.value,
+                          })
+                        }
+                      />
+                    </label>
+                  </>
+                ) : (
+                  <label>
+                    Sessões
+                    <span className="sr-only"> do serviço {index + 1}</span>
+                    <input
+                      required
+                      type="number"
+                      min="1"
+                      max="1000"
+                      step="1"
+                      value={entry.sessions}
+                      onChange={(event) =>
+                        updateRow(index, { sessions: event.target.value })
+                      }
+                    />
+                  </label>
+                )}
+                {form.services.length > 1 && (
+                  <label>
+                    Valor
+                    <span className="sr-only"> do serviço {index + 1}</span>
+                    <MoneyInput
+                      required
+                      valueInCents={reaisToCents(entry.value)}
+                      onChange={(cents) =>
+                        updateRow(index, { value: centsToMoneyText(cents) })
+                      }
+                    />
+                  </label>
+                )}
+              </div>
+              {months > 0 && (
                 <p className="span-2" role="status">
                   {entry.sessionsPerWeek ? periodSessions(entry) : 0} sessões no
                   período
@@ -252,100 +406,81 @@ export function PlanTemplateModal({
                     : ""}
                   .
                 </p>
-              </>
-            ) : (
-              <label>
-                Sessões do serviço {index + 1}
-                <input
-                  required
-                  type="number"
-                  min="1"
-                  max="1000"
-                  step="1"
-                  value={entry.sessions}
-                  onChange={(event) =>
-                    updateRow(index, { sessions: event.target.value })
-                  }
-                />
-              </label>
-            )}
-            {form.services.length > 1 && (
-              <label>
-                Valor do serviço {index + 1}
-                <MoneyInput
-                  required
-                  valueInCents={reaisToCents(entry.value)}
-                  onChange={(cents) =>
-                    updateRow(index, { value: centsToMoneyText(cents) })
-                  }
-                />
-              </label>
-            )}
+              )}
+            </fieldset>
+          ))}
+          {single && (
+            <p className="span-2 muted-copy">
+              Avulso: uma sessão do serviço, pelo valor total.
+              {legacySessions > 1 &&
+                ` Este plano tinha ${legacySessions} sessões; ao salvar, passa a ter uma.`}
+            </p>
+          )}
+          {!single && (
+            <div className="span-2 plan-template-service-add">
+              <button
+                type="button"
+                className="secondary-button button-sm"
+                disabled={saving}
+                onClick={() =>
+                  setForm({
+                    ...form,
+                    services: [
+                      ...form.services,
+                      {
+                        serviceId: "",
+                        sessions: "1",
+                        sessionsPerWeek: "",
+                        value: "",
+                      },
+                    ],
+                  })
+                }
+              >
+                <Plus size={16} aria-hidden="true" />
+                Adicionar serviço
+              </button>
+            </div>
+          )}
+          {form.services.length > 1 && (
+            <p className="span-2" role="status">
+              Soma dos serviços: {currency.format(sum / 100)} · Diferença:{" "}
+              {currency.format(((total ?? 0) - sum) / 100)}
+            </p>
+          )}
+          {error && (
+            <div className="form-error span-2" role="alert">
+              {error}
+            </div>
+          )}
+          {missing.hint}
+          <div className="modal-actions span-2">
+            <ModalCancelButton disabled={saving}>Cancelar</ModalCancelButton>
             <button
-              type="button"
-              className="secondary-button"
-              disabled={form.services.length === 1 || saving}
-              onClick={() =>
-                setForm({
-                  ...form,
-                  services: form.services.filter(
-                    (_, position) => position !== index,
-                  ),
-                })
+              className="primary-button"
+              disabled={
+                saving ||
+                missing.blocked ||
+                (form.services.length > 1 && total !== sum)
               }
+              aria-describedby={missing.describedBy}
             >
-              Remover serviço {index + 1}
+              {saving ? "Salvando…" : "Salvar plano"}
             </button>
-          </fieldset>
-        ))}
-        <button
-          type="button"
-          className="secondary-button span-2"
-          disabled={saving}
-          onClick={() =>
-            setForm({
-              ...form,
-              services: [
-                ...form.services,
-                {
-                  serviceId: "",
-                  sessions: "1",
-                  sessionsPerWeek: "",
-                  value: "",
-                },
-              ],
-            })
-          }
-        >
-          Adicionar serviço
-        </button>
-        {form.services.length > 1 && (
-          <p className="span-2" role="status">
-            Soma dos serviços: {currency.format(sum / 100)} · Diferença:{" "}
-            {currency.format(((total ?? 0) - sum) / 100)}
-          </p>
-        )}
-        {error && (
-          <div className="form-error span-2" role="alert">
-            {error}
           </div>
-        )}
-        {missing.hint}
-        <div className="modal-actions span-2">
-          <ModalCancelButton disabled={saving}>Cancelar</ModalCancelButton>
-          <button
-            className="primary-button"
-            disabled={
-              saving ||
-              missing.blocked ||
-              (form.services.length > 1 && total !== sum)
-            }
-            aria-describedby={missing.describedBy}
-          >
-            {saving ? "Salvando…" : "Salvar plano"}
-          </button>
-        </div>
-      </form>
-    </Modal>
+        </form>
+      </Modal>
+      {creatingFor !== null && (
+        <QuickServiceModal
+          onClose={() => setCreatingFor(null)}
+          onCreated={(service) => {
+            setCreatedServices((current) => [...current, service]);
+            updateRow(creatingFor, { serviceId: service.id });
+            onServiceCreated?.(service);
+            setCreatingFor(null);
+          }}
+        />
+      )}
+    </>
   );
 }

@@ -17,7 +17,10 @@ import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AppointmentDateTimePicker } from "../../AppointmentDateTimePicker";
 import { api } from "../../api";
-import { computeFloatingPosition } from "./calendar-position";
+import {
+  computeFloatingPosition,
+  scrollNeededBelow,
+} from "./calendar-position";
 
 vi.mock("../../api", () => ({
   api: {
@@ -82,6 +85,7 @@ function block(overrides: Partial<ScheduleBlock> = {}): ScheduleBlock {
     id: "block",
     clinicId: "clinic",
     professionalId: "ana",
+    professionalName: "Ana",
     reason: "Motivo privado",
     startsAt: at("2026-10-07", "12:00"),
     endsAt: at("2026-10-07", "13:00"),
@@ -175,7 +179,7 @@ describe("appointment calendar", () => {
     expect(screen.getByLabelText("Valor selecionado")).toHaveTextContent(
       "2026-10-08T17:15",
     );
-    expect(screen.queryByRole("region")).not.toBeInTheDocument();
+    expect(screen.getByRole("region")).toBeInTheDocument();
     expect(outside).toHaveValue("17:15");
   });
 
@@ -217,9 +221,11 @@ describe("appointment calendar", () => {
     expect(screen.getByLabelText("Valor selecionado")).toHaveTextContent(
       "2026-10-08T16:45",
     );
-    open();
     expect(day("2026-10-08")).toHaveAttribute("aria-pressed", "true");
-    await screen.findByText("Nenhum compromisso registrado.");
+    expect(screen.getByText("Quinta, 8 de outubro")).toBeInTheDocument();
+    expect(
+      screen.getByText("Nenhum compromisso registrado."),
+    ).toBeInTheDocument();
   });
 
   it("requires both date and time without assigning a default time", async () => {
@@ -244,7 +250,7 @@ describe("appointment calendar", () => {
     );
   });
 
-  it("shows chronological anonymous intervals, holidays and markers", async () => {
+  it("shows chronological intervals with activity, professional and room, without client names or block reasons", async () => {
     vi.mocked(api.appointments).mockResolvedValue([
       appointment("visit", "10:00"),
     ]);
@@ -269,16 +275,15 @@ describe("appointment calendar", () => {
         .getAllByRole("listitem")
         .map((item) => item.textContent),
     ).toEqual([
-      "08:00–09:00Turma",
-      "10:00–11:00Atendimento",
-      "12:00–13:00Bloqueio",
+      "08:00–09:00Nome da turmaAna · Sala 1Turma",
+      "10:00–11:00ServiçoAna · Sala 1Atendimento",
+      "12:00–13:00Horário bloqueadoAnaBloqueio",
     ]);
     expect(day("2026-10-07")).toHaveAccessibleName(
       /3 compromissos, feriado: Feriado local/,
     );
     expect(screen.getByText("Feriado: Feriado local")).toBeInTheDocument();
     expect(screen.queryByText("Nome confidencial")).not.toBeInTheDocument();
-    expect(screen.queryByText("Nome da turma")).not.toBeInTheDocument();
     expect(screen.queryByText("Motivo privado")).not.toBeInTheDocument();
   });
 
@@ -334,8 +339,7 @@ describe("appointment calendar", () => {
     expect(day("2026-10-06")).toHaveAccessibleName(/1 compromisso/);
     expect(day("2026-10-08")).toHaveAccessibleName(/1 compromisso/);
     fireEvent.click(day("2026-10-08"));
-    open();
-    expect(await screen.findByText("00:00–01:00")).toBeInTheDocument();
+    expect(screen.getByText("00:00–01:00")).toBeInTheDocument();
     vi.mocked(api.scheduleBlocks).mockResolvedValue([
       block({
         startsAt: at("2026-10-06", "23:00"),
@@ -371,7 +375,6 @@ describe("appointment calendar", () => {
     expect(screen.getByLabelText("Valor selecionado")).toHaveTextContent(
       "2026-11-15T15:30",
     );
-    open();
     expect(screen.getByRole("table")).toHaveAccessibleName("novembro de 2026");
     await screen.findByText("Nenhum compromisso registrado.");
   });
@@ -463,7 +466,7 @@ describe("appointment calendar", () => {
     expect(screen.queryByRole("region")).not.toBeInTheDocument();
   });
 
-  it("closes when selecting a day and dismisses on outside pointer interaction", async () => {
+  it("stays open when selecting a day to show its agenda and dismisses on outside pointer interaction", async () => {
     render(
       <>
         <Harness />
@@ -474,13 +477,19 @@ describe("appointment calendar", () => {
     await screen.findByText("Nenhum compromisso registrado.");
     fireEvent.pointerDown(day("2026-10-08"));
     fireEvent.click(day("2026-10-08"));
-    expect(screen.queryByRole("region")).not.toBeInTheDocument();
+    expect(screen.getByRole("region")).toBeInTheDocument();
+    expect(screen.getByText("Quinta, 8 de outubro")).toBeInTheDocument();
     expect(screen.getByLabelText("Valor selecionado")).toHaveTextContent(
       "2026-10-08T15:30",
     );
-    expect(screen.getByRole("button", { name: "Data" })).toHaveFocus();
+    expect(screen.getByRole("button", { name: "Data" })).toHaveTextContent(
+      "08/10/2026",
+    );
     expect(screen.getByLabelText("Horário")).toHaveValue("15:30");
-    open();
+    // Dia de outro mês na grade leva o calendário para aquele mês.
+    fireEvent.click(day("2026-11-01"));
+    expect(screen.getByRole("table")).toHaveAccessibleName("novembro de 2026");
+    expect(day("2026-11-01")).toHaveAttribute("aria-pressed", "true");
     await screen.findByText("Nenhum compromisso registrado.");
     const outside = screen.getByRole("button", { name: "Outro campo" });
     fireEvent.pointerDown(outside);
@@ -554,108 +563,129 @@ describe("appointment calendar", () => {
     }
   });
 
-  it("floats the panel with coordinates computed against the viewport", async () => {
+  it("always opens below the trigger, limiting the height to the visible area", async () => {
     render(<Harness />);
     const trigger = screen.getByRole("button", { name: "Data" });
     vi.spyOn(trigger, "getBoundingClientRect").mockReturnValue({
-      top: 700,
-      bottom: 740,
+      top: 500,
+      bottom: 540,
       left: 900,
       right: 1000,
       width: 100,
       height: 40,
       x: 900,
-      y: 700,
+      y: 500,
       toJSON: () => ({}),
     });
-    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(
-      function (this: HTMLElement) {
-        const rect = { top: 0, left: 0, width: 360, height: 480 };
-        return {
-          ...rect,
-          bottom: rect.height,
-          right: rect.width,
-          x: 0,
-          y: 0,
-          toJSON: () => ({}),
-        };
-      },
-    );
     vi.stubGlobal("innerWidth", 1024);
     vi.stubGlobal("innerHeight", 768);
     open();
     const panel = screen.getByRole("region");
-    expect(panel.dataset.placement).toBe("above");
     expect(panel.dataset.align).toBe("end");
-    expect(panel.style.getPropertyValue("--calendar-top")).toBe("216px");
+    expect(panel.style.getPropertyValue("--calendar-top")).toBe("544px");
     expect(panel.style.getPropertyValue("--calendar-left")).toBe("640px");
+    expect(panel.style.getPropertyValue("--calendar-max-height")).toBe(
+      "216px",
+    );
+    await screen.findByText("Nenhum compromisso registrado.");
+  });
+
+  it("does not reposition when the panel itself scrolls", async () => {
+    render(<Harness />);
+    open();
+    const panel = screen.getByRole("region");
+    const setProperty = vi.spyOn(panel.style, "setProperty");
+    fireEvent.scroll(panel);
+    expect(setProperty).not.toHaveBeenCalled();
+    fireEvent.scroll(document);
     await screen.findByText("Nenhum compromisso registrado.");
   });
 });
 
 describe("computeFloatingPosition", () => {
   const viewport = { top: 0, left: 0, width: 1000, height: 800 };
-  const panel = { width: 360, height: 400 };
   function trigger(top: number, left: number, width = 200, height = 40) {
     return { top, bottom: top + height, left, right: left + width };
   }
 
-  it("opens below and aligned to the trigger start when there is room", () => {
+  it("opens below and aligned to the trigger start", () => {
     expect(
-      computeFloatingPosition({ trigger: trigger(100, 50), panel, viewport }),
+      computeFloatingPosition({
+        trigger: trigger(100, 50),
+        panelWidth: 360,
+        viewport,
+      }),
     ).toEqual({
       top: 144,
       left: 50,
       width: 360,
       maxHeight: 648,
-      placement: "below",
       align: "start",
     });
   });
 
-  it("opens above when there is no room below", () => {
+  it("stays below even when there is more room above", () => {
     const position = computeFloatingPosition({
       trigger: trigger(600, 50),
-      panel,
+      panelWidth: 360,
       viewport,
     });
-    expect(position.placement).toBe("above");
-    expect(position.top).toBe(600 - 4 - 400);
-    expect(position.top + 400).toBeLessThanOrEqual(600);
+    expect(position.top).toBe(644);
+    expect(position.maxHeight).toBe(800 - 8 - 644);
   });
 
   it("aligns to the trigger end when it does not fit from the left", () => {
     const position = computeFloatingPosition({
       trigger: trigger(100, 760),
-      panel,
+      panelWidth: 360,
       viewport,
     });
     expect(position.align).toBe("end");
     expect(position.left).toBe(960 - 360);
   });
 
-  it("stays inside the viewport and limits height when neither side fits", () => {
-    const small = { top: 0, left: 0, width: 320, height: 500 };
+  it("fits narrow viewports", () => {
     const position = computeFloatingPosition({
       trigger: trigger(200, 100, 200, 40),
-      panel: { width: 360, height: 700 },
-      viewport: small,
+      panelWidth: 360,
+      viewport: { top: 0, left: 0, width: 320, height: 500 },
     });
     expect(position.width).toBe(320 - 16);
     expect(position.left).toBe(8);
-    expect(position.placement).toBe("below");
-    expect(position.maxHeight).toBe(500 - 8 - 240 - 4);
-    expect(position.top + position.maxHeight).toBeLessThanOrEqual(500 - 8);
+    expect(position.maxHeight).toBe(500 - 8 - 244);
   });
 
   it("respects the visual viewport offset", () => {
     const position = computeFloatingPosition({
       trigger: trigger(150, 120),
-      panel,
+      panelWidth: 360,
       viewport: { top: 100, left: 100, width: 400, height: 600 },
     });
     expect(position.left).toBeGreaterThanOrEqual(108);
     expect(position.left + position.width).toBeLessThanOrEqual(492);
-    expect(position.top).toBeGreaterThanOrEqual(108);
+    expect(position.maxHeight).toBe(700 - 8 - 194);
+  });
+});
+
+describe("scrollNeededBelow", () => {
+  const viewport = { top: 0, left: 0, width: 1000, height: 800 };
+  const at = (top: number) => ({ top, bottom: top + 40, left: 0, right: 200 });
+
+  it("is zero when the panel already fits below", () => {
+    expect(
+      scrollNeededBelow({ trigger: at(100), panelHeight: 400, viewport }),
+    ).toBe(0);
+  });
+
+  it("scrolls just enough for the panel to fit below", () => {
+    expect(
+      scrollNeededBelow({ trigger: at(500), panelHeight: 400, viewport }),
+    ).toBe(540 + 4 + 400 - 792);
+  });
+
+  it("never pushes the trigger above the visible area", () => {
+    expect(
+      scrollNeededBelow({ trigger: at(100), panelHeight: 900, viewport }),
+    ).toBe(100 - 8);
   });
 });

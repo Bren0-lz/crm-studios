@@ -1,4 +1,5 @@
 import {
+  planHasSessionBalance,
   groupEnrollmentCoversSession,
   type GroupAttendance,
   type GroupAttendanceInput,
@@ -8,6 +9,7 @@ import {
 import { clinicDateOf } from "../../modules/finance/daily-cash.js";
 import { DomainError } from "../../repository.js";
 import { assertReplacementTarget } from "../../modules/groups/replacement-target.js";
+import { assertProfessionalServesGroup } from "../../modules/groups/service-professional.js";
 import type { MemoryRepositoryContext } from "./context.js";
 import { now, uuid } from "./helpers.js";
 
@@ -84,7 +86,9 @@ export function createGroupOperationsRepository(
               (!item.validUntil || item.validUntil >= date) &&
               item.services.some(
                 (entry) =>
-                  entry.serviceId === serviceId && entry.remainingSessions > 0,
+                  entry.serviceId === serviceId &&
+                  // Recorrente: a frequência semanal vale, sem bloquear pelo saldo nominal.
+                  (entry.remainingSessions > 0 || !planHasSessionBalance(item)),
               ),
           )
           .sort(
@@ -101,7 +105,11 @@ export function createGroupOperationsRepository(
     const entry = plan?.services.find(
       (item) => item.serviceId === (present ? serviceId : previous?.serviceId),
     );
-    if (!plan || !entry || (present && entry.remainingSessions < 1))
+    if (
+      !plan ||
+      !entry ||
+      (present && entry.remainingSessions < 1 && planHasSessionBalance(plan))
+    )
       throw new DomainError(
         "NO_SESSION_BALANCE",
         "O cliente não possui plano vigente com saldo para este serviço.",
@@ -389,6 +397,19 @@ export function createGroupOperationsRepository(
           "Profissional não encontrado.",
           404,
         );
+      const group = context.groupClasses.find(
+        (item) => item.id === meeting.groupId,
+      );
+      if (group) {
+        assertProfessionalServesGroup(
+          context.services.find(
+            (item) =>
+              item.clinicId === clinicId && item.id === group.serviceId,
+          ),
+          professionalId,
+        );
+        context.resourceBranch(group, professional);
+      }
       const overlap = (start: string, end: string) =>
         start < meeting.endsAt && end > meeting.startsAt;
       if (

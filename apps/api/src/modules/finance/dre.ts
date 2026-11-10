@@ -47,6 +47,8 @@ export function buildDre(
       serviceRevenueInCents: 0,
       productRevenueInCents: 0,
       otherRevenueInCents: 0,
+      customerDiscountInCents: 0,
+      settlementDiscountInCents: 0,
       expenses: Object.fromEntries(groups.map((group) => [group, 0])) as Record<
         DreGroup,
         number
@@ -89,6 +91,12 @@ export function buildDre(
         clinicDateOf(new Date(receivable.createdAt), timezone).slice(0, 7),
       period = months.find((item) => item.month === competence);
     if (!period) continue;
+    period.customerDiscountInCents =
+      (period.customerDiscountInCents ?? 0) +
+      (receivable.customerDiscountInCents ?? 0);
+    period.settlementDiscountInCents =
+      (period.settlementDiscountInCents ?? 0) +
+      (receivable.settlementDiscountInCents ?? 0);
     const category = categories.find(
         (item) => item.id === receivable.categoryId,
       ),
@@ -133,9 +141,13 @@ export function buildDre(
     );
     if (!period) continue;
     const category = categories.find((item) => item.id === payable.categoryId),
-      group = category?.dreGroup ?? "unclassified";
-    period.expenses[group] += payable.amountInCents;
-    addCategory(payable.categoryId, payable.amountInCents, group);
+      group = category?.dreGroup ?? "unclassified",
+      // Despesa da folha: a parte de comissão já entra como custo do serviço na competência.
+      amount =
+        payable.amountInCents - (payable.payroll?.commissionInCents ?? 0);
+    if (!amount) continue;
+    period.expenses[group] += amount;
+    addCategory(payable.categoryId, amount, group);
   }
   if (!costCenterId)
     for (const commission of commissions) {
@@ -176,6 +188,14 @@ export function buildDre(
       (total, item) => total + item.resultInCents,
       0,
     );
+  const customerDiscountInCents = months.reduce(
+      (total, item) => total + (item.customerDiscountInCents ?? 0),
+      0,
+    ),
+    settlementDiscountInCents = months.reduce(
+      (total, item) => total + (item.settlementDiscountInCents ?? 0),
+      0,
+    );
   return {
     from,
     to,
@@ -184,6 +204,8 @@ export function buildDre(
       revenueInCents,
       expensesInCents: revenueInCents - resultInCents,
       resultInCents,
+      ...(customerDiscountInCents ? { customerDiscountInCents } : {}),
+      ...(settlementDiscountInCents ? { settlementDiscountInCents } : {}),
     },
     categories: [...categoryTotals.values()],
   };
