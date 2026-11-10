@@ -7,6 +7,7 @@ import {
   type Appointment,
   type BroadcastSkippedPatient,
   type CommunicationPreference,
+  type Lead,
   type MessageTemplateImageInput,
   type Patient,
   type PatientPlan,
@@ -17,6 +18,7 @@ import { DomainError, type MessageTemplateWrite } from "../../repository.js";
 import { clinicDateOf } from "../finance/daily-cash.js";
 import { filterPatientsForExport } from "../patients/patient-export.js";
 import { destination } from "./broadcast.js";
+import { filterLeadsForAudience, leadDestination } from "./lead-audience.js";
 
 export interface CampaignAudiencePlan {
   matched: number;
@@ -38,6 +40,8 @@ export interface CampaignFilterData {
   overduePatientIds: ReadonlySet<string>;
   /** Quem recebeu campanha no período de `excludeContactedDays`. */
   contactedPatientIds: ReadonlySet<string>;
+  /** Leads que receberam campanha no período de `excludeContactedDays`. */
+  contactedLeadIds?: ReadonlySet<string> | undefined;
   now: Date;
   /** Fuso da clínica: dia do atendimento no filtro e data/hora na mensagem. */
   timezone: string;
@@ -272,21 +276,67 @@ function appointmentValues(appointment: Appointment, timeZone: string) {
   };
 }
 
+type SegmentAudience = Extract<WhatsappCampaignAudience, { mode: "segment" }>;
+
+/** Público já validado; os campos de lead são opcionais (padrão: só clientes). */
+export type CampaignAudienceArg =
+  | (Omit<SegmentAudience, "audience" | "leadFilter"> &
+      Partial<Pick<SegmentAudience, "audience" | "leadFilter">>)
+  | { mode: "patients"; patientIds: string[]; leadIds?: string[] | undefined };
+
+/** O público alcança leads (filtros com leads ou leads escolhidos). */
+export function audienceUsesLeads(audience: CampaignAudienceArg) {
+  return audience.mode === "segment"
+    ? (audience.audience ?? "patients") !== "patients"
+    : (audience.leadIds?.length ?? 0) > 0;
+}
+
+/** Leads do público: os do filtro de leads ou os escolhidos um a um. */
+function chosenLeads(
+  leads: readonly Lead[],
+  data: CampaignFilterData,
+  audience: CampaignAudienceArg,
+  today: string,
+): Lead[] {
+  if (audience.mode === "patients")
+    return [...new Set(audience.leadIds ?? [])].map((id) => {
+      const lead = leads.find((item) => item.id === id);
+      if (!lead)
+        throw new DomainError("LEAD_NOT_FOUND", "Lead não encontrado.", 404);
+      return lead;
+    });
+  if ((audience.audience ?? "patients") === "patients") return [];
+  const contacted = audience.segment.excludeContactedDays
+    ? data.contactedLeadIds
+    : undefined;
+  return filterLeadsForAudience(
+    leads,
+    audience.leadFilter,
+    today,
+    data.timezone,
+  ).filter((lead) => !contacted?.has(lead.id));
+}
+
 /**
  * Monta os destinatários da campanha: filtros ou clientes escolhidos; pula
  * quem bloqueou WhatsApp, não tem número válido ou, se a mensagem usa data/hora
- * do atendimento, não tem atendimento; e personaliza a mensagem.
+ * do atendimento, não tem atendimento; e personaliza a mensagem. Leads (filtro de leads
+ * ou escolhidos) entram depois dos clientes; lead não tem atendimento nem opt-out.
  */
 export function buildCampaignAudience(
   patients: Patient[],
   data: CampaignFilterData,
-  audience: WhatsappCampaignAudience,
+  audience: CampaignAudienceArg,
   body: string,
   today: string,
+  leads: readonly Lead[] = [],
 ): CampaignAudiencePlan {
   let chosen: Patient[];
   if (audience.mode === "segment")
-    chosen = filterCampaignSegment(patients, data, audience.segment, today);
+    chosen =
+      audience.audience === "leads"
+        ? []
+        : filterCampaignSegment(patients, data, audience.segment, today);
   else {
     const ids = [...new Set(audience.patientIds)];
     chosen = ids.map((id) => {
@@ -343,7 +393,31 @@ export function buildCampaignAudience(
       ),
     });
   }
-  return { matched: chosen.length, drafts, skipped };
+  const leadsChosen = chosenLeads(leads, data, audience, today);
+  for (const lead of leadsChosen) {
+    const skip = (reason: BroadcastSkippedPatient["reason"]) =>
+      skipped.push({ leadId: lead.id, patientName: lead.fullName, reason });
+    const phone = leadDestination(lead);
+    if (!phone) {
+      skip("no_destination");
+      continue;
+    }
+    if (withAppointment) {
+      skip("no_appointment");
+      continue;
+    }
+    drafts.push({
+      leadId: lead.id,
+      patientName: lead.fullName,
+      phone,
+      message: fillCampaignMessage(body, lead.fullName),
+    });
+  }
+  return {
+    matched: chosen.length + leadsChosen.length,
+    drafts,
+    skipped,
+  };
 }
 
 const imageSignatures: Record<string, (bytes: Buffer) => boolean> = {

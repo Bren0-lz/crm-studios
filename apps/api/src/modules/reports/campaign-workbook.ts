@@ -7,6 +7,10 @@ import type {
 import ExcelJS from "exceljs";
 import { dateFormat, heading } from "./sales-workbook.js";
 
+/** Nome do destinatário; lead ganha "(lead)" para não se confundir com cliente. */
+const recipientName = (item: CampaignReportMessage) =>
+  item.lead ? `${item.patientName} (lead)` : item.patientName;
+
 const kindLabels = { manual: "Manual", automatic: "Automática" } as const;
 const statusLabels = {
   pending: "Pendente",
@@ -106,7 +110,7 @@ function addCampaignSheet(
   heading(sheet);
   for (const item of messages) {
     const row = sheet.addRow({
-      patient: item.patientName,
+      patient: recipientName(item),
       phone: item.phone,
       status: messageStatus(item),
       step: item.step ?? "",
@@ -192,8 +196,7 @@ export async function campaignReportToXlsx(
       total: item.total,
       sent: item.sent,
       skipped: item.skipped,
-      pending:
-        item.kind === "manual" || report.queueDate ? item.pending : null,
+      pending: item.kind === "manual" || report.queueDate ? item.pending : null,
       rate: item.total ? item.sent / item.total : null,
       redemptions: item.promotional ? item.redemptions : null,
       sheet: {
@@ -222,7 +225,7 @@ export async function campaignReportToXlsx(
     const row = sheet.addRow({
       kind: kindLabels[item.kind],
       campaign: item.campaignName,
-      patient: item.patientName,
+      patient: recipientName(item),
       phone: item.phone,
       status: messageStatus(item),
       detail: item.detail,

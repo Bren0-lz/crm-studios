@@ -17,10 +17,12 @@ import {
   DEFAULT_CLINIC_TIMEZONE,
 } from "../finance/daily-cash.js";
 import {
+  audienceUsesLeads,
   buildCampaignAudience,
   inspectTemplateImages,
   segmentNeedsAppointments,
 } from "./campaigns.js";
+import { campaignLeadFilterOptions } from "./lead-audience.js";
 
 const dayMs = 24 * 60 * 60 * 1000;
 
@@ -49,6 +51,11 @@ export function registerCampaignRoutes(context: RouteContext) {
     const segment =
       input.audience.mode === "segment" ? input.audience.segment : null;
     if (segment?.overdue) assertPermissions(request, "finance.view");
+    const withLeads = audienceUsesLeads(input.audience);
+    if (withLeads) assertPermissions(request, "crm.view");
+    const patientsNeeded = !(
+      input.audience.mode === "segment" && input.audience.audience === "leads"
+    );
     const now = new Date();
     const settings = await repository.getClinicSettings(clinicId);
     const timezone = settings?.timezone ?? DEFAULT_CLINIC_TIMEZONE;
@@ -59,9 +66,9 @@ export function registerCampaignRoutes(context: RouteContext) {
         segment.planExpiringDays ||
         segment.maxRemainingSessions !== undefined),
     );
-    const [patients, plans, center, appointments, overdue, contacted] =
+    const [patients, plans, center, appointments, overdue, contacted, leads] =
       await Promise.all([
-        repository.listPatients(clinicId),
+        patientsNeeded ? repository.listPatients(clinicId) : [],
         needsPlans ? repository.listPatientPlans(clinicId) : [],
         repository.getCommunicationCenter(clinicId),
         (segment && segmentNeedsAppointments(segment)) ||
@@ -80,7 +87,8 @@ export function registerCampaignRoutes(context: RouteContext) {
               clinicId,
               now.getTime() - segment.excludeContactedDays * dayMs,
             )
-          : [],
+          : { patientIds: [], leadIds: [] },
+        withLeads ? repository.listLeads(clinicId) : [],
       ]);
     return buildCampaignAudience(
       patients,
@@ -89,17 +97,19 @@ export function registerCampaignRoutes(context: RouteContext) {
         preferences: center.preferences,
         appointments,
         overduePatientIds: new Set(overdue),
-        contactedPatientIds: new Set(contacted),
+        contactedPatientIds: new Set(contacted.patientIds),
+        contactedLeadIds: new Set(contacted.leadIds),
         now,
         timezone,
       },
       input.audience,
       template.body,
       today,
+      leads,
     );
   }
 
-  /** Clientes marcados como "enviada" em alguma campanha desde `since` (ms). */
+  /** Clientes e leads marcados como "enviada" em alguma campanha desde `since` (ms). */
   async function contactedPatientIds(clinicId: string, since: number) {
     const campaigns = (await repository.listWhatsappCampaigns(clinicId)).filter(
       (campaign) =>
@@ -111,16 +121,20 @@ export function registerCampaignRoutes(context: RouteContext) {
         repository.getWhatsappCampaign(clinicId, campaign.id),
       ),
     );
-    return details.flatMap((detail) =>
-      (detail?.recipients ?? [])
-        .filter(
-          (item) =>
-            item.status === "sent" &&
-            item.handledAt !== undefined &&
-            Date.parse(item.handledAt) >= since,
-        )
-        .map((item) => item.patientId),
+    const sent = details.flatMap((detail) =>
+      (detail?.recipients ?? []).filter(
+        (item) =>
+          item.status === "sent" &&
+          item.handledAt !== undefined &&
+          Date.parse(item.handledAt) >= since,
+      ),
     );
+    return {
+      patientIds: sent.flatMap((item) =>
+        item.patientId ? [item.patientId] : [],
+      ),
+      leadIds: sent.flatMap((item) => (item.leadId ? [item.leadId] : [])),
+    };
   }
 
   app.get(
@@ -153,6 +167,9 @@ export function registerCampaignRoutes(context: RouteContext) {
         finance: Boolean(
           requestAccess.get(request)?.permissions.includes("finance.view"),
         ),
+        ...(requestAccess.get(request)?.permissions.includes("crm.view")
+          ? { leads: await campaignLeadFilterOptions(repository, clinicId) }
+          : {}),
       };
     },
   );
@@ -261,11 +278,15 @@ export function registerCampaignRoutes(context: RouteContext) {
       return {
         matched: plan.matched,
         recipients: plan.drafts.length,
-        included: plan.drafts.map(({ patientId, patientName, phone }) => ({
-          patientId,
-          patientName,
-          phone,
-        })),
+        included: plan.drafts.map(
+          ({ patientId, leadId, patientName, phone }) => ({
+            ...(patientId ? { patientId } : {}),
+            ...(leadId ? { leadId } : {}),
+            patientName,
+            phone,
+          }),
+        ),
+        leads: plan.drafts.filter((item) => item.leadId).length,
         skipped: plan.skipped,
         ...(first
           ? {

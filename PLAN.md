@@ -1492,3 +1492,29 @@ filtros ficam no `dashboard-studios` (EN11–EN13 têm só a parte da API aqui).
 - **Gate:** gate completo + `npm run test:mysql`
 - **Status:** DONE
 
+
+## Pedido avulso — Leads nas campanhas (10/11/2026)
+
+### Decisões do dono (10/11/2026)
+
+- Campanha manual: o público por filtros pode ser "Clientes" (como antes), "Clientes e leads" ou
+  "Só leads"; na escolha um a um, dá para escolher leads além de clientes.
+- Campanha automática: "Incluir leads" por campanha nos eventos que servem a lead (aniversário)
+  e eventos novos só de lead ("Lead novo" e "Lead sem contato").
+- Quais leads: personalizável (etapas do funil, inclusive ganhos/perdidos, etiquetas, origem,
+  interesse, responsável, cadastro recente, sem contato há N dias).
+- Promoção: o lead recebe a mensagem; ao virar cliente, a promoção passa a valer para ele
+  (dentro da validade).
+
+### CL1 — Leads nas campanhas manuais e automáticas
+
+- **Escopo:** contratos (`leadAudienceFilterSchema`, `audience`/`leadFilter`/`leadIds` no
+  público, `includeLeads`/`leadFilter` e gatilhos `lead_new`/`lead_no_contact` nas
+  automáticas, envio por `patientId` ou `leadId`); migração `0061_campaign_leads.sql`
+  (`lead_id` em `whatsapp_campaign_recipients` e `auto_campaign_deliveries`, `patient_id`
+  opcional, `include_leads`/`lead_filter` em `auto_campaigns`); filtro de leads na aplicação
+  (`modules/communications/lead-audience.ts`); conversão do lead passa destinatários/envios ao
+  cliente; relatório marca lead; telas (seletor de público, filtros de lead, escolha de leads,
+  "Incluir leads" e eventos de lead no editor, pílula "Lead" na fila e no envio).
+- **Gate:** gate completo + `npm run test:mysql`
+- **Status:** DONE

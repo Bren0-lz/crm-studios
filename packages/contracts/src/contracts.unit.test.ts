@@ -9,7 +9,10 @@ import {
   appointmentCreateInputSchema,
   appointmentPromotionSchema,
   whatsappCampaignInputSchema,
+  autoCampaignDeliveryInputSchema,
   autoCampaignInputSchema,
+  autoCampaignTargetsLeads,
+  autoCampaignTargetsPatients,
   recurringAppointmentCreateInputSchema,
   productInputSchema,
   productItemName,
@@ -2125,7 +2128,76 @@ describe("campanhas de WhatsApp", () => {
     ).toBe(false);
     expect(
       whatsappCampaignAudienceSchema.parse({ mode: "segment" }),
-    ).toMatchObject({ segment: { tags: [], birthdayMonth: false } });
+    ).toMatchObject({
+      audience: "patients",
+      leadFilter: { stages: [], tags: [] },
+      segment: { tags: [], birthdayMonth: false },
+    });
+  });
+
+  it("aceita leads escolhidos ou por filtro no público", () => {
+    const leadId = "33333333-3333-4333-8333-333333333333";
+    expect(
+      whatsappCampaignAudienceSchema.parse({
+        mode: "patients",
+        leadIds: [leadId],
+      }),
+    ).toEqual({ mode: "patients", patientIds: [], leadIds: [leadId] });
+    expect(
+      whatsappCampaignAudienceSchema.parse({
+        mode: "segment",
+        audience: "leads",
+        leadFilter: { stages: ["proposal"], noContactDays: 30 },
+      }),
+    ).toMatchObject({
+      audience: "leads",
+      leadFilter: { stages: ["proposal"], noContactDays: 30, tagMode: "any" },
+    });
+    expect(
+      whatsappCampaignAudienceSchema.safeParse({
+        mode: "segment",
+        audience: "todos",
+      }).success,
+    ).toBe(false);
+  });
+
+  it("só o aniversário aceita incluir leads; eventos de lead alcançam só leads", () => {
+    const base = {
+      name: "Leads",
+      steps: [{ offset: 0, message: "Oi, {{nome}}" }],
+    };
+    expect(
+      autoCampaignInputSchema.parse({
+        ...base,
+        trigger: "birthday",
+        includeLeads: true,
+      }).includeLeads,
+    ).toBe(true);
+    expect(
+      autoCampaignInputSchema.safeParse({
+        ...base,
+        trigger: "plan_expiring",
+        includeLeads: true,
+      }).success,
+    ).toBe(false);
+    expect(
+      autoCampaignInputSchema.parse({ ...base, trigger: "lead_new" }),
+    ).toMatchObject({ includeLeads: false });
+    expect(
+      autoCampaignTargetsLeads({ trigger: "birthday", includeLeads: true }),
+    ).toBe(true);
+    expect(autoCampaignTargetsLeads({ trigger: "birthday" })).toBe(false);
+    expect(autoCampaignTargetsLeads({ trigger: "lead_no_contact" })).toBe(true);
+    expect(autoCampaignTargetsPatients("lead_no_contact")).toBe(false);
+    expect(autoCampaignTargetsPatients("birthday")).toBe(true);
+    expect(
+      autoCampaignDeliveryInputSchema.safeParse({
+        campaignId: "33333333-3333-4333-8333-333333333333",
+        stepId: "33333333-3333-4333-8333-333333333333",
+        occurrenceKey: "lead:x:new",
+        status: "sent",
+      }).success,
+    ).toBe(false);
   });
 });
 

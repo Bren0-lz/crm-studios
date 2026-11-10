@@ -7,6 +7,7 @@ import {
   autoCampaignTriggerDescriptions,
   autoCampaignTriggerLabels,
   type AutoCampaign,
+  type CampaignLeadFilterOptions,
   type PlanTemplate,
 } from "@crm/contracts";
 import { Plus, Trash2 } from "lucide-react";
@@ -17,6 +18,7 @@ import { MoneyInput } from "../../../shared/components/MoneyInput";
 import { useFormDirty } from "../../../shared/workflows/useDirtyGuard";
 import { WhatsappBubble } from "../campaigns/WhatsappBubble";
 import { MessageBodyEditor } from "../campaigns/MessageBodyEditor";
+import { LeadAudienceFields } from "../campaigns/LeadAudienceFields";
 import { DiscountScopeFields } from "./DiscountScopeFields";
 import {
   autoCampaignDraft,
@@ -25,6 +27,8 @@ import {
   autoCampaignTriggers,
   discountScopeError,
   cooldownUnits,
+  isLeadTrigger,
+  triggerAcceptsLeads,
   newStepKey,
   offsetUnit,
   promotionAllowsFixedDate,
@@ -37,11 +41,14 @@ import {
 export function AutoCampaignEditorModal({
   campaign,
   canSeeFinance,
+  canSeeLeads = false,
   onClose,
   onSaved,
 }: {
   campaign?: AutoCampaign | undefined;
   canSeeFinance: boolean;
+  /** Acesso ao comercial: eventos de lead e "incluir leads". */
+  canSeeLeads?: boolean;
   onClose: () => void;
   onSaved: (campaign: AutoCampaign) => void;
 }) {
@@ -60,10 +67,15 @@ export function AutoCampaignEditorModal({
   );
   const triggers = autoCampaignTriggers.filter(
     (trigger) =>
-      trigger !== "overdue_payment" ||
-      canSeeFinance ||
-      campaign?.trigger === trigger,
+      campaign?.trigger === trigger ||
+      (trigger === "overdue_payment"
+        ? canSeeFinance
+        : !isLeadTrigger(trigger) || canSeeLeads),
   );
+  const leadTrigger = isLeadTrigger(draft.trigger);
+  const withLeads =
+    leadTrigger || (triggerAcceptsLeads(draft.trigger) && draft.includeLeads);
+  const leadOptions = useLeadFilterOptions(canSeeLeads && withLeads);
   const variables = autoCampaignEditorVariables[draft.trigger];
   const location = useAppointmentLocation(
     draft.trigger === "appointment_upcoming",
@@ -162,6 +174,40 @@ export function AutoCampaignEditorModal({
             {autoCampaignTriggerDescriptions[draft.trigger]}
           </span>
         </label>
+        {canSeeLeads && triggerAcceptsLeads(draft.trigger) && (
+          <label className="checkbox-field span-2">
+            <input
+              type="checkbox"
+              checked={draft.includeLeads}
+              onChange={(event) =>
+                setDraft((current) => ({
+                  ...current,
+                  includeLeads: event.target.checked,
+                }))
+              }
+            />
+            Incluir leads (os que têm data de nascimento no cadastro)
+          </label>
+        )}
+        {canSeeLeads && withLeads && (
+          <fieldset className="form-fieldset span-2">
+            <legend>Quais leads</legend>
+            <LeadAudienceFields
+              idPrefix={`${formId}-leads`}
+              value={draft.leadFilter}
+              options={leadOptions}
+              onChange={(leadFilter) =>
+                setDraft((current) => ({ ...current, leadFilter }))
+              }
+            />
+            {draft.promotional && (
+              <p className="field-hint">
+                Lead que receber a promoção pode usá-la depois de virar cliente,
+                dentro da validade.
+              </p>
+            )}
+          </fieldset>
+        )}
         <label className="checkbox-field span-2">
           <input
             type="checkbox"
@@ -622,4 +668,27 @@ function useAppointmentLocation(enabled: boolean) {
     };
   }, [enabled]);
   return state;
+}
+
+/** Etapas, origens e demais valores do filtro de leads (só quando o filtro aparece). */
+function useLeadFilterOptions(enabled: boolean) {
+  const [options, setOptions] = useState<CampaignLeadFilterOptions | null>(
+    null,
+  );
+  useEffect(() => {
+    if (!enabled || options) return;
+    let active = true;
+    api
+      .campaignFilterOptions()
+      .then((result) => {
+        if (active) setOptions(result.leads ?? null);
+      })
+      .catch(() => {
+        // Sem as opções, o filtro mostra só os campos de dias.
+      });
+    return () => {
+      active = false;
+    };
+  }, [enabled, options]);
+  return options;
 }

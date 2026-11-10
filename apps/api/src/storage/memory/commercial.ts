@@ -369,6 +369,23 @@ export function createCommercialRepository(
         delete appointment.leadName;
         appointment.updatedAt = now();
       }
+      // Campanhas que o lead recebeu passam ao cliente (a promoção vale ao agendar).
+      for (const campaign of repositoryContext.whatsappCampaigns) {
+        if (campaign.clinicId !== clinicId) continue;
+        const own = campaign.recipients.some(
+          (item) => item.patientId === patient.id,
+        );
+        for (const recipient of campaign.recipients)
+          if (recipient.leadId === lead.id && !recipient.patientId && !own)
+            recipient.patientId = patient.id;
+      }
+      for (const delivery of repositoryContext.autoCampaignDeliveries)
+        if (
+          delivery.clinicId === clinicId &&
+          delivery.leadId === lead.id &&
+          !delivery.patientId
+        )
+          delivery.patientId = patient.id;
       lead.convertedPatientId = patient.id;
       lead.stage = "won";
       delete lead.lostReason;
