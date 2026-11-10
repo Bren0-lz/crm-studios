@@ -256,15 +256,13 @@ describe("settings tabs", () => {
     ).toHaveAttribute("aria-selected", "true");
     const panel = screen.getByRole("tabpanel", { name: "Serviços e salas" });
     expect(
-      within(panel).getByRole("heading", {
-        name: "Serviços, salas e profissionais",
-      }),
+      within(panel).getByRole("heading", { name: "Serviços e salas" }),
     ).toBeInTheDocument();
     expect(
       within(panel)
         .getAllByRole("tab")
         .map((tab) => tab.textContent),
-    ).toEqual(["Serviços", "Salas", "Profissionais"]);
+    ).toEqual(["Serviços", "Salas"]);
     expect(
       within(panel).getByRole("tab", { name: "Serviços" }),
     ).toHaveAttribute("aria-selected", "true");
@@ -273,7 +271,7 @@ describe("settings tabs", () => {
     ).toBeInTheDocument();
     const catalogs = await openSettingsSection("Cadastros");
     expect(
-      within(catalogs).queryByText("Serviços, salas e profissionais"),
+      within(catalogs).queryByText("Serviços e salas"),
     ).not.toBeInTheDocument();
     expect(
       within(catalogs)
