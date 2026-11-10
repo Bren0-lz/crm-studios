@@ -62,7 +62,7 @@ export const planTypeLabels: Record<PlanType, string> = {
   quarterly: "Plano trimestral",
   semiannual: "Plano semestral",
   annual: "Plano anual",
-  promotional: "Plano promocional",
+  promotional: "Plano pacote",
 };
 
 export function planPeriodMonths(type?: PlanType | null): number {
