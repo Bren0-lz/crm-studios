@@ -1995,7 +1995,7 @@ describe("textos de interface sem nome antigo nem código interno (QM15)", () =>
       (entry) => entry.key === "agenda.view_all",
     );
     expect(item).toMatchObject({
-      name: "Ver agenda de todos os profissionais",
+      name: "Ver a agenda de todos",
       dependencies: ["agenda.view"],
       explicitGrantOnly: true,
     });
@@ -2010,7 +2010,7 @@ describe("textos de interface sem nome antigo nem código interno (QM15)", () =>
     expect(
       permissionCatalog.find((entry) => entry.key === "patients.tabs_refund"),
     ).toMatchObject({
-      name: "Estornar pagamento da venda ao cancelar",
+      name: "Devolver dinheiro ao cancelar venda",
       dependencies: ["patients.view", "patients.tabs_cancel"],
       explicitGrantOnly: true,
     });
