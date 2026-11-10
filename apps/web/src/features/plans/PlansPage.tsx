@@ -10,7 +10,15 @@ import {
   planHasSessionBalance,
   withPrefix,
 } from "@crm/contracts";
-import { FileClock, Pause, Play, Plus, RefreshCw, Search } from "lucide-react";
+import {
+  FileClock,
+  Pause,
+  Play,
+  Plus,
+  RefreshCw,
+  Search,
+  Trash2,
+} from "lucide-react";
 import { useEffect, useState } from "react";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
@@ -37,6 +45,7 @@ import { PlanModal } from "./PlanModal";
 import { useToast } from "../../shared/feedback/toast-context";
 import { PlanPauseModal } from "./PlanPauseModal";
 import { SessionMovementsModal } from "./SessionMovementsModal";
+import { SendToTrashModal, TrashButton } from "../trash";
 
 export function PlansPage({ canManage }: { canManage: boolean }) {
   const { can } = useAuthorization();
@@ -50,6 +59,7 @@ export function PlansPage({ canManage }: { canManage: boolean }) {
   const [movementPlan, setMovementPlan] = useState<PatientPlan | null>(null);
   const [renewingPlan, setRenewingPlan] = useState<PatientPlan | null>(null);
   const [pausingPlan, setPausingPlan] = useState<PatientPlan | null>(null);
+  const [trashingPlan, setTrashingPlan] = useState<PatientPlan | null>(null);
   const [cancellingPlan, setCancellingPlan] = useState<PatientPlan | null>(
     null,
   );
@@ -154,17 +164,26 @@ export function PlansPage({ canManage }: { canManage: boolean }) {
         title="Planos e sessões"
         description="Controle validade, saldo e consumo de cada pacote vendido."
         action={
-          canManage
-            ? can("plans.create") && (
-                <button
-                  className="primary-button"
-                  onClick={() => setModalOpen(true)}
-                >
-                  <Plus size={18} />
-                  Novo plano
-                </button>
-              )
-            : undefined
+          <div className="page-actions">
+            <TrashButton
+              kind="patient-plans"
+              onChanged={() => {
+                api
+                  .plans()
+                  .then(setPlans)
+                  .catch((cause: Error) => setError(cause.message));
+              }}
+            />
+            {canManage && can("plans.create") && (
+              <button
+                className="primary-button"
+                onClick={() => setModalOpen(true)}
+              >
+                <Plus size={18} />
+                Novo plano
+              </button>
+            )}
+          </div>
         }
       />
       {error && <ErrorBanner error={error} />}
@@ -325,6 +344,15 @@ export function PlansPage({ canManage }: { canManage: boolean }) {
                             )}
                           </>
                         )}
+                      {can("trash.send") && (
+                        <button
+                          className="secondary-button button-sm"
+                          onClick={() => setTrashingPlan(plan)}
+                        >
+                          <Trash2 size={15} aria-hidden="true" />
+                          Excluir
+                        </button>
+                      )}
                     </>
                   }
                 />
@@ -385,6 +413,21 @@ export function PlansPage({ canManage }: { canManage: boolean }) {
             );
             toast.success("Plano pausado.");
             setPausingPlan(null);
+          }}
+        />
+      )}
+      {trashingPlan && (
+        <SendToTrashModal
+          kind="patient-plans"
+          id={trashingPlan.id}
+          title={`${trashingPlan.name} · ${trashingPlan.patientName}`}
+          onClose={() => setTrashingPlan(null)}
+          onDone={() => {
+            toast.success(`${trashingPlan.name} foi para a lixeira de Planos.`);
+            setPlans((items) =>
+              items.filter((item) => item.id !== trashingPlan.id),
+            );
+            setTrashingPlan(null);
           }}
         />
       )}

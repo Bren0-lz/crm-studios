@@ -12,17 +12,22 @@ import { Modal } from "../../shared/components/Modal";
 import { PhoneInput } from "../../shared/components/PhoneInput";
 import { LeadDuplicateWarning } from "./LeadDuplicateWarning";
 import { useLeadDuplicates } from "./useLeadDuplicates";
+import { SendToTrashModal } from "../trash";
 
 export function LeadModal({
   onClose,
   onCreated,
+  onTrashed,
   lead,
 }: {
   onClose: () => void;
   onCreated: (lead: Lead) => void;
+  /** Lead enviado para a lixeira pelo botão "Excluir" (só na edição). */
+  onTrashed?: (lead: Lead) => void;
   lead?: Lead | undefined;
 }) {
   const { can } = useAuthorization();
+  const [trashing, setTrashing] = useState(false);
   const [form, setForm] = useState<LeadInput>(
     lead
       ? leadInputSchema.parse(lead)
@@ -112,7 +117,7 @@ export function LeadModal({
         title={lead ? "Editar lead" : "Novo lead"}
         subtitle="Registre o contato para acompanhar a oportunidade no funil."
         busy={loading || Boolean(prompt.modal)}
-        inactive={Boolean(prompt.modal)}
+        inactive={Boolean(prompt.modal) || trashing}
         onClose={close}
       >
         {can(lead ? "crm.update" : "crm.create") && (
@@ -249,6 +254,16 @@ export function LeadModal({
             {error && <div className="form-error span-2">{error}</div>}
             {missing.hint}
             <div className="modal-actions span-2">
+              {lead && onTrashed && can("trash.send") && (
+                <button
+                  type="button"
+                  className="danger-button"
+                  onClick={() => setTrashing(true)}
+                  disabled={loading}
+                >
+                  Excluir
+                </button>
+              )}
               <button
                 type="button"
                 className="secondary-button"
@@ -273,6 +288,15 @@ export function LeadModal({
         )}
       </Modal>
       {prompt.modal}
+      {trashing && lead && onTrashed && (
+        <SendToTrashModal
+          kind="leads"
+          id={lead.id}
+          title={lead.fullName}
+          onClose={() => setTrashing(false)}
+          onDone={() => onTrashed(lead)}
+        />
+      )}
     </>
   );
 }

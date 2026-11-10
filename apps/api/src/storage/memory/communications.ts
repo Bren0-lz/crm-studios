@@ -200,10 +200,14 @@ export function createCommunicationsRepository(
       options: ReminderGenerationOptions = {},
     ) {
       const patients = repositoryContext.patients.filter(
-        (item) => item.clinicId === clinicId,
+        (item) =>
+          item.clinicId === clinicId &&
+          !repositoryContext.isTrashed("patients", item.id),
       );
       const encounters = repositoryContext.appointments.filter(
-        (item) => item.clinicId === clinicId,
+        (item) =>
+          item.clinicId === clinicId &&
+          !repositoryContext.isTrashed("appointments", item.id),
       );
       const groupEncounters = repositoryContext.groupAttendance
         .filter(

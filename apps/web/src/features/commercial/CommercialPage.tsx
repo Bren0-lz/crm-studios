@@ -38,6 +38,7 @@ import { LeadModal } from "./LeadModal";
 import { LeadStageModal } from "./LeadStageModal";
 import { useBoardReorder } from "./useBoardReorder";
 import { useToast } from "../../shared/feedback/toast-context";
+import { TrashButton } from "../trash";
 
 type Columns = Record<LeadStage, LeadStagePage>;
 
@@ -322,8 +323,14 @@ export function CommercialPage() {
         title="CRM comercial"
         description="Acompanhe cada oportunidade desde o primeiro contato até a conversão."
         action={
-          can("crm.stages_manage") || (canManage && can("crm.create")) ? (
+          can("crm.stages_manage") ||
+          (canManage && can("crm.create")) ||
+          can("trash.view") ? (
             <div className="page-actions">
+              <TrashButton
+                kind="leads"
+                onChanged={() => void loadBoard(filterRef.current)}
+              />
               {can("crm.stages_manage") && (
                 <button
                   className="secondary-button"
@@ -583,6 +590,11 @@ export function CommercialPage() {
         <LeadModal
           lead={editingLead}
           onClose={() => setEditingLead(null)}
+          onTrashed={(lead) => {
+            toast.success(`Lead ${lead.fullName} foi para a lixeira.`);
+            setEditingLead(null);
+            void loadBoard(filterRef.current);
+          }}
           onCreated={(lead) => {
             toast.success(`Lead ${lead.fullName} atualizado.`);
             replaceLead(lead);

@@ -9,6 +9,7 @@ import { patientsApi } from "./shared/api/domains/patients";
 import { plansApi } from "./shared/api/domains/plans";
 import { relationshipApi } from "./shared/api/domains/relationship";
 import { reportsApi } from "./shared/api/domains/reports";
+import { trashApi } from "./shared/api/domains/trash";
 import { waitlistApi } from "./shared/api/domains/waitlist";
 
 export const api = {
@@ -23,6 +24,7 @@ export const api = {
   ...communicationsApi,
   ...relationshipApi,
   ...waitlistApi,
+  ...trashApi,
   ...contractsApi,
 };
 export { ApiClientError } from "./shared/api/ApiClientError";

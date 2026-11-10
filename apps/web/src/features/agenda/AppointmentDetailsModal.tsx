@@ -33,6 +33,7 @@ import {
 import { addDaysToIsoDate } from "../relationship/index";
 import { AppointmentEditModal } from "./AppointmentEditModal";
 import { SatisfactionSurveyModal } from "./SatisfactionSurveyModal";
+import { SendToTrashModal } from "../trash";
 
 const cancellationReasons = [
   "Cliente desmarcou",
@@ -57,6 +58,7 @@ export function AppointmentDetailsModal({
   onReschedule,
   onUpdated,
   onEdited,
+  onTrashed,
   editable,
   initialCancelConfirmation = false,
   initialEditing = false,
@@ -70,6 +72,8 @@ export function AppointmentDetailsModal({
   onUpdated: (appointment: Appointment) => void;
   /** Serviço, sala ou observação alterados em "Editar" (QM6). */
   onEdited: (appointment: Appointment) => void;
+  /** Atendimento enviado para a lixeira pelo botão "Excluir". */
+  onTrashed?: () => void;
   /** Sem edição da Agenda: só consulta (sem cancelar, remarcar ou registrar satisfação). */
   editable: boolean;
   initialCancelConfirmation?: boolean;
@@ -111,6 +115,8 @@ export function AppointmentDetailsModal({
   // Ações do rodapé: com uma confirmação aberta (cancelar/falta), só ela aparece.
   const idle = editable && !confirmCancel && !confirmNoShow;
   const canCancel = idle && canChange && can("agenda.cancel");
+  const [trashing, setTrashing] = useState(false);
+  const canTrash = idle && Boolean(onTrashed) && can("trash.send");
   const canEditDetails = idle && canChange && can("agenda.reschedule");
   const canRescheduleScheduled = canEditDetails;
   const canRescheduleAbsence =
@@ -129,7 +135,8 @@ export function AppointmentDetailsModal({
     can("agenda.satisfaction_create");
   // Rodapé em duas linhas: gestão (cancelar/editar/remarcar) e presença (falta/realizado).
   const hasManageActions = canEditDetails || canRescheduleAbsence;
-  const hasActions = canCancel || hasManageActions || canAttend || canRate;
+  const hasActions =
+    canCancel || canTrash || hasManageActions || canAttend || canRate;
   const hasFooter =
     hasActions ||
     Boolean(error) ||
@@ -578,17 +585,28 @@ export function AppointmentDetailsModal({
                 </div>
               </div>
             )}
-            {(canCancel || hasManageActions) && (
+            {(canCancel || canTrash || hasManageActions) && (
               <div className="modal-actions tab-footer">
-                {canCancel && (
+                {(canCancel || canTrash) && (
                   <div className="tab-footer-danger">
-                    <button
-                      className="danger-button"
-                      onClick={() => setConfirmCancel(true)}
-                      disabled={savingStatus}
-                    >
-                      Cancelar atendimento
-                    </button>
+                    {canCancel && (
+                      <button
+                        className="danger-button"
+                        onClick={() => setConfirmCancel(true)}
+                        disabled={savingStatus}
+                      >
+                        Cancelar atendimento
+                      </button>
+                    )}
+                    {canTrash && (
+                      <button
+                        className="danger-button"
+                        onClick={() => setTrashing(true)}
+                        disabled={savingStatus}
+                      >
+                        Excluir
+                      </button>
+                    )}
                   </div>
                 )}
                 {hasManageActions && (
@@ -680,6 +698,15 @@ export function AppointmentDetailsModal({
           </div>
         )}
       </div>
+      {trashing && onTrashed && (
+        <SendToTrashModal
+          kind="appointments"
+          id={appointment.id}
+          title={`${appointment.serviceName} · ${appointment.patientName}`}
+          onClose={() => setTrashing(false)}
+          onDone={onTrashed}
+        />
+      )}
     </Modal>
   );
 }

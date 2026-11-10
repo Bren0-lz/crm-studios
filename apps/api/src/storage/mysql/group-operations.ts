@@ -64,7 +64,7 @@ export function createGroupOperationsRepository(
           kind: PatientPlan["kind"];
         }>(
           // Recorrente: a frequência semanal vale, sem bloquear pelo saldo nominal.
-          `SELECT pp.id,pps.remaining_sessions AS balance,pp.kind FROM patient_plans pp JOIN patient_plan_services pps ON pps.plan_id=pp.id AND pps.clinic_id=pp.clinic_id WHERE pp.clinic_id=$1 AND pp.patient_id=$2 AND pps.service_id=$3 AND (pps.remaining_sessions>0 OR pp.kind='recurring') AND pp.status='active' AND pp.source_tab_id IS NULL AND pp.valid_from<=${localDate("$4")} AND (pp.valid_until IS NULL OR pp.valid_until>=${localDate("$4")}) ORDER BY pp.valid_until IS NULL,pp.valid_until,pp.created_at LIMIT 1 FOR UPDATE`,
+          `SELECT pp.id,pps.remaining_sessions AS balance,pp.kind FROM patient_plans pp JOIN patient_plan_services pps ON pps.plan_id=pp.id AND pps.clinic_id=pp.clinic_id WHERE pp.clinic_id=$1 AND pp.patient_id=$2 AND pps.service_id=$3 AND (pps.remaining_sessions>0 OR pp.kind='recurring') AND pp.status='active' AND pp.deleted_at IS NULL AND pp.source_tab_id IS NULL AND pp.valid_from<=${localDate("$4")} AND (pp.valid_until IS NULL OR pp.valid_until>=${localDate("$4")}) ORDER BY pp.valid_until IS NULL,pp.valid_until,pp.created_at LIMIT 1 FOR UPDATE`,
           [
             clinicId,
             attendance.patientId,
@@ -421,7 +421,7 @@ export function createGroupOperationsRepository(
         });
         const { startsAt, endsAt } = meeting.rows[0];
         const conflicts = await client.query(
-          `SELECT 1 FROM appointments WHERE clinic_id=$1 AND professional_id=$2 AND status<>'cancelled' AND starts_at<$4 AND ends_at>$3 UNION ALL SELECT 1 FROM group_sessions gs JOIN group_classes g ON g.id=gs.group_id AND g.clinic_id=gs.clinic_id WHERE gs.clinic_id=$1 AND gs.id<>$5 AND coalesce(gs.professional_id,g.professional_id)=$2 AND gs.status<>'cancelled' AND gs.starts_at<$4 AND gs.ends_at>$3 UNION ALL SELECT 1 FROM schedule_blocks WHERE clinic_id=$1 AND professional_id=$2 AND status='active' AND starts_at<$4 AND ends_at>$3`,
+          `SELECT 1 FROM appointments WHERE clinic_id=$1 AND deleted_at IS NULL AND professional_id=$2 AND status<>'cancelled' AND starts_at<$4 AND ends_at>$3 UNION ALL SELECT 1 FROM group_sessions gs JOIN group_classes g ON g.id=gs.group_id AND g.clinic_id=gs.clinic_id WHERE gs.clinic_id=$1 AND gs.id<>$5 AND coalesce(gs.professional_id,g.professional_id)=$2 AND gs.status<>'cancelled' AND gs.starts_at<$4 AND gs.ends_at>$3 UNION ALL SELECT 1 FROM schedule_blocks WHERE clinic_id=$1 AND professional_id=$2 AND status='active' AND starts_at<$4 AND ends_at>$3`,
           [clinicId, professionalId, startsAt, endsAt, sessionId],
         );
         if (conflicts.rowCount)

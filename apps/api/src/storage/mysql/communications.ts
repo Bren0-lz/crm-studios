@@ -285,11 +285,11 @@ export function createCommunicationsRepository(
           [clinicId],
         );
         const patients = await client.query<ReminderPatient>(
-          `SELECT id,full_name AS "fullName",phone,whatsapp,birth_date AS "birthDate",status FROM patients WHERE clinic_id=$1`,
+          `SELECT id,full_name AS "fullName",phone,whatsapp,birth_date AS "birthDate",status FROM patients WHERE clinic_id=$1 AND deleted_at IS NULL`,
           [clinicId],
         );
         const encounters = await client.query<ReminderEncounter>(
-          `SELECT id,patient_id AS "patientId",starts_at AS "startsAt",status FROM appointments WHERE clinic_id=$1 AND patient_id IS NOT NULL AND ${localDate("starts_at")}=$2 UNION ALL SELECT gs.id,ga.patient_id,gs.starts_at,'completed' FROM group_attendance ga JOIN group_sessions gs ON gs.id=ga.session_id AND gs.clinic_id=ga.clinic_id WHERE ga.clinic_id=$1 AND (ga.status='present' OR ga.outcome='present') AND gs.status<>'cancelled' AND ${localDate("gs.starts_at")}=$2`,
+          `SELECT id,patient_id AS "patientId",starts_at AS "startsAt",status FROM appointments WHERE clinic_id=$1 AND deleted_at IS NULL AND patient_id IS NOT NULL AND ${localDate("starts_at")}=$2 UNION ALL SELECT gs.id,ga.patient_id,gs.starts_at,'completed' FROM group_attendance ga JOIN group_sessions gs ON gs.id=ga.session_id AND gs.clinic_id=ga.clinic_id WHERE ga.clinic_id=$1 AND (ga.status='present' OR ga.outcome='present') AND gs.status<>'cancelled' AND ${localDate("gs.starts_at")}=$2`,
           [
             clinicId,
             referenceDate,

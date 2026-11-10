@@ -53,6 +53,7 @@ export const appModuleSchema = z.enum([
   "reports",
   "settings",
   "history",
+  "trash",
 ]);
 
 export const appModuleLabels: Record<AppModule, string> = {
@@ -71,6 +72,7 @@ export const appModuleLabels: Record<AppModule, string> = {
   reports: "Relatórios",
   settings: "Configurações",
   history: "Histórico",
+  trash: "Lixeira",
 };
 
 /**

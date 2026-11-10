@@ -224,6 +224,66 @@ export const historyActions: {
     label: "Cadastros de clientes unificados",
   },
   {
+    action: "patient.trashed",
+    module: "patients",
+    label: "Cliente enviado para a lixeira",
+  },
+  {
+    action: "patient.restored",
+    module: "patients",
+    label: "Cliente restaurado da lixeira",
+  },
+  {
+    action: "patient.purged",
+    module: "patients",
+    label: "Cliente excluído em definitivo",
+  },
+  {
+    action: "lead.trashed",
+    module: "crm",
+    label: "Lead enviado para a lixeira",
+  },
+  {
+    action: "lead.restored",
+    module: "crm",
+    label: "Lead restaurado da lixeira",
+  },
+  {
+    action: "lead.purged",
+    module: "crm",
+    label: "Lead excluído em definitivo",
+  },
+  {
+    action: "appointment.trashed",
+    module: "agenda",
+    label: "Atendimento enviado para a lixeira",
+  },
+  {
+    action: "appointment.restored",
+    module: "agenda",
+    label: "Atendimento restaurado da lixeira",
+  },
+  {
+    action: "appointment.purged",
+    module: "agenda",
+    label: "Atendimento excluído em definitivo",
+  },
+  {
+    action: "patient_plan.trashed",
+    module: "plans",
+    label: "Plano do cliente enviado para a lixeira",
+  },
+  {
+    action: "patient_plan.restored",
+    module: "plans",
+    label: "Plano do cliente restaurado da lixeira",
+  },
+  {
+    action: "patient_plan.purged",
+    module: "plans",
+    label: "Plano do cliente excluído em definitivo",
+  },
+  {
     action: "registry.updated",
     module: "settings",
     label: "Cadastro administrativo atualizado",

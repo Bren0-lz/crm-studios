@@ -327,7 +327,7 @@ export function createReportsRepository(
       );
       const appointmentResult = await client.query<AppointmentRow>(
         `SELECT ${appointmentColumns} FROM appointments a ${appointmentJoins}
-         WHERE a.clinic_id=$1 AND a.patient_id IS NOT NULL AND ${branchClause("a.branch_id", 5)} AND (
+         WHERE a.clinic_id=$1 AND a.deleted_at IS NULL AND a.patient_id IS NOT NULL AND ${branchClause("a.branch_id", 5)} AND (
            (a.status='completed' AND ${localDate("a.starts_at")} BETWEEN $2 AND $3)
            OR (a.status IN ('scheduled','confirmed') AND ${localDate("a.starts_at")} >= $4)
          )`,
@@ -478,7 +478,7 @@ export function createReportsRepository(
           FROM appointments a
           ${appointmentJoins}
           JOIN clinics c ON c.id = a.clinic_id
-          WHERE a.clinic_id = $1
+          WHERE a.clinic_id = $1 AND a.deleted_at IS NULL
             AND ${branchClause("a.branch_id", 3)}
             AND a.starts_at >= ${localDayStart("$2")}
             AND a.starts_at < ${localDayStart("DATE_ADD($2, INTERVAL 1 DAY)")}
@@ -588,7 +588,7 @@ export function createReportsRepository(
         >(
           `SELECT a.professional_id AS "professionalId",p.full_name AS "professionalName",a.service_id AS "serviceId",s.name AS "serviceName",${consumedPlan("appointment_id", "a.id")} AS "planId"
            FROM appointments a JOIN professionals p ON p.id=a.professional_id AND p.clinic_id=a.clinic_id JOIN services s ON s.id=a.service_id AND s.clinic_id=a.clinic_id
-           WHERE a.clinic_id=$1 AND a.status='completed' AND a.visit_type<>'trial' AND a.patient_id IS NOT NULL AND ${localDate("a.starts_at")} BETWEEN $2 AND $3 AND ${branchClause("a.branch_id", 4)}
+           WHERE a.clinic_id=$1 AND a.deleted_at IS NULL AND a.status='completed' AND a.visit_type<>'trial' AND a.patient_id IS NOT NULL AND ${localDate("a.starts_at")} BETWEEN $2 AND $3 AND ${branchClause("a.branch_id", 4)}
            UNION ALL
            SELECT p.id,p.full_name,g.service_id,s.name,${consumedPlan("group_attendance_id", "ga.id")}
            FROM group_attendance ga JOIN group_sessions gs ON gs.id=ga.session_id AND gs.clinic_id=ga.clinic_id JOIN group_classes g ON g.id=gs.group_id AND g.clinic_id=gs.clinic_id
@@ -609,7 +609,7 @@ export function createReportsRepository(
           TeamProductionSources["pendingCommissions"][number]
         >(
           `WITH sources AS (
-             SELECT a.id AS appointment_id,CAST(NULL AS CHAR(36)) AS group_attendance_id,a.professional_id,a.service_id,a.starts_at FROM appointments a WHERE a.clinic_id=$1 AND a.status='completed' AND a.patient_id IS NOT NULL
+             SELECT a.id AS appointment_id,CAST(NULL AS CHAR(36)) AS group_attendance_id,a.professional_id,a.service_id,a.starts_at FROM appointments a WHERE a.clinic_id=$1 AND a.deleted_at IS NULL AND a.status='completed' AND a.patient_id IS NOT NULL
              UNION ALL SELECT NULL,ga.id,coalesce(gs.professional_id,g.professional_id),g.service_id,gs.starts_at FROM group_attendance ga JOIN group_sessions gs ON gs.id=ga.session_id AND gs.clinic_id=ga.clinic_id JOIN group_classes g ON g.id=gs.group_id AND g.clinic_id=gs.clinic_id WHERE ga.clinic_id=$1 AND gs.status<>'cancelled' AND (ga.status='present' OR ga.outcome='present')
            )
            SELECT pr.id AS "professionalId",pr.full_name AS "professionalName",${commissionAmount(
@@ -697,7 +697,7 @@ export function createReportsRepository(
                       AND pp.created_at >= a.starts_at
                       AND pp.created_at <= a.starts_at + INTERVAL 30 DAY
                   ) THEN 1 ELSE 0 END), 0) AS SIGNED) AS "trialsConverted"
-         FROM appointments a WHERE a.clinic_id = $1 AND ${dateFilter}`,
+         FROM appointments a WHERE a.clinic_id = $1 AND a.deleted_at IS NULL AND ${dateFilter}`,
           [clinicId, from, to, branchIds],
         ),
         repositoryContext.pool.query<BreakdownRow>(
@@ -706,7 +706,7 @@ export function createReportsRepository(
                 CAST(COUNT(CASE WHEN a.status = 'no_show' THEN 1 END) AS SIGNED) AS "noShows",
                 CAST(COUNT(CASE WHEN a.status = 'cancelled' THEN 1 END) AS SIGNED) AS cancelled
          FROM appointments a JOIN professionals pr ON pr.id = a.professional_id
-         WHERE a.clinic_id = $1 AND ${dateFilter}
+         WHERE a.clinic_id = $1 AND a.deleted_at IS NULL AND ${dateFilter}
          GROUP BY pr.id, pr.full_name ORDER BY total DESC`,
           [clinicId, from, to, branchIds],
         ),
@@ -716,7 +716,7 @@ export function createReportsRepository(
                 CAST(COUNT(CASE WHEN a.status = 'no_show' THEN 1 END) AS SIGNED) AS "noShows",
                 CAST(COUNT(CASE WHEN a.status = 'cancelled' THEN 1 END) AS SIGNED) AS cancelled
          FROM appointments a JOIN services s ON s.id = a.service_id
-         WHERE a.clinic_id = $1 AND ${dateFilter}
+         WHERE a.clinic_id = $1 AND a.deleted_at IS NULL AND ${dateFilter}
          GROUP BY s.id, s.name ORDER BY total DESC`,
           [clinicId, from, to, branchIds],
         ),
@@ -767,7 +767,7 @@ export function createReportsRepository(
              (SELECT MIN(lc.occurred_at) FROM lead_contacts lc
                WHERE lc.lead_id = leads.id AND lc.direction <> 'internal') AS first_contact_at
            FROM leads
-           WHERE clinic_id = $1 AND ${branchClause("leads.branch_id", 4)}
+           WHERE clinic_id = $1 AND deleted_at IS NULL AND ${branchClause("leads.branch_id", 4)}
              AND ${localDate("created_at")}
                  BETWEEN $2 AND $3
          ) leads`,
@@ -782,7 +782,7 @@ export function createReportsRepository(
           `SELECT source, COUNT(*) AS leads,
                 CAST(COUNT(CASE WHEN stage = 'won' THEN 1 END) AS SIGNED) AS won,
                 CAST(COUNT(CASE WHEN stage = 'lost' THEN 1 END) AS SIGNED) AS lost
-         FROM leads WHERE clinic_id = $1 AND ${branchClause("branch_id", 4)}
+         FROM leads WHERE clinic_id = $1 AND deleted_at IS NULL AND ${branchClause("branch_id", 4)}
            AND ${localDate("created_at")}
                BETWEEN $2 AND $3
          GROUP BY source ORDER BY leads DESC`,
@@ -798,7 +798,7 @@ export function createReportsRepository(
           commissionsInCents: number;
         }>(
           `SELECT s.id,s.name,
-             (SELECT count(*) FROM appointments a WHERE a.clinic_id=$1 AND a.service_id=s.id AND a.status='completed' AND ${branchClause("a.branch_id", 4)} AND ${localDate("a.starts_at")} BETWEEN $2 AND $3) AS "completedAppointments",
+             (SELECT count(*) FROM appointments a WHERE a.clinic_id=$1 AND a.deleted_at IS NULL AND a.service_id=s.id AND a.status='completed' AND ${branchClause("a.branch_id", 4)} AND ${localDate("a.starts_at")} BETWEEN $2 AND $3) AS "completedAppointments",
              CAST(0 AS SIGNED) AS "revenueInCents",
              (SELECT CAST(coalesce(sum(c.amount_in_cents),0) AS SIGNED) FROM commission_entries c JOIN appointments a ON a.id=c.appointment_id WHERE c.clinic_id=$1 AND a.service_id=s.id AND ${branchClause("a.branch_id", 4)} AND c.status='paid' AND c.payroll_payable_id IS NULL AND ${localDate("c.paid_at")} BETWEEN $2 AND $3) AS "commissionsInCents"
            FROM services s WHERE s.clinic_id=$1

@@ -15,4 +15,5 @@ export * from "./permissions.js";
 export * from "./plans/index.js";
 export * from "./relationship/index.js";
 export * from "./reports/index.js";
+export * from "./trash/index.js";
 export * from "./waitlist/index.js";

@@ -428,6 +428,17 @@ export class MemoryRepositoryContext {
 
   readonly adminAuditEvents: AdminAuditEvent[] = [];
 
+  /** Lixeira: `${tópico}:${id}` → quando e quem enviou (o registro continua no lugar). */
+  readonly trashed = new Map<
+    string,
+    { deletedAt: string; deletedByUserId: string }
+  >();
+
+  /** Item na lixeira: fica fora das listas, buscas e da checagem de horário. */
+  isTrashed(kind: import("@crm/contracts").TrashKind, id?: string | null) {
+    return Boolean(id) && this.trashed.has(`${kind}:${id}`);
+  }
+
   readonly relationshipSettings = new Map<string, RelationshipSettings>();
 
   readonly agendaNotes: import("@crm/contracts").AgendaNote[] = [];
@@ -1511,6 +1522,7 @@ export class MemoryRepositoryContext {
     const conflict = this.appointments.some(
       (item) =>
         item.clinicId === clinicId &&
+        !this.isTrashed("appointments", item.id) &&
         item.status !== "cancelled" &&
         (item.professionalId === professional.id || item.roomId === room.id) &&
         new Date(item.startsAt) < endsAt &&
@@ -1832,6 +1844,7 @@ export class MemoryRepositoryContext {
       this.appointments.some(
         (item) =>
           item.clinicId === clinicId &&
+          !this.isTrashed("appointments", item.id) &&
           item.status !== "cancelled" &&
           (item.professionalId === group.professionalId ||
             item.roomId === group.roomId) &&
@@ -2288,6 +2301,7 @@ export class MemoryRepositoryContext {
       .filter(
         (plan) =>
           plan.clinicId === appointment.clinicId &&
+          !this.isTrashed("patient-plans", plan.id) &&
           plan.patientId === appointment.patientId &&
           (!appointment.planId || plan.id === appointment.planId) &&
           (!plan.sourceAppointmentId ||

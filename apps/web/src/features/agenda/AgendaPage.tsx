@@ -82,6 +82,7 @@ import { appointmentStatusClass } from "./model";
 import { professionalColorStyle } from "../../tag-colors";
 import { AgendaStatusLegend } from "./AgendaStatusLegend";
 import { PendingFinalizationBadge } from "./PendingFinalizationBadge";
+import { TrashButton } from "../trash";
 
 export function AgendaPage() {
   const { can, canView, canEdit, user } = useAuthorization();
@@ -430,10 +431,15 @@ export function AgendaPage() {
         action={
           (canBlock ||
             canSchedule ||
+            can("trash.view") ||
             can("agenda.notes") ||
             agendaProfessionals.length > 0 ||
             autoFinalization) && (
             <div className="page-actions">
+              <TrashButton
+                kind="appointments"
+                onChanged={() => setNoteReload((count) => count + 1)}
+              />
               {autoFinalization && (
                 <NavLink to="/agenda/concluidos" className="secondary-button">
                   <CheckCheck size={16} aria-hidden="true" />
@@ -1256,6 +1262,13 @@ export function AgendaPage() {
           onReschedule={() => {
             closeAppointment();
             setRescheduling(selectedAppointment);
+          }}
+          onTrashed={() => {
+            toast.success("Atendimento enviado para a lixeira.");
+            setAppointments((items) =>
+              items.filter((item) => item.id !== selectedAppointment.id),
+            );
+            closeAppointment();
           }}
           onEdited={(updated) => {
             toast.success("Atendimento atualizado.");

@@ -55,6 +55,11 @@ const mutationRules: [RegExp, DataDomain[]][] = [
   [/^\/leads\/[^/]+\/convert$/, ["patients", "history", "crm"]],
   // Tarefas e etapas dos leads alimentam o sino (tarefas comerciais vencidas).
   [/^\/(?:leads|lead-tasks|events)(?:\/|$|\?)/, ["crm"]],
+  // Lixeira: enviar, restaurar ou excluir de vez some/volta com o item e o que é dele.
+  [
+    /^\/trash\//,
+    ["patients", "crm", "agenda", "plans", "finance", "clinical", "history"],
+  ],
   [/^\/patients(?:\/|$)|^\/patient-tags(?:\/|$)/, ["patients", "history"]],
   [
     /^\/(?:clinical-[a-z-]+|therapeutic-goals|treatment-closures|assessment-templates)(?:\/|$)/,

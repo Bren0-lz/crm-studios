@@ -1,5 +1,6 @@
 import { createAgendaNotesRepository } from "./storage/memory/agenda-notes.js";
 import { createWaitlistRepository } from "./storage/memory/waitlist.js";
+import { createTrashRepository } from "./storage/memory/trash.js";
 import { createEventsRepository } from "./storage/memory/events.js";
 import { createBranchesRepository } from "./storage/memory/branches.js";
 import { createCommissionReconciliationRepository } from "./storage/memory/commission-reconciliation.js";
@@ -41,6 +42,11 @@ import { createRelationshipRepository } from "./storage/memory/relationship.js";
 import { createReportsRepository } from "./storage/memory/reports.js";
 
 export class MemoryClinicRepository implements ClinicRepository {
+  readonly listTrash: ClinicRepository["listTrash"];
+  readonly sendToTrash: ClinicRepository["sendToTrash"];
+  readonly restoreFromTrash: ClinicRepository["restoreFromTrash"];
+  readonly trashImpact: ClinicRepository["trashImpact"];
+  readonly purgeFromTrash: ClinicRepository["purgeFromTrash"];
   readonly listWaitlist: ClinicRepository["listWaitlist"];
   readonly createWaitlistEntry: ClinicRepository["createWaitlistEntry"];
   readonly updateWaitlistEntry: ClinicRepository["updateWaitlistEntry"];
@@ -266,6 +272,12 @@ export class MemoryClinicRepository implements ClinicRepository {
     ).setFinancialDates;
     this.relationship = createRelationshipRepository(this.context);
     this.agenda = createAgendaRepository(this.context);
+    const trash = createTrashRepository(this.context);
+    this.listTrash = trash.listTrash;
+    this.sendToTrash = trash.sendToTrash;
+    this.restoreFromTrash = trash.restoreFromTrash;
+    this.trashImpact = trash.trashImpact;
+    this.purgeFromTrash = trash.purgeFromTrash;
     const waitlist = createWaitlistRepository(this.context);
     this.listWaitlist = waitlist.listWaitlist;
     this.createWaitlistEntry = waitlist.createWaitlistEntry;

@@ -380,14 +380,14 @@ export function createAutoCampaignsRepository(
           }),
           repositoryContext.pool.query<PatientRow>(
             `SELECT ${patientColumns} FROM patients
-             WHERE clinic_id = $1 AND status = 'active'`,
+             WHERE clinic_id = $1 AND status = 'active' AND deleted_at IS NULL`,
             [clinicId],
           ),
           repositoryContext.pool.query<AppointmentRow>(
             `SELECT ${appointmentColumns}
              FROM appointments a
              ${appointmentJoins}
-             WHERE a.clinic_id = $1 AND a.patient_id IS NOT NULL`,
+             WHERE a.clinic_id = $1 AND a.patient_id IS NOT NULL AND a.deleted_at IS NULL`,
             [clinicId],
           ),
           repositoryContext.pool.query<ReceivableRow>(
