@@ -388,7 +388,7 @@ export function createPlansRepository(
        FROM patient_plans pp
        JOIN patients p ON p.id = pp.patient_id
        JOIN services s ON s.id = pp.service_id
-       WHERE pp.clinic_id = $1
+       WHERE pp.clinic_id = $1 AND pp.deleted_at IS NULL
          -- Planos do cliente valem em todas as filiais (cadastro único).
          AND CASE WHEN $2 IS NULL THEN ${branchClause("pp.branch_id", 3)}
                   ELSE pp.patient_id = $2 END
@@ -503,7 +503,7 @@ export function createPlansRepository(
         const due = await repositoryContext.pool.query<{ id: string }>(
           `SELECT pp.id
          FROM patient_plans pp
-         WHERE pp.clinic_id = $1 AND pp.auto_renew
+         WHERE pp.clinic_id = $1 AND pp.auto_renew AND pp.deleted_at IS NULL
            AND pp.status IN ('active', 'expired')
            AND pp.valid_until < ${localToday()}
            AND NOT EXISTS (

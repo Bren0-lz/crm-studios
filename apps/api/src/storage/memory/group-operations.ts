@@ -416,6 +416,7 @@ export function createGroupOperationsRepository(
         context.appointments.some(
           (item) =>
             item.clinicId === clinicId &&
+            !context.isTrashed("appointments", item.id) &&
             item.professionalId === professionalId &&
             item.status !== "cancelled" &&
             overlap(item.startsAt, item.endsAt),

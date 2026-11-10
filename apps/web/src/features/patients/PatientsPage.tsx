@@ -23,6 +23,7 @@ import {
   Search,
   SlidersHorizontal,
   UserPlus,
+  Trash2,
 } from "lucide-react";
 import { ActionMenu } from "../../shared/components/ActionMenu";
 import type { ActionMenuItem } from "../../shared/lib/types";
@@ -52,6 +53,7 @@ import {
 import { PatientExportModal } from "./PatientExportModal";
 import { PatientImportModal } from "./PatientImportModal";
 import { PatientModal } from "./PatientModal";
+import { TrashModal } from "../trash";
 import type { PatientRecordFilter, PatientSort } from "./types";
 
 const automaticTagHints: Record<string, string> = {
@@ -80,6 +82,7 @@ export function PatientsPage() {
   const [editingPatient, setEditingPatient] = useState<Patient | null>(null);
   const [importOpen, setImportOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
+  const [trashOpen, setTrashOpen] = useState(false);
   // Busca efetivamente aplicada na lista (a do campo só vale depois de "Buscar").
   const [appliedSearch, setAppliedSearch] = useState("");
   const [page, setPage] = useState(1);
@@ -208,6 +211,15 @@ export function PatientsPage() {
             label: "Exportar",
             icon: <FileUp size={16} aria-hidden="true" />,
             onSelect: () => setExportOpen(true),
+          },
+        ]
+      : []),
+    ...(can("trash.view", "patients.view")
+      ? [
+          {
+            label: "Lixeira",
+            icon: <Trash2 size={16} aria-hidden="true" />,
+            onSelect: () => setTrashOpen(true),
           },
         ]
       : []),
@@ -622,6 +634,13 @@ export function PatientsPage() {
         <PatientImportModal
           onClose={() => setImportOpen(false)}
           onImported={() => void load()}
+        />
+      )}
+      {trashOpen && (
+        <TrashModal
+          kind="patients"
+          onClose={() => setTrashOpen(false)}
+          onChanged={() => void load()}
         />
       )}
       {exportOpen && (

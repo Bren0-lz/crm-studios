@@ -16,6 +16,21 @@ import {
 } from "../permissions.js";
 
 describe("operation permissions", () => {
+  it("separa enviar para a lixeira de ver, restaurar e excluir de vez", () => {
+    expect(effectivePermissions("admin")).toEqual(
+      expect.arrayContaining(["trash.send", "trash.view"]),
+    );
+    const legacy = legacyPermissions(
+      "user",
+      ["patients", "crm", "agenda", "plans"],
+      ["patients", "crm", "agenda", "plans"],
+    );
+    expect(legacy).not.toContain("trash.send");
+    expect(legacy).not.toContain("trash.view");
+    expect(normalizePermissions(["trash.send"])).toEqual(["trash.send"]);
+    expect(togglePermissions([], ["trash.send"], true)).toEqual(["trash.send"]);
+    expect(togglePermissions([], ["trash.view"], true)).toEqual(["trash.view"]);
+  });
   it("grants the sales suppliers tab only explicitly and on top of the clients view", () => {
     expect(effectivePermissions("admin")).toContain(
       "patients.suppliers_manage",
@@ -89,7 +104,8 @@ describe("operation permissions", () => {
     for (const item of permissionCatalog) {
       for (const dependency of item.dependencies)
         expect(permissionKeys).toContain(dependency);
-      if (!item.key.endsWith(".view"))
+      // Única exceção: enviar para a lixeira não dá acesso à lixeira.
+      if (!item.key.endsWith(".view") && item.key !== "trash.send")
         expect(item.dependencies).toContain(`${item.module}.view`);
     }
     expect(

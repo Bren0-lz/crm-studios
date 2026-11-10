@@ -143,3 +143,5 @@ O catálogo abaixo é definido em `packages/contracts/src/permissions.ts`; as po
 | `settings.tags_create` | Configurações | Criar etiqueta | `POST /patient-tags` |
 | `settings.tags_update` | Configurações | Editar etiqueta | `PATCH /patient-tags/:id` |
 | `settings.tags_delete` | Configurações | Excluir etiqueta | `DELETE /patient-tags/:id` |
+| `trash.send` | Lixeira | Enviar para a lixeira (não depende de `trash.view`; a rota exige também a visualização da área do tópico) | `POST /trash/:kind/:id` |
+| `trash.view` | Lixeira | Ver a lixeira, restaurar e excluir em definitivo (exige também a visualização da área do tópico) | `GET /trash/:kind`<br>`GET /trash/:kind/:id/impact`<br>`POST /trash/:kind/:id/restore`<br>`DELETE /trash/:kind/:id` |

@@ -190,6 +190,29 @@ export function formatAuditEvent(event: AdminAuditEvent) {
           metadata.patientsUpdated.toLocaleString("pt-BR"),
         );
       break;
+    case "patient.trashed":
+    case "patient.restored":
+    case "patient.purged":
+    case "lead.trashed":
+    case "lead.restored":
+    case "lead.purged":
+    case "appointment.trashed":
+    case "appointment.restored":
+    case "appointment.purged":
+    case "patient_plan.trashed":
+    case "patient_plan.restored":
+    case "patient_plan.purged":
+      add("Item", metadata.title);
+      if (
+        typeof metadata.removedCount === "number" &&
+        Number.isSafeInteger(metadata.removedCount) &&
+        metadata.removedCount > 0
+      )
+        add(
+          "Registros apagados junto",
+          metadata.removedCount.toLocaleString("pt-BR"),
+        );
+      break;
     case "patients.exported": {
       if (
         typeof metadata.count === "number" &&

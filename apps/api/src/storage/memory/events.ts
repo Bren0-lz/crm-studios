@@ -36,7 +36,8 @@ export function createEventsRepository(context: MemoryRepositoryContext) {
       (lead) =>
         lead.clinicId === row.clinicId &&
         lead.eventId === row.id &&
-        context.inBranchScope(lead),
+        context.inBranchScope(lead) &&
+        !context.isTrashed("leads", lead.id),
     );
   const toEvent = (row: EventRow): CommercialEvent => {
     const createdByName = row.createdBy

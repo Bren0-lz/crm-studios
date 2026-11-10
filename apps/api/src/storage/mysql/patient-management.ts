@@ -25,9 +25,9 @@ export function createPatientManagementRepository(
     const today = saoPauloToday(),
       cutoff = inactivityCutoff(today, months);
     const result = await client.query<PatientRow>(
-      `SELECT ${patientColumns} FROM patients WHERE clinic_id=$1 AND status='active' AND merged_into_patient_id IS NULL AND ${localDate("created_at")}<=$2
+      `SELECT ${patientColumns} FROM patients WHERE clinic_id=$1 AND status='active' AND merged_into_patient_id IS NULL AND deleted_at IS NULL AND ${localDate("created_at")}<=$2
       AND NOT EXISTS(SELECT 1 FROM patient_plans p WHERE p.clinic_id=$1 AND p.patient_id=patients.id AND p.status='active' AND p.valid_from<=$3 AND (p.valid_until IS NULL OR p.valid_until>=$3))
-      AND NOT EXISTS(SELECT 1 FROM appointments a WHERE a.clinic_id=$1 AND a.patient_id=patients.id AND a.status<>'cancelled' AND ${localDate("a.starts_at")}>=$2)
+      AND NOT EXISTS(SELECT 1 FROM appointments a WHERE a.clinic_id=$1 AND a.deleted_at IS NULL AND a.patient_id=patients.id AND a.status<>'cancelled' AND ${localDate("a.starts_at")}>=$2)
       AND NOT EXISTS(SELECT 1 FROM group_enrollments e JOIN group_sessions s ON s.group_id=e.group_id AND s.clinic_id=e.clinic_id WHERE e.clinic_id=$1 AND e.patient_id=patients.id AND e.status='active' AND s.status='scheduled' AND s.starts_at>=$3)
       AND NOT EXISTS(SELECT 1 FROM group_attendance a JOIN group_sessions s ON s.id=a.session_id AND s.clinic_id=a.clinic_id WHERE a.clinic_id=$1 AND a.patient_id=patients.id AND ${localDate("s.starts_at")}>=$2) ORDER BY full_name`,
       [clinicId, cutoff, today],
@@ -68,7 +68,7 @@ export function createPatientManagementRepository(
   return {
     async getPatient(clinicId: string, patientId: string) {
       const result = await context.pool.query<PatientRow>(
-        `SELECT ${patientColumns} FROM patients WHERE clinic_id=$1 AND id=(SELECT coalesce(merged_into_patient_id,id) FROM patients WHERE clinic_id=$1 AND id=$2)`,
+        `SELECT ${patientColumns} FROM patients WHERE clinic_id=$1 AND deleted_at IS NULL AND id=(SELECT coalesce(merged_into_patient_id,id) FROM patients WHERE clinic_id=$1 AND id=$2)`,
         [clinicId, patientId],
       );
       return result.rows[0] ? mapPatient(result.rows[0]) : null;

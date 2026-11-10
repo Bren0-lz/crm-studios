@@ -151,6 +151,7 @@ export function createAgendaRepository(
           (item) =>
             item.clinicId === clinicId &&
             repositoryContext.inBranchScope(item) &&
+            !repositoryContext.isTrashed("appointments", item.id) &&
             item.startsAt < to &&
             item.endsAt > from,
         )
@@ -164,6 +165,7 @@ export function createAgendaRepository(
           (item) =>
             item.clinicId === clinicId &&
             repositoryContext.inBranchScope(item) &&
+            !repositoryContext.isTrashed("appointments", item.id) &&
             isAppointmentPendingFinalization(item, instant),
         )
         .sort((a, b) => a.startsAt.localeCompare(b.startsAt));
@@ -179,6 +181,7 @@ export function createAgendaRepository(
       const due = repositoryContext.appointments.filter(
         (item) =>
           item.clinicId === clinicId &&
+          !repositoryContext.isTrashed("appointments", item.id) &&
           (item.status === "scheduled" || item.status === "confirmed") &&
           Date.parse(item.endsAt) <= limit,
       );
@@ -204,7 +207,10 @@ export function createAgendaRepository(
       options?: AppointmentCreateOptions,
     ) {
       const patient = repositoryContext.patients.find(
-        (item) => item.id === input.patientId && item.clinicId === clinicId,
+        (item) =>
+          item.id === input.patientId &&
+          item.clinicId === clinicId &&
+          !repositoryContext.isTrashed("patients", item.id),
       );
       if (!patient)
         throw new DomainError(
@@ -310,6 +316,7 @@ export function createAgendaRepository(
       const appointmentConflict = repositoryContext.appointments.some(
         (item) =>
           item.clinicId === clinicId &&
+          !repositoryContext.isTrashed("appointments", item.id) &&
           item.id !== appointmentId &&
           item.status !== "cancelled" &&
           (item.professionalId === professional.id ||
@@ -391,14 +398,20 @@ export function createAgendaRepository(
     async findAppointmentServiceId(clinicId: string, appointmentId: string) {
       return (
         repositoryContext.appointments.find(
-          (item) => item.clinicId === clinicId && item.id === appointmentId,
+          (item) =>
+            item.clinicId === clinicId &&
+            item.id === appointmentId &&
+            !repositoryContext.isTrashed("appointments", item.id),
         )?.serviceId ?? null
       );
     },
 
     async findAppointment(clinicId: string, appointmentId: string) {
       const appointment = repositoryContext.appointments.find(
-        (item) => item.clinicId === clinicId && item.id === appointmentId,
+        (item) =>
+          item.clinicId === clinicId &&
+          item.id === appointmentId &&
+          !repositoryContext.isTrashed("appointments", item.id),
       );
       return appointment ? { ...appointment } : null;
     },
@@ -528,6 +541,7 @@ export function createAgendaRepository(
       const appointmentConflict = repositoryContext.appointments.some(
         (item) =>
           item.clinicId === clinicId &&
+          !repositoryContext.isTrashed("appointments", item.id) &&
           item.id !== appointmentId &&
           item.status !== "cancelled" &&
           (item.professionalId === professionalId || item.roomId === room.id) &&
@@ -644,6 +658,7 @@ export function createAgendaRepository(
         const appointment = repositoryContext.appointments.some(
           (item) =>
             item.clinicId === clinicId &&
+            !repositoryContext.isTrashed("appointments", item.id) &&
             item.status !== "cancelled" &&
             sameResource(item) &&
             overlaps(item.startsAt, item.endsAt),
@@ -762,6 +777,7 @@ export function createAgendaRepository(
       const appointmentConflict = repositoryContext.appointments.some(
         (item) =>
           item.clinicId === clinicId &&
+          !repositoryContext.isTrashed("appointments", item.id) &&
           item.status !== "cancelled" &&
           (item.professionalId === input.professionalId ||
             item.roomId === input.roomId) &&
@@ -1054,7 +1070,8 @@ export function createAgendaRepository(
         (item) =>
           item.clinicId === clinicId &&
           item.id === input.patientId &&
-          item.status === "active",
+          item.status === "active" &&
+          !repositoryContext.isTrashed("patients", item.id),
       );
       if (!group || !patient)
         throw new DomainError(

@@ -132,14 +132,14 @@ export function createRelationshipRepository(
         repositoryContext.operations.listContactActivities(clinicId),
         repositoryContext.pool.query<PatientRow>(
           `SELECT ${patientColumns} FROM patients
-           WHERE clinic_id = $1 AND status = 'active'`,
+           WHERE clinic_id = $1 AND status = 'active' AND deleted_at IS NULL`,
           [clinicId],
         ),
         repositoryContext.pool.query<AppointmentRow>(
           `SELECT ${appointmentColumns}
            FROM appointments a
            ${appointmentJoins}
-           WHERE a.clinic_id = $1 AND a.patient_id IS NOT NULL`,
+           WHERE a.clinic_id = $1 AND a.deleted_at IS NULL AND a.patient_id IS NOT NULL`,
           [clinicId],
         ),
         repositoryContext.pool.query<ReceivableRow>(
@@ -213,7 +213,7 @@ export function createRelationshipRepository(
       const [patients, activities] = await Promise.all([
         repositoryContext.pool.query<PatientRow>(
           `SELECT ${patientColumns} FROM patients
-         WHERE clinic_id = $1 AND status = 'active' AND birth_date IS NOT NULL`,
+         WHERE clinic_id = $1 AND status = 'active' AND deleted_at IS NULL AND birth_date IS NOT NULL`,
           [clinicId],
         ),
         repositoryContext.pool.query<ContactActivityRow>(

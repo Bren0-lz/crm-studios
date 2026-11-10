@@ -602,7 +602,7 @@ export class MysqlRepositoryContext {
     ];
     const conflict = await client.query(
       `SELECT 1 FROM appointments a
-       WHERE a.clinic_id = $1 AND a.status <> 'cancelled'
+       WHERE a.clinic_id = $1 AND a.deleted_at IS NULL AND a.status <> 'cancelled'
          AND (${slot.kind === "appointment" ? "$6 IS NULL OR a.id <> $6" : "TRUE"})
          AND ((a.professional_id = $2) OR (a.room_id = $3))
          AND a.starts_at < $5 AND a.ends_at > $4
@@ -638,6 +638,7 @@ export class MysqlRepositoryContext {
       `SELECT pp.id FROM patient_plans pp
        JOIN patient_plan_services ps ON ps.clinic_id=pp.clinic_id AND ps.plan_id=pp.id
        WHERE pp.clinic_id=$1 AND pp.id=$2 AND pp.patient_id=$3 AND ps.service_id=$4
+         AND pp.deleted_at IS NULL
        LOCK IN SHARE MODE`,
       [clinicId, input.planId, patientId, input.serviceId],
     );
@@ -754,7 +755,7 @@ export class MysqlRepositoryContext {
         [clinicId, input.groupId],
       );
       const patient = await client.query<{ fullName: string }>(
-        `SELECT full_name AS "fullName" FROM patients WHERE id=$2 AND clinic_id=$1 AND status='active'`,
+        `SELECT full_name AS "fullName" FROM patients WHERE id=$2 AND clinic_id=$1 AND status='active' AND deleted_at IS NULL`,
         [clinicId, input.patientId],
       );
       if (!group.rows[0] || !patient.rows[0])
@@ -859,7 +860,7 @@ export class MysqlRepositoryContext {
       );
       if (occurrences.length)
         await client.query(
-          `INSERT INTO group_sessions(clinic_id,group_id,starts_at,ends_at) SELECT $1,$2,o.starts_at,o.ends_at FROM JSON_TABLE($5, '$[*]' COLUMNS (starts_at DATETIME(6) PATH '$.starts_at', ends_at DATETIME(6) PATH '$.ends_at')) AS o WHERE NOT EXISTS (SELECT 1 FROM appointments a WHERE a.clinic_id=$1 AND a.status<>'cancelled' AND (a.professional_id=$3 OR a.room_id=$4) AND a.starts_at<o.ends_at AND a.ends_at>o.starts_at) AND NOT EXISTS (SELECT 1 FROM schedule_blocks b WHERE b.clinic_id=$1 AND b.status='active' AND (b.professional_id=$3 OR b.room_id=$4) AND b.starts_at<o.ends_at AND b.ends_at>o.starts_at) AND NOT EXISTS (SELECT 1 FROM group_sessions gs JOIN group_classes og ON og.id=gs.group_id WHERE gs.clinic_id=$1 AND gs.status<>'cancelled' AND (og.professional_id=$3 OR og.room_id=$4) AND gs.starts_at<o.ends_at AND gs.ends_at>o.starts_at) ON DUPLICATE KEY UPDATE group_sessions.group_id=group_sessions.group_id`,
+          `INSERT INTO group_sessions(clinic_id,group_id,starts_at,ends_at) SELECT $1,$2,o.starts_at,o.ends_at FROM JSON_TABLE($5, '$[*]' COLUMNS (starts_at DATETIME(6) PATH '$.starts_at', ends_at DATETIME(6) PATH '$.ends_at')) AS o WHERE NOT EXISTS (SELECT 1 FROM appointments a WHERE a.clinic_id=$1 AND a.deleted_at IS NULL AND a.status<>'cancelled' AND (a.professional_id=$3 OR a.room_id=$4) AND a.starts_at<o.ends_at AND a.ends_at>o.starts_at) AND NOT EXISTS (SELECT 1 FROM schedule_blocks b WHERE b.clinic_id=$1 AND b.status='active' AND (b.professional_id=$3 OR b.room_id=$4) AND b.starts_at<o.ends_at AND b.ends_at>o.starts_at) AND NOT EXISTS (SELECT 1 FROM group_sessions gs JOIN group_classes og ON og.id=gs.group_id WHERE gs.clinic_id=$1 AND gs.status<>'cancelled' AND (og.professional_id=$3 OR og.room_id=$4) AND gs.starts_at<o.ends_at AND gs.ends_at>o.starts_at) ON DUPLICATE KEY UPDATE group_sessions.group_id=group_sessions.group_id`,
           [
             clinicId,
             group.id,
@@ -901,7 +902,7 @@ export class MysqlRepositoryContext {
       endsAt: Date;
       label: string;
     }>(
-      `SELECT a.starts_at AS "startsAt",a.ends_at AS "endsAt",'Atendimento de ' || coalesce(pt.full_name, ld.full_name) AS label FROM appointments a LEFT JOIN patients pt ON pt.id=a.patient_id LEFT JOIN leads ld ON ld.id=a.lead_id WHERE a.clinic_id=$1 AND a.status<>'cancelled' AND a.ends_at>NOW(6) AND (a.professional_id=$2 OR a.room_id=$3)
+      `SELECT a.starts_at AS "startsAt",a.ends_at AS "endsAt",'Atendimento de ' || coalesce(pt.full_name, ld.full_name) AS label FROM appointments a LEFT JOIN patients pt ON pt.id=a.patient_id LEFT JOIN leads ld ON ld.id=a.lead_id WHERE a.clinic_id=$1 AND a.deleted_at IS NULL AND a.status<>'cancelled' AND a.ends_at>NOW(6) AND (a.professional_id=$2 OR a.room_id=$3)
        UNION ALL
        SELECT gs.starts_at,gs.ends_at,g.name FROM group_sessions gs JOIN group_classes g ON g.id=gs.group_id WHERE gs.clinic_id=$1 AND gs.status<>'cancelled' AND gs.ends_at>NOW(6) AND ($4 IS NULL OR gs.group_id<>$4) AND (g.professional_id=$2 OR g.room_id=$3)`,
       [clinicId, group.professionalId, group.roomId, group.id ?? null],
@@ -998,7 +999,7 @@ export class MysqlRepositoryContext {
       allowed,
     );
     const patient = await client.query(
-      "SELECT 1 FROM patients WHERE clinic_id=$1 AND id=$2 AND status='active'",
+      "SELECT 1 FROM patients WHERE clinic_id=$1 AND id=$2 AND status='active' AND deleted_at IS NULL",
       [clinicId, input.patientId],
     );
     // O desconto é do plano: a renovação segue o do plano anterior, com o que já foi usado.
@@ -1349,7 +1350,7 @@ export class MysqlRepositoryContext {
 
   async findLead(client: Pool | PoolClient, clinicId: string, leadId: string) {
     const result = await client.query<LeadRow>(
-      `SELECT ${leadColumns} FROM leads WHERE clinic_id = $1 AND id = $2`,
+      `SELECT ${leadColumns} FROM leads WHERE clinic_id = $1 AND id = $2 AND deleted_at IS NULL`,
       [clinicId, leadId],
     );
     return result.rows[0] ? mapLead(result.rows[0]) : null;
@@ -1396,7 +1397,7 @@ export class MysqlRepositoryContext {
         SELECT ${appointmentColumns}
         FROM appointments a
         ${appointmentJoins}
-        WHERE a.clinic_id = $1 AND a.id = $2
+        WHERE a.clinic_id = $1 AND a.deleted_at IS NULL AND a.id = $2
       `,
       [clinicId, appointmentId],
     );
@@ -1460,7 +1461,7 @@ export class MysqlRepositoryContext {
        FROM patient_plans pp
        JOIN patients p ON p.id = pp.patient_id
        JOIN services s ON s.id = pp.service_id
-       WHERE pp.clinic_id = $1 AND pp.id = $2`,
+       WHERE pp.clinic_id = $1 AND pp.id = $2 AND pp.deleted_at IS NULL`,
       [clinicId, planId],
     );
     return result.rows[0] ? mapPatientPlan(result.rows[0]) : null;
@@ -2029,7 +2030,7 @@ export class MysqlRepositoryContext {
        FROM patient_plans pp JOIN clinics c ON c.id = pp.clinic_id
        JOIN patient_plan_services pps ON pps.plan_id = pp.id AND pps.clinic_id = pp.clinic_id
        WHERE pp.clinic_id = $1 AND pp.patient_id = $2 AND pps.service_id = $3
-         AND pp.status = 'active'
+         AND pp.status = 'active' AND pp.deleted_at IS NULL
          AND ($6 IS NULL OR pp.id = $6)
          AND (pp.source_appointment_id IS NULL OR pp.source_appointment_id = $5)
          AND pp.valid_from <= ${localDate("$4")}

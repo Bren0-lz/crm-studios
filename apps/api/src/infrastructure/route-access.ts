@@ -168,6 +168,12 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
   "POST /waitlist": operation("waitlist.manage"),
   "PATCH /waitlist/:id": operation("waitlist.manage"),
   "DELETE /waitlist/:id": operation("waitlist.manage"),
+  // Lixeira: a área do tópico (`:kind`) é conferida na própria rota.
+  "GET /trash/:kind": operation("trash.view"),
+  "GET /trash/:kind/:id/impact": operation("trash.view"),
+  "POST /trash/:kind/:id/restore": operation("trash.view"),
+  "DELETE /trash/:kind/:id": operation("trash.view"),
+  "POST /trash/:kind/:id": operation("trash.send"),
   "GET /agenda-notes": view("agenda"),
   "POST /agenda-notes": operation("agenda.notes"),
   "PATCH /agenda-notes/:id": operation("agenda.notes"),
@@ -661,4 +667,5 @@ export const moduleDeniedCodes: Record<AppModule, string> = {
   clinical: "CLINICAL_ACCESS_DENIED",
   finance: "FINANCE_ACCESS_DENIED",
   reports: "MANAGEMENT_ACCESS_DENIED",
+  trash: "TRASH_ACCESS_DENIED",
 };
