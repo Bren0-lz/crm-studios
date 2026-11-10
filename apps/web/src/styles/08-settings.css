@@ -577,6 +577,31 @@
   margin-bottom: var(--space-4);
 }
 
+.holiday-import-list {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.holiday-import-list strong,
+.holiday-import-list small {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.holiday-import-list strong {
+  font-size: var(--text-md);
+  font-weight: 600;
+}
+
+.holiday-import-list small {
+  margin-top: var(--space-1);
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+
 /* audit: mobile-ok nome flexível + botão "Excluir" cabem em 390px */
 .holiday-list article {
   display: grid;

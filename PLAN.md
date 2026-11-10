@@ -1467,3 +1467,17 @@ filtros ficam no `dashboard-studios` (EN11–EN13 têm só a parte da API aqui).
 - **Pendente com o dono:** definir `PASSWORD_ENCRYPTION_KEY` no `.env`/`.env.example` e na
   Hostinger (não editados sem autorização).
 - **Status:** DONE
+
+## Pedido avulso — Importar feriados do ano (10/11/2026)
+
+### FN1 — Importar feriados nacionais, do RJ e de Bom Jesus do Itabapoana
+
+- **Escopo:** cálculo no próprio CRM, sem API externa (`suggestedHolidays(ano)` em
+  `contracts/src/agenda/holidays.ts`: fixos nacionais, Sexta-feira Santa pela Páscoa, Carnaval e
+  Corpus Christi como ponto facultativo, São Jorge 23/04 (RJ), aniversário da cidade 14/12;
+  Consciência Negra só a partir de 2024); `POST /holidays/batch` (só admin) cadastra as datas
+  livres e devolve `{ created, skipped }`; em Configurações > Feriados, botão "Importar feriados
+  do ano" abre prévia com ano (atual/próximo) e checkbox por data, já cadastradas desativadas.
+  Datas por decreto continuam no cadastro manual.
+- **Gate:** gate completo (sem SQL novo: reaproveita `createHoliday`/`listHolidays`)
+- **Status:** DONE

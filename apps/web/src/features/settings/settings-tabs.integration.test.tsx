@@ -19,6 +19,7 @@ import {
   setDocumentText,
 } from "../../test-support/document-editor";
 import "../../test-support/legacy-setup";
+import { saoPauloToday, suggestedHolidays } from "@crm/contracts";
 
 describe("settings tabs", () => {
   const owner = {
@@ -194,6 +195,90 @@ describe("settings tabs", () => {
           String(input).includes("/admin/clinic-settings"),
         ),
     ).toHaveLength(1);
+  });
+
+  it("imports the year's holidays, skipping registered and unchecked dates", async () => {
+    localStorage.setItem("crm.auth.token", "test-token");
+    localStorage.setItem("crm.auth.user", storedUser(owner));
+    const year = saoPauloToday().slice(0, 4);
+    const christmas = {
+      id: "h-natal",
+      clinicId: "c1",
+      date: `${year}-12-25`,
+      name: "Natal",
+      createdAt: "2026-09-01T12:00:00.000Z",
+    };
+    mockSettings(
+      () =>
+        ({
+          ok: true,
+          status: 200,
+          json: async () => [christmas],
+        }) as unknown as Response,
+    );
+    const original = vi.mocked(fetch).getMockImplementation()!;
+    vi.mocked(fetch).mockImplementation(async (input, init) => {
+      if (String(input).includes("/holidays/batch")) {
+        const { holidays } = JSON.parse(String(init?.body)) as {
+          holidays: { date: string; name: string }[];
+        };
+        return {
+          ok: true,
+          status: 201,
+          json: async () => ({
+            created: holidays.slice(1).map((item, index) => ({
+              ...item,
+              id: `h-${index}`,
+              clinicId: "c1",
+              createdAt: "2026-09-01T12:00:00.000Z",
+            })),
+            skipped: 1,
+          }),
+        } as Response;
+      }
+      return original(input, init);
+    });
+    render(
+      <MemoryRouter initialEntries={["/configuracoes"]}>
+        <App />
+      </MemoryRouter>,
+    );
+    const section = await openSettingsSection("Feriados");
+    fireEvent.click(
+      await within(section).findByRole("button", {
+        name: "Importar feriados do ano",
+      }),
+    );
+    const dialog = screen.getByRole("dialog", { name: "Importar feriados" });
+    const suggestions = suggestedHolidays(Number(year));
+    expect(
+      within(dialog).getByRole("checkbox", { name: /^Natal/ }),
+    ).toBeDisabled();
+    expect(within(dialog).getByText(/Já cadastrado/)).toBeInTheDocument();
+    fireEvent.click(
+      within(dialog).getByRole("checkbox", { name: /^Corpus Christi/ }),
+    );
+    const expected = suggestions.filter(
+      (item) => item.name !== "Natal" && item.name !== "Corpus Christi",
+    );
+    fireEvent.click(
+      within(dialog).getByRole("button", {
+        name: `Importar ${expected.length} feriados`,
+      }),
+    );
+    expect(
+      await within(section).findByText(
+        `${expected.length - 1} feriados importados. 1 já estava cadastrado.`,
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    const post = vi
+      .mocked(fetch)
+      .mock.calls.find(([input]) => String(input).includes("/holidays/batch"));
+    expect(JSON.parse(String(post?.[1]?.body))).toEqual({
+      holidays: expected.map(({ date, name }) => ({ date, name })),
+    });
+    expect(within(section).getByText(expected[1]!.name)).toBeInTheDocument();
   });
 
   it("places new user in the users tab and locks tabs while its modal is open", async () => {

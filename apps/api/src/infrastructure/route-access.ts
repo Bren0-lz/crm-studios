@@ -111,6 +111,7 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
   "PUT /admin/clinic-settings": "admin",
   "PUT /relationship/settings": "admin",
   "POST /holidays": "admin",
+  "POST /holidays/batch": "admin",
   "DELETE /holidays/:id": "admin",
   "GET /admin/audit-events": view("history"),
   "GET /history/audit-events": view("history"),

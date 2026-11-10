@@ -694,3 +694,14 @@ export const holidayInputSchema = z.object({
   date: z.iso.date("Informe uma data válida."),
   name: z.string().trim().min(2, "Informe o nome do feriado.").max(120),
 });
+
+export const holidayBatchInputSchema = z.object({
+  holidays: z
+    .array(holidayInputSchema)
+    .min(1, "Selecione ao menos um feriado.")
+    .max(31)
+    .refine(
+      (items) => new Set(items.map((item) => item.date)).size === items.length,
+      "Há feriados repetidos na mesma data.",
+    ),
+});
