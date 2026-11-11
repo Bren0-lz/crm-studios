@@ -11677,7 +11677,7 @@ describe("action modals instead of browser dialogs", () => {
       expect(within(dialog).getByLabelText("Nome completo")).toHaveValue(
         "Bruna Lead",
       );
-      fireEvent.click(within(dialog).getByRole("button", { name: "Voltar" }));
+      fireEvent.click(within(dialog).getByRole("button", { name: "Cancelar" }));
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
       expect(writes()).toHaveLength(0);
 
@@ -11703,14 +11703,18 @@ describe("action modals instead of browser dialogs", () => {
         expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
       );
       expect(writes()).toHaveLength(1);
-      expect(String(writes()[0]![0])).toContain(`/leads/${lead.id}/convert`);
+      // LC1: o cadastro completo de cliente converte o lead junto.
+      expect(String(writes()[0]![0])).toContain("/patients/guided");
       expect(writes()[0]![1]?.method).toBe("POST");
       expect(JSON.parse(String(writes()[0]![1]?.body))).toMatchObject({
+        next: "none",
+        leadId: lead.id,
+      });
+      expect(JSON.parse(String(writes()[0]![1]?.body)).patient).toMatchObject({
         cpf: "52998224725",
         fullName: "Bruna Lead",
         phone: "11987654321",
         emergencyContactName: "Contato de Emergência",
-        address: "",
       });
     });
 

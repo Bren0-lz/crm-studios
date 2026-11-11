@@ -52,6 +52,7 @@ describe('coluna "Origem: evento/lead" na exportação de clientes (EN3b)', () =
       fullName: string,
       phone: string,
       eventId?: string,
+      cpf = nextTestCpf(),
     ) => {
       await tick();
       const lead = await repository.createLead(
@@ -68,13 +69,15 @@ describe('coluna "Origem: evento/lead" na exportação de clientes (EN3b)', () =
         method: "POST",
         url: `/leads/${lead.id}/convert`,
         headers,
-        payload: { cpf: nextTestCpf(), ...testPatientContact },
+        payload: { cpf, ...testPatientContact },
       });
       expect(response.statusCode, response.body).toBe(200);
     };
     await convert("Ana Exporta Origem", "11977771001", event.id);
-    await convert("Bia Exporta Origem", "11977771002");
-    await convert("Bia Exporta Origem", "11977771002", event.id);
+    // LC1: a segunda conversão reaproveita a Bia pelo CPF.
+    const biaCpf = nextTestCpf();
+    await convert("Bia Exporta Origem", "11977771002", undefined, biaCpf);
+    await convert("Bia Exporta Origem", "11977771002", event.id, biaCpf);
     await repository.createPatient(clinicId, {
       fullName: "Caio Exporta Origem",
       phone: "11977771003",

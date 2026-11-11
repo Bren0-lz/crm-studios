@@ -1,10 +1,11 @@
-import type { EventParticipant, LeadConversion } from "@crm/contracts";
-import { api } from "../../api";
-import { LeadConvertModal } from "../commercial/index";
+import type { EventParticipant, Patient } from "@crm/contracts";
+import { usePatientTags } from "../../shared/hooks/usePatientTags";
+import { PatientModal } from "../patients/index";
 
 /**
- * "Se tornou cliente": o cadastro de cliente já preenchido com o participante, pela conversão
- * de lead (`POST /leads/:id/convert`). Abre na frente de onde foi chamado, sem sair da tela.
+ * "Se tornou cliente": o cadastro completo de cliente (LC1), já preenchido com o participante;
+ * ao salvar, o participante (lead) é convertido junto. Abre na frente de onde foi chamado, sem
+ * sair da tela.
  */
 export function EventConvertModal({
   participant,
@@ -13,18 +14,19 @@ export function EventConvertModal({
 }: {
   participant: EventParticipant;
   onClose: () => void;
-  onConverted: (conversion: LeadConversion) => void;
+  onConverted: (patient: Patient, notice?: string) => void;
 }) {
+  const configuredTags = usePatientTags();
   return (
-    <LeadConvertModal
+    <PatientModal
+      patient={undefined}
       lead={participant}
       eyebrow="Eventos"
       title="Cadastrar cliente"
-      confirmLabel="Cadastrar cliente"
+      submitLabel="Cadastrar cliente"
+      configuredTags={configuredTags}
       onClose={onClose}
-      onConfirm={async (input) => {
-        onConverted(await api.convertLead(participant.id, input));
-      }}
+      onSaved={(patient, notice) => onConverted(patient, notice)}
     />
   );
 }

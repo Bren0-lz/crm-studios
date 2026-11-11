@@ -1,5 +1,7 @@
 import {
+  leadAlreadyConvertedError,
   leadConversionData,
+  leadNotFoundError,
   withConversionInput,
 } from "../../modules/commercial/conversion.js";
 import {
@@ -29,6 +31,7 @@ import {
 } from "@crm/contracts";
 import { patientProfile } from "@crm/contracts/patients";
 import type {
+  Lead,
   LeadActivity,
   LeadContactInput,
   LeadConversion,
@@ -471,16 +474,12 @@ export function createCommercialRepository(
              WHERE clinic_id = $1 AND id = $2`,
               [clinicId, original.convertedPatientId],
             )
-          : await client.query<PatientRow>(
+          : // LC1: o cliente já cadastrado é reconhecido só pelo CPF.
+            await client.query<PatientRow>(
               `SELECT ${patientColumns} FROM patients
-             WHERE clinic_id = $1 AND (phone = $2 OR ($3 IS NOT NULL AND lower(email) = lower($3)) OR ($4 IS NOT NULL AND cpf=$4))
+             WHERE clinic_id = $1 AND $2 IS NOT NULL AND cpf = $2
              ORDER BY created_at LIMIT 1`,
-              [
-                clinicId,
-                original.phone,
-                original.email || null,
-                original.cpf || null,
-              ],
+              [clinicId, original.cpf || null],
             );
         if (original.convertedPatientId && !patientResult.rows[0]) {
           throw new DomainError(
@@ -539,25 +538,16 @@ export function createCommercialRepository(
             "Cliente da conversão não encontrado.",
             409,
           );
-        await client.query(
-          `UPDATE appointments SET patient_id = $3, lead_id = NULL, updated_at = NOW(6)
-         WHERE clinic_id = $1 AND lead_id = $2`,
-          [clinicId, leadId, patient.id],
-        );
-        if (!original.convertedPatientId) {
-          await client.query(
-            `UPDATE leads SET stage = 'won', converted_patient_id = $3,
-                  lost_reason = NULL, updated_at = NOW(6)
-           WHERE clinic_id = $1 AND id = $2`,
-            [clinicId, leadId, patient.id],
+        await moveLeadAppointments(client, clinicId, leadId, patient.id);
+        if (!original.convertedPatientId)
+          await markLeadWon(
+            client,
+            clinicId,
+            actorUserId,
+            leadId,
+            original.stage,
+            patient.id,
           );
-          await client.query(
-            `INSERT INTO lead_stage_history
-             (clinic_id, lead_id, actor_user_id, from_stage, to_stage, reason)
-           VALUES ($1,$2,$3,$4,'won','Conversão em cliente')`,
-            [clinicId, leadId, actorUserId, original.stage],
-          );
-        }
         const lead = await repositoryContext.findLead(client, clinicId, leadId);
         await client.query("COMMIT");
         return { lead: lead!, patient, reusedExisting };
@@ -884,4 +874,82 @@ export function createCommercialRepository(
       });
     },
   };
+}
+
+/** Os atendimentos do lead passam para o cliente convertido. */
+async function moveLeadAppointments(
+  client: PoolClient,
+  clinicId: string,
+  leadId: string,
+  patientId: string,
+) {
+  await client.query(
+    `UPDATE appointments SET patient_id = $3, lead_id = NULL, updated_at = NOW(6)
+     WHERE clinic_id = $1 AND lead_id = $2`,
+    [clinicId, leadId, patientId],
+  );
+}
+
+/** Lead ligado ao cliente e movido para "ganho", com o histórico da etapa. */
+async function markLeadWon(
+  client: PoolClient,
+  clinicId: string,
+  actorUserId: string,
+  leadId: string,
+  fromStage: string,
+  patientId: string,
+) {
+  await client.query(
+    `UPDATE leads SET stage = 'won', converted_patient_id = $3,
+            lost_reason = NULL, updated_at = NOW(6)
+     WHERE clinic_id = $1 AND id = $2`,
+    [clinicId, leadId, patientId],
+  );
+  await client.query(
+    `INSERT INTO lead_stage_history
+       (clinic_id, lead_id, actor_user_id, from_stage, to_stage, reason)
+     VALUES ($1,$2,$3,$4,'won','Conversão em cliente')`,
+    [clinicId, leadId, actorUserId, fromStage],
+  );
+}
+
+/**
+ * LC1: lead do cadastro guiado, travado até o fim da transação; precisa estar ativo e ainda
+ * não convertido.
+ */
+export async function lockConvertibleLead(
+  client: PoolClient,
+  clinicId: string,
+  leadId: string,
+): Promise<Lead> {
+  const result = await client.query<LeadRow>(
+    `SELECT ${leadColumns} FROM leads
+     WHERE clinic_id = $1 AND id = $2 AND deleted_at IS NULL FOR UPDATE`,
+    [clinicId, leadId],
+  );
+  if (!result.rows[0]) throw leadNotFoundError();
+  const lead = mapLead(result.rows[0]);
+  if (lead.convertedPatientId) throw leadAlreadyConvertedError();
+  return lead;
+}
+
+/** LC1: conversão do lead pelo cadastro guiado, depois de o cliente ser criado. */
+export async function convertLeadToNewPatient(
+  repositoryContext: MysqlRepositoryContext,
+  client: PoolClient,
+  clinicId: string,
+  actorUserId: string,
+  lead: Lead,
+  patientId: string,
+): Promise<Lead> {
+  await moveLeadAppointments(client, clinicId, lead.id, patientId);
+  await markLeadWon(
+    client,
+    clinicId,
+    actorUserId,
+    lead.id,
+    lead.stage,
+    patientId,
+  );
+  return (await repositoryContext.findLead(client, clinicId, lead.id))!;
 }

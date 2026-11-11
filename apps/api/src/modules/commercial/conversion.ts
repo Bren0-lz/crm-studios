@@ -7,9 +7,74 @@ import {
   type LeadConversionInput,
   type Patient,
   type PatientImportInput,
+  type PatientInput,
   withoutAutomaticPatientTags,
 } from "@crm/contracts";
 import { DomainError } from "../../repository.js";
+
+export const leadNotFoundError = () =>
+  new DomainError("LEAD_NOT_FOUND", "Lead não encontrado.", 404);
+
+export const leadAlreadyConvertedError = () =>
+  new DomainError(
+    "LEAD_ALREADY_CONVERTED",
+    "Este lead já foi convertido em cliente.",
+    409,
+  );
+
+/** LC1: o cadastro guiado vindo do lead não vende para cliente já cadastrado (mesmo CPF). */
+export const leadPatientExistsError = (patientName: string) =>
+  new DomainError(
+    "LEAD_PATIENT_EXISTS",
+    `Já existe um cliente com este CPF (${patientName}). Converta só o cadastro e venda o plano na ficha do cliente.`,
+    409,
+  );
+
+/**
+ * LC1: cadastro guiado vindo do lead. O formulário já vem preenchido com o lead; aqui entram o
+ * que só a conversão leva: etiquetas do lead (mais "Convertido do CRM"), interesses e o
+ * "Outros" (`extraFields`).
+ */
+export function withLeadConversionExtras(
+  patient: PatientInput,
+  lead: Lead,
+): PatientImportInput {
+  const tags = [
+    ...new Set([
+      ...withoutAutomaticPatientTags(patient.tags),
+      ...withoutAutomaticPatientTags(lead.tags),
+      "Convertido do CRM",
+    ]),
+  ];
+  if (tags.length > 20)
+    throw new DomainError(
+      "LEAD_TAG_LIMIT",
+      "Revise as etiquetas do cliente antes de converter: a união excede 20 etiquetas.",
+      409,
+    );
+  const interests = [
+    ...new Set([
+      ...(patient.interests ?? []),
+      ...(lead.interests ?? []),
+      lead.interest,
+    ]),
+  ].filter((item) => item.trim() !== "");
+  if (
+    interests.length > 30 ||
+    interests.some((interest) => interest.length > 80)
+  )
+    throw new DomainError(
+      "LEAD_INTEREST_REVIEW",
+      "Revise os interesses antes da conversão: até 30 itens, com até 80 caracteres cada.",
+      409,
+    );
+  return {
+    ...patient,
+    tags,
+    interests,
+    ...(lead.extraFields ? { extraFields: lead.extraFields } : {}),
+  };
+}
 /** Junta ao lead os dados informados na conversão (campos vazios não apagam nada). */
 export function withConversionInput(
   lead: Lead,

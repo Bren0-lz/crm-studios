@@ -315,6 +315,8 @@ export function registerPatientsRoutes(context: RouteContext) {
       assertPermissions(
         request,
         "patients.create",
+        // LC1: cadastro vindo do lead também converte o lead.
+        ...(input.leadId ? ["crm.convert" as const] : []),
         ...(input.next === "demonstration" ? ["agenda.create" as const] : []),
         ...(input.next === "plan" || input.next === "single"
           ? ["plans.create" as const]
@@ -363,7 +365,7 @@ export function registerPatientsRoutes(context: RouteContext) {
         actorUserId: request.user.sub,
         patientId: result.patient.id,
         fullName: result.patient.fullName,
-        origin: "guided",
+        origin: input.leadId ? "lead" : "guided",
       });
       await publishAppointmentsCreated(events, clinicId, request.user.sub, [
         ...(result.appointment ? [result.appointment] : []),

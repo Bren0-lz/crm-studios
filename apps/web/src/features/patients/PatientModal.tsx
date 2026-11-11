@@ -1,4 +1,5 @@
 import {
+  formatPhone,
   patientFirstName,
   patientNotesMaxLength,
   patientTagDisplayColor,
@@ -15,6 +16,7 @@ import {
   type GroupClass,
   type GuidedPatientInput,
   type GuidedPatientNext,
+  type Lead,
   type Patient,
   type PatientDiscount,
   type PatientInput,
@@ -45,6 +47,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { api } from "../../api";
+import { ApiClientError } from "../../shared/api/ApiClientError";
 import { useAuthorization } from "../../authorization-context";
 import { useToast } from "../../shared/feedback/toast-context";
 import { ChangeReasonField } from "../../shared/components/ChangeReasonField";
@@ -99,6 +102,7 @@ import {
   guidedStepOrder,
   guidedStepPermissions,
   guidedSubmitLabels,
+  leadPatientInput,
   maxGuidedPlans,
   missingPlanFields,
   withPlanDiscount,
@@ -125,11 +129,25 @@ import type {
 
 export function PatientModal({
   patient,
+  lead,
+  eyebrow,
+  title,
+  submitLabel = "Converter em cliente",
   configuredTags,
   onClose,
   onSaved,
 }: {
   patient: Patient | undefined;
+  /**
+   * LC1: conversão do lead — o cadastro novo vem preenchido com o lead e, ao salvar, o lead é
+   * convertido junto (`result.lead`).
+   */
+  lead?: Lead | undefined;
+  /** Módulo de origem e título do modal (ex.: "Eventos"); o padrão é o do cadastro. */
+  eyebrow?: string;
+  title?: string;
+  /** Botão da conversão do lead sem plano, aula ou produto. */
+  submitLabel?: string;
   /** Etiquetas configuradas: as únicas que podem ser escolhidas no cadastro. */
   configuredTags: { tags: PatientTag[] | null; error: string };
   onClose: () => void;
@@ -142,20 +160,24 @@ export function PatientModal({
 }) {
   const { can } = useAuthorization();
   const toast = useToast();
-  const [form, setForm] = useState<PatientInput>(() => ({
-    ...patient,
-    fullName: patient?.fullName ?? "",
-    phone: patient?.phone ?? "",
-    whatsapp: patient?.whatsapp ?? "",
-    cpf: patient?.cpf ?? "",
-    email: patient?.email ?? "",
-    birthDate: patient?.birthDate ?? "",
-    emergencyContactName: patient?.emergencyContactName ?? "",
-    emergencyContactPhone: patient?.emergencyContactPhone ?? "",
-    notes: patient?.notes ?? "",
-    // Etiquetas automáticas ("Pagamento atrasado", "Falta CPF"): não aparecem para marcar.
-    tags: withoutAutomaticPatientTags(patient?.tags ?? []),
-  }));
+  const [form, setForm] = useState<PatientInput>(() =>
+    !patient && lead
+      ? leadPatientInput(lead)
+      : {
+          ...patient,
+          fullName: patient?.fullName ?? "",
+          phone: patient?.phone ?? "",
+          whatsapp: patient?.whatsapp ?? "",
+          cpf: patient?.cpf ?? "",
+          email: patient?.email ?? "",
+          birthDate: patient?.birthDate ?? "",
+          emergencyContactName: patient?.emergencyContactName ?? "",
+          emergencyContactPhone: patient?.emergencyContactPhone ?? "",
+          notes: patient?.notes ?? "",
+          // Etiquetas automáticas ("Pagamento atrasado", "Falta CPF"): não aparecem para marcar.
+          tags: withoutAutomaticPatientTags(patient?.tags ?? []),
+        },
+  );
   // O histórico usa acesso comercial: a fisioterapia não vê nem chama a rota.
   const showHistory = Boolean(patient) && can("patients.timeline");
   const editable = patient ? can("patients.update") : can("patients.create");
@@ -737,6 +759,25 @@ export function PatientModal({
     }
     setLoading(true);
     try {
+      if (lead) input.leadId = lead.id;
+      if (input.next === "none" && lead) {
+        // Só o cadastro: cliente com o mesmo CPF é reaproveitado pela conversão do lead.
+        const registration = await api
+          .createGuidedPatient(input)
+          .catch((cause: unknown) =>
+            cause instanceof ApiClientError &&
+            cause.code === "LEAD_PATIENT_EXISTS"
+              ? api.convertLead(lead.id, form)
+              : Promise.reject(cause),
+          );
+        const soldNotice = await sellProducts(registration.patient.id);
+        const notice = `Lead convertido: cadastro de ${patientFirstName(registration.patient.fullName)} salvo.${soldNotice}`;
+        onSaved(registration.patient, notice, {
+          patient: registration.patient,
+          ...(registration.lead ? { lead: registration.lead } : {}),
+        });
+        return;
+      }
       if (input.next === "none") {
         const created = await api.createPatient(form);
         const soldNotice = await sellProducts(created.id);
@@ -1084,12 +1125,24 @@ export function PatientModal({
   }
   return (
     <Modal
-      eyebrow={patient ? "Clientes" : "Cadastro rápido"}
-      title={patient ? "Editar cliente" : "Novo cliente"}
+      eyebrow={
+        eyebrow ??
+        (patient ? "Clientes" : lead ? "CRM comercial" : "Cadastro rápido")
+      }
+      title={
+        title ??
+        (patient
+          ? "Editar cliente"
+          : lead
+            ? "Converter lead em cliente"
+            : "Novo cliente")
+      }
       subtitle={
         patient
           ? `Atualize o cadastro ${patient.recordNumber}.`
-          : "Cadastre as informações essenciais. O restante pode ser completado depois."
+          : lead
+            ? `${lead.fullName} · ${formatPhone(lead.phone)}`
+            : "Cadastre as informações essenciais. O restante pode ser completado depois."
       }
       busy={loading}
       dirty={dirty}
@@ -1539,9 +1592,11 @@ export function PatientModal({
                 ? "Salvando…"
                 : patient
                   ? "Salvar alterações"
-                  : step === "none" && productLines.length
-                    ? "Salvar e registrar venda"
-                    : guidedSubmitLabels[step]}
+                  : lead && step === "none" && !productLines.length
+                    ? submitLabel
+                    : step === "none" && productLines.length
+                      ? "Salvar e registrar venda"
+                      : guidedSubmitLabels[step]}
             </button>
           )}
         </div>

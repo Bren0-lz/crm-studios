@@ -35,10 +35,16 @@ import {
   patientTagDuplicateError,
   patientTagInUseError,
 } from "../../repository.js";
+import {
+  leadPatientExistsError,
+  withLeadConversionExtras,
+} from "../../modules/commercial/conversion.js";
+import { convertLeadToNewPatient, lockConvertibleLead } from "./commercial.js";
 import type { MysqlRepositoryContext } from "./context.js";
 import {
   appointmentColumns,
   appointmentJoins,
+  ensurePatientTags,
   type AppointmentRow,
   hasDatabaseCode,
   mapAppointment,
@@ -243,6 +249,23 @@ export function createPatientsRepository(
       input: GuidedPatientInput,
     ): Promise<GuidedPatientResult> {
       return repositoryContext.inTransaction(async (client) => {
+        // LC1: cadastro vindo da conversão do lead (travado até o fim da transação).
+        const lead = input.leadId
+          ? await lockConvertibleLead(client, clinicId, input.leadId)
+          : undefined;
+        if (lead && input.patient.cpf) {
+          const sameCpf = await client.query<{ fullName: string }>(
+            `SELECT full_name AS "fullName" FROM patients
+             WHERE clinic_id = $1 AND cpf = $2 LIMIT 1`,
+            [clinicId, input.patient.cpf],
+          );
+          if (sameCpf.rows[0])
+            throw leadPatientExistsError(sameCpf.rows[0].fullName);
+        }
+        const patientData = lead
+          ? withLeadConversionExtras(input.patient, lead)
+          : input.patient;
+        if (lead) await ensurePatientTags(client, clinicId, patientData.tags);
         const subscriptions = guidedSubscriptions(input);
         const sales = guidedSales(input);
         // Sessões do avulso: a trava da clínica serializa a checagem de conflito da agenda,
@@ -311,8 +334,25 @@ export function createPatientsRepository(
         const patient = await repositoryContext.insertPatient(
           client,
           clinicId,
-          input.patient,
+          patientData,
         );
+        /** Último passo: com tudo gravado, o lead (se houver) vira cliente. */
+        const finish = async (
+          result: GuidedPatientResult,
+        ): Promise<GuidedPatientResult> =>
+          lead
+            ? {
+                ...result,
+                lead: await convertLeadToNewPatient(
+                  repositoryContext,
+                  client,
+                  clinicId,
+                  actorUserId,
+                  lead,
+                  patient.id,
+                ),
+              }
+            : result;
         const createWaitlist = async () => {
           const entries: WaitlistEntry[] = [];
           for (const item of waitlist) {
@@ -331,9 +371,9 @@ export function createPatientsRepository(
           }
           return entries;
         };
-        if (input.next === "none") return { patient };
+        if (input.next === "none") return finish({ patient });
         if (input.next === "waitlist")
-          return { patient, waitlistEntries: await createWaitlist() };
+          return finish({ patient, waitlistEntries: await createWaitlist() });
         if (input.next === "demonstration") {
           const related = await client.query<{ durationMinutes: number }>(
             `
@@ -363,7 +403,7 @@ export function createPatientsRepository(
             { patientId: patient.id, leadId: null },
             client,
           );
-          return { patient, appointment };
+          return finish({ patient, appointment });
         }
         const insertPlan = async (
           plan: PatientPlanInput,
@@ -418,12 +458,9 @@ export function createPatientsRepository(
             ...(document ? { document } : {}),
           });
         }
-        if (input.next === "single") return { patient, ...created[0]! };
-        return guidedPlansResult(
-          patient,
-          created,
-          input,
-          await createWaitlist(),
+        if (input.next === "single") return finish({ patient, ...created[0]! });
+        return finish(
+          guidedPlansResult(patient, created, input, await createWaitlist()),
         );
       });
     },

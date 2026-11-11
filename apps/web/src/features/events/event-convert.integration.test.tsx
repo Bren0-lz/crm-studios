@@ -91,19 +91,19 @@ function setup({
     if (init?.method === "POST") {
       const body = JSON.parse(String(init.body)) as Record<string, unknown>;
       writes.push({ url, body });
-      const convert = /\/leads\/([^/]+)\/convert$/.exec(url);
-      if (convert) {
+      // LC1: o cadastro completo de cliente converte o participante (lead) junto.
+      if (url.endsWith("/patients/guided")) {
         rows = rows.map((row) =>
-          row.id === convert[1]
+          row.id === body.leadId
             ? { ...row, stage: "converted", convertedPatientId: patientId }
             : row,
         );
-        const lead = rows.find((row) => row.id === convert[1]);
-        return json({
-          lead,
-          patient: { id: patientId, fullName: body.fullName },
-          reusedExisting: false,
-        });
+        const lead = rows.find((row) => row.id === body.leadId);
+        const patient = body.patient as Record<string, unknown>;
+        return json(
+          { lead, patient: { id: patientId, fullName: patient.fullName } },
+          201,
+        );
       }
     }
     if (url.endsWith(`/events/${eventId}`)) return json(detail(rows));
@@ -166,15 +166,19 @@ describe("event participant becomes a client", () => {
     );
     expect(writes).toHaveLength(1);
     expect(writes[0]).toMatchObject({
-      url: expect.stringMatching(`/leads/${ana.id}/convert$`),
+      url: expect.stringMatching("/patients/guided$"),
       body: {
-        fullName: "Ana Participante",
-        cpf: "52998224725",
-        phone: "11987654321",
-        whatsapp: "11912345678",
-        email: "ana@example.com",
-        emergencyContactName: "Ana Participante",
-        emergencyContactPhone: "11987654321",
+        next: "none",
+        leadId: ana.id,
+        patient: {
+          fullName: "Ana Participante",
+          cpf: "52998224725",
+          phone: "11987654321",
+          whatsapp: "11912345678",
+          email: "ana@example.com",
+          emergencyContactName: "Ana Participante",
+          emergencyContactPhone: "11987654321",
+        },
       },
     });
   });

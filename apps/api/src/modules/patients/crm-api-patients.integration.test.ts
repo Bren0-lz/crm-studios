@@ -938,6 +938,7 @@ describe("CRM API", () => {
       id: string;
       fullName: string;
       phone: string;
+      cpf: string;
     };
     const lead = await app.inject({
       method: "POST",
@@ -965,8 +966,9 @@ describe("CRM API", () => {
     });
     expect(appointment.statusCode).toBe(201);
 
+    // LC1: o cliente já cadastrado é reconhecido pelo CPF.
     const conversion = await app.inject({
-      payload: { cpf: nextTestCpf(), ...testPatientContact },
+      payload: { cpf: existing.cpf, ...testPatientContact },
       method: "POST",
       url: `/leads/${leadId}/convert`,
       headers,
@@ -1151,8 +1153,9 @@ describe("CRM API", () => {
       payload: { stage: "contacted" },
     });
     expect(moved.json().stage).toBe("contacted");
+    // LC1: o cliente já cadastrado é reconhecido pelo CPF.
     const conversion = await app.inject({
-      payload: { cpf: nextTestCpf(), ...testPatientContact },
+      payload: { cpf: existing.cpf, ...testPatientContact },
       method: "POST",
       url: `/leads/${created.json().id}/convert`,
       headers,

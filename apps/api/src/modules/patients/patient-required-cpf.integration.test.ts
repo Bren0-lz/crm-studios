@@ -1,6 +1,7 @@
 import { MISSING_CPF_TAG } from "@crm/contracts";
 import { describe, expect, it } from "vitest";
 import { authenticatedApp } from "../../test-support/legacy-fixtures.js";
+import { testPatientContact } from "../../test-support/patient-contact.js";
 
 describe("required client CPF", () => {
   it("accepts imports without CPF (B6-05) but requires it when converting a lead into a client", async () => {
@@ -62,12 +63,34 @@ describe("required client CPF", () => {
         method: "POST",
         url,
         headers,
-        payload: { cpf: "529.982.247-25" },
+        payload: { cpf: "529.982.247-25", ...testPatientContact },
       });
-      expect(converted.statusCode).toBe(200);
+      expect(converted.statusCode, converted.body).toBe(200);
       expect(converted.json().patient.cpf).toBe("52998224725");
-      // Mesmo telefone do importado sem CPF: reaproveita o cadastro e a etiqueta sai sozinha.
-      expect(converted.json().reusedExisting).toBe(true);
+      // LC1: o cliente já cadastrado só é reconhecido pelo CPF; mesmo telefone cria outro.
+      expect(converted.json().reusedExisting).toBe(false);
+      const sameCpfLead = await app.inject({
+        method: "POST",
+        url: "/leads",
+        headers,
+        payload: {
+          fullName: "Lead com o mesmo CPF",
+          phone: "11988887777",
+          source: "Site",
+          interest: "Pilates",
+        },
+      });
+      const reused = await app.inject({
+        method: "POST",
+        url: `/leads/${sameCpfLead.json().id}/convert`,
+        headers,
+        payload: { cpf: "52998224725" },
+      });
+      expect(reused.statusCode, reused.body).toBe(200);
+      expect(reused.json()).toMatchObject({
+        reusedExisting: true,
+        patient: { id: converted.json().patient.id },
+      });
       const detail = await app.inject({
         method: "GET",
         url: `/patients/${converted.json().patient.id}`,

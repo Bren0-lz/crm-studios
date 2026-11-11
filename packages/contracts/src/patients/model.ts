@@ -527,18 +527,29 @@ const guidedWaitlistSchema = z.array(guidedWaitlistItemSchema).max(10);
  *   (`appointments`) reservadas na mesma operação, como na contratação de plano;
  * - `waitlist`: só a Lista de espera dos serviços cujas turmas escolhidas estão cheias (TW3).
  *   No passo `plan`, `waitlist` leva os serviços de turma cheia junto dos planos com vaga.
+ *
+ * `leadId` (LC1): o cadastro vem da conversão desse lead — na mesma operação o lead é marcado
+ * como ganho e ligado ao cliente criado.
  */
+const guidedLeadIdSchema = z.uuid().optional();
+
 export const guidedPatientInputSchema = z.discriminatedUnion("next", [
-  z.object({ next: z.literal("none"), patient: patientInputSchema }),
+  z.object({
+    next: z.literal("none"),
+    patient: patientInputSchema,
+    leadId: guidedLeadIdSchema,
+  }),
   z.object({
     next: z.literal("demonstration"),
     patient: patientInputSchema,
+    leadId: guidedLeadIdSchema,
     appointment: leadAppointmentInputSchema.omit({ visitType: true }),
   }),
   z
     .object({
       next: z.literal("plan"),
       patient: patientInputSchema,
+      leadId: guidedLeadIdSchema,
       plan: guidedSubscriptionPlanSchema,
       groupId: guidedGroupIdSchema,
       document: guidedDocumentSchema,
@@ -580,6 +591,7 @@ export const guidedPatientInputSchema = z.discriminatedUnion("next", [
   z.object({
     next: z.literal("waitlist"),
     patient: patientInputSchema,
+    leadId: guidedLeadIdSchema,
     waitlist: guidedWaitlistSchema.min(
       1,
       "Informe o serviço da lista de espera.",
@@ -588,6 +600,7 @@ export const guidedPatientInputSchema = z.discriminatedUnion("next", [
   z.object({
     next: z.literal("single"),
     patient: patientInputSchema,
+    leadId: guidedLeadIdSchema,
     plan: guidedPlanTermsSchema
       .refine(
         (value) => isSingleSessionPlan(value.services),
