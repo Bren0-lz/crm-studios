@@ -2,12 +2,19 @@ import { type Lead, type LeadStage, formatPhone } from "@crm/contracts";
 import {
   ArrowRightLeft,
   CalendarDays,
+  CheckCheck,
+  Clock3,
   ListTodo,
   Pencil,
   Phone,
+  Send,
   UserCheck,
 } from "lucide-react";
-import { initials, relativeTime } from "../../shared/lib/formatting";
+import {
+  initials,
+  relativeTime,
+  shortDateTime,
+} from "../../shared/lib/formatting";
 import { leadStages } from "../relationship/index";
 
 export interface LeadCardPermissions {
@@ -16,6 +23,43 @@ export interface LeadCardPermissions {
   update: boolean;
   convert: boolean;
   schedule: boolean;
+  /** Registrar contato (botão "Marcar mensagem enviada"). */
+  contact?: boolean;
+}
+
+/** Faixa "Mensagem enviada · 10 de nov. às 14:32" / "Mensagem não enviada" do cartão. */
+function LeadMessageStatus({ lead }: { lead: Lead }) {
+  const sentAt = lead.lastMessageSentAt;
+  const count = lead.contactCount ?? 0;
+  return (
+    <div
+      className={`lead-message-status ${sentAt ? "sent" : "pending"}`}
+      title={
+        sentAt
+          ? `Última mensagem enviada em ${new Date(sentAt).toLocaleString("pt-BR")}`
+          : "Nenhuma mensagem enviada para este lead"
+      }
+    >
+      {sentAt ? (
+        <CheckCheck size={13} aria-hidden="true" />
+      ) : (
+        <Clock3 size={13} aria-hidden="true" />
+      )}
+      {sentAt ? (
+        <span>
+          Mensagem enviada ·{" "}
+          <time dateTime={sentAt}>{shortDateTime(sentAt)}</time>
+        </span>
+      ) : (
+        <span>Mensagem não enviada</span>
+      )}
+      {count > 0 && (
+        <span className="lead-message-count">
+          {count === 1 ? "1 contato" : `${count} contatos`}
+        </span>
+      )}
+    </div>
+  );
 }
 
 /** Selo e tom do cartão: tarefa atrasada (amarelo), perdido (vermelho), convertido (verde). */
@@ -44,6 +88,8 @@ export function LeadCard({
   onEdit,
   onConvert,
   onSchedule,
+  onMessageSent,
+  sendingMessage = false,
 }: {
   lead: Lead;
   permissions: LeadCardPermissions;
@@ -54,6 +100,9 @@ export function LeadCard({
   onEdit: () => void;
   onConvert: () => void;
   onSchedule: () => void;
+  /** Registra agora um contato "Mensagem enviada" (sem abrir o modal). */
+  onMessageSent?: () => void;
+  sendingMessage?: boolean;
 }) {
   const open = !["won", "lost"].includes(lead.stage);
   const alert = leadAlert(lead);
@@ -105,6 +154,7 @@ export function LeadCard({
           </span>
         )}
       </div>
+      <LeadMessageStatus lead={lead} />
       <div className="lead-card-actions">
         {permissions.manage && open && (
           <label
@@ -127,6 +177,21 @@ export function LeadCard({
                 ))}
             </select>
           </label>
+        )}
+        {permissions.manage && permissions.contact && onMessageSent && (
+          <button
+            className={`icon-button button-sm lead-icon-button lead-send-button${lead.lastMessageSentAt ? " sent" : ""}`}
+            aria-label="Marcar mensagem enviada"
+            title={
+              lead.lastMessageSentAt
+                ? "Registrar nova mensagem enviada agora"
+                : "Marcar mensagem enviada agora"
+            }
+            disabled={sendingMessage}
+            onClick={onMessageSent}
+          >
+            <Send size={13} />
+          </button>
         )}
         {permissions.manage &&
           open &&

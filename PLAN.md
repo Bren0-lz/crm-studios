@@ -1492,3 +1492,17 @@ filtros ficam no `dashboard-studios` (EN11–EN13 têm só a parte da API aqui).
 - **Gate:** gate completo + `npm run test:mysql`
 - **Status:** DONE
 
+
+## Pedido avulso — Mensagem enviada ao lead (11/11/2026)
+
+### MS1 — Situação "mensagem enviada" e histórico de contatos do lead com data e hora
+
+- **Escopo:** sem migração (usa `lead_contacts`); `Lead` ganha `lastMessageSentAt` (último
+  contato `outbound`) e `contactCount` na memória e no MySQL (`leadColumns`). Cartão do funil
+  com faixa "Mensagem enviada · 10 de nov. às 14:32" (verde) / "Mensagem não enviada" (âmbar),
+  total de contatos e botão "Marcar mensagem enviada" (grava o contato com a data e a hora de
+  agora, na forma de contato do lead ou WhatsApp). Modal de atividades com resumo do envio,
+  botão "Marcar enviada agora", campo "Data e hora" no registro de contato e linha do tempo
+  (hora, dia, direção, canal, quem registrou).
+- **Gate:** gate completo + `npm run test:mysql`
+- **Status:** DONE
