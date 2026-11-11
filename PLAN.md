@@ -1492,3 +1492,22 @@ filtros ficam no `dashboard-studios` (EN11–EN13 têm só a parte da API aqui).
 - **Gate:** gate completo + `npm run test:mysql`
 - **Status:** DONE
 
+
+## Pedido avulso — Pedir dados do lead pelo WhatsApp (11/11/2026)
+
+### Decisões do dono (11/11/2026)
+
+- Antes do formulário de conversão do lead, uma mensagem pronta pede ao lead tudo que falta no
+  cadastro, com "Copiar mensagem" e "Enviar pelo WhatsApp"; "Preencher cadastro" segue ao
+  formulário. Sem nada faltando, abre direto o formulário.
+- Itens pedidos (só os em branco): nome completo, CPF, WhatsApp, e-mail, data de nascimento,
+  endereço (CEP, rua, número, bairro, cidade/UF) e contato de emergência (nome e telefone).
+
+### CV1 — Pedir dados do lead antes da conversão
+
+- **Escopo:** `leadMissingRegistrationFields`/`leadRegistrationRequestMessage` nos contratos
+  (`commercial/model.ts`); etapa "pedido de dados" no `LeadConvertModal` (vale também para a
+  conversão pelos eventos), mensagem editável, cópia com `copyText`, link `whatsappLink` para o
+  WhatsApp (ou telefone) do lead; testes de contrato e web.
+- **Gate:** gate completo
+- **Status:** DONE

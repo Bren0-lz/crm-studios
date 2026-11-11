@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  leadMissingRegistrationFields,
+  leadRegistrationRequestMessage,
   resolveTelegramLinkRoles,
   telegramSettingsInputSchema,
   auditChangesOf,
@@ -1890,6 +1892,61 @@ describe("sales change percent", () => {
     expect(salesChangePercent(5000, 10000)).toBe(-50);
     expect(salesChangePercent(49000, 0)).toBeNull();
     expect(salesChangePercent(49000, -700000)).toBeNull();
+  });
+});
+
+describe("pedido de dados do lead antes da conversão", () => {
+  const complete = {
+    fullName: "Ana Souza",
+    phone: "11987654321",
+    cpf: "52998224725",
+    email: "ana@example.com",
+    birthDate: "1990-04-02",
+    postalCode: "01001000",
+    address: "Praça da Sé",
+    addressNumber: "10",
+    neighborhood: "Sé",
+    city: "São Paulo",
+    state: "SP",
+    emergencyContactName: "João Souza",
+    emergencyContactPhone: "11912345678",
+  };
+
+  it("não pede nada quando o cadastro já está completo", () => {
+    expect(leadMissingRegistrationFields(complete)).toEqual([]);
+  });
+
+  it("lista o que falta na ordem do pedido, com o endereço agrupado", () => {
+    expect(
+      leadMissingRegistrationFields({
+        fullName: "Ana",
+        phone: "",
+        postalCode: "01001000",
+        address: "Praça da Sé",
+        city: "São Paulo",
+        emergencyContactName: "João",
+      }),
+    ).toEqual([
+      "Nome completo",
+      "CPF",
+      "WhatsApp",
+      "E-mail",
+      "Data de nascimento",
+      "Endereço (número, bairro, cidade/UF)",
+      "Contato de emergência (nome e telefone)",
+    ]);
+  });
+
+  it("monta a mensagem com o primeiro nome e um item por linha", () => {
+    expect(
+      leadRegistrationRequestMessage({
+        ...complete,
+        cpf: "",
+        email: " ",
+      }),
+    ).toBe(
+      "Olá, Ana! Para concluir seu cadastro, preciso destas informações:\n\n• CPF\n• E-mail\n\nPode me enviar por aqui mesmo. Obrigado!",
+    );
   });
 });
 
