@@ -104,12 +104,17 @@ const phoneExportColumns = new Set<PatientExportColumn>([
   "phone",
   "whatsapp",
   "emergencyContactPhone",
+  "emergencyContactWhatsapp",
   "guardianPhone",
 ]);
 const isPhoneColumn = (
   column: PatientExportColumn,
-): column is "phone" | "whatsapp" | "emergencyContactPhone" | "guardianPhone" =>
-  phoneExportColumns.has(column);
+): column is
+  | "phone"
+  | "whatsapp"
+  | "emergencyContactPhone"
+  | "emergencyContactWhatsapp"
+  | "guardianPhone" => phoneExportColumns.has(column);
 
 function textValue(
   patient: Patient,

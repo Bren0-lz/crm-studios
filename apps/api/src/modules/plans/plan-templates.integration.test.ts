@@ -121,6 +121,7 @@ describe("plan catalog", () => {
             whatsapp: "11988887777",
             emergencyContactName: "Cliente teste",
             emergencyContactPhone: "11988887777",
+            emergencyContactWhatsapp: "11988887777",
           },
           plan: terms,
         }).success,
@@ -309,6 +310,7 @@ describe("plan catalog", () => {
           whatsapp: "11987651234",
           emergencyContactName: "Cliente sem plano válido",
           emergencyContactPhone: "11987651234",
+          emergencyContactWhatsapp: "11987651234",
         },
         plan: { ...terms, planTemplateId: foreign.id },
       },
@@ -331,6 +333,7 @@ describe("plan catalog", () => {
           whatsapp: "11987651235",
           emergencyContactName: "Cliente sem serviço",
           emergencyContactPhone: "11987651235",
+          emergencyContactWhatsapp: "11987651235",
           tags: [],
         },
         plan: {

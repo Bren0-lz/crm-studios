@@ -92,6 +92,7 @@ describe("quick client registration", () => {
     expect(within(contact).getByLabelText("WhatsApp")).toBeRequired();
     expect(within(emergency).getByLabelText("Nome")).toBeRequired();
     expect(within(emergency).getByLabelText("Telefone")).toBeRequired();
+    expect(within(emergency).getByLabelText("WhatsApp")).toBeRequired();
     fireEvent.change(within(dialog).getByLabelText("Nome completo"), {
       target: { value: "Cliente Sem Contato" },
     });
@@ -103,13 +104,13 @@ describe("quick client registration", () => {
     });
     expect(
       within(dialog).getByText(
-        "Falta: WhatsApp, Nome do contato de emergência, Telefone do contato de emergência.",
+        "Falta: WhatsApp, Nome do contato de emergência, Telefone do contato de emergência, WhatsApp do contato de emergência.",
       ),
     ).toBeVisible();
     fireEvent.change(within(contact).getByLabelText("WhatsApp"), {
       target: { value: "11977776666" },
     });
-    // Quem não tem contato de emergência repete o próprio nome e telefone.
+    // Quem não tem contato de emergência repete o próprio nome, telefone e WhatsApp.
     fireEvent.click(
       within(emergency).getByRole("button", {
         name: "Usar os dados do cliente",
@@ -120,6 +121,9 @@ describe("quick client registration", () => {
     );
     expect(within(emergency).getByLabelText("Telefone")).toHaveValue(
       "(11) 99999-8888",
+    );
+    expect(within(emergency).getByLabelText("WhatsApp")).toHaveValue(
+      "(11) 97777-6666",
     );
     expect(within(dialog).queryByText(/^Falta:/)).toBeNull();
     expect(

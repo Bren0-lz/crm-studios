@@ -504,8 +504,8 @@ export function createPatientsRepository(
           repositoryContext.pool,
           `UPDATE patients SET full_name = $3, cpf = $4, email = $5,
                 phone = $6, whatsapp = $7, birth_date = $8, emergency_contact_name = $9,
-                emergency_contact_phone = $10, notes = $11, tags = $12,
-                profile = ${replaceJsonKeys("profile", "$13", profile)}, updated_at = NOW(6)
+                emergency_contact_phone = $10, emergency_contact_whatsapp = $11, notes = $12, tags = $13,
+                profile = ${replaceJsonKeys("profile", "$14", profile)}, updated_at = NOW(6)
          WHERE clinic_id = $1 AND id = $2`,
           [
             clinicId,
@@ -518,6 +518,7 @@ export function createPatientsRepository(
             input.birthDate || null,
             input.emergencyContactName || null,
             input.emergencyContactPhone || null,
+            input.emergencyContactWhatsapp || null,
             input.notes || null,
             input.tags,
             JSON.stringify(profile),

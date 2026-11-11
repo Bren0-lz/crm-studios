@@ -18,6 +18,7 @@ describe("patient search", () => {
         whatsapp: "11955550000",
         emergencyContactName: "André Conceição",
         emergencyContactPhone: "11955550000",
+        emergencyContactWhatsapp: "11955550000",
         tags: [],
       },
     });
@@ -50,6 +51,7 @@ describe("patient search", () => {
         whatsapp: "11955551111",
         emergencyContactName: "Maria Aparecida Lima",
         emergencyContactPhone: "11955551111",
+        emergencyContactWhatsapp: "11955551111",
         tags: [],
       },
     });
@@ -86,6 +88,7 @@ describe("patient search", () => {
         whatsapp: "11955552222",
         emergencyContactName: "Outra Cliente",
         emergencyContactPhone: "11955552222",
+        emergencyContactWhatsapp: "11955552222",
         tags: [],
       },
     });

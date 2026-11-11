@@ -413,6 +413,7 @@ describe.skipIf(!databaseUrl)("MySQL repository", () => {
             whatsapp: "11987654322",
             emergencyContactName: "Desfeito catálogo",
             emergencyContactPhone: "11987654322",
+            emergencyContactWhatsapp: "11987654322",
             tags: [],
           },
           plan: { ...input, planTemplateId: foreign.id },

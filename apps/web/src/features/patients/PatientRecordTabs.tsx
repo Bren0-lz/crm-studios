@@ -270,8 +270,10 @@ export function PatientRecordTabs({
   // (ou importado) sem eles fica com o aviso até completar.
   const incomplete = [
     !patient.whatsapp && "WhatsApp",
-    !(patient.emergencyContactName && patient.emergencyContactPhone) &&
-      "contato de emergência",
+    !(
+      patient.emergencyContactName &&
+      (patient.emergencyContactPhone || patient.emergencyContactWhatsapp)
+    ) && "contato de emergência",
   ].filter(Boolean);
   const patientOption = { id, fullName: patient.fullName, tags: patient.tags };
 

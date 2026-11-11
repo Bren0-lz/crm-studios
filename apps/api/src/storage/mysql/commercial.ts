@@ -513,7 +513,7 @@ export function createCommercialRepository(
           else {
             patientResult = await writeAndRead<PatientRow>(
               client,
-              `UPDATE patients SET profile=$3,cpf=$4,whatsapp=$5,birth_date=$6,emergency_contact_name=$7,emergency_contact_phone=$8,notes=$9,email=$10,tags=$11,extra_fields=JSON_MERGE_PATCH(extra_fields,$12),updated_at=NOW(6) WHERE clinic_id=$1 AND id=$2`,
+              `UPDATE patients SET profile=$3,cpf=$4,whatsapp=$5,birth_date=$6,emergency_contact_name=$7,emergency_contact_phone=$8,emergency_contact_whatsapp=$9,notes=$10,email=$11,tags=$12,extra_fields=JSON_MERGE_PATCH(extra_fields,$13),updated_at=NOW(6) WHERE clinic_id=$1 AND id=$2`,
               [
                 clinicId,
                 patient.id,
@@ -523,6 +523,7 @@ export function createCommercialRepository(
                 data.birthDate || null,
                 data.emergencyContactName || null,
                 data.emergencyContactPhone || null,
+                data.emergencyContactWhatsapp || null,
                 data.notes || null,
                 data.email || null,
                 data.tags,

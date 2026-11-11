@@ -36,6 +36,7 @@ describe("etiqueta automática 'Pagamento atrasado' (QC7)", () => {
               whatsapp: phone,
               emergencyContactName: fullName,
               emergencyContactPhone: phone,
+              emergencyContactWhatsapp: phone,
               tags: [],
             },
           })
@@ -137,6 +138,7 @@ describe("etiqueta automática 'Pagamento atrasado' (QC7)", () => {
           whatsapp: "11955550002",
           emergencyContactName: "Otávio Em Dia",
           emergencyContactPhone: "11955550002",
+          emergencyContactWhatsapp: "11955550002",
           tags: ["pagamento atrasado"],
         },
       });
@@ -153,6 +155,7 @@ describe("etiqueta automática 'Pagamento atrasado' (QC7)", () => {
           whatsapp: "11955550001",
           emergencyContactName: "Lara Atrasada",
           emergencyContactPhone: "11955550001",
+          emergencyContactWhatsapp: "11955550001",
           tags: [],
         },
       });

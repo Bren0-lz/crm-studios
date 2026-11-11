@@ -42,6 +42,7 @@ for (const storage of ["memory", "mysql"] as const) {
         whatsapp: "11988886666",
         emergencyContactName: "Contato de Emergência",
         emergencyContactPhone: "11988886666",
+        emergencyContactWhatsapp: "11988886666",
         tags: [],
       });
 

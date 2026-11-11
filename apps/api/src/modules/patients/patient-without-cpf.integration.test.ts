@@ -25,6 +25,7 @@ const contactFields = {
   whatsapp: "11955549999",
   emergencyContactName: "Contato",
   emergencyContactPhone: "11955549999",
+  emergencyContactWhatsapp: "11955549999",
   email: "contato@example.com",
 };
 
@@ -191,6 +192,7 @@ describe("cliente importado sem CPF (B6-05)", () => {
             whatsapp: "11955540022",
             emergencyContactName: "Outra Pessoa",
             emergencyContactPhone: "11955540022",
+            emergencyContactWhatsapp: "11955540022",
             cpf: nextTestCpf(),
           },
         })

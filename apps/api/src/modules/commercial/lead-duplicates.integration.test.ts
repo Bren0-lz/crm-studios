@@ -33,6 +33,7 @@ async function setup() {
       whatsapp: "(31) 97777-1234",
       emergencyContactName: "Cliente Duplicidade QM10",
       emergencyContactPhone: "(31) 97777-1234",
+      emergencyContactWhatsapp: "(31) 97777-1234",
       email: "Duplicidade.QM10@Email.com",
       cpf: "529.982.247-25",
     }),
@@ -106,6 +107,7 @@ describe("lead duplicates", () => {
         whatsapp: "31955554444",
         emergencyContactName: "Outra Clínica",
         emergencyContactPhone: "31955554444",
+        emergencyContactWhatsapp: "31955554444",
       }),
     );
     const outside = await app.inject({

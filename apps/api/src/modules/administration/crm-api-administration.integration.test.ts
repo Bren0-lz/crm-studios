@@ -62,6 +62,7 @@ describe("CRM API", () => {
       whatsapp: "11977770000",
       emergencyContactName: "Cliente Permissão",
       emergencyContactPhone: "11977770000",
+      emergencyContactWhatsapp: "11977770000",
       cpf: "52998224725",
     };
 

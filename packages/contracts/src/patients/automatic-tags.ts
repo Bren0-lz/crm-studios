@@ -115,15 +115,19 @@ export interface ImportedContactFields {
   whatsapp?: string | null | undefined;
   emergencyContactName?: string | null | undefined;
   emergencyContactPhone?: string | null | undefined;
+  emergencyContactWhatsapp?: string | null | undefined;
   email?: string | null | undefined;
 }
 
-/** Sem WhatsApp ou sem contato de emergência (nome e telefone). */
+/** Sem WhatsApp ou sem contato de emergência (nome e telefone ou WhatsApp). */
 export function lacksRequiredContact(patient: ImportedContactFields): boolean {
   return (
     !patient.whatsapp?.trim() ||
     !patient.emergencyContactName?.trim() ||
-    !patient.emergencyContactPhone?.trim()
+    !(
+      patient.emergencyContactPhone?.trim() ||
+      patient.emergencyContactWhatsapp?.trim()
+    )
   );
 }
 

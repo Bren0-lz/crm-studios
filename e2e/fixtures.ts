@@ -82,6 +82,7 @@ export async function seedPatient(api: APIRequestContext, name: string) {
       whatsapp: "11999991234",
       emergencyContactName: name,
       emergencyContactPhone: "11999991234",
+      emergencyContactWhatsapp: "11999991234",
       tags: [],
     },
   });

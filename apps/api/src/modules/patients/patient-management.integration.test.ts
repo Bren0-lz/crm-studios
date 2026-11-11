@@ -34,6 +34,7 @@ describe("client management", () => {
         whatsapp: "11988887777",
         emergencyContactName: "Cliente completo",
         emergencyContactPhone: "11988887777",
+        emergencyContactWhatsapp: "11988887777",
         city: "São Paulo",
         guardianName: "Responsável",
         gender: "female",
@@ -54,6 +55,7 @@ describe("client management", () => {
         whatsapp: "11988887777",
         emergencyContactName: "Cliente atualizado",
         emergencyContactPhone: "11988887777",
+        emergencyContactWhatsapp: "11988887777",
       },
     });
     expect(edit.statusCode).toBe(200);
@@ -210,7 +212,7 @@ describe("client management", () => {
       ["João Conceição Araújo", "Prefere manhã"],
     ]);
   });
-  it("returns only name and phone in the SOS emergency contact lookup", async () => {
+  it("returns only name, phone and whatsapp in the SOS emergency contact lookup", async () => {
     const { app, repository, headers } = await setup();
     const withContact = await repository.createPatient(clinicId, {
       cpf: nextTestCpf(),
@@ -218,6 +220,7 @@ describe("client management", () => {
       phone: "11988887777",
       emergencyContactName: "Maria Souza (mãe)",
       emergencyContactPhone: "11955556666",
+      emergencyContactWhatsapp: "11944443333",
       tags: [],
     });
     const withoutContact = await repository.createPatient(clinicId, {
@@ -235,6 +238,7 @@ describe("client management", () => {
     expect(found.json()).toEqual({
       name: "Maria Souza (mãe)",
       phone: "11955556666",
+      whatsapp: "11944443333",
     });
     expect(
       (
@@ -244,7 +248,7 @@ describe("client management", () => {
           headers,
         })
       ).json(),
-    ).toEqual({ name: "", phone: "" });
+    ).toEqual({ name: "", phone: "", whatsapp: "" });
     const missing = await app.inject({
       method: "GET",
       url: "/patients/00000000-0000-4000-8000-000000000001/emergency-contact",

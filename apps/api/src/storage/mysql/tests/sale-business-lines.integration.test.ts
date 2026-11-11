@@ -111,6 +111,7 @@ for (const storage of ["memory", "mysql"] as const) {
             whatsapp: "11988887777",
             emergencyContactName: "Contato",
             emergencyContactPhone: "11988887777",
+            emergencyContactWhatsapp: "11988887777",
           }),
         );
         const studio = await repository.createService(clinicId, {
@@ -295,6 +296,7 @@ for (const storage of ["memory", "mysql"] as const) {
             whatsapp: "11988887777",
             emergencyContactName: "Contato",
             emergencyContactPhone: "11988887777",
+            emergencyContactWhatsapp: "11988887777",
           }),
         );
         const evaluation = await repository.createService(clinicId, {
