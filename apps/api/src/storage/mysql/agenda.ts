@@ -111,7 +111,7 @@ export function createAgendaRepository(
         `
         SELECT DISTINCT pp.patient_id AS "patientId"
         FROM patient_plans pp
-        WHERE pp.clinic_id = $1
+        WHERE pp.clinic_id = $1 AND pp.deleted_at IS NULL
           AND pp.status = 'active'
           AND pp.kind <> 'single'
           AND (pp.valid_until IS NULL OR pp.valid_until >= ${localToday()})
@@ -137,7 +137,7 @@ export function createAgendaRepository(
         SELECT ${appointmentColumns}
         FROM appointments a
         ${appointmentJoins}
-        WHERE a.clinic_id = $1 AND a.starts_at < $3 AND a.ends_at > $2
+        WHERE a.clinic_id = $1 AND a.deleted_at IS NULL AND a.starts_at < $3 AND a.ends_at > $2
           AND ($4 IS NULL OR JSON_CONTAINS($4, JSON_QUOTE(a.branch_id)))
         ORDER BY a.starts_at
       `,
@@ -152,7 +152,7 @@ export function createAgendaRepository(
         SELECT ${appointmentColumns}
         FROM appointments a
         ${appointmentJoins}
-        WHERE a.clinic_id = $1
+        WHERE a.clinic_id = $1 AND a.deleted_at IS NULL
           AND a.status IN ('scheduled', 'confirmed')
           AND a.ends_at < $2
           AND ($3 IS NULL OR JSON_CONTAINS($3, JSON_QUOTE(a.branch_id)))
@@ -172,6 +172,7 @@ export function createAgendaRepository(
       const due = await repositoryContext.pool.query<{ id: string }>(
         `SELECT id FROM appointments
          WHERE clinic_id = $1 AND status IN ('scheduled', 'confirmed') AND ends_at <= $2
+           AND deleted_at IS NULL
          ORDER BY ends_at`,
         [clinicId, cutoff],
       );
@@ -233,7 +234,7 @@ export function createAgendaRepository(
         `
         SELECT s.duration_minutes AS "durationMinutes"
         FROM patients p, professionals pr, rooms r, services s
-        WHERE p.id = $2 AND p.clinic_id = $1 AND p.status = 'active'
+        WHERE p.id = $2 AND p.clinic_id = $1 AND p.status = 'active' AND p.deleted_at IS NULL
           AND pr.id = $3 AND pr.clinic_id = $1 AND pr.active = true
           AND r.id = $4 AND r.clinic_id = $1 AND r.active = true
           AND s.id = $5 AND s.clinic_id = $1 AND s.active = true
@@ -565,7 +566,7 @@ export function createAgendaRepository(
           const patientChanged = patientId !== previous.patientId;
           if (patientChanged) {
             const patient = await client.query(
-              "SELECT id FROM patients WHERE clinic_id=$1 AND id=$2 AND status='active'",
+              "SELECT id FROM patients WHERE clinic_id=$1 AND id=$2 AND status='active' AND deleted_at IS NULL",
               [clinicId, patientId],
             );
             if (!previous.patientId || !patient.rows[0])
@@ -808,7 +809,7 @@ export function createAgendaRepository(
         // Mesma checagem de `assertAgendaFree`, sem trava e dizendo o motivo.
         const busy = await repositoryContext.pool.query<{ kind: string }>(
           `SELECT 'appointment' AS kind FROM appointments a
-           WHERE a.clinic_id = $1 AND a.status <> 'cancelled'
+           WHERE a.clinic_id = $1 AND a.deleted_at IS NULL AND a.status <> 'cancelled'
              AND ((a.professional_id = $2) OR (a.room_id = $3))
              AND a.starts_at < $5 AND a.ends_at > $4
            UNION ALL
@@ -850,7 +851,7 @@ export function createAgendaRepository(
         const related = await client.query<{ durationMinutes: number }>(
           `SELECT s.duration_minutes AS "durationMinutes"
          FROM patients p, professionals pr, rooms r, services s
-         WHERE p.id = $2 AND p.clinic_id = $1 AND p.status = 'active'
+         WHERE p.id = $2 AND p.clinic_id = $1 AND p.status = 'active' AND p.deleted_at IS NULL
            AND pr.id = $3 AND pr.clinic_id = $1 AND pr.active = true
            AND r.id = $4 AND r.clinic_id = $1 AND r.active = true
            AND s.id = $5 AND s.clinic_id = $1 AND s.active = true`,

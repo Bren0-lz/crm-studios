@@ -1468,16 +1468,27 @@ filtros ficam no `dashboard-studios` (EN11–EN13 têm só a parte da API aqui).
   Hostinger (não editados sem autorização).
 - **Status:** DONE
 
-## Pedido avulso — Importar feriados do ano (10/11/2026)
+## Pedido avulso — Lixeira (10/11/2026)
 
-### FN1 — Importar feriados nacionais, do RJ e de Bom Jesus do Itabapoana
+### Decisões do dono (10/11/2026)
 
-- **Escopo:** cálculo no próprio CRM, sem API externa (`suggestedHolidays(ano)` em
-  `contracts/src/agenda/holidays.ts`: fixos nacionais, Sexta-feira Santa pela Páscoa, Carnaval e
-  Corpus Christi como ponto facultativo, São Jorge 23/04 (RJ), aniversário da cidade 14/12;
-  Consciência Negra só a partir de 2024); `POST /holidays/batch` (só admin) cadastra as datas
-  livres e devolve `{ created, skipped }`; em Configurações > Feriados, botão "Importar feriados
-  do ano" abre prévia com ano (atual/próximo) e checkbox por data, já cadastradas desativadas.
-  Datas por decreto continuam no cadastro manual.
-- **Gate:** gate completo (sem SQL novo: reaproveita `createHoliday`/`listHolidays`)
+- Lixeira por tópico, dentro da própria tela: Clientes, Comercial (leads), Agenda
+  (atendimentos) e Planos (planos do cliente). Modelos de plano, turmas e financeiro ficam fora.
+- Duas permissões: `trash.send` (enviar para a lixeira) e `trash.view` (ver a lixeira, restaurar
+  e excluir em definitivo). Restaurar devolve o item exatamente como estava.
+- Exclusão definitiva apaga junto tudo que está ligado ao item, depois de um aviso grande com a
+  contagem por tipo e da confirmação digitando `EXCLUIR`.
+
+### LX1 — Lixeira: permissões, base e telas
+
+- **Escopo:** módulo `trash` com `trash.send` (sem depender de `trash.view`) e `trash.view`,
+  ambas só por escolha explícita; migração `0060_trash.sql` (`deleted_at`/`deleted_by_user_id`
+  em `patients`, `leads`, `appointments`, `patient_plans`); rotas `/trash/:kind` (enviar, listar,
+  impacto, restaurar, excluir de vez), conferindo também a área do tópico; exclusão definitiva
+  guiada pelas chaves estrangeiras do banco (ponteiros de origem viram vazios); item na lixeira
+  fora das listas, buscas, agenda e checagem de horário; envio recusado para cliente/plano com
+  atendimento agendado à frente; restauração confere o horário e o cliente/lead dono; auditoria
+  `*.trashed`/`*.restored`/`*.purged`; botões "Excluir" e "Lixeira" nas quatro telas.
+- **Gate:** gate completo + `npm run test:mysql`
 - **Status:** DONE
+

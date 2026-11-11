@@ -264,9 +264,15 @@ export function createAutoCampaignsRepository(
         }),
       ]);
       return {
-        patients: ofClinic(repositoryContext.patients),
+        patients: ofClinic(repositoryContext.patients).filter(
+          (item) => !repositoryContext.isTrashed("patients", item.id),
+        ),
         plans,
-        appointments: ofClinic(repositoryContext.appointments).map(
+        appointments: ofClinic(repositoryContext.appointments)
+          .filter(
+            (item) => !repositoryContext.isTrashed("appointments", item.id),
+          )
+          .map(
           (appointment) => ({
             ...appointment,
             branchId: repositoryContext.branchOf(appointment),

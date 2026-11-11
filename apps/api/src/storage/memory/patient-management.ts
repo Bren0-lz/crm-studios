@@ -71,7 +71,8 @@ export function createPatientManagementRepository(
         (patient) =>
           patient.clinicId === clinicId &&
           patient.status === "active" &&
-          !patient.mergedIntoPatientId,
+          !patient.mergedIntoPatientId &&
+          !context.isTrashed("patients", patient.id),
       )
       .filter((patient) => {
         if (
@@ -105,6 +106,7 @@ export function createPatientManagementRepository(
           context.appointments.some(
             (appointment) =>
               appointment.clinicId === clinicId &&
+              !context.isTrashed("appointments", appointment.id) &&
               appointment.patientId === patient.id &&
               appointment.status !== "cancelled" &&
               appointment.startsAt.slice(0, 10) >= cutoff,
@@ -140,7 +142,9 @@ export function createPatientManagementRepository(
               item.id === original.mergedIntoPatientId,
           )
         : original;
-      return patient ? structuredClone(patient) : null;
+      return patient && !context.isTrashed("patients", patient.id)
+        ? structuredClone(patient)
+        : null;
     },
     async setPatientStatus(
       clinicId: string,

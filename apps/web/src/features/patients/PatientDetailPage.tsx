@@ -1,5 +1,5 @@
 import { type Patient, patientFirstName } from "@crm/contracts";
-import { Pencil } from "lucide-react";
+import { Pencil, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { api } from "../../api";
@@ -11,6 +11,7 @@ import { LoadingBlock } from "../../shared/components/LoadingBlock";
 import { usePatientTags } from "../../shared/hooks/usePatientTags";
 import { PatientModal } from "./PatientModal";
 import { PatientRecordTabs } from "./PatientRecordTabs";
+import { SendToTrashModal } from "../trash";
 
 export function PatientDetailPage() {
   const { id = "" } = useParams();
@@ -21,6 +22,7 @@ export function PatientDetailPage() {
   const [error, setError] = useState("");
   const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [trashing, setTrashing] = useState(false);
   const tags = usePatientTags();
   useEffect(() => {
     let alive = true;
@@ -71,6 +73,16 @@ export function PatientDetailPage() {
         }
         action={
           <div className="page-actions">
+            {patient && can("trash.send") && (
+              <button
+                className="secondary-button"
+                disabled={busy}
+                onClick={() => setTrashing(true)}
+              >
+                <Trash2 size={16} aria-hidden="true" />
+                Excluir
+              </button>
+            )}
             {patient && can("patients.update") && (
               <>
                 <button
@@ -110,6 +122,20 @@ export function PatientDetailPage() {
               onSaved={(saved) => {
                 setPatient(saved);
                 setEditing(false);
+              }}
+            />
+          )}
+          {trashing && (
+            <SendToTrashModal
+              kind="patients"
+              id={patient.id}
+              title={patient.fullName}
+              onClose={() => setTrashing(false)}
+              onDone={() => {
+                toast.success(
+                  `${patient.fullName} foi para a lixeira de Clientes.`,
+                );
+                navigate("/clientes");
               }}
             />
           )}
