@@ -33,6 +33,7 @@ import type {
   GroupSession,
   GroupWorkspace,
   Holiday,
+  HolidayBatchResult,
   HolidayInput,
   LeadAppointmentInput,
   RecurringAppointmentInput,
@@ -196,6 +197,11 @@ export const agendaApi = {
     request<Holiday>("/holidays", {
       method: "POST",
       body: JSON.stringify(input),
+    }),
+  createHolidays: (holidays: HolidayInput[]) =>
+    request<HolidayBatchResult>("/holidays/batch", {
+      method: "POST",
+      body: JSON.stringify({ holidays }),
     }),
   deleteHoliday: (id: string) =>
     request<void>(`/holidays/${id}`, { method: "DELETE" }),

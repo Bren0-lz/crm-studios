@@ -241,6 +241,75 @@ describe("CRM API", () => {
     await app.close();
   });
 
+  it("imports a batch of holidays as owner, skipping dates already registered", async () => {
+    const { app, token } = await authenticatedApp();
+    const headers = { authorization: `Bearer ${token}` };
+    const clinicId = "11111111-1111-4111-8111-111111111111";
+    await seedRoleUsers(app);
+    const receptionHeaders = {
+      authorization: `Bearer ${app.jwt.sign({ sub: roleSub(app, "reception"), clinicId, role: "user" })}`,
+    };
+    const batch = {
+      holidays: [
+        { date: "2032-12-25", name: "Natal" },
+        { date: "2032-01-01", name: "Confraternização Universal" },
+      ],
+    };
+
+    const forbidden = await app.inject({
+      method: "POST",
+      url: "/holidays/batch",
+      headers: receptionHeaders,
+      payload: batch,
+    });
+    expect(forbidden.statusCode).toBe(403);
+    expect(forbidden.json()).toMatchObject({ code: "ADMIN_ACCESS_REQUIRED" });
+    for (const payload of [
+      { holidays: [] },
+      { holidays: [batch.holidays[0], batch.holidays[0]] },
+      { holidays: [{ date: "25/12/2032", name: "Natal" }] },
+    ]) {
+      const invalid = await app.inject({
+        method: "POST",
+        url: "/holidays/batch",
+        headers,
+        payload,
+      });
+      expect(invalid.statusCode).toBe(400);
+    }
+
+    await app.inject({
+      method: "POST",
+      url: "/holidays",
+      headers,
+      payload: { date: "2032-12-25", name: "Natal" },
+    });
+    const imported = await app.inject({
+      method: "POST",
+      url: "/holidays/batch",
+      headers,
+      payload: batch,
+    });
+    expect(imported.statusCode).toBe(201);
+    expect(imported.json()).toMatchObject({
+      created: [
+        { clinicId, date: "2032-01-01", name: "Confraternização Universal" },
+      ],
+      skipped: 1,
+    });
+    const again = await app.inject({
+      method: "POST",
+      url: "/holidays/batch",
+      headers,
+      payload: batch,
+    });
+    expect(again.json()).toEqual({ created: [], skipped: 2 });
+    expect(
+      (await app.inject({ method: "GET", url: "/holidays", headers })).json(),
+    ).toHaveLength(2);
+    await app.close();
+  });
+
   it("manages holidays as owner and refuses appointments, reschedules and series on them", async () => {
     const { app, token } = await authenticatedApp();
     const headers = { authorization: `Bearer ${token}` };
