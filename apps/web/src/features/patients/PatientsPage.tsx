@@ -23,7 +23,6 @@ import {
   Search,
   SlidersHorizontal,
   UserPlus,
-  Trash2,
 } from "lucide-react";
 import { ActionMenu } from "../../shared/components/ActionMenu";
 import type { ActionMenuItem } from "../../shared/lib/types";
@@ -53,7 +52,7 @@ import {
 import { PatientExportModal } from "./PatientExportModal";
 import { PatientImportModal } from "./PatientImportModal";
 import { PatientModal } from "./PatientModal";
-import { TrashModal } from "../trash";
+import { TrashButton } from "../trash";
 import type { PatientRecordFilter, PatientSort } from "./types";
 
 const automaticTagHints: Record<string, string> = {
@@ -82,7 +81,6 @@ export function PatientsPage() {
   const [editingPatient, setEditingPatient] = useState<Patient | null>(null);
   const [importOpen, setImportOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
-  const [trashOpen, setTrashOpen] = useState(false);
   // Busca efetivamente aplicada na lista (a do campo só vale depois de "Buscar").
   const [appliedSearch, setAppliedSearch] = useState("");
   const [page, setPage] = useState(1);
@@ -214,15 +212,6 @@ export function PatientsPage() {
           },
         ]
       : []),
-    ...(can("trash.view", "patients.view")
-      ? [
-          {
-            label: "Lixeira",
-            icon: <Trash2 size={16} aria-hidden="true" />,
-            onSelect: () => setTrashOpen(true),
-          },
-        ]
-      : []),
   ];
 
   return (
@@ -233,6 +222,8 @@ export function PatientsPage() {
         action={
           <div className="page-actions patients-actions">
             {/* V2: ações secundárias no menu "Mais"; só "Novo cliente" fica à vista. */}
+            {/* LX3: a lixeira fica exposta (só o ícone), para quem tem a permissão. */}
+            <TrashButton kind="patients" onChanged={() => void load()} />
             {moreActions.length > 0 && (
               <ActionMenu label="Mais" align="end" items={moreActions} />
             )}
@@ -634,13 +625,6 @@ export function PatientsPage() {
         <PatientImportModal
           onClose={() => setImportOpen(false)}
           onImported={() => void load()}
-        />
-      )}
-      {trashOpen && (
-        <TrashModal
-          kind="patients"
-          onClose={() => setTrashOpen(false)}
-          onChanged={() => void load()}
         />
       )}
       {exportOpen && (

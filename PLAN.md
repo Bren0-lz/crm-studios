@@ -1504,3 +1504,13 @@ filtros ficam no `dashboard-studios` (EN11–EN13 têm só a parte da API aqui).
 - **Gate:** gate completo + `npm run test:mysql`
 - **Status:** DONE
 
+### LX3 — Botões da lixeira só com ícone e hover vermelho
+
+- **Pedido (11/11/2026):** botão da lixeira mais exposto (fora do menu "Mais"), só o ícone e
+  hover vermelho, para "Abrir lixeira" e "Excluir"; quem não tem a permissão não vê o botão.
+- **Escopo:** `TrashIconButton` (`features/trash`), CSS `.trash-icon-button` em
+  `19-trash.css`; Clientes com o ícone ao lado de "Mais"; "Excluir" vira ícone no detalhe do
+  cliente, no lead, no atendimento e no cartão do plano.
+- **Gate:** gate completo
+- **Status:** DONE
+

@@ -10,15 +10,7 @@ import {
   planHasSessionBalance,
   withPrefix,
 } from "@crm/contracts";
-import {
-  FileClock,
-  Pause,
-  Play,
-  Plus,
-  RefreshCw,
-  Search,
-  Trash2,
-} from "lucide-react";
+import { FileClock, Pause, Play, Plus, RefreshCw, Search } from "lucide-react";
 import { useEffect, useState } from "react";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
@@ -45,7 +37,7 @@ import { PlanModal } from "./PlanModal";
 import { useToast } from "../../shared/feedback/toast-context";
 import { PlanPauseModal } from "./PlanPauseModal";
 import { SessionMovementsModal } from "./SessionMovementsModal";
-import { SendToTrashModal, TrashButton } from "../trash";
+import { SendToTrashModal, TrashButton, TrashIconButton } from "../trash";
 
 export function PlansPage({ canManage }: { canManage: boolean }) {
   const { can } = useAuthorization();
@@ -345,13 +337,11 @@ export function PlansPage({ canManage }: { canManage: boolean }) {
                           </>
                         )}
                       {can("trash.send") && (
-                        <button
-                          className="secondary-button button-sm"
+                        <TrashIconButton
+                          label="Excluir"
+                          size="sm"
                           onClick={() => setTrashingPlan(plan)}
-                        >
-                          <Trash2 size={15} aria-hidden="true" />
-                          Excluir
-                        </button>
+                        />
                       )}
                     </>
                   }
