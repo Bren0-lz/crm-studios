@@ -1535,3 +1535,18 @@ filtros ficam no `dashboard-studios` (EN11–EN13 têm só a parte da API aqui).
 - **Gate:** gate completo + `npm run test:mysql`
 - **Status:** DONE
 
+
+## Pedido avulso — Novo lead com WhatsApp e cadastro rápido de origem/interesse (12/11/2026)
+
+### LQ1 — WhatsApp à vista e "Cadastrar origem/interesse" por cima do novo lead
+
+- **Pedido (12/11/2026):** no "Novo lead", telefone e WhatsApp lado a lado; botões "Cadastrar
+  origem" e "Cadastrar interesse" que abrem um modal por cima do lead (sem fechá-lo) para quem
+  tem permissão incluir o item no cadastro.
+- **Escopo:** WhatsApp sai de "Mais informações" e vai para o lado do Telefone (`LeadModal`).
+  `CatalogEntryModal` (`shared/components`) extraído do editor de `CatalogSection` e reaproveitado
+  nos dois lugares. `CatalogSelect` ganha `createLabel`/`onCreate`/`reloadKey`. Botões só para o
+  admin (mesma regra de `POST /clinic-catalogs/:kind`); o lead fica `inactive` por baixo e o item
+  salvo já vira a origem/interesse escolhida. Sem mudança na API.
+- **Gate:** gate completo
+- **Status:** DONE

@@ -1,5 +1,6 @@
 import { useUnsavedChangesPrompt } from "../../shared/workflows/useUnsavedChangesPrompt";
 import { PatientProfileFields } from "../patients/index";
+import { CatalogEntryModal } from "../../shared/components/CatalogEntryModal";
 import { CatalogInput } from "../../shared/components/CatalogInput";
 import { CatalogSelect } from "../../shared/components/CatalogSelect";
 import { leadInputSchema, type Lead, type LeadInput } from "@crm/contracts";
@@ -26,7 +27,13 @@ export function LeadModal({
   onTrashed?: (lead: Lead) => void;
   lead?: Lead | undefined;
 }) {
-  const { can } = useAuthorization();
+  const { can, user } = useAuthorization();
+  // Cadastrar origem/interesse sem sair do lead: só o admin inclui itens nos cadastros.
+  const admin = user?.role === "admin";
+  const [creating, setCreating] = useState<"lead_source" | "interest" | null>(
+    null,
+  );
+  const [catalogVersion, setCatalogVersion] = useState(0);
   const [trashing, setTrashing] = useState(false);
   const [form, setForm] = useState<LeadInput>(
     lead
@@ -117,7 +124,7 @@ export function LeadModal({
         title={lead ? "Editar lead" : "Novo lead"}
         subtitle="Registre o contato para acompanhar a oportunidade no funil."
         busy={loading || Boolean(prompt.modal)}
-        inactive={Boolean(prompt.modal) || trashing}
+        inactive={Boolean(prompt.modal) || trashing || Boolean(creating)}
         onClose={close}
       >
         {can(lead ? "crm.update" : "crm.create") && (
@@ -139,12 +146,22 @@ export function LeadModal({
                 onChange={(digits) => setForm({ ...form, phone: digits })}
               />
             </label>
+            <label>
+              WhatsApp
+              <PhoneInput
+                value={form.whatsapp ?? ""}
+                onChange={(value) => setForm({ ...form, whatsapp: value })}
+              />
+            </label>
             <CatalogSelect
               kind="lead_source"
               label="Origem"
               required
               value={form.source}
               onChange={(value) => setForm({ ...form, source: value })}
+              createLabel="Cadastrar origem"
+              onCreate={admin ? () => setCreating("lead_source") : undefined}
+              reloadKey={catalogVersion}
             />
             <CatalogSelect
               kind="interest"
@@ -152,8 +169,11 @@ export function LeadModal({
               required
               value={form.interest}
               onChange={(value) => setForm({ ...form, interest: value })}
+              createLabel="Cadastrar interesse"
+              onCreate={admin ? () => setCreating("interest") : undefined}
+              reloadKey={catalogVersion}
             />
-            {/* Cadastro enxuto (U19): nome, telefone, origem e interesse à vista. */}
+            {/* Cadastro enxuto (U19): nome, telefone, WhatsApp, origem e interesse à vista. */}
             <details className="more-info span-2" open={Boolean(lead)}>
               <summary>Mais informações</summary>
               <div className="form-grid">
@@ -165,13 +185,6 @@ export function LeadModal({
                     onChange={(e) =>
                       setForm({ ...form, email: e.target.value })
                     }
-                  />
-                </label>
-                <label>
-                  WhatsApp
-                  <PhoneInput
-                    value={form.whatsapp ?? ""}
-                    onChange={(value) => setForm({ ...form, whatsapp: value })}
                   />
                 </label>
                 <CatalogInput
@@ -285,6 +298,19 @@ export function LeadModal({
         )}
       </Modal>
       {prompt.modal}
+      {creating && (
+        <CatalogEntryModal
+          kind={creating}
+          title={creating === "lead_source" ? "Nova origem" : "Novo interesse"}
+          onClose={() => setCreating(null)}
+          onSaved={(entry) => {
+            const field = creating === "lead_source" ? "source" : "interest";
+            setForm((current) => ({ ...current, [field]: entry.name }));
+            setCatalogVersion((version) => version + 1);
+            setCreating(null);
+          }}
+        />
+      )}
       {trashing && lead && onTrashed && (
         <SendToTrashModal
           kind="leads"
