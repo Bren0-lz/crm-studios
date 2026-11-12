@@ -44,6 +44,7 @@ for (const storage of ["memory", "mysql"] as const) {
             whatsapp: "11988887777",
             emergencyContactName: "Cliente Teste QA Tres",
             emergencyContactPhone: "11988887777",
+            emergencyContactWhatsapp: "11988887777",
           }),
         );
         await repository.recordAdminAuditEvent(

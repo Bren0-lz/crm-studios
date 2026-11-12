@@ -12,7 +12,7 @@ import { Modal } from "../../shared/components/Modal";
 import { PhoneInput } from "../../shared/components/PhoneInput";
 import { LeadDuplicateWarning } from "./LeadDuplicateWarning";
 import { useLeadDuplicates } from "./useLeadDuplicates";
-import { SendToTrashModal } from "../trash";
+import { SendToTrashModal, TrashIconButton } from "../trash";
 
 export function LeadModal({
   onClose,
@@ -255,14 +255,11 @@ export function LeadModal({
             {missing.hint}
             <div className="modal-actions span-2">
               {lead && onTrashed && can("trash.send") && (
-                <button
-                  type="button"
-                  className="danger-button"
+                <TrashIconButton
+                  label="Excluir"
                   onClick={() => setTrashing(true)}
                   disabled={loading}
-                >
-                  Excluir
-                </button>
+                />
               )}
               <button
                 type="button"

@@ -468,11 +468,11 @@ export function createFinanceOperationsRepository(
       return buildDre(
         from,
         to,
-        inBranch(context.receivables),
+        context.withoutTrashedPatients(inBranch(context.receivables)),
         inBranch(context.payables),
         scope(context.financialCategories),
         byProfessional(context.commissions),
-        inBranch(context.patientTabs),
+        context.withoutTrashedPatients(inBranch(context.patientTabs)),
         costCenterId,
         context.clinicSettings.timezone,
         byProfessional(context.commissionAdjustments),

@@ -194,6 +194,7 @@ export interface ExternalPatientRecord
     | "whatsapp"
     | "emergencyContactName"
     | "emergencyContactPhone"
+    | "emergencyContactWhatsapp"
     | "discount"
   > {
   recordNumber: string;

@@ -15,6 +15,7 @@ export const leadPatientProfileSchema = patientProfileSchema.extend(
       birthDate: true,
       emergencyContactName: true,
       emergencyContactPhone: true,
+      emergencyContactWhatsapp: true,
     })
     .extend({
       ...patientOptionalContactShape,
@@ -58,6 +59,76 @@ export const leadConversionInputSchema = leadPatientProfileSchema
     email: leadInputSchema.shape.email,
     notes: leadInputSchema.shape.notes,
   });
+
+/** O que o lead já guarda e que conta para o pedido de dados antes da conversão. */
+export interface LeadRegistrationData {
+  fullName: string;
+  phone?: string | undefined;
+  cpf?: string | undefined;
+  whatsapp?: string | undefined;
+  email?: string | undefined;
+  birthDate?: string | undefined;
+  emergencyContactName?: string | undefined;
+  emergencyContactPhone?: string | undefined;
+  postalCode?: string | undefined;
+  address?: string | undefined;
+  addressNumber?: string | undefined;
+  neighborhood?: string | undefined;
+  city?: string | undefined;
+  state?: string | undefined;
+}
+
+const filled = (value: string | undefined) => Boolean(value?.trim());
+
+/**
+ * Dados do cadastro de cliente que o lead ainda não tem, na ordem em que são pedidos na
+ * mensagem para o lead. Nome só com uma palavra conta como "Nome completo" faltando.
+ */
+export function leadMissingRegistrationFields(
+  lead: LeadRegistrationData,
+): string[] {
+  const nameWords = lead.fullName.trim().split(/\s+/).filter(Boolean);
+  const addressParts: Array<[string, string | undefined]> = [
+    ["CEP", lead.postalCode],
+    ["rua", lead.address],
+    ["número", lead.addressNumber],
+    ["bairro", lead.neighborhood],
+    ["cidade/UF", filled(lead.city) && filled(lead.state) ? "ok" : ""],
+  ];
+  const missingAddress = addressParts
+    .filter(([, value]) => !filled(value))
+    .map(([label]) => label);
+  return [
+    ...(nameWords.length >= 2 ? [] : ["Nome completo"]),
+    ...(filled(lead.cpf) ? [] : ["CPF"]),
+    ...(filled(lead.whatsapp) || filled(lead.phone) ? [] : ["WhatsApp"]),
+    ...(filled(lead.email) ? [] : ["E-mail"]),
+    ...(filled(lead.birthDate) ? [] : ["Data de nascimento"]),
+    ...(missingAddress.length === 0
+      ? []
+      : [`Endereço (${missingAddress.join(", ")})`]),
+    ...(filled(lead.emergencyContactName) && filled(lead.emergencyContactPhone)
+      ? []
+      : ["Contato de emergência (nome e telefone)"]),
+  ];
+}
+
+/** Mensagem para o lead mandar de uma vez o que falta no cadastro (WhatsApp ou copiar). */
+export function leadRegistrationRequestMessage(
+  lead: LeadRegistrationData,
+): string {
+  const firstName = lead.fullName.trim().split(/\s+/)[0] ?? "";
+  const items = leadMissingRegistrationFields(lead)
+    .map((item) => `• ${item}`)
+    .join("\n");
+  return [
+    `Olá, ${firstName}! Para concluir seu cadastro, preciso destas informações:`,
+    "",
+    items,
+    "",
+    "Pode me enviar por aqui mesmo. Obrigado!",
+  ].join("\n");
+}
 
 export const leadMoveSchema = z
   .object({

@@ -35,6 +35,7 @@ import { LeadAppointmentModal } from "./LeadAppointmentModal";
 import { LeadCard } from "./LeadCard";
 import { LeadAnalysisModal } from "./LeadAnalysisModal";
 import { LeadConvertModal } from "./LeadConvertModal";
+import { LeadDetailsModal } from "./LeadDetailsModal";
 import { LeadFiltersModal } from "./LeadFiltersModal";
 import { LeadLostModal } from "./LeadLostModal";
 import { LeadModal } from "./LeadModal";
@@ -100,6 +101,7 @@ export function CommercialPage() {
   const [error, setError] = useState("");
   const [loadingStage, setLoadingStage] = useState<LeadStage | null>(null);
   const [editingLead, setEditingLead] = useState<Lead | null>(null);
+  const [viewingLead, setViewingLead] = useState<Lead | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [activityLead, setActivityLead] = useState<Lead | null>(null);
   const [sendingLeadId, setSendingLeadId] = useState<string | null>(null);
@@ -564,6 +566,7 @@ export function CommercialPage() {
                             permissions={permissions}
                             stages={stages}
                             onMove={(next) => void move(lead, next)}
+                            onOpen={() => setViewingLead(lead)}
                             onActivity={() => setActivityLead(lead)}
                             onEdit={() => setEditingLead(lead)}
                             onConvert={() => setConvertingLead(lead)}
@@ -618,6 +621,18 @@ export function CommercialPage() {
         <LeadAnalysisModal
           insights={insights}
           onClose={() => setAnalysisOpen(false)}
+        />
+      )}
+      {viewingLead && (
+        <LeadDetailsModal
+          lead={viewingLead}
+          stageLabel={stageLabel(viewingLead.stage)}
+          canEdit={permissions.update}
+          onClose={() => setViewingLead(null)}
+          onEdit={() => {
+            setEditingLead(viewingLead);
+            setViewingLead(null);
+          }}
         />
       )}
       {editingLead && (

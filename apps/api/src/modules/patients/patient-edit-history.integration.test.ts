@@ -9,6 +9,7 @@ const client = {
   whatsapp: "11999998888",
   emergencyContactName: "Cliente Histórico",
   emergencyContactPhone: "11999998888",
+  emergencyContactWhatsapp: "11999998888",
   email: "cliente@example.com",
   tags: [],
 };

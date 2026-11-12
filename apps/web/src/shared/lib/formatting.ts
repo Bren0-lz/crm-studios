@@ -278,11 +278,16 @@ export function clinicIsoDate(
 export function emergencyContactLabel(patient: {
   emergencyContactName?: string | undefined;
   emergencyContactPhone?: string | undefined;
+  emergencyContactWhatsapp?: string | undefined;
 }) {
-  return [
-    patient.emergencyContactName,
-    patient.emergencyContactPhone && formatPhone(patient.emergencyContactPhone),
-  ]
+  const phone =
+    patient.emergencyContactPhone && formatPhone(patient.emergencyContactPhone);
+  const whatsapp =
+    patient.emergencyContactWhatsapp &&
+    patient.emergencyContactWhatsapp !== patient.emergencyContactPhone
+      ? `WhatsApp ${formatPhone(patient.emergencyContactWhatsapp)}`
+      : undefined;
+  return [patient.emergencyContactName, phone, whatsapp]
     .filter(Boolean)
     .join(" · ");
 }

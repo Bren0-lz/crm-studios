@@ -32,7 +32,11 @@ describe("clients header", () => {
     ).toHaveClass("primary-button");
     for (const name of ["Inativar antigos", "Importar", "Exportar"])
       expect(screen.queryByRole("button", { name })).not.toBeInTheDocument();
-    expect(moreActionNames()).toEqual(["Importar", "Exportar", "Lixeira"]);
+    expect(moreActionNames()).toEqual(["Importar", "Exportar"]);
+    // A lixeira fica à vista, só com o ícone (LX3).
+    expect(screen.getByRole("button", { name: "Abrir lixeira" })).toHaveClass(
+      "trash-icon-button",
+    );
     expect(
       readFileSync(
         `${process.cwd()}/src/styles/04-dashboard-clients.css`,

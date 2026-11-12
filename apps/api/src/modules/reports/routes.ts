@@ -313,15 +313,23 @@ export function registerReportsRoutes(context: RouteContext) {
     app.get(path, { preHandler: authenticate }, async (request, reply) => {
       const { from, to } = campaignReportFilterSchema.parse(request.query);
       const { clinicId } = request.user;
-      const [settings, manual, automatic, deliveries, redemptions, patients] =
-        await Promise.all([
-          repository.getClinicSettings(clinicId),
-          repository.listWhatsappCampaigns(clinicId),
-          repository.listAutoCampaigns(clinicId),
-          repository.listAutoCampaignDeliveries(clinicId),
-          repository.listAutoCampaignRedemptions(clinicId),
-          repository.listPatients(clinicId),
-        ]);
+      const [
+        settings,
+        manual,
+        automatic,
+        deliveries,
+        redemptions,
+        patients,
+        leads,
+      ] = await Promise.all([
+        repository.getClinicSettings(clinicId),
+        repository.listWhatsappCampaigns(clinicId),
+        repository.listAutoCampaigns(clinicId),
+        repository.listAutoCampaignDeliveries(clinicId),
+        repository.listAutoCampaignRedemptions(clinicId),
+        repository.listPatients(clinicId),
+        repository.listLeads(clinicId),
+      ]);
       const timeZone = settings?.timezone || DEFAULT_CLINIC_TIMEZONE;
       const [details, manualRedemptions] = await Promise.all([
         Promise.all(
@@ -354,6 +362,7 @@ export function registerReportsRoutes(context: RouteContext) {
           redemptions,
           manualRedemptions,
           patients,
+          leads,
           queue: queue?.items,
           queueDate: queue?.date,
         },

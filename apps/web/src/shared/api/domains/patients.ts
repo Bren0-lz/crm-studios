@@ -24,7 +24,7 @@ import { withChangeReason } from "../change-reason";
 export const patientsApi = {
   patientSegments: () => request<PatientSegmentSummary[]>("/patients/segments"),
   emergencyContact: (id: string) =>
-    request<{ name: string; phone: string }>(
+    request<{ name: string; phone: string; whatsapp?: string }>(
       `/patients/${id}/emergency-contact`,
     ),
   patient: (id: string) => request<Patient>(`/patients/${id}`),

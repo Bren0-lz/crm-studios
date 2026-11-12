@@ -838,6 +838,7 @@ describe("CRM API", () => {
             whatsapp: phone,
             emergencyContactName: fullName,
             emergencyContactPhone: phone,
+            emergencyContactWhatsapp: phone,
             tags: [],
           },
         });

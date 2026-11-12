@@ -118,7 +118,9 @@ export function AutoCampaignQueuePanel() {
       await api.recordAutoCampaignDelivery({
         campaignId: item.campaignId,
         stepId: item.stepId,
-        patientId: item.patientId,
+        ...(item.leadId
+          ? { leadId: item.leadId }
+          : { patientId: item.patientId }),
         occurrenceKey: item.occurrenceKey,
         status,
         ...(skipReason ? { skipReason } : {}),
@@ -320,6 +322,9 @@ export function AutoCampaignQueuePanel() {
                     <div className="auto-campaign-item-main">
                       <div className="auto-campaign-item-head">
                         <strong>{item.patientName}</strong>
+                        {item.leadId && (
+                          <span className="status-pill scheduled">Lead</span>
+                        )}
                         <span
                           className={`status-pill ${autoCampaignStatusPill[item.status]}`}
                         >

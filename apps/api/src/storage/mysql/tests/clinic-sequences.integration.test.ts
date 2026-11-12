@@ -47,6 +47,7 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)(
               whatsapp: `1198888000${index}`,
               emergencyContactName: `Cliente Paralelo ${index}`,
               emergencyContactPhone: `1198888000${index}`,
+              emergencyContactWhatsapp: `1198888000${index}`,
             }),
           ),
         ),

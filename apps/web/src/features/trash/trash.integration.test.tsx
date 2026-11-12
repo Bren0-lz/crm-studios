@@ -1,4 +1,10 @@
-import { fireEvent, screen, waitFor, within } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import type { PermissionKey } from "@crm/contracts";
 import { describe, expect, it } from "vitest";
 import { nextTestCpf } from "../../../../api/src/test-support/cpf.js";
@@ -42,8 +48,7 @@ async function signInAs(
 }
 
 async function openPatientsTrash() {
-  fireEvent.click(await screen.findByRole("button", { name: "Mais" }));
-  fireEvent.click(await screen.findByRole("menuitem", { name: "Lixeira" }));
+  fireEvent.click(await screen.findByRole("button", { name: "Abrir lixeira" }));
   return screen.findByRole("dialog", { name: "Lixeira" });
 }
 
@@ -114,9 +119,29 @@ describe("lixeira", () => {
     expect(
       screen.queryByRole("button", { name: "Excluir" }),
     ).not.toBeInTheDocument();
-    open("/clientes");
     expect(
-      screen.queryByRole("menuitem", { name: "Lixeira" }),
+      screen.queryByRole("button", { name: "Abrir lixeira" }),
+    ).not.toBeInTheDocument();
+    cleanup();
+    open("/clientes");
+    await screen.findByRole("heading", { name: "Clientes" });
+    expect(
+      screen.queryByRole("button", { name: "Abrir lixeira" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("mostra só o ícone de abrir a lixeira para quem vê a lixeira sem poder excluir", async () => {
+    const api = await seed();
+    await signInAs(api, ["patients.view", "patients.update", "trash.view"]);
+    open("/clientes");
+    const button = await screen.findByRole("button", { name: "Abrir lixeira" });
+    expect(button).toHaveClass("trash-icon-button");
+    expect(button).toHaveTextContent("");
+    cleanup();
+    open(`/clientes/${api.patient.id}`);
+    await screen.findByRole("button", { name: "Editar cadastro" });
+    expect(
+      screen.queryByRole("button", { name: "Excluir" }),
     ).not.toBeInTheDocument();
   });
 });

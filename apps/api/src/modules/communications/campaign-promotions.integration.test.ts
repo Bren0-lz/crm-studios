@@ -40,6 +40,7 @@ async function setup() {
         whatsapp: "11955554444",
         emergencyContactName: "Lara Promo",
         emergencyContactPhone: "11955554444",
+        emergencyContactWhatsapp: "11955554444",
         tags: [],
       },
     })

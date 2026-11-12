@@ -173,6 +173,7 @@ describe("onde o desconto da campanha promocional vale", () => {
           whatsapp: "11955554444",
           emergencyContactName: "Lara Produto",
           emergencyContactPhone: "11955554444",
+          emergencyContactWhatsapp: "11955554444",
           birthDate: "1990-06-15",
           tags: [],
         },

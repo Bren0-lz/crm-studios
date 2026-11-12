@@ -4,6 +4,7 @@ import type {
   AutoCampaignPromotion,
   AutoCampaignRedemption,
   AutoCampaignTrigger,
+  LeadAudienceFilter,
 } from "@crm/contracts";
 import type {
   AutoCampaignDeliveryWrite,
@@ -21,6 +22,8 @@ export interface StoredAutoCampaign {
   active: boolean;
   steps: Array<{ id: string; offset: number; message: string }>;
   promotion?: AutoCampaignPromotion;
+  includeLeads: boolean;
+  leadFilter?: LeadAudienceFilter;
   createdBy: string;
   createdAt: string;
   updatedAt: string;
@@ -57,6 +60,8 @@ export function createAutoCampaignsRepository(
       active: campaign.active,
       steps: [...campaign.steps].sort((a, b) => a.offset - b.offset),
       ...(campaign.promotion ? { promotion: campaign.promotion } : {}),
+      includeLeads: campaign.includeLeads,
+      ...(campaign.leadFilter ? { leadFilter: campaign.leadFilter } : {}),
       createdAt: campaign.createdAt,
       updatedAt: campaign.updatedAt,
       createdByName: userName(campaign.clinicId, campaign.createdBy),
@@ -117,6 +122,8 @@ export function createAutoCampaignsRepository(
         active: input.active,
         steps: steps(input),
         ...(input.promotion ? { promotion: input.promotion } : {}),
+        includeLeads: input.includeLeads ?? false,
+        ...(input.leadFilter ? { leadFilter: input.leadFilter } : {}),
         createdBy: actorUserId,
         createdAt: timestamp,
         updatedAt: timestamp,
@@ -138,6 +145,9 @@ export function createAutoCampaignsRepository(
       campaign.active = input.active;
       if (input.promotion) campaign.promotion = input.promotion;
       else delete campaign.promotion;
+      campaign.includeLeads = input.includeLeads ?? false;
+      if (input.leadFilter) campaign.leadFilter = input.leadFilter;
+      else delete campaign.leadFilter;
       campaign.updatedAt = now();
       return toCampaign(campaign);
     },
@@ -171,6 +181,7 @@ export function createAutoCampaignsRepository(
           404,
         );
       if (
+        input.patientId &&
         !repositoryContext.patients.some(
           (item) => item.clinicId === clinicId && item.id === input.patientId,
         )
@@ -180,6 +191,13 @@ export function createAutoCampaignsRepository(
           "Cliente não encontrado.",
           404,
         );
+      if (
+        input.leadId &&
+        !repositoryContext.leads.some(
+          (item) => item.clinicId === clinicId && item.id === input.leadId,
+        )
+      )
+        throw new DomainError("LEAD_NOT_FOUND", "Lead não encontrado.", 404);
       const deliveries = repositoryContext.autoCampaignDeliveries;
       const index = deliveries.findIndex(
         (item) =>
@@ -193,7 +211,8 @@ export function createAutoCampaignsRepository(
         clinicId,
         campaignId: input.campaignId,
         stepId: input.stepId,
-        patientId: input.patientId,
+        ...(input.patientId ? { patientId: input.patientId } : {}),
+        ...(input.leadId ? { leadId: input.leadId } : {}),
         occurrenceKey: input.occurrenceKey,
         status: input.status,
         ...(input.status === "skipped" && input.skipReason
@@ -272,12 +291,10 @@ export function createAutoCampaignsRepository(
           .filter(
             (item) => !repositoryContext.isTrashed("appointments", item.id),
           )
-          .map(
-          (appointment) => ({
+          .map((appointment) => ({
             ...appointment,
             branchId: repositoryContext.branchOf(appointment),
-          }),
-        ),
+          })),
         receivables: ofClinic(repositoryContext.receivables),
         tabs: ofClinic(repositoryContext.patientTabs),
         surveys,

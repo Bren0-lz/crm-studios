@@ -105,6 +105,7 @@ async function seedHistory(
     email: "ficha@example.com",
     emergencyContactName: "Mãe da cliente",
     emergencyContactPhone: "11911112222",
+    emergencyContactWhatsapp: "11911112222",
     birthDate: "1990-05-20",
     address: "Rua das Flores",
     city: "São Paulo",
@@ -258,6 +259,7 @@ describe("API externa: ficha do cliente e histórico de pagamentos", () => {
         email: "ficha@example.com",
         emergencyContactName: "Mãe da cliente",
         emergencyContactPhone: "11911112222",
+        emergencyContactWhatsapp: "11911112222",
         address: "Rua das Flores",
         city: "São Paulo",
         activePlans: [

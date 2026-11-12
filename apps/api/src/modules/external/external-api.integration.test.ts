@@ -328,6 +328,7 @@ describe("API externa de vendas", () => {
         whatsapp: "11966665555",
         emergencyContactName: "Cliente na espera",
         emergencyContactPhone: "11966665555",
+        emergencyContactWhatsapp: "11966665555",
       },
     });
     expect(other.statusCode, other.body).toBe(201);
@@ -431,6 +432,7 @@ describe("API externa de vendas", () => {
         whatsapp: "11944443333",
         emergencyContactName: "Cliente em atraso",
         emergencyContactPhone: "11944443333",
+        emergencyContactWhatsapp: "11944443333",
       },
     });
     expect(patient.statusCode, patient.body).toBe(201);
@@ -766,6 +768,7 @@ describe("API externa de vendas", () => {
           whatsapp: "11944443333",
           emergencyContactName: name,
           emergencyContactPhone: "11944443333",
+          emergencyContactWhatsapp: "11944443333",
         },
       });
       expect(patient.statusCode, patient.body).toBe(201);
@@ -1046,6 +1049,7 @@ describe("API externa de vendas", () => {
           email: `${phone}@example.com`,
           emergencyContactName: name,
           emergencyContactPhone: phone,
+          emergencyContactWhatsapp: phone,
         },
       });
       expect(created.statusCode, created.body).toBe(201);

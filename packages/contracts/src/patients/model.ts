@@ -180,6 +180,9 @@ export const patientInputSchema = z.object({
   emergencyContactPhone: requiredPhoneSchema(
     "Informe o telefone do contato de emergência com DDD.",
   ),
+  emergencyContactWhatsapp: requiredPhoneSchema(
+    "Informe o WhatsApp do contato de emergência com DDD.",
+  ),
   notes: z
     .string()
     .trim()
@@ -212,6 +215,7 @@ export const patientOptionalContactShape = {
   whatsapp: optionalPhoneSchema,
   emergencyContactName: z.string().trim().max(160).optional().or(z.literal("")),
   emergencyContactPhone: optionalPhoneSchema,
+  emergencyContactWhatsapp: optionalPhoneSchema,
 };
 
 /**
@@ -362,6 +366,7 @@ export const patientExportColumnSchema = z.enum(
     "status",
     "emergencyContactName",
     "emergencyContactPhone",
+    "emergencyContactWhatsapp",
     "notes",
     "createdAt",
     "leadOrigin",
@@ -393,6 +398,7 @@ export const patientExportColumnLabels: Record<PatientExportColumn, string> = {
   status: "Situação",
   emergencyContactName: "Contato de emergência",
   emergencyContactPhone: "Telefone de emergência",
+  emergencyContactWhatsapp: "WhatsApp de emergência",
   notes: "Observações",
   createdAt: "Cadastrado em",
   leadOrigin: "Origem: evento/lead",
@@ -671,6 +677,7 @@ export const patientImportPhoneFields = [
   "phone",
   "whatsapp",
   "emergencyContactPhone",
+  "emergencyContactWhatsapp",
   "guardianPhone",
 ] as const;
 
@@ -690,10 +697,12 @@ export const patientImportFieldSchema = z.enum(
     "notes",
     "emergencyContactName",
     "emergencyContactPhone",
+    "emergencyContactWhatsapp",
     ...patientProfileSchema.keyof().options,
     "phoneAreaCode",
     "whatsappAreaCode",
     "emergencyContactPhoneAreaCode",
+    "emergencyContactWhatsappAreaCode",
     "guardianPhoneAreaCode",
     PATIENT_IMPORT_EXTRA_FIELD,
   ],
@@ -723,10 +732,12 @@ export const patientImportFieldLabels: Record<
   notes: "Observações",
   emergencyContactName: "Contato de emergência",
   emergencyContactPhone: "Telefone de emergência",
+  emergencyContactWhatsapp: "WhatsApp de emergência",
   ...patientProfileLabels,
   phoneAreaCode: "DDD do telefone",
   whatsappAreaCode: "DDD do WhatsApp",
   emergencyContactPhoneAreaCode: "DDD do telefone de emergência",
+  emergencyContactWhatsappAreaCode: "DDD do WhatsApp de emergência",
   guardianPhoneAreaCode: "DDD do telefone do responsável",
   extra: EXTRA_FIELDS_LABEL,
 };
@@ -780,6 +791,7 @@ export const patientAuditLabels: Record<string, AuditFieldLabel> = {
   birthDate: "Data de nascimento",
   emergencyContactName: "Contato de emergência",
   emergencyContactPhone: "Telefone de emergência",
+  emergencyContactWhatsapp: "WhatsApp de emergência",
   notes: "Observações",
   tags: "Etiquetas",
   ...patientProfileLabels,

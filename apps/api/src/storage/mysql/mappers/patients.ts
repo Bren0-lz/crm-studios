@@ -29,6 +29,7 @@ export interface PatientRow {
   birthDate: string | null;
   emergencyContactName: string | null;
   emergencyContactPhone: string | null;
+  emergencyContactWhatsapp: string | null;
   notes: string | null;
   tags: string[];
   status: Patient["status"];
@@ -48,6 +49,7 @@ export const patientColumns = `
   birth_date AS "birthDate",
   emergency_contact_name AS "emergencyContactName",
   emergency_contact_phone AS "emergencyContactPhone",
+  emergency_contact_whatsapp AS "emergencyContactWhatsapp",
   notes,
   tags,
   profile,
@@ -92,6 +94,7 @@ export function mapPatient(row: PatientRow): Patient {
     birthDate: present(row.birthDate),
     emergencyContactName: present(row.emergencyContactName),
     emergencyContactPhone: present(row.emergencyContactPhone),
+    emergencyContactWhatsapp: present(row.emergencyContactWhatsapp),
     notes: present(row.notes),
   };
 }

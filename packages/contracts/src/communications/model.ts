@@ -1,7 +1,7 @@
 import { patientProfileFilterSchema } from "../patients/segments.js";
 import { z } from "zod";
 import { emptyQueryToUndefined } from "../common/model.js";
-import { patientStatusSchema } from "../patients/model.js";
+import { leadStageSchema, patientStatusSchema } from "../patients/model.js";
 import type {
   AutoCampaignCooldownUnit,
   AutoCampaignSkipReason,
@@ -279,29 +279,79 @@ export const whatsappCampaignSegmentSchema = broadcastSegmentSchema
     },
   );
 
-/** Público da campanha: um segmento (filtros) ou clientes escolhidos. */
-export const whatsappCampaignAudienceSchema = z.discriminatedUnion("mode", [
-  z.object({
-    mode: z.literal("segment"),
-    segment: whatsappCampaignSegmentSchema.default({
-      tags: [],
-      birthdayMonth: false,
-      tagMode: "any",
-      excludeTags: [],
-      serviceIds: [],
-      professionalIds: [],
-      noUpcomingAppointment: false,
-      overdue: false,
-    }),
-  }),
-  z.object({
-    mode: z.literal("patients"),
-    patientIds: z
-      .array(z.uuid())
-      .min(1, "Escolha pelo menos um cliente.")
-      .max(2000),
-  }),
+/** Quem os filtros da campanha alcançam: só clientes (padrão), clientes e leads ou só leads. */
+export const campaignAudienceKindSchema = z.enum([
+  "patients",
+  "patients_and_leads",
+  "leads",
 ]);
+
+export const campaignAudienceKindLabels = {
+  patients: "Clientes",
+  patients_and_leads: "Clientes e leads",
+  leads: "Só leads",
+} as const;
+
+/**
+ * Quais leads entram na campanha (manual ou automática). Tudo combinado com "e".
+ * `stages` vazio = leads em aberto (fora ganhos e perdidos); lead já convertido em cliente só
+ * entra se a etapa `won` for escolhida (senão recebe como cliente).
+ */
+export const leadAudienceFilterSchema = z.object({
+  stages: z.array(leadStageSchema).max(40).default([]),
+  tags: z.array(z.string().trim().min(1).max(40)).max(50).default([]),
+  /** `all`: precisa ter todas as etiquetas escolhidas (padrão: qualquer uma). */
+  tagMode: z.enum(["any", "all"]).default("any"),
+  sources: z.array(z.string().trim().min(1).max(80)).max(50).default([]),
+  interests: z.array(z.string().trim().min(1).max(120)).max(50).default([]),
+  responsibleUserIds: z.array(z.uuid()).max(50).default([]),
+  /** Lead cadastrado nos últimos N dias. */
+  createdWithinDays: optionalDays,
+  /** Sem contato registrado há pelo menos N dias (ou nunca contatado). */
+  noContactDays: optionalDays,
+});
+
+/** Etapas que contam quando o filtro de leads não escolhe nenhuma: as em aberto. */
+export const LEAD_AUDIENCE_CLOSED_STAGES = ["won", "lost"] as const;
+
+/** Público da campanha: um segmento (filtros) ou clientes/leads escolhidos. */
+export const whatsappCampaignAudienceSchema = z
+  .discriminatedUnion("mode", [
+    z.object({
+      mode: z.literal("segment"),
+      /** Clientes do segmento, leads do `leadFilter` ou os dois. */
+      audience: campaignAudienceKindSchema.default("patients"),
+      leadFilter: leadAudienceFilterSchema.default({
+        stages: [],
+        tags: [],
+        tagMode: "any",
+        sources: [],
+        interests: [],
+        responsibleUserIds: [],
+      }),
+      segment: whatsappCampaignSegmentSchema.default({
+        tags: [],
+        birthdayMonth: false,
+        tagMode: "any",
+        excludeTags: [],
+        serviceIds: [],
+        professionalIds: [],
+        noUpcomingAppointment: false,
+        overdue: false,
+      }),
+    }),
+    z.object({
+      mode: z.literal("patients"),
+      patientIds: z.array(z.uuid()).max(2000).default([]),
+      leadIds: z.array(z.uuid()).max(2000).default([]),
+    }),
+  ])
+  .refine(
+    (audience) =>
+      audience.mode !== "patients" ||
+      audience.patientIds.length + audience.leadIds.length > 0,
+    { message: "Escolha pelo menos um cliente ou lead.", path: ["patientIds"] },
+  );
 
 export const whatsappCampaignPreviewInputSchema = z.object({
   templateId: z.uuid(),
@@ -369,7 +419,39 @@ export const autoCampaignTriggerSchema = z.enum([
   "single_no_return",
   "former_client",
   "nps_detractor",
+  "lead_new",
+  "lead_no_contact",
 ]);
+
+/** Gatilhos só de lead (exigem o módulo comercial). */
+export const autoCampaignLeadTriggers = [
+  "lead_new",
+  "lead_no_contact",
+] as const;
+
+/** Gatilhos de cliente que também podem alcançar leads (`includeLeads`). */
+export const autoCampaignLeadOptionalTriggers = ["birthday"] as const;
+
+/** A campanha alcança leads: gatilho de lead ou `includeLeads` num gatilho que aceita. */
+export function autoCampaignTargetsLeads(campaign: {
+  trigger: AutoCampaignTrigger;
+  includeLeads?: boolean | undefined;
+}) {
+  return (
+    (autoCampaignLeadTriggers as readonly string[]).includes(
+      campaign.trigger,
+    ) ||
+    (Boolean(campaign.includeLeads) &&
+      (autoCampaignLeadOptionalTriggers as readonly string[]).includes(
+        campaign.trigger,
+      ))
+  );
+}
+
+/** A campanha alcança clientes (todo gatilho, menos os só de lead). */
+export function autoCampaignTargetsPatients(trigger: AutoCampaignTrigger) {
+  return !(autoCampaignLeadTriggers as readonly string[]).includes(trigger);
+}
 
 /**
  * Como o momento de cada mensagem é medido: `before` = dias que faltam para o evento,
@@ -389,6 +471,8 @@ export const autoCampaignTriggerTiming: Record<
   single_no_return: "after",
   former_client: "after",
   nps_detractor: "after",
+  lead_new: "after",
+  lead_no_contact: "after",
 };
 
 export const autoCampaignTriggerLabels: Record<AutoCampaignTrigger, string> = {
@@ -402,6 +486,8 @@ export const autoCampaignTriggerLabels: Record<AutoCampaignTrigger, string> = {
   single_no_return: "Veio uma vez e não voltou",
   former_client: "Ex-cliente",
   nps_detractor: "Avaliação baixa",
+  lead_new: "Lead novo",
+  lead_no_contact: "Lead sem contato",
 };
 
 export const autoCampaignTriggerDescriptions: Record<
@@ -422,6 +508,9 @@ export const autoCampaignTriggerDescriptions: Record<
     "Última compra avulsa sem atendimento ou plano depois dela.",
   former_client: "Plano cancelado e nenhum plano ativo.",
   nps_detractor: "Pesquisa de satisfação com nota de 0 a 6.",
+  lead_new: "Leads do funil, contando os dias desde o cadastro.",
+  lead_no_contact:
+    "Leads do funil, contando os dias desde o último contato (ou do cadastro).",
 };
 
 /** Códigos extras de cada evento, além de `{{nome}}` e `{{nome_completo}}`. */
@@ -439,6 +528,8 @@ export const autoCampaignTriggerVariables: Record<
   single_no_return: ["data"],
   former_client: ["data", "plano"],
   nps_detractor: ["data", "nota"],
+  lead_new: ["data", "interesse"],
+  lead_no_contact: ["data", "interesse"],
 };
 
 /** Por quantos dias a última mensagem de um evento "depois" continua na fila. */
@@ -583,7 +674,22 @@ export const autoCampaignInputSchema = z
       .max(10, "Use no máximo 10 mensagens."),
     /** Sem promoção = campanha só de mensagens. */
     promotion: autoCampaignPromotionSchema.optional(),
+    /** Também alcança leads (só nos gatilhos de `autoCampaignLeadOptionalTriggers`). */
+    includeLeads: z.boolean().default(false),
+    /** Quais leads entram (gatilhos de lead ou `includeLeads`); ausente = em aberto. */
+    leadFilter: leadAudienceFilterSchema.optional(),
   })
+  .refine(
+    (value) =>
+      !value.includeLeads ||
+      (autoCampaignLeadOptionalTriggers as readonly string[]).includes(
+        value.trigger,
+      ),
+    {
+      message: "Este evento não se aplica a leads.",
+      path: ["includeLeads"],
+    },
+  )
   .refine(
     (value) =>
       new Set(value.steps.map((step) => step.offset)).size ===
@@ -652,11 +758,17 @@ export const autoCampaignDeliveryInputSchema = z
   .object({
     campaignId: z.uuid(),
     stepId: z.uuid(),
-    patientId: z.uuid(),
+    /** Cliente ou lead do item da fila (um dos dois). */
+    patientId: z.uuid().optional(),
+    leadId: z.uuid().optional(),
     occurrenceKey: z.string().trim().min(1).max(200),
     status: z.enum(["sent", "skipped"]),
     skipReason: autoCampaignSkipReasonSchema.optional(),
     note: z.string().trim().max(300).optional(),
+  })
+  .refine((value) => Boolean(value.patientId) !== Boolean(value.leadId), {
+    message: "Informe o cliente ou o lead da mensagem.",
+    path: ["patientId"],
   })
   .refine((value) => value.status !== "skipped" || value.skipReason, {
     message: "Escolha o motivo de não enviar.",
