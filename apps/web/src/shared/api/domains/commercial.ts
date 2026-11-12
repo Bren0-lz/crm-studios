@@ -19,6 +19,10 @@ import type {
   LeadConversionInput,
   LeadDuplicateMatch,
   LeadDuplicateQuery,
+  LeadImportAnalysis,
+  LeadImportFileInput,
+  LeadImportPreviewInput,
+  LeadImportResult,
   LeadInput,
   LeadStage,
   LeadStageConfig,
@@ -56,6 +60,17 @@ export const commercialApi = {
     }),
   importEventParticipants: (id: string, input: EventImportFileInput) =>
     request<EventImportResult>(`/events/${id}/import`, {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  /** LI1: importação de leads por planilha na tela do CRM (sem evento). */
+  previewLeadImport: (input: LeadImportPreviewInput) =>
+    request<LeadImportAnalysis>("/leads/import/preview", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  importLeads: (input: LeadImportFileInput) =>
+    request<LeadImportResult>("/leads/import", {
       method: "POST",
       body: JSON.stringify(input),
     }),

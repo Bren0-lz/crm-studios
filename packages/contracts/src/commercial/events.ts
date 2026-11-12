@@ -16,9 +16,11 @@ export const EVENT_LEAD_SOURCE_PREFIX = "Evento: ";
 /** Interesse do participante enquanto ninguém registrou o que ele procura. */
 export const EVENT_LEAD_DEFAULT_INTEREST = "Evento";
 
-/** Participantes podem entrar sem dados de contato e sem validação do telefone. */
-export const eventLeadInputSchema = leadInputSchema.extend({
-  eventId: z.uuid(),
+/**
+ * Lead vindo de planilha (participantes de evento e importação de leads): pode entrar sem
+ * dados de contato e sem validação do telefone.
+ */
+export const relaxedLeadInputSchema = leadInputSchema.extend({
   fullName: z.string().trim().max(160).default(""),
   phone: z
     .string()
@@ -29,6 +31,11 @@ export const eventLeadInputSchema = leadInputSchema.extend({
       const { ddd, number } = splitPhone(value);
       return ddd ? ddd + number.replace(/\D/g, "") : value;
     }),
+});
+
+/** Participantes podem entrar sem dados de contato e sem validação do telefone. */
+export const eventLeadInputSchema = relaxedLeadInputSchema.extend({
+  eventId: z.uuid(),
   source: leadInputSchema.shape.source.default("Evento"),
   interest: leadInputSchema.shape.interest.default(EVENT_LEAD_DEFAULT_INTEREST),
 });
@@ -60,47 +67,64 @@ export const eventImportFieldSchema = z.enum([
   EVENT_IMPORT_EXTRA_FIELD,
 ]);
 export type EventImportField = z.infer<typeof eventImportFieldSchema>;
-export const eventImportFileSchema = z.object({
-  fileName: z.string().trim().min(1).max(255),
-  contentBase64: z.string().min(1),
-  mapping: z
-    .array(eventImportFieldSchema.nullable())
+/**
+ * Mapeamento das colunas da planilha: cada campo em uma coluna só, exceto "Outros" (`extra`).
+ * Usado pela importação de participantes e pela de leads.
+ */
+export function importMappingSchema<Field extends string>(
+  field: z.ZodType<Field>,
+  labels: Readonly<Record<Field, string>>,
+) {
+  return z
+    .array(field.nullable())
     .max(200)
     .optional()
     .superRefine((mapping, context) => {
       const used = new Set<string>();
-      for (const field of mapping ?? []) {
-        if (!field || field === EVENT_IMPORT_EXTRA_FIELD) continue;
-        if (used.has(field)) {
+      for (const item of mapping ?? []) {
+        if (!item || item === EVENT_IMPORT_EXTRA_FIELD) continue;
+        if (used.has(item)) {
           context.addIssue({
             code: "custom",
-            message: `O campo ${eventImportFieldLabels[field]} foi escolhido em mais de uma coluna.`,
+            message: `O campo ${labels[item]} foi escolhido em mais de uma coluna.`,
           });
           return;
         }
-        used.add(field);
+        used.add(item);
       }
-    }),
+    });
+}
+export const eventImportFileSchema = z.object({
+  fileName: z.string().trim().min(1).max(255),
+  contentBase64: z.string().min(1),
+  mapping: importMappingSchema(eventImportFieldSchema, eventImportFieldLabels),
 });
 export type EventImportFileInput = z.infer<typeof eventImportFileSchema>;
 /** Participante pronto para gravar: o lead e o "Outros" da linha. */
 export type EventImportParticipantInput = z.infer<
   typeof eventLeadInputSchema
 > & { extraFields?: ExtraFields };
-export interface EventImportAnalysis {
+/** Prévia de uma planilha de contatos (participantes de evento ou leads). */
+export interface ContactImportAnalysis<Field extends string, Input> {
   columns: { index: number; title: string; samples: string[] }[];
-  mapping: (EventImportField | null)[];
+  mapping: (Field | null)[];
   rows: {
     line: number;
     fullName: string;
     phone: string;
     status: "valid" | "error";
     errors: string[];
-    input?: EventImportParticipantInput;
+    /** Avisos que não impedem a importação (ex.: "Já é cliente"). */
+    warnings?: string[];
+    input?: Input;
   }[];
   errors: string[];
   totals: { valid: number; error: number };
 }
+export type EventImportAnalysis = ContactImportAnalysis<
+  EventImportField,
+  EventImportParticipantInput
+>;
 /**
  * Resultado da importação (EN1): `created` participantes novos, `linked` participantes ligados a
  * um cliente já cadastrado (mesmo telefone, e-mail ou CPF), `skipped` contatos que já eram

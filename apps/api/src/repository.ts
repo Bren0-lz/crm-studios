@@ -191,6 +191,7 @@ import type {
   LeadContactInput,
   LeadConversion,
   LeadConversionInput,
+  ContactDuplicateCandidate,
   LeadDuplicateMatch,
   LeadFilter,
   LeadFilterOptions,
@@ -1699,6 +1700,20 @@ export interface ClinicRepository {
     eventId: string,
     inputs: (LeadInput & { extraFields?: ExtraFields })[],
   ): Promise<{ created: number; linked: number; skipped: number }>;
+  /** Clientes (não mesclados) e leads em aberto da clínica, para os avisos da importação (LI1). */
+  listContactImportCandidates(clinicId: string): Promise<{
+    patients: ContactDuplicateCandidate[];
+    leads: ContactDuplicateCandidate[];
+  }>;
+  /**
+   * Grava os leads importados por planilha numa transação (LI1), todos na etapa aberta `stage`.
+   * Etapa inexistente ou de ganhos/perdidos: `LEAD_IMPORT_INVALID_STAGE` (400).
+   */
+  importLeads(
+    clinicId: string,
+    stage: string,
+    inputs: (LeadInput & { extraFields?: ExtraFields })[],
+  ): Promise<{ created: number }>;
   updateLead(
     clinicId: string,
     actorUserId: string,

@@ -6,9 +6,12 @@ import {
   eventLeadInputSchema,
   extraFieldsFromRow,
   extraFieldsSchema,
+  type ContactImportAnalysis,
   type EventImportAnalysis,
   type EventImportField,
+  type ExtraFields,
 } from "@crm/contracts";
+import type { z } from "zod";
 
 const key = (value: string) =>
   value
@@ -17,7 +20,7 @@ const key = (value: string) =>
     .toLowerCase()
     .replace(/[^a-z0-9]/g, "");
 /** "Outros" nunca é reconhecido pelo título: a pessoa escolhe na tela de mapeamento. */
-const aliases: Record<
+export const contactImportAliases: Record<
   Exclude<EventImportField, typeof EVENT_IMPORT_EXTRA_FIELD>,
   string[]
 > = {
@@ -32,6 +35,15 @@ const aliases: Record<
   whatsappAreaCode: ["dddwhatsapp", "ddddowhatsapp"],
 };
 
+/** O que muda entre as importações de contatos (participantes de evento, leads). */
+export interface ContactImportSpec<Field extends string, Input> {
+  aliases: Partial<Record<Field, string[]>>;
+  labels: Readonly<Record<Field, string>>;
+  parse: (raw: Record<string, string>) => z.ZodSafeParseResult<Input>;
+  /** Plural do que a planilha traz, na mensagem de arquivo vazio ("participantes"). */
+  noun: string;
+}
+
 /**
  * Nenhum campo é obrigatório. Na gravação (EN1), contato que já é participante do evento é
  * ignorado e o que já é cliente vira participante ligado a ele (`planEventParticipants`).
@@ -41,7 +53,29 @@ export function validateEventImport(
   eventId: string,
   mapping?: (EventImportField | null)[],
 ): EventImportAnalysis {
-  const result: EventImportAnalysis = {
+  return validateContactImport(
+    rows,
+    {
+      aliases: contactImportAliases,
+      labels: eventImportFieldLabels,
+      parse: (raw) => eventLeadInputSchema.safeParse({ ...raw, eventId }),
+      noun: "participantes",
+    },
+    mapping,
+  );
+}
+
+/** Lê a planilha de contatos: títulos, mapeamento das colunas e validação de cada linha. */
+export function validateContactImport<Field extends string, Input>(
+  rows: string[][],
+  spec: ContactImportSpec<Field, Input>,
+  mapping?: (Field | null)[],
+): ContactImportAnalysis<Field, Input & { extraFields?: ExtraFields }> {
+  const { aliases, labels } = spec;
+  const result: ContactImportAnalysis<
+    Field,
+    Input & { extraFields?: ExtraFields }
+  > = {
     columns: [],
     mapping: [],
     rows: [],
@@ -52,7 +86,7 @@ export function validateEventImport(
   const start = rows.findIndex((row) => !blank(row));
   if (start < 0) {
     result.errors.push(
-      "O arquivo está vazio. Inclua os títulos das colunas e os participantes.",
+      `O arquivo está vazio. Inclua os títulos das colunas e os ${spec.noun}.`,
     );
     return result;
   }
@@ -62,7 +96,7 @@ export function validateEventImport(
     while (last > max && !row[last - 1]?.trim()) last--;
     return Math.max(max, last);
   }, 0);
-  const used = new Set<EventImportField>();
+  const used = new Set<Field>();
   result.columns = Array.from({ length: width }, (_, index) => ({
     index,
     title: (rows[start]?.[index] ?? "").trim(),
@@ -74,10 +108,10 @@ export function validateEventImport(
   }));
   result.mapping = result.columns.map(({ title, index }) => {
     if (mapping) return mapping[index] ?? null;
-    const field = (Object.keys(aliases) as (keyof typeof aliases)[]).find(
+    const field = (Object.keys(aliases) as Field[]).find(
       (field) =>
         !used.has(field) &&
-        (aliases[field].includes(key(title)) || key(field) === key(title)),
+        (aliases[field]?.includes(key(title)) || key(field) === key(title)),
     );
     if (field) used.add(field);
     return field ?? null;
@@ -100,7 +134,7 @@ export function validateEventImport(
     });
     // Entrega 10: colunas "Outros" viram `{ título: valor }`.
     const extraFields = extraFieldsFromRow(titles, extraColumns, row);
-    // Linhas com valores somente em colunas ignoradas não criam participantes vazios.
+    // Linhas com valores somente em colunas ignoradas não criam contatos vazios.
     if (
       !extraFields &&
       !Object.keys(raw).some((field) => !field.endsWith("AreaCode"))
@@ -112,18 +146,18 @@ export function validateEventImport(
       if (ddd?.length === 2 && digits && /^\d{8,9}$/.test(digits))
         raw[field] = ddd + digits;
     }
-    const parsed = eventLeadInputSchema.safeParse({ ...raw, eventId });
+    const parsed = spec.parse(raw);
     const extraValid =
       !extraFields || extraFieldsSchema.safeParse(extraFields).success;
     const errors = parsed.success
       ? []
       : parsed.error.issues.map(
           (issue) =>
-            `${eventImportFieldLabels[issue.path[0] as EventImportField] ?? "Campo"}: ${issue.message}`,
+            `${labels[issue.path[0] as Field] ?? "Campo"}: ${issue.message}`,
         );
     if (!extraValid)
       errors.push(
-        `${eventImportFieldLabels[EVENT_IMPORT_EXTRA_FIELD]}: até ${EXTRA_FIELDS_MAX_KEYS} colunas, cada valor com até ${EXTRA_FIELD_VALUE_MAX} caracteres.`,
+        `${labels[EVENT_IMPORT_EXTRA_FIELD as Field]}: até ${EXTRA_FIELDS_MAX_KEYS} colunas, cada valor com até ${EXTRA_FIELD_VALUE_MAX} caracteres.`,
       );
     const status = parsed.success && extraValid ? "valid" : "error";
     result.rows.push({

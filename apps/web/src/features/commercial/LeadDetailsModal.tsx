@@ -1,7 +1,20 @@
-import { type Lead, formatCpf, formatPhone } from "@crm/contracts";
+import {
+  type Lead,
+  type LeadContact,
+  formatCpf,
+  formatPhone,
+} from "@crm/contracts";
 import { Pencil } from "lucide-react";
+import { useEffect, useState } from "react";
+import { api } from "../../api";
 import { Modal } from "../../shared/components/Modal";
-import { formatIsoDate, shortDate } from "../../shared/lib/formatting";
+import {
+  formatIsoDate,
+  shortDate,
+  shortDateTime,
+} from "../../shared/lib/formatting";
+import { LeadContactTimeline } from "./LeadContactTimeline";
+import { mergeLeadContacts } from "./lead-contact-history";
 
 /** Dado exibido só quando preenchido. */
 function Detail({
@@ -26,22 +39,47 @@ function dateText(iso: string | undefined) {
 
 /**
  * Detalhes do lead, abertos ao clicar no cartão do funil: contato, origem, interesse,
- * responsável e, para leads perdidos, o motivo da perda e as observações em destaque.
+ * responsável, histórico completo de contatos com data e hora e, para leads perdidos,
+ * o motivo da perda e as observações em destaque.
  */
 export function LeadDetailsModal({
   lead,
+  contacts,
   stageLabel,
   canEdit,
   onClose,
   onEdit,
 }: {
   lead: Lead;
+  contacts?: LeadContact[] | undefined;
   /** Nome da etapa atual (a clínica pode renomear as colunas). */
   stageLabel: string;
   canEdit: boolean;
   onClose: () => void;
   onEdit: () => void;
 }) {
+  const [fetched, setFetched] = useState<LeadContact[] | null>(null);
+  const loadingContacts = fetched === null;
+
+  useEffect(() => {
+    let active = true;
+    api
+      .leadActivity(lead.id)
+      .then((data) => {
+        if (active) {
+          setFetched(Array.isArray(data?.contacts) ? data.contacts : []);
+        }
+      })
+      .catch(() => {
+        if (active) setFetched([]);
+      });
+    return () => {
+      active = false;
+    };
+  }, [lead.id, lead.contactCount, lead.lastMessageSentAt, lead.lastContactAt]);
+
+  const history = mergeLeadContacts(lead, fetched, contacts);
+  const totalContacts = Math.max(lead.contactCount ?? 0, history.length);
   const lost = lead.stage === "lost";
   const notes = lead.notes?.trim();
   const tasks =
@@ -89,7 +127,20 @@ export function LeadDetailsModal({
           <Detail label="Responsável" value={lead.responsibleName} />
           <Detail label="Etiquetas" value={lead.tags.join(", ")} />
           <Detail label="Tarefas" value={tasks} />
-          <Detail label="Último contato" value={dateText(lead.lastContactAt)} />
+          <Detail
+            label="Último contato"
+            value={
+              lead.lastContactAt ? shortDateTime(lead.lastContactAt) : undefined
+            }
+          />
+          <Detail
+            label="Última mensagem enviada"
+            value={
+              lead.lastMessageSentAt
+                ? shortDateTime(lead.lastMessageSentAt)
+                : undefined
+            }
+          />
           <Detail label="Cadastrado em" value={dateText(lead.createdAt)} />
           <Detail label="Atualizado em" value={dateText(lead.updatedAt)} />
           <Detail
@@ -111,6 +162,26 @@ export function LeadDetailsModal({
             </div>
           </dl>
         )}
+        <section
+          className="lead-details-contacts"
+          aria-label="Histórico de contatos"
+        >
+          <header className="lead-details-contacts-head">
+            <h3>Histórico de contatos</h3>
+            {totalContacts > 0 && (
+              <span>
+                {totalContacts === 1
+                  ? "1 contato"
+                  : `${totalContacts} contatos`}
+              </span>
+            )}
+          </header>
+          {loadingContacts && history.length === 0 ? (
+            <p className="contact-timeline-empty">Carregando histórico...</p>
+          ) : (
+            <LeadContactTimeline contacts={history} />
+          )}
+        </section>
         <div className="modal-actions">
           <button type="button" className="secondary-button" onClick={onClose}>
             Fechar

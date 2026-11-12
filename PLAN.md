@@ -1535,6 +1535,21 @@ filtros ficam no `dashboard-studios` (EN11–EN13 têm só a parte da API aqui).
 - **Gate:** gate completo + `npm run test:mysql`
 - **Status:** DONE
 
+## Pedido avulso — Importar leads por planilha (12/11/2026)
+
+### LI1 — Importar leads por planilha na tela do CRM comercial
+
+- **Pedido (12/11/2026):** importar leads de uma planilha direto na tela de Leads, sem precisar
+  de evento. Decisões do dono: origem escolhida no modal (coluna "Origem" vale por linha);
+  nenhum campo obrigatório (como no evento); etapa do funil escolhida para todos os leads;
+  quem já é cliente (ou lead, ou repete outra linha) é importado como lead aberto, com aviso.
+- **Escopo:** contratos `commercial/lead-import.ts` (`relaxedLeadInputSchema` compartilhado
+  com o evento, `importMappingSchema`); validador genérico `validateContactImport` em
+  `event-import.ts`; `lead-import.ts` + `lead-import-routes.ts` (`POST /leads/import/preview`
+  e `POST /leads/import`, `crm.create`); repositório `listContactImportCandidates` e
+  `importLeads` (memória e MySQL, transação, etapa aberta obrigatória); botão "Importar leads"
+  e `LeadImportModal` no CRM comercial. Sem migração.
+- **Gate:** gate completo + `npm run test:mysql`
 
 ## Pedido avulso — Novo lead com WhatsApp e cadastro rápido de origem/interesse (12/11/2026)
 
