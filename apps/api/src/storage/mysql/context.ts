@@ -480,9 +480,9 @@ export class MysqlRepositoryContext {
         `
           INSERT INTO patients (
             id, clinic_id, record_number, full_name, cpf, email, phone, whatsapp, birth_date,
-            emergency_contact_name, emergency_contact_phone, notes, tags, profile, extra_fields
+            emergency_contact_name, emergency_contact_phone, emergency_contact_whatsapp, notes, tags, profile, extra_fields
           )
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
         `,
         [
           id,
@@ -496,6 +496,7 @@ export class MysqlRepositoryContext {
           input.birthDate || null,
           input.emergencyContactName || null,
           input.emergencyContactPhone || null,
+          input.emergencyContactWhatsapp || null,
           input.notes || null,
           input.tags,
           JSON.stringify(patientProfile(input)),

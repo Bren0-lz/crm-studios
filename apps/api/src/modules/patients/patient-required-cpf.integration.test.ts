@@ -119,6 +119,7 @@ describe("required client CPF", () => {
           whatsapp: "11999998888",
           emergencyContactName: "Cliente CPF obrigatório",
           emergencyContactPhone: "11999998888",
+          emergencyContactWhatsapp: "11999998888",
           cpf,
         };
         for (const url of ["/patients", "/patients/guided"]) {
@@ -154,6 +155,7 @@ describe("required client CPF", () => {
       whatsapp: "11999998888",
       emergencyContactName: "Cliente CPF obrigatório",
       emergencyContactPhone: "11999998888",
+      emergencyContactWhatsapp: "11999998888",
       cpf: "529.982.247-25",
     };
     try {

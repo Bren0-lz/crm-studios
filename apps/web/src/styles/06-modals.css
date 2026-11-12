@@ -145,11 +145,30 @@
   gap: var(--space-4);
 }
 
-.emergency-contact-details > div {
+.emergency-contact-details > div:first-child {
   display: grid;
   flex: 1 1 calc(var(--space-7) * 3);
   min-width: 0;
   gap: var(--space-1);
+}
+
+.emergency-contact-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+
+.emergency-contact-line small {
+  color: var(--muted);
+  font-size: var(--text-xs);
+  font-weight: 600;
+}
+
+.emergency-contact-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
 }
 
 .emergency-contact-details strong {
@@ -190,7 +209,9 @@
     grid-template-columns: 1fr;
   }
 
-  .emergency-contact-details > a {
+  .emergency-contact-details > a,
+  .emergency-contact-actions,
+  .emergency-contact-actions > a {
     width: 100%;
   }
 }

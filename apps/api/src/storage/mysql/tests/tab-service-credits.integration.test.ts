@@ -57,6 +57,7 @@ for (const storage of ["memory", "mysql"] as const) {
             whatsapp: "11988887777",
             emergencyContactName: `Comanda ${randomUUID()}`,
             emergencyContactPhone: "11988887777",
+            emergencyContactWhatsapp: "11988887777",
           }),
         );
         const tab = await repository.openPatientTab(clinicId, actorId, {

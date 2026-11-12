@@ -22,6 +22,7 @@ test("SOS search and contact remain usable with long names on desktop and a smal
         tags: [],
         emergencyContactName: contactName,
         emergencyContactPhone: "11988887777",
+        emergencyContactWhatsapp: "11988886666",
       },
     });
     expect(response.status()).toBe(201);
@@ -104,11 +105,23 @@ test("SOS search and contact remain usable with long names on desktop and a smal
     await expect(
       dialog.getByText("(11) 98888-7777", { exact: true }),
     ).toBeVisible();
+    await expect(
+      dialog.getByText("(11) 98888-6666", { exact: true }),
+    ).toBeVisible();
     await expectStable();
     const call = dialog.getByRole("link", { name: "Ligar para 11988887777" });
     await call.scrollIntoViewIfNeeded();
     await expect(call).toBeInViewport();
     await expect(call).toHaveAttribute("href", "tel:11988887777");
+    const whatsapp = dialog.getByRole("link", {
+      name: "Mandar mensagem no WhatsApp",
+    });
+    await whatsapp.scrollIntoViewIfNeeded();
+    await expect(whatsapp).toBeInViewport();
+    await expect(whatsapp).toHaveAttribute(
+      "href",
+      expect.stringContaining("https://wa.me/5511988886666?text="),
+    );
     await page.screenshot({
       path: testInfo.outputPath(`sos-${viewport.width}-contact.png`),
     });
@@ -203,6 +216,7 @@ test("SOS keeps its bounds during contact loading, missing contact, errors and r
       tags: [],
       emergencyContactName: "Maria Almeida",
       emergencyContactPhone: "11988887777",
+      emergencyContactWhatsapp: "11988886666",
     },
   });
   expect(response.status()).toBe(201);
@@ -299,6 +313,7 @@ test("SOS stays in the header after scrolling and opens over the entire viewport
       tags: [],
       emergencyContactName: "Maria Almeida",
       emergencyContactPhone: "11988887777",
+      emergencyContactWhatsapp: "11988886666",
     },
   });
   expect(created.status()).toBe(201);

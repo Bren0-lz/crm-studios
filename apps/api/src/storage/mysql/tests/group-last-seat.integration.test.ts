@@ -45,6 +45,7 @@ for (const storage of ["memory", "mysql"] as const) {
               whatsapp: "11988887777",
               emergencyContactName: "Contato de Emergência",
               emergencyContactPhone: "11988887777",
+              emergencyContactWhatsapp: "11988887777",
             }),
           );
         const [first, second] = await Promise.all([

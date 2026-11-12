@@ -490,6 +490,81 @@ describe("campanhas de WhatsApp", () => {
     });
   });
 
+  it("por filtros, manda só para leads da etapa escolhida", async () => {
+    const previews: Array<{ audience: Record<string, unknown> }> = [];
+    setup("/comunicacoes", (url, init) => {
+      if (url.includes("/communications/campaigns/preview")) {
+        const body = JSON.parse(String(init?.body));
+        previews.push(body);
+        return {
+          matched: 1,
+          recipients: 1,
+          leads: 1,
+          included: [
+            { leadId: "l1", patientName: "Lia Lead", phone: "11977776666" },
+          ],
+          skipped: [],
+        };
+      }
+      if (url.endsWith("/communications/campaigns")) return [];
+      if (url.endsWith("/communications/templates")) return [template];
+      if (url.includes("/campaigns/filter-options"))
+        return {
+          services: [],
+          professionals: [],
+          cities: [],
+          neighborhoods: [],
+          sources: [],
+          occupations: [],
+          interests: [],
+          levels: [],
+          finance: true,
+          leads: {
+            stages: [
+              { stage: "new_contact", label: "Novo contato" },
+              { stage: "proposal", label: "Proposta" },
+            ],
+            sources: ["Instagram"],
+            interests: [],
+            tags: [],
+            responsibles: [],
+          },
+        };
+      return undefined;
+    });
+    await screen.findByText("Nenhuma campanha ainda");
+    fireEvent.click(
+      screen.getAllByRole("button", { name: "Nova campanha" }).at(0)!,
+    );
+    const dialog = await screen.findByRole("dialog", { name: "Nova campanha" });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Continuar" }));
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Por filtros" }),
+    );
+    fireEvent.click(within(dialog).getByRole("button", { name: "Só leads" }));
+    fireEvent.click(
+      await within(dialog).findByRole("button", { name: "Proposta" }),
+    );
+    // Só leads: os filtros de cliente saem da tela.
+    expect(
+      within(dialog).queryByRole("button", { name: /^Filtros/ }),
+    ).toBeNull();
+    await waitFor(() =>
+      expect(previews.at(-1)).toMatchObject({
+        audience: {
+          mode: "segment",
+          audience: "leads",
+          leadFilter: { stages: ["proposal"] },
+        },
+      }),
+    );
+    const results = within(dialog).getByRole("region", {
+      name: "Clientes encontrados",
+    });
+    expect(await within(results).findByText("Lia Lead")).toBeInTheDocument();
+    expect(within(results).getByText(/1 lead/)).toBeInTheDocument();
+  });
+
   it("por filtros, lista na hora quem a etiqueta encontrou", async () => {
     const previews: unknown[] = [];
     setup("/comunicacoes", (url, init) => {

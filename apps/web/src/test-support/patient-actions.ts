@@ -41,4 +41,7 @@ export function fillRequiredContact(form: HTMLElement) {
   const phone = within(emergency).getByLabelText("Telefone");
   if (!(phone as HTMLInputElement).value)
     fireEvent.change(phone, { target: { value: "11911110000" } });
+  const emergencyWhatsapp = within(emergency).getByLabelText("WhatsApp");
+  if (!(emergencyWhatsapp as HTMLInputElement).value)
+    fireEvent.change(emergencyWhatsapp, { target: { value: "11911110000" } });
 }

@@ -32,6 +32,28 @@
   font-size: var(--text-sm);
 }
 
+/* Botão só com o ícone de lixeira: neutro em repouso, vermelho ao passar o mouse. */
+.trash-icon-button {
+  color: var(--muted);
+  transition:
+    color 0.15s ease,
+    background-color 0.15s ease,
+    border-color 0.15s ease;
+}
+
+/* No cabeçalho, quadrado da mesma altura dos botões ao lado. */
+.page-actions > .trash-icon-button {
+  min-width: calc(var(--space-6) + var(--space-2));
+  min-height: calc(var(--space-6) + var(--space-2));
+}
+
+.trash-icon-button:hover:not(:disabled),
+.trash-icon-button:focus-visible {
+  border-color: var(--red);
+  background: #f9e9e6;
+  color: var(--red);
+}
+
 .trash-actions {
   display: flex;
   flex-wrap: wrap;
@@ -76,6 +98,12 @@
 }
 
 @media (max-width: 700px) {
+  /* No celular os botões do cabeçalho ocupam a linha; o ícone fica quadrado, à direita. */
+  .page-actions > .trash-icon-button {
+    align-self: flex-end;
+    width: auto;
+  }
+
   .trash-list > li {
     padding: var(--space-3);
   }

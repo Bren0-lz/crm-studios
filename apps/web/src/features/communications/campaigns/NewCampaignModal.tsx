@@ -1,7 +1,11 @@
 import {
   broadcastSkipReasonLabels,
+  campaignAudienceKindLabels,
   formatPhone,
+  type CampaignAudienceKind,
   type CampaignFilterOptions,
+  type Lead,
+  type LeadAudienceFilter,
   type MessageTemplate,
   type PatientOption,
   type WhatsappCampaignAudience,
@@ -22,11 +26,13 @@ import {
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { api } from "../../../api";
+import { useAuthorization } from "../../../authorization-context";
 import { PatientPicker } from "../../../PatientPicker";
 import { Modal, ModalCancelButton } from "../../../shared/components/Modal";
 import { localIsoDate, shortDate } from "../../../shared/lib/formatting";
 import { useFormDirty } from "../../../shared/workflows/useDirtyGuard";
 import { CampaignFiltersModal } from "./CampaignFiltersModal";
+import { LeadAudienceFields } from "./LeadAudienceFields";
 import { useTemplateImages } from "./images";
 import {
   activeFilterCount,
@@ -118,6 +124,8 @@ function FilterResults({
                 {preview!.matched === 1
                   ? "cliente encontrado"
                   : "clientes encontrados"}
+                {preview!.leads > 0 &&
+                  ` · ${preview!.leads} ${preview!.leads === 1 ? "lead" : "leads"}`}
                 {preview!.skipped.length > 0 &&
                   ` · ${preview!.skipped.length} ${preview!.skipped.length === 1 ? "será pulado" : "serão pulados"} (sem WhatsApp liberado)`}
               </small>
@@ -142,13 +150,16 @@ function FilterResults({
           )}
           <ul className="campaign-filter-list" aria-label="Vão receber">
             {rows.map((row) => (
-              <li key={row.patientId}>
+              <li key={row.patientId ?? row.leadId}>
                 <span className="campaign-filter-avatar" aria-hidden="true">
                   {row.patientName.trim().charAt(0).toUpperCase()}
                 </span>
                 <span>
                   <strong>{row.patientName}</strong>
-                  <small>{formatPhone(row.phone)}</small>
+                  <small>
+                    {row.leadId ? "Lead · " : ""}
+                    {formatPhone(row.phone)}
+                  </small>
                 </span>
               </li>
             ))}
@@ -290,6 +301,13 @@ export function NewCampaignModal({
   const [mode, setMode] =
     useState<WhatsappCampaignAudience["mode"]>("patients");
   const [chosen, setChosen] = useState<PatientOption[]>([]);
+  const { canView } = useAuthorization();
+  const canSeeLeads = canView("crm");
+  const [audienceKind, setAudienceKind] =
+    useState<CampaignAudienceKind>("patients");
+  const [leadFilter, setLeadFilter] = useState<LeadAudienceFilter>({});
+  const [chosenLeads, setChosenLeads] = useState<Lead[]>([]);
+  const leads = useLeads(canSeeLeads && mode === "patients");
   const [pickerValue, setPickerValue] = useState("");
   const [segment, setSegment] =
     useState<WhatsappCampaignSegment>(emptyCampaignSegment);
@@ -307,7 +325,10 @@ export function NewCampaignModal({
     templateId,
     mode,
     chosen,
+    chosenLeads,
     segment,
+    audienceKind,
+    leadFilter,
     name,
     promotion,
   });
@@ -317,7 +338,8 @@ export function NewCampaignModal({
   );
 
   // Opções reais dos filtros (serviços, profissionais, cidades…), carregadas uma vez.
-  const needsOptions = mode === "segment" && !filterOptions;
+  const needsOptions =
+    (mode === "segment" || audienceKind !== "patients") && !filterOptions;
   useEffect(() => {
     if (!needsOptions) return;
     let active = true;
@@ -329,15 +351,25 @@ export function NewCampaignModal({
       active = false;
     };
   }, [needsOptions]);
+  const withLeads = canSeeLeads && audienceKind !== "patients";
   const audience: WhatsappCampaignPreviewInput["audience"] =
     mode === "patients"
-      ? { mode, patientIds: chosen.map((patient) => patient.id) }
-      : { mode, segment };
+      ? {
+          mode,
+          patientIds: chosen.map((patient) => patient.id),
+          leadIds: chosenLeads.map((lead) => lead.id),
+        }
+      : {
+          mode,
+          segment,
+          ...(withLeads ? { audience: audienceKind, leadFilter } : {}),
+        };
 
   // Por filtros: mostra na hora quem entra no segmento aplicado.
   const matches = useSegmentPreview(
     mode === "segment" && step === 2 && template ? template.id : "",
     segment,
+    withLeads ? { audience: audienceKind, leadFilter } : undefined,
   );
   const [filtersOpen, setFiltersOpen] = useState(false);
   const groupCounts = filterGroupCounts(segment);
@@ -394,7 +426,8 @@ export function NewCampaignModal({
     }
   }
 
-  const audienceMissing = mode === "patients" && chosen.length === 0;
+  const audienceMissing =
+    mode === "patients" && chosen.length + chosenLeads.length === 0;
 
   return (
     <Modal
@@ -545,51 +578,94 @@ export function NewCampaignModal({
                   </ul>
                 </>
               )}
+              {canSeeLeads && (
+                <LeadPick
+                  leads={leads}
+                  chosen={chosenLeads}
+                  onChange={(next) => change(() => setChosenLeads(next))}
+                />
+              )}
             </div>
           ) : (
             <>
-              <div className="campaign-filter-bar">
-                <button
-                  type="button"
-                  className="secondary-button"
-                  onClick={() => setFiltersOpen(true)}
+              {canSeeLeads && (
+                <div
+                  className="campaign-segmented compact"
+                  role="group"
+                  aria-label="Quem recebe"
                 >
-                  <SlidersHorizontal size={16} aria-hidden="true" />
-                  Filtros
-                  {totalFilters > 0 && (
-                    <span className="campaign-filter-badge">
-                      {totalFilters}
-                    </span>
-                  )}
-                </button>
-                <ul
-                  className="campaign-filter-summary"
-                  aria-label="Filtros ligados"
-                >
-                  {activeGroups.length === 0 ? (
-                    <li>Todos os clientes</li>
-                  ) : (
-                    activeGroups.map((group) => (
-                      <li key={group}>
-                        {filterGroupLabels[group]}
-                        {groupCounts[group] > 1 && ` (${groupCounts[group]})`}
-                      </li>
-                    ))
-                  )}
-                </ul>
-                {totalFilters > 0 && (
+                  {(
+                    Object.keys(
+                      campaignAudienceKindLabels,
+                    ) as CampaignAudienceKind[]
+                  ).map((kind) => (
+                    <button
+                      key={kind}
+                      type="button"
+                      className="text-button"
+                      aria-pressed={audienceKind === kind}
+                      onClick={() => change(() => setAudienceKind(kind))}
+                    >
+                      {campaignAudienceKindLabels[kind]}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {withLeads && (
+                <fieldset className="form-fieldset campaign-lead-filter">
+                  <legend>Quais leads</legend>
+                  <LeadAudienceFields
+                    idPrefix="campaign-leads"
+                    value={leadFilter}
+                    options={filterOptions?.leads}
+                    onChange={(next) => change(() => setLeadFilter(next))}
+                  />
+                </fieldset>
+              )}
+              {audienceKind !== "leads" && (
+                <div className="campaign-filter-bar">
                   <button
                     type="button"
-                    className="text-button button-sm"
-                    onClick={() =>
-                      change(() => setSegment(emptyCampaignSegment()))
-                    }
+                    className="secondary-button"
+                    onClick={() => setFiltersOpen(true)}
                   >
-                    <RotateCcw size={14} aria-hidden="true" />
-                    Limpar filtros
+                    <SlidersHorizontal size={16} aria-hidden="true" />
+                    Filtros
+                    {totalFilters > 0 && (
+                      <span className="campaign-filter-badge">
+                        {totalFilters}
+                      </span>
+                    )}
                   </button>
-                )}
-              </div>
+                  <ul
+                    className="campaign-filter-summary"
+                    aria-label="Filtros ligados"
+                  >
+                    {activeGroups.length === 0 ? (
+                      <li>Todos os clientes</li>
+                    ) : (
+                      activeGroups.map((group) => (
+                        <li key={group}>
+                          {filterGroupLabels[group]}
+                          {groupCounts[group] > 1 && ` (${groupCounts[group]})`}
+                        </li>
+                      ))
+                    )}
+                  </ul>
+                  {totalFilters > 0 && (
+                    <button
+                      type="button"
+                      className="text-button button-sm"
+                      onClick={() =>
+                        change(() => setSegment(emptyCampaignSegment()))
+                      }
+                    >
+                      <RotateCcw size={14} aria-hidden="true" />
+                      Limpar filtros
+                    </button>
+                  )}
+                </div>
+              )}
               <FilterResults
                 loading={matches.loading}
                 error={matches.error}
@@ -641,7 +717,7 @@ export function NewCampaignModal({
                 </summary>
                 <ul>
                   {preview.skipped.map((item) => (
-                    <li key={item.patientId}>
+                    <li key={item.patientId ?? item.leadId}>
                       <strong>{item.patientName}</strong>
                       <span>{broadcastSkipReasonLabels[item.reason]}</span>
                     </li>
@@ -728,5 +804,97 @@ export function NewCampaignModal({
           document.body,
         )}
     </Modal>
+  );
+}
+
+/** Leads ativos da clínica para escolher um a um (carregados ao abrir a escolha). */
+function useLeads(enabled: boolean) {
+  const [leads, setLeads] = useState<Lead[]>([]);
+  const [loaded, setLoaded] = useState(false);
+  useEffect(() => {
+    if (!enabled || loaded) return;
+    let active = true;
+    api
+      .leads()
+      .then((result) => {
+        if (!active) return;
+        setLeads(
+          result
+            .filter((lead) => !lead.convertedPatientId)
+            .sort((a, b) => a.fullName.localeCompare(b.fullName, "pt-BR")),
+        );
+        setLoaded(true);
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, [enabled, loaded]);
+  return leads;
+}
+
+/** Escolha de leads um a um, ao lado dos clientes escolhidos. */
+function LeadPick({
+  leads,
+  chosen,
+  onChange,
+}: {
+  leads: Lead[];
+  chosen: Lead[];
+  onChange: (next: Lead[]) => void;
+}) {
+  const available = leads.filter(
+    (lead) => !chosen.some((item) => item.id === lead.id),
+  );
+  // Sem lead em aberto, a escolha nem aparece.
+  if (leads.length === 0 && chosen.length === 0) return null;
+  return (
+    <div className="campaign-lead-pick">
+      <label>
+        Adicionar lead
+        <select
+          value=""
+          disabled={available.length === 0}
+          onChange={(event) => {
+            const lead = leads.find((item) => item.id === event.target.value);
+            if (lead) onChange([...chosen, lead]);
+          }}
+        >
+          <option value="">Escolha um lead</option>
+          {available.map((lead) => (
+            <option key={lead.id} value={lead.id}>
+              {lead.fullName}
+            </option>
+          ))}
+        </select>
+      </label>
+      {chosen.length > 0 && (
+        <>
+          <p className="campaign-chosen-count" role="status">
+            <strong>{chosen.length}</strong>{" "}
+            {chosen.length === 1
+              ? "lead escolhido para esta campanha"
+              : "leads escolhidos para esta campanha"}
+          </p>
+          <ul className="campaign-chosen" aria-label="Leads escolhidos">
+            {chosen.map((lead) => (
+              <li key={lead.id}>
+                {lead.fullName}
+                <button
+                  type="button"
+                  className="text-button"
+                  aria-label={`Tirar ${lead.fullName}`}
+                  onClick={() =>
+                    onChange(chosen.filter((item) => item.id !== lead.id))
+                  }
+                >
+                  <X size={14} aria-hidden="true" />
+                </button>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+    </div>
   );
 }

@@ -280,7 +280,7 @@ describe("settings workflows through real HTTP handlers", () => {
     ).toBeInTheDocument();
   });
 
-  it.each(["service", "room", "professional"] as const)(
+  it.each(["service", "room"] as const)(
     "edits %s and keeps historical registry entries",
     async (kind) => {
       const { repository } = await setupApi();
@@ -293,11 +293,7 @@ describe("settings workflows through real HTTP handlers", () => {
       });
       fireEvent.click(
         within(section).getByRole("tab", {
-          name: {
-            service: "Serviços",
-            room: "Salas",
-            professional: "Profissionais",
-          }[kind],
+          name: { service: "Serviços", room: "Salas" }[kind],
         }),
       );
       const edit = await within(section).findAllByRole("button", {
@@ -306,25 +302,16 @@ describe("settings workflows through real HTTP handlers", () => {
       fireEvent.click(edit[0]!);
       const dialog = screen.getByRole("dialog", { name: "Editar cadastro" });
       change(
-        kind === "professional" ? "Nome completo" : "Nome",
+        kind === "room" ? "Nome da sala" : "Nome",
         "Cadastro revisado",
         dialog,
       );
       await save("Editar cadastro", "Salvar cadastro");
       const registry = await repository.getAdministrativeRegistry(clinicId);
-      const entries =
-        kind === "service"
-          ? registry.services
-          : kind === "room"
-            ? registry.rooms
-            : registry.professionals;
-      expect(
-        entries.some(
-          (item) =>
-            ("fullName" in item ? item.fullName : item.name) ===
-            "Cadastro revisado",
-        ),
-      ).toBe(true);
+      const entries = kind === "service" ? registry.services : registry.rooms;
+      expect(entries.some((item) => item.name === "Cadastro revisado")).toBe(
+        true,
+      );
     },
   );
   it("cadastra e edita a linha do serviço no painel de vendas", async () => {

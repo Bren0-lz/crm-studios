@@ -174,7 +174,10 @@ export interface CampaignReportMessage {
   campaignId: string;
   campaignName: string;
   kind: CampaignReportKind;
+  /** Nome do cliente ou do lead. */
   patientName: string;
+  /** Destinatário é um lead (não um cliente). */
+  lead?: boolean | undefined;
   phone: string;
   status: "pending" | "sent" | "skipped";
   /** Etapa da campanha automática ou motivo de não envio. */

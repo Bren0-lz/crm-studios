@@ -128,7 +128,8 @@ export function createCampaignsRepository(
     recipient: StoredWhatsappCampaign["recipients"][number],
   ): WhatsappCampaignRecipient => ({
     id: recipient.id,
-    patientId: recipient.patientId,
+    ...(recipient.patientId ? { patientId: recipient.patientId } : {}),
+    ...(recipient.leadId ? { leadId: recipient.leadId } : {}),
     patientName: recipient.patientName,
     phone: recipient.phone,
     message: recipient.message,
@@ -318,7 +319,7 @@ export function createCampaignsRepository(
       if (input.recipients.length === 0)
         throw new DomainError(
           "CAMPAIGN_WITHOUT_RECIPIENTS",
-          "Nenhum cliente com WhatsApp para receber a campanha.",
+          "Nenhum cliente ou lead com WhatsApp para receber a campanha.",
           400,
         );
       const campaign: StoredWhatsappCampaign = {

@@ -74,6 +74,7 @@ describe("CRM API", () => {
         whatsapp: "11999990000",
         emergencyContactName: "Joana de Souza",
         emergencyContactPhone: "11999990000",
+        emergencyContactWhatsapp: "11999990000",
         cpf: "12345678909",
         tags: ["Avaliação"],
       },
@@ -145,6 +146,7 @@ describe("CRM API", () => {
           whatsapp: "11999990000",
           emergencyContactName: "Joana de Souza",
           emergencyContactPhone: "11999990000",
+          emergencyContactWhatsapp: "11999990000",
           cpf: "12345678909",
           tags: [],
         },
@@ -163,6 +165,7 @@ describe("CRM API", () => {
         whatsapp: "11999990001",
         emergencyContactName: "Rita Sequência",
         emergencyContactPhone: "11999990001",
+        emergencyContactWhatsapp: "11999990001",
         tags: [],
       },
     });
@@ -202,6 +205,7 @@ describe("CRM API", () => {
         whatsapp: "11988887777",
         emergencyContactName: "Joana Pereira",
         emergencyContactPhone: "11988887777",
+        emergencyContactWhatsapp: "11988887777",
         cpf: patient.cpf,
         tags: ["Retorno"],
       },
@@ -234,6 +238,7 @@ describe("CRM API", () => {
           whatsapp: "11911112222",
           emergencyContactName: "Outra Pessoa",
           emergencyContactPhone: "11911112222",
+          emergencyContactWhatsapp: "11911112222",
           tags: [],
         },
       })
@@ -248,6 +253,7 @@ describe("CRM API", () => {
         whatsapp: other.phone,
         emergencyContactName: other.fullName,
         emergencyContactPhone: other.phone,
+        emergencyContactWhatsapp: other.phone,
         cpf: patient.cpf,
         tags: [],
       },
@@ -1194,6 +1200,7 @@ describe("CRM API", () => {
         whatsapp: "(11) 90000-1234",
         emergencyContactName: patient.emergencyContactName,
         emergencyContactPhone: patient.emergencyContactPhone,
+        emergencyContactWhatsapp: patient.emergencyContactWhatsapp,
         email: "contato@example.com",
         tags: patient.tags,
       },
@@ -1226,6 +1233,7 @@ describe("CRM API", () => {
         whatsapp: "",
         emergencyContactName: patient.emergencyContactName,
         emergencyContactPhone: patient.emergencyContactPhone,
+        emergencyContactWhatsapp: patient.emergencyContactWhatsapp,
         tags: patient.tags,
       },
     });
@@ -1623,6 +1631,7 @@ describe("CRM API", () => {
             whatsapp: phone,
             emergencyContactName: fullName,
             emergencyContactPhone: phone,
+            emergencyContactWhatsapp: phone,
             birthDate,
             tags: [],
           },
@@ -2339,6 +2348,7 @@ describe("CRM API", () => {
             whatsapp: "11955554444",
             emergencyContactName: "Rita Relacionamento",
             emergencyContactPhone: "11955554444",
+            emergencyContactWhatsapp: "11955554444",
             birthDate: "1990-10-10",
             tags: [],
           },
@@ -2567,6 +2577,7 @@ describe("CRM API", () => {
             whatsapp: "11944443333",
             emergencyContactName: "Nair Detratora",
             emergencyContactPhone: "11944443333",
+            emergencyContactWhatsapp: "11944443333",
             tags: [],
           },
         })
@@ -2662,6 +2673,7 @@ describe("CRM API", () => {
               whatsapp: "11966665555",
               emergencyContactName: fullName,
               emergencyContactPhone: "11955554444",
+              emergencyContactWhatsapp: "11955554444",
               ...(birthDate ? { birthDate } : {}),
               tags: [],
             },
@@ -3153,6 +3165,7 @@ describe("CRM API", () => {
         whatsapp: "21977776666",
         emergencyContactName: "Cliente Existente",
         emergencyContactPhone: "21977776666",
+        emergencyContactWhatsapp: "21977776666",
         cpf: "98765432100",
         tags: [],
       },
@@ -3619,6 +3632,7 @@ describe("CRM API", () => {
           whatsapp: "11933330001",
           emergencyContactName: "Gabi Gestante",
           emergencyContactPhone: "11933330001",
+          emergencyContactWhatsapp: "11933330001",
           tags: ["Gestante T062", "Inventada", "Outra"],
         },
       });
@@ -3639,6 +3653,7 @@ describe("CRM API", () => {
           whatsapp: "11933330001",
           emergencyContactName: "Gabi Gestante",
           emergencyContactPhone: "11933330001",
+          emergencyContactWhatsapp: "11933330001",
           tags: ["gestante t062", "GESTANTE T062"],
         },
       });
@@ -3656,6 +3671,7 @@ describe("CRM API", () => {
           whatsapp: "11933330001",
           emergencyContactName: "Gabi Gestante",
           emergencyContactPhone: "11933330001",
+          emergencyContactWhatsapp: "11933330001",
           tags: ["Inventada"],
         },
       });
@@ -3766,6 +3782,7 @@ describe("CRM API", () => {
           whatsapp: "11933330001",
           emergencyContactName: "Gabi Gestante",
           emergencyContactPhone: "11933330001",
+          emergencyContactWhatsapp: "11933330001",
           tags: [],
         },
       });
@@ -3861,6 +3878,7 @@ describe("CRM API", () => {
           whatsapp: "11933330009",
           emergencyContactName: "Lia Convertida",
           emergencyContactPhone: "11933330009",
+          emergencyContactWhatsapp: "11933330009",
           tags: ["Convertido do CRM"],
         },
       });
@@ -3952,6 +3970,7 @@ describe("CRM API", () => {
             whatsapp: payload.phone,
             emergencyContactName: payload.fullName,
             emergencyContactPhone: payload.phone,
+            emergencyContactWhatsapp: payload.phone,
             ...payload,
           },
         });
@@ -4012,10 +4031,10 @@ describe("CRM API", () => {
         /^attachment; filename="clientes-\d{4}-\d{2}-\d{2}\.csv"$/,
       );
       expect(csvLines(all.body)[0]).toBe(
-        "Nome;Prontuário;CPF;DDD (Telefone);Telefone;DDD (WhatsApp);WhatsApp;E-mail;Nascimento;Etiquetas;Situação;Contato de emergência;DDD (Telefone de emergência);Telefone de emergência;Observações;Cadastrado em",
+        "Nome;Prontuário;CPF;DDD (Telefone);Telefone;DDD (WhatsApp);WhatsApp;E-mail;Nascimento;Etiquetas;Situação;Contato de emergência;DDD (Telefone de emergência);Telefone de emergência;DDD (WhatsApp de emergência);WhatsApp de emergência;Observações;Cadastrado em",
       );
       expect(all.body).toContain(
-        `\r\n"Ana; ""Exportada""";${ana.recordNumber};${ana.cpf};11;91111-0001;11;91111-0001;ana.exporta@example.com;20/03/1990;${tag}, vip;ativo;"Ana; ""Exportada""";11;91111-0001;"Linha 1\nLinha 2";`,
+        `\r\n"Ana; ""Exportada""";${ana.recordNumber};${ana.cpf};11;91111-0001;11;91111-0001;ana.exporta@example.com;20/03/1990;${tag}, vip;ativo;"Ana; ""Exportada""";11;91111-0001;11;91111-0001;"Linha 1\nLinha 2";`,
       );
 
       const chosen = await app.inject({
@@ -4163,7 +4182,7 @@ describe("CRM API", () => {
         expect(empty.statusCode).toBe(200);
         expect(empty.headers["content-type"]).toBe("text/csv; charset=utf-8");
         const emptyLines = csvLines(empty.body);
-        expect(emptyLines[0]?.split(";")).toHaveLength(16);
+        expect(emptyLines[0]?.split(";")).toHaveLength(18);
         expect(emptyLines).toHaveLength(patients.length + 1);
         await app.close();
       } finally {
@@ -4273,6 +4292,7 @@ describe("CRM API", () => {
             whatsapp: payload.phone,
             emergencyContactName: payload.fullName,
             emergencyContactPhone: payload.phone,
+            emergencyContactWhatsapp: payload.phone,
             ...payload,
           },
         });
@@ -4551,6 +4571,7 @@ describe("CRM API", () => {
           whatsapp: "11922220005",
           emergencyContactName: "Maximiliano Comunicado",
           emergencyContactPhone: "11922220005",
+          emergencyContactWhatsapp: "11922220005",
           tags: [tag],
         },
       });
@@ -4825,6 +4846,7 @@ describe("CRM API", () => {
           whatsapp: "11955550001",
           emergencyContactName: "Demo Guiada",
           emergencyContactPhone: "11955550001",
+          emergencyContactWhatsapp: "11955550001",
           tags: ["experimental t064"],
         },
         appointment: { ...appointment, notes: "Primeira aula" },
@@ -4886,6 +4908,7 @@ describe("CRM API", () => {
           whatsapp: "11955550004",
           emergencyContactName: "Etiqueta Guiada",
           emergencyContactPhone: "11955550004",
+          emergencyContactWhatsapp: "11955550004",
           tags: ["vip"],
         },
         appointment: { ...appointment, startsAt: "2031-03-26T13:00:00.000Z" },

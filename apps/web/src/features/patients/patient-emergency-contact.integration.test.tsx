@@ -47,12 +47,13 @@ describe("emergency contact on the client record", () => {
       ...base,
       emergencyContactName: "Maria Souza (mãe)",
       emergencyContactPhone: "11955556666",
+      emergencyContactWhatsapp: "11944443333",
     });
     const summary = await screen.findByRole("region", {
       name: "Resumo do cliente",
     });
     const value = within(summary).getByText(
-      "Maria Souza (mãe) · (11) 95555-6666",
+      "Maria Souza (mãe) · (11) 95555-6666 · WhatsApp (11) 94444-3333",
     );
     expect(value.closest(".emergency-contact")).not.toHaveClass("is-missing");
     expect(within(summary).queryByText(/Cadastro incompleto/)).toBeNull();

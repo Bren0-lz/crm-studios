@@ -52,6 +52,13 @@ export const localDayStart = (dateExpression: string) =>
 /** Hoje no fuso da clínica. */
 export const localToday = () => localDate("UTC_TIMESTAMP(6)");
 
+/**
+ * O cliente da coluna não está na lixeira (LX2): o financeiro dele sai dos relatórios e do
+ * Financeiro até ser restaurado. Coluna vazia (sem cliente) passa.
+ */
+export const patientNotTrashed = (column: string) =>
+  `NOT EXISTS (SELECT 1 FROM patients tp WHERE tp.id = ${column} AND tp.deleted_at IS NOT NULL)`;
+
 /** `coluna` está no array JSON do parâmetro (equivale a `coluna = ANY($n)`). */
 export const inJsonArray = (column: string, parameter: string) =>
   `JSON_CONTAINS(${parameter}, JSON_QUOTE(${column}))`;

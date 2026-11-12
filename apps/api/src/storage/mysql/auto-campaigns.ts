@@ -7,6 +7,7 @@ import type {
   AutoCampaignRedemption,
   AutoCampaignSkipReason,
   AutoCampaignTrigger,
+  LeadAudienceFilter,
 } from "@crm/contracts";
 import type { PoolClient } from "../../infrastructure/mysql-client.js";
 import type {
@@ -41,6 +42,8 @@ interface CampaignRow {
   active: boolean;
   steps: StoredStep[];
   promotion: AutoCampaignPromotion | null;
+  includeLeads: boolean | number;
+  leadFilter: LeadAudienceFilter | null;
   createdAt: Date;
   updatedAt: Date;
   createdByName: string | null;
@@ -50,7 +53,8 @@ interface DeliveryRow {
   id: string;
   campaignId: string;
   stepId: string;
-  patientId: string;
+  patientId: string | null;
+  leadId: string | null;
   occurrenceKey: string;
   status: "sent" | "skipped";
   skipReason: AutoCampaignSkipReason | null;
@@ -74,11 +78,12 @@ interface RedemptionRow {
 
 // `trigger` é palavra reservada no MySQL: sempre entre aspas.
 const campaignColumns = `c.id, c.name, c."trigger", c.active, c.steps, c.promotion,
+  c.include_leads AS "includeLeads", c.lead_filter AS "leadFilter",
   c.created_at AS "createdAt", c.updated_at AS "updatedAt",
   u.full_name AS "createdByName"`;
 
 const deliveryColumns = `d.id, d.campaign_id AS "campaignId", d.step_id AS "stepId",
-  d.patient_id AS "patientId", d.occurrence_key AS "occurrenceKey", d.status,
+  d.patient_id AS "patientId", d.lead_id AS "leadId", d.occurrence_key AS "occurrenceKey", d.status,
   d.skip_reason AS "skipReason", d.note, d.message,
   d.promotion_valid_until AS "promotionValidUntil",
   d.handled_at AS "handledAt",
@@ -93,6 +98,10 @@ const mapCampaign = (row: CampaignRow): AutoCampaign => ({
   ...(row.promotion
     ? { promotion: json<AutoCampaignPromotion>(row.promotion) }
     : {}),
+  includeLeads: Boolean(row.includeLeads),
+  ...(row.leadFilter
+    ? { leadFilter: json<LeadAudienceFilter>(row.leadFilter) }
+    : {}),
   createdAt: row.createdAt.toISOString(),
   updatedAt: row.updatedAt.toISOString(),
   createdByName: row.createdByName ?? "Usuário removido",
@@ -102,7 +111,8 @@ const mapDelivery = (row: DeliveryRow): AutoCampaignDelivery => ({
   id: row.id,
   campaignId: row.campaignId,
   stepId: row.stepId,
-  patientId: row.patientId,
+  ...(row.patientId ? { patientId: row.patientId } : {}),
+  ...(row.leadId ? { leadId: row.leadId } : {}),
   occurrenceKey: row.occurrenceKey,
   status: row.status,
   ...(row.skipReason ? { skipReason: row.skipReason } : {}),
@@ -202,8 +212,9 @@ export function createAutoCampaignsRepository(
       const id = randomUUID();
       await repositoryContext.pool.query(
         `INSERT INTO auto_campaigns
-           (id, clinic_id, name, "trigger", active, steps, promotion, created_by)
-         VALUES ($8, $1, $2, $3, $4, $5, $6, $7)`,
+           (id, clinic_id, name, "trigger", active, steps, promotion, created_by,
+            include_leads, lead_filter)
+         VALUES ($8, $1, $2, $3, $4, $5, $6, $7, $9, $10)`,
         [
           clinicId,
           input.name,
@@ -213,6 +224,8 @@ export function createAutoCampaignsRepository(
           input.promotion ? JSON.stringify(input.promotion) : null,
           actorUserId,
           id,
+          input.includeLeads ?? false,
+          input.leadFilter ? JSON.stringify(input.leadFilter) : null,
         ],
       );
       return (await loadCampaigns(clinicId, id))[0]!;
@@ -233,7 +246,8 @@ export function createAutoCampaignsRepository(
         await client.query(
           `UPDATE auto_campaigns
            SET name = $3, "trigger" = $4, active = $5, steps = $6,
-             promotion = $7, updated_at = NOW(6)
+             promotion = $7, include_leads = $8, lead_filter = $9,
+             updated_at = NOW(6)
            WHERE clinic_id = $1 AND id = $2`,
           [
             clinicId,
@@ -243,6 +257,8 @@ export function createAutoCampaignsRepository(
             input.active,
             JSON.stringify(writeSteps(input, current.rows[0].steps)),
             input.promotion ? JSON.stringify(input.promotion) : null,
+            input.includeLeads ?? false,
+            input.leadFilter ? JSON.stringify(input.leadFilter) : null,
           ],
         );
         const result = await client.query<CampaignRow>(
@@ -293,23 +309,38 @@ export function createAutoCampaignsRepository(
             "Campanha automática não encontrada.",
             404,
           );
-        const patient = await client.query(
-          "SELECT 1 FROM patients WHERE clinic_id = $1 AND id = $2",
-          [clinicId, input.patientId],
-        );
-        if (!patient.rows[0])
-          throw new DomainError(
-            "PATIENT_NOT_FOUND",
-            "Cliente não encontrado.",
-            404,
+        if (input.patientId) {
+          const patient = await client.query(
+            "SELECT 1 FROM patients WHERE clinic_id = $1 AND id = $2",
+            [clinicId, input.patientId],
           );
+          if (!patient.rows[0])
+            throw new DomainError(
+              "PATIENT_NOT_FOUND",
+              "Cliente não encontrado.",
+              404,
+            );
+        }
+        if (input.leadId) {
+          const lead = await client.query(
+            "SELECT 1 FROM leads WHERE clinic_id = $1 AND id = $2",
+            [clinicId, input.leadId],
+          );
+          if (!lead.rows[0])
+            throw new DomainError(
+              "LEAD_NOT_FOUND",
+              "Lead não encontrado.",
+              404,
+            );
+        }
         await client.query(
           `INSERT INTO auto_campaign_deliveries (
              clinic_id, campaign_id, step_id, patient_id, occurrence_key,
-             status, skip_reason, note, message, promotion_valid_until, handled_by, id
-           ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+             status, skip_reason, note, message, promotion_valid_until, handled_by, id,
+             lead_id
+           ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
            ON DUPLICATE KEY UPDATE
-             patient_id = VALUES(patient_id), status = VALUES(status),
+             patient_id = VALUES(patient_id), lead_id = VALUES(lead_id), status = VALUES(status),
              skip_reason = VALUES(skip_reason), note = VALUES(note),
              message = VALUES(message),
              promotion_valid_until = VALUES(promotion_valid_until),
@@ -318,7 +349,7 @@ export function createAutoCampaignsRepository(
             clinicId,
             input.campaignId,
             input.stepId,
-            input.patientId,
+            input.patientId ?? null,
             input.occurrenceKey,
             input.status,
             input.status === "skipped" ? (input.skipReason ?? null) : null,
@@ -329,6 +360,7 @@ export function createAutoCampaignsRepository(
               : null,
             actorUserId,
             randomUUID(),
+            input.leadId ?? null,
           ],
         );
         // Na atualização o id continua o da linha existente: lê pela chave única.

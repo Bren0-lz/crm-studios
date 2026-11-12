@@ -33,6 +33,7 @@ async function clientWithTemplates() {
       whatsapp: "11999991234",
       emergencyContactName: "Breno Assinante",
       emergencyContactPhone: "11999991234",
+      emergencyContactWhatsapp: "11999991234",
     }),
   );
   await api.repository.createDocumentTemplate(clinicId, {

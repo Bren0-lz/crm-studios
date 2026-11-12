@@ -39,6 +39,7 @@ async function setup() {
         whatsapp: "11955554444",
         emergencyContactName: "Lara Preço",
         emergencyContactPhone: "11955554444",
+        emergencyContactWhatsapp: "11955554444",
         birthDate: "1990-06-15",
         tags: [],
       },

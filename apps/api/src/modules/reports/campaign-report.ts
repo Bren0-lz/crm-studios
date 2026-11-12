@@ -10,6 +10,7 @@ import {
   type CampaignReport,
   type CampaignReportMessage,
   type CampaignReportRow,
+  type Lead,
   type Patient,
   type WhatsappCampaign,
   type WhatsappCampaignDetail,
@@ -27,6 +28,8 @@ export interface CampaignReportSources {
   /** Usos das promoções das campanhas manuais. */
   manualRedemptions?: AutoCampaignRedemption[] | undefined;
   patients: Patient[];
+  /** Leads, para nome e telefone dos envios automáticos a leads. */
+  leads?: Lead[] | undefined;
   /**
    * Fila de hoje das automáticas, quando hoje está no período: as mensagens ainda não
    * marcadas viram as pendentes de cada campanha e, na planilha, entram como previstas.
@@ -40,9 +43,10 @@ export interface CampaignReportSources {
 function redemptionOf(
   redemptions: AutoCampaignRedemption[],
   campaignId: string,
-  patientId: string,
+  patientId: string | undefined,
   occurrenceKey: string,
 ) {
+  if (!patientId) return undefined;
   const own = redemptions.filter(
     (item) =>
       item.campaignId === campaignId &&
@@ -85,6 +89,7 @@ export function buildCampaignReport(
   const patients = new Map(
     sources.patients.map((patient) => [patient.id, patient]),
   );
+  const leads = new Map((sources.leads ?? []).map((lead) => [lead.id, lead]));
   const rows: CampaignReportRow[] = [];
   const messages: CampaignReportMessage[] = [];
 
@@ -126,6 +131,7 @@ export function buildCampaignReport(
         campaignName: campaign.name,
         kind: "manual",
         patientName: recipient.patientName,
+        ...(recipient.leadId ? { lead: true } : {}),
         phone: recipient.phone,
         status: recipient.status,
         detail: "",
@@ -182,7 +188,7 @@ export function buildCampaignReport(
       promotional: Boolean(campaign.promotion),
     });
     const promotionOf = (
-      patientId: string,
+      patientId: string | undefined,
       occurrenceKey: string,
       validUntil: string | undefined,
     ) => {
@@ -202,7 +208,10 @@ export function buildCampaignReport(
       };
     };
     for (const delivery of deliveries) {
-      const patient = patients.get(delivery.patientId);
+      const patient = delivery.patientId
+        ? patients.get(delivery.patientId)
+        : undefined;
+      const lead = delivery.leadId ? leads.get(delivery.leadId) : undefined;
       const step = campaign.steps.find((item) => item.id === delivery.stepId);
       const stepLabel = step
         ? autoCampaignStepLabel(campaign.trigger, step.offset)
@@ -219,8 +228,16 @@ export function buildCampaignReport(
         campaignId: campaign.id,
         campaignName: campaign.name,
         kind: "automatic",
-        patientName: patient?.fullName ?? "Cliente removido",
-        phone: patient ? destination(patient, "whatsapp") : "",
+        patientName:
+          patient?.fullName ??
+          lead?.fullName ??
+          (delivery.leadId ? "Lead removido" : "Cliente removido"),
+        ...(delivery.leadId && !patient ? { lead: true } : {}),
+        phone: patient
+          ? destination(patient, "whatsapp")
+          : lead
+            ? destination(lead, "whatsapp")
+            : "",
         status: delivery.status,
         detail: [stepLabel, reason].filter(Boolean).join(" · "),
         handledAt: delivery.handledAt,
@@ -246,6 +263,7 @@ export function buildCampaignReport(
         campaignName: campaign.name,
         kind: "automatic",
         patientName: item.patientName,
+        ...(item.leadId ? { lead: true } : {}),
         phone: item.phone,
         status: item.status,
         detail: [item.stepLabel, item.detail, reason]

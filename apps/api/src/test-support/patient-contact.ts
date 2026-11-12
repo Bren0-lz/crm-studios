@@ -6,4 +6,5 @@ export const testPatientContact = {
   whatsapp: "11911110000",
   emergencyContactName: "Contato de Emergência",
   emergencyContactPhone: "11911110000",
+  emergencyContactWhatsapp: "11911110000",
 };

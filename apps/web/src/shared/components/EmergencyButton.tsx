@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Phone, Siren, UserRound } from "lucide-react";
-import { formatPhone, type PatientOption } from "@crm/contracts";
+import { MessageCircle, Phone, Siren, UserRound } from "lucide-react";
+import { formatPhone, whatsappLink, type PatientOption } from "@crm/contracts";
 import { api } from "../../api";
 import { useAuthorization } from "../auth/authorization-context";
 import { Modal } from "./Modal";
@@ -10,8 +10,19 @@ import { PatientPicker } from "../../PatientPicker";
 
 type ContactState =
   | { status: "idle" | "loading" }
-  | { status: "ready"; name: string; phone: string }
+  | { status: "ready"; name: string; phone: string; whatsapp: string }
   | { status: "error"; error: string };
+
+function emergencyWhatsappMessage(
+  contactName: string,
+  patientName?: string,
+) {
+  const greeting = contactName.trim() ? `Olá, ${contactName.trim()}!` : "Olá!";
+  const subject = patientName?.trim()
+    ? `referente a ${patientName.trim()}`
+    : "sobre um atendimento";
+  return `${greeting} Aqui é do Studios Aryana. Estamos entrando em contato com urgência ${subject}.`;
+}
 
 function EmergencyDialog({ onClose }: { onClose: () => void }) {
   const [patients, setPatients] = useState<PatientOption[]>([]);
@@ -21,6 +32,7 @@ function EmergencyDialog({ onClose }: { onClose: () => void }) {
   const [patientId, setPatientId] = useState("");
   const [contact, setContact] = useState<ContactState>({ status: "idle" });
   const [contactAttempt, setContactAttempt] = useState(0);
+  const selectedPatient = patients.find((item) => item.id === patientId);
 
   useEffect(() => {
     let current = true;
@@ -50,7 +62,13 @@ function EmergencyDialog({ onClose }: { onClose: () => void }) {
     let current = true;
     void api.emergencyContact(patientId).then(
       (result) => {
-        if (current) setContact({ status: "ready", ...result });
+        if (current)
+          setContact({
+            status: "ready",
+            name: result.name,
+            phone: result.phone,
+            whatsapp: result.whatsapp ?? "",
+          });
       },
       (cause: unknown) => {
         if (current)
@@ -136,16 +154,48 @@ function EmergencyDialog({ onClose }: { onClose: () => void }) {
             </div>
           )}
           {contact.status === "ready" &&
-            (contact.phone ? (
+            (contact.phone || contact.whatsapp ? (
               <div className="emergency-contact-details">
                 <div>
                   <strong>{contact.name || "Contato de emergência"}</strong>
-                  <span>{formatPhone(contact.phone)}</span>
+                  {contact.phone && (
+                    <div className="emergency-contact-line">
+                      <small>Telefone</small>
+                      <span>{formatPhone(contact.phone)}</span>
+                    </div>
+                  )}
+                  {contact.whatsapp && (
+                    <div className="emergency-contact-line">
+                      <small>WhatsApp</small>
+                      <span>{formatPhone(contact.whatsapp)}</span>
+                    </div>
+                  )}
                 </div>
-                <a className="primary-button" href={`tel:${contact.phone}`}>
-                  <Phone size={18} aria-hidden="true" />
-                  Ligar para {contact.phone}
-                </a>
+                <div className="emergency-contact-actions">
+                  {contact.phone && (
+                    <a className="primary-button" href={`tel:${contact.phone}`}>
+                      <Phone size={18} aria-hidden="true" />
+                      Ligar para {contact.phone}
+                    </a>
+                  )}
+                  {contact.whatsapp && (
+                    <a
+                      className="whatsapp-button"
+                      href={whatsappLink(
+                        contact.whatsapp,
+                        emergencyWhatsappMessage(
+                          contact.name,
+                          selectedPatient?.fullName,
+                        ),
+                      )}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      <MessageCircle size={18} aria-hidden="true" />
+                      Mandar mensagem no WhatsApp
+                    </a>
+                  )}
+                </div>
               </div>
             ) : (
               <p role="status">Contato de emergência não cadastrado.</p>

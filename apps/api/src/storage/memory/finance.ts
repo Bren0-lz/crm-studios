@@ -237,7 +237,9 @@ export function createFinanceRepository(
       const productIds = new Set(products.map((item) => item.id));
       const tabs = repositoryContext.patientTabs.filter(
         (item) =>
-          item.clinicId === clinicId && repositoryContext.inBranchScope(item),
+          item.clinicId === clinicId &&
+          repositoryContext.inBranchScope(item) &&
+          !repositoryContext.isTrashed("patients", item.patientId),
       );
       return {
         products,
@@ -727,7 +729,8 @@ export function createFinanceRepository(
         repositoryContext.clinicSettings.timezone,
       );
       const month = currentDate.slice(0, 7);
-      const receivables = repositoryContext.receivables
+      const receivables = repositoryContext
+        .withoutTrashedPatients(repositoryContext.receivables)
         .filter(
           (item) =>
             item.clinicId === clinicId && repositoryContext.inBranchScope(item),
@@ -1110,6 +1113,7 @@ export function createFinanceRepository(
             (item) =>
               item.clinicId === clinicId &&
               repositoryContext.inBranchScope(item) &&
+              !repositoryContext.isTrashed("patients", item.patientId) &&
               item.status === "paid" &&
               item.paidAt &&
               inMonth(item.cashAvailableAt ?? item.paidAt) &&

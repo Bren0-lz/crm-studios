@@ -14,10 +14,12 @@ import {
   broadcastSegmentSchema,
   broadcastSkipReasons,
   campaignAppointmentStatusSchema,
+  campaignAudienceKindSchema,
   campaignRecipientStatusSchema,
   communicationChannelSchema,
   communicationKindSchema,
   communicationPreferenceInputSchema,
+  leadAudienceFilterSchema,
   manualMessageInputSchema,
   messageTemplateImageInputSchema,
   messageTemplateInputSchema,
@@ -160,9 +162,19 @@ export type CampaignRecipientStatus = z.infer<
   typeof campaignRecipientStatusSchema
 >;
 
-/** Destinatário já com a mensagem personalizada (antes de gravar). */
+export type CampaignAudienceKind = z.infer<typeof campaignAudienceKindSchema>;
+
+/** Filtro de leads como o formulário monta (os padrões ficam por conta do schema). */
+export type LeadAudienceFilter = z.input<typeof leadAudienceFilterSchema>;
+
+/**
+ * Destinatário já com a mensagem personalizada (antes de gravar). Cliente (`patientId`) ou
+ * lead (`leadId`); lead convertido depois do envio fica com os dois.
+ */
 export interface WhatsappCampaignRecipientDraft {
-  patientId: string;
+  patientId?: string | undefined;
+  leadId?: string | undefined;
+  /** Nome do cliente ou do lead. */
   patientName: string;
   phone: string;
   message: string;
@@ -204,7 +216,14 @@ export interface WhatsappCampaignPreview {
   /** Quantos vão receber (com WhatsApp e sem bloqueio). */
   recipients: number;
   /** Quem vai receber (para conferir o filtro antes de criar). */
-  included: Array<{ patientId: string; patientName: string; phone: string }>;
+  included: Array<{
+    patientId?: string | undefined;
+    leadId?: string | undefined;
+    patientName: string;
+    phone: string;
+  }>;
+  /** Quantos dos que recebem são leads. */
+  leads: number;
   skipped: BroadcastSkippedPatient[];
   sample?: { patientName: string; message: string };
 }
@@ -235,6 +254,17 @@ export interface CampaignFilterOptions {
   levels: string[];
   /** O usuário pode filtrar por parcela vencida (módulo financeiro). */
   finance: boolean;
+  /** Valores para o filtro de leads; ausente sem acesso ao comercial. */
+  leads?: CampaignLeadFilterOptions | undefined;
+}
+
+/** Valores reais para o filtro de leads das campanhas (manual e automática). */
+export interface CampaignLeadFilterOptions {
+  stages: Array<{ stage: string; label: string }>;
+  sources: string[];
+  interests: string[];
+  tags: string[];
+  responsibles: Array<{ id: string; name: string }>;
 }
 
 export type AutoCampaignTrigger = z.infer<typeof autoCampaignTriggerSchema>;
@@ -279,6 +309,10 @@ export interface AutoCampaign {
   steps: AutoCampaignStep[];
   /** Presente só nas campanhas promocionais. */
   promotion?: AutoCampaignPromotion | undefined;
+  /** Também alcança leads (aniversário); os gatilhos de lead alcançam sempre. */
+  includeLeads?: boolean | undefined;
+  /** Quais leads entram; ausente = leads em aberto. */
+  leadFilter?: LeadAudienceFilter | undefined;
   createdAt: string;
   updatedAt: string;
   createdByName: string;
@@ -289,7 +323,9 @@ export interface AutoCampaignDelivery {
   id: string;
   campaignId: string;
   stepId: string;
-  patientId: string;
+  /** Cliente; no envio para lead, preenchido quando o lead vira cliente. */
+  patientId?: string | undefined;
+  leadId?: string | undefined;
   occurrenceKey: string;
   status: "sent" | "skipped";
   skipReason?: AutoCampaignSkipReason | undefined;
@@ -313,7 +349,10 @@ export interface AutoCampaignItem {
   trigger: AutoCampaignTrigger;
   stepId: string;
   stepLabel: string;
-  patientId: string;
+  /** Cliente ou lead (um dos dois). */
+  patientId?: string | undefined;
+  leadId?: string | undefined;
+  /** Nome do cliente ou do lead. */
   patientName: string;
   /** WhatsApp (ou telefone) do cliente; vazio quando não há. */
   phone: string;
