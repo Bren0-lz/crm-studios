@@ -125,7 +125,11 @@ export interface ContractedItem {
 
 export interface Patient extends Omit<
   PatientInput,
-  "cpf" | "whatsapp" | "emergencyContactName" | "emergencyContactPhone"
+  | "cpf"
+  | "whatsapp"
+  | "emergencyContactName"
+  | "emergencyContactPhone"
+  | "emergencyContactWhatsapp"
 > {
   /** Cadastros antigos e duplicados já mesclados podem não ter CPF. */
   cpf?: string | undefined;
@@ -133,6 +137,7 @@ export interface Patient extends Omit<
   whatsapp?: string | undefined;
   emergencyContactName?: string | undefined;
   emergencyContactPhone?: string | undefined;
+  emergencyContactWhatsapp?: string | undefined;
   inactiveAt?: string;
   mergedIntoPatientId?: string;
   /** Data da importação pela planilha (CD3); ausente em cadastro manual. */

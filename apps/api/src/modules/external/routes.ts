@@ -644,6 +644,7 @@ export function registerExternalRoutes({
         "whatsapp",
         "emergencyContactName",
         "emergencyContactPhone",
+        "emergencyContactWhatsapp",
         "discount",
         "inactiveAt",
       ] as (keyof Patient)[];

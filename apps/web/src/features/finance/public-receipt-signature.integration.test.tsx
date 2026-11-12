@@ -16,6 +16,7 @@ async function paidReceipt() {
       whatsapp: "11999991234",
       emergencyContactName: "Breno Pagante",
       emergencyContactPhone: "11999991234",
+      emergencyContactWhatsapp: "11999991234",
     }),
   );
   const receivable = await api.repository.createManualReceivable(

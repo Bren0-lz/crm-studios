@@ -27,6 +27,7 @@ describe("history without duplicates", () => {
           whatsapp: "11955554444",
           emergencyContactName: "Teste Histórico",
           emergencyContactPhone: "11955554444",
+          emergencyContactWhatsapp: "11955554444",
           tags: [],
         },
       });

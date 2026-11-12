@@ -901,6 +901,7 @@ export class MemoryRepositoryContext {
       whatsapp: phone,
       emergencyContactName: fullName,
       emergencyContactPhone: phone,
+      emergencyContactWhatsapp: phone,
       tags,
       status: "active",
       createdAt: now(),

@@ -36,6 +36,7 @@ export async function receiptFixtures(repository: ClinicRepository) {
       whatsapp: "11988887777",
       emergencyContactName: "Contato Recibo",
       emergencyContactPhone: "11977776666",
+      emergencyContactWhatsapp: "11977776666",
     }),
   );
   const receivable = await repository.createManualReceivable(

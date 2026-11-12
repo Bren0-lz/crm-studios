@@ -26,6 +26,7 @@ async function clientWithTemplate() {
       whatsapp: "11999995555",
       emergencyContactName: "Clara Assinante",
       emergencyContactPhone: "11999995555",
+      emergencyContactWhatsapp: "11999995555",
     }),
   );
   // Agendamento normal exige plano do cliente com o serviço (AP3).

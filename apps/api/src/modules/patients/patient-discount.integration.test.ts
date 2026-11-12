@@ -20,6 +20,7 @@ describe("plan discount", () => {
       whatsapp: "11955552222",
       emergencyContactName: "Cliente com Desconto",
       emergencyContactPhone: "11955552222",
+      emergencyContactWhatsapp: "11955552222",
       tags: [],
     };
     const created = await app.inject({
@@ -93,6 +94,7 @@ describe("plan discount", () => {
           whatsapp: "11955554444",
           emergencyContactName: "Cliente Desconto Parcelas",
           emergencyContactPhone: "11955554444",
+          emergencyContactWhatsapp: "11955554444",
           tags: [],
         },
       })
@@ -209,6 +211,7 @@ describe("plan discount", () => {
           whatsapp: "11955556666",
           emergencyContactName: "Cliente Relatório Desconto",
           emergencyContactPhone: "11955556666",
+          emergencyContactWhatsapp: "11955556666",
           tags: [],
         },
       })
@@ -338,6 +341,7 @@ describe("plan discount", () => {
           whatsapp: "11955553333",
           emergencyContactName: "Cliente Inválido",
           emergencyContactPhone: "11955553333",
+          emergencyContactWhatsapp: "11955553333",
           tags: [],
           discount,
         },

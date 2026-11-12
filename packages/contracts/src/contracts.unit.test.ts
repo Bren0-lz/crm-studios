@@ -459,6 +459,7 @@ describe("shared contracts", () => {
       whatsapp: "(11) 99999-9999",
       emergencyContactName: " Maria da Silva ",
       emergencyContactPhone: "(11) 99999-9999",
+      emergencyContactWhatsapp: "(11) 99999-9999",
       tags: ["Pilates"],
     });
 
@@ -472,6 +473,7 @@ describe("shared contracts", () => {
         whatsapp: "(11) 3333-4444",
         emergencyContactName: "Maria da Silva",
         emergencyContactPhone: "11999999999",
+        emergencyContactWhatsapp: "11999999999",
       }).whatsapp,
     ).toBe("1133334444");
     expect(() =>
@@ -482,6 +484,7 @@ describe("shared contracts", () => {
         whatsapp: "3333-4444",
         emergencyContactName: "Maria da Silva",
         emergencyContactPhone: "11999999999",
+        emergencyContactWhatsapp: "11999999999",
       }),
     ).toThrow();
     expect(result.tags).toEqual(["Pilates"]);
@@ -493,6 +496,7 @@ describe("shared contracts", () => {
         whatsapp: "11999999999",
         emergencyContactName: "Maria da Silva",
         emergencyContactPhone: "11999999999",
+        emergencyContactWhatsapp: "11999999999",
       }),
     ).toThrow();
     expect(
@@ -501,6 +505,7 @@ describe("shared contracts", () => {
         fullName: "Maria da Silva",
         phone: "11 3333 4444",
         emergencyContactPhone: "",
+        emergencyContactWhatsapp: "",
       }).emergencyContactPhone,
     ).toBe("");
   });
@@ -516,12 +521,14 @@ describe("shared contracts", () => {
       whatsapp: "11999999999",
       emergencyContactName: "Maria da Silva",
       emergencyContactPhone: "11999999999",
+      emergencyContactWhatsapp: "11999999999",
     };
     // O próprio nome e telefone do cliente valem como contato de emergência.
     expect(patientInputSchema.parse(complete)).toMatchObject({
       whatsapp: "11999999999",
       emergencyContactName: "Maria da Silva",
       emergencyContactPhone: "11999999999",
+      emergencyContactWhatsapp: "11999999999",
     });
     for (const [field, message] of [
       ["whatsapp", "Informe o WhatsApp com DDD."],
@@ -529,6 +536,10 @@ describe("shared contracts", () => {
       [
         "emergencyContactPhone",
         "Informe o telefone do contato de emergência com DDD.",
+      ],
+      [
+        "emergencyContactWhatsapp",
+        "Informe o WhatsApp do contato de emergência com DDD.",
       ],
     ] as const) {
       for (const value of [undefined, "", "  "]) {
@@ -551,6 +562,7 @@ describe("shared contracts", () => {
         whatsapp: "",
         emergencyContactName: "",
         emergencyContactPhone: "",
+        emergencyContactWhatsapp: "",
       }),
     ).toMatchObject({ whatsapp: "", emergencyContactName: "" });
   });
@@ -720,6 +732,7 @@ describe("shared contracts", () => {
         whatsapp: "11999999999",
         emergencyContactName: "Maria da Silva",
         emergencyContactPhone: "11999999999",
+        emergencyContactWhatsapp: "11999999999",
       }).cpf,
     ).toBe("52998224725");
     expect(() =>
@@ -1401,6 +1414,7 @@ describe("guided patient creation", () => {
     whatsapp: "11999990000",
     emergencyContactName: "Ana Souza",
     emergencyContactPhone: "11999990000",
+    emergencyContactWhatsapp: "11999990000",
   };
   const serviceId = "10000000-0000-4000-8000-000000000001";
   const terms = {

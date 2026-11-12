@@ -75,6 +75,11 @@ const headerSynonyms: Partial<Record<ImportField, readonly string[]>> = {
   notes: ["observacoes", "observacao", "obs", "notas", "anotacoes"],
   emergencyContactName: ["contatodeemergencia", "contatoemergencia"],
   emergencyContactPhone: ["telefonedeemergencia", "telefoneemergencia"],
+  emergencyContactWhatsapp: [
+    "whatsappdeemergencia",
+    "whatsappemergencia",
+    "whatsdeemergencia",
+  ],
 };
 
 const fieldLabels: Record<ImportField, string> = {
@@ -89,6 +94,7 @@ const fieldLabels: Record<ImportField, string> = {
   notes: "observações",
   emergencyContactName: "contato de emergência",
   emergencyContactPhone: "telefone de emergência",
+  emergencyContactWhatsapp: "WhatsApp de emergência",
 };
 
 function normalizeHeader(value: string): string {
@@ -154,6 +160,8 @@ function issueMessage(field: ImportField): string {
       return "WhatsApp deve ter DDD (10 ou 11 dígitos).";
     case "emergencyContactPhone":
       return "telefone de emergência deve ter DDD (10 ou 11 dígitos).";
+    case "emergencyContactWhatsapp":
+      return "WhatsApp de emergência deve ter DDD (10 ou 11 dígitos).";
     case "email":
       return "e-mail inválido.";
     case "birthDate":
@@ -355,6 +363,7 @@ export function validatePatientImport(
       "notes",
       "emergencyContactName",
       "emergencyContactPhone",
+      "emergencyContactWhatsapp",
     ] as const) {
       const text = value(field);
       if (text) raw[field] = text;

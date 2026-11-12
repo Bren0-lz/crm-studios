@@ -137,6 +137,7 @@ describe("GET /notifications", () => {
           whatsapp: "11955554444",
           emergencyContactName: "Rita Sino",
           emergencyContactPhone: "11955554444",
+          emergencyContactWhatsapp: "11955554444",
           birthDate: "1990-06-10",
           tags: [],
         },
@@ -154,6 +155,7 @@ describe("GET /notifications", () => {
         whatsapp: "11955553333",
         emergencyContactName: "Bruno Amanhã",
         emergencyContactPhone: "11955553333",
+        emergencyContactWhatsapp: "11955553333",
         birthDate: "1990-06-11",
         tags: [],
       },
@@ -262,6 +264,7 @@ describe("GET /notifications", () => {
           whatsapp: "11944442222",
           emergencyContactName: "Clara Adiada",
           emergencyContactPhone: "11944442222",
+          emergencyContactWhatsapp: "11944442222",
           tags: [],
         },
       })
@@ -803,6 +806,7 @@ describe("GET /notifications", () => {
       whatsapp: "11955551111",
       emergencyContactName: "Contato",
       emergencyContactPhone: "11955551111",
+      emergencyContactWhatsapp: "11955551111",
       tags: [],
     });
     const receipts = [];

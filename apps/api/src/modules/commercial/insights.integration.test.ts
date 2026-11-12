@@ -153,6 +153,7 @@ describe("commercial filters and conversion", () => {
         whatsapp: "11977776666",
         emergencyContactName: "Joana Mãe",
         emergencyContactPhone: "11988887777",
+        emergencyContactWhatsapp: "11988887777",
         address: "Rua das Flores, 10",
         city: "São Paulo",
         state: "SP",
@@ -165,6 +166,7 @@ describe("commercial filters and conversion", () => {
       cpf: "52998224725",
       emergencyContactName: "Joana Mãe",
       emergencyContactPhone: "11988887777",
+      emergencyContactWhatsapp: "11988887777",
       address: "Rua das Flores, 10",
       city: "São Paulo",
       state: "SP",
@@ -203,6 +205,7 @@ describe("commercial filters and conversion", () => {
         // Quem não tem contato de emergência repete o próprio nome e telefone.
         emergencyContactName: "Lead Revisado Silva",
         emergencyContactPhone: "11966665555",
+        emergencyContactWhatsapp: "11966665555",
         birthDate: "1990-05-10",
         occupation: "Professora",
         gender: "female",
@@ -260,6 +263,7 @@ describe("commercial filters and conversion", () => {
         city: "Campinas",
         emergencyContactName: "Contato informado",
         emergencyContactPhone: "11955554444",
+        emergencyContactWhatsapp: "11955554444",
         tags: ["Revisado"],
       },
     });

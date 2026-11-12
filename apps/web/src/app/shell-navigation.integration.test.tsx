@@ -167,6 +167,7 @@ describe("shell navigation", () => {
     vi.spyOn(api, "emergencyContact").mockResolvedValue({
       name: "Maria Almeida",
       phone: "11988887777",
+      whatsapp: "11988886666",
     });
     const { container } = renderShell(["agenda"]);
     const sos = within(screen.getByRole("banner")).getByRole("button", {
@@ -198,10 +199,21 @@ describe("shell navigation", () => {
     expect(
       await within(dialog).findByText("Maria Almeida"),
     ).toBeInTheDocument();
+    expect(within(dialog).getByText("(11) 98888-7777")).toBeInTheDocument();
+    expect(within(dialog).getByText("(11) 98888-6666")).toBeInTheDocument();
     expect(api.emergencyContact).toHaveBeenCalledWith("client-1");
     expect(
       within(dialog).getByRole("link", { name: "Ligar para 11988887777" }),
     ).toHaveAttribute("href", "tel:11988887777");
+    const whatsapp = within(dialog).getByRole("link", {
+      name: "Mandar mensagem no WhatsApp",
+    });
+    expect(whatsapp).toHaveAttribute(
+      "href",
+      `https://wa.me/5511988886666?text=${encodeURIComponent("Olá, Maria Almeida! Aqui é do Studios Aryana. Estamos entrando em contato com urgência referente a Helena Almeida.")}`,
+    );
+    expect(whatsapp).toHaveAttribute("target", "_blank");
+    expect(whatsapp).toHaveAttribute("rel", "noopener noreferrer");
     fireEvent.keyDown(window, { key: "Escape" });
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(sos).toHaveFocus();

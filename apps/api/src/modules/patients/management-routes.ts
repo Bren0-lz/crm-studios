@@ -25,6 +25,7 @@ export function registerPatientManagementRoutes({
         ? {
             name: patient.emergencyContactName ?? "",
             phone: patient.emergencyContactPhone ?? "",
+            whatsapp: patient.emergencyContactWhatsapp ?? "",
           }
         : reply.status(404).send({
             code: "PATIENT_NOT_FOUND",

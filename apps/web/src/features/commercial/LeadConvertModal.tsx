@@ -59,6 +59,7 @@ export function LeadConvertModal({
     imageConsent: lead.imageConsent ?? false,
     emergencyContactName: lead.emergencyContactName ?? "",
     emergencyContactPhone: lead.emergencyContactPhone ?? "",
+    emergencyContactWhatsapp: lead.emergencyContactWhatsapp ?? "",
     notes: lead.notes ?? "",
   });
   const dirty = useFormDirty(form);
@@ -77,6 +78,9 @@ export function LeadConvertModal({
     ...(form.emergencyContactPhone?.trim()
       ? []
       : ["Telefone do contato de emergência"]),
+    ...(form.emergencyContactWhatsapp?.trim()
+      ? []
+      : ["WhatsApp do contato de emergência"]),
   ];
 
   return (
@@ -132,7 +136,7 @@ export function LeadConvertModal({
       <fieldset className="form-fieldset emergency-fieldset span-2">
         <legend>Contato de emergência</legend>
         <div className="form-fieldset-grid">
-          <label>
+          <label className="span-2">
             Nome
             <input
               autoComplete="off"
@@ -153,17 +157,31 @@ export function LeadConvertModal({
               onChange={(digits) => field("emergencyContactPhone", digits)}
             />
           </label>
+          <label>
+            WhatsApp
+            <PhoneInput
+              required
+              value={form.emergencyContactWhatsapp ?? ""}
+              onChange={(digits) => field("emergencyContactWhatsapp", digits)}
+            />
+          </label>
         </div>
-        {/* Quem não tem contato de emergência repete o próprio nome e telefone. */}
+        {/* Quem não tem contato de emergência repete o próprio nome, telefone e WhatsApp. */}
         <button
           className="secondary-button"
           type="button"
-          disabled={!form.fullName?.trim() && !form.phone?.trim()}
+          disabled={
+            !form.fullName?.trim() &&
+            !form.phone?.trim() &&
+            !form.whatsapp?.trim()
+          }
           onClick={() =>
             setForm((current) => ({
               ...current,
               emergencyContactName: current.fullName ?? "",
               emergencyContactPhone: current.phone ?? "",
+              emergencyContactWhatsapp:
+                current.whatsapp || current.phone || "",
             }))
           }
         >

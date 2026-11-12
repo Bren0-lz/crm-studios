@@ -15,6 +15,7 @@ export const leadPatientProfileSchema = patientProfileSchema.extend(
       birthDate: true,
       emergencyContactName: true,
       emergencyContactPhone: true,
+      emergencyContactWhatsapp: true,
     })
     .extend({
       ...patientOptionalContactShape,

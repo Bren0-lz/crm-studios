@@ -88,6 +88,7 @@ for (const storage of ["memory", "mysql"] as const) {
             whatsapp: "11988887777",
             emergencyContactName: `Venda ${randomUUID()}`,
             emergencyContactPhone: "11988887777",
+            emergencyContactWhatsapp: "11988887777",
           }),
         );
         await expect(

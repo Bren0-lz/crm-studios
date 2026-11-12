@@ -46,6 +46,7 @@ for (const storage of ["memory", "mysql"] as const) {
             whatsapp: "31977771234",
             emergencyContactName: "Cliente Duplicidade PG",
             emergencyContactPhone: "31977771234",
+            emergencyContactWhatsapp: "31977771234",
             email: "Duplicidade.PG@Email.com",
             cpf: "529.982.247-25",
           }),
@@ -71,6 +72,7 @@ for (const storage of ["memory", "mysql"] as const) {
               whatsapp: "31966665555",
               emergencyContactName: "Outra Clínica",
               emergencyContactPhone: "31966665555",
+              emergencyContactWhatsapp: "31966665555",
             }),
           );
 

@@ -189,10 +189,12 @@ export const demoPatients: Patient[] = Array.from(
         ? {
             emergencyContactName: emergencyContactFor(index, secondSurname),
             emergencyContactPhone: `119${String(80000000 + number).padStart(8, "0")}`,
+            emergencyContactWhatsapp: `119${String(80000000 + number).padStart(8, "0")}`,
           }
         : {
             emergencyContactName: fullName,
             emergencyContactPhone: `119${String(90000000 + number).padStart(8, "0")}`,
+            emergencyContactWhatsapp: `119${String(90000000 + number).padStart(8, "0")}`,
           }),
       ...(scenario < scenarioNotes.length
         ? { notes: scenarioNotes[scenario]! }

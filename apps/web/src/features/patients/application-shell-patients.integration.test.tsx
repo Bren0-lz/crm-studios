@@ -296,9 +296,14 @@ describe("application shell", () => {
     fireEvent.change(screen.getByLabelText("CPF"), {
       target: { value: "52998224725" },
     });
-    fireEvent.change(screen.getByLabelText("WhatsApp"), {
-      target: { value: "11 90000-1234" },
-    });
+    fireEvent.change(
+      within(screen.getByRole("group", { name: "Contato" })).getByLabelText(
+        "WhatsApp",
+      ),
+      {
+        target: { value: "11 90000-1234" },
+      },
+    );
     fireEvent.click(screen.getByRole("button", { name: "Salvar alterações" }));
     expect(await screen.findByText("Helena Pereira")).toBeInTheDocument();
     const updateCall = vi
@@ -1230,7 +1235,7 @@ describe("application shell", () => {
         .searchParams;
       expect(query.get("format")).toBe("xlsx");
       expect(query.get("columns")).toBe(
-        "fullName,recordNumber,cpf,phone,whatsapp,email,birthDate,tags,status,emergencyContactName,emergencyContactPhone,createdAt,leadOrigin",
+        "fullName,recordNumber,cpf,phone,whatsapp,email,birthDate,tags,status,emergencyContactName,emergencyContactPhone,emergencyContactWhatsapp,createdAt,leadOrigin",
       );
       expect(query.get("search")).toBe("Hel");
       expect(query.get("status")).toBe("active");

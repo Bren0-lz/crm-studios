@@ -38,6 +38,7 @@ const complete = {
   whatsapp: "11955540031",
   emergencyContactName: "Rui Completo (pai)",
   emergencyContactPhone: "11955540032",
+  emergencyContactWhatsapp: "11955540033",
   cpf: "11144477735",
 };
 
@@ -91,6 +92,7 @@ describe("WhatsApp e contato de emergência na edição (CD1)", () => {
     expect(within(contact).getByLabelText("WhatsApp")).not.toBeRequired();
     expect(within(emergency).getByLabelText("Nome")).not.toBeRequired();
     expect(within(emergency).getByLabelText("Telefone")).not.toBeRequired();
+    expect(within(emergency).getByLabelText("WhatsApp")).not.toBeRequired();
     const save = within(dialog).getByRole("button", {
       name: "Salvar alterações",
     });
@@ -105,6 +107,7 @@ describe("WhatsApp e contato de emergência na edição (CD1)", () => {
         whatsapp: "",
         emergencyContactName: "",
         emergencyContactPhone: "",
+        emergencyContactWhatsapp: "",
       });
     });
   });
@@ -120,8 +123,12 @@ describe("WhatsApp e contato de emergência na edição (CD1)", () => {
     const whatsapp = within(contact).getByLabelText("WhatsApp");
     expect(whatsapp).toBeRequired();
     expect(within(emergency).getByLabelText("Nome")).toBeRequired();
+    expect(within(emergency).getByLabelText("WhatsApp")).toBeRequired();
     fireEvent.change(whatsapp, { target: { value: "" } });
     fireEvent.change(within(emergency).getByLabelText("Nome"), {
+      target: { value: "" },
+    });
+    fireEvent.change(within(emergency).getByLabelText("WhatsApp"), {
       target: { value: "" },
     });
     expect(
@@ -129,7 +136,7 @@ describe("WhatsApp e contato de emergência na edição (CD1)", () => {
     ).toBeDisabled();
     expect(
       within(dialog).getByText(
-        "Falta: WhatsApp, Nome do contato de emergência.",
+        "Falta: WhatsApp, Nome do contato de emergência, WhatsApp do contato de emergência.",
       ),
     ).toBeVisible();
   });

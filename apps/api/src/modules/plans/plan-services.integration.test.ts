@@ -465,6 +465,7 @@ for (const backend of ["memory", "mysql"] as const) {
               whatsapp: "11999991235",
               emergencyContactName: `multiservice-${randomUUID()}`,
               emergencyContactPhone: "11999991235",
+              emergencyContactWhatsapp: "11999991235",
             },
             plan: {
               ...input,
