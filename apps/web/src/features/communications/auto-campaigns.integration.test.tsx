@@ -331,6 +331,92 @@ describe("configuração das campanhas automáticas", () => {
     );
   });
 
+  it("includes leads in the birthday campaign and filters them by funnel stage", async () => {
+    login();
+    const created: unknown[] = [];
+    vi.mocked(fetch).mockImplementation(async (input, init) => {
+      const url = String(input);
+      if (url.endsWith("/communications/auto-campaigns") && init?.method) {
+        const body = JSON.parse(String(init.body)) as { name: string };
+        created.push(body);
+        return json(
+          {
+            id: campaignId,
+            ...body,
+            steps: [],
+            createdAt: "2026-10-25T12:00:00Z",
+            updatedAt: "2026-10-25T12:00:00Z",
+            createdByName: "Aryana Dutra",
+          },
+          201,
+        );
+      }
+      if (url.includes("/communications/campaigns/filter-options"))
+        return json({
+          services: [],
+          professionals: [],
+          cities: [],
+          neighborhoods: [],
+          sources: [],
+          occupations: [],
+          interests: [],
+          levels: [],
+          finance: true,
+          leads: {
+            stages: [
+              { stage: "new_contact", label: "Novo contato" },
+              { stage: "contacted", label: "Contatado" },
+            ],
+            sources: ["Instagram"],
+            interests: [],
+            tags: [],
+            responsibles: [],
+          },
+        });
+      if (url.includes("/communications/auto-campaigns/queue"))
+        return json({ date: "2026-10-25", items: [], campaigns: [] });
+      if (url.includes("/notifications")) return json({ date: "2026-10-25" });
+      return json([]);
+    });
+    render(
+      <MemoryRouter initialEntries={["/comunicacoes?aba=automaticas"]}>
+        <App />
+      </MemoryRouter>,
+    );
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Nova campanha automática" }),
+    );
+    const dialog = await screen.findByRole("dialog", {
+      name: "Nova campanha automática",
+    });
+    // Os eventos só de lead aparecem na lista.
+    expect(
+      within(dialog).getByRole("option", { name: "Lead sem contato" }),
+    ).toBeInTheDocument();
+    fireEvent.change(within(dialog).getByLabelText("Nome da campanha"), {
+      target: { value: "Aniversariantes" },
+    });
+    installDocumentBrowserMocks();
+    setDocumentText(
+      within(dialog).getByRole("textbox", { name: "Mensagem 1" }),
+      "Parabéns!",
+    );
+    fireEvent.click(within(dialog).getByLabelText(/Incluir leads/));
+    fireEvent.click(
+      await within(dialog).findByRole("button", { name: "Novo contato" }),
+    );
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Salvar campanha" }),
+    );
+    await waitFor(() =>
+      expect(created[0]).toMatchObject({
+        trigger: "birthday",
+        includeLeads: true,
+        leadFilter: { stages: ["new_contact"] },
+      }),
+    );
+  });
+
   it("creates a promotional campaign with validity and cooldown", async () => {
     login();
     const created: unknown[] = [];

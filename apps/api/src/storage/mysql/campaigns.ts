@@ -52,7 +52,8 @@ interface CampaignRow {
 
 interface RecipientRow {
   id: string;
-  patientId: string;
+  patientId: string | null;
+  leadId: string | null;
   patientName: string;
   phone: string;
   message: string;
@@ -72,7 +73,8 @@ const campaignColumns = `c.id, c.name, c.template_id AS "templateId",
   (SELECT count(*) FROM whatsapp_campaign_recipients r WHERE r.clinic_id=c.clinic_id AND r.campaign_id=c.id AND r.status='sent') AS sent,
   (SELECT count(*) FROM whatsapp_campaign_recipients r WHERE r.clinic_id=c.clinic_id AND r.campaign_id=c.id AND r.status='skipped') AS skipped`;
 
-const recipientColumns = `r.id, r.patient_id AS "patientId", r.patient_name AS "patientName",
+const recipientColumns = `r.id, r.patient_id AS "patientId", r.lead_id AS "leadId",
+  r.patient_name AS "patientName",
   r.phone, r.message, r.status, r.handled_at AS "handledAt", u.full_name AS "handledByName"`;
 
 const toImage = (row: ImageRow): MessageTemplateImage => ({
@@ -84,7 +86,8 @@ const toImage = (row: ImageRow): MessageTemplateImage => ({
 
 const toRecipient = (row: RecipientRow): WhatsappCampaignRecipient => ({
   id: row.id,
-  patientId: row.patientId,
+  ...(row.patientId ? { patientId: row.patientId } : {}),
+  ...(row.leadId ? { leadId: row.leadId } : {}),
   patientName: row.patientName,
   phone: row.phone,
   message: row.message,
@@ -399,7 +402,7 @@ export function createCampaignsRepository(
         if (input.recipients.length === 0)
           throw new DomainError(
             "CAMPAIGN_WITHOUT_RECIPIENTS",
-            "Nenhum cliente com WhatsApp para receber a campanha.",
+            "Nenhum cliente ou lead com WhatsApp para receber a campanha.",
             400,
           );
         const images = await templateImages(client, clinicId, [
@@ -428,7 +431,8 @@ export function createCampaignsRepository(
           input.recipients.map((item, position) => ({
             clinic_id: clinicId,
             campaign_id: campaignId,
-            patient_id: item.patientId,
+            patient_id: item.patientId ?? null,
+            lead_id: item.leadId ?? null,
             position,
             patient_name: item.patientName,
             phone: item.phone,

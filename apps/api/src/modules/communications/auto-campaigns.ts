@@ -2,6 +2,9 @@ import {
   AUTO_CAMPAIGN_LAST_STEP_WINDOW_DAYS,
   addMonthsToIsoDate,
   autoCampaignStepLabel,
+  autoCampaignTargetsLeads,
+  autoCampaignTargetsPatients,
+  autoCampaignLeadTriggers,
   autoCampaignTriggerTiming,
   fillAutoCampaignMessage,
   appointmentLocationVariables,
@@ -20,6 +23,7 @@ import {
   type AutoCampaignStep,
   type AutoCampaignTrigger,
   type CommunicationPreference,
+  type Lead,
   type Patient,
   type PatientPlan,
   type PatientTab,
@@ -37,6 +41,7 @@ import {
 } from "../finance/daily-cash.js";
 import { birthdayIn } from "../relationship/contact-suggestions.js";
 import { destination } from "./broadcast.js";
+import { filterLeadsForAudience, leadDestination } from "./lead-audience.js";
 
 /** Dados que as campanhas automáticas leem (mesmas fontes dos contatos sugeridos). */
 export interface AutoCampaignSourceData {
@@ -49,6 +54,8 @@ export interface AutoCampaignSourceData {
   tabs: PatientTab[];
   surveys: SatisfactionSurvey[];
   preferences: CommunicationPreference[];
+  /** Leads, quando alguma campanha ativa alcança leads (e há acesso ao comercial). */
+  leads?: Lead[] | undefined;
 }
 
 /** Evento detectado para um cliente, com a medida usada para escolher a mensagem. */
@@ -60,6 +67,14 @@ export interface AutoCampaignEvent {
   eventDate?: string | undefined;
   detail: string;
   vars: Record<string, string>;
+}
+
+/** Evento detectado para um lead (aniversário com `includeLeads` ou gatilho de lead). */
+export interface AutoCampaignLeadEvent extends Omit<
+  AutoCampaignEvent,
+  "patient"
+> {
+  lead: Lead;
 }
 
 /** Quantos dias de histórico as campanhas "depois do evento" podem alcançar. */
@@ -378,6 +393,86 @@ export function detectAutoCampaignEvents(
 }
 
 /**
+ * Eventos de leads para uma campanha: os leads do filtro da campanha (padrão: em aberto)
+ * no aniversário (`includeLeads`), cadastro (`lead_new`) ou último contato
+ * (`lead_no_contact`, que recomeça a cada contato registrado).
+ */
+export function detectLeadAutoCampaignEvents(
+  campaign: Pick<AutoCampaign, "trigger" | "includeLeads" | "leadFilter">,
+  leads: readonly Lead[],
+  today: string,
+  timezone: string,
+): AutoCampaignLeadEvent[] {
+  if (!autoCampaignTargetsLeads(campaign)) return [];
+  const clinicDate = (value: string) => clinicDateOf(new Date(value), timezone);
+  const events: AutoCampaignLeadEvent[] = [];
+  for (const lead of filterLeadsForAudience(
+    leads,
+    campaign.leadFilter,
+    today,
+    timezone,
+  )) {
+    const add = (event: Omit<AutoCampaignLeadEvent, "lead">) =>
+      events.push({ lead, ...event });
+    switch (campaign.trigger) {
+      case "birthday": {
+        const birthDate = lead.birthDate;
+        if (!birthDate) break;
+        const year = Number(today.slice(0, 4));
+        const next = [year, year + 1]
+          .map((item) => ({ year: item, date: birthdayIn(item, birthDate) }))
+          .find((item) => daysBetween(today, item.date) >= 0);
+        if (!next) break;
+        const days = daysBetween(today, next.date);
+        add({
+          occurrenceKey: `lead:${lead.id}:${next.year}`,
+          measure: days,
+          eventDate: next.date,
+          detail: daysUntilLabel(days, "Aniversário", next.date),
+          vars: {
+            data: shortDate(next.date),
+            idade: String(next.year - Number(birthDate.slice(0, 4))),
+          },
+        });
+        break;
+      }
+      case "lead_new": {
+        const created = clinicDate(lead.createdAt);
+        const days = daysBetween(created, today);
+        add({
+          occurrenceKey: `lead:${lead.id}:new`,
+          measure: days,
+          eventDate: created,
+          detail:
+            days === 0
+              ? "Lead cadastrado hoje"
+              : `Lead cadastrado há ${plural(days, "dia", "dias")} (${shortDate(created)})`,
+          vars: { data: shortDate(created), interesse: lead.interest },
+        });
+        break;
+      }
+      case "lead_no_contact": {
+        const last = clinicDate(lead.lastContactAt ?? lead.createdAt);
+        const days = daysBetween(last, today);
+        add({
+          occurrenceKey: `lead:${lead.id}:contact:${last}`,
+          measure: days,
+          eventDate: last,
+          detail: lead.lastContactAt
+            ? `Último contato há ${plural(days, "dia", "dias")} (${shortDate(last)})`
+            : `Sem contato desde o cadastro (${shortDate(last)})`,
+          vars: { data: shortDate(last), interesse: lead.interest },
+        });
+        break;
+      }
+      default:
+        break;
+    }
+  }
+  return events;
+}
+
+/**
  * Mensagem que vale hoje para a medida do evento, ou nenhuma.
  * - `before`/`sessions`: a de menor momento que ainda não passou (com 7, 2, 1 e 0 dias
  *   antes, faltando 5 dias vale a de 7; faltando 2, a de 2). Antes do maior momento, nada.
@@ -410,6 +505,8 @@ export function autoCampaignTriggerAllowed(
   trigger: AutoCampaignTrigger,
   modules: readonly AppModule[],
 ) {
+  if ((autoCampaignLeadTriggers as readonly string[]).includes(trigger))
+    return modules.includes("crm");
   return trigger !== "overdue_payment" || modules.includes("finance");
 }
 
@@ -677,15 +774,33 @@ export function buildAutoCampaignQueue(
     if (!campaign.active) continue;
     let events = eventsByTrigger.get(campaign.trigger);
     if (!events) {
-      events = detectAutoCampaignEvents(
-        campaign.trigger,
-        data,
-        today,
-        timezone,
-      );
+      events = autoCampaignTargetsPatients(campaign.trigger)
+        ? detectAutoCampaignEvents(campaign.trigger, data, today, timezone)
+        : [];
       eventsByTrigger.set(campaign.trigger, events);
     }
-    for (const event of events) {
+    const contacts = [
+      ...events.map((event) => ({
+        ...event,
+        contactId: event.patient.id,
+        kind: "patient" as const,
+        fullName: event.patient.fullName,
+        phone: destination(event.patient, "whatsapp"),
+      })),
+      ...detectLeadAutoCampaignEvents(
+        campaign,
+        data.leads ?? [],
+        today,
+        timezone,
+      ).map((event) => ({
+        ...event,
+        contactId: event.lead.id,
+        kind: "lead" as const,
+        fullName: event.lead.fullName,
+        phone: leadDestination(event.lead),
+      })),
+    ];
+    for (const event of contacts) {
       const step = activeStep(campaign.trigger, campaign.steps, event.measure);
       if (!step) continue;
       const key = `${campaign.id}:${step.id}:${event.occurrenceKey}`;
@@ -694,19 +809,20 @@ export function buildAutoCampaignQueue(
       if (
         !delivery &&
         campaign.promotion &&
+        event.kind === "patient" &&
         usedPromotion(
           used,
           campaign.id,
-          event.patient.id,
+          event.contactId,
           event.occurrenceKey,
           today,
         )
       )
         continue;
-      const phone = destination(event.patient, "whatsapp");
+      const phone = event.phone;
       const blockedReason = delivery
         ? undefined
-        : optedOut.has(event.patient.id)
+        : event.kind === "patient" && optedOut.has(event.contactId)
           ? ("opt_out" as const)
           : !phone
             ? ("no_destination" as const)
@@ -718,15 +834,17 @@ export function buildAutoCampaignQueue(
         trigger: campaign.trigger,
         stepId: step.id,
         stepLabel: autoCampaignStepLabel(campaign.trigger, step.offset),
-        patientId: event.patient.id,
-        patientName: event.patient.fullName,
+        ...(event.kind === "patient"
+          ? { patientId: event.contactId }
+          : { leadId: event.contactId }),
+        patientName: event.fullName,
         phone,
         occurrenceKey: event.occurrenceKey,
         eventDate: event.eventDate,
         detail: event.detail,
         message: fillAutoCampaignMessage(
           step.message,
-          event.patient.fullName,
+          event.fullName,
           event.vars,
         ),
         status: delivery
@@ -783,21 +901,28 @@ export async function loadAutoCampaignQueue(
       today,
       timezone,
     );
-  const [data, center, deliveries, redemptions, branches] = await Promise.all([
-    repository.getAutoCampaignSourceData(
-      clinicId,
-      addDays(today, -AUTO_CAMPAIGN_HISTORY_DAYS),
-    ),
-    repository.getCommunicationCenter(clinicId),
-    repository.listAutoCampaignDeliveries(clinicId),
-    campaigns.some((campaign) => campaign.promotion)
-      ? repository.listAutoCampaignRedemptions(clinicId)
-      : [],
-    repository.listBranches(clinicId),
-  ]);
+  const withLeads =
+    modules.includes("crm") &&
+    campaigns.some(
+      (campaign) => campaign.active && autoCampaignTargetsLeads(campaign),
+    );
+  const [data, center, deliveries, redemptions, branches, leads] =
+    await Promise.all([
+      repository.getAutoCampaignSourceData(
+        clinicId,
+        addDays(today, -AUTO_CAMPAIGN_HISTORY_DAYS),
+      ),
+      repository.getCommunicationCenter(clinicId),
+      repository.listAutoCampaignDeliveries(clinicId),
+      campaigns.some((campaign) => campaign.promotion)
+        ? repository.listAutoCampaignRedemptions(clinicId)
+        : [],
+      repository.listBranches(clinicId),
+      withLeads ? repository.listLeads(clinicId) : [],
+    ]);
   return buildAutoCampaignQueue(
     campaigns,
-    { ...data, branches, preferences: center.preferences },
+    { ...data, branches, leads, preferences: center.preferences },
     deliveries,
     today,
     timezone,

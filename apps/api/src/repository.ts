@@ -1,9 +1,5 @@
 import { withQuotedPrefix } from "@crm/contracts";
-import type {
-  TrashImpact,
-  TrashItem,
-  TrashKind,
-} from "@crm/contracts";
+import type { TrashImpact, TrashItem, TrashKind } from "@crm/contracts";
 import type {
   WaitlistEntry,
   WaitlistEntryData,
@@ -23,6 +19,7 @@ import type {
 } from "@crm/contracts";
 import type { Branch, BranchInput } from "@crm/contracts";
 import type { OwnProfile, OwnProfileUpdate } from "@crm/contracts";
+import type { LeadAudienceFilter } from "@crm/contracts";
 import type {
   AutoCampaign,
   AutoCampaignDelivery,
@@ -369,7 +366,11 @@ export interface ClinicRepository {
     id: string,
   ): Promise<void>;
   /** O que a exclusão definitiva apaga junto, por tipo de registro. */
-  trashImpact(clinicId: string, kind: TrashKind, id: string): Promise<TrashImpact>;
+  trashImpact(
+    clinicId: string,
+    kind: TrashKind,
+    id: string,
+  ): Promise<TrashImpact>;
   /** Apaga o item da lixeira e tudo ligado a ele; ponteiros de origem viram vazios. */
   purgeFromTrash(
     clinicId: string,
@@ -2080,6 +2081,8 @@ export interface AutoCampaignWrite {
   active: boolean;
   steps: Array<{ id?: string | undefined; offset: number; message: string }>;
   promotion?: AutoCampaignPromotion | undefined;
+  includeLeads?: boolean | undefined;
+  leadFilter?: LeadAudienceFilter | undefined;
 }
 
 export type AutoCampaignDeliveryWrite = AutoCampaignDeliveryInput & {

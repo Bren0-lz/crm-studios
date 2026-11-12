@@ -2,6 +2,7 @@ import { z } from "zod";
 import {
   autoCampaignDeliveryInputSchema,
   autoCampaignInputSchema,
+  autoCampaignTargetsLeads,
   type AutoCampaign,
   type AutoCampaignInput,
   type AutoCampaignProductOption,
@@ -49,6 +50,7 @@ export function registerAutoCampaignRoutes(context: RouteContext) {
         active: campaign.active,
         steps: campaign.steps.length,
         promotional: Boolean(campaign.promotion),
+        ...(autoCampaignTargetsLeads(campaign) ? { leads: true } : {}),
       },
       campaign.id,
     );
@@ -57,6 +59,8 @@ export function registerAutoCampaignRoutes(context: RouteContext) {
     const input = autoCampaignInputSchema.parse(request.body);
     if (input.trigger === "overdue_payment")
       assertPermissions(request, "finance.view");
+    if (autoCampaignTargetsLeads(input)) assertPermissions(request, "crm.view");
+    else delete input.leadFilter;
     const promotion = input.promotion;
     if (promotion) {
       // Os planos só valem com desconto; sem desconto, a lista é descartada.
@@ -215,7 +219,8 @@ export function registerAutoCampaignRoutes(context: RouteContext) {
           entry.campaignId === input.campaignId &&
           entry.stepId === input.stepId &&
           entry.occurrenceKey === input.occurrenceKey &&
-          entry.patientId === input.patientId,
+          entry.patientId === input.patientId &&
+          entry.leadId === input.leadId,
       );
       if (!item)
         throw new DomainError(

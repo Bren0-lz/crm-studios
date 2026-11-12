@@ -168,8 +168,10 @@ export interface ClientAgeBandCount {
   clients: number;
 }
 
+/** Quem ficou de fora do envio: cliente (`patientId`) ou, nas campanhas, lead (`leadId`). */
 export interface BroadcastSkippedPatient {
-  patientId: string;
+  patientId?: string | undefined;
+  leadId?: string | undefined;
   patientName: string;
   reason: BroadcastSkipReason;
 }

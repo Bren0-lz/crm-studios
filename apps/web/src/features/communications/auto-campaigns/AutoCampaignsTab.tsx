@@ -1,6 +1,7 @@
 import { withQuotedPrefix } from "@crm/contracts";
 import {
   autoCampaignStepLabel,
+  autoCampaignTargetsLeads,
   autoCampaignTriggerLabels,
   type AutoCampaign,
   type AutoCampaignSummary,
@@ -18,7 +19,9 @@ import {
   Plus,
   ThumbsDown,
   Trash2,
+  PhoneOff,
   UserMinus,
+  UserPlus,
   UserX,
   Wallet,
   type LucideIcon,
@@ -47,6 +50,8 @@ const triggerIcons: Record<AutoCampaignTrigger, LucideIcon> = {
   single_no_return: UserMinus,
   former_client: UserX,
   nps_detractor: ThumbsDown,
+  lead_new: UserPlus,
+  lead_no_contact: PhoneOff,
 };
 
 /** Configuração das campanhas automáticas (a fila do dia fica na página inicial). */
@@ -156,6 +161,7 @@ export function AutoCampaignsTab() {
         <AutoCampaignEditorModal
           campaign={editing.campaign}
           canSeeFinance={canView("finance")}
+          canSeeLeads={canView("crm")}
           onClose={() => setEditing(null)}
           onSaved={(saved) => {
             toast.success(
@@ -232,6 +238,9 @@ function AutoCampaignCard({
           <p className="auto-campaign-card-trigger">
             <TriggerIcon size={15} aria-hidden="true" />
             {autoCampaignTriggerLabels[campaign.trigger]}
+            {campaign.trigger === "birthday" &&
+              autoCampaignTargetsLeads(campaign) &&
+              " · clientes e leads"}
           </p>
         </div>
         <span

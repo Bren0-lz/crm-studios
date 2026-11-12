@@ -1,6 +1,8 @@
 import {
   autoCampaignBlockedReasonLabels,
   autoCampaignCooldownUnitLabels,
+  autoCampaignLeadOptionalTriggers,
+  autoCampaignLeadTriggers,
   autoCampaignSkipReasonLabels,
   autoCampaignTriggerSchema,
   autoCampaignTriggerTiming,
@@ -12,6 +14,7 @@ import {
   type AutoCampaignItemStatus,
   type AutoCampaignPromotion,
   type AutoCampaignTrigger,
+  type LeadAudienceFilter,
 } from "@crm/contracts";
 import { formatIsoDate } from "../../../shared/lib/formatting";
 
@@ -41,6 +44,7 @@ const autoCampaignVariableInfo: Record<
   sessoes: { label: "Sessões", example: "2 sessões" },
   parcelas: { label: "Parcelas", example: "2 parcelas" },
   nota: { label: "Nota", example: "5" },
+  interesse: { label: "Interesse", example: "Pilates" },
 };
 
 /**
@@ -129,6 +133,10 @@ export interface AutoCampaignDraft {
   discountOnProducts: boolean;
   productScope: DiscountScope;
   productIds: string[];
+  /** Aniversário: também os leads com data de nascimento. */
+  includeLeads: boolean;
+  /** Quais leads entram (aniversário com leads ou eventos de lead). */
+  leadFilter: LeadAudienceFilter;
 }
 
 /** `all` = em qualquer plano/produto; `selected` = só nos marcados. */
@@ -224,12 +232,16 @@ export function autoCampaignDraft(campaign?: AutoCampaign): AutoCampaignDraft {
       active: true,
       steps: [{ key: newStepKey(), offset: "0", message: "" }],
       ...promotionDraft,
+      includeLeads: false,
+      leadFilter: {},
     };
   return {
     name: campaign.name,
     trigger: campaign.trigger,
     active: campaign.active,
     ...promotionDraft,
+    includeLeads: Boolean(campaign.includeLeads),
+    leadFilter: campaign.leadFilter ?? {},
     // Do momento mais distante para o mais próximo do evento.
     steps: [...campaign.steps]
       .sort((a, b) =>
@@ -246,11 +258,28 @@ export function autoCampaignDraft(campaign?: AutoCampaign): AutoCampaignDraft {
   };
 }
 
+/** O evento aceita incluir leads (aniversário). */
+export function triggerAcceptsLeads(trigger: AutoCampaignTrigger) {
+  return (autoCampaignLeadOptionalTriggers as readonly string[]).includes(
+    trigger,
+  );
+}
+
+/** Evento só de leads (lead novo, lead sem contato). */
+export function isLeadTrigger(trigger: AutoCampaignTrigger) {
+  return (autoCampaignLeadTriggers as readonly string[]).includes(trigger);
+}
+
 export function autoCampaignInput(draft: AutoCampaignDraft): AutoCampaignInput {
+  const includeLeads = triggerAcceptsLeads(draft.trigger) && draft.includeLeads;
   return {
     name: draft.name.trim(),
     trigger: draft.trigger,
     active: draft.active,
+    ...(includeLeads ? { includeLeads } : {}),
+    ...(includeLeads || isLeadTrigger(draft.trigger)
+      ? { leadFilter: draft.leadFilter }
+      : {}),
     steps: draft.steps.map((step) => ({
       ...(step.id ? { id: step.id } : {}),
       offset: Number(step.offset),
