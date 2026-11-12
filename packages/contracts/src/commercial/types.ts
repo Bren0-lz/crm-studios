@@ -37,6 +37,10 @@ export interface Lead extends LeadInput {
   openTasks: number;
   overdueTasks: number;
   lastContactAt?: string;
+  /** Último contato feito pela equipe (direção "outbound"): quando a mensagem foi enviada. */
+  lastMessageSentAt?: string;
+  /** Total de contatos no histórico do lead (enviados, recebidos e registros internos). */
+  contactCount?: number;
 }
 
 export interface LeadConversion {

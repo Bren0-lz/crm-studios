@@ -182,8 +182,18 @@ function RegistryEditor({
   return (
     <>
       <Modal
-        title={editor.id ? "Editar cadastro" : "Novo cadastro"}
-        subtitle="Desativar mantém os registros anteriores. Os próximos agendamentos usam os valores atuais."
+        title={
+          editor.id
+            ? "Editar cadastro"
+            : form.kind === "room"
+              ? "Novo cadastro de sala"
+              : "Novo cadastro"
+        }
+        subtitle={
+          form.kind === "room"
+            ? "Informe o nome da sala e quantas pessoas podem ser atendidas nela ao mesmo tempo."
+            : "Desativar mantém os registros anteriores. Os próximos agendamentos usam os valores atuais."
+        }
         busy={busy || Boolean(prompt.modal)}
         inactive={Boolean(prompt.modal)}
         onClose={close}

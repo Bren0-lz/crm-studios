@@ -807,7 +807,7 @@ export class MemoryRepositoryContext {
   /** Funil editado, por clínica (sem entrada = etapas padrão). */
   readonly leadStages = new Map<
     string,
-    Array<{ stage: string; label: string }>
+    Array<{ stage: string; label: string; color?: string }>
   >();
   readonly groupAttendance: GroupAttendance[] = [];
 

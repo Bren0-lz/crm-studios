@@ -2,15 +2,17 @@ import { withPrefix } from "@crm/contracts";
 import { CommercialToolbar } from "./CommercialToolbar";
 import {
   type Lead,
-  type LeadConversionInput,
   type LeadFilter,
   type LeadFilterOptions,
   type LeadInsights,
   type LeadStage,
+  leadStageColor,
   type LeadStageConfig,
   type LeadStagesInput,
   resolveLeadStages,
   type LeadStagePage,
+  inferLeadContactChannel,
+  leadContactChannelLabels,
 } from "@crm/contracts";
 import { FileDown, GripVertical, Pencil, Plus } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -23,9 +25,11 @@ import { PageHeader } from "../../shared/components/PageHeader";
 import { ReadOnlyNotice } from "../../shared/components/ReadOnlyNotice";
 import {
   shortDate,
+  shortDateTime,
   timeLabel,
   visitTypeLabels,
 } from "../../shared/lib/formatting";
+import { stageColorStyle } from "../../tag-colors";
 import { leadStages } from "../relationship/index";
 import { LeadActivityModal } from "./LeadActivityModal";
 import { LeadAppointmentModal } from "./LeadAppointmentModal";
@@ -41,6 +45,8 @@ import { LeadStageModal } from "./LeadStageModal";
 import { useBoardReorder } from "./useBoardReorder";
 import { useToast } from "../../shared/feedback/toast-context";
 import { TrashButton } from "../trash";
+import { PatientModal } from "../patients/index";
+import { usePatientTags } from "../../shared/hooks/usePatientTags";
 
 type Columns = Record<LeadStage, LeadStagePage>;
 
@@ -103,6 +109,7 @@ export function CommercialPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [activityLead, setActivityLead] = useState<Lead | null>(null);
+  const [sendingLeadId, setSendingLeadId] = useState<string | null>(null);
   const [trialLead, setTrialLead] = useState<Lead | null>(null);
   const [notice, setNotice] = useState("");
   const [losingLead, setLosingLead] = useState<Lead | null>(null);
@@ -122,6 +129,7 @@ export function CommercialPage() {
   const stages = stageConfig.map((item) => ({
     value: item.stage,
     label: item.label,
+    color: leadStageColor(item),
     hint:
       leadStages.find((stage) => stage.value === item.stage)?.hint ??
       "Mova para cá os leads que estão nesta etapa.",
@@ -274,7 +282,11 @@ export function CommercialPage() {
     try {
       setStageConfig(
         await api.saveLeadStages(
-          next.map(({ stage, label }) => ({ stage, label })),
+          next.map(({ stage, label, color }) => ({
+            stage,
+            label,
+            ...(color ? { color } : {}),
+          })),
         ),
       );
     } catch (cause) {
@@ -300,14 +312,43 @@ export function CommercialPage() {
     // A etapa final pode ter mudado de coluna: recarrega o quadro com as etapas novas.
     void loadBoard(filterRef.current);
   }
+  /** Botão do cartão: grava o envio da mensagem com a data e a hora de agora. */
+  async function markMessageSent(lead: Lead) {
+    const method = lead.contactMethod?.trim() || leadContactChannelLabels.whatsapp;
+    setSendingLeadId(lead.id);
+    try {
+      const contact = await api.createLeadContact(lead.id, {
+        channel: inferLeadContactChannel(method),
+        contactMethod: method,
+        direction: "outbound",
+        notes: "Mensagem enviada.",
+      });
+      toast.success(
+        `Mensagem para ${lead.fullName} registrada em ${shortDateTime(contact.occurredAt)}.`,
+      );
+      replaceLead({
+        ...lead,
+        lastContactAt: contact.occurredAt,
+        lastMessageSentAt: contact.occurredAt,
+        contactCount: (lead.contactCount ?? 0) + 1,
+        updatedAt: new Date().toISOString(),
+      });
+    } catch (cause) {
+      toast.error((cause as Error).message);
+    } finally {
+      setSendingLeadId(null);
+    }
+  }
   async function markLost(lead: Lead, reason: string) {
     replaceLead(await api.moveLead(lead.id, "lost", reason));
     setLosingLead(null);
   }
-  async function convert(lead: Lead, input: LeadConversionInput) {
-    const result = await api.convertLead(lead.id, input);
-    replaceLead(result.lead);
+  // LC1: a conversão usa o cadastro completo de cliente (plano, experimental, produtos…).
+  const configuredTags = usePatientTags();
+  function converted(lead: Lead, converted: Lead | undefined, notice: string) {
+    replaceLead(converted ?? { ...lead, stage: "won" });
     setConvertingLead(null);
+    toast.success(notice);
   }
   const totalLeads = Object.values(columns).reduce(
     (sum, column) => sum + column.total,
@@ -320,6 +361,7 @@ export function CommercialPage() {
     update: can("crm.update"),
     convert: can("crm.convert", "patients.create"),
     schedule: can("crm.appointments_create", "agenda.create"),
+    contact: can("crm.contacts_create"),
   };
   return (
     <>
@@ -451,6 +493,7 @@ export function CommercialPage() {
                       key={stage.value}
                       data-stage={stage.value}
                       aria-label={stage.label}
+                      style={stageColorStyle(stage.color)}
                       onDragOver={(event) => {
                         if (!draggingStage || draggingStage === stage.value)
                           return;
@@ -553,6 +596,8 @@ export function CommercialPage() {
                               setNotice("");
                               setTrialLead(lead);
                             }}
+                            onMessageSent={() => void markMessageSent(lead)}
+                            sendingMessage={sendingLeadId === lead.id}
                           />
                         ))}
                         {remaining > 0 && (
@@ -663,8 +708,22 @@ export function CommercialPage() {
         <LeadConvertModal
           lead={convertingLead}
           onClose={() => setConvertingLead(null)}
-          onConfirm={(input) => convert(convertingLead, input)}
-        />
+        >
+          <PatientModal
+            patient={undefined}
+            lead={convertingLead}
+            configuredTags={configuredTags}
+            onClose={() => setConvertingLead(null)}
+            onSaved={(patient, notice, result) =>
+              converted(
+                convertingLead,
+                result?.lead,
+                notice ??
+                  `Lead convertido: cadastro de ${patient.fullName} salvo.`,
+              )
+            }
+          />
+        </LeadConvertModal>
       )}
       {trialLead && (
         <LeadAppointmentModal

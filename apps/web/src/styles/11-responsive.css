@@ -269,6 +269,19 @@
 }
 
 @media (max-width: 700px) {
+  /* audit: mobile-ok hora (48px) e marcador (16px) cabem; o registro ocupa o resto da linha */
+  .contact-timeline-item {
+    grid-template-columns: var(--space-8) var(--space-4) 1fr;
+  }
+
+  .contact-timeline-item::before {
+    left: calc(var(--space-8) + var(--space-4) / 2 - 1px);
+  }
+
+  .lead-message-summary {
+    flex-wrap: wrap;
+  }
+
   .template-history {
     grid-template-columns: 1fr;
   }

@@ -403,4 +403,33 @@ describe("settings workflows through real HTTP handlers", () => {
       )?.businessLine,
     ).toBeNull();
   });
+
+  it("cadastra uma nova sala com título e descrição próprios no modal", async () => {
+    const { repository } = await setupApi();
+    open("/configuracoes");
+    fireEvent.click(
+      await screen.findByRole("tab", { name: "Serviços e salas" }),
+    );
+    const section = screen.getByRole("tabpanel", { name: "Serviços e salas" });
+    fireEvent.click(within(section).getByRole("tab", { name: "Salas" }));
+    fireEvent.click(
+      await within(section).findByRole("button", { name: "Novo cadastro" }),
+    );
+    const dialog = screen.getByRole("dialog", {
+      name: "Novo cadastro de sala",
+    });
+    expect(
+      within(dialog).getByText(
+        "Informe o nome da sala e quantas pessoas podem ser atendidas nela ao mesmo tempo.",
+      ),
+    ).toBeInTheDocument();
+    change("Nome da sala", "Sala Reforma", dialog);
+    change("Capacidade de atendimento simultâneo", "6", dialog);
+    await save("Novo cadastro de sala", "Salvar cadastro");
+    expect(
+      (await repository.getAdministrativeRegistry(clinicId)).rooms.find(
+        (item) => item.name === "Sala Reforma",
+      )?.capacity,
+    ).toBe(6);
+  });
 });

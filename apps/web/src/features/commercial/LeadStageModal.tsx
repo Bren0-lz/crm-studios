@@ -2,6 +2,7 @@ import { withPrefix } from "@crm/contracts";
 import {
   LEAD_STAGE_LABEL_MAX,
   LEAD_STAGES_MAX,
+  leadStageColor,
   type LeadStageConfig,
   type LeadStagesInput,
 } from "@crm/contracts";
@@ -9,14 +10,19 @@ import { Trash2 } from "lucide-react";
 import { type FormEvent, useState } from "react";
 import { Modal, ModalCancelButton } from "../../shared/components/Modal";
 import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
+import { StageColorWheel } from "./StageColorWheel";
 
 type StageItems = LeadStagesInput["stages"];
 
 const current = (stages: readonly LeadStageConfig[]): StageItems =>
-  stages.map(({ stage, label }) => ({ stage, label }));
+  stages.map(({ stage, label, color }) => ({
+    stage,
+    label,
+    ...(color ? { color } : {}),
+  }));
 
 /**
- * Inclui uma etapa (sem `editing`) ou edita uma etapa do funil: nome, etapa final e remoção.
+ * Inclui uma etapa (sem `editing`) ou edita uma etapa do funil: nome, cor, etapa final e remoção.
  * Envia o funil inteiro; a API recusa remover etapa com leads ou tornar final uma etapa com
  * leads em aberto, e a mensagem aparece no formulário.
  */
@@ -38,16 +44,19 @@ export function LeadStageModal({
     (item) => item.stage === editing?.stage,
   );
   const wonIndex = stages.findIndex((item) => item.kind === "won");
+  const defaultColor = leadStageColor(editing ?? {});
   const [label, setLabel] = useState(editing?.label ?? "");
   const [after, setAfter] = useState(
     (editing
       ? stages[editingIndex - 1]?.stage
       : stages[Math.max(0, wonIndex - 1)]?.stage) ?? "",
   );
+  const [color, setColor] = useState(defaultColor);
+  const [colorTouched, setColorTouched] = useState(false);
   const [final, setFinal] = useState(editing?.kind === "won");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
-  const dirty = useFormDirty({ label, after, final });
+  const dirty = useFormDirty({ label, after, color, final });
   const name = label.trim();
   const duplicate = stages.some(
     (item) =>
@@ -74,7 +83,12 @@ export function LeadStageModal({
       setError("Já existe uma etapa com esse nome.");
       return;
     }
-    const extra = becomesFinal ? { final: true } : {};
+    const includeColor =
+      colorTouched || color !== defaultColor || Boolean(editing?.color);
+    const extra = {
+      ...(includeColor ? { color } : {}),
+      ...(becomesFinal ? { final: true } : {}),
+    };
     const items = current(others);
     const index = items.findIndex((item) => item.stage === after);
     items.splice(
@@ -128,6 +142,14 @@ export function LeadStageModal({
             No computador, também dá para arrastar a coluna pelo cabeçalho.
           </span>
         </label>
+        <StageColorWheel
+          value={color}
+          previewLabel={name || editing?.label || "Nova etapa"}
+          onChange={(next) => {
+            setColorTouched(true);
+            setColor(next);
+          }}
+        />
         {editing?.kind === "lost" ? (
           <p className="field-hint span-2">
             A etapa de perdidos pede o motivo da perda e não pode ser removida

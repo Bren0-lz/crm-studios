@@ -9,7 +9,7 @@ import { DomainError } from "../../repository.js";
 
 export interface LeadStagesPlan {
   /** Funil salvo, na ordem, com as chaves definitivas. */
-  stages: Array<{ stage: string; label: string }>;
+  stages: Array<{ stage: string; label: string; color?: string }>;
   /** Etapas que precisam estar sem leads: removidas ou escolhidas como final. */
   mustBeEmpty: Array<{
     stage: string;
@@ -31,7 +31,7 @@ export function planLeadStages(
   input: LeadStagesInput,
   newKey: () => string = newStageKey,
 ): LeadStagesPlan {
-  const known = new Map(current.map((item) => [item.stage, item.label]));
+  const known = new Map(current.map((item) => [item.stage, item]));
   for (const item of input.stages)
     if (item.stage && !known.has(item.stage))
       throw new DomainError(
@@ -46,19 +46,23 @@ export function planLeadStages(
       : input.stages.findIndex((item) => item.stage === LEAD_WON_STAGE);
   const mustBeEmpty: LeadStagesPlan["mustBeEmpty"] = [];
   const stages = input.stages.map((item, index) => {
+    const color =
+      item.color ?? (item.stage ? known.get(item.stage)?.color : undefined);
+    const colorEntry = color ? { color } : {};
     if (index === finalIndex) {
       if (item.stage && item.stage !== LEAD_WON_STAGE)
         mustBeEmpty.push({
           stage: item.stage,
-          label: known.get(item.stage)!,
+          label: known.get(item.stage)!.label,
           reason: "final",
         });
-      return { stage: LEAD_WON_STAGE, label: item.label };
+      return { stage: LEAD_WON_STAGE, label: item.label, ...colorEntry };
     }
     return {
       stage:
         item.stage && item.stage !== LEAD_WON_STAGE ? item.stage : newKey(),
       label: item.label,
+      ...colorEntry,
     };
   });
   const kept = new Set(input.stages.map((item) => item.stage));
