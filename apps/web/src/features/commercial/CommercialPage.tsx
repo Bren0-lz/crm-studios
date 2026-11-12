@@ -2,7 +2,6 @@ import { withPrefix } from "@crm/contracts";
 import { CommercialToolbar } from "./CommercialToolbar";
 import {
   type Lead,
-  type LeadConversionInput,
   type LeadFilter,
   type LeadFilterOptions,
   type LeadInsights,
@@ -40,6 +39,8 @@ import { LeadStageModal } from "./LeadStageModal";
 import { useBoardReorder } from "./useBoardReorder";
 import { useToast } from "../../shared/feedback/toast-context";
 import { TrashButton } from "../trash";
+import { PatientModal } from "../patients/index";
+import { usePatientTags } from "../../shared/hooks/usePatientTags";
 
 type Columns = Record<LeadStage, LeadStagePage>;
 
@@ -302,10 +303,12 @@ export function CommercialPage() {
     replaceLead(await api.moveLead(lead.id, "lost", reason));
     setLosingLead(null);
   }
-  async function convert(lead: Lead, input: LeadConversionInput) {
-    const result = await api.convertLead(lead.id, input);
-    replaceLead(result.lead);
+  // LC1: a conversão usa o cadastro completo de cliente (plano, experimental, produtos…).
+  const configuredTags = usePatientTags();
+  function converted(lead: Lead, converted: Lead | undefined, notice: string) {
+    replaceLead(converted ?? { ...lead, stage: "won" });
     setConvertingLead(null);
+    toast.success(notice);
   }
   const totalLeads = Object.values(columns).reduce(
     (sum, column) => sum + column.total,
@@ -641,8 +644,22 @@ export function CommercialPage() {
         <LeadConvertModal
           lead={convertingLead}
           onClose={() => setConvertingLead(null)}
-          onConfirm={(input) => convert(convertingLead, input)}
-        />
+        >
+          <PatientModal
+            patient={undefined}
+            lead={convertingLead}
+            configuredTags={configuredTags}
+            onClose={() => setConvertingLead(null)}
+            onSaved={(patient, notice, result) =>
+              converted(
+                convertingLead,
+                result?.lead,
+                notice ??
+                  `Lead convertido: cadastro de ${patient.fullName} salvo.`,
+              )
+            }
+          />
+        </LeadConvertModal>
       )}
       {trialLead && (
         <LeadAppointmentModal

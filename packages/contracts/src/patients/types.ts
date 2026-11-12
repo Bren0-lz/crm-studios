@@ -5,6 +5,7 @@ import type { PatientPlan } from "../plans/types.js";
 import type { IssuedDocument } from "../contracts/types.js";
 import type { WaitlistEntry } from "../waitlist/types.js";
 import type { ExtraFields } from "../common/extra-fields.js";
+import type { Lead } from "../commercial/types.js";
 import {
   clientAgeBandSchema,
   guidedPatientInputSchema,
@@ -96,6 +97,8 @@ export interface GuidedPatientResult {
   }[];
   /** Entradas da Lista de espera criadas para os serviços de turma cheia (TW3). */
   waitlistEntries?: WaitlistEntry[];
+  /** Lead convertido junto com o cadastro (quando enviado `leadId`). */
+  lead?: Lead;
 }
 
 export type PatientListQuery = z.infer<typeof patientListQuerySchema>;

@@ -1514,3 +1514,24 @@ filtros ficam no `dashboard-studios` (EN11–EN13 têm só a parte da API aqui).
 - **Gate:** gate completo
 - **Status:** DONE
 
+## Pedido avulso — Conversão de lead com o cadastro completo (11/11/2026)
+
+### Decisões do dono (11/11/2026)
+
+- "Converter em cliente" (CRM comercial e "Se tornou cliente" em Eventos) abre o mesmo cadastro
+  do "Novo cliente", já preenchido com o lead, com plano recorrente, avulso, aula experimental,
+  lista de espera, produtos e descontos.
+- Cliente já cadastrado é reconhecido **só pelo CPF** na conversão.
+
+### LC1 — Conversão do lead pelo cadastro completo de cliente
+
+- **Escopo:** `leadId` opcional em `POST /patients/guided` (exige também `crm.convert`): cria o
+  cliente, vende o que foi escolhido e converte o lead na mesma transação (lead `won`, atendimentos
+  do lead passam para o cliente, etiquetas/interesses/"Outros" do lead entram no cliente). CPF já
+  cadastrado → 409 `LEAD_PATIENT_EXISTS`; lead já convertido → 409. `POST /leads/:id/convert`
+  reaproveita cliente existente só pelo CPF (antes: telefone, e-mail ou CPF). Web: `PatientModal`
+  com `lead` substitui o `LeadConvertModal` (removido) no Comercial e em Eventos; só cadastro com
+  CPF já existente cai na conversão simples (reaproveita o cliente).
+- **Gate:** gate completo + `npm run test:mysql`
+- **Status:** DONE
+

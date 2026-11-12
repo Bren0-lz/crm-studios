@@ -35,6 +35,11 @@ import {
   patientTagDuplicateError,
   patientTagInUseError,
 } from "../../repository.js";
+import {
+  leadPatientExistsError,
+  withLeadConversionExtras,
+} from "../../modules/commercial/conversion.js";
+import { convertibleLead, convertLeadToNewPatient } from "./commercial.js";
 import type { MemoryRepositoryContext } from "./context.js";
 import { CLINIC_ID, now, uuid } from "./helpers.js";
 
@@ -139,9 +144,28 @@ export function createPatientsRepository(
         repositoryContext.waitlistEntries,
         repositoryContext.issuedDocuments,
         repositoryContext.adminAuditEvents,
+        repositoryContext.patientTags,
       ];
       const lengths = collections.map((collection) => collection.length);
       try {
+        // LC1: cadastro vindo da conversão do lead (o lead só muda no fim, com tudo gravado).
+        const lead = input.leadId
+          ? convertibleLead(repositoryContext, clinicId, input.leadId)
+          : undefined;
+        const sameCpf =
+          lead && input.patient.cpf
+            ? repositoryContext.patients.find(
+                (item) =>
+                  item.clinicId === clinicId && item.cpf === input.patient.cpf,
+              )
+            : undefined;
+        if (sameCpf) throw leadPatientExistsError(sameCpf.fullName);
+        const patientData = lead
+          ? withLeadConversionExtras(input.patient, lead)
+          : input.patient;
+        if (lead)
+          for (const tag of patientData.tags)
+            repositoryContext.ensurePatientTag(clinicId, tag);
         const subscriptions = guidedSubscriptions(input);
         // Sessões do avulso: serviços e vigência do plano, no máximo as sessões compradas.
         for (const sale of guidedSales(input))
@@ -196,8 +220,21 @@ export function createPatientsRepository(
         });
         const patient = await repositoryContext.operations.createPatient(
           clinicId,
-          input.patient,
+          patientData,
         );
+        /** Último passo: com tudo gravado, o lead (se houver) vira cliente. */
+        const finish = (result: GuidedPatientResult): GuidedPatientResult =>
+          lead
+            ? {
+                ...result,
+                lead: convertLeadToNewPatient(
+                  repositoryContext,
+                  clinicId,
+                  lead.id,
+                  patient,
+                ),
+              }
+            : result;
         const createWaitlist = async () => {
           const entries: WaitlistEntry[] = [];
           for (const item of waitlist)
@@ -216,9 +253,9 @@ export function createPatientsRepository(
           return entries;
         };
         if (input.next === "waitlist")
-          return { patient, waitlistEntries: await createWaitlist() };
+          return finish({ patient, waitlistEntries: await createWaitlist() });
         if (input.next === "demonstration")
-          return {
+          return finish({
             patient,
             appointment: await repositoryContext.operations.createAppointment(
               clinicId,
@@ -228,8 +265,8 @@ export function createPatientsRepository(
                 visitType: "trial",
               },
             ),
-          };
-        if (input.next === "none") return { patient };
+          });
+        if (input.next === "none") return finish({ patient });
         const created: NonNullable<GuidedPatientResult["additionalPlans"]> = [];
         for (const item of guidedSales(input)) {
           const plan = await repositoryContext.operations.createPatientPlan(
@@ -266,12 +303,9 @@ export function createPatientsRepository(
             ...(document ? { document } : {}),
           });
         }
-        if (input.next === "single") return { patient, ...created[0]! };
-        return guidedPlansResult(
-          patient,
-          created,
-          input,
-          await createWaitlist(),
+        if (input.next === "single") return finish({ patient, ...created[0]! });
+        return finish(
+          guidedPlansResult(patient, created, input, await createWaitlist()),
         );
       } catch (error) {
         collections.forEach((collection, index) => {

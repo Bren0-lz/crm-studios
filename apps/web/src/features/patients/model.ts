@@ -21,8 +21,10 @@ import type {
   PatientDiscount,
   GuidedPatientNext,
   GuidedPatientResult,
+  Lead,
   Patient,
   PatientExportColumn,
+  PatientInput,
   PatientImportColumn,
   PatientImportDuplicate,
   PatientImportField,
@@ -162,7 +164,9 @@ export function importRowNotes(input: PatientImportRow["input"]): string[] {
     ...(input.cpf
       ? []
       : input.invalidCpf
-        ? [`CPF inválido na planilha: entra sem CPF (etiqueta “${INVALID_CPF_TAG}”)`]
+        ? [
+            `CPF inválido na planilha: entra sem CPF (etiqueta “${INVALID_CPF_TAG}”)`,
+          ]
         : [`sem CPF (etiqueta “${MISSING_CPF_TAG}”)`]),
     ...(lacksRequiredContact(input)
       ? [
@@ -310,6 +314,45 @@ export const guidedStepPermissions: Record<
   plan: "plans.create",
   single: "plans.create",
 };
+
+/**
+ * LC1: cadastro de cliente já preenchido com o que o lead guarda (conversão do lead). O que o
+ * lead não tem fica em branco; etiquetas do lead entram pela conversão, na API.
+ */
+export function leadPatientInput(lead: Lead): PatientInput {
+  return {
+    fullName: lead.fullName,
+    cpf: lead.cpf ?? "",
+    phone: lead.phone,
+    whatsapp: lead.whatsapp ?? "",
+    email: lead.email ?? "",
+    birthDate: lead.birthDate ?? "",
+    postalCode: lead.postalCode ?? "",
+    residenceType: lead.residenceType ?? "",
+    address: lead.address ?? "",
+    addressNumber: lead.addressNumber ?? "",
+    complement: lead.complement ?? "",
+    buildingName: lead.buildingName ?? "",
+    block: lead.block ?? "",
+    floor: lead.floor ?? "",
+    unit: lead.unit ?? "",
+    referencePoint: lead.referencePoint ?? "",
+    neighborhood: lead.neighborhood ?? "",
+    city: lead.city ?? "",
+    state: lead.state ?? "",
+    occupation: lead.occupation ?? "",
+    source: lead.source ?? "",
+    gender: lead.gender ?? "",
+    clientSince: lead.clientSince ?? "",
+    imageConsent: lead.imageConsent ?? false,
+    emergencyContactName: lead.emergencyContactName ?? "",
+    emergencyContactPhone: lead.emergencyContactPhone ?? "",
+    emergencyContactWhatsapp: lead.emergencyContactWhatsapp ?? "",
+    notes: lead.notes ?? "",
+    ...(lead.interests?.length ? { interests: lead.interests } : {}),
+    tags: [],
+  };
+}
 
 export const guidedSubmitLabels: Record<GuidedPatientNext, string> = {
   demonstration: "Salvar e agendar aula experimental",

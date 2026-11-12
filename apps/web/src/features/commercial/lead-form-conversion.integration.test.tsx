@@ -48,14 +48,14 @@ describe("lean lead form", () => {
           leads.push(lead);
           return { ok: true, status: 201, json: async () => lead } as Response;
         }
-        if (url.endsWith("/convert"))
+        // LC1: a conversão usa o cadastro completo de cliente (cadastro guiado com o lead).
+        if (url.endsWith("/patients/guided"))
           return {
             ok: true,
-            status: 200,
+            status: 201,
             json: async () => ({
               lead: { ...leads[0], stage: "won", convertedPatientId: "p1" },
               patient: { id: "p1", fullName: "Lead Enxuto" },
-              reusedExisting: false,
             }),
           } as Response;
       }
@@ -120,6 +120,16 @@ describe("lean lead form", () => {
     const convert = screen.getByRole("dialog", {
       name: "Converter lead em cliente",
     });
+    // LC1: mesmas opções do "Novo cliente" — plano, avulso, aula experimental e produtos.
+    for (const option of [
+      "Agendar aula experimental",
+      "Adicionar plano",
+      "Adicionar serviço avulso",
+      "Adicionar produto",
+    ])
+      expect(
+        within(convert).getByRole("button", { name: option }),
+      ).toBeInTheDocument();
     // Mesmo cadastro do "Novo cliente", já preenchido com o que o lead tem.
     expect(within(convert).getByLabelText("Nome completo")).toHaveValue(
       "Lead Enxuto",
@@ -173,16 +183,20 @@ describe("lean lead form", () => {
       within(convert).getByRole("button", { name: "Converter em cliente" }),
     );
     await waitFor(() => expect(posts).toHaveLength(2));
-    expect(posts[1]!.url).toMatch(/\/convert$/);
+    expect(posts[1]!.url).toMatch(/\/patients\/guided$/);
     expect(posts[1]!.body).toMatchObject({
-      fullName: "Lead Enxuto",
-      phone: "11977776666",
-      cpf: "52998224725",
-      whatsapp: "11977776666",
-      emergencyContactName: "Joana Mãe",
-      emergencyContactPhone: "11977776666",
-      emergencyContactWhatsapp: "11977776666",
-      address: "Rua das Flores, 10",
+      next: "none",
+      leadId: "44444444-4444-4444-8444-444444444444",
+      patient: {
+        fullName: "Lead Enxuto",
+        phone: "11977776666",
+        cpf: "52998224725",
+        whatsapp: "11977776666",
+        emergencyContactName: "Joana Mãe",
+        emergencyContactPhone: "11977776666",
+        emergencyContactWhatsapp: "11977776666",
+        address: "Rua das Flores, 10",
+      },
     });
     await waitFor(() =>
       expect(
@@ -195,6 +209,8 @@ describe("lean lead form", () => {
     expect(
       within(screen.getByRole("region", { name: "Novos" })).getByRole("banner"),
     ).toHaveTextContent("Novos0");
-    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Lead convertido: cadastro de Lead salvo.",
+    );
   });
 });
