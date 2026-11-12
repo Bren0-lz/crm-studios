@@ -55,11 +55,15 @@ export function createRelationshipRepository(
       return buildContactSuggestions(
         {
           patients: repositoryContext.patients.filter(
-            (item) => item.clinicId === clinicId,
+            (item) =>
+              item.clinicId === clinicId &&
+              !repositoryContext.isTrashed("patients", item.id),
           ),
           plans,
           appointments: repositoryContext.appointments.filter(
-            (item) => item.clinicId === clinicId,
+            (item) =>
+              item.clinicId === clinicId &&
+              !repositoryContext.isTrashed("appointments", item.id),
           ),
           receivables: repositoryContext.receivables.filter(
             (item) => item.clinicId === clinicId,
@@ -110,7 +114,11 @@ export function createRelationshipRepository(
 
     async listBirthdays(clinicId: string, month: string) {
       return buildBirthdayEntries(
-        repositoryContext.patients.filter((item) => item.clinicId === clinicId),
+        repositoryContext.patients.filter(
+          (item) =>
+            item.clinicId === clinicId &&
+            !repositoryContext.isTrashed("patients", item.id),
+        ),
         await repositoryContext.operations.listContactActivities(clinicId),
         month,
       );

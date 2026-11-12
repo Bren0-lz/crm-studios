@@ -1,5 +1,6 @@
 import { createAgendaNotesRepository } from "./storage/mysql/agenda-notes.js";
 import { createWaitlistRepository } from "./storage/mysql/waitlist.js";
+import { createTrashRepository } from "./storage/mysql/trash.js";
 import { createEventsRepository } from "./storage/mysql/events.js";
 import { createBranchesRepository } from "./storage/mysql/branches.js";
 import { createCommissionReconciliationRepository } from "./storage/mysql/commission-reconciliation.js";
@@ -40,6 +41,11 @@ import { createRelationshipRepository } from "./storage/mysql/relationship.js";
 import { createReportsRepository } from "./storage/mysql/reports.js";
 
 export class MysqlClinicRepository implements ClinicRepository {
+  readonly listTrash: ClinicRepository["listTrash"];
+  readonly sendToTrash: ClinicRepository["sendToTrash"];
+  readonly restoreFromTrash: ClinicRepository["restoreFromTrash"];
+  readonly trashImpact: ClinicRepository["trashImpact"];
+  readonly purgeFromTrash: ClinicRepository["purgeFromTrash"];
   readonly listWaitlist: ClinicRepository["listWaitlist"];
   readonly createWaitlistEntry: ClinicRepository["createWaitlistEntry"];
   readonly updateWaitlistEntry: ClinicRepository["updateWaitlistEntry"];
@@ -265,6 +271,12 @@ export class MysqlClinicRepository implements ClinicRepository {
     ).setFinancialDates;
     this.relationship = createRelationshipRepository(this.context);
     this.agenda = createAgendaRepository(this.context);
+    const trash = createTrashRepository(this.context);
+    this.listTrash = trash.listTrash;
+    this.sendToTrash = trash.sendToTrash;
+    this.restoreFromTrash = trash.restoreFromTrash;
+    this.trashImpact = trash.trashImpact;
+    this.purgeFromTrash = trash.purgeFromTrash;
     const waitlist = createWaitlistRepository(this.context);
     this.listWaitlist = waitlist.listWaitlist;
     this.createWaitlistEntry = waitlist.createWaitlistEntry;

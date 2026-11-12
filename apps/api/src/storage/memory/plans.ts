@@ -265,6 +265,7 @@ export function createPlansRepository(
         .filter(
           (plan) =>
             plan.clinicId === clinicId &&
+            !repositoryContext.isTrashed("patient-plans", plan.id) &&
             // Planos do cliente valem em todas as filiais (cadastro único).
             (patientId
               ? plan.patientId === patientId

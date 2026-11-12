@@ -156,7 +156,7 @@ export function createClinicalRepository(
             )
             SELECT $9, $1, a.id, a.patient_id, a.professional_id, $2, $4, $5, $6, $7, $8
             FROM appointments a
-            WHERE a.clinic_id = $1 AND a.id = $3 AND a.status <> 'cancelled'
+            WHERE a.clinic_id = $1 AND a.deleted_at IS NULL AND a.id = $3 AND a.status <> 'cancelled'
           `,
             [...values, id],
           );
@@ -469,7 +469,7 @@ export function createClinicalRepository(
          AND EXISTS (SELECT 1 FROM users u WHERE u.clinic_id = $1 AND u.id = $4)
          AND ($5 IS NULL OR EXISTS (
            SELECT 1 FROM appointments a
-           WHERE a.clinic_id = $1 AND a.id = $5 AND a.patient_id = $3
+           WHERE a.clinic_id = $1 AND a.deleted_at IS NULL AND a.id = $5 AND a.patient_id = $3
          ))`,
         [
           clinicId,

@@ -83,7 +83,11 @@ function leadFilterSql(
   timezone = "America/Sao_Paulo",
 ) {
   const params: unknown[] = [clinicId, branchIds];
-  const conditions = ["clinic_id = $1", branchClause("branch_id", 2)];
+  const conditions = [
+    "clinic_id = $1",
+    "deleted_at IS NULL",
+    branchClause("branch_id", 2),
+  ];
   const param = (value: unknown) => {
     params.push(value);
     return `$${params.length}`;
@@ -206,7 +210,7 @@ export function createCommercialRepository(
   return {
     async listLeads(clinicId: string) {
       const result = await repositoryContext.pool.query<LeadRow>(
-        `SELECT ${leadColumns} FROM leads WHERE clinic_id = $1 AND ${branchClause("branch_id", 2)}
+        `SELECT ${leadColumns} FROM leads WHERE clinic_id = $1 AND deleted_at IS NULL AND ${branchClause("branch_id", 2)}
          ORDER BY updated_at DESC`,
         [clinicId, repositoryContext.branchReadIds()],
       );
@@ -228,7 +232,7 @@ export function createCommercialRepository(
       const [patients, leads] = await Promise.all([
         repositoryContext.pool.query<ContactDuplicateCandidate>(
           `SELECT id, full_name AS "fullName", phone, email, cpf FROM patients
-           WHERE clinic_id = $1 AND merged_into_patient_id IS NULL
+           WHERE clinic_id = $1 AND merged_into_patient_id IS NULL AND deleted_at IS NULL
              AND (JSON_CONTAINS($2, JSON_QUOTE(REGEXP_REPLACE(phone, '[^0-9]', '')))
                OR ($3 IS NOT NULL AND LOWER(REGEXP_REPLACE(coalesce(email, ''), '[[:space:]]', '')) = $3)
                OR ($4 IS NOT NULL AND REGEXP_REPLACE(coalesce(cpf, ''), '[^0-9]', '') = $4))
@@ -237,7 +241,7 @@ export function createCommercialRepository(
         ),
         repositoryContext.pool.query<ContactDuplicateCandidate>(
           `SELECT id, full_name AS "fullName", phone, email, JSON_VALUE(profile, '$.cpf') AS cpf FROM leads
-           WHERE clinic_id = $1 AND converted_patient_id IS NULL
+           WHERE clinic_id = $1 AND converted_patient_id IS NULL AND deleted_at IS NULL
              AND ($5 IS NULL OR id <> $5)
              AND (JSON_CONTAINS($2, JSON_QUOTE(REGEXP_REPLACE(phone, '[^0-9]', '')))
                OR ($3 IS NOT NULL AND LOWER(REGEXP_REPLACE(coalesce(email, ''), '[[:space:]]', '')) = $3)

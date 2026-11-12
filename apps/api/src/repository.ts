@@ -1,5 +1,10 @@
 import { withQuotedPrefix } from "@crm/contracts";
 import type {
+  TrashImpact,
+  TrashItem,
+  TrashKind,
+} from "@crm/contracts";
+import type {
   WaitlistEntry,
   WaitlistEntryData,
   WaitlistEntryUpdate,
@@ -344,6 +349,34 @@ export interface CommissionSourceScope {
 }
 
 export interface ClinicRepository {
+  /**
+   * Lixeira por tópico (cliente, lead, atendimento, plano do cliente): o item fica marcado e
+   * fora das listas até ser restaurado (volta como estava) ou excluído em definitivo.
+   */
+  listTrash(clinicId: string, kind: TrashKind): Promise<TrashItem[]>;
+  /** 409 `TRASH_FUTURE_APPOINTMENTS` para cliente/plano com atendimento agendado à frente. */
+  sendToTrash(
+    clinicId: string,
+    actorUserId: string,
+    kind: TrashKind,
+    id: string,
+  ): Promise<TrashItem>;
+  /** 409 quando o cliente/lead dono está na lixeira ou o horário do atendimento foi ocupado. */
+  restoreFromTrash(
+    clinicId: string,
+    actorUserId: string,
+    kind: TrashKind,
+    id: string,
+  ): Promise<void>;
+  /** O que a exclusão definitiva apaga junto, por tipo de registro. */
+  trashImpact(clinicId: string, kind: TrashKind, id: string): Promise<TrashImpact>;
+  /** Apaga o item da lixeira e tudo ligado a ele; ponteiros de origem viram vazios. */
+  purgeFromTrash(
+    clinicId: string,
+    actorUserId: string,
+    kind: TrashKind,
+    id: string,
+  ): Promise<void>;
   /** Lista de espera das filiais da leitura, da entrada mais antiga para a mais nova. */
   listWaitlist(clinicId: string): Promise<WaitlistEntry[]>;
   createWaitlistEntry(

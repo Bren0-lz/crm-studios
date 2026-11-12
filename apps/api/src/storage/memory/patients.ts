@@ -55,7 +55,10 @@ export function createPatientsRepository(
         : "";
       return repositoryContext.patients
         .filter(
-          (item) => item.clinicId === clinicId && !item.mergedIntoPatientId,
+          (item) =>
+            item.clinicId === clinicId &&
+            !item.mergedIntoPatientId &&
+            !repositoryContext.isTrashed("patients", item.id),
         )
         .filter((item) =>
           normalized
@@ -539,7 +542,10 @@ export function createPatientsRepository(
         return null;
       return buildPatientTimeline(patientId, {
         appointments: repositoryContext.appointments.filter(
-          (item) => item.clinicId === clinicId && item.patientId === patientId,
+          (item) =>
+            item.clinicId === clinicId &&
+            item.patientId === patientId &&
+            !repositoryContext.isTrashed("appointments", item.id),
         ),
         plans: await repositoryContext.operations.listPatientPlans(
           clinicId,

@@ -29,6 +29,7 @@ const additionalPermissions = new Set([
   "communications.campaigns",
   "finance.payroll_view",
   "finance.payroll_manage",
+  "trash.send",
 ]);
 /** Exportação de planilha de cada relatório → consulta do relatório exportado. */
 const reportSpreadsheetExports: Partial<Record<string, PermissionKey>> = {
@@ -110,6 +111,10 @@ const moduleAccess: Record<AppModule, OperationText> = {
   history: op(
     "Acessar o histórico",
     "Permite ver quem fez cada alteração no sistema e quando.",
+  ),
+  trash: op(
+    "Ver a lixeira, restaurar e excluir",
+    "Mostra a lixeira de clientes, leads, atendimentos e planos. Permite devolver um item ao sistema ou apagá-lo de vez, junto com tudo que está ligado a ele.",
   ),
 };
 
@@ -640,6 +645,12 @@ const operations = {
     ),
   },
   history: {},
+  trash: {
+    send: op(
+      "Enviar para a lixeira",
+      "Permite excluir clientes, leads, atendimentos e planos do cliente. O item vai para a lixeira da tela e pode ser restaurado por quem vê a lixeira.",
+    ),
+  },
 } as const satisfies Record<AppModule, Record<string, OperationText>>;
 
 type OperationKey = {
@@ -677,7 +688,9 @@ export const permissionCatalog: readonly PermissionDefinition[] =
       },
       ...Object.entries(actions).map(([action, text]): PermissionDefinition => {
         const key = `${module}.${action}` as PermissionKey;
-        const dependencies: PermissionKey[] = [`${module}.view`];
+        // Enviar para a lixeira não dá acesso à lixeira (ver, restaurar e excluir de vez).
+        const dependencies: PermissionKey[] =
+          key === "trash.send" ? [] : [`${module}.view`];
         const legacyView: AppModule[] = [module];
         const legacyEdit: AppModule[] = module === "reports" ? [] : [module];
         if (key === "finance.external_records_manage")

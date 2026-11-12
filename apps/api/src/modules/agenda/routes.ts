@@ -14,6 +14,7 @@ import {
   appointmentStatusInputSchema,
   appointmentUpdateInputSchema,
   completedAppointmentsQuerySchema,
+  holidayBatchInputSchema,
   holidayInputSchema,
   isAppointmentStarted,
   leadAppointmentInputSchema,
@@ -26,6 +27,8 @@ import {
   serviceInputSchema,
   singlePlanSessionPrices,
   type ApiError,
+  type Holiday,
+  type HolidayBatchResult,
   type ClinicalAppointmentOption,
 } from "@crm/contracts";
 import { z } from "zod";
@@ -87,6 +90,39 @@ export function registerAgendaRoutes(context: RouteContext) {
           holidayInputSchema.parse(request.body),
         ),
       ),
+  );
+
+  app.post(
+    "/holidays/batch",
+    { preHandler: authenticate },
+    async (request, reply) => {
+      const clinicId = request.user.clinicId;
+      const { holidays } = holidayBatchInputSchema.parse(request.body);
+      const dates = holidays.map((item) => item.date).sort();
+      const taken = new Set(
+        (await repository.listHolidays(clinicId, dates[0], dates.at(-1))).map(
+          (item) => item.date,
+        ),
+      );
+      const created: Holiday[] = [];
+      for (const holiday of holidays) {
+        if (taken.has(holiday.date)) continue;
+        try {
+          created.push(await repository.createHoliday(clinicId, holiday));
+        } catch (error) {
+          // Outra pessoa cadastrou a mesma data enquanto o lote rodava.
+          if (
+            !(error instanceof DomainError) ||
+            error.code !== "HOLIDAY_DUPLICATE"
+          )
+            throw error;
+        }
+      }
+      return reply.status(201).send({
+        created: created.sort((a, b) => a.date.localeCompare(b.date)),
+        skipped: holidays.length - created.length,
+      } satisfies HolidayBatchResult);
+    },
   );
 
   app.delete(

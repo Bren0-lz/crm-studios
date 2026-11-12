@@ -110,7 +110,9 @@ export function createCommercialRepository(
       return repositoryContext.leads
         .filter(
           (lead) =>
-            lead.clinicId === clinicId && repositoryContext.inBranchScope(lead),
+            lead.clinicId === clinicId &&
+            repositoryContext.inBranchScope(lead) &&
+            !repositoryContext.isTrashed("leads", lead.id),
         )
         .map((lead) => {
           const tasks = repositoryContext.leadTasks.filter(
@@ -146,10 +148,15 @@ export function createCommercialRepository(
         query,
         repositoryContext.patients.filter(
           (patient) =>
-            patient.clinicId === clinicId && !patient.mergedIntoPatientId,
+            patient.clinicId === clinicId &&
+            !patient.mergedIntoPatientId &&
+            !repositoryContext.isTrashed("patients", patient.id),
         ),
         repositoryContext.leads.filter(
-          (lead) => lead.clinicId === clinicId && !lead.convertedPatientId,
+          (lead) =>
+            lead.clinicId === clinicId &&
+            !lead.convertedPatientId &&
+            !repositoryContext.isTrashed("leads", lead.id),
         ),
       );
     },

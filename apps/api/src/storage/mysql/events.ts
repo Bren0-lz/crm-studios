@@ -37,7 +37,7 @@ const visibleEvent = `(e.branch_id IS NULL OR ${branchClause("e.branch_id", 2)})
 const eventColumns = `e.id, e.clinic_id AS "clinicId", e.branch_id AS "branchId", e.name,
   e.location, e.attendee_count AS "attendeeCount", e.starts_at AS "startsAt", e.notes,
   e.service_id AS "serviceId", s.name AS "serviceName", e.created_by AS "createdBy", u.full_name AS "createdByName",
-  (SELECT COUNT(*) FROM leads l WHERE l.clinic_id = e.clinic_id AND l.event_id = e.id
+  (SELECT COUNT(*) FROM leads l WHERE l.clinic_id = e.clinic_id AND l.event_id = e.id AND l.deleted_at IS NULL
      AND ${branchClause("l.branch_id", 2)}) AS "participantCount",
   e.created_at AS "createdAt", e.updated_at AS "updatedAt"`;
 const eventFrom = `events e LEFT JOIN users u ON u.id = e.created_by
@@ -174,7 +174,7 @@ export function createEventsRepository(context: MysqlRepositoryContext) {
       >(
         `SELECT ${leadColumns}, ${evaluationAtColumn}, ${contactedAtColumn},
                 ${convertedAtColumn} FROM leads
-         WHERE clinic_id = $1 AND event_id = $3 AND ${branchClause("branch_id", 2)}
+         WHERE clinic_id = $1 AND event_id = $3 AND deleted_at IS NULL AND ${branchClause("branch_id", 2)}
          ORDER BY full_name, id`,
         [clinicId, context.branchReadIds(), id],
       );

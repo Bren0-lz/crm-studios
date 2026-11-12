@@ -14,6 +14,7 @@ import {
   groupClassUpdateSchema,
   groupEnrollmentInputSchema,
   groupWeeklySlotsSchema,
+  holidayBatchInputSchema,
   holidayInputSchema,
   leadAppointmentInputSchema,
   recurringAppointmentInputSchema,
@@ -235,12 +236,19 @@ export interface AppointmentReportBreakdown {
 }
 
 export type HolidayInput = z.infer<typeof holidayInputSchema>;
+export type HolidayBatchInput = z.infer<typeof holidayBatchInputSchema>;
 
 /** Dia sem atendimento; `date` (aaaa-mm-dd) é a data no fuso da clínica. */
 export interface Holiday extends HolidayInput {
   id: string;
   clinicId: string;
   createdAt: string;
+}
+
+/** Resultado da importação em lote: datas já cadastradas são ignoradas. */
+export interface HolidayBatchResult {
+  created: Holiday[];
+  skipped: number;
 }
 
 export type AutoFinalizationSettingsInput = z.infer<

@@ -79,7 +79,7 @@ export function createPatientsRepository(
       ] = await Promise.all([
         repositoryContext.pool.query<AppointmentRow>(
           `SELECT ${appointmentColumns} FROM appointments a ${appointmentJoins}
-           WHERE a.clinic_id = $1 AND a.patient_id = $2`,
+           WHERE a.clinic_id = $1 AND a.deleted_at IS NULL AND a.patient_id = $2`,
           [clinicId, patientId],
         ),
         repositoryContext.operations.listPatientPlans(clinicId, patientId),
@@ -204,7 +204,7 @@ export function createPatientsRepository(
         `
         SELECT ${patientColumns}
         FROM patients
-        WHERE clinic_id = $1 AND merged_into_patient_id IS NULL
+        WHERE clinic_id = $1 AND merged_into_patient_id IS NULL AND deleted_at IS NULL
           AND (
             $2 = '' OR full_name LIKE '%' || $2 || '%' OR coalesce(cpf, '') LIKE '%' || $2 || '%'
             -- A colação utf8mb4_unicode_ci ignora maiúsculas e acentos: "andre" acha "André".
