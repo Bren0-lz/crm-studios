@@ -1440,6 +1440,20 @@ describe("guided patient creation", () => {
     totalSessions: 1,
   };
 
+  it("accepts the converted lead id only as a uuid (LC1)", () => {
+    const leadId = "bb000000-0000-4000-8000-000000000001";
+    expect(
+      guidedPatientInputSchema.parse({ next: "none", patient, leadId }).leadId,
+    ).toBe(leadId);
+    expect(
+      guidedPatientInputSchema.safeParse({
+        next: "none",
+        patient,
+        leadId: "lead-1",
+      }).success,
+    ).toBe(false);
+  });
+
   it("accepts each next step with its own data", () => {
     expect(guidedPatientInputSchema.parse({ next: "none", patient }).next).toBe(
       "none",

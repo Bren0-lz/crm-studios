@@ -55,9 +55,9 @@ for (const storage of ["memory", "mysql"] as const) {
           }),
         );
       };
-      const convert = async (leadId: string) =>
+      const convert = async (leadId: string, cpf = nextTestCpf()) =>
         (await repository.convertLead(clinicId, actorId, leadId, {
-          cpf: nextTestCpf(),
+          cpf,
           ...testPatientContact,
         }))!.patient;
 
@@ -75,12 +75,15 @@ for (const storage of ["memory", "mysql"] as const) {
           (await lead("Ana Origem", "11977770001", event.id)).id,
         );
         const bia = await convert((await lead("Bia Origem", "11977770002")).id);
-        // Mesmo telefone: a segunda conversão reaproveita o cliente da primeira.
+        // Mesmo CPF (LC1): a segunda conversão reaproveita o cliente da primeira.
+        const daniCpf = nextTestCpf();
         const dani = await convert(
           (await lead("Dani Origem", "11977770003")).id,
+          daniCpf,
         );
         const daniAgain = await convert(
           (await lead("Dani Origem", "11977770003", fair.id)).id,
+          daniCpf,
         );
         expect(daniAgain.id).toBe(dani.id);
         // Lead aberto (sem conversão) não entra.

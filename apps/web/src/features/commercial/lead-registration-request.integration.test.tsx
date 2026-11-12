@@ -34,13 +34,18 @@ const completeLead: Lead = {
   emergencyContactPhone: "11912345678",
 };
 
+// O cadastro em si é o `PatientModal` (LC1), coberto em lead-form-conversion.
 function renderModal(lead: Lead) {
   return render(
-    <LeadConvertModal
-      lead={lead}
-      onClose={vi.fn()}
-      onConfirm={vi.fn().mockResolvedValue(undefined)}
-    />,
+    <LeadConvertModal lead={lead} onClose={vi.fn()}>
+      <div role="dialog" aria-label="Converter lead em cliente">
+        <label>
+          CPF
+          <input defaultValue={lead.cpf ?? ""} />
+        </label>
+        <button type="button">Converter em cliente</button>
+      </div>
+    </LeadConvertModal>,
   );
 }
 

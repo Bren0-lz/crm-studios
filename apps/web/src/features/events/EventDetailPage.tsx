@@ -404,9 +404,9 @@ export function EventDetailPage() {
         <EventConvertModal
           participant={converting}
           onClose={() => setConverting(null)}
-          onConverted={() => {
+          onConverted={(_patient, notice) => {
             setConverting(null);
-            toast.success("Cliente cadastrado.");
+            toast.success(notice ?? "Cliente cadastrado.");
           }}
         />
       )}

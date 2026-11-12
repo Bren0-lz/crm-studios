@@ -60,6 +60,12 @@ const mutationRules: [RegExp, DataDomain[]][] = [
     /^\/trash\//,
     ["patients", "crm", "agenda", "plans", "finance", "clinical", "history"],
   ],
+  // Cadastro guiado: cliente com plano, aula ou lista de espera e, vindo do lead (LC1), a
+  // conversão do lead (funil e participante do evento).
+  [
+    /^\/patients\/guided$/,
+    ["patients", "history", "crm", "agenda", "plans", "finance"],
+  ],
   [/^\/patients(?:\/|$)|^\/patient-tags(?:\/|$)/, ["patients", "history"]],
   [
     /^\/(?:clinical-[a-z-]+|therapeutic-goals|treatment-closures|assessment-templates)(?:\/|$)/,

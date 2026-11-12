@@ -1,5 +1,7 @@
 import {
+  leadAlreadyConvertedError,
   leadConversionData,
+  leadNotFoundError,
   withConversionInput,
 } from "../../modules/commercial/conversion.js";
 import {
@@ -34,6 +36,7 @@ import type {
   LeadTask,
   LeadTaskInput,
   LeadTaskStatus,
+  Patient,
 } from "@crm/contracts";
 import {
   planLeadStages,
@@ -331,17 +334,12 @@ export function createCommercialRepository(
           : null;
       }
       const source = withConversionInput(lead, input);
-      let patient = repositoryContext.patients.find(
-        (item) =>
-          item.clinicId === clinicId &&
-          (item.phone === source.phone ||
-            Boolean(
-              source.email &&
-              item.email?.toLocaleLowerCase() ===
-                source.email.toLocaleLowerCase(),
-            ) ||
-            Boolean(source.cpf && item.cpf === source.cpf)),
-      );
+      // LC1: o cliente já cadastrado é reconhecido só pelo CPF.
+      let patient = source.cpf
+        ? repositoryContext.patients.find(
+            (item) => item.clinicId === clinicId && item.cpf === source.cpf,
+          )
+        : undefined;
       if (patient?.mergedIntoPatientId)
         patient = repositoryContext.patients.find(
           (item) =>
@@ -365,37 +363,7 @@ export function createCommercialRepository(
           clinicId,
           data,
         );
-      for (const appointment of repositoryContext.appointments) {
-        if (appointment.clinicId !== clinicId || appointment.leadId !== lead.id)
-          continue;
-        appointment.patientId = patient.id;
-        appointment.patientName = patient.fullName;
-        delete appointment.leadId;
-        delete appointment.leadName;
-        appointment.updatedAt = now();
-      }
-      // Campanhas que o lead recebeu passam ao cliente (a promoção vale ao agendar).
-      for (const campaign of repositoryContext.whatsappCampaigns) {
-        if (campaign.clinicId !== clinicId) continue;
-        const own = campaign.recipients.some(
-          (item) => item.patientId === patient.id,
-        );
-        for (const recipient of campaign.recipients)
-          if (recipient.leadId === lead.id && !recipient.patientId && !own)
-            recipient.patientId = patient.id;
-      }
-      for (const delivery of repositoryContext.autoCampaignDeliveries)
-        if (
-          delivery.clinicId === clinicId &&
-          delivery.leadId === lead.id &&
-          !delivery.patientId
-        )
-          delivery.patientId = patient.id;
-      lead.convertedPatientId = patient.id;
-      lead.stage = "won";
-      delete lead.lostReason;
-      lead.updatedAt = now();
-      repositoryContext.leadConvertedAt.set(lead.id, lead.updatedAt);
+      markLeadConverted(repositoryContext, clinicId, lead, patient);
       return { lead, patient, reusedExisting };
     },
 
@@ -569,4 +537,76 @@ export function createCommercialRepository(
     },
   };
   return repository;
+}
+
+/**
+ * Liga o lead ao cliente: os atendimentos do lead passam para o cliente e o lead vai para
+ * "ganho" (conversão e cadastro guiado vindo do lead, LC1).
+ */
+function markLeadConverted(
+  repositoryContext: MemoryRepositoryContext,
+  clinicId: string,
+  lead: Lead,
+  patient: Patient,
+) {
+  for (const appointment of repositoryContext.appointments) {
+    if (appointment.clinicId !== clinicId || appointment.leadId !== lead.id)
+      continue;
+    appointment.patientId = patient.id;
+    appointment.patientName = patient.fullName;
+    delete appointment.leadId;
+    delete appointment.leadName;
+    appointment.updatedAt = now();
+  }
+  // Campanhas que o lead recebeu passam ao cliente (a promoção vale ao agendar).
+  for (const campaign of repositoryContext.whatsappCampaigns) {
+    if (campaign.clinicId !== clinicId) continue;
+    const own = campaign.recipients.some(
+      (item) => item.patientId === patient.id,
+    );
+    for (const recipient of campaign.recipients)
+      if (recipient.leadId === lead.id && !recipient.patientId && !own)
+        recipient.patientId = patient.id;
+  }
+  for (const delivery of repositoryContext.autoCampaignDeliveries)
+    if (
+      delivery.clinicId === clinicId &&
+      delivery.leadId === lead.id &&
+      !delivery.patientId
+    )
+      delivery.patientId = patient.id;
+  lead.convertedPatientId = patient.id;
+  lead.stage = "won";
+  delete lead.lostReason;
+  lead.updatedAt = now();
+  repositoryContext.leadConvertedAt.set(lead.id, lead.updatedAt);
+}
+
+/** Lead ativo e ainda não convertido; senão, o erro da conversão pelo cadastro guiado. */
+export function convertibleLead(
+  repositoryContext: MemoryRepositoryContext,
+  clinicId: string,
+  leadId: string,
+): Lead {
+  const lead = repositoryContext.leads.find(
+    (item) =>
+      item.clinicId === clinicId &&
+      item.id === leadId &&
+      !repositoryContext.isTrashed("leads", item.id),
+  );
+  if (!lead) throw leadNotFoundError();
+  if (lead.convertedPatientId) throw leadAlreadyConvertedError();
+  return lead;
+}
+
+/** Conversão do lead pelo cadastro guiado: o cliente acabou de ser criado na mesma operação. */
+export function convertLeadToNewPatient(
+  repositoryContext: MemoryRepositoryContext,
+  clinicId: string,
+  leadId: string,
+  patient: Patient,
+): Lead {
+  const lead = convertibleLead(repositoryContext, clinicId, leadId);
+  markLeadConverted(repositoryContext, clinicId, lead, patient);
+  return lead;
 }
