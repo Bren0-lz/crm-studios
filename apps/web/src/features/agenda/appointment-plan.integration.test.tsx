@@ -22,6 +22,7 @@ async function scenario() {
       whatsapp: "11999994444",
       emergencyContactName: "Paula Plano",
       emergencyContactPhone: "11999994444",
+      emergencyContactWhatsapp: "11999994444",
     }),
   );
   const services = await api.repository.listServices(clinicId);

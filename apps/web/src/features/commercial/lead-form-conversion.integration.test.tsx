@@ -139,7 +139,7 @@ describe("lean lead form", () => {
     ).toBeDisabled();
     expect(
       within(convert).getByText(
-        "Falta: WhatsApp, Nome do contato de emergência, Telefone do contato de emergência.",
+        "Falta: WhatsApp, Nome do contato de emergência, Telefone do contato de emergência, WhatsApp do contato de emergência.",
       ),
     ).toBeVisible();
     fireEvent.change(within(contact).getByLabelText("WhatsApp"), {
@@ -150,6 +150,7 @@ describe("lean lead form", () => {
     });
     expect(within(emergency).getByLabelText("Nome")).toBeRequired();
     expect(within(emergency).getByLabelText("Telefone")).toBeRequired();
+    expect(within(emergency).getByLabelText("WhatsApp")).toBeRequired();
     fireEvent.click(
       within(emergency).getByRole("button", {
         name: "Usar os dados do cliente",
@@ -157,6 +158,9 @@ describe("lean lead form", () => {
     );
     expect(within(emergency).getByLabelText("Nome")).toHaveValue("Lead Enxuto");
     expect(within(emergency).getByLabelText("Telefone")).toHaveValue(
+      "(11) 97777-6666",
+    );
+    expect(within(emergency).getByLabelText("WhatsApp")).toHaveValue(
       "(11) 97777-6666",
     );
     fireEvent.change(within(emergency).getByLabelText("Nome"), {
@@ -177,6 +181,7 @@ describe("lean lead form", () => {
       whatsapp: "11977776666",
       emergencyContactName: "Joana Mãe",
       emergencyContactPhone: "11977776666",
+      emergencyContactWhatsapp: "11977776666",
       address: "Rua das Flores, 10",
     });
     await waitFor(() =>

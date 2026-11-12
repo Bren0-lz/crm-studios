@@ -70,6 +70,7 @@ for (const storage of ["memory", "mysql"] as const) {
             whatsapp: "11988887777",
             emergencyContactName: `${name} ${randomUUID()}`,
             emergencyContactPhone: "11988887777",
+            emergencyContactWhatsapp: "11988887777",
           }),
         );
       }
@@ -1448,6 +1449,7 @@ for (const storage of ["memory", "mysql"] as const) {
               whatsapp: "11988887777",
               emergencyContactName: "Alteração indevida",
               emergencyContactPhone: "11988887777",
+              emergencyContactWhatsapp: "11988887777",
             }),
           ),
         ).toBeNull();
@@ -1723,6 +1725,7 @@ for (const storage of ["memory", "mysql"] as const) {
             whatsapp: "11988887777",
             emergencyContactName: "Parity Birthday " + randomUUID(),
             emergencyContactPhone: "11988887777",
+            emergencyContactWhatsapp: "11988887777",
             birthDate: "1990-01-10",
           }),
         );
@@ -2019,6 +2022,7 @@ for (const storage of ["memory", "mysql"] as const) {
             whatsapp: "11988887777",
             emergencyContactName: name,
             emergencyContactPhone: "11988887777",
+            emergencyContactWhatsapp: "11988887777",
           },
           plan: {
             planTemplateId: randomUUID(),

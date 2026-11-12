@@ -118,6 +118,13 @@ describe("etiquetas automáticas 'Cadastro incompleto' e 'Sem e-mail' (CD3)", ()
 
   it("detecta o contato que falta, sem olhar a origem", () => {
     expect(lacksRequiredContact(complete)).toBe(false);
+    expect(
+      lacksRequiredContact({
+        ...complete,
+        emergencyContactPhone: null,
+        emergencyContactWhatsapp: "11988880000",
+      }),
+    ).toBe(false);
     expect(lacksRequiredContact({ ...complete, whatsapp: "" })).toBe(true);
     expect(lacksRequiredContact({ ...complete, emergencyContactName: " " })).toBe(true);
     expect(lacksRequiredContact({ ...complete, emergencyContactPhone: null })).toBe(true);

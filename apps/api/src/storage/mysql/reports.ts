@@ -47,6 +47,7 @@ import {
   localMonth,
   inJsonArray,
   localToday,
+  patientNotTrashed,
 } from "./sql.js";
 
 type PlanSaleRow = {
@@ -240,7 +241,7 @@ export function createReportsRepository(
          FROM patient_plans pp
          JOIN patients p ON p.id=pp.patient_id
          JOIN services s ON s.id=pp.service_id
-         WHERE pp.clinic_id=$1 AND JSON_CONTAINS($2, JSON_QUOTE(pp.patient_id)) AND pp.source_tab_id IS NULL AND ${branchClause("pp.branch_id", 3)}`,
+         WHERE pp.clinic_id=$1 AND p.deleted_at IS NULL AND JSON_CONTAINS($2, JSON_QUOTE(pp.patient_id)) AND pp.source_tab_id IS NULL AND ${branchClause("pp.branch_id", 3)}`,
         [clinicId, patientIds, branchIds],
       ),
       repositoryContext.pool.query<TabSaleRow>(
@@ -256,8 +257,8 @@ export function createReportsRepository(
          JOIN patient_tabs t ON t.id=i.tab_id
          JOIN patients p ON p.id=t.patient_id
          JOIN products pr ON pr.id=i.product_id
-         WHERE t.clinic_id=$1 AND JSON_CONTAINS($2, JSON_QUOTE(t.patient_id)) AND t.closed_at IS NOT NULL AND ${branchClause("t.branch_id", 3)}
-         UNION ALL SELECT i.id,t.id,t.patient_id,'service',p.full_name,i.service_name,'',1,i.amount_in_cents,NULL,t.closed_at,t.cancelled_at,t.receivable_id,(SELECT r.customer_discount_in_cents FROM receivables r WHERE r.clinic_id=t.clinic_id AND r.id=t.receivable_id),i.service_id,sv.name,sv.business_line FROM patient_tab_services i JOIN patient_tabs t ON t.id=i.tab_id AND t.clinic_id=i.clinic_id JOIN patients p ON p.id=t.patient_id AND p.clinic_id=t.clinic_id LEFT JOIN services sv ON sv.id=i.service_id AND sv.clinic_id=i.clinic_id WHERE t.clinic_id=$1 AND JSON_CONTAINS($2, JSON_QUOTE(t.patient_id)) AND t.closed_at IS NOT NULL AND ${branchClause("t.branch_id", 3)}`,
+         WHERE t.clinic_id=$1 AND p.deleted_at IS NULL AND JSON_CONTAINS($2, JSON_QUOTE(t.patient_id)) AND t.closed_at IS NOT NULL AND ${branchClause("t.branch_id", 3)}
+         UNION ALL SELECT i.id,t.id,t.patient_id,'service',p.full_name,i.service_name,'',1,i.amount_in_cents,NULL,t.closed_at,t.cancelled_at,t.receivable_id,(SELECT r.customer_discount_in_cents FROM receivables r WHERE r.clinic_id=t.clinic_id AND r.id=t.receivable_id),i.service_id,sv.name,sv.business_line FROM patient_tab_services i JOIN patient_tabs t ON t.id=i.tab_id AND t.clinic_id=i.clinic_id JOIN patients p ON p.id=t.patient_id AND p.clinic_id=t.clinic_id LEFT JOIN services sv ON sv.id=i.service_id AND sv.clinic_id=i.clinic_id WHERE t.clinic_id=$1 AND p.deleted_at IS NULL AND JSON_CONTAINS($2, JSON_QUOTE(t.patient_id)) AND t.closed_at IS NOT NULL AND ${branchClause("t.branch_id", 3)}`,
         [clinicId, patientIds, branchIds],
       ),
     ]);
@@ -300,7 +301,7 @@ export function createReportsRepository(
          FROM patient_plans pp
          JOIN patients p ON p.id=pp.patient_id
          JOIN services s ON s.id=pp.service_id
-         WHERE pp.clinic_id=$1 AND pp.source_tab_id IS NULL AND ${branchClause("pp.branch_id", 4)} AND (
+         WHERE pp.clinic_id=$1 AND p.deleted_at IS NULL AND pp.source_tab_id IS NULL AND ${branchClause("pp.branch_id", 4)} AND (
            ${localDate("pp.created_at")} BETWEEN $2 AND $3
            OR ${localDate("pp.cancelled_at")} BETWEEN $2 AND $3
          )`,
@@ -319,15 +320,15 @@ export function createReportsRepository(
          JOIN patient_tabs t ON t.id=i.tab_id
          JOIN patients p ON p.id=t.patient_id
          JOIN products pr ON pr.id=i.product_id
-         WHERE t.clinic_id=$1 AND t.closed_at IS NOT NULL AND ${branchClause("t.branch_id", 4)} AND (
+         WHERE t.clinic_id=$1 AND p.deleted_at IS NULL AND t.closed_at IS NOT NULL AND ${branchClause("t.branch_id", 4)} AND (
            ${localDate("t.closed_at")} BETWEEN $2 AND $3
            OR ${localDate("t.cancelled_at")} BETWEEN $2 AND $3
-         ) UNION ALL SELECT i.id,t.id,t.patient_id,'service',p.full_name,i.service_name,'',1,i.amount_in_cents,NULL,t.closed_at,t.cancelled_at,t.receivable_id,(SELECT r.customer_discount_in_cents FROM receivables r WHERE r.clinic_id=t.clinic_id AND r.id=t.receivable_id),i.service_id,sv.name,sv.business_line FROM patient_tab_services i JOIN patient_tabs t ON t.id=i.tab_id AND t.clinic_id=i.clinic_id JOIN patients p ON p.id=t.patient_id AND p.clinic_id=t.clinic_id LEFT JOIN services sv ON sv.id=i.service_id AND sv.clinic_id=i.clinic_id WHERE t.clinic_id=$1 AND t.closed_at IS NOT NULL AND ${branchClause("t.branch_id", 4)} AND (${localDate("t.closed_at")} BETWEEN $2 AND $3 OR ${localDate("t.cancelled_at")} BETWEEN $2 AND $3)`,
+         ) UNION ALL SELECT i.id,t.id,t.patient_id,'service',p.full_name,i.service_name,'',1,i.amount_in_cents,NULL,t.closed_at,t.cancelled_at,t.receivable_id,(SELECT r.customer_discount_in_cents FROM receivables r WHERE r.clinic_id=t.clinic_id AND r.id=t.receivable_id),i.service_id,sv.name,sv.business_line FROM patient_tab_services i JOIN patient_tabs t ON t.id=i.tab_id AND t.clinic_id=i.clinic_id JOIN patients p ON p.id=t.patient_id AND p.clinic_id=t.clinic_id LEFT JOIN services sv ON sv.id=i.service_id AND sv.clinic_id=i.clinic_id WHERE t.clinic_id=$1 AND p.deleted_at IS NULL AND t.closed_at IS NOT NULL AND ${branchClause("t.branch_id", 4)} AND (${localDate("t.closed_at")} BETWEEN $2 AND $3 OR ${localDate("t.cancelled_at")} BETWEEN $2 AND $3)`,
         [clinicId, bounds.previousFrom, bounds.currentTo, branchIds],
       );
       const appointmentResult = await client.query<AppointmentRow>(
         `SELECT ${appointmentColumns} FROM appointments a ${appointmentJoins}
-         WHERE a.clinic_id=$1 AND a.deleted_at IS NULL AND a.patient_id IS NOT NULL AND ${branchClause("a.branch_id", 5)} AND (
+         WHERE a.clinic_id=$1 AND a.deleted_at IS NULL AND a.patient_id IS NOT NULL AND p.deleted_at IS NULL AND ${branchClause("a.branch_id", 5)} AND (
            (a.status='completed' AND ${localDate("a.starts_at")} BETWEEN $2 AND $3)
            OR (a.status IN ('scheduled','confirmed') AND ${localDate("a.starts_at")} >= $4)
          )`,
@@ -462,6 +463,7 @@ export function createReportsRepository(
                 AND a.status = 'no_show' THEN 1 END) AS "noShowsThisMonth"
           FROM clinics c
           LEFT JOIN appointments a ON a.clinic_id = c.id AND ${branchClause("a.branch_id", 3)}
+            AND a.deleted_at IS NULL AND ${patientNotTrashed("a.patient_id")}
             AND ($4 IS NULL OR JSON_CONTAINS($4, JSON_QUOTE(a.professional_id)))
           WHERE c.id = $1
           GROUP BY c.id
@@ -469,7 +471,7 @@ export function createReportsRepository(
           [clinicId, date, branchIds, scope],
         ),
         repositoryContext.pool.query<{ count: number }>(
-          "SELECT count(*) AS count FROM patients WHERE clinic_id = $1 AND status = 'active'",
+          "SELECT count(*) AS count FROM patients WHERE clinic_id = $1 AND status = 'active' AND deleted_at IS NULL",
           [clinicId],
         ),
         repositoryContext.pool.query<AppointmentRow>(
@@ -563,7 +565,7 @@ export function createReportsRepository(
       patientId: string,
     ): Promise<SaleMovement[] | null> {
       const patient = await repositoryContext.pool.query(
-        "SELECT 1 FROM patients WHERE clinic_id=$1 AND id=$2",
+        "SELECT 1 FROM patients WHERE clinic_id=$1 AND id=$2 AND deleted_at IS NULL",
         [clinicId, patientId],
       );
       if (!patient.rowCount) return null;
@@ -697,7 +699,7 @@ export function createReportsRepository(
                       AND pp.created_at >= a.starts_at
                       AND pp.created_at <= a.starts_at + INTERVAL 30 DAY
                   ) THEN 1 ELSE 0 END), 0) AS SIGNED) AS "trialsConverted"
-         FROM appointments a WHERE a.clinic_id = $1 AND a.deleted_at IS NULL AND ${dateFilter}`,
+         FROM appointments a WHERE a.clinic_id = $1 AND a.deleted_at IS NULL AND ${patientNotTrashed("a.patient_id")} AND ${dateFilter}`,
           [clinicId, from, to, branchIds],
         ),
         repositoryContext.pool.query<BreakdownRow>(
@@ -706,7 +708,7 @@ export function createReportsRepository(
                 CAST(COUNT(CASE WHEN a.status = 'no_show' THEN 1 END) AS SIGNED) AS "noShows",
                 CAST(COUNT(CASE WHEN a.status = 'cancelled' THEN 1 END) AS SIGNED) AS cancelled
          FROM appointments a JOIN professionals pr ON pr.id = a.professional_id
-         WHERE a.clinic_id = $1 AND a.deleted_at IS NULL AND ${dateFilter}
+         WHERE a.clinic_id = $1 AND a.deleted_at IS NULL AND ${patientNotTrashed("a.patient_id")} AND ${dateFilter}
          GROUP BY pr.id, pr.full_name ORDER BY total DESC`,
           [clinicId, from, to, branchIds],
         ),
@@ -716,7 +718,7 @@ export function createReportsRepository(
                 CAST(COUNT(CASE WHEN a.status = 'no_show' THEN 1 END) AS SIGNED) AS "noShows",
                 CAST(COUNT(CASE WHEN a.status = 'cancelled' THEN 1 END) AS SIGNED) AS cancelled
          FROM appointments a JOIN services s ON s.id = a.service_id
-         WHERE a.clinic_id = $1 AND a.deleted_at IS NULL AND ${dateFilter}
+         WHERE a.clinic_id = $1 AND a.deleted_at IS NULL AND ${patientNotTrashed("a.patient_id")} AND ${dateFilter}
          GROUP BY s.id, s.name ORDER BY total DESC`,
           [clinicId, from, to, branchIds],
         ),
@@ -727,6 +729,7 @@ export function createReportsRepository(
           `SELECT COUNT(*) AS active,
                 CAST(COALESCE(SUM(GREATEST(remaining_sessions, 0)), 0) AS SIGNED) AS "availableSessions"
          FROM patient_plans WHERE clinic_id = $1 AND status = 'active'
+           AND deleted_at IS NULL AND ${patientNotTrashed("patient_id")}
            AND ${branchClause("branch_id", 2)}`,
           [clinicId, branchIds],
         ),
@@ -735,6 +738,7 @@ export function createReportsRepository(
          FROM session_movements sm
          WHERE sm.clinic_id = $1 AND sm.kind <> 'credit'
            AND EXISTS (SELECT 1 FROM patient_plans pb WHERE pb.id = sm.plan_id
+             AND ${patientNotTrashed("pb.patient_id")}
              AND ${branchClause("pb.branch_id", 4)})
            AND ${localDate("sm.created_at")}
                BETWEEN $2 AND $3`,
@@ -748,7 +752,7 @@ export function createReportsRepository(
            CAST(COALESCE(SUM(CASE WHEN status = 'open' THEN amount_in_cents END), 0) AS SIGNED) AS "openInCents",
            CAST(COALESCE(SUM(CASE WHEN status = 'open' AND due_date < ${localToday()}
              THEN amount_in_cents END), 0) AS SIGNED) AS "overdueInCents"
-         FROM receivables WHERE clinic_id = $1 AND ${branchClause("branch_id", 2)}`,
+         FROM receivables WHERE clinic_id = $1 AND ${patientNotTrashed("patient_id")} AND ${branchClause("branch_id", 2)}`,
           [clinicId, branchIds],
         ),
         repositoryContext.pool.query<{
@@ -798,7 +802,7 @@ export function createReportsRepository(
           commissionsInCents: number;
         }>(
           `SELECT s.id,s.name,
-             (SELECT count(*) FROM appointments a WHERE a.clinic_id=$1 AND a.deleted_at IS NULL AND a.service_id=s.id AND a.status='completed' AND ${branchClause("a.branch_id", 4)} AND ${localDate("a.starts_at")} BETWEEN $2 AND $3) AS "completedAppointments",
+             (SELECT count(*) FROM appointments a WHERE a.clinic_id=$1 AND a.deleted_at IS NULL AND ${patientNotTrashed("a.patient_id")} AND a.service_id=s.id AND a.status='completed' AND ${branchClause("a.branch_id", 4)} AND ${localDate("a.starts_at")} BETWEEN $2 AND $3) AS "completedAppointments",
              CAST(0 AS SIGNED) AS "revenueInCents",
              (SELECT CAST(coalesce(sum(c.amount_in_cents),0) AS SIGNED) FROM commission_entries c JOIN appointments a ON a.id=c.appointment_id WHERE c.clinic_id=$1 AND a.service_id=s.id AND ${branchClause("a.branch_id", 4)} AND c.status='paid' AND c.payroll_payable_id IS NULL AND ${localDate("c.paid_at")} BETWEEN $2 AND $3) AS "commissionsInCents"
            FROM services s WHERE s.clinic_id=$1
@@ -845,6 +849,7 @@ export function createReportsRepository(
         (SELECT JSON_ARRAYAGG(JSON_OBJECT('position', x.position, 'serviceId', x.service_id, 'totalValueInCents', x.total_value_in_cents))
          FROM patient_plan_services x WHERE x.plan_id = r.plan_id) AS services
        FROM receivables r WHERE r.clinic_id=$1 AND r.plan_id IS NOT NULL AND r.status='paid'
+         AND ${patientNotTrashed("r.patient_id")}
          AND ${branchClause("r.branch_id", 4)}
          AND ${localDate("r.paid_at")} BETWEEN $2 AND $3 GROUP BY r.plan_id`,
         [clinicId, from, to, branchIds],

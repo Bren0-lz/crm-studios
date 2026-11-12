@@ -513,7 +513,7 @@ export function createCommercialRepository(
           else {
             patientResult = await writeAndRead<PatientRow>(
               client,
-              `UPDATE patients SET profile=$3,cpf=$4,whatsapp=$5,birth_date=$6,emergency_contact_name=$7,emergency_contact_phone=$8,notes=$9,email=$10,tags=$11,extra_fields=JSON_MERGE_PATCH(extra_fields,$12),updated_at=NOW(6) WHERE clinic_id=$1 AND id=$2`,
+              `UPDATE patients SET profile=$3,cpf=$4,whatsapp=$5,birth_date=$6,emergency_contact_name=$7,emergency_contact_phone=$8,emergency_contact_whatsapp=$9,notes=$10,email=$11,tags=$12,extra_fields=JSON_MERGE_PATCH(extra_fields,$13),updated_at=NOW(6) WHERE clinic_id=$1 AND id=$2`,
               [
                 clinicId,
                 patient.id,
@@ -523,6 +523,7 @@ export function createCommercialRepository(
                 data.birthDate || null,
                 data.emergencyContactName || null,
                 data.emergencyContactPhone || null,
+                data.emergencyContactWhatsapp || null,
                 data.notes || null,
                 data.email || null,
                 data.tags,
@@ -542,6 +543,21 @@ export function createCommercialRepository(
         await client.query(
           `UPDATE appointments SET patient_id = $3, lead_id = NULL, updated_at = NOW(6)
          WHERE clinic_id = $1 AND lead_id = $2`,
+          [clinicId, leadId, patient.id],
+        );
+        // Campanhas que o lead recebeu passam ao cliente (a promoção vale ao agendar). Cliente
+        // reaproveitado que já estava na mesma campanha manual fica com a linha dele.
+        await client.query(
+          `UPDATE whatsapp_campaign_recipients r SET r.patient_id = $3
+           WHERE r.clinic_id = $1 AND r.lead_id = $2 AND r.patient_id IS NULL
+             AND NOT EXISTS (
+               SELECT 1 FROM (SELECT campaign_id, patient_id FROM whatsapp_campaign_recipients) o
+               WHERE o.campaign_id = r.campaign_id AND o.patient_id = $3)`,
+          [clinicId, leadId, patient.id],
+        );
+        await client.query(
+          `UPDATE auto_campaign_deliveries SET patient_id = $3
+           WHERE clinic_id = $1 AND lead_id = $2 AND patient_id IS NULL`,
           [clinicId, leadId, patient.id],
         );
         if (!original.convertedPatientId) {

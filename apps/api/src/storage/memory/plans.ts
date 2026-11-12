@@ -266,6 +266,9 @@ export function createPlansRepository(
           (plan) =>
             plan.clinicId === clinicId &&
             !repositoryContext.isTrashed("patient-plans", plan.id) &&
+            // Sem cliente informado (listas e relatórios), cliente na lixeira fica de fora.
+            (patientId !== undefined ||
+              !repositoryContext.isTrashed("patients", plan.patientId)) &&
             // Planos do cliente valem em todas as filiais (cadastro único).
             (patientId
               ? plan.patientId === patientId

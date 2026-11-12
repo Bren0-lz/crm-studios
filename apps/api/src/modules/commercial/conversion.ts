@@ -73,7 +73,8 @@ export function leadConversionData(
     !existing &&
     (!fields.whatsapp ||
       !fields.emergencyContactName ||
-      !fields.emergencyContactPhone)
+      !fields.emergencyContactPhone ||
+      !fields.emergencyContactWhatsapp)
   )
     throw new DomainError(
       "LEAD_CONTACT_REQUIRED",

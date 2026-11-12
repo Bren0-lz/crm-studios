@@ -20,6 +20,7 @@ describe("WhatsApp e contato de emergência obrigatórios no cadastro manual (CD
         whatsapp: "11955560001",
         emergencyContactName: "Cliente Contato Próprio",
         emergencyContactPhone: "11955560001",
+        emergencyContactWhatsapp: "11955560001",
         tags: [],
       };
       for (const [field, message] of [
@@ -28,6 +29,10 @@ describe("WhatsApp e contato de emergência obrigatórios no cadastro manual (CD
         [
           "emergencyContactPhone",
           "Informe o telefone do contato de emergência com DDD.",
+        ],
+        [
+          "emergencyContactWhatsapp",
+          "Informe o WhatsApp do contato de emergência com DDD.",
         ],
       ] as const) {
         for (const payload of [
@@ -71,6 +76,7 @@ describe("WhatsApp e contato de emergência obrigatórios no cadastro manual (CD
         whatsapp: "11955560001",
         emergencyContactName: "Cliente Contato Próprio",
         emergencyContactPhone: "11955560001",
+        emergencyContactWhatsapp: "11955560001",
       });
     } finally {
       await app.close();
@@ -125,6 +131,7 @@ describe("WhatsApp e contato de emergência obrigatórios no cadastro manual (CD
           whatsapp: "",
           emergencyContactName: "",
           emergencyContactPhone: "",
+          emergencyContactWhatsapp: "",
           notes: "Sem contato ainda",
         },
       });
@@ -147,6 +154,7 @@ describe("WhatsApp e contato de emergência obrigatórios no cadastro manual (CD
           whatsapp: "11955560011",
           emergencyContactName: "Rui Importado (irmão)",
           emergencyContactPhone: "11955560012",
+          emergencyContactWhatsapp: "11955560013",
         },
       });
       expect(filled.statusCode, filled.body).toBe(200);
@@ -158,6 +166,7 @@ describe("WhatsApp e contato de emergência obrigatórios no cadastro manual (CD
             whatsapp: "",
             emergencyContactName: "Rui Importado (irmão)",
             emergencyContactPhone: "11955560012",
+            emergencyContactWhatsapp: "11955560013",
           },
           "PATIENT_WHATSAPP_REQUIRED",
           "O WhatsApp já cadastrado não pode ser apagado.",
@@ -167,6 +176,7 @@ describe("WhatsApp e contato de emergência obrigatórios no cadastro manual (CD
             ...base,
             whatsapp: "11955560011",
             emergencyContactPhone: "11955560012",
+            emergencyContactWhatsapp: "11955560013",
           },
           "PATIENT_EMERGENCY_CONTACT_REQUIRED",
           "O contato de emergência já cadastrado não pode ser apagado.",
@@ -177,6 +187,18 @@ describe("WhatsApp e contato de emergência obrigatórios no cadastro manual (CD
             whatsapp: "11955560011",
             emergencyContactName: "Rui Importado (irmão)",
             emergencyContactPhone: "",
+            emergencyContactWhatsapp: "11955560013",
+          },
+          "PATIENT_EMERGENCY_CONTACT_REQUIRED",
+          "O contato de emergência já cadastrado não pode ser apagado.",
+        ],
+        [
+          {
+            ...base,
+            whatsapp: "11955560011",
+            emergencyContactName: "Rui Importado (irmão)",
+            emergencyContactPhone: "11955560012",
+            emergencyContactWhatsapp: "",
           },
           "PATIENT_EMERGENCY_CONTACT_REQUIRED",
           "O contato de emergência já cadastrado não pode ser apagado.",
@@ -196,6 +218,7 @@ describe("WhatsApp e contato de emergência obrigatórios no cadastro manual (CD
         whatsapp: "11955560011",
         emergencyContactName: "Rui Importado (irmão)",
         emergencyContactPhone: "11955560012",
+        emergencyContactWhatsapp: "11955560013",
       });
     } finally {
       await app.close();

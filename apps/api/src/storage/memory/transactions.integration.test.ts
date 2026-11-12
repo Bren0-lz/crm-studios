@@ -19,6 +19,7 @@ describe("memory transactions across clinics", () => {
         whatsapp: "11988887777",
         emergencyContactName: "Cadastro que será revertido",
         emergencyContactPhone: "11988887777",
+        emergencyContactWhatsapp: "11988887777",
       },
       plan: {
         planTemplateId: randomUUID(),

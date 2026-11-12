@@ -513,7 +513,8 @@ export function registerPatientsRoutes(context: RouteContext) {
         );
       if (
         (previous?.emergencyContactName && !input.emergencyContactName) ||
-        (previous?.emergencyContactPhone && !input.emergencyContactPhone)
+        (previous?.emergencyContactPhone && !input.emergencyContactPhone) ||
+        (previous?.emergencyContactWhatsapp && !input.emergencyContactWhatsapp)
       )
         throw new DomainError(
           "PATIENT_EMERGENCY_CONTACT_REQUIRED",

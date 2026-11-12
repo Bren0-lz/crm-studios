@@ -162,7 +162,7 @@ export function createPatientManagementRepository(
         );
         const result = await writeAndRead<PatientRow>(
           client,
-          `UPDATE patients SET full_name=$3,cpf=$4,email=$5,phone=$6,whatsapp=$7,birth_date=$8,emergency_contact_name=$9,emergency_contact_phone=$10,notes=$11,tags=$12,profile=$13,updated_at=NOW(6) WHERE clinic_id=$1 AND id=$2`,
+          `UPDATE patients SET full_name=$3,cpf=$4,email=$5,phone=$6,whatsapp=$7,birth_date=$8,emergency_contact_name=$9,emergency_contact_phone=$10,emergency_contact_whatsapp=$11,notes=$12,tags=$13,profile=$14,updated_at=NOW(6) WHERE clinic_id=$1 AND id=$2`,
           [
             clinicId,
             input.targetId,
@@ -174,6 +174,7 @@ export function createPatientManagementRepository(
             merged.birthDate || null,
             merged.emergencyContactName || null,
             merged.emergencyContactPhone || null,
+            merged.emergencyContactWhatsapp || null,
             merged.notes || null,
             merged.tags,
             JSON.stringify(patientProfile(merged)),

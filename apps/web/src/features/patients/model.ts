@@ -332,6 +332,7 @@ export const patientExportColumnNames: Record<PatientExportColumn, string> = {
   status: "Situação",
   emergencyContactName: "Contato de emergência",
   emergencyContactPhone: "Telefone de emergência",
+  emergencyContactWhatsapp: "WhatsApp de emergência",
   notes: "Observações",
   createdAt: "Cadastrado em",
   leadOrigin: "Origem: evento/lead",

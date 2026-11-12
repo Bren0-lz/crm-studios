@@ -44,6 +44,7 @@ for (const storage of ["memory", "mysql"] as const) {
             whatsapp: "11955554444",
             emergencyContactName: "Cliente do saldo",
             emergencyContactPhone: "11955554444",
+            emergencyContactWhatsapp: "11955554444",
           }),
         );
         const charge = (description: string) =>

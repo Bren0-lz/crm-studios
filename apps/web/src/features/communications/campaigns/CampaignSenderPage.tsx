@@ -304,6 +304,7 @@ export function CampaignSenderPage() {
                     <span>
                       <strong>{item.patientName}</strong>
                       <small>
+                        {item.leadId && !item.patientId ? "Lead · " : ""}
                         {formatPhone(item.phone)} ·{" "}
                         {campaignRecipientStatusLabels[item.status]}
                       </small>
@@ -344,7 +345,10 @@ export function CampaignSenderPage() {
                 <div>
                   <h2>{recipient.patientName}</h2>
                   <p className="panel-context">
-                    Cliente {currentIndex + 1} de {campaign.total}
+                    {recipient.leadId && !recipient.patientId
+                      ? "Lead"
+                      : "Cliente"}{" "}
+                    {currentIndex + 1} de {campaign.total}
                   </p>
                   <span className="sender-phone">
                     {formatPhone(recipient.phone)}

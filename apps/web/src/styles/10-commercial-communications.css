@@ -229,10 +229,89 @@
   white-space: nowrap;
 }
 
+/* Cartão clicável: abre os detalhes do lead (os ícones e o seletor têm ação própria). */
+.lead-card-clickable {
+  cursor: pointer;
+  transition: box-shadow 0.15s ease;
+}
+
+.lead-card-clickable:hover {
+  box-shadow: var(--shadow-sm);
+}
+
+.lead-card-open {
+  overflow: hidden;
+  max-width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.lead-card-open:hover {
+  text-decoration: underline;
+}
+
 .lead-card-head time {
   flex-shrink: 0;
   color: var(--muted);
   font-size: var(--text-xs);
+}
+
+/* Modal de detalhes do lead (cartão do funil). */
+.lead-details {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.lead-details-grid,
+.lead-details-lost dl {
+  display: grid;
+  grid-template-columns: repeat(
+    auto-fit,
+    minmax(calc(var(--space-8) * 2 + var(--space-3)), 1fr)
+  );
+  gap: var(--space-3);
+  margin: 0;
+}
+
+.lead-details dl > div {
+  min-width: 0;
+}
+
+.lead-details dt {
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+
+.lead-details dd {
+  margin: var(--space-1) 0 0;
+  font-size: var(--text-md);
+  overflow-wrap: anywhere;
+}
+
+.lead-details-notes {
+  white-space: pre-wrap;
+}
+
+.lead-details-wide {
+  grid-column: 1 / -1;
+}
+
+.lead-details-lost {
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid #eec5bf;
+  border-radius: var(--radius-md);
+  background: #fbe9e6;
+}
+
+.lead-details-lost dl > div:last-child {
+  grid-column: 1 / -1;
 }
 
 .lead-card-chips,

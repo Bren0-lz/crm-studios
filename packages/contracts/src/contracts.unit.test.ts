@@ -11,7 +11,10 @@ import {
   appointmentCreateInputSchema,
   appointmentPromotionSchema,
   whatsappCampaignInputSchema,
+  autoCampaignDeliveryInputSchema,
   autoCampaignInputSchema,
+  autoCampaignTargetsLeads,
+  autoCampaignTargetsPatients,
   recurringAppointmentCreateInputSchema,
   productInputSchema,
   productItemName,
@@ -458,6 +461,7 @@ describe("shared contracts", () => {
       whatsapp: "(11) 99999-9999",
       emergencyContactName: " Maria da Silva ",
       emergencyContactPhone: "(11) 99999-9999",
+      emergencyContactWhatsapp: "(11) 99999-9999",
       tags: ["Pilates"],
     });
 
@@ -471,6 +475,7 @@ describe("shared contracts", () => {
         whatsapp: "(11) 3333-4444",
         emergencyContactName: "Maria da Silva",
         emergencyContactPhone: "11999999999",
+        emergencyContactWhatsapp: "11999999999",
       }).whatsapp,
     ).toBe("1133334444");
     expect(() =>
@@ -481,6 +486,7 @@ describe("shared contracts", () => {
         whatsapp: "3333-4444",
         emergencyContactName: "Maria da Silva",
         emergencyContactPhone: "11999999999",
+        emergencyContactWhatsapp: "11999999999",
       }),
     ).toThrow();
     expect(result.tags).toEqual(["Pilates"]);
@@ -492,6 +498,7 @@ describe("shared contracts", () => {
         whatsapp: "11999999999",
         emergencyContactName: "Maria da Silva",
         emergencyContactPhone: "11999999999",
+        emergencyContactWhatsapp: "11999999999",
       }),
     ).toThrow();
     expect(
@@ -500,6 +507,7 @@ describe("shared contracts", () => {
         fullName: "Maria da Silva",
         phone: "11 3333 4444",
         emergencyContactPhone: "",
+        emergencyContactWhatsapp: "",
       }).emergencyContactPhone,
     ).toBe("");
   });
@@ -515,12 +523,14 @@ describe("shared contracts", () => {
       whatsapp: "11999999999",
       emergencyContactName: "Maria da Silva",
       emergencyContactPhone: "11999999999",
+      emergencyContactWhatsapp: "11999999999",
     };
     // O próprio nome e telefone do cliente valem como contato de emergência.
     expect(patientInputSchema.parse(complete)).toMatchObject({
       whatsapp: "11999999999",
       emergencyContactName: "Maria da Silva",
       emergencyContactPhone: "11999999999",
+      emergencyContactWhatsapp: "11999999999",
     });
     for (const [field, message] of [
       ["whatsapp", "Informe o WhatsApp com DDD."],
@@ -528,6 +538,10 @@ describe("shared contracts", () => {
       [
         "emergencyContactPhone",
         "Informe o telefone do contato de emergência com DDD.",
+      ],
+      [
+        "emergencyContactWhatsapp",
+        "Informe o WhatsApp do contato de emergência com DDD.",
       ],
     ] as const) {
       for (const value of [undefined, "", "  "]) {
@@ -550,6 +564,7 @@ describe("shared contracts", () => {
         whatsapp: "",
         emergencyContactName: "",
         emergencyContactPhone: "",
+        emergencyContactWhatsapp: "",
       }),
     ).toMatchObject({ whatsapp: "", emergencyContactName: "" });
   });
@@ -719,6 +734,7 @@ describe("shared contracts", () => {
         whatsapp: "11999999999",
         emergencyContactName: "Maria da Silva",
         emergencyContactPhone: "11999999999",
+        emergencyContactWhatsapp: "11999999999",
       }).cpf,
     ).toBe("52998224725");
     expect(() =>
@@ -1400,6 +1416,7 @@ describe("guided patient creation", () => {
     whatsapp: "11999990000",
     emergencyContactName: "Ana Souza",
     emergencyContactPhone: "11999990000",
+    emergencyContactWhatsapp: "11999990000",
   };
   const serviceId = "10000000-0000-4000-8000-000000000001";
   const terms = {
@@ -2182,7 +2199,76 @@ describe("campanhas de WhatsApp", () => {
     ).toBe(false);
     expect(
       whatsappCampaignAudienceSchema.parse({ mode: "segment" }),
-    ).toMatchObject({ segment: { tags: [], birthdayMonth: false } });
+    ).toMatchObject({
+      audience: "patients",
+      leadFilter: { stages: [], tags: [] },
+      segment: { tags: [], birthdayMonth: false },
+    });
+  });
+
+  it("aceita leads escolhidos ou por filtro no público", () => {
+    const leadId = "33333333-3333-4333-8333-333333333333";
+    expect(
+      whatsappCampaignAudienceSchema.parse({
+        mode: "patients",
+        leadIds: [leadId],
+      }),
+    ).toEqual({ mode: "patients", patientIds: [], leadIds: [leadId] });
+    expect(
+      whatsappCampaignAudienceSchema.parse({
+        mode: "segment",
+        audience: "leads",
+        leadFilter: { stages: ["proposal"], noContactDays: 30 },
+      }),
+    ).toMatchObject({
+      audience: "leads",
+      leadFilter: { stages: ["proposal"], noContactDays: 30, tagMode: "any" },
+    });
+    expect(
+      whatsappCampaignAudienceSchema.safeParse({
+        mode: "segment",
+        audience: "todos",
+      }).success,
+    ).toBe(false);
+  });
+
+  it("só o aniversário aceita incluir leads; eventos de lead alcançam só leads", () => {
+    const base = {
+      name: "Leads",
+      steps: [{ offset: 0, message: "Oi, {{nome}}" }],
+    };
+    expect(
+      autoCampaignInputSchema.parse({
+        ...base,
+        trigger: "birthday",
+        includeLeads: true,
+      }).includeLeads,
+    ).toBe(true);
+    expect(
+      autoCampaignInputSchema.safeParse({
+        ...base,
+        trigger: "plan_expiring",
+        includeLeads: true,
+      }).success,
+    ).toBe(false);
+    expect(
+      autoCampaignInputSchema.parse({ ...base, trigger: "lead_new" }),
+    ).toMatchObject({ includeLeads: false });
+    expect(
+      autoCampaignTargetsLeads({ trigger: "birthday", includeLeads: true }),
+    ).toBe(true);
+    expect(autoCampaignTargetsLeads({ trigger: "birthday" })).toBe(false);
+    expect(autoCampaignTargetsLeads({ trigger: "lead_no_contact" })).toBe(true);
+    expect(autoCampaignTargetsPatients("lead_no_contact")).toBe(false);
+    expect(autoCampaignTargetsPatients("birthday")).toBe(true);
+    expect(
+      autoCampaignDeliveryInputSchema.safeParse({
+        campaignId: "33333333-3333-4333-8333-333333333333",
+        stepId: "33333333-3333-4333-8333-333333333333",
+        occurrenceKey: "lead:x:new",
+        status: "sent",
+      }).success,
+    ).toBe(false);
   });
 });
 
