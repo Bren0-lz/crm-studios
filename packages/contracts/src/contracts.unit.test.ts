@@ -1292,6 +1292,9 @@ describe("relationship center contracts", () => {
     expect(whatsappLink("(55) 3333-4444", "Oi")).toBe(
       "https://wa.me/555533334444?text=Oi",
     );
+    expect(whatsappLink("(22) 98812-4636")).toBe(
+      "https://wa.me/5522988124636",
+    );
   });
 
   it("fills message templates", () => {

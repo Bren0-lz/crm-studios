@@ -546,18 +546,6 @@
   opacity: 0.85;
 }
 
-.lead-card .lead-send-button {
-  border-color: #ecd49a;
-  background: #fdf1d8;
-  color: #8a5d0c;
-}
-
-.lead-card .lead-send-button.sent {
-  border-color: var(--line);
-  background: white;
-  color: var(--green-2);
-}
-
 .lead-card-actions {
   display: flex;
   justify-content: flex-end;
@@ -579,6 +567,17 @@
   border-radius: var(--radius-sm);
   background: white;
   color: var(--green-2);
+}
+
+.lead-card .lead-icon-button.whatsapp-button {
+  border-color: var(--whatsapp);
+  background: var(--whatsapp);
+  color: white;
+}
+
+.lead-card .lead-icon-button.whatsapp-button:hover {
+  border-color: var(--whatsapp-hover);
+  background: var(--whatsapp-hover);
 }
 
 /* Mover etapa: ícone por cima de um select nativo invisível (a lista abre fora da coluna). */

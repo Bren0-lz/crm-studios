@@ -102,11 +102,14 @@ describe("lead message sent status", () => {
       .getByText("Bruna Pendente")
       .closest("article") as HTMLElement;
     expect(pendingCard).toHaveTextContent("Mensagem não enviada");
-    fireEvent.click(
-      within(pendingCard).getByRole("button", {
-        name: "Marcar mensagem enviada",
-      }),
-    );
+    const whatsapp = within(pendingCard).getByRole("link", {
+      name: "Enviar mensagem no WhatsApp",
+    });
+    expect(whatsapp).toHaveClass("whatsapp-button");
+    expect(whatsapp).toHaveAttribute("href", "https://wa.me/5511987654321");
+    expect(whatsapp).toHaveAttribute("target", "_blank");
+    expect(whatsapp.getAttribute("rel")).toMatch(/\bnoopener\b/);
+    fireEvent.click(whatsapp);
     await waitFor(() => expect(posts).toHaveLength(1));
     expect(posts[0]).toEqual({
       channel: "whatsapp",
