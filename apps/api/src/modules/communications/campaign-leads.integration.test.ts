@@ -78,6 +78,7 @@ async function setup() {
         whatsapp: "11977776666",
         emergencyContactName: "Joana Mãe",
         emergencyContactPhone: "11988887777",
+        emergencyContactWhatsapp: "11988887777",
       },
     });
   async function offers(patientId: string) {
