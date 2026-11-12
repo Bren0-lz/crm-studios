@@ -1,13 +1,18 @@
-import { type Lead, type LeadStage, formatPhone } from "@crm/contracts";
+import {
+  type Lead,
+  type LeadStage,
+  formatPhone,
+  whatsappLink,
+} from "@crm/contracts";
 import {
   ArrowRightLeft,
   CalendarDays,
   CheckCheck,
   Clock3,
   ListTodo,
+  MessageCircle,
   Pencil,
   Phone,
-  Send,
   UserCheck,
 } from "lucide-react";
 import type { MouseEvent } from "react";
@@ -24,7 +29,7 @@ export interface LeadCardPermissions {
   update: boolean;
   convert: boolean;
   schedule: boolean;
-  /** Registrar contato (botão "Marcar mensagem enviada"). */
+  /** Registrar contato pelo botão do WhatsApp no cartão. */
   contact?: boolean;
 }
 
@@ -203,19 +208,28 @@ export function LeadCard({
           </label>
         )}
         {permissions.manage && permissions.contact && onMessageSent && (
-          <button
-            className={`icon-button button-sm lead-icon-button lead-send-button${lead.lastMessageSentAt ? " sent" : ""}`}
-            aria-label="Marcar mensagem enviada"
+          <a
+            className={`whatsapp-button button-sm lead-icon-button lead-send-button${lead.lastMessageSentAt ? " sent" : ""}`}
+            href={whatsappLink(lead.whatsapp?.trim() || lead.phone)}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Enviar mensagem no WhatsApp"
             title={
               lead.lastMessageSentAt
-                ? "Registrar nova mensagem enviada agora"
-                : "Marcar mensagem enviada agora"
+                ? "Abrir WhatsApp e registrar nova mensagem enviada"
+                : "Abrir WhatsApp e registrar mensagem enviada"
             }
-            disabled={sendingMessage}
-            onClick={onMessageSent}
+            aria-disabled={sendingMessage || undefined}
+            onClick={(event) => {
+              if (sendingMessage) {
+                event.preventDefault();
+                return;
+              }
+              onMessageSent();
+            }}
           >
-            <Send size={13} />
-          </button>
+            <MessageCircle size={13} aria-hidden="true" />
+          </a>
         )}
         {permissions.manage &&
           open &&

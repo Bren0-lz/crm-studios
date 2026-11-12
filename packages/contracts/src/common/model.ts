@@ -275,11 +275,13 @@ export const birthdayMonthSchema = z
   .regex(/^\d{4}-(0[1-9]|1[0-2])$/, "Informe o mês no formato AAAA-MM.");
 
 /** Link wa.me com o DDI 55; não duplica o 55 se o número já vier com ele. */
-export function whatsappLink(phone: string, text: string): string {
+export function whatsappLink(phone: string, text?: string): string {
   const digits = phone.replace(/\D/g, "");
   const international =
     digits.startsWith("55") && (digits.length === 12 || digits.length === 13)
       ? digits
       : `55${digits}`;
-  return `https://wa.me/${international}?text=${encodeURIComponent(text)}`;
+  return text
+    ? `https://wa.me/${international}?text=${encodeURIComponent(text)}`
+    : `https://wa.me/${international}`;
 }
