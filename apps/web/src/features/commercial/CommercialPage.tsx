@@ -676,6 +676,11 @@ export function CommercialPage() {
             setEditingLead(viewingLead);
             setViewingLead(null);
           }}
+          onTrashed={(lead) => {
+            toast.success(`Lead ${lead.fullName} foi para a lixeira.`);
+            setViewingLead(null);
+            void loadBoard(filterRef.current);
+          }}
         />
       )}
       {editingLead && (
