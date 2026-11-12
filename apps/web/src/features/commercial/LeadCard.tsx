@@ -7,6 +7,7 @@ import {
   Phone,
   UserCheck,
 } from "lucide-react";
+import type { MouseEvent } from "react";
 import { initials, relativeTime } from "../../shared/lib/formatting";
 import { leadStages } from "../relationship/index";
 
@@ -44,6 +45,7 @@ export function LeadCard({
   onEdit,
   onConvert,
   onSchedule,
+  onOpen,
 }: {
   lead: Lead;
   permissions: LeadCardPermissions;
@@ -54,12 +56,25 @@ export function LeadCard({
   onEdit: () => void;
   onConvert: () => void;
   onSchedule: () => void;
+  /** Clique no cartão (fora dos ícones e do seletor): abre os detalhes do lead. */
+  onOpen: () => void;
 }) {
   const open = !["won", "lost"].includes(lead.stage);
   const alert = leadAlert(lead);
+  // Os ícones e o seletor de etapa têm ação própria: só o resto do cartão abre os detalhes.
+  const openFromCard = (event: MouseEvent<HTMLElement>) => {
+    if (
+      (event.target as HTMLElement).closest("button, select, label, a, input")
+    )
+      return;
+    onOpen();
+  };
   const taskLabel = `${lead.openTasks} tarefa(s)${lead.overdueTasks > 0 ? ` · ${lead.overdueTasks} atrasada(s)` : ""}`;
   return (
-    <article className={`lead-card${alert ? ` alert-${alert.tone}` : ""}`}>
+    <article
+      className={`lead-card lead-card-clickable${alert ? ` alert-${alert.tone}` : ""}`}
+      onClick={openFromCard}
+    >
       {alert && (
         <span
           className="lead-card-badge"
@@ -77,7 +92,16 @@ export function LeadCard({
         </span>
       )}
       <div className="lead-card-head">
-        <h3 title={lead.fullName}>{lead.fullName}</h3>
+        <h3 title={lead.fullName}>
+          <button
+            type="button"
+            className="lead-card-open"
+            aria-label={`Ver detalhes de ${lead.fullName}`}
+            onClick={onOpen}
+          >
+            {lead.fullName}
+          </button>
+        </h3>
         <time
           dateTime={lead.updatedAt}
           title={`Atualizado em ${new Date(lead.updatedAt).toLocaleString("pt-BR")}`}
