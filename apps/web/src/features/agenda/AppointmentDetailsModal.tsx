@@ -33,7 +33,7 @@ import {
 import { addDaysToIsoDate } from "../relationship/index";
 import { AppointmentEditModal } from "./AppointmentEditModal";
 import { SatisfactionSurveyModal } from "./SatisfactionSurveyModal";
-import { SendToTrashModal } from "../trash";
+import { SendToTrashModal, TrashIconButton } from "../trash";
 
 const cancellationReasons = [
   "Cliente desmarcou",
@@ -599,13 +599,11 @@ export function AppointmentDetailsModal({
                       </button>
                     )}
                     {canTrash && (
-                      <button
-                        className="danger-button"
+                      <TrashIconButton
+                        label="Excluir"
                         onClick={() => setTrashing(true)}
                         disabled={savingStatus}
-                      >
-                        Excluir
-                      </button>
+                      />
                     )}
                   </div>
                 )}

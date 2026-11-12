@@ -1492,3 +1492,25 @@ filtros ficam no `dashboard-studios` (EN11–EN13 têm só a parte da API aqui).
 - **Gate:** gate completo + `npm run test:mysql`
 - **Status:** DONE
 
+### LX2 — Financeiro do cliente na lixeira fora de Relatórios e Financeiro
+
+- **Pedido (10/11/2026):** o financeiro de um cliente na lixeira sai dos relatórios e também da
+  tela Financeiro (decisão do dono: os dois iguais); restaurar o cliente devolve tudo.
+- **Escopo:** filtro no repositório (memória e MySQL; helper `patientNotTrashed` em
+  `storage/mysql/sql.ts`, `withoutTrashedPatients` na memória): vendas e histórico de vendas,
+  gerencial (atendimentos, planos ativos, sessões, contas em aberto, receita por serviço),
+  dashboard, DRE, caixa/movimentos, contas a receber e totais do mês, comandas do estoque e
+  lista de planos sem cliente informado. Comissões e folha continuam como estão.
+- **Gate:** gate completo + `npm run test:mysql`
+- **Status:** DONE
+
+### LX3 — Botões da lixeira só com ícone e hover vermelho
+
+- **Pedido (11/11/2026):** botão da lixeira mais exposto (fora do menu "Mais"), só o ícone e
+  hover vermelho, para "Abrir lixeira" e "Excluir"; quem não tem a permissão não vê o botão.
+- **Escopo:** `TrashIconButton` (`features/trash`), CSS `.trash-icon-button` em
+  `19-trash.css`; Clientes com o ícone ao lado de "Mais"; "Excluir" vira ícone no detalhe do
+  cliente, no lead, no atendimento e no cartão do plano.
+- **Gate:** gate completo
+- **Status:** DONE
+

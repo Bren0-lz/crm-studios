@@ -1,5 +1,5 @@
 import { type Patient, patientFirstName } from "@crm/contracts";
-import { Pencil, Trash2 } from "lucide-react";
+import { Pencil } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { api } from "../../api";
@@ -11,7 +11,7 @@ import { LoadingBlock } from "../../shared/components/LoadingBlock";
 import { usePatientTags } from "../../shared/hooks/usePatientTags";
 import { PatientModal } from "./PatientModal";
 import { PatientRecordTabs } from "./PatientRecordTabs";
-import { SendToTrashModal } from "../trash";
+import { SendToTrashModal, TrashIconButton } from "../trash";
 
 export function PatientDetailPage() {
   const { id = "" } = useParams();
@@ -74,14 +74,11 @@ export function PatientDetailPage() {
         action={
           <div className="page-actions">
             {patient && can("trash.send") && (
-              <button
-                className="secondary-button"
+              <TrashIconButton
+                label="Excluir"
                 disabled={busy}
                 onClick={() => setTrashing(true)}
-              >
-                <Trash2 size={16} aria-hidden="true" />
-                Excluir
-              </button>
+              />
             )}
             {patient && can("patients.update") && (
               <>
