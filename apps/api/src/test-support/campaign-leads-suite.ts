@@ -101,6 +101,7 @@ export async function verifyCampaignLeadRepository(
     whatsapp: "11977776666",
     emergencyContactName: "Joana Mãe",
     emergencyContactPhone: "11988887777",
+    emergencyContactWhatsapp: "11988887777",
   });
   const patientId = conversion!.patient.id;
   const detail = await repository.getWhatsappCampaign(clinicId, manual.id);
