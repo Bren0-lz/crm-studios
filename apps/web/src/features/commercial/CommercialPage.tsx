@@ -14,7 +14,7 @@ import {
   inferLeadContactChannel,
   leadContactChannelLabels,
 } from "@crm/contracts";
-import { GripVertical, Pencil, Plus } from "lucide-react";
+import { FileDown, GripVertical, Pencil, Plus } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
@@ -38,6 +38,7 @@ import { LeadAnalysisModal } from "./LeadAnalysisModal";
 import { LeadConvertModal } from "./LeadConvertModal";
 import { LeadDetailsModal } from "./LeadDetailsModal";
 import { LeadFiltersModal } from "./LeadFiltersModal";
+import { LeadImportModal } from "./LeadImportModal";
 import { LeadLostModal } from "./LeadLostModal";
 import { LeadModal } from "./LeadModal";
 import { LeadStageModal } from "./LeadStageModal";
@@ -106,6 +107,7 @@ export function CommercialPage() {
   const [editingLead, setEditingLead] = useState<Lead | null>(null);
   const [viewingLead, setViewingLead] = useState<Lead | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const [activityLead, setActivityLead] = useState<Lead | null>(null);
   const [sendingLeadId, setSendingLeadId] = useState<string | null>(null);
   const [trialLead, setTrialLead] = useState<Lead | null>(null);
@@ -385,13 +387,22 @@ export function CommercialPage() {
                 </button>
               )}
               {canManage && can("crm.create") && (
-                <button
-                  className="primary-button"
-                  onClick={() => setModalOpen(true)}
-                >
-                  <Plus size={18} />
-                  Novo lead
-                </button>
+                <>
+                  <button
+                    className="secondary-button"
+                    onClick={() => setImportOpen(true)}
+                  >
+                    <FileDown size={18} aria-hidden="true" />
+                    Importar leads
+                  </button>
+                  <button
+                    className="primary-button"
+                    onClick={() => setModalOpen(true)}
+                  >
+                    <Plus size={18} />
+                    Novo lead
+                  </button>
+                </>
               )}
             </div>
           ) : undefined
@@ -671,6 +682,17 @@ export function CommercialPage() {
             replaceLead(lead);
             refreshOptions();
             setModalOpen(false);
+          }}
+        />
+      )}
+      {importOpen && canManage && can("crm.create") && (
+        <LeadImportModal
+          stages={stageConfig}
+          onClose={() => setImportOpen(false)}
+          onImported={(result) => {
+            toast.success(`${result.created} lead(s) importado(s).`);
+            refreshOptions();
+            void loadBoard(filterRef.current);
           }}
         />
       )}

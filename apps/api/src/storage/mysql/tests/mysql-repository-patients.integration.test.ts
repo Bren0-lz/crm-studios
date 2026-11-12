@@ -462,7 +462,7 @@ describe.skipIf(!databaseUrl)("MySQL repository", () => {
       }),
     ).resolves.toMatchObject({ patientId, appointmentId: trial!.id });
 
-    // Cliente reaproveitado pelo telefone.
+    // Cliente reaproveitado pelo CPF (LC1: na conversão, só o CPF reconhece o cliente).
     const existing = await repository.createPatient(clinicId, {
       cpf: nextTestCpf(),
       fullName: "Cliente Já Cadastrado",
@@ -489,7 +489,7 @@ describe.skipIf(!databaseUrl)("MySQL repository", () => {
       clinicId,
       ownerId,
       secondLead.id,
-      { cpf: secondLead.cpf ?? nextTestCpf() },
+      { cpf: existing.cpf! },
     );
     expect(reused).toMatchObject({
       reusedExisting: true,

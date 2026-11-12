@@ -47,6 +47,7 @@ import {
   stageNotEmptyError,
   stageNotFoundError,
 } from "../../modules/commercial/stages.js";
+import { assertLeadImportStage } from "../../modules/commercial/lead-import.js";
 import { DomainError } from "../../repository.js";
 import type { Pool, PoolClient } from "../../infrastructure/mysql-client.js";
 import type { MysqlRepositoryContext } from "./context.js";
@@ -146,6 +147,8 @@ export function createCommercialRepository(
     clinicId: string,
     input: LeadInput & { extraFields?: ExtraFields },
     db: Pool | PoolClient = repositoryContext.pool,
+    /** Etapa de entrada (importação, LI1); sem ela, a primeira aberta. */
+    entryStage?: string,
   ) {
     if (input.responsibleUserId) {
       const responsible = await db.query(
@@ -175,9 +178,11 @@ export function createCommercialRepository(
       : undefined;
     if (input.eventId && !event)
       throw new DomainError("EVENT_NOT_FOUND", "Evento não encontrado.", 404);
-    const stage = firstOpenLeadStage(
-      resolveLeadStages((await listStages(db, clinicId)).rows),
-    );
+    const stage =
+      entryStage ??
+      firstOpenLeadStage(
+        resolveLeadStages((await listStages(db, clinicId)).rows),
+      );
     const result = await writeAndRead<{ id: string }>(
       db,
       `INSERT INTO leads
@@ -309,6 +314,43 @@ export function createCommercialRepository(
             );
         }
         return countEventParticipantPlans(plans);
+      });
+    },
+
+    async listContactImportCandidates(clinicId: string) {
+      const [patients, leads] = await Promise.all([
+        repositoryContext.pool.query<ContactDuplicateCandidate>(
+          `SELECT id, full_name AS "fullName", phone, email, cpf FROM patients
+           WHERE clinic_id = $1 AND merged_into_patient_id IS NULL AND deleted_at IS NULL
+           ORDER BY full_name, id`,
+          [clinicId],
+        ),
+        repositoryContext.pool.query<ContactDuplicateCandidate>(
+          `SELECT id, full_name AS "fullName", phone, email,
+                  JSON_VALUE(profile, '$.cpf') AS cpf
+           FROM leads
+           WHERE clinic_id = $1 AND converted_patient_id IS NULL AND deleted_at IS NULL
+           ORDER BY full_name, id`,
+          [clinicId],
+        ),
+      ]);
+      return { patients: patients.rows, leads: leads.rows };
+    },
+
+    async importLeads(
+      clinicId: string,
+      stage: string,
+      inputs: (LeadInput & { extraFields?: ExtraFields })[],
+    ) {
+      return repositoryContext.inTransaction(async (client) => {
+        await client.lock(clinicId);
+        assertLeadImportStage(
+          resolveLeadStages((await listStages(client, clinicId)).rows),
+          stage,
+        );
+        for (const input of inputs)
+          await createLead(clinicId, input, client, stage);
+        return { created: inputs.length };
       });
     },
 
