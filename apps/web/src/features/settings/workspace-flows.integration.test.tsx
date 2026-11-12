@@ -301,7 +301,11 @@ describe("settings workflows through real HTTP handlers", () => {
       });
       fireEvent.click(edit[0]!);
       const dialog = screen.getByRole("dialog", { name: "Editar cadastro" });
-      change("Nome", "Cadastro revisado", dialog);
+      change(
+        kind === "room" ? "Nome da sala" : "Nome",
+        "Cadastro revisado",
+        dialog,
+      );
       await save("Editar cadastro", "Salvar cadastro");
       const registry = await repository.getAdministrativeRegistry(clinicId);
       const entries = kind === "service" ? registry.services : registry.rooms;

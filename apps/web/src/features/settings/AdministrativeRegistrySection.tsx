@@ -202,7 +202,7 @@ function RegistryEditor({
           {error && <ErrorBanner error={error} />}
           <fieldset className="form-fields form-grid" disabled={busy}>
             <label>
-              Nome
+              {form.kind === "room" ? "Nome da sala" : "Nome"}
               <input
                 required
                 minLength={2}
@@ -213,7 +213,7 @@ function RegistryEditor({
             </label>
             {form.kind === "room" && (
               <label>
-                Capacidade
+                Capacidade de atendimento simultâneo
                 <input
                   required
                   type="number"
