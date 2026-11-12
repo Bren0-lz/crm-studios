@@ -18,22 +18,9 @@ import { Modal } from "../../shared/components/Modal";
 import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
 import {
   shortDateTime,
-  timeLabel,
   toLocalDateTimeInput,
 } from "../../shared/lib/formatting";
-
-const directionLabels: Record<LeadContact["direction"], string> = {
-  outbound: "Mensagem enviada",
-  inbound: "Recebido do lead",
-  internal: "Registro interno",
-};
-
-const contactDay = new Intl.DateTimeFormat("pt-BR", {
-  weekday: "short",
-  day: "2-digit",
-  month: "short",
-  year: "numeric",
-});
+import { LeadContactTimeline } from "./LeadContactTimeline";
 
 /** Resumo do topo: a última mensagem enviada (data e hora) e o total de contatos. */
 function LeadMessageSummary({
@@ -94,7 +81,7 @@ export function LeadActivityModal({
 }: {
   lead: Lead;
   onClose: () => void;
-  onChanged: () => void;
+  onChanged: (contact?: LeadContact) => void;
   /** Sem edição do CRM: só o histórico (sem registrar tarefa/contato nem concluir tarefa). */
   editable: boolean;
 }) {
@@ -155,10 +142,9 @@ export function LeadActivityModal({
     task: [task.title, task.notes],
   });
   const taskMissing = useMissingFields(
-    [
-      !task.title.trim() && "Tarefa",
-      !task.dueAt && "Vencimento",
-    ].filter((item): item is string => Boolean(item)),
+    [!task.title.trim() && "Tarefa", !task.dueAt && "Vencimento"].filter(
+      (item): item is string => Boolean(item),
+    ),
   );
   const contactMissing = useMissingFields(
     contact.notes.trim() ? [] : ["Registro do contato"],
@@ -209,7 +195,7 @@ export function LeadActivityModal({
         ? `Mensagem registrada em ${shortDateTime(created.occurredAt)}.`
         : "Contato registrado.",
     );
-    onChanged();
+    onChanged(created);
   }
 
   /** Um clique: grava "Mensagem enviada" com a data e a hora de agora. */
@@ -480,53 +466,7 @@ export function LeadActivityModal({
               </div>
             </form>
           )}
-          {activity.contacts.length === 0 ? (
-            <p className="contact-timeline-empty">
-              Nenhum contato registrado ainda.
-            </p>
-          ) : (
-            <ol className="contact-timeline" aria-label="Histórico de contatos">
-              {activity.contacts.map((item) => {
-                const at = new Date(item.occurredAt);
-                return (
-                  <li
-                    key={item.id}
-                    className={`contact-timeline-item ${item.direction}${item.reached === false ? " unreached" : ""}`}
-                  >
-                    <time
-                      className="contact-timeline-when"
-                      dateTime={item.occurredAt}
-                      title={at.toLocaleString("pt-BR")}
-                    >
-                      <strong>{timeLabel.format(at)}</strong>
-                      <span>{contactDay.format(at)}</span>
-                    </time>
-                    <span className="contact-timeline-dot" aria-hidden="true" />
-                    <div className="contact-timeline-body">
-                      <div className="contact-timeline-tags">
-                        <span className="contact-direction">
-                          {directionLabels[item.direction]}
-                        </span>
-                        <span className="contact-channel">
-                          {item.contactMethod ||
-                            leadContactChannelLabels[item.channel]}
-                        </span>
-                        {item.reached === false && (
-                          <span className="contact-unreached">
-                            Sem resposta
-                          </span>
-                        )}
-                      </div>
-                      <p>{item.notes}</p>
-                      <span className="contact-timeline-actor">
-                        por {item.actorName}
-                      </span>
-                    </div>
-                  </li>
-                );
-              })}
-            </ol>
-          )}
+          <LeadContactTimeline contacts={activity.contacts} />
         </div>
       )}
     </Modal>

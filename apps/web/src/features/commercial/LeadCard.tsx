@@ -1,5 +1,6 @@
 import {
   type Lead,
+  type LeadContact,
   type LeadStage,
   formatPhone,
   whatsappLink,
@@ -15,13 +16,23 @@ import {
   Phone,
   UserCheck,
 } from "lucide-react";
-import type { MouseEvent } from "react";
+import {
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type MouseEvent,
+} from "react";
+import { api } from "../../api";
 import {
   initials,
   relativeTime,
   shortDateTime,
 } from "../../shared/lib/formatting";
 import { leadStages } from "../relationship/index";
+import { LeadContactTimeline } from "./LeadContactTimeline";
+import { mergeLeadContacts } from "./lead-contact-history";
 
 export interface LeadCardPermissions {
   manage: boolean;
@@ -33,36 +44,172 @@ export interface LeadCardPermissions {
   contact?: boolean;
 }
 
-/** Faixa "Mensagem enviada · 10 de nov. às 14:32" / "Mensagem não enviada" do cartão. */
-function LeadMessageStatus({ lead }: { lead: Lead }) {
+/**
+ * Faixa "Mensagem enviada · 10 de nov. às 14:32" / "Mensagem não enviada" do cartão.
+ * Ao passar o mouse (ou focar), abre um painel flutuante com todo o histórico de contatos.
+ */
+function LeadMessageStatus({
+  lead,
+  contacts,
+}: {
+  lead: Lead;
+  contacts?: LeadContact[] | undefined;
+}) {
+  const tooltipId = useId();
+  const triggerRef = useRef<HTMLDivElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
+  const [open, setOpen] = useState(false);
+  const [fetched, setFetched] = useState<LeadContact[] | null>(null);
   const sentAt = lead.lastMessageSentAt;
   const count = lead.contactCount ?? 0;
+  const loading = open && fetched === null;
+
+  useEffect(() => {
+    if (!open) return;
+    let active = true;
+    api
+      .leadActivity(lead.id)
+      .then((data) => {
+        if (active) {
+          setFetched(Array.isArray(data?.contacts) ? data.contacts : []);
+        }
+      })
+      .catch(() => {
+        if (active) setFetched([]);
+      });
+    return () => {
+      active = false;
+    };
+  }, [
+    open,
+    lead.id,
+    lead.contactCount,
+    lead.lastMessageSentAt,
+    lead.lastContactAt,
+  ]);
+
+  const history = mergeLeadContacts(lead, fetched, contacts);
+  const totalCount = Math.max(count, history.length);
+
+  useLayoutEffect(() => {
+    const trigger = triggerRef.current;
+    const popover = popoverRef.current;
+    if (!open || !trigger || !popover) return;
+    function positionPopover() {
+      if (!trigger || !popover) return;
+      const viewportWidth =
+        document.documentElement.clientWidth || window.innerWidth || 1024;
+      const viewportHeight = window.innerHeight || 768;
+      const margin = 12;
+      const gap = 6;
+      const anchor = trigger.getBoundingClientRect();
+      const width = Math.min(340, Math.max(240, viewportWidth - margin * 2));
+      popover.style.width = `${width}px`;
+      const desiredHeight = popover.getBoundingClientRect().height || 220;
+      const below = viewportHeight - anchor.bottom - margin - gap;
+      const above = anchor.top - margin - gap;
+      const placeAbove = desiredHeight > below && above > below;
+      const top = placeAbove
+        ? Math.max(margin, anchor.top - gap - desiredHeight)
+        : Math.min(
+            viewportHeight - margin - desiredHeight,
+            anchor.bottom + gap,
+          );
+      const left = Math.max(
+        margin,
+        Math.min(anchor.left, viewportWidth - margin - width),
+      );
+      popover.style.top = `${Math.max(margin, top)}px`;
+      popover.style.left = `${left}px`;
+    }
+    positionPopover();
+    window.addEventListener("scroll", positionPopover, true);
+    window.addEventListener("resize", positionPopover);
+    return () => {
+      window.removeEventListener("scroll", positionPopover, true);
+      window.removeEventListener("resize", positionPopover);
+    };
+  }, [open, history.length, loading]);
+
   return (
     <div
-      className={`lead-message-status ${sentAt ? "sent" : "pending"}`}
-      title={
-        sentAt
-          ? `Última mensagem enviada em ${new Date(sentAt).toLocaleString("pt-BR")}`
-          : "Nenhuma mensagem enviada para este lead"
-      }
+      className="lead-message-status-wrap"
+      onMouseEnter={() => setOpen(true)}
+      onMouseLeave={() => setOpen(false)}
     >
-      {sentAt ? (
-        <CheckCheck size={13} aria-hidden="true" />
-      ) : (
-        <Clock3 size={13} aria-hidden="true" />
-      )}
-      {sentAt ? (
-        <span>
-          Mensagem enviada ·{" "}
-          <time dateTime={sentAt}>{shortDateTime(sentAt)}</time>
-        </span>
-      ) : (
-        <span>Mensagem não enviada</span>
-      )}
-      {count > 0 && (
-        <span className="lead-message-count">
-          {count === 1 ? "1 contato" : `${count} contatos`}
-        </span>
+      <div
+        ref={triggerRef}
+        tabIndex={0}
+        className={`lead-message-status ${sentAt ? "sent" : "pending"}`}
+        aria-describedby={open ? tooltipId : undefined}
+        onFocus={() => setOpen(true)}
+        onBlur={(event) => {
+          if (
+            !event.currentTarget.parentElement?.contains(
+              event.relatedTarget as Node | null,
+            )
+          ) {
+            setOpen(false);
+          }
+        }}
+      >
+        {sentAt ? (
+          <CheckCheck size={13} aria-hidden="true" />
+        ) : (
+          <Clock3 size={13} aria-hidden="true" />
+        )}
+        {sentAt ? (
+          <span>
+            Mensagem enviada ·{" "}
+            <time dateTime={sentAt}>{shortDateTime(sentAt)}</time>
+          </span>
+        ) : (
+          <span>Mensagem não enviada</span>
+        )}
+        {count > 0 && (
+          <span className="lead-message-count">
+            {count === 1 ? "1 contato" : `${count} contatos`}
+          </span>
+        )}
+      </div>
+      {open && (
+        <div
+          id={tooltipId}
+          ref={popoverRef}
+          role="tooltip"
+          aria-label="Histórico de contatos"
+          className="lead-contact-hover-card"
+        >
+          <header className="lead-contact-hover-head">
+            <span
+              className={`lead-contact-hover-icon ${sentAt ? "sent" : "pending"}`}
+              aria-hidden="true"
+            >
+              {sentAt ? <CheckCheck size={15} /> : <Clock3 size={15} />}
+            </span>
+            <div>
+              <strong>Histórico de contatos</strong>
+              <span>
+                {sentAt
+                  ? `Último envio em ${shortDateTime(sentAt)}`
+                  : "Nenhuma mensagem enviada para este lead"}
+              </span>
+            </div>
+            {totalCount > 0 && (
+              <span className="lead-contact-hover-badge">
+                {totalCount === 1 ? "1 contato" : `${totalCount} contatos`}
+              </span>
+            )}
+          </header>
+          {loading && history.length === 0 ? (
+            <p className="contact-timeline-empty">Carregando histórico...</p>
+          ) : (
+            <LeadContactTimeline
+              contacts={history}
+              className="lead-contact-hover-list"
+            />
+          )}
+        </div>
       )}
     </div>
   );
@@ -87,6 +234,7 @@ function leadAlert(lead: Lead) {
 /** Cartão denso do funil: nome e tempo, origem/interesse, contato e ações em ícones. */
 export function LeadCard({
   lead,
+  contacts,
   permissions,
   stages = leadStages,
   onMove,
@@ -99,6 +247,7 @@ export function LeadCard({
   onOpen,
 }: {
   lead: Lead;
+  contacts?: LeadContact[] | undefined;
   permissions: LeadCardPermissions;
   /** Etapas com os nomes da clínica (seletor "Mover etapa"). */
   stages?: ReadonlyArray<{ value: LeadStage; label: string }>;
@@ -115,10 +264,12 @@ export function LeadCard({
 }) {
   const open = !["won", "lost"].includes(lead.stage);
   const alert = leadAlert(lead);
-  // Os ícones e o seletor de etapa têm ação própria: só o resto do cartão abre os detalhes.
+  // Os ícones, o seletor de etapa e o painel flutuante têm ação própria: só o resto do cartão abre os detalhes.
   const openFromCard = (event: MouseEvent<HTMLElement>) => {
     if (
-      (event.target as HTMLElement).closest("button, select, label, a, input")
+      (event.target as HTMLElement).closest(
+        "button, select, label, a, input, .lead-contact-hover-card",
+      )
     )
       return;
     onOpen();
@@ -183,7 +334,7 @@ export function LeadCard({
           </span>
         )}
       </div>
-      <LeadMessageStatus lead={lead} />
+      <LeadMessageStatus lead={lead} contacts={contacts} />
       <div className="lead-card-actions">
         {permissions.manage && open && (
           <label

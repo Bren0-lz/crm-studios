@@ -2,6 +2,7 @@ import { withPrefix } from "@crm/contracts";
 import { CommercialToolbar } from "./CommercialToolbar";
 import {
   type Lead,
+  type LeadContact,
   type LeadFilter,
   type LeadFilterOptions,
   type LeadInsights,
@@ -110,6 +111,9 @@ export function CommercialPage() {
   const [importOpen, setImportOpen] = useState(false);
   const [activityLead, setActivityLead] = useState<Lead | null>(null);
   const [sendingLeadId, setSendingLeadId] = useState<string | null>(null);
+  const [leadContacts, setLeadContacts] = useState<
+    Record<string, LeadContact[]>
+  >({});
   const [trialLead, setTrialLead] = useState<Lead | null>(null);
   const [notice, setNotice] = useState("");
   const [losingLead, setLosingLead] = useState<Lead | null>(null);
@@ -217,7 +221,20 @@ export function CommercialPage() {
 
   function replaceLead(lead: Lead) {
     setColumns((current) => placeLead(current, lead));
+    setViewingLead((current) => (current?.id === lead.id ? lead : current));
     refreshInsights();
+  }
+  function rememberContact(leadId: string, contact: LeadContact) {
+    setLeadContacts((current) => {
+      const existing = current[leadId] ?? [];
+      return {
+        ...current,
+        [leadId]: [
+          contact,
+          ...existing.filter((item) => item.id !== contact.id),
+        ].sort((a, b) => b.occurredAt.localeCompare(a.occurredAt)),
+      };
+    });
   }
   async function loadMore(stage: LeadStage) {
     const column = columns[stage];
@@ -314,7 +331,8 @@ export function CommercialPage() {
   }
   /** Botão do cartão: grava o envio da mensagem com a data e a hora de agora. */
   async function markMessageSent(lead: Lead) {
-    const method = lead.contactMethod?.trim() || leadContactChannelLabels.whatsapp;
+    const method =
+      lead.contactMethod?.trim() || leadContactChannelLabels.whatsapp;
     setSendingLeadId(lead.id);
     try {
       const contact = await api.createLeadContact(lead.id, {
@@ -323,6 +341,7 @@ export function CommercialPage() {
         direction: "outbound",
         notes: "Mensagem enviada.",
       });
+      rememberContact(lead.id, contact);
       toast.success(
         `Mensagem para ${lead.fullName} registrada em ${shortDateTime(contact.occurredAt)}.`,
       );
@@ -585,6 +604,7 @@ export function CommercialPage() {
                           <LeadCard
                             key={lead.id}
                             lead={lead}
+                            contacts={leadContacts[lead.id]}
                             permissions={permissions}
                             stages={stages}
                             onMove={(next) => void move(lead, next)}
@@ -648,6 +668,7 @@ export function CommercialPage() {
       {viewingLead && (
         <LeadDetailsModal
           lead={viewingLead}
+          contacts={leadContacts[viewingLead.id]}
           stageLabel={stageLabel(viewingLead.stage)}
           canEdit={permissions.update}
           onClose={() => setViewingLead(null)}
@@ -743,7 +764,10 @@ export function CommercialPage() {
           lead={activityLead}
           editable={canManage}
           onClose={() => setActivityLead(null)}
-          onChanged={() => void loadBoard(filterRef.current)}
+          onChanged={(contact) => {
+            if (contact) rememberContact(activityLead.id, contact);
+            void loadBoard(filterRef.current);
+          }}
         />
       )}
     </>

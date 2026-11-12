@@ -248,4 +248,120 @@ describe("lead message sent status", () => {
     });
     expect(posts[1]).not.toHaveProperty("occurredAt");
   });
+
+  it("shows full contact history with date and time on status hover and inside the card details modal", async () => {
+    login();
+    const lead = {
+      ...baseLead,
+      id: "77777777-7777-4777-8777-777777777777",
+      fullName: "Elena Funil",
+      lastMessageSentAt: "2026-11-10T14:20:00.000Z",
+      lastContactAt: "2026-11-10T14:20:00.000Z",
+      contactCount: 1,
+    };
+    const initialContacts = [
+      {
+        id: "c-prev",
+        leadId: lead.id,
+        channel: "whatsapp",
+        contactMethod: "WhatsApp",
+        direction: "outbound",
+        notes: "Primeiro contato enviado.",
+        actorName: "Aryana Dutra",
+        occurredAt: "2026-11-10T14:20:00.000Z",
+        createdAt: "2026-11-10T14:20:00.000Z",
+      },
+    ];
+    const newOccurredAt = "2026-11-11T16:45:00.000Z";
+    vi.mocked(fetch).mockImplementation(async (input, init) => {
+      const url = String(input);
+      if (init?.method === "POST" && url.endsWith("/contacts")) {
+        const body = JSON.parse(String(init.body));
+        return {
+          ok: true,
+          status: 201,
+          json: async () => ({
+            ...body,
+            id: "c-second",
+            leadId: lead.id,
+            actorName: "Aryana Dutra",
+            occurredAt: newOccurredAt,
+            createdAt: newOccurredAt,
+          }),
+        } as Response;
+      }
+      const body = url.endsWith("/activity")
+        ? { contacts: initialContacts, tasks: [] }
+        : isLeadBoardUrl(url)
+          ? leadBoardResponse(url, [lead])
+          : [];
+      return { ok: true, status: 200, json: async () => body } as Response;
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/comercial"]}>
+        <App />
+      </MemoryRouter>,
+    );
+
+    const card = (await screen.findByText("Elena Funil")).closest(
+      "article",
+    ) as HTMLElement;
+    const whatsapp = within(card).getByRole("link", {
+      name: "Enviar mensagem no WhatsApp",
+    });
+    fireEvent.click(whatsapp);
+
+    const updatedCard = (await screen.findByText("Elena Funil")).closest(
+      "article",
+    ) as HTMLElement;
+    await waitFor(() =>
+      expect(updatedCard).toHaveTextContent(
+        `Mensagem enviada · ${shortDateTime(newOccurredAt)}`,
+      ),
+    );
+
+    // Ao passar o mouse em cima do status da mensagem, abre o modal com todo o histórico.
+    const statusText = updatedCard.querySelector(
+      ".lead-message-status",
+    ) as HTMLElement;
+    fireEvent.mouseEnter(statusText);
+
+    const hoverTooltip = await within(updatedCard).findByRole("tooltip", {
+      name: "Histórico de contatos",
+    });
+    expect(hoverTooltip).toHaveTextContent("2 contatos");
+    const hoverItems = within(hoverTooltip).getAllByRole("listitem");
+    expect(hoverItems).toHaveLength(2);
+    expect(hoverItems[0]).toHaveTextContent(shortDateTime(newOccurredAt));
+    expect(hoverItems[0]).toHaveTextContent("Mensagem enviada.");
+    expect(hoverItems[1]).toHaveTextContent(
+      shortDateTime("2026-11-10T14:20:00.000Z"),
+    );
+    expect(hoverItems[1]).toHaveTextContent("Primeiro contato enviado.");
+
+    fireEvent.mouseLeave(
+      updatedCard.querySelector(".lead-message-status-wrap") as HTMLElement,
+    );
+
+    // Ao clicar no card, o histórico completo aparece dentro do modal de detalhes.
+    fireEvent.click(
+      within(updatedCard).getByRole("button", {
+        name: "Ver detalhes de Elena Funil",
+      }),
+    );
+    const detailsDialog = (await screen.findByText(/^Etapa:/)).closest(
+      '[role="dialog"]',
+    ) as HTMLElement;
+    const historyRegion = await within(detailsDialog).findByRole("region", {
+      name: "Histórico de contatos",
+    });
+    expect(historyRegion).toHaveTextContent("2 contatos");
+    const modalItems = within(historyRegion).getAllByRole("listitem");
+    expect(modalItems).toHaveLength(2);
+    expect(modalItems[0]).toHaveTextContent(shortDateTime(newOccurredAt));
+    expect(modalItems[1]).toHaveTextContent(
+      shortDateTime("2026-11-10T14:20:00.000Z"),
+    );
+  });
 });
