@@ -6,6 +6,7 @@ import {
   type LeadFilterOptions,
   type LeadInsights,
   type LeadStage,
+  leadStageColor,
   type LeadStageConfig,
   type LeadStagesInput,
   resolveLeadStages,
@@ -25,6 +26,7 @@ import {
   timeLabel,
   visitTypeLabels,
 } from "../../shared/lib/formatting";
+import { stageColorStyle } from "../../tag-colors";
 import { leadStages } from "../relationship/index";
 import { LeadActivityModal } from "./LeadActivityModal";
 import { LeadAppointmentModal } from "./LeadAppointmentModal";
@@ -121,6 +123,7 @@ export function CommercialPage() {
   const stages = stageConfig.map((item) => ({
     value: item.stage,
     label: item.label,
+    color: leadStageColor(item),
     hint:
       leadStages.find((stage) => stage.value === item.stage)?.hint ??
       "Mova para cá os leads que estão nesta etapa.",
@@ -273,7 +276,11 @@ export function CommercialPage() {
     try {
       setStageConfig(
         await api.saveLeadStages(
-          next.map(({ stage, label }) => ({ stage, label })),
+          next.map(({ stage, label, color }) => ({
+            stage,
+            label,
+            ...(color ? { color } : {}),
+          })),
         ),
       );
     } catch (cause) {
@@ -443,6 +450,7 @@ export function CommercialPage() {
                       key={stage.value}
                       data-stage={stage.value}
                       aria-label={stage.label}
+                      style={stageColorStyle(stage.color)}
                       onDragOver={(event) => {
                         if (!draggingStage || draggingStage === stage.value)
                           return;

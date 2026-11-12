@@ -18,7 +18,12 @@ afterEach(async () => {
   await Promise.all(apps.splice(0).map((app) => app.close()));
 });
 
-type StageInput = { stage?: string; label: string; final?: boolean };
+type StageInput = {
+  stage?: string;
+  label: string;
+  color?: string;
+  final?: boolean;
+};
 
 async function setup() {
   const repository = new MemoryClinicRepository(),
@@ -76,7 +81,11 @@ async function setup() {
 }
 
 const editable = (stages: LeadStageConfig[]): StageInput[] =>
-  stages.map(({ stage, label }) => ({ stage, label }));
+  stages.map(({ stage, label, color }) => ({
+    stage,
+    label,
+    ...(color ? { color } : {}),
+  }));
 
 describe("configurable lead funnel", () => {
   it("returns the default stages with their kind", async () => {
@@ -91,13 +100,14 @@ describe("configurable lead funnel", () => {
     ]);
   });
 
-  it("renames, adds and removes stages and keeps the board in that order", async () => {
+  it("renames, adds, colors and removes stages and keeps the board in that order", async () => {
     const { app, admin, save, list, repository } = await setup();
     const stages = editable(await list());
     stages[0]!.label = "  Entrada ";
+    stages[0]!.color = "#123456";
     const response = await save([
       stages[0]!,
-      { label: "Aula experimental" },
+      { label: "Aula experimental", color: "#DB2777" },
       stages[3]!,
       stages[4]!,
       stages[5]!,
@@ -111,6 +121,9 @@ describe("configurable lead funnel", () => {
       "Ganhos",
       "Perdidos",
     ]);
+    expect(saved[0]!.color).toBe("#123456");
+    expect(saved[1]!.color).toBe("#db2777");
+    expect(saved[2]!.color).toBeUndefined();
     expect(saved[1]!.stage).toMatch(/^stage_[a-f0-9]{12}$/);
     expect(saved[1]!.kind).toBe("open");
     expect(await list()).toEqual(saved);

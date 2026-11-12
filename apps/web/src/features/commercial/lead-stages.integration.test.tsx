@@ -61,7 +61,12 @@ function setup(role: string, reject?: string) {
   let stages = defaults;
   let created = 0;
   const puts: Array<{
-    stages: Array<{ stage?: string; label: string; final?: boolean }>;
+    stages: Array<{
+      stage?: string;
+      label: string;
+      color?: string;
+      final?: boolean;
+    }>;
   }> = [];
   vi.mocked(fetch).mockImplementation(async (input, init) => {
     const url = String(input);
@@ -80,14 +85,22 @@ function setup(role: string, reject?: string) {
           (item: { final?: boolean }) => item.final,
         );
         stages = payload.stages.map(
-          (item: { stage?: string; label: string }, index: number) => {
+          (
+            item: { stage?: string; label: string; color?: string },
+            index: number,
+          ) => {
             const stage =
               index === finalIndex
                 ? "won"
                 : !item.stage || (finalIndex >= 0 && item.stage === "won")
                   ? `stage_novo${(created += 1)}`
                   : item.stage;
-            return { stage, label: item.label, kind: kind(stage) };
+            return {
+              stage,
+              label: item.label,
+              kind: kind(stage),
+              ...(item.color ? { color: item.color } : {}),
+            };
           },
         );
       }
@@ -418,6 +431,57 @@ describe("configurable lead funnel", () => {
       "lost",
     ]);
     await waitFor(() => expect(columns()[0]).toBe("Avaliação"));
+  });
+
+  it("picks the stage dot color in detail with the color wheel and applies it to the column", async () => {
+    const puts = setup("owner");
+    const column = await screen.findByRole("region", { name: "Em contato" });
+    expect(column.style.getPropertyValue("--stage-color")).toBe("#3f7cc0");
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Editar etapa Em contato" }),
+    );
+    const dialog = await screen.findByRole("dialog", { name: "Editar etapa" });
+    const wheel = within(dialog).getByRole("slider", {
+      name: "Roda cromática",
+    });
+    vi.spyOn(wheel, "getBoundingClientRect").mockReturnValue({
+      left: 0,
+      top: 0,
+      width: 100,
+      height: 100,
+      right: 100,
+      bottom: 100,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    });
+
+    // Clique na borda direita da roda cromática (matiz 0°, saturação 100%) e ajuste de brilho.
+    fireEvent.click(wheel, { clientX: 100, clientY: 50 });
+    fireEvent.change(within(dialog).getByLabelText("Brilho da cor"), {
+      target: { value: "80" },
+    });
+    expect(within(dialog).getByLabelText("Prévia da etapa")).toHaveTextContent(
+      "#CC0000",
+    );
+
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Salvar etapa" }),
+    );
+    await waitFor(() => expect(puts).toHaveLength(1));
+    expect(puts[0]!.stages[1]).toEqual({
+      stage: "contacted",
+      label: "Em contato",
+      color: "#cc0000",
+    });
+    await waitFor(() =>
+      expect(
+        screen
+          .getByRole("region", { name: "Em contato" })
+          .style.getPropertyValue("--stage-color"),
+      ).toBe("#cc0000"),
+    );
   });
 
   it("hides the funnel editing without the explicit permission", async () => {
