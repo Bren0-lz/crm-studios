@@ -316,6 +316,8 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
   "GET /leads/:id/activity": view("crm"),
   "PUT /leads/:id": operation("crm.update"),
   "POST /leads": operation("crm.create"),
+  "POST /leads/import/preview": operation("crm.create"),
+  "POST /leads/import": operation("crm.create"),
   "PATCH /leads/:id/stage": operation("crm.stage"),
   "POST /leads/:id/convert": operation("crm.convert", "patients.create"),
   "POST /leads/:id/contacts": operation("crm.contacts_create"),

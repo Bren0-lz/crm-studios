@@ -40,6 +40,7 @@ import {
   stageNotEmptyError,
   stageNotFoundError,
 } from "../../modules/commercial/stages.js";
+import { assertLeadImportStage } from "../../modules/commercial/lead-import.js";
 import { DomainError } from "../../repository.js";
 import type { MemoryRepositoryContext } from "./context.js";
 import { now, uuid } from "./helpers.js";
@@ -58,6 +59,8 @@ export function createCommercialRepository(
   async function createLead(
     clinicId: string,
     input: LeadInput & { extraFields?: ExtraFields },
+    /** Etapa de entrada (importação, LI1); sem ela, a primeira aberta. */
+    stage?: string,
   ) {
     if (
       input.responsibleUserId &&
@@ -94,7 +97,8 @@ export function createCommercialRepository(
       branchId: event?.branchId ?? repositoryContext.writeBranchId(clinicId),
       id: uuid(),
       clinicId,
-      stage: firstOpenLeadStage(await repository.listLeadStages(clinicId)),
+      stage:
+        stage ?? firstOpenLeadStage(await repository.listLeadStages(clinicId)),
       ...(responsibleName ? { responsibleName } : {}),
       openTasks: 0,
       overdueTasks: 0,
@@ -213,6 +217,44 @@ export function createCommercialRepository(
         }
       }
       return countEventParticipantPlans(plans);
+    },
+
+    async listContactImportCandidates(clinicId: string) {
+      return {
+        patients: repositoryContext.patients.filter(
+          (patient) =>
+            patient.clinicId === clinicId &&
+            !patient.mergedIntoPatientId &&
+            !repositoryContext.isTrashed("patients", patient.id),
+        ),
+        leads: repositoryContext.leads.filter(
+          (lead) =>
+            lead.clinicId === clinicId &&
+            !lead.convertedPatientId &&
+            !repositoryContext.isTrashed("leads", lead.id),
+        ),
+      };
+    },
+
+    async importLeads(
+      clinicId: string,
+      stage: string,
+      inputs: (LeadInput & { extraFields?: ExtraFields })[],
+    ) {
+      assertLeadImportStage(await repository.listLeadStages(clinicId), stage);
+      const created: Lead[] = [];
+      try {
+        for (const input of inputs)
+          created.push(await createLead(clinicId, input, stage));
+      } catch (error) {
+        for (const lead of created)
+          repositoryContext.leads.splice(
+            repositoryContext.leads.indexOf(lead),
+            1,
+          );
+        throw error;
+      }
+      return { created: created.length };
     },
 
     async updateLead(
