@@ -68,3 +68,15 @@ export function professionalColorStyle(
     ? ({ "--pro-color": color } as CSSProperties)
     : undefined;
 }
+
+/**
+ * Cor da etapa do funil comercial como variável CSS `--stage-color`, usada pela bolinha
+ * `.kanban-stage-dot` no cabeçalho da coluna e na prévia do modal.
+ */
+export function stageColorStyle(
+  color: string | undefined | null,
+): CSSProperties | undefined {
+  return typeof color === "string" && /^#[0-9a-f]{6}$/i.test(color)
+    ? ({ "--stage-color": color.toLowerCase() } as CSSProperties)
+    : undefined;
+}

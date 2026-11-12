@@ -134,8 +134,8 @@ function leadFilterSql(
 
 /** Funil salvo da clínica, na ordem (sem linhas = etapas padrão). */
 const listStages = (db: Pool | PoolClient, clinicId: string) =>
-  db.query<{ stage: string; label: string }>(
-    "SELECT stage, label FROM lead_stages WHERE clinic_id = $1 ORDER BY position",
+  db.query<{ stage: string; label: string; color: string | null }>(
+    "SELECT stage, label, color FROM lead_stages WHERE clinic_id = $1 ORDER BY position",
     [clinicId],
   );
 
@@ -868,6 +868,7 @@ export function createCommercialRepository(
             clinic_id: clinicId,
             stage: item.stage,
             label: item.label,
+            color: item.color ?? null,
             position,
           })),
         );

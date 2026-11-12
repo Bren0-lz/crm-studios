@@ -14,6 +14,7 @@ export interface LeadStageConfig {
   stage: Lead["stage"];
   label: string;
   kind: LeadStageKind;
+  color?: string;
 }
 
 /** Nomes padrão das etapas do funil (clínica que ainda não editou o funil). */
@@ -28,6 +29,54 @@ export const defaultLeadStageLabels: Readonly<
   lost: "Perdidos",
 };
 
+/** Cor padrão de etapa sem cor própria. */
+export const DEFAULT_LEAD_STAGE_COLOR = "#8a948f";
+
+/** Cores padrão da bolinha de cada etapa inicial do funil. */
+export const defaultLeadStageColors: Readonly<
+  Record<(typeof defaultLeadStageKeys)[number], string>
+> = {
+  new_contact: "#8a948f",
+  contacted: "#3f7cc0",
+  evaluation: "#8a62b8",
+  proposal: "#c8901f",
+  won: "#26705f",
+  lost: "#b5544a",
+};
+
+/** Paleta sugerida ao escolher a cor da bolinha da etapa no funil. */
+export const leadStagePalette = [
+  { name: "Cinza", color: "#8a948f" },
+  { name: "Azul", color: "#3f7cc0" },
+  { name: "Roxo", color: "#8a62b8" },
+  { name: "Âmbar", color: "#c8901f" },
+  { name: "Verde", color: "#26705f" },
+  { name: "Terracota", color: "#b5544a" },
+  { name: "Turquesa", color: "#0d9488" },
+  { name: "Rosa", color: "#db2777" },
+  { name: "Laranja", color: "#ea580c" },
+] as const;
+
+export const leadStageColorSchema = z
+  .string()
+  .trim()
+  .regex(/^#[0-9a-fA-F]{6}$/, "Use uma cor no formato #RRGGBB.")
+  .transform((value) => value.toLowerCase());
+
+/** Cor exibida na bolinha da etapa: a escolhida para a etapa ou a padrão da chave. */
+export function leadStageColor(stage: {
+  stage?: string | undefined;
+  color?: string | null | undefined;
+}): string {
+  if (typeof stage.color === "string" && /^#[0-9a-f]{6}$/i.test(stage.color))
+    return stage.color.toLowerCase();
+  if (stage.stage && stage.stage in defaultLeadStageColors)
+    return defaultLeadStageColors[
+      stage.stage as keyof typeof defaultLeadStageColors
+    ];
+  return DEFAULT_LEAD_STAGE_COLOR;
+}
+
 export function leadStageKind(stage: string): LeadStageKind {
   return stage === LEAD_WON_STAGE
     ? "won"
@@ -38,7 +87,11 @@ export function leadStageKind(stage: string): LeadStageKind {
 
 /** Etapas da clínica na ordem; sem configuração salva, as padrão. */
 export function resolveLeadStages(
-  saved: Iterable<{ stage: string; label: string }>,
+  saved: Iterable<{
+    stage: string;
+    label: string;
+    color?: string | null | undefined;
+  }>,
 ): LeadStageConfig[] {
   const items = [...saved];
   const source = items.length
@@ -46,11 +99,15 @@ export function resolveLeadStages(
     : defaultLeadStageKeys.map((stage) => ({
         stage,
         label: defaultLeadStageLabels[stage],
+        color: undefined,
       }));
-  return source.map(({ stage, label }) => ({
+  return source.map(({ stage, label, color }) => ({
     stage,
     label,
     kind: leadStageKind(stage),
+    ...(typeof color === "string" && /^#[0-9a-f]{6}$/i.test(color)
+      ? { color: color.toLowerCase() }
+      : {}),
   }));
 }
 
@@ -79,6 +136,7 @@ export const leadStagesInputSchema = z
         z.object({
           stage: leadStageSchema.optional(),
           label: labelSchema,
+          color: leadStageColorSchema.optional(),
           final: z.boolean().optional(),
         }),
       )

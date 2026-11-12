@@ -72,7 +72,7 @@ for (const storage of ["memory", "mysql"] as const) {
           clinicId,
           leadStagesInputSchema.parse({
             stages: [
-              { label: "Triagem" },
+              { label: "Triagem", color: "#0d9488" },
               ...current.map(({ stage, label }) => ({
                 stage,
                 label: stage === "won" ? "Matrícula" : label,
@@ -80,7 +80,11 @@ for (const storage of ["memory", "mysql"] as const) {
             ],
           }),
         );
-        expect(saved[0]).toMatchObject({ label: "Triagem", kind: "open" });
+        expect(saved[0]).toMatchObject({
+          label: "Triagem",
+          kind: "open",
+          color: "#0d9488",
+        });
         expect(saved.find((item) => item.stage === "won")?.label).toBe(
           "Matrícula",
         );
