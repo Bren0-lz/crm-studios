@@ -133,6 +133,9 @@ export function createCommercialRepository(
           const lastContactAt = contacts.sort((a, b) =>
             b.occurredAt.localeCompare(a.occurredAt),
           )[0]?.occurredAt;
+          const lastMessageSentAt = contacts.find(
+            (contact) => contact.direction === "outbound",
+          )?.occurredAt;
           return {
             ...lead,
             ...(responsibleName ? { responsibleName } : {}),
@@ -141,6 +144,8 @@ export function createCommercialRepository(
               (task) => task.status === "open" && task.dueAt < now(),
             ).length,
             ...(lastContactAt ? { lastContactAt } : {}),
+            ...(lastMessageSentAt ? { lastMessageSentAt } : {}),
+            contactCount: contacts.length,
           };
         })
         .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));

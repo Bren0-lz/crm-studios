@@ -124,7 +124,7 @@ describe("lead contact channel", () => {
     expect(
       within(dialog)
         .getByText("Contato antigo sem forma de contato")
-        .closest("article"),
+        .closest("li"),
     ).toHaveTextContent("WhatsApp");
 
     fireEvent.change(channel, { target: { value: "Instagram Direct" } });

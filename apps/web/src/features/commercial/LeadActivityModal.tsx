@@ -4,8 +4,10 @@ import {
   type ClinicCatalogEntry,
   type Lead,
   type LeadActivity,
+  type LeadContact,
   type LeadContactInput,
 } from "@crm/contracts";
+import { CheckCheck, Clock3, Send } from "lucide-react";
 import { useEffect, useState, type FormEvent } from "react";
 import { api, getStoredUser } from "../../api";
 import { useAuthorization } from "../../authorization-context";
@@ -14,7 +16,75 @@ import { LoadingBlock } from "../../shared/components/LoadingBlock";
 import { useMissingFields } from "../../shared/components/MissingFields";
 import { Modal } from "../../shared/components/Modal";
 import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
-import { toLocalDateTimeInput } from "../../shared/lib/formatting";
+import {
+  shortDateTime,
+  timeLabel,
+  toLocalDateTimeInput,
+} from "../../shared/lib/formatting";
+
+const directionLabels: Record<LeadContact["direction"], string> = {
+  outbound: "Mensagem enviada",
+  inbound: "Recebido do lead",
+  internal: "Registro interno",
+};
+
+const contactDay = new Intl.DateTimeFormat("pt-BR", {
+  weekday: "short",
+  day: "2-digit",
+  month: "short",
+  year: "numeric",
+});
+
+/** Resumo do topo: a última mensagem enviada (data e hora) e o total de contatos. */
+function LeadMessageSummary({
+  contacts,
+  onSendNow,
+  sending,
+}: {
+  contacts: LeadContact[];
+  onSendNow: (() => void) | undefined;
+  sending: boolean;
+}) {
+  const sent = contacts.filter((item) => item.direction === "outbound");
+  const last = sent[0];
+  const lastAny = contacts[0];
+  return (
+    <section
+      className={`lead-message-summary ${last ? "sent" : "pending"}`}
+      aria-label="Situação da mensagem"
+    >
+      <span className="lead-message-summary-icon" aria-hidden="true">
+        {last ? <CheckCheck size={18} /> : <Clock3 size={18} />}
+      </span>
+      <div>
+        <strong>
+          {last ? "Mensagem enviada" : "Mensagem ainda não enviada"}
+        </strong>
+        <span>
+          {last
+            ? `Último envio em ${shortDateTime(last.occurredAt)} · ${last.actorName}`
+            : "Nenhum envio registrado para este lead."}
+        </span>
+        <span>
+          {contacts.length === 0
+            ? "Sem contatos no histórico."
+            : `${sent.length} ${sent.length === 1 ? "envio" : "envios"} · ${contacts.length} ${contacts.length === 1 ? "contato" : "contatos"} no histórico${lastAny ? ` · último em ${shortDateTime(lastAny.occurredAt)}` : ""}`}
+        </span>
+      </div>
+      {onSendNow && (
+        <button
+          type="button"
+          className="primary-button button-sm"
+          disabled={sending}
+          onClick={onSendNow}
+        >
+          <Send size={14} aria-hidden="true" />
+          Marcar enviada agora
+        </button>
+      )}
+    </section>
+  );
+}
 
 export function LeadActivityModal({
   lead,
@@ -69,6 +139,9 @@ export function LeadActivityModal({
           ),
       ),
   ];
+  const [contactAt, setContactAt] = useState(() =>
+    toLocalDateTimeInput(new Date()),
+  );
   const [task, setTask] = useState({
     title: "Retornar contato",
     notes: "",
@@ -106,15 +179,52 @@ export function LeadActivityModal({
     setSaving(true);
     setError("");
     try {
-      const created = await api.createLeadContact(lead.id, contact);
-      setActivity((current) =>
-        current
-          ? { ...current, contacts: [created, ...current.contacts] }
-          : current,
-      );
+      await saveContact({
+        ...contact,
+        ...(contactAt ? { occurredAt: new Date(contactAt).toISOString() } : {}),
+      });
       setContact({ ...contact, notes: "" });
-      toast.success("Contato registrado.");
-      onChanged();
+      setContactAt(toLocalDateTimeInput(new Date()));
+    } catch (cause) {
+      setError((cause as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function saveContact(input: LeadContactInput) {
+    const created = await api.createLeadContact(lead.id, input);
+    setActivity((current) =>
+      current
+        ? {
+            ...current,
+            contacts: [created, ...current.contacts].sort((a, b) =>
+              b.occurredAt.localeCompare(a.occurredAt),
+            ),
+          }
+        : current,
+    );
+    toast.success(
+      input.direction === "outbound"
+        ? `Mensagem registrada em ${shortDateTime(created.occurredAt)}.`
+        : "Contato registrado.",
+    );
+    onChanged();
+  }
+
+  /** Um clique: grava "Mensagem enviada" com a data e a hora de agora. */
+  async function sendNow() {
+    const method =
+      lead.contactMethod?.trim() || leadContactChannelLabels.whatsapp;
+    setSaving(true);
+    setError("");
+    try {
+      await saveContact({
+        channel: inferLeadContactChannel(method),
+        contactMethod: method,
+        direction: "outbound",
+        notes: "Mensagem enviada.",
+      });
     } catch (cause) {
       setError((cause as Error).message);
     } finally {
@@ -174,6 +284,17 @@ export function LeadActivityModal({
       dirty={dirty}
       onClose={onClose}
     >
+      {activity && (
+        <LeadMessageSummary
+          contacts={activity.contacts}
+          sending={saving}
+          onSendNow={
+            editable && can("crm.contacts_create")
+              ? () => void sendNow()
+              : undefined
+          }
+        />
+      )}
       <div className="activity-tabs">
         <button
           className={`tab-button ${tab === "tasks" ? "active" : ""}`}
@@ -327,6 +448,15 @@ export function LeadActivityModal({
                   <option value="internal">Registro interno</option>
                 </select>
               </label>
+              <label>
+                Data e hora
+                <input
+                  type="datetime-local"
+                  value={contactAt}
+                  max={toLocalDateTimeInput(new Date())}
+                  onChange={(event) => setContactAt(event.target.value)}
+                />
+              </label>
               <label className="span-2">
                 Registro do contato
                 <textarea
@@ -350,22 +480,53 @@ export function LeadActivityModal({
               </div>
             </form>
           )}
-          <div className="activity-list contact-timeline">
-            {activity.contacts.map((item) => (
-              <article key={item.id}>
-                <div>
-                  <strong>{item.notes}</strong>
-                  <span>
-                    {item.actorName} ·{" "}
-                    {new Date(item.occurredAt).toLocaleString("pt-BR")}
-                  </span>
-                </div>
-                <span>
-                  {item.contactMethod || leadContactChannelLabels[item.channel]}
-                </span>
-              </article>
-            ))}
-          </div>
+          {activity.contacts.length === 0 ? (
+            <p className="contact-timeline-empty">
+              Nenhum contato registrado ainda.
+            </p>
+          ) : (
+            <ol className="contact-timeline" aria-label="Histórico de contatos">
+              {activity.contacts.map((item) => {
+                const at = new Date(item.occurredAt);
+                return (
+                  <li
+                    key={item.id}
+                    className={`contact-timeline-item ${item.direction}${item.reached === false ? " unreached" : ""}`}
+                  >
+                    <time
+                      className="contact-timeline-when"
+                      dateTime={item.occurredAt}
+                      title={at.toLocaleString("pt-BR")}
+                    >
+                      <strong>{timeLabel.format(at)}</strong>
+                      <span>{contactDay.format(at)}</span>
+                    </time>
+                    <span className="contact-timeline-dot" aria-hidden="true" />
+                    <div className="contact-timeline-body">
+                      <div className="contact-timeline-tags">
+                        <span className="contact-direction">
+                          {directionLabels[item.direction]}
+                        </span>
+                        <span className="contact-channel">
+                          {item.contactMethod ||
+                            leadContactChannelLabels[item.channel]}
+                        </span>
+                        {item.reached === false && (
+                          <span className="contact-unreached">
+                            Sem resposta
+                          </span>
+                        )}
+                      </div>
+                      <p>{item.notes}</p>
+                      <span className="contact-timeline-actor">
+                        por {item.actorName}
+                      </span>
+                    </div>
+                  </li>
+                );
+              })}
+            </ol>
+          )}
         </div>
       )}
     </Modal>

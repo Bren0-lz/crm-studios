@@ -10,6 +10,8 @@ import {
   type LeadStagesInput,
   resolveLeadStages,
   type LeadStagePage,
+  inferLeadContactChannel,
+  leadContactChannelLabels,
 } from "@crm/contracts";
 import { GripVertical, Pencil, Plus } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -22,6 +24,7 @@ import { PageHeader } from "../../shared/components/PageHeader";
 import { ReadOnlyNotice } from "../../shared/components/ReadOnlyNotice";
 import {
   shortDate,
+  shortDateTime,
   timeLabel,
   visitTypeLabels,
 } from "../../shared/lib/formatting";
@@ -102,6 +105,7 @@ export function CommercialPage() {
   const [viewingLead, setViewingLead] = useState<Lead | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [activityLead, setActivityLead] = useState<Lead | null>(null);
+  const [sendingLeadId, setSendingLeadId] = useState<string | null>(null);
   const [trialLead, setTrialLead] = useState<Lead | null>(null);
   const [notice, setNotice] = useState("");
   const [losingLead, setLosingLead] = useState<Lead | null>(null);
@@ -299,6 +303,33 @@ export function CommercialPage() {
     // A etapa final pode ter mudado de coluna: recarrega o quadro com as etapas novas.
     void loadBoard(filterRef.current);
   }
+  /** Botão do cartão: grava o envio da mensagem com a data e a hora de agora. */
+  async function markMessageSent(lead: Lead) {
+    const method = lead.contactMethod?.trim() || leadContactChannelLabels.whatsapp;
+    setSendingLeadId(lead.id);
+    try {
+      const contact = await api.createLeadContact(lead.id, {
+        channel: inferLeadContactChannel(method),
+        contactMethod: method,
+        direction: "outbound",
+        notes: "Mensagem enviada.",
+      });
+      toast.success(
+        `Mensagem para ${lead.fullName} registrada em ${shortDateTime(contact.occurredAt)}.`,
+      );
+      replaceLead({
+        ...lead,
+        lastContactAt: contact.occurredAt,
+        lastMessageSentAt: contact.occurredAt,
+        contactCount: (lead.contactCount ?? 0) + 1,
+        updatedAt: new Date().toISOString(),
+      });
+    } catch (cause) {
+      toast.error((cause as Error).message);
+    } finally {
+      setSendingLeadId(null);
+    }
+  }
   async function markLost(lead: Lead, reason: string) {
     replaceLead(await api.moveLead(lead.id, "lost", reason));
     setLosingLead(null);
@@ -321,6 +352,7 @@ export function CommercialPage() {
     update: can("crm.update"),
     convert: can("crm.convert", "patients.create"),
     schedule: can("crm.appointments_create", "agenda.create"),
+    contact: can("crm.contacts_create"),
   };
   return (
     <>
@@ -545,6 +577,8 @@ export function CommercialPage() {
                               setNotice("");
                               setTrialLead(lead);
                             }}
+                            onMessageSent={() => void markMessageSent(lead)}
+                            sendingMessage={sendingLeadId === lead.id}
                           />
                         ))}
                         {remaining > 0 && (

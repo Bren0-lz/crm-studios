@@ -233,6 +233,12 @@ export const timeLabel = new Intl.DateTimeFormat("pt-BR", {
   minute: "2-digit",
 });
 
+/** Data curta com hora para históricos: "10 de nov. às 14:32". */
+export function shortDateTime(iso: string) {
+  const date = new Date(iso);
+  return `${shortDate.format(date)} às ${timeLabel.format(date)}`;
+}
+
 export function toLocalDateTimeInput(date: Date) {
   const hours = String(date.getHours()).padStart(2, "0");
   const minutes = String(date.getMinutes()).padStart(2, "0");
