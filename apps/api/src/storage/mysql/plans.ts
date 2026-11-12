@@ -389,6 +389,8 @@ export function createPlansRepository(
        JOIN patients p ON p.id = pp.patient_id
        JOIN services s ON s.id = pp.service_id
        WHERE pp.clinic_id = $1 AND pp.deleted_at IS NULL
+         -- Sem cliente informado (listas e relatórios), cliente na lixeira fica de fora.
+         AND ($2 IS NOT NULL OR p.deleted_at IS NULL)
          -- Planos do cliente valem em todas as filiais (cadastro único).
          AND CASE WHEN $2 IS NULL THEN ${branchClause("pp.branch_id", 3)}
                   ELSE pp.patient_id = $2 END

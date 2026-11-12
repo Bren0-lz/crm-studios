@@ -14,12 +14,16 @@ import { LoadingBlock } from "../../shared/components/LoadingBlock";
 import { EmptyState } from "../../shared/components/EmptyState";
 import { useUnsavedChangesPrompt } from "../../shared/workflows/useUnsavedChangesPrompt";
 import { ReportTabs, type ReportTab } from "../reports/index";
-type Editor = { id?: string; input: AdministrativeRegistryInput };
-type Kind = AdministrativeRegistryInput["kind"];
+// Profissionais são cadastrados pelo usuário (Configurações › Usuários).
+type RegistryInput = Exclude<
+  AdministrativeRegistryInput,
+  { kind: "professional" }
+>;
+type Editor = { id?: string; input: RegistryInput };
+type Kind = RegistryInput["kind"];
 const kinds: ReportTab<Kind>[] = [
   { key: "service", label: "Serviços" },
   { key: "room", label: "Salas" },
-  { key: "professional", label: "Profissionais" },
 ];
 export function AdministrativeRegistrySection() {
   const { can } = useAuthorization();
@@ -49,43 +53,23 @@ export function AdministrativeRegistrySection() {
   function create(kind: Kind) {
     setEditor({
       input:
-        kind === "professional"
-          ? {
+        kind === "room"
+          ? { kind, data: { name: "", capacity: 1, active: true } }
+          : {
               kind,
               data: {
-                fullName: "",
-                crefito: "",
-                specialty: "Fisioterapia",
-                color: "#547A6B",
+                name: "",
+                durationMinutes: 60,
+                businessLine: null,
                 active: true,
               },
-            }
-          : kind === "room"
-            ? { kind, data: { name: "", capacity: 1, active: true } }
-            : {
-                kind,
-                data: {
-                  name: "",
-                  durationMinutes: 60,
-                  businessLine: null,
-                  active: true,
-                },
-              },
+            },
     });
   }
   function list(kind: Kind) {
-    const entries =
-      kind === "service"
-        ? data?.services
-        : kind === "room"
-          ? data?.rooms
-          : data?.professionals;
+    const entries = kind === "service" ? data?.services : data?.rooms;
     const createPermission =
-      kind === "service"
-        ? "agenda.services_create"
-        : kind === "room"
-          ? "agenda.rooms_create"
-          : "agenda.professionals_create";
+      kind === "service" ? "agenda.services_create" : "agenda.rooms_create";
     return (
       <div className="registry-settings-list">
         {can(createPermission) && (
@@ -105,7 +89,7 @@ export function AdministrativeRegistrySection() {
         ) : (
           entries.map((item) => (
             <div className="table-row" key={item.id}>
-              <strong>{"fullName" in item ? item.fullName : item.name}</strong>
+              <strong>{item.name}</strong>
               <span>{item.active ? "Ativo" : "Inativo"}</span>
               {can("settings.registry_manage") && (
                 <button
@@ -116,7 +100,7 @@ export function AdministrativeRegistrySection() {
                       input: {
                         kind,
                         data: item,
-                      } as AdministrativeRegistryInput,
+                      } as RegistryInput,
                     })
                   }
                 >
@@ -171,15 +155,13 @@ function RegistryEditor({
         ({
           ...current,
           data: { ...current.data, ...data },
-        }) as AdministrativeRegistryInput,
+        }) as RegistryInput,
     );
   async function save() {
     setBusy(true);
     setError("");
     try {
       if (editor.id) await api.updateAdministrativeRegistry(editor.id, form);
-      else if (form.kind === "professional")
-        await api.createProfessional(form.data);
       else if (form.kind === "room") await api.createRoom(form.data);
       else await api.createService(form.data);
       toast.success(editor.id ? "Cadastro atualizado." : "Cadastro criado.");
@@ -219,58 +201,19 @@ function RegistryEditor({
         >
           {error && <ErrorBanner error={error} />}
           <fieldset className="form-fields form-grid" disabled={busy}>
-            {form.kind === "professional" ? (
-              <>
-                <label>
-                  Nome completo
-                  <input
-                    required
-                    minLength={3}
-                    maxLength={160}
-                    value={form.data.fullName}
-                    onChange={(event) =>
-                      patch({ fullName: event.target.value })
-                    }
-                  />
-                </label>
-                <label>
-                  Registro profissional
-                  <input
-                    required
-                    minLength={4}
-                    maxLength={40}
-                    value={form.data.crefito}
-                    onChange={(event) => patch({ crefito: event.target.value })}
-                  />
-                </label>
-                <label>
-                  Especialidade
-                  <input
-                    required
-                    minLength={2}
-                    maxLength={100}
-                    value={form.data.specialty}
-                    onChange={(event) =>
-                      patch({ specialty: event.target.value })
-                    }
-                  />
-                </label>
-              </>
-            ) : (
-              <label>
-                Nome
-                <input
-                  required
-                  minLength={2}
-                  maxLength={form.kind === "room" ? 80 : 120}
-                  value={form.data.name}
-                  onChange={(event) => patch({ name: event.target.value })}
-                />
-              </label>
-            )}
+            <label>
+              {form.kind === "room" ? "Nome da sala" : "Nome"}
+              <input
+                required
+                minLength={2}
+                maxLength={form.kind === "room" ? 80 : 120}
+                value={form.data.name}
+                onChange={(event) => patch({ name: event.target.value })}
+              />
+            </label>
             {form.kind === "room" && (
               <label>
-                Capacidade
+                Capacidade de atendimento simultâneo
                 <input
                   required
                   type="number"
@@ -356,16 +299,6 @@ function RegistryEditor({
                   }
                 />
               </>
-            )}
-            {form.kind === "professional" && (
-              <label>
-                Cor
-                <input
-                  type="color"
-                  value={form.data.color}
-                  onChange={(event) => patch({ color: event.target.value })}
-                />
-              </label>
             )}
             {editor.id && (
               <label className="checkbox-field">

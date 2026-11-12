@@ -1,6 +1,6 @@
 import { withPrefix } from "@crm/contracts";
-import type { Holiday } from "@crm/contracts";
-import { Plus } from "lucide-react";
+import type { Holiday, HolidayBatchResult } from "@crm/contracts";
+import { CalendarPlus, Plus } from "lucide-react";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { api, ApiClientError } from "../../api";
 import { EmptyState } from "../../shared/components/EmptyState";
@@ -9,6 +9,7 @@ import { LoadingBlock } from "../../shared/components/LoadingBlock";
 import { formatIsoDate } from "../../shared/lib/formatting";
 import { useSettingsBusy } from "../../shared/workflows/useSettingsBusy";
 import { DeleteHolidayModal } from "./DeleteHolidayModal";
+import { ImportHolidaysModal } from "./ImportHolidaysModal";
 import { useUnsavedChangesPrompt } from "./useUnsavedChangesPrompt";
 
 export function HolidaysContent() {
@@ -23,6 +24,7 @@ export function HolidaysContent() {
   const savingRef = useRef(false);
   useSettingsBusy(saving);
   const [deletingHoliday, setDeletingHoliday] = useState<Holiday | null>(null);
+  const [importing, setImporting] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -95,6 +97,28 @@ export function HolidaysContent() {
     );
     setDeletingHoliday(null);
     setNotice("Feriado excluído.");
+  }
+
+  function imported(result: HolidayBatchResult) {
+    setImporting(false);
+    setHolidays((items) =>
+      [...(items ?? []), ...result.created].sort((a, b) =>
+        a.date.localeCompare(b.date),
+      ),
+    );
+    const count = result.created.length;
+    setNotice(
+      [
+        count === 1 ? "1 feriado importado." : `${count} feriados importados.`,
+        result.skipped === 1
+          ? "1 já estava cadastrado."
+          : result.skipped > 1
+            ? `${result.skipped} já estavam cadastrados.`
+            : "",
+      ]
+        .filter(Boolean)
+        .join(" "),
+    );
   }
 
   return (
@@ -181,6 +205,20 @@ export function HolidaysContent() {
               </div>
             </fieldset>
           </form>
+          <div className="page-actions">
+            <button
+              type="button"
+              className="secondary-button"
+              disabled={saving}
+              onClick={() => {
+                setNotice("");
+                setImporting(true);
+              }}
+            >
+              <CalendarPlus size={17} />
+              Importar feriados do ano
+            </button>
+          </div>
           {holidays.length === 0 ? (
             <EmptyState
               title="Nenhum feriado cadastrado"
@@ -207,6 +245,13 @@ export function HolidaysContent() {
             </div>
           )}
         </>
+      )}
+      {importing && holidays && (
+        <ImportHolidaysModal
+          registered={holidays}
+          onClose={() => setImporting(false)}
+          onDone={imported}
+        />
       )}
       {deletingHoliday && (
         <DeleteHolidayModal

@@ -434,6 +434,20 @@ export class MemoryRepositoryContext {
     { deletedAt: string; deletedByUserId: string }
   >();
 
+  /**
+   * Sem os registros de cliente na lixeira (LX2): o financeiro e os atendimentos dele saem dos
+   * relatórios e do Financeiro até o cliente ser restaurado. Atendimento na lixeira também sai.
+   */
+  withoutTrashedPatients<
+    T extends { id?: string; patientId?: string | null; startsAt?: string },
+  >(items: T[]): T[] {
+    return items.filter(
+      (item) =>
+        !this.isTrashed("patients", item.patientId) &&
+        !(item.startsAt && this.isTrashed("appointments", item.id)),
+    );
+  }
+
   /** Item na lixeira: fica fora das listas, buscas e da checagem de horário. */
   isTrashed(kind: import("@crm/contracts").TrashKind, id?: string | null) {
     return Boolean(id) && this.trashed.has(`${kind}:${id}`);
@@ -2457,7 +2471,12 @@ export class MemoryRepositoryContext {
         const item = this.receivables.find(
           (candidate) => candidate.id === event.receivableId,
         );
-        if (!item || item.clinicId !== clinicId || !this.inBranchScope(item))
+        if (
+          !item ||
+          item.clinicId !== clinicId ||
+          !this.inBranchScope(item) ||
+          this.isTrashed("patients", item.patientId)
+        )
           return null;
         const tab = this.patientTabs.find(
           (candidate) => candidate.receivableId === item.id,

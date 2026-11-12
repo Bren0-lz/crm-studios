@@ -1492,29 +1492,25 @@ filtros ficam no `dashboard-studios` (EN11–EN13 têm só a parte da API aqui).
 - **Gate:** gate completo + `npm run test:mysql`
 - **Status:** DONE
 
+### LX2 — Financeiro do cliente na lixeira fora de Relatórios e Financeiro
 
-## Pedido avulso — Leads nas campanhas (10/11/2026)
-
-### Decisões do dono (10/11/2026)
-
-- Campanha manual: o público por filtros pode ser "Clientes" (como antes), "Clientes e leads" ou
-  "Só leads"; na escolha um a um, dá para escolher leads além de clientes.
-- Campanha automática: "Incluir leads" por campanha nos eventos que servem a lead (aniversário)
-  e eventos novos só de lead ("Lead novo" e "Lead sem contato").
-- Quais leads: personalizável (etapas do funil, inclusive ganhos/perdidos, etiquetas, origem,
-  interesse, responsável, cadastro recente, sem contato há N dias).
-- Promoção: o lead recebe a mensagem; ao virar cliente, a promoção passa a valer para ele
-  (dentro da validade).
-
-### CL1 — Leads nas campanhas manuais e automáticas
-
-- **Escopo:** contratos (`leadAudienceFilterSchema`, `audience`/`leadFilter`/`leadIds` no
-  público, `includeLeads`/`leadFilter` e gatilhos `lead_new`/`lead_no_contact` nas
-  automáticas, envio por `patientId` ou `leadId`); migração `0061_campaign_leads.sql`
-  (`lead_id` em `whatsapp_campaign_recipients` e `auto_campaign_deliveries`, `patient_id`
-  opcional, `include_leads`/`lead_filter` em `auto_campaigns`); filtro de leads na aplicação
-  (`modules/communications/lead-audience.ts`); conversão do lead passa destinatários/envios ao
-  cliente; relatório marca lead; telas (seletor de público, filtros de lead, escolha de leads,
-  "Incluir leads" e eventos de lead no editor, pílula "Lead" na fila e no envio).
+- **Pedido (10/11/2026):** o financeiro de um cliente na lixeira sai dos relatórios e também da
+  tela Financeiro (decisão do dono: os dois iguais); restaurar o cliente devolve tudo.
+- **Escopo:** filtro no repositório (memória e MySQL; helper `patientNotTrashed` em
+  `storage/mysql/sql.ts`, `withoutTrashedPatients` na memória): vendas e histórico de vendas,
+  gerencial (atendimentos, planos ativos, sessões, contas em aberto, receita por serviço),
+  dashboard, DRE, caixa/movimentos, contas a receber e totais do mês, comandas do estoque e
+  lista de planos sem cliente informado. Comissões e folha continuam como estão.
 - **Gate:** gate completo + `npm run test:mysql`
 - **Status:** DONE
+
+### LX3 — Botões da lixeira só com ícone e hover vermelho
+
+- **Pedido (11/11/2026):** botão da lixeira mais exposto (fora do menu "Mais"), só o ícone e
+  hover vermelho, para "Abrir lixeira" e "Excluir"; quem não tem a permissão não vê o botão.
+- **Escopo:** `TrashIconButton` (`features/trash`), CSS `.trash-icon-button` em
+  `19-trash.css`; Clientes com o ícone ao lado de "Mais"; "Excluir" vira ícone no detalhe do
+  cliente, no lead, no atendimento e no cartão do plano.
+- **Gate:** gate completo
+- **Status:** DONE
+

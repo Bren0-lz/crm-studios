@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { buildApp } from "../../app.js";
 import { MemoryClinicRepository } from "../../memory-repository.js";
 import { nextTestCpf } from "../../test-support/cpf.js";
+import { verifyTrashFinance } from "../../test-support/trash-finance-suite.js";
 import {
   trashActorId as ownerId,
   trashClinicId as clinicId,
@@ -45,6 +46,10 @@ async function setup(permissions: PermissionKey[]) {
 describe("lixeira", () => {
   it("separa, restaura e exclui de vez no armazenamento em memória", async () => {
     await verifyTrashRepository(new MemoryClinicRepository());
+  });
+
+  it("tira o financeiro do cliente na lixeira dos relatórios e do Financeiro", async () => {
+    await verifyTrashFinance(new MemoryClinicRepository());
   });
 
   it("enviar exige trash.send e a área; ver, restaurar e excluir exigem trash.view", async () => {

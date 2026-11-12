@@ -206,9 +206,8 @@ export const settingsTabs: Array<{
   {
     key: "registry",
     label: "Serviços e salas",
-    title: "Serviços, salas e profissionais",
-    description:
-      "Cadastre os serviços, as salas e os profissionais usados na agenda.",
+    title: "Serviços e salas",
+    description: "Cadastre os serviços e as salas usados na agenda.",
     icon: Stethoscope,
   },
   {

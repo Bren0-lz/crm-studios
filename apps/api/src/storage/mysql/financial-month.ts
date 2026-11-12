@@ -12,7 +12,11 @@ import {
   type ReceivableRow,
 } from "./helpers.js";
 import { loadReceiptSignatureSummaries } from "./receipt-signatures.js";
-import { latestDateCorrection, localMonth } from "./sql.js";
+import {
+  latestDateCorrection,
+  localMonth,
+  patientNotTrashed,
+} from "./sql.js";
 export async function loadFinancialMonth(
   client: Pool | PoolClient,
   clinicId: string,
@@ -24,8 +28,8 @@ export async function loadFinancialMonth(
   const receipts = await client.query<{ paid: string; available: string }>(
     `WITH events AS (
     SELECT CASE WHEN fe.kind='payment' THEN abs(fe.amount_in_cents) ELSE -abs(fe.amount_in_cents) END AS amount,coalesce(dc.occurred_at,fe.occurred_at,fe.created_at) AS occurred_at,coalesce(dc.cash_available_at,fe.cash_available_at,fe.occurred_at,fe.created_at) AS available_at
-    FROM financial_events fe ${latestDateCorrection("dc", "fe", "receivable_event_id")} WHERE fe.clinic_id=$1 AND fe.kind IN ('payment','payment_reversal') AND EXISTS(SELECT 1 FROM receivables rb WHERE rb.id=fe.receivable_id AND ${branchClause("rb.branch_id", 4)})
-    UNION ALL SELECT r.amount_in_cents,r.paid_at,coalesce(r.cash_available_at,r.paid_at) FROM receivables r WHERE r.clinic_id=$1 AND ${branchClause("r.branch_id", 4)} AND r.status='paid' AND r.paid_at IS NOT NULL AND NOT EXISTS(SELECT 1 FROM financial_events fe WHERE fe.clinic_id=$1 AND fe.receivable_id=r.id AND fe.kind IN ('payment','payment_reversal'))
+    FROM financial_events fe ${latestDateCorrection("dc", "fe", "receivable_event_id")} WHERE fe.clinic_id=$1 AND fe.kind IN ('payment','payment_reversal') AND EXISTS(SELECT 1 FROM receivables rb WHERE rb.id=fe.receivable_id AND ${patientNotTrashed("rb.patient_id")} AND ${branchClause("rb.branch_id", 4)})
+    UNION ALL SELECT r.amount_in_cents,r.paid_at,coalesce(r.cash_available_at,r.paid_at) FROM receivables r WHERE r.clinic_id=$1 AND ${patientNotTrashed("r.patient_id")} AND ${branchClause("r.branch_id", 4)} AND r.status='paid' AND r.paid_at IS NOT NULL AND NOT EXISTS(SELECT 1 FROM financial_events fe WHERE fe.clinic_id=$1 AND fe.receivable_id=r.id AND fe.kind IN ('payment','payment_reversal'))
   ) SELECT coalesce(sum(CASE WHEN ${localMonth("occurred_at")}=$3 THEN amount END),0) AS paid,coalesce(sum(CASE WHEN ${localMonth("available_at")}=$3 THEN amount END),0) AS available FROM events`,
     [clinicId, timezone, month, branchIds],
   );
@@ -64,7 +68,7 @@ export async function loadFinancialSummary(
   );
   const receivables = (
     await client.query<ReceivableRow>(
-      `SELECT ${receivableColumns} FROM receivables r JOIN patients p ON p.id=r.patient_id AND p.clinic_id=r.clinic_id WHERE r.clinic_id=$1 AND ${branchClause("r.branch_id", 2)} ORDER BY r.due_date,r.created_at`,
+      `SELECT ${receivableColumns} FROM receivables r JOIN patients p ON p.id=r.patient_id AND p.clinic_id=r.clinic_id WHERE r.clinic_id=$1 AND p.deleted_at IS NULL AND ${branchClause("r.branch_id", 2)} ORDER BY r.due_date,r.created_at`,
       [clinicId, branchIds],
     )
   ).rows
