@@ -40,6 +40,17 @@ import {
 import { isLeadBoardUrl, leadBoardResponse } from "./test-support/lead-board";
 import { chooseService } from "./test-support/workflow-ui";
 
+/** CV1: a conversão abre no pedido de dados; "Preencher cadastro" segue ao formulário. */
+async function conversionForm() {
+  const request = await screen.findByRole("dialog", {
+    name: "Converter lead em cliente",
+  });
+  fireEvent.click(
+    within(request).getByRole("button", { name: "Preencher cadastro" }),
+  );
+  return screen.getByRole("dialog", { name: "Converter lead em cliente" });
+}
+
 /** Abre o menu "Mais ações" de uma despesa fixa e devolve a opção pedida. */
 async function recurringAction(
   scope: HTMLElement,
@@ -11668,9 +11679,7 @@ describe("action modals instead of browser dialogs", () => {
           name: "Converter",
         }),
       );
-      let dialog = await screen.findByRole("dialog", {
-        name: "Converter lead em cliente",
-      });
+      let dialog = await conversionForm();
       expect(
         within(dialog).queryByText(/os dados do lead já vieram preenchidos/),
       ).not.toBeInTheDocument();
@@ -11691,9 +11700,7 @@ describe("action modals instead of browser dialogs", () => {
           name: "Converter",
         }),
       );
-      dialog = await screen.findByRole("dialog", {
-        name: "Converter lead em cliente",
-      });
+      dialog = await conversionForm();
       expect(
         within(dialog).getByRole("button", { name: "Converter em cliente" }),
       ).toBeDisabled();
@@ -11751,9 +11758,7 @@ describe("action modals instead of browser dialogs", () => {
           name: "Converter",
         }),
       );
-      const dialog = await screen.findByRole("dialog", {
-        name: "Converter lead em cliente",
-      });
+      const dialog = await conversionForm();
       fireEvent.change(within(dialog).getByLabelText("CPF"), {
         target: { value: "52998224725" },
       });

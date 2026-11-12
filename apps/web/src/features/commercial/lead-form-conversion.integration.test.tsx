@@ -100,6 +100,23 @@ describe("lean lead form", () => {
       within(createdNotice).getByRole("button", { name: "Fechar aviso" }),
     );
     fireEvent.click(within(card).getByRole("button", { name: "Converter" }));
+    // CV1: antes do formulário, a mensagem pede ao lead o que falta no cadastro.
+    const request = screen.getByRole("dialog", {
+      name: "Converter lead em cliente",
+    });
+    const message = within(request).getByLabelText("Mensagem para o lead");
+    expect(message).toHaveValue(
+      "Olá, Lead! Para concluir seu cadastro, preciso destas informações:\n\n• CPF\n• E-mail\n• Data de nascimento\n• Endereço (CEP, rua, número, bairro, cidade/UF)\n• Contato de emergência (nome e telefone)\n\nPode me enviar por aqui mesmo. Obrigado!",
+    );
+    expect(
+      within(request).getByRole("link", { name: "Enviar pelo WhatsApp" }),
+    ).toHaveAttribute(
+      "href",
+      expect.stringMatching(/^https:\/\/wa\.me\/5511977776666\?text=Ol/),
+    );
+    fireEvent.click(
+      within(request).getByRole("button", { name: "Preencher cadastro" }),
+    );
     const convert = screen.getByRole("dialog", {
       name: "Converter lead em cliente",
     });

@@ -126,7 +126,12 @@ const indicator = (label: string) =>
     .closest("article");
 
 /** Preenche o que o participante não tem (CPF e emergência) e confirma o cadastro. */
-function fillAndConfirm(dialog: HTMLElement) {
+function fillAndConfirm(request: HTMLElement) {
+  // CV1: a conversão abre no pedido de dados; "Preencher cadastro" segue ao formulário.
+  fireEvent.click(
+    within(request).getByRole("button", { name: "Preencher cadastro" }),
+  );
+  const dialog = screen.getByRole("dialog", { name: "Cadastrar cliente" });
   expect(within(dialog).getByLabelText("Nome completo")).toHaveValue(
     "Ana Participante",
   );
