@@ -222,6 +222,9 @@ import type {
   PatientTabInput,
   PatientTabItemInput,
   PatientTag,
+  AutomaticPatientTag,
+  AutomaticPatientTagKey,
+  AutomaticPatientTagUpdate,
   PatientTagInput,
   PatientTagUpdate,
   PatientTimelineEntry,
@@ -991,6 +994,25 @@ export interface ClinicRepository {
   ): Promise<boolean>;
 
   listPatientTags(clinicId: string): Promise<PatientTag[]>;
+  /** As 5 etiquetas automáticas com o nome e a cor que a clínica configurou (AT1). */
+  listAutomaticPatientTags(clinicId: string): Promise<AutomaticPatientTag[]>;
+  /**
+   * Troca o nome e/ou a cor exibidos de uma etiqueta automática (auditoria
+   * `patient_tag.automatic_updated`). Não mexe nos clientes: a etiqueta continua identificada
+   * pelo nome padrão. Nome ou cor iguais ao padrão voltam a acompanhar o padrão.
+   */
+  updateAutomaticPatientTag(
+    clinicId: string,
+    actorUserId: string,
+    key: AutomaticPatientTagKey,
+    input: AutomaticPatientTagUpdate,
+  ): Promise<AutomaticPatientTag>;
+  /** Volta a etiqueta automática ao nome e à cor padrão (mesma auditoria). */
+  resetAutomaticPatientTag(
+    clinicId: string,
+    actorUserId: string,
+    key: AutomaticPatientTagKey,
+  ): Promise<AutomaticPatientTag>;
   /**
    * Clientes com parcela vencida e em aberto (`status = open` e vencimento antes de `today`),
    * base da etiqueta automática "Pagamento atrasado" (QC7).

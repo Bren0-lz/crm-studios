@@ -1565,3 +1565,22 @@ filtros ficam no `dashboard-studios` (EN11–EN13 têm só a parte da API aqui).
   salvo já vira a origem/interesse escolhida. Sem mudança na API.
 - **Gate:** gate completo
 - **Status:** DONE
+
+## Pedido avulso — Etiquetas automáticas editáveis (13/11/2026)
+
+### AT1 — Nome e cor das etiquetas automáticas em Configurações › Etiquetas
+
+- **Pedido (13/11/2026):** as etiquetas automáticas ("Pagamento atrasado", "Falta CPF", "CPF
+  inválido", "Cadastro incompleto", "Sem e-mail") aparecem numa seção própria de Configurações ›
+  Etiquetas; a clínica troca o nome exibido e a cor (mesmo seletor das etiquetas manuais), sem
+  mudar a regra.
+- **Decisão do dono (13/11/2026):** só nome e cor, com "Restaurar padrão"; sem desligar.
+- **Escopo:** o nome padrão segue como identidade da etiqueta (`patient.tags`, filtros, avisos,
+  API externa); só a exibição troca. Contratos `automaticPatientTagDefinitions`,
+  `resolveAutomaticPatientTags`, `automaticPatientTagDisplay`; migração `0064` (tabela
+  `patient_automatic_tags`); repositório `list/update/resetAutomaticPatientTag` (memória e
+  MySQL); rotas `GET/PATCH/DELETE /patient-tags/automatic[/:key]`; exportação com o nome
+  configurado; web com seção e modal em Configurações e nome/cor configurados na lista, ficha,
+  cadastro, agenda e importação.
+- **Gate:** gate completo
+- **Status:** DONE

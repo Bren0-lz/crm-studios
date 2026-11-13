@@ -10,6 +10,10 @@ import {
   type PatientImportInput,
   type PatientUpdateInput,
   type PatientTagInput,
+  type AutomaticPatientTagKey,
+  type AutomaticPatientTagUpdate,
+  nextAutomaticPatientTagOverride,
+  resolveAutomaticPatientTags,
   patientTagKey,
   type PatientTagUpdate,
   type WaitlistEntry,
@@ -46,6 +50,38 @@ import { CLINIC_ID, now, uuid } from "./helpers.js";
 export function createPatientsRepository(
   repositoryContext: MemoryRepositoryContext,
 ) {
+  /** Grava (ou, com `null`, apaga) a personalização de uma etiqueta automática. */
+  function saveAutomaticTag(
+    clinicId: string,
+    actorUserId: string,
+    key: AutomaticPatientTagKey,
+    input: AutomaticPatientTagUpdate | null,
+  ) {
+    const saved = repositoryContext.patientAutomaticTags;
+    const index = saved.findIndex(
+      (item) => item.clinicId === clinicId && item.key === key,
+    );
+    const next = input
+      ? nextAutomaticPatientTagOverride(key, saved[index], input)
+      : null;
+    if (index >= 0) saved.splice(index, 1);
+    if (next && (next.name !== null || next.color !== null))
+      saved.push({ ...next, clinicId });
+    const tag = resolveAutomaticPatientTags(
+      saved.filter((item) => item.clinicId === clinicId),
+    ).find((item) => item.key === key)!;
+    if (clinicId === CLINIC_ID)
+      repositoryContext.addAdminAudit(
+        actorUserId,
+        "patient_tag.automatic_updated",
+        "patient_tag",
+        key,
+        { name: tag.name, color: tag.color, defaultName: tag.defaultName },
+        clinicId,
+      );
+    return Promise.resolve(tag);
+  }
+
   return {
     async listPatients(clinicId: string, search = "") {
       // Sem diferenciar maiúsculas nem acentos: "andre" acha "André".
@@ -433,6 +469,31 @@ export function createPatientsRepository(
         .filter((tag) => tag.clinicId === clinicId)
         .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"))
         .map((tag) => repositoryContext.withPatientCount(tag));
+    },
+
+    async listAutomaticPatientTags(clinicId: string) {
+      return resolveAutomaticPatientTags(
+        repositoryContext.patientAutomaticTags.filter(
+          (item) => item.clinicId === clinicId,
+        ),
+      );
+    },
+
+    async updateAutomaticPatientTag(
+      clinicId: string,
+      actorUserId: string,
+      key: AutomaticPatientTagKey,
+      input: AutomaticPatientTagUpdate,
+    ) {
+      return saveAutomaticTag(clinicId, actorUserId, key, input);
+    },
+
+    async resetAutomaticPatientTag(
+      clinicId: string,
+      actorUserId: string,
+      key: AutomaticPatientTagKey,
+    ) {
+      return saveAutomaticTag(clinicId, actorUserId, key, null);
     },
 
     async listOverduePatientIds(clinicId: string, today: string) {

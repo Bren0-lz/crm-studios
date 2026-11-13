@@ -9,13 +9,11 @@ import {
   matchesPatientProfile,
   matchesPatientSegment,
   guidedPatientInputSchema,
-  isAutomaticPatientTag,
-  INCOMPLETE_REGISTRATION_TAG,
-  MISSING_CPF_TAG,
-  INVALID_CPF_TAG,
-  MISSING_EMAIL_TAG,
+  automaticPatientTagDisplay,
+  automaticPatientTagKeySchema,
+  automaticPatientTagUpdateSchema,
+  type AutomaticPatientTagKey,
   patientTagKey,
-  OVERDUE_PAYMENT_TAG,
   patientExportFilterSchema,
   patientAuditLabels,
   patientInputSchema,
@@ -36,7 +34,7 @@ import {
 import { z } from "zod";
 import type { RouteContext } from "../../infrastructure/route-context.js";
 import { publishAppointmentsCreated } from "../../infrastructure/domain-events.js";
-import { DomainError } from "../../repository.js";
+import { DomainError, patientTagDuplicateError } from "../../repository.js";
 import {
   filterPatientsForExport,
   patientLeadOriginLabels,
@@ -64,6 +62,15 @@ function withDiscountUsage<T extends Pick<PatientInput, "discount">>(
   };
 }
 
+/** Motivo de cada etiqueta automática, na mensagem de quem tenta criá-la à mão. */
+const automaticTagReasons: Record<AutomaticPatientTagKey, string> = {
+  overdue_payment: "clientes com parcela vencida",
+  missing_cpf: "clientes sem CPF",
+  invalid_cpf: "clientes importados com CPF errado",
+  incomplete_registration:
+    "clientes importados sem WhatsApp ou sem contato de emergência",
+  missing_email: "clientes importados sem e-mail",
+};
 export function registerPatientsRoutes(context: RouteContext) {
   const {
     app,
@@ -91,29 +98,55 @@ export function registerPatientsRoutes(context: RouteContext) {
 
   /**
    * "Pagamento atrasado" (QC7), "Falta CPF" (B6-05), "Cadastro incompleto" e "Sem e-mail" (CD3)
-   * são automáticas: não podem ser criadas nem renomeadas à mão.
+   * são automáticas: não podem ser criadas nem renomeadas à mão — nem com o nome padrão nem com
+   * o nome que a clínica deu a elas (AT1).
    */
-  function assertManualTagName(name: string | undefined) {
-    if (name === undefined || !isAutomaticPatientTag(name)) return;
+  async function assertManualTagName(
+    clinicId: string,
+    name: string | undefined,
+  ) {
+    if (name === undefined) return;
     const key = patientTagKey(name);
-    const reasons: [string, string][] = [
-      [MISSING_CPF_TAG, "clientes sem CPF"],
-      [INVALID_CPF_TAG, "clientes importados com CPF errado"],
-      [
-        INCOMPLETE_REGISTRATION_TAG,
-        "clientes importados sem WhatsApp ou sem contato de emergência",
-      ],
-      [MISSING_EMAIL_TAG, "clientes importados sem e-mail"],
-      [OVERDUE_PAYMENT_TAG, "clientes com parcela vencida"],
-    ];
-    const [tag, reason] =
-      reasons.find(([item]) => patientTagKey(item) === key) ??
-      reasons[reasons.length - 1]!;
+    const automatic = (
+      await repository.listAutomaticPatientTags(clinicId)
+    ).find(
+      (tag) =>
+        patientTagKey(tag.defaultName) === key ||
+        patientTagKey(tag.name) === key,
+    );
+    if (!automatic) return;
     throw new DomainError(
       "PATIENT_TAG_AUTOMATIC",
-      `“${tag}” é uma etiqueta automática: aparece sozinha para ${reason}.`,
+      `“${automatic.name}” é uma etiqueta automática: aparece sozinha para ${automaticTagReasons[automatic.key]}.`,
       400,
     );
+  }
+
+  /**
+   * Nome novo de uma etiqueta automática: não pode repetir uma etiqueta configurada nem o nome
+   * (padrão ou atual) de outra automática.
+   */
+  async function assertAutomaticTagName(
+    clinicId: string,
+    key: AutomaticPatientTagKey,
+    name: string | undefined,
+  ) {
+    if (name === undefined) return;
+    const nameKey = patientTagKey(name);
+    const [manual, automatic] = await Promise.all([
+      repository.listPatientTags(clinicId),
+      repository.listAutomaticPatientTags(clinicId),
+    ]);
+    if (
+      manual.some((tag) => patientTagKey(tag.name) === nameKey) ||
+      automatic.some(
+        (tag) =>
+          tag.key !== key &&
+          (patientTagKey(tag.defaultName) === nameKey ||
+            patientTagKey(tag.name) === nameKey),
+      )
+    )
+      throw patientTagDuplicateError(name);
   }
 
   app.get("/patients/segments", { preHandler: authenticate }, async (request) =>
@@ -191,7 +224,7 @@ export function registerPatientsRoutes(context: RouteContext) {
             requestAccess.get(request)?.permissions.includes("finance.view"),
           )
         : [];
-      const [patients, plans, withoutGroupIds, tag, leadOrigins] =
+      const [patients, plans, withoutGroupIds, tag, leadOrigins, automatic] =
         await Promise.all([
           repository.listPatients(clinicId, filters.search),
           filters.activePlan === undefined
@@ -204,8 +237,12 @@ export function registerPatientsRoutes(context: RouteContext) {
           columns.includes("leadOrigin")
             ? repository.listPatientLeadOrigins(clinicId)
             : Promise.resolve([]),
+          repository.listAutomaticPatientTags(clinicId),
         ]);
-      const extras = { leadOrigins: patientLeadOriginLabels(leadOrigins) };
+      const extras = {
+        leadOrigins: patientLeadOriginLabels(leadOrigins),
+        tagLabel: automaticPatientTagDisplay(automatic).label,
+      };
       const filtered = filterPatientsForExport(
         patients.map(tag).filter((patient) =>
           matchesPatientSegment(
@@ -382,12 +419,54 @@ export function registerPatientsRoutes(context: RouteContext) {
     repository.listPatientTags(request.user.clinicId),
   );
 
+  app.get(
+    "/patient-tags/automatic",
+    { preHandler: authenticate },
+    async (request) =>
+      repository.listAutomaticPatientTags(request.user.clinicId),
+  );
+
+  app.patch(
+    "/patient-tags/automatic/:key",
+    { preHandler: authenticate },
+    async (request, reply) => {
+      const key = automaticPatientTagKeySchema.safeParse(
+        (request.params as { key: string }).key,
+      );
+      if (!key.success) return reply.status(404).send(patientTagNotFound);
+      const input = automaticPatientTagUpdateSchema.parse(request.body);
+      await assertAutomaticTagName(request.user.clinicId, key.data, input.name);
+      return repository.updateAutomaticPatientTag(
+        request.user.clinicId,
+        request.user.sub,
+        key.data,
+        input,
+      );
+    },
+  );
+
+  app.delete(
+    "/patient-tags/automatic/:key",
+    { preHandler: authenticate },
+    async (request, reply) => {
+      const key = automaticPatientTagKeySchema.safeParse(
+        (request.params as { key: string }).key,
+      );
+      if (!key.success) return reply.status(404).send(patientTagNotFound);
+      return repository.resetAutomaticPatientTag(
+        request.user.clinicId,
+        request.user.sub,
+        key.data,
+      );
+    },
+  );
+
   app.post(
     "/patient-tags",
     { preHandler: authenticate },
     async (request, reply) => {
       const input = patientTagInputSchema.parse(request.body);
-      assertManualTagName(input.name);
+      await assertManualTagName(request.user.clinicId, input.name);
       return reply
         .status(201)
         .send(
@@ -406,7 +485,7 @@ export function registerPatientsRoutes(context: RouteContext) {
     async (request, reply) => {
       const { id } = request.params as { id: string };
       const input = patientTagUpdateSchema.parse(request.body);
-      assertManualTagName(input.name);
+      await assertManualTagName(request.user.clinicId, input.name);
       const tag = z.uuid().safeParse(id).success
         ? await repository.updatePatientTag(
             request.user.clinicId,

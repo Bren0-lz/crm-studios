@@ -10,6 +10,9 @@ import type {
   PatientInput,
   PatientOption,
   PatientTag,
+  AutomaticPatientTag,
+  AutomaticPatientTagKey,
+  AutomaticPatientTagUpdate,
   PatientTagInput,
   PatientTagUpdate,
   PatientTimelineEntry,
@@ -69,6 +72,21 @@ export const patientsApi = {
     }),
   deletePatientTag: (id: string) =>
     request<void>(`/patient-tags/${id}`, { method: "DELETE" }),
+  /** Etiquetas automáticas com o nome e a cor que a clínica configurou (AT1). */
+  automaticPatientTags: () =>
+    request<AutomaticPatientTag[]>("/patient-tags/automatic"),
+  updateAutomaticPatientTag: (
+    key: AutomaticPatientTagKey,
+    input: AutomaticPatientTagUpdate,
+  ) =>
+    request<AutomaticPatientTag>(`/patient-tags/automatic/${key}`, {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    }),
+  resetAutomaticPatientTag: (key: AutomaticPatientTagKey) =>
+    request<AutomaticPatientTag>(`/patient-tags/automatic/${key}`, {
+      method: "DELETE",
+    }),
   exportPatients: (params: PatientExportParams) =>
     requestBlob(`/patients/export?${patientExportQuery(params)}`),
   createPatient: (input: PatientInput) =>

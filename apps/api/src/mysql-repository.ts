@@ -493,6 +493,9 @@ export class MysqlClinicRepository implements ClinicRepository {
     this.importPatients = this.patients.importPatients;
     this.updatePatient = this.patients.updatePatient;
     this.listPatientTags = this.patients.listPatientTags;
+    this.listAutomaticPatientTags = this.patients.listAutomaticPatientTags;
+    this.updateAutomaticPatientTag = this.patients.updateAutomaticPatientTag;
+    this.resetAutomaticPatientTag = this.patients.resetAutomaticPatientTag;
     this.listOverduePatientIds = this.patients.listOverduePatientIds;
     this.createPatientTag = this.patients.createPatientTag;
     this.updatePatientTag = this.patients.updatePatientTag;
@@ -1034,6 +1037,18 @@ export class MysqlClinicRepository implements ClinicRepository {
   readonly listPatientTags: ReturnType<
     typeof createPatientsRepository
   >["listPatientTags"];
+
+  readonly listAutomaticPatientTags: ReturnType<
+    typeof createPatientsRepository
+  >["listAutomaticPatientTags"];
+
+  readonly updateAutomaticPatientTag: ReturnType<
+    typeof createPatientsRepository
+  >["updateAutomaticPatientTag"];
+
+  readonly resetAutomaticPatientTag: ReturnType<
+    typeof createPatientsRepository
+  >["resetAutomaticPatientTag"];
 
   readonly listOverduePatientIds: ReturnType<
     typeof createPatientsRepository

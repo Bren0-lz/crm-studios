@@ -7,6 +7,8 @@ import { AlertTriangle, Eye } from "lucide-react";
 import { useState } from "react";
 import { createPortal } from "react-dom";
 import { useAuthorization } from "../../authorization-context";
+import { useAutomaticPatientTags } from "../../shared/hooks/usePatientTags";
+import { tagLabelLookup } from "../../shared/lib/formatting";
 import { OverduePaymentDetailsModal } from "./OverduePaymentDetailsModal";
 
 /** Etiquetas que pedem atenção antes de agendar (comparadas sem acento/maiúsculas). */
@@ -27,13 +29,16 @@ export function AppointmentPatientWarnings({
   const { can, canView } = useAuthorization();
   const canSeeFinance = canView("finance") && can("finance.view");
   const [detailsOpen, setDetailsOpen] = useState(false);
+  const keys = new Set((patient?.tags ?? []).map(patientTagKey));
+  const hasOverdue = keys.has(patientTagKey(OVERDUE_PAYMENT_TAG));
+  // Nome que a clínica deu a "Pagamento atrasado" (AT1); só busca quando o aviso aparece.
+  const tagLabel = tagLabelLookup(useAutomaticPatientTags(hasOverdue));
   if (!patient) return null;
-  const keys = new Set((patient.tags ?? []).map(patientTagKey));
   const warnings: { title: string; detail: string; overdue?: boolean }[] =
     attentionTags
       .filter((tag) => keys.has(patientTagKey(tag)))
       .map((tag) => ({
-        title: `Cliente com a etiqueta “${tag}”`,
+        title: `Cliente com a etiqueta “${tagLabel(tag)}”`,
         detail: "Confirme a situação com o cliente antes de agendar.",
         overdue: tag === OVERDUE_PAYMENT_TAG,
       }));

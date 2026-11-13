@@ -97,6 +97,8 @@ export function patientLeadOriginLabels(
 export interface PatientExportExtras {
   /** Ver `patientLeadOriginLabels`. */
   leadOrigins?: ReadonlyMap<string, string>;
+  /** Nome exibido de cada etiqueta (troca o padrão das automáticas pelo da clínica, AT1). */
+  tagLabel?: (name: string) => string;
 }
 
 /** Colunas de telefone saem em duas: DDD e número. */
@@ -145,7 +147,9 @@ function textValue(
           ? "sim"
           : "não";
     case "tags":
-      return patient.tags.join(", ");
+      return patient.tags
+        .map((tag) => extras.tagLabel?.(tag) ?? tag)
+        .join(", ");
     case "status":
       return patient.status === "active" ? "ativo" : "inativo";
     case "createdAt":

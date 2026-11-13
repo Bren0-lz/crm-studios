@@ -15,6 +15,10 @@ import {
   overduePatientIds,
   withAutomaticPatientTags,
   withoutAutomaticPatientTags,
+  automaticPatientTagDisplay,
+  automaticPatientTagUpdateSchema,
+  nextAutomaticPatientTagOverride,
+  resolveAutomaticPatientTags,
 } from "./automatic-tags.js";
 
 describe("etiqueta automática 'Pagamento atrasado'", () => {
@@ -181,5 +185,74 @@ describe("etiquetas automáticas 'Cadastro incompleto' e 'Sem e-mail' (CD3)", ()
     ).toEqual(["Pilates"]);
     expect(automaticPatientTagCategoryOf(INCOMPLETE_REGISTRATION_TAG)).toBe("status");
     expect(automaticPatientTagCategoryOf(MISSING_EMAIL_TAG)).toBe("status");
+  });
+});
+
+describe("nome e cor configuráveis das etiquetas automáticas (AT1)", () => {
+  it("aplica a personalização sobre o padrão de cada etiqueta", () => {
+    const tags = resolveAutomaticPatientTags([
+      { key: "missing_email", name: "Pedir e-mail", color: null },
+      { key: "overdue_payment", name: null, color: "#ABCDEF" },
+    ]);
+    expect(tags.map((tag) => tag.key)).toEqual([
+      "overdue_payment",
+      "missing_cpf",
+      "invalid_cpf",
+      "incomplete_registration",
+      "missing_email",
+    ]);
+    expect(tags[0]).toMatchObject({
+      name: OVERDUE_PAYMENT_TAG,
+      color: "#abcdef",
+      defaultColor: "#c2410c",
+      customized: true,
+    });
+    expect(tags[1]).toMatchObject({
+      name: MISSING_CPF_TAG,
+      color: "#6d28d9",
+      customized: false,
+    });
+    expect(tags[4]).toMatchObject({
+      defaultName: MISSING_EMAIL_TAG,
+      name: "Pedir e-mail",
+      customized: true,
+    });
+  });
+
+  it("troca só o nome e a cor exibidos das automáticas", () => {
+    const display = automaticPatientTagDisplay(
+      resolveAutomaticPatientTags([
+        { key: "missing_email", name: "Pedir e-mail", color: "#123456" },
+      ]),
+    );
+    expect(display.label(MISSING_EMAIL_TAG)).toBe("Pedir e-mail");
+    expect(display.label("sem e-mail")).toBe("Pedir e-mail");
+    expect(display.color(MISSING_EMAIL_TAG)).toBe("#123456");
+    expect(display.label("Pilates")).toBe("Pilates");
+    expect(display.color("Pilates")).toBeUndefined();
+    expect(automaticPatientTagDisplay(null).label(MISSING_CPF_TAG)).toBe(
+      MISSING_CPF_TAG,
+    );
+  });
+
+  it("valida a atualização e volta ao padrão quando o valor é o padrão", () => {
+    expect(automaticPatientTagUpdateSchema.safeParse({}).success).toBe(false);
+    expect(
+      automaticPatientTagUpdateSchema.safeParse({ color: "vermelho" }).success,
+    ).toBe(false);
+    expect(
+      automaticPatientTagUpdateSchema.parse({ name: " Novo ", color: "#AAAAAA" }),
+    ).toEqual({ name: "Novo", color: "#aaaaaa" });
+    const current = { name: "Pedir e-mail", color: "#123456" };
+    expect(
+      nextAutomaticPatientTagOverride("missing_email", current, {
+        color: "#6d28d9",
+      }),
+    ).toEqual({ key: "missing_email", name: "Pedir e-mail", color: null });
+    expect(
+      nextAutomaticPatientTagOverride("missing_email", current, {
+        name: MISSING_EMAIL_TAG,
+      }),
+    ).toEqual({ key: "missing_email", name: null, color: "#123456" });
   });
 });

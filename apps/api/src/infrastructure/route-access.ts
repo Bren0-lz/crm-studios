@@ -257,6 +257,17 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
   "POST /patient-tags": operation("settings.tags_create"),
   "PATCH /patient-tags/:id": operation("settings.tags_update"),
   "DELETE /patient-tags/:id": operation("settings.tags_delete"),
+  // Etiquetas automáticas (AT1): nome e cor exibidos; leitura igual à das etiquetas configuradas.
+  "GET /patient-tags/automatic": viewAny(
+    "patients",
+    "settings",
+    "agenda",
+    "communications",
+    "contracts",
+    "groups",
+  ),
+  "PATCH /patient-tags/automatic/:key": operation("settings.tags_update"),
+  "DELETE /patient-tags/automatic/:key": operation("settings.tags_update"),
   "POST /patients/import": operation("patients.import"),
   "GET /patients/:id/timeline": operation("patients.timeline"),
   "GET /finance/external-operations": operation(

@@ -26,6 +26,7 @@ import {
   localIsoDate,
   statusLabel,
   tagColorLookup,
+  tagLabelLookup,
   timeLabel,
   visitTypeBadgeText,
   emergencyContactLabel,
@@ -105,8 +106,12 @@ export function AppointmentDetailsModal({
   const isCompleted = appointment.status === "completed" && !isLead;
   // Cores das etiquetas só quando o cliente tem alguma; sem acesso à lista, fica a cor padrão.
   const patientTagNames = !isLead && patient?.tags?.length ? patient.tags : [];
-  const configuredTags = usePatientTags(patientTagNames.length > 0);
-  const tagColor = tagColorLookup(configuredTags.tags);
+  const configuredTags = usePatientTags(patientTagNames.length > 0, true);
+  const tagColor = tagColorLookup(
+    configuredTags.tags,
+    configuredTags.automatic,
+  );
+  const tagLabel = tagLabelLookup(configuredTags.automatic);
   const [survey, setSurvey] = useState<SatisfactionSurvey | null>(null);
   const [surveyChecked, setSurveyChecked] = useState(false);
   const [alreadyRated, setAlreadyRated] = useState(false);
@@ -427,7 +432,7 @@ export function AppointmentDetailsModal({
                       patientTagNames.map((tag) => (
                         <PatientTagBadge
                           key={tag}
-                          name={tag}
+                          name={tagLabel(tag)}
                           color={tagColor(tag)}
                         />
                       ))

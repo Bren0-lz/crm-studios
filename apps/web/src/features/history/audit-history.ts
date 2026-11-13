@@ -178,6 +178,7 @@ export function formatAuditEvent(event: AdminAuditEvent) {
     case "patient_tag.created":
     case "patient_tag.updated":
     case "patient_tag.deleted":
+    case "patient_tag.automatic_updated":
       add("Etiqueta", metadata.name);
       add("Nome anterior", metadata.previousName);
       if (

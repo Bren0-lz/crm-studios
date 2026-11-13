@@ -93,6 +93,7 @@ import {
   type PatientPlanInput,
   type PatientTab,
   type PatientTag,
+  type AutomaticPatientTagOverride,
   patientTagKey,
   type Payable,
   type PaymentMethod,
@@ -832,6 +833,10 @@ export class MemoryRepositoryContext {
 
   /** Etiquetas configuradas; começam com as etiquetas que os clientes demo já têm. */
   readonly patientTags: Omit<PatientTag, "patientCount">[] = [];
+  /** Nome e cor personalizados das etiquetas automáticas (AT1); no MySQL, `patient_automatic_tags`. */
+  readonly patientAutomaticTags: (AutomaticPatientTagOverride & {
+    clinicId: string;
+  })[] = [];
 
   constructor(withRichDemo = false) {
     for (const patient of this.patients)
