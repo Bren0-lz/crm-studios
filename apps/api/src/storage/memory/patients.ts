@@ -230,6 +230,7 @@ export function createPatientsRepository(
                 lead: convertLeadToNewPatient(
                   repositoryContext,
                   clinicId,
+                  actorUserId,
                   lead.id,
                   patient,
                 ),

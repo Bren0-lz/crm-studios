@@ -263,6 +263,8 @@ export function LeadCard({
   onOpen: () => void;
 }) {
   const open = !["won", "lost"].includes(lead.stage);
+  // Lead perdido pode voltar ao funil pelo seletor; o ganho só existe pela conversão.
+  const movable = lead.stage !== "won" && !lead.convertedPatientId;
   const alert = leadAlert(lead);
   // Os ícones, o seletor de etapa e o painel flutuante têm ação própria: só o resto do cartão abre os detalhes.
   const openFromCard = (event: MouseEvent<HTMLElement>) => {
@@ -336,7 +338,7 @@ export function LeadCard({
       </div>
       <LeadMessageStatus lead={lead} contacts={contacts} />
       <div className="lead-card-actions">
-        {permissions.manage && open && (
+        {permissions.manage && movable && (
           <label
             className="lead-icon-button lead-stage-picker"
             title="Mover etapa"

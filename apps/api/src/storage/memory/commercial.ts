@@ -313,7 +313,7 @@ export function createCommercialRepository(
     },
     async moveLead(
       clinicId: string,
-      _actorUserId: string,
+      actorUserId: string,
       leadId: string,
       stage: LeadStage,
       lostReason?: string,
@@ -341,16 +341,27 @@ export function createCommercialRepository(
         )
       )
         throw stageNotFoundError();
+      const fromStage = lead.stage;
       lead.stage = stage;
       if (stage === "lost" && lostReason) lead.lostReason = lostReason;
       else delete lead.lostReason;
       lead.updatedAt = now();
+      if (fromStage !== stage)
+        recordStageChange(
+          repositoryContext,
+          clinicId,
+          actorUserId,
+          lead.id,
+          fromStage,
+          stage,
+          stage === "lost" ? lostReason : undefined,
+        );
       return lead;
     },
 
     async convertLead(
       clinicId: string,
-      _actorUserId: string,
+      actorUserId: string,
       leadId: string,
       input?: LeadConversionInput,
     ): Promise<LeadConversion | null> {
@@ -405,7 +416,13 @@ export function createCommercialRepository(
           clinicId,
           data,
         );
-      markLeadConverted(repositoryContext, clinicId, lead, patient);
+      markLeadConverted(
+        repositoryContext,
+        clinicId,
+        actorUserId,
+        lead,
+        patient,
+      );
       return { lead, patient, reusedExisting };
     },
 
@@ -430,6 +447,23 @@ export function createCommercialRepository(
             (item) => item.clinicId === clinicId && item.leadId === leadId,
           )
           .sort((a, b) => a.dueAt.localeCompare(b.dueAt)),
+        stageHistory: repositoryContext.leadStageHistory
+          .filter(
+            (item) => item.clinicId === clinicId && item.leadId === leadId,
+          )
+          .map((item) => ({
+            id: item.id,
+            leadId: item.leadId,
+            ...(item.fromStage ? { fromStage: item.fromStage } : {}),
+            toStage: item.toStage,
+            ...(item.reason ? { reason: item.reason } : {}),
+            actorName:
+              repositoryContext.users.find(
+                (user) => user.id === item.actorUserId,
+              )?.fullName ?? item.actorName,
+            createdAt: item.createdAt,
+          }))
+          .reverse(),
       };
     },
 
@@ -588,9 +622,11 @@ export function createCommercialRepository(
 function markLeadConverted(
   repositoryContext: MemoryRepositoryContext,
   clinicId: string,
+  actorUserId: string,
   lead: Lead,
   patient: Patient,
 ) {
+  const fromStage = lead.stage;
   for (const appointment of repositoryContext.appointments) {
     if (appointment.clinicId !== clinicId || appointment.leadId !== lead.id)
       continue;
@@ -622,6 +658,41 @@ function markLeadConverted(
   delete lead.lostReason;
   lead.updatedAt = now();
   repositoryContext.leadConvertedAt.set(lead.id, lead.updatedAt);
+  recordStageChange(
+    repositoryContext,
+    clinicId,
+    actorUserId,
+    lead.id,
+    fromStage,
+    "won",
+    "Conversão em cliente",
+  );
+}
+
+/** Guarda a troca de etapa no histórico do lead (equivale ao `lead_stage_history`). */
+function recordStageChange(
+  repositoryContext: MemoryRepositoryContext,
+  clinicId: string,
+  actorUserId: string,
+  leadId: string,
+  fromStage: LeadStage,
+  toStage: LeadStage,
+  reason?: string,
+) {
+  repositoryContext.leadStageHistory.push({
+    id: uuid(),
+    clinicId,
+    actorUserId,
+    leadId,
+    fromStage,
+    toStage,
+    ...(reason ? { reason } : {}),
+    actorName:
+      repositoryContext.users.find(
+        (item) => item.clinicId === clinicId && item.id === actorUserId,
+      )?.fullName ?? "",
+    createdAt: now(),
+  });
 }
 
 /** Lead ativo e ainda não convertido; senão, o erro da conversão pelo cadastro guiado. */
@@ -645,10 +716,11 @@ export function convertibleLead(
 export function convertLeadToNewPatient(
   repositoryContext: MemoryRepositoryContext,
   clinicId: string,
+  actorUserId: string,
   leadId: string,
   patient: Patient,
 ): Lead {
   const lead = convertibleLead(repositoryContext, clinicId, leadId);
-  markLeadConverted(repositoryContext, clinicId, lead, patient);
+  markLeadConverted(repositoryContext, clinicId, actorUserId, lead, patient);
   return lead;
 }

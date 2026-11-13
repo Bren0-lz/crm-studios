@@ -442,6 +442,16 @@
   grid-column: 1 / -1;
 }
 
+.lead-details-panel:not([hidden]) {
+  display: grid;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.lead-stage-reason {
+  color: var(--muted);
+}
+
 .lead-details-contacts {
   display: grid;
   gap: var(--space-3);

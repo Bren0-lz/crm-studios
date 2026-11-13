@@ -85,6 +85,7 @@ import {
   type IssuedDocument,
   type Lead,
   type LeadContact,
+  type LeadStageChange,
   type LeadTask,
   type OutboundMessage,
   type Patient,
@@ -571,6 +572,12 @@ export class MemoryRepositoryContext {
 
   /** Lead id → quando virou cliente (no MySQL vem do `lead_stage_history`). */
   readonly leadConvertedAt = new Map<string, string>();
+
+  /** Trocas de etapa dos leads (no MySQL, a tabela `lead_stage_history`). */
+  readonly leadStageHistory: (LeadStageChange & {
+    clinicId: string;
+    actorUserId: string;
+  })[] = [];
 
   readonly events: import("./events.js").EventRow[] = [];
 

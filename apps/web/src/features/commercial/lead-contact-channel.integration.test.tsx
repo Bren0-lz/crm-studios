@@ -133,9 +133,7 @@ describe("lead contact channel", () => {
       name: "Registrar contato",
     });
     expect(register).toBeDisabled();
-    expect(register).toHaveAccessibleDescription(
-      "Falta: Registro do contato.",
-    );
+    expect(register).toHaveAccessibleDescription("Falta: Registro do contato.");
     fireEvent.change(within(dialog).getByLabelText("Registro do contato"), {
       target: { value: "Respondeu no direct" },
     });

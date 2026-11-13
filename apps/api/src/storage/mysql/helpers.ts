@@ -70,11 +70,13 @@ export {
   leadColumns,
   mapLead,
   mapLeadContact,
+  mapLeadStageChange,
   mapLeadTask,
 } from "./mappers/commercial.js";
 export type {
   LeadContactRow,
   LeadRow,
+  LeadStageChangeRow,
   LeadTaskRow,
 } from "./mappers/commercial.js";
 export { bool, json, phoneSearchDigits } from "./mappers/common.js";

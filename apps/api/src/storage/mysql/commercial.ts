@@ -55,10 +55,12 @@ import {
   ensurePatientTags,
   leadColumns,
   type LeadContactRow,
+  type LeadStageChangeRow,
   type LeadRow,
   type LeadTaskRow,
   mapLead,
   mapLeadContact,
+  mapLeadStageChange,
   mapLeadTask,
   mapPatient,
   patientColumns,
@@ -463,19 +465,21 @@ export function createCommercialRepository(
          WHERE clinic_id = $1 AND id = $2`,
           [clinicId, leadId, stage, stage === "lost" ? lostReason : null],
         );
-        await client.query(
-          `INSERT INTO lead_stage_history
+        // Reescolher a mesma etapa não é movimentação: fica fora do histórico.
+        if (current.rows[0].stage !== stage)
+          await client.query(
+            `INSERT INTO lead_stage_history
            (clinic_id, lead_id, actor_user_id, from_stage, to_stage, reason)
          VALUES ($1,$2,$3,$4,$5,$6)`,
-          [
-            clinicId,
-            leadId,
-            actorUserId,
-            current.rows[0].stage,
-            stage,
-            lostReason || null,
-          ],
-        );
+            [
+              clinicId,
+              leadId,
+              actorUserId,
+              current.rows[0].stage,
+              stage,
+              (stage === "lost" && lostReason) || null,
+            ],
+          );
         const lead = await repositoryContext.findLead(client, clinicId, leadId);
         await client.query("COMMIT");
         return lead;
@@ -611,7 +615,7 @@ export function createCommercialRepository(
         [clinicId, leadId],
       );
       if (!lead.rows[0]) return null;
-      const [contacts, tasks] = await Promise.all([
+      const [contacts, tasks, stageHistory] = await Promise.all([
         repositoryContext.pool.query<LeadContactRow>(
           `SELECT lc.id, lc.clinic_id AS "clinicId", lc.lead_id AS "leadId",
                 lc.channel, lc.contact_method AS "contactMethod", lc.direction, lc.notes, lc.reached, u.full_name AS "actorName",
@@ -633,10 +637,20 @@ export function createCommercialRepository(
          ORDER BY CASE WHEN lt.status = 'open' THEN 0 ELSE 1 END, lt.due_at`,
           [clinicId, leadId],
         ),
+        repositoryContext.pool.query<LeadStageChangeRow>(
+          `SELECT h.id, h.lead_id AS "leadId", h.from_stage AS "fromStage",
+                h.to_stage AS "toStage", h.reason, u.full_name AS "actorName",
+                h.created_at AS "createdAt"
+         FROM lead_stage_history h JOIN users u ON u.id = h.actor_user_id
+         WHERE h.clinic_id = $1 AND h.lead_id = $2
+         ORDER BY h.created_at DESC, h.id DESC`,
+          [clinicId, leadId],
+        ),
       ]);
       return {
         contacts: contacts.rows.map(mapLeadContact),
         tasks: tasks.rows.map(mapLeadTask),
+        stageHistory: stageHistory.rows.map(mapLeadStageChange),
       };
     },
 
