@@ -1625,7 +1625,7 @@ filtros ficam no `dashboard-studios` (EN11–EN13 têm só a parte da API aqui).
   com plano não avulso, sem `source_appointment_id`, fora da lixeira, criado de 30 dias antes a
   30 dias depois da aula (plano sem filtro de filial). Texto do card em `ClinicIndicators`.
 - **Gate:** gate completo + `npm run test:mysql`
-- **Status:** TODO
+- **Status:** DONE
 
 ### EX4 — Corrida no agendamento de lead (MySQL)
 

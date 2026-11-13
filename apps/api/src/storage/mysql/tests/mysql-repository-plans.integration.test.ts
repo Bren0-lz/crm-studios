@@ -652,7 +652,7 @@ describe.skipIf(!databaseUrl)("MySQL repository", () => {
     }
   });
 
-  it("reports trial conversion by plans created within 30 days of the completed trial", async () => {
+  it("reports trial conversion by real plans created within 30 days around the completed trial", async () => {
     await cleanupTrialConversion();
     const [professionals, rooms, services] = await Promise.all([
       repository.listProfessionals(clinicId),
@@ -670,7 +670,12 @@ describe.skipIf(!databaseUrl)("MySQL repository", () => {
       notes: trialConversionMarker,
     };
     const day = trialConversionDay.toISOString().slice(0, 10);
-    const createPlanAt = async (patientId: string, createdAt: string) => {
+    const createPlanAt = async (
+      patientId: string,
+      createdAt: string,
+      kind: "fixed_package" | "single" = "fixed_package",
+    ) => {
+      const totalSessions = kind === "single" ? 1 : 4;
       const plan = await repository.createPatientPlan(
         clinicId,
         ownerId,
@@ -678,15 +683,15 @@ describe.skipIf(!databaseUrl)("MySQL repository", () => {
           services: [
             {
               serviceId: input.serviceId,
-              totalSessions: 4,
+              totalSessions,
               totalValueInCents: 40000,
             },
           ],
           patientId,
           serviceId: input.serviceId,
           name: trialConversionMarker,
-          kind: "fixed_package",
-          totalSessions: 4,
+          kind,
+          totalSessions,
           validFrom: day,
           totalValueInCents: 40000,
           installments: 1,
@@ -697,6 +702,24 @@ describe.skipIf(!databaseUrl)("MySQL repository", () => {
         "UPDATE patient_plans SET created_at = $2 WHERE id = $1",
         [plan.id, createdAt],
       );
+      return plan;
+    };
+    const daysAfter = (iso: string, days: number) =>
+      new Date(
+        new Date(iso).getTime() + days * 24 * 60 * 60 * 1000,
+      ).toISOString();
+    const completedTrial = async (patientId: string, hours: number) => {
+      const trial = await repository.createAppointment(clinicId, {
+        ...input,
+        patientId,
+        startsAt: at(hours),
+        visitType: "trial",
+      });
+      // Realizado só vale a partir de 15 min antes do início (QC3).
+      await atInstant(trial.startsAt, () =>
+        repository.updateAppointmentStatus(clinicId, trial.id, "completed"),
+      );
+      return trial;
     };
     const createLead = (fullName: string, phone: string) =>
       repository.createLead(clinicId, {
@@ -800,6 +823,31 @@ describe.skipIf(!databaseUrl)("MySQL repository", () => {
       ).toISOString(),
     );
 
+    // Duas experimentais da mesma cliente, plano 10 dias antes: uma pessoa convertida (EX3).
+    const twice = await repository.createPatient(clinicId, {
+      cpf: nextTestCpf(),
+      fullName: "Cliente Duas Experimentais",
+      phone: trialConversionPhones[3]!,
+      tags: [],
+    });
+    await completedTrial(twice.id, 8);
+    await completedTrial(twice.id, 10);
+    await createPlanAt(twice.id, daysAfter(at(8), -10));
+    // Só avulso e plano na lixeira: não converte.
+    const single = await repository.createPatient(clinicId, {
+      cpf: nextTestCpf(),
+      fullName: "Cliente Só Avulso",
+      phone: trialConversionPhones[4]!,
+      tags: [],
+    });
+    await completedTrial(single.id, 12);
+    await createPlanAt(single.id, daysAfter(at(12), 1), "single");
+    const trashed = await createPlanAt(single.id, daysAfter(at(12), 2));
+    await pool.query(
+      "UPDATE patient_plans SET deleted_at = NOW(6), deleted_by_user_id = $2 WHERE id = $1",
+      [trashed.id, ownerId],
+    );
+
     const reportDay = new Intl.DateTimeFormat("en-CA", {
       timeZone: "America/Sao_Paulo",
     }).format(trialConversionDay);
@@ -808,11 +856,13 @@ describe.skipIf(!databaseUrl)("MySQL repository", () => {
       reportDay,
       reportDay,
     );
+    // Só experimentais (EX3): avaliação do lead fica fora. Agendadas por atendimento;
+    // realizadas e convertidas por pessoa (convertidos: lead e a cliente das duas experimentais).
     expect(report.trials).toEqual({
-      scheduled: 3,
-      completed: 3,
-      converted: 1,
-      conversionRate: 33,
+      scheduled: 5,
+      completed: 4,
+      converted: 2,
+      conversionRate: 50,
     });
   });
 

@@ -648,27 +648,42 @@ export function createReportsRepository(
         (sum, item) => sum + item.capacity,
         0,
       );
+      // Card "Aulas experimentais" (EX3): só `trial`; realizadas e convertidas contam por pessoa.
       const trialAppointments = appointments.filter(
-        (item) =>
-          (item.visitType === "trial" || item.visitType === "evaluation") &&
-          item.status !== "cancelled",
+        (item) => item.visitType === "trial" && item.status !== "cancelled",
       );
       const completedTrials = trialAppointments.filter(
         (item) => item.status === "completed",
       );
-      const convertedTrials = completedTrials.filter((item) => {
-        if (!item.patientId) return false;
-        const start = new Date(item.startsAt).getTime();
-        const limit = start + 30 * 24 * 60 * 60 * 1000;
-        return repositoryContext
-          .scoped(repositoryContext.patientPlans)
-          .some((plan) => {
-            if (plan.clinicId !== clinicId || plan.patientId !== item.patientId)
-              return false;
-            const createdAt = new Date(plan.createdAt).getTime();
-            return createdAt >= start && createdAt <= limit;
-          });
-      }).length;
+      const trialPeople = new Set(
+        completedTrials.map((item) => item.patientId ?? item.leadId ?? item.id),
+      );
+      const day = 24 * 60 * 60 * 1000;
+      const convertedPatients = new Set(
+        completedTrials
+          .filter((item) => {
+            if (!item.patientId) return false;
+            const start = new Date(item.startsAt).getTime();
+            // Plano de verdade (não avulso nem crédito de comanda), fora da lixeira, de 30
+            // dias antes a 30 dias depois da aula; sem filtro de filial no plano.
+            return repositoryContext.patientPlans.some((plan) => {
+              if (
+                plan.clinicId !== clinicId ||
+                plan.patientId !== item.patientId ||
+                plan.kind === "single" ||
+                plan.sourceAppointmentId ||
+                repositoryContext.isTrashed("patient-plans", plan.id)
+              )
+                return false;
+              const createdAt = new Date(plan.createdAt).getTime();
+              return (
+                createdAt >= start - 30 * day && createdAt <= start + 30 * day
+              );
+            });
+          })
+          .map((item) => item.patientId!),
+      );
+      const convertedTrials = convertedPatients.size;
       return {
         from,
         to,
@@ -692,10 +707,10 @@ export function createReportsRepository(
         },
         trials: {
           scheduled: trialAppointments.length,
-          completed: completedTrials.length,
+          completed: trialPeople.size,
           converted: convertedTrials,
-          conversionRate: completedTrials.length
-            ? Math.round((convertedTrials / completedTrials.length) * 100)
+          conversionRate: trialPeople.size
+            ? Math.round((convertedTrials / trialPeople.size) * 100)
             : 0,
         },
         plans: {

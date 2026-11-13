@@ -39,7 +39,7 @@ export function ClinicIndicators({
                 </strong>
                 <small>
                   {report.trials.completed
-                    ? `${report.trials.converted} de ${report.trials.completed} fecharam plano em até 30 dias · ${plural(report.trials.scheduled, "agendada", "agendadas")}`
+                    ? `${report.trials.converted} de ${report.trials.completed} ${report.trials.completed === 1 ? "pessoa fechou" : "pessoas fecharam"} plano (30 dias antes ou depois) · ${plural(report.trials.scheduled, "agendada", "agendadas")}`
                     : `${plural(report.trials.scheduled, "agendada", "agendadas")} · nenhuma realizada no período`}
                 </small>
               </>
