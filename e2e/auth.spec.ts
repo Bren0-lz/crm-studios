@@ -5,6 +5,9 @@ test("login validates credentials and logout ends the session", async ({
 }) => {
   await page.goto("/clientes");
   await expect(page).toHaveURL(/\/login$/);
+  await page
+    .getByLabel("E-mail", { exact: true })
+    .fill("admin@movimenta.local");
   await page.getByLabel("Senha", { exact: true }).fill("invalid-password");
   await page.getByRole("button", { name: "Entrar", exact: true }).click();
   await expect(page.locator(".form-error")).toContainText(/inválid|incorret/i);

@@ -1768,9 +1768,12 @@ describe("application shell", () => {
       screen.getByText("Studios Aryana", { selector: ".brand-name" }),
     ).toBeInTheDocument();
     expect(document.querySelector(".brand-mark")).toBeNull();
+    expect(screen.getByLabelText("E-mail")).toHaveValue("");
+    expect(screen.getByLabelText("Senha")).toHaveValue("");
+    expect(screen.queryByText(/Admin@123/)).not.toBeInTheDocument();
     expect(
-      screen.getByText("admin@movimenta.local · Admin@123"),
-    ).toBeInTheDocument();
+      screen.queryByText("Acesso de demonstração"),
+    ).not.toBeInTheDocument();
     expect(screen.queryByText(/^movimenta$/i)).not.toBeInTheDocument();
   });
 
