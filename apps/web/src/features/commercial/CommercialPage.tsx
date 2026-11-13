@@ -670,6 +670,9 @@ export function CommercialPage() {
           lead={viewingLead}
           contacts={leadContacts[viewingLead.id]}
           stageLabel={stageLabel(viewingLead.stage)}
+          stageName={(stage) =>
+            stages.find((item) => item.value === stage)?.label
+          }
           canEdit={permissions.update}
           onClose={() => setViewingLead(null)}
           onEdit={() => {

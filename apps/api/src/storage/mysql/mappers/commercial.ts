@@ -5,6 +5,7 @@ import type {
   Lead,
   LeadContact,
   LeadStage,
+  LeadStageChange,
   LeadTask,
   LeadTaskStatus,
 } from "@crm/contracts";
@@ -51,6 +52,16 @@ export interface LeadContactRow {
   reached: number | boolean;
   actorName: string;
   occurredAt: Date;
+  createdAt: Date;
+}
+
+export interface LeadStageChangeRow {
+  id: string;
+  leadId: string;
+  fromStage: string | null;
+  toStage: string;
+  reason: string | null;
+  actorName: string;
   createdAt: Date;
 }
 
@@ -142,6 +153,18 @@ export function mapLeadContact(row: LeadContactRow): LeadContact {
     reached: Boolean(Number(row.reached)),
     actorName: row.actorName,
     occurredAt: row.occurredAt.toISOString(),
+    createdAt: row.createdAt.toISOString(),
+  };
+}
+
+export function mapLeadStageChange(row: LeadStageChangeRow): LeadStageChange {
+  return {
+    id: row.id,
+    leadId: row.leadId,
+    ...(row.fromStage ? { fromStage: row.fromStage } : {}),
+    toStage: row.toStage,
+    ...(row.reason ? { reason: row.reason } : {}),
+    actorName: row.actorName,
     createdAt: row.createdAt.toISOString(),
   };
 }

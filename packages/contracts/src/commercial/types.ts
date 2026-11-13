@@ -69,9 +69,24 @@ export interface LeadTask extends LeadTaskInput {
   updatedAt: string;
 }
 
+/** Uma troca de etapa do lead no funil (quem moveu, de onde, para onde e quando). */
+export interface LeadStageChange {
+  id: string;
+  leadId: string;
+  /** Ausente quando a etapa de origem não foi registrada. */
+  fromStage?: LeadStage;
+  toStage: LeadStage;
+  /** Motivo da perda ou "Conversão em cliente". */
+  reason?: string;
+  actorName: string;
+  createdAt: string;
+}
+
 export interface LeadActivity {
   contacts: LeadContact[];
   tasks: LeadTask[];
+  /** Movimentações no funil, da mais recente para a mais antiga. */
+  stageHistory: LeadStageChange[];
 }
 
 export interface CommercialSourceBreakdown {

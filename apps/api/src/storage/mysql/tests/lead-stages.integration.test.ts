@@ -32,8 +32,8 @@ for (const storage of ["memory", "mysql"] as const) {
       });
 
       afterAll(async () => {
-      await database?.drop();
-    });
+        await database?.drop();
+      });
 
       it("saves the funnel, uses it for new leads and moves and guards stages with leads", async () => {
         const current = await repository.listLeadStages(clinicId);
@@ -107,6 +107,73 @@ for (const storage of ["memory", "mysql"] as const) {
         await expect(
           repository.moveLead(clinicId, actorId, lead.id, "stage_inexistente"),
         ).rejects.toThrow("Etapa do funil não encontrada.");
+      });
+
+      it("moves a lost lead back to the funnel and keeps the stage history", async () => {
+        const lead = await repository.createLead(
+          clinicId,
+          leadInputSchema.parse({
+            fullName: "Lead que volta do perdido",
+            phone: "31977774444",
+            source: "Site",
+            interest: "Pilates",
+          }),
+        );
+        // No MySQL o funil vem do teste anterior: a origem é a etapa de entrada.
+        const entryStage = lead.stage;
+        expect(
+          (await repository.getLeadActivity(clinicId, lead.id))?.stageHistory,
+        ).toEqual([]);
+        const lost = await repository.moveLead(
+          clinicId,
+          actorId,
+          lead.id,
+          "lost",
+          "Preço",
+        );
+        expect(lost).toMatchObject({ stage: "lost", lostReason: "Preço" });
+        const back = await repository.moveLead(
+          clinicId,
+          actorId,
+          lead.id,
+          "contacted",
+        );
+        expect(back?.stage).toBe("contacted");
+        expect(back?.lostReason).toBeUndefined();
+        // Reescolher a mesma etapa não entra no histórico.
+        await repository.moveLead(clinicId, actorId, lead.id, "contacted");
+
+        const history =
+          (await repository.getLeadActivity(clinicId, lead.id))?.stageHistory ??
+          [];
+        expect(
+          history.map(({ fromStage, toStage, reason }) => ({
+            fromStage,
+            toStage,
+            reason,
+          })),
+        ).toEqual([
+          { fromStage: "lost", toStage: "contacted", reason: undefined },
+          { fromStage: entryStage, toStage: "lost", reason: "Preço" },
+        ]);
+        for (const item of history) {
+          expect(item.leadId).toBe(lead.id);
+          expect(item.actorName).toBeTruthy();
+          expect(Number.isNaN(Date.parse(item.createdAt))).toBe(false);
+        }
+        // O histórico é do lead e da clínica: outro lead não o enxerga.
+        const other = await repository.createLead(
+          clinicId,
+          leadInputSchema.parse({
+            fullName: "Outro lead",
+            phone: "31977773333",
+            source: "Site",
+            interest: "Pilates",
+          }),
+        );
+        expect(
+          (await repository.getLeadActivity(clinicId, other.id))?.stageHistory,
+        ).toEqual([]);
       });
     },
   );

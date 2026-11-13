@@ -143,5 +143,22 @@ describe("commercial board stage moves", () => {
       "Proposta0",
     );
     expect(screen.queryByRole("status")).not.toBeInTheDocument();
+
+    // Lead perdido não fica preso: o seletor continua no cartão e devolve o lead ao funil.
+    const picker = screen.getByLabelText("Etapa de Bruna Lead");
+    expect(picker).toHaveValue("lost");
+    expect(
+      within(picker).queryByRole("option", { name: "Ganhos" }),
+    ).not.toBeInTheDocument();
+    fireEvent.change(picker, { target: { value: "contacted" } });
+    await waitFor(() =>
+      expect(
+        within(column("Em contato")).getByText("Bruna Lead"),
+      ).toBeInTheDocument(),
+    );
+    expect(moves[3]).toEqual({ stage: "contacted" });
+    expect(within(column("Perdidos")).getByRole("banner").textContent).toBe(
+      "Perdidos0",
+    );
   });
 });

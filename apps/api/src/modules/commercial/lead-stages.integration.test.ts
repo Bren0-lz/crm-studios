@@ -5,6 +5,7 @@ import { nextTestCpf } from "../../test-support/cpf.js";
 import "../../test-support/legacy-setup.js";
 import {
   leadInputSchema,
+  type LeadActivity,
   type LeadBoard,
   type LeadStageConfig,
 } from "@crm/contracts";
@@ -163,6 +164,67 @@ describe("configurable lead funnel", () => {
     });
     expect(unknown.statusCode).toBe(400);
     expect(unknown.json().message).toBe("Etapa do funil não encontrada.");
+  });
+
+  it("lets a lost lead go back to the funnel and lists every stage move", async () => {
+    const { app, admin, createLead } = await setup();
+    const lead = await createLead("Lead que volta");
+    const move = (payload: Record<string, unknown>) =>
+      app.inject({
+        method: "PATCH",
+        url: `/leads/${lead.id}/stage`,
+        headers: admin,
+        payload,
+      });
+    const activity = async () =>
+      (
+        await app.inject({
+          method: "GET",
+          url: `/leads/${lead.id}/activity`,
+          headers: admin,
+        })
+      ).json<LeadActivity>();
+    expect((await activity()).stageHistory).toEqual([]);
+
+    const lost = await move({ stage: "lost", lostReason: "Preço" });
+    expect(lost.json()).toMatchObject({ stage: "lost", lostReason: "Preço" });
+    // Sair de "Perdidos" é permitido e limpa o motivo do cadastro.
+    const back = await move({ stage: "contacted" });
+    expect(back.statusCode).toBe(200);
+    expect(back.json().stage).toBe("contacted");
+    expect(back.json().lostReason).toBeUndefined();
+    // Reescolher a mesma etapa não entra no histórico.
+    expect((await move({ stage: "contacted" })).statusCode).toBe(200);
+
+    const history = (await activity()).stageHistory;
+    expect(
+      history.map(({ fromStage, toStage, reason }) => ({
+        fromStage,
+        toStage,
+        reason,
+      })),
+    ).toEqual([
+      { fromStage: "lost", toStage: "contacted", reason: undefined },
+      { fromStage: "new_contact", toStage: "lost", reason: "Preço" },
+    ]);
+    for (const item of history) {
+      expect(item.leadId).toBe(lead.id);
+      expect(item.actorName).toBeTruthy();
+      expect(Number.isNaN(Date.parse(item.createdAt))).toBe(false);
+    }
+
+    const converted = await app.inject({
+      method: "POST",
+      url: `/leads/${lead.id}/convert`,
+      headers: admin,
+      payload: { cpf: nextTestCpf(), ...testPatientContact },
+    });
+    expect(converted.statusCode, converted.body).toBe(200);
+    expect((await activity()).stageHistory[0]).toMatchObject({
+      fromStage: "contacted",
+      toStage: "won",
+      reason: "Conversão em cliente",
+    });
   });
 
   it("blocks removing a stage that still has leads", async () => {
