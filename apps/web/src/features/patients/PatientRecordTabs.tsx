@@ -30,6 +30,7 @@ import {
   patientAge,
   statusLabel,
   tagColorLookup,
+  tagLabelLookup,
   timeLabel,
   emergencyContactLabel,
 } from "../../shared/lib/formatting";
@@ -183,8 +184,9 @@ export function PatientRecordTabs({
 }) {
   const { can, canEdit, canView } = useAuthorization();
   const id = patient.id;
-  const tags = usePatientTags(patient.tags.length > 0);
-  const tagColor = tagColorLookup(tags.tags);
+  const tags = usePatientTags(patient.tags.length > 0, true);
+  const tagColor = tagColorLookup(tags.tags, tags.automatic);
+  const tagLabel = tagLabelLookup(tags.automatic);
   const plans = usePatientData(canView("plans"), id, "plans", () =>
     api.plans(id),
   );
@@ -386,7 +388,11 @@ export function PatientRecordTabs({
           {patient.tags.length ? (
             <div className="patient-overview-tag-list">
               {patient.tags.map((tag) => (
-                <PatientTagBadge key={tag} name={tag} color={tagColor(tag)} />
+                <PatientTagBadge
+                  key={tag}
+                  name={tagLabel(tag)}
+                  color={tagColor(tag)}
+                />
               ))}
             </div>
           ) : (

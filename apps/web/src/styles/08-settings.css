@@ -729,6 +729,23 @@
   gap: var(--space-2);
 }
 
+/* Etiquetas automáticas (AT1): seção própria abaixo das etiquetas configuradas. */
+.automatic-tags-section {
+  display: grid;
+  gap: var(--space-3);
+  margin-top: var(--space-6);
+}
+
+.automatic-tags-section h3 {
+  margin: 0;
+  font-size: var(--text-lg);
+  font-weight: 600;
+}
+
+.automatic-tags-section .muted-copy {
+  margin: 0;
+}
+
 /* Feriado na agenda: aviso no dia e no resumo do dia, etiqueta na semana e no mês. */
 .holiday-notice,
 .week-holiday,

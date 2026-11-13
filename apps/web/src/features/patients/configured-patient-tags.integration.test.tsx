@@ -508,7 +508,11 @@ describe("configured patient tags", () => {
     const tagRequests = () =>
       vi
         .mocked(fetch)
-        .mock.calls.filter(([url]) => String(url).includes("/patient-tags"));
+        .mock.calls.filter(
+          ([url]) =>
+            String(url).includes("/patient-tags") &&
+            !String(url).includes("/patient-tags/automatic"),
+        );
 
     it("shows the client tags as colored badges and links to manage them", async () => {
       localStorage.setItem("crm.auth.token", "test-token");

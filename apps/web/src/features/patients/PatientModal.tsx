@@ -25,6 +25,7 @@ import {
   withoutAutomaticPatientTags,
   INVALID_CPF_TAG,
   MISSING_CPF_TAG,
+  type AutomaticPatientTag,
 } from "@crm/contracts";
 import {
   CalendarPlus,
@@ -74,6 +75,7 @@ import {
   currency,
   localIsoDate,
   tagColorLookup,
+  tagLabelLookup,
 } from "../../shared/lib/formatting";
 import { planKindLabels } from "../plans/index";
 import { sellableStock } from "../sales/index";
@@ -149,7 +151,12 @@ export function PatientModal({
   /** Botão da conversão do lead sem plano, aula ou produto. */
   submitLabel?: string;
   /** Etiquetas configuradas: as únicas que podem ser escolhidas no cadastro. */
-  configuredTags: { tags: PatientTag[] | null; error: string };
+  configuredTags: {
+    tags: PatientTag[] | null;
+    error: string;
+    /** Nome/cor das etiquetas automáticas (AT1); sem elas, o padrão. */
+    automatic?: AutomaticPatientTag[];
+  };
   onClose: () => void;
   /** `result` preserva os registros já criados para continuar sem repetir as operações. */
   onSaved: (
@@ -207,7 +214,11 @@ export function PatientModal({
   function field<K extends keyof PatientInput>(key: K, value: PatientInput[K]) {
     setForm((current) => ({ ...current, [key]: value }));
   }
-  const tagColor = tagColorLookup(configuredTags.tags);
+  const tagColor = tagColorLookup(
+    configuredTags.tags,
+    configuredTags.automatic,
+  );
+  const tagLabel = tagLabelLookup(configuredTags.automatic);
   const configuredKeys = new Set(
     (configuredTags.tags ?? []).map((tag) => patientTagKey(tag.name)),
   );
@@ -1187,8 +1198,8 @@ export function PatientModal({
           {cpfOptional && (
             <span className="field-hint" id="patient-cpf-hint">
               {patient?.importedInvalidCpf
-                ? `A planilha trouxe o CPF “${patient.importedInvalidCpf}”, que não confere: preencha o CPF correto e a etiqueta “${INVALID_CPF_TAG}” sai sozinha.`
-                : `Cliente sem CPF: preencha quando tiver. A etiqueta “${MISSING_CPF_TAG}” sai sozinha.`}
+                ? `A planilha trouxe o CPF “${patient.importedInvalidCpf}”, que não confere: preencha o CPF correto e a etiqueta “${tagLabel(INVALID_CPF_TAG)}” sai sozinha.`
+                : `Cliente sem CPF: preencha quando tiver. A etiqueta “${tagLabel(MISSING_CPF_TAG)}” sai sozinha.`}
             </span>
           )}
         </div>

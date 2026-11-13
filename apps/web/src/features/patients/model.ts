@@ -158,23 +158,27 @@ export function importMergeCount(rows: readonly PatientImportRow[]): number {
  * Detalhe da linha válida na prévia da importação: o que falta e a etiqueta automática que o
  * cliente vai receber ("Falta CPF", "Cadastro incompleto", "Sem e-mail").
  */
-export function importRowNotes(input: PatientImportRow["input"]): string[] {
+export function importRowNotes(
+  input: PatientImportRow["input"],
+  /** Nome exibido das etiquetas automáticas (AT1); sem ele, o padrão. */
+  tagLabel: (name: string) => string = (name) => name,
+): string[] {
   if (!input) return [];
   return [
     ...(input.cpf
       ? []
       : input.invalidCpf
         ? [
-            `CPF inválido na planilha: entra sem CPF (etiqueta “${INVALID_CPF_TAG}”)`,
+            `CPF inválido na planilha: entra sem CPF (etiqueta “${tagLabel(INVALID_CPF_TAG)}”)`,
           ]
-        : [`sem CPF (etiqueta “${MISSING_CPF_TAG}”)`]),
+        : [`sem CPF (etiqueta “${tagLabel(MISSING_CPF_TAG)}”)`]),
     ...(lacksRequiredContact(input)
       ? [
-          `sem WhatsApp ou contato de emergência (etiqueta “${INCOMPLETE_REGISTRATION_TAG}”)`,
+          `sem WhatsApp ou contato de emergência (etiqueta “${tagLabel(INCOMPLETE_REGISTRATION_TAG)}”)`,
         ]
       : []),
     ...(lacksEmail(input)
-      ? [`sem e-mail (etiqueta “${MISSING_EMAIL_TAG}”)`]
+      ? [`sem e-mail (etiqueta “${tagLabel(MISSING_EMAIL_TAG)}”)`]
       : []),
   ];
 }

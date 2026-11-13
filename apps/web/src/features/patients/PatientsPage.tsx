@@ -42,6 +42,7 @@ import {
   automaticPatientTagColor,
   initials,
   tagColorLookup,
+  tagLabelLookup,
   tagCounts,
 } from "../../shared/lib/formatting";
 import {
@@ -88,8 +89,13 @@ export function PatientsPage() {
   const canManage = canEdit("patients");
   const canEnroll = can("groups.enroll");
   const canExport = can("patients.export");
-  const configuredTags = usePatientTags();
-  const tagColor = tagColorLookup(configuredTags.tags);
+  const configuredTags = usePatientTags(true, true);
+  const tagColor = tagColorLookup(
+    configuredTags.tags,
+    configuredTags.automatic,
+  );
+  // Nome que a clínica deu às etiquetas automáticas (AT1); o filtro segue pelo nome padrão.
+  const tagLabel = tagLabelLookup(configuredTags.automatic);
 
   // Só a busca mais recente vale: uma resposta atrasada não sobrescreve a lista.
   const latestRequest = useRef(0);
@@ -410,10 +416,12 @@ export function PatientsPage() {
                     {automaticTagOptions.map((name) => (
                       <TagChoice
                         key={`automatic-${name}`}
-                        name={name}
+                        name={tagLabel(name)}
                         color={
-                          automaticPatientTagColor(name) ??
-                          DEFAULT_PATIENT_TAG_COLOR
+                          automaticPatientTagColor(
+                            name,
+                            configuredTags.automatic,
+                          ) ?? DEFAULT_PATIENT_TAG_COLOR
                         }
                         count={countTag(name)}
                         hint={automaticTagHints[name] ?? ""}
@@ -529,15 +537,18 @@ export function PatientsPage() {
                         {patient.tags.slice(0, 2).map((tag) => (
                           <PatientTagBadge
                             key={tag}
-                            name={tag}
+                            name={tagLabel(tag)}
                             color={tagColor(tag)}
                           />
                         ))}
                         {patient.tags.length > 2 && (
                           <span
                             className="tag-more"
-                            title={patient.tags.slice(2).join(", ")}
-                            aria-label={`Mais ${patient.tags.length - 2} ${patient.tags.length - 2 === 1 ? "etiqueta" : "etiquetas"}: ${patient.tags.slice(2).join(", ")}`}
+                            title={patient.tags
+                              .slice(2)
+                              .map(tagLabel)
+                              .join(", ")}
+                            aria-label={`Mais ${patient.tags.length - 2} ${patient.tags.length - 2 === 1 ? "etiqueta" : "etiquetas"}: ${patient.tags.slice(2).map(tagLabel).join(", ")}`}
                           >
                             +{patient.tags.length - 2}
                           </span>
@@ -623,6 +634,7 @@ export function PatientsPage() {
       )}
       {importOpen && (
         <PatientImportModal
+          tagLabel={tagLabel}
           onClose={() => setImportOpen(false)}
           onImported={() => void load()}
         />

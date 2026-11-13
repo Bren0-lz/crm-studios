@@ -23,7 +23,7 @@ export function PatientDetailPage() {
   const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [trashing, setTrashing] = useState(false);
-  const tags = usePatientTags();
+  const tags = usePatientTags(true, true);
   useEffect(() => {
     let alive = true;
     api

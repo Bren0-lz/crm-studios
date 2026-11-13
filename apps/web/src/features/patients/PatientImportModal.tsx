@@ -39,9 +39,12 @@ import {
 export function PatientImportModal({
   onClose,
   onImported,
+  tagLabel = (name) => name,
 }: {
   onClose: () => void;
   onImported: () => void;
+  /** Nome exibido das etiquetas automáticas (AT1); sem ele, o padrão. */
+  tagLabel?: (name: string) => string;
 }) {
   const { can } = useAuthorization();
   const [file, setFile] = useState<PatientImportFileInput | null>(null);
@@ -162,10 +165,10 @@ export function PatientImportModal({
               A primeira linha deve ter os títulos das colunas. Depois de
               enviar, escolha a que dado do sistema corresponde cada coluna
               (nome e telefone são obrigatórios). Quem vier sem CPF recebe a
-              etiqueta “{MISSING_CPF_TAG}”; com CPF errado, entra sem CPF e
-              recebe “{INVALID_CPF_TAG}”; sem WhatsApp ou contato de
-              emergência, “{INCOMPLETE_REGISTRATION_TAG}”; sem e-mail,
-              “{MISSING_EMAIL_TAG}”. Elas saem sozinhas quando o dado for
+              etiqueta “{tagLabel(MISSING_CPF_TAG)}”; com CPF errado, entra sem CPF e
+              recebe “{tagLabel(INVALID_CPF_TAG)}”; sem WhatsApp ou contato de
+              emergência, “{tagLabel(INCOMPLETE_REGISTRATION_TAG)}”; sem e-mail,
+              “{tagLabel(MISSING_EMAIL_TAG)}”. Elas saem sozinhas quando o dado for
               preenchido. Datas em dd/mm/aaaa e etiquetas separadas por
               vírgula. Até 2 MB.
             </span>
@@ -308,7 +311,7 @@ export function PatientImportModal({
                         ? (row.errors ?? []).join(" ")
                         : row.duplicateOf
                           ? describeImportDuplicate(row.duplicateOf, row.input)
-                          : ["Pronta para importar", ...importRowNotes(row.input)].join(" · ")}
+                          : ["Pronta para importar", ...importRowNotes(row.input, tagLabel)].join(" · ")}
                     </small>
                   </div>
                 ))}

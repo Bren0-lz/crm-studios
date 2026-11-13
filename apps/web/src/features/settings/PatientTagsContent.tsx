@@ -18,6 +18,7 @@ import { PatientTagBadge } from "../../shared/components/PatientTagBadge";
 import { useSettingsBusy } from "../../shared/workflows/useSettingsBusy";
 import { countLabel } from "../patients/index";
 import { sortPatientTags } from "./model";
+import { AutomaticPatientTagsSection } from "./AutomaticPatientTagsSection";
 import { PatientTagEditModal } from "./PatientTagEditModal";
 import { TagColorPicker } from "./TagColorPicker";
 import { useUnsavedChangesPrompt } from "./useUnsavedChangesPrompt";
@@ -273,6 +274,7 @@ export function PatientTagsContent({ canEdit }: { canEdit: boolean }) {
           )}
         </>
       )}
+      <AutomaticPatientTagsSection canEdit={canEdit} onNotice={setNotice} />
       {editing && (
         <PatientTagEditModal
           tag={editing}

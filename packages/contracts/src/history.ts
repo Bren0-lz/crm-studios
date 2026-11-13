@@ -374,6 +374,11 @@ export const historyActions: {
     label: "Etiqueta excluída",
   },
   {
+    action: "patient_tag.automatic_updated",
+    module: "settings",
+    label: "Etiqueta automática alterada",
+  },
+  {
     action: "patients.exported",
     module: "patients",
     label: "Lista de clientes exportada",

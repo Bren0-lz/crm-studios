@@ -7,6 +7,8 @@ import type {
 } from "@crm/contracts";
 import {
   automaticPatientTagCategoryOf,
+  automaticPatientTagDisplay,
+  type AutomaticPatientTag,
   formatPhone,
   patientFirstName,
   patientTagCategoryColors,
@@ -200,13 +202,24 @@ export function statusLabel(status: AppointmentStatus) {
   }[status];
 }
 
-/** Cor de uma etiqueta automática (a da sua categoria); `undefined` se não for automática. */
-export function automaticPatientTagColor(name: string): string | undefined {
+/**
+ * Cor de uma etiqueta automática: a que a clínica escolheu (AT1) ou a da sua categoria;
+ * `undefined` se não for automática.
+ */
+export function automaticPatientTagColor(
+  name: string,
+  automatic?: readonly AutomaticPatientTag[] | null,
+): string | undefined {
+  const configured = automaticPatientTagDisplay(automatic).color(name);
+  if (configured) return configured;
   const category = automaticPatientTagCategoryOf(name);
   return category ? patientTagCategoryColors[category] : undefined;
 }
 
-export function tagColorLookup(tags: readonly PatientTag[] | null) {
+export function tagColorLookup(
+  tags: readonly PatientTag[] | null,
+  automatic?: readonly AutomaticPatientTag[] | null,
+) {
   const colors = new Map(
     (tags ?? []).map((tag) => [
       patientTagKey(tag.name),
@@ -216,8 +229,15 @@ export function tagColorLookup(tags: readonly PatientTag[] | null) {
   return (name: string) =>
     normalizeTagColor(
       colors.get(patientTagKey(name)) ??
-        automaticPatientTagColor(name),
+        automaticPatientTagColor(name, automatic),
     );
+}
+
+/** Nome exibido de uma etiqueta: o que a clínica deu à automática (AT1) ou o próprio nome. */
+export function tagLabelLookup(
+  automatic?: readonly AutomaticPatientTag[] | null,
+) {
+  return automaticPatientTagDisplay(automatic).label;
 }
 
 export function tagCounts(lists: ReadonlyArray<{ tags: string[] }>) {

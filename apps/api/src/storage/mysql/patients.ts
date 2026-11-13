@@ -7,6 +7,11 @@ import {
   type PatientPlan,
   type PatientPlanInput,
   type PatientTagInput,
+  type AutomaticPatientTagKey,
+  type AutomaticPatientTagOverride,
+  type AutomaticPatientTagUpdate,
+  nextAutomaticPatientTagOverride,
+  resolveAutomaticPatientTags,
   patientTagKey,
   patientProfile,
   type PatientTagUpdate,
@@ -61,11 +66,71 @@ import {
   phoneSearchDigits,
 } from "./helpers.js";
 import { randomUUID } from "node:crypto";
+import type { Pool, PoolClient } from "../../infrastructure/mysql-client.js";
 import { replaceJsonKeys, writeAndRead } from "./sql.js";
+
+/** Personalização das etiquetas automáticas da clínica (AT1). */
+async function readAutomaticTags(
+  client: Pool | PoolClient,
+  clinicId: string,
+  forUpdate = false,
+): Promise<AutomaticPatientTagOverride[]> {
+  const result = await client.query<AutomaticPatientTagOverride>(
+    `SELECT tag_key AS \`key\`, name, color FROM patient_automatic_tags
+     WHERE clinic_id = $1${forUpdate ? " FOR UPDATE" : ""}`,
+    [clinicId],
+  );
+  return result.rows;
+}
 
 export function createPatientsRepository(
   repositoryContext: MysqlRepositoryContext,
 ) {
+  /** Grava (ou, com `null`, apaga) a personalização de uma etiqueta automática. */
+  function saveAutomaticTag(
+    clinicId: string,
+    actorUserId: string,
+    key: AutomaticPatientTagKey,
+    input: AutomaticPatientTagUpdate | null,
+  ) {
+    return repositoryContext.inTransaction(async (client) => {
+      const saved = await readAutomaticTags(client, clinicId, true);
+      const next = input
+        ? nextAutomaticPatientTagOverride(
+            key,
+            saved.find((item) => item.key === key),
+            input,
+          )
+        : null;
+      if (next && (next.name !== null || next.color !== null))
+        await client.query(
+          `INSERT INTO patient_automatic_tags (clinic_id, tag_key, name, color)
+           VALUES ($1, $2, $3, $4)
+           ON DUPLICATE KEY UPDATE name = VALUES(name), color = VALUES(color),
+             updated_at = NOW(6)`,
+          [clinicId, key, next.name, next.color],
+        );
+      else
+        await client.query(
+          "DELETE FROM patient_automatic_tags WHERE clinic_id = $1 AND tag_key = $2",
+          [clinicId, key],
+        );
+      const tag = resolveAutomaticPatientTags(
+        await readAutomaticTags(client, clinicId),
+      ).find((item) => item.key === key)!;
+      await repositoryContext.addAdminAudit(
+        client,
+        clinicId,
+        actorUserId,
+        "patient_tag.automatic_updated",
+        "patient_tag",
+        key,
+        { name: tag.name, color: tag.color, defaultName: tag.defaultName },
+      );
+      return tag;
+    });
+  }
+
   return {
     async getPatientTimeline(clinicId: string, patientId: string) {
       const patient = await repositoryContext.pool.query(
@@ -582,6 +647,29 @@ export function createPatientsRepository(
       return result.rows
         .map(mapPatientTag)
         .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
+    },
+
+    async listAutomaticPatientTags(clinicId: string) {
+      return resolveAutomaticPatientTags(
+        await readAutomaticTags(repositoryContext.pool, clinicId),
+      );
+    },
+
+    async updateAutomaticPatientTag(
+      clinicId: string,
+      actorUserId: string,
+      key: AutomaticPatientTagKey,
+      input: AutomaticPatientTagUpdate,
+    ) {
+      return saveAutomaticTag(clinicId, actorUserId, key, input);
+    },
+
+    async resetAutomaticPatientTag(
+      clinicId: string,
+      actorUserId: string,
+      key: AutomaticPatientTagKey,
+    ) {
+      return saveAutomaticTag(clinicId, actorUserId, key, null);
     },
 
     async listOverduePatientIds(clinicId: string, today: string) {

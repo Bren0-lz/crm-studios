@@ -1,4 +1,10 @@
-import { patientTagKey } from "./model.js";
+import { z } from "zod";
+import {
+  patientTagCategoryColors,
+  patientTagColorSchema,
+  patientTagKey,
+  patientTagNameSchema,
+} from "./model.js";
 import type { PatientTagCategory } from "./types.js";
 
 /**
@@ -48,6 +54,165 @@ const automaticPatientTagCategories: Record<string, PatientTagCategory> = {
   [patientTagKey(INCOMPLETE_REGISTRATION_TAG)]: "status",
   [patientTagKey(MISSING_EMAIL_TAG)]: "status",
 };
+
+/**
+ * Chave estável de cada etiqueta automática (AT1). O nome padrão continua sendo a identidade
+ * da etiqueta nos clientes, filtros e regras; a clínica só troca o nome exibido e a cor.
+ */
+export const automaticPatientTagKeySchema = z.enum([
+  "overdue_payment",
+  "missing_cpf",
+  "invalid_cpf",
+  "incomplete_registration",
+  "missing_email",
+]);
+export type AutomaticPatientTagKey = z.infer<
+  typeof automaticPatientTagKeySchema
+>;
+
+/** Nome padrão, categoria e regra de cada etiqueta automática, na ordem de exibição. */
+export const automaticPatientTagDefinitions: readonly {
+  key: AutomaticPatientTagKey;
+  defaultName: string;
+  category: PatientTagCategory;
+  description: string;
+}[] = [
+  {
+    key: "overdue_payment",
+    defaultName: OVERDUE_PAYMENT_TAG,
+    category: "financial",
+    description:
+      "Cliente com parcela vencida e em aberto. Só aparece para quem vê o Financeiro.",
+  },
+  {
+    key: "missing_cpf",
+    defaultName: MISSING_CPF_TAG,
+    category: "status",
+    description: "Cliente sem CPF. Sai sozinha quando o CPF é preenchido.",
+  },
+  {
+    key: "invalid_cpf",
+    defaultName: INVALID_CPF_TAG,
+    category: "status",
+    description:
+      "Cliente importado da planilha com CPF errado (entrou sem CPF). Sai sozinha quando o CPF correto é preenchido.",
+  },
+  {
+    key: "incomplete_registration",
+    defaultName: INCOMPLETE_REGISTRATION_TAG,
+    category: "status",
+    description:
+      "Cliente importado da planilha sem WhatsApp ou sem contato de emergência. Sai sozinha quando os dois são preenchidos.",
+  },
+  {
+    key: "missing_email",
+    defaultName: MISSING_EMAIL_TAG,
+    category: "status",
+    description:
+      "Cliente importado da planilha sem e-mail. Sai sozinha quando o e-mail é preenchido.",
+  },
+];
+
+/** Etiqueta automática como a clínica a configurou (Configurações › Etiquetas). */
+export interface AutomaticPatientTag {
+  key: AutomaticPatientTagKey;
+  /** Nome que identifica a etiqueta nos clientes (`patient.tags`) e nos filtros. */
+  defaultName: string;
+  /** Nome exibido (o padrão, se a clínica não trocou). */
+  name: string;
+  /** `#rrggbb` exibida (a da categoria, se a clínica não trocou). */
+  color: string;
+  defaultColor: string;
+  category: PatientTagCategory;
+  description: string;
+  /** A clínica trocou o nome ou a cor. */
+  customized: boolean;
+}
+
+/** Personalização gravada de uma etiqueta automática (`null` = padrão). */
+export interface AutomaticPatientTagOverride {
+  key: AutomaticPatientTagKey;
+  name: string | null;
+  color: string | null;
+}
+
+/** `PATCH /patient-tags/automatic/:key`: novo nome e/ou nova cor. */
+export const automaticPatientTagUpdateSchema = z
+  .object({
+    name: patientTagNameSchema.optional(),
+    color: patientTagColorSchema.optional(),
+  })
+  .refine((value) => value.name !== undefined || value.color !== undefined, {
+    message: "Informe o novo nome ou a nova cor.",
+  });
+export type AutomaticPatientTagUpdate = z.infer<
+  typeof automaticPatientTagUpdateSchema
+>;
+
+/** As 5 etiquetas automáticas com a personalização da clínica aplicada sobre o padrão. */
+export function resolveAutomaticPatientTags(
+  overrides: readonly AutomaticPatientTagOverride[],
+): AutomaticPatientTag[] {
+  const byKey = new Map(overrides.map((item) => [item.key, item]));
+  return automaticPatientTagDefinitions.map((definition) => {
+    const saved = byKey.get(definition.key);
+    const defaultColor = patientTagCategoryColors[definition.category];
+    const name = saved?.name?.trim() || definition.defaultName;
+    const color = saved?.color?.toLowerCase() || defaultColor;
+    return {
+      ...definition,
+      name,
+      color,
+      defaultColor,
+      customized: name !== definition.defaultName || color !== defaultColor,
+    };
+  });
+}
+
+/**
+ * Personalização a gravar depois de `update` (o que não veio fica como estava). Nome ou cor
+ * iguais ao padrão viram `null`, para a etiqueta acompanhar o padrão.
+ */
+export function nextAutomaticPatientTagOverride(
+  key: AutomaticPatientTagKey,
+  current: Pick<AutomaticPatientTagOverride, "name" | "color"> | undefined,
+  update: AutomaticPatientTagUpdate,
+): AutomaticPatientTagOverride {
+  const definition = automaticPatientTagDefinitions.find(
+    (item) => item.key === key,
+  )!;
+  const defaultColor = patientTagCategoryColors[definition.category];
+  const name =
+    update.name !== undefined ? update.name.trim() : (current?.name ?? null);
+  const color =
+    update.color !== undefined
+      ? update.color.toLowerCase()
+      : (current?.color ?? null);
+  return {
+    key,
+    name: name && name !== definition.defaultName ? name : null,
+    color: color && color !== defaultColor ? color : null,
+  };
+}
+
+/**
+ * Nome e cor exibidos de uma etiqueta: troca o nome padrão de uma automática pelo configurado
+ * pela clínica; as demais passam como estão (`color` devolve `undefined`).
+ */
+export function automaticPatientTagDisplay(
+  settings:
+    | readonly Pick<AutomaticPatientTag, "defaultName" | "name" | "color">[]
+    | null
+    | undefined,
+) {
+  const byKey = new Map(
+    (settings ?? []).map((tag) => [patientTagKey(tag.defaultName), tag]),
+  );
+  return {
+    label: (name: string) => byKey.get(patientTagKey(name))?.name ?? name,
+    color: (name: string) => byKey.get(patientTagKey(name))?.color,
+  };
+}
 
 /** Categoria de uma etiqueta automática (define a cor exibida); `undefined` se não for automática. */
 export function automaticPatientTagCategoryOf(
