@@ -1265,6 +1265,18 @@ p.field-hint {
   padding: 0 var(--space-4) var(--space-4);
 }
 
+/* Campo de cadastro com o atalho "Cadastrar origem/interesse" logo abaixo do seletor. */
+.catalog-select-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+.catalog-select-field > .text-button {
+  align-self: flex-start;
+  font-size: var(--text-sm);
+}
+
 /* V7: rótulos com o mesmo tamanho. O rótulo do seletor de cliente e o "Conteúdo" do modelo
    ficam fora das regras de contêiner ("form-grid label"); seguem o padrão dos campos. */
 .patient-picker-header label,

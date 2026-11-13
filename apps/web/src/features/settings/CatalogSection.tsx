@@ -4,17 +4,13 @@ import {
   type ClinicCatalogKind,
 } from "@crm/contracts";
 import { Plus } from "lucide-react";
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useState } from "react";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
-import { useToast } from "../../shared/feedback/toast-context";
+import { CatalogEntryModal } from "../../shared/components/CatalogEntryModal";
 import { EmptyState } from "../../shared/components/EmptyState";
 import { ErrorBanner } from "../../shared/components/ErrorBanner";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
-import { Modal, ModalCancelButton } from "../../shared/components/Modal";
-import { ProductSizesEditor } from "../../shared/components/ProductSizesEditor";
-import { sizesWithDraft } from "../../shared/lib/product-sizes";
-import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
 
 const kindHints: Partial<Record<ClinicCatalogKind, string>> = {
   product_category: "Agrupam os produtos do estoque.",
@@ -28,21 +24,9 @@ const kindHints: Partial<Record<ClinicCatalogKind, string>> = {
 /** Lista de um cadastro compartilhado (só administradores incluem e editam). */
 export function CatalogSection({ kind }: { kind: ClinicCatalogKind }) {
   const { user } = useAuthorization();
-  const toast = useToast();
   const [items, setItems] = useState<ClinicCatalogEntry[] | null>(null);
   const [error, setError] = useState("");
   const [editor, setEditor] = useState<ClinicCatalogEntry | "new" | null>(null);
-  const [name, setName] = useState("");
-  const [active, setActive] = useState(true);
-  const [hasSizes, setHasSizes] = useState(false);
-  const [sizes, setSizes] = useState<string[]>([]);
-  const [sizeDraft, setSizeDraft] = useState("");
-  const [saving, setSaving] = useState(false);
-  const dirty = useFormDirty(
-    { name, active, hasSizes, sizes, sizeDraft },
-    Boolean(editor),
-  );
-  const withSizes = kind === "product_category";
   const label = clinicCatalogLabels[kind];
   const admin = user?.role === "admin";
   useEffect(() => {
@@ -60,38 +44,15 @@ export function CatalogSection({ kind }: { kind: ClinicCatalogKind }) {
     };
   }, [kind]);
   function open(item: ClinicCatalogEntry | "new") {
-    setName(item === "new" ? "" : item.name);
-    setActive(item === "new" ? true : item.active);
-    setHasSizes(item !== "new" && item.sizes.length > 0);
-    setSizes(item === "new" ? [] : item.sizes);
-    setSizeDraft("");
     setError("");
     setEditor(item);
   }
-  async function save(event: FormEvent) {
-    event.preventDefault();
-    const finalSizes = hasSizes ? sizesWithDraft(sizes, sizeDraft) : [];
-    if (withSizes && hasSizes && !finalSizes.length) {
-      setError("Adicione ao menos um tamanho ou desmarque a opção.");
-      return;
-    }
-    setSaving(true);
-    setError("");
+  async function saved() {
+    setEditor(null);
     try {
-      await api.saveClinicCatalog(
-        kind,
-        { name, active, ...(withSizes ? { sizes: finalSizes } : {}) },
-        editor && editor !== "new" ? editor.id : undefined,
-      );
-      toast.success(
-        editor && editor !== "new" ? "Item atualizado." : "Item cadastrado.",
-      );
       setItems(await api.clinicCatalog(kind));
-      setEditor(null);
     } catch (cause) {
       setError((cause as Error).message);
-    } finally {
-      setSaving(false);
     }
   }
   const activeCount = items?.filter((item) => item.active).length ?? 0;
@@ -162,60 +123,12 @@ export function CatalogSection({ kind }: { kind: ClinicCatalogKind }) {
         </ul>
       )}
       {editor && (
-        <Modal
-          title={editor === "new" ? "Novo cadastro" : "Editar cadastro"}
-          subtitle={label}
-          busy={saving}
-          dirty={dirty}
+        <CatalogEntryModal
+          kind={kind}
+          item={editor === "new" ? undefined : editor}
           onClose={() => setEditor(null)}
-        >
-          <form className="clinical-form" onSubmit={save}>
-            {error && <ErrorBanner error={error} />}
-            <label>
-              Nome
-              <input
-                required
-                minLength={2}
-                maxLength={80}
-                value={name}
-                onChange={(event) => setName(event.target.value)}
-              />
-            </label>
-            <label className="checkbox-field">
-              <input
-                type="checkbox"
-                checked={active}
-                onChange={(event) => setActive(event.target.checked)}
-              />
-              Ativo
-            </label>
-            {withSizes && (
-              <ProductSizesEditor
-                enabled={hasSizes}
-                sizes={sizes}
-                draft={sizeDraft}
-                onEnabledChange={setHasSizes}
-                onSizesChange={(next) => {
-                  setSizes(next);
-                  setError("");
-                }}
-                onDraftChange={setSizeDraft}
-              />
-            )}
-            {withSizes && editor !== "new" && hasSizes && (
-              <p className="field-hint">
-                Os produtos já cadastrados mantêm os tamanhos que têm; um
-                tamanho novo aparece para marcar ao editar o produto.
-              </p>
-            )}
-            <div className="modal-actions">
-              <ModalCancelButton disabled={saving}>Cancelar</ModalCancelButton>
-              <button className="primary-button" disabled={saving}>
-                Salvar
-              </button>
-            </div>
-          </form>
-        </Modal>
+          onSaved={() => void saved()}
+        />
       )}
     </section>
   );
