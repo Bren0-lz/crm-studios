@@ -1,7 +1,4 @@
-import {
-  appointmentInputSchema,
-  leadAppointmentInputSchema,
-} from "@crm/contracts";
+import { appointmentInputSchema } from "@crm/contracts";
 import { withAppointmentPlan } from "../../test-support/appointment-plan.js";
 import { nextTestCpf } from "../../test-support/cpf.js";
 import { describe, expect, it, vi } from "vitest";
@@ -40,7 +37,7 @@ describe("CRM API", () => {
     await app.close();
   });
 
-  it("reports trial conversion when the client gets a plan within 30 days of a completed trial", async () => {
+  it("reports trial conversion when the client gets a real plan within 30 days around a completed trial", async () => {
     const { app, token, repository } = await authenticatedApp();
     const headers = { authorization: `Bearer ${token}` };
     const [patients, professionals, rooms, services] = await Promise.all([
@@ -59,7 +56,13 @@ describe("CRM API", () => {
     const active = patients
       .json()
       .filter((item: { status: string }) => item.status === "active");
-    const [clientA, clientB] = [active[0].id as string, active[1].id as string];
+    const client = (index: number) => active[index].id as string;
+    const [clientA, clientB, clientC, clientD] = [
+      client(0),
+      client(1),
+      client(2),
+      client(3),
+    ];
     const createLead = async (fullName: string, phone: string) =>
       (
         await app.inject({
@@ -88,11 +91,8 @@ describe("CRM API", () => {
             ? await repository.createLeadAppointment(
                 "11111111-1111-4111-8111-111111111111",
                 owner.leadId,
-                leadAppointmentInputSchema.parse({
-                  ...base,
-                  startsAt,
-                  visitType,
-                }),
+                // Avaliação de lead só existe como histórico (a rota aceita só experimental).
+                { ...base, startsAt, visitType: "evaluation" },
               )
             : await repository.createAppointment(
                 "11111111-1111-4111-8111-111111111111",
@@ -174,6 +174,21 @@ describe("CRM API", () => {
     });
     // Experimental fora do período: ignorada.
     await schedule("2032-04-05T13:00:00.000Z", "trial", { patientId: clientA });
+    // Duas experimentais da mesma cliente, plano 10 dias antes da 1ª: uma pessoa convertida.
+    const earlyPlanTrials = [
+      await schedule("2032-03-15T13:00:00.000Z", "trial", {
+        patientId: clientC,
+      }),
+      await schedule("2032-03-20T13:00:00.000Z", "trial", {
+        patientId: clientC,
+      }),
+    ];
+    // Só comprou o avulso depois: não conta como conversão.
+    const singlePlanTrial = await schedule(
+      "2032-03-16T13:00:00.000Z",
+      "trial",
+      { patientId: clientD },
+    );
     for (const id of [
       leadTrial,
       openLeadEvaluation,
@@ -183,8 +198,21 @@ describe("CRM API", () => {
     ])
       await setStatus(id, "completed");
     await setStatus(cancelledTrial, "cancelled");
+    for (const id of [...earlyPlanTrials, singlePlanTrial])
+      expect(
+        (
+          await patchStatusAt(app, headers, "2032-03-25T12:00:00.000Z", id, {
+            status: "completed",
+          })
+        ).statusCode,
+      ).toBe(200);
 
-    const createPlan = async (at: string, patientId: string) => {
+    const createPlan = async (
+      at: string,
+      patientId: string,
+      kind: "fixed_package" | "single" = "fixed_package",
+    ) => {
+      const totalSessions = kind === "single" ? 1 : 4;
       vi.setSystemTime(new Date(at));
       const plan = await app.inject({
         method: "POST",
@@ -200,15 +228,15 @@ describe("CRM API", () => {
           services: [
             {
               serviceId: serviceId,
-              totalSessions: 4,
+              totalSessions,
               totalValueInCents: 40000,
             },
           ],
           patientId,
           serviceId,
           name: "Pacote pós-experimental",
-          kind: "fixed_package",
-          totalSessions: 4,
+          kind,
+          totalSessions,
           validFrom: at.slice(0, 10),
           totalValueInCents: 40000,
           installments: 1,
@@ -239,6 +267,8 @@ describe("CRM API", () => {
       );
       await createPlan("2032-03-04T18:00:00.000Z", clientB);
       await createPlan("2032-04-10T15:00:00.000Z", clientA);
+      await createPlan("2032-03-05T15:00:00.000Z", clientC);
+      await createPlan("2032-03-17T15:00:00.000Z", clientD, "single");
       const report = await app.inject({
         method: "GET",
         url: "/reports/management?from=2032-03-01&to=2032-03-31",
@@ -251,8 +281,11 @@ describe("CRM API", () => {
         },
       });
       expect(report.statusCode).toBe(200);
+      // Só experimentais (EX3): avaliações fora. Agendadas por atendimento (lead convertido,
+      // clientA, clientB pendente, clientC ×2, clientD); realizadas e convertidas por pessoa
+      // (lead convertido, clientA, clientC, clientD → convertidos: lead e clientC).
       expect(report.json().trials).toEqual({
-        scheduled: 5,
+        scheduled: 6,
         completed: 4,
         converted: 2,
         conversionRate: 50,

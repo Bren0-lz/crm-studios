@@ -465,6 +465,7 @@ export class MemoryClinicRepository implements ClinicRepository {
     this.listSubscriberIdsWithoutGroup =
       this.agenda.listSubscriberIdsWithoutGroup;
     this.listAppointments = this.agenda.listAppointments;
+    this.listTrialAppointments = this.agenda.listTrialAppointments;
     this.listPendingFinalizationAppointments =
       this.agenda.listPendingFinalizationAppointments;
     this.autoFinalizeAppointments = this.agenda.autoFinalizeAppointments;
@@ -925,6 +926,9 @@ export class MemoryClinicRepository implements ClinicRepository {
   readonly listAppointments: ReturnType<
     typeof createAgendaRepository
   >["listAppointments"];
+  readonly listTrialAppointments: ReturnType<
+    typeof createAgendaRepository
+  >["listTrialAppointments"];
 
   readonly listPendingFinalizationAppointments: ReturnType<
     typeof createAgendaRepository

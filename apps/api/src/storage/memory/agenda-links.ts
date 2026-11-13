@@ -62,13 +62,8 @@ export function createAgendaLinksRepository(context: MemoryRepositoryContext) {
           : await context.operations.createLeadAppointment(
               clinicId,
               source.leadId!,
-              {
-                ...data,
-                visitType:
-                  source.visitType === "regular"
-                    ? "evaluation"
-                    : source.visitType,
-              },
+              // Lead só tem aula experimental: a remarcação também é experimental.
+              { ...data, visitType: "trial" },
             );
         if (!successor)
           throw new DomainError(

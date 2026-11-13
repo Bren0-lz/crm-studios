@@ -687,18 +687,20 @@ export function createReportsRepository(
                 CAST(COUNT(CASE WHEN a.visit_type = 'regular' THEN 1 END) AS SIGNED) AS regular,
                 CAST(COUNT(CASE WHEN a.visit_type = 'trial' THEN 1 END) AS SIGNED) AS trial,
                 CAST(COUNT(CASE WHEN a.visit_type = 'evaluation' THEN 1 END) AS SIGNED) AS evaluation,
-                CAST(COUNT(CASE WHEN a.visit_type IN ('trial', 'evaluation')
+                CAST(COUNT(CASE WHEN a.visit_type = 'trial'
                   AND a.status <> 'cancelled' THEN 1 END) AS SIGNED) AS "trialsScheduled",
-                CAST(COUNT(CASE WHEN a.visit_type IN ('trial', 'evaluation')
-                  AND a.status = 'completed' THEN 1 END) AS SIGNED) AS "trialsCompleted",
-                CAST(COALESCE(SUM(CASE WHEN a.visit_type IN ('trial', 'evaluation')
+                CAST(COUNT(DISTINCT CASE WHEN a.visit_type = 'trial' AND a.status = 'completed'
+                  THEN COALESCE(a.patient_id, a.lead_id, a.id) END) AS SIGNED) AS "trialsCompleted",
+                CAST(COUNT(DISTINCT CASE WHEN a.visit_type = 'trial'
                   AND a.status = 'completed' AND a.patient_id IS NOT NULL
                   AND EXISTS (
                     SELECT 1 FROM patient_plans pp
                     WHERE pp.clinic_id = a.clinic_id AND pp.patient_id = a.patient_id
-                      AND pp.created_at >= a.starts_at
+                      AND pp.kind <> 'single' AND pp.source_appointment_id IS NULL
+                      AND pp.deleted_at IS NULL
+                      AND pp.created_at >= a.starts_at - INTERVAL 30 DAY
                       AND pp.created_at <= a.starts_at + INTERVAL 30 DAY
-                  ) THEN 1 ELSE 0 END), 0) AS SIGNED) AS "trialsConverted"
+                  ) THEN a.patient_id END) AS SIGNED) AS "trialsConverted"
          FROM appointments a WHERE a.clinic_id = $1 AND a.deleted_at IS NULL AND ${patientNotTrashed("a.patient_id")} AND ${dateFilter}`,
           [clinicId, from, to, branchIds],
         ),

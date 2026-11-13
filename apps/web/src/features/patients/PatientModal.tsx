@@ -1361,6 +1361,7 @@ export function PatientModal({
                 <GuidedDemonstrationFields
                   value={demonstration}
                   setValue={setDemonstration}
+                  leadId={lead?.id}
                 />
                 {removeButton("aula experimental", remove)}
               </>

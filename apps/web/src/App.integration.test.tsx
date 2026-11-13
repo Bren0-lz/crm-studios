@@ -4005,7 +4005,7 @@ describe("application shell", () => {
     fireEvent.click(await screen.findByRole("tab", { name: "Indicadores" }));
     expect(
       await screen.findByText(
-        "3 de 4 fecharam plano em até 30 dias · 6 agendadas",
+        "3 de 4 pessoas fecharam plano (30 dias antes ou depois) · 6 agendadas",
       ),
     ).toBeInTheDocument();
     const card = screen

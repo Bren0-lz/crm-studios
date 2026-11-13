@@ -15,6 +15,7 @@ import {
   autoCampaignInputSchema,
   autoCampaignTargetsLeads,
   autoCampaignTargetsPatients,
+  leadAppointmentInputSchema,
   recurringAppointmentCreateInputSchema,
   productInputSchema,
   productItemName,
@@ -1292,9 +1293,7 @@ describe("relationship center contracts", () => {
     expect(whatsappLink("(55) 3333-4444", "Oi")).toBe(
       "https://wa.me/555533334444?text=Oi",
     );
-    expect(whatsappLink("(22) 98812-4636")).toBe(
-      "https://wa.me/5522988124636",
-    );
+    expect(whatsappLink("(22) 98812-4636")).toBe("https://wa.me/5522988124636");
   });
 
   it("fills message templates", () => {
@@ -1711,6 +1710,49 @@ describe("appointment clinical actions availability", () => {
     expect(appointmentNotStartedMessage("2026-10-20T03:10:00.000Z")).toBe(
       "Disponível a partir de 19/10 às 23:55",
     );
+  });
+});
+
+describe("aula experimental (EX1)", () => {
+  const base = {
+    patientId: "11111111-1111-4111-8111-111111111111",
+    professionalId: "22222222-2222-4222-8222-222222222222",
+    roomId: "33333333-3333-4333-8333-333333333333",
+    serviceId: "44444444-4444-4444-8444-444444444444",
+    startsAt: "2030-01-07T13:00:00.000Z",
+    occurrences: 4,
+  };
+
+  it("não deixa a experimental virar série", () => {
+    const trial = recurringAppointmentCreateInputSchema.safeParse({
+      ...base,
+      visitType: "trial",
+    });
+    expect(trial.success).toBe(false);
+    expect(trial.error?.issues[0]).toMatchObject({
+      path: ["visitType"],
+      message: "Aula experimental não pode ser repetida.",
+    });
+    expect(
+      recurringAppointmentCreateInputSchema.safeParse({
+        ...base,
+        visitType: "regular",
+      }).success,
+    ).toBe(true);
+  });
+
+  it("agenda só experimental para lead", () => {
+    const lead = {
+      professionalId: base.professionalId,
+      roomId: base.roomId,
+      serviceId: base.serviceId,
+      startsAt: base.startsAt,
+    };
+    expect(leadAppointmentInputSchema.parse(lead).visitType).toBe("trial");
+    expect(
+      leadAppointmentInputSchema.safeParse({ ...lead, visitType: "evaluation" })
+        .success,
+    ).toBe(false);
   });
 });
 

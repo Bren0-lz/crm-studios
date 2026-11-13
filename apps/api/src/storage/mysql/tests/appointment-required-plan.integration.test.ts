@@ -21,6 +21,7 @@ import { MysqlClinicRepository } from "../../../mysql-repository.js";
 import type { ClinicRepository } from "../../../repository.js";
 import { addLegacyTabService } from "../../../test-support/legacy-tab-service.js";
 import { nextTestCpf } from "../../../test-support/cpf.js";
+import { testPatientContact } from "../../../test-support/patient-contact.js";
 import {
   createTestDatabase,
   type TestDatabase,
@@ -126,8 +127,9 @@ for (const storage of ["memory", "mysql"] as const) {
         expect(response.json()).toMatchObject({ code: "PLAN_REQUIRED" });
       }
 
-      it("recusa normal/avaliação sem planId, mesmo com plano elegível, e aceita experimental sem plano", async () => {
+      it("recusa normal/avaliação sem planId, mesmo com plano elegível, e aceita experimental sem plano só fora do plano", async () => {
         const { input } = await fixture();
+        const other = await fixture();
         for (const visitType of ["regular", "evaluation"])
           await rejected({ ...input, planId: undefined, visitType });
         expect(
@@ -137,13 +139,30 @@ for (const storage of ["memory", "mysql"] as const) {
             input.startsAt.replace("12:00", "12:45"),
           ),
         ).toHaveLength(0);
+        // O plano do cliente cobre o serviço: experimental só de outro serviço (EX2).
+        const covered = await post({
+          ...input,
+          planId: undefined,
+          visitType: "trial",
+        });
+        expect(covered.statusCode, covered.body).toBe(409);
+        expect(covered.json()).toMatchObject({ code: "TRIAL_SERVICE_IN_PLAN" });
         const trial = await post({
           ...input,
+          serviceId: other.service.id,
           planId: undefined,
           visitType: "trial",
         });
         expect(trial.statusCode, trial.body).toBe(201);
         expect(trial.json()).not.toHaveProperty("planId");
+        // Histórico do aviso "Já fez experimental" (EX2).
+        expect(
+          (
+            await repository.listTrialAppointments(clinicId, {
+              patientId: input.patientId,
+            })
+          ).map((item) => item.id),
+        ).toEqual([trial.json().id]);
       });
       it("recusa plano de outro cliente, serviço diferente, inexistente, cancelado ou sem saldo", async () => {
         const { input, planInput, plan } = await fixture();
@@ -440,10 +459,12 @@ for (const storage of ["memory", "mysql"] as const) {
             interest: "Pilates",
           }),
         );
-        await rejected(
+        // Avaliação de lead nem chega à regra do plano: o contrato só aceita experimental (EX1).
+        const evaluation = await post(
           { ...input, visitType: "evaluation" },
           `/leads/${lead.id}/appointments`,
         );
+        expect(evaluation.statusCode, evaluation.body).toBe(400);
         const trial = await post(
           { ...input, visitType: "trial" },
           `/leads/${lead.id}/appointments`,
@@ -454,6 +475,61 @@ for (const storage of ["memory", "mysql"] as const) {
           visitType: "trial",
         });
         expect(trial.json()).not.toHaveProperty("planId");
+        expect(
+          (
+            await repository.listTrialAppointments(clinicId, {
+              leadId: lead.id,
+            })
+          ).map((item) => item.id),
+        ).toEqual([trial.json().id]);
+      });
+      it("agendamento e conversão simultâneos do lead não deixam atendimento preso ao lead (EX4)", async () => {
+        const { input } = await fixture();
+        const lead = await repository.createLead(
+          clinicId,
+          leadInputSchema.parse({
+            fullName: `Lead ${randomUUID()}`,
+            phone: "11977775555",
+            source: "Indicação",
+            interest: "Pilates",
+          }),
+        );
+        const resources = {
+          professionalId: input.professionalId,
+          roomId: input.roomId,
+          serviceId: input.serviceId,
+          startsAt: input.startsAt,
+        };
+        const [booking, conversion] = await Promise.allSettled([
+          repository.createLeadAppointment(clinicId, lead.id, {
+            ...resources,
+            visitType: "trial",
+          }),
+          repository.convertLead(clinicId, actorId, lead.id, {
+            cpf: nextTestCpf(),
+            ...testPatientContact,
+          }),
+        ]);
+        expect(conversion.status).toBe("fulfilled");
+        const patientId =
+          conversion.status === "fulfilled"
+            ? conversion.value?.patient.id
+            : undefined;
+        // Ou agendou antes (e o atendimento passou ao cliente), ou viu o lead convertido.
+        if (booking.status === "rejected")
+          expect(booking.reason).toMatchObject({
+            code: "LEAD_ALREADY_CONVERTED",
+          });
+        const day = await repository.listAppointments(
+          clinicId,
+          input.startsAt,
+          new Date(Date.parse(input.startsAt) + 60 * 60_000).toISOString(),
+        );
+        expect(day.filter((item) => item.leadId === lead.id)).toEqual([]);
+        if (booking.status === "fulfilled")
+          expect(
+            day.find((item) => item.id === booking.value?.id),
+          ).toMatchObject({ patientId });
       });
       it("recorrente mantém a frequência, sem bloquear pelo saldo nominal do ciclo", async () => {
         const { input, planInput } = await fixture();

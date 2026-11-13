@@ -49,6 +49,8 @@ export const trialConversionPhones = [
   "11900001166",
   "11900001177",
   "11900001188",
+  "11900001199",
+  "11900001200",
 ];
 
 // Dia exclusivo deste teste, para contar as experimentais com valores exatos.

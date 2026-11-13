@@ -91,6 +91,13 @@ export const recurringAppointmentInputSchema = appointmentInputSchema
       .optional(),
   })
   .superRefine((input, context) => {
+    // Experimental é uma aula só (gratuita): nunca vira série.
+    if (input.visitType === "trial")
+      context.addIssue({
+        code: "custom",
+        path: ["visitType"],
+        message: "Aula experimental não pode ser repetida.",
+      });
     if (!input.customStartsAt) return;
     if (input.customStartsAt.length !== input.occurrences - 1)
       context.addIssue({
@@ -218,7 +225,7 @@ export function agendaConflict(
 /** Limite da observação da aula experimental: a tela usa o mesmo número no `maxLength`. */
 export const leadAppointmentNotesMaxLength = 1000;
 
-// Atendimento de lead ainda não convertido: só experimental ou avaliação.
+// Atendimento de lead ainda não convertido: só aula experimental (avaliação exige converter).
 export const leadAppointmentInputSchema = z.object({
   professionalId: z.uuid(),
   roomId: z.uuid(),
@@ -230,7 +237,7 @@ export const leadAppointmentInputSchema = z.object({
     .max(leadAppointmentNotesMaxLength)
     .optional()
     .or(z.literal("")),
-  visitType: z.enum(["trial", "evaluation"]),
+  visitType: z.literal("trial").default("trial"),
 });
 
 export const scheduleBlockInputSchema = z

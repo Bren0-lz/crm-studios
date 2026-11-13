@@ -317,6 +317,27 @@ export function registerAgendaRoutes(context: RouteContext) {
     },
   );
 
+  /** Experimentais já marcadas do cliente ou do lead: aviso "Já fez experimental" (EX2). */
+  app.get(
+    "/appointments/trials",
+    { preHandler: authenticate },
+    async (request) => {
+      const query = z
+        .object({ patientId: z.uuid().optional(), leadId: z.uuid().optional() })
+        .refine((value) => Boolean(value.patientId) !== Boolean(value.leadId), {
+          message: "Informe o cliente ou o lead.",
+          path: ["patientId"],
+        })
+        .parse(request.query);
+      return repository.listTrialAppointments(
+        request.user.clinicId,
+        query.patientId
+          ? { patientId: query.patientId }
+          : { leadId: query.leadId ?? "" },
+      );
+    },
+  );
+
   /**
    * De onde sai o valor de cada sessão do serviço para o cliente (saldo dos planos e plano
    * avulso): alimenta o resumo do agendamento.

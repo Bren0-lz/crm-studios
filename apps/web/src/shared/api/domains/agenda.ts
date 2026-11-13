@@ -132,6 +132,13 @@ export const agendaApi = {
     request<AppointmentPricing>(
       `/appointments/pricing?patientId=${encodeURIComponent(patientId)}&serviceId=${encodeURIComponent(serviceId)}${startsAt ? `&startsAt=${encodeURIComponent(startsAt)}` : ""}`,
     ),
+  /** Experimentais já marcadas do cliente ou do lead (aviso "Já fez experimental"). */
+  trialAppointments: (owner: { patientId: string } | { leadId: string }) =>
+    request<Appointment[]>(
+      "patientId" in owner
+        ? `/appointments/trials?patientId=${encodeURIComponent(owner.patientId)}`
+        : `/appointments/trials?leadId=${encodeURIComponent(owner.leadId)}`,
+    ),
   createAppointment: (
     input: AppointmentInput & { promotion?: AppointmentPromotion | undefined },
   ) =>

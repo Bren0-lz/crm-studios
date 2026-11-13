@@ -349,6 +349,11 @@ export interface CommissionSourceScope {
   groupSessionIds?: string[];
 }
 
+/** Atendimento de lead gravado: a rota só cria experimental; avaliação é histórico (antes da AP3). */
+export type LeadAppointmentRecord = Omit<LeadAppointmentInput, "visitType"> & {
+  visitType: "trial" | "evaluation";
+};
+
 export interface ClinicRepository {
   /**
    * Lixeira por tópico (cliente, lead, atendimento, plano do cliente): o item fica marcado e
@@ -1060,6 +1065,14 @@ export interface ClinicRepository {
     clinicId: string,
     from: string,
     to: string,
+  ): Promise<Appointment[]>;
+  /**
+   * Aulas experimentais não canceladas do cliente ou do lead (todas as filiais), da mais nova
+   * para a mais antiga: alimenta o aviso "Já fez experimental" (EX2).
+   */
+  listTrialAppointments(
+    clinicId: string,
+    owner: { patientId: string } | { leadId: string },
   ): Promise<Appointment[]>;
   /** Agendados/confirmados com término antes de `now` (pendentes de finalização). */
   listPendingFinalizationAppointments(
@@ -1774,12 +1787,13 @@ export interface ClinicRepository {
   /**
    * Agenda experimental/avaliação para lead ainda não convertido. Mesmas
    * checagens de conflito da agenda (feriado fica na rota). `null` = lead
-   * não encontrado; lead convertido dá `LEAD_ALREADY_CONVERTED` (409).
+   * não encontrado; lead convertido dá `LEAD_ALREADY_CONVERTED` (409). A rota só aceita
+   * experimental; `evaluation` fica para dados anteriores à AP3 (`LeadAppointmentRecord`).
    */
   createLeadAppointment(
     clinicId: string,
     leadId: string,
-    input: LeadAppointmentInput,
+    input: LeadAppointmentRecord,
   ): Promise<Appointment | null>;
   updateLeadTaskStatus(
     clinicId: string,

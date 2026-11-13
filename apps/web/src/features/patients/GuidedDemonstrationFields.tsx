@@ -7,14 +7,18 @@ import {
 import { type Dispatch, type SetStateAction, useEffect, useState } from "react";
 import { api } from "../../api";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
+import { TrialHistoryHint } from "../../shared/components/TrialHistoryHint";
 import type { GuidedDemonstrationForm } from "./types";
 
 export function GuidedDemonstrationFields({
   value,
   setValue,
+  leadId,
 }: {
   value: GuidedDemonstrationForm;
   setValue: Dispatch<SetStateAction<GuidedDemonstrationForm>>;
+  /** Cadastro vindo de lead: avisa a experimental que o lead já tem (EX2). */
+  leadId?: string | undefined;
 }) {
   const [options, setOptions] = useState<{
     services: Service[];
@@ -61,6 +65,7 @@ export function GuidedDemonstrationFields({
     );
   return (
     <div className="form-grid">
+      <TrialHistoryHint leadId={leadId} />
       <label>
         Serviço
         <select
