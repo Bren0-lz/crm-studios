@@ -126,8 +126,9 @@ for (const storage of ["memory", "mysql"] as const) {
         expect(response.json()).toMatchObject({ code: "PLAN_REQUIRED" });
       }
 
-      it("recusa normal/avaliação sem planId, mesmo com plano elegível, e aceita experimental sem plano", async () => {
+      it("recusa normal/avaliação sem planId, mesmo com plano elegível, e aceita experimental sem plano só fora do plano", async () => {
         const { input } = await fixture();
+        const other = await fixture();
         for (const visitType of ["regular", "evaluation"])
           await rejected({ ...input, planId: undefined, visitType });
         expect(
@@ -137,13 +138,30 @@ for (const storage of ["memory", "mysql"] as const) {
             input.startsAt.replace("12:00", "12:45"),
           ),
         ).toHaveLength(0);
+        // O plano do cliente cobre o serviço: experimental só de outro serviço (EX2).
+        const covered = await post({
+          ...input,
+          planId: undefined,
+          visitType: "trial",
+        });
+        expect(covered.statusCode, covered.body).toBe(409);
+        expect(covered.json()).toMatchObject({ code: "TRIAL_SERVICE_IN_PLAN" });
         const trial = await post({
           ...input,
+          serviceId: other.service.id,
           planId: undefined,
           visitType: "trial",
         });
         expect(trial.statusCode, trial.body).toBe(201);
         expect(trial.json()).not.toHaveProperty("planId");
+        // Histórico do aviso "Já fez experimental" (EX2).
+        expect(
+          (
+            await repository.listTrialAppointments(clinicId, {
+              patientId: input.patientId,
+            })
+          ).map((item) => item.id),
+        ).toEqual([trial.json().id]);
       });
       it("recusa plano de outro cliente, serviço diferente, inexistente, cancelado ou sem saldo", async () => {
         const { input, planInput, plan } = await fixture();
@@ -456,6 +474,13 @@ for (const storage of ["memory", "mysql"] as const) {
           visitType: "trial",
         });
         expect(trial.json()).not.toHaveProperty("planId");
+        expect(
+          (
+            await repository.listTrialAppointments(clinicId, {
+              leadId: lead.id,
+            })
+          ).map((item) => item.id),
+        ).toEqual([trial.json().id]);
       });
       it("recorrente mantém a frequência, sem bloquear pelo saldo nominal do ciclo", async () => {
         const { input, planInput } = await fixture();

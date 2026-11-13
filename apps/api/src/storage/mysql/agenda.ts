@@ -146,6 +146,25 @@ export function createAgendaRepository(
       return result.rows.map(mapAppointment);
     },
 
+    async listTrialAppointments(
+      clinicId: string,
+      owner: { patientId: string } | { leadId: string },
+    ) {
+      const column = "patientId" in owner ? "a.patient_id" : "a.lead_id";
+      const result = await repositoryContext.pool.query<AppointmentRow>(
+        `
+        SELECT ${appointmentColumns}
+        FROM appointments a
+        ${appointmentJoins}
+        WHERE a.clinic_id = $1 AND a.deleted_at IS NULL AND a.visit_type = 'trial'
+          AND a.status <> 'cancelled' AND ${column} = $2
+        ORDER BY a.starts_at DESC
+      `,
+        [clinicId, "patientId" in owner ? owner.patientId : owner.leadId],
+      );
+      return result.rows.map(mapAppointment);
+    },
+
     async listPendingFinalizationAppointments(clinicId: string, now: string) {
       const result = await repositoryContext.pool.query<AppointmentRow>(
         `

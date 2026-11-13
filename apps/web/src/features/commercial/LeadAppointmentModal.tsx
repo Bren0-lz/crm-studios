@@ -20,6 +20,7 @@ import {
 import { Modal, ModalCancelButton } from "../../shared/components/Modal";
 import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
 import { toLocalDateTimeInput } from "../../shared/lib/formatting";
+import { TrialHistoryHint } from "../../shared/components/TrialHistoryHint";
 
 type ScheduleOptions = {
   services: Service[];
@@ -173,6 +174,7 @@ export function LeadAppointmentModal({
               Lead agenda só aula experimental. Para avaliação ou atendimento
               com plano, converta o lead em cliente.
             </p>
+            <TrialHistoryHint leadId={lead.id} />
             <label>
               Serviço
               <select

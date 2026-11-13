@@ -1066,6 +1066,14 @@ export interface ClinicRepository {
     from: string,
     to: string,
   ): Promise<Appointment[]>;
+  /**
+   * Aulas experimentais não canceladas do cliente ou do lead (todas as filiais), da mais nova
+   * para a mais antiga: alimenta o aviso "Já fez experimental" (EX2).
+   */
+  listTrialAppointments(
+    clinicId: string,
+    owner: { patientId: string } | { leadId: string },
+  ): Promise<Appointment[]>;
   /** Agendados/confirmados com término antes de `now` (pendentes de finalização). */
   listPendingFinalizationAppointments(
     clinicId: string,

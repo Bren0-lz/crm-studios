@@ -30,7 +30,13 @@ export async function assertAppointmentPlan(
       409,
     );
   }
-  if (input.visitType === "trial") return;
+  if (input.visitType === "trial")
+    return assertTrialOutsidePlans(
+      repository,
+      clinicId,
+      { patientId: input.patientId, serviceId: input.serviceId },
+      starts,
+    );
   const required = () =>
     new DomainError(
       "PLAN_REQUIRED",
@@ -69,4 +75,41 @@ export async function assertAppointmentPlan(
     )
       throw required();
   }
+}
+
+/**
+ * Experimental de cliente (EX2): só para serviço fora dos planos dele. Bloqueia plano ativo,
+ * não avulso (nem crédito de comanda), vigente na data e que cubra o serviço — com ou sem saldo.
+ */
+async function assertTrialOutsidePlans(
+  repository: ClinicRepository,
+  clinicId: string,
+  input: { patientId: string; serviceId: string },
+  starts: readonly string[],
+): Promise<void> {
+  const [plans, settings] = await Promise.all([
+    repository.listPatientPlans(clinicId, input.patientId),
+    repository.getClinicSettings(clinicId),
+  ]);
+  const timezone = settings?.timezone ?? DEFAULT_CLINIC_TIMEZONE;
+  const covered = starts.some((startsAt) => {
+    const date = clinicDateOf(new Date(startsAt), timezone);
+    return plans.some(
+      (plan) =>
+        plan.clinicId === clinicId &&
+        plan.patientId === input.patientId &&
+        plan.status === "active" &&
+        plan.kind !== "single" &&
+        !plan.sourceAppointmentId &&
+        plan.validFrom <= date &&
+        (!plan.validUntil || plan.validUntil >= date) &&
+        plan.services.some((service) => service.serviceId === input.serviceId),
+    );
+  });
+  if (covered)
+    throw new DomainError(
+      "TRIAL_SERVICE_IN_PLAN",
+      "O cliente já tem plano deste serviço. A aula experimental é só para serviço fora do plano.",
+      409,
+    );
 }

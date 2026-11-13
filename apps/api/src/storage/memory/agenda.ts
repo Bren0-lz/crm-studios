@@ -158,6 +158,24 @@ export function createAgendaRepository(
         .sort((a, b) => a.startsAt.localeCompare(b.startsAt));
     },
 
+    async listTrialAppointments(
+      clinicId: string,
+      owner: { patientId: string } | { leadId: string },
+    ) {
+      return repositoryContext.appointments
+        .filter(
+          (item) =>
+            item.clinicId === clinicId &&
+            item.visitType === "trial" &&
+            item.status !== "cancelled" &&
+            !repositoryContext.isTrashed("appointments", item.id) &&
+            ("patientId" in owner
+              ? item.patientId === owner.patientId
+              : item.leadId === owner.leadId),
+        )
+        .sort((a, b) => b.startsAt.localeCompare(a.startsAt));
+    },
+
     async listPendingFinalizationAppointments(clinicId: string, now: string) {
       const instant = new Date(now);
       return repositoryContext.appointments

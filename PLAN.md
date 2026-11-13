@@ -1616,7 +1616,7 @@ filtros ficam no `dashboard-studios` (EN11–EN13 têm só a parte da API aqui).
   atendimento", no agendamento do lead e na experimental do cadastro vindo de lead.
 - **Gate:** gate completo + `npm run test:mysql`
 - **Depende de:** EX1
-- **Status:** TODO
+- **Status:** DONE
 
 ### EX3 — Card "Aulas experimentais" só com experimentais e conversão real
 

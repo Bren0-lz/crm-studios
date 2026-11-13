@@ -56,6 +56,7 @@ import {
 } from "../../shared/workflows/ModalGuardContext";
 import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
 import { PlanSaleContext } from "../../shared/workflows/PlanSaleContext";
+import { TrialHistoryHint } from "../../shared/components/TrialHistoryHint";
 
 /** Opções especiais do campo "Serviço" (não viram `serviceId`). */
 const SELL_SINGLE_PLAN = "__sell-single-plan";
@@ -440,6 +441,9 @@ export function AppointmentForm({
                   ))}
               </select>
             </label>
+            {form.visitType === "trial" && (
+              <TrialHistoryHint patientId={form.patientId} />
+            )}
             <label className="checkbox-field span-2">
               <input
                 type="checkbox"

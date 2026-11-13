@@ -275,4 +275,30 @@ describe("agendamento com plano (AP4)", () => {
     expect(appointment.visitType).toBe("trial");
     expect(appointment.planId).toBeUndefined();
   });
+
+  it("avisa a experimental que o cliente já tem, sem bloquear (EX2)", async () => {
+    const { repository, patient, services, openBooking } = await scenario();
+    const professional = (await repository.listProfessionals(clinicId))[0]!;
+    const room = (await repository.listRooms(clinicId))[0]!;
+    const startsAt = new Date(Date.now() + 10 * 86_400_000);
+    startsAt.setUTCHours(13, 0, 0, 0);
+    await repository.createAppointment(clinicId, {
+      patientId: patient.id,
+      professionalId: professional.id,
+      roomId: room.id,
+      serviceId: services[0]!.id,
+      startsAt: startsAt.toISOString(),
+      visitType: "trial",
+    });
+    const dialog = await openBooking();
+    expect(
+      within(dialog).queryByText(/Já tem aula experimental/),
+    ).not.toBeInTheDocument();
+    change("Tipo", "trial", dialog);
+    expect(
+      await within(dialog).findByText(
+        new RegExp(`Já tem aula experimental: ${services[0]!.name} em`),
+      ),
+    ).toBeInTheDocument();
+  });
 });
