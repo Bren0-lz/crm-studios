@@ -314,13 +314,6 @@ export function LeadDetailsModal({
                 onClick={() => setTrashing(true)}
               />
             )}
-            <button
-              type="button"
-              className="secondary-button"
-              onClick={onClose}
-            >
-              Fechar
-            </button>
             {canEdit && !lead.convertedPatientId && (
               <button type="button" className="primary-button" onClick={onEdit}>
                 <Pencil size={16} aria-hidden="true" />
