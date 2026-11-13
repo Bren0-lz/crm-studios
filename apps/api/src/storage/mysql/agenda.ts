@@ -15,7 +15,6 @@ import {
   type GroupSession,
   type GroupWorkspace,
   type HolidayInput,
-  type LeadAppointmentInput,
   type RecurringAppointmentInput,
   type ReplacementBookingInput,
   type ScheduleBlockInput,
@@ -31,6 +30,7 @@ import {
   DomainError,
   type AgendaSlotProbe,
   type AppointmentCreateOptions,
+  type LeadAppointmentRecord,
 } from "../../repository.js";
 import { insertAutoCampaignRedemption } from "./auto-campaigns.js";
 import type { MysqlRepositoryContext } from "./context.js";
@@ -285,7 +285,7 @@ export function createAgendaRepository(
     async createLeadAppointment(
       clinicId: string,
       leadId: string,
-      input: LeadAppointmentInput,
+      input: LeadAppointmentRecord,
     ) {
       const lead = await repositoryContext.pool.query<{
         convertedPatientId: string | null;

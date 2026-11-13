@@ -1584,3 +1584,52 @@ filtros ficam no `dashboard-studios` (EN11–EN13 têm só a parte da API aqui).
   cadastro, agenda e importação.
 - **Gate:** gate completo
 - **Status:** DONE
+
+## Pedido avulso — Aula experimental (13/11/2026)
+
+- **Origem:** auditoria do sistema de aula experimental (13/11/2026): série recorrente de
+  experimentais grátis, nenhum controle de repetida, lead com "avaliação" no contrato e recusada
+  na API, card de conversão misturando avaliação e qualquer plano, divergência memória × MySQL e
+  corrida no agendamento de lead.
+- **Decisões do dono (13/11/2026):** experimental repetida só **avisa** (não bloqueia), mas nunca
+  vira série; cliente com plano só faz experimental de serviço **fora** do plano; o card
+  "Aulas experimentais" conta só `trial`, e "converteu" = plano não avulso, fora da lixeira,
+  criado de 30 dias antes a 30 dias depois da aula, uma vez por pessoa. A experimental segue
+  gratuita (B2-06 sem resposta).
+
+### EX1 — Experimental sem série e lead só com experimental
+
+- **Escopo:** `recurringAppointmentInputSchema` recusa `visitType: "trial"`;
+  `leadAppointmentInputSchema.visitType` vira `"trial"` (padrão). O repositório ainda grava a
+  avaliação de lead anterior à AP3 (`LeadAppointmentRecord`). Remarcação de falta de lead segue
+  experimental (memória). Web: no "Novo atendimento", a experimental desmarca e trava "Repetir"
+  e não aparece na contratação de pacote nem para quem só repete.
+- **Gate:** gate completo
+- **Status:** DONE
+
+### EX2 — Experimental de cliente com plano e aviso de repetida
+
+- **Escopo:** `assertAppointmentPlan` recusa experimental (`TRIAL_SERVICE_IN_PLAN`, 409) de
+  cliente com plano ativo, não avulso e vigente que cubra o serviço. Repositório
+  `listTrialAppointments` (memória e MySQL) e rota `GET /appointments/trials?patientId=|leadId=`
+  (`agenda.create`). Web: aviso "Já fez experimental de <serviço> em <data>" no "Novo
+  atendimento", no agendamento do lead e na experimental do cadastro vindo de lead.
+- **Gate:** gate completo + `npm run test:mysql`
+- **Depende de:** EX1
+- **Status:** TODO
+
+### EX3 — Card "Aulas experimentais" só com experimentais e conversão real
+
+- **Escopo:** memória e MySQL com a mesma regra: `scheduled` = experimentais não canceladas;
+  `completed` = pessoas distintas com experimental realizada; `converted` = clientes distintos
+  com plano não avulso, sem `source_appointment_id`, fora da lixeira, criado de 30 dias antes a
+  30 dias depois da aula (plano sem filtro de filial). Texto do card em `ClinicIndicators`.
+- **Gate:** gate completo + `npm run test:mysql`
+- **Status:** TODO
+
+### EX4 — Corrida no agendamento de lead (MySQL)
+
+- **Escopo:** `createLeadAppointment` do MySQL lê o lead com `FOR UPDATE` dentro da mesma
+  transação da gravação, para a conversão simultânea não deixar atendimento preso ao lead.
+- **Gate:** gate completo + `npm run test:mysql`
+- **Status:** TODO

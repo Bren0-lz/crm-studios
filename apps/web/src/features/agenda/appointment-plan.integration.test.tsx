@@ -252,7 +252,13 @@ describe("agendamento com plano (AP4)", () => {
   it("aula experimental não pede plano", async () => {
     const { openBooking, booked, confirm } = await scenario();
     const dialog = await openBooking();
+    const repeat = within(dialog).getByLabelText("Repetir este atendimento");
+    fireEvent.click(repeat);
+    expect(repeat).toBeChecked();
     change("Tipo", "trial", dialog);
+    // Experimental é uma aula só: sai da repetição e não deixa marcar de novo (EX1).
+    expect(repeat).not.toBeChecked();
+    expect(repeat).toBeDisabled();
     expect(within(dialog).queryByLabelText("Plano")).not.toBeInTheDocument();
     // Experimental não sai de plano: o "Serviço" lista todos.
     expect(

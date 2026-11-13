@@ -1,7 +1,4 @@
-import {
-  appointmentInputSchema,
-  leadAppointmentInputSchema,
-} from "@crm/contracts";
+import { appointmentInputSchema } from "@crm/contracts";
 import { withAppointmentPlan } from "../../test-support/appointment-plan.js";
 import { nextTestCpf } from "../../test-support/cpf.js";
 import { describe, expect, it, vi } from "vitest";
@@ -88,11 +85,8 @@ describe("CRM API", () => {
             ? await repository.createLeadAppointment(
                 "11111111-1111-4111-8111-111111111111",
                 owner.leadId,
-                leadAppointmentInputSchema.parse({
-                  ...base,
-                  startsAt,
-                  visitType,
-                }),
+                // Avaliação de lead só existe como histórico (a rota aceita só experimental).
+                { ...base, startsAt, visitType: "evaluation" },
               )
             : await repository.createAppointment(
                 "11111111-1111-4111-8111-111111111111",

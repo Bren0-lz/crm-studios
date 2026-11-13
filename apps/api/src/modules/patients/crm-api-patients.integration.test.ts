@@ -507,6 +507,33 @@ describe("CRM API", () => {
       ),
     });
     expect(invalid.statusCode).toBe(400);
+    // Experimental é uma aula só: nunca vira série (EX1).
+    const trialSeries = await app.inject({
+      method: "POST",
+      url: "/appointments/recurring",
+      headers,
+      payload: {
+        ...payload,
+        startsAt: at(4),
+        visitType: "trial",
+        occurrences: 2,
+        intervalWeeks: 1,
+      },
+    });
+    expect(trialSeries.statusCode).toBe(400);
+    const trial = await app.inject({
+      method: "POST",
+      url: "/appointments",
+      headers,
+      // Serviço fora dos planos do cliente: experimental de outra modalidade.
+      payload: {
+        ...payload,
+        serviceId: services.json()[1].id,
+        startsAt: at(4),
+        visitType: "trial",
+      },
+    });
+    expect(trial.statusCode).toBe(201);
     const series = await app.inject({
       method: "POST",
       url: "/appointments/recurring",
@@ -515,8 +542,8 @@ describe("CRM API", () => {
         app,
         {
           ...payload,
-          startsAt: at(4),
-          visitType: "trial",
+          startsAt: at(5),
+          visitType: "evaluation",
           occurrences: 2,
           intervalWeeks: 1,
         },
@@ -525,8 +552,8 @@ describe("CRM API", () => {
     });
     expect(series.statusCode).toBe(201);
     expect(series.json().map((item: Appointment) => item.visitType)).toEqual([
-      "trial",
-      "trial",
+      "evaluation",
+      "evaluation",
     ]);
     const moved = await app.inject({
       method: "PUT",
@@ -550,8 +577,9 @@ describe("CRM API", () => {
     );
     expect(byId.get(regular.json().id)).toBe("regular");
     expect(byId.get(evaluation.json().id)).toBe("evaluation");
+    expect(byId.get(trial.json().id)).toBe("trial");
     for (const item of series.json() as Appointment[])
-      expect(byId.get(item.id)).toBe("trial");
+      expect(byId.get(item.id)).toBe("evaluation");
     const day = (value: string) =>
       new Intl.DateTimeFormat("en-CA", {
         timeZone: "America/Sao_Paulo",
@@ -563,8 +591,8 @@ describe("CRM API", () => {
     });
     expect(report.statusCode).toBe(200);
     expect(report.json().appointments).toMatchObject({
-      total: 4,
-      byVisitType: { regular: 1, trial: 2, evaluation: 1 },
+      total: 5,
+      byVisitType: { regular: 1, trial: 1, evaluation: 3 },
     });
     await app.close();
   });
@@ -611,7 +639,8 @@ describe("CRM API", () => {
     });
     expect(denied.statusCode).toBe(403);
     expect(denied.json()).toMatchObject({ code: "COMMERCIAL_ACCESS_DENIED" });
-    for (const visitType of [undefined, "regular"]) {
+    // Lead só faz experimental: "trial" é o padrão; avaliação e normal são recusadas (EX1).
+    for (const visitType of ["evaluation", "regular"]) {
       const invalid = await app.inject({
         method: "POST",
         url: `/leads/${leadId}/appointments`,
@@ -744,8 +773,8 @@ describe("CRM API", () => {
         visitType: "evaluation",
       },
     });
-    expect(evaluation.statusCode).toBe(409);
-    expect(evaluation.json()).toMatchObject({ code: "PLAN_REQUIRED" });
+    // Lead só faz experimental: o contrato recusa a avaliação (EX1).
+    expect(evaluation.statusCode).toBe(400);
 
     const converted = await app.inject({
       payload: { cpf: nextTestCpf(), ...testPatientContact },
@@ -3927,11 +3956,11 @@ describe("CRM API", () => {
         payload: file,
       });
       expect(imported.json()).toEqual({
-      created: 1,
-      skipped: 0,
-      errors: 1,
-      updated: 0,
-    });
+        created: 1,
+        skipped: 0,
+        errors: 1,
+        updated: 0,
+      });
       const listed = (
         await app.inject({
           method: "GET",

@@ -19,7 +19,6 @@ import {
   type GroupWorkspace,
   type Holiday,
   type HolidayInput,
-  type LeadAppointmentInput,
   type RecurringAppointmentInput,
   type ReplacementBookingInput,
   type ScheduleBlock,
@@ -38,6 +37,7 @@ import {
   type AgendaSlotProbe,
   type AppointmentCreateOptions,
   type AutoCampaignRedemptionWrite,
+  type LeadAppointmentRecord,
 } from "../../repository.js";
 import type { MemoryRepositoryContext } from "./context.js";
 import { now, today, uuid } from "./helpers.js";
@@ -236,7 +236,7 @@ export function createAgendaRepository(
     async createLeadAppointment(
       clinicId: string,
       leadId: string,
-      input: LeadAppointmentInput,
+      input: LeadAppointmentRecord,
     ) {
       const lead = repositoryContext.leads.find(
         (item) => item.clinicId === clinicId && item.id === leadId,

@@ -136,6 +136,8 @@ export function AppointmentForm({
     // Plano de onde sai a sessão (AP4); vazio na experimental e na contratação do plano.
     planId: "",
   });
+  // Experimental é avulsa (sem série): fora da contratação de pacote e de quem só repete.
+  const canBookTrial = !packageSessions && can("agenda.create");
   // Experimental não usa plano; na contratação o plano é o que está sendo vendido.
   const needsPlan =
     !packageSessions && form.visitType !== "" && form.visitType !== "trial";
@@ -413,26 +415,40 @@ export function AppointmentForm({
                 autoFocus={Boolean(fixedPatient)}
                 required
                 value={form.visitType}
-                onChange={(e) =>
-                  setForm({
-                    ...form,
-                    visitType: e.target.value as AppointmentVisitType,
-                  })
-                }
+                onChange={(e) => {
+                  const visitType = e.target.value as AppointmentVisitType;
+                  // Experimental é uma aula só: sai da repetição e dos dias fixos.
+                  setForm(
+                    visitType === "trial"
+                      ? {
+                          ...form,
+                          visitType,
+                          recurring: false,
+                          packageDays: false,
+                        }
+                      : { ...form, visitType },
+                  );
+                }}
               >
                 <option value="">Selecione</option>
-                {appointmentVisitTypes.map((item) => (
-                  <option value={item} key={item}>
-                    {visitTypeLabels[item]}
-                  </option>
-                ))}
+                {appointmentVisitTypes
+                  .filter((item) => item !== "trial" || canBookTrial)
+                  .map((item) => (
+                    <option value={item} key={item}>
+                      {visitTypeLabels[item]}
+                    </option>
+                  ))}
               </select>
             </label>
             <label className="checkbox-field span-2">
               <input
                 type="checkbox"
                 checked={form.recurring}
-                disabled={!can("agenda.create") || !can("agenda.recurring")}
+                disabled={
+                  !can("agenda.create") ||
+                  !can("agenda.recurring") ||
+                  form.visitType === "trial"
+                }
                 onChange={(e) =>
                   setForm({ ...form, recurring: e.target.checked })
                 }

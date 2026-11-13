@@ -440,10 +440,12 @@ for (const storage of ["memory", "mysql"] as const) {
             interest: "Pilates",
           }),
         );
-        await rejected(
+        // Avaliação de lead nem chega à regra do plano: o contrato só aceita experimental (EX1).
+        const evaluation = await post(
           { ...input, visitType: "evaluation" },
           `/leads/${lead.id}/appointments`,
         );
+        expect(evaluation.statusCode, evaluation.body).toBe(400);
         const trial = await post(
           { ...input, visitType: "trial" },
           `/leads/${lead.id}/appointments`,
