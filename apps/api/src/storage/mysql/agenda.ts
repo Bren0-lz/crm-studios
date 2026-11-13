@@ -306,44 +306,50 @@ export function createAgendaRepository(
       leadId: string,
       input: LeadAppointmentRecord,
     ) {
-      const lead = await repositoryContext.pool.query<{
-        convertedPatientId: string | null;
-      }>(
-        `SELECT converted_patient_id AS "convertedPatientId"
-       FROM leads WHERE clinic_id = $1 AND id = $2`,
-        [clinicId, leadId],
-      );
-      if (!lead.rows[0]) return null;
-      if (lead.rows[0].convertedPatientId)
-        throw new DomainError(
-          "LEAD_ALREADY_CONVERTED",
-          "Este lead já foi convertido em cliente. Agende pelo cliente.",
-          409,
+      // Mesma trava da conversão (EX4): lead convertido ao mesmo tempo não fica com
+      // atendimento preso ao lead.
+      return repositoryContext.inTransaction(async (client) => {
+        await client.lock(clinicId);
+        const lead = await client.query<{
+          convertedPatientId: string | null;
+        }>(
+          `SELECT converted_patient_id AS "convertedPatientId"
+         FROM leads WHERE clinic_id = $1 AND id = $2 FOR UPDATE`,
+          [clinicId, leadId],
         );
-      const related = await repositoryContext.pool.query<{
-        durationMinutes: number;
-      }>(
-        `
-        SELECT s.duration_minutes AS "durationMinutes"
-        FROM professionals pr, rooms r, services s
-        WHERE pr.id = $2 AND pr.clinic_id = $1 AND pr.active = true
-          AND r.id = $3 AND r.clinic_id = $1 AND r.active = true
-          AND s.id = $4 AND s.clinic_id = $1 AND s.active = true
-      `,
-        [clinicId, input.professionalId, input.roomId, input.serviceId],
-      );
-      if (!related.rows[0])
-        throw new DomainError(
-          "RELATED_RECORD_NOT_FOUND",
-          "Profissional, sala ou serviço não encontrado.",
-          404,
+        if (!lead.rows[0]) return null;
+        if (lead.rows[0].convertedPatientId)
+          throw new DomainError(
+            "LEAD_ALREADY_CONVERTED",
+            "Este lead já foi convertido em cliente. Agende pelo cliente.",
+            409,
+          );
+        const related = await client.query<{
+          durationMinutes: number;
+        }>(
+          `
+          SELECT s.duration_minutes AS "durationMinutes"
+          FROM professionals pr, rooms r, services s
+          WHERE pr.id = $2 AND pr.clinic_id = $1 AND pr.active = true
+            AND r.id = $3 AND r.clinic_id = $1 AND r.active = true
+            AND s.id = $4 AND s.clinic_id = $1 AND s.active = true
+        `,
+          [clinicId, input.professionalId, input.roomId, input.serviceId],
         );
-      return repositoryContext.insertAppointment(
-        clinicId,
-        input,
-        related.rows[0].durationMinutes,
-        { patientId: null, leadId },
-      );
+        if (!related.rows[0])
+          throw new DomainError(
+            "RELATED_RECORD_NOT_FOUND",
+            "Profissional, sala ou serviço não encontrado.",
+            404,
+          );
+        return repositoryContext.insertAppointment(
+          clinicId,
+          input,
+          related.rows[0].durationMinutes,
+          { patientId: null, leadId },
+          client,
+        );
+      });
     },
 
     async rescheduleAppointment(

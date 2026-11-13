@@ -1632,4 +1632,4 @@ filtros ficam no `dashboard-studios` (EN11–EN13 têm só a parte da API aqui).
 - **Escopo:** `createLeadAppointment` do MySQL lê o lead com `FOR UPDATE` dentro da mesma
   transação da gravação, para a conversão simultânea não deixar atendimento preso ao lead.
 - **Gate:** gate completo + `npm run test:mysql`
-- **Status:** TODO
+- **Status:** DONE
