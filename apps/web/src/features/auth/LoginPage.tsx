@@ -10,8 +10,8 @@ export function LoginPage({
   onLogin: (user: UserSummary) => void;
 }) {
   const navigate = useNavigate();
-  const [email, setEmail] = useState("admin@movimenta.local");
-  const [password, setPassword] = useState("Admin@123");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -85,10 +85,6 @@ export function LoginPage({
               {loading ? "Entrando…" : "Entrar"}
             </button>
           </form>
-          <div className="demo-credentials">
-            <strong>Acesso de demonstração</strong>
-            <span>admin@movimenta.local · Admin@123</span>
-          </div>
         </div>
       </section>
     </main>

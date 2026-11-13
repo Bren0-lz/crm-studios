@@ -115,24 +115,6 @@
   padding: 0 var(--space-2);
 }
 
-.demo-access,
-.demo-credentials {
-  margin-top: 24px;
-  padding: 15px;
-  border-radius: 12px;
-  background: #edf3ef;
-  color: #50635c;
-  font-size: var(--text-sm);
-  line-height: 1.7;
-}
-
-.demo-access strong,
-.demo-access span,
-.demo-credentials strong,
-.demo-credentials span {
-  display: block;
-}
-
 .error-banner {
   padding: var(--space-3) var(--space-3);
   border-radius: var(--radius-md);
