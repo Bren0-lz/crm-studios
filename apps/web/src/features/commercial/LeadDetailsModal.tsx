@@ -7,12 +7,14 @@ import {
 import { Pencil } from "lucide-react";
 import { useEffect, useState } from "react";
 import { api } from "../../api";
+import { useAuthorization } from "../../authorization-context";
 import { Modal } from "../../shared/components/Modal";
 import {
   formatIsoDate,
   shortDate,
   shortDateTime,
 } from "../../shared/lib/formatting";
+import { SendToTrashModal, TrashIconButton } from "../trash";
 import { LeadContactTimeline } from "./LeadContactTimeline";
 import { mergeLeadContacts } from "./lead-contact-history";
 
@@ -49,6 +51,7 @@ export function LeadDetailsModal({
   canEdit,
   onClose,
   onEdit,
+  onTrashed,
 }: {
   lead: Lead;
   contacts?: LeadContact[] | undefined;
@@ -57,7 +60,12 @@ export function LeadDetailsModal({
   canEdit: boolean;
   onClose: () => void;
   onEdit: () => void;
+  /** Lead enviado para a lixeira pelo botão "Excluir" (exige `trash.send`). */
+  onTrashed?: (lead: Lead) => void;
 }) {
+  const { can } = useAuthorization();
+  const [trashing, setTrashing] = useState(false);
+  const canTrash = Boolean(onTrashed) && can("trash.send");
   const [fetched, setFetched] = useState<LeadContact[] | null>(null);
   const loadingContacts = fetched === null;
 
@@ -88,112 +96,136 @@ export function LeadDetailsModal({
       : "Nenhuma aberta";
   const place = [lead.neighborhood, lead.city].filter(Boolean).join(" · ");
   return (
-    <Modal
-      eyebrow="CRM comercial"
-      title={lead.fullName}
-      subtitle={`Etapa: ${stageLabel}`}
-      onClose={onClose}
-    >
-      <div className="clinical-form lead-details">
-        {lost && (
-          <section className="lead-details-lost" aria-label="Perda do lead">
-            <dl>
-              <div>
-                <dt>Motivo da perda</dt>
-                <dd>{lead.lostReason?.trim() || "Não informado"}</dd>
-              </div>
-              <div>
+    <>
+      <Modal
+        eyebrow="CRM comercial"
+        title={lead.fullName}
+        subtitle={`Etapa: ${stageLabel}`}
+        inactive={trashing}
+        onClose={onClose}
+      >
+        <div className="clinical-form lead-details">
+          {lost && (
+            <section className="lead-details-lost" aria-label="Perda do lead">
+              <dl>
+                <div>
+                  <dt>Motivo da perda</dt>
+                  <dd>{lead.lostReason?.trim() || "Não informado"}</dd>
+                </div>
+                <div>
+                  <dt>Observações</dt>
+                  <dd className="lead-details-notes">
+                    {notes || "Sem observações"}
+                  </dd>
+                </div>
+              </dl>
+            </section>
+          )}
+          {lead.convertedPatientId && (
+            <p className="success-banner">Convertido em cliente.</p>
+          )}
+          <dl className="lead-details-grid">
+            <Detail label="Telefone" value={formatPhone(lead.phone)} />
+            <Detail
+              label="WhatsApp"
+              value={lead.whatsapp ? formatPhone(lead.whatsapp) : undefined}
+            />
+            <Detail label="E-mail" value={lead.email} />
+            <Detail label="Origem" value={lead.source} />
+            <Detail label="Interesse" value={lead.interest} />
+            <Detail label="Forma de contato" value={lead.contactMethod} />
+            <Detail label="Responsável" value={lead.responsibleName} />
+            <Detail label="Etiquetas" value={lead.tags.join(", ")} />
+            <Detail label="Tarefas" value={tasks} />
+            <Detail
+              label="Último contato"
+              value={
+                lead.lastContactAt
+                  ? shortDateTime(lead.lastContactAt)
+                  : undefined
+              }
+            />
+            <Detail
+              label="Última mensagem enviada"
+              value={
+                lead.lastMessageSentAt
+                  ? shortDateTime(lead.lastMessageSentAt)
+                  : undefined
+              }
+            />
+            <Detail label="Cadastrado em" value={dateText(lead.createdAt)} />
+            <Detail label="Atualizado em" value={dateText(lead.updatedAt)} />
+            <Detail
+              label="CPF"
+              value={lead.cpf ? formatCpf(lead.cpf) : undefined}
+            />
+            <Detail
+              label="Nascimento"
+              value={lead.birthDate ? formatIsoDate(lead.birthDate) : undefined}
+            />
+            <Detail label="Profissão" value={lead.occupation} />
+            <Detail label="Bairro · cidade" value={place} />
+          </dl>
+          {!lost && notes && (
+            <dl className="lead-details-grid">
+              <div className="lead-details-wide">
                 <dt>Observações</dt>
-                <dd className="lead-details-notes">
-                  {notes || "Sem observações"}
-                </dd>
+                <dd className="lead-details-notes">{notes}</dd>
               </div>
             </dl>
-          </section>
-        )}
-        {lead.convertedPatientId && (
-          <p className="success-banner">Convertido em cliente.</p>
-        )}
-        <dl className="lead-details-grid">
-          <Detail label="Telefone" value={formatPhone(lead.phone)} />
-          <Detail
-            label="WhatsApp"
-            value={lead.whatsapp ? formatPhone(lead.whatsapp) : undefined}
-          />
-          <Detail label="E-mail" value={lead.email} />
-          <Detail label="Origem" value={lead.source} />
-          <Detail label="Interesse" value={lead.interest} />
-          <Detail label="Forma de contato" value={lead.contactMethod} />
-          <Detail label="Responsável" value={lead.responsibleName} />
-          <Detail label="Etiquetas" value={lead.tags.join(", ")} />
-          <Detail label="Tarefas" value={tasks} />
-          <Detail
-            label="Último contato"
-            value={
-              lead.lastContactAt ? shortDateTime(lead.lastContactAt) : undefined
-            }
-          />
-          <Detail
-            label="Última mensagem enviada"
-            value={
-              lead.lastMessageSentAt
-                ? shortDateTime(lead.lastMessageSentAt)
-                : undefined
-            }
-          />
-          <Detail label="Cadastrado em" value={dateText(lead.createdAt)} />
-          <Detail label="Atualizado em" value={dateText(lead.updatedAt)} />
-          <Detail
-            label="CPF"
-            value={lead.cpf ? formatCpf(lead.cpf) : undefined}
-          />
-          <Detail
-            label="Nascimento"
-            value={lead.birthDate ? formatIsoDate(lead.birthDate) : undefined}
-          />
-          <Detail label="Profissão" value={lead.occupation} />
-          <Detail label="Bairro · cidade" value={place} />
-        </dl>
-        {!lost && notes && (
-          <dl className="lead-details-grid">
-            <div className="lead-details-wide">
-              <dt>Observações</dt>
-              <dd className="lead-details-notes">{notes}</dd>
-            </div>
-          </dl>
-        )}
-        <section
-          className="lead-details-contacts"
-          aria-label="Histórico de contatos"
-        >
-          <header className="lead-details-contacts-head">
-            <h3>Histórico de contatos</h3>
-            {totalContacts > 0 && (
-              <span>
-                {totalContacts === 1
-                  ? "1 contato"
-                  : `${totalContacts} contatos`}
-              </span>
+          )}
+          <section
+            className="lead-details-contacts"
+            aria-label="Histórico de contatos"
+          >
+            <header className="lead-details-contacts-head">
+              <h3>Histórico de contatos</h3>
+              {totalContacts > 0 && (
+                <span>
+                  {totalContacts === 1
+                    ? "1 contato"
+                    : `${totalContacts} contatos`}
+                </span>
+              )}
+            </header>
+            {loadingContacts && history.length === 0 ? (
+              <p className="contact-timeline-empty">Carregando histórico...</p>
+            ) : (
+              <LeadContactTimeline contacts={history} />
             )}
-          </header>
-          {loadingContacts && history.length === 0 ? (
-            <p className="contact-timeline-empty">Carregando histórico...</p>
-          ) : (
-            <LeadContactTimeline contacts={history} />
-          )}
-        </section>
-        <div className="modal-actions">
-          <button type="button" className="secondary-button" onClick={onClose}>
-            Fechar
-          </button>
-          {canEdit && !lead.convertedPatientId && (
-            <button type="button" className="primary-button" onClick={onEdit}>
-              <Pencil size={16} aria-hidden="true" />
-              Editar cadastro
+          </section>
+          <div className="modal-actions">
+            {canTrash && (
+              <TrashIconButton
+                label="Excluir"
+                onClick={() => setTrashing(true)}
+              />
+            )}
+            <button
+              type="button"
+              className="secondary-button"
+              onClick={onClose}
+            >
+              Fechar
             </button>
-          )}
+            {canEdit && !lead.convertedPatientId && (
+              <button type="button" className="primary-button" onClick={onEdit}>
+                <Pencil size={16} aria-hidden="true" />
+                Editar cadastro
+              </button>
+            )}
+          </div>
         </div>
-      </div>
-    </Modal>
+      </Modal>
+      {trashing && onTrashed && (
+        <SendToTrashModal
+          kind="leads"
+          id={lead.id}
+          title={lead.fullName}
+          onClose={() => setTrashing(false)}
+          onDone={() => onTrashed(lead)}
+        />
+      )}
+    </>
   );
 }

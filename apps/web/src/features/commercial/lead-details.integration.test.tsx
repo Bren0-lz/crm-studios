@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import App from "../../App";
@@ -118,6 +124,45 @@ describe("commercial lead details", () => {
     expect(within(loss).getByText("Preço")).toBeInTheDocument();
     expect(
       within(loss).getByText("Achou o valor alto; retomar em março."),
+    ).toBeInTheDocument();
+  });
+
+  it("sends the lead to the trash from the details", async () => {
+    const id = "66666666-6666-4666-8666-666666666666";
+    renderBoard([
+      {
+        ...baseLead,
+        id,
+        fullName: "Diana Excluir",
+        phone: "11911112222",
+        stage: "new_contact",
+      },
+    ]);
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Ver detalhes de Diana Excluir",
+      }),
+    );
+    const dialog = await detailsDialog();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Excluir" }));
+    const confirm = await screen.findByRole("dialog", { name: "Excluir" });
+    fireEvent.click(
+      within(confirm).getByRole("button", { name: "Enviar para a lixeira" }),
+    );
+    await waitFor(() =>
+      expect(screen.queryByText(/^Etapa:/)).not.toBeInTheDocument(),
+    );
+    expect(
+      vi
+        .mocked(fetch)
+        .mock.calls.some(
+          ([input, init]) =>
+            String(input).endsWith(`/trash/leads/${id}`) &&
+            init?.method === "POST",
+        ),
+    ).toBe(true);
+    expect(
+      await screen.findByText("Lead Diana Excluir foi para a lixeira."),
     ).toBeInTheDocument();
   });
 });
