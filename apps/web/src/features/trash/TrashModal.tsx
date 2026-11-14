@@ -1,4 +1,5 @@
 import {
+  formatPhone,
   trashKindLabels,
   type TrashItem,
   type TrashKind,
@@ -88,7 +89,9 @@ export function TrashModal({
                   <span>
                     {kind === "appointments"
                       ? dateTime(item.detail)
-                      : item.detail}
+                      : kind === "patients" || kind === "leads"
+                        ? formatPhone(item.detail)
+                        : item.detail}
                   </span>
                 )}
                 <small>

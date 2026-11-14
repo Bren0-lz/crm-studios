@@ -16,7 +16,6 @@ import { LoadingBlock } from "../../shared/components/LoadingBlock";
 import { Modal } from "../../shared/components/Modal";
 import {
   formatIsoDate,
-  shortDate,
   shortDateTime,
 } from "../../shared/lib/formatting";
 import { SendToTrashModal, TrashIconButton } from "../trash";
@@ -47,10 +46,6 @@ const tabs = [
 ] as const;
 
 type TabKey = (typeof tabs)[number]["key"];
-
-function dateText(iso: string | undefined) {
-  return iso ? shortDate.format(new Date(iso)) : undefined;
-}
 
 /**
  * Detalhes do lead, abertos ao clicar no cartão do funil: contato, origem, interesse,
@@ -236,8 +231,14 @@ export function LeadDetailsModal({
                     : undefined
                 }
               />
-              <Detail label="Cadastrado em" value={dateText(lead.createdAt)} />
-              <Detail label="Atualizado em" value={dateText(lead.updatedAt)} />
+              <Detail
+                label="Cadastrado em"
+                value={shortDateTime(lead.createdAt)}
+              />
+              <Detail
+                label="Atualizado em"
+                value={shortDateTime(lead.updatedAt)}
+              />
               <Detail
                 label="CPF"
                 value={lead.cpf ? formatCpf(lead.cpf) : undefined}

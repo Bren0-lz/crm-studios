@@ -5,6 +5,7 @@ import {
   type PatientPlan,
   type Receivable,
   EXTRA_FIELDS_LABEL,
+  formatCpf,
   formatPhone,
   isTabCreditPlan,
   patientProfileLabels,
@@ -127,7 +128,7 @@ function profileFields(patient: Patient) {
   const age = patientAge(patient.birthDate || undefined);
   if (age !== undefined)
     fields.push(["age", "Idade", `${age} ${age === 1 ? "ano" : "anos"}`]);
-  if (patient.cpf) fields.push(["cpf", "CPF", patient.cpf]);
+  if (patient.cpf) fields.push(["cpf", "CPF", formatCpf(patient.cpf)]);
   for (const [key, label] of Object.entries(patientProfileLabels)) {
     const value = patient[key as keyof typeof patientProfileLabels];
     if (

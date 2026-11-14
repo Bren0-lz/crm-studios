@@ -45,7 +45,7 @@ export interface LeadCardPermissions {
 }
 
 /**
- * Faixa "Mensagem enviada · 10 de nov. às 14:32" / "Mensagem não enviada" do cartão.
+ * Faixa "Enviada 10 de nov. às 14:32" / "Mensagem não enviada" do cartão.
  * Ao passar o mouse (ou focar), abre um painel flutuante com todo o histórico de contatos.
  */
 function LeadMessageStatus({
@@ -159,10 +159,13 @@ function LeadMessageStatus({
           <Clock3 size={13} aria-hidden="true" />
         )}
         {sentAt ? (
-          <span>
-            Mensagem enviada ·{" "}
-            <time dateTime={sentAt}>{shortDateTime(sentAt)}</time>
-          </span>
+          <>
+            {/* RT6: o rótulo pode truncar; a data e a hora ficam sempre inteiras. */}
+            <span>Enviada</span>
+            <time className="lead-message-time" dateTime={sentAt}>
+              {shortDateTime(sentAt)}
+            </time>
+          </>
         ) : (
           <span>Mensagem não enviada</span>
         )}

@@ -575,6 +575,11 @@
   white-space: nowrap;
 }
 
+.lead-message-time {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
 .lead-message-status.sent {
   background: var(--mint);
   color: var(--green);

@@ -130,6 +130,16 @@ describe("lean lead form", () => {
       expect(
         within(convert).getByRole("button", { name: option }),
       ).toBeInTheDocument();
+    // RT6: na conversão o botão fala em converter (no "Novo cliente", "Salvar e…").
+    fireEvent.click(
+      within(convert).getByRole("button", { name: "Adicionar plano" }),
+    );
+    expect(
+      within(convert).getByRole("button", { name: "Converter e criar plano" }),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      within(convert).getByRole("button", { name: "Remover plano" }),
+    );
     // Mesmo cadastro do "Novo cliente", já preenchido com o que o lead tem.
     expect(within(convert).getByLabelText("Nome completo")).toHaveValue(
       "Lead Enxuto",

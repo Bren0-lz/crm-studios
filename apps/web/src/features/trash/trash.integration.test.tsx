@@ -70,6 +70,8 @@ describe("lixeira", () => {
     );
     const trash = await openPatientsTrash();
     expect(await within(trash).findByText("Elisa Lixeira")).toBeInTheDocument();
+    // RT6: o telefone do cliente aparece com máscara.
+    expect(within(trash).getByText("(11) 98888-7777")).toBeInTheDocument();
     fireEvent.click(within(trash).getByRole("button", { name: "Restaurar" }));
     expect(await within(trash).findByText("Lixeira vazia")).toBeInTheDocument();
     expect(await repository.getPatient(clinicId, patient.id)).toMatchObject({

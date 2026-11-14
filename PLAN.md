@@ -1688,3 +1688,13 @@ filtros ficam no `dashboard-studios` (EN11–EN13 têm só a parte da API aqui).
 - **Gate:** gate completo
 - **Depende de:** RT1
 - **Status:** DONE
+
+### RT6 — Acabamento de textos e formatos
+
+- **Escopo:** sem ponto duplo no aviso "Já tem aula experimental"; cartão do lead com rótulo
+  "Enviada" e `<time>` que não trunca; "Cadastrado em"/"Atualizado em" do lead com hora; botão da
+  conversão de lead "Converter e …"; CPF com máscara na ficha e telefone com máscara na lixeira de
+  clientes e leads.
+- **Gate:** gate completo
+- **Depende de:** RT1, RT2, RT5
+- **Status:** DONE
