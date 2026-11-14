@@ -66,8 +66,14 @@ test("auto finalization completes past appointments and lists them by period", a
   ).toBe(true);
 
   await page.goto("/agenda");
-  await expect(page.getByRole("link", { name: "Concluídos" })).toHaveAttribute(
-    "href",
-    "/agenda/concluidos",
-  );
+  if (page.viewportSize()!.width <= 700) {
+    // No celular (RV4) "Concluídos" fica no menu "Mais" do cabeçalho.
+    await page.getByRole("button", { name: "Mais", exact: true }).click();
+    await page.getByRole("menuitem", { name: "Concluídos" }).click();
+    await expect(page).toHaveURL(/\/agenda\/concluidos$/);
+  } else {
+    await expect(
+      page.getByRole("link", { name: "Concluídos" }),
+    ).toHaveAttribute("href", "/agenda/concluidos");
+  }
 });

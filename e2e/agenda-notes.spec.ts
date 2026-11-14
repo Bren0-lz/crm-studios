@@ -6,7 +6,15 @@ test("agenda notes repeat, edit by scope and persist the visibility toggle", asy
 }, testInfo) => {
   await login(page);
   await page.goto("/agenda");
-  await page.getByRole("button", { name: "Nova nota", exact: true }).click();
+  // No celular (RV4) a "Nova nota" fica no menu "Mais" do cabeçalho.
+  if (page.viewportSize()!.width <= 700) {
+    await page.getByRole("button", { name: "Mais", exact: true }).click();
+    await page
+      .getByRole("menuitem", { name: "Nova nota", exact: true })
+      .click();
+  } else {
+    await page.getByRole("button", { name: "Nova nota", exact: true }).click();
+  }
   let dialog = page.getByRole("dialog", { name: "Nova nota", exact: true });
   await dialog
     .getByRole("textbox", { name: "Descrição", exact: true })

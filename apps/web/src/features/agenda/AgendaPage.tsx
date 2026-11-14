@@ -42,7 +42,9 @@ import { useAuthorization } from "../../authorization-context";
 import { EmptyState } from "../../shared/components/EmptyState";
 import { ErrorBanner } from "../../shared/components/ErrorBanner";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
+import { ActionMenu } from "../../shared/components/ActionMenu";
 import { PageHeader } from "../../shared/components/PageHeader";
+import type { ActionMenuItem } from "../../shared/lib/types";
 import { ReadOnlyNotice } from "../../shared/components/ReadOnlyNotice";
 import { VisitTypeBadge } from "../../shared/components/VisitTypeBadge";
 import {
@@ -422,6 +424,40 @@ export function AgendaPage() {
     setHighlightedIds(saved.map((item) => item.id));
   }
 
+  // Mesmas ações secundárias do cabeçalho, no menu "Mais" do celular (RV4).
+  const moreActions: ActionMenuItem[] = [
+    ...(autoFinalization
+      ? [
+          {
+            label: "Concluídos",
+            icon: <CheckCheck size={16} aria-hidden="true" />,
+            onSelect: () => void navigate("/agenda/concluidos"),
+          },
+        ]
+      : []),
+    ...(agendaProfessionals.length > 0 && !loading
+      ? [
+          {
+            label: "Compartilhar agenda",
+            icon: <Share2 size={16} aria-hidden="true" />,
+            onSelect: () => setShareOpen(true),
+          },
+        ]
+      : []),
+    ...(can("agenda.notes") && !loading
+      ? [{ label: "Nova nota", onSelect: () => setNoteModal("new") }]
+      : []),
+    ...(canBlock && can("agenda.blocks_create")
+      ? [
+          {
+            label: "Bloquear horário",
+            icon: <LockKeyhole size={16} aria-hidden="true" />,
+            onSelect: () => setBlockModalOpen(true),
+          },
+        ]
+      : []),
+  ];
+
   return (
     <>
       <PatientContextNotice patientId={contextPatientId} patients={patients} />
@@ -435,46 +471,55 @@ export function AgendaPage() {
             can("agenda.notes") ||
             agendaProfessionals.length > 0 ||
             autoFinalization) && (
-            <div className="page-actions">
+            <div className="page-actions agenda-page-actions">
               <TrashButton
                 kind="appointments"
                 onChanged={() => setNoteReload((count) => count + 1)}
               />
-              {autoFinalization && (
-                <NavLink to="/agenda/concluidos" className="secondary-button">
-                  <CheckCheck size={16} aria-hidden="true" />
-                  Concluídos
-                </NavLink>
-              )}
-              {agendaProfessionals.length > 0 && (
-                <button
-                  className="secondary-button"
-                  onClick={() => setShareOpen(true)}
-                  disabled={loading}
-                  type="button"
-                >
-                  <Share2 size={16} aria-hidden="true" />
-                  Compartilhar agenda
-                </button>
-              )}
-              {can("agenda.notes") && (
-                <button
-                  className="secondary-button"
-                  onClick={() => setNoteModal("new")}
-                  disabled={loading}
-                  type="button"
-                >
-                  Nova nota
-                </button>
-              )}
-              {canBlock && can("agenda.blocks_create") && (
-                <button
-                  className="secondary-button"
-                  onClick={() => setBlockModalOpen(true)}
-                >
-                  <LockKeyhole size={16} aria-hidden="true" />
-                  Bloquear horário
-                </button>
+              {/* RV4: no celular as ações secundárias vão para o menu "Mais"; só o
+                  "Novo atendimento" fica à vista (igual a Clientes). */}
+              <span className="agenda-secondary-actions">
+                {autoFinalization && (
+                  <NavLink to="/agenda/concluidos" className="secondary-button">
+                    <CheckCheck size={16} aria-hidden="true" />
+                    Concluídos
+                  </NavLink>
+                )}
+                {agendaProfessionals.length > 0 && (
+                  <button
+                    className="secondary-button"
+                    onClick={() => setShareOpen(true)}
+                    disabled={loading}
+                    type="button"
+                  >
+                    <Share2 size={16} aria-hidden="true" />
+                    Compartilhar agenda
+                  </button>
+                )}
+                {can("agenda.notes") && (
+                  <button
+                    className="secondary-button"
+                    onClick={() => setNoteModal("new")}
+                    disabled={loading}
+                    type="button"
+                  >
+                    Nova nota
+                  </button>
+                )}
+                {canBlock && can("agenda.blocks_create") && (
+                  <button
+                    className="secondary-button"
+                    onClick={() => setBlockModalOpen(true)}
+                  >
+                    <LockKeyhole size={16} aria-hidden="true" />
+                    Bloquear horário
+                  </button>
+                )}
+              </span>
+              {moreActions.length > 0 && (
+                <div className="agenda-more-actions">
+                  <ActionMenu label="Mais" align="end" items={moreActions} />
+                </div>
               )}
               {canSchedule && can("agenda.create") && (
                 <button

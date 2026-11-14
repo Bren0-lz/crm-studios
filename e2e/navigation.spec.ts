@@ -124,6 +124,49 @@ test("clinic name stays visible in the mobile header without horizontal scroll",
   }
 });
 
+test("agenda keeps only Novo atendimento in view on mobile and moves the rest to Mais", async ({
+  page,
+}, testInfo) => {
+  test.skip(
+    testInfo.project.name !== "mobile",
+    "Cabeçalho da agenda no celular.",
+  );
+  await login(page);
+  await page.goto("/agenda");
+  const header = page.locator(".page-header");
+  const create = header.getByRole("button", { name: "Novo atendimento" });
+  const more = header.getByRole("button", { name: "Mais", exact: true });
+  await expect(create).toBeVisible();
+  await expect(more).toBeVisible();
+  for (const name of ["Nova nota", "Bloquear horário"])
+    await expect(
+      header.getByRole("button", { name, exact: true }),
+    ).toBeHidden();
+  // Tudo numa linha só, acima da agenda.
+  // Medidos juntos: o aviso de pendências pode surgir no topo e empurrar a página.
+  await expect
+    .poll(async () => {
+      const [a, b] = await Promise.all([
+        create.boundingBox(),
+        more.boundingBox(),
+      ]);
+      return Math.abs(a!.y - b!.y);
+    })
+    .toBeLessThanOrEqual(8);
+  await more.click();
+  await page.getByRole("menuitem", { name: "Bloquear horário" }).click();
+  await expect(
+    page.getByRole("dialog", { name: "Bloquear horário" }),
+  ).toBeVisible();
+  expect(
+    await page.evaluate(
+      () =>
+        document.documentElement.scrollWidth <=
+        document.documentElement.clientWidth,
+    ),
+  ).toBe(true);
+});
+
 test("agenda day grid fits below the sticky header on mobile", async ({
   page,
 }, testInfo) => {
