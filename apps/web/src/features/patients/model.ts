@@ -293,7 +293,20 @@ export function guidedGroupFull(groups: GroupClass[] | null, groupId: string) {
   return Boolean(group && group.activeEnrollments >= group.capacity);
 }
 
-export const guidedPlanKinds = ["fixed_package", "recurring"] as const;
+/**
+ * Modelos do plano no cadastro guiado. `custom` vem só do modelo do catálogo do tipo "Plano
+ * pacote" (`planTypeKind("promotional")`): o seletor só o oferece quando já é o valor atual.
+ */
+export const guidedPlanKinds = ["fixed_package", "recurring", "custom"] as const;
+
+/** Opções do seletor "Modelo": "Personalizado" só aparece quando o plano já é `custom`. */
+export function guidedPlanKindOptions(
+  current: (typeof guidedPlanKinds)[number],
+) {
+  return guidedPlanKinds.filter(
+    (kind) => kind !== "custom" || current === "custom",
+  );
+}
 
 /** Planos que o cliente pode assinar de uma vez no cadastro guiado (o principal + 9 adicionais). */
 export const maxGuidedPlans = 10;

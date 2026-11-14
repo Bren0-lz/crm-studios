@@ -710,6 +710,69 @@ describe("guided client registration", () => {
     expect(posts[0]).not.toHaveProperty("groupId");
   });
 
+  // RT1: o modelo "Plano pacote" (`promotional`) é vendido como `custom`, sem trocar o modelo.
+  it("sells a package plan from the catalog as a custom plan", async () => {
+    const packageTemplate = {
+      ...pilatesTemplate,
+      id: "b4444444-4444-4444-8444-444444444444",
+      name: "Pacote promocional",
+      planType: "promotional",
+    };
+    const posts = mockApi((body) =>
+      jsonResponse(
+        {
+          patient: created,
+          plan: {
+            id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+            patientId: created.id,
+            patientName: created.fullName,
+            ...(body.plan as object),
+            status: "active",
+            remainingSessions: 8,
+          },
+        },
+        201,
+      ),
+    );
+    const base = vi.mocked(fetch).getMockImplementation()!;
+    vi.mocked(fetch).mockImplementation(async (input, init) => {
+      const url = String(input);
+      if (url.includes("/plan-templates"))
+        return jsonResponse([pilatesTemplate, packageTemplate]);
+      if (url.includes("/groups/workspace?"))
+        return jsonResponse({ groups: [groups[3]], enrollments: [], sessions: [] });
+      return base(input, init);
+    });
+    renderAs(storedUser(admin));
+    const dialog = await openNewClient();
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Adicionar plano" }),
+    );
+    const catalog = await within(dialog).findByLabelText("Plano cadastrado");
+    const model = within(dialog).getByLabelText<HTMLSelectElement>("Modelo");
+    expect(
+      within(model).queryByRole("option", { name: "Personalizado" }),
+    ).not.toBeInTheDocument();
+    fireEvent.change(catalog, { target: { value: packageTemplate.id } });
+    await waitFor(() => expect(model.value).toBe("custom"));
+    expect(
+      within(model).getByRole("option", { name: "Personalizado" }),
+    ).toBeInTheDocument();
+    expect(
+      within(model).getByRole<HTMLOptionElement>("option", {
+        name: "Personalizado",
+      }).selected,
+    ).toBe(true);
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Salvar e criar plano" }),
+    );
+    await waitFor(() => expect(posts).toHaveLength(1));
+    expect(posts[0]).toMatchObject({
+      next: "plan",
+      plan: { kind: "custom", planTemplateId: packageTemplate.id },
+    });
+  });
+
   it("subscribes several plans at once, each with its own class", async () => {
     const planResult = (plan: object, id: string) => ({
       id,

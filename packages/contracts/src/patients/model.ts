@@ -446,9 +446,12 @@ export const patientExportFilterSchema = z.object({
   ),
 });
 
-/** Plano de assinatura do cadastro guiado (`recurring` ou `fixed_package`). */
+/**
+ * Plano de assinatura do cadastro guiado (`recurring`, `fixed_package` ou `custom`; `custom`
+ * vem do modelo do catálogo do tipo "Plano pacote", vendido igual à ficha do cliente).
+ */
 const guidedSubscriptionPlanSchema = guidedPlanTermsSchema
-  .extend({ kind: z.enum(["recurring", "fixed_package"]) })
+  .extend({ kind: z.enum(["recurring", "fixed_package", "custom"]) })
   .refine(validPlanPeriod, planPeriodIssue)
   .refine(isRecurringChargeValid, {
     message: recurringSingleChargeIssue,

@@ -100,7 +100,7 @@ import {
   defaultSingleForm,
   guidedGroupFull,
   guidedNotice,
-  guidedPlanKinds,
+  guidedPlanKindOptions,
   guidedStepOrder,
   guidedStepPermissions,
   guidedSubmitLabels,
@@ -1413,7 +1413,7 @@ export function PatientModal({
                           });
                         }}
                       >
-                        {guidedPlanKinds.map((kind) => (
+                        {guidedPlanKindOptions(entry.form.kind).map((kind) => (
                           <option value={kind} key={kind}>
                             {planKindLabels[kind]}
                           </option>

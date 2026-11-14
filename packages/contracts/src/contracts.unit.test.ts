@@ -1486,10 +1486,35 @@ describe("guided patient creation", () => {
     ).toBe("single");
   });
 
+  // RT1 (D1): o modelo "Plano pacote" vira `custom` e é vendido no cadastro guiado.
+  it("accepts a custom plan in the plan step and still refuses a single there", () => {
+    expect(
+      guidedPatientInputSchema.safeParse({
+        next: "plan",
+        patient,
+        plan: { ...terms, kind: "custom" },
+      }).success,
+    ).toBe(true);
+    expect(
+      guidedPatientInputSchema.safeParse({
+        next: "plan",
+        patient,
+        plan: { ...terms, kind: "recurring" },
+        additionalPlans: [{ plan: { ...terms, kind: "custom" } }],
+      }).success,
+    ).toBe(true);
+    expect(
+      guidedPatientInputSchema.safeParse({
+        next: "plan",
+        patient,
+        plan: { ...terms, kind: "single" },
+      }).success,
+    ).toBe(false);
+  });
+
   it("rejects a single kind as subscription, missing step data and invalid periods", () => {
     for (const body of [
       { next: "plan", patient, plan: { ...terms, kind: "single" } },
-      { next: "plan", patient, plan: { ...terms, kind: "custom" } },
       { next: "demonstration", patient },
       { next: "single", patient },
       {
