@@ -36,8 +36,12 @@ podem variar um pouco na tela: procure pelo sentido e anote o rótulo real quand
 4. Não mude dados da clínica, filiais, formas de pagamento, integrações, nomes de abas do
    menu nem permissões de usuários reais. Nesses pontos o teste é **só leitura**, salvo quando
    o passo disser "altere e desfaça": aí restaure o valor original e confirme que voltou.
-5. Você não digita senhas e não envia arquivos. Os passos que dependem disso estão na
-   Parte E (o dono executa). Não tente contornar. **Celular:** use o modo responsivo do
+5. Você não envia arquivos e **não digita a senha de nenhum usuário real** nem faz login
+   ou logout. Única exceção, autorizada por escrito pelo dono do sistema: no passo 2.2 você
+   **define** a senha `123` ao **criar** os três usuários `TESTE` (contas novas, descartáveis,
+   sem dado real). Não use essa senha em mais nenhum lugar e não a digite em tela de login:
+   quem entra com esses usuários é o dono. O resto que depende de senha ou arquivo está na
+   Parte E. Não tente contornar. **Celular:** use o modo responsivo do
    DevTools em 440×956 (Bloco 19); não dependa de redimensionar a janela.
    **Downloads:** quando não der para abrir o arquivo, confira na aba Rede o status 200 e o
    `content-type` da resposta e anote.
@@ -107,16 +111,19 @@ errado; **Baixa** = texto, alinhamento, acabamento.
 - [ ] Correções RT1–RT6 e RV1–RV3 publicadas (se não estiverem, os itens "RT"/"RV" vão
   falhar: informar quais faltam).
 
-### B.2 Usuários de teste (exigem digitar senha)
+### B.2 Usuários de teste
 
-Criar em Configurações › Usuários e deixar cada um **logado em um perfil/janela do Chrome
-separado**, informando ao Claude qual janela é qual:
+O **Claude cria** os três usuários no passo 2.2, com a senha `123` (autorizado pelo dono).
+O dono só entra com cada um depois, para o Bloco 18 (ver "Pausa" antes do Bloco 18).
 
-| Usuário | Tipo | Permissões |
-|---------|------|------------|
-| `TESTE Recepção` | Comum | Agenda (ver, agendar, reagendar, presença), Clientes (ver, cadastrar, editar), Planos (ver, contratar). **Sem** CRM, Financeiro, Relatórios, Configurações, Lixeira |
-| `TESTE Lixeira` | Comum | Clientes (ver) + só `Ver a lixeira` (sem "Enviar para a lixeira") |
-| `TESTE Profissional` | Comum, com "Realiza atendimentos" ativo | Agenda (ver, presença), Prontuários (ver, registrar evolução, finalizar) |
+| Usuário | E-mail de login | Tipo | Permissões |
+|---------|-----------------|------|------------|
+| `TESTE Recepção` | `teste.recepcao@exemplo.com` | Comum | Agenda (ver, agendar, reagendar, presença), Clientes (ver, cadastrar, editar), Planos (ver, contratar). **Sem** CRM, Financeiro, Relatórios, Configurações, Lixeira |
+| `TESTE Lixeira` | `teste.lixeira@exemplo.com` | Comum | Clientes (ver) + só `Ver a lixeira` (sem "Enviar para a lixeira") |
+| `TESTE Profissional` | `teste.profissional@exemplo.com` | Comum, com "Realiza atendimentos" ativo | Agenda (ver, presença), Prontuários (ver, registrar evolução, finalizar) |
+
+Atenção do dono: `123` é senha fraca em contas com acesso ao sistema. As contas existem só
+durante o teste; desative ou exclua as três logo depois do Bloco 18 (item da Parte E).
 
 ### B.3 Arquivos (o Claude não envia arquivos)
 
@@ -149,13 +156,21 @@ correção.
 - **[2.1]** Configurações › Serviços e salas: criar serviço `TESTE Pilates` e serviço
   `TESTE Avaliação`; criar sala `TESTE Sala`. → Aparecem nas listas; duplicado com o mesmo
   nome é recusado com mensagem.
-- **[2.2]** Configurações › Usuários: abrir `TESTE Profissional` (criado em B.2). → Vínculo
-  profissional, cor e horários de agenda visíveis; salvar sem mudar nada não dá erro.
+- **[2.2]** Configurações › Usuários › novo usuário: criar os três usuários da tabela B.2,
+  com o nome, o e-mail, o tipo e as permissões indicados e a senha `123`. Em `TESTE
+  Profissional`, ativar "Realiza atendimentos" e preencher o cadastro do profissional
+  (registro `TESTE-0002`, especialidade Fisioterapia, cor e horários). → Os três aparecem na
+  lista como ativos, tipo "Usuário comum"; e-mail repetido é recusado; salvar sem nome ou
+  sem e-mail fica bloqueado dizendo o que falta. Se algum já existir de uma rodada anterior,
+  não recrie: confira as permissões e anote. Se a tela recusar a senha `123`, anote a
+  mensagem exata e marque 2.2 e o Bloco 18 como NÃO TESTADO.
+- **[2.2b]** Reabrir `TESTE Profissional`. → Vínculo profissional, cor e horários de agenda
+  visíveis; salvar sem mudar nada não dá erro; o profissional aparece nos seletores da Agenda.
 - **[2.3]** Usuários › editor de permissões de `TESTE Recepção` (só olhar, não salvar). →
   Marcar uma operação marca as dependências ("Precisa também de…"); "Marcar todas"/limpar
   funcionam; fechar sem salvar pede confirmação e não grava.
-- **[2.4]** Usuários › "Senha de acesso" de um usuário `TESTE`. → Admin consegue consultar a
-  senha atual; mostrar/ocultar funciona. (Não trocar: exige digitar.)
+- **[2.4]** Usuários › "Senha de acesso" de `TESTE Recepção`. → Admin consegue consultar a
+  senha atual e ela é `123`; mostrar/ocultar funciona. (Não trocar a senha.)
 - **[2.5]** Configurações › Planos: criar quatro modelos, todos com o serviço `TESTE Pilates`:
   `TESTE Plano Avulso` (tipo Plano avulso, 1 sessão, R$ 80,00); `TESTE Plano Mensal` (Plano
   mensal, 2x por semana, R$ 300,00); `TESTE Plano Trimestral` (Plano trimestral, 1x por
@@ -543,6 +558,13 @@ Para cada aba, escolha o período que contém os dados de teste (mês atual).
 
 ### Bloco 18 — Permissões (usar as janelas dos usuários de B.2)
 
+**Pausa.** Este bloco precisa dos três usuários `TESTE` logados, e você não faz login. Ao
+chegar aqui: (1) siga para os Blocos 19 e 20 como admin; (2) no fim, entregue o relatório
+com o Bloco 18 como "AGUARDANDO DONO" e escreva: "Para o Bloco 18, abra uma janela do Chrome
+para cada usuário — teste.recepcao@exemplo.com, teste.lixeira@exemplo.com,
+teste.profissional@exemplo.com, senha 123 — e me diga qual janela é qual."; (3) quando o
+dono confirmar as janelas, execute 18.1–18.7 e complete o relatório.
+
 - **[18.1]** Janela `TESTE Recepção`. → Menu só com as abas liberadas; sem CRM comercial,
   Financeiro, Relatórios, Configurações.
 - **[18.2]** Digitar a URL de Financeiro e de Configurações. → Bloqueio com mensagem, sem
@@ -618,7 +640,8 @@ Na ordem: cancelar/estornar recebimentos e despesas `TESTE`; cancelar planos e c
 lixeira e excluir em definitivo; excluir produto, fornecedor, modelos de plano, de contrato e
 de mensagem, campanha, etiqueta, etapa, origens, interesse, motivo, categoria e centro de
 custo `TESTE`; esvaziar as lixeiras de itens `TESTE`. Anote o que o sistema não deixou
-apagar. Os usuários `TESTE` ficam para o dono desativar.
+apagar. Desative os três usuários `TESTE` (Configurações › Usuários); se o dono preferir manter
+para outra rodada, só anote.
 
 ---
 
@@ -641,6 +664,9 @@ apagar. Os usuários `TESTE` ficam para o dono desativar.
 ## Parte E — O que o dono testa à mão (o Claude não consegue)
 
 **Senha e sessão**
+- [ ] Abrir uma janela do Chrome por usuário `TESTE` (e-mails da tabela B.2, senha `123`) e
+  avisar o Claude para rodar o Bloco 18.
+- [ ] Depois do Bloco 18: desativar ou excluir os três usuários `TESTE` (senha fraca).
 - [ ] Sair e entrar de novo; senha errada mostra erro claro; várias tentativas erradas não
   travam a tela.
 - [ ] Trocar a própria senha (Meu perfil) e entrar com a nova.
