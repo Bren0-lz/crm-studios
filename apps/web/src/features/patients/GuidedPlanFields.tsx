@@ -6,6 +6,7 @@ import {
   planPeriodMonths,
   planTemplateSaleServices,
   type PlanTemplate,
+  type PlanType,
   planTypeKind,
   type Service,
 } from "@crm/contracts";
@@ -35,6 +36,7 @@ export function GuidedPlanFields<T extends GuidedSingleForm>({
   form,
   setForm,
   onServiceChange,
+  onTemplateChange,
   kindField,
   patientName,
   pixKey,
@@ -46,6 +48,8 @@ export function GuidedPlanFields<T extends GuidedSingleForm>({
   form: T;
   setForm: Dispatch<SetStateAction<T>>;
   onServiceChange?: () => void;
+  /** Modelo do catálogo escolhido: o tipo dele ("Plano pacote"…) sobe para a sacola. */
+  onTemplateChange?: (planType: PlanType | undefined) => void;
   kindField?: ReactNode;
   /** Nome do cliente para a mensagem de cobrança Pix. */
   patientName: string;
@@ -171,6 +175,7 @@ export function GuidedPlanFields<T extends GuidedSingleForm>({
               autoRenew: false,
             });
             onServiceChange?.();
+            onTemplateChange?.(template?.planType ?? undefined);
           }}
         >
           <option value="">

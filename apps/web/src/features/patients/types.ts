@@ -3,6 +3,7 @@ import type {
   GuidedPatientResult,
   GroupClass,
   PlanPurchaseInput,
+  PlanType,
 } from "@crm/contracts";
 import type { SignatureRequest } from "../contracts/index";
 import { guidedPlanKinds } from "./model";
@@ -27,6 +28,8 @@ export type GuidedPlanForm = GuidedSingleForm & {
 export interface GuidedPlanEntry {
   id: number;
   form: GuidedPlanForm;
+  /** Tipo do modelo do catálogo escolhido ("Plano pacote"…), para o rótulo da sacola. */
+  planType?: PlanType | undefined;
   groupId: string;
   /** Documento para o cliente assinar, emitido com o plano (link ao concluir). */
   document: SignatureRequest | null;
