@@ -179,6 +179,24 @@ export const leadContactInputSchema = z.object({
   reached: z.boolean().optional(),
 });
 
+/**
+ * "Mensagem enviada" (envio): contato realizado (`outbound`) por um canal de mensagem (não
+ * ligação nem atendimento presencial) e com resposta (`reached !== false`). Vale para o resumo
+ * de envios, o cartão do funil e `lastMessageSentAt` (memória e MySQL).
+ */
+export function isLeadMessageSent(contact: {
+  direction: string;
+  channel: string;
+  reached?: boolean | null | undefined;
+}): boolean {
+  return (
+    contact.direction === "outbound" &&
+    contact.channel !== "phone" &&
+    contact.channel !== "in_person" &&
+    contact.reached !== false
+  );
+}
+
 export const leadTaskStatusSchema = z.enum(["open", "completed", "cancelled"]);
 
 export const leadTaskInputSchema = z.object({

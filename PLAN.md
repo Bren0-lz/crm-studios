@@ -1659,3 +1659,14 @@ filtros ficam no `dashboard-studios` (EN11–EN13 têm só a parte da API aqui).
   "(nome, telefone e WhatsApp)").
 - **Gate:** gate completo
 - **Status:** DONE
+
+### RT2 — Contato do lead: "Sem resposta" e rótulo por canal
+
+- **Escopo:** regra única `isLeadMessageSent` no contrato (envio = `outbound`, canal fora de
+  `phone`/`in_person` e `reached !== false`), usada no resumo de envios, no
+  `lastMessageSentAt` (memória e MySQL) e na atualização local do cartão. `LeadActivityModal`
+  ganha "Conseguiu falar?" no contato realizado ("Não" envia `reached: false`). A linha do tempo
+  rotula o realizado por canal: "Ligação realizada", "Atendimento presencial" ou "Mensagem
+  enviada".
+- **Gate:** gate completo + `npm run test:mysql`
+- **Status:** DONE
