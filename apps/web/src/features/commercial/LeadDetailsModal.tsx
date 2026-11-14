@@ -14,10 +14,7 @@ import { EmptyState } from "../../shared/components/EmptyState";
 import { ErrorBanner } from "../../shared/components/ErrorBanner";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
 import { Modal } from "../../shared/components/Modal";
-import {
-  formatIsoDate,
-  shortDateTime,
-} from "../../shared/lib/formatting";
+import { formatIsoDate, shortDateTime } from "../../shared/lib/formatting";
 import { SendToTrashModal, TrashIconButton } from "../trash";
 import { LeadContactTimeline } from "./LeadContactTimeline";
 import { LeadStageTimeline } from "./LeadStageTimeline";
@@ -27,13 +24,16 @@ import { mergeLeadContacts } from "./lead-contact-history";
 function Detail({
   label,
   value,
+  wide = false,
 }: {
   label: string;
   value: string | undefined;
+  /** Ocupa a linha inteira da grade (endereço, contato de emergência). */
+  wide?: boolean;
 }) {
   if (!value?.trim()) return null;
   return (
-    <div>
+    <div className={wide ? "lead-details-wide" : undefined}>
       <dt>{label}</dt>
       <dd>{value}</dd>
     </div>
@@ -125,7 +125,35 @@ export function LeadDetailsModal({
     lead.openTasks > 0
       ? `${lead.openTasks} aberta(s)${lead.overdueTasks > 0 ? ` · ${lead.overdueTasks} atrasada(s)` : ""}`
       : "Nenhuma aberta";
-  const place = [lead.neighborhood, lead.city].filter(Boolean).join(" · ");
+  // Endereço em uma linha: "Rua, número · complemento · bairro · cidade/UF · CEP".
+  const street = [lead.address, lead.addressNumber]
+    .map((part) => part?.trim())
+    .filter(Boolean)
+    .join(", ");
+  const cityState = [lead.city, lead.state]
+    .map((part) => part?.trim())
+    .filter(Boolean)
+    .join("/");
+  const fullAddress = [
+    street,
+    lead.complement?.trim(),
+    lead.neighborhood?.trim(),
+    cityState,
+    lead.postalCode?.trim() ? `CEP ${lead.postalCode.trim()}` : "",
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  const emergency = [
+    lead.emergencyContactName?.trim(),
+    lead.emergencyContactPhone
+      ? `Telefone ${formatPhone(lead.emergencyContactPhone)}`
+      : "",
+    lead.emergencyContactWhatsapp
+      ? `WhatsApp ${formatPhone(lead.emergencyContactWhatsapp)}`
+      : "",
+  ]
+    .filter(Boolean)
+    .join(" · ");
   return (
     <>
       <Modal
@@ -250,7 +278,8 @@ export function LeadDetailsModal({
                 }
               />
               <Detail label="Profissão" value={lead.occupation} />
-              <Detail label="Bairro · cidade" value={place} />
+              <Detail label="Endereço" value={fullAddress} wide />
+              <Detail label="Contato de emergência" value={emergency} wide />
             </dl>
             {!lost && notes && (
               <dl className="lead-details-grid">

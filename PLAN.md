@@ -1660,6 +1660,19 @@ filtros ficam no `dashboard-studios` (EN11–EN13 têm só a parte da API aqui).
 - **Gate:** gate completo
 - **Status:** DONE
 
+### RV1 — Cadastro do lead com CPF, endereço e contato de emergência
+
+- **Origem:** 2ª rodada de teste (`PLANO_CORRECOES_RODADA2_2026-11-13.md`, item 7.2).
+- **Escopo:** `LeadModal` ganha o bloco recolhível "Dados para o cadastro de cliente" (fechado no
+  lead novo; aberto na edição quando algum dos campos tem valor): CPF (`CpfInput`, opcional, mas
+  válido quando preenchido), endereço (`PatientAddressFields`, extraído de
+  `PatientProfileFields` sem mudar o cadastro de cliente) e contato de emergência (nome,
+  telefone e WhatsApp). `LeadDetailsModal` mostra "Endereço" e "Contato de emergência" em uma
+  linha cada, só quando preenchidos. Com tudo preenchido, a conversão abre direto o formulário.
+- **Gate:** gate completo
+- **Depende de:** RT3
+- **Status:** DONE
+
 ### RT2 — Contato do lead: "Sem resposta" e rótulo por canal
 
 - **Escopo:** regra única `isLeadMessageSent` no contrato (envio = `outbound`, canal fora de

@@ -1,9 +1,15 @@
 import { useUnsavedChangesPrompt } from "../../shared/workflows/useUnsavedChangesPrompt";
-import { PatientProfileFields } from "../patients/index";
+import { PatientAddressFields, PatientProfileFields } from "../patients/index";
+import { CpfInput } from "../../shared/components/CpfInput";
 import { CatalogEntryModal } from "../../shared/components/CatalogEntryModal";
 import { CatalogInput } from "../../shared/components/CatalogInput";
 import { CatalogSelect } from "../../shared/components/CatalogSelect";
-import { leadInputSchema, type Lead, type LeadInput } from "@crm/contracts";
+import {
+  isValidCpf,
+  leadInputSchema,
+  type Lead,
+  type LeadInput,
+} from "@crm/contracts";
 import { useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { api, getStoredUser } from "../../api";
@@ -14,6 +20,27 @@ import { PhoneInput } from "../../shared/components/PhoneInput";
 import { LeadDuplicateWarning } from "./LeadDuplicateWarning";
 import { useLeadDuplicates } from "./useLeadDuplicates";
 import { SendToTrashModal, TrashIconButton } from "../trash";
+
+/** Campos do bloco "Dados para o cadastro de cliente". */
+const registrationFieldKeys = [
+  "cpf",
+  "postalCode",
+  "residenceType",
+  "address",
+  "addressNumber",
+  "buildingName",
+  "block",
+  "floor",
+  "unit",
+  "complement",
+  "referencePoint",
+  "neighborhood",
+  "city",
+  "state",
+  "emergencyContactName",
+  "emergencyContactPhone",
+  "emergencyContactWhatsapp",
+] as const satisfies ReadonlyArray<keyof LeadInput>;
 
 export function LeadModal({
   onClose,
@@ -50,6 +77,12 @@ export function LeadModal({
         },
   );
   const [tagText, setTagText] = useState(lead?.tags.join(", ") ?? "");
+  // Na edição, o bloco abre quando o lead já tem algum dado do cadastro de cliente.
+  const [registrationOpen] = useState(
+    () =>
+      Boolean(lead) &&
+      registrationFieldKeys.some((key) => Boolean(form[key]?.trim())),
+  );
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [baseline] = useState(() => JSON.stringify({ form, tagText }));
@@ -115,6 +148,11 @@ export function LeadModal({
   }
   async function submit(event: FormEvent) {
     event.preventDefault();
+    // CPF é opcional no lead, mas, preenchido, precisa ser válido (mesma mensagem do cliente).
+    if (form.cpf?.trim() && !isValidCpf(form.cpf)) {
+      setError("Informe um CPF válido.");
+      return;
+    }
     if (await checkDuplicates()) return;
     await saveAnyway();
   }
@@ -254,6 +292,63 @@ export function LeadModal({
                     }
                   />
                 </div>
+              </div>
+            </details>
+            {/* RV1: com estes dados, a conversão vai direto ao cadastro de cliente. */}
+            <details className="more-info span-2" open={registrationOpen}>
+              <summary>Dados para o cadastro de cliente</summary>
+              <div className="form-grid">
+                <label className="span-2">
+                  CPF
+                  <CpfInput
+                    value={form.cpf ?? ""}
+                    onChange={(digits) => setForm({ ...form, cpf: digits })}
+                  />
+                </label>
+                <PatientAddressFields
+                  form={form}
+                  onChange={(key, value) =>
+                    setForm((current) => ({ ...current, [key]: value }))
+                  }
+                />
+                <fieldset className="form-fieldset span-2">
+                  <legend>Contato de emergência</legend>
+                  <div className="form-fieldset-grid">
+                    <label className="span-2">
+                      Nome do contato de emergência
+                      <input
+                        autoComplete="off"
+                        placeholder="Ex.: Maria Souza (mãe)"
+                        maxLength={160}
+                        value={form.emergencyContactName ?? ""}
+                        onChange={(event) =>
+                          setForm({
+                            ...form,
+                            emergencyContactName: event.target.value,
+                          })
+                        }
+                      />
+                    </label>
+                    <label>
+                      Telefone do contato de emergência
+                      <PhoneInput
+                        value={form.emergencyContactPhone ?? ""}
+                        onChange={(digits) =>
+                          setForm({ ...form, emergencyContactPhone: digits })
+                        }
+                      />
+                    </label>
+                    <label>
+                      WhatsApp do contato de emergência
+                      <PhoneInput
+                        value={form.emergencyContactWhatsapp ?? ""}
+                        onChange={(digits) =>
+                          setForm({ ...form, emergencyContactWhatsapp: digits })
+                        }
+                      />
+                    </label>
+                  </div>
+                </fieldset>
               </div>
             </details>
             <LeadDuplicateWarning
