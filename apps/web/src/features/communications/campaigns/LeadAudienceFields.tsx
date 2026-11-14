@@ -13,6 +13,7 @@ function Choices({
   id,
   label,
   hint,
+  emptyHint,
   items,
   selected,
   onToggle,
@@ -20,11 +21,21 @@ function Choices({
   id: string;
   label: string;
   hint?: string;
+  /** Lista vazia: mostra o rótulo com este aviso em vez de sumir. */
+  emptyHint?: string;
   items: Array<{ value: string; label: string }>;
   selected: readonly string[];
   onToggle: (value: string) => void;
 }) {
-  if (items.length === 0) return null;
+  if (items.length === 0)
+    return emptyHint ? (
+      <>
+        <span className="span-2 filter-label" id={id}>
+          {label}
+        </span>
+        <span className="span-2 field-hint">{emptyHint}</span>
+      </>
+    ) : null;
   return (
     <>
       <span className="span-2 filter-label" id={id}>
@@ -139,6 +150,7 @@ export function LeadAudienceFields({
       <Choices
         id={`${idPrefix}-tags`}
         label="Etiquetas do lead"
+        emptyHint="Nenhum lead tem etiqueta ainda."
         items={plain(options?.tags)}
         selected={value.tags ?? []}
         onToggle={(item) => toggle("tags", item)}

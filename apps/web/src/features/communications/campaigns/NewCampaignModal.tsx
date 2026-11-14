@@ -36,6 +36,7 @@ import { LeadAudienceFields } from "./LeadAudienceFields";
 import { useTemplateImages } from "./images";
 import {
   activeFilterCount,
+  campaignAudienceWords,
   campaignPromotionIncomplete,
   campaignPromotionInput,
   emptyCampaignPromotion,
@@ -82,11 +83,14 @@ function FilterResults({
   loading,
   error,
   preview,
+  audience,
 }: {
   loading: boolean;
   error?: string | undefined;
   preview?: WhatsappCampaignPreview | undefined;
+  audience: CampaignAudienceKind;
 }) {
+  const words = campaignAudienceWords(audience);
   const [search, setSearch] = useState("");
   const term = search.trim().toLocaleLowerCase("pt-BR");
   const rows = preview
@@ -100,31 +104,25 @@ function FilterResults({
   return (
     <section
       className="campaign-filter-results"
-      aria-label="Clientes encontrados"
+      aria-label={words.foundTitle}
       aria-busy={loading}
     >
       <header className="campaign-audience-total" role="status">
         {loading ? (
-          <strong>Buscando clientes…</strong>
+          <strong>Buscando {words.many}…</strong>
         ) : error ? (
-          <strong>Não foi possível buscar os clientes</strong>
+          <strong>Não foi possível buscar {words.theMany}</strong>
         ) : (
           <>
             <span className="campaign-audience-number">
               {preview!.recipients}
             </span>
             <span>
-              <strong>
-                {preview!.recipients === 1
-                  ? "cliente vai receber esta campanha"
-                  : "clientes vão receber esta campanha"}
-              </strong>
+              <strong>{words.receive(preview!.recipients)}</strong>
               <small>
-                {preview!.matched}{" "}
-                {preview!.matched === 1
-                  ? "cliente encontrado"
-                  : "clientes encontrados"}
-                {preview!.leads > 0 &&
+                {preview!.matched} {words.found(preview!.matched)}
+                {audience !== "leads" &&
+                  preview!.leads > 0 &&
                   ` · ${preview!.leads} ${preview!.leads === 1 ? "lead" : "leads"}`}
                 {preview!.skipped.length > 0 &&
                   ` · ${preview!.skipped.length} ${preview!.skipped.length === 1 ? "será pulado" : "serão pulados"} (sem WhatsApp liberado)`}
@@ -141,7 +139,7 @@ function FilterResults({
               <Search size={16} aria-hidden="true" />
               <input
                 type="search"
-                aria-label="Buscar entre os clientes que vão receber"
+                aria-label={`Buscar entre ${words.theMany} que vão receber`}
                 placeholder="Buscar entre os que vão receber"
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
@@ -171,12 +169,12 @@ function FilterResults({
       )}
       {preview && preview.matched > 0 && preview.recipients === 0 && (
         <p className="field-hint">
-          Nenhum dos clientes encontrados tem WhatsApp liberado.
+          {words.noneOfFound} tem WhatsApp liberado.
         </p>
       )}
       {preview && preview.matched === 0 && (
         <p className="field-hint">
-          Nenhum cliente com esses filtros. Tente tirar alguma etiqueta.
+          {words.none} com esses filtros. Tente tirar alguma etiqueta.
         </p>
       )}
     </section>
@@ -670,6 +668,7 @@ export function NewCampaignModal({
                 loading={matches.loading}
                 error={matches.error}
                 preview={matches.preview}
+                audience={withLeads ? audienceKind : "patients"}
               />
             </>
           )}
@@ -792,6 +791,7 @@ export function NewCampaignModal({
         createPortal(
           <CampaignFiltersModal
             templateId={template.id}
+            leads={withLeads ? { audience: audienceKind, leadFilter } : undefined}
             initial={segment}
             options={filterOptions}
             patients={patients}

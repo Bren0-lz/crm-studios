@@ -1670,3 +1670,12 @@ filtros ficam no `dashboard-studios` (EN11–EN13 têm só a parte da API aqui).
   enviada".
 - **Gate:** gate completo + `npm run test:mysql`
 - **Status:** DONE
+
+### RT4 — Campanha para leads: textos e filtro de etiquetas
+
+- **Escopo:** na campanha por filtros, o resumo, a busca, os avisos e o `CampaignFiltersModal`
+  usam o substantivo do público ("cliente(s)", "lead(s)", "pessoa(s)"; helper
+  `campaignAudienceWords`); com "Só leads", sai o trecho "· N leads". `Choices` ganha
+  `emptyHint`: "Etiquetas do lead" vazio mostra "Nenhum lead tem etiqueta ainda.".
+- **Gate:** gate completo
+- **Status:** DONE

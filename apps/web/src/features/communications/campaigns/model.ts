@@ -1,5 +1,6 @@
 import {
   messageVariables,
+  type CampaignAudienceKind,
   type WhatsappCampaignSegment,
   type MessageTemplate,
   type WhatsappCampaign,
@@ -112,6 +113,49 @@ export function templateDraft(template?: MessageTemplate): TemplateDraft {
         fileName: image.fileName,
         sizeBytes: image.sizeBytes,
       })) ?? [],
+  };
+}
+
+/** Palavras do público da campanha por filtros (clientes, leads ou os dois = "pessoas"). */
+export interface CampaignAudienceWords {
+  one: string;
+  many: string;
+  /** "Clientes encontrados", com maiúscula (rótulo da seção). */
+  foundTitle: string;
+  found: (count: number) => string;
+  /** "vai receber esta campanha" / "vão receber esta campanha", com o substantivo. */
+  receive: (count: number) => string;
+  /** "os clientes", "as pessoas". */
+  theMany: string;
+  /** "Nenhum cliente", "Nenhuma pessoa". */
+  none: string;
+  /** "Nenhum dos clientes encontrados", "Nenhuma das pessoas encontradas". */
+  noneOfFound: string;
+}
+
+export function campaignAudienceWords(
+  audience: CampaignAudienceKind,
+): CampaignAudienceWords {
+  const people = audience === "patients_and_leads";
+  const [one, many] =
+    audience === "leads"
+      ? ["lead", "leads"]
+      : people
+        ? ["pessoa", "pessoas"]
+        : ["cliente", "clientes"];
+  const found = people ? "encontrada" : "encontrado";
+  return {
+    one,
+    many,
+    foundTitle: `${many.charAt(0).toUpperCase()}${many.slice(1)} ${found}s`,
+    found: (count) => (count === 1 ? `${one} ${found}` : `${many} ${found}s`),
+    receive: (count) =>
+      count === 1
+        ? `${one} vai receber esta campanha`
+        : `${many} vão receber esta campanha`,
+    theMany: `${people ? "as" : "os"} ${many}`,
+    none: `${people ? "Nenhuma" : "Nenhum"} ${one}`,
+    noneOfFound: `${people ? "Nenhuma das" : "Nenhum dos"} ${many} ${found}s`,
   };
 }
 
