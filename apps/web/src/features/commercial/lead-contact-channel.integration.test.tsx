@@ -149,4 +149,115 @@ describe("lead contact channel", () => {
       notes: "Respondeu no direct",
     });
   });
+
+  // RT2 (D3): ligação sem resposta fica no histórico, mas não conta como envio.
+  it("records an unanswered call without counting it as a message sent", async () => {
+    localStorage.setItem("crm.auth.token", "test-token");
+    localStorage.setItem(
+      "crm.auth.user",
+      storedUser({
+        id: "22222222-2222-4222-8222-222222222222",
+        fullName: "Aryana Dutra",
+        email: "admin@movimenta.local",
+        role: "owner",
+      }),
+    );
+    const lead = {
+      id: "46464646-4646-4646-8646-464646464646",
+      clinicId: "11111111-1111-4111-8111-111111111111",
+      fullName: "Caio Ligação",
+      phone: "11987654321",
+      stage: "contacted",
+      tags: [],
+      openTasks: 0,
+      overdueTasks: 0,
+      createdAt: "2026-09-01T12:00:00.000Z",
+      updatedAt: "2026-09-01T12:00:00.000Z",
+    };
+    const posts: Array<Record<string, unknown>> = [];
+    vi.mocked(fetch).mockImplementation(async (input, init) => {
+      const url = String(input);
+      if (init?.method === "POST" && url.endsWith("/contacts")) {
+        const body = JSON.parse(String(init.body));
+        posts.push(body);
+        return {
+          ok: true,
+          status: 201,
+          json: async () => ({
+            ...body,
+            id: `c-${posts.length}`,
+            leadId: lead.id,
+            actorName: "Aryana Dutra",
+            occurredAt: body.occurredAt ?? new Date().toISOString(),
+          }),
+        } as Response;
+      }
+      const body = url.endsWith("/activity")
+        ? { contacts: [], tasks: [] }
+        : isLeadBoardUrl(url)
+          ? leadBoardResponse(url, [lead])
+          : [];
+      return { ok: true, status: 200, json: async () => body } as Response;
+    });
+    render(
+      <MemoryRouter initialEntries={["/comercial"]}>
+        <App />
+      </MemoryRouter>,
+    );
+    const card = (await screen.findByText("Caio Ligação")).closest(
+      "article",
+    ) as HTMLElement;
+    fireEvent.click(within(card).getByRole("button", { name: "Atividades" }));
+    const dialog = screen.getByRole("dialog", { name: "Caio Ligação" });
+    fireEvent.click(
+      await within(dialog).findByRole("button", { name: /Contatos \(0\)/ }),
+    );
+    expect(within(dialog).getByRole("combobox", { name: "Canal" })).toHaveValue(
+      "Telefone",
+    );
+    const direction = within(dialog).getByRole("combobox", { name: "Direção" });
+    // Só no contato realizado se pergunta se conseguiu falar.
+    fireEvent.change(direction, { target: { value: "inbound" } });
+    expect(
+      within(dialog).queryByLabelText("Conseguiu falar?"),
+    ).not.toBeInTheDocument();
+    fireEvent.change(direction, { target: { value: "outbound" } });
+    const reached = within(dialog).getByLabelText("Conseguiu falar?");
+    expect(reached).toHaveValue("yes");
+    fireEvent.change(reached, { target: { value: "no" } });
+    fireEvent.change(within(dialog).getByLabelText("Registro do contato"), {
+      target: { value: "Caixa postal" },
+    });
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Registrar contato" }),
+    );
+    await waitFor(() => expect(posts).toHaveLength(1));
+    expect(posts[0]).toMatchObject({
+      channel: "phone",
+      direction: "outbound",
+      reached: false,
+      notes: "Caixa postal",
+    });
+    const item = (await within(dialog).findByText("Caixa postal")).closest(
+      "li",
+    ) as HTMLElement;
+    expect(item).toHaveTextContent("Ligação realizada");
+    expect(item).toHaveTextContent("Sem resposta");
+    expect(item).not.toHaveTextContent("Mensagem enviada");
+    const summary = within(dialog).getByRole("region", {
+      name: "Situação da mensagem",
+    });
+    expect(summary).toHaveTextContent("Mensagem ainda não enviada");
+    expect(summary).toHaveTextContent("0 envios · 1 contato no histórico");
+
+    // "Sim" (padrão) não envia o campo.
+    fireEvent.change(within(dialog).getByLabelText("Registro do contato"), {
+      target: { value: "Atendeu e marcou" },
+    });
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Registrar contato" }),
+    );
+    await waitFor(() => expect(posts).toHaveLength(2));
+    expect(posts[1]).not.toHaveProperty("reached");
+  });
 });

@@ -89,7 +89,7 @@ export const leadColumns = `
   (SELECT COUNT(*) FROM lead_tasks lt WHERE lt.lead_id = leads.id AND lt.status = 'open') AS "openTasks",
   (SELECT COUNT(*) FROM lead_tasks lt WHERE lt.lead_id = leads.id AND lt.status = 'open' AND lt.due_at < NOW(6)) AS "overdueTasks",
   (SELECT MAX(lc.occurred_at) FROM lead_contacts lc WHERE lc.lead_id = leads.id) AS "lastContactAt",
-  (SELECT MAX(lc.occurred_at) FROM lead_contacts lc WHERE lc.lead_id = leads.id AND lc.direction = 'outbound') AS "lastMessageSentAt",
+  (SELECT MAX(lc.occurred_at) FROM lead_contacts lc WHERE lc.lead_id = leads.id AND lc.direction = 'outbound' AND lc.channel NOT IN ('phone','in_person') AND lc.reached = 1) AS "lastMessageSentAt",
   (SELECT COUNT(*) FROM lead_contacts lc WHERE lc.lead_id = leads.id) AS "contactCount",
   created_at AS "createdAt", updated_at AS "updatedAt"
 `;

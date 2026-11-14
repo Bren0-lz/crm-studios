@@ -168,3 +168,47 @@ describe("paginated commercial board", () => {
     });
   });
 });
+
+// RT2 (D3): ligação e tentativa sem resposta não contam como "Mensagem enviada".
+describe("last message sent of the lead", () => {
+  it("ignores calls and unreached attempts but counts every contact", async () => {
+    const { app, headers, create } = await setup();
+    const lead = await create("Lead só com ligação");
+    const contact = async (payload: Record<string, unknown>) => {
+      const response = await app.inject({
+        method: "POST",
+        url: `/leads/${lead.id}/contacts`,
+        headers,
+        payload: { direction: "outbound", notes: "Contato feito.", ...payload },
+      });
+      expect(response.statusCode, response.body).toBe(201);
+    };
+    const current = async () => {
+      const response = await app.inject({ method: "GET", url: "/leads", headers });
+      return (
+        response.json() as {
+          id: string;
+          contactCount?: number;
+          lastMessageSentAt?: string;
+        }[]
+      ).find((item) => item.id === lead.id)!;
+    };
+
+    await contact({ channel: "phone", occurredAt: "2026-11-10T12:00:00.000Z" });
+    expect(await current()).toMatchObject({ contactCount: 1 });
+    expect(await current()).not.toHaveProperty("lastMessageSentAt");
+
+    await contact({
+      channel: "whatsapp",
+      reached: false,
+      occurredAt: "2026-11-11T12:00:00.000Z",
+    });
+    expect(await current()).not.toHaveProperty("lastMessageSentAt");
+
+    await contact({ channel: "whatsapp", occurredAt: "2026-11-12T12:00:00.000Z" });
+    expect(await current()).toMatchObject({
+      contactCount: 3,
+      lastMessageSentAt: "2026-11-12T12:00:00.000Z",
+    });
+  });
+});

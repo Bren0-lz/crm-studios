@@ -13,6 +13,7 @@ import {
   buildLeadFilterOptions,
   buildLeadInsights,
   findLeadDuplicates,
+  isLeadMessageSent,
   firstOpenLeadStage,
   matchesLead,
   mergeExtraFields,
@@ -137,9 +138,7 @@ export function createCommercialRepository(
           const lastContactAt = contacts.sort((a, b) =>
             b.occurredAt.localeCompare(a.occurredAt),
           )[0]?.occurredAt;
-          const lastMessageSentAt = contacts.find(
-            (contact) => contact.direction === "outbound",
-          )?.occurredAt;
+          const lastMessageSentAt = contacts.find(isLeadMessageSent)?.occurredAt;
           return {
             ...lead,
             ...(responsibleName ? { responsibleName } : {}),

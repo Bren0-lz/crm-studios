@@ -13,6 +13,7 @@ import {
   resolveLeadStages,
   type LeadStagePage,
   inferLeadContactChannel,
+  isLeadMessageSent,
   leadContactChannelLabels,
 } from "@crm/contracts";
 import { FileDown, GripVertical, Pencil, Plus } from "lucide-react";
@@ -348,7 +349,9 @@ export function CommercialPage() {
       replaceLead({
         ...lead,
         lastContactAt: contact.occurredAt,
-        lastMessageSentAt: contact.occurredAt,
+        ...(isLeadMessageSent(contact)
+          ? { lastMessageSentAt: contact.occurredAt }
+          : {}),
         contactCount: (lead.contactCount ?? 0) + 1,
         updatedAt: new Date().toISOString(),
       });

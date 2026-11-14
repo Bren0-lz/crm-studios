@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  isLeadMessageSent,
   leadMissingRegistrationFields,
   leadRegistrationRequestMessage,
   resolveTelegramLinkRoles,
@@ -2080,6 +2081,23 @@ describe("pedido de dados do lead antes da conversão", () => {
     ).toBe(
       "Olá, Ana! Para concluir seu cadastro, preciso destas informações:\n\n• CPF\n• E-mail\n\nPode me enviar por aqui mesmo. Obrigado!",
     );
+  });
+});
+
+// RT2 (D3): ligação, presencial e tentativa sem resposta não contam como envio.
+describe("isLeadMessageSent", () => {
+  it.each([
+    [{ direction: "outbound", channel: "whatsapp" }, true],
+    [{ direction: "outbound", channel: "phone" }, false],
+    [{ direction: "outbound", channel: "in_person" }, false],
+    [{ direction: "outbound", channel: "note" }, true],
+    [{ direction: "outbound", channel: "email" }, true],
+    [{ direction: "outbound", channel: "whatsapp", reached: false }, false],
+    [{ direction: "outbound", channel: "whatsapp", reached: true }, true],
+    [{ direction: "inbound", channel: "whatsapp" }, false],
+    [{ direction: "internal", channel: "note" }, false],
+  ])("%o → %s", (contact, expected) => {
+    expect(isLeadMessageSent(contact)).toBe(expected);
   });
 });
 

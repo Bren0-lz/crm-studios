@@ -7,6 +7,15 @@ const leadContactDirectionLabels: Record<LeadContact["direction"], string> = {
   internal: "Registro interno",
 };
 
+/** Rótulo do contato: o realizado (`outbound`) muda conforme o canal (D3). */
+function contactLabel(item: LeadContact) {
+  if (item.direction === "outbound" && item.channel === "phone")
+    return "Ligação realizada";
+  if (item.direction === "outbound" && item.channel === "in_person")
+    return "Atendimento presencial";
+  return leadContactDirectionLabels[item.direction];
+}
+
 const contactDay = new Intl.DateTimeFormat("pt-BR", {
   weekday: "short",
   day: "2-digit",
@@ -51,7 +60,7 @@ export function LeadContactTimeline({
             <div className="contact-timeline-body">
               <div className="contact-timeline-tags">
                 <span className="contact-direction">
-                  {leadContactDirectionLabels[item.direction]}
+                  {contactLabel(item)}
                 </span>
                 <span className="contact-channel">
                   {item.contactMethod || leadContactChannelLabels[item.channel]}

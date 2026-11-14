@@ -1,5 +1,6 @@
 import {
   inferLeadContactChannel,
+  isLeadMessageSent,
   leadContactChannelLabels,
   type ClinicCatalogEntry,
   type Lead,
@@ -32,7 +33,8 @@ function LeadMessageSummary({
   onSendNow: (() => void) | undefined;
   sending: boolean;
 }) {
-  const sent = contacts.filter((item) => item.direction === "outbound");
+  // D3: ligação, atendimento presencial e tentativa sem resposta não contam como envio.
+  const sent = contacts.filter(isLeadMessageSent);
   const last = sent[0];
   const lastAny = contacts[0];
   return (
@@ -126,6 +128,8 @@ export function LeadActivityModal({
           ),
       ),
   ];
+  // "Conseguiu falar?" (só em "Realizado"): "no" grava a tentativa sem resposta.
+  const [reached, setReached] = useState<"yes" | "no">("yes");
   const [contactAt, setContactAt] = useState(() =>
     toLocalDateTimeInput(new Date()),
   );
@@ -168,8 +172,12 @@ export function LeadActivityModal({
       await saveContact({
         ...contact,
         ...(contactAt ? { occurredAt: new Date(contactAt).toISOString() } : {}),
+        ...(contact.direction === "outbound" && reached === "no"
+          ? { reached: false }
+          : {}),
       });
       setContact({ ...contact, notes: "" });
+      setReached("yes");
       setContactAt(toLocalDateTimeInput(new Date()));
     } catch (cause) {
       setError((cause as Error).message);
@@ -191,7 +199,7 @@ export function LeadActivityModal({
         : current,
     );
     toast.success(
-      input.direction === "outbound"
+      isLeadMessageSent(input)
         ? `Mensagem registrada em ${shortDateTime(created.occurredAt)}.`
         : "Contato registrado.",
     );
@@ -434,6 +442,20 @@ export function LeadActivityModal({
                   <option value="internal">Registro interno</option>
                 </select>
               </label>
+              {contact.direction === "outbound" && (
+                <label>
+                  Conseguiu falar?
+                  <select
+                    value={reached}
+                    onChange={(event) =>
+                      setReached(event.target.value as "yes" | "no")
+                    }
+                  >
+                    <option value="yes">Sim</option>
+                    <option value="no">Não (tentativa sem resposta)</option>
+                  </select>
+                </label>
+              )}
               <label>
                 Data e hora
                 <input
