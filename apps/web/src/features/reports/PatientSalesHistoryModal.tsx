@@ -63,7 +63,8 @@ export function PatientSalesHistoryModal({
           />
         ) : (
           <div className="table-scroll">
-            <table className="dre-table">
+            {/* RV6: no celular cada linha vira um cartão (rótulo + valor), sem rolagem lateral. */}
+            <table className="dre-table contracted-history-table">
               <caption>Serviços contratados por {patientName}</caption>
               <thead>
                 <tr>
@@ -79,7 +80,9 @@ export function PatientSalesHistoryModal({
               <tbody>
                 {sales.map((item) => (
                   <tr key={item.id}>
-                    <td>{formatIsoDate(clinicIsoDate(item.occurredAt))}</td>
+                    <td data-label="Data">
+                      {formatIsoDate(clinicIsoDate(item.occurredAt))}
+                    </td>
                     <th scope="row">
                       {item.itemName}
                       {item.quantity > 1 && (
@@ -88,9 +91,11 @@ export function PatientSalesHistoryModal({
                         </small>
                       )}
                     </th>
-                    <td>{sourceLabels[saleTypeOf(item)]}</td>
-                    <td>{item.kind === "sale" ? "Venda" : "Cancelamento"}</td>
-                    <td className="numeric-value">
+                    <td data-label="Tipo">{sourceLabels[saleTypeOf(item)]}</td>
+                    <td data-label="Movimento">
+                      {item.kind === "sale" ? "Venda" : "Cancelamento"}
+                    </td>
+                    <td className="numeric-value" data-label="Valor">
                       {currency.format(item.amountInCents / 100)}
                     </td>
                   </tr>
