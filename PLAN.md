@@ -1732,3 +1732,13 @@ filtros ficam no `dashboard-studios` (EN11–EN13 têm só a parte da API aqui).
   e `min-width: 0`) e as ações do topo (filial, SOS, sino) não encolhem nem quebram linha.
 - **Gate:** gate completo + `npm run test:e2e`
 - **Status:** DONE
+
+### RV4 — Agenda no celular: só "Novo atendimento" à vista
+
+- **Origem:** 2ª rodada de teste, melhoria M1 aprovada pelo dono em 14/11/2026.
+- **Escopo:** no cabeçalho da Agenda, até 700px, Concluídos, Compartilhar agenda, Nova nota e
+  Bloquear horário saem da tela e entram no menu "Mais" (`ActionMenu`, como em Clientes);
+  lixeira, "Mais" e "Novo atendimento" ficam numa linha. No computador nada muda.
+- **Gate:** gate completo + `npm run test:e2e`
+- **Status:** DONE
+

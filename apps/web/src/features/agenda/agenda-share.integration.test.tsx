@@ -1,5 +1,11 @@
 import { legacyPermissions } from "@crm/contracts";
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import App from "../../App";
@@ -219,5 +225,35 @@ describe("compartilhar agenda", () => {
     expect(
       within(dialog).getByRole("button", { name: "Enviar pelo WhatsApp" }),
     ).toBeDisabled();
+  });
+});
+
+// RV4: no celular, as ações secundárias da Agenda ficam no menu "Mais".
+describe("menu Mais da agenda", () => {
+  it("traz as ações secundárias e abre cada uma", async () => {
+    renderAgenda();
+    // Com a agenda carregada (botão do computador habilitado), o menu traz tudo.
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "Compartilhar agenda" }),
+      ).toBeEnabled(),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Mais" }));
+    const menu = screen.getByRole("menu", { name: "Mais" });
+    expect(
+      within(menu)
+        .getAllByRole("menuitem")
+        .map((item) => item.textContent?.trim()),
+    ).toEqual(["Compartilhar agenda", "Nova nota", "Bloquear horário"]);
+    fireEvent.click(
+      within(menu).getByRole("menuitem", { name: "Compartilhar agenda" }),
+    );
+    expect(
+      screen.getByRole("dialog", { name: "Compartilhar agenda" }),
+    ).toBeInTheDocument();
+    // "Novo atendimento" continua à vista, fora do menu.
+    expect(
+      screen.getByRole("button", { name: "Novo atendimento" }),
+    ).toBeInTheDocument();
   });
 });

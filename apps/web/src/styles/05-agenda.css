@@ -7,6 +7,15 @@
   gap: var(--space-2);
 }
 
+/* Agenda: no computador as ações secundárias ficam à vista; o menu "Mais" é só do celular. */
+.agenda-secondary-actions {
+  display: contents;
+}
+
+.agenda-more-actions {
+  display: none;
+}
+
 .view-toggle {
   display: flex;
   padding: var(--space-1);
@@ -448,6 +457,34 @@ button.day-event:focus-visible {
 }
 
 @media (max-width: 700px) {
+  /* RV4: lixeira, "Mais" e "Novo atendimento" numa linha só. */
+  .page-actions.agenda-page-actions {
+    width: 100%;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    align-items: center;
+  }
+
+  .agenda-secondary-actions {
+    display: none;
+  }
+
+  .agenda-more-actions {
+    display: block;
+    flex-shrink: 0;
+  }
+
+  .page-actions.agenda-page-actions > .trash-icon-button {
+    align-self: center;
+    flex-shrink: 0;
+  }
+
+  .page-actions.agenda-page-actions > .primary-button {
+    flex: 1 1 auto;
+    width: auto;
+    justify-content: center;
+  }
+
   .month-agenda {
     padding: 8px;
   }
