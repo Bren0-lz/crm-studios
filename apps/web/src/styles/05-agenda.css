@@ -1476,6 +1476,20 @@ button.day-event:focus-visible {
   max-height: 70vh;
   overflow: auto;
 }
+@media (max-width: 700px) {
+  /* RV5: no celular a grade cabe inteira na tela abaixo do topo fixo; rolando até ela,
+     só ela rola (antes, 70vh com o topo por cima deixava as duas rolagens à vista). */
+  .day-grid-scroll {
+    max-height: calc(
+      100dvh - var(--day-grid-offset, calc(var(--space-8) - var(--space-1))) -
+        var(--space-4)
+    );
+    scroll-margin-top: calc(
+      var(--day-grid-offset, calc(var(--space-8) - var(--space-1))) +
+        var(--space-2)
+    );
+  }
+}
 /* Bordas separadas e desenhadas nas células: no modo collapse a borda é da tabela e rola por
    baixo das células fixas. Cada linha da grade é o border-top da célula de baixo (tracejado nas
    meias horas); a 1ª coluna desenha a linha esquerda e a tabela, a de baixo. */
