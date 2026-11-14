@@ -1698,3 +1698,12 @@ filtros ficam no `dashboard-studios` (EN11–EN13 têm só a parte da API aqui).
 - **Gate:** gate completo
 - **Depende de:** RT1, RT2, RT5
 - **Status:** DONE
+
+### RV3 — Nome da clínica visível no celular
+
+- **Origem:** 2ª rodada de teste (`PLANO_CORRECOES_RODADA2_2026-11-13.md`, item 1.3).
+- **Escopo:** só CSS (`11-responsive.css`, bloco até 820px): sai o `display: none` do
+  `.clinic-label`; o nome fica em uma linha com reticências (`.topbar-context` com `flex: 1 1 0`
+  e `min-width: 0`) e as ações do topo (filial, SOS, sino) não encolhem nem quebram linha.
+- **Gate:** gate completo + `npm run test:e2e`
+- **Status:** DONE

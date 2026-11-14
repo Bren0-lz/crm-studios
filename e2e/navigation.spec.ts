@@ -76,3 +76,48 @@ test("all operational modules open without application errors", async ({
   }
   expect(errors).toEqual([]);
 });
+
+test("clinic name stays visible in the mobile header without horizontal scroll", async ({
+  page,
+  api,
+}, testInfo) => {
+  test.skip(testInfo.project.name !== "mobile", "Cabeçalho de celular.");
+  const branch = await api.post("/admin/branches", {
+    data: { name: "Unidade com nome extenso para testar o cabeçalho" },
+  });
+  expect(branch.status()).toBe(201);
+  await login(page);
+  const banner = page.getByRole("banner");
+  for (const viewport of [
+    { width: 440, height: 956 },
+    { width: 390, height: 844 },
+    { width: 360, height: 740 },
+  ]) {
+    await page.setViewportSize(viewport);
+    await expect(banner.getByText("Studios Aryana", { exact: true })).toBeVisible();
+    const label = (await page.locator(".clinic-label").boundingBox())!;
+    expect(label.width).toBeGreaterThan(0);
+    const actions = [
+      page.getByRole("combobox", { name: "Filial ativa" }),
+      banner.getByRole("button", { name: "SOS", exact: true }),
+      banner.getByRole("button", { name: /^Notificações/ }),
+    ];
+    const boxes = [];
+    for (const action of actions) {
+      await expect(action).toBeInViewport({ ratio: 1 });
+      boxes.push((await action.boundingBox())!);
+    }
+    // Ações numa linha só, à direita do nome.
+    for (const box of boxes) {
+      expect(Math.abs(box.y - boxes[0]!.y)).toBeLessThanOrEqual(8);
+      expect(box.x).toBeGreaterThanOrEqual(label.x + label.width);
+    }
+    expect(
+      await page.evaluate(
+        () =>
+          document.documentElement.scrollWidth <=
+          document.documentElement.clientWidth,
+      ),
+    ).toBe(true);
+  }
+});
