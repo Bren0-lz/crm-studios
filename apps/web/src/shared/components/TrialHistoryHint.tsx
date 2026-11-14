@@ -60,7 +60,7 @@ export function TrialHistoryHint({
     .join("; ");
   return (
     <p className="field-hint span-2" role="status">
-      Já tem aula experimental: {items}.
+      Já tem aula experimental: {items}
     </p>
   );
 }

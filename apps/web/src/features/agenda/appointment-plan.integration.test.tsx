@@ -295,10 +295,12 @@ describe("agendamento com plano (AP4)", () => {
       within(dialog).queryByText(/Já tem aula experimental/),
     ).not.toBeInTheDocument();
     change("Tipo", "trial", dialog);
-    expect(
-      await within(dialog).findByText(
-        new RegExp(`Já tem aula experimental: ${services[0]!.name} em`),
-      ),
-    ).toBeInTheDocument();
+    const hint = await within(dialog).findByText(
+      new RegExp(`Já tem aula experimental: ${services[0]!.name} em`),
+    );
+    expect(hint).toBeInTheDocument();
+    // RT6: a data curta já termina em "." ("14 de nov."); sem ponto duplo.
+    expect(hint.textContent).not.toContain("..");
+    expect(hint.textContent).toMatch(/\.$/);
   });
 });

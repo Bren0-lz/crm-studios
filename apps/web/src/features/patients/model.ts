@@ -379,6 +379,15 @@ export const guidedSubmitLabels: Record<GuidedPatientNext, string> = {
   none: "Salvar cliente",
 };
 
+/** Mesmo botão na conversão de lead (o `PatientModal` recebe o lead de origem). */
+export const guidedConversionSubmitLabels: Record<GuidedPatientNext, string> = {
+  demonstration: "Converter e agendar aula experimental",
+  plan: "Converter e criar plano",
+  single: "Converter e criar serviço avulso",
+  waitlist: "Converter e colocar na lista de espera",
+  none: "Converter em cliente",
+};
+
 export const patientExportColumnNames: Record<PatientExportColumn, string> = {
   ...patientProfileLabels,
   fullName: "Nome",

@@ -9,6 +9,7 @@ import {
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import App from "../../App";
+import { shortDateTime } from "../../shared/lib/formatting";
 import { storedUser } from "../../test-support/legacy-fixtures";
 import "../../test-support/legacy-setup";
 import {
@@ -104,6 +105,13 @@ describe("commercial lead details", () => {
     expect(
       within(dialog).queryByText("Motivo da perda"),
     ).not.toBeInTheDocument();
+    // RT6: data do cadastro com a hora.
+    expect(
+      within(dialog).getByText("Cadastrado em").nextElementSibling,
+    ).toHaveTextContent(shortDateTime(baseLead.createdAt));
+    expect(
+      within(dialog).getByText("Cadastrado em").nextElementSibling?.textContent,
+    ).toMatch(/\d{2}:\d{2}/);
 
     // "Editar cadastro" troca os detalhes pelo formulário de edição.
     fireEvent.click(

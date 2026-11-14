@@ -104,6 +104,7 @@ import {
   guidedPlanKindOptions,
   guidedStepOrder,
   guidedStepPermissions,
+  guidedConversionSubmitLabels,
   guidedSubmitLabels,
   leadPatientInput,
   maxGuidedPlans,
@@ -1636,7 +1637,9 @@ export function PatientModal({
                     ? submitLabel
                     : step === "none" && productLines.length
                       ? "Salvar e registrar venda"
-                      : guidedSubmitLabels[step]}
+                      : (lead
+                          ? guidedConversionSubmitLabels
+                          : guidedSubmitLabels)[step]}
             </button>
           )}
         </div>

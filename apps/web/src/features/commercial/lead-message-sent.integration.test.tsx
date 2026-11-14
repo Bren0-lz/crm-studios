@@ -94,8 +94,12 @@ describe("lead message sent status", () => {
       "article",
     ) as HTMLElement;
     expect(sentCard).toHaveTextContent(
-      `Mensagem enviada · ${shortDateTime(sent.lastMessageSentAt)}`,
+      `Enviada${shortDateTime(sent.lastMessageSentAt)}`,
     );
+    // RT6: data e hora num <time> próprio, que não trunca.
+    const sentTime = sentCard.querySelector("time.lead-message-time");
+    expect(sentTime).toHaveAttribute("dateTime", sent.lastMessageSentAt);
+    expect(sentTime).toHaveTextContent(shortDateTime(sent.lastMessageSentAt));
     expect(sentCard).toHaveTextContent("2 contatos");
 
     const pendingCard = screen
@@ -122,7 +126,7 @@ describe("lead message sent status", () => {
     ) as HTMLElement;
     await waitFor(() =>
       expect(updated).toHaveTextContent(
-        `Mensagem enviada · ${shortDateTime(occurredAt)}`,
+        `Enviada${shortDateTime(occurredAt)}`,
       ),
     );
     expect(updated).toHaveTextContent("1 contato");
@@ -317,7 +321,7 @@ describe("lead message sent status", () => {
     ) as HTMLElement;
     await waitFor(() =>
       expect(updatedCard).toHaveTextContent(
-        `Mensagem enviada · ${shortDateTime(newOccurredAt)}`,
+        `Enviada${shortDateTime(newOccurredAt)}`,
       ),
     );
 
