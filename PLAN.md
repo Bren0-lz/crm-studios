@@ -1633,3 +1633,20 @@ filtros ficam no `dashboard-studios` (EN11–EN13 têm só a parte da API aqui).
   transação da gravação, para a conversão simultânea não deixar atendimento preso ao lead.
 - **Gate:** gate completo + `npm run test:mysql`
 - **Status:** DONE
+
+## Pedido avulso — Correções do relatório de teste (13/11/2026)
+
+- **Origem:** teste manual em produção (13/11/2026, usuário admin, desktop), conferido contra o
+  código. Plano: `PLANO_CORRECOES_2026-11-13.md` (enviado pelo dono).
+- **Decisões do dono (14/11/2026):** D1 — plano do catálogo do tipo "Plano pacote" é vendido no
+  cadastro guiado com `kind: "custom"`, igual à ficha do cliente; D2 — senha continua sem tamanho
+  mínimo; D3 — ligação e tentativa sem resposta não contam como "envio" de mensagem.
+
+### RT1 — Plano pacote no cadastro guiado
+
+- **Escopo:** `guidedSubscriptionPlanSchema` aceita `kind: "custom"` (modelo `promotional`, via
+  `planTypeKind`); a API grava o plano `custom` pelo mesmo `createPatientPlan` da ficha (memória
+  e MySQL). Web: `guidedPlanKinds` aceita `custom`; o seletor "Modelo" só mostra "Personalizado"
+  quando o plano já é `custom`.
+- **Gate:** gate completo + `npm run test:mysql`
+- **Status:** DONE

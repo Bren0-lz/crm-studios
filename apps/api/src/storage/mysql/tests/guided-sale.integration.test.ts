@@ -201,6 +201,53 @@ for (const storage of ["memory", "mysql"] as const) {
         );
       });
 
+      // RT1: modelo do tipo "Plano pacote" (`promotional`) é vendido como `custom`.
+      it("sells a package plan from the catalog as custom and charges it", async () => {
+        const { plan } = await fixtures();
+        const services = plan.services.map((item) => ({
+          ...item,
+          totalSessions: 6,
+          totalValueInCents: 30000,
+        }));
+        const promotional = await repository.createPlanTemplate(
+          clinicId,
+          demoUserId,
+          {
+            name: `Pacote RT1 ${randomUUID().slice(0, 6)}`,
+            planType: "promotional",
+            totalValueInCents: 30000,
+            services,
+          },
+        );
+        const result = await repository.createPatientWithNextStep(
+          clinicId,
+          demoUserId,
+          {
+            next: "plan",
+            patient: patient("Lia Pacote"),
+            plan: {
+              ...plan,
+              planTemplateId: promotional.id,
+              name: promotional.name,
+              kind: "custom",
+              services,
+              totalValueInCents: 30000,
+            },
+            groupId: undefined,
+          },
+        );
+        expect(result.plan).toMatchObject({
+          kind: "custom",
+          patientId: result.patient.id,
+        });
+        const receivables = (
+          await repository.getFinancialSummary(clinicId)
+        ).receivables.filter((item) => item.patientId === result.patient.id);
+        expect(receivables).toEqual([
+          expect.objectContaining({ amountInCents: 30000 }),
+        ]);
+      });
+
       it("refuses sessions of another service", async () => {
         const { plan, appointment } = await fixtures();
         const other = await repository.createService(clinicId, {

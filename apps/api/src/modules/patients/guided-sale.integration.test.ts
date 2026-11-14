@@ -112,3 +112,80 @@ describe("guided registration with contract and sessions (RC8)", () => {
     await app.close();
   });
 });
+
+// RT1: plano do catálogo do tipo "Plano pacote" (`promotional`) é vendido como `custom`.
+describe("guided registration selling a package plan (RT1)", () => {
+  const SERVICE_ID = "77777777-7777-4777-8777-777777777777";
+
+  it("creates the client with a custom plan from a promotional template and charges it", async () => {
+    const { app, token } = await authenticatedApp();
+    const headers = { authorization: `Bearer ${token}` };
+    const template = await app.inject({
+      method: "POST",
+      url: "/plan-templates",
+      headers,
+      payload: {
+        name: "Pacote promocional",
+        planType: "promotional",
+        totalValueInCents: 30000,
+        services: [
+          { serviceId: SERVICE_ID, totalSessions: 6, totalValueInCents: 30000 },
+        ],
+      },
+    });
+    expect(template.statusCode, template.body).toBe(201);
+    const response = await app.inject({
+      method: "POST",
+      url: "/patients/guided",
+      headers,
+      payload: {
+        next: "plan",
+        patient: {
+          cpf: nextTestCpf(),
+          ...testPatientContact,
+          fullName: "Lia Pacote",
+          phone: "11977773010",
+        },
+        plan: {
+          planTemplateId: template.json().id,
+          name: "Pacote promocional",
+          kind: "custom",
+          services: [
+            {
+              serviceId: SERVICE_ID,
+              totalSessions: 6,
+              totalValueInCents: 30000,
+            },
+          ],
+          serviceId: SERVICE_ID,
+          totalSessions: 6,
+          validFrom: "2026-01-01",
+          validUntil: "2099-12-31",
+          totalValueInCents: 30000,
+          installments: 1,
+          firstDueDate: "2026-01-10",
+        },
+      },
+    });
+    expect(response.statusCode, response.body).toBe(201);
+    const result = response.json();
+    expect(result.plan).toMatchObject({
+      kind: "custom",
+      patientId: result.patient.id,
+    });
+    const summary = await app.inject({
+      method: "GET",
+      url: "/finance/summary",
+      headers,
+    });
+    expect(
+      (
+        summary.json().receivables as {
+          patientId?: string;
+          amountInCents: number;
+        }[]
+      ).filter((item) => item.patientId === result.patient.id),
+    ).toEqual([expect.objectContaining({ amountInCents: 30000 })]);
+    await app.close();
+  });
+});

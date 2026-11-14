@@ -142,6 +142,57 @@ describe("guided registration converting a lead (LC1)", () => {
     await app.close();
   });
 
+  // RT1: plano do catálogo do tipo "Plano pacote" (`promotional`) é vendido como `custom`.
+  it("converts the lead selling a package plan from the catalog (custom)", async () => {
+    const { app, headers, createLead, guided, leadOf } = await setup();
+    const template = await app.inject({
+      method: "POST",
+      url: "/plan-templates",
+      headers,
+      payload: {
+        name: "Pacote promocional",
+        planType: "promotional",
+        totalValueInCents: 30000,
+        services: [
+          { serviceId: SERVICE_ID, totalSessions: 6, totalValueInCents: 30000 },
+        ],
+      },
+    });
+    expect(template.statusCode, template.body).toBe(201);
+    const lead = await createLead("11966660009");
+    const response = await guided({
+      next: "plan",
+      leadId: lead.id,
+      patient: { phone: lead.phone },
+      plan: {
+        planTemplateId: template.json().id,
+        name: "Pacote promocional",
+        kind: "custom",
+        services: [
+          { serviceId: SERVICE_ID, totalSessions: 6, totalValueInCents: 30000 },
+        ],
+        serviceId: SERVICE_ID,
+        totalSessions: 6,
+        validFrom: "2026-01-01",
+        validUntil: "2099-12-31",
+        totalValueInCents: 30000,
+        installments: 1,
+        firstDueDate: "2026-01-10",
+      },
+    });
+    expect(response.statusCode, response.body).toBe(201);
+    const result = response.json();
+    expect(result.plan).toMatchObject({
+      kind: "custom",
+      patientId: result.patient.id,
+    });
+    expect(await leadOf(lead.id)).toMatchObject({
+      stage: "won",
+      convertedPatientId: result.patient.id,
+    });
+    await app.close();
+  });
+
   it("refuses a CPF already registered and creates a new client for the same phone", async () => {
     const { app, createLead, guided, leadOf, patientCount, repository } =
       await setup();
