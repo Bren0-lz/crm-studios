@@ -338,6 +338,12 @@ Notação: **[ID]** passo → *Esperado*. Itens marcados **(RT n)** conferem uma
   falta; **(RT3)** com nome e telefone de emergência preenchidos e sem WhatsApp de
   emergência, a lista traz "Contato de emergência (WhatsApp)". Botões editar, copiar mensagem
   e link `wa.me` funcionam (não enviar).
+- **[8.13b]** **(RV1)** Editar `TESTE Lead Um` › "Dados para o cadastro de cliente":
+  preencher CPF (CPF C), endereço completo (CEP, rua, número, bairro, cidade/UF) e contato de
+  emergência (nome, telefone e WhatsApp); salvar; abrir os detalhes do lead; Converter. → Os
+  detalhes mostram "Endereço" e "Contato de emergência" em uma linha cada; Converter abre
+  **direto** o formulário de cliente, pré-preenchido, sem a etapa de dados faltantes. CPF
+  inválido no lead mostra "Informe um CPF válido." e não salva.
 - **[8.14]** Preencher cadastro na conversão (CPF C) › Adicionar plano › `TESTE Plano
   Pacote`. → Formulário do cliente pré-preenchido com os dados do lead; **(RT6)** botão
   "Converter e criar plano"; **(RT1)** salva com sucesso (201).
@@ -398,6 +404,12 @@ Notação: **[ID]** passo → *Esperado*. Itens marcados **(RT n)** conferem uma
 - **[11.6]** Criar a campanha só com destinatários `TESTE` e abrir a fila de envio. → Para
   cada um: mensagem pronta, link `wa.me`, botão de marcar enviado. Marcar um como enviado
   **sem enviar de verdade**. O status da campanha e o relatório acompanham.
+- **[11.6b]** **(RV2)** Nova campanha no modo "Escolher clientes" só com um lead sem
+  atendimento, usando uma mensagem com `{{data_atendimento}}`; Conferir quem recebe. → O
+  aviso diz "Nenhuma das pessoas escolhidas pode receber esta mensagem: sem atendimento
+  agendado."; nada de "WhatsApp liberado"; "Ver quem foi pulado" mostra o motivo. No modo por
+  filtros, a contagem traz o motivo entre parênteses (ou "motivos abaixo"). **Não criar a
+  campanha.**
 - **[11.7]** Campanhas automáticas: criar `TESTE Auto` (gatilho Lead novo, com "Incluir
   leads" onde existir), salvar **desativada**; conferir os gatilhos disponíveis. Excluir ou
   manter desativada. → Nenhum envio é disparado.
@@ -485,6 +497,9 @@ Para cada aba, escolha o período que contém os dados de teste (mês atual).
 - **[15.4]** Clientes e Consulta de clientes. → Novos clientes do período = os `TESTE`
   criados; a consulta filtra e lista.
 - **[15.5]** Retenção, Sem retorno, Ranking e faixa etária. → Carregam; números coerentes.
+- **[15.5b]** **(RV6)** Sem retorno › "Histórico de …" de um cliente: em ~390px, cada
+  contratação vira um cartão (item no alto; Data, Tipo, Movimento e Valor com o rótulo ao
+  lado), sem rolagem lateral. No computador continua tabela.
 - **[15.6]** Campanhas. → A campanha de teste aparece com enviados/pendentes corretos.
 - **[15.7]** Exportar um relatório (Excel/CSV). → Download ocorre.
 - **[15.8]** Trocar o período para um mês sem dados. → Estados vazios com mensagem, sem erro.
@@ -564,6 +579,12 @@ apagar. Os usuários `TESTE` ficam para o dono desativar.
 | RT4 campanha para leads | 11.3, 11.4 | Texto "leads"/"pessoas"; etiquetas visíveis com aviso |
 | RT5 sacola | 4.1 | "Plano pacote · 1 cobrança" |
 | RT6 acabamento | 3.5, 4.2, 8.4, 8.5, 8.12, 8.14, 17.3 | Máscaras, hora, data inteira, um ponto só, "Converter e …" |
+| RV1 cadastro do lead completo | 8.13b | Converter vai direto ao formulário de cliente |
+| RV2 motivo de quem foi pulado | 11.6b | Cita "sem atendimento agendado", nunca "WhatsApp liberado" |
+| RV3 nome da clínica no celular | Parte E (celular) | "Studios Aryana" no topo em 390px |
+| RV4 menu "Mais" da Agenda | Parte E (celular) | Só "Novo atendimento" à vista; o resto no "Mais" |
+| RV5 grade da Agenda no celular | Parte E (celular) | Grade cabe na tela abaixo do topo; só ela rola |
+| RV6 histórico de contratações | 15.5b | Cartões empilhados, sem rolagem lateral |
 
 ---
 
@@ -593,6 +614,13 @@ apagar. Os usuários `TESTE` ficam para o dono desativar.
 - [ ] CRM comercial: funil, cartão, atividades, roda de cores da etapa.
 - [ ] Financeiro: receber uma cobrança.
 - [ ] Assinatura pública do contrato e do recibo com o dedo.
+- [ ] **(RV3)** Nome "Studios Aryana" visível no topo (com reticências se faltar espaço),
+  com filial, SOS e sino inteiros; sem rolagem horizontal.
+- [ ] **(RV4)** Agenda: no cabeçalho só lixeira, "Mais" e "Novo atendimento", numa linha;
+  "Mais" traz Concluídos, Compartilhar agenda, Nova nota e Bloquear horário, e cada um abre.
+- [ ] **(RV5)** Agenda › Dia › Grade: rolando a página até a grade, ela cabe inteira abaixo do
+  topo (com e sem o aviso de pendências) e só ela rola; os nomes dos profissionais ficam
+  fixos no alto da grade.
 - [ ] Nenhuma tela com rolagem horizontal, botão fora da tela ou texto menor que o legível.
 
 **Integrações e envios reais**
