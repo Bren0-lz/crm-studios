@@ -1693,6 +1693,18 @@ filtros ficam no `dashboard-studios` (EN11–EN13 têm só a parte da API aqui).
 - **Gate:** gate completo
 - **Status:** DONE
 
+### RV2 — Campanha: motivo certo quando ninguém pode receber
+
+- **Origem:** 2ª rodada de teste (`PLANO_CORRECOES_RODADA2_2026-11-13.md`, item 9.4).
+- **Escopo:** helper `skippedReasonSummary` (`campaigns/model.ts`): com um motivo só entre os
+  pulados, o rótulo dele em minúsculas; com motivos diferentes, "motivos abaixo"/"veja os motivos
+  abaixo". Saem os três "sem WhatsApp liberado" do `NewCampaignModal` (contagem, aviso do modo
+  por filtros e alerta da conferência). O modo por filtros passa a mostrar "Ver quem foi pulado"
+  com o motivo de cada um (`SkippedList`, o mesmo da conferência).
+- **Gate:** gate completo
+- **Depende de:** RT4
+- **Status:** DONE
+
 ### RT5 — Sacola mostra o tipo do plano
 
 - **Escopo:** no cadastro guiado, `GuidedPlanFields` sobe o `planType` do modelo escolhido

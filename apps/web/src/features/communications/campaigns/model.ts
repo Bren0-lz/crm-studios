@@ -1,5 +1,7 @@
 import {
+  broadcastSkipReasonLabels,
   messageVariables,
+  type BroadcastSkipReason,
   type CampaignAudienceKind,
   type WhatsappCampaignSegment,
   type MessageTemplate,
@@ -157,6 +159,19 @@ export function campaignAudienceWords(
     none: `${people ? "Nenhuma" : "Nenhum"} ${one}`,
     noneOfFound: `${people ? "Nenhuma das" : "Nenhum dos"} ${many} ${found}s`,
   };
+}
+
+/**
+ * Motivo comum de quem foi pulado, em minúsculas para entrar na frase ("sem atendimento
+ * agendado"); com motivos diferentes, `null` (a lista "Ver quem foi pulado" mostra cada um).
+ */
+export function skippedReasonSummary(
+  skipped: ReadonlyArray<{ reason: BroadcastSkipReason }>,
+): string | null {
+  const reasons = new Set(skipped.map((item) => item.reason));
+  if (reasons.size !== 1) return null;
+  const label = broadcastSkipReasonLabels[[...reasons][0]!];
+  return `${label.charAt(0).toLocaleLowerCase("pt-BR")}${label.slice(1)}`;
 }
 
 export type CampaignFilterGroup =

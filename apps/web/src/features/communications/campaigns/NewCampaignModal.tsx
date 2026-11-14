@@ -37,6 +37,7 @@ import { useTemplateImages } from "./images";
 import {
   activeFilterCount,
   campaignAudienceWords,
+  skippedReasonSummary,
   campaignPromotionIncomplete,
   campaignPromotionInput,
   emptyCampaignPromotion,
@@ -78,6 +79,31 @@ function SamplePreview({
   );
 }
 
+/** Quem foi pulado, com o motivo de cada um (recolhido). */
+function SkippedList({
+  skipped,
+}: {
+  skipped: WhatsappCampaignPreview["skipped"];
+}) {
+  if (skipped.length === 0) return null;
+  return (
+    <details className="campaign-skipped">
+      <summary>
+        <UsersRound size={15} aria-hidden="true" />
+        Ver quem foi pulado
+      </summary>
+      <ul>
+        {skipped.map((item) => (
+          <li key={item.patientId ?? item.leadId}>
+            <strong>{item.patientName}</strong>
+            <span>{broadcastSkipReasonLabels[item.reason]}</span>
+          </li>
+        ))}
+      </ul>
+    </details>
+  );
+}
+
 /** Lista ao vivo de quem o filtro encontrou e vai receber a campanha. */
 function FilterResults({
   loading,
@@ -91,6 +117,7 @@ function FilterResults({
   audience: CampaignAudienceKind;
 }) {
   const words = campaignAudienceWords(audience);
+  const skippedReason = preview ? skippedReasonSummary(preview.skipped) : null;
   const [search, setSearch] = useState("");
   const term = search.trim().toLocaleLowerCase("pt-BR");
   const rows = preview
@@ -125,7 +152,7 @@ function FilterResults({
                   preview!.leads > 0 &&
                   ` · ${preview!.leads} ${preview!.leads === 1 ? "lead" : "leads"}`}
                 {preview!.skipped.length > 0 &&
-                  ` · ${preview!.skipped.length} ${preview!.skipped.length === 1 ? "será pulado" : "serão pulados"} (sem WhatsApp liberado)`}
+                  ` · ${preview!.skipped.length} ${preview!.skipped.length === 1 ? "será pulado" : "serão pulados"} (${skippedReason ?? "motivos abaixo"})`}
               </small>
             </span>
           </>
@@ -169,9 +196,11 @@ function FilterResults({
       )}
       {preview && preview.matched > 0 && preview.recipients === 0 && (
         <p className="field-hint">
-          {words.noneOfFound} tem WhatsApp liberado.
+          {words.noneOfFound} pode receber esta mensagem:{" "}
+          {skippedReason ?? "veja os motivos abaixo"}.
         </p>
       )}
+      {preview && <SkippedList skipped={preview.skipped} />}
       {preview && preview.matched === 0 && (
         <p className="field-hint">
           {words.none} com esses filtros. Tente tirar alguma etiqueta.
@@ -422,6 +451,15 @@ export function NewCampaignModal({
       setError((cause as Error).message);
       setWorking(false);
     }
+  }
+
+  /** Ninguém pode receber: diz o motivo de quem foi pulado (RV2), não só "sem WhatsApp". */
+  function nobodyReceives(result: WhatsappCampaignPreview) {
+    const reason =
+      skippedReasonSummary(result.skipped) ?? "veja os motivos abaixo";
+    return mode === "patients"
+      ? `Nenhuma das pessoas escolhidas pode receber esta mensagem: ${reason}. Volte e ajuste a lista ou a mensagem.`
+      : `${campaignAudienceWords(withLeads ? audienceKind : "patients").noneOfFound} pode receber esta mensagem: ${reason}. Volte e ajuste os filtros ou a mensagem.`;
   }
 
   const audienceMissing =
@@ -704,26 +742,10 @@ export function NewCampaignModal({
             </dl>
             {preview.recipients === 0 && (
               <p className="form-error" role="alert">
-                Nenhum cliente escolhido tem WhatsApp liberado. Volte e ajuste
-                os clientes.
+                {nobodyReceives(preview)}
               </p>
             )}
-            {preview.skipped.length > 0 && (
-              <details className="campaign-skipped">
-                <summary>
-                  <UsersRound size={15} aria-hidden="true" />
-                  Ver quem foi pulado
-                </summary>
-                <ul>
-                  {preview.skipped.map((item) => (
-                    <li key={item.patientId ?? item.leadId}>
-                      <strong>{item.patientName}</strong>
-                      <span>{broadcastSkipReasonLabels[item.reason]}</span>
-                    </li>
-                  ))}
-                </ul>
-              </details>
-            )}
+            <SkippedList skipped={preview.skipped} />
           </div>
           <div className="campaign-review-preview">
             <span className="filter-label">Prévia do primeiro envio</span>
@@ -791,7 +813,9 @@ export function NewCampaignModal({
         createPortal(
           <CampaignFiltersModal
             templateId={template.id}
-            leads={withLeads ? { audience: audienceKind, leadFilter } : undefined}
+            leads={
+              withLeads ? { audience: audienceKind, leadFilter } : undefined
+            }
             initial={segment}
             options={filterOptions}
             patients={patients}

@@ -664,11 +664,18 @@ describe("campanhas de WhatsApp", () => {
     ).toBeInTheDocument();
     expect(within(results).getByText("Carla Souza")).toBeInTheDocument();
     expect(within(results).getByText("(21) 98888-7777")).toBeInTheDocument();
-    // A lista mostra só quem vai receber; os pulados ficam só na contagem.
-    expect(within(results).queryByText("Bruno Costa")).toBeNull();
+    // A lista mostra só quem vai receber; os pulados ficam recolhidos em "Ver quem foi pulado".
     expect(
-      within(results).queryByText("Não autorizou mensagens neste canal"),
+      within(
+        within(results).getByRole("list", { name: "Vão receber" }),
+      ).queryByText("Bruno Costa"),
     ).toBeNull();
+    expect(within(results).getByText("Bruno Costa")).not.toBeVisible();
+    expect(
+      within(results).getByText(
+        /1 será pulado \(não autorizou mensagens neste canal\)/,
+      ),
+    ).toBeInTheDocument();
     // Os filtros ficam num modal próprio, sobre a "Nova campanha".
     fireEvent.click(within(dialog).getByRole("button", { name: /^Filtros/ }));
     let filters = await screen.findByRole("dialog", {
@@ -906,6 +913,154 @@ describe("campanhas de WhatsApp", () => {
       Reflect.deleteProperty(globalThis, "ClipboardItem");
       Reflect.deleteProperty(navigator, "clipboard");
     }
+  });
+});
+
+// RV2: o aviso de quem foi pulado usa o motivo real, não "sem WhatsApp liberado".
+describe("motivo de quem foi pulado na campanha", () => {
+  const filterOptions = {
+    services: [],
+    professionals: [],
+    cities: [],
+    neighborhoods: [],
+    sources: [],
+    occupations: [],
+    interests: [],
+    levels: [],
+    finance: true,
+  };
+
+  async function openFilters(preview: Record<string, unknown>) {
+    setup("/comunicacoes", (url) => {
+      if (url.includes("/communications/campaigns/preview")) return preview;
+      if (url.endsWith("/communications/campaigns")) return [];
+      if (url.endsWith("/communications/templates")) return [template];
+      if (url.includes("/campaigns/filter-options")) return filterOptions;
+      return undefined;
+    });
+    await screen.findByText("Nenhuma campanha ainda");
+    fireEvent.click(
+      screen.getAllByRole("button", { name: "Nova campanha" }).at(0)!,
+    );
+    const dialog = await screen.findByRole("dialog", { name: "Nova campanha" });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Continuar" }));
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Por filtros" }),
+    );
+    const results = within(dialog).getByRole("region", {
+      name: "Clientes encontrados",
+    });
+    await within(results).findByText(/vai receber|vão receber/);
+    return results;
+  }
+
+  it("escolhendo um cliente sem atendimento, cita o atendimento e não o WhatsApp", async () => {
+    setup("/comunicacoes", (url) => {
+      if (url.includes("/communications/campaigns/preview"))
+        return {
+          matched: 1,
+          recipients: 0,
+          included: [],
+          skipped: [
+            {
+              patientId: "p1",
+              patientName: "Ana Lima",
+              reason: "no_appointment",
+            },
+          ],
+          sample: null,
+        };
+      if (url.endsWith("/communications/campaigns")) return [];
+      if (url.endsWith("/communications/templates")) return [template];
+      if (url.includes("/patients/options"))
+        return [{ id: "p1", fullName: "Ana Lima", tags: [] }];
+      return undefined;
+    });
+    await screen.findByText("Nenhuma campanha ainda");
+    fireEvent.click(
+      screen.getAllByRole("button", { name: "Nova campanha" }).at(0)!,
+    );
+    const dialog = await screen.findByRole("dialog", { name: "Nova campanha" });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Continuar" }));
+    fireEvent.change(within(dialog).getByRole("combobox"), {
+      target: { value: "Ana" },
+    });
+    fireEvent.click(
+      await within(dialog).findByRole("option", { name: /Ana Lima/ }),
+    );
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Conferir quem recebe" }),
+    );
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent(
+      "Nenhuma das pessoas escolhidas pode receber esta mensagem: sem atendimento agendado. Volte e ajuste a lista ou a mensagem.",
+    );
+    expect(dialog).not.toHaveTextContent("WhatsApp liberado");
+    expect(
+      within(dialog).getByText("Sem atendimento agendado"),
+    ).toBeInTheDocument();
+    expect(
+      within(dialog).getByRole("button", { name: "Criar e começar a enviar" }),
+    ).toBeDisabled();
+  });
+
+  it("com motivos diferentes, manda ver os motivos e lista cada um", async () => {
+    const results = await openFilters({
+      matched: 2,
+      recipients: 0,
+      included: [],
+      skipped: [
+        { patientId: "p1", patientName: "Ana Lima", reason: "opt_out" },
+        {
+          patientId: "p2",
+          patientName: "Bruno Costa",
+          reason: "no_destination",
+        },
+      ],
+    });
+    expect(
+      within(results).getByText(/2 serão pulados \(motivos abaixo\)/),
+    ).toBeInTheDocument();
+    expect(
+      within(results).getByText(
+        "Nenhum dos clientes encontrados pode receber esta mensagem: veja os motivos abaixo.",
+      ),
+    ).toBeInTheDocument();
+    expect(results).not.toHaveTextContent("WhatsApp liberado");
+    fireEvent.click(within(results).getByText("Ver quem foi pulado"));
+    expect(
+      within(results).getByText("Não autorizou mensagens neste canal"),
+    ).toBeVisible();
+    expect(
+      within(results).getByText("Sem contato cadastrado para o canal"),
+    ).toBeVisible();
+  });
+
+  it("com o mesmo motivo para todos os pulados, a contagem diz o motivo", async () => {
+    const results = await openFilters({
+      matched: 3,
+      recipients: 1,
+      included: [
+        { patientId: "p3", patientName: "Carla Souza", phone: "11999990000" },
+      ],
+      skipped: [
+        {
+          patientId: "p1",
+          patientName: "Ana Lima",
+          reason: "no_destination",
+        },
+        {
+          patientId: "p2",
+          patientName: "Bruno Costa",
+          reason: "no_destination",
+        },
+      ],
+    });
+    expect(
+      within(results).getByText(
+        /3 clientes encontrados · 2 serão pulados \(sem contato cadastrado para o canal\)/,
+      ),
+    ).toBeInTheDocument();
+    expect(results).not.toHaveTextContent("pode receber esta mensagem");
   });
 });
 
