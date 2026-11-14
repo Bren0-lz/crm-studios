@@ -395,6 +395,60 @@
   font-size: var(--text-sm);
   font-weight: 400;
 }
+
+@media (max-width: 700px) {
+  /* RV6: histórico de contratações em cartões empilhados: o item no alto e, abaixo, cada
+     dado com o rótulo da coluna (data-label), sem rolagem lateral. */
+  .contracted-history-table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .contracted-history-table,
+  .contracted-history-table tbody {
+    display: block;
+  }
+  .contracted-history-table caption {
+    display: block;
+    width: auto;
+  }
+  .contracted-history-table tr {
+    display: grid;
+    gap: var(--space-1);
+    padding: var(--space-3) 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .contracted-history-table tbody tr:last-child {
+    border-bottom: 0;
+  }
+  .contracted-history-table th,
+  .contracted-history-table td {
+    display: flex;
+    justify-content: space-between;
+    gap: var(--space-3);
+    padding: 0;
+    border-bottom: 0;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+  .contracted-history-table tbody th {
+    flex-direction: column;
+    order: -1;
+    font-size: var(--text-md);
+  }
+  .contracted-history-table td::before {
+    content: attr(data-label);
+    color: var(--muted);
+    font-size: var(--text-sm);
+    font-weight: 400;
+  }
+  .contracted-history-table td.numeric-value {
+    font-weight: 600;
+  }
+}
 .reports-page .retention-report td,
 .reports-page .retention-report th:not(:first-child) {
   text-align: right;

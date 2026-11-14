@@ -1693,6 +1693,16 @@ filtros ficam no `dashboard-studios` (EN11–EN13 têm só a parte da API aqui).
 - **Gate:** gate completo
 - **Status:** DONE
 
+### RV6 — Histórico de contratações em cartões no celular
+
+- **Origem:** 2ª rodada de teste, melhoria M3 aprovada pelo dono em 14/11/2026.
+- **Escopo:** `PatientSalesHistoryModal` (Relatórios › Sem retorno › "Histórico de …"): a
+  tabela ganha `contracted-history-table` e `data-label` nas células; até 700px cada linha
+  vira um cartão (item no alto; Data, Tipo, Movimento e Valor com o rótulo ao lado), sem
+  rolagem lateral. No computador continua tabela.
+- **Gate:** gate completo + `npm run test:e2e`
+- **Status:** DONE
+
 ### RV2 — Campanha: motivo certo quando ninguém pode receber
 
 - **Origem:** 2ª rodada de teste (`PLANO_CORRECOES_RODADA2_2026-11-13.md`, item 9.4).
