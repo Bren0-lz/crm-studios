@@ -1724,6 +1724,16 @@ filtros ficam no `dashboard-studios` (EN11–EN13 têm só a parte da API aqui).
 - **Depende de:** RT1, RT2, RT5
 - **Status:** DONE
 
+### RV5 — Grade da Agenda cabe na tela do celular
+
+- **Origem:** 2ª rodada de teste, melhoria M2 aprovada pelo dono em 14/11/2026.
+- **Escopo:** até 700px, a grade do Dia (`.day-grid-scroll`) tem altura máxima igual à tela
+  abaixo do topo fixo (medido por `ResizeObserver`, porque o aviso de pendências muda a
+  altura dele) e `scroll-margin-top` para não ficar sob o topo. Rolando até a grade, ela cabe
+  inteira e só ela rola. No computador continua 70vh.
+- **Gate:** gate completo + `npm run test:e2e`
+- **Status:** DONE
+
 ### RV3 — Nome da clínica visível no celular
 
 - **Origem:** 2ª rodada de teste (`PLANO_CORRECOES_RODADA2_2026-11-13.md`, item 1.3).

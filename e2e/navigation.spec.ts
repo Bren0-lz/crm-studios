@@ -94,7 +94,9 @@ test("clinic name stays visible in the mobile header without horizontal scroll",
     { width: 360, height: 740 },
   ]) {
     await page.setViewportSize(viewport);
-    await expect(banner.getByText("Studios Aryana", { exact: true })).toBeVisible();
+    await expect(
+      banner.getByText("Studios Aryana", { exact: true }),
+    ).toBeVisible();
     const label = (await page.locator(".clinic-label").boundingBox())!;
     expect(label.width).toBeGreaterThan(0);
     const actions = [
@@ -120,4 +122,36 @@ test("clinic name stays visible in the mobile header without horizontal scroll",
       ),
     ).toBe(true);
   }
+});
+
+test("agenda day grid fits below the sticky header on mobile", async ({
+  page,
+}, testInfo) => {
+  test.skip(testInfo.project.name !== "mobile", "Grade da agenda no celular.");
+  await login(page);
+  await page.goto("/agenda");
+  const grid = page.locator(".day-grid-scroll");
+  await expect(grid).toBeVisible();
+  await grid.evaluate((element) => element.scrollIntoView());
+  // A grade inteira fica à vista abaixo do topo fixo: rolando dentro dela, nada some.
+  await expect
+    .poll(async () => {
+      const [topbar, box, viewport] = await Promise.all([
+        page.locator(".topbar").boundingBox(),
+        grid.boundingBox(),
+        page.evaluate(() => window.innerHeight),
+      ]);
+      return (
+        box!.y >= topbar!.y + topbar!.height - 1 &&
+        box!.y + box!.height <= viewport + 1 &&
+        // e ocupa o resto da tela (antes eram 70vh, com parte escondida sob o topo).
+        box!.y + box!.height >= viewport - 24
+      );
+    })
+    .toBe(true);
+  expect(
+    await grid.evaluate(
+      (element) => element.scrollHeight > element.clientHeight,
+    ),
+  ).toBe(true);
 });
