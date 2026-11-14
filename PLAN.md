@@ -1650,3 +1650,12 @@ filtros ficam no `dashboard-studios` (EN11–EN13 têm só a parte da API aqui).
   quando o plano já é `custom`.
 - **Gate:** gate completo + `npm run test:mysql`
 - **Status:** DONE
+
+### RT3 — Dados faltantes do lead incluem o WhatsApp de emergência
+
+- **Escopo:** `LeadRegistrationData` ganha `emergencyContactWhatsapp`; em
+  `leadMissingRegistrationFields`, o item de emergência só some com nome, telefone e WhatsApp
+  preenchidos e lista só o que falta ("Contato de emergência (WhatsApp)", "(nome e WhatsApp)",
+  "(nome, telefone e WhatsApp)").
+- **Gate:** gate completo
+- **Status:** DONE

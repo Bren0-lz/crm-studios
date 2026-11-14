@@ -106,7 +106,7 @@ describe("lean lead form", () => {
     });
     const message = within(request).getByLabelText("Mensagem para o lead");
     expect(message).toHaveValue(
-      "Olá, Lead! Para concluir seu cadastro, preciso destas informações:\n\n• CPF\n• E-mail\n• Data de nascimento\n• Endereço (CEP, rua, número, bairro, cidade/UF)\n• Contato de emergência (nome e telefone)\n\nPode me enviar por aqui mesmo. Obrigado!",
+      "Olá, Lead! Para concluir seu cadastro, preciso destas informações:\n\n• CPF\n• E-mail\n• Data de nascimento\n• Endereço (CEP, rua, número, bairro, cidade/UF)\n• Contato de emergência (nome, telefone e WhatsApp)\n\nPode me enviar por aqui mesmo. Obrigado!",
     );
     expect(
       within(request).getByRole("link", { name: "Enviar pelo WhatsApp" }),
@@ -211,6 +211,62 @@ describe("lean lead form", () => {
     ).toHaveTextContent("Novos0");
     expect(screen.getByRole("status")).toHaveTextContent(
       "Lead convertido: cadastro de Lead salvo.",
+    );
+  });
+
+  // RT3: o cadastro de cliente exige o WhatsApp do contato de emergência.
+  it("asks for the emergency contact WhatsApp when only its name and phone are filled", async () => {
+    localStorage.setItem("crm.auth.token", "test-token");
+    localStorage.setItem(
+      "crm.auth.user",
+      storedUser({
+        id: "22222222-2222-4222-8222-222222222222",
+        fullName: "Aryana Dutra",
+        email: "admin@movimenta.local",
+        role: "owner",
+      }),
+    );
+    const leads = [
+      {
+        id: "45454545-4545-4545-8545-454545454545",
+        clinicId: "11111111-1111-4111-8111-111111111111",
+        fullName: "Bia Emergência",
+        phone: "11977775555",
+        stage: "new_contact",
+        cpf: "52998224725",
+        email: "bia@email.com",
+        birthDate: "1990-04-02",
+        postalCode: "01001000",
+        address: "Praça da Sé",
+        addressNumber: "10",
+        neighborhood: "Sé",
+        city: "São Paulo",
+        state: "SP",
+        emergencyContactName: "João Souza",
+        emergencyContactPhone: "11912345678",
+      },
+    ];
+    vi.mocked(fetch).mockImplementation(async (input) => {
+      const url = String(input);
+      const body = isLeadBoardUrl(url) ? leadBoardResponse(url, leads) : [];
+      return { ok: true, status: 200, json: async () => body } as Response;
+    });
+    render(
+      <MemoryRouter initialEntries={["/comercial"]}>
+        <App />
+      </MemoryRouter>,
+    );
+    const card = (await screen.findByText("Bia Emergência")).closest(
+      "article",
+    ) as HTMLElement;
+    fireEvent.click(within(card).getByRole("button", { name: "Converter" }));
+    const request = screen.getByRole("dialog", {
+      name: "Converter lead em cliente",
+    });
+    expect(
+      within(request).getByLabelText("Mensagem para o lead"),
+    ).toHaveValue(
+      "Olá, Bia! Para concluir seu cadastro, preciso destas informações:\n\n• Contato de emergência (WhatsApp)\n\nPode me enviar por aqui mesmo. Obrigado!",
     );
   });
 });
