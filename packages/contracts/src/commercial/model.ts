@@ -70,6 +70,7 @@ export interface LeadRegistrationData {
   birthDate?: string | undefined;
   emergencyContactName?: string | undefined;
   emergencyContactPhone?: string | undefined;
+  emergencyContactWhatsapp?: string | undefined;
   postalCode?: string | undefined;
   address?: string | undefined;
   addressNumber?: string | undefined;
@@ -95,6 +96,16 @@ export function leadMissingRegistrationFields(
     ["bairro", lead.neighborhood],
     ["cidade/UF", filled(lead.city) && filled(lead.state) ? "ok" : ""],
   ];
+  // O cadastro de cliente exige nome, telefone e WhatsApp do contato de emergência.
+  const missingEmergency = (
+    [
+      ["nome", lead.emergencyContactName],
+      ["telefone", lead.emergencyContactPhone],
+      ["WhatsApp", lead.emergencyContactWhatsapp],
+    ] as Array<[string, string | undefined]>
+  )
+    .filter(([, value]) => !filled(value))
+    .map(([label]) => label);
   const missingAddress = addressParts
     .filter(([, value]) => !filled(value))
     .map(([label]) => label);
@@ -107,10 +118,17 @@ export function leadMissingRegistrationFields(
     ...(missingAddress.length === 0
       ? []
       : [`Endereço (${missingAddress.join(", ")})`]),
-    ...(filled(lead.emergencyContactName) && filled(lead.emergencyContactPhone)
+    ...(missingEmergency.length === 0
       ? []
-      : ["Contato de emergência (nome e telefone)"]),
+      : [`Contato de emergência (${joinWithAnd(missingEmergency)})`]),
   ];
+}
+
+/** "a", "a e b", "a, b e c". */
+function joinWithAnd(items: string[]): string {
+  return items.length < 2
+    ? (items[0] ?? "")
+    : `${items.slice(0, -1).join(", ")} e ${items.at(-1)}`;
 }
 
 /** Mensagem para o lead mandar de uma vez o que falta no cadastro (WhatsApp ou copiar). */

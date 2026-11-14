@@ -32,6 +32,7 @@ const completeLead: Lead = {
   state: "SP",
   emergencyContactName: "Paulo Mendes",
   emergencyContactPhone: "11912345678",
+  emergencyContactWhatsapp: "11912345678",
 };
 
 // O cadastro em si é o `PatientModal` (LC1), coberto em lead-form-conversion.

@@ -2011,6 +2011,7 @@ describe("pedido de dados do lead antes da conversão", () => {
     state: "SP",
     emergencyContactName: "João Souza",
     emergencyContactPhone: "11912345678",
+    emergencyContactWhatsapp: "11912345678",
   };
 
   it("não pede nada quando o cadastro já está completo", () => {
@@ -2034,8 +2035,39 @@ describe("pedido de dados do lead antes da conversão", () => {
       "E-mail",
       "Data de nascimento",
       "Endereço (número, bairro, cidade/UF)",
-      "Contato de emergência (nome e telefone)",
+      "Contato de emergência (telefone e WhatsApp)",
     ]);
+  });
+
+  // RT3: o cadastro de cliente exige também o WhatsApp do contato de emergência.
+  it("pede só o que falta do contato de emergência, incluindo o WhatsApp", () => {
+    const emergency = (
+      name: string,
+      phone: string,
+      whatsapp: string,
+    ) =>
+      leadMissingRegistrationFields({
+        ...complete,
+        emergencyContactName: name,
+        emergencyContactPhone: phone,
+        emergencyContactWhatsapp: whatsapp,
+      });
+    expect(emergency("João", "11912345678", "")).toEqual([
+      "Contato de emergência (WhatsApp)",
+    ]);
+    expect(emergency("", "11912345678", "")).toEqual([
+      "Contato de emergência (nome e WhatsApp)",
+    ]);
+    expect(emergency("", "", "")).toEqual([
+      "Contato de emergência (nome, telefone e WhatsApp)",
+    ]);
+    expect(emergency("João", "11912345678", "11912345678")).toEqual([]);
+    expect(
+      leadRegistrationRequestMessage({
+        ...complete,
+        emergencyContactWhatsapp: undefined,
+      }),
+    ).toContain("• Contato de emergência (WhatsApp)");
   });
 
   it("monta a mensagem com o primeiro nome e um item por linha", () => {
