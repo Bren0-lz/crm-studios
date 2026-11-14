@@ -1,238 +1,348 @@
-# Plano de correções — relatório de teste de 13/11/2026 (PRs 09–13/11)
+# Plano de correções — relatório de teste de 13/11/2026
 
-Origem: relatório do Claude in Chrome em `https://crm.organizastudios.com` (13/11/2026, 19:59–20:37).
-Cada item foi conferido contra o código da `main` em `9ef5ea0`. Nada foi desenvolvido: este
-arquivo é só planejamento. Os IDs `RT1`…`RT9` são sugestão (prefixo livre no `PLAN.md`).
+Este arquivo é autossuficiente: quem executa não tem o contexto da conversa que o gerou.
+Cada tarefa diz o defeito, os arquivos, a mudança exata e os testes a criar.
 
-## 1. Validação do relatório
+## 0. Como usar este plano
 
-Legenda: **Válido** = defeito confirmado no código · **Parcial** = parte procede · **Por
-decisão** = comportamento intencional, só muda se o dono quiser · **Não é defeito**.
+- Repositório `bren0-lz/crm-studios` (monorepo npm: `packages/contracts`, `apps/api`, `apps/web`).
+  Leia `CLAUDE.md` e `AGENTS.md` antes de começar; as regras de lá valem aqui.
+- **Uma tarefa por sessão/PR.** Para cada tarefa: `git fetch origin main`, crie o branch a
+  partir de `origin/main`, implemente, rode o gate, escreva o diário em
+  `diario/<AAAA-MM-DD>-<ID>.md`, faça commit em pt-BR (sem `Co-Authored-By`), `git fetch origin
+  main && git merge origin/main`, gate de novo, push e PR com título `<ID>: <título>`.
+- **Gate completo** (todos com exit 0):
+  `npm run typecheck && npm run lint && npm test && npm run build && node apps/web/scripts/audit-panels.cjs`
+- **Teste focado:** `npm exec -w @crm/api -- vitest run src/<arquivo>.test.ts` (idem `@crm/web`,
+  `@crm/contracts`).
+- **Tarefa que toca `apps/api/src/storage/mysql`** roda também `npm run test:mysql` com
+  `TEST_DATABASE_URL` (seção "Banco de dados" do `CLAUDE.md`).
+- Nenhuma tarefa deste plano precisa de migração nova nem de dependência npm nova.
+- As linhas citadas valem para a `main` em `9ef5ea0`; se o arquivo mudou, localize pelo trecho.
+- Ambiguidade não se resolve por chute: marque `BLOCKED` no diário e pare.
+- Na interface, "paciente" é sempre **cliente**. Textos em pt-BR.
+- Ao abrir cada tarefa, acrescente-a ao `PLAN.md` numa seção nova
+  `## Pedido avulso — Correções do relatório de teste (13/11/2026)`, no formato das tarefas
+  vizinhas (`### <ID> — título`, **Escopo**, **Gate**, **Status**). Não edite o `STATE.md`.
 
-### 1.1 Falhas
+## 1. Origem e validação
 
-| Item | Veredito | Causa confirmada no código |
-|------|----------|----------------------------|
-| 7.4 Venda "Pacote fixo" falha no cadastro guiado | **Válido — Alta** | Ver 2.1. Não é o modelo "Pacote fixo" que falha: é todo plano do catálogo do tipo **Plano pacote** (`promotional`). |
-| 6.7 Sem "Sem resposta"; ligação vira "Mensagem enviada" | **Válido — Média** | Ver 2.2. |
-| 9.1 Campanha "Só leads": resumo diz "clientes"; sem filtro de etiquetas | **Parcial — Baixa** | Texto: válido. Filtro de etiquetas: existe, mas some quando nenhum lead tem etiqueta. Ver 2.3. |
-| 5.1 Sacola não mostra "Plano pacote" | **Parcial — Baixa** | A sacola nunca usou o rótulo do tipo; mostra o rótulo genérico do bloco. Ver 2.4. |
+Um teste manual em produção (13/11/2026, usuário admin, só desktop) apontou 4 falhas e várias
+observações. Cada item foi conferido contra o código. Resultado:
 
-### 1.2 Observações
+| Item do relatório | Veredito | Tarefa |
+|-------------------|----------|--------|
+| 7.4 Venda de plano falha no cadastro guiado ("Opção inválida.") | Válido, alta | RT1 |
+| 6.7 Contato do lead sem "Sem resposta"; ligação vira "Mensagem enviada" | Válido, média | RT2 |
+| 7.1 Mensagem de dados faltantes ignora o WhatsApp de emergência | Válido, média | RT3 |
+| 9.1 Campanha "Só leads" fala em "clientes"; filtro de etiquetas some | Parcial, baixa | RT4 |
+| 5.1 Sacola não mostra "Plano pacote" | Parcial, baixa | RT5 |
+| 8.4 Ponto duplo "14 de nov.." | Válido, baixa | RT6 |
+| 6.5 Data truncada no cartão do lead | Válido, baixa | RT6 |
+| 6.9 Datas do lead sem hora | Válido, baixa | RT6 |
+| Botão "Salvar e criar plano" na conversão de lead | Válido, baixa | RT6 |
+| CPF sem máscara na ficha; telefone sem máscara na lixeira | Válido, baixa | RT6 |
+| Sexta-feira Santa como feriado nacional | Não é defeito (roteiro errado) | — |
+| Confirmação aceita "excluir" minúsculo | Intencional | — |
+| Plano recorrente sem barra "N de M usadas" | Intencional (recorrente não tem saldo) | — |
+| Toast com o primeiro nome | Intencional | — |
+| Senha do admin com 3 caracteres | Dono decidiu: **sem tamanho mínimo**. Nada a fazer no código | — |
 
-| Item | Veredito | Evidência |
-|------|----------|-----------|
-| 2.2 Senha do admin com 3 caracteres | **Válido (segurança)** | `passwordSchema` em `packages/contracts/src/administration/model.ts:116` aceita `min(1)`. Não há tamanho mínimo. |
-| 7.1 Mensagem de dados faltantes sem WhatsApp de emergência | **Válido** | `packages/contracts/src/commercial/model.ts:109-112` só confere nome e telefone; a conversão exige `emergencyContactWhatsapp` desde o #354. |
-| 8.4 Ponto duplo "14 de nov.." | **Válido** | `apps/web/src/shared/components/TrialHistoryHint.tsx:63`: `shortDate` já termina em "." e o texto acrescenta outro. |
-| 6.5 Data truncada no cartão do lead | **Válido** | `10-commercial-communications.css:571`: o `span` do texto tem `text-overflow: ellipsis` e a data fica no fim. |
-| 6.9 Datas sem hora nos detalhes do lead | **Válido** | `LeadDetailsModal.tsx:51` usa `shortDate` (sem hora) em "Cadastrado em"/"Atualizado em". |
-| 6.11 "Observações: Sem observações" sem campo no modal de perda | **Válido (baixa)** | `LeadLostModal.tsx` só pede o motivo; as observações exibidas são as do cadastro do lead. |
-| 6.7/hover Painel de histórico cobre os botões do cartão | **Válido (baixa)** | `LeadCard.tsx:137-138` abre no `mouseenter` do invólucro; o painel fica sobre as ações. |
-| 7.4 Botão "Salvar e criar plano" na conversão | **Válido (baixa)** | `guidedSubmitLabels` (`features/patients/model.ts:361`) é o mesmo para cliente novo e conversão. |
-| CPF/telefone sem máscara (ficha e lixeira) | **Válido (baixa)** | `PatientRecordTabs.tsx:130` mostra `patient.cpf` cru; a lixeira mostra `detail` (telefone) cru em `TrashModal.tsx:87-91`. |
-| "0 sessões disponíveis" com plano recorrente ativo | **Por decisão, texto confuso** | `planHasSessionBalance` exclui recorrente (sem saldo). O card soma só planos com saldo. |
-| 10.11 Sem barra "N de M usadas" no recorrente | **Não é defeito** | `planSessionProgress` devolve "Sem limite de sessões" para recorrente. Retestar com pacote depois da RT1. |
-| 4.8 Aceita "excluir" em minúsculas | **Por decisão** | `PurgeConfirmModal.tsx:37` faz `toUpperCase()` de propósito. |
-| 3.4 Sexta-feira Santa como "Nacional" | **Não é defeito** | `agenda/holidays.ts:83` marca como feriado (não facultativo). O roteiro está errado. |
-| 4.2 SOS global não pré-seleciona o cliente da ficha | **Por decisão** | `EmergencyButton.tsx` começa com `patientId` vazio. Melhoria opcional. |
-| 4.9 Excluir plano só em Planos e sessões | **Por decisão** | Cartão do plano na ficha tem só Extrato e Cancelar (`PatientRecordTabs.tsx:552-562`). Melhoria opcional. |
-| 6.1 Hex só pelo seletor nativo | **Por decisão** | `StageColorWheel.tsx:240` usa `input type="color"`. Melhoria opcional. |
-| Toast com o 1º nome | **Não é defeito** | `patientFirstName()` é intencional; o nome de teste começava por "TESTE". |
-| 8.5 Card "Aulas experimentais" | **Inconclusivo** | Sem experimental no período. Retestar. |
+### Decisões do dono (14/11/2026)
 
-### 1.3 Cobertura
+- **D1:** plano do catálogo do tipo "Plano pacote" é vendido no cadastro guiado com
+  `kind: "custom"`, igual à venda pela ficha do cliente.
+- **D2:** senha continua sem tamanho mínimo. Não mexer em `passwordSchema`.
+- **D3:** ligação e tentativa sem resposta **não** contam como "envio" de mensagem.
 
-43 OK, 4 falhas, 21 não testados. Os 21 não testados seguem sem validação: login/senha (1.1,
-1.2, 2.3), usuário não admin (2.4, 4.11, 9.5), upload (6.13), eventos (7.7, 10.2, 10.3), fila de
-envio (9.4), exportação (10.1), Telegram (10.4), DRE (10.8), turmas (10.12) e todo o celular
-(1.3, 4.4, 6.1, 10.5, 10.9, 11.1). Ver seção 5.
+### Fora deste plano (sem decisão do dono — não implementar)
 
-## 2. Problemas confirmados — detalhe
+SOS pré-selecionando o cliente da ficha; botão Excluir plano dentro da ficha; campo de texto
+hex nas cores; campo "Observações" no modal de perda do lead; painel de histórico do cartão
+do lead cobrindo os botões; texto do card "sessões disponíveis" em Planos e sessões.
 
-### 2.1 Plano do tipo "Plano pacote" não vende pelo cadastro guiado (7.4)
+## 2. Tarefas
 
-- `planTypeKind("promotional")` devolve `"custom"` (`packages/contracts/src/plans/model.ts:89-97`).
-- `GuidedPlanFields.tsx:158` copia esse `kind` para o formulário ao escolher o plano do catálogo.
-- O seletor "Modelo" do `PatientModal.tsx:1416` só tem `fixed_package` e `recurring`
-  (`guidedPlanKinds`). Com valor `custom`, o navegador exibe a primeira opção ("Pacote fixo"),
-  mas o estado continua `custom`. Por isso o relatório fala em "Pacote fixo".
-- `guidedSubscriptionPlanSchema` (`packages/contracts/src/patients/model.ts:451`) só aceita
-  `recurring` ou `fixed_package` → 400 "Opção inválida.".
-- Alcance: cliente novo e conversão de lead (#353/#351), para **todo** plano de catálogo com
-  tipo "Plano pacote". A venda pela ficha (`PlanForm`, schema com `planKindSchema`) aceita `custom`.
-- Não há teste cobrindo plano `promotional` no cadastro guiado (web nem API).
-- A mensagem "Opção inválida." não diz qual campo falhou.
+### RT1 — Plano pacote no cadastro guiado — prioridade alta
 
-### 2.2 Registro de contato do lead (6.7)
+**Defeito.** Em Clientes › Novo cliente (ou CRM comercial › lead › Converter), ao adicionar um
+plano do catálogo cujo tipo é "Plano pacote" e salvar, `POST /api/patients/guided` responde
+400 `{"code":"VALIDATION_ERROR","message":"Opção inválida."}`.
 
-- `LeadActivityModal.tsx:421-436`: o formulário não tem campo para `reached`. O contrato
-  (`leadContactInputSchema.reached`) e a linha do tempo (`LeadContactTimeline.tsx:62`) já
-  suportam "Sem resposta"; só o modal de eventos (`EventContactModal.tsx`) grava `reached: false`.
-- `LeadContactTimeline.tsx:5`: direção `outbound` sempre vira "Mensagem enviada", mesmo com
-  canal Telefone ou Presencial.
-- `LeadMessageSummary` (`LeadActivityModal.tsx:36`) e a faixa do `LeadCard` contam todo
-  `outbound` como "envio" — ligação e tentativa sem resposta entram na conta.
+**Causa.**
+1. `planTypeKind("promotional")` devolve `"custom"`
+   (`packages/contracts/src/plans/model.ts`, função `planTypeKind`). "Plano pacote" é o rótulo
+   do tipo interno `promotional`.
+2. `apps/web/src/features/patients/GuidedPlanFields.tsx` (~linha 158) copia esse `kind` para o
+   formulário quando o usuário escolhe o plano do catálogo.
+3. `guidedSubscriptionPlanSchema` (`packages/contracts/src/patients/model.ts`, ~linha 450) só
+   aceita `z.enum(["recurring", "fixed_package"])`.
+4. O seletor "Modelo" em `apps/web/src/features/patients/PatientModal.tsx` (~linha 1416) só
+   lista `guidedPlanKinds = ["fixed_package", "recurring"]`
+   (`apps/web/src/features/patients/model.ts`, ~linha 296). Com valor `custom` o navegador
+   exibe a primeira opção ("Pacote fixo"), mas o estado continua `custom`.
 
-### 2.3 Campanha para leads (9.1)
+**Mudança.**
+- Contrato: `guidedSubscriptionPlanSchema` passa a aceitar
+  `z.enum(["recurring", "fixed_package", "custom"])`. Os `refine` existentes continuam.
+  Confira que nenhum deles trata "não recorrente" como "pacote fixo" de forma que quebre
+  `custom` (ex.: `isRecurringChargeValid`, `renewablePlanPeriod`).
+- API: siga `guidedSales` (`apps/api/src/modules/patients/guided-plans.ts`) até os
+  repositórios `apps/api/src/storage/memory/patients.ts` e
+  `apps/api/src/storage/mysql/patients.ts`. O plano `custom` deve ser gravado com
+  `kind: "custom"` e seguir o mesmo caminho que `POST` de plano pela ficha já usa para
+  `custom`. `planPackageSessions` já devolve `undefined` para `custom` (não agenda dias fixos);
+  não mude isso. Se algum ponto assumir só `recurring | fixed_package` (tipo ou `if`), amplie.
+- Web: `guidedPlanKinds` e o tipo `GuidedPlanForm` (`features/patients/types.ts`) aceitam
+  `custom`. No seletor "Modelo" do `PatientModal`, a opção "Personalizado"
+  (`planKindLabels.custom`, em `apps/web/src/features/plans/model.ts`) aparece **somente**
+  quando o valor atual do formulário é `custom`; com outro valor, as opções continuam
+  "Pacote fixo" e "Recorrente". O `<select>` nunca pode ficar com valor fora das opções.
 
-- `NewCampaignModal.tsx:103-175` e `CampaignFiltersModal.tsx:39-61`: todos os textos dizem
-  "clientes", inclusive com público "Só leads" ou "Incluir leads".
-- `LeadAudienceFields.tsx:140`: o filtro "Etiquetas do lead" existe, mas `Choices` devolve
-  `null` com lista vazia. Na base testada nenhum lead tinha etiqueta, então o filtro sumiu.
+**Testes a criar.**
+- `packages/contracts/src/contracts.unit.test.ts`: `guidedPatientInputSchema` com
+  `next: "plan"` aceita `plan.kind: "custom"` e continua recusando `kind: "single"` nesse passo.
+- `apps/api/src/modules/patients/guided-sale.integration.test.ts`: cria modelo de plano com
+  `planType: "promotional"`, chama `POST /patients/guided` com `next: "plan"` e
+  `plan.kind: "custom"`; espera 201, plano gravado com `kind: "custom"` e cobrança gerada.
+- `apps/api/src/modules/patients/guided-lead-conversion.integration.test.ts`: mesmo cenário
+  convertendo um lead; espera 201 e lead convertido.
+- `apps/api/src/storage/mysql/tests/guided-sale.integration.test.ts`: mesmo cenário no MySQL
+  (laço `for (const storage of ["memory", "mysql"])` se o arquivo já usar).
+- `apps/web/src/features/patients/guided-client-registration.integration.test.tsx`: com um
+  modelo `planType: "promotional"` no catálogo mockado, escolher o plano e salvar; o corpo do
+  `fetch` para `/patients/guided` tem `plan.kind === "custom"` e o seletor "Modelo" mostra
+  "Personalizado".
 
-### 2.4 Sacola (5.1)
+**Gate.** Completo + `npm run test:mysql`.
 
-- `PatientModal.tsx:444-475`: `detail` usa `planLabel()` ("Plano"/"Plano 2"), não o tipo do
-  plano do catálogo. `planTypeLabels` só é usado em `PlanForm`, `PlanTemplateModal` e
-  `PlanTemplatesContent`.
+### RT2 — Contato do lead: "Sem resposta" e rótulo por canal — prioridade média
 
-## 3. Decisões que o dono precisa tomar antes
+**Defeito.** No cartão do lead › Atividades › aba Contatos: (a) não há como registrar tentativa
+sem resposta; (b) uma ligação registrada como "Realizado" aparece com o selo "Mensagem
+enviada" e conta em "N envios"; (c) o cartão do funil mostra "Mensagem enviada" para o lead
+que só recebeu uma ligação.
 
-| # | Pergunta | Recomendação |
-|---|----------|--------------|
-| D1 | "Plano pacote" no cadastro guiado vende como quê? (a) aceitar `custom` no schema guiado, igual à venda pela ficha; (b) converter para `fixed_package`, que agenda sessões em dias fixos até acabar o pacote. | **(a)**: mantém o mesmo plano igual nos dois caminhos de venda e não muda dado já gravado. O seletor "Modelo" ganha a opção "Personalizado" quando o catálogo define o tipo. |
-| D2 | Tamanho mínimo de senha? Vale só para senha nova ou obriga troca das atuais? | Mínimo 8, só para senha nova/troca. A senha do Daniel Freitas é trocada à mão já. |
-| D3 | Na direção "Realizado", o resumo "N envios" conta ligações e tentativas sem resposta? | Não: "envio" só para canal de mensagem com `reached !== false`; o total de contatos continua contando tudo. |
-| D4 | Entram as melhorias opcionais (SOS com cliente da ficha, Excluir plano na ficha, campo hex, observação no modal de perda)? | Só a observação no modal de perda (RT8). As outras ficam fora. |
-| D5 | Card "sessões disponíveis" com plano recorrente: manter a regra e ajustar o texto? | Manter a regra; rótulo "sessões disponíveis em pacotes". |
+**Estado atual.**
+- Contrato já tem `reached?: boolean` em `leadContactInputSchema`
+  (`packages/contracts/src/commercial/model.ts`, ~linha 152); `false` = tentativa sem resposta.
+  A coluna `lead_contacts.reached` existe (migração `0049`, `TINYINT(1) NOT NULL DEFAULT 1`).
+- `apps/web/src/features/commercial/LeadContactTimeline.tsx` já mostra o selo "Sem resposta"
+  quando `reached === false`, mas rotula todo `direction: "outbound"` como "Mensagem enviada".
+- `apps/web/src/features/commercial/LeadActivityModal.tsx`: o formulário (~linhas 395–470) tem
+  Canal, Direção ("Realizado"/"Recebido"/"Registro interno"), Data e hora e Registro; não envia
+  `reached`. `LeadMessageSummary` (mesmo arquivo, ~linha 26) conta todo `outbound` como envio.
+- Modelo a copiar para o campo: `apps/web/src/features/events/EventContactModal.tsx`
+  (campo `reached` "yes"/"no").
+- `lead.lastMessageSentAt` é calculado no backend como o último contato `outbound`, qualquer
+  canal: `apps/api/src/storage/mysql/mappers/commercial.ts` (~linha 92, subconsulta
+  `MAX(lc.occurred_at) ... lc.direction = 'outbound'`) e
+  `apps/api/src/storage/memory/commercial.ts` (~linha 140).
+- Canais (`leadContactChannelSchema`): `phone`, `whatsapp`, `email`, `in_person`, `note`. Canal
+  com nome livre (ex.: "Instagram") é gravado como `note` com `contactMethod` preenchido.
 
-Sem resposta a D1 e D2, RT1 e RT2 ficam `BLOCKED` (regra do `CLAUDE.md`: ambiguidade não se
-resolve por chute).
+**Regra única (D3).** "Mensagem enviada" (envio) = contato com `direction === "outbound"`,
+`channel` diferente de `phone` e de `in_person`, e `reached !== false`. Crie essa regra como
+função exportada em `packages/contracts/src/commercial/model.ts`
+(ex.: `isLeadMessageSent(contact)`) e use-a em todos os pontos abaixo. O total de contatos
+(`contactCount`, "N contatos") continua contando tudo.
 
-## 4. Tarefas
+**Mudança.**
+- `LeadActivityModal`: quando a Direção é "Realizado", mostrar o campo "Conseguiu falar?"
+  (`<select>` Sim/Não, padrão Sim). "Não" envia `reached: false`; "Sim" não envia o campo.
+  Nas outras direções o campo some e nada é enviado. Reaproveitar `form-grid`; sem CSS novo
+  se possível.
+- `LeadContactTimeline`: rótulo de `outbound` conforme o canal — `phone` → "Ligação
+  realizada"; `in_person` → "Atendimento presencial"; demais → "Mensagem enviada". `inbound`
+  e `internal` não mudam. O selo "Sem resposta" continua.
+- `LeadMessageSummary`: `sent` passa a filtrar pela regra única. Textos mantidos.
+- Backend, `lastMessageSentAt` pela regra única nos dois repositórios: no MySQL, a subconsulta
+  ganha `AND lc.channel NOT IN ('phone','in_person') AND lc.reached = 1`; na memória, o `find`
+  usa a função do contrato.
+- `apps/web/src/features/commercial/CommercialPage.tsx` (~linha 349): depois de registrar um
+  contato, só atualiza `lastMessageSentAt` local se o contato satisfaz a regra única.
+- `apps/web/src/features/commercial/lead-contact-history.ts`: sem mudança de regra (o contato
+  sintético é WhatsApp/`contactMethod` do lead); só confira que continua coerente.
+- O atalho "Marcar enviada agora" não muda.
 
-Todas: gate completo do `CLAUDE.md`, um PR por tarefa a partir da `origin/main` atual, diário
-em `diario/<data>-<ID>.md`. Nenhuma precisa de migração.
+**Testes a criar.**
+- `contracts.unit.test.ts`: tabela de casos da função nova (whatsapp outbound → true; phone
+  outbound → false; in_person → false; note outbound → true; whatsapp com `reached: false` →
+  false; inbound → false).
+- `apps/api/src/modules/commercial/lead-board.integration.test.ts` (ou arquivo novo ao lado) e
+  `apps/api/src/storage/mysql/tests/lead-message-sent.integration.test.ts`: lead só com ligação
+  `outbound` → sem `lastMessageSentAt` e `contactCount: 1`; depois de um WhatsApp `outbound`
+  com `reached: false` → ainda sem; depois de um WhatsApp `outbound` normal → com a data dele.
+- `apps/web/src/features/commercial/lead-contact-channel.integration.test.tsx` (ou
+  `lead-message-sent.integration.test.tsx`): registrar contato Telefone + Realizado + "Não" →
+  corpo do `fetch` tem `reached: false`; a linha do tempo mostra "Ligação realizada" e "Sem
+  resposta"; o resumo não soma envio. Direção "Recebido" → campo "Conseguiu falar?" ausente.
+- Ajustar testes existentes que esperavam "Mensagem enviada" para ligação.
 
-### RT1 — Plano pacote no cadastro guiado (7.4) — Alta
+**Gate.** Completo + `npm run test:mysql`.
 
-- **Escopo (com D1 = a):** `guidedSubscriptionPlanSchema` aceita `custom`
-  (`packages/contracts/src/patients/model.ts`); conferir `guidedSales`/`guided-plans.ts` e os
-  dois repositórios (`storage/memory/patients.ts`, `storage/mysql/patients.ts`) para `custom`
-  seguir o mesmo caminho da venda pela ficha (sem agenda de pacote fixo: `planPackageSessions`
-  já devolve `undefined`). Web: `guidedPlanKinds` e o seletor "Modelo" do `PatientModal`
-  mostram o valor real do formulário — nunca um valor fora das opções.
-- **Testes:** API (`modules/patients/*.integration.test.ts`, memória e MySQL) vendendo plano
-  de catálogo `promotional` em `POST /patients/guided`, cliente novo e conversão de lead; web
-  (`guided-client-registration.integration.test.tsx`) escolhendo plano `promotional` e
-  conferindo o `kind` enviado; contrato em `contracts.unit.test.ts`.
-- **Arquivos quentes:** nenhum. Rodar `npm run test:mysql` (toca `storage/mysql`).
-- **Depende de:** D1.
+### RT3 — Dados faltantes do lead incluem o WhatsApp de emergência — prioridade média
 
-### RT2 — Tamanho mínimo de senha (2.2) — Alta (segurança)
+**Defeito.** Na conversão do lead, a lista "falta no cadastro" e a mensagem para o lead pedem
+"Contato de emergência (nome e telefone)". O cadastro de cliente exige também o WhatsApp de
+emergência (`emergencyContactWhatsapp`), então a lista diz "completo" e a conversão recusa.
 
-- **Escopo (com D2):** `passwordSchema` com mínimo 8 e mensagem pt-BR; vale em criar usuário,
-  redefinir (`passwordResetSchema`) e trocar a própria senha (`newPassword`). O login
-  (`password: z.string().nonempty()`) não muda, para senhas antigas continuarem entrando.
-  Dica de tamanho nos formulários (`field-hint`). Dados demo e fixtures com senha curta
-  acompanham.
-- **Testes:** contrato (recusa 7, aceita 8); API de usuários e de troca de senha; web do modal
-  "Senha de acesso".
-- **Ação manual, fora do código:** trocar agora a senha do admin Daniel Freitas.
-- **Depende de:** D2.
+**Arquivo.** `packages/contracts/src/commercial/model.ts`: interface `LeadRegistrationData`
+(~linha 60) e `leadMissingRegistrationFields` (~linha 86).
 
-### RT3 — Contato do lead: "Sem resposta" e rótulo por canal (6.7) — Média
+**Mudança.**
+- `LeadRegistrationData` ganha `emergencyContactWhatsapp?: string | undefined`.
+- O item de emergência só some quando nome, telefone **e** WhatsApp estão preenchidos. O
+  texto lista só o que falta, na ordem nome, telefone, WhatsApp: ex.
+  `"Contato de emergência (WhatsApp)"`, `"Contato de emergência (nome e WhatsApp)"`,
+  `"Contato de emergência (nome, telefone e WhatsApp)"`.
+- Confira quem chama (`apps/web/src/features/commercial/LeadConvertModal.tsx`): o lead
+  passado precisa incluir `emergencyContactWhatsapp` (o campo já existe no lead).
 
-- **Escopo:** `LeadActivityModal`: campo "Conseguiu falar?" (Sim/Não) quando a direção é
-  "Realizado", gravando `reached` (mesmo padrão do `EventContactModal`). `LeadContactTimeline`:
-  rótulo de `outbound` pelo canal ("Mensagem enviada" para WhatsApp/e-mail/SMS; "Ligação
-  realizada" para telefone; "Contato realizado" para os demais). `LeadMessageSummary`, faixa do
-  `LeadCard` e `lead-contact-history.ts`: "envio" conforme D3. Só web — o contrato e os
-  repositórios já guardam `reached` e `channel`.
-- **Testes:** `features/commercial/*.integration.test.tsx` (registrar ligação sem resposta;
-  selo e contagem).
-- **Depende de:** D3.
+**Testes a criar.**
+- `contracts.unit.test.ts`: os três textos acima; lead com os três campos → item ausente;
+  `leadRegistrationRequestMessage` contém o item novo.
+- `apps/web/src/features/commercial/lead-form-conversion.integration.test.tsx`: lead com nome
+  e telefone de emergência, sem WhatsApp → o modal de conversão lista
+  "Contato de emergência (WhatsApp)". Atualizar asserções antigas do texto "(nome e telefone)".
 
-### RT4 — Dados faltantes do lead incluem WhatsApp de emergência (7.1) — Média
+**Gate.** Completo.
 
-- **Escopo:** `packages/contracts/src/commercial/model.ts:109-112`: o item de emergência só
-  some com nome, telefone **e** WhatsApp preenchidos; o rótulo lista o que falta ("Contato de
-  emergência (nome, telefone e WhatsApp)"). Conferir a mensagem gerada para o lead.
-- **Testes:** `contracts.unit.test.ts` e o teste web da conversão.
-- **Motivo da prioridade:** hoje a mensagem diz que está completo e a conversão recusa depois.
+### RT4 — Campanha para leads: textos e filtro de etiquetas — prioridade baixa
 
-### RT5 — Textos de campanha para leads e filtro de etiquetas sempre visível (9.1) — Baixa
+**Defeito.** Em Comunicações › Nova campanha › Por filtros › "Só leads": (a) o resumo diz
+"0 clientes vão receber esta campanha · 1 cliente encontrado"; (b) o filtro "Etiquetas do
+lead" não aparece quando nenhum lead tem etiqueta.
 
-- **Escopo:** `NewCampaignModal` e `CampaignFiltersModal`: substantivo conforme o público —
-  "clientes", "leads" ou "pessoas" (misto) — em contagem, busca, vazios e `aria-label`.
-  `LeadAudienceFields`: "Etiquetas do lead" aparece mesmo vazio, com
-  `field-hint` "Nenhum lead tem etiqueta ainda." (os outros filtros mantêm o comportamento).
-- **Testes:** `features/communications/campaigns/*.integration.test.tsx`.
+**Arquivos.** `apps/web/src/features/communications/campaigns/NewCampaignModal.tsx`
+(~linhas 95–180), `CampaignFiltersModal.tsx` (~linhas 39–61), `LeadAudienceFields.tsx`
+(componente `Choices`, ~linha 28, e o uso em ~linha 140). O público vem de
+`audience` (`"patients" | "patients_and_leads" | "leads"`,
+`campaignAudienceKindSchema` em `packages/contracts/src/communications/model.ts`).
 
-### RT6 — Sacola mostra o tipo do plano (5.1) — Baixa
+**Mudança.**
+- Substantivo conforme o público, singular/plural: `patients` → "cliente/clientes";
+  `leads` → "lead/leads"; `patients_and_leads` → "pessoa/pessoas". Aplicar em: "… vão receber
+  esta campanha", "… encontrado(s)", "Buscando …", "Não foi possível buscar os …",
+  `aria-label` da seção e da busca, "Nenhum dos … encontrados tem WhatsApp liberado.",
+  "Nenhum … com esses filtros.", subtítulo e contagem do `CampaignFiltersModal`. Com
+  `leads`, tirar o trecho "· N leads" (redundante). Um helper local resolve; sem contrato novo.
+- `Choices` ganha prop opcional `emptyHint`. Só em "Etiquetas do lead", lista vazia mostra o
+  rótulo e `<span className="span-2 field-hint">Nenhum lead tem etiqueta ainda.</span>`. Os
+  outros usos de `Choices` continuam sumindo quando vazios.
+- Campanha "Escolher clientes" (modo manual) não muda.
 
-- **Escopo:** `PatientModal.tsx:444-475`: `detail` usa `planTypeLabels[template.planType]`
-  quando o plano veio do catálogo com tipo; sem tipo, mantém "Plano"/"Plano N". Sem mudança em
-  `order.ts`.
-- **Testes:** `guided-client-registration.integration.test.tsx`.
-- **Depende de:** RT1 (mesmo arquivo `PatientModal.tsx`; não abrir os dois PRs em paralelo).
+**Testes a criar.** Em `apps/web/src/features/communications/campaigns.integration.test.tsx`:
+- público "Só leads" com prévia de 1 → texto "lead vai receber esta campanha" e nenhum
+  "cliente" no resumo;
+- público "Clientes e leads" → "pessoas vão receber esta campanha";
+- opções de lead sem etiquetas → "Etiquetas do lead" e "Nenhum lead tem etiqueta ainda." visíveis;
+- público "Só clientes" → textos atuais intactos.
 
-### RT7 — Acabamento de textos e formatos — Baixa
+**Gate.** Completo.
 
-Um PR, só web:
-- 8.4: tirar o ponto duplo em `TrialHistoryHint.tsx:63`.
-- 6.5: no `LeadCard`, a data não pode sumir — encurtar o rótulo ("Enviada · 13 de nov. às
-  14:32") ou truncar só o rótulo, não o `<time>`.
-- 6.9: "Cadastrado em"/"Atualizado em" com `shortDateTime` em `LeadDetailsModal.tsx`.
-- 7.4: `guidedSubmitLabels` próprio para conversão ("Converter e criar plano" etc.).
-- Máscaras: `formatCpf` na ficha (`PatientRecordTabs.tsx:130`) e `formatPhone` no `detail` de
-  cliente/lead da lixeira (`TrashModal.tsx`).
-- D5: rótulo do card em `PlansPage.tsx:193`.
-- **Testes:** ajustar os testes web que leem esses textos.
-- **Depende de:** RT1 e RT6 (`PatientModal.tsx`/`model.ts` de clientes), RT3 (`LeadCard.tsx`).
+### RT5 — Sacola mostra o tipo do plano — prioridade baixa
 
-### RT8 — Usabilidade do cartão e do modal de perda — Baixa (opcional, D4)
+**Depende de:** RT1 mesclada (mesmo arquivo `PatientModal.tsx`).
 
-- **Escopo:** painel de histórico do `LeadCard` não cobre as ações do cartão (abrir só no
-  hover/foco da faixa de mensagem, ou posicionar fora da área dos botões). `LeadLostModal`:
-  campo opcional "Observações" gravado nas observações do lead — só se já houver campo para
-  isso no contrato; se exigir campo novo, marcar `BLOCKED` e perguntar.
-- **Testes:** `features/commercial/*.integration.test.tsx`.
-- **Depende de:** RT3 e RT7 (`LeadCard.tsx`).
+**Defeito.** No cadastro guiado, a "Sacola" mostra "Plano · 1 cobrança" para um plano do tipo
+"Plano pacote"; o esperado é o rótulo do tipo.
 
-### RT9 — Reteste do que ficou sem validação — sem código
+**Arquivo.** `apps/web/src/features/patients/PatientModal.tsx`, montagem de `orderPlans`
+(~linhas 444–480): `detail` usa `item.label` (`planLabel()` → "Plano"/"Plano 2").
 
-Ver seção 5. Defeito novo vira tarefa nova; não entra nas RT acima.
+**Mudança.** Para planos do passo "plano" (não os avulsos): se o modelo do catálogo
+(`form.planTemplateId`) tem `planType`, o `detail` usa `planTypeLabels[planType]`
+(`@crm/contracts`: "Plano mensal", "Plano pacote"…) no lugar de "Plano"; com mais de um plano,
+manter o número ("Plano pacote 2" não — use `"<rótulo do tipo> · <cobranças>"` e deixe a
+distinção para o nome do plano, que já é o título da linha). Sem `planType`, mantém o
+comportamento atual. O modal precisa ter acesso à lista de modelos; se ela só existir dentro
+de `GuidedPlanFields`, suba o `planType` escolhido para o formulário em vez de buscar o
+catálogo de novo. Não alterar `features/patients/order.ts`.
 
-## 5. Reteste (RT9)
+**Testes a criar.** `guided-client-registration.integration.test.tsx`: plano de catálogo
+`promotional` na sacola → "Plano pacote · 1 cobrança"; plano sem `planType` → "Plano · 1 cobrança".
 
-Pré-requisitos que o teste anterior não tinha:
-1. Usuários de teste criados à mão pelo dono: um comum sem CRM, um só com `trash.view`.
-2. Um evento, uma turma e um lead com todos os dados preenchidos.
-3. Um plano **pacote** vendido (depois da RT1) e uma experimental **dentro** do período do relatório.
-4. Celular: usar o Playwright do projeto (`npm run test:e2e`, perfil celular) ou um aparelho
-   real — a janela do Chrome não redimensionou.
+**Gate.** Completo.
 
-Itens: 1.1, 1.2, 2.3, 2.4, 4.11, 6.13, 7.2, 7.7, 8.5, 9.4, 9.5, 10.1–10.6, 10.8, 10.9, 10.11,
-10.12 e todos os 📱. Refazer também 7.4, 6.7, 9.1 e 5.1 depois das correções.
+### RT6 — Acabamento de textos e formatos — prioridade baixa
 
-## 6. Ordem de desenvolvimento
+**Depende de:** RT1, RT2 e RT5 mescladas (mesmos arquivos). Só web; um PR.
 
-| Ordem | Tarefa | Por quê nesta posição |
-|-------|--------|-----------------------|
-| 0 | Trocar a senha do admin; responder D1–D5 | Ação imediata, sem código. Destrava RT1–RT3. |
-| 1 | **RT1** | Único bloqueio de venda. Destrava o reteste de 10.11. |
-| 2 | **RT2** | Segurança. Independente da RT1: pode ir em paralelo (arquivos diferentes). |
-| 3 | **RT4** | Pequena, só contrato; evita conversão recusada depois da mensagem "completa". Paralela à RT1/RT2. |
-| 4 | **RT3** | Corrige o histórico comercial. Paralela à RT1/RT2/RT4. |
-| 5 | **RT5** | Isolada no módulo de campanhas. Paralela a qualquer outra. |
-| 6 | **RT6** | Depois da RT1 mesclada (`PatientModal.tsx`). |
-| 7 | **RT7** | Depois de RT1, RT3 e RT6 mescladas (mexe nos mesmos arquivos). |
-| 8 | **RT8** | Opcional; depois da RT7. |
-| 9 | **RT9** | Com tudo em produção. |
+1. **Ponto duplo.** `apps/web/src/shared/components/TrialHistoryHint.tsx` (~linha 63): o
+   texto termina em `{items}.` e `shortDate` já termina em "." ("14 de nov."). Tirar o ponto
+   final do JSX. Resultado: "Já tem aula experimental: Pilates em 14 de nov."
+2. **Data truncada no cartão do lead.** `apps/web/src/features/commercial/LeadCard.tsx`
+   (~linha 161) e `.lead-message-status > span:first-of-type` em
+   `apps/web/src/styles/10-commercial-communications.css` (~linha 571): o texto inteiro
+   "Mensagem enviada · <data>" leva reticências e a data some. Separar em dois elementos:
+   rótulo "Enviada" (pode truncar) e `<time>` com `flex-shrink: 0` e `white-space: nowrap`.
+   Usar tokens (`--space-*`, `--text-*`); nada de px soltos.
+3. **Datas do lead com hora.** `apps/web/src/features/commercial/LeadDetailsModal.tsx`
+   (~linhas 51 e 239–240): "Cadastrado em" e "Atualizado em" passam a usar `shortDateTime`
+   (`apps/web/src/shared/lib/formatting.ts`). Outros usos de `dateText` (ex.: nascimento)
+   ficam só com data.
+4. **Botão da conversão.** `guidedSubmitLabels`
+   (`apps/web/src/features/patients/model.ts`, ~linha 361) serve cliente novo e conversão de
+   lead. Na conversão (o `PatientModal` recebe o lead de origem), usar: "Converter e agendar
+   aula experimental", "Converter e criar plano", "Converter e criar serviço avulso",
+   "Converter e colocar na lista de espera", "Converter em cliente". Cliente novo não muda.
+5. **Máscaras.** `apps/web/src/features/patients/PatientRecordTabs.tsx` (~linha 130): CPF com
+   `formatCpf`. `apps/web/src/features/trash/TrashModal.tsx` (~linhas 87–91): quando o tópico
+   é de clientes ou de leads (o `detail` é telefone), exibir com `formatPhone`. Os dois
+   formatadores estão em `@crm/contracts` (`packages/contracts/src/common/model.ts`). Datas e
+   nomes em `detail` de outros tópicos não mudam.
 
-Paralelismo seguro: {RT1, RT2, RT3, RT4, RT5} podem estar abertos ao mesmo tempo — não
-compartilham arquivo nem tocam arquivo quente. RT6 → RT7 → RT8 são sequenciais.
+**Testes a criar/ajustar.**
+- Teste de `TrialHistoryHint` (ou o teste de agenda que já o cobre): texto sem "..".
+- `lead-details.integration.test.tsx`: "Cadastrado em" com hora.
+- `lead-form-conversion.integration.test.tsx`: botão "Converter e criar plano" na conversão;
+  `guided-client-registration.integration.test.tsx`: "Salvar e criar plano" no cliente novo.
+- `apps/web/src/features/trash/trash.integration.test.tsx`: telefone do cliente formatado.
+- Teste da ficha do cliente: CPF formatado.
+- `lead-message-sent.integration.test.tsx`: `<time>` do cartão presente com data e hora.
 
-## 7. Limpeza dos dados de teste (produção)
+**Gate.** Completo (o `audit-panels.cjs` confere o CSS do item 2).
 
-Feita pelo dono na tela, não por código:
-- Usuário Daniel Freitas: desligar "Realiza atendimentos" e remover o profissional `TESTE-0001`,
-  se não deveria ficar.
-- Excluir: clientes `TESTE Cliente A` (PAC-00002) e `TESTELead2` (PAC-00004, com cobrança de
-  R$ 100,00 em aberto — cancelar antes), leads `TESTE Lead 1` e `TESTELead2`, serviço
-  `TESTE Pilates`, sala `TESTE Sala`, plano `TESTE Plano Pacote`, etapa `TESTE Etapa`, origem
-  `TESTE Origem`.
+### RT7 — Reteste em produção — sem código
+
+Só depois de RT1–RT6 em produção. Não é tarefa de desenvolvimento; é roteiro para quem testa.
+
+Pré-requisitos, criados pelo dono: usuário comum sem CRM; usuário só com `trash.view`; um
+evento; uma turma; um lead com todos os dados; um plano "Plano pacote" vendido; uma aula
+experimental dentro do período do relatório. Celular: aparelho real ou
+`npm run test:e2e` (perfil celular).
+
+Refazer: 7.4, 6.7, 7.1, 9.1, 5.1 e os itens de RT6. Testar o que ficou sem validação: 1.1, 1.2,
+2.3, 2.4, 4.11, 6.13, 7.2, 7.7, 8.5, 9.4, 9.5, 10.1–10.6, 10.8, 10.9, 10.11 (com plano pacote),
+10.12 e todos os itens de celular. Defeito novo vira tarefa nova.
+
+## 3. Ordem de desenvolvimento
+
+| Ordem | Tarefa | Observação |
+|-------|--------|------------|
+| 1 | RT1 | Único bloqueio de venda. |
+| 2 | RT3 | Pequena, só contrato + um teste web. Pode ir em paralelo à RT1. |
+| 3 | RT2 | Toca API (memória e MySQL) e web do CRM. Pode ir em paralelo à RT1 e à RT3\*. |
+| 4 | RT4 | Isolada em campanhas. Paralela a qualquer outra. |
+| 5 | RT5 | Só depois da RT1 mesclada. |
+| 6 | RT6 | Só depois de RT1, RT2 e RT5 mescladas. |
+| 7 | RT7 | Com tudo em produção. |
+
+\* RT2 e RT3 editam `packages/contracts/src/commercial/model.ts` em blocos diferentes (RT3 em
+`leadMissingRegistrationFields`, RT2 junto de `leadContactInputSchema`). Coloque o código novo
+junto do bloco relacionado, não no fim do arquivo; a segunda a mesclar faz
+`git merge origin/main` antes do push.
+
+Nenhuma tarefa toca os arquivos quentes do `CLAUDE.md`.
+
+## 4. Limpeza dos dados de teste em produção
+
+Feita pelo dono na tela, depois da RT7 (o reteste reaproveita os dados):
+- Usuário Daniel Freitas: desligar "Realiza atendimentos" e remover o profissional
+  `TESTE-0001`, se não deveria ficar.
+- Excluir: clientes `TESTE Cliente A` (PAC-00002) e `TESTELead2` (PAC-00004 — cancelar antes a
+  cobrança de R$ 100,00 em aberto), leads `TESTE Lead 1` e `TESTELead2`, serviço `TESTE
+  Pilates`, sala `TESTE Sala`, plano `TESTE Plano Pacote`, etapa `TESTE Etapa`, origem `TESTE
+  Origem`.
 - Esvaziar a lixeira da Agenda (experimental de `TESTELead2` em 14/11/2026 09:00).
-- Só depois da RT9, para o reteste reaproveitar os dados.
