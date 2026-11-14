@@ -7,7 +7,8 @@ import { useState } from "react";
 import { Modal, ModalCancelButton } from "../../../shared/components/Modal";
 import { useFormDirty } from "../../../shared/workflows/useDirtyGuard";
 import { CampaignFilters } from "./CampaignFilters";
-import { useSegmentPreview } from "./useSegmentPreview";
+import { campaignAudienceWords } from "./model";
+import { useSegmentPreview, type SegmentLeads } from "./useSegmentPreview";
 
 /**
  * Configura os filtros da campanha num modal sobre a "Nova campanha". Trabalha
@@ -20,8 +21,11 @@ export function CampaignFiltersModal({
   patients,
   onApply,
   onClose,
+  leads,
 }: {
   templateId: string;
+  /** Leads no público: a contagem soma os leads do filtro de leads ("pessoas"). */
+  leads?: SegmentLeads | undefined;
   initial: WhatsappCampaignSegment;
   options: CampaignFilterOptions | null;
   patients: PatientOption[];
@@ -30,13 +34,18 @@ export function CampaignFiltersModal({
 }) {
   const [draft, setDraft] = useState(initial);
   const dirty = useFormDirty(draft);
-  const { loading, preview, error } = useSegmentPreview(templateId, draft);
+  const { loading, preview, error } = useSegmentPreview(
+    templateId,
+    draft,
+    leads,
+  );
+  const words = campaignAudienceWords(leads?.audience ?? "patients");
   return (
     <Modal
       className="campaign-filters-modal"
       eyebrow="Campanha de WhatsApp"
       title="Filtros da campanha"
-      subtitle="Combine os filtros; a contagem abaixo mostra na hora quantos clientes entram."
+      subtitle={`Combine os filtros; a contagem abaixo mostra na hora quantos ${words.many} entram.`}
       dirty={dirty}
       onClose={onClose}
     >
@@ -49,15 +58,15 @@ export function CampaignFiltersModal({
       <div className="modal-actions campaign-filters-modal-actions">
         <p className="campaign-filters-modal-count" role="status">
           {loading ? (
-            "Contando clientes…"
+            `Contando ${words.many}…`
           ) : error ? (
-            "Não foi possível contar os clientes"
+            `Não foi possível contar ${words.theMany}`
           ) : (
             <>
               <strong>{preview!.recipients}</strong>{" "}
               {preview!.recipients === 1
-                ? "cliente vai receber"
-                : "clientes vão receber"}
+                ? `${words.one} vai receber`
+                : `${words.many} vão receber`}
             </>
           )}
         </p>

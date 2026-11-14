@@ -496,12 +496,23 @@ describe("campanhas de WhatsApp", () => {
       if (url.includes("/communications/campaigns/preview")) {
         const body = JSON.parse(String(init?.body));
         previews.push(body);
+        // Clientes e leads: um cliente e um lead.
+        const both = body.audience?.audience === "patients_and_leads";
         return {
-          matched: 1,
-          recipients: 1,
+          matched: both ? 2 : 1,
+          recipients: both ? 2 : 1,
           leads: 1,
           included: [
             { leadId: "l1", patientName: "Lia Lead", phone: "11977776666" },
+            ...(both
+              ? [
+                  {
+                    patientId: "p1",
+                    patientName: "Caio Cliente",
+                    phone: "11977775555",
+                  },
+                ]
+              : []),
           ],
           skipped: [],
         };
@@ -558,11 +569,34 @@ describe("campanhas de WhatsApp", () => {
         },
       }),
     );
+    // RT4: o resumo fala em leads, sem "cliente" e sem repetir "· 1 lead".
     const results = within(dialog).getByRole("region", {
-      name: "Clientes encontrados",
+      name: "Leads encontrados",
     });
     expect(await within(results).findByText("Lia Lead")).toBeInTheDocument();
-    expect(within(results).getByText(/1 lead/)).toBeInTheDocument();
+    const total = within(results).getByRole("status");
+    expect(total).toHaveTextContent("lead vai receber esta campanha");
+    expect(total).toHaveTextContent("1 lead encontrado");
+    expect(total).not.toHaveTextContent(/cliente/i);
+    expect(total).not.toHaveTextContent("· 1 lead");
+    // Sem etiqueta em nenhum lead, o filtro aparece com o aviso.
+    expect(within(dialog).getByText("Etiquetas do lead")).toBeInTheDocument();
+    expect(
+      within(dialog).getByText("Nenhum lead tem etiqueta ainda."),
+    ).toBeInTheDocument();
+
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Clientes e leads" }),
+    );
+    const both = await within(dialog).findByRole("region", {
+      name: "Pessoas encontradas",
+    });
+    expect(
+      await within(both).findByText("pessoas vão receber esta campanha"),
+    ).toBeInTheDocument();
+    expect(within(both).getByRole("status")).toHaveTextContent(
+      "2 pessoas encontradas · 1 lead",
+    );
   });
 
   it("por filtros, lista na hora quem a etiqueta encontrou", async () => {
