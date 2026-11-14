@@ -6,6 +6,7 @@ import {
   discountedPlanInstallments,
   planInstallmentSchedule,
   planPixChargeMessage,
+  planTypeLabels,
   productSizeLabel,
   whatsappLink,
   withPlanFirstCharge,
@@ -455,6 +456,10 @@ export function PatientModal({
             {
               key: `plan-${entry.id}`,
               label: planLabel(index),
+              // Tipo do modelo do catálogo ("Plano pacote"…) no lugar de "Plano" (RT5).
+              detail: entry.planType
+                ? planTypeLabels[entry.planType]
+                : planLabel(index),
               form: entry.form,
               terms: withPlanFirstCharge(entry.form, slotsOf(entry.groupId)),
             },
@@ -464,6 +469,7 @@ export function PatientModal({
     ...singles.map((entry, index) => ({
       key: `plan-${entry.id}`,
       label: singleLabel(index),
+      detail: singleLabel(index),
       form: entry.form,
       terms: entry.form,
     })),
@@ -472,7 +478,7 @@ export function PatientModal({
     .map((item) => ({
       key: item.key,
       name: item.form.name || item.label,
-      detail: `${item.label} · ${item.form.installments === 1 ? "1 cobrança" : `${item.form.installments} parcelas`}`,
+      detail: `${item.detail} · ${item.form.installments === 1 ? "1 cobrança" : `${item.form.installments} parcelas`}`,
       terms: item.terms,
       discount: item.form.discount,
       form: item.form,
@@ -1385,6 +1391,9 @@ export function PatientModal({
                   form={entry.form}
                   setForm={planFormSetter(entry.id)}
                   onServiceChange={() => updatePlan(entry.id, { groupId: "" })}
+                  onTemplateChange={(planType) =>
+                    updatePlan(entry.id, { planType })
+                  }
                   groupSlots={slotsOf(entry.groupId)}
                   waitlisted={guidedGroupFull(groups, entry.groupId)}
                   patientName={form.fullName}

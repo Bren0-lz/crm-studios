@@ -763,6 +763,19 @@ describe("guided client registration", () => {
         name: "Personalizado",
       }).selected,
     ).toBe(true);
+    // RT5: a sacola mostra o tipo do modelo do catálogo no lugar de "Plano".
+    const bag = within(dialog).getByRole("group", { name: "Sacola" });
+    expect(bag).toHaveTextContent("Plano pacote · 3 parcelas");
+    // Modelo sem tipo: continua "Plano".
+    fireEvent.change(catalog, { target: { value: pilatesTemplate.id } });
+    await waitFor(() =>
+      expect(bag).toHaveTextContent("Plano · 3 parcelas"),
+    );
+    expect(bag).not.toHaveTextContent("Plano pacote");
+    fireEvent.change(catalog, { target: { value: packageTemplate.id } });
+    await waitFor(() =>
+      expect(bag).toHaveTextContent("Plano pacote · 3 parcelas"),
+    );
     fireEvent.click(
       within(dialog).getByRole("button", { name: "Salvar e criar plano" }),
     );

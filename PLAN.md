@@ -1679,3 +1679,12 @@ filtros ficam no `dashboard-studios` (EN11–EN13 têm só a parte da API aqui).
   `emptyHint`: "Etiquetas do lead" vazio mostra "Nenhum lead tem etiqueta ainda.".
 - **Gate:** gate completo
 - **Status:** DONE
+
+### RT5 — Sacola mostra o tipo do plano
+
+- **Escopo:** no cadastro guiado, `GuidedPlanFields` sobe o `planType` do modelo escolhido
+  (`onTemplateChange`) para o `GuidedPlanEntry`; na sacola, o plano com tipo mostra
+  `"<rótulo do tipo> · <cobranças>"` (ex.: "Plano pacote · 3 parcelas"); sem tipo, segue "Plano".
+- **Gate:** gate completo
+- **Depende de:** RT1
+- **Status:** DONE
