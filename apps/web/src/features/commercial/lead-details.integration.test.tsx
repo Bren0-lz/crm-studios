@@ -122,6 +122,64 @@ describe("commercial lead details", () => {
     ).toBeInTheDocument();
   });
 
+  // RV1: endereço e contato de emergência do lead aparecem quando preenchidos.
+  it("shows the address and emergency contact only when filled", async () => {
+    renderBoard([
+      {
+        ...baseLead,
+        id: "47474747-4747-4747-8747-474747474747",
+        fullName: "Dora Endereço",
+        phone: "11987650000",
+        stage: "new_contact",
+        postalCode: "01001-000",
+        address: "Praça da Sé",
+        addressNumber: "10",
+        complement: "Sala 2",
+        neighborhood: "Sé",
+        city: "São Paulo",
+        state: "SP",
+        emergencyContactName: "João Souza",
+        emergencyContactPhone: "11912345678",
+        emergencyContactWhatsapp: "11912345679",
+      },
+      {
+        ...baseLead,
+        id: "48484848-4848-4848-8848-484848484848",
+        fullName: "Eva Sem Endereço",
+        phone: "11987651111",
+        stage: "new_contact",
+      },
+    ]);
+    const card = (await screen.findByText("Dora Endereço")).closest(
+      "article",
+    ) as HTMLElement;
+    fireEvent.click(card.querySelector(".lead-card-chips") as HTMLElement);
+    let dialog = await detailsDialog();
+    expect(
+      within(dialog).getByText("Endereço").nextElementSibling,
+    ).toHaveTextContent(
+      "Praça da Sé, 10 · Sala 2 · Sé · São Paulo/SP · CEP 01001-000",
+    );
+    expect(
+      within(dialog).getByText("Contato de emergência").nextElementSibling,
+    ).toHaveTextContent(
+      "João Souza · Telefone (11) 91234-5678 · WhatsApp (11) 91234-5679",
+    );
+    fireEvent.click(within(dialog).getByRole("button", { name: "Fechar" }));
+    await waitFor(() =>
+      expect(screen.queryByText(/^Etapa:/)).not.toBeInTheDocument(),
+    );
+    const other = screen
+      .getByText("Eva Sem Endereço")
+      .closest("article") as HTMLElement;
+    fireEvent.click(other.querySelector(".lead-card-chips") as HTMLElement);
+    dialog = await detailsDialog();
+    expect(within(dialog).queryByText("Endereço")).not.toBeInTheDocument();
+    expect(
+      within(dialog).queryByText("Contato de emergência"),
+    ).not.toBeInTheDocument();
+  });
+
   it("shows the loss reason and notes of a lost lead", async () => {
     renderBoard([
       {
