@@ -8,6 +8,7 @@ import {
   type PublicDocumentSignInput,
   type PublicRequestMetadata,
   type PublicSignatureDocument,
+  type PublicSignatureOpenDocument,
 } from "@crm/contracts";
 import type { PoolClient } from "../../infrastructure/mysql-client.js";
 import { assertDocumentPatientCpf } from "../../modules/contracts/patient-cpf.js";
@@ -67,6 +68,13 @@ async function lockByToken(client: PoolClient, token: string) {
 }
 
 function publicDocument(row: PublicLinkRow): PublicSignatureDocument {
+  // Cancelado e não assinado: só o aviso e o estúdio, sem o texto nem os dados do cliente.
+  if (!row.signedAt && row.documentStatus === "cancelled")
+    return { status: "cancelled", clinicName: row.clinicName };
+  return openDocument(row);
+}
+
+function openDocument(row: PublicLinkRow): PublicSignatureOpenDocument {
   return {
     title: row.title,
     patientName: row.patientName,
@@ -74,11 +82,7 @@ function publicDocument(row: PublicLinkRow): PublicSignatureDocument {
     snapshotBody: row.snapshotBody,
     ...(row.snapshotContent ? { snapshotContent: row.snapshotContent } : {}),
     ...(row.branding ? { branding: row.branding } : {}),
-    status: row.signedAt
-      ? "signed"
-      : row.documentStatus === "cancelled"
-        ? "cancelled"
-        : "pending",
+    status: row.signedAt ? "signed" : "pending",
     documentSha256:
       row.signature?.documentSha256 ?? documentTextSha256(row.snapshotBody),
     ...(row.signedAt ? { signedAt: row.signedAt.toISOString() } : {}),
@@ -318,7 +322,7 @@ export function createDocumentSignatureLinksRepository(
             WHERE l.id = $1`,
           [row.id],
         );
-        return publicDocument({
+        return openDocument({
           ...row,
           signedAt: signed.rows[0]!.signedAt,
           signature,

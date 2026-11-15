@@ -69,6 +69,7 @@ import type {
   PublicSignatureInput,
   PublicRequestMetadata,
   PublicSignatureDocument,
+  PublicSignatureOpenDocument,
 } from "@crm/contracts";
 import type {
   ProductUpdateInput,
@@ -1976,7 +1977,7 @@ export interface ClinicRepository {
     token: string,
     input: PublicDocumentSignInput,
     metadata: PublicRequestMetadata,
-  ): Promise<PublicSignatureDocument | null>;
+  ): Promise<PublicSignatureOpenDocument | null>;
   listDocumentTemplates(clinicId: string): Promise<DocumentTemplate[]>;
   createDocumentTemplate(
     clinicId: string,

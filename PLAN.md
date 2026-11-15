@@ -1879,7 +1879,7 @@ filtros ficam no `dashboard-studios` (EN11–EN13 têm só a parte da API aqui).
   pode mais ser assinado." e o nome do estúdio; a API não devolve o corpo nem os dados do
   cliente. Testes API e web.
 - **Gate:** gate completo
-- **Status:** TODO
+- **Status:** DONE
 
 ### RE10 — Acabamento de textos e números
 

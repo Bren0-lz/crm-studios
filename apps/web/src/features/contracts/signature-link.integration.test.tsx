@@ -268,6 +268,44 @@ describe("contract signature link", () => {
     }
   });
 
+  // RE9: cancelado mostra só o aviso e o estúdio, sem o texto nem os dados do cliente.
+  it("shows only the notice and the studio name for a cancelled contract", async () => {
+    const { repository, patient, dance } = await clientWithTemplates();
+    const draft = await repository.createIssuedDocument(clinicId, actorId, {
+      patientId: patient.id,
+      templateId: dance.id,
+      title: "Contrato Dançaterapia",
+    });
+    await repository.updateIssuedDocumentStatus(clinicId, draft.id, "issued");
+    const share = await repository.createDocumentSignatureLink(
+      clinicId,
+      actorId,
+      draft.id,
+    );
+    await repository.updateIssuedDocumentStatus(
+      clinicId,
+      draft.id,
+      "cancelled",
+    );
+    const settings = await repository.getClinicSettings(clinicId);
+    localStorage.clear();
+    open(`/assinar-contrato/${share!.token}`);
+    expect(
+      await screen.findByText(
+        "Este contrato foi cancelado e não pode mais ser assinado.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: settings!.name }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/aulas de dançaterapia/)).not.toBeInTheDocument();
+    expect(screen.queryByText(new RegExp(patient.fullName))).toBeNull();
+    expect(
+      screen.queryByRole("heading", { name: "Contrato Dançaterapia" }),
+    ).toBeNull();
+    expect(screen.queryByLabelText("Nome completo")).toBeNull();
+  });
+
   it("shows a friendly message for an unknown link", async () => {
     await setupApi();
     localStorage.clear();

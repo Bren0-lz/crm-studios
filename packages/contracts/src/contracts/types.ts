@@ -125,18 +125,25 @@ export interface DocumentSignatureLinkShare {
   clinicName: string;
 }
 /** O que o cliente vê no link público (sem dados internos da clínica). */
-export interface PublicSignatureDocument {
+export interface PublicSignatureOpenDocument {
   title: string;
   patientName: string;
   clinicName: string;
   snapshotBody: string;
   snapshotContent?: DocumentContent;
   branding?: ClinicBranding;
-  status: "pending" | "signed" | "cancelled";
+  status: "pending" | "signed";
   documentSha256: string;
   signedAt?: string;
   signerName?: string;
 }
+/** Documento cancelado e não assinado: o link público não mostra o texto nem os dados do cliente. */
+export interface PublicSignatureCancelledDocument {
+  status: "cancelled";
+  clinicName: string;
+}
+export type PublicSignatureDocument =
+  PublicSignatureOpenDocument | PublicSignatureCancelledDocument;
 /** Dados de quem acessou o link, registrados junto da visualização e da assinatura. */
 export interface PublicRequestMetadata {
   ipAddress?: string;
