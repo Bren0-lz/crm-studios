@@ -1,4 +1,5 @@
 import {
+  type GroupWaitlistItem,
   type WaitlistOptions,
   waitlistEntryInputSchema,
   waitlistEntryUpdateSchema,
@@ -22,6 +23,36 @@ export function registerWaitlistRoutes({
     );
   app.get("/waitlist", { preHandler: authenticate }, async (request) =>
     repository.listWaitlist(request.user.clinicId),
+  );
+  // Espera das turmas (RE14): matrículas `waitlisted` das turmas cheias, com a turma, para a
+  // tela mostrar junto da lista do serviço. Ofertar e remover usam as rotas de Turmas.
+  app.get(
+    "/waitlist/groups",
+    { preHandler: authenticate },
+    async (request): Promise<GroupWaitlistItem[]> => {
+      const now = new Date().toISOString();
+      const workspace = await repository.getGroupWorkspace(
+        request.user.clinicId,
+        now,
+        now,
+      );
+      const groups = new Map(workspace.groups.map((item) => [item.id, item]));
+      return workspace.enrollments
+        .filter((item) => item.status === "waitlisted")
+        .flatMap((enrollment) => {
+          const group = groups.get(enrollment.groupId);
+          return group ? [{ enrollment, group }] : [];
+        })
+        .sort(
+          (left, right) =>
+            left.group.name.localeCompare(right.group.name, "pt-BR") ||
+            (left.enrollment.queuePosition ?? 0) -
+              (right.enrollment.queuePosition ?? 0) ||
+            left.enrollment.enrolledAt.localeCompare(
+              right.enrollment.enrolledAt,
+            ),
+        );
+    },
   );
   // Quem só acessa a lista de espera também precisa escolher o serviço ou o produto.
   app.get(

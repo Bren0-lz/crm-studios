@@ -45,9 +45,14 @@ const mutationRules: [RegExp, DataDomain[]][] = [
   // Nome e cor do profissional ligado aparecem na agenda.
   [/^\/me\/profile$/, ["agenda"]],
   [/^\/agenda-notes(?:\/|$|\?)/, ["agenda", "history"]],
+  // Matrícula e capacidade da turma mudam a espera da turma na Lista de espera (RE14).
+  [
+    /^\/(?:group-enrollments|groups)(?:\/|$)/,
+    ["agenda", "plans", "finance", "history", "waitlist"],
+  ],
   // Status do atendimento consome sessão do plano e entra no dashboard e na ficha.
   [
-    /^\/(?:appointments|group-sessions|group-replacements|group-enrollments|groups|schedule-blocks|holidays)(?:\/|$)/,
+    /^\/(?:appointments|group-sessions|group-replacements|schedule-blocks|holidays)(?:\/|$)/,
     ["agenda", "plans", "finance", "history"],
   ],
   [/^\/leads\/[^/]+\/appointments$/, ["agenda", "history", "crm"]],

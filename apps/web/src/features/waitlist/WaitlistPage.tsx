@@ -1,10 +1,13 @@
 import {
   formatPhone,
+  groupWaitlistItemKey,
   waitlistDemand,
   waitlistItemKey,
   waitlistKindLabels,
   waitlistPosition,
   waitlistStatusLabels,
+  withPrefix,
+  type GroupWaitlistItem,
   type WaitlistEntry,
   type WaitlistOptions,
 } from "@crm/contracts";
@@ -12,15 +15,20 @@ import { Hourglass, Plus, Search } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
+import { WaitlistContactModal } from "../groups";
+import { ActionModal } from "../../shared/components/ActionModal";
 import { EmptyState } from "../../shared/components/EmptyState";
 import { ErrorBanner } from "../../shared/components/ErrorBanner";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
 import { PageHeader } from "../../shared/components/PageHeader";
 import { useToast } from "../../shared/feedback/toast-context";
 import { useDataVersion } from "../../shared/hooks/useDataVersion";
+import { shortDate } from "../../shared/lib/formatting";
 import {
   daysWaiting,
+  filterGroupWaitlist,
   filterWaitlist,
+  groupOfferOpen,
   statusFilterLabels,
   statusPillClass,
   waitingLabel,
@@ -35,12 +43,24 @@ const initialFilters = {
   status: "queue" as WaitlistStatusFilter,
 };
 
-/** Lista de espera: quem aguarda turma de um serviço ou reposição de um produto. */
+/**
+ * Lista de espera: quem aguarda turma de um serviço ou reposição de um produto, e a espera das
+ * turmas cheias (RE14, matrículas `waitlisted`), com a oferta da vaga e a saída da espera.
+ */
 export function WaitlistPage() {
-  const { can, canEdit } = useAuthorization();
+  const { can, canEdit, canView } = useAuthorization();
   const toast = useToast();
   const canManage = canEdit("waitlist") && can("waitlist.manage");
+  // Espera da turma: oferecer (contato da vaga, como no alerta) e remover seguem as de Turmas.
+  const canOffer = canManage && canView("groups") && canView("patients");
+  const canRemoveFromGroup =
+    canManage && canEdit("groups") && can("groups.cancel_enrollment");
   const [entries, setEntries] = useState<WaitlistEntry[] | null>(null);
+  const [groupItems, setGroupItems] = useState<GroupWaitlistItem[] | null>(
+    null,
+  );
+  const [offering, setOffering] = useState<string | null>(null);
+  const [removing, setRemoving] = useState<string | null>(null);
   const [options, setOptions] = useState<WaitlistOptions | null>(null);
   const [error, setError] = useState("");
   const [adding, setAdding] = useState(false);
@@ -50,10 +70,11 @@ export function WaitlistPage() {
   const version = useDataVersion("waitlist");
   useEffect(() => {
     let alive = true;
-    Promise.all([api.waitlist(), api.waitlistOptions()])
-      .then(([entryData, optionData]) => {
+    Promise.all([api.waitlist(), api.groupWaitlist(), api.waitlistOptions()])
+      .then(([entryData, groupData, optionData]) => {
         if (!alive) return;
         setEntries(entryData);
+        setGroupItems(groupData);
         setOptions(optionData);
       })
       .catch((cause: Error) => {
@@ -64,14 +85,22 @@ export function WaitlistPage() {
     };
   }, [version]);
   async function reload(message: string) {
-    setEntries(await api.waitlist());
+    const [entryData, groupData] = await Promise.all([
+      api.waitlist(),
+      api.groupWaitlist(),
+    ]);
+    setEntries(entryData);
+    setGroupItems(groupData);
     setAdding(false);
     setManaging(null);
+    setOffering(null);
+    setRemoving(null);
     toast.success(message);
   }
 
   const all = entries ?? [];
-  const demand = waitlistDemand(all);
+  const groupAll = groupItems ?? [];
+  const demand = waitlistDemand(all, groupAll);
   const maxTotal = demand[0]?.total ?? 0;
   const inQueue = demand.reduce((sum, item) => sum + item.total, 0);
   const waiting = demand.reduce((sum, item) => sum + item.waiting, 0);
@@ -81,19 +110,27 @@ export function WaitlistPage() {
     null,
   );
   const visible = filterWaitlist(all, filters);
+  const visibleGroups = filterGroupWaitlist(groupAll, filters);
+  const visibleCount = visible.length + visibleGroups.length;
   const itemOptions = [
-    ...new Map(
-      all.map((entry) => [
+    ...new Map([
+      ...all.map((entry): [string, string] => [
         waitlistItemKey(entry),
         `${entry.itemName} (${waitlistKindLabels[entry.kind].toLowerCase()})`,
       ]),
-    ),
+      ...groupAll.map((item): [string, string] => [
+        groupWaitlistItemKey(item),
+        `${item.group.serviceName} (${waitlistKindLabels.service.toLowerCase()})`,
+      ]),
+    ]),
   ].sort((left, right) => left[1].localeCompare(right[1], "pt-BR"));
   const filtered =
     filters.search !== initialFilters.search ||
     filters.item !== initialFilters.item ||
     filters.status !== initialFilters.status;
   const managed = all.find((entry) => entry.id === managing);
+  const offered = groupAll.find((item) => item.enrollment.id === offering);
+  const removed = groupAll.find((item) => item.enrollment.id === removing);
 
   function showQueue(key: string) {
     setFilters({ ...initialFilters, item: key });
@@ -119,7 +156,7 @@ export function WaitlistPage() {
         }
       />
       {error && <ErrorBanner error={error} />}
-      {!entries ? (
+      {!entries || !groupItems ? (
         !error && <LoadingBlock />
       ) : (
         <>
@@ -244,9 +281,9 @@ export function WaitlistPage() {
               <div>
                 <h2>Clientes na lista</h2>
                 <p className="panel-context">
-                  {visible.length === 1
+                  {visibleCount === 1
                     ? "1 entrada"
-                    : `${visible.length} entradas`}{" "}
+                    : `${visibleCount} entradas`}{" "}
                   · {statusFilterLabels[filters.status].toLowerCase()}
                 </p>
               </div>
@@ -312,13 +349,15 @@ export function WaitlistPage() {
                 </button>
               )}
             </div>
-            {!visible.length ? (
+            {!visibleCount ? (
               <EmptyState
                 title={
-                  all.length ? "Nenhuma entrada encontrada" : "Lista vazia"
+                  all.length || groupAll.length
+                    ? "Nenhuma entrada encontrada"
+                    : "Lista vazia"
                 }
                 copy={
-                  all.length
+                  all.length || groupAll.length
                     ? "Ajuste a busca ou os filtros para ver outras entradas."
                     : 'Use "Adicionar à lista" para registrar quem aguarda uma turma ou um produto.'
                 }
@@ -402,6 +441,82 @@ export function WaitlistPage() {
                         </tr>
                       );
                     })}
+                    {visibleGroups.map((item) => {
+                      const { enrollment, group } = item;
+                      const offerOpen = groupOfferOpen(item);
+                      const offer = canOffer && offerOpen;
+                      return (
+                        <tr key={`turma-${enrollment.id}`}>
+                          <th scope="row">
+                            <span className="waitlist-item">
+                              <strong>{enrollment.patientName}</strong>
+                            </span>
+                          </th>
+                          <td>
+                            <span className="waitlist-item">
+                              <span>{group.name}</span>
+                              <small>
+                                Espera da turma · {group.serviceName}
+                              </small>
+                            </span>
+                          </td>
+                          <td className="numeric-value">
+                            <span className="waitlist-cell-label">
+                              Posição{" "}
+                            </span>
+                            {enrollment.queuePosition
+                              ? `${enrollment.queuePosition}º`
+                              : "—"}
+                          </td>
+                          <td className="numeric-value">
+                            <span className="waitlist-cell-label">
+                              Na lista há{" "}
+                            </span>
+                            {waitingLabel(daysWaiting(enrollment.enrolledAt))}
+                          </td>
+                          <td>
+                            <span
+                              className={`status-pill ${statusPillClass.waiting}`}
+                            >
+                              {waitlistStatusLabels.waiting}
+                            </span>
+                          </td>
+                          <td className="waitlist-notes">
+                            Na espera da turma desde{" "}
+                            {shortDate.format(new Date(enrollment.enrolledAt))}
+                            {offerOpen
+                              ? " · vaga aberta"
+                              : " · aguardando vaga"}
+                          </td>
+                          <td>
+                            {(offer || canRemoveFromGroup) && (
+                              <span className="waitlist-row-actions">
+                                {offer && (
+                                  <button
+                                    type="button"
+                                    className="secondary-button button-sm"
+                                    aria-label={`Oferecer a vaga a ${enrollment.patientName}`}
+                                    onClick={() => setOffering(enrollment.id)}
+                                  >
+                                    Oferecer a vaga
+                                  </button>
+                                )}
+                                {canRemoveFromGroup && (
+                                  <button
+                                    type="button"
+                                    className="danger-button button-sm"
+                                    aria-label={`Remover ${enrollment.patientName} da espera da turma`}
+                                    onClick={() => setRemoving(enrollment.id)}
+                                  >
+                                    Remover da espera
+                                  </button>
+                                )}
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -427,6 +542,33 @@ export function WaitlistPage() {
           canManage={canManage}
           onClose={() => setManaging(null)}
           onChanged={reload}
+        />
+      )}
+      {offered && (
+        <WaitlistContactModal
+          enrollment={offered.enrollment}
+          group={offered.group}
+          canConfirm={can("groups.enroll")}
+          onClose={() => setOffering(null)}
+          onConfirmed={() =>
+            reload("Matrícula confirmada após aceite do cliente.")
+          }
+        />
+      )}
+      {removed && (
+        <ActionModal
+          eyebrow="Lista de espera"
+          title="Remover da espera da turma?"
+          subtitle={`${removed.enrollment.patientName} sai da espera da ${withPrefix("turma", removed.group.name)}; quem está atrás sobe uma posição.`}
+          confirmLabel="Remover da espera"
+          danger
+          onClose={() => setRemoving(null)}
+          onConfirm={async () => {
+            await api.cancelGroupEnrollment(removed.enrollment.id);
+            await reload(
+              `${removed.enrollment.patientName} saiu da espera da ${withPrefix("turma", removed.group.name)}.`,
+            );
+          }}
         />
       )}
     </>

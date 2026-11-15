@@ -1937,7 +1937,7 @@ filtros ficam no `dashboard-studios` (EN11–EN13 têm só a parte da API aqui).
   alerta) e remover da espera. Contagem e filtros incluem as duas. Nos dois repositórios, se
   precisar de rota nova. Testes API e web.
 - **Gate:** gate completo + `npm run test:mysql`
-- **Status:** TODO
+- **Status:** DONE
 
 ### RE15 — Desconto na contratação pela ficha
 

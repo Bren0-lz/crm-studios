@@ -1,7 +1,9 @@
 import {
   activeWaitlistStatuses,
+  groupWaitlistItemKey,
   patientFirstName,
   waitlistItemKey,
+  type GroupWaitlistItem,
   type WaitlistEntry,
   type WaitlistStatus,
 } from "@crm/contracts";
@@ -39,6 +41,37 @@ export function filterWaitlist(
           : entry.status === filters.status)) &&
       (!filters.item || waitlistItemKey(entry) === filters.item) &&
       (!term || entry.patientName.toLocaleLowerCase("pt-BR").includes(term)),
+  );
+}
+
+/**
+ * Espera da turma (RE14) com os mesmos filtros: conta como "Aguardando" (na fila), o item é o
+ * serviço da turma e a busca é pelo nome do cliente.
+ */
+export function filterGroupWaitlist(
+  items: readonly GroupWaitlistItem[],
+  filters: { search: string; item: string; status: WaitlistStatusFilter },
+) {
+  const term = filters.search.trim().toLocaleLowerCase("pt-BR");
+  return items.filter(
+    (item) =>
+      ["all", "queue", "waiting"].includes(filters.status) &&
+      (!filters.item || groupWaitlistItemKey(item) === filters.item) &&
+      (!term ||
+        item.enrollment.patientName.toLocaleLowerCase("pt-BR").includes(term)),
+  );
+}
+
+/**
+ * A vaga pode ser oferecida a este cliente da espera: a turma tem vaga e ele está dentro das
+ * vagas abertas da fila (com 1 vaga, só o 1º — como o alerta "Oferecer a vaga").
+ */
+export function groupOfferOpen({ enrollment, group }: GroupWaitlistItem) {
+  const vacancies = group.active ? group.capacity - group.activeEnrollments : 0;
+  return (
+    enrollment.status === "waitlisted" &&
+    enrollment.queuePosition !== undefined &&
+    enrollment.queuePosition <= vacancies
   );
 }
 

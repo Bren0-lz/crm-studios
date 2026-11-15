@@ -167,6 +167,7 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
   "GET /appointments/trials": operation("agenda.create"),
   "GET /waitlist": view("waitlist"),
   "GET /waitlist/options": view("waitlist"),
+  "GET /waitlist/groups": view("waitlist"),
   "POST /waitlist": operation("waitlist.manage"),
   "PATCH /waitlist/:id": operation("waitlist.manage"),
   "DELETE /waitlist/:id": operation("waitlist.manage"),
