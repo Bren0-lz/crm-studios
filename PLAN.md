@@ -1843,10 +1843,19 @@ filtros ficam no `dashboard-studios` (EN11–EN13 têm só a parte da API aqui).
 - **Triagem:** `PlanCard` mostra `planKindLabels[plan.kind]`; o trimestral vira `fixed_package`
   por `planTypeKind` e aparece como "Pacote fixo".
 - **Escopo:** com o tipo do modelo conhecido, o cartão mostra `planTypeLabels` ("Plano
-  trimestral"); sem tipo, segue o rótulo do `kind`. A renovação mostra o serviço no lugar do
-  nome do plano (obs. 4.10). Testes web.
+  trimestral"); sem tipo, segue o rótulo do `kind`. Testes web. A parte da renovação saiu para
+  a RE6b (decisão do dono, 15/11/2026).
 - **Gate:** gate completo
-- **Status:** TODO
+- **Status:** DONE
+
+### RE6b — Renovação mostra o serviço (obs. 4.10)
+
+- **Triagem (15/11/2026):** não reproduzido no código. No modal de renovação o subtítulo
+  (`PlanModal.tsx`, `<cliente> · <serviço>`), os blocos de serviço e o histórico já mostram o
+  serviço; o nome do plano só aparece no campo editável "Nome do plano" (`PlanForm.tsx`).
+- **Escopo:** aguarda o dono descrever a tela exata da obs. 4.10 do relatório.
+- **Gate:** gate completo
+- **Status:** BLOCKED (aguarda a tela exata da obs. 4.10)
 
 ### RE7 — Aviso de código desconhecido na mensagem padrão
 

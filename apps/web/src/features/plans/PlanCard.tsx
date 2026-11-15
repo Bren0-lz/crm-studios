@@ -1,5 +1,6 @@
 import {
   type PatientPlan,
+  type PlanType,
   paymentMethodLabels,
   planDisplayStatus,
   planHasSessionBalance,
@@ -9,7 +10,7 @@ import type { ReactNode } from "react";
 import { currency, shortDate } from "../../shared/lib/formatting";
 import {
   planBadgeLabel,
-  planKindLabels,
+  planCardKindLabel,
   planPaymentProgress,
   planPaymentTerms,
   planRenewalLabel,
@@ -23,6 +24,7 @@ import { PlanProgress } from "./PlanProgress";
 export function PlanCard({
   plan,
   plans,
+  planType,
   title,
   subtitle,
   autoRenewControl,
@@ -31,6 +33,8 @@ export function PlanCard({
   plan: PatientPlan;
   /** Planos do mesmo contexto, para achar a renovação seguinte. */
   plans: PatientPlan[];
+  /** Tipo do modelo do catálogo (`usePlanTemplateTypes`); sem ele, vale o `kind`. */
+  planType?: PlanType | undefined;
   title: string;
   subtitle?: string;
   autoRenewControl?: ReactNode;
@@ -46,7 +50,7 @@ export function PlanCard({
         <span className={`status-pill ${planDisplayStatus(plan)}`}>
           {planBadgeLabel(plan)}
         </span>
-        <span>{planKindLabels[plan.kind]}</span>
+        <span>{planCardKindLabel(plan, planType)}</span>
       </div>
       <h3>{title}</h3>
       {subtitle && <p>{subtitle}</p>}

@@ -36,6 +36,7 @@ import { PlanCard } from "./PlanCard";
 import { PlanModal } from "./PlanModal";
 import { useToast } from "../../shared/feedback/toast-context";
 import { PlanPauseModal } from "./PlanPauseModal";
+import { usePlanTemplateTypes } from "./usePlanTemplateTypes";
 import { SessionMovementsModal } from "./SessionMovementsModal";
 import { SendToTrashModal, TrashButton, TrashIconButton } from "../trash";
 
@@ -57,6 +58,10 @@ export function PlansPage({ canManage }: { canManage: boolean }) {
   );
   const [search, setSearch] = useState("");
   const [listFilter, setListFilter] = useState<PlanListFilter>("all");
+  // O catálogo só é lido quando algum plano veio de um modelo.
+  const planTypeOf = usePlanTemplateTypes(
+    plans.some((plan) => Boolean(plan.planTemplateId)),
+  );
 
   useEffect(() => {
     let active = true;
@@ -262,6 +267,7 @@ export function PlansPage({ canManage }: { canManage: boolean }) {
                   key={plan.id}
                   plan={plan}
                   plans={plans}
+                  planType={planTypeOf(plan)}
                   title={plan.patientName}
                   subtitle={planSubtitle(plan)}
                   autoRenewControl={
