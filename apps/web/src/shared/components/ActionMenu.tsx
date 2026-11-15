@@ -5,6 +5,7 @@ import {
   useRef,
   useState,
   type KeyboardEvent as ReactKeyboardEvent,
+  type ReactNode,
 } from "react";
 import { useAuthorization } from "../../authorization-context";
 import type { ActionMenuItem } from "../lib/types";
@@ -15,12 +16,18 @@ export function ActionMenu({
   iconOnly = false,
   align = "start",
   disabled = false,
+  trigger,
+  fixed = false,
 }: {
   label: string;
   items: ActionMenuItem[];
   iconOnly?: boolean;
   align?: "start" | "end";
   disabled?: boolean;
+  /** Botão próprio (classe e conteúdo); `label` vira o nome acessível. */
+  trigger?: { className: string; content: ReactNode };
+  /** Lista presa à tela: escapa de um contêiner com `overflow: hidden` (barra lateral). */
+  fixed?: boolean;
 }) {
   const { can } = useAuthorization();
   const items = allItems.filter(
@@ -45,6 +52,27 @@ export function ActionMenu({
       const below = viewportTop + viewportHeight - anchor.bottom - 16;
       const above = anchor.top - viewportTop - 16;
       const placeAbove = menu.scrollHeight > below && above > below;
+      if (fixed) {
+        const viewportLeft = viewport?.offsetLeft ?? 0;
+        const viewportWidth = viewport?.width ?? window.innerWidth;
+        const left = Math.max(
+          viewportLeft + 8,
+          Math.min(
+            anchor.left,
+            viewportLeft + viewportWidth - menu.offsetWidth - 8,
+          ),
+        );
+        menu.style.position = "fixed";
+        menu.style.left = `${left}px`;
+        menu.style.right = "auto";
+        menu.style.top = placeAbove ? "auto" : `${anchor.bottom + 4}px`;
+        menu.style.bottom = placeAbove
+          ? `${window.innerHeight - anchor.top + 4}px`
+          : "auto";
+        menu.style.maxHeight = `${Math.max(0, placeAbove ? above : below)}px`;
+        menu.style.overflowY = "auto";
+        return;
+      }
       menu.style.top = placeAbove ? "auto" : "calc(100% + var(--space-1))";
       menu.style.bottom = placeAbove ? "calc(100% + var(--space-1))" : "auto";
       menu.style.maxHeight = `${Math.max(0, placeAbove ? above : below)}px`;
@@ -65,7 +93,7 @@ export function ActionMenu({
       window.visualViewport?.removeEventListener("resize", positionMenu);
       window.visualViewport?.removeEventListener("scroll", positionMenu);
     };
-  }, [expanded, items.length]);
+  }, [expanded, fixed, items.length]);
 
   useEffect(() => {
     if (!expanded) return;
@@ -120,9 +148,15 @@ export function ActionMenu({
       <button
         ref={buttonRef}
         type="button"
-        className={iconOnly ? "icon-button button-sm" : "secondary-button"}
-        aria-label={iconOnly ? label : undefined}
-        title={iconOnly ? label : undefined}
+        className={
+          trigger
+            ? trigger.className
+            : iconOnly
+              ? "icon-button button-sm"
+              : "secondary-button"
+        }
+        aria-label={iconOnly || trigger ? label : undefined}
+        title={iconOnly || trigger ? label : undefined}
         disabled={disabled}
         aria-haspopup="menu"
         aria-expanded={expanded}
@@ -134,7 +168,13 @@ export function ActionMenu({
           }
         }}
       >
-        <MoreHorizontal size={iconOnly ? 19 : 16} /> {!iconOnly && label}
+        {trigger ? (
+          trigger.content
+        ) : (
+          <>
+            <MoreHorizontal size={iconOnly ? 19 : 16} /> {!iconOnly && label}
+          </>
+        )}
       </button>
       {expanded && (
         <div

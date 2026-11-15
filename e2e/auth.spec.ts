@@ -12,8 +12,11 @@ test("login validates credentials and logout ends the session", async ({
   await page.getByRole("button", { name: "Entrar", exact: true }).click();
   await expect(page.locator(".form-error")).toContainText(/inválid|incorret/i);
   await login(page);
-  const logout = page.getByTitle("Sair", { exact: true });
-  await logout.click();
+  // No celular o menu lateral é uma gaveta: abre antes de chegar ao bloco do usuário.
+  const drawer = page.getByRole("button", { name: "Abrir menu" });
+  if (await drawer.isVisible()) await drawer.click();
+  await page.getByRole("button", { name: /^Menu do usuário:/ }).click();
+  await page.getByRole("menuitem", { name: "Sair", exact: true }).click();
   await expect(page).toHaveURL(/\/login$/);
   expect(
     await page.evaluate(() => localStorage.getItem("crm.auth.token")),

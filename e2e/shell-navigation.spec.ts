@@ -427,8 +427,23 @@ test("sidebar stays visible at every breakpoint while only navigation scrolls", 
     await expect(page.locator(".user-card")).toBeInViewport();
     await expect(page.locator(".user-card strong")).toHaveText(fullName);
     await expect(page.locator(".user-card")).toHaveAccessibleName(
-      `Sair: ${fullName}`,
+      `Menu do usuário: ${fullName}`,
     );
+    // O menu do usuário cabe na tela também com a barra recolhida; Esc fecha.
+    await page.locator(".user-card").click();
+    const userMenu = page.getByRole("menu", {
+      name: `Menu do usuário: ${fullName}`,
+    });
+    await expect(userMenu).toBeInViewport({ ratio: 1 });
+    await expect(
+      userMenu.getByRole("menuitem", { name: "Meu perfil" }),
+    ).toBeInViewport({ ratio: 1 });
+    await expect(
+      userMenu.getByRole("menuitem", { name: "Sair" }),
+    ).toBeInViewport({ ratio: 1 });
+    await page.keyboard.press("Escape");
+    await expect(userMenu).toHaveCount(0);
+    await expect(page.locator(".user-card")).toBeFocused();
     if (mobile) {
       await expect(page.locator(".brand-monogram")).toBeInViewport();
       await expect(page.locator(".user-copy")).toBeHidden();

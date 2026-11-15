@@ -9964,7 +9964,9 @@ describe("users and permissions", () => {
     expect(JSON.parse(localStorage.getItem("crm.auth.user")!)).toMatchObject({
       role: "admin",
     });
-    expect(screen.getByTitle("Sair")).toHaveTextContent("Admin");
+    expect(
+      screen.getByRole("button", { name: /^Menu do usuário:/ }),
+    ).toHaveTextContent("Admin");
   });
 
   it("refreshes a session stored before T055 with role reception and lists", async () => {
@@ -10005,7 +10007,9 @@ describe("users and permissions", () => {
     expect(JSON.parse(localStorage.getItem("crm.auth.user")!)).toEqual(
       withPermissions(fresh),
     );
-    expect(screen.getByTitle("Sair")).toHaveTextContent("Usuário comum");
+    expect(
+      screen.getByRole("button", { name: /^Menu do usuário:/ }),
+    ).toHaveTextContent("Usuário comum");
   });
 });
 

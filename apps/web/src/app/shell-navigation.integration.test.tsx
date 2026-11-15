@@ -507,7 +507,11 @@ describe("shell navigation", () => {
     );
     await waitFor(() => expect(onLogout).toHaveBeenCalledTimes(1));
     expect(revoke).toHaveBeenCalledTimes(1);
-    fireEvent.click(screen.getByTitle("Sair"));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Menu do usuário: Aryana Dutra" }),
+    );
+    expect(onLogout).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole("menuitem", { name: "Sair" }));
     expect(onLogout).toHaveBeenCalledTimes(2);
   });
 });
