@@ -1,5 +1,11 @@
-import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import {
+  act,
+  fireEvent,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
 import { nextTestCpf } from "../../../../api/src/test-support/cpf.js";
 import { actorId, clinicId, setupApi } from "../../test-support/api-server";
 import {
@@ -89,6 +95,75 @@ describe("enviar recibo pelo WhatsApp", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("ao estornar o pagamento, a faixa do recibo sai", async () => {
+    await openReceivable("11988887777");
+    open("/financeiro");
+    const row = () => rowOf("Mensalidade de Pilates");
+    fireEvent.click(
+      within(await row()).getByRole("button", { name: "Dar baixa" }),
+    );
+    await save("Dar baixa na parcela", "Confirmar baixa");
+    await screen.findByRole("region", { name: "Recibo da baixa" });
+
+    fireEvent.click(
+      within(await row()).getByRole("button", { name: "Estornar" }),
+    );
+    fireEvent.click(
+      within(
+        await screen.findByRole("dialog", { name: "Estornar pagamento" }),
+      ).getByRole("button", { name: "Estornar pagamento" }),
+    );
+    await within(await row()).findByRole("button", { name: "Dar baixa" });
+    expect(
+      screen.queryByRole("region", { name: "Recibo da baixa" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("estorno antes de o recibo carregar: a faixa não aparece depois", async () => {
+    await openReceivable("11988887777");
+    // Segura a resposta do recibo (já calculada antes do estorno) até o estorno terminar.
+    const realFetch = vi.mocked(fetch).getMockImplementation()!;
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => (release = resolve));
+    let shareRequested = false;
+    vi.mocked(fetch).mockImplementation(async (input, init) => {
+      const response = await realFetch(input, init);
+      if (
+        (init?.method ?? "GET") === "GET" &&
+        String(input).endsWith("/receipt-signature")
+      ) {
+        shareRequested = true;
+        await held;
+      }
+      return response;
+    });
+    open("/financeiro");
+    const row = () => rowOf("Mensalidade de Pilates");
+    fireEvent.click(
+      within(await row()).getByRole("button", { name: "Dar baixa" }),
+    );
+    await save("Dar baixa na parcela", "Confirmar baixa");
+    fireEvent.click(
+      within(await row()).getByRole("button", { name: "Estornar" }),
+    );
+    fireEvent.click(
+      within(
+        await screen.findByRole("dialog", { name: "Estornar pagamento" }),
+      ).getByRole("button", { name: "Estornar pagamento" }),
+    );
+    await within(await row()).findByRole("button", { name: "Dar baixa" });
+    expect(shareRequested).toBe(true);
+
+    await act(async () => {
+      release();
+      await held;
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(
+      screen.queryByRole("region", { name: "Recibo da baixa" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("no recibo da parcela paga, usa o modelo da clínica", async () => {
     const { repository, receivable } = await openReceivable("11988887777");
     const settings = (await repository.getClinicSettings(clinicId))!;
@@ -164,7 +239,9 @@ describe("enviar recibo pelo WhatsApp", () => {
     fireEvent.click(
       within(toolbar).getByRole("button", { name: "Inserir valor pago" }),
     );
-    expect(screen.getByText("Prévia: Oi Marina! R$ 160,00")).toBeInTheDocument();
+    expect(
+      screen.getByText("Prévia: Oi Marina! R$ 160,00"),
+    ).toBeInTheDocument();
     fireEvent.click(
       screen.getByRole("button", { name: "Salvar configurações" }),
     );

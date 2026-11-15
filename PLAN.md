@@ -1827,7 +1827,7 @@ filtros ficam no `dashboard-studios` (EN11–EN13 têm só a parte da API aqui).
 - **Escopo:** ao estornar um recebimento, se `receiptToSend` é dele, a faixa "Recibo de … pronto
   para assinar" sai. Teste web.
 - **Gate:** gate completo
-- **Status:** TODO
+- **Status:** DONE
 
 ### RE5 — "Vendas realizadas" em cartões no celular
 
