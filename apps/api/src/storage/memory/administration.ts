@@ -31,10 +31,12 @@ import {
   type RoomInput,
   type Service,
   type ServiceInput,
+  patientTagKey,
 } from "@crm/contracts";
 import {
   DomainError,
   lastAdminError,
+  serviceNameTakenError,
   type AuthenticatedUser,
   type CommissionRecalculationRequest,
   passwordColumns,
@@ -827,6 +829,15 @@ export function createAdministrationRepository(
     },
 
     async createService(clinicId: string, input: ServiceInput) {
+      // Mesma normalização das etiquetas: sem maiúsculas, acentos e espaços nas pontas.
+      const key = patientTagKey(input.name);
+      if (
+        repositoryContext.services.some(
+          (item) =>
+            item.clinicId === clinicId && patientTagKey(item.name) === key,
+        )
+      )
+        throw serviceNameTakenError();
       const service: Service = {
         professionalIds: [],
         roomIds: [],

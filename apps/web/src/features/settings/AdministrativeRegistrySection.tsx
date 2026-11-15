@@ -209,7 +209,11 @@ function RegistryEditor({
             }
           }}
         >
-          {error && <ErrorBanner error={error} />}
+          {error && (
+            <div className="form-error" role="alert">
+              {error}
+            </div>
+          )}
           <fieldset className="form-fields form-grid" disabled={busy}>
             <label>
               {form.kind === "room" ? "Nome da sala" : "Nome"}

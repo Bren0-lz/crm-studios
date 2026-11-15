@@ -1,12 +1,14 @@
-import type {
-  AdministrativeRegistryInput,
-  Professional,
-  Room,
-  Service,
+import {
+  type AdministrativeRegistryInput,
+  type Professional,
+  type Room,
+  type Service,
+  patientTagKey,
 } from "@crm/contracts";
+import type { PoolClient } from "../../infrastructure/mysql-client.js";
 import type { MysqlRepositoryContext } from "./context.js";
 import { writeAndRead } from "./sql.js";
-import { DomainError } from "../../repository.js";
+import { DomainError, serviceNameTakenError } from "../../repository.js";
 import {
   type ProfessionalRow,
   branchClause,
@@ -22,6 +24,34 @@ const roomColumns =
   'id,clinic_id AS "clinicId",branch_id AS "branchId",name,capacity,active';
 const serviceColumns =
   'id,clinic_id AS "clinicId",name,duration_minutes AS "durationMinutes",active,professional_ids AS "professionalIds",room_ids AS "roomIds",business_line AS "businessLine"';
+/**
+ * Recusa o nome de outro serviço da clínica (inclui inativos), com a normalização das
+ * etiquetas (sem maiúsculas, acentos e espaços nas pontas). Trava por clínica até o fim
+ * da transação: dois cadastros simultâneos com o mesmo nome não passam juntos. Na edição
+ * (`exceptId`), manter o nome (mesma chave) não é checado: a produção pode ter repetidos
+ * de antes da regra.
+ */
+export async function assertServiceNameFree(
+  client: PoolClient,
+  clinicId: string,
+  name: string,
+  exceptId?: string,
+) {
+  await client.lock(`services:${clinicId}`);
+  const key = patientTagKey(name);
+  const result = await client.query<{ id: string; name: string }>(
+    "SELECT id, name FROM services WHERE clinic_id=$1",
+    [clinicId],
+  );
+  const current = result.rows.find((row) => row.id === exceptId);
+  if (current && patientTagKey(current.name) === key) return;
+  if (
+    result.rows.some(
+      (row) => row.id !== exceptId && patientTagKey(row.name) === key,
+    )
+  )
+    throw serviceNameTakenError();
+}
 export function createRegistryRepository(context: MysqlRepositoryContext) {
   return {
     async getAdministrativeRegistry(clinicId: string) {
@@ -105,6 +135,7 @@ export function createRegistryRepository(context: MysqlRepositoryContext) {
             );
             record = result.rows[0];
           } else {
+            await assertServiceNameFree(client, clinicId, input.data.name, id);
             const data = input.data,
               result = await writeAndRead<Service>(
                 client,

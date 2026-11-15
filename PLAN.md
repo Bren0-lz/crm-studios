@@ -1819,7 +1819,7 @@ filtros ficam no `dashboard-studios` (EN11–EN13 têm só a parte da API aqui).
   existe um serviço com esse nome.". Nos dois repositórios; o formulário mostra o erro no
   `form-error`. Testes API e web.
 - **Gate:** gate completo + `npm run test:mysql`
-- **Status:** TODO
+- **Status:** DONE
 
 ### RE4 — Faixa do recibo some depois do estorno
 
