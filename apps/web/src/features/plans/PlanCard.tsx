@@ -6,7 +6,7 @@ import {
   planUsedSessions,
 } from "@crm/contracts";
 import type { ReactNode } from "react";
-import { currency, shortDate } from "../../shared/lib/formatting";
+import { currency, plural, shortDate } from "../../shared/lib/formatting";
 import {
   planBadgeLabel,
   planKindLabels,
@@ -54,12 +54,18 @@ export function PlanCard({
       {cancelled ? (
         <div className="balance-line">
           <strong>0</strong>
-          <span>de {plan.totalSessions} sessões · plano cancelado</span>
+          <span>
+            de {plural(plan.totalSessions, "sessão", "sessões")} · plano
+            cancelado
+          </span>
         </div>
       ) : hasBalance ? (
         <div className="balance-line">
           <strong>{plan.remainingSessions}</strong>
-          <span>de {plan.totalSessions} sessões restantes</span>
+          <span>
+            de{" "}
+            {plural(plan.totalSessions, "sessão restante", "sessões restantes")}
+          </span>
         </div>
       ) : (
         <div className="balance-line">
@@ -74,10 +80,10 @@ export function PlanCard({
         <p key={entry.serviceId}>
           {entry.serviceName}:{" "}
           {cancelled
-            ? `0 de ${entry.totalSessions} sessões`
+            ? `0 de ${plural(entry.totalSessions, "sessão", "sessões")}`
             : hasBalance
-              ? `${entry.remainingSessions} de ${entry.totalSessions} sessões`
-              : `${planUsedSessions(entry)} de ${entry.totalSessions} aulas previstas`}{" "}
+              ? `${entry.remainingSessions} de ${plural(entry.totalSessions, "sessão", "sessões")}`
+              : `${planUsedSessions(entry)} de ${plural(entry.totalSessions, "aula prevista", "aulas previstas")}`}{" "}
           · {currency.format(entry.totalValueInCents / 100)}
         </p>
       ))}

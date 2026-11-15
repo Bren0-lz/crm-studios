@@ -108,6 +108,8 @@ describe("oferta de vaga em turma", () => {
       "href",
       expect.stringContaining("11999998888"),
     );
+    expect(screen.getByText("Telefone: (11) 99999-8888")).toBeInTheDocument();
+    expect(screen.getByText("WhatsApp: (11) 99999-8888")).toBeInTheDocument();
     expect(confirm).not.toHaveBeenCalled();
     fireEvent.click(
       screen.getByRole("button", {

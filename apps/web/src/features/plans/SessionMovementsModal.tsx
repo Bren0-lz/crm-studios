@@ -8,7 +8,12 @@ import { useEffect, useState } from "react";
 import { api } from "../../api";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
 import { Modal } from "../../shared/components/Modal";
-import { currency, sentence, shortDate } from "../../shared/lib/formatting";
+import {
+  currency,
+  plural,
+  sentence,
+  shortDate,
+} from "../../shared/lib/formatting";
 
 export function SessionMovementsModal({
   plan,
@@ -37,8 +42,8 @@ export function SessionMovementsModal({
         cancelled
           ? "Plano cancelado – sessões indisponíveis."
           : planHasSessionBalance(plan)
-            ? `${plan.remainingSessions} sessões disponíveis no momento.`
-            : `${planUsedSessions(plan)} aulas feitas neste ciclo (plano prevê ${plan.totalSessions}).`
+            ? `${plural(plan.remainingSessions, "sessão disponível", "sessões disponíveis")} no momento.`
+            : `${plural(planUsedSessions(plan), "aula feita", "aulas feitas")} neste ciclo (plano prevê ${plan.totalSessions}).`
       }
       onClose={onClose}
     >
@@ -47,10 +52,10 @@ export function SessionMovementsModal({
           {/* Plano cancelado não tem sessão utilizável, mesmo com saldo gravado. */}
           {entry.serviceName}:{" "}
           {cancelled
-            ? `0 de ${entry.totalSessions} sessões disponíveis`
+            ? `0 de ${plural(entry.totalSessions, "sessão disponível", "sessões disponíveis")}`
             : planHasSessionBalance(plan)
-              ? `${entry.remainingSessions} de ${entry.totalSessions} sessões restantes`
-              : `${planUsedSessions(entry)} de ${entry.totalSessions} aulas previstas`}
+              ? `${entry.remainingSessions} de ${plural(entry.totalSessions, "sessão restante", "sessões restantes")}`
+              : `${planUsedSessions(entry)} de ${plural(entry.totalSessions, "aula prevista", "aulas previstas")}`}
         </p>
       ))}
       {cancelled && plan.cancelledAt && (

@@ -26,10 +26,23 @@ export const appointmentVisitTypes: AppointmentVisitType[] = [
   "evaluation",
 ];
 
-export const currency = new Intl.NumberFormat("pt-BR", {
+const brl = new Intl.NumberFormat("pt-BR", {
   style: "currency",
   currency: "BRL",
 });
+
+/**
+ * Valor em reais ("R$ 1.234,56"). Zero negativo e valores que arredondam para zero saem
+ * como "R$ 0,00", nunca "-R$ 0,00".
+ */
+export const currency = {
+  format: (value: number) => brl.format(Math.abs(value) < 0.005 ? 0 : value),
+};
+
+/** Quantidade com a palavra no singular ou plural ("1 cliente", "2 clientes"). */
+export function plural(count: number, singular: string, pluralForm: string) {
+  return `${count} ${count === 1 ? singular : pluralForm}`;
+}
 
 export const dateLabel = new Intl.DateTimeFormat("pt-BR", {
   weekday: "long",

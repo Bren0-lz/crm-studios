@@ -21,6 +21,7 @@ import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
 import {
   centsToMoneyText,
   currency,
+  plural,
   reaisToCents,
 } from "../../shared/lib/formatting";
 import { MoneyInput } from "../../shared/components/MoneyInput";
@@ -399,8 +400,12 @@ export function PlanTemplateModal({
               </div>
               {months > 0 && (
                 <p className="span-2" role="status">
-                  {entry.sessionsPerWeek ? periodSessions(entry) : 0} sessões no
-                  período
+                  {plural(
+                    entry.sessionsPerWeek ? periodSessions(entry) : 0,
+                    "sessão",
+                    "sessões",
+                  )}{" "}
+                  no período
                   {entry.sessionsPerWeek
                     ? ` · ${entry.sessionsPerWeek}x por semana`
                     : ""}

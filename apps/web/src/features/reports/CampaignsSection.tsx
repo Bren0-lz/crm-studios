@@ -7,7 +7,7 @@ import { EmptyState } from "../../shared/components/EmptyState";
 import { ErrorBanner } from "../../shared/components/ErrorBanner";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
 import { useDataVersion } from "../../shared/hooks/useDataVersion";
-import { formatIsoDate, shortDate } from "../../shared/lib/formatting";
+import { formatIsoDate, plural, shortDate } from "../../shared/lib/formatting";
 import { useReportQuery, type ReportPeriod } from "./useReportQuery";
 
 const kindLabels: Record<CampaignReportKind, string> = {
@@ -110,8 +110,8 @@ export function CampaignsSection({ period }: { period: ReportPeriod }) {
               <span>Mensagens enviadas</span>
               <strong>{report.summary.sent}</strong>
               <small>
-                {report.summary.skipped} não enviadas · {report.summary.pending}{" "}
-                pendentes
+                {plural(report.summary.skipped, "não enviada", "não enviadas")}{" "}
+                · {plural(report.summary.pending, "pendente", "pendentes")}
               </small>
             </article>
             <article>

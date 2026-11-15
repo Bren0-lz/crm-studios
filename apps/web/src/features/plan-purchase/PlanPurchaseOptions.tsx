@@ -380,8 +380,8 @@ export function PlanPurchaseOptions({
                         />
                         {!starts.length && (
                           <p className="field-hint span-2">
-                            Escolha o profissional e a sala para gerar as{" "}
-                            {count} sessões.
+                            Escolha o profissional e a sala para gerar{" "}
+                            {count === 1 ? "a sessão" : `as ${count} sessões`}.
                           </p>
                         )}
                       </fieldset>

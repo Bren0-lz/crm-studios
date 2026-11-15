@@ -136,6 +136,15 @@ export function PlansPage({ canManage }: { canManage: boolean }) {
   const activePlanCount = plans.filter((plan) =>
     planMatchesFilter(plan, "active", today),
   ).length;
+  const availableSessions = contractedPlans
+    .filter(planHasSessionBalance)
+    .reduce((sum, plan) => sum + plan.remainingSessions, 0);
+  const lowBalanceCount = contractedPlans.filter(
+    (plan) =>
+      planHasSessionBalance(plan) &&
+      plan.remainingSessions <= 2 &&
+      plan.status === "active",
+  ).length;
   const filterButton = (filter: PlanListFilter) => (
     <button
       type="button"
@@ -182,28 +191,19 @@ export function PlansPage({ canManage }: { canManage: boolean }) {
       <section className="plan-metrics">
         <div>
           <strong>{activePlanCount}</strong>
-          <span>planos ativos</span>
+          <span>{activePlanCount === 1 ? "plano ativo" : "planos ativos"}</span>
         </div>
         <div>
-          <strong>
-            {contractedPlans
-              .filter(planHasSessionBalance)
-              .reduce((sum, plan) => sum + plan.remainingSessions, 0)}
-          </strong>
-          <span>sessões disponíveis</span>
+          <strong>{availableSessions}</strong>
+          <span>
+            {availableSessions === 1
+              ? "sessão disponível"
+              : "sessões disponíveis"}
+          </span>
         </div>
         <div>
-          <strong>
-            {
-              contractedPlans.filter(
-                (plan) =>
-                  planHasSessionBalance(plan) &&
-                  plan.remainingSessions <= 2 &&
-                  plan.status === "active",
-              ).length
-            }
-          </strong>
-          <span>saldos baixos</span>
+          <strong>{lowBalanceCount}</strong>
+          <span>{lowBalanceCount === 1 ? "saldo baixo" : "saldos baixos"}</span>
         </div>
       </section>
       <section className="panel plans-panel">

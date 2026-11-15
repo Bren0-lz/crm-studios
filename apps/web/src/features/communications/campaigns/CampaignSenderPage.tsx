@@ -22,6 +22,7 @@ import {
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { api } from "../../../api";
+import { plural } from "../../../shared/lib/formatting";
 import { useAuthorization } from "../../../authorization-context";
 import { EmptyState } from "../../../shared/components/EmptyState";
 import { ErrorBanner } from "../../../shared/components/ErrorBanner";
@@ -323,9 +324,10 @@ export function CampaignSenderPage() {
               <div>
                 <strong>Campanha concluída!</strong>
                 <span>
-                  {campaign.sent} enviadas
-                  {campaign.skipped > 0 && ` e ${campaign.skipped} puladas`}.
-                  Você ainda pode reabrir um cliente pela lista.
+                  {plural(campaign.sent, "enviada", "enviadas")}
+                  {campaign.skipped > 0 &&
+                    ` e ${plural(campaign.skipped, "pulada", "puladas")}`}
+                  . Você ainda pode reabrir um cliente pela lista.
                 </span>
               </div>
             </div>

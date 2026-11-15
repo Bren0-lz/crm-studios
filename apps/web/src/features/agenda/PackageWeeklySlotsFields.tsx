@@ -1,6 +1,6 @@
 import type { PackageWeeklySlot } from "@crm/contracts";
 import { X } from "lucide-react";
-import { shortDate, timeLabel } from "../../shared/lib/formatting";
+import { plural, shortDate, timeLabel } from "../../shared/lib/formatting";
 import { packageWeekdayNames } from "./model";
 
 /**
@@ -105,7 +105,8 @@ export function PackageWeeklySlotsFields({
       {!showPreview ? null : first && last ? (
         <details className="package-preview">
           <summary>
-            {starts.length} sessões de {shortDate.format(new Date(first))} a{" "}
+            {plural(starts.length, "sessão", "sessões")} de{" "}
+            {shortDate.format(new Date(first))} a{" "}
             {shortDate.format(new Date(last))}
           </summary>
           <ol>

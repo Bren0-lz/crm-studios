@@ -542,6 +542,7 @@ export function registerFinanceRoutes(context: RouteContext) {
       repository.generateCommissions(
         request.user.clinicId,
         commissionGenerationInputSchema.parse(request.body).competence,
+        request.user.sub,
       ),
   );
 

@@ -175,7 +175,7 @@ function EmergencyDialog({ onClose }: { onClose: () => void }) {
                   {contact.phone && (
                     <a className="primary-button" href={`tel:${contact.phone}`}>
                       <Phone size={18} aria-hidden="true" />
-                      Ligar para {contact.phone}
+                      Ligar para {formatPhone(contact.phone)}
                     </a>
                   )}
                   {contact.whatsapp && (

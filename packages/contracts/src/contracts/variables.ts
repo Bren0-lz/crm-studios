@@ -75,7 +75,7 @@ export const documentTemplateVariables = [
   {
     key: "clinica_email",
     label: "E-mail da clínica",
-    example: "contato@studiosaryana.com.br",
+    example: "contato@organizastudios.com",
   },
 ] as const;
 

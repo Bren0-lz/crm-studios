@@ -1675,9 +1675,11 @@ export interface ClinicRepository {
     actorId: string,
     payableId: string,
   ): Promise<Payable | null>;
+  /** `actorUserId`: quem calculou, mostrado em "Comissão gerada" no Histórico. */
   generateCommissions(
     clinicId: string,
     competence: string,
+    actorUserId?: string,
   ): Promise<CommissionEntry[]>;
   settleCommission(
     clinicId: string,

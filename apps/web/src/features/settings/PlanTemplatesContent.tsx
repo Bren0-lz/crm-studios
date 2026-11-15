@@ -10,7 +10,7 @@ import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
 import { EmptyState } from "../../shared/components/EmptyState";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
-import { currency } from "../../shared/lib/formatting";
+import { currency, plural } from "../../shared/lib/formatting";
 import { useSettingsBusy } from "../../shared/workflows/useSettingsBusy";
 import { planKindLabels } from "../plans/index";
 import { PlanTemplateModal } from "./PlanTemplateModal";
@@ -126,7 +126,7 @@ export function PlanTemplatesContent() {
                           ? item.services
                               .map(
                                 (entry) =>
-                                  `${services.find((service) => service.id === entry.serviceId)?.name ?? "Serviço"}: ${entry.sessionsPerWeek ? `${entry.sessionsPerWeek}x por semana · ` : ""}${entry.totalSessions} sessões`,
+                                  `${services.find((service) => service.id === entry.serviceId)?.name ?? "Serviço"}: ${entry.sessionsPerWeek ? `${entry.sessionsPerWeek}x por semana · ` : ""}${plural(entry.totalSessions, "sessão", "sessões")}`,
                               )
                               .join(" · ")
                           : "Composição incompleta — edite para corrigir",

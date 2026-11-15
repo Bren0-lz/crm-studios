@@ -158,7 +158,7 @@ export const paymentReceiptMessageVariables = [
   {
     code: "{{link_recibo}}",
     label: "Link do recibo",
-    example: "https://crm.studiosaryana.com.br/assinar-recibo/…",
+    example: "https://crm.organizastudios.com/assinar-recibo/…",
   },
 ] as const;
 

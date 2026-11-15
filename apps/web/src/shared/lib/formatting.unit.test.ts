@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
   clinicIsoDate,
+  currency,
   formatIsoDate,
   groupSeatsLabel,
   initials,
   localIsoDate,
+  plural,
   relativeTime,
   sentence,
   statusLabel,
@@ -12,6 +14,21 @@ import {
 } from "./formatting";
 
 describe("display helpers", () => {
+  it("never shows a negative zero amount", () => {
+    const text = (value: number) => currency.format(value).replace(/\s/g, " ");
+    expect(text(-0)).toBe("R$ 0,00");
+    expect(text(-0 / 100)).toBe("R$ 0,00");
+    expect(text(-0.004)).toBe("R$ 0,00");
+    expect(text(0.004)).toBe("R$ 0,00");
+    expect(text(-0.01)).toBe("-R$ 0,01");
+    expect(text(-12.5)).toBe("-R$ 12,50");
+    expect(text(1234.56)).toBe("R$ 1.234,56");
+  });
+  it("uses the singular only for one", () => {
+    expect(plural(1, "sessão", "sessões")).toBe("1 sessão");
+    expect(plural(0, "sessão", "sessões")).toBe("0 sessões");
+    expect(plural(2, "saldo baixo", "saldos baixos")).toBe("2 saldos baixos");
+  });
   it("preserves a clinic date and converts timestamps in the selected timezone", () => {
     expect(clinicIsoDate("2040-06-01")).toBe("2040-06-01");
     expect(clinicIsoDate("2040-06-02T01:00:00Z")).toBe("2040-06-01");

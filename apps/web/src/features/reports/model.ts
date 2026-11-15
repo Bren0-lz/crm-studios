@@ -37,9 +37,9 @@ const compactCurrency = new Intl.NumberFormat("pt-BR", {
   notation: "compact",
   maximumFractionDigits: 1,
 });
-/** Valor em centavos no formato curto do eixo dos gráficos ("R$ 1,2 mil"). */
+/** Valor em centavos no formato curto do eixo dos gráficos ("R$ 1,2 mil"); sem "-R$ 0". */
 export const compactMoney = (cents: number) =>
-  compactCurrency.format(cents / 100);
+  compactCurrency.format(Math.abs(cents) < 5 ? 0 : cents / 100);
 
 export const saleTypeLabels: Record<SalesBreakdownRow["sourceType"], string> = {
   plan: "Plano",
@@ -139,10 +139,7 @@ export function responseTimeLabel(minutes: number) {
   return rest ? `${hours} h ${rest} min` : `${hours} h`;
 }
 
-/** Quantidade com a palavra no singular ou plural ("1 cliente", "2 clientes"). */
-export function plural(count: number, singular: string, pluralForm: string) {
-  return `${count} ${count === 1 ? singular : pluralForm}`;
-}
+export { plural } from "../../shared/lib/formatting";
 
 export type NoReturnScheduleFilter = "all" | "unscheduled" | "scheduled";
 export const noReturnScheduleFilterLabels: Record<
