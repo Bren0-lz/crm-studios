@@ -438,6 +438,34 @@
   .sales-ranking .sales-share {
     display: none;
   }
+
+  /* RE5: Vendas realizadas em cartões (molde da RV6 em 15-reports.css); o respiro lateral
+     passa das células da ponta para o cartão inteiro. */
+  .sales-history-table tr {
+    padding-inline: var(--space-5);
+  }
+
+  .sales-history-table th:first-child,
+  .sales-history-table td:first-child,
+  .sales-history-table th:last-child,
+  .sales-history-table td:last-child {
+    padding: 0;
+  }
+
+  .sales-history-table .sales-items-cell {
+    min-width: 0;
+  }
+
+  .sales-history-table .sales-items-cell,
+  .sales-history-table .table-actions-cell {
+    text-align: right;
+  }
+
+  /* O rótulo não encolhe nem quebra quando o valor ao lado (lista de produtos) é longo. */
+  .sales-history-table td::before {
+    flex-shrink: 0;
+    text-align: left;
+  }
 }
 
 /* Resumo: período no cabeçalho do painel, ao lado do título. */
