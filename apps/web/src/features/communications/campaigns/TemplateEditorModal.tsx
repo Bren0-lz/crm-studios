@@ -3,6 +3,8 @@ import {
   MESSAGE_TEMPLATE_IMAGE_MAX_BYTES,
   MESSAGE_TEMPLATE_MAX_IMAGES,
   messageVariables,
+  unknownMessageVariables,
+  unknownMessageVariablesMessage,
   type MessageTemplate,
   type MessageTemplateInput,
 } from "@crm/contracts";
@@ -65,6 +67,8 @@ export function TemplateEditorModal({
     draft.images.flatMap((image) => ("id" in image ? [image.id] : [])),
   );
   const remaining = MESSAGE_TEMPLATE_MAX_IMAGES - draft.images.length;
+  // Códigos fora dos botões sairiam literais ("{{foo}}") na prévia e no envio.
+  const unknownCodes = unknownMessageVariables(draft.body);
 
   async function addFiles(files: File[]) {
     setImageError("");
@@ -132,7 +136,7 @@ export function TemplateEditorModal({
 
   async function submit(event: FormEvent) {
     event.preventDefault();
-    if (saving) return;
+    if (saving || unknownCodes.length) return;
     setSaving(true);
     setError("");
     const input: MessageTemplateInput = {
@@ -205,10 +209,18 @@ export function TemplateEditorModal({
                 "Olá, {{nome}}! Tudo bem?\nTemos uma novidade especial para você…"
               }
               onChange={(body) => setDraft((current) => ({ ...current, body }))}
+              {...(unknownCodes.length
+                ? { describedBy: `${formId}-unknown` }
+                : {})}
             />
             <span className="field-hint template-counter">
               {draft.body.length}/1000
             </span>
+            {unknownCodes.length > 0 && (
+              <p id={`${formId}-unknown`} className="form-error" role="alert">
+                {unknownMessageVariablesMessage(unknownCodes)}
+              </p>
+            )}
           </div>
           <div className="template-images-field">
             <span className="filter-label">
@@ -328,7 +340,7 @@ export function TemplateEditorModal({
           className="primary-button"
           type="submit"
           form={formId}
-          disabled={saving || missing}
+          disabled={saving || missing || unknownCodes.length > 0}
         >
           {saving ? "Salvando…" : "Salvar mensagem"}
         </button>

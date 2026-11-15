@@ -1856,7 +1856,7 @@ filtros ficam no `dashboard-studios` (EN11–EN13 têm só a parte da API aqui).
   mostra "Código desconhecido: {{foo}}. Use os botões de variáveis." e não salva enquanto
   houver código desconhecido (a API recusa com 400). Testes contracts, API e web.
 - **Gate:** gate completo
-- **Status:** TODO
+- **Status:** DONE
 
 ### RE8 — "Realizado" manual não mostra "Finalização automática"
 

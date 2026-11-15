@@ -156,6 +156,67 @@ describe("mensagens padrão de WhatsApp", () => {
     });
     expect(stolen.statusCode).toBe(400);
   });
+
+  it("recusa código desconhecido ao criar e editar, sem quebrar mensagem já salva com ele", async () => {
+    const { app, repository, headers } = await setup();
+    const created = await app.inject({
+      method: "POST",
+      url: "/communications/templates",
+      headers,
+      payload: { title: "Interesse", body: "Oi, {{nome}}! {{foo}}" },
+    });
+    expect(created.statusCode).toBe(400);
+    expect(created.json<{ message: string }>().message).toContain(
+      "Código desconhecido: {{foo}}. Use os botões de variáveis.",
+    );
+    const valid = await app.inject({
+      method: "POST",
+      url: "/communications/templates",
+      headers,
+      payload: { title: "Válida", body: "Oi, {{ nome }}!" },
+    });
+    expect(valid.statusCode).toBe(201);
+    const edited = await app.inject({
+      method: "PUT",
+      url: `/communications/templates/${valid.json<MessageTemplate>().id}`,
+      headers,
+      payload: { title: "Válida", body: "Oi, {{interesse}}!" },
+    });
+    expect(edited.statusCode).toBe(400);
+    expect(edited.json<{ message: string }>().message).toContain(
+      "Código desconhecido: {{interesse}}.",
+    );
+
+    // Mensagem salva antes da regra: continua na lista e na campanha (código sai literal).
+    const legacy = await repository.createMessageTemplate(clinicId, actorId, {
+      title: "Antiga",
+      body: "Oi, {{nome}}! {{interesse}}",
+      images: [],
+    });
+    const list = await app.inject({
+      url: "/communications/templates",
+      headers,
+    });
+    expect(list.statusCode).toBe(200);
+    expect(list.json<MessageTemplate[]>().map((item) => item.id)).toContain(
+      legacy.id,
+    );
+    const [ana] = await repository.listPatients(clinicId);
+    const campaign = await app.inject({
+      method: "POST",
+      url: "/communications/campaigns",
+      headers,
+      payload: {
+        templateId: legacy.id,
+        name: "Antiga",
+        audience: { mode: "patients", patientIds: [ana!.id] },
+      },
+    });
+    expect(campaign.statusCode).toBe(201);
+    expect(
+      campaign.json<WhatsappCampaignDetail>().recipients[0]?.message,
+    ).toBe(`Oi, ${ana!.fullName.split(" ")[0]}! {{interesse}}`);
+  });
 });
 
 describe("campanhas de WhatsApp", () => {
