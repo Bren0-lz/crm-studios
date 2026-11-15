@@ -341,6 +341,9 @@ export function NewCampaignModal({
   const [filterOptions, setFilterOptions] =
     useState<CampaignFilterOptions | null>(null);
   const template = active.find((item) => item.id === templateId);
+  // Sem a mensagem escolhida (ex.: não está mais na lista), volta à escolha em
+  // vez de travar o passo 2.
+  if (step !== 1 && !template) setStep(1);
   const [name, setName] = useState("");
   const [promotion, setPromotion] = useState<CampaignPromotionDraft>(
     emptyCampaignPromotion,

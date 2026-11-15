@@ -68,6 +68,16 @@ function CampaignRow({ campaign }: { campaign: WhatsappCampaign }) {
   );
 }
 
+/** Inclui (ou atualiza) a mensagem na lista, pelo `id`. */
+function withTemplate(
+  templates: MessageTemplate[],
+  template: MessageTemplate,
+): MessageTemplate[] {
+  return templates.some((item) => item.id === template.id)
+    ? templates.map((item) => (item.id === template.id ? template : item))
+    : [...templates, template];
+}
+
 /** Aba "Campanhas": lista com o progresso de cada envio e a criação de novas. */
 export function CampaignsTab({
   templateToUse,
@@ -107,7 +117,15 @@ export function CampaignsTab({
     };
   }, []);
 
-  const activeTemplates = templates.filter((template) => !template.archivedAt);
+  // "Usar em campanha" pode trazer uma mensagem criada depois que a lista foi
+  // carregada: junta pelo `id` (substitui a versão antiga, se houver).
+  const allTemplates = templateToUse
+    ? withTemplate(templates, templateToUse)
+    : templates;
+
+  const activeTemplates = allTemplates.filter(
+    (template) => !template.archivedAt,
+  );
   const modalOpen = creating || Boolean(templateToUse && campaigns);
   const inProgress = (campaigns ?? []).filter((item) => !item.completedAt);
   const finished = (campaigns ?? []).filter((item) => item.completedAt);
@@ -186,11 +204,13 @@ export function CampaignsTab({
       )}
       {modalOpen && (
         <NewCampaignModal
-          templates={templates}
+          templates={allTemplates}
           patients={patients}
           initialTemplateId={templateToUse?.id}
           onClose={() => {
             setCreating(false);
+            if (templateToUse)
+              setTemplates((current) => withTemplate(current, templateToUse));
             onTemplateUsed();
           }}
           onCreated={(campaign) => {
