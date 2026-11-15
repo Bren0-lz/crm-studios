@@ -1724,6 +1724,11 @@ export interface ClinicRepository {
     clinicId: string,
     query: LeadDuplicateQuery,
   ): Promise<LeadDuplicateMatch[]>;
+  /**
+   * Com `eventId` (participante digitado, RE2) segue a regra da importação: contato de cliente
+   * entra ligado a ele (`convertedPatientId`, etapa "won"); contato que já participa do evento
+   * → `EVENT_PARTICIPANT_EXISTS` (409).
+   */
   createLead(clinicId: string, input: LeadInput): Promise<Lead>;
   /**
    * Grava os participantes importados numa transação (EN1): contato que já participa do evento

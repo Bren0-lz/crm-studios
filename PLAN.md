@@ -1808,7 +1808,7 @@ filtros ficam no `dashboard-studios` (EN11–EN13 têm só a parte da API aqui).
   nos dois repositórios. O modal avisa "Fulana já é cliente: entrou no evento ligada ao
   cadastro". Testes API (memória e MySQL opt-in) e web.
 - **Gate:** gate completo + `npm run test:mysql`
-- **Status:** TODO
+- **Status:** DONE
 
 ### RE3 — Serviço com nome repetido é recusado
 

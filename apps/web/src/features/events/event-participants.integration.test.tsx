@@ -59,8 +59,11 @@ function setup({
   duplicates = false,
   fail = false,
   permissions,
+  addResult,
 }: {
   participants?: EventParticipant[];
+  /** Resposta do servidor ao adicionar (RE2): ligado ao cliente ou repetido no evento. */
+  addResult?: "linked" | "repeated";
   duplicates?: boolean;
   fail?: boolean;
   permissions?: PermissionKey[];
@@ -102,8 +105,23 @@ function setup({
       const body = JSON.parse(String(init.body)) as Record<string, unknown>;
       writes.push({ url, body });
       if (url.endsWith("/leads")) {
+        if (addResult === "repeated")
+          return json(
+            {
+              code: "EVENT_PARTICIPANT_EXISTS",
+              message:
+                "Essa pessoa já participa do evento (mesmo telefone, e-mail ou CPF).",
+            },
+            409,
+          );
         const created: EventParticipant = {
           ...ana,
+          ...(addResult === "linked"
+            ? {
+                convertedPatientId: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+                stage: "won",
+              }
+            : {}),
           id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
           fullName: String(body.fullName),
           phone: String(body.phone),
@@ -232,6 +250,59 @@ describe("event participants", () => {
         .mocked(fetch)
         .mock.calls.some(([url]) => String(url).includes("/leads/duplicates")),
     ).toBe(false);
+  });
+
+  it("warns when the added participant is already a client (RE2)", async () => {
+    setup({ addResult: "linked" });
+    await screen.findByText("Ana Participante");
+    fireEvent.click(
+      screen.getByRole("button", { name: "Adicionar participante" }),
+    );
+    const dialog = screen.getByRole("dialog", {
+      name: "Adicionar participante",
+    });
+    fireEvent.change(within(dialog).getByLabelText("Nome completo"), {
+      target: { value: "Bia Cliente Antiga" },
+    });
+    fireEvent.change(within(dialog).getByLabelText("Telefone"), {
+      target: { value: "11977770001" },
+    });
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Adicionar participante" }),
+    );
+    expect(
+      await screen.findByText(
+        "Bia já é cliente: entrou no evento ligada ao cadastro",
+      ),
+    ).toBeVisible();
+    expect(screen.queryByText("Participante adicionado.")).toBeNull();
+    const list = screen.getByRole("list", { name: "Lista de participantes" });
+    const item = within(list).getByText("Bia Cliente Antiga").closest("li")!;
+    expect(
+      item.querySelector(".events-participant-status .status-pill")!
+        .textContent,
+    ).toBe("Cliente");
+  });
+
+  it("keeps the modal open with the message of a repeated participant (RE2)", async () => {
+    setup({ addResult: "repeated" });
+    await screen.findByText("Ana Participante");
+    fireEvent.click(
+      screen.getByRole("button", { name: "Adicionar participante" }),
+    );
+    const dialog = screen.getByRole("dialog", {
+      name: "Adicionar participante",
+    });
+    fireEvent.change(within(dialog).getByLabelText("Telefone"), {
+      target: { value: "11987654321" },
+    });
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Adicionar participante" }),
+    );
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent(
+      "Essa pessoa já participa do evento (mesmo telefone, e-mail ou CPF).",
+    );
+    expect(screen.getByText("1 participante(s)")).toBeVisible();
   });
 
   it("allows adding a participant without filling any fields", async () => {

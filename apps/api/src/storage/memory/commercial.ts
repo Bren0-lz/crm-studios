@@ -6,6 +6,7 @@ import {
 } from "../../modules/commercial/conversion.js";
 import {
   countEventParticipantPlans,
+  planEventParticipant,
   planEventParticipants,
 } from "../../modules/commercial/event-participants.js";
 import {
@@ -113,6 +114,42 @@ export function createCommercialRepository(
     return lead;
   }
 
+  // Regra da EN1 (importação) reaproveitada pelo participante digitado (RE2).
+  function eventImportPatients(clinicId: string) {
+    return repositoryContext.patients
+      .filter((item) => item.clinicId === clinicId)
+      .map((item) => ({
+        ...item,
+        canonicalId: item.mergedIntoPatientId ?? item.id,
+      }));
+  }
+  function eventParticipantsOf(clinicId: string, eventId: string) {
+    return repositoryContext.leads.filter(
+      (lead) => lead.clinicId === clinicId && lead.eventId === eventId,
+    );
+  }
+  /** Cliente já cadastrado: o participante entra ligado a ele, como um lead convertido. */
+  function linkEventParticipant(
+    clinicId: string,
+    lead: Lead,
+    plan: { patientId: string; input: { extraFields?: ExtraFields } },
+    timestamp: string,
+  ) {
+    lead.convertedPatientId = plan.patientId;
+    lead.stage = "won";
+    repositoryContext.leadConvertedAt.set(lead.id, lead.createdAt);
+    const patient = repositoryContext.patients.find(
+      (item) => item.clinicId === clinicId && item.id === plan.patientId,
+    );
+    if (patient && plan.input.extraFields) {
+      patient.extraFields = mergeExtraFields(
+        patient.extraFields,
+        plan.input.extraFields,
+      );
+      patient.updatedAt = timestamp;
+    }
+  }
+
   const repository = {
     async listLeads(clinicId: string) {
       return repositoryContext.leads
@@ -172,22 +209,32 @@ export function createCommercialRepository(
       );
     },
 
-    createLead,
+    async createLead(
+      clinicId: string,
+      input: LeadInput & { extraFields?: ExtraFields },
+    ) {
+      if (!input.eventId) return createLead(clinicId, input);
+      // RE2: participante digitado segue a regra da importação (cliente → ligado; repetido → 409).
+      const plan = planEventParticipant(
+        input,
+        eventImportPatients(clinicId),
+        eventParticipantsOf(clinicId, input.eventId),
+      );
+      const lead = await createLead(clinicId, input);
+      if (plan.kind === "link")
+        linkEventParticipant(clinicId, lead, plan, now());
+      return lead;
+    },
     async importEventParticipants(
       clinicId: string,
       eventId: string,
       inputs: (LeadInput & { extraFields?: ExtraFields })[],
     ) {
-      const patients = repositoryContext.patients
-        .filter((item) => item.clinicId === clinicId)
-        .map((item) => ({
-          ...item,
-          canonicalId: item.mergedIntoPatientId ?? item.id,
-        }));
-      const participants = repositoryContext.leads.filter(
-        (lead) => lead.clinicId === clinicId && lead.eventId === eventId,
+      const plans = planEventParticipants(
+        inputs,
+        eventImportPatients(clinicId),
+        eventParticipantsOf(clinicId, eventId),
       );
-      const plans = planEventParticipants(inputs, patients, participants);
       const created: Lead[] = [];
       try {
         for (const plan of plans) {
@@ -208,20 +255,8 @@ export function createCommercialRepository(
       for (const plan of plans) {
         if (plan.kind === "skip") continue;
         const lead = created[index++]!;
-        if (plan.kind !== "link") continue;
-        lead.convertedPatientId = plan.patientId;
-        lead.stage = "won";
-        repositoryContext.leadConvertedAt.set(lead.id, lead.createdAt);
-        const patient = repositoryContext.patients.find(
-          (item) => item.clinicId === clinicId && item.id === plan.patientId,
-        );
-        if (patient && plan.input.extraFields) {
-          patient.extraFields = mergeExtraFields(
-            patient.extraFields,
-            plan.input.extraFields,
-          );
-          patient.updatedAt = timestamp;
-        }
+        if (plan.kind === "link")
+          linkEventParticipant(clinicId, lead, plan, timestamp);
       }
       return countEventParticipantPlans(plans);
     },

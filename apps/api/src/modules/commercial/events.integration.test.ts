@@ -216,6 +216,68 @@ describe("eventos do comercial", () => {
     expect(body.participantCount).toBe(3);
   });
 
+  it("liga ao cadastro o participante digitado que já é cliente e recusa o repetido (RE2)", async () => {
+    const { app, repository, headers } = await setup();
+    const event = (
+      await app.inject({
+        method: "POST",
+        url: "/events",
+        headers,
+        payload: eventPayload,
+      })
+    ).json() as CommercialEvent;
+    const patient = await repository.createPatient(clinicId, {
+      fullName: "TESTE Cliente A",
+      phone: "11977770001",
+      cpf: nextTestCpf(),
+      tags: [],
+      ...testPatientContact,
+    });
+    const patientsBefore = (await repository.listPatients(clinicId)).length;
+    const add = (fullName: string, phone: string) =>
+      app.inject({
+        method: "POST",
+        url: "/leads",
+        headers,
+        payload: {
+          fullName,
+          phone,
+          source: eventLeadSource(event.name),
+          interest: EVENT_LEAD_DEFAULT_INTEREST,
+          tags: [],
+          eventId: event.id,
+        },
+      });
+    const linked = await add("TESTE Cliente A", "(11) 97777-0001");
+    expect(linked.statusCode, linked.body).toBe(201);
+    expect(linked.json()).toMatchObject({
+      eventId: event.id,
+      convertedPatientId: patient.id,
+      stage: "won",
+    });
+    expect(await repository.listPatients(clinicId)).toHaveLength(
+      patientsBefore,
+    );
+    // Nenhum lead solto no funil para a cliente.
+    expect(
+      (await repository.listLeads(clinicId)).filter(
+        (lead) => lead.fullName === "TESTE Cliente A",
+      ),
+    ).toEqual([expect.objectContaining({ convertedPatientId: patient.id })]);
+    const repeated = await add("Outra pessoa", "11977770001");
+    expect(repeated.statusCode).toBe(409);
+    expect(repeated.json()).toMatchObject({
+      code: "EVENT_PARTICIPANT_EXISTS",
+      message:
+        "Essa pessoa já participa do evento (mesmo telefone, e-mail ou CPF).",
+    });
+    const detail = (
+      await app.inject({ method: "GET", url: `/events/${event.id}`, headers })
+    ).json() as CommercialEventDetail;
+    expect(detail.participants).toHaveLength(1);
+    expect(detail.indicators.converted).toBe(1);
+  });
+
   it("registra contato feito ou tentativa do participante e atualiza os indicadores", async () => {
     const { app, headers } = await setup();
     const event = (

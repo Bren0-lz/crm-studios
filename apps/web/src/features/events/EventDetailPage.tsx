@@ -358,9 +358,9 @@ export function EventDetailPage() {
         <EventParticipantModal
           event={event}
           onClose={() => setAdding(false)}
-          onSaved={() => {
+          onSaved={(notice) => {
             setAdding(false);
-            toast.success("Participante adicionado.");
+            toast.success(notice ?? "Participante adicionado.");
           }}
         />
       )}
