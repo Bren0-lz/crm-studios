@@ -112,7 +112,10 @@ export function createRelationshipRepository(
       return { ...activity };
     },
 
-    async listBirthdays(clinicId: string, month: string) {
+    async listBirthdays(
+      clinicId: string,
+      period: { from: string; to: string },
+    ) {
       return buildBirthdayEntries(
         repositoryContext.patients.filter(
           (item) =>
@@ -120,7 +123,7 @@ export function createRelationshipRepository(
             !repositoryContext.isTrashed("patients", item.id),
         ),
         await repositoryContext.operations.listContactActivities(clinicId),
-        month,
+        period,
       );
     },
 

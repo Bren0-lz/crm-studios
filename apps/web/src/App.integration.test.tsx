@@ -1704,32 +1704,34 @@ describe("application shell", () => {
       }),
     );
     vi.mocked(fetch).mockImplementation(async (input) => {
-      const body = String(input).includes("/reports/sales?")
-        ? {
-            month: "2026-09",
-            current: {
-              to: "2026-09-15",
-              netSalesInCents: 120000,
-            },
-            changePercent: 20,
-            patientsWithoutReturn: [
-              {
-                patientId: "99999999-9999-4999-8999-999999999999",
-                patientName: "Helena Almeida",
-                lastCompletedAt: "2026-08-20T15:00:00Z",
+      const body = String(input).includes("/relationship/")
+        ? []
+        : String(input).includes("/reports/sales?")
+          ? {
+              month: "2026-09",
+              current: {
+                to: "2026-09-15",
+                netSalesInCents: 120000,
               },
-            ],
-          }
-        : {
-            appointmentsToday: 3,
-            nonCancelledAppointmentsToday: 3,
-            pendingToday: 2,
-            awaitingConfirmationToday: 2,
-            completedToday: 1,
-            patientsActive: 40,
-            noShowsThisMonth: 1,
-            nextAppointments: [],
-          };
+              changePercent: 20,
+              patientsWithoutReturn: [
+                {
+                  patientId: "99999999-9999-4999-8999-999999999999",
+                  patientName: "Helena Almeida",
+                  lastCompletedAt: "2026-08-20T15:00:00Z",
+                },
+              ],
+            }
+          : {
+              appointmentsToday: 3,
+              nonCancelledAppointmentsToday: 3,
+              pendingToday: 2,
+              awaitingConfirmationToday: 2,
+              completedToday: 1,
+              patientsActive: 40,
+              noShowsThisMonth: 1,
+              nextAppointments: [],
+            };
       return { ok: true, status: 200, json: async () => body } as Response;
     });
     render(
@@ -2611,6 +2613,49 @@ describe("application shell", () => {
         priority: 3,
       },
     ];
+    // O card lê a janela de aniversários (mesma fonte do painel do mês), não as sugestões.
+    const birthdays = [
+      {
+        patientId: "99999999-9999-4999-8999-999999999999",
+        patientName: "Helena Almeida",
+        phone: "11987654321",
+        whatsapp: "11911112222",
+        birthDate: "1990-10-10",
+        date: "2026-10-10",
+        day: 10,
+        ageTurning: 36,
+        referenceKey: "99999999-9999-4999-8999-999999999999:2026",
+        congratulated: false,
+        daysUntil: 0,
+        detail: "Aniversário hoje",
+      },
+      {
+        patientId: "77777777-7777-4777-8777-777777777777",
+        patientName: "Carla Dias",
+        phone: "11933334444",
+        birthDate: "1985-10-13",
+        date: "2026-10-13",
+        day: 13,
+        ageTurning: 41,
+        referenceKey: "77777777-7777-4777-8777-777777777777:2026",
+        congratulated: false,
+        daysUntil: 3,
+        detail: "Aniversário em 3 dias (13/10)",
+      },
+      {
+        patientId: "66666666-6666-4666-8666-666666666666",
+        patientName: "Dora Lima",
+        phone: "11922223333",
+        birthDate: "1970-10-15",
+        date: "2026-10-15",
+        day: 15,
+        ageTurning: 56,
+        referenceKey: "66666666-6666-4666-8666-666666666666:2026",
+        congratulated: true,
+        daysUntil: 5,
+        detail: "Aniversário em 5 dias (15/10)",
+      },
+    ];
     let activityBody: Record<string, unknown> | undefined;
     vi.mocked(fetch).mockImplementation(async (input, init) => {
       const url = String(input);
@@ -2622,22 +2667,24 @@ describe("application shell", () => {
           json: async () => ({ id: "a1", ...activityBody }),
         } as Response;
       }
-      const body = url.includes("/relationship/suggestions")
-        ? suggestions
-        : url.includes("/relationship/settings")
-          ? relationshipSettingsFixture()
-          : url.includes("/dashboard")
-            ? {
-                appointmentsToday: 0,
-                nonCancelledAppointmentsToday: 0,
-                pendingToday: 0,
-                awaitingConfirmationToday: 0,
-                completedToday: 0,
-                patientsActive: 3,
-                noShowsThisMonth: 0,
-                nextAppointments: [],
-              }
-            : [];
+      const body = url.includes("/relationship/birthdays/upcoming")
+        ? birthdays
+        : url.includes("/relationship/suggestions")
+          ? suggestions
+          : url.includes("/relationship/settings")
+            ? relationshipSettingsFixture()
+            : url.includes("/dashboard")
+              ? {
+                  appointmentsToday: 0,
+                  nonCancelledAppointmentsToday: 0,
+                  pendingToday: 0,
+                  awaitingConfirmationToday: 0,
+                  completedToday: 0,
+                  patientsActive: 3,
+                  noShowsThisMonth: 0,
+                  nextAppointments: [],
+                }
+              : [];
       return { ok: true, status: 200, json: async () => body } as Response;
     });
     render(
@@ -2675,14 +2722,30 @@ describe("application shell", () => {
       `https://wa.me/5511933334444?text=${encodeURIComponent("Parabéns, Carla!")}`,
     );
     expect(within(card).queryByText("Bruno Souza")).not.toBeInTheDocument();
+    // Já enviado: continua no card, com o selo e sem "Marcar como enviado".
+    const dora = within(card)
+      .getByText("Dora Lima")
+      .closest(".attention-item") as HTMLElement;
+    expect(within(dora).getByText("Parabéns enviado")).toBeInTheDocument();
+    expect(
+      within(dora).getByRole("link", { name: /Dar parabéns/ }),
+    ).toBeInTheDocument();
+    expect(
+      within(dora).queryByRole("button", { name: "Marcar como enviado" }),
+    ).not.toBeInTheDocument();
+    expect(
+      within(helena).queryByText("Parabéns enviado"),
+    ).not.toBeInTheDocument();
     fireEvent.click(
       within(helena).getByRole("button", { name: "Marcar como enviado" }),
     );
     await vi.waitFor(() =>
-      expect(
-        within(card).queryByText("Helena Almeida"),
-      ).not.toBeInTheDocument(),
+      expect(within(helena).getByText("Parabéns enviado")).toBeInTheDocument(),
     );
+    expect(within(card).getByText("Helena Almeida")).toBeInTheDocument();
+    expect(
+      within(helena).queryByRole("button", { name: "Marcar como enviado" }),
+    ).not.toBeInTheDocument();
     expect(activityBody).toEqual({
       patientId: "99999999-9999-4999-8999-999999999999",
       reason: "birthday",
@@ -10876,16 +10939,19 @@ describe("view-only relationship", () => {
         editModules: [],
       }),
     );
-    const suggestion = {
+    const upcoming = {
       patientId: "99999999-9999-4999-8999-999999999999",
       patientName: "Helena Almeida",
       phone: "11987654321",
       whatsapp: "11911112222",
-      reason: "birthday",
+      birthDate: "1990-10-10",
+      date: "2026-10-10",
+      day: 10,
+      ageTurning: 36,
       referenceKey: "99999999-9999-4999-8999-999999999999:2026",
+      congratulated: false,
+      daysUntil: 0,
       detail: "Aniversário hoje",
-      dueDate: "2026-10-10",
-      priority: 1,
     };
     const entry = {
       patientId: "88888888-8888-4888-8888-888888888888",
@@ -10900,8 +10966,8 @@ describe("view-only relationship", () => {
     };
     vi.mocked(fetch).mockImplementation(async (input) => {
       const url = String(input);
-      const body = url.includes("/relationship/suggestions")
-        ? [suggestion]
+      const body = url.includes("/relationship/birthdays/upcoming")
+        ? [upcoming]
         : url.includes("/relationship/birthdays")
           ? [entry]
           : url.includes("/relationship/settings")
@@ -11149,11 +11215,14 @@ describe("button variants", () => {
       patientId: "99999999-9999-4999-8999-999999999999",
       patientName: "Helena Almeida",
       phone: "11987654321",
-      reason: "birthday",
+      birthDate: "1990-10-10",
+      date: "2026-10-10",
+      day: 10,
+      ageTurning: 36,
       referenceKey: "99999999-9999-4999-8999-999999999999:2026",
+      congratulated: false,
+      daysUntil: 0,
       detail: "Aniversário hoje",
-      dueDate: "2026-10-10",
-      priority: 1,
     };
     const appointment = {
       id: "a1",
@@ -11167,7 +11236,7 @@ describe("button variants", () => {
     };
     mockApi(
       (url) =>
-        url.includes("/relationship/suggestions")
+        url.includes("/relationship/birthdays/upcoming")
           ? [birthday]
           : url.includes("/relationship/settings")
             ? relationshipSettingsFixture()

@@ -24,7 +24,7 @@ export function ContactActivityModal({
 }: {
   suggestions: ContactSuggestion[];
   onClose: () => void;
-  onSaved: (saved: ContactSuggestion[]) => void;
+  onSaved: (saved: ContactSuggestion[], outcome: ContactOutcome) => void;
 }) {
   const suggestion = suggestions[0]!;
   const { can } = useAuthorization();
@@ -60,7 +60,7 @@ export function ContactActivityModal({
         await api.createContactActivity(input);
         saved.push(item);
       }
-      onSaved(saved);
+      onSaved(saved, outcome);
     } catch (cause) {
       setError(
         saved.length

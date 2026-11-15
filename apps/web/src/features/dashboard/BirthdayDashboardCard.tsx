@@ -1,7 +1,7 @@
 import {
   patientFirstName,
-  type ContactSuggestion,
   type RelationshipSettings,
+  type UpcomingBirthdayEntry,
   whatsappLink,
 } from "@crm/contracts";
 import { ChevronRight, MessageCircle } from "lucide-react";
@@ -17,7 +17,7 @@ import { birthdayMessage, markBirthdaySent } from "../relationship/index";
 export function BirthdayDashboardCard() {
   const { canEdit } = useAuthorization();
   const toast = useToast();
-  const [birthdays, setBirthdays] = useState<ContactSuggestion[]>([]);
+  const [birthdays, setBirthdays] = useState<UpcomingBirthdayEntry[]>([]);
   const [settings, setSettings] = useState<RelationshipSettings | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
@@ -25,14 +25,11 @@ export function BirthdayDashboardCard() {
 
   useEffect(() => {
     let active = true;
-    Promise.all([api.contactSuggestions(), api.relationshipSettings()])
-      .then(([suggestionData, settingsData]) => {
+    // Mesma fonte do painel do mês: todos os aniversários da janela, com ou sem parabéns.
+    Promise.all([api.upcomingBirthdays(), api.relationshipSettings()])
+      .then(([birthdayData, settingsData]) => {
         if (!active) return;
-        setBirthdays(
-          suggestionData.filter(
-            (suggestion) => suggestion.reason === "birthday",
-          ),
-        );
+        setBirthdays(birthdayData);
         setSettings(settingsData);
       })
       .catch((cause: Error) => active && setError(cause.message))
@@ -42,7 +39,7 @@ export function BirthdayDashboardCard() {
     };
   }, []);
 
-  async function markSent(suggestion: ContactSuggestion) {
+  async function markSent(suggestion: UpcomingBirthdayEntry) {
     setError("");
     setSaving(suggestion.referenceKey);
     try {
@@ -51,7 +48,11 @@ export function BirthdayDashboardCard() {
         `Parabéns para ${patientFirstName(suggestion.patientName)} marcados como enviados.`,
       );
       setBirthdays((current) =>
-        current.filter((item) => item.referenceKey !== suggestion.referenceKey),
+        current.map((item) =>
+          item.referenceKey === suggestion.referenceKey
+            ? { ...item, congratulated: true }
+            : item,
+        ),
       );
     } catch (cause) {
       setError((cause as Error).message);
@@ -105,15 +106,21 @@ export function BirthdayDashboardCard() {
                     <MessageCircle size={15} aria-hidden="true" />
                     Dar parabéns
                   </a>
-                  {canEdit("relationship") && (
-                    <button
-                      type="button"
-                      className="secondary-button button-sm"
-                      disabled={saving === suggestion.referenceKey}
-                      onClick={() => void markSent(suggestion)}
-                    >
-                      Marcar como enviado
-                    </button>
+                  {suggestion.congratulated ? (
+                    <span className="status-pill completed">
+                      Parabéns enviado
+                    </span>
+                  ) : (
+                    canEdit("relationship") && (
+                      <button
+                        type="button"
+                        className="secondary-button button-sm"
+                        disabled={saving === suggestion.referenceKey}
+                        onClick={() => void markSent(suggestion)}
+                      >
+                        Marcar como enviado
+                      </button>
+                    )
                   )}
                 </div>
               </div>

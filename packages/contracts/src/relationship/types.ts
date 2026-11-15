@@ -43,7 +43,7 @@ export interface ContactActivity {
   createdAt: string;
 }
 
-/** Aniversariante do mês (`GET /relationship/birthdays?month=aaaa-mm`). */
+/** Aniversariante do mês (`GET /relationship/birthdays?month=aaaa-mm`) ou de uma janela de datas. */
 export interface BirthdayEntry {
   patientId: string;
   patientName: string;
@@ -59,6 +59,17 @@ export interface BirthdayEntry {
   referenceKey: string;
   /** Já existe atividade `birthday`/`contacted` com a chave do ano. */
   congratulated: boolean;
+}
+
+/**
+ * Aniversariante da janela de hoje até `birthdayDaysAhead` (card da Visão geral,
+ * `GET /relationship/birthdays/upcoming`); a janela pode atravessar mês e ano.
+ */
+export interface UpcomingBirthdayEntry extends BirthdayEntry {
+  /** Dias até o aniversário (0 = hoje). */
+  daysUntil: number;
+  /** Mesmo texto da sugestão `birthday` ("Aniversário hoje", "Aniversário em 3 dias (13/10)"). */
+  detail: string;
 }
 
 export type SatisfactionSurveyInput = z.infer<

@@ -18,31 +18,33 @@ describe("application shell", () => {
       }),
     );
     vi.mocked(fetch).mockImplementation(async (input) => {
-      const body = String(input).includes("/reports/sales?")
-        ? {
-            month: "2026-09",
-            current: {
-              to: "2026-09-15",
-              netSalesInCents: 120000,
-              receivedInCents: 90000,
-              attendedPatients: 14,
-            },
-            changePercent: 20,
-            patientsWithoutReturn: [
-              {
-                patientId: "99999999-9999-4999-8999-999999999999",
-                patientName: "Helena Almeida",
-                lastCompletedAt: "2026-08-20T15:00:00Z",
+      const body = String(input).includes("/relationship/")
+        ? []
+        : String(input).includes("/reports/sales?")
+          ? {
+              month: "2026-09",
+              current: {
+                to: "2026-09-15",
+                netSalesInCents: 120000,
+                receivedInCents: 90000,
+                attendedPatients: 14,
               },
-            ],
-          }
-        : {
-            appointmentsToday: 3,
-            completedToday: 1,
-            patientsActive: 40,
-            noShowsThisMonth: 1,
-            nextAppointments: [],
-          };
+              changePercent: 20,
+              patientsWithoutReturn: [
+                {
+                  patientId: "99999999-9999-4999-8999-999999999999",
+                  patientName: "Helena Almeida",
+                  lastCompletedAt: "2026-08-20T15:00:00Z",
+                },
+              ],
+            }
+          : {
+              appointmentsToday: 3,
+              completedToday: 1,
+              patientsActive: 40,
+              noShowsThisMonth: 1,
+              nextAppointments: [],
+            };
       return { ok: true, status: 200, json: async () => body } as Response;
     });
     render(

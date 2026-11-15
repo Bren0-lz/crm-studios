@@ -354,6 +354,7 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
   "GET /relationship/settings": viewAny("relationship", "settings"),
   "GET /relationship/suggestions": view("relationship"),
   "GET /relationship/birthdays": view("relationship"),
+  "GET /relationship/birthdays/upcoming": view("relationship"),
   "GET /relationship/activities": view("relationship"),
   "POST /relationship/activities": operation("relationship.activities_create"),
 

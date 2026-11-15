@@ -12,6 +12,7 @@ import type {
   Receivable,
   RelationshipSettings,
   SatisfactionSurvey,
+  UpcomingBirthdayEntry,
 } from "@crm/contracts";
 
 export interface ContactSuggestionData {
@@ -90,6 +91,13 @@ function plural(count: number, singular: string, pluralForm: string) {
   return `${count} ${count === 1 ? singular : pluralForm}`;
 }
 
+/** Texto do aniversário na sugestão e no card da Visão geral. */
+function birthdayDetail(days: number, date: string) {
+  return days === 0
+    ? "Aniversário hoje"
+    : `Aniversário em ${plural(days, "dia", "dias")} (${shortDate(date)})`;
+}
+
 interface Candidate {
   suggestion: ContactSuggestion;
   sortKey: number;
@@ -157,9 +165,7 @@ export function buildContactSuggestions(
         add(
           "birthday",
           `${patient.id}:${next.year}`,
-          days === 0
-            ? "Aniversário hoje"
-            : `Aniversário em ${plural(days, "dia", "dias")} (${shortDate(next.date)})`,
+          birthdayDetail(days, next.date),
           days,
           next.date,
           days === 0 ? birthdayTodayRank : reasonRank.birthday,
@@ -423,12 +429,14 @@ export function buildContactSuggestions(
     }
   }
 
+  // "Não atendeu" fica só no histórico: a sugestão continua na lista até outro resultado.
   const hidden = (suggestion: ContactSuggestion) =>
     data.activities.some(
       (activity) =>
         activity.patientId === suggestion.patientId &&
         activity.reason === suggestion.reason &&
         activity.referenceKey === suggestion.referenceKey &&
+        activity.outcome !== "no_answer" &&
         (activity.outcome !== "snoozed" ||
           (activity.snoozeUntil !== undefined &&
             activity.snoozeUntil >= today)),
@@ -448,43 +456,85 @@ export function buildContactSuggestions(
     .map(({ suggestion }) => suggestion);
 }
 
+/** Primeiro e último dia do mês `aaaa-mm`. */
+export function birthdayMonthPeriod(month: string) {
+  const [year, monthNumber] = month.split("-").map(Number);
+  const lastDay = new Date(Date.UTC(year!, monthNumber!, 0)).getUTCDate();
+  return {
+    from: `${month}-01`,
+    to: `${month}-${String(lastDay).padStart(2, "0")}`,
+  };
+}
+
 /**
- * Aniversariantes ativos do mês `aaaa-mm`, com o mesmo critério de data da
- * sugestão `birthday` (29/02 vira 28/02 em ano não bissexto).
+ * Aniversariantes ativos entre `from` e `to` (aaaa-mm-dd, inclusive; pode atravessar a virada
+ * do ano), com o mesmo critério de data da sugestão `birthday` (29/02 vira 28/02 em ano não
+ * bissexto).
  */
 export function buildBirthdayEntries(
   patients: Patient[],
   activities: ContactActivity[],
-  month: string,
+  period: { from: string; to: string },
 ): BirthdayEntry[] {
-  const year = Number(month.slice(0, 4));
   const entries: BirthdayEntry[] = [];
+  const firstYear = Number(period.from.slice(0, 4));
+  const lastYear = Number(period.to.slice(0, 4));
   for (const patient of patients) {
     if (patient.status !== "active" || !patient.birthDate) continue;
-    const date = birthdayIn(year, patient.birthDate);
-    if (date.slice(0, 7) !== month) continue;
-    const referenceKey = `${patient.id}:${year}`;
-    entries.push({
-      patientId: patient.id,
-      patientName: patient.fullName,
-      phone: patient.phone,
-      whatsapp: patient.whatsapp ? patient.whatsapp : undefined,
-      birthDate: patient.birthDate,
-      date,
-      day: Number(date.slice(8, 10)),
-      ageTurning: year - Number(patient.birthDate.slice(0, 4)),
-      referenceKey,
-      congratulated: activities.some(
-        (activity) =>
-          activity.patientId === patient.id &&
-          activity.reason === "birthday" &&
-          activity.referenceKey === referenceKey &&
-          activity.outcome === "contacted",
-      ),
-    });
+    for (let year = firstYear; year <= lastYear; year += 1) {
+      const date = birthdayIn(year, patient.birthDate);
+      if (date < period.from || date > period.to) continue;
+      const referenceKey = `${patient.id}:${year}`;
+      entries.push({
+        patientId: patient.id,
+        patientName: patient.fullName,
+        phone: patient.phone,
+        whatsapp: patient.whatsapp ? patient.whatsapp : undefined,
+        birthDate: patient.birthDate,
+        date,
+        day: Number(date.slice(8, 10)),
+        ageTurning: year - Number(patient.birthDate.slice(0, 4)),
+        referenceKey,
+        congratulated: activities.some(
+          (activity) =>
+            activity.patientId === patient.id &&
+            activity.reason === "birthday" &&
+            activity.referenceKey === referenceKey &&
+            activity.outcome === "contacted",
+        ),
+      });
+    }
   }
   return entries.sort(
     (a, b) =>
-      a.day - b.day || a.patientName.localeCompare(b.patientName, "pt-BR"),
+      a.date.localeCompare(b.date) ||
+      a.patientName.localeCompare(b.patientName, "pt-BR"),
   );
+}
+
+/** Janela do card da Visão geral: de hoje até `birthdayDaysAhead`, igual à sugestão `birthday`. */
+export function upcomingBirthdayPeriod(
+  settings: RelationshipSettings,
+  today: string,
+) {
+  return {
+    from: today,
+    to: new Date((dayNumber(today) + settings.birthdayDaysAhead) * 86_400_000)
+      .toISOString()
+      .slice(0, 10),
+  };
+}
+
+export function toUpcomingBirthdays(
+  entries: BirthdayEntry[],
+  today: string,
+): UpcomingBirthdayEntry[] {
+  return entries.map((entry) => {
+    const daysUntil = daysBetween(today, entry.date);
+    return {
+      ...entry,
+      daysUntil,
+      detail: birthdayDetail(daysUntil, entry.date),
+    };
+  });
 }

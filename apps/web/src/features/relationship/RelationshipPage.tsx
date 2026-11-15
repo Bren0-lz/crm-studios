@@ -1,6 +1,7 @@
 import { usePatientContext } from "../../shared/hooks/usePatientContext";
 import { PatientContextNotice } from "../../shared/components/PatientContextNotice";
 import {
+  type ContactOutcome,
   type ContactReason,
   type ContactSuggestion,
   fillPatientMessage,
@@ -83,9 +84,12 @@ export function RelationshipPage() {
   const visibleGroups = groupSuggestionsByPatient(visibleClients);
   const clientCount = new Set(suggestions.map((item) => item.patientId)).size;
 
-  function recorded(saved: ContactSuggestion[]) {
+  function recorded(saved: ContactSuggestion[], outcome: ContactOutcome) {
     const suggestion = saved[0]!;
-    const keys = new Set(saved.map(suggestionKey));
+    // "Não atendeu" só entra no histórico: a sugestão continua na lista.
+    const keys = new Set(
+      outcome === "no_answer" ? [] : saved.map(suggestionKey),
+    );
     const remaining = suggestions.filter(
       (item) => !keys.has(suggestionKey(item)),
     );

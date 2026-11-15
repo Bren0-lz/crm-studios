@@ -11,6 +11,11 @@ import {
 } from "@crm/contracts";
 import { z } from "zod";
 import type { RouteContext } from "../../infrastructure/route-context.js";
+import {
+  birthdayMonthPeriod,
+  toUpcomingBirthdays,
+  upcomingBirthdayPeriod,
+} from "./contact-suggestions.js";
 
 export function registerRelationshipRoutes(context: RouteContext) {
   const { app, authenticate, repository, requestAccess } = context;
@@ -51,7 +56,24 @@ export function registerRelationshipRoutes(context: RouteContext) {
         .parse(request.query);
       return repository.listBirthdays(
         request.user.clinicId,
-        query.month ?? saoPauloToday().slice(0, 7),
+        birthdayMonthPeriod(query.month ?? saoPauloToday().slice(0, 7)),
+      );
+    },
+  );
+
+  app.get(
+    "/relationship/birthdays/upcoming",
+    { preHandler: authenticate },
+    async (request) => {
+      const { clinicId } = request.user;
+      const today = saoPauloToday();
+      const settings = await repository.getRelationshipSettings(clinicId);
+      return toUpcomingBirthdays(
+        await repository.listBirthdays(
+          clinicId,
+          upcomingBirthdayPeriod(settings, today),
+        ),
+        today,
       );
     },
   );

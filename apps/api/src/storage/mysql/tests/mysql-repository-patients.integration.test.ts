@@ -8,6 +8,7 @@ import {
 } from "../../../test-support/mysql-database.js";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { legacyRoleDefaultModules } from "../../../modules/administration/legacy-roles.js";
+import { birthdayMonthPeriod } from "../../../modules/relationship/contact-suggestions.js";
 import { MysqlClinicRepository } from "../../../mysql-repository.js";
 import { createDefaultBranch } from "../branches.js";
 import { DomainError } from "../../../repository.js";
@@ -630,9 +631,9 @@ describe.skipIf(!databaseUrl)("MySQL repository", () => {
       tags: [],
     });
     const mine = async (month: string) =>
-      (await repository.listBirthdays(clinicId, month)).filter(
-        (item) => item.patientId === patient.id,
-      );
+      (
+        await repository.listBirthdays(clinicId, birthdayMonthPeriod(month))
+      ).filter((item) => item.patientId === patient.id);
     expect(await mine("2031-02")).toEqual([
       expect.objectContaining({
         patientName: "Cliente Aniversário",
@@ -655,6 +656,26 @@ describe.skipIf(!databaseUrl)("MySQL repository", () => {
       date: "2032-02-29",
       congratulated: false,
     });
+    // Janela que atravessa a virada do ano lê os parabéns de cada ano.
+    await repository.createContactActivity(clinicId, ownerId, {
+      patientId: patient.id,
+      reason: "birthday",
+      referenceKey: `${patient.id}:2032`,
+      outcome: "no_answer",
+    });
+    expect(
+      (
+        await repository.listBirthdays(clinicId, {
+          from: "2030-12-20",
+          to: "2032-03-01",
+        })
+      )
+        .filter((item) => item.patientId === patient.id)
+        .map((item) => [item.date, item.congratulated]),
+    ).toEqual([
+      ["2031-02-28", true],
+      ["2032-02-29", false],
+    ]);
   });
 
   it("builds the MySQL client timeline only from the client's own data", async () => {
@@ -757,9 +778,10 @@ describe.skipIf(!databaseUrl)("MySQL repository", () => {
       ).map((item) => item.id),
     ).toEqual([survey.id]);
 
-    const timeline = await new MysqlClinicRepository(
-      pool,
-    ).getPatientTimeline(clinicId, patient.id);
+    const timeline = await new MysqlClinicRepository(pool).getPatientTimeline(
+      clinicId,
+      patient.id,
+    );
     expect(timeline).not.toBeNull();
     expect(timeline!.map((item) => item.kind).sort()).toEqual([
       "appointment",
@@ -1464,7 +1486,6 @@ describe.skipIf(!databaseUrl)("MySQL repository", () => {
       await cleanup();
     }
   });
-
 
   it("merges clients moving plan, balance and receivables in one transaction", async () => {
     const marker = `Mescla PG ${randomUUID()}`;

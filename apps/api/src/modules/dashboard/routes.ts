@@ -131,7 +131,7 @@ export function registerDashboardRoutes(context: RouteContext) {
       autoQueue,
     ] = await Promise.all([
       modules.includes("relationship")
-        ? repository.listBirthdays(clinicId, date.slice(0, 7))
+        ? repository.listBirthdays(clinicId, { from: date, to: date })
         : undefined,
       modules.includes("finance")
         ? repository.getFinancialSummary(clinicId)
