@@ -1762,3 +1762,217 @@ filtros ficam no `dashboard-studios` (EN11–EN13 têm só a parte da API aqui).
 - **Gate:** gate completo + `npm run test:e2e`
 - **Status:** DONE
 
+## Pedido avulso — Correções do teste E2E de 14/11/2026
+
+- **Origem:** `RELATORIO_TESTE_E2E_2026-11-14_1.md` (enviado pelo dono; produção, admin, desktop
+  1192px e celular 440/360px). 26 falhas (1 Alta, 12 Médias, 13 Baixas); RT1–RT6 e RV1–RV3
+  confirmadas. Triagem no código em 15/11/2026 (`main` em `ec5e950`).
+- **Decisões do dono (15/11/2026):**
+  - **E1 (1.4)** — o bloco do usuário no rodapé abre um menu com "Meu perfil" e "Sair" (hoje um
+    clique desloga).
+  - **E2 (8.11)** — motivo de perda: lista dos motivos cadastrados + "Outro motivo"; só o "Outro"
+    abre o texto livre.
+  - **E3 (6.3)** — a tela Lista de espera mostra também a espera das turmas, com "Oferecer a vaga".
+  - **E4 (4.4)** — contratação pela ficha ganha o mesmo desconto do cadastro guiado.
+  - **E5 (5.15 / 10.1)** — o card "Aniversariantes" mostra todos os aniversários da janela, com
+    "Parabéns enviado" quando já enviado; "Não atendeu" deixa a sugestão na lista.
+  - **E6 (12.x)** — contrato com campo do estúdio vazio (CNPJ, endereço) não é emitido: aviso
+    "Cadastre <campo> em Configurações".
+  - **E7** — (a) sai o "Ambiente de demonstração · Dados fictícios" do login; (b) a sessão
+    continua com 8h; (c) estorno e cancelamento de contrato pedem motivo.
+- **Fora deste pedido** (observações do relatório sem tarefa): busca global, presença em
+  evento, gerador de lembretes, série que pula feriado, histórico de reagendamento, lixeira de
+  planos do catálogo, "Renegociada", categorias do Histórico da ficha, validação nativa dos
+  formulários (A.3), lead real com motivo ofensivo (limpeza manual do dono).
+
+### RE1 — "Usar em campanha" com a mensagem recém-criada (Alta)
+
+- **Triagem:** `CampaignsTab` carrega `api.messageTemplates()` só ao montar. A mensagem criada
+  depois não está em `templates`; o `NewCampaignModal` abre no passo 2 com `initialTemplateId`,
+  mas `template` fica `undefined` e `review()` sai sem fazer nada.
+- **Escopo:** ao abrir com `templateToUse`, a lista do `CampaignsTab` passa a incluí-lo (junta
+  pelo `id` ou recarrega antes de abrir); o modal só abre no passo 2 com o modelo presente. Se
+  `template` faltar no passo 2, volta ao passo 1 em vez de travar. Teste web: criar mensagem →
+  "Usar em campanha" → "Conferir quem recebe" chega ao passo 3.
+- **Gate:** gate completo
+- **Status:** TODO
+
+### RE2 — Participante de evento que já é cliente não vira lead novo
+
+- **Triagem:** a importação (`planEventParticipants`, EN1) liga ao cliente pelo telefone,
+  e-mail ou CPF e grava o lead como convertido (`convertedPatientId`, etapa `won`). O cadastro
+  manual (`EventParticipantModal` → `POST /leads` com `eventId`) não usa essa regra e cria um
+  lead solto.
+- **Escopo:** `POST /leads` com `eventId` passa pela mesma regra (cliente encontrado → lead
+  ligado ao cliente, como na importação; participante repetido no evento → 409 com mensagem),
+  nos dois repositórios. O modal avisa "Fulana já é cliente: entrou no evento ligada ao
+  cadastro". Testes API (memória e MySQL opt-in) e web.
+- **Gate:** gate completo + `npm run test:mysql`
+- **Status:** TODO
+
+### RE3 — Serviço com nome repetido é recusado
+
+- **Triagem:** `createService` (memória e MySQL) não confere o nome; `POST /api/services`
+  aceita "TESTE Pilates" duas vezes.
+- **Escopo:** criar e editar serviço com o nome de outro serviço da clínica (sem diferenciar
+  maiúsculas, acentos e espaços nas pontas; inclui inativos) → 409 `SERVICE_NAME_TAKEN` "Já
+  existe um serviço com esse nome.". Nos dois repositórios; o formulário mostra o erro no
+  `form-error`. Testes API e web.
+- **Gate:** gate completo + `npm run test:mysql`
+- **Status:** TODO
+
+### RE4 — Faixa do recibo some depois do estorno
+
+- **Triagem:** `FinancePage` guarda `receiptToSend` após a baixa; `reverse()` não o limpa.
+- **Escopo:** ao estornar um recebimento, se `receiptToSend` é dele, a faixa "Recibo de … pronto
+  para assinar" sai. Teste web.
+- **Gate:** gate completo
+- **Status:** TODO
+
+### RE5 — "Vendas realizadas" em cartões no celular
+
+- **Triagem:** `table.dre-table.sales-history-table` (`SalesHistorySection.tsx`, 801px) alarga
+  a página para 795px em 360px.
+- **Escopo:** como na RV6: `data-label` nas células e, até 700px, cada venda vira um cartão,
+  sem rolagem lateral da página. No computador continua tabela.
+- **Gate:** gate completo + `npm run test:e2e`
+- **Status:** TODO
+
+### RE6 — Plano contratado mostra o tipo do catálogo
+
+- **Triagem:** `PlanCard` mostra `planKindLabels[plan.kind]`; o trimestral vira `fixed_package`
+  por `planTypeKind` e aparece como "Pacote fixo".
+- **Escopo:** com o tipo do modelo conhecido, o cartão mostra `planTypeLabels` ("Plano
+  trimestral"); sem tipo, segue o rótulo do `kind`. A renovação mostra o serviço no lugar do
+  nome do plano (obs. 4.10). Testes web.
+- **Gate:** gate completo
+- **Status:** TODO
+
+### RE7 — Aviso de código desconhecido na mensagem padrão
+
+- **Triagem:** `messageVariables` tem `{{nome}}`, `{{nome_completo}}`, `{{data_atendimento}}`
+  e `{{hora_atendimento}}`; qualquer outro `{{…}}` sai literal na prévia e no envio, sem aviso.
+- **Escopo:** helper no contrato que lista os códigos fora de `messageVariables`; o editor
+  mostra "Código desconhecido: {{foo}}. Use os botões de variáveis." e não salva enquanto
+  houver código desconhecido (a API recusa com 400). Testes contracts, API e web.
+- **Gate:** gate completo
+- **Status:** TODO
+
+### RE8 — "Realizado" manual não mostra "Finalização automática"
+
+- **Triagem:** não reproduzido na 2ª tentativa. Provável corrida: atendimento criado já vencido
+  é finalizado pela rotina automática (`auto_completed_at`) antes do clique; o `UPDATE` manual
+  (`storage/mysql/agenda.ts`, `CASE WHEN status = $3 THEN auto_completed_at END`) mantém o selo
+  porque o status já era `completed`.
+- **Escopo:** reproduzir em teste (memória): finalização automática e depois "Realizado" no
+  mesmo atendimento. Se o atendimento já está finalizado quando o usuário pede "Realizado", o
+  modal mostra "Este atendimento já foi finalizado automaticamente" e recarrega, sem baixar
+  saldo duas vezes. Não muda o selo de quem foi de fato finalizado sozinho.
+- **Gate:** gate completo + `npm run test:mysql`
+- **Status:** TODO
+
+### RE9 — Link público de contrato cancelado sem dados pessoais
+
+- **Triagem:** o link de contrato cancelado bloqueia a assinatura, mas ainda mostra o contrato
+  inteiro (nome, CPF, endereço).
+- **Escopo:** contrato cancelado no link público mostra só "Este contrato foi cancelado e não
+  pode mais ser assinado." e o nome do estúdio; a API não devolve o corpo nem os dados do
+  cliente. Testes API e web.
+- **Gate:** gate completo
+- **Status:** TODO
+
+### RE10 — Acabamento de textos e números
+
+- **Escopo:**
+  - Plural certo com 1: "1 sessão", "1 saldo baixo", "1 ativa", "1 enviada", "1 pessoa" (2.5,
+    4.7, 6.8, 11); procurar os outros contadores com o mesmo padrão.
+  - Telefone com máscara no SOS ("Ligar para (22) 99999-0001") e no alerta "Oferecer a vaga".
+  - Relatórios sem "-R$ 0,00" (zero negativo vira "R$ 0,00").
+  - Exemplos com `crm.organizastudios.com` no lugar de `studiosaryana.com.br`
+    (`receipt-signatures.ts`, `contracts/variables.ts`).
+  - Histórico: "Comissão gerada" por "Calcular comissões" registra quem calculou.
+  - Login sem "Ambiente de demonstração · Dados fictícios" (`LoginPage.tsx`, E7a).
+- **Gate:** gate completo
+- **Status:** TODO
+
+### RE11 — Acabamento de layout
+
+- **Escopo:**
+  - Lista de clientes: etiquetas não sobrepõem "E-mail não informado" nem "Ativo".
+  - Cartão do lead: rótulo do envio inteiro (sem "En…").
+  - Faixa de alertas com 2 alertas sem cortar o texto; no celular, sem ocupar ~150px fixos.
+  - Contas a receber em 1192px sem rolagem lateral; "Dar baixa" inteiro.
+  - Contrato no celular: a linha de assinatura não quebra.
+  - Listas de Configurações recarregam ao voltar à seção (plano com serviço criado em outra
+    seção aparece sem F5).
+- **Gate:** gate completo + `npm run test:e2e`
+- **Status:** TODO
+
+### RE12 — Menu do usuário no rodapé
+
+- **Triagem:** `Shell.tsx`: o `user-card` é um botão `aria-label="Sair: <nome>"` com
+  `onClick={onLogout}`.
+- **Escopo (E1):** o bloco abre um menu (`ActionMenu` ou equivalente) com "Meu perfil" (vai à
+  tela de perfil) e "Sair"; Esc fecha o menu. Ajustar `header-menus.integration.test.tsx`.
+- **Gate:** gate completo
+- **Status:** TODO
+
+### RE13 — Motivo de perda pelo cadastro
+
+- **Triagem:** `LeadLostModal` usa `CatalogInput` (`lead_lost_reason`), que oferece os motivos
+  só num `<datalist>` invisível.
+- **Escopo (E2):** seletor com os motivos ativos do cadastro + "Outro motivo"; com "Outro", campo
+  de texto obrigatório (até 500). Sem motivos cadastrados, só o texto. O valor gravado continua
+  texto (sem migração). Teste web.
+- **Gate:** gate completo
+- **Status:** TODO
+
+### RE14 — Lista de espera com a espera das turmas
+
+- **Triagem:** a turma cheia em Turmas grava matrícula `waitlisted`; a tela Lista de espera
+  (`WaitlistPage`, `api.waitlist()`) lê só `waitlist_entries`. A promoção só existe no alerta do
+  topo "Oferecer a vaga".
+- **Escopo (E3):** a tela Lista de espera mostra também as matrículas `waitlisted` (turma,
+  posição, data), identificadas como "Espera da turma", com "Oferecer a vaga" (mesmo fluxo do
+  alerta) e remover da espera. Contagem e filtros incluem as duas. Nos dois repositórios, se
+  precisar de rota nova. Testes API e web.
+- **Gate:** gate completo + `npm run test:mysql`
+- **Status:** TODO
+
+### RE15 — Desconto na contratação pela ficha
+
+- **Triagem:** o desconto só existe no cadastro guiado; `PatientPlanModal` não tem o campo.
+- **Escopo (E4):** `PatientPlanModal` ganha o mesmo desconto do guiado (valor ou %), com o resumo
+  do total e das parcelas ("3x com 10%"); a API da contratação aceita e grava o desconto como no
+  guiado (memória e MySQL). Testes API e web.
+- **Gate:** gate completo + `npm run test:mysql`
+- **Status:** TODO
+
+### RE16 — Aniversariantes da Visão geral
+
+- **Triagem:** `BirthdayDashboardCard` filtra `contactSuggestions` por `birthday`; em
+  `contact-suggestions.ts`, qualquer contato com a mesma referência esconde a sugestão
+  (inclusive `no_answer`), só o `snoozed` volta.
+- **Escopo (E5):** o card lista todos os aniversários de hoje até `birthdayDaysAhead` (mesma
+  fonte do painel do mês), com "Parabéns enviado" quando já enviado. Contato com resultado
+  `no_answer` não esconde a sugestão. Testes API e web.
+- **Gate:** gate completo
+- **Status:** TODO
+
+### RE17 — Contrato com dados do estúdio faltando não é emitido
+
+- **Triagem:** variáveis do estúdio vazias saem "não informado" no corpo do contrato.
+- **Escopo (E6):** emitir contrato cujo modelo usa um campo do estúdio vazio (CNPJ, endereço…) →
+  409 com "Cadastre <campo> em Configurações"; o modal mostra o aviso antes de enviar. Testes API
+  e web.
+- **Gate:** gate completo
+- **Status:** TODO
+
+### RE18 — Estorno e cancelamento de contrato pedem motivo
+
+- **Escopo (E7c):** o estorno (recebimento e conta) e o cancelamento de contrato exigem motivo
+  (texto, até 500); o motivo aparece no Histórico. Migração **nova** se precisar de coluna
+  (próximo número livre pelas regras do `CLAUDE.md`), nos dois repositórios. Testes API e web.
+- **Gate:** gate completo + `npm run test:mysql`
+- **Status:** TODO
+
