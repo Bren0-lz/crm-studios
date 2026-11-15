@@ -1,5 +1,18 @@
-import { autoFinalizationCutoff } from "@crm/contracts";
-import type { ClinicRepository } from "../../repository.js";
+import { autoFinalizationCutoff, type Appointment } from "@crm/contracts";
+import { DomainError, type ClinicRepository } from "../../repository.js";
+
+/**
+ * "Realizado" pedido para atendimento que a rotina automática já finalizou (RE8): sem baixar
+ * saldo de novo nem apagar o selo; o atendimento atual vai em `details` para a tela recarregar.
+ */
+export function appointmentAlreadyAutoCompletedError(appointment: Appointment) {
+  return new DomainError(
+    "APPOINTMENT_ALREADY_AUTO_COMPLETED",
+    "Este atendimento já foi finalizado automaticamente.",
+    409,
+    { appointment },
+  );
+}
 
 /** Intervalo mínimo entre varreduras da mesma clínica disparadas pelas requisições. */
 const SWEEP_INTERVAL_MS = 60_000;

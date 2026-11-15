@@ -1869,7 +1869,7 @@ filtros ficam no `dashboard-studios` (EN11–EN13 têm só a parte da API aqui).
   modal mostra "Este atendimento já foi finalizado automaticamente" e recarrega, sem baixar
   saldo duas vezes. Não muda o selo de quem foi de fato finalizado sozinho.
 - **Gate:** gate completo + `npm run test:mysql`
-- **Status:** TODO
+- **Status:** DONE
 
 ### RE9 — Link público de contrato cancelado sem dados pessoais
 

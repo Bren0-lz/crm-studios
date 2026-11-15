@@ -32,6 +32,7 @@ import {
   zonedTimeToUtc,
 } from "../../modules/groups/group-schedule.js";
 import { assertAppointmentStarted } from "../../modules/agenda/appointment-start.js";
+import { appointmentAlreadyAutoCompletedError } from "../../modules/agenda/auto-finalization.js";
 import {
   DomainError,
   type AgendaSlotProbe,
@@ -1413,6 +1414,12 @@ export function createAgendaRepository(
       );
       if (!appointment) return null;
       const previousStatus = appointment.status;
+      if (
+        status === "completed" &&
+        previousStatus === "completed" &&
+        appointment.autoCompletedAt
+      )
+        throw appointmentAlreadyAutoCompletedError(appointment);
       if (
         (status === "completed" || status === "no_show") &&
         previousStatus !== status

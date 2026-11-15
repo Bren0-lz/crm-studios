@@ -177,6 +177,42 @@ describe("appointment auto finalization", () => {
     ).toBeUndefined();
   });
 
+  it("answers 409 with the current appointment when Realizado arrives after the automatic finalization", async () => {
+    const { app, headers, appointmentAt, saveSettings } = await setup();
+    const automatic = await appointmentAt("2039-06-09T12:00:00Z");
+    await saveSettings({ enabled: true, delayMinutes: 0 });
+
+    const response = await app.inject({
+      method: "PATCH",
+      url: `/appointments/${automatic.id}/status`,
+      headers,
+      payload: { status: "completed" },
+    });
+    expect(response.statusCode).toBe(409);
+    expect(response.json()).toMatchObject({
+      code: "APPOINTMENT_ALREADY_AUTO_COMPLETED",
+      message: "Este atendimento já foi finalizado automaticamente.",
+      details: {
+        appointment: {
+          id: automatic.id,
+          status: "completed",
+          autoCompletedAt: "2039-06-10T18:00:00.000Z",
+        },
+      },
+    });
+
+    // Realizado repetido de atendimento finalizado pela equipe continua 200.
+    const manual = await appointmentAt("2039-06-08T12:00:00Z", "completed");
+    const repeated = await app.inject({
+      method: "PATCH",
+      url: `/appointments/${manual.id}/status`,
+      headers,
+      payload: { status: "completed" },
+    });
+    expect(repeated.statusCode).toBe(200);
+    expect(repeated.json<Appointment>().autoCompletedAt).toBeUndefined();
+  });
+
   it("validates the period and the settings", async () => {
     const { completed, saveSettings } = await setup();
     expect(

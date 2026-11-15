@@ -23,11 +23,14 @@ export function DashboardAppointmentDialog({
   onClose,
   onReschedule,
   onUpdated,
+  onRefreshed,
 }: {
   action: DashboardAppointmentAction;
   onClose: () => void;
   onReschedule: () => void;
   onUpdated: (appointment: Appointment) => void;
+  /** Atendimento recarregado sem alteração da equipe (já finalizado automaticamente). */
+  onRefreshed?: (appointment: Appointment) => void;
 }) {
   const { canView, canEdit } = useAuthorization();
   const canSeePatients = canView("patients");
@@ -154,6 +157,7 @@ export function DashboardAppointmentDialog({
       onClose={onClose}
       onReschedule={onReschedule}
       onUpdated={onUpdated}
+      onRefreshed={onRefreshed}
       onEdited={onUpdated}
     />
   );

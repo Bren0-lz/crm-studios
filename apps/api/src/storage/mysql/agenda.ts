@@ -26,6 +26,7 @@ import {
   groupSessionHorizon,
 } from "../../modules/groups/group-schedule.js";
 import { assertAppointmentStarted } from "../../modules/agenda/appointment-start.js";
+import { appointmentAlreadyAutoCompletedError } from "../../modules/agenda/auto-finalization.js";
 import {
   DomainError,
   type AgendaSlotProbe,
@@ -1662,10 +1663,12 @@ export function createAgendaRepository(
           roomId: string;
           startsAt: Date;
           endsAt: Date;
+          autoCompletedAt: Date | null;
         }>(
           `SELECT status, patient_id AS "patientId", service_id AS "serviceId",
                 professional_id AS "professionalId", room_id AS "roomId",
-                starts_at AS "startsAt", ends_at AS "endsAt"
+                starts_at AS "startsAt", ends_at AS "endsAt",
+                auto_completed_at AS "autoCompletedAt"
          FROM appointments
          WHERE id = $2 AND clinic_id = $1
          FOR UPDATE`,
@@ -1674,6 +1677,19 @@ export function createAgendaRepository(
         if (!current.rows[0]) {
           await client.query("COMMIT");
           return null;
+        }
+        if (
+          status === "completed" &&
+          current.rows[0].status === "completed" &&
+          current.rows[0].autoCompletedAt
+        ) {
+          const appointment = await repositoryContext.findAppointment(
+            clinicId,
+            appointmentId,
+            client,
+          );
+          if (appointment)
+            throw appointmentAlreadyAutoCompletedError(appointment);
         }
         if (
           current.rows[0].status === "cancelled" &&
