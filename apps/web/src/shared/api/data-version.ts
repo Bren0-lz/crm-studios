@@ -15,7 +15,8 @@ export type DataDomain =
   | "relationship"
   | "waitlist"
   | "crm"
-  | "communications";
+  | "communications"
+  | "settings";
 
 /** Mapa mutação → domínios afetados. A primeira regra que casar com o caminho vale. */
 const mutationRules: [RegExp, DataDomain[]][] = [
@@ -37,6 +38,12 @@ const mutationRules: [RegExp, DataDomain[]][] = [
     ["finance", "inventory", "history"],
   ],
   [/^\/finance\//, ["finance", "history"]],
+  // Cadastros feitos em Configurações (serviços, salas, filiais…): as outras seções de
+  // Configurações recarregam ao voltar a elas (RE11).
+  [
+    /^\/(?:services|rooms|professionals|clinic-catalogs|integration-keys|integrations|relationship\/settings|admin\/(?:registry|branches|clinic-settings|auto-finalization|nav-tabs|payment-methods|pro-labore))(?:\/|$)/,
+    ["settings"],
+  ],
   [/^\/admin\/users(?:\/[^/]+)?$/, ["agenda", "finance", "history"]],
   [
     /^\/admin\/users\/[^/]+\/(?:commission|professional)$/,

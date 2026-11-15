@@ -160,7 +160,7 @@ function LeadMessageStatus({
         )}
         {sentAt ? (
           <>
-            {/* RT6: o rótulo pode truncar; a data e a hora ficam sempre inteiras. */}
+            {/* Rótulo, data e hora sempre inteiros; sem espaço, a contagem desce (RE11). */}
             <span>Enviada</span>
             <time className="lead-message-time" dateTime={sentAt}>
               {shortDateTime(sentAt)}

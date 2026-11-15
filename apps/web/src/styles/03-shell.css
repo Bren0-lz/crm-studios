@@ -529,10 +529,13 @@
   color: var(--danger-strong);
   font-size: var(--text-sm);
 }
+/* O resumo quebra em duas linhas ("11 pendências / pedem atenção") para sobrar espaço aos
+   atalhos: com dois alertas, os dois cabem inteiros em 1192px com o menu lateral (RE11). */
 .notification-banner > strong {
   flex-shrink: 0;
+  max-width: calc(var(--space-8) + var(--space-7));
   font-weight: 600;
-  white-space: nowrap;
+  line-height: 1.25;
 }
 .notification-banner-icon {
   display: inline-grid;

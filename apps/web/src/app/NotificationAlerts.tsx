@@ -1,5 +1,5 @@
 import { AlertTriangle, BellRing, X } from "lucide-react";
-import { useEffect, useRef, type RefObject } from "react";
+import { useEffect, useLayoutEffect, useRef, type RefObject } from "react";
 import type { NotificationCenter } from "./notification-center";
 
 /** Velocidade da rolagem automática dos atalhos, em px por segundo. */
@@ -63,6 +63,34 @@ function useAutoScroll(
 }
 
 /**
+ * Altura da faixa em `--notification-banner-height` no topo: no celular a faixa fica acima
+ * da linha do menu e o topo fixo para com ela escondida, rolando com a página (RE11).
+ */
+function useBannerHeight(
+  bannerRef: RefObject<HTMLElement | null>,
+  visible: boolean,
+) {
+  useLayoutEffect(() => {
+    const banner = bannerRef.current;
+    const topbar = banner?.parentElement;
+    if (!visible || !banner || !topbar) return;
+    const update = () =>
+      topbar.style.setProperty(
+        "--notification-banner-height",
+        `${banner.offsetHeight}px`,
+      );
+    update();
+    const observer =
+      typeof ResizeObserver === "undefined" ? null : new ResizeObserver(update);
+    observer?.observe(banner);
+    return () => {
+      observer?.disconnect();
+      topbar.style.removeProperty("--notification-banner-height");
+    };
+  }, [bannerRef, visible]);
+}
+
+/**
  * Alertas fixos no cabeçalho: os grupos destacados nas preferências, com atalho para cada
  * tela. Não tem como fechar: some só quando as pendências destacadas zeram.
  */
@@ -75,6 +103,7 @@ export function NotificationsBanner({
 }) {
   const groups = center.bannerGroups;
   const listRef = useRef<HTMLUListElement>(null);
+  const bannerRef = useRef<HTMLElement>(null);
   const hovered = useRef(false);
   const focused = useRef(false);
   const touchTimer = useRef<number | undefined>(undefined);
@@ -84,11 +113,13 @@ export function NotificationsBanner({
       hovered.current || focused.current || touchTimer.current !== undefined;
   };
   useAutoScroll(listRef, paused, groups.length);
+  useBannerHeight(bannerRef, groups.length > 0);
   useEffect(() => () => window.clearTimeout(touchTimer.current), []);
   if (groups.length === 0) return null;
   const total = groups.reduce((sum, group) => sum + group.count, 0);
   return (
     <section
+      ref={bannerRef}
       className="notification-banner"
       aria-label="Alertas"
       onMouseEnter={() => {
@@ -104,7 +135,8 @@ export function NotificationsBanner({
         syncPaused();
       }}
       onBlur={(event) => {
-        if (event.currentTarget.contains(event.relatedTarget as Node | null)) return;
+        if (event.currentTarget.contains(event.relatedTarget as Node | null))
+          return;
         focused.current = false;
         syncPaused();
       }}

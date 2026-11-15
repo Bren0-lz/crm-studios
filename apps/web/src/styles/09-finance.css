@@ -346,7 +346,7 @@
   display: grid;
   grid-template-columns:
     minmax(calc(var(--space-8) * 3), 1fr)
-    max-content max-content max-content max-content;
+    max-content max-content max-content auto;
   /* Respiro entre "Valor" (alinhado à direita) e "Situação" (à esquerda). */
   column-gap: var(--space-5);
 }
@@ -357,7 +357,18 @@
      primeira coluna, e uma largura fixa faria a caixa encostar no nome. */
   grid-template-columns:
     max-content minmax(calc(var(--space-8) * 3), 1fr)
-    max-content max-content max-content max-content;
+    max-content max-content max-content auto;
+}
+
+/* Ações em `auto`: sem espaço para todos os botões numa linha (ex.: 1192px com o menu
+   lateral), eles descem para a linha de baixo em vez de a tabela rolar para o lado e cortar
+   o "Dar baixa" (RE11). Cada botão fica inteiro. */
+.finance-list.receivables-table .finance-actions {
+  flex-wrap: wrap;
+}
+
+.receivables-table .finance-actions > * {
+  white-space: nowrap;
 }
 
 .receivables-table > .finance-row {
@@ -1499,7 +1510,10 @@
      são as mesmas em todas as linhas, então cabeçalho e valores continuam alinhados. */
   grid-template-columns:
     minmax(calc(var(--space-8) * 2 + var(--space-2)), 2fr)
-    repeat(5, minmax(calc(var(--space-8) + var(--space-5) + var(--space-1)), 1fr))
+    repeat(
+      5,
+      minmax(calc(var(--space-8) + var(--space-5) + var(--space-1)), 1fr)
+    )
     calc(var(--space-8) * 3);
   column-gap: var(--space-3);
 }

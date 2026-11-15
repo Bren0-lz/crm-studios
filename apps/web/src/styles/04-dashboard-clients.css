@@ -909,9 +909,13 @@
     100px calc(var(--space-8) + var(--space-5));
 }
 /* Contato, etiquetas e situação centralizados na coluna (título e valor); o cliente fica à
-   esquerda e "Editar" à direita. No celular a linha empilha e tudo volta à esquerda. */
+   esquerda e "Editar" à direita. No celular a linha empilha e tudo volta à esquerda.
+   As etiquetas ocupam a coluna inteira e centralizam dentro dela: centralizada pela grade, a
+   célula ficava da largura das etiquetas e cobria o contato e a situação (RE11). */
 @media (min-width: 701px) {
-  .patient-table .table-row > :nth-child(n + 2):not(:last-child) {
+  .patient-table
+    .table-row
+    > :nth-child(n + 2):not(:last-child):not(.tags-cell) {
     justify-self: center;
     text-align: center;
   }

@@ -52,13 +52,17 @@ test("appointment modals preserve the scrolled agenda and sticky shell", async (
       return {
         scrollX: window.scrollX,
         scrollY: window.scrollY,
+        // Onde o topo fixo para: 0, ou acima da tela com a faixa de alertas no celular (RE11).
+        headerTop: parseFloat(
+          getComputedStyle(document.querySelector(".topbar")!).top,
+        ),
         header: bounds(".topbar"),
         sidebar: bounds(".sidebar"),
         agenda: bounds(".agenda-panel"),
       };
     });
   const before = await background();
-  expect(Math.abs(before.header.y)).toBeLessThanOrEqual(1);
+  expect(Math.abs(before.header.y - before.headerTop)).toBeLessThanOrEqual(1);
   expect(Math.abs(before.sidebar.y)).toBeLessThanOrEqual(1);
   expect(before.sidebar.height).toBe(page.viewportSize()!.height);
   const expectStable = async () => {

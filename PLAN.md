@@ -1906,7 +1906,7 @@ filtros ficam no `dashboard-studios` (EN11–EN13 têm só a parte da API aqui).
   - Listas de Configurações recarregam ao voltar à seção (plano com serviço criado em outra
     seção aparece sem F5).
 - **Gate:** gate completo + `npm run test:e2e`
-- **Status:** TODO
+- **Status:** DONE
 
 ### RE12 — Menu do usuário no rodapé
 

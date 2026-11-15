@@ -1,6 +1,7 @@
 import { AdministrativeRegistrySection } from "./AdministrativeRegistrySection";
 import { ClinicCatalogsContent } from "./ClinicCatalogsContent";
 import {
+  Fragment,
   useCallback,
   useId,
   useLayoutEffect,
@@ -10,6 +11,7 @@ import {
 } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useAuthorization } from "../../authorization-context";
+import { type DataDomain, getDataVersion } from "../../shared/api/data-version";
 import { PageHeader } from "../../shared/components/PageHeader";
 import type { CloseGuard } from "../../shared/workflows/types";
 import { AdminUsersContent } from "./AdminUsersContent";
@@ -28,6 +30,15 @@ import { RelationshipSettingsContent } from "./RelationshipSettingsContent";
 import { SettingsPanel } from "./SettingsPanel";
 import type { SettingsTabKey } from "./types";
 
+/** Domínios alterados pelas seções de Configurações (serviços, planos, feriados, etiquetas…). */
+const settingsDomains: DataDomain[] = [
+  "settings",
+  "plans",
+  "agenda",
+  "patients",
+  "finance",
+];
+
 export function SettingsPage() {
   const { user, canEdit } = useAuthorization();
   const admin = user?.role === "admin";
@@ -38,6 +49,12 @@ export function SettingsPage() {
       (admin ? "clinic" : "plans"),
   );
   const [visited, setVisited] = useState<SettingsTabKey[]>([active]);
+  // Seção já aberta volta remontada (e recarrega as listas) se algo mudou desde que ela foi
+  // deixada — ex.: serviço criado em "Serviços e salas" aparece no plano sem F5 (RE11).
+  const [mounts, setMounts] = useState<Partial<Record<SettingsTabKey, number>>>(
+    {},
+  );
+  const leftAt = useRef(new Map<SettingsTabKey, number>());
   const [busyCount, setBusyCount] = useState(0);
   const guards = useRef(new Map<SettingsTabKey, CloseGuard>());
   const baseId = useId();
@@ -70,6 +87,14 @@ export function SettingsPage() {
     if (key === selected || busyCount > 0) return;
     const proceed = () => {
       focusTarget.current = key;
+      const version = getDataVersion(settingsDomains);
+      leftAt.current.set(selected, version);
+      const left = leftAt.current.get(key);
+      if (left !== undefined && left !== version)
+        setMounts((current) => ({
+          ...current,
+          [key]: (current[key] ?? 0) + 1,
+        }));
       setActive(key);
       setVisited((current) =>
         current.includes(key) ? current : [...current, key],
@@ -132,37 +157,40 @@ export function SettingsPage() {
           registerGuard={registerGuard}
           registerBusy={registerBusy}
         >
-          {(visited.includes(tab.key) || selected === tab.key) &&
-            (tab.key === "clinic" ? (
-              <ClinicSettingsContent />
-            ) : tab.key === "branches" ? (
-              <BranchesContent />
-            ) : tab.key === "users" ? (
-              <AdminUsersContent />
-            ) : tab.key === "menu" ? (
-              <NavTabLabelsContent />
-            ) : tab.key === "autoFinalization" ? (
-              <AutoFinalizationContent />
-            ) : tab.key === "paymentMethods" ? (
-              <PaymentMethodsContent />
-            ) : tab.key === "integrations" ? (
-              <>
-                <IntegrationKeysContent />
-                <TelegramIntegrationContent />
-              </>
-            ) : tab.key === "plans" ? (
-              <PlanTemplatesContent />
-            ) : tab.key === "holidays" ? (
-              <HolidaysContent />
-            ) : tab.key === "catalogs" ? (
-              <ClinicCatalogsContent />
-            ) : tab.key === "registry" ? (
-              <AdministrativeRegistrySection />
-            ) : tab.key === "tags" ? (
-              <PatientTagsContent canEdit={canEdit("settings")} />
-            ) : (
-              <RelationshipSettingsContent canEdit={admin} />
-            ))}
+          {(visited.includes(tab.key) || selected === tab.key) && (
+            <Fragment key={mounts[tab.key] ?? 0}>
+              {tab.key === "clinic" ? (
+                <ClinicSettingsContent />
+              ) : tab.key === "branches" ? (
+                <BranchesContent />
+              ) : tab.key === "users" ? (
+                <AdminUsersContent />
+              ) : tab.key === "menu" ? (
+                <NavTabLabelsContent />
+              ) : tab.key === "autoFinalization" ? (
+                <AutoFinalizationContent />
+              ) : tab.key === "paymentMethods" ? (
+                <PaymentMethodsContent />
+              ) : tab.key === "integrations" ? (
+                <>
+                  <IntegrationKeysContent />
+                  <TelegramIntegrationContent />
+                </>
+              ) : tab.key === "plans" ? (
+                <PlanTemplatesContent />
+              ) : tab.key === "holidays" ? (
+                <HolidaysContent />
+              ) : tab.key === "catalogs" ? (
+                <ClinicCatalogsContent />
+              ) : tab.key === "registry" ? (
+                <AdministrativeRegistrySection />
+              ) : tab.key === "tags" ? (
+                <PatientTagsContent canEdit={canEdit("settings")} />
+              ) : (
+                <RelationshipSettingsContent canEdit={admin} />
+              )}
+            </Fragment>
+          )}
         </SettingsPanel>
       ))}
     </div>
