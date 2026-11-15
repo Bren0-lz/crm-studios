@@ -117,7 +117,8 @@ describe("commercial board stage moves", () => {
     const lost = screen.getByRole("dialog", {
       name: "Marcar lead como perdido",
     });
-    fireEvent.change(within(lost).getByLabelText("Motivo da perda"), {
+    // O campo aparece depois de ler os motivos cadastrados (aqui, nenhum: só o texto).
+    fireEvent.change(await within(lost).findByLabelText("Motivo da perda"), {
       target: { value: "Sem disponibilidade" },
     });
     fireEvent.click(within(lost).getByRole("button", { name: "Confirmar" }));

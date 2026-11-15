@@ -1,9 +1,9 @@
 import { withPrefix } from "@crm/contracts";
-import { CatalogInput } from "../../shared/components/CatalogInput";
 import type { Lead } from "@crm/contracts";
 import { useState } from "react";
 import { ActionModal } from "../../shared/components/ActionModal";
 import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
+import { LeadLostReasonField } from "./LeadLostReasonField";
 
 export function LeadLostModal({
   lead,
@@ -31,15 +31,7 @@ export function LeadLostModal({
       dirty={dirty}
       onClose={onClose}
     >
-      <CatalogInput
-        autoFocus
-        kind="lead_lost_reason"
-        label="Motivo da perda"
-        value={reason}
-        onChange={setReason}
-        required
-        maxLength={500}
-      />
+      <LeadLostReasonField value={reason} onChange={setReason} />
     </ActionModal>
   );
 }
