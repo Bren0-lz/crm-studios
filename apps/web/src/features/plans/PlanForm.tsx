@@ -8,6 +8,7 @@ import {
   planTemplateSaleServices,
   planTypeKind,
   planTypeLabels,
+  type PatientDiscount,
   type PatientOption,
   type PatientPlan,
   type PatientPlanInput,
@@ -60,6 +61,7 @@ export function PlanForm({
   onBusyChange,
   onSubmit,
   renderAdditional,
+  renderDiscount,
   additionalDirty = false,
   registerCloseGuard,
   catalogKind,
@@ -80,6 +82,17 @@ export function PlanForm({
   /** `groupId`: turma escolhida no formulário (vazia sem turma). */
   renderAdditional?:
     ((input: PatientPlanInput, groupId: string) => ReactNode) | undefined;
+  /**
+   * Desconto do plano vendido (contratação pela ficha), como no cadastro guiado: o campo
+   * aparece com o plano cadastrado escolhido e o desconto entra na prévia das parcelas.
+   */
+  renderDiscount?:
+    | ((field: {
+        discount: PatientDiscount | undefined;
+        disabled: boolean;
+        onChange: (discount: PatientDiscount | null) => void;
+      }) => ReactNode)
+    | undefined;
   additionalDirty?: boolean;
   registerCloseGuard?: ((guard: CloseGuard) => () => void) | undefined;
   /** Restringe os planos cadastrados a avulsos ou recorrentes (atalho da ficha do cliente). */
@@ -693,6 +706,20 @@ export function PlanForm({
                       )
                     }
                   />
+                )}
+                {renderDiscount && !renewing && form.planTemplateId && (
+                  <div className="span-2">
+                    {renderDiscount({
+                      discount: form.discount,
+                      disabled: loading,
+                      onChange: (discount) =>
+                        setForm((current) => {
+                          const terms = { ...current };
+                          delete terms.discount;
+                          return discount ? { ...terms, discount } : terms;
+                        }),
+                    })}
+                  </div>
                 )}
                 {form.totalValueInCents > 0 && (
                   <InstallmentsPreview

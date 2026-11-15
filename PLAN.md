@@ -1946,7 +1946,7 @@ filtros ficam no `dashboard-studios` (EN11–EN13 têm só a parte da API aqui).
   do total e das parcelas ("3x com 10%"); a API da contratação aceita e grava o desconto como no
   guiado (memória e MySQL). Testes API e web.
 - **Gate:** gate completo + `npm run test:mysql`
-- **Status:** TODO
+- **Status:** DONE
 
 ### RE16 — Aniversariantes da Visão geral
 
