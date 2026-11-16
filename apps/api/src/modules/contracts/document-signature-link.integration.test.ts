@@ -261,7 +261,8 @@ describe("document signature link", () => {
   });
 
   it("refuses signatures after the document is cancelled", async () => {
-    const { app, repository, document, headers } = await issuedDocument();
+    const { app, repository, document, patient, headers } =
+      await issuedDocument();
     await repository.updateIssuedDocumentStatus(
       clinicId,
       document.id,
@@ -283,7 +284,15 @@ describe("document signature link", () => {
       method: "GET",
       url: `/public/document-signatures/${token}`,
     });
-    expect(opened.json().status).toBe("cancelled");
+    // RE9: cancelado mostra só o aviso e o estúdio, sem o texto nem os dados do cliente.
+    expect(opened.statusCode).toBe(200);
+    expect(opened.json()).toEqual({
+      status: "cancelled",
+      clinicName: expect.any(String),
+    });
+    expect(opened.json().clinicName).not.toBe("");
+    expect(opened.body).not.toContain(patient.fullName);
+    if (patient.cpf) expect(opened.body).not.toContain(patient.cpf);
     const signed = await app.inject({
       method: "POST",
       url: `/public/document-signatures/${token}`,

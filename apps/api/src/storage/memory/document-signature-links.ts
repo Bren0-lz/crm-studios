@@ -7,6 +7,7 @@ import {
   type PublicDocumentSignInput,
   type PublicRequestMetadata,
   type PublicSignatureDocument,
+  type PublicSignatureOpenDocument,
 } from "@crm/contracts";
 import { DomainError } from "../../repository.js";
 import {
@@ -54,20 +55,28 @@ export function createDocumentSignatureLinksRepository(
     document: IssuedDocument,
     link: StoredLink,
   ): PublicSignatureDocument {
+    // Cancelado e não assinado: só o aviso e o estúdio, sem o texto nem os dados do cliente.
+    if (!link.signedAt && document.status === "cancelled")
+      return { status: "cancelled", clinicName: clinicName(document) };
+    return openDocument(document, link);
+  }
+  function clinicName(document: IssuedDocument) {
+    return document.branding?.name || context.clinicSettings.name;
+  }
+  function openDocument(
+    document: IssuedDocument,
+    link: StoredLink,
+  ): PublicSignatureOpenDocument {
     return structuredClone({
       title: document.title,
       patientName: document.patientName,
-      clinicName: document.branding?.name || context.clinicSettings.name,
+      clinicName: clinicName(document),
       snapshotBody: document.snapshotBody,
       ...(document.snapshotContent
         ? { snapshotContent: document.snapshotContent }
         : {}),
       ...(document.branding ? { branding: document.branding } : {}),
-      status: link.signedAt
-        ? "signed"
-        : document.status === "cancelled"
-          ? "cancelled"
-          : "pending",
+      status: link.signedAt ? "signed" : "pending",
       documentSha256:
         link.documentSha256 ?? documentTextSha256(document.snapshotBody),
       ...(link.signedAt ? { signedAt: link.signedAt } : {}),
@@ -210,7 +219,7 @@ export function createDocumentSignatureLinksRepository(
       link.documentSha256 = documentTextSha256(document.snapshotBody);
       document.updatedAt = link.signedAt;
       sync(document, link);
-      return publicDocument(document, link);
+      return openDocument(document, link);
     },
   };
 }

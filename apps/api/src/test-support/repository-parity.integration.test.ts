@@ -1134,6 +1134,55 @@ for (const storage of ["memory", "mysql"] as const) {
         ).toMatchObject({ supplierId: supplier.id, status: "issued" });
       });
 
+      // RE9: link de contrato cancelado não devolve o texto nem os dados de quem assina.
+      it("hides the contract body and signer data on a cancelled public link", async () => {
+        const supplier = (await repository.saveSupplier(
+          clinicId,
+          actorId,
+          supplierInputSchema.parse({
+            name: "Fornecedor cancelado " + randomUUID(),
+            kind: "person",
+            document: "52998224725",
+            whatsapp: "19988887777",
+          }),
+        ))!;
+        const template = await repository.createDocumentTemplate(clinicId, {
+          name: "Contrato cancelado " + randomUUID(),
+          kind: "contract",
+          body: "Contrato com {{fornecedor_nome}}, CPF {{fornecedor_documento}}.",
+        });
+        const draft = await repository.createIssuedDocument(clinicId, actorId, {
+          templateId: template.id,
+          supplierId: supplier.id,
+          title: "Contrato cancelado",
+        });
+        await repository.updateIssuedDocumentStatus(
+          clinicId,
+          draft.id,
+          "issued",
+        );
+        const share = await repository.createDocumentSignatureLink(
+          clinicId,
+          actorId,
+          draft.id,
+        );
+        await repository.updateIssuedDocumentStatus(
+          clinicId,
+          draft.id,
+          "cancelled",
+        );
+        const opened = await repository.openPublicSignatureDocument(
+          share!.token,
+          {},
+        );
+        expect(opened).toEqual({
+          status: "cancelled",
+          clinicName: expect.any(String),
+        });
+        expect(JSON.stringify(opened)).not.toContain(supplier.name);
+        expect(JSON.stringify(opened)).not.toContain("529.982.247-25");
+      });
+
       // QM15: prontuário sequencial e único; os 3 clientes semente são PAC-00001..00003.
       it("keeps record numbers unique and the seed clients as PAC-00001..00003", async () => {
         const patients = await repository.listPatients(clinicId);

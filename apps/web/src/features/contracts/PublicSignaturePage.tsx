@@ -55,47 +55,59 @@ export function PublicSignaturePage() {
             }
       }
     >
-      {document && (
+      {document?.status === "cancelled" ? (
+        // Cancelado: a API não devolve o texto nem os dados do cliente; só o aviso e o estúdio.
         <section className="panel public-signature">
           <div className="panel-head">
             <div>
-              <h2>{document.title}</h2>
-              <p className="panel-context">
-                {document.clinicName} · {document.patientName}
-              </p>
+              <h2>{document.clinicName}</h2>
             </div>
           </div>
-          <div className="public-signature-document">
-            <DocumentPaper
-              body={document.snapshotBody}
-              content={document.snapshotContent}
-              branding={document.branding}
-            />
-          </div>
           <div className="public-signature-form">
-            {document.status === "signed" ? (
-              <div className="success-banner" role="status">
-                Documento assinado por {document.signerName}
-                {document.signedAt
-                  ? ` em ${signatureMoment(document.signedAt)}`
-                  : ""}
-                . Código do documento: {document.documentSha256.slice(0, 16)}.
-              </div>
-            ) : document.status === "cancelled" ? (
-              <ErrorBanner error="Este documento foi cancelado pela clínica e não pode mais ser assinado." />
-            ) : (
-              <PublicSignatureForm
-                initialName={document.patientName}
-                acceptLabel="Li o documento e concordo com os seus termos."
-                submitLabel="Assinar documento"
-                footnote="Ao assinar, registramos data, hora, IP e navegador junto com o código do documento."
-                onSign={async (input) =>
-                  setDocument(await api.signPublicDocument(token, input))
-                }
-              />
-            )}
+            <ErrorBanner error="Este contrato foi cancelado e não pode mais ser assinado." />
           </div>
         </section>
+      ) : (
+        document && (
+          <section className="panel public-signature">
+            <div className="panel-head">
+              <div>
+                <h2>{document.title}</h2>
+                <p className="panel-context">
+                  {document.clinicName} · {document.patientName}
+                </p>
+              </div>
+            </div>
+            <div className="public-signature-document">
+              <DocumentPaper
+                body={document.snapshotBody}
+                content={document.snapshotContent}
+                branding={document.branding}
+              />
+            </div>
+            <div className="public-signature-form">
+              {document.status === "signed" ? (
+                <div className="success-banner" role="status">
+                  Documento assinado por {document.signerName}
+                  {document.signedAt
+                    ? ` em ${signatureMoment(document.signedAt)}`
+                    : ""}
+                  . Código do documento: {document.documentSha256.slice(0, 16)}.
+                </div>
+              ) : (
+                <PublicSignatureForm
+                  initialName={document.patientName}
+                  acceptLabel="Li o documento e concordo com os seus termos."
+                  submitLabel="Assinar documento"
+                  footnote="Ao assinar, registramos data, hora, IP e navegador junto com o código do documento."
+                  onSign={async (input) =>
+                    setDocument(await api.signPublicDocument(token, input))
+                  }
+                />
+              )}
+            </div>
+          </section>
+        )
       )}
     </PublicSignatureShell>
   );
