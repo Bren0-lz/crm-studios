@@ -129,6 +129,27 @@ export const messageVariables = [
   },
 ] as const;
 
+const knownMessageVariableNames = new Set<string>(
+  messageVariables.map((variable) => variable.code.slice(2, -2)),
+);
+
+/**
+ * Códigos `{{…}}` da mensagem padrão fora de `messageVariables` (sairiam literais na prévia
+ * e no envio), sem repetição e como foram escritos. Espaços internos valem como no
+ * preenchimento: `{{ nome }}` é conhecido.
+ */
+export function unknownMessageVariables(body: string): string[] {
+  const unknown = new Set<string>();
+  for (const match of body.matchAll(/\{\{([^{}]*)\}\}/g))
+    if (!knownMessageVariableNames.has(match[1]!.trim())) unknown.add(match[0]);
+  return [...unknown];
+}
+
+/** Aviso do editor/API para códigos desconhecidos (lista vinda de `unknownMessageVariables`). */
+export function unknownMessageVariablesMessage(codes: readonly string[]) {
+  return `${codes.length === 1 ? "Código desconhecido" : "Códigos desconhecidos"}: ${codes.join(", ")}. Use os botões de variáveis.`;
+}
+
 /** Data e hora do atendimento que entram em `{{data_atendimento}}`/`{{hora_atendimento}}`. */
 export interface CampaignAppointmentValues {
   date: string;
@@ -165,7 +186,15 @@ export const messageTemplateImageInputSchema = z.union([
 
 export const messageTemplateInputSchema = z.object({
   title: z.string().trim().min(1, "Informe o título.").max(80),
-  body: messageTemplateSchema,
+  // Só ao criar/editar: mensagens já salvas com código desconhecido continuam listando e enviando.
+  body: messageTemplateSchema.superRefine((body, context) => {
+    const unknown = unknownMessageVariables(body);
+    if (unknown.length)
+      context.addIssue({
+        code: "custom",
+        message: unknownMessageVariablesMessage(unknown),
+      });
+  }),
   images: z
     .array(messageTemplateImageInputSchema)
     .max(

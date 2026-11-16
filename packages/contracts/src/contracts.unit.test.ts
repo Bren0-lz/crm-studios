@@ -43,6 +43,7 @@ import {
   usesAppointmentVariables,
   imageDataUrlInfo,
   messageTemplateInputSchema,
+  messageTemplateSchema,
   whatsappCampaignAudienceSchema,
   describeLeadDuplicate,
   emailMatchKey,
@@ -78,6 +79,7 @@ import {
   effectiveModules,
   fillMessageTemplate,
   fillPatientMessage,
+  unknownMessageVariables,
   patientFirstName,
   formatCpf,
   formatPhone,
@@ -2279,6 +2281,46 @@ describe("campanhas de WhatsApp", () => {
         "  Ana   Paula Souza ",
       ),
     ).toBe("Oi, Ana! Ana Paula Souza {{x}}");
+  });
+
+  it("lista códigos desconhecidos da mensagem padrão e recusa salvar com eles", () => {
+    expect(
+      unknownMessageVariables(
+        "Oi, {{nome}} {{ nome_completo }} {{foo}} {{interesse}} {{foo}} {{ hora_atendimento }}",
+      ),
+    ).toEqual(["{{foo}}", "{{interesse}}"]);
+    expect(unknownMessageVariables("{{ x y }} e {{}}")).toEqual([
+      "{{ x y }}",
+      "{{}}",
+    ]);
+    expect(unknownMessageVariables("Oi, {{ nome }}!")).toEqual([]);
+    const unknown = messageTemplateInputSchema.safeParse({
+      title: "T",
+      body: "Oi, {{foo}}!",
+    });
+    expect(unknown.success).toBe(false);
+    expect(unknown.error?.issues[0]).toMatchObject({
+      path: ["body"],
+      message: "Código desconhecido: {{foo}}. Use os botões de variáveis.",
+    });
+    expect(
+      messageTemplateInputSchema.safeParse({
+        title: "T",
+        body: "{{foo}} e {{interesse}}",
+      }).error?.issues[0]?.message,
+    ).toBe(
+      "Códigos desconhecidos: {{foo}}, {{interesse}}. Use os botões de variáveis.",
+    );
+    expect(
+      messageTemplateInputSchema.safeParse({
+        title: "T",
+        body: "Oi, {{ nome }}! {{data_atendimento}}",
+      }).success,
+    ).toBe(true);
+    // Mensagens com conjuntos próprios (relacionamento, automações) não passam por esta regra.
+    expect(messageTemplateSchema.safeParse("Oi, {{endereco}}").success).toBe(
+      true,
+    );
   });
 
   it("preenche data e hora do atendimento só quando informadas", () => {

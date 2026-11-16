@@ -266,6 +266,58 @@ describe("editor da mensagem", () => {
   });
 });
 
+describe("código desconhecido na mensagem padrão", () => {
+  it("avisa o código fora dos botões e só salva depois de corrigir", async () => {
+    const { calls } = setup("/comunicacoes?aba=mensagens", (url, init) => {
+      if (url.endsWith("/communications/templates") && init?.method === "POST")
+        return { ...template, ...JSON.parse(String(init.body)) };
+      return undefined;
+    });
+    await screen.findByText("Crie sua primeira mensagem padrão");
+    fireEvent.click(
+      within(screen.getByRole("region", { name: "Mensagens padrão" }))
+        .getAllByRole("button", { name: "Nova mensagem" })
+        .at(-1)!,
+    );
+    const dialog = await screen.findByRole("dialog", {
+      name: "Nova mensagem padrão",
+    });
+    fireEvent.change(within(dialog).getByLabelText("Título (só a equipe vê)"), {
+      target: { value: "Interesse" },
+    });
+    installDocumentBrowserMocks();
+    const body = within(dialog).getByRole("textbox", { name: "Mensagem" });
+    setDocumentText(body, "Oi, {{ nome }}! Gostou de {{foo}}?");
+    expect(
+      await within(dialog).findByText(
+        "Código desconhecido: {{foo}}. Use os botões de variáveis.",
+      ),
+    ).toBeInTheDocument();
+    const save = within(dialog).getByRole("button", {
+      name: "Salvar mensagem",
+    });
+    expect(save).toBeDisabled();
+    fireEvent.submit(dialog.querySelector("form")!);
+    expect(calls.some((call) => call.method === "POST")).toBe(false);
+
+    setDocumentText(body, "Oi, {{ nome }}! Gostou?");
+    expect(
+      within(dialog).queryByText(/Código desconhecido/),
+    ).not.toBeInTheDocument();
+    expect(save).toBeEnabled();
+    fireEvent.click(save);
+    await waitFor(() =>
+      expect(
+        calls.find(
+          (call) =>
+            call.method === "POST" &&
+            call.url.endsWith("/communications/templates"),
+        )?.body,
+      ).toMatchObject({ body: "Oi, {{ nome }}! Gostou?" }),
+    );
+  });
+});
+
 describe("cartões das mensagens padrão", () => {
   it("mostra a prévia do texto, as pílulas e o atalho de nova mensagem", async () => {
     const withImage: MessageTemplate = {
