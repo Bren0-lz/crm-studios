@@ -1078,7 +1078,11 @@ export function createAgendaRepository(
       return group;
     },
 
-    async createGroupEnrollment(clinicId: string, input: GroupEnrollmentInput) {
+    async createGroupEnrollment(
+      clinicId: string,
+      input: GroupEnrollmentInput,
+      actorUserId?: string,
+    ) {
       const group = repositoryContext.groupClasses.find(
         (item) =>
           item.clinicId === clinicId &&
@@ -1150,6 +1154,8 @@ export function createAgendaRepository(
         updatedAt: timestamp,
       };
       repositoryContext.groupEnrollments.push(enrollment);
+      if (actorUserId)
+        repositoryContext.recordCreators.set(enrollment.id, actorUserId);
       repositoryContext.refreshGroupCounts(group);
       return enrollment;
     },
@@ -1181,7 +1187,11 @@ export function createAgendaRepository(
       return enrollment;
     },
 
-    async confirmGroupEnrollment(clinicId: string, enrollmentId: string) {
+    async confirmGroupEnrollment(
+      clinicId: string,
+      enrollmentId: string,
+      actorUserId?: string,
+    ) {
       const enrollment = repositoryContext.groupEnrollments.find(
         (item) => item.clinicId === clinicId && item.id === enrollmentId,
       );
@@ -1209,6 +1219,9 @@ export function createAgendaRepository(
           409,
         );
       promote(enrollment);
+      // A confirmação é a matrícula do Histórico (o instante passa a ser o dela).
+      if (actorUserId)
+        repositoryContext.recordCreators.set(enrollment.id, actorUserId);
       repositoryContext.groupEnrollments
         .filter(
           (item) => item.groupId === group.id && item.status === "waitlisted",
@@ -1408,6 +1421,7 @@ export function createAgendaRepository(
       appointmentId: string,
       status: AppointmentStatus,
       absenceReason?: string,
+      actorUserId?: string,
     ) {
       const appointment = repositoryContext.appointments.find(
         (item) => item.id === appointmentId && item.clinicId === clinicId,
@@ -1426,9 +1440,9 @@ export function createAgendaRepository(
       )
         assertAppointmentStarted(appointment.startsAt);
       if (previousStatus !== "completed" && status === "completed") {
-        repositoryContext.consumeSession(appointment);
+        repositoryContext.consumeSession(appointment, actorUserId);
       } else if (previousStatus === "completed" && status !== "completed") {
-        repositoryContext.restoreSession(appointment);
+        repositoryContext.restoreSession(appointment, actorUserId);
       }
       appointment.status = status;
       // Desfecho registrado pela equipe substitui o da finalização automática.

@@ -575,6 +575,8 @@ export function createPlansRepository(
                 },
                 "Crédito da renovação automática",
                 id,
+                // Renovação automática: sem autor de "Plano contratado".
+                null,
               );
               return true;
             },

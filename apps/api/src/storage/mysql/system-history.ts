@@ -161,6 +161,7 @@ const sources: HistorySource[] = [
     action: "group.enrolled",
     label: "Cliente matriculado em turma",
     time: "enrolled_at",
+    actor: "created_by_user_id",
   },
   {
     table: "group_sessions",
@@ -223,6 +224,7 @@ const sources: HistorySource[] = [
     action: "plan.created",
     label: "Plano contratado",
     subject: "name",
+    actor: "created_by_user_id",
   },
   {
     table: "patients",

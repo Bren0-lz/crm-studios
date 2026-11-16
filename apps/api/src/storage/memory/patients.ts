@@ -315,6 +315,7 @@ export function createPatientsRepository(
             ? await repositoryContext.operations.createGroupEnrollment(
                 clinicId,
                 { groupId: item.groupId, patientId: patient.id },
+                actorUserId,
               )
             : undefined;
           assertPlanEnrollmentSeat(enrollment);

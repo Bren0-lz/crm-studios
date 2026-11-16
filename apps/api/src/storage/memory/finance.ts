@@ -485,7 +485,7 @@ export function createFinanceRepository(
 
     async closePatientTab(
       clinicId: string,
-      _actorUserId: string,
+      actorUserId: string,
       tabId: string,
       input: PatientTabCloseInput,
     ) {
@@ -566,9 +566,12 @@ export function createFinanceRepository(
         updatedAt: timestamp,
       };
       repositoryContext.patientPlans.push(...plans);
-      for (const plan of plans)
+      for (const plan of plans) {
+        const movementId = uuid();
+        repositoryContext.recordCreators.set(plan.id, actorUserId);
+        repositoryContext.recordCreators.set(movementId, actorUserId);
         repositoryContext.sessionMovements.push({
-          id: uuid(),
+          id: movementId,
           planId: plan.id,
           serviceId: plan.serviceId,
           serviceName: plan.serviceName,
@@ -577,6 +580,7 @@ export function createFinanceRepository(
           reason: "Crédito do serviço vendido na comanda",
           createdAt: timestamp,
         });
+      }
       repositoryContext.receivables.push(receivable);
       if (receivable.status === "paid") {
         for (const part of parts)
@@ -600,7 +604,7 @@ export function createFinanceRepository(
 
     async cancelPatientTab(
       clinicId: string,
-      _actorUserId: string,
+      actorUserId: string,
       tabId: string,
       options: { refundPayment?: boolean; reason?: string | undefined } = {},
     ) {
@@ -636,7 +640,7 @@ export function createFinanceRepository(
           }
         : undefined;
       if (paidReceivable) reversePaidReceivable(paidReceivable);
-      cancelTabCredits(repositoryContext, tab);
+      cancelTabCredits(repositoryContext, tab, actorUserId);
       for (const item of tab.items) {
         const product = repositoryContext.products.find(
           (candidate) => candidate.id === item.productId,

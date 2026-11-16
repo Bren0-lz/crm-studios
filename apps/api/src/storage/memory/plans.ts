@@ -292,7 +292,7 @@ export function createPlansRepository(
 
     async createPatientPlan(
       clinicId: string,
-      _actorUserId: string,
+      actorUserId: string,
       input: PatientPlanInput,
     ) {
       const template = repositoryContext.planTemplates.find(
@@ -341,12 +341,14 @@ export function createPlansRepository(
         patient,
         { ...input, name: template.name },
         "Crédito inicial do plano",
+        undefined,
+        actorUserId,
       );
     },
 
     async renewPatientPlan(
       clinicId: string,
-      _actorUserId: string,
+      actorUserId: string,
       planId: string,
       input: PlanRenewalInput,
     ) {
@@ -387,6 +389,7 @@ export function createPlansRepository(
         },
         "Crédito da renovação do plano",
         current,
+        actorUserId,
       );
     },
 

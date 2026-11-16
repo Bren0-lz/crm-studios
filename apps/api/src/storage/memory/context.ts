@@ -538,6 +538,12 @@ export class MemoryRepositoryContext {
   /** Quem calculou cada comissão (`commission_entries.created_by_user_id` no MySQL). */
   readonly commissionCreators = new Map<string, string>();
 
+  /**
+   * Quem contratou o plano, matriculou na turma ou movimentou o saldo de sessões
+   * (`created_by_user_id`/`actor_user_id` no MySQL): autor no Histórico (RF1).
+   */
+  readonly recordCreators = new Map<string, string>();
+
   readonly payables: Payable[] = [];
 
   readonly recurringPayables: StoredRecurringPayable[] = [];
@@ -1337,7 +1343,7 @@ export class MemoryRepositoryContext {
         const creator =
           source.records === this.commissions
             ? this.commissionCreators.get(data.id)
-            : undefined;
+            : this.recordCreators.get(data.id);
         const actorUserId =
           source.event && typeof data.actorUserId === "string"
             ? data.actorUserId
@@ -1966,6 +1972,7 @@ export class MemoryRepositoryContext {
     },
     creditReason: string,
     renewedFrom?: PatientPlan,
+    actorUserId?: string,
   ) {
     // Plano picado: forma e parcelas derivadas das formas; forma única dispensa a lista.
     const input = withPlanPaymentParts(rawInput);
@@ -2083,9 +2090,11 @@ export class MemoryRepositoryContext {
     }
     this.patientPlans.push(plan);
     this.receivables.push(...installments);
-    for (const item of plan.services)
+    if (actorUserId) this.recordCreators.set(plan.id, actorUserId);
+    for (const item of plan.services) {
+      const movementId = uuid();
       this.sessionMovements.push({
-        id: uuid(),
+        id: movementId,
         planId: plan.id,
         serviceId: item.serviceId,
         serviceName: item.serviceName,
@@ -2094,6 +2103,8 @@ export class MemoryRepositoryContext {
         reason: creditReason,
         createdAt: timestamp,
       });
+      if (actorUserId) this.recordCreators.set(movementId, actorUserId);
+    }
     return plan;
   }
 
@@ -2328,7 +2339,7 @@ export class MemoryRepositoryContext {
     return payable;
   }
 
-  consumeSession(appointment: Appointment) {
+  consumeSession(appointment: Appointment, actorUserId?: string) {
     // Leads e aulas experimentais nunca consomem sessão.
     if (!appointment.patientId || appointment.visitType === "trial") return;
     const appointmentDate = clinicDateOf(
@@ -2417,8 +2428,10 @@ export class MemoryRepositoryContext {
     if (plan.sourceTabId && plan.remainingSessions === 0)
       plan.status = "expired";
     plan.updatedAt = now();
+    const movementId = uuid();
+    if (actorUserId) this.recordCreators.set(movementId, actorUserId);
     this.sessionMovements.push({
-      id: uuid(),
+      id: movementId,
       planId: plan.id,
       appointmentId: appointment.id,
       kind: appointmentMovements.some((item) => item.kind === "consumption")
@@ -2432,7 +2445,7 @@ export class MemoryRepositoryContext {
     });
   }
 
-  restoreSession(appointment: Appointment) {
+  restoreSession(appointment: Appointment, actorUserId?: string) {
     const plan = this.patientPlans.find((candidate) => {
       const balance = this.sessionMovements
         .filter(
@@ -2466,8 +2479,10 @@ export class MemoryRepositoryContext {
     );
     if (plan.sourceTabId && plan.status === "expired") plan.status = "active";
     plan.updatedAt = now();
+    const movementId = uuid();
+    if (actorUserId) this.recordCreators.set(movementId, actorUserId);
     this.sessionMovements.push({
-      id: uuid(),
+      id: movementId,
       planId: plan.id,
       appointmentId: appointment.id,
       kind: alreadyReversed ? "adjustment" : "reversal",

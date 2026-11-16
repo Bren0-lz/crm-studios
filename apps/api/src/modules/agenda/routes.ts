@@ -739,6 +739,7 @@ export function registerAgendaRoutes(context: RouteContext) {
         id,
         status,
         absenceReason,
+        request.user.sub,
       );
       if (!appointment)
         return reply.status(404).send({
