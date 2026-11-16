@@ -2,11 +2,13 @@ import {
   withPrefix,
   type Appointment,
   type IssuedDocument,
+  type PatientDiscount,
   type PatientOption,
   type PatientPlan,
   type Service,
 } from "@crm/contracts";
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
 import { FixedPatient } from "../../shared/components/FixedPatient";
@@ -33,6 +35,8 @@ import {
   PlanSessionsSentStep,
   type PurchaseOptions,
 } from "../plan-purchase/index";
+import { PatientDiscountModal } from "./PatientDiscountModal";
+import { PlanDiscountSummary } from "./PlanDiscountSummary";
 
 /**
  * Atalho da aba Planos da ficha: vincula o cliente a um plano recorrente ou avulso do
@@ -80,6 +84,11 @@ export function PatientPlanModal({
   // Matrícula na turma da contratação: o aviso acompanha o plano salvo (TW1).
   const [enrollmentNotice, setEnrollmentNotice] = useState<string>();
   const [attempt, setAttempt] = useState(0);
+  // Desconto do plano (RE15), no mesmo modal do cadastro guiado; aplicado no formulário.
+  const [discountEdit, setDiscountEdit] = useState<{
+    discount: PatientDiscount | undefined;
+    apply: (discount: PatientDiscount | null) => void;
+  } | null>(null);
   const { can, canEdit } = useAuthorization();
   // Venda com documento: ao concluir o envio, pergunta se o cliente já pagou (baixa + recibo).
   const canReceive = canEdit("finance") && can("finance.receive");
@@ -127,7 +136,7 @@ export function PatientPlanModal({
               : "O saldo e as contas a receber serão criados na mesma operação."
       }
       busy={busy}
-      inactive={nested}
+      inactive={nested || Boolean(discountEdit)}
       onClose={
         paying
           ? () => onSaved(paying, enrollmentNotice)
@@ -177,6 +186,14 @@ export function PatientPlanModal({
           onBusyChange={setBusy}
           additionalDirty={Boolean(signature || options.appointments.length)}
           submitBlocked={blocked}
+          renderDiscount={({ discount, disabled, onChange }) => (
+            <PlanDiscountSummary
+              discount={discount}
+              emptyLabel="Sem desconto neste plano."
+              disabled={disabled}
+              onEdit={() => setDiscountEdit({ discount, apply: onChange })}
+            />
+          )}
           renderAdditional={(input, groupId) => (
             <>
               {canSign && (
@@ -277,6 +294,18 @@ export function PatientPlanModal({
           </div>
         </div>
       )}
+      {discountEdit &&
+        createPortal(
+          <PatientDiscountModal
+            discount={discountEdit.discount}
+            onApply={(discount) => {
+              discountEdit.apply(discount);
+              setDiscountEdit(null);
+            }}
+            onClose={() => setDiscountEdit(null)}
+          />,
+          document.body,
+        )}
     </Modal>
   );
 }
