@@ -1853,9 +1853,10 @@ filtros ficam no `dashboard-studios` (EN11–EN13 têm só a parte da API aqui).
 - **Triagem (15/11/2026):** não reproduzido no código. No modal de renovação o subtítulo
   (`PlanModal.tsx`, `<cliente> · <serviço>`), os blocos de serviço e o histórico já mostram o
   serviço; o nome do plano só aparece no campo editável "Nome do plano" (`PlanForm.tsx`).
-- **Escopo:** aguarda o dono descrever a tela exata da obs. 4.10 do relatório.
-- **Gate:** gate completo
-- **Status:** BLOCKED (aguarda a tela exata da obs. 4.10)
+- **Decisão do dono (16/11/2026):** não é problema; a observação não precisa de mudança.
+- **Escopo:** nenhum (cancelada, sem código).
+- **Gate:** não se aplica
+- **Status:** DONE (cancelada pelo dono em 16/11/2026, sem código)
 
 ### RE7 — Aviso de código desconhecido na mensagem padrão
 
