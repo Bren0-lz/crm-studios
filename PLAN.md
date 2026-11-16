@@ -1836,7 +1836,7 @@ filtros ficam no `dashboard-studios` (EN11–EN13 têm só a parte da API aqui).
 - **Escopo:** como na RV6: `data-label` nas células e, até 700px, cada venda vira um cartão,
   sem rolagem lateral da página. No computador continua tabela.
 - **Gate:** gate completo + `npm run test:e2e`
-- **Status:** TODO
+- **Status:** DONE
 
 ### RE6 — Plano contratado mostra o tipo do catálogo
 

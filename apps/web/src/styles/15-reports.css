@@ -398,8 +398,10 @@
 
 @media (max-width: 700px) {
   /* RV6: histórico de contratações em cartões empilhados: o item no alto e, abaixo, cada
-     dado com o rótulo da coluna (data-label), sem rolagem lateral. */
-  .contracted-history-table thead {
+     dado com o rótulo da coluna (data-label), sem rolagem lateral. A RE5 reaproveita o
+     molde nas Vendas realizadas (.sales-history-table; recuos próprios em 16-sales.css). */
+  .contracted-history-table thead,
+  .sales-history-table thead {
     position: absolute;
     width: 1px;
     height: 1px;
@@ -408,24 +410,31 @@
     white-space: nowrap;
   }
   .contracted-history-table,
-  .contracted-history-table tbody {
+  .contracted-history-table tbody,
+  .sales-history-table,
+  .sales-history-table tbody {
     display: block;
   }
-  .contracted-history-table caption {
+  .contracted-history-table caption,
+  .sales-history-table caption {
     display: block;
     width: auto;
   }
-  .contracted-history-table tr {
+  .contracted-history-table tr,
+  .sales-history-table tr {
     display: grid;
     gap: var(--space-1);
     padding: var(--space-3) 0;
     border-bottom: 1px solid var(--line);
   }
-  .contracted-history-table tbody tr:last-child {
+  .contracted-history-table tbody tr:last-child,
+  .sales-history-table tbody tr:last-child {
     border-bottom: 0;
   }
   .contracted-history-table th,
-  .contracted-history-table td {
+  .contracted-history-table td,
+  .sales-history-table th,
+  .sales-history-table td {
     display: flex;
     justify-content: space-between;
     gap: var(--space-3);
@@ -434,18 +443,21 @@
     white-space: normal;
     overflow-wrap: anywhere;
   }
-  .contracted-history-table tbody th {
+  .contracted-history-table tbody th,
+  .sales-history-table tbody th {
     flex-direction: column;
     order: -1;
     font-size: var(--text-md);
   }
-  .contracted-history-table td::before {
+  .contracted-history-table td::before,
+  .sales-history-table td::before {
     content: attr(data-label);
     color: var(--muted);
     font-size: var(--text-sm);
     font-weight: 400;
   }
-  .contracted-history-table td.numeric-value {
+  .contracted-history-table td.numeric-value,
+  .sales-history-table td.numeric-value {
     font-weight: 600;
   }
 }

@@ -228,6 +228,7 @@ export function SalesHistorySection({
         )
       ) : (
         <div className="table-scroll">
+          {/* RE5: no celular cada venda vira um cartão (rótulo + valor), sem rolagem lateral. */}
           <table className="dre-table sales-history-table">
             <caption className="sr-only">Vendas de produtos no período</caption>
             <thead>
@@ -248,18 +249,20 @@ export function SalesHistorySection({
             <tbody>
               {sales.map((tab) => (
                 <tr key={tab.id}>
-                  <td className="sales-date-cell">
+                  <td className="sales-date-cell" data-label="Data">
                     {shortDate.format(new Date(tab.closedAt ?? tab.openedAt))}
                   </td>
                   <th scope="row">{tab.patientName}</th>
-                  <td>{tab.soldByName ?? "—"}</td>
-                  <td className="sales-items-cell">{saleItemsLabel(tab)}</td>
-                  <td>
+                  <td data-label="Vendedor">{tab.soldByName ?? "—"}</td>
+                  <td className="sales-items-cell" data-label="Produtos">
+                    {saleItemsLabel(tab)}
+                  </td>
+                  <td data-label="Situação">
                     <span className={`status-pill ${statusClass(tab)}`}>
                       {saleStatusLabel(tab)}
                     </span>
                   </td>
-                  <td className="numeric-value">
+                  <td className="numeric-value" data-label="Total">
                     {currency.format(productsTotalInCents(tab) / 100)}
                   </td>
                   <td className="table-actions-cell">
