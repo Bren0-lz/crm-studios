@@ -2032,7 +2032,7 @@ filtros ficam no `dashboard-studios` (EN11–EN13 têm só a parte da API aqui).
   (canceladas) continuam fora. Corrigir também os planos já renegociados, se o vínculo puder ser
   recuperado sem ambiguidade; senão, relatar. Testes API (memória e MySQL) e web.
 - **Gate:** gate completo + `npm run test:mysql`
-- **Status:** TODO
+- **Status:** BLOCKED (aguarda decisão do dono: vínculo gravado A ou só na leitura B — ver diário)
 
 ### RF3 — Faixa de alertas com 3 ou mais alertas no computador
 
