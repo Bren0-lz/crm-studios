@@ -1935,7 +1935,7 @@ filtros ficam no `dashboard-studios` (EN11–EN13 têm só a parte da API aqui).
   de texto obrigatório (até 500). Sem motivos cadastrados, só o texto. O valor gravado continua
   texto (sem migração). Teste web.
 - **Gate:** gate completo
-- **Status:** TODO
+- **Status:** DONE
 
 ### RE14 — Lista de espera com a espera das turmas
 
