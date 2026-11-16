@@ -174,7 +174,7 @@ for (const storage of ["memory", "mysql"] as const) {
         "rejects an unknown business line in the database",
         async () => {
           const service = await repository.createService(clinicId, {
-            name: "Massoterapia",
+            name: "QA Massoterapia (linha inválida)",
             durationMinutes: 60,
           });
           await expect(

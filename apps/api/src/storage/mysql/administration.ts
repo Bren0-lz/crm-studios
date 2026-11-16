@@ -49,6 +49,7 @@ import { createMysqlCommissionRecalculation } from "./commission-recalculation.j
 import type { MysqlRepositoryContext } from "./context.js";
 import { historyEventsTable } from "./system-history.js";
 import { branchOrDefault, writeAndRead } from "./sql.js";
+import { assertServiceNameFree } from "./registry.js";
 import { randomUUID } from "node:crypto";
 import {
   type AdminUserRow,
@@ -1197,25 +1198,28 @@ export function createAdministrationRepository(
     },
 
     async createService(clinicId: string, input: ServiceInput) {
-      const result = await writeAndRead<ServiceRow>(
-        repositoryContext.pool,
-        `
+      return repositoryContext.inTransaction(async (client) => {
+        await assertServiceNameFree(client, clinicId, input.name);
+        const result = await writeAndRead<ServiceRow>(
+          client,
+          `
         INSERT INTO services (clinic_id, name, duration_minutes, professional_ids, room_ids, id, business_line) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-        [
-          clinicId,
-          input.name,
-          input.durationMinutes,
-          input.professionalIds ?? [],
-          input.roomIds ?? [],
-          randomUUID(),
-          input.businessLine ?? null,
-        ],
-        `SELECT id, clinic_id AS "clinicId", name, duration_minutes AS "durationMinutes",
+          [
+            clinicId,
+            input.name,
+            input.durationMinutes,
+            input.professionalIds ?? [],
+            input.roomIds ?? [],
+            randomUUID(),
+            input.businessLine ?? null,
+          ],
+          `SELECT id, clinic_id AS "clinicId", name, duration_minutes AS "durationMinutes",
                   active,
                   professional_ids AS "professionalIds", room_ids AS "roomIds",
                   business_line AS "businessLine" FROM services WHERE id = $6`,
-      );
-      return result.rows[0]!;
+        );
+        return result.rows[0]!;
+      });
     },
 
     async listNavTabLabels(clinicId: string) {

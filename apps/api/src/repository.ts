@@ -620,6 +620,7 @@ export interface ClinicRepository {
   getAdministrativeRegistry(
     clinicId: string,
   ): Promise<AdministrativeRegistryWorkspace>;
+  /** Serviço com o nome de outro da clínica (inclui inativos): 409 `SERVICE_NAME_TAKEN`. */
   updateAdministrativeRegistry(
     clinicId: string,
     actorUserId: string,
@@ -1060,6 +1061,7 @@ export interface ClinicRepository {
   listRooms(clinicId: string): Promise<Room[]>;
   createRoom(clinicId: string, input: RoomInput): Promise<Room>;
   listServices(clinicId: string): Promise<Service[]>;
+  /** Nome de outro serviço da clínica (inclui inativos): 409 `SERVICE_NAME_TAKEN`. */
   createService(clinicId: string, input: ServiceInput): Promise<Service>;
   listAppointments(
     clinicId: string,
@@ -2107,6 +2109,15 @@ export function patientTagDuplicateError(name: string) {
   return new DomainError(
     "PATIENT_TAG_DUPLICATE",
     `Já existe uma etiqueta chamada "${name}".`,
+    409,
+  );
+}
+
+/** 409 ao criar/renomear serviço com o nome de outro da clínica (inclui inativos; sem diferenciar maiúsculas/acentos/espaços nas pontas). */
+export function serviceNameTakenError() {
+  return new DomainError(
+    "SERVICE_NAME_TAKEN",
+    "Já existe um serviço com esse nome.",
     409,
   );
 }

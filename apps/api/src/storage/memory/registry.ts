@@ -1,6 +1,9 @@
-import type { AdministrativeRegistryInput } from "@crm/contracts";
+import {
+  type AdministrativeRegistryInput,
+  patientTagKey,
+} from "@crm/contracts";
 import type { MemoryRepositoryContext } from "./context.js";
-import { DomainError } from "../../repository.js";
+import { DomainError, serviceNameTakenError } from "../../repository.js";
 export function createRegistryRepository(context: MemoryRepositoryContext) {
   return {
     async getAdministrativeRegistry(clinicId: string) {
@@ -65,6 +68,19 @@ export function createRegistryRepository(context: MemoryRepositoryContext) {
           "Já existe uma sala com este nome.",
           409,
         );
+      // Nome mantido (mesma chave) não é checado: a produção pode ter repetidos antigos.
+      if (
+        input.kind === "service" &&
+        patientTagKey((current as { name: string }).name) !==
+          patientTagKey(input.data.name) &&
+        context.services.some(
+          (item) =>
+            item.clinicId === clinicId &&
+            item.id !== id &&
+            patientTagKey(item.name) === patientTagKey(input.data.name),
+        )
+      )
+        throw serviceNameTakenError();
       if (
         input.kind === "room" &&
         input.data.capacity < (current as { capacity: number }).capacity &&
