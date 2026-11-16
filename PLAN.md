@@ -1986,3 +1986,149 @@ filtros ficam no `dashboard-studios` (EN11–EN13 têm só a parte da API aqui).
 - **Gate:** gate completo + `npm run test:mysql`
 - **Status:** DONE
 
+
+## Pedido avulso — Correções do reteste E2E de 16/11/2026
+
+- **Origem:** `RELATORIO_RETESTE_RE1-RE18_2026-11-16_1.md` (enviado pelo dono; produção, admin,
+  1192/440/360px, rodada 2 depois do CNPJ cadastrado). 14 de 18 OK; falhas RE2 e RE10 (Baixas),
+  RE11.4 e RE11.5 (Médias), mais observações. Triagem no código em 16/11/2026 (`main` em
+  `1680a0c4`). Ficaram sem teste: RE9 (link do contrato assinado) e RE11.3 (havia 3 alertas).
+- **Decisões do dono (16/11/2026):**
+  - **D1 (RE11.4)** — Contas a receber: "Dar baixa" fica à vista; "Ajustar" e "Entrar em
+    contato" vão para o menu "Mais".
+  - **D2 (RE11.5)** — Agenda (Dia) no celular: filtros e legenda recolhidos num botão; a grade
+    começa logo abaixo das datas e a primeira linha não fica sob o menu fixo.
+  - **D3 (RE15)** — o alcance padrão do desconto continua "Só no próximo pagamento", mas o
+    usuário pode configurar o padrão (leitura do orquestrador: opção em Configurações).
+  - **D4** — estorno de comissão e de pagamento de conta de comissão pedem motivo, como na RE18.
+- **Ações do dono (sem código):** conferir se o `TESTE Cliente Avulso` saiu da espera da
+  `TESTE Turma`; remover o lead real perdido com motivo ofensivo; retestar a RE9 com um link de
+  contrato assinado.
+
+### RF1 — Histórico com o responsável de plano, matrícula e saldo
+
+- **Triagem:** em `storage/mysql/system-history.ts`, `patient_plans` ("Plano contratado") e
+  `group_enrollments` ("Cliente matriculado em turma") não têm coluna de autor e saem com
+  "Responsável não registrado"; `session_movements` usa `actor_user_id`, mas algum caminho grava
+  nulo (o reteste viu "Saldo de sessões alterado" sem responsável).
+- **Escopo:** gravar quem fez a ação nos três casos, como a comissão na RE10: migração **nova**
+  (`created_by_user_id` nulo em `patient_plans` e `group_enrollments`; número livre pelas regras
+  do `CLAUDE.md`, hoje `0067`), repositório de memória equivalente, rotas passando
+  `request.user.sub` (contratação pela ficha, cadastro guiado, compra, matrícula em Turmas e pela
+  Lista de espera) e os caminhos de movimento de saldo que gravam `actor_user_id` nulo.
+  Registros antigos seguem "Responsável não registrado". Testes API (memória e MySQL).
+- **Gate:** gate completo + `npm run test:mysql`
+- **Status:** TODO
+
+### RF2 — Plano não aparece "quitado" com parcelas de renegociação em aberto
+
+- **Triagem:** o cartão do plano do `TESTE Cliente B` diz "1 de 1 paga · quitado", mas há 2
+  parcelas de renegociação de R$ 220 em aberto. `planPaymentProgress`
+  (`apps/web/src/features/plans/model.ts`) usa `paymentSummary`, montado só com as parcelas
+  ligadas ao plano (`storage/mysql/plans.ts`, ~linha 387); as da renegociação provavelmente
+  perdem esse vínculo.
+- **Escopo:** as parcelas criadas por renegociação de parcelas de um plano continuam ligadas a
+  ele (nos dois repositórios), e o resumo conta essas parcelas; as renegociadas
+  (canceladas) continuam fora. Corrigir também os planos já renegociados, se o vínculo puder ser
+  recuperado sem ambiguidade; senão, relatar. Testes API (memória e MySQL) e web.
+- **Gate:** gate completo + `npm run test:mysql`
+- **Status:** TODO
+
+### RF3 — Faixa de alertas com 3 ou mais alertas no computador
+
+- **Triagem:** a RE11 tratou 2 alertas; com 3 em 1192px (e 4 em 1502px) a faixa rola de lado e
+  corta atalhos ("Tarefas comerciais venci…", "TESTE Turma: 1 vaga dispo…").
+- **Escopo:** no computador, os atalhos quebram em linhas, inteiros, sem rolagem lateral, com
+  qualquer número de alertas; o comportamento do celular (RE11) não muda. Teste e2e com 3 e 4
+  alertas em 1192px.
+- **Gate:** gate completo + `npm run test:e2e`
+- **Status:** TODO
+
+### RF4 — Link público de recibo estornado sem dados
+
+- **Triagem:** `publicReceiptView` (`apps/api/src/modules/finance/public-receipt-routes.ts`)
+  devolve conteúdo, valor e `paidAt` mesmo com `cancelledAt` preenchido (achado da RE9).
+- **Escopo:** como na RE9: recibo cancelado/estornado no link público mostra só o nome do estúdio
+  e "Este recibo foi cancelado." (sem conteúdo, valor, data nem dados do cliente); a assinatura
+  continua bloqueada. Testes API e web.
+- **Gate:** gate completo
+- **Status:** TODO
+
+### RF5 — Participante ligado a cliente com o nome do cliente
+
+- **Triagem:** adicionar participante só com o telefone de um cliente (RE2) liga ao cadastro,
+  mas a linha mostra "Participante sem nome" e o aviso diz "Participante já é cliente…"
+  (`EventParticipantModal.tsx`, ~linha 56).
+- **Escopo:** ao ligar o participante a um cliente, o lead sem nome recebe o nome do cliente
+  (memória e MySQL); o aviso usa o primeiro nome do cliente. Testes API e web.
+- **Gate:** gate completo + `npm run test:mysql`
+- **Status:** TODO
+
+### RF6 — Textos do reteste
+
+- **Escopo:** "1 de 1 enviadas" → concordância pelo total ("1 de 1 enviada";
+  `CampaignsTab.tsx`, ~linha 55); "1 evento(s)" e "2 participante(s)" em Eventos com `plural()`;
+  "0 de 1 usadas" → "0 de 1 usada" (`PlanProgress`); título "Pendências de <primeiro nome>" →
+  nome completo (`ClientPendingModal`). Testes web.
+- **Gate:** gate completo
+- **Status:** TODO
+
+### RF7 — Nova matrícula sem a busca anterior colada
+
+- **Triagem:** ao abrir "Nova matrícula" pela 2ª vez, o campo Cliente veio com o texto da busca
+  anterior colado ("TESTE Cliente AvulsoTESTE Cliente Pacote") e "Nenhum cliente encontrado".
+- **Escopo:** o campo começa vazio a cada abertura e a escolha de um cliente substitui o texto.
+  Teste web.
+- **Gate:** gate completo
+- **Status:** TODO
+
+### RF8 — Cancelar matrícula pede confirmação
+
+- **Origem:** observação 6.6 de 14/11, repetida no reteste.
+- **Escopo:** "Cancelar matrícula" em Turmas abre `ActionModal` de confirmação (danger), com
+  `busy` durante o salvamento. Teste web.
+- **Gate:** gate completo
+- **Status:** TODO
+
+### RF9 — Contas a receber com ações no menu "Mais" (D1)
+
+- **Triagem:** em 1192px a tabela ainda rola por dentro (877 de 927px) e corta "Dar bai…",
+  "Ajust…", "Entrar em conta…" (RE11.4).
+- **Escopo (D1):** "Dar baixa" à vista; "Ajustar" e "Entrar em contato" (e outras ações
+  secundárias da linha) no `ActionMenu` "Mais"; em 1192px sem rolagem interna da tabela e com
+  tudo inteiro. Teste e2e em 1192px e teste web das ações no menu.
+- **Gate:** gate completo + `npm run test:e2e`
+- **Status:** TODO
+
+### RF10 — Agenda (Dia) no celular com a grade logo abaixo das datas (D2)
+
+- **Triagem:** em 440px a grade começa em y=914 (depois de cabeçalho, datas, filtros e legenda),
+  a página rola (1782px) e a grade rola por dentro; rolando até o fim, a primeira linha da grade
+  fica sob o menu fixo (RE11.5; RV5 e RE11 mexeram nisso).
+- **Escopo (D2):** até 700px, filtros e legenda ficam recolhidos num botão ("Filtros"); a grade
+  começa logo abaixo das datas, dentro da primeira tela em 440×956 e 360×800; a primeira linha
+  não fica sob o topo fixo. No computador nada muda. Teste e2e.
+- **Gate:** gate completo + `npm run test:e2e`
+- **Status:** TODO
+
+### RF11 — Alcance padrão do desconto configurável (D3)
+
+- **Triagem:** no desconto do plano (guiado e ficha), o alcance padrão é "Só no próximo
+  pagamento", que desconta só a 1ª parcela de um parcelamento (RE15).
+- **Escopo (D3):** o padrão atual continua; Configurações ganha a opção "Alcance padrão do
+  desconto" (Só no próximo pagamento / Nas próximas cobranças / Permanente), usada para
+  pré-selecionar o alcance no `PatientDiscountModal` (guiado e ficha). Gravar a preferência da
+  clínica nos dois repositórios (migração nova só se não houver lugar de configuração da clínica
+  que sirva). Testes API e web.
+- **Gate:** gate completo + `npm run test:mysql`
+- **Status:** TODO
+
+### RF12 — Motivo nos estornos de comissão (D4)
+
+- **Triagem:** `POST /finance/commissions/:id/reverse` e
+  `POST /finance/commission-account-payments/:id/reverse` não pedem motivo (achado da RE18).
+- **Escopo (D4):** como a RE18: `reason` obrigatório (1–500) com `paymentReversalInputSchema`,
+  400 sem motivo depois da checagem de permissão, motivo no Histórico (`recordReason` e eventos),
+  modais com o campo "Motivo". Testes API (memória e MySQL) e web.
+- **Gate:** gate completo + `npm run test:mysql`
+- **Status:** TODO
