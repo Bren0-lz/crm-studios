@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { GroupClass, GroupEnrollment } from "../agenda/types.js";
 import {
   waitlistEntryInputSchema,
   waitlistEntryUpdateSchema,
@@ -41,6 +42,15 @@ export interface WaitlistEntry {
 export interface WaitlistOptions {
   services: { id: string; name: string }[];
   products: { id: string; name: string; currentStock: number }[];
+}
+
+/**
+ * Espera da turma (RE14): matrícula `waitlisted` de uma turma cheia, mostrada na Lista de
+ * espera junto das entradas do serviço. A posição é a da fila da turma (`queuePosition`).
+ */
+export interface GroupWaitlistItem {
+  enrollment: GroupEnrollment;
+  group: GroupClass;
 }
 
 export interface WaitlistDemand {

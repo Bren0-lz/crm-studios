@@ -149,10 +149,29 @@ describe("lista de espera", () => {
       (await app.inject({ method: "GET", url: "/waitlist", headers: none }))
         .statusCode,
     ).toBe(403);
+    expect(
+      (
+        await app.inject({
+          method: "GET",
+          url: "/waitlist/groups",
+          headers: none,
+        })
+      ).statusCode,
+    ).toBe(403);
     const viewer = await asUser(["waitlist.view"]);
     expect(
       (await app.inject({ method: "GET", url: "/waitlist", headers: viewer }))
         .statusCode,
+    ).toBe(200);
+    // A espera das turmas aparece para quem só acessa a lista de espera.
+    expect(
+      (
+        await app.inject({
+          method: "GET",
+          url: "/waitlist/groups",
+          headers: viewer,
+        })
+      ).statusCode,
     ).toBe(200);
     // Só com a lista de espera, ainda escolhe serviço, produto e cliente.
     const options = await app.inject({

@@ -1,4 +1,5 @@
 import type {
+  GroupWaitlistItem,
   WaitlistEntry,
   WaitlistEntryInput,
   WaitlistEntryUpdate,
@@ -8,6 +9,8 @@ import { request } from "../transport";
 
 export const waitlistApi = {
   waitlist: () => request<WaitlistEntry[]>("/waitlist"),
+  /** Espera das turmas (matrículas `waitlisted`), mostrada junto da lista (RE14). */
+  groupWaitlist: () => request<GroupWaitlistItem[]>("/waitlist/groups"),
   waitlistOptions: () => request<WaitlistOptions>("/waitlist/options"),
   createWaitlistEntry: (input: WaitlistEntryInput) =>
     request<WaitlistEntry>("/waitlist", {
