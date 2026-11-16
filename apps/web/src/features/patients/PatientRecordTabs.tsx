@@ -47,6 +47,7 @@ import {
   PlanCard,
   SessionMovementsModal,
   planSubtitle,
+  usePlanTemplateTypes,
   type PlanCatalogKind,
 } from "../plans/index";
 import { patientDiscountLabel } from "./model";
@@ -265,6 +266,12 @@ export function PatientRecordTabs({
   );
   const canCancelPlan = canEdit("plans") && can("plans.cancel");
   const active = selected ?? visibleTabs[0]?.key ?? null;
+  // O catálogo só é lido com a aba Planos aberta (é onde ficam os cartões dos planos) e
+  // quando algum plano veio de um modelo.
+  const planTypeOf = usePlanTemplateTypes(
+    active === "plans" &&
+      (plans.data ?? []).some((plan) => Boolean(plan.planTemplateId)),
+  );
   const moduleLink = (to: string) =>
     `${to}?patientId=${encodeURIComponent(id)}`;
 
@@ -541,6 +548,7 @@ export function PatientRecordTabs({
                           key={plan.id}
                           plan={plan}
                           plans={items}
+                          planType={planTypeOf(plan)}
                           title={planSubtitle(plan)}
                           actions={
                             <>

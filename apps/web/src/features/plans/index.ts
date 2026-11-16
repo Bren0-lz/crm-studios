@@ -8,5 +8,6 @@ export { PlanInstallmentsField } from "./PlanInstallmentsField";
 export { PlanPaymentFields } from "./PlanPaymentFields";
 export { PlanCancelModal } from "./PlanCancelModal";
 export { PlanCard } from "./PlanCard";
+export { usePlanTemplateTypes } from "./usePlanTemplateTypes";
 export type { PlanCatalogKind } from "./model";
 export { SessionMovementsModal } from "./SessionMovementsModal";

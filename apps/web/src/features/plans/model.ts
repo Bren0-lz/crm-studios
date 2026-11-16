@@ -7,9 +7,11 @@ import {
   planDisplayStatus,
   planDisplayStatusLabels,
   planTypeKind,
+  planTypeLabels,
   tabCreditAwaitingLabel,
   type PatientPlan,
   type PlanTemplate,
+  type PlanType,
 } from "@crm/contracts";
 import { currency, shortDate } from "../../shared/lib/formatting";
 
@@ -19,6 +21,14 @@ export const planKindLabels: Record<PatientPlan["kind"], string> = {
   recurring: "Recorrente",
   custom: "Personalizado",
 };
+
+/** Tipo do plano no cartão: o do catálogo ("Plano trimestral"), ou o rótulo do `kind` sem ele. */
+export function planCardKindLabel(
+  plan: Pick<PatientPlan, "kind">,
+  planType?: PlanType | null,
+): string {
+  return planType ? planTypeLabels[planType] : planKindLabels[plan.kind];
+}
 
 /** Atalho da ficha do cliente: avulso (sessões soltas) ou recorrente (pacotes e períodos). */
 export type PlanCatalogKind = "single" | "recurring";
