@@ -1130,6 +1130,7 @@ describe("CRM API", () => {
       method: "POST",
       url: `/finance/receivables/${receivableId}/reverse`,
       headers,
+      payload: { reason: "Estorno de teste" },
     });
     expect(reversed.json().status).toBe("open");
     await app.inject({
@@ -1331,7 +1332,7 @@ describe("CRM API", () => {
       method: "PATCH",
       url: `/documents/${document.json().id}/status`,
       headers,
-      payload: { status: "cancelled" },
+      payload: { status: "cancelled", reason: "Contrato substituído" },
     });
     expect(cancelled.json()).toMatchObject({ status: "cancelled" });
     const invalidTransition = await app.inject({
@@ -1776,6 +1777,7 @@ describe("CRM API", () => {
         method: "POST",
         url: `/finance/receivables/${reversedReceivable}/reverse`,
         headers,
+        payload: { reason: "Estorno de teste" },
       });
       expect(reversed.statusCode).toBe(200);
 
@@ -2973,6 +2975,7 @@ describe("CRM API", () => {
             method: "POST",
             url: `/finance/receivables/${receivable.id}/reverse`,
             headers,
+            payload: { reason: "Estorno de teste" },
           })
         ).statusCode,
       ).toBe(200);

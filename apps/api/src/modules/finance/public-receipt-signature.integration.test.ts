@@ -154,6 +154,7 @@ describe("link público do recibo", () => {
       method: "POST",
       url: `/finance/receivables/${receivable.id}/reverse`,
       headers,
+      payload: { reason: "Estorno de teste" },
     });
     expect(reversed.statusCode).toBe(200);
 
@@ -197,6 +198,7 @@ describe("link público do recibo", () => {
       method: "POST",
       url: `/finance/receivables/${receivable.id}/reverse`,
       headers,
+      payload: { reason: "Estorno de teste" },
     });
     const opened = (await app.inject({ method: "GET", url })).json();
     expect(opened.status).toBe("cancelled");

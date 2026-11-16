@@ -1531,6 +1531,8 @@ export class MysqlRepositoryContext {
     paymentMethod?: PaymentMethod,
     timing?: PaymentTiming,
     adjustments: SettlementAdjustments = {},
+    /** Motivo do estorno (E7c), gravado nos metadados do evento. */
+    reason?: string,
   ) {
     return this.inTransaction((client) =>
       this.applyReceivablePayment(
@@ -1542,6 +1544,7 @@ export class MysqlRepositoryContext {
         paymentMethod,
         timing,
         adjustments,
+        reason,
       ),
     );
   }
@@ -1559,6 +1562,7 @@ export class MysqlRepositoryContext {
     paymentMethod?: PaymentMethod,
     timing?: PaymentTiming,
     adjustments: SettlementAdjustments = {},
+    reason?: string,
   ) {
     {
       const current = await client.query<{
@@ -1759,16 +1763,17 @@ export class MysqlRepositoryContext {
           : batch.length > 1
             ? batch.map((item) => ({
                 amountInCents: -Math.abs(item.amountInCents),
-                metadata: { paymentMethod: item.paymentMethod } as Record<
-                  string,
-                  unknown
-                >,
+                metadata: {
+                  paymentMethod: item.paymentMethod,
+                  ...(reason ? { reason } : {}),
+                } as Record<string, unknown>,
               }))
             : [
                 {
                   amountInCents: -receivedInCents,
                   metadata: {
                     paymentMethod: current.rows[0].paymentMethod,
+                    ...(reason ? { reason } : {}),
                   } as Record<string, unknown>,
                 },
               ];
@@ -1824,6 +1829,8 @@ export class MysqlRepositoryContext {
     paymentMethod?: PaymentMethod,
     timing?: PaymentTiming,
     payments?: PaymentPart[],
+    /** Motivo do estorno (E7c), gravado nos metadados do evento. */
+    reason?: string,
   ) {
     const client = await this.pool.connect();
     try {
@@ -1984,7 +1991,10 @@ export class MysqlRepositoryContext {
             actorUserId,
             operation,
             movement.amountInCents,
-            { paymentMethod: movement.paymentMethod },
+            {
+              paymentMethod: movement.paymentMethod,
+              ...(reason ? { reason } : {}),
+            },
             timing?.paidAt ?? null,
             timing?.availableAt ??
               (operation === "payment"

@@ -14,6 +14,7 @@ import {
   payableAmountInputSchema,
   payableInputSchema,
   payableSettlementSchema,
+  paymentReversalInputSchema,
   receivableSettlementSchema,
   productInputSchema,
   productSaleInputSchema,
@@ -39,6 +40,7 @@ export function registerFinanceRoutes(context: RouteContext) {
     repository,
     assertPermissions,
     assertInstallmentsAllowed,
+    recordReason,
   } = context;
 
   /** Pago na hora com parcelas na forma (ex.: cartão 3x): respeita a configuração da forma. */
@@ -685,16 +687,19 @@ export function registerFinanceRoutes(context: RouteContext) {
       if (current?.payrollAdvance) throw payrollAdvanceOnlyError();
       if (current?.commissionId)
         assertPermissions(request, "finance.commissions_reverse");
+      const { reason } = paymentReversalInputSchema.parse(request.body ?? {});
       const payable = await repository.reversePayablePayment(
         request.user.clinicId,
         request.user.sub,
         id,
+        reason,
       );
       if (!payable)
         return reply.status(404).send({
           code: "PAYABLE_NOT_FOUND",
           message: "Conta a pagar não encontrada.",
         });
+      recordReason(request, reason);
       return payable;
     },
   );
@@ -704,16 +709,19 @@ export function registerFinanceRoutes(context: RouteContext) {
     { preHandler: authenticate },
     async (request, reply) => {
       const { id } = request.params as { id: string };
+      const { reason } = paymentReversalInputSchema.parse(request.body ?? {});
       const receivable = await repository.reverseReceivablePayment(
         request.user.clinicId,
         request.user.sub,
         id,
+        reason,
       );
       if (!receivable)
         return reply.status(404).send({
           code: "RECEIVABLE_NOT_FOUND",
           message: "Conta a receber não encontrada.",
         });
+      recordReason(request, reason);
       return receivable;
     },
   );

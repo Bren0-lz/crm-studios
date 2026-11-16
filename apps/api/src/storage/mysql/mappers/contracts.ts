@@ -62,6 +62,7 @@ export interface IssuedDocumentRow {
   status: DocumentStatus;
   issuedAt: Date | null;
   cancelledAt: Date | null;
+  cancellationReason: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -95,6 +96,7 @@ export const issuedDocumentColumns = `
   COALESCE(p.full_name, s.name) AS "patientName", pp.name AS "planName",
   d.manual_signature AS "manualSignature",d.snapshot_body AS "snapshotBody", d.snapshot_content AS "snapshotContent", d.branding, d.status,
   d.issued_at AS "issuedAt", d.cancelled_at AS "cancelledAt",
+  d.cancellation_reason AS "cancellationReason",
   d.created_at AS "createdAt", d.updated_at AS "updatedAt",
   (SELECT JSON_OBJECT(
       'token', l.token, 'createdAt', ${isoText("l.created_at")}, 'expiresAt', ${isoText("l.expires_at")},
@@ -189,6 +191,9 @@ export function mapIssuedDocument(row: IssuedDocumentRow): IssuedDocument {
     status: row.status,
     ...(row.issuedAt ? { issuedAt: row.issuedAt.toISOString() } : {}),
     ...(row.cancelledAt ? { cancelledAt: row.cancelledAt.toISOString() } : {}),
+    ...(row.cancellationReason
+      ? { cancellationReason: row.cancellationReason }
+      : {}),
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };

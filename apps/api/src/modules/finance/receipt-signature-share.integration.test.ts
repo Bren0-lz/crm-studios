@@ -115,6 +115,7 @@ describe("envio do recibo pelo WhatsApp", () => {
       method: "POST",
       url: `/finance/receivables/${receivable.id}/reverse`,
       headers,
+      payload: { reason: "Estorno de teste" },
     });
     expect(reversed.statusCode, reversed.body).toBe(200);
     // Estornado: não há recibo em vigor para enviar.

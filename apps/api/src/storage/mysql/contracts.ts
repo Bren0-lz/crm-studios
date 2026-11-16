@@ -285,6 +285,7 @@ export function createContractsRepository(
       clinicId: string,
       documentId: string,
       status: Exclude<DocumentStatus, "draft">,
+      reason?: string,
     ) {
       const client = await repositoryContext.pool.connect();
       try {
@@ -323,9 +324,10 @@ export function createContractsRepository(
          SET status = $3,
              issued_at = CASE WHEN $3 = 'issued' THEN NOW(6) ELSE issued_at END,
              cancelled_at = CASE WHEN $3 = 'cancelled' THEN NOW(6) ELSE cancelled_at END,
+             cancellation_reason = CASE WHEN $3 = 'cancelled' THEN $4 ELSE cancellation_reason END,
              updated_at = NOW(6)
          WHERE clinic_id = $1 AND id = $2`,
-          [clinicId, documentId, status],
+          [clinicId, documentId, status, reason ?? null],
         );
         const document = await repositoryContext.findIssuedDocument(
           client,

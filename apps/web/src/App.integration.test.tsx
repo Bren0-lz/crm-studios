@@ -3606,12 +3606,24 @@ describe("application shell", () => {
         name: "Cancelar documento",
       }),
     );
+    // Cancelar pede motivo (E7c): sem ele, o botão fica desativado.
+    const confirmCancel = await screen.findByRole("dialog", {
+      name: "Cancelar documento",
+    });
+    expect(
+      within(confirmCancel).getByRole("button", { name: "Cancelar documento" }),
+    ).toBeDisabled();
+    fireEvent.change(within(confirmCancel).getByLabelText("Motivo"), {
+      target: { value: "  Cliente desistiu  " },
+    });
     fireEvent.click(
-      within(
-        await screen.findByRole("dialog", { name: "Cancelar documento" }),
-      ).getByRole("button", { name: "Cancelar documento" }),
+      within(confirmCancel).getByRole("button", { name: "Cancelar documento" }),
     );
-    await vi.waitFor(() => expect(patched).toEqual([{ status: "cancelled" }]));
+    await vi.waitFor(() =>
+      expect(patched).toEqual([
+        { status: "cancelled", reason: "Cliente desistiu" },
+      ]),
+    );
     // Os detalhes continuam abertos com a nova situação e sem a ação de cancelar.
     const updated = await screen.findByRole("dialog", {
       name: "Contrato de prestação de serviços",
@@ -7099,10 +7111,16 @@ describe("application shell", () => {
       fireEvent.click(
         within(rowOf("Carla Mendes")).getByRole("button", { name: "Estornar" }),
       );
+      const confirmReverse = await screen.findByRole("dialog", {
+        name: "Estornar pagamento",
+      });
+      fireEvent.change(within(confirmReverse).getByLabelText("Motivo"), {
+        target: { value: "Cobrança em duplicidade" },
+      });
       fireEvent.click(
-        within(
-          await screen.findByRole("dialog", { name: "Estornar pagamento" }),
-        ).getByRole("button", { name: "Estornar pagamento" }),
+        within(confirmReverse).getByRole("button", {
+          name: "Estornar pagamento",
+        }),
       );
       await vi.waitFor(() => expect(workspaceLoads()).toBeGreaterThan(loads));
       expect(

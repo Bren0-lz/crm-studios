@@ -503,6 +503,8 @@ export class MemoryRepositoryContext {
     discountInCents?: number;
     interestInCents?: number;
     balanceReceivableId?: string;
+    /** Motivo do estorno (E7c); vai para o Histórico. */
+    reason?: string;
   }> = [];
 
   readonly receivableRenegotiations: ReceivableRenegotiation[] = [];

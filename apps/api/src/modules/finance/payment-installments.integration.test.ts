@@ -320,6 +320,7 @@ describe("payment method installments", () => {
       method: "POST",
       url: `/finance/receivables/${charge!.id}/reverse`,
       headers,
+      payload: { reason: "Estorno de teste" },
     });
     expect(reversed.json<Receivable>().paymentInstallments).toBeUndefined();
   });

@@ -245,16 +245,16 @@ export function FinancePage() {
       paymentParts: item.paymentParts,
     });
   }
-  async function reverse(target: ReversePaymentTarget) {
+  async function reverse(target: ReversePaymentTarget, reason: string) {
     setError("");
     if (target.kind === "receivable") {
-      await api.reverseReceivable(target.id);
+      await api.reverseReceivable(target.id, reason);
       toast.success("Pagamento estornado.");
       if (receiptToSendId.current === target.id) clearReceiptToSend();
       // A parcela mudou de situação: a seleção antiga não vale mais para renegociar.
       setSelectedReceivables([]);
     } else {
-      await api.reversePayable(target.id);
+      await api.reversePayable(target.id, reason);
       toast.success("Pagamento da conta estornado.");
     }
     setReversing(null);
@@ -870,7 +870,7 @@ export function FinancePage() {
       {reversing && (
         <ReversePaymentModal
           target={reversing}
-          onConfirm={() => reverse(reversing)}
+          onConfirm={(reason) => reverse(reversing, reason)}
           onClose={() => setReversing(null)}
         />
       )}

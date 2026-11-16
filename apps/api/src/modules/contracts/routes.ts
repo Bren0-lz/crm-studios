@@ -4,6 +4,7 @@ import {
   documentDraftInputSchema,
   documentTemplateInputSchema,
   documentTemplateVersionInputSchema,
+  documentStatusInputSchema,
   documentTransitionSchema,
   issuedDocumentInputSchema,
   publicDocumentSignInputSchema,
@@ -22,7 +23,8 @@ const signatureLinkNotFound = {
 };
 
 export function registerContractsRoutes(context: RouteContext) {
-  const { app, authenticate, repository, assertPermissions } = context;
+  const { app, authenticate, repository, assertPermissions, recordReason } =
+    context;
   /** Rotas sem login (antes de ler o corpo): barra quem abre ou tenta assinar em excesso (429 com Retry-After). */
   const limitPublicSignature = createPublicSignatureLimiter();
 
@@ -233,23 +235,28 @@ export function registerContractsRoutes(context: RouteContext) {
     async (request, reply) => {
       const { id } = request.params as { id: string };
       const status = documentTransitionSchema.parse(
-        (request.body as { status?: unknown }).status,
+        (request.body as { status?: unknown } | undefined)?.status,
       );
 
       assertPermissions(
         request,
         status === "cancelled" ? "contracts.cancel" : "contracts.status",
       );
+      // Cancelar exige motivo (E7c); vai para o documento e para o Histórico.
+      const input = documentStatusInputSchema.parse(request.body);
+      const reason = input.status === "cancelled" ? input.reason : undefined;
       const document = await repository.updateIssuedDocumentStatus(
         request.user.clinicId,
         id,
         status,
+        reason,
       );
       if (!document)
         return reply.status(404).send({
           code: "DOCUMENT_NOT_FOUND",
           message: "Documento não encontrado.",
         });
+      if (reason) recordReason(request, reason);
       return document;
     },
   );

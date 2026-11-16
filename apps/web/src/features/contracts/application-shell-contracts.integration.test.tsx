@@ -561,12 +561,24 @@ describe("application shell", () => {
         name: "Cancelar documento",
       }),
     );
+    // Cancelar pede motivo (E7c): sem ele, o botão fica desativado.
+    const confirmCancel = await screen.findByRole("dialog", {
+      name: "Cancelar documento",
+    });
+    expect(
+      within(confirmCancel).getByRole("button", { name: "Cancelar documento" }),
+    ).toBeDisabled();
+    fireEvent.change(within(confirmCancel).getByLabelText("Motivo"), {
+      target: { value: "  Cliente desistiu  " },
+    });
     fireEvent.click(
-      within(
-        await screen.findByRole("dialog", { name: "Cancelar documento" }),
-      ).getByRole("button", { name: "Cancelar documento" }),
+      within(confirmCancel).getByRole("button", { name: "Cancelar documento" }),
     );
-    await vi.waitFor(() => expect(patched).toEqual([{ status: "cancelled" }]));
+    await vi.waitFor(() =>
+      expect(patched).toEqual([
+        { status: "cancelled", reason: "Cliente desistiu" },
+      ]),
+    );
     // Os detalhes continuam abertos com a nova situação e sem a ação de cancelar.
     const updated = await screen.findByRole("dialog", {
       name: "Contrato de prestação de serviços",

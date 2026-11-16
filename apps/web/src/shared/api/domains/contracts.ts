@@ -78,12 +78,14 @@ export const contractsApi = {
       method: "POST",
       body: JSON.stringify(input),
     }),
+  /** Cancelar exige `reason` (motivo, até 500 caracteres). */
   updateDocumentStatus: (
     id: string,
     status: Exclude<DocumentStatus, "draft">,
+    reason?: string,
   ) =>
     request<IssuedDocument>(`/documents/${id}/status`, {
       method: "PATCH",
-      body: JSON.stringify({ status }),
+      body: JSON.stringify(reason ? { status, reason } : { status }),
     }),
 };

@@ -1487,10 +1487,12 @@ export interface ClinicRepository {
     timing?: PaymentTiming,
     adjustments?: SettlementAdjustments,
   ): Promise<FinancialSummary["receivables"][number] | null>;
+  /** `reason`: motivo do estorno (E7c), gravado no evento do estorno. */
   reverseReceivablePayment(
     clinicId: string,
     actorUserId: string,
     receivableId: string,
+    reason?: string,
   ): Promise<FinancialSummary["receivables"][number] | null>;
   adjustReceivable(
     clinicId: string,
@@ -1553,10 +1555,12 @@ export interface ClinicRepository {
     /** Pagamento picado: as formas somam o valor da conta. */
     payments?: PaymentPart[],
   ): Promise<Payable | null>;
+  /** `reason`: motivo do estorno (E7c), gravado no evento do estorno. */
   reversePayablePayment(
     clinicId: string,
     actorUserId: string,
     payableId: string,
+    reason?: string,
   ): Promise<Payable | null>;
   /** Informa o valor do mês de uma conta aberta gerada por despesa fixa. */
   setPayableAmount(
@@ -2035,10 +2039,12 @@ export interface ClinicRepository {
     actorUserId: string,
     input: IssuedDocumentInput,
   ): Promise<IssuedDocument>;
+  /** `reason`: motivo do cancelamento (E7c), guardado no documento. */
   updateIssuedDocumentStatus(
     clinicId: string,
     documentId: string,
     status: Exclude<DocumentStatus, "draft">,
+    reason?: string,
   ): Promise<IssuedDocument | null>;
   getManagementReport(
     clinicId: string,
