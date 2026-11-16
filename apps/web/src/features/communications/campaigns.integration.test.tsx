@@ -404,6 +404,87 @@ describe("campanhas de WhatsApp", () => {
     });
   });
 
+  it("usa em campanha a mensagem recém-criada e chega à conferência", async () => {
+    const saved: MessageTemplate[] = [];
+    const { calls } = setup("/comunicacoes", (url, init) => {
+      if (url.endsWith("/communications/templates") && init?.method === "POST") {
+        const created = { ...template, ...JSON.parse(String(init.body)) };
+        saved.push(created);
+        return created;
+      }
+      if (url.endsWith("/communications/templates")) return [...saved];
+      if (url.includes("/communications/campaigns/preview"))
+        return {
+          matched: 1,
+          recipients: 1,
+          included: [
+            { patientId: "p1", patientName: "Ana Lima", phone: "11999990000" },
+          ],
+          skipped: [],
+          sample: {
+            patientName: "Ana Lima",
+            message: "Olá, Ana! Mensagem nova.",
+          },
+        };
+      if (url.endsWith("/communications/campaigns")) return [];
+      if (url.includes("/patients/options"))
+        return url.includes("search=")
+          ? [{ id: "p1", fullName: "Ana Lima", tags: [] }]
+          : [];
+      return undefined;
+    });
+    // A aba Campanhas carregou sem nenhuma mensagem padrão.
+    await screen.findByText("Comece pelas mensagens padrão");
+    fireEvent.click(screen.getByRole("tab", { name: "Mensagens padrão" }));
+    await screen.findByText("Crie sua primeira mensagem padrão");
+    fireEvent.click(
+      within(screen.getByRole("region", { name: "Mensagens padrão" }))
+        .getAllByRole("button", { name: "Nova mensagem" })
+        .at(-1)!,
+    );
+    const editor = await screen.findByRole("dialog", {
+      name: "Nova mensagem padrão",
+    });
+    fireEvent.change(
+      within(editor).getByLabelText("Título (só a equipe vê)"),
+      { target: { value: "Mensagem nova" } },
+    );
+    installDocumentBrowserMocks();
+    setDocumentText(
+      within(editor).getByRole("textbox", { name: "Mensagem" }),
+      "Olá! Mensagem nova.",
+    );
+    fireEvent.click(
+      within(editor).getByRole("button", { name: "Salvar mensagem" }),
+    );
+    fireEvent.click(
+      await screen.findByRole("button", { name: /Usar em campanha/ }),
+    );
+
+    const dialog = await screen.findByRole("dialog", { name: "Nova campanha" });
+    const picker = within(dialog).getByRole("combobox");
+    fireEvent.change(picker, { target: { value: "Ana" } });
+    fireEvent.click(
+      await within(dialog).findByRole("option", { name: /Ana Lima/ }),
+    );
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Conferir quem recebe" }),
+    );
+    expect(
+      await within(dialog).findByText("Olá, Ana! Mensagem nova."),
+    ).toBeInTheDocument();
+    expect(
+      within(dialog).getByRole("button", { name: "Criar e começar a enviar" }),
+    ).toBeInTheDocument();
+    const preview = calls.find((call) =>
+      call.url.includes("/communications/campaigns/preview"),
+    );
+    expect(preview?.body).toMatchObject({
+      templateId: template.id,
+      audience: { mode: "patients", patientIds: ["p1"] },
+    });
+  });
+
   it("cria campanha promocional com data final e mostra a promoção no envio", async () => {
     const created = {
       ...campaign([

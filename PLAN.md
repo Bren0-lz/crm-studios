@@ -1795,7 +1795,7 @@ filtros ficam no `dashboard-studios` (EN11–EN13 têm só a parte da API aqui).
   `template` faltar no passo 2, volta ao passo 1 em vez de travar. Teste web: criar mensagem →
   "Usar em campanha" → "Conferir quem recebe" chega ao passo 3.
 - **Gate:** gate completo
-- **Status:** TODO
+- **Status:** DONE
 
 ### RE2 — Participante de evento que já é cliente não vira lead novo
 
