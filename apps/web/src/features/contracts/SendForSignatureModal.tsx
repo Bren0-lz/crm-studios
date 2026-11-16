@@ -17,6 +17,7 @@ import { LoadingBlock } from "../../shared/components/LoadingBlock";
 import { useMissingFields } from "../../shared/components/MissingFields";
 import { Modal, ModalCancelButton } from "../../shared/components/Modal";
 import { DocumentPatientCpfNotice } from "./DocumentPatientCpfNotice";
+import { DocumentClinicDataNotice } from "./DocumentClinicDataNotice";
 import { DocumentPaper } from "./DocumentPaper";
 import { SignatureShare } from "./SignatureRequest";
 
@@ -153,6 +154,7 @@ export function SendForSignatureModal({
   const currentPreview = preview?.key === previewKey ? preview : null;
   const cpfMissing =
     !forSupplier && Boolean(currentPreview?.data?.patientCpfMissing);
+  const clinicMissing = currentPreview?.data?.missingClinicFields ?? [];
   const manualFields = currentPreview?.data
     ? documentContentFields(currentPreview.data.snapshotContent)
     : [];
@@ -171,7 +173,7 @@ export function SendForSignatureModal({
 
   async function send() {
     const template = choices.find((item) => item.id === form.templateId);
-    if (!template || !signerId || cpfMissing) return;
+    if (!template || !signerId || cpfMissing || clinicMissing.length) return;
     setBusy(true);
     setError("");
     try {
@@ -343,6 +345,21 @@ export function SendForSignatureModal({
             )}
             {currentPreview?.data && (
               <div className="span-2">
+                {clinicMissing.length > 0 && (
+                  <>
+                    <DocumentClinicDataNotice missing={clinicMissing} />
+                    <button
+                      type="button"
+                      className="secondary-button"
+                      onClick={() => {
+                        setPreview(null);
+                        setPreviewRevision((value) => value + 1);
+                      }}
+                    >
+                      Verificar de novo
+                    </button>
+                  </>
+                )}
                 {cpfMissing && (
                   <>
                     <DocumentPatientCpfNotice patientId={form.patientId} />
@@ -391,7 +408,11 @@ export function SendForSignatureModal({
             <button
               className="primary-button"
               disabled={
-                busy || missing.blocked || cpfMissing || !currentPreview?.data
+                busy ||
+                missing.blocked ||
+                cpfMissing ||
+                clinicMissing.length > 0 ||
+                !currentPreview?.data
               }
               aria-describedby={missing.describedBy}
             >

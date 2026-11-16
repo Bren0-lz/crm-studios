@@ -1976,7 +1976,7 @@ filtros ficam no `dashboard-studios` (EN11–EN13 têm só a parte da API aqui).
   409 com "Cadastre <campo> em Configurações"; o modal mostra o aviso antes de enviar. Testes API
   e web.
 - **Gate:** gate completo
-- **Status:** TODO
+- **Status:** DONE
 
 ### RE18 — Estorno e cancelamento de contrato pedem motivo
 

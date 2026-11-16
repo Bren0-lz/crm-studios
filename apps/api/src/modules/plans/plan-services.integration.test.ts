@@ -243,6 +243,14 @@ for (const backend of ["memory", "mysql"] as const) {
       });
       it("fills the standard contract with the plan terms and the clinic and client data", async () => {
         const { plan, patient } = await setup();
+        // O modelo padrão usa CNPJ, endereço, telefone e e-mail da clínica (sem eles não emite).
+        await repository.updateClinicSettings(clinicId, actorId, {
+          ...(await repository.getClinicSettings(clinicId))!,
+          taxId: "11222333000181",
+          address: "Av. Brasil, 500, Campinas/SP",
+          phone: "19999990000",
+          email: "contato@studio.com.br",
+        });
         const clinic = (await repository.getClinicSettings(clinicId))!;
         const documentTemplate = await repository.createDocumentTemplate(
           clinicId,

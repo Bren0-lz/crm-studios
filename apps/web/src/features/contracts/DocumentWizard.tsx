@@ -3,6 +3,7 @@ import {
   documentContentFromText,
   documentContentText,
   documentDraftInputSchema,
+  documentMissingClinicFields,
   issuedDocumentInputSchema,
   type ClinicBranding,
   type DocumentContent,
@@ -30,6 +31,7 @@ import { useToast } from "../../shared/feedback/toast-context";
 import { RichDocumentEditor } from "./RichDocumentEditor";
 import { DocumentPdfPreview } from "./DocumentPdfPreview";
 import { DocumentPatientCpfNotice } from "./DocumentPatientCpfNotice";
+import { DocumentClinicDataNotice } from "./DocumentClinicDataNotice";
 import { professionalWithCrefito } from "./model";
 
 export function DocumentWizard({
@@ -86,6 +88,9 @@ export function DocumentWizard({
   const [issuing, setIssuing] = useState(false);
   const [pdfReady, setPdfReady] = useState(false);
   const request = useRef(0);
+  // Dados da clínica: um modelo que usa CNPJ, endereço… sem cadastro não é emitido (E6).
+  const [refreshedClinic, setClinic] = useState<ClinicBranding | null>(null);
+  const clinic = refreshedClinic ?? branding;
   useEffect(
     () => () => {
       request.current++;
@@ -193,6 +198,34 @@ export function DocumentWizard({
   );
   const cpfMissing =
     preview?.patientCpfMissing ?? saved?.patientCpfMissing ?? false;
+  const selectedTemplate = templates.find(
+    (template) => template.id === form.templateId,
+  );
+  // Rascunho já criado guarda o texto: a regra vale ao criar. A prévia do servidor tem a
+  // palavra final; antes dela, o aviso usa os dados da clínica já carregados.
+  const clinicMissing = saved
+    ? []
+    : preview && preparedFor === fingerprint
+      ? (preview.missingClinicFields ?? [])
+      : selectedTemplate && clinic?.name
+        ? documentMissingClinicFields(selectedTemplate, clinic)
+        : [];
+  const clinicBlocked = clinicMissing.length > 0;
+  async function refreshClinic() {
+    if (busyRef.current) return;
+    setError("");
+    try {
+      setClinic(await api.clinicBranding());
+    } catch (cause) {
+      setError((cause as Error).message);
+      return;
+    }
+    if (preview && preparedFor === fingerprint) {
+      if (content && JSON.stringify(content) !== preparedContent)
+        setReplace(true);
+      else await prepare(true);
+    }
+  }
   const firstStep = saved ? 1 : 0;
   function goBack(target: number) {
     if (busyRef.current) return;
@@ -270,6 +303,19 @@ export function DocumentWizard({
             ))}
           </ol>
           {error && <ErrorBanner error={error} />}
+          {clinicBlocked && (
+            <>
+              <DocumentClinicDataNotice missing={clinicMissing} />
+              <button
+                type="button"
+                className="secondary-button"
+                disabled={busy}
+                onClick={() => void refreshClinic()}
+              >
+                Verificar de novo
+              </button>
+            </>
+          )}
           {step === 0 && (
             <div className="form-grid">
               <label>
@@ -472,7 +518,9 @@ export function DocumentWizard({
               <button
                 className="primary-button"
                 type="button"
-                disabled={busy || (step === 0 && missing.blocked)}
+                disabled={
+                  busy || clinicBlocked || (step === 0 && missing.blocked)
+                }
                 aria-describedby={step === 0 ? missing.describedBy : undefined}
                 onClick={next}
               >
@@ -488,7 +536,7 @@ export function DocumentWizard({
                   <button
                     className="primary-button"
                     type="button"
-                    disabled={busy || !pdfReady}
+                    disabled={busy || !pdfReady || clinicBlocked}
                     onClick={() =>
                       void save().catch((cause: Error) =>
                         setError(cause.message),

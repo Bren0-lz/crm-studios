@@ -4,6 +4,7 @@ import {
   documentTemplateVersionInputSchema,
   documentBranding,
   prepareDocumentContent,
+  documentMissingClinicFields,
   documentContentFields,
   documentContentText,
   type DocumentContent,
@@ -26,6 +27,7 @@ import {
   type DocumentTemplateVersionOptions,
 } from "../../repository.js";
 import { assertDocumentPatientCpf } from "../../modules/contracts/patient-cpf.js";
+import { assertDocumentClinicFields } from "../../modules/contracts/clinic-fields.js";
 import { randomUUID } from "node:crypto";
 import type { MysqlRepositoryContext } from "./context.js";
 import { orderedItems } from "./mappers/plans.js";
@@ -350,6 +352,7 @@ export async function createIssuedDocumentInTransaction(
   input: IssuedDocumentInput,
 ) {
   const item = await prepareDocumentInTransaction(client, clinicId, input);
+  assertDocumentClinicFields(item);
   const result = await writeAndRead<IssuedDocumentRow>(
     client,
     `INSERT INTO issued_documents
@@ -603,10 +606,13 @@ async function prepareDocumentInTransaction(
       : {}),
     issuedOn: emissionDate,
   });
-  const requiresPatientCpf = documentRequiresPatientCpf({
+  const originalTemplate = {
     body: item.templateBody,
-    content: item.templateContent ? json(item.templateContent) : undefined,
-  });
+    content: item.templateContent
+      ? json<DocumentContent>(item.templateContent)
+      : undefined,
+  };
+  const requiresPatientCpf = documentRequiresPatientCpf(originalTemplate);
   return {
     ...prepareDocumentContent(
       item.templateBody,
@@ -618,6 +624,12 @@ async function prepareDocumentInTransaction(
     patientCpfMissing: Boolean(
       input.patientId && !item.patientCpf && requiresPatientCpf,
     ),
+    missingClinicFields: documentMissingClinicFields(originalTemplate, {
+      taxId: item.clinicTaxId,
+      address: item.clinicAddress,
+      phone: item.clinicPhone,
+      email: item.clinicEmail,
+    }),
     templateName: item.templateName,
     templateVersion: item.templateVersion,
     patientName:

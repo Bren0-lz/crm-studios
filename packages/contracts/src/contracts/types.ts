@@ -74,6 +74,8 @@ export interface DocumentPreview {
   snapshotContent: DocumentContent;
   branding: ClinicBranding;
   missingFields: Array<{ key: string; label: string }>;
+  /** Dados da clínica usados pelo modelo e sem cadastro: com algum, a emissão é recusada (409). */
+  missingClinicFields?: Array<{ key: string; name: string }>;
   templateName: string;
   templateVersion: number;
   patientName: string;

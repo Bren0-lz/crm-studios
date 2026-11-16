@@ -5,6 +5,7 @@ import {
   documentBranding,
   documentTemplateValues,
   prepareDocumentContent,
+  documentMissingClinicFields,
   documentContentText,
   documentContentFields,
   type DocumentContent,
@@ -26,6 +27,7 @@ import type { MemoryRepositoryContext } from "./context.js";
 import { now, uuid } from "./helpers.js";
 import { withDocumentPatientCpf } from "./document-patient-cpf.js";
 import { assertDocumentPatientCpf } from "../../modules/contracts/patient-cpf.js";
+import { assertDocumentClinicFields } from "../../modules/contracts/clinic-fields.js";
 
 export function createContractsRepository(
   repositoryContext: MemoryRepositoryContext,
@@ -124,6 +126,7 @@ export function createContractsRepository(
       }),
       requiresPatientCpf,
       patientCpfMissing: Boolean(patient && !patient.cpf && requiresPatientCpf),
+      missingClinicFields: documentMissingClinicFields(template, settings),
       templateName: template.name,
       templateVersion: template.version,
       patientName: patient?.fullName ?? supplier!.name,
@@ -318,6 +321,7 @@ export function createContractsRepository(
       input: IssuedDocumentInput,
     ) {
       const preview = await previewDocument(clinicId, input);
+      assertDocumentClinicFields(preview);
       const timestamp = now();
       const issuedDocument: IssuedDocument = {
         requiresPatientCpf: preview.requiresPatientCpf,
