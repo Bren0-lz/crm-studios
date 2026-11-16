@@ -141,6 +141,8 @@ export function createCommercialRepository(
     const patient = repositoryContext.patients.find(
       (item) => item.clinicId === clinicId && item.id === plan.patientId,
     );
+    // RF5: participante sem nome ligado ao cliente fica com o nome do cadastro.
+    if (patient && !lead.fullName.trim()) lead.fullName = patient.fullName;
     if (patient && plan.input.extraFields) {
       patient.extraFields = mergeExtraFields(
         patient.extraFields,
