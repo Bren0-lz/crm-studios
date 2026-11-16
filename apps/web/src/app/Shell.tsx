@@ -1,7 +1,7 @@
 import { EmergencyButton } from "../shared/components/EmergencyButton";
 import { RevokeSessionsButton } from "../shared/auth/RevokeSessionsButton";
 import type { NavTab, NavTabLabel, UserSummary } from "@crm/contracts";
-import { LogOut, Menu, X } from "lucide-react";
+import { ChevronsUpDown, LogOut, Menu, UserRound, X } from "lucide-react";
 import {
   type ReactNode,
   useCallback,
@@ -12,6 +12,7 @@ import {
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { ModuleLabelContext } from "../shared/lib/ModuleLabelContext";
 import { NavTabLabelsContext } from "../shared/lib/NavTabLabelsContext";
+import { ActionMenu } from "../shared/components/ActionMenu";
 import { Logo } from "../shared/components/Logo";
 import { NavigationGuardContext } from "../shared/lib/NavigationGuardContext";
 import { initials, roleLabels } from "../shared/lib/formatting";
@@ -190,21 +191,37 @@ export function Shell({
           ))}
         </nav>
         <div className="sidebar-bottom">
-          <button
-            className="user-card"
-            onClick={onLogout}
-            title="Sair"
-            aria-label={`Sair: ${user.fullName}`}
-          >
-            <span className="avatar" aria-hidden="true">
-              {initials(user.fullName)}
-            </span>
-            <span className="user-copy">
-              <strong>{user.fullName}</strong>
-              <small>{user.jobTitle ?? roleLabels[user.role]}</small>
-            </span>
-            <LogOut size={17} aria-hidden="true" />
-          </button>
+          <ActionMenu
+            label={`Menu do usuário: ${user.fullName}`}
+            fixed
+            trigger={{
+              className: "user-card",
+              content: (
+                <>
+                  <span className="avatar" aria-hidden="true">
+                    {initials(user.fullName)}
+                  </span>
+                  <span className="user-copy">
+                    <strong>{user.fullName}</strong>
+                    <small>{user.jobTitle ?? roleLabels[user.role]}</small>
+                  </span>
+                  <ChevronsUpDown size={17} aria-hidden="true" />
+                </>
+              ),
+            }}
+            items={[
+              {
+                label: "Meu perfil",
+                icon: <UserRound size={16} aria-hidden="true" />,
+                onSelect: () => guardedNavigate("/perfil"),
+              },
+              {
+                label: "Sair",
+                icon: <LogOut size={16} aria-hidden="true" />,
+                onSelect: onLogout,
+              },
+            ]}
+          />
           <RevokeSessionsButton onLogout={onLogout} />
         </div>
       </aside>

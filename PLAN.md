@@ -1925,7 +1925,7 @@ filtros ficam no `dashboard-studios` (EN11–EN13 têm só a parte da API aqui).
 - **Escopo (E1):** o bloco abre um menu (`ActionMenu` ou equivalente) com "Meu perfil" (vai à
   tela de perfil) e "Sair"; Esc fecha o menu. Ajustar `header-menus.integration.test.tsx`.
 - **Gate:** gate completo
-- **Status:** TODO
+- **Status:** DONE
 
 ### RE13 — Motivo de perda pelo cadastro
 

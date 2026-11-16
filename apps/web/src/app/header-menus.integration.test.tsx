@@ -344,8 +344,21 @@ describe("header menus", () => {
 
   it("keeps profile, settings and logout in the sidebar", async () => {
     login();
+    const profile = {
+      id: "22222222-2222-4222-8222-222222222222",
+      fullName: "Aryana Dutra",
+      email: "admin@movimenta.local",
+      role: "owner",
+      avatarDataUrl: "",
+      professional: null,
+    };
     vi.mocked(fetch).mockImplementation(
-      async () => ({ ok: true, status: 200, json: async () => [] }) as Response,
+      async (input) =>
+        ({
+          ok: true,
+          status: 200,
+          json: async () => (String(input).endsWith("/profile") ? profile : []),
+        }) as Response,
     );
     renderApp();
     const header = await screen.findByRole("banner");
@@ -362,9 +375,44 @@ describe("header menus", () => {
     expect(
       await screen.findByRole("heading", { level: 1, name: /Configurações/ }),
     ).toBeInTheDocument();
-    fireEvent.click(
-      within(sidebar).getByRole("button", { name: "Sair: Aryana Dutra" }),
+    const userMenu = within(sidebar).getByRole("button", {
+      name: "Menu do usuário: Aryana Dutra",
+    });
+    expect(userMenu).toHaveAttribute("aria-haspopup", "menu");
+    expect(userMenu).toHaveAttribute("aria-expanded", "false");
+    // Um clique só abre o menu: nada de sair sem escolher "Sair".
+    fireEvent.click(userMenu);
+    expect(userMenu).toHaveAttribute("aria-expanded", "true");
+    expect(localStorage.getItem("crm.auth.token")).not.toBeNull();
+    const menu = screen.getByRole("menu", {
+      name: "Menu do usuário: Aryana Dutra",
+    });
+    expect(
+      within(menu)
+        .getAllByRole("menuitem")
+        .map((item) => item.textContent),
+    ).toEqual(["Meu perfil", "Sair"]);
+    // Esc fecha o menu e devolve o foco ao bloco do usuário.
+    fireEvent.keyDown(
+      within(menu).getByRole("menuitem", { name: "Meu perfil" }),
+      {
+        key: "Escape",
+      },
     );
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+    expect(userMenu).toHaveAttribute("aria-expanded", "false");
+    expect(userMenu).toHaveFocus();
+    expect(localStorage.getItem("crm.auth.token")).not.toBeNull();
+    // "Meu perfil" leva à tela de perfil.
+    fireEvent.click(userMenu);
+    fireEvent.click(screen.getByRole("menuitem", { name: "Meu perfil" }));
+    expect(
+      await screen.findByRole("heading", { level: 1, name: /Meu perfil/ }),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("location")).toHaveTextContent("/perfil");
+    expect(localStorage.getItem("crm.auth.token")).not.toBeNull();
+    fireEvent.click(userMenu);
+    fireEvent.click(screen.getByRole("menuitem", { name: "Sair" }));
     await vi.waitFor(() =>
       expect(localStorage.getItem("crm.auth.token")).toBeNull(),
     );
