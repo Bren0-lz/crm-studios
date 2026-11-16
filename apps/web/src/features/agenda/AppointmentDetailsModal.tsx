@@ -14,7 +14,7 @@ import {
 import { MessageCircle } from "lucide-react";
 import { useEffect, useId, useState } from "react";
 import { Link } from "react-router-dom";
-import { api } from "../../api";
+import { api, ApiClientError } from "../../api";
 import { useAuthorization } from "../../authorization-context";
 import { Modal } from "../../shared/components/Modal";
 import { PatientTagBadge } from "../../shared/components/PatientTagBadge";
@@ -51,13 +51,25 @@ function cancellationMessage(appointment: Appointment) {
   return `Olá, ${firstName}! Seu atendimento de ${appointment.serviceName} em ${start.toLocaleDateString("pt-BR")} às ${timeLabel.format(start)} foi cancelado. Se quiser remarcar, é só responder esta mensagem.`;
 }
 
+/** Atendimento atual devolvido pela API quando a rotina automática já o finalizou (RE8). */
+function alreadyAutoCompleted(cause: unknown) {
+  if (
+    !(cause instanceof ApiClientError) ||
+    cause.code !== "APPOINTMENT_ALREADY_AUTO_COMPLETED"
+  )
+    return undefined;
+  const current = cause.details?.appointment as Appointment | undefined;
+  return current?.status === "completed" ? current : undefined;
+}
+
 export function AppointmentDetailsModal({
-  appointment,
+  appointment: shownAppointment,
   patient,
   service,
   onClose,
   onReschedule,
   onUpdated,
+  onRefreshed,
   onEdited,
   onTrashed,
   editable,
@@ -71,6 +83,8 @@ export function AppointmentDetailsModal({
   onReschedule: () => void;
   /** Recebe o atendimento com o novo status (cancelado, confirmado, realizado ou falta). */
   onUpdated: (appointment: Appointment) => void;
+  /** Atendimento recarregado sem alteração da equipe (ex.: já finalizado automaticamente, RE8). */
+  onRefreshed?: ((appointment: Appointment) => void) | undefined;
   /** Serviço, sala ou observação alterados em "Editar" (QM6). */
   onEdited: (appointment: Appointment) => void;
   /** Atendimento enviado para a lixeira pelo botão "Excluir". */
@@ -82,6 +96,10 @@ export function AppointmentDetailsModal({
   initialEditing?: boolean;
 }) {
   const { can } = useAuthorization();
+  // "Realizado" depois da finalização automática: o modal passa a mostrar o atendimento atual.
+  const [refreshed, setRefreshed] = useState<Appointment | null>(null);
+  const appointment =
+    refreshed?.id === shownAppointment.id ? refreshed : shownAppointment;
   const [confirmCancel, setConfirmCancel] = useState(initialCancelConfirmation);
   const [cancelling, setCancelling] = useState(false);
   const [cancelReason, setCancelReason] = useState("");
@@ -189,6 +207,11 @@ export function AppointmentDetailsModal({
       setNoShowReason("");
       onUpdated(updated);
     } catch (cause) {
+      const current = alreadyAutoCompleted(cause);
+      if (current) {
+        setRefreshed(current);
+        onRefreshed?.(current);
+      }
       setError(
         cause instanceof Error
           ? cause.message

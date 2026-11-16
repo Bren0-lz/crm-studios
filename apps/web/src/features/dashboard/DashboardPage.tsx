@@ -705,6 +705,9 @@ export function DashboardPage() {
             );
             void appointmentUpdated(updated, previous);
           }}
+          onRefreshed={(current) =>
+            void appointmentUpdated(current, appointmentAction.appointment)
+          }
         />
       )}
     </>

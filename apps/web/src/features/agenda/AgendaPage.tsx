@@ -1335,6 +1335,11 @@ export function AgendaPage() {
             )
               closeAppointment();
           }}
+          onRefreshed={(current) =>
+            setAppointments((items) =>
+              items.map((item) => (item.id === current.id ? current : item)),
+            )
+          }
         />
       )}
       {eventsDay && (
