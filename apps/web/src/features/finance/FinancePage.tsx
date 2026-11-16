@@ -22,7 +22,7 @@ import type {
   Receivable,
 } from "@crm/contracts";
 import { Building2, Plus, Search, Tags } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useLocation, useSearchParams } from "react-router-dom";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
@@ -173,6 +173,12 @@ export function FinancePage() {
   // Recibo da baixa recém-feita, pronto para o "Enviar recibo pelo WhatsApp" (RC3).
   const [receiptToSend, setReceiptToSend] =
     useState<ReceiptSignatureShare | null>(null);
+  // Parcela dona da faixa (já exibida ou ainda carregando): o estorno dela a tira (RE4).
+  const receiptToSendId = useRef<string | null>(null);
+  function clearReceiptToSend() {
+    receiptToSendId.current = null;
+    setReceiptToSend(null);
+  }
   const [error, setError] = useState("");
   const canManage = canEdit("finance");
   const canSendReceipt = canManage && can("finance.receive");
@@ -244,6 +250,7 @@ export function FinancePage() {
     if (target.kind === "receivable") {
       await api.reverseReceivable(target.id);
       toast.success("Pagamento estornado.");
+      if (receiptToSendId.current === target.id) clearReceiptToSend();
       // A parcela mudou de situação: a seleção antiga não vale mais para renegociar.
       setSelectedReceivables([]);
     } else {
@@ -276,9 +283,14 @@ export function FinancePage() {
     if (failedProofs.length) toast.error(proofFailureMessage(failedProofs));
     // A baixa foi feita: fecha o modal e, se o recarregamento falhar, avisa na página.
     setSettling(null);
-    setReceiptToSend(null);
-    if (target.kind === "receivable")
-      void loadReceiptShare(target.id).then(setReceiptToSend);
+    clearReceiptToSend();
+    if (target.kind === "receivable") {
+      receiptToSendId.current = target.id;
+      // Só mostra se a parcela ainda é a dona da faixa (sem estorno nem outra baixa no meio).
+      void loadReceiptShare(target.id).then((share) => {
+        if (receiptToSendId.current === target.id) setReceiptToSend(share);
+      });
+    }
     if (target.kind === "receivable") setSelectedReceivables([]);
     setError("");
     try {
@@ -432,7 +444,7 @@ export function FinancePage() {
             <button
               type="button"
               className="secondary-button"
-              onClick={() => setReceiptToSend(null)}
+              onClick={clearReceiptToSend}
             >
               Dispensar
             </button>
