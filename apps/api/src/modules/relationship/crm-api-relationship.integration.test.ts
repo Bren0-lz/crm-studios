@@ -2,10 +2,13 @@ import { defaultRelationshipSettings } from "@crm/contracts";
 import { describe, expect, it, vi } from "vitest";
 import { buildApp } from "../../app.js";
 import { MemoryClinicRepository } from "../../memory-repository.js";
+import { nextTestCpf } from "../../test-support/cpf.js";
 import {
   authenticatedApp,
   roleSub,
   seedRoleUsers,
+  tokenRole,
+  type UserRole,
 } from "../../test-support/legacy-fixtures.js";
 import "../../test-support/legacy-setup.js";
 
@@ -189,6 +192,160 @@ describe("CRM API", () => {
         expect(invalid.statusCode).toBe(400);
         expect(invalid.json()).toMatchObject({ code: "VALIDATION_ERROR" });
       }
+      await app.close();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("lists every birthday of the dashboard window across the new year, congratulated or not", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-12-28T15:00:00.000Z"));
+    try {
+      const { app, token } = await authenticatedApp();
+      const headers = { authorization: `Bearer ${token}` };
+      await seedRoleUsers(app);
+      const roleHeaders = (role: UserRole) => ({
+        authorization: `Bearer ${app.jwt.sign({
+          sub: roleSub(app, role),
+          clinicId: "11111111-1111-4111-8111-111111111111",
+          role: tokenRole(role),
+        })}`,
+      });
+      const createPatient = async (fullName: string, birthDate: string) =>
+        (
+          await app.inject({
+            method: "POST",
+            url: "/patients",
+            headers,
+            payload: {
+              cpf: nextTestCpf(),
+              fullName,
+              phone: "11955554444",
+              whatsapp: "11966665555",
+              emergencyContactName: fullName,
+              emergencyContactPhone: "11955554444",
+              emergencyContactWhatsapp: "11955554444",
+              birthDate,
+              tags: [],
+            },
+          })
+        ).json() as { id: string };
+      const today = await createPatient("Hoje Aniversário", "1990-12-28");
+      const january = await createPatient("Janeiro Aniversário", "1980-01-03");
+      const outside = await createPatient("Fora Janela", "1980-01-10");
+      const ours = [today.id, january.id, outside.id];
+      type Entry = {
+        patientId: string;
+        date: string;
+        referenceKey: string;
+        congratulated: boolean;
+        daysUntil: number;
+        detail: string;
+        ageTurning: number;
+      };
+      const upcoming = async (
+        requestHeaders: Record<string, string> = headers,
+      ) => {
+        const response = await app.inject({
+          method: "GET",
+          url: "/relationship/birthdays/upcoming",
+          headers: requestHeaders,
+        });
+        expect(response.statusCode).toBe(200);
+        return (response.json() as Entry[]).filter((entry) =>
+          ours.includes(entry.patientId),
+        );
+      };
+      const suggestionKeys = async () =>
+        (
+          (
+            await app.inject({
+              method: "GET",
+              url: "/relationship/suggestions",
+              headers,
+            })
+          ).json() as { reason: string; referenceKey: string }[]
+        )
+          .filter((item) => item.reason === "birthday")
+          .map((item) => item.referenceKey)
+          .filter((key) => ours.includes(key.split(":")[0]!));
+
+      // birthdayDaysAhead padrão = 7: 28/12 até 04/01.
+      expect(await upcoming()).toEqual([
+        expect.objectContaining({
+          patientId: today.id,
+          date: "2026-12-28",
+          referenceKey: `${today.id}:2026`,
+          daysUntil: 0,
+          detail: "Aniversário hoje",
+          ageTurning: 36,
+          congratulated: false,
+        }),
+        expect.objectContaining({
+          patientId: january.id,
+          date: "2027-01-03",
+          referenceKey: `${january.id}:2027`,
+          daysUntil: 6,
+          detail: "Aniversário em 6 dias (03/01)",
+          ageTurning: 47,
+          congratulated: false,
+        }),
+      ]);
+      expect(await upcoming(roleHeaders("reception"))).toHaveLength(2);
+      expect(
+        (
+          await app.inject({
+            method: "GET",
+            url: "/relationship/birthdays/upcoming",
+            headers: roleHeaders("physiotherapist"),
+          })
+        ).statusCode,
+      ).toBe(403);
+
+      const record = async (
+        patientId: string,
+        referenceKey: string,
+        outcome: string,
+      ) =>
+        expect(
+          (
+            await app.inject({
+              method: "POST",
+              url: "/relationship/activities",
+              headers,
+              payload: { patientId, reason: "birthday", referenceKey, outcome },
+            })
+          ).statusCode,
+        ).toBe(201);
+
+      // "Não atendeu" fica no histórico e deixa a sugestão na lista.
+      await record(january.id, `${january.id}:2027`, "no_answer");
+      expect(await suggestionKeys()).toEqual([
+        `${today.id}:2026`,
+        `${january.id}:2027`,
+      ]);
+      const history = (
+        await app.inject({
+          method: "GET",
+          url: `/relationship/activities?patientId=${january.id}`,
+          headers,
+        })
+      ).json() as { outcome: string }[];
+      expect(history.map((item) => item.outcome)).toEqual(["no_answer"]);
+
+      // Parabéns enviado: sai das sugestões, mas continua no card marcado.
+      await record(today.id, `${today.id}:2026`, "contacted");
+      expect(await suggestionKeys()).toEqual([`${january.id}:2027`]);
+      expect(
+        (await upcoming()).map((entry) => [
+          entry.patientId,
+          entry.congratulated,
+        ]),
+      ).toEqual([
+        [today.id, true],
+        [january.id, false],
+      ]);
       await app.close();
     } finally {
       vi.useRealTimers();

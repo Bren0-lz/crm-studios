@@ -14,7 +14,7 @@ import {
 import { DomainError } from "../../repository.js";
 import { randomUUID } from "node:crypto";
 import type { MysqlRepositoryContext } from "./context.js";
-import { localDate, writeAndRead } from "./sql.js";
+import { inJsonArray, localDate, writeAndRead } from "./sql.js";
 import {
   type AppointmentRow,
   type ContactActivityRow,
@@ -209,7 +209,18 @@ export function createRelationshipRepository(
       return mapContactActivity(row);
     },
 
-    async listBirthdays(clinicId: string, month: string) {
+    async listBirthdays(
+      clinicId: string,
+      period: { from: string; to: string },
+    ) {
+      // Chave `<patientId>:<ano>`: só os anos da janela.
+      const birthdayYears: string[] = [];
+      for (
+        let year = Number(period.from.slice(0, 4));
+        year <= Number(period.to.slice(0, 4));
+        year += 1
+      )
+        birthdayYears.push(String(year));
       const [patients, activities] = await Promise.all([
         repositoryContext.pool.query<PatientRow>(
           `SELECT ${patientColumns} FROM patients
@@ -220,14 +231,14 @@ export function createRelationshipRepository(
           `SELECT ${contactActivityColumns}
          FROM contact_activities
          WHERE clinic_id = $1 AND reason = 'birthday' AND outcome = 'contacted'
-           AND reference_key LIKE $2`,
-          [clinicId, `%:${month.slice(0, 4)}`],
+           AND ${inJsonArray("SUBSTRING_INDEX(reference_key, ':', -1)", "$2")}`,
+          [clinicId, birthdayYears],
         ),
       ]);
       return buildBirthdayEntries(
         patients.rows.map(mapPatient),
         activities.rows.map(mapContactActivity),
-        month,
+        period,
       );
     },
 

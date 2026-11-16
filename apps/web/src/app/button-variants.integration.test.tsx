@@ -61,11 +61,14 @@ describe("button variants", () => {
       patientId: "99999999-9999-4999-8999-999999999999",
       patientName: "Helena Almeida",
       phone: "11987654321",
-      reason: "birthday",
+      birthDate: "1990-10-10",
+      date: "2026-10-10",
+      day: 10,
+      ageTurning: 36,
       referenceKey: "99999999-9999-4999-8999-999999999999:2026",
+      congratulated: false,
+      daysUntil: 0,
       detail: "Aniversário hoje",
-      dueDate: "2026-10-10",
-      priority: 1,
     };
     const appointment = {
       id: "a1",
@@ -79,7 +82,7 @@ describe("button variants", () => {
     };
     mockApi(
       (url) =>
-        url.includes("/relationship/suggestions")
+        url.includes("/relationship/birthdays/upcoming")
           ? [birthday]
           : url.includes("/relationship/settings")
             ? relationshipSettingsFixture()

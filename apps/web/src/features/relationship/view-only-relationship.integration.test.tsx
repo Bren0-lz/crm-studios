@@ -25,16 +25,19 @@ describe("view-only relationship", () => {
         editModules: [],
       }),
     );
-    const suggestion = {
+    const upcoming = {
       patientId: "99999999-9999-4999-8999-999999999999",
       patientName: "Helena Almeida",
       phone: "11987654321",
       whatsapp: "11911112222",
-      reason: "birthday",
+      birthDate: "1990-10-10",
+      date: "2026-10-10",
+      day: 10,
+      ageTurning: 36,
       referenceKey: "99999999-9999-4999-8999-999999999999:2026",
+      congratulated: false,
+      daysUntil: 0,
       detail: "Aniversário hoje",
-      dueDate: "2026-10-10",
-      priority: 1,
     };
     const entry = {
       patientId: "88888888-8888-4888-8888-888888888888",
@@ -49,8 +52,8 @@ describe("view-only relationship", () => {
     };
     vi.mocked(fetch).mockImplementation(async (input) => {
       const url = String(input);
-      const body = url.includes("/relationship/suggestions")
-        ? [suggestion]
+      const body = url.includes("/relationship/birthdays/upcoming")
+        ? [upcoming]
         : url.includes("/relationship/birthdays")
           ? [entry]
           : url.includes("/relationship/settings")

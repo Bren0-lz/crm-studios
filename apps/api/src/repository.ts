@@ -901,8 +901,14 @@ export interface ClinicRepository {
     actorUserId: string,
     input: ContactActivityInput,
   ): Promise<ContactActivity>;
-  /** Aniversariantes ativos do mês `aaaa-mm`, por dia. */
-  listBirthdays(clinicId: string, month: string): Promise<BirthdayEntry[]>;
+  /**
+   * Aniversariantes ativos com aniversário entre `from` e `to` (aaaa-mm-dd, inclusive; pode
+   * atravessar a virada do ano), por data.
+   */
+  listBirthdays(
+    clinicId: string,
+    period: { from: string; to: string },
+  ): Promise<BirthdayEntry[]>;
   /** Mais recentes primeiro. */
   listContactActivities(
     clinicId: string,

@@ -1967,7 +1967,7 @@ filtros ficam no `dashboard-studios` (EN11–EN13 têm só a parte da API aqui).
   fonte do painel do mês), com "Parabéns enviado" quando já enviado. Contato com resultado
   `no_answer` não esconde a sugestão. Testes API e web.
 - **Gate:** gate completo
-- **Status:** TODO
+- **Status:** DONE
 
 ### RE17 — Contrato com dados do estúdio faltando não é emitido
 

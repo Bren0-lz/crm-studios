@@ -7,6 +7,7 @@ import type {
   SatisfactionReport,
   SatisfactionSurvey,
   SatisfactionSurveyInput,
+  UpcomingBirthdayEntry,
 } from "@crm/contracts";
 import { request } from "../transport";
 
@@ -24,6 +25,8 @@ export const relationshipApi = {
     request<BirthdayEntry[]>(
       `/relationship/birthdays?month=${encodeURIComponent(month)}`,
     ),
+  upcomingBirthdays: () =>
+    request<UpcomingBirthdayEntry[]>("/relationship/birthdays/upcoming"),
   createContactActivity: (input: ContactActivityInput) =>
     request<ContactActivity>("/relationship/activities", {
       method: "POST",

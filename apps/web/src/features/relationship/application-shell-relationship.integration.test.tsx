@@ -208,6 +208,37 @@ describe("application shell", () => {
     expect(
       within(filters).getByRole("button", { name: /Todas\s*1/ }),
     ).toBeInTheDocument();
+
+    // "Não atendeu" registra o contato e deixa a sugestão na lista.
+    fireEvent.click(
+      within(screen.getByText("Bruno Souza").closest("article")!).getByRole(
+        "button",
+        { name: "Ver pendências de Bruno Souza" },
+      ),
+    );
+    fireEvent.click(
+      within(
+        screen.getByRole("dialog", { name: "Pendências de Bruno" }),
+      ).getByRole("button", { name: "Registrar contato" }),
+    );
+    const noAnswer = screen.getByRole("dialog", { name: "Registrar contato" });
+    fireEvent.change(within(noAnswer).getByLabelText("Resultado"), {
+      target: { value: "no_answer" },
+    });
+    fireEvent.click(
+      within(noAnswer).getByRole("button", { name: "Salvar contato" }),
+    );
+    expect(
+      await screen.findByText("Contato com Bruno Souza registrado."),
+    ).toBeInTheDocument();
+    expect(activityBody).toMatchObject({
+      patientId: suggestions[1]!.patientId,
+      outcome: "no_answer",
+    });
+    expect(screen.getByText("Bruno Souza")).toBeInTheDocument();
+    expect(
+      within(filters).getByRole("button", { name: /Todas\s*1/ }),
+    ).toBeInTheDocument();
   });
 
   it("shows upcoming birthdays on the dashboard with congratulations and a sent marker", async () => {
@@ -253,6 +284,49 @@ describe("application shell", () => {
         priority: 3,
       },
     ];
+    // O card lê a janela de aniversários (mesma fonte do painel do mês), não as sugestões.
+    const birthdays = [
+      {
+        patientId: "99999999-9999-4999-8999-999999999999",
+        patientName: "Helena Almeida",
+        phone: "11987654321",
+        whatsapp: "11911112222",
+        birthDate: "1990-10-10",
+        date: "2026-10-10",
+        day: 10,
+        ageTurning: 36,
+        referenceKey: "99999999-9999-4999-8999-999999999999:2026",
+        congratulated: false,
+        daysUntil: 0,
+        detail: "Aniversário hoje",
+      },
+      {
+        patientId: "77777777-7777-4777-8777-777777777777",
+        patientName: "Carla Dias",
+        phone: "11933334444",
+        birthDate: "1985-10-13",
+        date: "2026-10-13",
+        day: 13,
+        ageTurning: 41,
+        referenceKey: "77777777-7777-4777-8777-777777777777:2026",
+        congratulated: false,
+        daysUntil: 3,
+        detail: "Aniversário em 3 dias (13/10)",
+      },
+      {
+        patientId: "66666666-6666-4666-8666-666666666666",
+        patientName: "Dora Lima",
+        phone: "11922223333",
+        birthDate: "1970-10-15",
+        date: "2026-10-15",
+        day: 15,
+        ageTurning: 56,
+        referenceKey: "66666666-6666-4666-8666-666666666666:2026",
+        congratulated: true,
+        daysUntil: 5,
+        detail: "Aniversário em 5 dias (15/10)",
+      },
+    ];
     let activityBody: Record<string, unknown> | undefined;
     vi.mocked(fetch).mockImplementation(async (input, init) => {
       const url = String(input);
@@ -264,22 +338,24 @@ describe("application shell", () => {
           json: async () => ({ id: "a1", ...activityBody }),
         } as Response;
       }
-      const body = url.includes("/relationship/suggestions")
-        ? suggestions
-        : url.includes("/relationship/settings")
-          ? relationshipSettingsFixture()
-          : url.includes("/dashboard")
-            ? {
-                appointmentsToday: 0,
-                nonCancelledAppointmentsToday: 0,
-                pendingToday: 0,
-                awaitingConfirmationToday: 0,
-                completedToday: 0,
-                patientsActive: 3,
-                noShowsThisMonth: 0,
-                nextAppointments: [],
-              }
-            : [];
+      const body = url.includes("/relationship/birthdays/upcoming")
+        ? birthdays
+        : url.includes("/relationship/suggestions")
+          ? suggestions
+          : url.includes("/relationship/settings")
+            ? relationshipSettingsFixture()
+            : url.includes("/dashboard")
+              ? {
+                  appointmentsToday: 0,
+                  nonCancelledAppointmentsToday: 0,
+                  pendingToday: 0,
+                  awaitingConfirmationToday: 0,
+                  completedToday: 0,
+                  patientsActive: 3,
+                  noShowsThisMonth: 0,
+                  nextAppointments: [],
+                }
+              : [];
       return { ok: true, status: 200, json: async () => body } as Response;
     });
     render(
@@ -321,14 +397,30 @@ describe("application shell", () => {
       `https://wa.me/5511933334444?text=${encodeURIComponent("Parabéns, Carla!")}`,
     );
     expect(within(card).queryByText("Bruno Souza")).not.toBeInTheDocument();
+    // Já enviado: continua no card, com o selo e sem "Marcar como enviado".
+    const dora = within(card)
+      .getByText("Dora Lima")
+      .closest(".attention-item") as HTMLElement;
+    expect(within(dora).getByText("Parabéns enviado")).toBeInTheDocument();
+    expect(
+      within(dora).getByRole("link", { name: /Dar parabéns/ }),
+    ).toBeInTheDocument();
+    expect(
+      within(dora).queryByRole("button", { name: "Marcar como enviado" }),
+    ).not.toBeInTheDocument();
+    expect(
+      within(helena).queryByText("Parabéns enviado"),
+    ).not.toBeInTheDocument();
     fireEvent.click(
       within(helena).getByRole("button", { name: "Marcar como enviado" }),
     );
     await vi.waitFor(() =>
-      expect(
-        within(card).queryByText("Helena Almeida"),
-      ).not.toBeInTheDocument(),
+      expect(within(helena).getByText("Parabéns enviado")).toBeInTheDocument(),
     );
+    expect(within(card).getByText("Helena Almeida")).toBeInTheDocument();
+    expect(
+      within(helena).queryByRole("button", { name: "Marcar como enviado" }),
+    ).not.toBeInTheDocument();
     expect(activityBody).toEqual({
       patientId: "99999999-9999-4999-8999-999999999999",
       reason: "birthday",

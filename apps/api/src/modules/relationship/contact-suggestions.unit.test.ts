@@ -11,7 +11,11 @@ import {
 } from "@crm/contracts";
 import { describe, expect, it } from "vitest";
 import {
+  birthdayMonthPeriod,
+  buildBirthdayEntries,
   buildContactSuggestions,
+  toUpcomingBirthdays,
+  upcomingBirthdayPeriod,
   type ContactSuggestionData,
 } from "./contact-suggestions.js";
 
@@ -719,6 +723,38 @@ describe("buildContactSuggestions", () => {
       expect(reasons(snoozed(today))).toEqual([]);
       expect(reasons(snoozed("2026-09-28"))).toEqual(["plan_expiring"]);
     });
+
+    it("keeps the suggestion listed after a no-answer contact, for every reason", () => {
+      expect(
+        reasons({
+          ...data,
+          activities: [
+            activity({
+              reason: "plan_expiring",
+              referenceKey: "plan-1",
+              outcome: "no_answer",
+            }),
+          ],
+        }),
+      ).toEqual(["plan_expiring"]);
+      const birthday = {
+        patients: [patient({ birthDate: "1990-09-29" })],
+        activities: [
+          activity({ referenceKey: `${ana}:2026`, outcome: "no_answer" }),
+        ],
+      };
+      expect(reasons(birthday)).toEqual(["birthday"]);
+      // outro resultado registrado depois esconde de novo
+      expect(
+        reasons({
+          ...birthday,
+          activities: [
+            ...birthday.activities,
+            activity({ id: "act-2", referenceKey: `${ana}:2026` }),
+          ],
+        }),
+      ).toEqual([]);
+    });
   });
 
   it("orders overdue payments, today's birthdays, then the table order", () => {
@@ -795,5 +831,59 @@ describe("buildContactSuggestions", () => {
         ],
       }),
     ).toEqual(["single_no_return"]);
+  });
+});
+
+describe("buildBirthdayEntries", () => {
+  it("covers a month, with 29/02 on 28/02 in non-leap years", () => {
+    expect(birthdayMonthPeriod("2027-02")).toEqual({
+      from: "2027-02-01",
+      to: "2027-02-28",
+    });
+    expect(birthdayMonthPeriod("2028-02").to).toBe("2028-02-29");
+    expect(
+      buildBirthdayEntries(
+        [patient({ birthDate: "2000-02-29" })],
+        [],
+        birthdayMonthPeriod("2027-02"),
+      ),
+    ).toMatchObject([{ date: "2027-02-28", day: 28, ageTurning: 27 }]);
+  });
+
+  it("lists the dashboard window across the new year with the sent congratulations", () => {
+    const period = upcomingBirthdayPeriod(settings, "2026-12-28");
+    expect(period).toEqual({ from: "2026-12-28", to: "2027-01-04" });
+    const entries = buildBirthdayEntries(
+      [
+        patient({ birthDate: "1980-01-03" }),
+        patient({ id: bia, fullName: "Bia Lima", birthDate: "1990-12-28" }),
+        patient({
+          id: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+          birthDate: "1990-01-05",
+        }),
+        patient({
+          id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+          status: "inactive",
+          birthDate: "1990-12-30",
+        }),
+      ],
+      [
+        activity({ patientId: bia, referenceKey: `${bia}:2026` }),
+        activity({ referenceKey: `${ana}:2027`, outcome: "no_answer" }),
+      ],
+      period,
+    );
+    expect(
+      toUpcomingBirthdays(entries, "2026-12-28").map((entry) => [
+        entry.patientId,
+        entry.referenceKey,
+        entry.daysUntil,
+        entry.detail,
+        entry.congratulated,
+      ]),
+    ).toEqual([
+      [bia, `${bia}:2026`, 0, "Aniversário hoje", true],
+      [ana, `${ana}:2027`, 6, "Aniversário em 6 dias (03/01)", false],
+    ]);
   });
 });
