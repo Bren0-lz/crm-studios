@@ -26,6 +26,9 @@ describe("application shell", () => {
     expect(
       screen.queryByText("Acesso de demonstração"),
     ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(/Ambiente de demonstração|Dados fictícios/),
+    ).not.toBeInTheDocument();
     expect(screen.queryByText(/^movimenta$/i)).not.toBeInTheDocument();
   });
 });

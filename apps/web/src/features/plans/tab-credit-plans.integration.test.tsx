@@ -87,8 +87,43 @@ describe("crédito do serviço pago na comanda", () => {
     expect(screen.queryByText(/Comanda [A-F0-9]{8}/)).not.toBeInTheDocument();
     const metric = (label: string) =>
       screen.getByText(label).previousElementSibling?.textContent;
-    expect(metric("planos ativos")).toBe("1");
+    expect(metric("plano ativo")).toBe("1");
     expect(metric("sessões disponíveis")).toBe("5");
     expect(metric("saldos baixos")).toBe("0");
+  });
+});
+
+describe("contadores da tela Planos", () => {
+  it("usam o singular com 1", async () => {
+    localStorage.setItem("crm.auth.token", "test-token");
+    localStorage.setItem(
+      "crm.auth.user",
+      storedUser({
+        id: "22222222-2222-4222-8222-222222222222",
+        fullName: "Aryana Dutra",
+        email: "admin@movimenta.local",
+        role: "owner",
+      }),
+    );
+    const plans = [plan({ totalSessions: 1, remainingSessions: 1 })];
+    vi.mocked(fetch).mockImplementation(
+      async (input) =>
+        ({
+          ok: true,
+          status: 200,
+          json: async () => (String(input).includes("/plans") ? plans : []),
+        }) as Response,
+    );
+    render(
+      <MemoryRouter initialEntries={["/planos"]}>
+        <App />
+      </MemoryRouter>,
+    );
+    expect(await screen.findByText("de 1 sessão restante")).toBeInTheDocument();
+    const metric = (label: string) =>
+      screen.getByText(label).previousElementSibling?.textContent;
+    expect(metric("plano ativo")).toBe("1");
+    expect(metric("sessão disponível")).toBe("1");
+    expect(metric("saldo baixo")).toBe("1");
   });
 });

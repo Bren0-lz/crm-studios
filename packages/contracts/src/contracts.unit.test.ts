@@ -2701,6 +2701,17 @@ describe("paymentReceiptMessage", () => {
     ]);
     expect(receiptSignaturePath("tok")).toBe("/assinar-recibo/tok");
   });
+  it("uses the product domain in the variable examples", () => {
+    const examples = [
+      ...paymentReceiptMessageVariables,
+      ...documentTemplateVariables,
+    ].map((item) => item.example);
+    expect(examples).toContain(
+      "https://crm.organizastudios.com/assinar-recibo/…",
+    );
+    expect(examples).toContain("contato@organizastudios.com");
+    expect(examples.join(" ")).not.toMatch(/studiosaryana/);
+  });
   it("accepts the template in the clinic settings (up to 1000 characters)", () => {
     const base = { name: "Studios Aryana", timezone: "America/Sao_Paulo" };
     expect(

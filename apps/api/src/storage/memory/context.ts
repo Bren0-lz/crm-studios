@@ -533,6 +533,9 @@ export class MemoryRepositoryContext {
   /** Regras (`commission_entries.rule_id` no PostgreSQL) que já geraram algum lançamento. */
   readonly commissionEntryRuleIds = new Set<string>();
 
+  /** Quem calculou cada comissão (`commission_entries.created_by_user_id` no MySQL). */
+  readonly commissionCreators = new Map<string, string>();
+
   readonly payables: Payable[] = [];
 
   readonly recurringPayables: StoredRecurringPayable[] = [];
@@ -1329,15 +1332,21 @@ export class MemoryRepositoryContext {
               : source.action === "plan.created" && data.sourceTabId
                 ? "plan.tab_credit"
                 : source.action;
+        const creator =
+          source.records === this.commissions
+            ? this.commissionCreators.get(data.id)
+            : undefined;
         const actorUserId =
           source.event && typeof data.actorUserId === "string"
             ? data.actorUserId
+            : creator;
+        const actorName = creator
+          ? this.users.find((user) => user.id === creator)?.fullName
+          : source.event
+            ? (data.actorName ??
+              data.authorName ??
+              this.users.find((user) => user.id === actorUserId)?.fullName)
             : undefined;
-        const actorName = source.event
-          ? (data.actorName ??
-            data.authorName ??
-            this.users.find((user) => user.id === actorUserId)?.fullName)
-          : undefined;
         const metadata: Record<string, unknown> = {
           source: source.action,
           importedHistory: true,

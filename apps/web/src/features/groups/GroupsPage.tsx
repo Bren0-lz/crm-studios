@@ -45,6 +45,7 @@ import {
   groupOperationRange,
   groupSeatsLabel,
   groupSlotLabel,
+  plural,
 } from "../../shared/lib/formatting";
 import { useClinicTimezone } from "../../shared/hooks/useClinicTimezone";
 import { useFormDirty } from "../../shared/workflows/useDirtyGuard";
@@ -62,6 +63,10 @@ const groupTabs = [
   { key: "visao-geral", label: "Visão geral", icon: Table2 },
 ] as const;
 type GroupTabKey = (typeof groupTabs)[number]["key"];
+
+/** Lotação da sala na edição da turma: "1 pessoa", "6 pessoas" ("— pessoas" sem sala). */
+const roomCapacityLabel = (capacity: number | undefined) =>
+  capacity === undefined ? "— pessoas" : plural(capacity, "pessoa", "pessoas");
 
 /**
  * Consultas independentes: se o workspace falhar, serviços, profissionais, salas e clientes
@@ -1092,10 +1097,11 @@ export function GroupsPage() {
                                 : "matriculados"}{" "}
                               · {withPrefix("Sala", selectedGroup.roomName)}{" "}
                               comporta até{" "}
-                              {rooms.find(
-                                (item) => item.id === selectedGroup.roomId,
-                              )?.capacity ?? "—"}{" "}
-                              pessoas
+                              {roomCapacityLabel(
+                                rooms.find(
+                                  (item) => item.id === selectedGroup.roomId,
+                                )?.capacity,
+                              )}
                             </div>
                           </div>
                           <GroupSlotsEditor

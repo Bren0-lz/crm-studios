@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import {
+  formatPhone,
   type GroupEnrollment,
   type GroupClass,
   type Patient,
@@ -70,8 +71,16 @@ export function WaitlistContactModal({
               Entre em contato com {patient.fullName} para oferecer a vaga.
               Confirme a matrícula somente depois que o cliente aceitar.
             </p>
-            <p>Telefone: {patient.phone || "Não informado"}</p>
-            <p>WhatsApp: {patient.whatsapp || "Não informado"}</p>
+            <p>
+              Telefone:{" "}
+              {patient.phone ? formatPhone(patient.phone) : "Não informado"}
+            </p>
+            <p>
+              WhatsApp:{" "}
+              {patient.whatsapp
+                ? formatPhone(patient.whatsapp)
+                : "Não informado"}
+            </p>
             {available && (patient.whatsapp || patient.phone) && (
               <a
                 className="whatsapp-button span-2"

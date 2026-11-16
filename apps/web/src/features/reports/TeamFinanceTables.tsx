@@ -1,5 +1,5 @@
 import type { ManagementReport, TeamFinanceReport } from "@crm/contracts";
-import { currency } from "../../shared/lib/formatting";
+import { currency, plural } from "../../shared/lib/formatting";
 import { EmptyState } from "../../shared/components/EmptyState";
 
 const money = (value: number) => currency.format(value / 100);
@@ -93,9 +93,15 @@ export function TeamFinanceTables({
                       <th scope="row">
                         {item.name}
                         <small className="reports-cell-detail">
-                          {item.completedSessions} sessões concluídas, com
-                          turmas
-                          {count?.noShows ? ` · ${count.noShows} faltas` : ""}
+                          {plural(
+                            item.completedSessions,
+                            "sessão concluída",
+                            "sessões concluídas",
+                          )}
+                          , com turmas
+                          {count?.noShows
+                            ? ` · ${plural(count.noShows, "falta", "faltas")}`
+                            : ""}
                         </small>
                       </th>
                       <td className="numeric-value">

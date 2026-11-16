@@ -8,6 +8,7 @@ import { ArrowRight, Megaphone, MessageSquareText, Plus } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../../../api";
+import { plural } from "../../../shared/lib/formatting";
 import { useAuthorization } from "../../../authorization-context";
 import { EmptyState } from "../../../shared/components/EmptyState";
 import { ErrorBanner } from "../../../shared/components/ErrorBanner";
@@ -52,7 +53,8 @@ function CampaignRow({ campaign }: { campaign: WhatsappCampaign }) {
         />
         <span className="campaign-row-numbers">
           <strong>{campaign.sent}</strong> de {campaign.total} enviadas
-          {campaign.skipped > 0 && ` · ${campaign.skipped} puladas`}
+          {campaign.skipped > 0 &&
+            ` · ${plural(campaign.skipped, "pulada", "puladas")}`}
         </span>
       </div>
       <button

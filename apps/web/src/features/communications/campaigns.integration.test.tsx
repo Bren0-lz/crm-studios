@@ -987,6 +987,37 @@ describe("campanhas de WhatsApp", () => {
     );
   });
 
+  it("campanha concluída com 1 envio e 1 pulado usa o singular", async () => {
+    const detail = {
+      ...campaign([
+        recipient({ id: "r1", status: "sent", handledAt: now }),
+        recipient({
+          id: "r2",
+          patientId: "p2",
+          status: "skipped",
+          handledAt: now,
+        }),
+      ]),
+      completedAt: now,
+    };
+    setup(`/comunicacoes/campanhas/${detail.id}`, (url, init) =>
+      url.includes(`/communications/campaigns/${detail.id}`) && !init?.method
+        ? detail
+        : undefined,
+    );
+    const done = (await screen.findByText("Campanha concluída!"))
+      .parentElement!;
+    expect(done).toHaveTextContent("1 enviada e 1 pulada.");
+    expect(done).not.toHaveTextContent(/enviadas|puladas/);
+  });
+
+  it("lista com uma mensagem padrão ativa usa o singular", async () => {
+    setup("/comunicacoes?aba=mensagens", (url) =>
+      url.endsWith("/communications/templates") ? [template] : undefined,
+    );
+    expect(await screen.findByText("1 ativa")).toBeInTheDocument();
+  });
+
   it("com uma imagem, o mesmo clique copia a imagem e abre a conversa", async () => {
     const image = {
       id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",

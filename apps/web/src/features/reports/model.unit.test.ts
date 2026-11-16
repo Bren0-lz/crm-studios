@@ -1,5 +1,6 @@
 ﻿import { describe, expect, it } from "vitest";
 import {
+  compactMoney,
   periodPresets,
   plural,
   responseTimeLabel,
@@ -79,6 +80,13 @@ describe("textos simples dos indicadores", () => {
   it("usa singular e plural", () => {
     expect(plural(1, "cliente", "clientes")).toBe("1 cliente");
     expect(plural(0, "cliente", "clientes")).toBe("0 clientes");
+  });
+
+  it("não mostra zero negativo no eixo dos gráficos", () => {
+    const text = (cents: number) => compactMoney(cents).replace(/\s/g, " ");
+    expect(text(-0)).toBe("R$ 0,0");
+    expect(text(-4)).toBe("R$ 0,0");
+    expect(text(-120000)).toBe("-R$ 1,2 mil");
   });
 });
 

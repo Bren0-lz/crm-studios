@@ -203,7 +203,7 @@ describe("shell navigation", () => {
     expect(within(dialog).getByText("(11) 98888-6666")).toBeInTheDocument();
     expect(api.emergencyContact).toHaveBeenCalledWith("client-1");
     expect(
-      within(dialog).getByRole("link", { name: "Ligar para 11988887777" }),
+      within(dialog).getByRole("link", { name: "Ligar para (11) 98888-7777" }),
     ).toHaveAttribute("href", "tel:11988887777");
     const whatsapp = within(dialog).getByRole("link", {
       name: "Mandar mensagem no WhatsApp",
@@ -366,7 +366,7 @@ describe("shell navigation", () => {
       await within(dialog).findByText("(11) 98888-7777"),
     ).toBeInTheDocument();
     expect(
-      within(dialog).getByRole("link", { name: "Ligar para 11988887777" }),
+      within(dialog).getByRole("link", { name: "Ligar para (11) 98888-7777" }),
     ).toHaveAttribute("href", "tel:11988887777");
   });
 

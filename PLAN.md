@@ -1903,7 +1903,7 @@ filtros ficam no `dashboard-studios` (EN11–EN13 têm só a parte da API aqui).
   - Histórico: "Comissão gerada" por "Calcular comissões" registra quem calculou.
   - Login sem "Ambiente de demonstração · Dados fictícios" (`LoginPage.tsx`, E7a).
 - **Gate:** gate completo
-- **Status:** TODO
+- **Status:** DONE
 
 ### RE11 — Acabamento de layout
 

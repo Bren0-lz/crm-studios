@@ -111,6 +111,7 @@ const sources: HistorySource[] = [
     module: "finance",
     action: "commission.created",
     label: "Comissão gerada",
+    actor: "created_by_user_id",
   },
   {
     table: "commission_rules",

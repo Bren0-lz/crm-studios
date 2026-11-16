@@ -17,7 +17,7 @@ import { EmptyState } from "../../../shared/components/EmptyState";
 import { ErrorBanner } from "../../../shared/components/ErrorBanner";
 import { LoadingBlock } from "../../../shared/components/LoadingBlock";
 import { useToast } from "../../../shared/feedback/toast-context";
-import { shortDate } from "../../../shared/lib/formatting";
+import { plural, shortDate } from "../../../shared/lib/formatting";
 import { loadTemplateImage, useTemplateImages } from "./images";
 import { usesVariables, type TemplateDraft } from "./model";
 import { TemplateEditorModal } from "./TemplateEditorModal";
@@ -223,7 +223,7 @@ export function TemplatesTab({
             Mensagens padrão
             {templates && templates.length > 0 && (
               <span className="template-count">
-                {templates.length - archivedCount} ativas
+                {plural(templates.length - archivedCount, "ativa", "ativas")}
               </span>
             )}
           </h2>

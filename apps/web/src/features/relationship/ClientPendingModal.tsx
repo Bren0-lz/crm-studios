@@ -179,7 +179,9 @@ export function ClientPendingModal({
                   <strong>{plan.name}</strong>
                   <span>
                     {plan.remainingSessions} de {plan.totalSessions}{" "}
-                    {plan.totalSessions === 1 ? "sessão" : "sessões"} restantes
+                    {plan.totalSessions === 1
+                      ? "sessão restante"
+                      : "sessões restantes"}
                     {plan.validUntil
                       ? ` · validade ${formatIsoDate(plan.validUntil)}`
                       : ""}

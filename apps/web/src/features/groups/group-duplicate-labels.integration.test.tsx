@@ -26,7 +26,7 @@ const base: GroupClass = {
   createdAt: "2026-09-01T12:00:00Z",
 };
 
-function setup(overrides: Partial<GroupClass> = {}) {
+function setup(overrides: Partial<GroupClass> = {}, roomCapacity = 12) {
   const group = { ...structuredClone(base), ...overrides };
   localStorage.setItem("crm.auth.token", "test-token");
   localStorage.setItem(
@@ -60,7 +60,7 @@ function setup(overrides: Partial<GroupClass> = {}) {
           replacementCredits: [],
         }
       : url.includes("/rooms")
-        ? [{ id: group.roomId, name: group.roomName, capacity: 12 }]
+        ? [{ id: group.roomId, name: group.roomName, capacity: roomCapacity }]
         : url.includes("/professionals")
           ? [{ id: group.professionalId, fullName: group.professionalName }]
           : url.includes("/services")
@@ -97,6 +97,17 @@ describe("group labels without repeated prefix", () => {
     const dialog = await openGroup("Turma da manhã");
     expect(within(dialog).getByText(/comporta até/)).toHaveTextContent(
       "Sala Estúdio 1 comporta até 12 pessoas",
+    );
+  });
+
+  it("uses the singular for a room that holds one person", async () => {
+    setup({ capacity: 1, activeEnrollments: 1 }, 1);
+    const dialog = await openGroup("Turma da manhã");
+    expect(within(dialog).getByText(/comporta até/)).toHaveTextContent(
+      "1 matriculado · Sala de Dança comporta até 1 pessoa",
+    );
+    expect(within(dialog).getByText(/comporta até/)).not.toHaveTextContent(
+      "pessoas",
     );
   });
 

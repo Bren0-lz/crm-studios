@@ -48,9 +48,6 @@ export function LoginPage({
             para toda a equipe.
           </p>
         </div>
-        <p className="story-note">
-          Ambiente de demonstração · Dados fictícios
-        </p>
       </section>
       <section className="login-panel">
         <div className="login-card">

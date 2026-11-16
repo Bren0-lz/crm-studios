@@ -175,7 +175,11 @@ export function createCommissionOperationsRepository(
         input.rules,
       );
     },
-    async generateCommissions(clinicId: string, competence: string) {
+    async generateCommissions(
+      clinicId: string,
+      competence: string,
+      actorUserId?: string,
+    ) {
       for (const {
         source,
         rule,
@@ -190,8 +194,10 @@ export function createCommissionOperationsRepository(
             : {}),
         };
         context.commissionEntryRuleIds.add(rule.id);
+        const id = uuid();
+        if (actorUserId) context.commissionCreators.set(id, actorUserId);
         context.commissions.push({
-          id: uuid(),
+          id,
           clinicId,
           ...("appointmentId" in source
             ? {
