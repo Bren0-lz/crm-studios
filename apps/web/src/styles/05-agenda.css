@@ -1477,17 +1477,12 @@ button.day-event:focus-visible {
   overflow: auto;
 }
 @media (max-width: 700px) {
-  /* RV5: no celular a grade cabe inteira na tela abaixo do topo fixo; rolando até ela,
-     só ela rola (antes, 70vh com o topo por cima deixava as duas rolagens à vista). */
+  /* RV5: no celular a grade cabe inteira na tela abaixo do topo fixo (altura à vista em
+     --topbar-offset); rolando até ela, só ela rola (antes, 70vh com o topo por cima deixava
+     as duas rolagens à vista). */
   .day-grid-scroll {
-    max-height: calc(
-      100dvh - var(--day-grid-offset, calc(var(--space-8) - var(--space-1))) -
-        var(--space-4)
-    );
-    scroll-margin-top: calc(
-      var(--day-grid-offset, calc(var(--space-8) - var(--space-1))) +
-        var(--space-2)
-    );
+    max-height: calc(100dvh - var(--topbar-offset) - var(--space-4));
+    scroll-margin-top: calc(var(--topbar-offset) + var(--space-2));
   }
 }
 /* Bordas separadas e desenhadas nas células: no modo collapse a borda é da tabela e rola por

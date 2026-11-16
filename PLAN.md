@@ -2042,7 +2042,7 @@ filtros ficam no `dashboard-studios` (EN11–EN13 têm só a parte da API aqui).
   qualquer número de alertas; o comportamento do celular (RE11) não muda. Teste e2e com 3 e 4
   alertas em 1192px.
 - **Gate:** gate completo + `npm run test:e2e`
-- **Status:** TODO
+- **Status:** DONE
 
 ### RF4 — Link público de recibo estornado sem dados
 

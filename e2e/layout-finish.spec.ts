@@ -15,18 +15,44 @@ const phones = [
 
 /** Dois alertas no topo, como no teste: parcelas vencidas e atendimentos a finalizar. */
 async function twoBannerAlerts(page: Page, apiUrl: string) {
+  await bannerAlerts(page, apiUrl, {
+    overdueReceivables: 4,
+    pendingFinalization: 7,
+  });
+}
+
+/** Alertas no topo com as contagens dadas (somadas às da API). */
+async function bannerAlerts(
+  page: Page,
+  apiUrl: string,
+  counts: Record<string, unknown>,
+) {
   await page.route("**/api/notifications", async (route) => {
     const response = await route.fetch({ url: `${apiUrl}/notifications` });
     await route.fulfill({
       response,
-      json: {
-        ...(await response.json()),
-        overdueReceivables: 4,
-        pendingFinalization: 7,
-      },
+      json: { ...(await response.json()), ...counts },
     });
   });
 }
+
+/** RF3: com 3 e 4 alertas, como no teste de 15/11 (vaga de turma com nome longo). */
+const manyAlerts = {
+  overdueReceivables: 4,
+  pendingFinalization: 7,
+  overdueLeadTasks: 2,
+  groupVacancies: [
+    {
+      groupId: "rf3-group",
+      groupName: "TESTE Turma",
+      vacancies: 1,
+      waiting: 2,
+      enrollmentId: "rf3-enrollment",
+      patientId: "rf3-patient",
+      patientName: "Cliente da Fila",
+    },
+  ],
+};
 
 async function box(locator: Locator) {
   const result = await locator.boundingBox();
@@ -44,17 +70,22 @@ async function notTruncated(locator: Locator) {
 }
 
 /** Os atalhos da faixa de alertas ficam inteiros dentro dela. */
-async function bannerItemsWhole(page: Page) {
+async function bannerItemsWhole(page: Page, count = 2) {
   const banner = page.getByRole("region", { name: "Alertas", exact: true });
-  const area = await box(banner);
   const items = banner.locator(".notification-banner-item");
-  await expect(items).toHaveCount(2);
+  await expect(items).toHaveCount(count);
+  const area = await box(banner);
   for (const item of await items.all()) {
     const itemBox = await box(item);
     expect(itemBox.x).toBeGreaterThanOrEqual(area.x - 1);
     expect(itemBox.x + itemBox.width).toBeLessThanOrEqual(
       area.x + area.width + 1,
     );
+    expect(itemBox.y).toBeGreaterThanOrEqual(area.y - 1);
+    expect(itemBox.y + itemBox.height).toBeLessThanOrEqual(
+      area.y + area.height + 1,
+    );
+    await notTruncated(item);
   }
   const list = banner.locator("ul");
   await notTruncated(list);
@@ -213,6 +244,107 @@ test("desktop 1192px: tags, lead message label, alerts and receivables fit", asy
         document.documentElement.clientWidth,
     ),
   ).toBe(true);
+});
+
+/** Cada ação do topo (filial, SOS, sino) inteira à vista, sem cobrir a faixa de alertas. */
+async function topActionsVisible(page: Page) {
+  const banner = await box(
+    page.getByRole("region", { name: "Alertas", exact: true }),
+  );
+  const actions = page.locator(".top-actions > *");
+  expect(await actions.count()).toBeGreaterThanOrEqual(2);
+  await expect(
+    page.locator(".top-actions").getByRole("button", { name: /SOS/ }),
+  ).toBeInViewport({ ratio: 1 });
+  for (const action of await actions.all()) {
+    await expect(action).toBeInViewport({ ratio: 1 });
+    const actionBox = await box(action);
+    const apart =
+      actionBox.x >= banner.x + banner.width - 1 ||
+      actionBox.x + actionBox.width <= banner.x + 1 ||
+      actionBox.y >= banner.y + banner.height - 1 ||
+      actionBox.y + actionBox.height <= banner.y + 1;
+    expect(apart).toBe(true);
+  }
+}
+
+// RF3: no computador (a partir de 821px, com o menu lateral), qualquer número de alertas cabe.
+for (const width of [821, 1000, 1192, 1502]) {
+  test(`desktop ${width}px: 3 and 4 alerts wrap whole, without side scroll`, async ({
+    page,
+    apiServer,
+  }, testInfo) => {
+    test.skip(testInfo.project.name !== "desktop", "Largura do computador.");
+    await page.setViewportSize({ width, height: desktop.height });
+    const { groupVacancies, ...three } = manyAlerts;
+    const counts: Record<string, unknown> = { ...three };
+    // Lido a cada consulta: o quarto alerta entra mais abaixo, antes de recarregar.
+    await bannerAlerts(page, apiServer.url, counts);
+    await login(page);
+    const banner = page.getByRole("region", { name: "Alertas", exact: true });
+    await expect(banner).toContainText("Tarefas comerciais vencidas");
+    await bannerItemsWhole(page, 3);
+    await topActionsVisible(page);
+
+    // Com o quarto alerta (vaga de turma) a faixa ganha outra linha; nada rola de lado.
+    counts.groupVacancies = groupVacancies;
+    await page.reload();
+    await expect(banner).toContainText(
+      "TESTE Turma: 1 vaga disponível · 2 na espera",
+    );
+    await bannerItemsWhole(page, 4);
+    await topActionsVisible(page);
+    const topbar = await box(page.locator(".topbar"));
+    const area = await box(banner);
+    expect(area.y).toBeGreaterThanOrEqual(topbar.y);
+    expect(area.y + area.height).toBeLessThanOrEqual(
+      topbar.y + topbar.height + 1,
+    );
+    expect(
+      await page.evaluate(
+        () =>
+          document.documentElement.scrollWidth <=
+          document.documentElement.clientWidth,
+      ),
+    ).toBe(true);
+  });
+}
+
+test("desktop 1192px: with 4 alerts the template editor stays below the top bar", async ({
+  page,
+  apiServer,
+}, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop", "Largura do computador.");
+  await page.setViewportSize(desktop);
+  await bannerAlerts(page, apiServer.url, manyAlerts);
+  await login(page);
+  await page.goto("/documentos");
+  await page.getByRole("tab", { name: "Criar modelo", exact: true }).click();
+  const studio = page.locator(".template-studio");
+  const preview = studio.locator(".template-preview");
+  await expect(preview).toBeVisible();
+  await expect(
+    page.getByRole("region", { name: "Alertas", exact: true }),
+  ).toContainText("TESTE Turma");
+  // O topo com 4 alertas é mais alto que os 60px de antes.
+  expect((await box(page.locator(".topbar"))).height).toBeGreaterThan(90);
+  await page.evaluate(() =>
+    window.scrollTo(0, document.documentElement.scrollHeight),
+  );
+  const columns = [preview, studio.locator("> .template-body-input")];
+  await expect
+    .poll(async () => {
+      const topbar = await box(page.locator(".topbar"));
+      const bottom = topbar.y + topbar.height;
+      for (const column of columns) {
+        if (!(await column.isVisible())) continue;
+        const columnBox = await box(column);
+        if (columnBox.y < bottom - 1) return false;
+        if (columnBox.y + columnBox.height > desktop.height + 1) return false;
+      }
+      return true;
+    })
+    .toBe(true);
 });
 
 for (const viewport of phones) {

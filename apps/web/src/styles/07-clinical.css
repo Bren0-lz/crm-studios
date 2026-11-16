@@ -675,7 +675,8 @@
   display: grid;
   gap: var(--space-3);
   position: sticky;
-  top: var(--space-4);
+  /* Abaixo do topo fixo, que cresce com a faixa de alertas (RF3). */
+  top: calc(var(--topbar-offset) + var(--space-4));
 }
 
 .clinical-patient-list-head {
@@ -714,7 +715,9 @@
 
 .clinical-patient-items {
   display: grid;
-  max-height: calc(100vh - 260px);
+  max-height: calc(
+    100vh - var(--topbar-offset) - var(--space-8) * 4 - var(--space-1)
+  );
   margin: 0;
   padding: var(--space-2) var(--space-2);
   overflow-y: auto;

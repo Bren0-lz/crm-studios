@@ -23,6 +23,7 @@ import { BranchSelector } from "./BranchSelector";
 import { NotificationsMenu } from "./HeaderMenus";
 import { NotificationAlerts, NotificationsBanner } from "./NotificationAlerts";
 import { useNotificationCenter } from "./notification-center";
+import { useTopbarOffset } from "./topbar-offset";
 import { navGroups } from "./navItems";
 
 export function Shell({
@@ -109,6 +110,8 @@ export function Shell({
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [menuOpen]);
+  const topbarRef = useRef<HTMLElement>(null);
+  useTopbarOffset(topbarRef);
   const guards = useRef(new Set<NavigationGuard>());
   const registerGuard = useCallback((guard: NavigationGuard) => {
     const set = guards.current;
@@ -233,7 +236,7 @@ export function Shell({
         />
       )}
       <section className="app-main">
-        <header className="topbar" role="banner">
+        <header ref={topbarRef} className="topbar" role="banner">
           <button
             type="button"
             className="icon-button menu-toggle"
