@@ -43,6 +43,25 @@ export function DocumentLetterhead({
   );
 }
 
+/**
+ * Linhas de assinatura ("______") num bloco que não quebra: na folha estreita do celular,
+ * o traço partido em duas linhas parecia dois campos (RE11). O CSS limita o bloco à largura
+ * da linha, cortando o excesso do traço.
+ */
+function withSignatureLines(text: string): ReactNode {
+  const parts = text.split(/(_{5,})/);
+  if (parts.length === 1) return text;
+  return parts.map((part, index) =>
+    index % 2 === 1 ? (
+      <span key={index} className="document-signature-line">
+        {part}
+      </span>
+    ) : (
+      part
+    ),
+  );
+}
+
 /** Folha A4 com o documento como ele sai na impressão. */
 export function DocumentPaper({
   body,
@@ -60,7 +79,7 @@ export function DocumentPaper({
         <DocumentContentView content={content} />
       ) : (
         <p className="document-paper-body">
-          {body || "O texto do modelo aparece aqui."}
+          {body ? withSignatureLines(body) : "O texto do modelo aparece aqui."}
         </p>
       )}
     </article>
@@ -72,7 +91,7 @@ export function DocumentContentView({ content }: { content: DocumentContent }) {
     const children = node.content?.map(render);
     const className = `document-align-${node.attrs?.textAlign ?? "left"}`;
     if (node.type === "text") {
-      let text: ReactNode = node.text;
+      let text: ReactNode = withSignatureLines(node.text ?? "");
       for (const mark of node.marks ?? [])
         text =
           mark.type === "bold" ? (

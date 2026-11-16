@@ -556,8 +556,10 @@
   min-width: 0;
 }
 
+/* Sem espaço, a contagem desce para a linha de baixo; "Enviada" e a data ficam inteiras (RE11). */
 .lead-message-status {
   display: flex;
+  flex-wrap: wrap;
   min-width: 0;
   align-items: center;
   gap: var(--space-1);
@@ -568,10 +570,9 @@
   cursor: pointer;
 }
 
+.lead-message-status > svg,
 .lead-message-status > span:first-of-type {
-  overflow: hidden;
-  min-width: 0;
-  text-overflow: ellipsis;
+  flex-shrink: 0;
   white-space: nowrap;
 }
 
@@ -2208,6 +2209,15 @@
 }
 .document-rich-content p {
   margin: 0 0 var(--space-4);
+}
+/* Linha de assinatura ("______") inteira numa linha só: no celular ela quebrava em duas e
+   parecia dois campos. O traço que não cabe é cortado (RE11). */
+.document-signature-line {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  vertical-align: bottom;
+  white-space: nowrap;
 }
 .document-rich-content h1,
 .document-rich-content h2 {

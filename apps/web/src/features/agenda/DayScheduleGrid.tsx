@@ -23,6 +23,8 @@ const SLOT_MINUTES = 30;
 /**
  * Altura do topo fixo (ele cresce com o aviso de pendências) em `--day-grid-offset`: no
  * celular, a grade ocupa a tela abaixo dele e rola sozinha, sem ficar escondida (RV5).
+ * Com a faixa de alertas no celular, o topo para com ela acima da tela (`top` negativo,
+ * RE11): conta só a parte que fica à vista.
  */
 function useStickyTopbarOffset() {
   const ref = useRef<HTMLDivElement>(null);
@@ -30,13 +32,26 @@ function useStickyTopbarOffset() {
     const scroll = ref.current;
     const topbar = document.querySelector<HTMLElement>(".topbar");
     if (!scroll || !topbar) return;
-    const update = () =>
-      scroll.style.setProperty("--day-grid-offset", `${topbar.offsetHeight}px`);
+    const update = () => {
+      const top = Math.min(0, parseFloat(getComputedStyle(topbar).top) || 0);
+      scroll.style.setProperty(
+        "--day-grid-offset",
+        `${topbar.offsetHeight + top}px`,
+      );
+    };
     update();
     if (typeof ResizeObserver === "undefined") return;
-    const observer = new ResizeObserver(update);
+    // No quadro seguinte: o `top` depende da altura da faixa, medida por outro observador.
+    let frame = 0;
+    const observer = new ResizeObserver(() => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(update);
+    });
     observer.observe(topbar);
-    return () => observer.disconnect();
+    return () => {
+      cancelAnimationFrame(frame);
+      observer.disconnect();
+    };
   }, []);
   return ref;
 }

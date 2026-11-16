@@ -87,6 +87,17 @@ describe("versão dos dados por domínio", () => {
     expect(
       domainsForMutation("POST", "/admin/users/ana/reset-password"),
     ).toEqual([]);
+    // Cadastros de Configurações: as outras seções recarregam ao voltar (RE11).
+    for (const [method, path] of [
+      ["POST", "/services"],
+      ["POST", "/rooms"],
+      ["PUT", "/admin/registry/s1"],
+      ["PUT", "/admin/clinic-settings"],
+      ["POST", "/admin/branches"],
+      ["POST", "/clinic-catalogs/lead_source"],
+    ]) {
+      expect(domainsForMutation(method!, path!)).toEqual(["settings"]);
+    }
   });
 
   it("avisa os assinantes e muda só a versão dos domínios afetados", () => {
