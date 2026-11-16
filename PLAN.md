@@ -2052,7 +2052,7 @@ filtros ficam no `dashboard-studios` (EN11–EN13 têm só a parte da API aqui).
   e "Este recibo foi cancelado." (sem conteúdo, valor, data nem dados do cliente); a assinatura
   continua bloqueada. Testes API e web.
 - **Gate:** gate completo
-- **Status:** TODO
+- **Status:** DONE
 
 ### RF5 — Participante ligado a cliente com o nome do cliente
 

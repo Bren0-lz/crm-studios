@@ -153,13 +153,24 @@ describe("link público do recibo", () => {
   it("recibo cancelado pelo estorno avisa e não oferece a assinatura", async () => {
     const { repository, receivable, receipt } = await paidReceipt();
     await repository.reverseReceivablePayment(clinicId, actorId, receivable.id);
+    const clinic = await repository.getClinicSettings(clinicId);
     open(`/assinar-recibo/${receipt.token}`);
     expect(
-      await screen.findByText(
-        /Este recibo foi cancelado pela clínica porque o pagamento foi estornado/,
-      ),
+      await screen.findByText("Este recibo foi cancelado."),
     ).toBeInTheDocument();
-    expect(screen.getByText(/R\$\s180,00 · pago em/)).toBeInTheDocument();
+    // Só o nome do estúdio: sem conteúdo, valor, data nem dados do cliente.
+    expect(
+      screen.getByRole("heading", { name: clinic!.name }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: "Recibo de pagamento" }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText(/R\$/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/pago em/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Breno Pagante/)).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(/Mensalidade de Pilates/),
+    ).not.toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Assinar recibo" }),
     ).not.toBeInTheDocument();

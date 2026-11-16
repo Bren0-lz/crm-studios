@@ -94,11 +94,11 @@ export function currentReceiptSignatureSummary(
 }
 
 /**
- * O que o cliente vê no link público do recibo (sem token, IP nem dados internos).
- * `receipt` é o recibo da baixa (sem o telefone do cliente); ausente no recibo cancelado.
+ * O que o cliente vê no link público do recibo pendente ou assinado (sem token, IP nem dados
+ * internos). `receipt` é o recibo da baixa (sem o telefone do cliente).
  */
-export interface PublicReceiptSignature {
-  status: "pending" | "signed" | "cancelled";
+export interface PublicReceiptSignatureOpen {
+  status: "pending" | "signed";
   amountInCents: number;
   paidAt: string;
   receipt?: Omit<PaymentReceipt, "patientPhone">;
@@ -106,8 +106,19 @@ export interface PublicReceiptSignature {
   signerName?: string;
   /** Assinatura desenhada, devolvida só no recibo assinado (para imprimir). */
   signatureImage?: string;
-  cancelledAt?: string;
 }
+
+/**
+ * Recibo cancelado (baixa estornada), assinado ou não: o link público mostra só o nome do
+ * estúdio — sem conteúdo, valor, data nem dados do cliente.
+ */
+export interface PublicReceiptSignatureCancelled {
+  status: "cancelled";
+  clinicName: string;
+}
+
+export type PublicReceiptSignature =
+  PublicReceiptSignatureOpen | PublicReceiptSignatureCancelled;
 
 /** Situação mostrada no link público: o cancelado vale sobre o assinado. */
 export function publicReceiptSignatureStatus(receipt: {

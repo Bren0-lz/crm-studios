@@ -37,10 +37,11 @@ export function PublicReceiptSignaturePage() {
     };
   }, [token]);
 
-  const receipt = view?.receipt;
+  const open = view?.status === "cancelled" ? null : view;
+  const receipt = open?.receipt;
   // "Breno Assinante em 04 de nov., 14:30": quem assinou e quando (vai também na impressão).
-  const signer = view
-    ? `${view.signerName ?? ""}${view.signedAt ? ` em ${signatureMoment(view.signedAt)}` : ""}`
+  const signer = open
+    ? `${open.signerName ?? ""}${open.signedAt ? ` em ${signatureMoment(open.signedAt)}` : ""}`
     : "";
   return (
     <PublicSignatureShell
@@ -56,65 +57,77 @@ export function PublicReceiptSignaturePage() {
             }
       }
     >
-      {view && (
+      {view?.status === "cancelled" ? (
+        // Cancelado (baixa estornada): a API não devolve o recibo; só o aviso e o estúdio.
         <section className="panel public-signature">
           <div className="panel-head">
             <div>
-              <h2>Recibo de pagamento</h2>
-              <p className="panel-context">
-                {receipt
-                  ? `${receipt.receiptNumber} · ${receipt.clinicName} · ${receipt.patientName}`
-                  : `${money(view.amountInCents)} · pago em ${shortDate.format(new Date(view.paidAt))}`}
-              </p>
+              <h2>{view.clinicName}</h2>
             </div>
           </div>
-          {receipt && (
-            <div className="public-signature-document">
-              <ReceiptContent receipt={receipt}>
-                {view.status === "signed" && view.signatureImage && (
-                  <figure className="signature-image">
-                    <img
-                      src={view.signatureImage}
-                      alt={`Assinatura de ${view.signerName ?? "quem assinou"}`}
-                    />
-                    <figcaption>Assinado por {signer}</figcaption>
-                  </figure>
-                )}
-              </ReceiptContent>
-            </div>
-          )}
           <div className="public-signature-form">
-            {view.status === "signed" ? (
-              <>
-                <div className="success-banner" role="status">
-                  Recibo assinado por {signer}.
-                </div>
-                <div className="modal-actions print-hidden">
-                  <button
-                    type="button"
-                    className="primary-button"
-                    onClick={() => window.print()}
-                  >
-                    <Printer size={16} aria-hidden="true" />
-                    Imprimir ou salvar PDF
-                  </button>
-                </div>
-              </>
-            ) : view.status === "cancelled" ? (
-              <ErrorBanner error="Este recibo foi cancelado pela clínica porque o pagamento foi estornado. Ele não pode mais ser assinado." />
-            ) : (
-              <PublicSignatureForm
-                initialName={receipt?.patientName ?? ""}
-                acceptLabel="Conferi o recibo e confirmo o pagamento descrito."
-                submitLabel="Assinar recibo"
-                footnote="Ao assinar, registramos data, hora, IP e navegador junto com o recibo."
-                onSign={async (input) =>
-                  setView(await api.signPublicReceipt(token, input))
-                }
-              />
-            )}
+            <ErrorBanner error="Este recibo foi cancelado." />
           </div>
         </section>
+      ) : (
+        open && (
+          <section className="panel public-signature">
+            <div className="panel-head">
+              <div>
+                <h2>Recibo de pagamento</h2>
+                <p className="panel-context">
+                  {receipt
+                    ? `${receipt.receiptNumber} · ${receipt.clinicName} · ${receipt.patientName}`
+                    : `${money(open.amountInCents)} · pago em ${shortDate.format(new Date(open.paidAt))}`}
+                </p>
+              </div>
+            </div>
+            {receipt && (
+              <div className="public-signature-document">
+                <ReceiptContent receipt={receipt}>
+                  {open.status === "signed" && open.signatureImage && (
+                    <figure className="signature-image">
+                      <img
+                        src={open.signatureImage}
+                        alt={`Assinatura de ${open.signerName ?? "quem assinou"}`}
+                      />
+                      <figcaption>Assinado por {signer}</figcaption>
+                    </figure>
+                  )}
+                </ReceiptContent>
+              </div>
+            )}
+            <div className="public-signature-form">
+              {open.status === "signed" ? (
+                <>
+                  <div className="success-banner" role="status">
+                    Recibo assinado por {signer}.
+                  </div>
+                  <div className="modal-actions print-hidden">
+                    <button
+                      type="button"
+                      className="primary-button"
+                      onClick={() => window.print()}
+                    >
+                      <Printer size={16} aria-hidden="true" />
+                      Imprimir ou salvar PDF
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <PublicSignatureForm
+                  initialName={receipt?.patientName ?? ""}
+                  acceptLabel="Conferi o recibo e confirmo o pagamento descrito."
+                  submitLabel="Assinar recibo"
+                  footnote="Ao assinar, registramos data, hora, IP e navegador junto com o recibo."
+                  onSign={async (input) =>
+                    setView(await api.signPublicReceipt(token, input))
+                  }
+                />
+              )}
+            </div>
+          </section>
+        )
       )}
     </PublicSignatureShell>
   );
