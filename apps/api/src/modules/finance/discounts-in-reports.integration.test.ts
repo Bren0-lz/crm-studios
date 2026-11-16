@@ -137,6 +137,7 @@ describe("descontos no Financeiro e nos relatórios", () => {
       method: "POST",
       url: `/finance/receivables/${receivable.id}/reverse`,
       headers,
+      payload: { reason: "Estorno de teste" },
     });
     expect(reversed.statusCode).toBe(200);
     const after = (await ctx.receivables()).find(

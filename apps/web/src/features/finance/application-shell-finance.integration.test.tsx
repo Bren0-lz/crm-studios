@@ -1387,6 +1387,15 @@ describe("application shell", () => {
         within(confirmReverse).getByText("Esta ação não pode ser desfeita."),
       ).toBeInTheDocument();
       expect(workspaceLoads()).toBe(loads);
+      // Estorno pede motivo (E7c): sem ele, o botão fica desativado.
+      expect(
+        within(confirmReverse).getByRole("button", {
+          name: "Estornar pagamento",
+        }),
+      ).toBeDisabled();
+      fireEvent.change(within(confirmReverse).getByLabelText("Motivo"), {
+        target: { value: "Cobrança em duplicidade" },
+      });
       fireEvent.click(
         within(confirmReverse).getByRole("button", {
           name: "Estornar pagamento",

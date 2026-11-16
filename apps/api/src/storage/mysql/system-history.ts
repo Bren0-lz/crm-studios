@@ -361,6 +361,10 @@ function sourceSelect(source: HistorySource, clinicParameter: string) {
     ...Object.entries(source.clinical ?? {}).map(
       ([key, column]) => `${text(key)}, s.${column}`,
     ),
+    // Motivo do estorno (E7c) e do ajuste, gravado nos metadados do evento.
+    ...(source.table === "financial_events" || source.table === "payable_events"
+      ? ["'reason', JSON_VALUE(s.metadata, '$.reason')"]
+      : []),
   ];
   return `SELECT s.id, s.clinic_id, ${actor} AS actor_user_id, CAST(NULL AS CHAR) AS ip_address,
       ${text(source.module)} AS module, ${label} AS description, ${action} AS action,

@@ -185,6 +185,11 @@ export async function createRouteContext({
     if (reason) editRecords.set(request, { reason });
   });
 
+  /** Motivo obrigatório do comando (estorno, cancelamento de contrato): vai para o Histórico. */
+  function recordReason(request: FastifyRequest, reason: string) {
+    editRecords.set(request, { ...editRecords.get(request), reason });
+  }
+
   /** Guarda os campos alterados pela edição; o histórico os mostra como "antes → depois". */
   function recordChanges(
     request: FastifyRequest,
@@ -514,10 +519,17 @@ export async function createRouteContext({
   }
 
   /** Administração: só usuário do tipo admin (tipo relido do repositório no `authenticate`). */
+  /** Permissões conferidas pela rota (`assertPermissions`): escolhem a ação no Histórico. */
+  const assertedPermissions = new WeakMap<FastifyRequest, PermissionKey[]>();
+
   function assertPermissions(
     request: FastifyRequest,
     ...keys: PermissionKey[]
   ) {
+    assertedPermissions.set(request, [
+      ...(assertedPermissions.get(request) ?? []),
+      ...keys,
+    ]);
     for (const key of keys) {
       if (!requestAccess.get(request)?.permissions.includes(key)) {
         const item = permissionCatalog.find((item) => item.key === key)!;
@@ -607,9 +619,13 @@ export async function createRouteContext({
       : typeof access === "object" && "anyOf" in access
         ? access.anyOf
         : [];
-    const requirement = requirements.find((item) =>
-      requestAccess.get(request)?.permissions.includes(item.permission),
-    );
+    // Rota com várias permissões (ex.: emitir ou cancelar contrato): vale a que ela conferiu.
+    const asserted = assertedPermissions.get(request) ?? [];
+    const requirement =
+      requirements.find((item) => asserted.includes(item.permission)) ??
+      requirements.find((item) =>
+        requestAccess.get(request)?.permissions.includes(item.permission),
+      );
     const module = requirement?.module ?? "settings";
     const action = requirement
       ? `operation.${requirement.permission}`
@@ -909,6 +925,7 @@ export async function createRouteContext({
     accessibleBranches,
     visibleHistory,
     recordChanges,
+    recordReason,
     withConfiguredTags,
     assertPermissions,
     assertNoHoliday,

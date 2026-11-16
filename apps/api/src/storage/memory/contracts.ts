@@ -350,6 +350,7 @@ export function createContractsRepository(
       clinicId: string,
       documentId: string,
       status: Exclude<DocumentStatus, "draft">,
+      reason?: string,
     ) {
       const document = repositoryContext.issuedDocuments.find(
         (item) => item.clinicId === clinicId && item.id === documentId,
@@ -374,7 +375,10 @@ export function createContractsRepository(
       document.status = status;
       document.updatedAt = now();
       if (status === "issued") document.issuedAt = now();
-      if (status === "cancelled") document.cancelledAt = now();
+      if (status === "cancelled") {
+        document.cancelledAt = now();
+        if (reason) document.cancellationReason = reason;
+      }
       return withDocumentPatientCpf(repositoryContext, document);
     },
   };

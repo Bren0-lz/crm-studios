@@ -908,6 +908,7 @@ describe("CRM API", () => {
       method: "POST",
       url: `/finance/payables/${payable.json().id}/reverse`,
       headers,
+      payload: { reason: "Estorno de teste" },
     });
     expect(reversed.json()).toMatchObject({ status: "open" });
     await app.close();
@@ -1056,6 +1057,7 @@ describe("CRM API", () => {
         method: "POST",
         url: `/finance/receivables/${receivable.id}/reverse`,
         headers,
+        payload: { reason: "Estorno de teste" },
       });
       expect(reversed.statusCode).toBe(200);
       // A comissão é paga pela folha: a despesa da folha sai em dinheiro.
@@ -1954,6 +1956,7 @@ describe("CRM API", () => {
       method: "POST",
       url: `/finance/receivables/${closed.json().receivableId}/reverse`,
       headers,
+      payload: { reason: "Estorno de teste" },
     });
     expect(reversed.statusCode).toBe(200);
     const cancelled = await app.inject({

@@ -63,6 +63,8 @@ export interface IssuedDocument extends IssuedDocumentInput {
   status: DocumentStatus;
   issuedAt?: string;
   cancelledAt?: string;
+  /** Motivo informado ao cancelar (E7c). */
+  cancellationReason?: string;
   createdAt: string;
   updatedAt: string;
 }

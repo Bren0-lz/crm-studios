@@ -287,10 +287,10 @@ export const financeApi = {
         body: JSON.stringify({ paymentMethod, ...timing, ...adjustments }),
       },
     ),
-  reverseReceivable: (id: string) =>
+  reverseReceivable: (id: string, reason: string) =>
     request<FinancialSummary["receivables"][number]>(
       `/finance/receivables/${id}/reverse`,
-      { method: "POST" },
+      { method: "POST", body: JSON.stringify({ reason }) },
     ),
   adjustReceivable: (id: string, amountInCents: number, reason: string) =>
     request<FinancialSummary["receivables"][number]>(
@@ -428,8 +428,11 @@ export const financeApi = {
       method: "PUT",
       body: JSON.stringify({ amountInCents }),
     }),
-  reversePayable: (id: string) =>
-    request<Payable>(`/finance/payables/${id}/reverse`, { method: "POST" }),
+  reversePayable: (id: string, reason: string) =>
+    request<Payable>(`/finance/payables/${id}/reverse`, {
+      method: "POST",
+      body: JSON.stringify({ reason }),
+    }),
   dailyCash: (date: string) =>
     request<DailyCash>(`/finance/daily-cash?date=${encodeURIComponent(date)}`),
   financeForecast: (months: number) =>

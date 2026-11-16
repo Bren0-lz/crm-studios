@@ -1046,12 +1046,17 @@ export function createFinanceRepository(
       clinicId: string,
       actorUserId: string,
       receivableId: string,
+      reason?: string,
     ) {
       return repositoryContext.changeReceivablePayment(
         clinicId,
         actorUserId,
         receivableId,
         "payment_reversal",
+        undefined,
+        undefined,
+        {},
+        reason,
       );
     },
 
@@ -1551,12 +1556,17 @@ export function createFinanceRepository(
       clinicId: string,
       actorUserId: string,
       payableId: string,
+      reason?: string,
     ) {
       return repositoryContext.changePayablePayment(
         clinicId,
         actorUserId,
         payableId,
         "payment_reversal",
+        undefined,
+        undefined,
+        undefined,
+        reason,
       );
     },
 

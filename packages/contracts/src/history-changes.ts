@@ -15,6 +15,24 @@ export const changeReasonSchema = z
   )
   .optional();
 
+/**
+ * Motivo obrigatório do estorno de uma baixa (recebimento ou conta a pagar) e do cancelamento
+ * de contrato (E7c). Vai para os metadados do evento no Histórico (`reason`).
+ */
+export const requiredReasonSchema = z
+  .string({ error: "Informe o motivo." })
+  .trim()
+  .min(1, "Informe o motivo.")
+  .max(
+    CHANGE_REASON_MAX_LENGTH,
+    `O motivo pode ter até ${CHANGE_REASON_MAX_LENGTH} caracteres.`,
+  );
+
+/** Corpo do estorno de uma baixa: `{ reason }`. */
+export const paymentReversalInputSchema = z.object({
+  reason: requiredReasonSchema,
+});
+
 /** Uma linha "campo: antes → depois" gravada em `metadata.changes`. */
 export interface AuditChange {
   field: string;

@@ -7,6 +7,8 @@ import {
   telegramSettingsInputSchema,
   auditChangesOf,
   changeReasonSchema,
+  documentStatusInputSchema,
+  paymentReversalInputSchema,
   diffAuditFields,
   patientAuditLabels,
   appointmentCreateInputSchema,
@@ -3340,6 +3342,44 @@ describe("edit history changes", () => {
     expect(changeReasonSchema.parse(undefined)).toBeUndefined();
     expect(changeReasonSchema.safeParse("x".repeat(501)).success).toBe(false);
     expect(auditChangesOf({ changes: [{ field: "a" }] })).toEqual([]);
+  });
+});
+
+describe("motivo do estorno e do cancelamento de contrato (E7c)", () => {
+  it("exige motivo de 1 a 500 caracteres, sem espaços nas pontas", () => {
+    expect(
+      paymentReversalInputSchema.parse({ reason: "  pago em duplicidade " }),
+    ).toEqual({
+      reason: "pago em duplicidade",
+    });
+    expect(paymentReversalInputSchema.safeParse({}).success).toBe(false);
+    expect(
+      paymentReversalInputSchema.safeParse({ reason: "   " }).success,
+    ).toBe(false);
+    expect(
+      paymentReversalInputSchema.safeParse({ reason: "x".repeat(501) }).success,
+    ).toBe(false);
+    expect(
+      paymentReversalInputSchema.safeParse({ reason: "x".repeat(500) }).success,
+    ).toBe(true);
+  });
+
+  it("cancelar contrato exige motivo; emitir não", () => {
+    expect(documentStatusInputSchema.parse({ status: "issued" })).toEqual({
+      status: "issued",
+    });
+    expect(
+      documentStatusInputSchema.safeParse({ status: "cancelled" }).success,
+    ).toBe(false);
+    expect(
+      documentStatusInputSchema.parse({
+        status: "cancelled",
+        reason: " cliente desistiu ",
+      }),
+    ).toEqual({ status: "cancelled", reason: "cliente desistiu" });
+    expect(
+      documentStatusInputSchema.safeParse({ status: "draft" }).success,
+    ).toBe(false);
   });
 });
 

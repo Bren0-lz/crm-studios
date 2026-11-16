@@ -159,10 +159,14 @@ describe("comprovantes de pagamento", () => {
       },
     );
     fireEvent.click(within(row()).getByRole("button", { name: "Estornar" }));
+    const reverseDialog = await screen.findByRole("dialog", {
+      name: "Estornar pagamento",
+    });
+    fireEvent.change(within(reverseDialog).getByLabelText("Motivo"), {
+      target: { value: "Baixa lançada por engano" },
+    });
     fireEvent.click(
-      within(
-        await screen.findByRole("dialog", { name: "Estornar pagamento" }),
-      ).getByRole("button", { name: "Estornar pagamento" }),
+      within(reverseDialog).getByRole("button", { name: "Estornar pagamento" }),
     );
     await within(row()).findByRole("button", { name: "Dar baixa" });
     // Parcela reaberta: o comprovante segue acessível, com o selo e sem anexar novos.

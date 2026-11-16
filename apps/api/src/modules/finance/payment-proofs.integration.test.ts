@@ -191,6 +191,7 @@ describe("comprovantes de pagamento", () => {
           method: "POST",
           url: `/finance/payables/${payable.id}/reverse`,
           headers,
+          payload: { reason: "Estorno de teste" },
         })
       ).statusCode,
     ).toBe(200);

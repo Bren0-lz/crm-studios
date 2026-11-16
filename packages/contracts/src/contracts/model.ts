@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { requiredReasonSchema } from "../history-changes.js";
 import {
   documentTemplateVariables,
   type DocumentTemplateValues,
@@ -87,6 +88,12 @@ export const issuedDocumentInputSchema = issuedDocumentFieldsSchema
 export const documentStatusSchema = z.enum(["draft", "issued", "cancelled"]);
 
 export const documentTransitionSchema = z.enum(["issued", "cancelled"]);
+
+/** Corpo da mudança de situação do documento: cancelar exige motivo (E7c). */
+export const documentStatusInputSchema = z.discriminatedUnion("status", [
+  z.object({ status: z.literal("issued") }),
+  z.object({ status: z.literal("cancelled"), reason: requiredReasonSchema }),
+]);
 
 export const documentSignatureInputSchema = z.object({
   signedOn: z.iso.date(),

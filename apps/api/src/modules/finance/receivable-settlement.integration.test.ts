@@ -122,6 +122,7 @@ describe("receivable settlement with discount, interest and partial payment", ()
       method: "POST",
       url: `/finance/receivables/${receivable.id}/reverse`,
       headers,
+      payload: { reason: "Estorno de teste" },
     });
     expect(reversed.json()).toMatchObject({
       status: "open",
@@ -187,6 +188,7 @@ describe("receivable settlement with discount, interest and partial payment", ()
       method: "POST",
       url: `/finance/receivables/${receivable.id}/reverse`,
       headers,
+      payload: { reason: "Estorno de teste" },
     });
     expect(reversed.json()).toMatchObject({
       status: "open",

@@ -65,6 +65,7 @@ describe("recibo para assinatura", () => {
       method: "POST",
       url: `/finance/receivables/${receivable.id}/reverse`,
       headers,
+      payload: { reason: "Estorno de teste" },
     });
     expect(reversed.statusCode).toBe(200);
     expect((await receipts()).map((item) => item.status)).toEqual([

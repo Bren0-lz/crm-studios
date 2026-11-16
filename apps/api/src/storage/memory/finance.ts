@@ -147,7 +147,7 @@ export function createFinanceRepository(
    * Estorna a baixa de um recebível pago: volta a "open" sem o desconto/juros da baixa. No
    * pagamento picado, estorna forma por forma, cada uma no caixa da sua forma.
    */
-  function reversePaidReceivable(receivable: Receivable) {
+  function reversePaidReceivable(receivable: Receivable, reason?: string) {
     const receivableId = receivable.id;
     const clinicId = receivable.clinicId;
     receivable.status = "open";
@@ -177,6 +177,7 @@ export function createFinanceRepository(
         occurredAt,
         amountInCents: -item.amountInCents,
         ...(item.paymentMethod ? { paymentMethod: item.paymentMethod } : {}),
+        ...(reason ? { reason } : {}),
       });
     // Estorno de baixa com desconto/juros: a parcela volta a valer sem eles.
     const payment = batch.at(-1);
@@ -969,6 +970,7 @@ export function createFinanceRepository(
       clinicId: string,
       _actorUserId: string,
       receivableId: string,
+      reason?: string,
     ) {
       const receivable = repositoryContext.receivables.find(
         (item) => item.clinicId === clinicId && item.id === receivableId,
@@ -981,7 +983,7 @@ export function createFinanceRepository(
           409,
         );
       }
-      reversePaidReceivable(receivable);
+      reversePaidReceivable(receivable, reason);
       return receivable;
     },
 
@@ -1445,7 +1447,11 @@ export function createFinanceRepository(
       clinicId: string,
       _actorUserId: string,
       payableId: string,
+      _reason?: string,
     ) {
+      // O MySQL grava o motivo no evento do estorno; aqui as contas a pagar não têm eventos
+      // no Histórico, e o motivo chega a ele pelo registro da operação (como no MySQL).
+      void _reason;
       return repositoryContext.changePayable(
         clinicId,
         payableId,

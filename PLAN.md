@@ -1974,5 +1974,5 @@ filtros ficam no `dashboard-studios` (EN11–EN13 têm só a parte da API aqui).
   (texto, até 500); o motivo aparece no Histórico. Migração **nova** se precisar de coluna
   (próximo número livre pelas regras do `CLAUDE.md`), nos dois repositórios. Testes API e web.
 - **Gate:** gate completo + `npm run test:mysql`
-- **Status:** TODO
+- **Status:** DONE
 
