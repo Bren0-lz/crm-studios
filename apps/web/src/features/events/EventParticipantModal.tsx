@@ -1,6 +1,7 @@
 import {
   EVENT_LEAD_DEFAULT_INTEREST,
   eventLeadSource,
+  patientFirstName,
   type CommercialEvent,
   type LeadInput,
 } from "@crm/contracts";
@@ -18,7 +19,8 @@ export function EventParticipantModal({
 }: {
   event: CommercialEvent;
   onClose: () => void;
-  onSaved: () => void;
+  /** `notice`: aviso no lugar do padrão (participante que já é cliente, RE2). */
+  onSaved: (notice?: string) => void;
 }) {
   const [form, setForm] = useState({
     fullName: "",
@@ -47,8 +49,13 @@ export function EventParticipantModal({
         tags: [],
         eventId: event.id,
       };
-      await api.createLead(input);
-      onSaved();
+      const lead = await api.createLead(input);
+      // RE2: contato de cliente entra ligado ao cadastro, sem lead novo no comercial.
+      onSaved(
+        lead.convertedPatientId
+          ? `${patientFirstName(lead.fullName) || "Participante"} já é cliente: entrou no evento ligada ao cadastro`
+          : undefined,
+      );
     } catch (cause) {
       setError(
         cause instanceof Error

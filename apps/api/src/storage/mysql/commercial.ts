@@ -6,6 +6,7 @@ import {
 } from "../../modules/commercial/conversion.js";
 import {
   countEventParticipantPlans,
+  planEventParticipant,
   planEventParticipants,
   type EventImportPatient,
 } from "../../modules/commercial/event-participants.js";
@@ -217,6 +218,48 @@ export function createCommercialRepository(
     ))!;
   }
 
+  // Regra da EN1 (importação) reaproveitada pelo participante digitado (RE2).
+  async function eventParticipantMatches(
+    client: PoolClient,
+    clinicId: string,
+    eventId: string,
+  ) {
+    const [patients, participants] = await Promise.all([
+      client.query<EventImportPatient>(
+        `SELECT id, coalesce(merged_into_patient_id, id) AS "canonicalId",
+                full_name AS "fullName", phone, email, cpf
+         FROM patients WHERE clinic_id = $1 ORDER BY created_at, id`,
+        [clinicId],
+      ),
+      client.query<ContactDuplicateCandidate>(
+        `SELECT id, full_name AS "fullName", phone, email,
+                JSON_VALUE(profile, '$.cpf') AS cpf
+         FROM leads WHERE clinic_id = $1 AND event_id = $2`,
+        [clinicId, eventId],
+      ),
+    ]);
+    return { patients: patients.rows, participants: participants.rows };
+  }
+  /** Cliente já cadastrado: o participante entra ligado a ele, como um lead convertido. */
+  async function linkEventParticipant(
+    client: PoolClient,
+    clinicId: string,
+    leadId: string,
+    plan: { patientId: string; input: { extraFields?: ExtraFields } },
+  ) {
+    await client.query(
+      `UPDATE leads SET converted_patient_id = $3, stage = 'won', updated_at = NOW(6)
+       WHERE clinic_id = $1 AND id = $2`,
+      [clinicId, leadId, plan.patientId],
+    );
+    if (plan.input.extraFields)
+      await client.query(
+        `UPDATE patients SET extra_fields = JSON_MERGE_PATCH(extra_fields, $3), updated_at = NOW(6)
+         WHERE clinic_id = $1 AND id = $2`,
+        [clinicId, plan.patientId, JSON.stringify(plan.input.extraFields)],
+      );
+  }
+
   return {
     async listLeads(clinicId: string) {
       const result = await repositoryContext.pool.query<LeadRow>(
@@ -263,7 +306,28 @@ export function createCommercialRepository(
       return findLeadDuplicates(query, patients.rows, leads.rows);
     },
 
-    createLead,
+    async createLead(
+      clinicId: string,
+      input: LeadInput & { extraFields?: ExtraFields },
+    ) {
+      const eventId = input.eventId;
+      if (!eventId) return createLead(clinicId, input);
+      // RE2: participante digitado segue a regra da importação (cliente → ligado; repetido →
+      // 409), com a mesma trava da importação e da conversão.
+      return repositoryContext.inTransaction(async (client) => {
+        await client.lock(clinicId);
+        const { patients, participants } = await eventParticipantMatches(
+          client,
+          clinicId,
+          eventId,
+        );
+        const plan = planEventParticipant(input, patients, participants);
+        const lead = await createLead(clinicId, input, client);
+        if (plan.kind !== "link") return lead;
+        await linkEventParticipant(client, clinicId, lead.id, plan);
+        return (await repositoryContext.findLead(client, clinicId, lead.id))!;
+      });
+    },
     async importEventParticipants(
       clinicId: string,
       eventId: string,
@@ -271,25 +335,12 @@ export function createCommercialRepository(
     ) {
       return repositoryContext.inTransaction(async (client) => {
         await client.lock(clinicId);
-        const [patients, participants] = await Promise.all([
-          client.query<EventImportPatient>(
-            `SELECT id, coalesce(merged_into_patient_id, id) AS "canonicalId",
-                    full_name AS "fullName", phone, email, cpf
-             FROM patients WHERE clinic_id = $1 ORDER BY created_at, id`,
-            [clinicId],
-          ),
-          client.query<ContactDuplicateCandidate>(
-            `SELECT id, full_name AS "fullName", phone, email,
-                    JSON_VALUE(profile, '$.cpf') AS cpf
-             FROM leads WHERE clinic_id = $1 AND event_id = $2`,
-            [clinicId, eventId],
-          ),
-        ]);
-        const plans = planEventParticipants(
-          inputs,
-          patients.rows,
-          participants.rows,
+        const { patients, participants } = await eventParticipantMatches(
+          client,
+          clinicId,
+          eventId,
         );
+        const plans = planEventParticipants(inputs, patients, participants);
         for (const plan of plans) {
           if (plan.kind === "skip") continue;
           const lead = await createLead(
@@ -297,23 +348,8 @@ export function createCommercialRepository(
             { ...plan.input, eventId },
             client,
           );
-          if (plan.kind !== "link") continue;
-          // Cliente já cadastrado: o participante entra ligado a ele, como um lead convertido.
-          await client.query(
-            `UPDATE leads SET converted_patient_id = $3, stage = 'won', updated_at = NOW(6)
-             WHERE clinic_id = $1 AND id = $2`,
-            [clinicId, lead.id, plan.patientId],
-          );
-          if (plan.input.extraFields)
-            await client.query(
-              `UPDATE patients SET extra_fields = JSON_MERGE_PATCH(extra_fields, $3), updated_at = NOW(6)
-               WHERE clinic_id = $1 AND id = $2`,
-              [
-                clinicId,
-                plan.patientId,
-                JSON.stringify(plan.input.extraFields),
-              ],
-            );
+          if (plan.kind === "link")
+            await linkEventParticipant(client, clinicId, lead.id, plan);
         }
         return countEventParticipantPlans(plans);
       });

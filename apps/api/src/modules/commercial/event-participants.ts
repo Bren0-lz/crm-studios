@@ -4,6 +4,7 @@ import {
   type ExtraFields,
   type LeadInput,
 } from "@crm/contracts";
+import { DomainError } from "../../repository.js";
 
 /** Participante vindo da planilha: o lead e o "Outros" da linha. */
 export type EventParticipantImport = LeadInput & { extraFields?: ExtraFields };
@@ -55,6 +56,25 @@ export function planEventParticipants(
       ? { kind: "link", input, patientId: patient.canonicalId }
       : { kind: "create", input };
   });
+}
+
+/**
+ * RE2: participante digitado no evento (`POST /leads` com `eventId`) segue a mesma regra da
+ * importação; o repetido no evento é recusado (409) em vez de ignorado.
+ */
+export function planEventParticipant(
+  input: EventParticipantImport,
+  patients: readonly EventImportPatient[],
+  participants: readonly ContactDuplicateCandidate[],
+): Exclude<EventParticipantPlan, { kind: "skip" }> {
+  const [plan] = planEventParticipants([input], patients, participants);
+  if (!plan || plan.kind === "skip")
+    throw new DomainError(
+      "EVENT_PARTICIPANT_EXISTS",
+      "Essa pessoa já participa do evento (mesmo telefone, e-mail ou CPF).",
+      409,
+    );
+  return plan;
 }
 
 export function countEventParticipantPlans(
