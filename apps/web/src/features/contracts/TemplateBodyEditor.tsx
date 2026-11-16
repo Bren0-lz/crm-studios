@@ -158,7 +158,8 @@ export function TemplateBodyEditor({
       {missingClinicFields.length > 0 && (
         <p className="field-hint" id={`${id}-missing`}>
           Sem cadastro em Configurações › Clínica:{" "}
-          {missingClinicFields.join(", ")}. Na emissão, aparece “não informado”.
+          {missingClinicFields.join(", ")}. Sem esses dados, o contrato com este
+          modelo não é emitido.
         </p>
       )}
       <div className="document-paper-canvas" ref={previewCanvas}>

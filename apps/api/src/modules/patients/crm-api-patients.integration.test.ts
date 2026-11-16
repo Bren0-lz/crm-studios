@@ -1362,6 +1362,25 @@ describe("CRM API", () => {
           .join("\n"),
       },
     });
+    // Com dado da clínica faltando o documento não é emitido (E6): cadastra antes.
+    const settings = await app.inject({
+      method: "GET",
+      url: "/admin/clinic-settings",
+      headers,
+    });
+    const savedSettings = await app.inject({
+      method: "PUT",
+      url: "/admin/clinic-settings",
+      headers,
+      payload: {
+        ...(settings.json() as object),
+        taxId: "11222333000181",
+        address: "Av. Brasil, 500, Campinas/SP",
+        phone: "19999990000",
+        email: "contato@studio.com.br",
+      },
+    });
+    expect(savedSettings.statusCode, savedSettings.body).toBe(200);
     const document = await app.inject({
       method: "POST",
       url: "/documents",

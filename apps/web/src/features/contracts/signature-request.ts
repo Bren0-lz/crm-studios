@@ -1,4 +1,8 @@
-import type { DocumentTemplate, IssuedDocumentInput } from "@crm/contracts";
+import type {
+  ClinicBranding,
+  DocumentTemplate,
+  IssuedDocumentInput,
+} from "@crm/contracts";
 import { useEffect, useState } from "react";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
@@ -15,9 +19,14 @@ export function useCanRequestSignature() {
 export type SignatureTemplatesState = {
   templates: DocumentTemplate[] | null;
   error: string;
+  /** Dados da clínica: modelo que usa CNPJ, endereço… sem cadastro não é oferecido (E6). */
+  clinic?: ClinicBranding | null;
 };
 
-/** Carrega os modelos uma vez ao abrir o cadastro (só para quem pode emitir). */
+/**
+ * Carrega os modelos e os dados da clínica uma vez ao abrir o cadastro (só para quem pode
+ * emitir). Sem os dados da clínica, a API continua recusando o contrato incompleto.
+ */
 export function useSignatureTemplates(enabled: boolean) {
   const [state, setState] = useState<SignatureTemplatesState>({
     templates: null,
@@ -26,14 +35,17 @@ export function useSignatureTemplates(enabled: boolean) {
   useEffect(() => {
     if (!enabled) return;
     let active = true;
-    api
-      .documentTemplates()
+    Promise.all([
+      api.documentTemplates(),
+      api.clinicBranding().catch(() => null),
+    ])
       .then(
-        (items) =>
+        ([items, clinic]) =>
           active &&
           setState({
             templates: items.filter((item) => item.active),
             error: "",
+            clinic,
           }),
       )
       .catch(

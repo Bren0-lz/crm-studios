@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  documentClinicFieldsMessage,
+  documentMissingClinicFields,
   isLeadMessageSent,
   leadMissingRegistrationFields,
   leadRegistrationRequestMessage,
@@ -3388,5 +3390,36 @@ describe("Telegram (TG1)", () => {
     expect(
       telegramSettingsInputSchema.safeParse({ linkRoles: ["gestora"] }).success,
     ).toBe(false);
+  });
+});
+
+describe("dados da clínica no contrato (E6)", () => {
+  it("lista só os campos vazios que o modelo usa e monta o aviso", () => {
+    const template = {
+      body: "CNPJ {{clinica_cnpj}}, sede {{clinica_endereco}}, e-mail {{clinica_email}}.",
+    };
+    const missing = documentMissingClinicFields(template, {
+      taxId: " ",
+      address: null,
+      phone: "",
+      email: "contato@studio.com.br",
+    });
+    expect(missing).toEqual([
+      { key: "clinica_cnpj", name: "CNPJ" },
+      { key: "clinica_endereco", name: "endereço" },
+    ]);
+    expect(documentClinicFieldsMessage(missing)).toBe(
+      "Cadastre CNPJ e endereço da clínica em Configurações › Clínica antes de emitir este contrato.",
+    );
+    expect(
+      documentClinicFieldsMessage([
+        { name: "CNPJ" },
+        { name: "telefone" },
+        { name: "e-mail" },
+      ]),
+    ).toContain("Cadastre CNPJ, telefone e e-mail da clínica");
+    expect(
+      documentMissingClinicFields({ body: "Cliente {{paciente_cpf}}." }, {}),
+    ).toEqual([]);
   });
 });

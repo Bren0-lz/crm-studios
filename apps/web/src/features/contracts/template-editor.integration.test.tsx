@@ -234,7 +234,7 @@ describe("document template editor", () => {
     );
     // O endereço não está cadastrado: a prévia avisa onde preencher.
     expect(preview).toHaveAccessibleDescription(
-      "Sem cadastro em Configurações › Clínica: Endereço da clínica. Na emissão, aparece “não informado”.",
+      "Sem cadastro em Configurações › Clínica: Endereço da clínica. Sem esses dados, o contrato com este modelo não é emitido.",
     );
     expect(
       screen.getByRole("button", { name: "Usar contrato padrão" }),

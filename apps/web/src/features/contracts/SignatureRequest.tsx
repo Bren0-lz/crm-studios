@@ -1,4 +1,6 @@
 import {
+  documentClinicFieldsMessage,
+  documentMissingClinicFields,
   documentSignatureMessage,
   type DocumentSignatureLinkShare,
   type IssuedDocument,
@@ -35,6 +37,35 @@ export function SignatureTemplateField({
 }) {
   const hintId = useId();
   const templates = state.templates ?? [];
+  // Modelo que usa dado da clínica sem cadastro não é oferecido: a venda seguiria sem o
+  // contrato ou seria recusada inteira pela API (E6).
+  const clinic = state.clinic?.name ? state.clinic : null;
+  const blocked = new Map(
+    clinic
+      ? templates
+          .map(
+            (template) =>
+              [
+                template.id,
+                documentMissingClinicFields(template, clinic),
+              ] as const,
+          )
+          .filter(([, missing]) => missing.length > 0)
+      : [],
+  );
+  const blockedNames = templates
+    .filter((template) => blocked.has(template.id))
+    .map((template) => template.name);
+  const blockedFields = [...blocked.values()]
+    .flat()
+    .filter(
+      (field, index, all) =>
+        all.findIndex((item) => item.key === field.key) === index,
+    );
+  const selectedBlocked = Boolean(value && blocked.has(value.templateId));
+  useEffect(() => {
+    if (selectedBlocked) onChange(null);
+  }, [selectedBlocked, onChange]);
   return (
     <div className="span-2">
       <label>
@@ -58,8 +89,13 @@ export function SignatureTemplateField({
             {state.templates ? "Não enviar documento" : "Carregando modelos…"}
           </option>
           {templates.map((template) => (
-            <option key={template.id} value={template.id}>
+            <option
+              key={template.id}
+              value={template.id}
+              disabled={blocked.has(template.id)}
+            >
               {template.name} · v{template.version}
+              {blocked.has(template.id) ? " (faltam dados da clínica)" : ""}
             </option>
           ))}
         </select>
@@ -71,6 +107,12 @@ export function SignatureTemplateField({
             ? "Nenhum modelo ativo. Crie um em Contratos para enviar com o cadastro."
             : "Ao salvar, o documento é emitido e o link de assinatura abre pronto para enviar pelo WhatsApp."}
       </span>
+      {blockedNames.length > 0 && (
+        <p className="form-error" role="alert">
+          Indisponível sem os dados da clínica: {blockedNames.join(", ")}.{" "}
+          {documentClinicFieldsMessage(blockedFields)}
+        </p>
+      )}
     </div>
   );
 }
