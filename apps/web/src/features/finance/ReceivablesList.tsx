@@ -1,8 +1,10 @@
 import { type Receivable, saoPauloToday } from "@crm/contracts";
-import { Search } from "lucide-react";
+import { MoreHorizontal, Search } from "lucide-react";
 import { useAuthorization } from "../../authorization-context";
+import { ActionMenu } from "../../shared/components/ActionMenu";
 import { EmptyState } from "../../shared/components/EmptyState";
 import { currency, shortDate } from "../../shared/lib/formatting";
+import type { ActionMenuItem } from "../../shared/lib/types";
 import {
   hasUnsignedReceipt,
   normalizeSearch,
@@ -280,39 +282,52 @@ export function ReceivablesList({
                 )}
               </span>
               <div className="finance-actions">
-                {item.status === "open" && (
-                  <button
-                    className="secondary-button button-sm"
-                    onClick={() => onContact(item, situation.key === "overdue")}
-                  >
-                    Entrar em contato
-                  </button>
-                )}
-                {canManage &&
-                  item.status === "open" &&
-                  can("finance.adjust") && (
-                    <button
-                      className="secondary-button button-sm"
-                      onClick={() => onAdjust(item)}
-                    >
-                      Ajustar
-                    </button>
-                  )}
+                {/* Uma ação principal à vista (em aberto: "Dar baixa"; paga: "Recibo") e as
+                    demais no "Mais" (D1), para a linha caber numa fileira só. */}
+                <ReceivableMoreMenu
+                  item={item}
+                  items={[
+                    ...(item.status === "open"
+                      ? [
+                          {
+                            label: "Entrar em contato",
+                            onSelect: () =>
+                              onContact(item, situation.key === "overdue"),
+                          },
+                        ]
+                      : []),
+                    ...(canManage &&
+                    item.status === "open" &&
+                    can("finance.adjust")
+                      ? [{ label: "Ajustar", onSelect: () => onAdjust(item) }]
+                      : []),
+                    ...(item.status === "paid" || proofIds?.has(item.id)
+                      ? [
+                          {
+                            label: "Comprovantes",
+                            onSelect: () => onProofs(item),
+                          },
+                        ]
+                      : []),
+                    ...(canManage &&
+                    item.status === "paid" &&
+                    can("finance.receivables_reverse")
+                      ? [
+                          {
+                            label: "Estornar",
+                            danger: true,
+                            onSelect: () => onReverse(item.id),
+                          },
+                        ]
+                      : []),
+                  ]}
+                />
                 {item.status === "paid" && (
                   <button
                     className="secondary-button button-sm"
                     onClick={() => onReceipt(item.id)}
                   >
                     Recibo
-                  </button>
-                )}
-                {(item.status === "paid" || proofIds?.has(item.id)) && (
-                  <button
-                    className="secondary-button button-sm"
-                    aria-label={`Comprovantes de ${item.description}`}
-                    onClick={() => onProofs(item)}
-                  >
-                    Comprovantes
                   </button>
                 )}
                 {canManage &&
@@ -325,22 +340,44 @@ export function ReceivablesList({
                       Dar baixa
                     </button>
                   )}
-                {canManage &&
-                  item.status === "paid" &&
-                  can("finance.receivables_reverse") && (
-                    <button
-                      className="danger-button button-sm"
-                      onClick={() => onReverse(item.id)}
-                    >
-                      Estornar
-                    </button>
-                  )}
               </div>
             </div>
           ))}
         </div>
       )}
     </>
+  );
+}
+
+/**
+ * "Mais" da linha (D1): as ações secundárias ("Entrar em contato", "Ajustar", "Comprovantes",
+ * "Estornar") ficam no menu para a ação principal caber inteira, numa fileira só, sem a tabela
+ * rolar para o lado. Lista presa à tela (`fixed`):
+ * a tabela tem `overflow` e cortaria a lista.
+ */
+function ReceivableMoreMenu({
+  item,
+  items,
+}: {
+  item: Receivable;
+  items: ActionMenuItem[];
+}) {
+  if (items.length === 0) return null;
+  return (
+    <ActionMenu
+      label={`Mais ações de ${item.description}`}
+      align="end"
+      fixed
+      items={items}
+      trigger={{
+        className: "secondary-button button-sm",
+        content: (
+          <>
+            <MoreHorizontal size={16} /> Mais
+          </>
+        ),
+      }}
+    />
   );
 }
 

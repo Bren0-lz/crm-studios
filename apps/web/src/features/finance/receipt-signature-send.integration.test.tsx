@@ -106,8 +106,11 @@ describe("enviar recibo pelo WhatsApp", () => {
     await screen.findByRole("region", { name: "Recibo da baixa" });
 
     fireEvent.click(
-      within(await row()).getByRole("button", { name: "Estornar" }),
+      within(await row()).getByRole("button", {
+        name: "Mais ações de Mensalidade de Pilates",
+      }),
     );
+    fireEvent.click(screen.getByRole("menuitem", { name: "Estornar" }));
     const reverseDialog = await screen.findByRole("dialog", {
       name: "Estornar pagamento",
     });
@@ -148,8 +151,11 @@ describe("enviar recibo pelo WhatsApp", () => {
     );
     await save("Dar baixa na parcela", "Confirmar baixa");
     fireEvent.click(
-      within(await row()).getByRole("button", { name: "Estornar" }),
+      within(await row()).getByRole("button", {
+        name: "Mais ações de Mensalidade de Pilates",
+      }),
     );
+    fireEvent.click(screen.getByRole("menuitem", { name: "Estornar" }));
     const reverseDialog = await screen.findByRole("dialog", {
       name: "Estornar pagamento",
     });
