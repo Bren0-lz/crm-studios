@@ -102,10 +102,10 @@ export const financeApi = {
       `/finance/commissions/${id}/reconciliation`,
       { method: "POST", body: JSON.stringify(input) },
     ),
-  reverseCommissionAccountPayment: (id: string) =>
+  reverseCommissionAccountPayment: (id: string, reason: string) =>
     request<CommissionAccountPayment>(
       `/finance/commission-account-payments/${id}/reverse`,
-      { method: "POST" },
+      { method: "POST", body: JSON.stringify({ reason }) },
     ),
   externalOperations: (patientId?: string) =>
     request<ExternalOperation[]>(

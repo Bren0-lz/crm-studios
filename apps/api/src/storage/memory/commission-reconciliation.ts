@@ -414,6 +414,7 @@ export function createCommissionReconciliationRepository(
       clinicId: string,
       actorId: string,
       paymentId: string,
+      reason?: string,
     ) {
       actor(clinicId, actorId);
       const payment = context.commissionAccountPayments.find(
@@ -477,7 +478,11 @@ export function createCommissionReconciliationRepository(
         actorId,
         "commission.account_reversed",
         "commission",
-        { paymentId, amountInCents: payment.amountInCents },
+        {
+          paymentId,
+          amountInCents: payment.amountInCents,
+          ...(reason ? { reason } : {}),
+        },
         commission.id,
       );
       return structuredClone(payment);

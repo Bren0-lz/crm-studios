@@ -2123,7 +2123,11 @@ export function createFinanceRepository(
       clinicId: string,
       commissionId: string,
       actorUserId?: string,
+      // Aqui o estorno não gera evento no Histórico (só o caixa em `commission_payment_events`,
+      // sem metadados): o motivo chega a ele pelo registro da operação.
+      _reason?: string,
     ) {
+      void _reason;
       return repositoryContext.inTransaction(async (client) => {
         await client.lock(clinicId);
         if (

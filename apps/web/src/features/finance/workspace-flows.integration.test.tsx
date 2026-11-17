@@ -262,6 +262,12 @@ describe("finance workflows through real HTTP handlers", () => {
         name: "Estornar baixa conciliada",
       }),
     );
+    // O estorno pede motivo (D4).
+    change(
+      "Motivo",
+      "Pagamento lançado em duplicidade",
+      screen.getByRole("dialog", { name: "Estornar baixa conciliada" }),
+    );
     await save("Estornar baixa conciliada", "Confirmar registro conciliado");
     await within(dialog).findByText(
       "Estorno conciliado registrado sem remover o pagamento original.",

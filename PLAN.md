@@ -2131,4 +2131,4 @@ filtros ficam no `dashboard-studios` (EN11–EN13 têm só a parte da API aqui).
   400 sem motivo depois da checagem de permissão, motivo no Histórico (`recordReason` e eventos),
   modais com o campo "Motivo". Testes API (memória e MySQL) e web.
 - **Gate:** gate completo + `npm run test:mysql`
-- **Status:** TODO
+- **Status:** DONE

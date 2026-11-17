@@ -1,4 +1,5 @@
 import {
+  CHANGE_REASON_MAX_LENGTH,
   commissionAccountBalances,
   type CommissionReconciliationPreview,
   type CommissionAccountPayment,
@@ -8,7 +9,7 @@ import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
 import { useUnsavedChangesPrompt } from "../../shared/workflows/useUnsavedChangesPrompt";
 import { useMissingFields } from "../../shared/components/MissingFields";
-import { Modal } from "../../shared/components/Modal";
+import { Modal, ModalCancelButton } from "../../shared/components/Modal";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
 import { ErrorBanner } from "../../shared/components/ErrorBanner";
 import { currency, shortDate } from "../../shared/lib/formatting";
@@ -41,6 +42,11 @@ export function CommissionReconciliationModal({
   const [confirmation, setConfirmation] = useState<{
     payment: CommissionAccountPayment;
   } | null>(null);
+  // Motivo obrigatório do estorno (D4): vai para o Histórico.
+  const [reversalReason, setReversalReason] = useState("");
+  const reversalMissing = useMissingFields(
+    reversalReason.trim() ? [] : ["Motivo"],
+  );
   const [viewingProofs, setViewingProofs] =
     useState<CommissionAccountPayment | null>(null);
   useEffect(() => {
@@ -103,8 +109,12 @@ export function CommissionReconciliationModal({
     setBusy(true);
     setError("");
     try {
-      await api.reverseCommissionAccountPayment(confirmation.payment.id);
+      await api.reverseCommissionAccountPayment(
+        confirmation.payment.id,
+        reversalReason.trim(),
+      );
       setConfirmation(null);
+      setReversalReason("");
       setNotice(
         "Estorno conciliado registrado sem remover o pagamento original.",
       );
@@ -332,7 +342,10 @@ export function CommissionReconciliationModal({
                         <button
                           className="danger-button"
                           disabled={busy}
-                          onClick={() => setConfirmation({ payment })}
+                          onClick={() => {
+                            setReversalReason("");
+                            setConfirmation({ payment });
+                          }}
                         >
                           Estornar baixa conciliada
                         </button>
@@ -364,6 +377,7 @@ export function CommissionReconciliationModal({
           title="Estornar baixa conciliada"
           subtitle="Confirme o registro financeiro realizado pela equipe."
           busy={busy}
+          dirty={Boolean(reversalReason.trim())}
           onClose={() => setConfirmation(null)}
         >
           {error && <ErrorBanner error={error} />}
@@ -371,17 +385,27 @@ export function CommissionReconciliationModal({
             O estorno preserva a baixa original e registra sua reversão no
             caixa.
           </p>
+          <div className="form-grid">
+            <label className="span-2">
+              Motivo
+              <textarea
+                required
+                maxLength={CHANGE_REASON_MAX_LENGTH}
+                disabled={busy}
+                rows={3}
+                placeholder="Ex.: pagamento registrado em duplicidade"
+                value={reversalReason}
+                onChange={(event) => setReversalReason(event.target.value)}
+              />
+            </label>
+            {reversalMissing.hint}
+          </div>
           <div className="modal-actions">
-            <button
-              className="secondary-button"
-              disabled={busy}
-              onClick={() => setConfirmation(null)}
-            >
-              Voltar
-            </button>
+            <ModalCancelButton disabled={busy}>Voltar</ModalCancelButton>
             <button
               className="primary-button"
-              disabled={busy}
+              disabled={busy || reversalMissing.blocked}
+              aria-describedby={reversalMissing.describedBy}
               onClick={() => void confirm()}
             >
               Confirmar registro conciliado

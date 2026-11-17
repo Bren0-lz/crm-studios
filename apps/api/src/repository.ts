@@ -472,10 +472,12 @@ export interface ClinicRepository {
     professionalId: string,
     expectedAmountInCents: number,
   ): Promise<import("@crm/contracts").CommissionAccountPayment>;
+  /** `reason`: motivo do estorno (D4), gravado no evento do estorno. */
   reverseCommissionAccountPayment(
     clinicId: string,
     actorId: string,
     paymentId: string,
+    reason?: string,
   ): Promise<import("@crm/contracts").CommissionAccountPayment>;
   updateProduct(
     clinicId: string,
@@ -1704,10 +1706,12 @@ export interface ClinicRepository {
     actorUserId: string,
     commissionId: string,
   ): Promise<CommissionEntry | null>;
+  /** `reason`: motivo do estorno (D4), gravado no evento do estorno quando houver. */
   reverseCommission(
     clinicId: string,
     commissionId: string,
     actorUserId?: string,
+    reason?: string,
   ): Promise<CommissionEntry | null>;
   listLeads(clinicId: string): Promise<Lead[]>;
   /** Uma página de uma coluna do funil (filtros aplicados) + o total da etapa. */
