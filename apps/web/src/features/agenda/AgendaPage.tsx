@@ -34,6 +34,7 @@ import {
   LockKeyhole,
   Plus,
   Share2,
+  SlidersHorizontal,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
@@ -208,6 +209,13 @@ export function AgendaPage() {
   const [showCancelled, setShowCancelled] = useState(false);
   // Filtro "Profissional": vazio mostra a agenda de todos.
   const [professionalFilter, setProfessionalFilter] = useState("");
+  // RF10: no celular, filtros e legendas ficam recolhidos no botão "Filtros" (aplicados mesmo
+  // recolhidos); conta como ativo o que difere do padrão.
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const activeFilterCount =
+    (professionalFilter ? 1 : 0) +
+    (showCancelled ? 1 : 0) +
+    (showNotes ? 0 : 1);
   const byProfessional = <T extends { professionalId?: string | undefined }>(
     items: T[],
   ) =>
@@ -541,7 +549,9 @@ export function AgendaPage() {
         <ReadOnlyNotice module="agenda" />
       )}
       {error && <ErrorBanner error={error} />}
-      <section className="panel agenda-panel">
+      <section
+        className={`panel agenda-panel${filtersOpen ? " agenda-filters-open" : ""}`}
+      >
         <div className="agenda-toolbar">
           <div className="date-navigator">
             <span className="agenda-calendar-icon" aria-hidden="true">
@@ -607,17 +617,19 @@ export function AgendaPage() {
             </button>
           </div>
           <div className="agenda-toolbar-end">
-            <label className="checkbox-field">
-              <input
-                type="checkbox"
-                checked={showNotes}
-                onChange={(event) => {
-                  setShowNotes(event.target.checked);
-                  storeShowNotes(event.target.checked);
-                }}
-              />
-              Mostrar notas
-            </label>
+            <div id="agenda-filters-notes" className="agenda-filter-part">
+              <label className="checkbox-field">
+                <input
+                  type="checkbox"
+                  checked={showNotes}
+                  onChange={(event) => {
+                    setShowNotes(event.target.checked);
+                    storeShowNotes(event.target.checked);
+                  }}
+                />
+                Mostrar notas
+              </label>
+            </div>
             <div
               className="view-toggle"
               role="group"
@@ -645,21 +657,44 @@ export function AgendaPage() {
                 Mês
               </button>
             </div>
-            <label className="checkbox-field agenda-cancelled-toggle">
-              <input
-                type="checkbox"
-                checked={showCancelled}
-                onChange={(event) => setShowCancelled(event.target.checked)}
-              />
-              Mostrar cancelados
-            </label>
-            <AgendaStatusLegend />
+            <button
+              type="button"
+              className="secondary-button button-sm agenda-filters-toggle"
+              aria-label={
+                activeFilterCount > 0
+                  ? `Filtros, ${activeFilterCount} ${activeFilterCount === 1 ? "ativo" : "ativos"}`
+                  : undefined
+              }
+              aria-expanded={filtersOpen}
+              aria-controls={`agenda-filters-notes agenda-filters-status${agendaProfessionals.length > 0 ? " agenda-filters-professionals" : ""}`}
+              onClick={() => setFiltersOpen((open) => !open)}
+            >
+              <SlidersHorizontal size={16} aria-hidden="true" />
+              Filtros
+              {activeFilterCount > 0 && (
+                <span className="tab-count">{activeFilterCount}</span>
+              )}
+            </button>
+            <div id="agenda-filters-status" className="agenda-filter-part">
+              <label className="checkbox-field agenda-cancelled-toggle">
+                <input
+                  type="checkbox"
+                  checked={showCancelled}
+                  onChange={(event) => setShowCancelled(event.target.checked)}
+                />
+                Mostrar cancelados
+              </label>
+              <AgendaStatusLegend />
+            </div>
           </div>
         </div>
         {(agendaProfessionals.length > 0 || view === "day") && (
           <div className="agenda-professionals">
             {agendaProfessionals.length > 0 && (
-              <>
+              <div
+                id="agenda-filters-professionals"
+                className="agenda-filter-part"
+              >
                 <span className="agenda-legend-label">Profissionais</span>
                 <div className="legend" aria-label="Legenda dos profissionais">
                   {agendaProfessionals.map((professional) => (
@@ -691,7 +726,7 @@ export function AgendaPage() {
                     </select>
                   </label>
                 )}
-              </>
+              </div>
             )}
             {view === "day" && (
               <div
