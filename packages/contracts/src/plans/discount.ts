@@ -7,6 +7,21 @@ import { z } from "zod";
  */
 export const patientDiscountScopeSchema = z.enum(["once", "next", "permanent"]);
 
+/** Rótulos do alcance do desconto (modal do desconto e Configurações). */
+export const patientDiscountScopeLabels: Record<
+  z.infer<typeof patientDiscountScopeSchema>,
+  string
+> = {
+  once: "Só no próximo pagamento",
+  next: "Nas próximas cobranças",
+  permanent: "Permanente (até remover)",
+};
+
+/** Alcance pré-selecionado no desconto novo quando a clínica não configurou outro. */
+export const defaultPatientDiscountScope = "once" satisfies z.infer<
+  typeof patientDiscountScopeSchema
+>;
+
 const patientDiscountScopeShape = {
   scope: patientDiscountScopeSchema,
   /** Quantas cobranças recebem o desconto (só em `next`). */

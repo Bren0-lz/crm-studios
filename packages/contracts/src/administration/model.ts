@@ -8,6 +8,7 @@ import {
 import { adminUserCommissionInputSchema } from "../finance/model.js";
 import { serviceBusinessLineSchema } from "./business-line.js";
 import { receiptReminderSettingsSchema } from "../finance/receipt-reminders.js";
+import { patientDiscountScopeSchema } from "../plans/discount.js";
 import {
   userPermissionsSchema,
   validatePermissionInput,
@@ -266,6 +267,11 @@ export const clinicSettingsInputSchema = z.object({
    * Não controla o sino e a faixa: recibos pendentes aparecem imediatamente (RC6).
    */
   receiptReminder: receiptReminderSettingsSchema.optional(),
+  /**
+   * Alcance pré-selecionado no desconto novo do plano (cadastro guiado e ficha); ausente
+   * mantém o gravado. Sem configuração vale `defaultPatientDiscountScope` ("once").
+   */
+  defaultDiscountScope: patientDiscountScopeSchema.optional(),
   timezone: z
     .string()
     .trim()

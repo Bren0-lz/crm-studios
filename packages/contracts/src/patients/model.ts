@@ -49,11 +49,13 @@ export const patientStatusSchema = z.enum(["active", "inactive"]);
 // O desconto é do plano vendido (ver `plans/discount.ts`); os nomes seguem os antigos.
 export {
   applyPatientDiscount,
+  defaultPatientDiscountScope,
   discountedInstallments,
   patientDiscountDescription,
   patientDiscountOff,
   patientDiscountRemaining,
   patientDiscountSchema,
+  patientDiscountScopeLabels,
   patientDiscountScopeSchema,
   samePatientDiscount,
 } from "../plans/discount.js";

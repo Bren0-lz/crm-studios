@@ -1,4 +1,10 @@
-import { patientDiscountSchema, type PatientDiscount } from "@crm/contracts";
+import {
+  defaultPatientDiscountScope,
+  patientDiscountScopeLabels,
+  patientDiscountSchema,
+  type PatientDiscount,
+  type PatientDiscountScope,
+} from "@crm/contracts";
 import { useState, type FormEvent } from "react";
 import { Modal, ModalCancelButton } from "../../shared/components/Modal";
 import { MoneyInput } from "../../shared/components/MoneyInput";
@@ -37,12 +43,18 @@ const discountTitles: Record<DiscountTarget, [string, string]> = {
 export function PatientDiscountModal({
   discount,
   target = "plan",
+  defaultScope = defaultPatientDiscountScope,
   eyebrow = "Clientes",
   onApply,
   onClose,
 }: {
   discount: PatientDiscount | null | undefined;
   target?: DiscountTarget;
+  /**
+   * Alcance já marcado no desconto novo do plano (Configurações da clínica, RF11); o
+   * desconto aberto para edição mantém o alcance dele.
+   */
+  defaultScope?: PatientDiscountScope | undefined;
   /** Nome do módulo no topo do modal (o cadastro guiado fica em Clientes). */
   eyebrow?: string;
   onApply: (discount: PatientDiscount | null) => void;
@@ -61,7 +73,7 @@ export function PatientDiscountModal({
     discount?.type === "amount" ? discount.amountInCents : null,
   );
   const [scope, setScope] = useState<PatientDiscount["scope"]>(
-    discount?.scope ?? "once",
+    discount?.scope ?? defaultScope,
   );
   const [charges, setCharges] = useState(
     discount?.scope === "next" && discount.charges
@@ -157,7 +169,7 @@ export function PatientDiscountModal({
                   checked={scope === "once"}
                   onChange={() => setScope("once")}
                 />
-                Só no próximo pagamento
+                {patientDiscountScopeLabels.once}
               </label>
               <label className="checkbox-field">
                 <input
@@ -166,7 +178,7 @@ export function PatientDiscountModal({
                   checked={scope === "next"}
                   onChange={() => setScope("next")}
                 />
-                Nas próximas cobranças
+                {patientDiscountScopeLabels.next}
               </label>
               <label className="checkbox-field">
                 <input
@@ -175,7 +187,7 @@ export function PatientDiscountModal({
                   checked={scope === "permanent"}
                   onChange={() => setScope("permanent")}
                 />
-                Permanente (até remover)
+                {patientDiscountScopeLabels.permanent}
               </label>
             </div>
           </fieldset>

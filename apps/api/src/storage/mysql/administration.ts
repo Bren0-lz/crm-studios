@@ -26,6 +26,8 @@ import {
   type RoomInput,
   type ServiceInput,
   defaultAutoFinalizationSettings,
+  defaultPatientDiscountScope,
+  type PatientDiscountScope,
   type PaymentMethodInstallments,
   type PaymentMethodSettingsInput,
   resolvePaymentMethodSettings,
@@ -81,6 +83,7 @@ type ClinicSettingsRow = {
   pixMessageTemplate: string | null;
   paymentReceiptMessageTemplate: string | null;
   receiptReminder?: unknown;
+  defaultDiscountScope?: PatientDiscountScope | null;
   timezone: string;
   updatedAt: Date;
 };
@@ -89,7 +92,8 @@ const clinicSettingsColumns = `id, name, legal_name AS "legalName", tax_id AS "t
   logo_data_url AS "logoDataUrl",email, address, pix_key AS "pixKey",
   pix_message_template AS "pixMessageTemplate",
   payment_receipt_message_template AS "paymentReceiptMessageTemplate",
-  receipt_reminder AS "receiptReminder", timezone, updated_at AS "updatedAt"`;
+  receipt_reminder AS "receiptReminder",
+  default_discount_scope AS "defaultDiscountScope", timezone, updated_at AS "updatedAt"`;
 
 type AutoFinalizationRow = {
   enabled: boolean;
@@ -168,6 +172,8 @@ function mapClinicSettings(row: ClinicSettingsRow): ClinicSettings {
           ),
         }
       : {}),
+    defaultDiscountScope:
+      row.defaultDiscountScope ?? defaultPatientDiscountScope,
     timezone: row.timezone,
     updatedAt: row.updatedAt.toISOString(),
   };
@@ -983,6 +989,7 @@ export function createAdministrationRepository(
             pix_message_template = CASE WHEN $13 THEN $14 ELSE pix_message_template END,
             payment_receipt_message_template = CASE WHEN $15 THEN $16 ELSE payment_receipt_message_template END,
             receipt_reminder = CASE WHEN $17 THEN $18 ELSE receipt_reminder END,
+            default_discount_scope = CASE WHEN $19 THEN $20 ELSE default_discount_scope END,
             updated_at = NOW(6)
          WHERE id = $1`,
           [
@@ -1004,6 +1011,8 @@ export function createAdministrationRepository(
             input.paymentReceiptMessageTemplate || null,
             input.receiptReminder !== undefined,
             input.receiptReminder ?? null,
+            input.defaultDiscountScope !== undefined,
+            input.defaultDiscountScope ?? null,
           ],
           `SELECT ${clinicSettingsColumns} FROM clinics WHERE id = $1`,
         );

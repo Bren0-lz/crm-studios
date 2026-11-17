@@ -180,6 +180,8 @@ export interface ClinicBranding {
   pixKey?: string;
   /** Modelo da mensagem de cobrança Pix; vazio = texto padrão. */
   pixMessageTemplate?: string;
+  /** Alcance pré-selecionado no desconto novo do plano (Configurações da clínica). */
+  defaultDiscountScope?: ClinicSettingsInput["defaultDiscountScope"];
 }
 
 export interface ClinicSettings extends ClinicSettingsInput {

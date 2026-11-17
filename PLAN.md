@@ -2121,7 +2121,7 @@ filtros ficam no `dashboard-studios` (EN11–EN13 têm só a parte da API aqui).
   clínica nos dois repositórios (migração nova só se não houver lugar de configuração da clínica
   que sirva). Testes API e web.
 - **Gate:** gate completo + `npm run test:mysql`
-- **Status:** TODO
+- **Status:** DONE
 
 ### RF12 — Motivo nos estornos de comissão (D4)
 

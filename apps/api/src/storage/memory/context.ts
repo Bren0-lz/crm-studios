@@ -1,4 +1,5 @@
 import {
+  defaultPatientDiscountScope,
   planHasSessionBalance,
   starterAssessmentTemplates,
 } from "@crm/contracts";
@@ -473,6 +474,7 @@ export class MemoryRepositoryContext {
     phone: "",
     email: "",
     address: "",
+    defaultDiscountScope: defaultPatientDiscountScope,
     timezone: "America/Sao_Paulo",
     updatedAt: now(),
   };

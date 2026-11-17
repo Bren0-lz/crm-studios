@@ -20,6 +20,7 @@ import {
   type Lead,
   type Patient,
   type PatientDiscount,
+  type PatientDiscountScope,
   type PatientInput,
   type PatientTag,
   type Product,
@@ -400,6 +401,9 @@ export function PatientModal({
   const [pixKey, setPixKey] = useState<string | null>(null);
   // Modelo da mensagem configurado pela clínica; vazio = texto padrão.
   const [pixTemplate, setPixTemplate] = useState("");
+  // Alcance já marcado no desconto novo do plano, configurado pela clínica (RF11).
+  const [defaultDiscountScope, setDefaultDiscountScope] =
+    useState<PatientDiscountScope>();
   useEffect(() => {
     if (!sellsPlans) return;
     let active = true;
@@ -409,6 +413,7 @@ export function PatientModal({
         if (!active) return;
         setPixKey(branding.pixKey ?? "");
         setPixTemplate(branding.pixMessageTemplate ?? "");
+        setDefaultDiscountScope(branding.defaultDiscountScope);
       })
       .catch(() => {
         if (active) setPixKey("");
@@ -1652,6 +1657,7 @@ export function PatientModal({
           <PatientDiscountModal
             discount={discountTarget.discount}
             target={discountTarget.target}
+            defaultScope={defaultDiscountScope}
             onApply={(discount) => {
               discountTarget.apply(discount);
               setDiscountTarget(null);
