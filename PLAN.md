@@ -2018,7 +2018,7 @@ filtros ficam no `dashboard-studios` (EN11–EN13 têm só a parte da API aqui).
   Lista de espera) e os caminhos de movimento de saldo que gravam `actor_user_id` nulo.
   Registros antigos seguem "Responsável não registrado". Testes API (memória e MySQL).
 - **Gate:** gate completo + `npm run test:mysql`
-- **Status:** TODO
+- **Status:** DONE
 
 ### RF2 — Plano não aparece "quitado" com parcelas de renegociação em aberto
 

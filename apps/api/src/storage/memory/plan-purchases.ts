@@ -136,6 +136,7 @@ export function createPlanPurchasesRepository(
           (await context.operations.confirmGroupEnrollment(
             clinicId,
             waiting.id,
+            actorId,
           )) ?? undefined
         );
       };
@@ -171,10 +172,11 @@ export function createPlanPurchasesRepository(
         const enrollment = current
           ? structuredClone(promoted ?? current)
           : input.groupId
-            ? await context.operations.createGroupEnrollment(clinicId, {
-                groupId: input.groupId,
-                patientId: plan.patientId,
-              })
+            ? await context.operations.createGroupEnrollment(
+                clinicId,
+                { groupId: input.groupId, patientId: plan.patientId },
+                actorId,
+              )
             : undefined;
         // Sem vaga confirmada na turma não há venda (TW3): desfaz plano e matrícula.
         assertPlanEnrollmentSeat(enrollment);

@@ -180,8 +180,8 @@ export function createPlanPurchasesRepository(context: MysqlRepositoryContext) {
           );
           if (group.rows[0] && active.rows.length < group.rows[0].capacity) {
             await client.query(
-              `UPDATE group_enrollments SET status='active',queue_position=NULL,enrolled_at=GREATEST(enrolled_at,NOW(6)),updated_at=NOW(6) WHERE clinic_id=$1 AND id=$2`,
-              [clinicId, current.id],
+              `UPDATE group_enrollments SET status='active',queue_position=NULL,enrolled_at=GREATEST(enrolled_at,NOW(6)),created_by_user_id=$3,updated_at=NOW(6) WHERE clinic_id=$1 AND id=$2`,
+              [clinicId, current.id, actorId],
             );
             await client.query(
               `UPDATE group_enrollments e JOIN (SELECT id,row_number() OVER (ORDER BY queue_position,enrolled_at) AS position FROM group_enrollments WHERE clinic_id=$1 AND group_id=$2 AND status='waitlisted') ranked ON e.id=ranked.id SET e.queue_position=ranked.position`,
@@ -198,10 +198,12 @@ export function createPlanPurchasesRepository(context: MysqlRepositoryContext) {
         const enrollment = current
           ? mapGroupEnrollment(current)
           : input.groupId
-            ? await context.insertGroupEnrollment(client, clinicId, {
-                groupId: input.groupId,
-                patientId: plan.patientId,
-              })
+            ? await context.insertGroupEnrollment(
+                client,
+                clinicId,
+                { groupId: input.groupId, patientId: plan.patientId },
+                actorId,
+              )
             : undefined;
         // Sem vaga confirmada na turma não há venda (TW3): desfaz plano e matrícula.
         assertPlanEnrollmentSeat(enrollment);

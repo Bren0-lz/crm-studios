@@ -51,6 +51,7 @@ export function createGroupOperationsRepository(
     attendance: GroupAttendance,
     meeting: GroupSession,
     present: boolean,
+    actorUserId: string,
   ) {
     if (!attendance.accountingEnabled) return;
     const ledger = context.sessionMovements.filter(
@@ -122,8 +123,10 @@ export function createGroupOperationsRepository(
       0,
     );
     plan.updatedAt = now();
+    const movementId = uuid();
+    context.recordCreators.set(movementId, actorUserId);
     context.sessionMovements.push({
-      id: uuid(),
+      id: movementId,
       planId: plan.id,
       groupAttendanceId: attendance.id,
       serviceId: entry.serviceId,
@@ -200,7 +203,7 @@ export function createGroupOperationsRepository(
         accountingEnabled: true,
         recordedAt: now(),
       };
-      movement(attendance, meeting, input.status === "present");
+      movement(attendance, meeting, input.status === "present", actorUserId);
       Object.assign(attendance, input, { recordedAt: now() });
       if (!existing) context.groupAttendance.push(attendance);
       if (input.status === "excused_absence") {
@@ -359,7 +362,7 @@ export function createGroupOperationsRepository(
           "Este crédito não está reservado neste encontro.",
           409,
         );
-      movement(attendance, meeting, status === "present");
+      movement(attendance, meeting, status === "present", actorUserId);
       attendance.outcome = status;
       attendance.recordedAt = now();
       if (status === "cancelled" || status === "excused_absence") {

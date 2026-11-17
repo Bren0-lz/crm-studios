@@ -111,6 +111,7 @@ export function assertTabCreditsReversible(
 export function cancelTabCredits(
   context: MemoryRepositoryContext,
   tab: PatientTab,
+  actorUserId: string,
 ) {
   for (const plan of context.patientPlans.filter(
     (p) =>
@@ -119,9 +120,11 @@ export function cancelTabCredits(
       p.status !== "cancelled",
   )) {
     for (const service of plan.services) {
-      if (service.remainingSessions > 0)
+      if (service.remainingSessions > 0) {
+        const movementId = uuid();
+        context.recordCreators.set(movementId, actorUserId);
         context.sessionMovements.push({
-          id: uuid(),
+          id: movementId,
           planId: plan.id,
           serviceId: service.serviceId,
           serviceName: service.serviceName,
@@ -130,6 +133,7 @@ export function cancelTabCredits(
           reason: "Cancelamento da comanda",
           createdAt: now(),
         });
+      }
       service.remainingSessions = 0;
     }
     plan.remainingSessions = 0;

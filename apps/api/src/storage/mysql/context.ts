@@ -749,6 +749,7 @@ export class MysqlRepositoryContext {
     client: PoolClient,
     clinicId: string,
     input: GroupEnrollmentInput,
+    actorUserId?: string,
   ) {
     try {
       const group = await client.query<{ capacity: number }>(
@@ -779,8 +780,8 @@ export class MysqlRepositoryContext {
       const enrollmentId = randomUUID();
       await client.query(
         // Início em outra data que não hoje (fuso da clínica): meia-noite desse dia.
-        `INSERT INTO group_enrollments (id,clinic_id,group_id,patient_id,status,queue_position,enrolled_at)
-         VALUES ($6,$1,$2,$3,$4,$5,CASE WHEN $7 IS NULL OR $7=${localToday()} THEN NOW(6) ELSE ${localDayStart("$7")} END)`,
+        `INSERT INTO group_enrollments (id,clinic_id,group_id,patient_id,status,queue_position,enrolled_at,created_by_user_id)
+         VALUES ($6,$1,$2,$3,$4,$5,CASE WHEN $7 IS NULL OR $7=${localToday()} THEN NOW(6) ELSE ${localDayStart("$7")} END,$8)`,
         [
           clinicId,
           input.groupId,
@@ -789,6 +790,7 @@ export class MysqlRepositoryContext {
           status === "waitlisted" ? (counts.rows[0]!.maxQueue ?? 0) + 1 : null,
           enrollmentId,
           input.startsOn ?? null,
+          actorUserId ?? null,
         ],
       );
       const result = await client.query<GroupEnrollmentRow>(
@@ -965,6 +967,8 @@ export class MysqlRepositoryContext {
     },
     creditReason: string,
     renewedFromPlanId?: string,
+    /** Autor de "Plano contratado"; a renovação automática passa `null`. */
+    createdByUserId: string | null = actorUserId,
   ) {
     // Plano picado: forma e parcelas derivadas das formas; forma única dispensa a lista.
     input = withPlanPaymentParts(input);
@@ -1049,9 +1053,10 @@ export class MysqlRepositoryContext {
          clinic_id, patient_id, service_id, name, kind, total_sessions,
          remaining_sessions, valid_from, valid_until, total_value_in_cents,
          installments, first_due_date, auto_renew, renewed_from_plan_id, plan_template_id,
-         branch_id, payment_method, id, discount, created_at, payment_parts
+         branch_id, payment_method, id, discount, created_at, payment_parts,
+         created_by_user_id
        ) VALUES ($1,$2,$3,$4,$5,$6,$6,$7,$8,$9,$10,$11,$12,$13,$14,
-         ${branchOrDefault("$15", "$1")}, $16, $17, $18, $19, $20
+         ${branchOrDefault("$15", "$1")}, $16, $17, $18, $19, $20, $21
        )`,
       [
         clinicId,
@@ -1075,6 +1080,7 @@ export class MysqlRepositoryContext {
         // Hora da venda pelo relógio da aplicação (o mesmo do relatório de vendas por período).
         new Date(),
         input.paymentParts ?? [],
+        createdByUserId,
       ],
     );
     for (const [position, entry] of input.services.entries()) {
@@ -2022,6 +2028,7 @@ export class MysqlRepositoryContext {
     patientId: string,
     serviceId: string,
     startsAt: Date,
+    actorUserId?: string,
   ) {
     const appointment = await client.query<{
       planId: string | null;
@@ -2095,14 +2102,15 @@ export class MysqlRepositoryContext {
     }
     await client.query(
       `INSERT INTO session_movements
-         (clinic_id, plan_id, appointment_id, kind, quantity, reason, service_id)
-       VALUES ($1, $2, $3, $4, -1, 'Atendimento finalizado', $5)`,
+         (clinic_id, plan_id, appointment_id, kind, quantity, reason, service_id, actor_user_id)
+       VALUES ($1, $2, $3, $4, -1, 'Atendimento finalizado', $5, $6)`,
       [
         clinicId,
         plan.id,
         appointmentId,
         ledger.rows[0]?.consumed ? "adjustment" : "consumption",
         serviceId,
+        actorUserId ?? null,
       ],
     );
     await client.query(
@@ -2120,6 +2128,7 @@ export class MysqlRepositoryContext {
     client: PoolClient,
     clinicId: string,
     appointmentId: string,
+    actorUserId?: string,
   ) {
     const planResult = await client.query<{
       id: string;
@@ -2143,14 +2152,15 @@ export class MysqlRepositoryContext {
     if (!plan) return;
     await client.query(
       `INSERT INTO session_movements
-         (clinic_id, plan_id, appointment_id, kind, quantity, reason, service_id)
-       VALUES ($1, $2, $3, $4, 1, 'Reversão do atendimento finalizado', $5)`,
+         (clinic_id, plan_id, appointment_id, kind, quantity, reason, service_id, actor_user_id)
+       VALUES ($1, $2, $3, $4, 1, 'Reversão do atendimento finalizado', $5, $6)`,
       [
         clinicId,
         plan.id,
         appointmentId,
         plan.reversed ? "adjustment" : "reversal",
         plan.serviceId,
+        actorUserId ?? null,
       ],
     );
     await client.query(

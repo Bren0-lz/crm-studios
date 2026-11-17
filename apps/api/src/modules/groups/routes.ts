@@ -151,6 +151,7 @@ export function registerGroupsRoutes(context: RouteContext) {
           await repository.createGroupEnrollment(
             request.user.clinicId,
             groupEnrollmentInputSchema.parse(request.body),
+            request.user.sub,
           ),
         ),
   );
@@ -181,6 +182,7 @@ export function registerGroupsRoutes(context: RouteContext) {
       const enrollment = await repository.confirmGroupEnrollment(
         request.user.clinicId,
         id,
+        request.user.sub,
       );
       if (!enrollment)
         return reply

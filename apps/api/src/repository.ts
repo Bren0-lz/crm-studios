@@ -1182,13 +1182,16 @@ export interface ClinicRepository {
     groupId: string,
     name: string,
   ): Promise<GroupClass | null>;
+  /** `actorUserId`: quem matriculou (autor de "Cliente matriculado em turma" no Histórico). */
   createGroupEnrollment(
     clinicId: string,
     input: GroupEnrollmentInput,
+    actorUserId?: string,
   ): Promise<GroupEnrollment>;
   confirmGroupEnrollment(
     clinicId: string,
     enrollmentId: string,
+    actorUserId?: string,
   ): Promise<GroupEnrollment | null>;
   cancelGroupEnrollment(
     clinicId: string,
@@ -1270,11 +1273,13 @@ export interface ClinicRepository {
     id: string,
     input: AppointmentRescheduleInput,
   ): Promise<Appointment>;
+  /** `actorUserId`: autor do movimento de saldo de sessões no Histórico. */
   updateAppointmentStatus(
     clinicId: string,
     appointmentId: string,
     status: AppointmentStatus,
     absenceReason?: string,
+    actorUserId?: string,
   ): Promise<Appointment | null>;
   listClinicalRecords(
     clinicId: string,

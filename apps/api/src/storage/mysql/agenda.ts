@@ -1356,9 +1356,18 @@ export function createAgendaRepository(
       return updated.rows[0] ? mapGroupClass(updated.rows[0]) : null;
     },
 
-    async createGroupEnrollment(clinicId: string, input: GroupEnrollmentInput) {
+    async createGroupEnrollment(
+      clinicId: string,
+      input: GroupEnrollmentInput,
+      actorUserId?: string,
+    ) {
       return repositoryContext.inTransaction((client) =>
-        repositoryContext.insertGroupEnrollment(client, clinicId, input),
+        repositoryContext.insertGroupEnrollment(
+          client,
+          clinicId,
+          input,
+          actorUserId,
+        ),
       );
     },
 
@@ -1410,7 +1419,11 @@ export function createAgendaRepository(
       }
     },
 
-    async confirmGroupEnrollment(clinicId: string, enrollmentId: string) {
+    async confirmGroupEnrollment(
+      clinicId: string,
+      enrollmentId: string,
+      actorUserId?: string,
+    ) {
       const current = await repositoryContext.pool.query<{ groupId: string }>(
         `SELECT group_id AS "groupId" FROM group_enrollments WHERE clinic_id=$1 AND id=$2`,
         [clinicId, enrollmentId],
@@ -1443,9 +1456,10 @@ export function createAgendaRepository(
             "A turma está cheia. A vaga não está mais disponível.",
             409,
           );
+        // A confirmação é a matrícula do Histórico (o instante passa a ser o dela).
         await client.query(
-          `UPDATE group_enrollments SET status='active',queue_position=NULL,enrolled_at=GREATEST(enrolled_at,NOW(6)),updated_at=NOW(6) WHERE clinic_id=$1 AND id=$2`,
-          [clinicId, enrollmentId],
+          `UPDATE group_enrollments SET status='active',queue_position=NULL,enrolled_at=GREATEST(enrolled_at,NOW(6)),created_by_user_id=COALESCE($3,created_by_user_id),updated_at=NOW(6) WHERE clinic_id=$1 AND id=$2`,
+          [clinicId, enrollmentId, actorUserId ?? null],
         );
         await client.query(
           `UPDATE group_enrollments e JOIN (SELECT id,row_number() OVER (ORDER BY queue_position,enrolled_at) AS position FROM group_enrollments WHERE clinic_id=$1 AND group_id=$2 AND status='waitlisted') ranked ON e.id=ranked.id SET e.queue_position=ranked.position`,
@@ -1651,6 +1665,7 @@ export function createAgendaRepository(
       appointmentId: string,
       status: AppointmentStatus,
       absenceReason?: string,
+      actorUserId?: string,
     ) {
       const client = await repositoryContext.pool.connect();
       try {
@@ -1727,6 +1742,7 @@ export function createAgendaRepository(
             patientId,
             current.rows[0].serviceId,
             current.rows[0].startsAt,
+            actorUserId,
           );
         } else if (
           current.rows[0].status === "completed" &&
@@ -1736,6 +1752,7 @@ export function createAgendaRepository(
             client,
             clinicId,
             appointmentId,
+            actorUserId,
           );
         }
         if (current.rows[0].status === "cancelled" && status !== "cancelled")

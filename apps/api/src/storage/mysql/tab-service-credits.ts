@@ -42,7 +42,7 @@ export async function createTabServiceCredits(
       );
     const planId = randomUUID();
     await client.query(
-      `INSERT INTO patient_plans(clinic_id,patient_id,service_id,name,kind,total_sessions,remaining_sessions,valid_from,total_value_in_cents,installments,first_due_date,auto_renew,source_tab_id,source_appointment_id,branch_id,id) VALUES($1,$2,$3,$4,'single',1,1,$5,$6,1,$5,false,$7,$8,(SELECT branch_id FROM patient_tabs WHERE clinic_id=$1 AND id=$7),$9)`,
+      `INSERT INTO patient_plans(clinic_id,patient_id,service_id,name,kind,total_sessions,remaining_sessions,valid_from,total_value_in_cents,installments,first_due_date,auto_renew,source_tab_id,source_appointment_id,branch_id,id,created_by_user_id) VALUES($1,$2,$3,$4,'single',1,1,$5,$6,1,$5,false,$7,$8,(SELECT branch_id FROM patient_tabs WHERE clinic_id=$1 AND id=$7),$9,$10)`,
       [
         clinicId,
         item.patientId,
@@ -53,6 +53,7 @@ export async function createTabServiceCredits(
         tabId,
         item.appointmentId,
         planId,
+        actorUserId,
       ],
     );
     await client.query(

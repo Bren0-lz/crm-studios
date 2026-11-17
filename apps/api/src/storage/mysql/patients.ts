@@ -493,10 +493,12 @@ export function createPatientsRepository(
             patientId: patient.id,
           });
           const enrollment = item.groupId
-            ? await repositoryContext.insertGroupEnrollment(client, clinicId, {
-                groupId: item.groupId,
-                patientId: patient.id,
-              })
+            ? await repositoryContext.insertGroupEnrollment(
+                client,
+                clinicId,
+                { groupId: item.groupId, patientId: patient.id },
+                actorUserId,
+              )
             : undefined;
           assertPlanEnrollmentSeat(enrollment);
           const appointments = await bookPlanAppointments(

@@ -32,6 +32,7 @@ export function createGroupOperationsRepository(
     clinicId: string,
     attendanceId: string,
     present: boolean,
+    actorUserId: string,
   ) {
     const result = await client.query<{
       enabled: boolean;
@@ -90,7 +91,7 @@ export function createGroupOperationsRepository(
     const quantity = present ? -1 : 1,
       serviceId = present ? attendance.serviceId : entry.serviceId;
     await client.query(
-      `INSERT INTO session_movements(clinic_id,plan_id,group_attendance_id,service_id,kind,quantity,reason) VALUES($1,$2,$3,$4,$5,$6,$7)`,
+      `INSERT INTO session_movements(clinic_id,plan_id,group_attendance_id,service_id,kind,quantity,reason,actor_user_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8)`,
       [
         clinicId,
         plan.id,
@@ -105,6 +106,7 @@ export function createGroupOperationsRepository(
             : "reversal",
         quantity,
         present ? "Presença em turma" : "Correção da presença em turma",
+        actorUserId,
       ],
     );
     await client.query(
@@ -184,7 +186,13 @@ export function createGroupOperationsRepository(
           "SELECT id FROM group_attendance WHERE session_id=$2 AND patient_id=$3",
         );
         const id = inserted.rows[0]!.id;
-        await movement(client, clinicId, id, input.status === "present");
+        await movement(
+          client,
+          clinicId,
+          id,
+          input.status === "present",
+          actorUserId,
+        );
         if (input.status === "excused_absence")
           await client.query(
             `INSERT INTO replacement_credits(clinic_id,patient_id,source_session_id) VALUES($1,$2,$3) ON DUPLICATE KEY UPDATE status=CASE WHEN status='cancelled' THEN 'available' ELSE status END`,
@@ -353,7 +361,13 @@ export function createGroupOperationsRepository(
             "Este crédito não está reservado neste encontro.",
             409,
           );
-        await movement(client, clinicId, attendanceId, status === "present");
+        await movement(
+          client,
+          clinicId,
+          attendanceId,
+          status === "present",
+          actorUserId,
+        );
         await client.query(
           "UPDATE group_attendance SET outcome=$3,recorded_by_user_id=$4,recorded_at=NOW(6) WHERE clinic_id=$1 AND id=$2",
           [clinicId, attendanceId, status, actorUserId],
