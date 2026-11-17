@@ -5,6 +5,7 @@ import { ActionModal } from "../../shared/components/ActionModal";
 import { WaitlistContactModal } from "./WaitlistContactModal";
 import {
   type GroupClass,
+  type GroupEnrollment,
   type GroupWorkspace,
   type PatientOption,
   type Professional,
@@ -120,6 +121,10 @@ export function GroupsPage() {
   ];
   const [workspace, setWorkspace] = useState<GroupWorkspace | null>(null);
   const [confirmWaitlist, setConfirmWaitlist] = useState(false);
+  /** Matrícula à espera da confirmação de cancelamento. */
+  const [cancelTarget, setCancelTarget] = useState<GroupEnrollment | null>(
+    null,
+  );
   const [patients, setPatients] = useState<PatientOption[]>([]);
   const [professionals, setProfessionals] = useState<Professional[]>([]);
   const [rooms, setRooms] = useState<Room[]>([]);
@@ -420,6 +425,36 @@ export function GroupsPage() {
           />,
           document.body,
         )}
+      {cancelTarget &&
+        createPortal(
+          <ActionModal
+            eyebrow="Turmas"
+            title="Cancelar matrícula"
+            subtitle={
+              cancelTarget.status === "active"
+                ? `Cancelar a matrícula de ${cancelTarget.patientName} nesta turma?`
+                : `Tirar ${cancelTarget.patientName} da lista de espera desta turma?`
+            }
+            effect={
+              cancelTarget.status === "active"
+                ? "A matrícula termina hoje e a vaga na turma fica livre. Ninguém da lista de espera é matriculado automaticamente: a vaga é oferecida pela Lista de espera."
+                : `O cliente sai da lista de espera (posição ${cancelTarget.queuePosition ?? "-"}) e quem vem depois sobe uma posição na fila.`
+            }
+            confirmLabel="Cancelar matrícula"
+            danger
+            onClose={() => setCancelTarget(null)}
+            onConfirm={async () => {
+              setError("");
+              await api.cancelGroupEnrollment(cancelTarget.id);
+              setCancelTarget(null);
+              toast.success(
+                `Matrícula de ${patientFirstName(cancelTarget.patientName)} cancelada.`,
+              );
+              await load();
+            }}
+          />,
+          document.body,
+        )}
       {offerId && workspace && (
         <WaitlistContactModal
           enrollment={workspace.enrollments.find((item) => item.id === offerId)}
@@ -699,6 +734,7 @@ export function GroupsPage() {
               title="Nova matrícula"
               subtitle="Escolha a turma e o cliente."
               busy={saving}
+              inactive={confirmWaitlist}
               dirty={enrollDirty}
               onClose={closeGroupDialogs}
             >
@@ -900,6 +936,7 @@ export function GroupsPage() {
                 (item) => item.id === selectedGroup.serviceId,
               )}
               initialSessionId={initialSessionId}
+              nested={Boolean(cancelTarget) || confirmWaitlist}
               calendar={{
                 month: calendarMonth,
                 loading: calendarLoading,
@@ -1151,12 +1188,7 @@ export function GroupsPage() {
                               type="button"
                               className="danger-button button-sm"
                               aria-label={`Cancelar matrícula de ${item.patientName}`}
-                              onClick={() =>
-                                void run(async () => {
-                                  await api.cancelGroupEnrollment(item.id);
-                                  return `Matrícula de ${patientFirstName(item.patientName)} cancelada.`;
-                                })
-                              }
+                              onClick={() => setCancelTarget(item)}
                             >
                               <UserMinus size={14} aria-hidden="true" />
                               Cancelar matrícula

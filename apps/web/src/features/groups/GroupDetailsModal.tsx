@@ -29,6 +29,7 @@ export function GroupDetailsModal({
   error,
   initialSessionId,
   calendar,
+  nested = false,
   onClose,
   onChanged,
   children,
@@ -42,6 +43,8 @@ export function GroupDetailsModal({
   error: string;
   initialSessionId?: string | undefined;
   calendar: GroupCalendarState;
+  /** Confirmação aberta sobre a turma (ex.: cancelar matrícula): o modal fica inerte. */
+  nested?: boolean;
   onClose: () => void;
   onChanged: () => Promise<void>;
   children: ReactNode;
@@ -68,7 +71,7 @@ export function GroupDetailsModal({
         subtitle={`${describeGroupSchedule(group.weeklySlots ?? [])} · ${group.professionalName}`}
         initialFocus='[role="tab"][aria-selected="true"]'
         busy={saving}
-        inactive={Boolean(meeting)}
+        inactive={Boolean(meeting) || nested}
         dirty={dirty}
         onClose={onClose}
       >
