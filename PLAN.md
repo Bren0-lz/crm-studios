@@ -2109,7 +2109,7 @@ filtros ficam no `dashboard-studios` (EN11–EN13 têm só a parte da API aqui).
   começa logo abaixo das datas, dentro da primeira tela em 440×956 e 360×800; a primeira linha
   não fica sob o topo fixo. No computador nada muda. Teste e2e.
 - **Gate:** gate completo + `npm run test:e2e`
-- **Status:** TODO
+- **Status:** DONE
 
 ### RF11 — Alcance padrão do desconto configurável (D3)
 

@@ -180,7 +180,14 @@
   font-size: var(--text-xs);
   font-weight: 700;
 }
-.agenda-professional-filter + .agenda-day-layout {
+/* RF10: partes que o botão "Filtros" recolhe no celular; no computador não mudam o layout. */
+.agenda-filter-part {
+  display: contents;
+}
+.agenda-filters-toggle {
+  display: none;
+}
+.agenda-filter-part:has(> .agenda-professional-filter) + .agenda-day-layout {
   margin-left: 0;
 }
 .agenda-professional-filter select {
@@ -1121,6 +1128,32 @@ button.day-event:focus-visible {
   .agenda-panel .view-toggle .tab-button {
     flex: 1;
   }
+  /* RF10 (D2): filtros e legendas recolhidos no botão "Filtros" (ao lado de Dia/Semana/Mês
+     quando cabe); a grade começa logo abaixo das datas. */
+  .agenda-panel .agenda-toolbar-end {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  .agenda-panel .agenda-toolbar-end > .view-toggle {
+    order: -2;
+    flex: 1 1 calc(var(--space-8) * 4);
+    width: auto;
+  }
+  .agenda-filters-toggle {
+    display: inline-flex;
+    order: -1;
+    flex: 0 0 auto;
+  }
+  .agenda-panel .agenda-filter-part > .checkbox-field,
+  .agenda-panel .agenda-status-legend {
+    flex: 1 1 100%;
+  }
+  .agenda-panel:not(.agenda-filters-open) .agenda-filter-part,
+  .agenda-panel:not(.agenda-filters-open)
+    .agenda-professionals:not(:has(.agenda-day-layout)) {
+    display: none;
+  }
   .agenda-professionals {
     padding: var(--space-3) var(--space-4);
     gap: var(--space-2);
@@ -1481,8 +1514,13 @@ button.day-event:focus-visible {
      --topbar-offset); rolando até ela, só ela rola (antes, 70vh com o topo por cima deixava
      as duas rolagens à vista). */
   .day-grid-scroll {
-    max-height: calc(100dvh - var(--topbar-offset) - var(--space-4));
+    max-height: calc(100dvh - var(--topbar-offset) - var(--space-5));
     scroll-margin-top: calc(var(--topbar-offset) + var(--space-2));
+  }
+  /* RF10: o que fica abaixo da grade (respiro do dia e da página) não passa da folga acima;
+     rolando até o fim, a primeira linha dela não fica sob o topo fixo. */
+  .page-content:has(.day-grid-scroll) {
+    padding-bottom: 0;
   }
 }
 /* Bordas separadas e desenhadas nas células: no modo collapse a borda é da tabela e rola por

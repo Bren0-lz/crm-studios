@@ -65,11 +65,16 @@ test("agenda notes repeat, edit by scope and persist the visibility toggle", asy
     exact: true,
   });
   await expect(updated).toBeVisible();
+  // No celular (RF10) "Mostrar notas" fica recolhido no botão "Filtros".
+  const mobile = page.viewportSize()!.width <= 700;
+  if (mobile) await page.getByRole("button", { name: "Filtros" }).click();
   await page
     .getByRole("checkbox", { name: "Mostrar notas", exact: true })
     .uncheck();
   await expect(updated).toHaveCount(0);
   await page.reload();
+  if (mobile)
+    await page.getByRole("button", { name: "Filtros, 1 ativo" }).click();
   await expect(
     page.getByRole("checkbox", { name: "Mostrar notas", exact: true }),
   ).not.toBeChecked();
