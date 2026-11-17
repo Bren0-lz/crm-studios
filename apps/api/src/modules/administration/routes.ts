@@ -10,6 +10,7 @@ import {
   commissionRecalculationConfirmationSchema,
   paymentMethodSettingsInputSchema,
   clinicSettingsInputSchema,
+  defaultPatientDiscountScope,
   isValidTaxId,
   navTabLabelsInputSchema,
   passwordResetSchema,
@@ -229,6 +230,9 @@ export function registerAdministrationRoutes(context: RouteContext) {
       // Chave Pix para a cobrança enviada no cadastro do cliente.
       pixKey: settings?.pixKey ?? "",
       pixMessageTemplate: settings?.pixMessageTemplate ?? "",
+      // Alcance pré-selecionado no desconto novo do plano (RF11).
+      defaultDiscountScope:
+        settings?.defaultDiscountScope ?? defaultPatientDiscountScope,
     };
   });
   // Nomes das abas do menu (o admin pode renomeá-los; a chave da aba não muda).

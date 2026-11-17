@@ -3,6 +3,7 @@ import {
   type Appointment,
   type IssuedDocument,
   type PatientDiscount,
+  type PatientDiscountScope,
   type PatientOption,
   type PatientPlan,
   type Service,
@@ -89,6 +90,22 @@ export function PatientPlanModal({
     discount: PatientDiscount | undefined;
     apply: (discount: PatientDiscount | null) => void;
   } | null>(null);
+  // Alcance já marcado no desconto novo, configurado pela clínica (RF11).
+  const [defaultDiscountScope, setDefaultDiscountScope] =
+    useState<PatientDiscountScope>();
+  useEffect(() => {
+    let active = true;
+    api
+      .clinicBranding()
+      .then(
+        (branding) =>
+          active && setDefaultDiscountScope(branding.defaultDiscountScope),
+      )
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, []);
   const { can, canEdit } = useAuthorization();
   // Venda com documento: ao concluir o envio, pergunta se o cliente já pagou (baixa + recibo).
   const canReceive = canEdit("finance") && can("finance.receive");
@@ -298,6 +315,7 @@ export function PatientPlanModal({
         createPortal(
           <PatientDiscountModal
             discount={discountEdit.discount}
+            defaultScope={defaultDiscountScope}
             onApply={(discount) => {
               discountEdit.apply(discount);
               setDiscountEdit(null);

@@ -1,11 +1,15 @@
 import {
+  defaultPatientDiscountScope,
   formatTaxId,
   isValidTaxId,
   paymentReceiptMessage,
+  patientDiscountScopeLabels,
+  patientDiscountScopeSchema,
   paymentReceiptMessageVariables,
   pixMessageVariables,
   planPixChargeMessage,
   type ClinicSettings,
+  type PatientDiscountScope,
 } from "@crm/contracts";
 import {
   Building2,
@@ -393,6 +397,35 @@ export function ClinicSettingsContent() {
                     template: settings.paymentReceiptMessageTemplate,
                     timeZone: settings.timezone,
                   })}`}
+                </small>
+              </div>
+              <div className="span-2 field-with-hint">
+                <label>
+                  Alcance padrão do desconto
+                  <select
+                    aria-describedby="clinic-discount-scope-help"
+                    value={
+                      settings.defaultDiscountScope ??
+                      defaultPatientDiscountScope
+                    }
+                    onChange={(event) =>
+                      setSettings({
+                        ...settings,
+                        defaultDiscountScope: event.target
+                          .value as PatientDiscountScope,
+                      })
+                    }
+                  >
+                    {patientDiscountScopeSchema.options.map((scope) => (
+                      <option key={scope} value={scope}>
+                        {patientDiscountScopeLabels[scope]}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <small id="clinic-discount-scope-help" className="field-hint">
+                  Já vem marcado ao dar desconto num plano (cadastro do cliente
+                  e ficha). Dá para trocar em cada desconto.
                 </small>
               </div>
               <p className="field-hint span-2">

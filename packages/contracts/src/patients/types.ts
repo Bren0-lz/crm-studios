@@ -36,6 +36,8 @@ export type PatientImportInput = z.infer<typeof patientImportInputSchema>;
 export type PatientUpdateInput = z.infer<typeof patientUpdateInputSchema>;
 
 export type PatientDiscount = z.infer<typeof patientDiscountSchema>;
+/** Alcance do desconto do plano nas cobranças (`once`, `next`, `permanent`). */
+export type PatientDiscountScope = PatientDiscount["scope"];
 
 export type PatientTagInput = z.infer<typeof patientTagInputSchema>;
 export type PatientTagCategory = z.infer<typeof patientTagCategorySchema>;
