@@ -759,9 +759,13 @@ describe("application shell", () => {
       expect(
         within(ana).getByRole("button", { name: "Dar baixa" }),
       ).toHaveClass("primary-button", "button-sm");
+      // "Ajustar" e "Entrar em contato" ficam no menu "Mais" (D1).
       expect(
-        within(ana).getByRole("button", { name: "Ajustar" }),
-      ).toBeInTheDocument();
+        within(ana).queryByRole("button", { name: "Ajustar" }),
+      ).not.toBeInTheDocument();
+      expect(
+        within(ana).getByRole("button", { name: /^Mais ações/ }),
+      ).toHaveTextContent("Mais");
       expect(
         within(ana).getByRole("checkbox", {
           name: "Selecionar parcela de Ana Souza",
@@ -783,11 +787,81 @@ describe("application shell", () => {
         "secondary-button",
         "button-sm",
       );
+      // "Comprovantes" e "Estornar" ficam no "Mais" (D1); "Estornar" segue em vermelho.
       expect(
-        within(carla).getByRole("button", { name: "Estornar" }),
-      ).toHaveClass("danger-button", "button-sm");
+        within(carla).queryByRole("button", { name: "Estornar" }),
+      ).not.toBeInTheDocument();
+      fireEvent.click(
+        within(carla).getByRole("button", {
+          name: "Mais ações de Depilação · parcela 1/1",
+        }),
+      );
+      expect(screen.getByRole("menuitem", { name: "Estornar" })).toHaveClass(
+        "action-menu-item",
+        "action-menu-item-danger",
+      );
+      fireEvent.keyDown(screen.getByRole("menu"), { key: "Escape" });
       // Parcela paga não entra na seleção para renegociar.
       expect(within(carla).queryByRole("checkbox")).not.toBeInTheDocument();
+    });
+
+    it("keeps Dar baixa in view and moves Entrar em contato and Ajustar to the Mais menu", async () => {
+      renderFinance();
+      await screen.findByText("Ana Souza");
+      const ana = rowOf("Ana Souza");
+      expect(
+        within(ana).getByRole("button", { name: "Dar baixa" }),
+      ).toBeVisible();
+      for (const name of ["Entrar em contato", "Ajustar"]) {
+        expect(
+          within(ana).queryByRole("button", { name }),
+        ).not.toBeInTheDocument();
+      }
+      const more = within(ana).getByRole("button", {
+        name: "Mais ações de Pilates 2x · parcela 1/3",
+      });
+      expect(more).toHaveAttribute("aria-haspopup", "menu");
+      expect(more).toHaveClass("secondary-button", "button-sm");
+      fireEvent.click(more);
+      const menu = screen.getByRole("menu", {
+        name: "Mais ações de Pilates 2x · parcela 1/3",
+      });
+      expect(
+        within(menu)
+          .getAllByRole("menuitem")
+          .map((item) => item.textContent),
+      ).toEqual(["Entrar em contato", "Ajustar"]);
+      // Esc fecha o menu e devolve o foco ao "Mais".
+      fireEvent.keyDown(menu, { key: "Escape" });
+      expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+      expect(more).toHaveFocus();
+      // A parcela paga mostra só "Recibo" à vista; "Comprovantes" e "Estornar" no "Mais".
+      const carla = rowOf("Carla Mendes");
+      expect(
+        within(carla).getByRole("button", { name: "Recibo" }),
+      ).toBeVisible();
+      for (const name of ["Comprovantes", "Estornar", "Dar baixa"]) {
+        expect(
+          within(carla).queryByRole("button", { name }),
+        ).not.toBeInTheDocument();
+      }
+      fireEvent.click(
+        within(carla).getByRole("button", {
+          name: "Mais ações de Depilação · parcela 1/1",
+        }),
+      );
+      expect(
+        within(screen.getByRole("menu"))
+          .getAllByRole("menuitem")
+          .map((item) => item.textContent),
+      ).toEqual(["Comprovantes", "Estornar"]);
+      fireEvent.keyDown(screen.getByRole("menu"), { key: "Escape" });
+      // "Ajustar" abre o mesmo modal de antes ("Entrar em contato": teste do contato abaixo).
+      fireEvent.click(more);
+      fireEvent.click(screen.getByRole("menuitem", { name: "Ajustar" }));
+      expect(
+        await screen.findByRole("dialog", { name: "Ajustar valor da parcela" }),
+      ).toBeInTheDocument();
     });
 
     it("shows receivable values with sign and color like the other finance tabs", async () => {
@@ -1231,8 +1305,11 @@ describe("application shell", () => {
       ).not.toBeInTheDocument();
       fireEvent.click(
         within(rowOf(overdue.patientName)).getByRole("button", {
-          name: "Entrar em contato",
+          name: /^Mais ações/,
         }),
+      );
+      fireEvent.click(
+        screen.getByRole("menuitem", { name: "Entrar em contato" }),
       );
       const dialog = await screen.findByRole("dialog", {
         name: "Entrar em contato",
@@ -1377,8 +1454,11 @@ describe("application shell", () => {
       selectBoth();
       let loads = workspaceLoads();
       fireEvent.click(
-        within(rowOf("Carla Mendes")).getByRole("button", { name: "Estornar" }),
+        within(rowOf("Carla Mendes")).getByRole("button", {
+          name: /^Mais ações/,
+        }),
       );
+      fireEvent.click(screen.getByRole("menuitem", { name: "Estornar" }));
       // Pede confirmação antes de estornar: nada muda até confirmar.
       const confirmReverse = await screen.findByRole("dialog", {
         name: "Estornar pagamento",
@@ -1410,8 +1490,9 @@ describe("application shell", () => {
       selectBoth();
       loads = workspaceLoads();
       fireEvent.click(
-        within(rowOf("Ana Souza")).getByRole("button", { name: "Ajustar" }),
+        within(rowOf("Ana Souza")).getByRole("button", { name: /^Mais ações/ }),
       );
+      fireEvent.click(screen.getByRole("menuitem", { name: "Ajustar" }));
       const adjust = await screen.findByRole("dialog", {
         name: "Ajustar valor da parcela",
       });
@@ -1458,8 +1539,9 @@ describe("application shell", () => {
       renderFinance();
       await screen.findByText("Ana Souza");
       fireEvent.click(
-        within(rowOf("Ana Souza")).getByRole("button", { name: "Ajustar" }),
+        within(rowOf("Ana Souza")).getByRole("button", { name: /^Mais ações/ }),
       );
+      fireEvent.click(screen.getByRole("menuitem", { name: "Ajustar" }));
       let dialog = await screen.findByRole("dialog", {
         name: "Ajustar valor da parcela",
       });
@@ -1475,8 +1557,9 @@ describe("application shell", () => {
       expect(writes()).toHaveLength(0);
 
       fireEvent.click(
-        within(rowOf("Ana Souza")).getByRole("button", { name: "Ajustar" }),
+        within(rowOf("Ana Souza")).getByRole("button", { name: /^Mais ações/ }),
       );
+      fireEvent.click(screen.getByRole("menuitem", { name: "Ajustar" }));
       dialog = await screen.findByRole("dialog", {
         name: "Ajustar valor da parcela",
       });
@@ -1524,8 +1607,9 @@ describe("application shell", () => {
       renderFinance();
       await screen.findByText("Ana Souza");
       fireEvent.click(
-        within(rowOf("Ana Souza")).getByRole("button", { name: "Ajustar" }),
+        within(rowOf("Ana Souza")).getByRole("button", { name: /^Mais ações/ }),
       );
+      fireEvent.click(screen.getByRole("menuitem", { name: "Ajustar" }));
       const dialog = await screen.findByRole("dialog", {
         name: "Ajustar valor da parcela",
       });
@@ -1551,8 +1635,9 @@ describe("application shell", () => {
       );
       await screen.findByText("Ana Souza");
       fireEvent.click(
-        within(rowOf("Ana Souza")).getByRole("button", { name: "Ajustar" }),
+        within(rowOf("Ana Souza")).getByRole("button", { name: /^Mais ações/ }),
       );
+      fireEvent.click(screen.getByRole("menuitem", { name: "Ajustar" }));
       const dialog = await screen.findByRole("dialog", {
         name: "Ajustar valor da parcela",
       });

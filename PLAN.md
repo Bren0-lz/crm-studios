@@ -2098,7 +2098,7 @@ filtros ficam no `dashboard-studios` (EN11–EN13 têm só a parte da API aqui).
   secundárias da linha) no `ActionMenu` "Mais"; em 1192px sem rolagem interna da tabela e com
   tudo inteiro. Teste e2e em 1192px e teste web das ações no menu.
 - **Gate:** gate completo + `npm run test:e2e`
-- **Status:** TODO
+- **Status:** DONE
 
 ### RF10 — Agenda (Dia) no celular com a grade logo abaixo das datas (D2)
 

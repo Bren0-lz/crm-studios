@@ -126,9 +126,10 @@ describe("comprovantes de pagamento", () => {
     // Comprovante errado: excluído com motivo.
     fireEvent.click(
       within(row()).getByRole("button", {
-        name: "Comprovantes de Mensalidade no cartão",
+        name: "Mais ações de Mensalidade no cartão",
       }),
     );
+    fireEvent.click(screen.getByRole("menuitem", { name: "Comprovantes" }));
     let proofs = await screen.findByRole("dialog", { name: "Comprovantes" });
     fireEvent.click(
       await within(proofs).findByRole("button", { name: "Excluir pix.pdf" }),
@@ -158,7 +159,12 @@ describe("comprovantes de pagamento", () => {
         contentBase64: content.toString("base64"),
       },
     );
-    fireEvent.click(within(row()).getByRole("button", { name: "Estornar" }));
+    fireEvent.click(
+      within(row()).getByRole("button", {
+        name: "Mais ações de Mensalidade no cartão",
+      }),
+    );
+    fireEvent.click(screen.getByRole("menuitem", { name: "Estornar" }));
     const reverseDialog = await screen.findByRole("dialog", {
       name: "Estornar pagamento",
     });
@@ -172,9 +178,10 @@ describe("comprovantes de pagamento", () => {
     // Parcela reaberta: o comprovante segue acessível, com o selo e sem anexar novos.
     fireEvent.click(
       within(row()).getByRole("button", {
-        name: "Comprovantes de Mensalidade no cartão",
+        name: "Mais ações de Mensalidade no cartão",
       }),
     );
+    fireEvent.click(screen.getByRole("menuitem", { name: "Comprovantes" }));
     proofs = await screen.findByRole("dialog", { name: "Comprovantes" });
     const reopened = await within(proofs).findByRole("list", {
       name: "Comprovantes da baixa estornada",
@@ -194,9 +201,10 @@ describe("comprovantes de pagamento", () => {
     await save("Dar baixa na parcela", "Confirmar baixa");
     fireEvent.click(
       await within(row()).findByRole("button", {
-        name: "Comprovantes de Mensalidade no cartão",
+        name: "Mais ações de Mensalidade no cartão",
       }),
     );
+    fireEvent.click(screen.getByRole("menuitem", { name: "Comprovantes" }));
     proofs = await screen.findByRole("dialog", { name: "Comprovantes" });
     const history = await within(proofs).findByRole("list", {
       name: "Comprovantes da baixa estornada",
