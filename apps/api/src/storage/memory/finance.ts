@@ -1824,6 +1824,7 @@ export function createFinanceRepository(
       clinicId: string,
       commissionId: string,
       actorUserId?: string,
+      reason?: string,
     ) {
       const item = repositoryContext.commissions.find(
         (entry) => entry.clinicId === clinicId && entry.id === commissionId,
@@ -1875,7 +1876,7 @@ export function createFinanceRepository(
           actorUserId,
           "commission.payment_reversed",
           "commission",
-          { amountInCents: item.amountInCents },
+          { amountInCents: item.amountInCents, ...(reason ? { reason } : {}) },
           item.id,
         );
       return item;

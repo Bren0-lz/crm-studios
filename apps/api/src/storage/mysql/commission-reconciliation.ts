@@ -497,6 +497,7 @@ export function createCommissionReconciliationRepository(
       clinicId: string,
       actorId: string,
       paymentId: string,
+      reason?: string,
     ) {
       return context.inTransaction(async (client) => {
         await lock(client, clinicId, actorId);
@@ -585,7 +586,11 @@ export function createCommissionReconciliationRepository(
           "commission.account_reversed",
           "commission",
           commission.id,
-          { paymentId, amountInCents: payment.amountInCents },
+          {
+            paymentId,
+            amountInCents: payment.amountInCents,
+            ...(reason ? { reason } : {}),
+          },
         );
         return reversed;
       });

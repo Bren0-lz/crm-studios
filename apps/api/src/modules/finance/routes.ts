@@ -562,16 +562,21 @@ export function registerFinanceRoutes(context: RouteContext) {
     { preHandler: authenticate },
     async (request, reply) => {
       const { id } = request.params as { id: string };
+      const { reason } = paymentReversalInputSchema.parse(request.body ?? {});
       const commission = await repository.reverseCommission(
         request.user.clinicId,
         id,
         request.user.sub,
+        reason,
       );
       if (!commission)
         return reply.status(404).send({
           code: "COMMISSION_NOT_FOUND",
           message: "Comissão não encontrada ou ainda aberta.",
         });
+      // Motivo no registro da operação e no evento do estorno, quando o repositório o grava
+      // (`commission.payment_reversed` na memória; o MySQL não tem esse evento).
+      recordReason(request, reason);
       return commission;
     },
   );

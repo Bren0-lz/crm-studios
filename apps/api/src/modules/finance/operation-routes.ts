@@ -1,5 +1,6 @@
 import { commissionReconciliationInputSchema } from "@crm/contracts";
 import { externalOperationInputSchema } from "@crm/contracts";
+import { paymentReversalInputSchema } from "@crm/contracts";
 import {
   paymentProofDeletionSchema,
   paymentProofInputSchema,
@@ -34,6 +35,7 @@ export function registerFinanceOperationRoutes({
   authenticate,
   repository,
   assertPermissions,
+  recordReason,
 }: RouteContext) {
   app.get(
     "/finance/commissions/:id/reconciliation",
@@ -70,12 +72,19 @@ export function registerFinanceOperationRoutes({
   app.post(
     "/finance/commission-account-payments/:id/reverse",
     { preHandler: authenticate },
-    async (request) =>
-      repository.reverseCommissionAccountPayment(
+    async (request) => {
+      const { id } = z.object({ id: z.uuid() }).parse(request.params);
+      const { reason } = paymentReversalInputSchema.parse(request.body ?? {});
+      const payment = await repository.reverseCommissionAccountPayment(
         request.user.clinicId,
         request.user.sub,
-        z.object({ id: z.uuid() }).parse(request.params).id,
-      ),
+        id,
+        reason,
+      );
+      // Motivo no registro da operação e no evento `commission.account_reversed`.
+      recordReason(request, reason);
+      return payment;
+    },
   );
   app.get(
     "/finance/external-operations",
