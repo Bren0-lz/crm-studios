@@ -2088,7 +2088,7 @@ filtros ficam no `dashboard-studios` (EN11–EN13 têm só a parte da API aqui).
 - **Escopo:** "Cancelar matrícula" em Turmas abre `ActionModal` de confirmação (danger), com
   `busy` durante o salvamento. Teste web.
 - **Gate:** gate completo
-- **Status:** TODO
+- **Status:** DONE
 
 ### RF9 — Contas a receber com ações no menu "Mais" (D1)
 
