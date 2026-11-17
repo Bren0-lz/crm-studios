@@ -9,6 +9,11 @@ test("prepares, edits, reviews, downloads and issues a visual contract", async (
   const branding = await api.put("/admin/clinic-settings", {
     data: {
       ...settings,
+      // RE17: o contrato padrão usa CNPJ, endereço, telefone e e-mail da clínica.
+      taxId: "11222333000181",
+      address: "Av. Brasil, 500, Campinas/SP",
+      phone: "19999990000",
+      email: "contato@studio.com.br",
       logoDataUrl:
         "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=",
     },
