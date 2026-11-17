@@ -108,10 +108,14 @@ describe("enviar recibo pelo WhatsApp", () => {
     fireEvent.click(
       within(await row()).getByRole("button", { name: "Estornar" }),
     );
+    const reverseDialog = await screen.findByRole("dialog", {
+      name: "Estornar pagamento",
+    });
+    fireEvent.change(within(reverseDialog).getByLabelText("Motivo"), {
+      target: { value: "Baixa lançada por engano" },
+    });
     fireEvent.click(
-      within(
-        await screen.findByRole("dialog", { name: "Estornar pagamento" }),
-      ).getByRole("button", { name: "Estornar pagamento" }),
+      within(reverseDialog).getByRole("button", { name: "Estornar pagamento" }),
     );
     await within(await row()).findByRole("button", { name: "Dar baixa" });
     expect(
@@ -146,10 +150,14 @@ describe("enviar recibo pelo WhatsApp", () => {
     fireEvent.click(
       within(await row()).getByRole("button", { name: "Estornar" }),
     );
+    const reverseDialog = await screen.findByRole("dialog", {
+      name: "Estornar pagamento",
+    });
+    fireEvent.change(within(reverseDialog).getByLabelText("Motivo"), {
+      target: { value: "Baixa lançada por engano" },
+    });
     fireEvent.click(
-      within(
-        await screen.findByRole("dialog", { name: "Estornar pagamento" }),
-      ).getByRole("button", { name: "Estornar pagamento" }),
+      within(reverseDialog).getByRole("button", { name: "Estornar pagamento" }),
     );
     await within(await row()).findByRole("button", { name: "Dar baixa" });
     expect(shareRequested).toBe(true);

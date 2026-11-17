@@ -60,7 +60,7 @@ describe("seções de Configurações recarregam ao voltar a elas (RE11)", () =>
       )
     ).closest("article")!;
     await waitFor(() =>
-      expect(row).toHaveTextContent("Reformer em dupla: 1 sessões"),
+      expect(row).toHaveTextContent("Reformer em dupla: 1 sessão"),
     );
   });
 });
