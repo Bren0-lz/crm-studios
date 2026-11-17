@@ -149,7 +149,8 @@ describe("link público do recibo", () => {
   });
 
   it("recibo cancelado pelo estorno aparece cancelado e não aceita assinatura", async () => {
-    const { app, headers, receivable, events, url } = await paidReceipt();
+    const { app, repository, headers, patient, receivable, events, url } =
+      await paidReceipt();
     const reversed = await app.inject({
       method: "POST",
       url: `/finance/receivables/${receivable.id}/reverse`,
@@ -160,12 +161,14 @@ describe("link público do recibo", () => {
 
     const opened = await app.inject({ method: "GET", url });
     expect(opened.statusCode).toBe(200);
-    expect(opened.json()).toMatchObject({
+    // Só o nome do estúdio: sem conteúdo, valor, data nem dados do cliente.
+    const clinic = await repository.getClinicSettings(receiptClinicId);
+    expect(clinic?.name).toBeTruthy();
+    expect(opened.json()).toEqual({
       status: "cancelled",
-      amountInCents: 5000,
+      clinicName: clinic!.name,
     });
-    expect(opened.json().cancelledAt).toEqual(expect.any(String));
-    expect(opened.json()).not.toHaveProperty("receipt");
+    expect(opened.body).not.toContain(patient.fullName);
 
     const signed = await app.inject({
       method: "POST",
@@ -183,7 +186,7 @@ describe("link público do recibo", () => {
   });
 
   it("assinado e depois estornado: mostra cancelado, sem a assinatura", async () => {
-    const { app, headers, receivable, url } = await paidReceipt();
+    const { app, repository, headers, receivable, url } = await paidReceipt();
     await app.inject({
       method: "POST",
       url,
@@ -201,8 +204,9 @@ describe("link público do recibo", () => {
       payload: { reason: "Estorno de teste" },
     });
     const opened = (await app.inject({ method: "GET", url })).json();
-    expect(opened.status).toBe("cancelled");
-    expect(opened).not.toHaveProperty("signatureImage");
+    const clinic = await repository.getClinicSettings(receiptClinicId);
+    // Assinado e depois cancelado: também só o nome do estúdio, sem a assinatura nem o assinante.
+    expect(opened).toEqual({ status: "cancelled", clinicName: clinic!.name });
   });
 
   it("recusa token desconhecido e assinatura incompleta", async () => {

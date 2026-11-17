@@ -20,12 +20,11 @@ const receiptLinkNotFound = {
   message: "Link do recibo não encontrado.",
 };
 
-/** Recibo da baixa sem o telefone do cliente; o cancelado (baixa estornada) não mostra. */
+/** Recibo da baixa sem o telefone do cliente. */
 async function receiptContent(
   repository: ClinicRepository,
   receipt: ReceiptSignature,
 ): Promise<Omit<PaymentReceipt, "patientPhone"> | null> {
-  if (receipt.cancelledAt) return null;
   try {
     const content = await repository.getPaymentReceipt(
       receipt.clinicId,
@@ -46,11 +45,19 @@ async function receiptContent(
   }
 }
 
+/**
+ * Recibo cancelado (baixa estornada), assinado ou não, mostra só o nome do estúdio: sem
+ * conteúdo, valor, data, assinatura nem dados do cliente.
+ */
 export async function publicReceiptView(
   repository: ClinicRepository,
   receipt: ReceiptSignature,
 ): Promise<PublicReceiptSignature> {
   const status = publicReceiptSignatureStatus(receipt);
+  if (status === "cancelled") {
+    const clinic = await repository.getClinicSettings(receipt.clinicId);
+    return { status, clinicName: clinic?.name ?? "" };
+  }
   const content = await receiptContent(repository, receipt);
   return {
     status,
@@ -62,7 +69,6 @@ export async function publicReceiptView(
     ...(status === "signed" && receipt.signatureImage
       ? { signatureImage: receipt.signatureImage }
       : {}),
-    ...(receipt.cancelledAt ? { cancelledAt: receipt.cancelledAt } : {}),
   };
 }
 
