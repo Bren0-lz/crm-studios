@@ -393,6 +393,15 @@ export function GroupsPage() {
     setRenameError("");
     setEditingSlots(group.weeklySlots ?? []);
   }
+  /** Cada abertura de "Nova matrícula" começa sem o cliente nem a turma da anterior. */
+  function openEnrollment(groupId = "") {
+    setEnrollmentForm({
+      groupId,
+      patientId: contextPatientId,
+      startsOn: saoPauloToday(),
+    });
+    setGroupDialog("enroll");
+  }
   function closeGroupDialogs() {
     setGroupDialog(null);
     setSelectedGroupId(null);
@@ -440,7 +449,7 @@ export function GroupsPage() {
               {can("groups.enroll") && (
                 <button
                   className="secondary-button"
-                  onClick={() => setGroupDialog("enroll")}
+                  onClick={() => openEnrollment()}
                 >
                   <UserPlus size={18} /> Matricular cliente
                 </button>
@@ -1038,12 +1047,8 @@ export function GroupsPage() {
                         <button
                           className="secondary-button"
                           onClick={() => {
-                            setEnrollmentForm({
-                              ...enrollmentForm,
-                              groupId: selectedGroup.id,
-                            });
                             setSelectedGroupId(null);
-                            setGroupDialog("enroll");
+                            openEnrollment(selectedGroup.id);
                           }}
                         >
                           Matricular cliente

@@ -2080,7 +2080,7 @@ filtros ficam no `dashboard-studios` (EN11–EN13 têm só a parte da API aqui).
 - **Escopo:** o campo começa vazio a cada abertura e a escolha de um cliente substitui o texto.
   Teste web.
 - **Gate:** gate completo
-- **Status:** TODO
+- **Status:** DONE
 
 ### RF8 — Cancelar matrícula pede confirmação
 
