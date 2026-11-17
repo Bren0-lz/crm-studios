@@ -14,7 +14,11 @@ import { EmptyState } from "../../shared/components/EmptyState";
 import { ErrorBanner } from "../../shared/components/ErrorBanner";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
 import { Modal } from "../../shared/components/Modal";
-import { formatIsoDate, shortDateTime } from "../../shared/lib/formatting";
+import {
+  formatIsoDate,
+  plural,
+  shortDateTime,
+} from "../../shared/lib/formatting";
 import { SendToTrashModal, TrashIconButton } from "../trash";
 import { LeadContactTimeline } from "./LeadContactTimeline";
 import { LeadStageTimeline } from "./LeadStageTimeline";
@@ -123,7 +127,7 @@ export function LeadDetailsModal({
   const notes = lead.notes?.trim();
   const tasks =
     lead.openTasks > 0
-      ? `${lead.openTasks} aberta(s)${lead.overdueTasks > 0 ? ` · ${lead.overdueTasks} atrasada(s)` : ""}`
+      ? `${plural(lead.openTasks, "aberta", "abertas")}${lead.overdueTasks > 0 ? ` · ${plural(lead.overdueTasks, "atrasada", "atrasadas")}` : ""}`
       : "Nenhuma aberta";
   // Endereço em uma linha: "Rua, número · complemento · bairro · cidade/UF · CEP".
   const street = [lead.address, lead.addressNumber]

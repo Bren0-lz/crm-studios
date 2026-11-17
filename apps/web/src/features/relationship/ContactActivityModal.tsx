@@ -64,7 +64,7 @@ export function ContactActivityModal({
     } catch (cause) {
       setError(
         saved.length
-          ? `${(cause as Error).message} (${saved.length} de ${suggestions.length} motivos já registrados.)`
+          ? `${(cause as Error).message} (${saved.length} de ${suggestions.length} ${suggestions.length === 1 ? "motivo já registrado" : "motivos já registrados"}.)`
           : (cause as Error).message,
       );
       setLoading(false);

@@ -94,10 +94,10 @@ describe("importar leads por planilha (LI1)", () => {
     expect(within(dialog).getByText("1 com aviso")).toBeVisible();
     const before = boardLoads;
     fireEvent.click(
-      within(dialog).getByRole("button", { name: "Importar 2 lead(s)" }),
+      within(dialog).getByRole("button", { name: "Importar 2 leads" }),
     );
     expect(await within(dialog).findByRole("status")).toHaveTextContent(
-      "2 lead(s) importado(s), 1 com aviso de contato já cadastrado e 0 com erro.",
+      "2 leads importados, 1 com aviso de contato já cadastrado e 0 com erro.",
     );
     expect(imports[0]).toMatchObject({
       fileName: "leads.csv",

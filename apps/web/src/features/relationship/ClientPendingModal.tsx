@@ -4,7 +4,6 @@ import {
   type PatientPlan,
   type Receivable,
   isTabCreditPlan,
-  patientFirstName,
   planHasSessionBalance,
 } from "@crm/contracts";
 import { ArrowUpRight, MessageCircle, PhoneCall } from "lucide-react";
@@ -109,7 +108,7 @@ export function ClientPendingModal({
   return (
     <Modal
       eyebrow="Relacionamento"
-      title={`Pendências de ${patientFirstName(suggestion.patientName)}`}
+      title={`Pendências de ${suggestion.patientName}`}
       subtitle={suggestion.patientName}
       onClose={onClose}
     >

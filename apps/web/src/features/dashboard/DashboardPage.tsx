@@ -496,7 +496,10 @@ export function DashboardPage() {
                     </div>
                     {data.nonCancelledAppointmentsToday !== undefined && (
                       <span className="metric-note">
-                        de {data.nonCancelledAppointmentsToday} atendimentos
+                        de {data.nonCancelledAppointmentsToday}{" "}
+                        {data.nonCancelledAppointmentsToday === 1
+                          ? "atendimento"
+                          : "atendimentos"}{" "}
                         hoje
                       </span>
                     )}

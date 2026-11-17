@@ -17,7 +17,7 @@ describe("planSessionProgress", () => {
     });
     expect(planSessionProgress(pkg(7))).toMatchObject({
       used: 1,
-      label: "1 de 8 usada",
+      label: "1 de 8 usadas",
     });
     expect(planSessionProgress(pkg(5))).toMatchObject({
       used: 3,
@@ -27,6 +27,17 @@ describe("planSessionProgress", () => {
       used: 8,
       total: 8,
       label: "8 de 8 usadas",
+    });
+  });
+
+  it("concorda com o total contratado", () => {
+    expect(planSessionProgress(pkg(1, 1))).toMatchObject({
+      used: 0,
+      label: "0 de 1 usada",
+    });
+    expect(planSessionProgress(pkg(0, 1))).toMatchObject({
+      used: 1,
+      label: "1 de 1 usada",
     });
   });
 

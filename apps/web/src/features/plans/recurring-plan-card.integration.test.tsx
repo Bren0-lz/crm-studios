@@ -74,8 +74,8 @@ describe("recurring plan card", () => {
     const bar = screen.getByRole("progressbar", { name: "Sessões usadas" });
     expect(bar).toHaveAttribute("value", "1");
     expect(bar).toHaveAttribute("max", "8");
-    expect(bar).toHaveAttribute("aria-valuetext", "1 de 8 usada");
-    expect(screen.getByText("1 de 8 usada")).toBeInTheDocument();
+    expect(bar).toHaveAttribute("aria-valuetext", "1 de 8 usadas");
+    expect(screen.getByText("1 de 8 usadas")).toBeInTheDocument();
     expect(screen.getByText(/de 8 sessões restantes/)).toBeInTheDocument();
   });
 
