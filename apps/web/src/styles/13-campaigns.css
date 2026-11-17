@@ -1086,9 +1086,10 @@
   align-items: start;
 }
 
+/* Abaixo do topo fixo, que cresce com a faixa de alertas (RF3). */
 .recipient-panel {
   position: sticky;
-  top: var(--space-4);
+  top: calc(var(--topbar-offset) + var(--space-4));
 }
 
 .recipient-tools {
@@ -1104,7 +1105,7 @@
 
 .recipient-list {
   display: grid;
-  max-height: calc(100vh - var(--space-8) * 5);
+  max-height: calc(100vh - var(--topbar-offset) - var(--space-8) * 5);
   min-height: calc(var(--space-8) * 3);
   margin: 0;
   padding: var(--space-2);

@@ -8,9 +8,16 @@
   grid-auto-columns: minmax(calc(var(--space-8) * 4), 1fr);
   gap: var(--space-2);
   max-width: 100%;
-  /* Cabe abaixo do título e da barra de busca já na abertura da página. */
-  height: max(calc(var(--space-8) * 6), calc(100dvh - var(--space-8) * 5));
-  max-height: max(calc(var(--space-8) * 6), calc(100dvh - var(--space-8) * 5));
+  /* Cabe abaixo do topo (--topbar-offset, cresce com a faixa de alertas), do título e da
+     barra de busca já na abertura da página. */
+  height: max(
+    calc(var(--space-8) * 6),
+    calc(100dvh - var(--topbar-offset) - var(--space-8) * 4 - var(--space-1))
+  );
+  max-height: max(
+    calc(var(--space-8) * 6),
+    calc(100dvh - var(--topbar-offset) - var(--space-8) * 4 - var(--space-1))
+  );
   overflow-x: scroll;
   overflow-y: hidden;
   scrollbar-gutter: stable;
@@ -1730,15 +1737,16 @@
   min-height: 70vh;
 }
 
-/* Editor e prévia na mesma moldura: colunas da altura da tela (abaixo da barra do topo),
-   folhas rolando por dentro. */
+/* Editor e prévia na mesma moldura: colunas da altura da tela abaixo da barra do topo (que
+   cresce com a faixa de alertas — --topbar-offset, RF3), com folga para a linha do botão
+   "Criar modelo": rolando até o fim, nada fica sob o topo. Folhas rolam por dentro. */
 .template-studio > .template-body-input,
 .template-studio .template-preview {
   position: sticky;
-  top: calc(var(--space-8) + var(--space-3));
+  top: calc(var(--topbar-offset) + var(--space-4));
   display: flex;
   flex-direction: column;
-  height: calc(100vh - var(--space-8) * 2);
+  height: calc(100vh - var(--topbar-offset) - var(--space-8) * 2 - var(--space-3));
 }
 
 .template-studio > .template-body-input {

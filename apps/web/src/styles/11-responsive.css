@@ -3,6 +3,17 @@
   .profit-grid {
     grid-template-columns: 1fr;
   }
+
+  /* Alertas do topo numa linha própria, abaixo do nome e das ações: ao lado deles a faixa
+     ficava estreita demais e cortava os atalhos (RF3). */
+  .topbar:has(> .notification-banner) {
+    flex-wrap: wrap;
+    padding-block: var(--space-2);
+  }
+  .notification-banner {
+    flex-basis: 100%;
+    order: 3;
+  }
 }
 
 @media (max-width: 720px) {

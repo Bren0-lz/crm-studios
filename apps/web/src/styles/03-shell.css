@@ -223,11 +223,14 @@
   top: 0;
   z-index: 10;
   display: flex;
-  height: calc(var(--space-8) - var(--space-1));
+  /* Altura mínima: com muitos alertas a faixa quebra em linhas e o topo cresce (RF3); com
+     até dois, segue com 60px. */
+  min-height: calc(var(--space-8) - var(--space-1));
   align-items: center;
   justify-content: space-between;
   gap: var(--space-3);
-  padding: 0 clamp(var(--space-5), 4vw, calc(var(--space-7) + var(--space-1)));
+  padding: calc(var(--space-1) - 2px)
+    clamp(var(--space-5), 4vw, calc(var(--space-7) + var(--space-1)));
   border-bottom: 1px solid var(--line);
   background: var(--paper);
 }
@@ -514,11 +517,15 @@
 
 /* Alertas fixos no cabeçalho: grupos destacados nas preferências do sino. Sem botão de
    fechar; fundo branco com borda, título e ícone em vermelho forte (#963f35 sobre branco ≈ 7:1)
-   e cada atalho como botão vermelho de letra branca. Quando os atalhos não cabem, a lista rola
-   sozinha (NotificationsBanner) e pausa com o mouse/foco na barra. */
+   e cada atalho como botão vermelho de letra branca. Quando os atalhos não cabem numa linha,
+   quebram em outras, inteiros, com qualquer número de alertas (RF3; antes a lista rolava de
+   lado e cortava atalhos). Sem espaço ao lado do resumo, a lista desce para baixo dele; um
+   atalho mais largo que a lista quebra o próprio texto. Até 1100px a faixa ocupa uma linha
+   própria no topo (11-responsive.css). */
 .notification-banner {
   display: flex;
   flex: 1;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--space-2);
   min-width: 0;
@@ -550,7 +557,8 @@
    barra cinza com setas. O Firefox recebe scrollbar-color em 01-base.css. */
 .notification-banner ul {
   display: flex;
-  flex: 1;
+  flex: 1 1 calc(var(--space-8) * 6);
+  flex-wrap: wrap;
   gap: var(--space-2);
   min-width: 0;
   margin: 0;
@@ -580,6 +588,7 @@
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
+  max-width: 100%;
   min-height: calc(var(--space-6) + var(--space-1));
   padding: 0 var(--space-1) 0 var(--space-2);
   border: 1px solid var(--danger-strong);
@@ -588,8 +597,12 @@
   color: #fff;
   font-size: var(--text-sm);
   font-weight: 600;
-  white-space: nowrap;
+  text-align: left;
   cursor: pointer;
+}
+.notification-banner-item > svg,
+.notification-banner-count {
+  flex-shrink: 0;
 }
 .notification-banner-item:hover,
 .notification-banner-item:focus-visible {
@@ -617,7 +630,7 @@
 .notification-alerts {
   position: fixed;
   z-index: 80;
-  top: calc(var(--space-8) + var(--space-3));
+  top: calc(var(--topbar-offset) + var(--space-4));
   right: var(--space-5);
   display: grid;
   gap: var(--space-2);

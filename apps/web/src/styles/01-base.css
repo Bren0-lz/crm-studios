@@ -41,6 +41,8 @@
   --radius-sm: 8px;
   --radius-md: 12px;
   --radius-lg: 18px;
+  /* Altura do topo fixo à vista; medida em useTopbarOffset (cresce com a faixa de alertas). */
+  --topbar-offset: calc(var(--space-8) - var(--space-1));
   /* Escala tipográfica: nenhum texto abaixo de --text-xs (12px). Texto corrido e campos em
      --text-md; rótulos e legendas em --text-xs/--text-sm. */
   --text-xs: 12px;
