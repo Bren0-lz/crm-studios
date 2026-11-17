@@ -123,7 +123,10 @@ function setup({
               }
             : {}),
           id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
-          fullName: String(body.fullName),
+          // RF5: sem nome, o servidor devolve o participante com o nome do cliente ligado.
+          fullName:
+            String(body.fullName ?? "") ||
+            (addResult === "linked" ? "Bia Cliente Antiga" : ""),
           phone: String(body.phone),
           email: String(body.email ?? ""),
           ...(body.whatsapp ? { whatsapp: String(body.whatsapp) } : {}),
@@ -282,6 +285,32 @@ describe("event participants", () => {
       item.querySelector(".events-participant-status .status-pill")!
         .textContent,
     ).toBe("Cliente");
+  });
+
+  it("shows the client's name when only the phone of a client is given (RF5)", async () => {
+    setup({ addResult: "linked" });
+    await screen.findByText("Ana Participante");
+    fireEvent.click(
+      screen.getByRole("button", { name: "Adicionar participante" }),
+    );
+    const dialog = screen.getByRole("dialog", {
+      name: "Adicionar participante",
+    });
+    fireEvent.change(within(dialog).getByLabelText("Telefone"), {
+      target: { value: "11977770001" },
+    });
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Adicionar participante" }),
+    );
+    expect(
+      await screen.findByText(
+        "Bia já é cliente: entrou no evento ligada ao cadastro",
+      ),
+    ).toBeVisible();
+    expect(screen.queryByText(/Participante já é cliente/)).toBeNull();
+    const list = screen.getByRole("list", { name: "Lista de participantes" });
+    expect(within(list).getByText("Bia Cliente Antiga")).toBeVisible();
+    expect(within(list).queryByText("Participante sem nome")).toBeNull();
   });
 
   it("keeps the modal open with the message of a repeated participant (RE2)", async () => {

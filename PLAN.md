@@ -2062,7 +2062,7 @@ filtros ficam no `dashboard-studios` (EN11–EN13 têm só a parte da API aqui).
 - **Escopo:** ao ligar o participante a um cliente, o lead sem nome recebe o nome do cliente
   (memória e MySQL); o aviso usa o primeiro nome do cliente. Testes API e web.
 - **Gate:** gate completo + `npm run test:mysql`
-- **Status:** TODO
+- **Status:** DONE
 
 ### RF6 — Textos do reteste
 

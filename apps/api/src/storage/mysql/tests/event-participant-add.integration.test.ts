@@ -114,6 +114,46 @@ for (const storage of ["memory", "mysql"] as const) {
         ).toHaveLength(2);
       });
 
+      it("participante sem nome ligado ao cliente recebe o nome do cadastro (RF5)", async () => {
+        const { event, patient, phone, add } = await setup();
+        const lead = await add({ phone });
+        expect(lead).toMatchObject({
+          convertedPatientId: patient.id,
+          fullName: "Cliente Existente",
+        });
+        // Nome já informado não é sobrescrito.
+        const named = await add({ fullName: "Apelido", cpf: patient.cpf! });
+        expect(named).toMatchObject({
+          convertedPatientId: patient.id,
+          fullName: "Apelido",
+        });
+        // Sem contato de cliente, o participante continua sem nome.
+        const loose = await add({ phone: `1194444${suffix()}` });
+        expect(loose.fullName).toBe("");
+        const participants = (await repository.getEvent(clinicId, event.id))!
+          .participants;
+        expect(participants.find((item) => item.id === lead.id)!.fullName).toBe(
+          "Cliente Existente",
+        );
+      });
+
+      it("importação: linha sem nome ligada ao cliente recebe o nome dele (RF5)", async () => {
+        const { event, patient, phone } = await setup();
+        const row = (fields: Record<string, string>) =>
+          eventLeadInputSchema.parse({ eventId: event.id, ...fields });
+        expect(
+          await repository.importEventParticipants(clinicId, event.id, [
+            row({ phone }),
+            row({ fullName: "Apelido", cpf: patient.cpf! }),
+            row({ phone: `1193333${suffix()}` }),
+          ]),
+        ).toMatchObject({ linked: 2, created: 1, skipped: 0 });
+        const names = (await repository.getEvent(clinicId, event.id))!
+          .participants.map((item) => item.fullName)
+          .sort();
+        expect(names).toEqual(["", "Apelido", "Cliente Existente"]);
+      });
+
       it("recusa participante repetido no evento com 409", async () => {
         const { event, add } = await setup();
         const phone = `1195555${suffix()}`;

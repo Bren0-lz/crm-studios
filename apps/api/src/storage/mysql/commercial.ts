@@ -247,8 +247,12 @@ export function createCommercialRepository(
     leadId: string,
     plan: { patientId: string; input: { extraFields?: ExtraFields } },
   ) {
+    // RF5: participante sem nome ligado ao cliente fica com o nome do cadastro.
     await client.query(
-      `UPDATE leads SET converted_patient_id = $3, stage = 'won', updated_at = NOW(6)
+      `UPDATE leads SET converted_patient_id = $3, stage = 'won', updated_at = NOW(6),
+         full_name = CASE WHEN TRIM(full_name) = '' THEN coalesce(
+           (SELECT p.full_name FROM patients p WHERE p.clinic_id = $1 AND p.id = $3),
+           full_name) ELSE full_name END
        WHERE clinic_id = $1 AND id = $2`,
       [clinicId, leadId, plan.patientId],
     );
