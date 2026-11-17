@@ -102,7 +102,7 @@ describe("grouped suggested contacts", () => {
     fireEvent.click(card);
     fireEvent.click(
       within(
-        screen.getByRole("dialog", { name: "Pendências de Helena" }),
+        screen.getByRole("dialog", { name: "Pendências de Helena Almeida" }),
       ).getByRole("button", { name: "Registrar contato" }),
     );
     const dialog = screen.getByRole("dialog", { name: "Registrar contato" });

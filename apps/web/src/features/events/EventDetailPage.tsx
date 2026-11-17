@@ -19,6 +19,7 @@ import { LoadingBlock } from "../../shared/components/LoadingBlock";
 import { PageHeader } from "../../shared/components/PageHeader";
 import { useToast } from "../../shared/feedback/toast-context";
 import { useDataVersion } from "../../shared/hooks/useDataVersion";
+import { plural } from "../../shared/lib/formatting";
 import { EventContactModal } from "./EventContactModal";
 import { EventConvertModal } from "./EventConvertModal";
 import { EventParticipantModal } from "./EventParticipantModal";
@@ -220,8 +221,13 @@ export function EventDetailPage() {
             <h2>Participantes</h2>
             {event && (
               <p className="panel-context">
-                {event.participants.length} participante(s)
-                {filtering && ` · ${visible.length} exibido(s)`}
+                {plural(
+                  event.participants.length,
+                  "participante",
+                  "participantes",
+                )}
+                {filtering &&
+                  ` · ${plural(visible.length, "exibido", "exibidos")}`}
               </p>
             )}
           </div>

@@ -247,7 +247,7 @@ describe("event participants", () => {
         interest: "Evento",
       },
     });
-    expect(screen.getByText("2 participante(s)")).toBeVisible();
+    expect(screen.getByText("2 participantes")).toBeVisible();
     expect(
       vi
         .mocked(fetch)
@@ -331,7 +331,7 @@ describe("event participants", () => {
     expect(await within(dialog).findByRole("alert")).toHaveTextContent(
       "Essa pessoa já participa do evento (mesmo telefone, e-mail ou CPF).",
     );
-    expect(screen.getByText("1 participante(s)")).toBeVisible();
+    expect(screen.getByText("1 participante")).toBeVisible();
   });
 
   it("allows adding a participant without filling any fields", async () => {
@@ -487,7 +487,7 @@ describe("event participants", () => {
     // Nome sem acento, telefone formatado e e-mail.
     fireEvent.change(search, { target: { value: "elio" } });
     expect(names()).toEqual(["Élio Cliente"]);
-    expect(screen.getByText(/5 participante\(s\) · 1 exibido/)).toBeVisible();
+    expect(screen.getByText(/5 participantes · 1 exibido$/)).toBeVisible();
     fireEvent.change(search, { target: { value: "(11) 95555-0002" } });
     expect(names()).toEqual(["Caio Interessado"]);
     fireEvent.change(search, { target: { value: "bia@example" } });

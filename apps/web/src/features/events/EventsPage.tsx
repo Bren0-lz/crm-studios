@@ -11,6 +11,7 @@ import { ErrorBanner } from "../../shared/components/ErrorBanner";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
 import { useDataVersion } from "../../shared/hooks/useDataVersion";
 import { useToast } from "../../shared/feedback/toast-context";
+import { plural } from "../../shared/lib/formatting";
 import { EventModal } from "./EventModal";
 
 type State =
@@ -106,7 +107,9 @@ export function EventsPage() {
           <div>
             <h2>Eventos cadastrados</h2>
             {state.status === "ready" && (
-              <p className="panel-context">{state.events.length} evento(s)</p>
+              <p className="panel-context">
+                {plural(state.events.length, "evento", "eventos")}
+              </p>
             )}
           </div>
         </div>
@@ -183,7 +186,11 @@ export function EventsPage() {
                             )?.name ?? "Unidade vinculada")
                           : "Toda a rede"}
                         {event.serviceName && ` · ${event.serviceName}`} ·{" "}
-                        {event.participantCount} participante(s)
+                        {plural(
+                          event.participantCount,
+                          "participante",
+                          "participantes",
+                        )}
                         {event.attendeeCount !== undefined &&
                           ` · Público estimado: ${event.attendeeCount}`}
                       </p>

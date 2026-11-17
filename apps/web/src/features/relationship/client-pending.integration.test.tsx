@@ -144,7 +144,7 @@ describe("client pending details from suggested contacts", () => {
       }),
     );
     const dialog = screen.getByRole("dialog", {
-      name: "Pendências de Helena",
+      name: "Pendências de Helena Almeida",
     });
     const situations = within(dialog).getByRole("region", {
       name: "Situações",
@@ -204,7 +204,7 @@ describe("client pending details from suggested contacts", () => {
     ).not.toBeInTheDocument();
     fireEvent.click(card);
     const dialog = screen.getByRole("dialog", {
-      name: "Pendências de Helena",
+      name: "Pendências de Helena Almeida",
     });
     expect(
       within(dialog).getByRole("region", { name: "Situações" }),

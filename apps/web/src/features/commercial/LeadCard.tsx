@@ -27,6 +27,7 @@ import {
 import { api } from "../../api";
 import {
   initials,
+  plural,
   relativeTime,
   shortDateTime,
 } from "../../shared/lib/formatting";
@@ -279,7 +280,7 @@ export function LeadCard({
       return;
     onOpen();
   };
-  const taskLabel = `${lead.openTasks} tarefa(s)${lead.overdueTasks > 0 ? ` · ${lead.overdueTasks} atrasada(s)` : ""}`;
+  const taskLabel = `${plural(lead.openTasks, "tarefa", "tarefas")}${lead.overdueTasks > 0 ? ` · ${plural(lead.overdueTasks, "atrasada", "atrasadas")}` : ""}`;
   return (
     <article
       className={`lead-card lead-card-clickable${alert ? ` alert-${alert.tone}` : ""}`}

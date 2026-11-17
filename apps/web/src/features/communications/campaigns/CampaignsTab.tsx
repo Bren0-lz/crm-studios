@@ -52,7 +52,8 @@ function CampaignRow({ campaign }: { campaign: WhatsappCampaign }) {
           aria-label={`Progresso de ${campaign.name}`}
         />
         <span className="campaign-row-numbers">
-          <strong>{campaign.sent}</strong> de {campaign.total} enviadas
+          <strong>{campaign.sent}</strong> de {campaign.total}{" "}
+          {campaign.total === 1 ? "enviada" : "enviadas"}
           {campaign.skipped > 0 &&
             ` · ${plural(campaign.skipped, "pulada", "puladas")}`}
         </span>

@@ -481,8 +481,9 @@ export function planUsedSessions(
 
 /**
  * Semântica única da barra de progresso do plano: mede as sessões **usadas** (consumidas)
- * sobre o total contratado — "0 de 8 usadas", "1 de 8 usada". Plano sem saldo de sessões
- * (recorrente, vale a frequência semanal) ou sem total não tem barra (`tracked: false`).
+ * sobre o total contratado — "0 de 8 usadas", "0 de 1 usada" (concorda com o total). Plano
+ * sem saldo de sessões (recorrente, vale a frequência semanal) ou sem total não tem barra
+ * (`tracked: false`).
  */
 export type PlanSessionProgress =
   | { tracked: true; used: number; total: number; label: string }
@@ -502,7 +503,7 @@ export function planSessionProgress(
     tracked: true,
     used,
     total,
-    label: `${used} de ${total} ${used === 1 ? "usada" : "usadas"}`,
+    label: `${used} de ${total} ${total === 1 ? "usada" : "usadas"}`,
   };
 }
 

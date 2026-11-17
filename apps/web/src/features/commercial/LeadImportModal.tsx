@@ -16,6 +16,7 @@ import { CatalogSelect } from "../../shared/components/CatalogSelect";
 import { ErrorBanner } from "../../shared/components/ErrorBanner";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
 import { Modal } from "../../shared/components/Modal";
+import { plural } from "../../shared/lib/formatting";
 import { readFileAsBase64 } from "../../shared/lib/import-file";
 
 const template = `data:text/csv;charset=utf-8,${encodeURIComponent("﻿nome;telefone;whatsapp;email;origem;interesse;observações\r\nMaria da Silva;11999990000;;;Instagram;Pilates;Prefere contato à tarde\r\n")}`;
@@ -170,7 +171,7 @@ export function LeadImportModal({
         {error && <ErrorBanner error={error} />}
         {result && (
           <div className="success-banner" role="status">
-            {`${result.created} lead(s) importado(s), ${result.warnings} com aviso de contato já cadastrado e ${result.errors} com erro.`}
+            {`${plural(result.created, "lead importado", "leads importados")}, ${result.warnings} com aviso de contato já cadastrado e ${result.errors} com erro.`}
           </div>
         )}
         <div className="patient-import-file">
@@ -286,7 +287,7 @@ export function LeadImportModal({
             ))}
             <div className="patient-import-totals" aria-live="polite">
               <span className="status-pill import-valid">
-                {analysis.totals.valid} válida(s)
+                {plural(analysis.totals.valid, "válida", "válidas")}
               </span>
               {warned > 0 && (
                 <span className="status-pill import-duplicate">
@@ -357,7 +358,7 @@ export function LeadImportModal({
               onClick={() => void confirmImport()}
             >
               <FileDown size={18} aria-hidden="true" />
-              Importar {analysis?.totals.valid ?? 0} lead(s)
+              Importar {plural(analysis?.totals.valid ?? 0, "lead", "leads")}
             </button>
           )}
         </div>

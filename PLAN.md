@@ -2071,7 +2071,7 @@ filtros ficam no `dashboard-studios` (EN11–EN13 têm só a parte da API aqui).
   "0 de 1 usadas" → "0 de 1 usada" (`PlanProgress`); título "Pendências de <primeiro nome>" →
   nome completo (`ClientPendingModal`). Testes web.
 - **Gate:** gate completo
-- **Status:** TODO
+- **Status:** DONE
 
 ### RF7 — Nova matrícula sem a busca anterior colada
 

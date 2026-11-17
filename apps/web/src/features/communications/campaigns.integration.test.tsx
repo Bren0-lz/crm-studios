@@ -1011,6 +1011,17 @@ describe("campanhas de WhatsApp", () => {
     expect(done).not.toHaveTextContent(/enviadas|puladas/);
   });
 
+  it("na lista, a contagem de enviadas concorda com o total", async () => {
+    const single = campaign([recipient({ status: "sent", handledAt: now })]);
+    setup("/comunicacoes", (url) =>
+      url.endsWith("/communications/campaigns") ? [single] : undefined,
+    );
+    const numbers = (await screen.findByLabelText("Progresso de Outubro"))
+      .nextElementSibling!;
+    expect(numbers).toHaveTextContent("1 de 1 enviada");
+    expect(numbers).not.toHaveTextContent(/enviadas/);
+  });
+
   it("lista com uma mensagem padrão ativa usa o singular", async () => {
     setup("/comunicacoes?aba=mensagens", (url) =>
       url.endsWith("/communications/templates") ? [template] : undefined,

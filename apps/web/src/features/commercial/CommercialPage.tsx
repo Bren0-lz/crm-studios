@@ -26,6 +26,7 @@ import { LoadingBlock } from "../../shared/components/LoadingBlock";
 import { PageHeader } from "../../shared/components/PageHeader";
 import { ReadOnlyNotice } from "../../shared/components/ReadOnlyNotice";
 import {
+  plural,
   shortDate,
   shortDateTime,
   timeLabel,
@@ -722,7 +723,9 @@ export function CommercialPage() {
           stages={stageConfig}
           onClose={() => setImportOpen(false)}
           onImported={(result) => {
-            toast.success(`${result.created} lead(s) importado(s).`);
+            toast.success(
+              `${plural(result.created, "lead importado", "leads importados")}.`,
+            );
             refreshOptions();
             void loadBoard(filterRef.current);
           }}

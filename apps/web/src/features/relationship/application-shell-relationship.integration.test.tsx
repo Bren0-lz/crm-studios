@@ -125,7 +125,7 @@ describe("application shell", () => {
     ).not.toBeInTheDocument();
     fireEvent.click(helenaCard);
     const helenaDetails = screen.getByRole("dialog", {
-      name: "Pendências de Helena",
+      name: "Pendências de Helena Almeida",
     });
     const whatsapp = within(helenaDetails).getByRole("link", {
       name: /WhatsApp/,
@@ -145,7 +145,7 @@ describe("application shell", () => {
       within(brunoCard).getByText("Veio uma vez há 70 dias e não voltou"),
     );
     const brunoDetails = screen.getByRole("dialog", {
-      name: "Pendências de Bruno",
+      name: "Pendências de Bruno Souza",
     });
     expect(
       within(brunoDetails).getByRole("link", { name: /WhatsApp/ }),
@@ -174,7 +174,7 @@ describe("application shell", () => {
     );
     fireEvent.click(
       within(
-        screen.getByRole("dialog", { name: "Pendências de Helena" }),
+        screen.getByRole("dialog", { name: "Pendências de Helena Almeida" }),
       ).getByRole("button", { name: "Registrar contato" }),
     );
     const dialog = screen.getByRole("dialog", { name: "Registrar contato" });
@@ -218,7 +218,7 @@ describe("application shell", () => {
     );
     fireEvent.click(
       within(
-        screen.getByRole("dialog", { name: "Pendências de Bruno" }),
+        screen.getByRole("dialog", { name: "Pendências de Bruno Souza" }),
       ).getByRole("button", { name: "Registrar contato" }),
     );
     const noAnswer = screen.getByRole("dialog", { name: "Registrar contato" });

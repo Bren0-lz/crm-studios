@@ -14,6 +14,7 @@ import { api } from "../../api";
 import { ErrorBanner } from "../../shared/components/ErrorBanner";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
 import { Modal } from "../../shared/components/Modal";
+import { plural } from "../../shared/lib/formatting";
 import { readFileAsBase64 } from "../../shared/lib/import-file";
 
 const template = `data:text/csv;charset=utf-8,${encodeURIComponent("\uFEFFnome;telefone;whatsapp;email;interesse;observações\r\nMaria da Silva;11999990000;;;;Prefere contato à tarde\r\n")}`;
@@ -159,7 +160,7 @@ export function EventImportModal({
         {error && <ErrorBanner error={error} />}
         {result && (
           <div className="success-banner" role="status">
-            {`${result.created} participante(s) novo(s), ${result.linked} já cliente(s) vinculado(s), ${result.skipped} ignorado(s) por já estar(em) no evento e ${result.errors} com erro.`}
+            {`${plural(result.created, "participante novo", "participantes novos")}, ${plural(result.linked, "já cliente vinculado", "já clientes vinculados")}, ${plural(result.skipped, "ignorado por já estar", "ignorados por já estarem")} no evento e ${result.errors} com erro.`}
           </div>
         )}
         <div className="patient-import-file">
@@ -253,7 +254,7 @@ export function EventImportModal({
             ))}
             <div className="patient-import-totals" aria-live="polite">
               <span className="status-pill import-valid">
-                {analysis.totals.valid} válida(s)
+                {plural(analysis.totals.valid, "válida", "válidas")}
               </span>
               <span className="status-pill import-error">
                 {analysis.totals.error} com erro
@@ -309,7 +310,12 @@ export function EventImportModal({
               onClick={() => void confirmImport()}
             >
               <FileDown size={18} aria-hidden="true" />
-              Importar {analysis?.totals.valid ?? 0} participante(s)
+              Importar{" "}
+              {plural(
+                analysis?.totals.valid ?? 0,
+                "participante",
+                "participantes",
+              )}
             </button>
           )}
         </div>

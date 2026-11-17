@@ -2,8 +2,8 @@ import { type PatientPlan, planSessionProgress } from "@crm/contracts";
 
 /**
  * Barra de sessões do plano: mede as sessões usadas sobre o total contratado, com a legenda
- * "N de M usadas". Plano sem saldo de sessões (recorrente) não tem barra — quem usa mostra o
- * texto do ciclo.
+ * "N de M usadas" (no singular quando o total é 1). Plano sem saldo de sessões (recorrente)
+ * não tem barra — quem usa mostra o texto do ciclo.
  */
 export function PlanProgress({
   plan,

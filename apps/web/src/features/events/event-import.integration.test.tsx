@@ -94,11 +94,11 @@ describe("importar participantes do evento (EN1)", () => {
     );
     fireEvent.click(
       await within(dialog).findByRole("button", {
-        name: "Importar 1 participante(s)",
+        name: "Importar 1 participante",
       }),
     );
     expect(await within(dialog).findByRole("status")).toHaveTextContent(
-      "2 participante(s) novo(s), 1 já cliente(s) vinculado(s), 3 ignorado(s) por já estar(em) no evento e 0 com erro.",
+      "2 participantes novos, 1 já cliente vinculado, 3 ignorados por já estarem no evento e 0 com erro.",
     );
   });
 });
