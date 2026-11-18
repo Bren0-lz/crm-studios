@@ -15,9 +15,9 @@ describe("application shell", () => {
     expect(
       screen.getByRole("heading", { name: "Acesse sua clínica" }),
     ).toBeInTheDocument();
-    expect(screen.getByLabelText("Studios Aryana")).toBeInTheDocument();
+    expect(screen.getByLabelText("Organiza Studios")).toBeInTheDocument();
     expect(
-      screen.getByText("Studios Aryana", { selector: ".brand-name" }),
+      screen.getByText("Organiza Studios", { selector: ".brand-name" }),
     ).toBeInTheDocument();
     expect(document.querySelector(".brand-mark")).toBeNull();
     expect(screen.getByLabelText("E-mail")).toHaveValue("");

@@ -1749,7 +1749,7 @@ describe("application shell", () => {
     expect(screen.getByText("Helena Almeida")).toBeInTheDocument();
     expect(screen.queryByText("Cadastros incompletos")).not.toBeInTheDocument();
     expect(
-      screen.getByText("Studios Aryana", { selector: ".clinic-label" }),
+      screen.getByText("Organiza Studios", { selector: ".clinic-label" }),
     ).toBeInTheDocument();
     expect(screen.getByText("Aryana Dutra")).toBeInTheDocument();
     expect(screen.queryByText(/Movimenta/i)).not.toBeInTheDocument();
@@ -1765,9 +1765,9 @@ describe("application shell", () => {
     expect(
       screen.getByRole("heading", { name: "Acesse sua clínica" }),
     ).toBeInTheDocument();
-    expect(screen.getByLabelText("Studios Aryana")).toBeInTheDocument();
+    expect(screen.getByLabelText("Organiza Studios")).toBeInTheDocument();
     expect(
-      screen.getByText("Studios Aryana", { selector: ".brand-name" }),
+      screen.getByText("Organiza Studios", { selector: ".brand-name" }),
     ).toBeInTheDocument();
     expect(document.querySelector(".brand-mark")).toBeNull();
     expect(screen.getByLabelText("E-mail")).toHaveValue("");

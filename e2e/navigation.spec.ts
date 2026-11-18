@@ -95,7 +95,7 @@ test("clinic name stays visible in the mobile header without horizontal scroll",
   ]) {
     await page.setViewportSize(viewport);
     await expect(
-      banner.getByText("Studios Aryana", { exact: true }),
+      banner.getByText("Organiza Studios", { exact: true }),
     ).toBeVisible();
     const label = (await page.locator(".clinic-label").boundingBox())!;
     expect(label.width).toBeGreaterThan(0);
