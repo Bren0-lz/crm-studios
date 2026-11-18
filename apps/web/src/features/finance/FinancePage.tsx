@@ -123,21 +123,34 @@ export function FinancePage() {
   const unsignedRequested = () => searchParams.get("recibo") === "nao-assinado";
   const [unsignedReceiptsOnly, setUnsignedReceiptsOnly] =
     useState(unsignedRequested);
+  // `?parcelas=vencidas` (aviso de parcelas vencidas no sino) abre direto o filtro "Vencidas".
+  const overdueRequested = () =>
+    searchParams.get("parcelas") === "vencidas" ||
+    searchParams.get("situacao") === "vencidas";
+  const [professionals, setProfessionals] = useState<Professional[]>([]);
+  const [selectedReceivables, setSelectedReceivables] = useState<string[]>([]);
+  const [receivableFilter, setReceivableFilter] = useState<ReceivableFilter>(
+    () => (overdueRequested() ? "overdue" : "all"),
+  );
   if (location.key !== seenLocation) {
     setSeenLocation(location.key);
     if (searchParams.get("aba") === "contas-a-pagar") {
       setTab("payables");
       setPayablesView(requestedPayablesView());
     }
+    if (overdueRequested()) {
+      setTab("receivables");
+      setReceivableFilter("overdue");
+      setUnsignedReceiptsOnly(false);
+      setSelectedReceivables([]);
+    }
     if (unsignedRequested()) {
       setTab("receivables");
       setUnsignedReceiptsOnly(true);
+      setReceivableFilter("all");
+      setSelectedReceivables([]);
     }
   }
-  const [professionals, setProfessionals] = useState<Professional[]>([]);
-  const [selectedReceivables, setSelectedReceivables] = useState<string[]>([]);
-  const [receivableFilter, setReceivableFilter] =
-    useState<ReceivableFilter>("all");
   const [receivableSearch, setReceivableSearch] = useState("");
   const [settling, setSettling] = useState<SettleTarget | null>(null);
   const [viewingProofs, setViewingProofs] = useState<{

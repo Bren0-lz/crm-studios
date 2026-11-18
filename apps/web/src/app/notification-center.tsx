@@ -178,7 +178,7 @@ export function notificationGroups(
   add(
     "overdueReceivables",
     summary.overdueReceivables,
-    "/financeiro",
+    "/financeiro?parcelas=vencidas",
     <WalletCards {...iconProps} />,
   );
   // Só vem da API no horário do aviso configurado na clínica (RC5).

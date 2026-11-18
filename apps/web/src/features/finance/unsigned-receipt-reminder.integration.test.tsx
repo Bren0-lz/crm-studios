@@ -53,6 +53,57 @@ describe("aviso de recibos não assinados (RC5)", () => {
     expect(screen.queryByText("Mensalidade assinada")).not.toBeInTheDocument();
   });
 
+  it("clicar em Parcelas vencidas abre as parcelas já com o filtro Vencidas ativado", async () => {
+    const api = await setupApi();
+    const patient = await api.repository.createPatient(clinicId, {
+      cpf: nextTestCpf(),
+      fullName: "Carlos Souza",
+      phone: "11977776666",
+      tags: [],
+    });
+    await api.repository.createManualReceivable(clinicId, actorId, {
+      patientId: patient.id,
+      description: "Parcela atrasada",
+      amountInCents: 12_000,
+      dueDate: "2020-01-10",
+      competence: "2020-01",
+    });
+    const paid = await api.repository.createManualReceivable(
+      clinicId,
+      actorId,
+      {
+        patientId: patient.id,
+        description: "Parcela paga sem assinatura",
+        amountInCents: 15_000,
+        dueDate: "2040-06-10",
+        competence: "2040-06",
+      },
+    );
+    await api.repository.settleReceivable(clinicId, actorId, paid.id, "pix");
+
+    open("/financeiro?recibo=nao-assinado");
+    expect(
+      await screen.findByText("Parcela paga sem assinatura"),
+    ).toBeInTheDocument();
+    const banner = await screen.findByRole("region", { name: "Alertas" });
+    const overdueShortcut = within(banner).getByRole("button", {
+      name: /Parcelas vencidas/,
+    });
+    overdueShortcut.click();
+
+    expect(await screen.findByText("Parcela atrasada")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^Vencidas/ })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(
+      screen.getByRole("button", { name: /^Recibo não assinado/ }),
+    ).toHaveAttribute("aria-pressed", "false");
+    expect(
+      screen.queryByText("Parcela paga sem assinatura"),
+    ).not.toBeInTheDocument();
+  });
+
   it("explica que o aviso é imediato, sem controles de horário ou espera", async () => {
     await setupApi();
     open("/configuracoes");
