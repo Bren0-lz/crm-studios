@@ -248,7 +248,7 @@ export function Shell({
             <Menu size={20} aria-hidden="true" />
           </button>
           <div className="topbar-context">
-            <span className="clinic-label">Studios Aryana</span>
+            <span className="clinic-label">Organiza Studios</span>
           </div>
           <NotificationsBanner
             center={notifications}

@@ -26,7 +26,7 @@ export function Logo({ compactMark = false }: { compactMark?: boolean }) {
     };
   }, []);
   return (
-    <div className="brand" aria-label={branding?.name ?? "Studios Aryana"}>
+    <div className="brand" aria-label={branding?.name ?? "Organiza Studios"}>
       {branding?.logoDataUrl ? (
         <img
           className="clinic-logo"
@@ -35,10 +35,10 @@ export function Logo({ compactMark = false }: { compactMark?: boolean }) {
         />
       ) : (
         <>
-          <span className="brand-name">Studios Aryana</span>
+          <span className="brand-name">Organiza Studios</span>
           {compactMark && (
             <span className="brand-monogram" aria-hidden="true">
-              {initials(branding?.name ?? "Studios Aryana")}
+              {initials(branding?.name ?? "Organiza Studios")}
             </span>
           )}
         </>

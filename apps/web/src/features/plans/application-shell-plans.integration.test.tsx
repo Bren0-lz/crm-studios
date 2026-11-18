@@ -66,7 +66,7 @@ describe("application shell", () => {
     );
     expect(screen.queryByText("Cadastros incompletos")).not.toBeInTheDocument();
     expect(
-      screen.getByText("Studios Aryana", { selector: ".clinic-label" }),
+      screen.getByText("Organiza Studios", { selector: ".clinic-label" }),
     ).toBeInTheDocument();
     expect(screen.getByText("Aryana Dutra")).toBeInTheDocument();
     expect(screen.queryByText(/Movimenta/i)).not.toBeInTheDocument();
