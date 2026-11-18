@@ -152,7 +152,9 @@ describe("header menus", () => {
         { name: /Parcelas vencidas/ },
       ),
     );
-    expect(screen.getByTestId("location")).toHaveTextContent("/financeiro");
+    expect(screen.getByTestId("location")).toHaveTextContent(
+      "/financeiro?parcelas=vencidas",
+    );
 
     fireEvent.click(screen.getByRole("button", { name: /^Notificações/ }));
     fireEvent.click(
