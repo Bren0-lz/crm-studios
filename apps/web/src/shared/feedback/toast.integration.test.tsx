@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -6,6 +7,22 @@ import { storedUser } from "../../test-support/legacy-fixtures";
 import "../../test-support/legacy-setup";
 import { ToastProvider } from "./ToastProvider";
 import { useToast } from "./toast-context";
+
+const shellCss = readFileSync(
+  `${process.cwd()}/src/styles/03-shell.css`,
+  "utf8",
+);
+const modalsCss = readFileSync(
+  `${process.cwd()}/src/styles/06-modals.css`,
+  "utf8",
+);
+
+function cssZIndex(css: string, selector: string) {
+  const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const rule = new RegExp(`(?:^|\\n)${escaped} \\{([^}]*)\\}`).exec(css)?.[1];
+  const match = /z-index:\s*(\d+)/.exec(rule ?? "");
+  return match ? Number(match[1]) : NaN;
+}
 
 function Trigger() {
   const toast = useToast();
@@ -88,5 +105,11 @@ describe("toasts", () => {
     expect(await screen.findByRole("status")).toHaveTextContent(
       "Presença confirmada.",
     );
+  });
+
+  it("stacks above open modals so toasts from in-modal actions stay visible", () => {
+    const toastZ = cssZIndex(shellCss, ".toast-stack");
+    const modalZ = cssZIndex(modalsCss, ".modal-backdrop");
+    expect(toastZ).toBeGreaterThan(modalZ);
   });
 });
