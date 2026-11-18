@@ -772,10 +772,10 @@
   }
 }
 
-/* Avisos (toast) de sucesso e erro, no canto inferior direito. */
+/* Avisos (toast) de sucesso e erro, no canto inferior direito (acima de modais abertos). */
 .toast-stack {
   position: fixed;
-  z-index: 80;
+  z-index: 110;
   right: var(--space-5);
   bottom: var(--space-5);
   display: grid;
