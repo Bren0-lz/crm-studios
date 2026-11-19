@@ -1,5 +1,104 @@
 import type { GroupClass, GroupWorkspace, Room } from "@crm/contracts";
-import { test, expect, login, seedPatient } from "./fixtures.js";
+import { test, expect, login, seedPatient, selectPatient } from "./fixtures.js";
+
+test("keeps a full group's extra enrollments in its waitlist after reload", async ({
+  page,
+  api,
+}) => {
+  const [service] = await (await api.get("/services")).json();
+  const [professional] = await (await api.get("/professionals")).json();
+  const rooms: Room[] = await (await api.get("/rooms")).json();
+  const room = rooms.find((item) => item.active && item.capacity >= 2)!;
+  const created = await api.post("/groups", {
+    data: {
+      name: "Turma Lotação 2",
+      serviceId: service.id,
+      professionalId: professional.id,
+      roomId: room.id,
+      capacity: 2,
+      weeklySlots: [{ weekday: 0, startTime: "21:00", endTime: "22:00" }],
+    },
+  });
+  expect(created.status(), await created.text()).toBe(201);
+  const group: GroupClass = await created.json();
+  const active = ["Ana Matriculada", "Bruno Matriculado"];
+  for (const name of active) {
+    const patient = await seedPatient(api, name);
+    const response = await api.post("/group-enrollments", {
+      data: { groupId: group.id, patientId: patient.id },
+    });
+    expect(response.status(), await response.text()).toBe(201);
+    expect(await response.json()).toMatchObject({ status: "active" });
+  }
+  const waiting = [
+    await seedPatient(api, "Carla Espera da Turma"),
+    await seedPatient(api, "Diego Espera do Serviço"),
+  ];
+  const serviceWaitlist = await api.post("/waitlist", {
+    data: {
+      kind: "service",
+      serviceId: group.serviceId,
+      patientId: waiting[1].id,
+    },
+  });
+  expect(serviceWaitlist.status(), await serviceWaitlist.text()).toBe(201);
+
+  await login(page);
+  await page.goto("/turmas");
+  const card = page.locator(".group-card").filter({ hasText: group.name });
+  await expect(card.getByText("0 em espera")).toBeVisible();
+  for (const [index, patient] of waiting.entries()) {
+    await page.getByRole("button", { name: "Matricular cliente" }).click();
+    const enrollment = page.getByRole("dialog", { name: "Nova matrícula" });
+    const groupPicker = enrollment.getByRole("combobox", { name: "Turma" });
+    await expect(
+      groupPicker.locator(`option[value="${group.id}"]`),
+    ).toContainText("turma cheia (lista de espera)");
+    await groupPicker.selectOption(group.id);
+    await selectPatient(enrollment, patient.fullName);
+    await enrollment
+      .getByRole("button", { name: "Colocar na lista de espera", exact: true })
+      .click();
+    await expect(card.getByText(`${index + 1} em espera`)).toBeVisible();
+  }
+
+  await page.reload();
+  await expect(card.getByText("2 em espera")).toBeVisible();
+  await expect(
+    card.getByText("2 matriculados · Sem vagas livres"),
+  ).toBeVisible();
+  await card.getByRole("button", { name: "Abrir turma" }).click();
+  const details = page.getByRole("dialog", { name: group.name, exact: true });
+  for (const name of active) {
+    await expect(details.getByText(`${name} · Matriculado`)).toBeVisible();
+  }
+  for (const [index, patient] of waiting.entries()) {
+    await expect(
+      details.getByText(`${patient.fullName} · Espera ${index + 1}`),
+    ).toBeVisible();
+  }
+
+  await page.goto("/lista-de-espera");
+  for (const [index, patient] of waiting.entries()) {
+    const row = page
+      .getByRole("row")
+      .filter({ hasText: patient.fullName })
+      .filter({ hasText: group.name });
+    await expect(
+      row.getByText(`Espera da turma · ${group.serviceName}`),
+    ).toBeVisible();
+    await expect(
+      row.getByRole("cell", { name: new RegExp(`${index + 1}º$`) }),
+    ).toBeVisible();
+  }
+  const serviceRow = page
+    .getByRole("row")
+    .filter({ hasText: waiting[1].fullName })
+    .filter({ hasNotText: group.name });
+  await expect(
+    serviceRow.getByText(group.serviceName, { exact: true }),
+  ).toBeVisible();
+});
 
 test("creates and renames a group without changing its meetings", async ({
   page,
