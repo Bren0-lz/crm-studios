@@ -111,7 +111,7 @@ function renderGroups(
   );
 }
 
-async function enrollHelena(openDialog?: HTMLElement) {
+async function enrollHelena(openDialog?: HTMLElement, action = "Matricular") {
   if (!openDialog)
     fireEvent.click(
       await screen.findByRole("button", { name: "Matricular cliente" }),
@@ -128,7 +128,7 @@ async function enrollHelena(openDialog?: HTMLElement) {
   fireEvent.click(
     await within(dialog).findByRole("option", { name: "Helena Almeida" }),
   );
-  fireEvent.click(within(dialog).getByRole("button", { name: "Matricular" }));
+  fireEvent.click(within(dialog).getByRole("button", { name: action }));
 }
 
 describe("toasts de sucesso nas gravações", () => {
@@ -159,16 +159,15 @@ describe("toasts de sucesso nas gravações", () => {
       await screen.findByRole("button", { name: "Matricular cliente" }),
     );
     // Turma cheia: o seletor avisa da lista de espera, como no cadastro guiado.
-    const dialog = await screen.findByRole("dialog", { name: "Nova matrícula" });
+    const dialog = await screen.findByRole("dialog", {
+      name: "Nova matrícula",
+    });
     expect(
       within(within(dialog).getByLabelText("Turma")).getByRole("option", {
         name: /^Pilates Turma A — .* · turma cheia \(lista de espera\)$/,
       }),
     ).toBeInTheDocument();
-    await enrollHelena(dialog);
-    fireEvent.click(
-      screen.getByRole("button", { name: "Sim, colocar na lista de espera" }),
-    );
+    await enrollHelena(dialog, "Colocar na lista de espera");
     await successToast(
       "Turma cheia: Helena entrou na lista de espera de Pilates Turma A (posição 2).",
     );

@@ -120,7 +120,6 @@ export function GroupsPage() {
     "Sábado",
   ];
   const [workspace, setWorkspace] = useState<GroupWorkspace | null>(null);
-  const [confirmWaitlist, setConfirmWaitlist] = useState(false);
   /** Matrícula à espera da confirmação de cancelamento. */
   const [cancelTarget, setCancelTarget] = useState<GroupEnrollment | null>(
     null,
@@ -309,33 +308,17 @@ export function GroupsPage() {
       setSaving(false);
     }
   }
-  async function submitEnrollment() {
-    setError("");
-    setSaving(true);
-    try {
-      const enrollment = await api.createGroupEnrollment(enrollmentForm);
-      setConfirmWaitlist(false);
-      closeGroupDialogs();
-      toast.success(
-        groupEnrollmentToast(
-          enrollment,
-          workspace?.groups.find((item) => item.id === enrollment.groupId)
-            ?.name,
-        ),
-      );
-      await load();
-    } catch (cause) {
-      setError((cause as Error).message);
-      throw cause;
-    } finally {
-      setSaving(false);
-    }
-  }
   const activeEnrollments =
     workspace?.enrollments.filter((item) => item.status === "active") ?? [];
   const selectedGroup = workspace?.groups.find(
     (item) => item.id === selectedGroupId,
   );
+  const enrollmentGroup = workspace?.groups.find(
+    (item) => item.id === enrollmentForm.groupId,
+  );
+  const enrollmentGroupFull =
+    enrollmentGroup &&
+    enrollmentGroup.activeEnrollments >= enrollmentGroup.capacity;
   const newGroupService = services.find(
     (item) => item.id === groupForm.serviceId,
   );
@@ -413,18 +396,6 @@ export function GroupsPage() {
   }
   return (
     <>
-      {confirmWaitlist &&
-        createPortal(
-          <ActionModal
-            eyebrow="Lista de espera"
-            title="Turma cheia"
-            subtitle="Deseja colocar o cliente na lista de espera desta turma?"
-            confirmLabel="Sim, colocar na lista de espera"
-            onClose={() => setConfirmWaitlist(false)}
-            onConfirm={submitEnrollment}
-          />,
-          document.body,
-        )}
       {cancelTarget &&
         createPortal(
           <ActionModal
@@ -734,7 +705,6 @@ export function GroupsPage() {
               title="Nova matrícula"
               subtitle="Escolha a turma e o cliente."
               busy={saving}
-              inactive={confirmWaitlist}
               dirty={enrollDirty}
               onClose={closeGroupDialogs}
             >
@@ -745,13 +715,16 @@ export function GroupsPage() {
                     className="group-modal-form"
                     onSubmit={(event) => {
                       event.preventDefault();
-                      if (!enrollmentForm.patientId) return;
-                      const group = workspace?.groups.find(
-                        (item) => item.id === enrollmentForm.groupId,
-                      );
-                      if (group && group.activeEnrollments >= group.capacity)
-                        setConfirmWaitlist(true);
-                      else void submitEnrollment().catch(() => undefined);
+                      if (saving || enrollMissing.blocked) return;
+                      void run(async () => {
+                        const enrollment =
+                          await api.createGroupEnrollment(enrollmentForm);
+                        closeGroupDialogs();
+                        return groupEnrollmentToast(
+                          enrollment,
+                          enrollmentGroup?.name,
+                        );
+                      });
                     }}
                   >
                     <section className="group-modal-section">
@@ -765,6 +738,7 @@ export function GroupsPage() {
                           Turma
                           <select
                             required
+                            disabled={saving}
                             value={enrollmentForm.groupId}
                             onChange={(event) =>
                               setEnrollmentForm({
@@ -816,7 +790,9 @@ export function GroupsPage() {
                         disabled={saving || enrollMissing.blocked}
                         aria-describedby={enrollMissing.describedBy}
                       >
-                        Matricular
+                        {enrollmentGroupFull
+                          ? "Colocar na lista de espera"
+                          : "Matricular"}
                       </button>
                     </div>
                   </form>
@@ -936,7 +912,7 @@ export function GroupsPage() {
                 (item) => item.id === selectedGroup.serviceId,
               )}
               initialSessionId={initialSessionId}
-              nested={Boolean(cancelTarget) || confirmWaitlist}
+              nested={Boolean(cancelTarget)}
               calendar={{
                 month: calendarMonth,
                 loading: calendarLoading,

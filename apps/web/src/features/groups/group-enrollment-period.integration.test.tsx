@@ -93,6 +93,7 @@ function renderGroups(full = false) {
         ? {
             ...workspace.enrollments[0],
             ...JSON.parse(String(options.body)),
+            ...(full ? { status: "waitlisted", queuePosition: 1 } : {}),
           }
         : url.includes("/groups/workspace?")
           ? {
@@ -125,7 +126,7 @@ function renderGroups(full = false) {
 }
 
 describe("group enrollment period", () => {
-  it("does not enroll in a full group until the waitlist confirmation is accepted", async () => {
+  it("submits a full group's waitlist entry from the enrollment form", async () => {
     renderGroups(true);
     fireEvent.click(
       await screen.findByRole("button", { name: "Matricular cliente" }),
@@ -143,11 +144,6 @@ describe("group enrollment period", () => {
     fireEvent.click(
       await within(dialog).findByRole("option", { name: "Helena Almeida" }),
     );
-    fireEvent.click(within(dialog).getByRole("button", { name: "Matricular" }));
-    const confirmation = screen.getByRole("dialog", { name: "Turma cheia" });
-    expect(confirmation.closest(".modal-backdrop")?.parentElement).toBe(
-      document.body,
-    );
     const writes = () =>
       vi
         .mocked(fetch)
@@ -158,14 +154,12 @@ describe("group enrollment period", () => {
         );
     expect(writes()).toHaveLength(0);
     fireEvent.click(
-      within(confirmation).getByRole("button", { name: "Voltar" }),
+      within(dialog).getByRole("button", {
+        name: "Colocar na lista de espera",
+      }),
     );
-    expect(writes()).toHaveLength(0);
-    fireEvent.click(within(dialog).getByRole("button", { name: "Matricular" }));
-    fireEvent.click(
-      screen.getByRole("button", { name: "Sim, colocar na lista de espera" }),
-    );
-    await vi.waitFor(() => expect(writes()).toHaveLength(1));
+    await vi.waitFor(() => expect(dialog).not.toBeInTheDocument());
+    expect(writes()).toHaveLength(1);
   });
   it("lists in each session only the clients enrolled on that date", async () => {
     // 18/10/2026: 14/10 e 21/10 aparecem no calendário de outubro.
