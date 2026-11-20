@@ -72,9 +72,12 @@ Os caminhos começam no menu lateral. O nome de uma opção pode variar se a cl�
 9. Clique em **Fechar calendário**.
 10. Clique em **Confirmar atendimento**.
 
-**Como saber se deu certo:** O formulário fecha e o atendimento aparece na agenda.  
-**Se o botão não aparecer:** Confira se seu acesso permite agendar atendimentos.  
-**Verificação:** Formulário visto na interface. Gravação verificada pelas asserções do teste de ponta a ponta.  
+**Como saber se deu certo:** O formulário fecha e o atendimento aparece na agenda.
+
+**Se o botão não aparecer:** Confira se seu acesso permite agendar atendimentos.
+
+**Verificação:** Formulário visto na interface. Gravação verificada pelas asserções do teste de ponta a ponta.
+
 **Fontes:** [Agenda](https://crm.organizastudios.com/agenda) · [AgendaPage.tsx](https://github.com/Bren0-lz/crm-studios/blob/dd13b30dbf99a361899221397f476792601a54d2/apps/web/src/features/agenda/AgendaPage.tsx) · [AppointmentModal.tsx](https://github.com/Bren0-lz/crm-studios/blob/dd13b30dbf99a361899221397f476792601a54d2/apps/web/src/features/agenda/AppointmentModal.tsx) · [agenda.spec.ts](https://github.com/Bren0-lz/crm-studios/blob/dd13b30dbf99a361899221397f476792601a54d2/e2e/agenda.spec.ts) · [fixtures.ts](https://github.com/Bren0-lz/crm-studios/blob/dd13b30dbf99a361899221397f476792601a54d2/e2e/fixtures.ts)
 
 <a id="tarefa-2"></a>
@@ -92,9 +95,12 @@ Os caminhos começam no menu lateral. O nome de uma opção pode variar se a cl�
 5. Clique em **Fechar calendário**.
 6. Clique em **Confirmar reagendamento**.
 
-**Como saber se deu certo:** O formulário fecha. O teste verifica que o mesmo atendimento fica no novo horário e que o histórico registra uma remarcação.  
-**Se o botão não aparecer:** Confira se o atendimento está agendado e se você tem permissão para reagendar.  
-**Verificação:** Entrada da Agenda vista na interface. Detalhes e gravação verificados no código e no teste de ponta a ponta.  
+**Como saber se deu certo:** O formulário fecha. O teste verifica que o mesmo atendimento fica no novo horário e que o histórico registra uma remarcação.
+
+**Se o botão não aparecer:** Confira se o atendimento está agendado e se você tem permissão para reagendar.
+
+**Verificação:** Entrada da Agenda vista na interface. Detalhes e gravação verificados no código e no teste de ponta a ponta.
+
 **Fontes:** [Agenda](https://crm.organizastudios.com/agenda) · [AppointmentDetailsModal.tsx](https://github.com/Bren0-lz/crm-studios/blob/dd13b30dbf99a361899221397f476792601a54d2/apps/web/src/features/agenda/AppointmentDetailsModal.tsx) · [AppointmentRescheduleModal.tsx](https://github.com/Bren0-lz/crm-studios/blob/dd13b30dbf99a361899221397f476792601a54d2/apps/web/src/features/agenda/AppointmentRescheduleModal.tsx) · [agenda.spec.ts](https://github.com/Bren0-lz/crm-studios/blob/dd13b30dbf99a361899221397f476792601a54d2/e2e/agenda.spec.ts) · [fixtures.ts](https://github.com/Bren0-lz/crm-studios/blob/dd13b30dbf99a361899221397f476792601a54d2/e2e/fixtures.ts)
 
 <a id="tarefa-14"></a>
@@ -111,9 +117,12 @@ Os caminhos começam no menu lateral. O nome de uma opção pode variar se a cl�
 4. Se precisar, preencha **Detalhes (opcional)**.
 5. Clique em **Confirmar cancelamento**.
 
-**Como saber se deu certo:** O sistema registra o atendimento como cancelado. A Agenda só exibe cancelados quando a visualização correspondente é ativada.  
-**Se o botão não aparecer:** Confira se o atendimento está agendado ou confirmado e se seu acesso permite cancelar.  
-**Verificação:** Caminho, motivo obrigatório e envio do cancelamento conferidos no código e em testes de integração separados. Cartão e confirmação pendentes na tela publicada.  
+**Como saber se deu certo:** O sistema registra o atendimento como cancelado. A Agenda só exibe cancelados quando a visualização correspondente é ativada.
+
+**Se o botão não aparecer:** Confira se o atendimento está agendado ou confirmado e se seu acesso permite cancelar.
+
+**Verificação:** Caminho, motivo obrigatório e envio do cancelamento conferidos no código e em testes de integração separados. Cartão e confirmação pendentes na tela publicada.
+
 **Fontes:** [Agenda](https://crm.organizastudios.com/agenda) · [AgendaCard.tsx](https://github.com/Bren0-lz/crm-studios/blob/dd13b30dbf99a361899221397f476792601a54d2/apps/web/src/features/agenda/AgendaCard.tsx) · [AppointmentDetailsModal.tsx](https://github.com/Bren0-lz/crm-studios/blob/dd13b30dbf99a361899221397f476792601a54d2/apps/web/src/features/agenda/AppointmentDetailsModal.tsx) · [agenda-card-menu.integration.test.tsx](https://github.com/Bren0-lz/crm-studios/blob/dd13b30dbf99a361899221397f476792601a54d2/apps/web/src/features/agenda/agenda-card-menu.integration.test.tsx) · [appointment-attendance.integration.test.tsx](https://github.com/Bren0-lz/crm-studios/blob/dd13b30dbf99a361899221397f476792601a54d2/apps/web/src/features/agenda/appointment-attendance.integration.test.tsx) · [agenda-cancelled.integration.test.tsx](https://github.com/Bren0-lz/crm-studios/blob/dd13b30dbf99a361899221397f476792601a54d2/apps/web/src/features/agenda/agenda-cancelled.integration.test.tsx)
 
 <a id="tarefa-3"></a>
@@ -133,9 +142,12 @@ Os caminhos começam no menu lateral. O nome de uma opção pode variar se a cl�
 7. Clique em **Salvar cliente**.
 8. Na janela **Cliente cadastrado**, clique em **Concluir**.
 
-**Como saber se deu certo:** A janela confirma o cadastro. O teste encontra o cliente na busca.  
-**Se o botão não aparecer:** Confira se você tem permissão para cadastrar. Se **Salvar cliente** estiver desabilitado, confira os campos obrigatórios.  
-**Verificação:** Formulário visto na interface. O teste de integração confirma a gravação com **Salvar cliente**. A confirmação e a busca constam no teste de ponta a ponta, que cita uma opção antiga, registrada nas pendências.  
+**Como saber se deu certo:** A janela confirma o cadastro. O teste encontra o cliente na busca.
+
+**Se o botão não aparecer:** Confira se você tem permissão para cadastrar. Se **Salvar cliente** estiver desabilitado, confira os campos obrigatórios.
+
+**Verificação:** Formulário visto na interface. O teste de integração confirma a gravação com **Salvar cliente**. A confirmação e a busca constam no teste de ponta a ponta, que cita uma opção antiga, registrada nas pendências.
+
 **Fontes:** [Clientes](https://crm.organizastudios.com/clientes) · [PatientsPage.tsx](https://github.com/Bren0-lz/crm-studios/blob/dd13b30dbf99a361899221397f476792601a54d2/apps/web/src/features/patients/PatientsPage.tsx) · [PatientModal.tsx](https://github.com/Bren0-lz/crm-studios/blob/dd13b30dbf99a361899221397f476792601a54d2/apps/web/src/features/patients/PatientModal.tsx) · [patient-nickname.integration.test.tsx](https://github.com/Bren0-lz/crm-studios/blob/dd13b30dbf99a361899221397f476792601a54d2/apps/web/src/features/patients/patient-nickname.integration.test.tsx) · [patients.spec.ts](https://github.com/Bren0-lz/crm-studios/blob/dd13b30dbf99a361899221397f476792601a54d2/e2e/patients.spec.ts)
 
 <a id="tarefa-4"></a>
@@ -153,9 +165,12 @@ Os caminhos começam no menu lateral. O nome de uma opção pode variar se a cl�
 5. Selecione o **Interesse**.
 6. Clique em **Adicionar ao funil**.
 
-**Como saber se deu certo:** Um aviso confirma o cadastro e o cartão aparece em **Novos**.  
-**Se o botão não aparecer:** Confira se seu acesso permite cadastrar leads. **Cadastrar origem** e **Cadastrar interesse** aparecem para administradores.  
-**Verificação:** Formulário visto na interface. Código marca Origem e Interesse como obrigatórios. A confirmação e o cartão são verificados no teste de integração.  
+**Como saber se deu certo:** Um aviso confirma o cadastro e o cartão aparece em **Novos**.
+
+**Se o botão não aparecer:** Confira se seu acesso permite cadastrar leads. **Cadastrar origem** e **Cadastrar interesse** aparecem para administradores.
+
+**Verificação:** Formulário visto na interface. Código marca Origem e Interesse como obrigatórios. A confirmação e o cartão são verificados no teste de integração.
+
 **Fontes:** [CRM comercial](https://crm.organizastudios.com/comercial) · [CommercialPage.tsx](https://github.com/Bren0-lz/crm-studios/blob/dd13b30dbf99a361899221397f476792601a54d2/apps/web/src/features/commercial/CommercialPage.tsx) · [LeadModal.tsx](https://github.com/Bren0-lz/crm-studios/blob/dd13b30dbf99a361899221397f476792601a54d2/apps/web/src/features/commercial/LeadModal.tsx) · [lead-form-conversion.integration.test.tsx](https://github.com/Bren0-lz/crm-studios/blob/dd13b30dbf99a361899221397f476792601a54d2/apps/web/src/features/commercial/lead-form-conversion.integration.test.tsx)
 
 <a id="tarefa-5"></a>
@@ -174,9 +189,12 @@ Os caminhos começam no menu lateral. O nome de uma opção pode variar se a cl�
 6. Complete os demais dados disponíveis no formulário.
 7. Clique em **Converter em cliente**.
 
-**Como saber se deu certo:** O lead aparece na coluna **Ganhos** e um aviso confirma a conversão.  
-**Se o botão não aparecer:** Confira se o lead ainda está em aberto e se seu acesso permite converter leads e cadastrar clientes.  
-**Verificação:** A tela do funil foi vista sem cartões. Caminho no cartão, condições e resultado verificados no código e no teste de integração.  
+**Como saber se deu certo:** O lead aparece na coluna **Ganhos** e um aviso confirma a conversão.
+
+**Se o botão não aparecer:** Confira se o lead ainda está em aberto e se seu acesso permite converter leads e cadastrar clientes.
+
+**Verificação:** A tela do funil foi vista sem cartões. Caminho no cartão, condições e resultado verificados no código e no teste de integração.
+
 **Fontes:** [CRM comercial](https://crm.organizastudios.com/comercial) · [CommercialPage.tsx](https://github.com/Bren0-lz/crm-studios/blob/dd13b30dbf99a361899221397f476792601a54d2/apps/web/src/features/commercial/CommercialPage.tsx) · [LeadCard.tsx](https://github.com/Bren0-lz/crm-studios/blob/dd13b30dbf99a361899221397f476792601a54d2/apps/web/src/features/commercial/LeadCard.tsx) · [LeadConvertModal.tsx](https://github.com/Bren0-lz/crm-studios/blob/dd13b30dbf99a361899221397f476792601a54d2/apps/web/src/features/commercial/LeadConvertModal.tsx) · [lead-form-conversion.integration.test.tsx](https://github.com/Bren0-lz/crm-studios/blob/dd13b30dbf99a361899221397f476792601a54d2/apps/web/src/features/commercial/lead-form-conversion.integration.test.tsx)
 
 <a id="tarefa-6"></a>
@@ -197,9 +215,12 @@ Os caminhos começam no menu lateral. O nome de uma opção pode variar se a cl�
 8. Confira o dia e o horário em **Horários semanais**.
 9. Clique em **Criar turma**.
 
-**Como saber se deu certo:** A janela fecha e aparece um cartão com o nome da turma.  
-**Se o botão não aparecer:** Confira se seu acesso permite criar turmas.  
-**Verificação:** Formulário visto na interface. Criação verificada no código e no teste de ponta a ponta.  
+**Como saber se deu certo:** A janela fecha e aparece um cartão com o nome da turma.
+
+**Se o botão não aparecer:** Confira se seu acesso permite criar turmas.
+
+**Verificação:** Formulário visto na interface. Criação verificada no código e no teste de ponta a ponta.
+
 **Fontes:** [Turmas](https://crm.organizastudios.com/turmas) · [GroupsPage.tsx](https://github.com/Bren0-lz/crm-studios/blob/dd13b30dbf99a361899221397f476792601a54d2/apps/web/src/features/groups/GroupsPage.tsx) · [GroupModal.tsx](https://github.com/Bren0-lz/crm-studios/blob/dd13b30dbf99a361899221397f476792601a54d2/apps/web/src/features/groups/GroupModal.tsx) · [groups.spec.ts](https://github.com/Bren0-lz/crm-studios/blob/dd13b30dbf99a361899221397f476792601a54d2/e2e/groups.spec.ts)
 
 <a id="tarefa-7"></a>
@@ -214,9 +235,12 @@ Os caminhos começam no menu lateral. O nome de uma opção pode variar se a cl�
 2. Clique em **Frequência e reposições** para ver o calendário da turma.
 3. Clique em **Dados da turma** para voltar aos dados.
 
-**Como saber se deu certo:** A janela permanece na mesma turma e passa a mostrar o conteúdo da aba escolhida.  
-**Se o botão não aparecer:** Você consegue ver o cartão da turma na aba **Turmas**?  
-**Verificação:** Abas vistas na interface. Calendário e troca de abas conferidos no teste de ponta a ponta.  
+**Como saber se deu certo:** A janela permanece na mesma turma e passa a mostrar o conteúdo da aba escolhida.
+
+**Se o botão não aparecer:** Você consegue ver o cartão da turma na aba **Turmas**?
+
+**Verificação:** Abas vistas na interface. Calendário e troca de abas conferidos no teste de ponta a ponta.
+
 **Fontes:** [Turmas](https://crm.organizastudios.com/turmas) · [GroupsPage.tsx](https://github.com/Bren0-lz/crm-studios/blob/dd13b30dbf99a361899221397f476792601a54d2/apps/web/src/features/groups/GroupsPage.tsx) · [GroupDetailsModal.tsx](https://github.com/Bren0-lz/crm-studios/blob/dd13b30dbf99a361899221397f476792601a54d2/apps/web/src/features/groups/GroupDetailsModal.tsx) · [groups.spec.ts](https://github.com/Bren0-lz/crm-studios/blob/dd13b30dbf99a361899221397f476792601a54d2/e2e/groups.spec.ts)
 
 <a id="tarefa-8"></a>
@@ -232,9 +256,12 @@ Os caminhos começam no menu lateral. O nome de uma opção pode variar se a cl�
 3. Selecione o cliente.
 4. Clique em **Colocar na lista de espera**.
 
-**Como saber se deu certo:** O contador **em espera** aumenta no cartão da turma. O teste verifica que a fila permanece após recarregar a página.  
-**Se o botão não aparecer:** Confira se você escolheu uma turma cheia. Veja se seu acesso permite matricular.  
-**Verificação:** Entrada da matrícula vista na interface. Seleção de turma cheia e resultado verificados no teste de ponta a ponta.  
+**Como saber se deu certo:** O contador **em espera** aumenta no cartão da turma. O teste verifica que a fila permanece após recarregar a página.
+
+**Se o botão não aparecer:** Confira se você escolheu uma turma cheia. Veja se seu acesso permite matricular.
+
+**Verificação:** Entrada da matrícula vista na interface. Seleção de turma cheia e resultado verificados no teste de ponta a ponta.
+
 **Fontes:** [Turmas](https://crm.organizastudios.com/turmas) · [GroupsPage.tsx](https://github.com/Bren0-lz/crm-studios/blob/dd13b30dbf99a361899221397f476792601a54d2/apps/web/src/features/groups/GroupsPage.tsx) · [groups.spec.ts](https://github.com/Bren0-lz/crm-studios/blob/dd13b30dbf99a361899221397f476792601a54d2/e2e/groups.spec.ts)
 
 <a id="tarefa-9"></a>
@@ -254,9 +281,12 @@ Os caminhos começam no menu lateral. O nome de uma opção pode variar se a cl�
 7. Preencha **Primeiro vencimento**.
 8. Clique em **Criar plano e parcelas**.
 
-**Como saber se deu certo:** A janela fecha. O teste verifica que o plano foi criado com o saldo de sessões do pacote e que a parcela aparece no Financeiro.  
-**Se o botão não aparecer:** Confira se seu acesso permite contratar planos. Se não encontrar o pacote, verifique a lista **Plano cadastrado**.  
-**Verificação:** Formulário visto na interface. Gravação do plano e criação da parcela verificadas no teste de ponta a ponta.  
+**Como saber se deu certo:** A janela fecha. O teste verifica que o plano foi criado com o saldo de sessões do pacote e que a parcela aparece no Financeiro.
+
+**Se o botão não aparecer:** Confira se seu acesso permite contratar planos. Se não encontrar o pacote, verifique a lista **Plano cadastrado**.
+
+**Verificação:** Formulário visto na interface. Gravação do plano e criação da parcela verificadas no teste de ponta a ponta.
+
 **Fontes:** [Planos e sessões](https://crm.organizastudios.com/planos) · [PlansPage.tsx](https://github.com/Bren0-lz/crm-studios/blob/dd13b30dbf99a361899221397f476792601a54d2/apps/web/src/features/plans/PlansPage.tsx) · [PlanModal.tsx](https://github.com/Bren0-lz/crm-studios/blob/dd13b30dbf99a361899221397f476792601a54d2/apps/web/src/features/plans/PlanModal.tsx) · [plans-finance.spec.ts](https://github.com/Bren0-lz/crm-studios/blob/dd13b30dbf99a361899221397f476792601a54d2/e2e/plans-finance.spec.ts)
 
 <a id="tarefa-10"></a>
@@ -274,9 +304,12 @@ Os caminhos começam no menu lateral. O nome de uma opção pode variar se a cl�
 5. Se precisar, preencha **Observações**.
 6. Clique em **Adicionar à lista** dentro da janela.
 
-**Como saber se deu certo:** A janela fecha. O serviço aparece em **Maior procura** e o cliente aparece em **Clientes na lista**, com sua posição na fila.  
-**Se o botão não aparecer:** Confira se você tem permissão para gerenciar a lista. Se o botão da janela estiver desabilitado, confira **Cliente** e **Serviço**.  
-**Verificação:** Formulário visto na interface. Gravação e posição na fila verificadas no teste de integração.  
+**Como saber se deu certo:** A janela fecha. O serviço aparece em **Maior procura** e o cliente aparece em **Clientes na lista**, com sua posição na fila.
+
+**Se o botão não aparecer:** Confira se você tem permissão para gerenciar a lista. Se o botão da janela estiver desabilitado, confira **Cliente** e **Serviço**.
+
+**Verificação:** Formulário visto na interface. Gravação e posição na fila verificadas no teste de integração.
+
 **Fontes:** [Lista de espera](https://crm.organizastudios.com/lista-de-espera) · [WaitlistPage.tsx](https://github.com/Bren0-lz/crm-studios/blob/dd13b30dbf99a361899221397f476792601a54d2/apps/web/src/features/waitlist/WaitlistPage.tsx) · [WaitlistEntryModal.tsx](https://github.com/Bren0-lz/crm-studios/blob/dd13b30dbf99a361899221397f476792601a54d2/apps/web/src/features/waitlist/WaitlistEntryModal.tsx) · [waitlist-page.integration.test.tsx](https://github.com/Bren0-lz/crm-studios/blob/dd13b30dbf99a361899221397f476792601a54d2/apps/web/src/features/waitlist/waitlist-page.integration.test.tsx)
 
 <a id="tarefa-11"></a>
@@ -292,9 +325,12 @@ Os caminhos começam no menu lateral. O nome de uma opção pode variar se a cl�
 3. Em **Forma de pagamento recebida**, selecione **Pix**.
 4. Clique em **Confirmar baixa**.
 
-**Como saber se deu certo:** A janela fecha e a parcela aparece como **Paga**.  
-**Se o botão não aparecer:** Confira se a parcela está em aberto e se você tem permissão para registrar recebimentos.  
-**Verificação:** Tela de parcelas vista na interface. Caminho da baixa e situação Paga verificados no código e no teste de ponta a ponta.  
+**Como saber se deu certo:** A janela fecha e a parcela aparece como **Paga**.
+
+**Se o botão não aparecer:** Confira se a parcela está em aberto e se você tem permissão para registrar recebimentos.
+
+**Verificação:** Tela de parcelas vista na interface. Caminho da baixa e situação Paga verificados no código e no teste de ponta a ponta.
+
 **Fontes:** [Financeiro](https://crm.organizastudios.com/financeiro) · [FinancePage.tsx](https://github.com/Bren0-lz/crm-studios/blob/dd13b30dbf99a361899221397f476792601a54d2/apps/web/src/features/finance/FinancePage.tsx) · [ReceivablesList.tsx](https://github.com/Bren0-lz/crm-studios/blob/dd13b30dbf99a361899221397f476792601a54d2/apps/web/src/features/finance/ReceivablesList.tsx) · [SettleModal.tsx](https://github.com/Bren0-lz/crm-studios/blob/dd13b30dbf99a361899221397f476792601a54d2/apps/web/src/features/finance/SettleModal.tsx) · [plans-finance.spec.ts](https://github.com/Bren0-lz/crm-studios/blob/dd13b30dbf99a361899221397f476792601a54d2/e2e/plans-finance.spec.ts)
 
 <a id="tarefa-15"></a>
@@ -311,9 +347,12 @@ Os caminhos começam no menu lateral. O nome de uma opção pode variar se a cl�
 4. Preencha **Motivo**.
 5. Clique em **Estornar pagamento**.
 
-**Como saber se deu certo:** A lista é atualizada. O código mostra o aviso **Pagamento estornado.** após a resposta de sucesso.  
-**Se o botão não aparecer:** Confira se a parcela está paga e se você tem permissão para estornar recebimentos.  
-**Verificação:** O menu da parcela foi visto na interface. A opção Estornar e a atualização após confirmar foram conferidas no teste de integração. O aviso consta no código.  
+**Como saber se deu certo:** A lista é atualizada. O código mostra o aviso **Pagamento estornado.** após a resposta de sucesso.
+
+**Se o botão não aparecer:** Confira se a parcela está paga e se você tem permissão para estornar recebimentos.
+
+**Verificação:** O menu da parcela foi visto na interface. A opção Estornar e a atualização após confirmar foram conferidas no teste de integração. O aviso consta no código.
+
 **Fontes:** [Financeiro](https://crm.organizastudios.com/financeiro) · [FinancePage.tsx](https://github.com/Bren0-lz/crm-studios/blob/dd13b30dbf99a361899221397f476792601a54d2/apps/web/src/features/finance/FinancePage.tsx) · [ReceivablesList.tsx](https://github.com/Bren0-lz/crm-studios/blob/dd13b30dbf99a361899221397f476792601a54d2/apps/web/src/features/finance/ReceivablesList.tsx) · [ReversePaymentModal.tsx](https://github.com/Bren0-lz/crm-studios/blob/dd13b30dbf99a361899221397f476792601a54d2/apps/web/src/features/finance/ReversePaymentModal.tsx) · [application-shell-finance.integration.test.tsx](https://github.com/Bren0-lz/crm-studios/blob/dd13b30dbf99a361899221397f476792601a54d2/apps/web/src/features/finance/application-shell-finance.integration.test.tsx)
 
 <a id="tarefa-12"></a>
@@ -330,9 +369,12 @@ Os caminhos começam no menu lateral. O nome de uma opção pode variar se a cl�
 4. Se quiser, preencha **Local ou cidade**.
 5. Clique em **Salvar evento**.
 
-**Como saber se deu certo:** O evento aparece em **Eventos cadastrados**, com o nome informado.  
-**Se o botão não aparecer:** Você consegue ver o botão **Novo evento** no topo da tela **Eventos**?  
-**Verificação:** Entrada vista na interface. Campos e gravação verificados no código e no teste de ponta a ponta.  
+**Como saber se deu certo:** O evento aparece em **Eventos cadastrados**, com o nome informado.
+
+**Se o botão não aparecer:** Você consegue ver o botão **Novo evento** no topo da tela **Eventos**?
+
+**Verificação:** Entrada vista na interface. Campos e gravação verificados no código e no teste de ponta a ponta.
+
 **Fontes:** [Eventos](https://crm.organizastudios.com/eventos) · [EventsPage.tsx](https://github.com/Bren0-lz/crm-studios/blob/dd13b30dbf99a361899221397f476792601a54d2/apps/web/src/features/events/EventsPage.tsx) · [EventModal.tsx](https://github.com/Bren0-lz/crm-studios/blob/dd13b30dbf99a361899221397f476792601a54d2/apps/web/src/features/events/EventModal.tsx) · [events.spec.ts](https://github.com/Bren0-lz/crm-studios/blob/dd13b30dbf99a361899221397f476792601a54d2/e2e/events.spec.ts)
 
 <a id="tarefa-13"></a>
@@ -348,9 +390,12 @@ Os caminhos começam no menu lateral. O nome de uma opção pode variar se a cl�
 3. Clique em **Atualizar**.
 4. Clique na aba do assunto que deseja consultar, como **Clientes** ou **DRE**.
 
-**Como saber se deu certo:** Os gráficos e valores passam a usar o período escolhido. O teste verifica que o período é compartilhado entre as abas.  
-**Se o botão não aparecer:** Você está vendo a seção **Período de análise** e os campos **De** e **Até**?  
-**Verificação:** Abas vistas na interface. Escolha do período e resultado verificados no teste de ponta a ponta.  
+**Como saber se deu certo:** Os gráficos e valores passam a usar o período escolhido. O teste verifica que o período é compartilhado entre as abas.
+
+**Se o botão não aparecer:** Você está vendo a seção **Período de análise** e os campos **De** e **Até**?
+
+**Verificação:** Abas vistas na interface. Escolha do período e resultado verificados no teste de ponta a ponta.
+
 **Fontes:** [Relatórios](https://crm.organizastudios.com/relatorios) · [ReportsPage.tsx](https://github.com/Bren0-lz/crm-studios/blob/dd13b30dbf99a361899221397f476792601a54d2/apps/web/src/features/reports/ReportsPage.tsx) · [reports.spec.ts](https://github.com/Bren0-lz/crm-studios/blob/dd13b30dbf99a361899221397f476792601a54d2/e2e/reports.spec.ts)
 
 ## Pendências de verificação
