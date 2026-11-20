@@ -119,7 +119,11 @@ describe("contracts list", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /Limpar filtros/ }));
     fireEvent.change(screen.getByLabelText("Situação"), {
-      target: { value: "awaiting_signature" },
+      target: {
+        value: screen.getByRole<HTMLOptionElement>("option", {
+          name: "Link ativo",
+        }).value,
+      },
     });
     expect(rows()).toEqual(["Ana Castro Dias"]);
 

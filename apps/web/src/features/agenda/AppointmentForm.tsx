@@ -36,6 +36,7 @@ import { AppointmentDateTimePicker } from "../../AppointmentDateTimePicker";
 import { useAuthorization } from "../../authorization-context";
 import { PatientPicker } from "../../PatientPicker";
 import { FixedPatient } from "../../shared/components/FixedPatient";
+import { isCompleteDateTime } from "../../shared/components/MissingFields";
 import {
   appointmentVisitTypes,
   currency,
@@ -200,7 +201,7 @@ export function AppointmentForm({
       : { kind: "manual", starts: [form.startsAt] },
   );
   const firstStart = summaryStarts[0] ?? "";
-  const planStartsAt = completeDateTime.test(firstStart)
+  const planStartsAt = firstStart
     ? new Date(firstStart).toISOString()
     : undefined;
   const choosePlan = useCallback(
@@ -307,6 +308,19 @@ export function AppointmentForm({
       setError("Selecione um cliente para confirmar o atendimento.");
       patientInputRef.current?.focus();
       return;
+    }
+    if (!isCompleteDateTime(form.startsAt)) {
+      setError("Informe a data e o horário do atendimento.");
+      return;
+    }
+    if (form.recurring && form.manualDates) {
+      const incomplete = form.extraStarts.findIndex(
+        (value) => !isCompleteDateTime(value),
+      );
+      if (incomplete !== -1) {
+        setError(`Informe a data e o horário da ocorrência ${incomplete + 2}.`);
+        return;
+      }
     }
     if (form.recurring && form.packageDays && packageStarts.length < 2) {
       setError("Informe os dias e horários fixos e ao menos 2 sessões.");
@@ -832,8 +846,6 @@ export function AppointmentForm({
   );
 }
 
-const completeDateTime = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/;
-
 /**
  * Datas das ocorrências para o resumo, na ordem em que a API cria os atendimentos (a 1ª
  * leva a promoção). Data ainda incompleta vira "" (a definir) e vai para o fim.
@@ -849,18 +861,17 @@ function occurrenceStarts(
       },
 ): string[] {
   if (input.kind === "manual") {
-    const complete = input.starts
-      .filter((value) => completeDateTime.test(value))
-      .sort();
+    const complete = input.starts.filter(isCompleteDateTime).sort();
     return [
       ...complete,
-      ...input.starts
-        .filter((value) => !completeDateTime.test(value))
-        .map(() => ""),
+      ...Array.from(
+        { length: input.starts.length - complete.length },
+        () => "",
+      ),
     ];
   }
   const count = Math.max(1, Math.min(52, input.occurrences || 1));
-  if (!completeDateTime.test(input.startsAt))
+  if (!isCompleteDateTime(input.startsAt))
     return Array.from({ length: count }, () => "");
   return recurringOccurrenceStarts({
     startsAt: input.startsAt,

@@ -244,7 +244,7 @@ export function NewSaleSection({
       <section className="panel" aria-label="Nova venda">
         <EmptyState
           title="Nenhum produto ativo"
-          copy="Cadastre produtos na aba Estoque do Financeiro para registrar vendas."
+          copy="Cadastre produtos em Vendas de produtos → Estoque para registrar vendas."
         />
       </section>
     );

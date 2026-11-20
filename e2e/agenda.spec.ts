@@ -358,7 +358,10 @@ test("schedules and reschedules an appointment without creating another occurren
     name: "Reagendar atendimento",
     exact: true,
   });
-  await chooseAppointmentTime(reschedule, clinicToday(), "22:00");
+  const time = reschedule.getByLabel("Horário", { exact: true });
+  await expect(time).toHaveValue("21:00");
+  await time.press("ArrowUp");
+  await expect(time).toHaveValue("22:00");
   await reschedule
     .getByRole("button", {
       name: /Confirmar reagendamento|Salvar reagendamento/,
