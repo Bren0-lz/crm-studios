@@ -311,6 +311,7 @@ test("creates a client from the suggestion footer with pointer and keyboard", as
 test("schedules and reschedules an appointment without creating another occurrence", async ({
   page,
   api,
+  isMobile,
 }) => {
   const patient = await seedPatient(api, "Cliente Agenda Navegador");
   const services = await (await api.get("/services")).json();
@@ -360,7 +361,11 @@ test("schedules and reschedules an appointment without creating another occurren
   });
   const time = reschedule.getByLabel("Horário", { exact: true });
   await expect(time).toHaveValue("21:00");
-  await time.press("ArrowUp");
+  if (isMobile) {
+    await chooseAppointmentTime(reschedule, clinicToday(), "22:00");
+  } else {
+    await time.press("ArrowUp");
+  }
   await expect(time).toHaveValue("22:00");
   await reschedule
     .getByRole("button", {
