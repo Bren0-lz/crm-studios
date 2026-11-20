@@ -286,7 +286,7 @@ describe("fixed package purchase with fixed weekdays", () => {
     fireEvent.click(
       await waitFor(() => {
         const day = document.querySelector<HTMLButtonElement>(
-          `[data-date="${tuesday(-3)}"]`,
+          `[data-date="${tuesday(-1)}"]`,
         );
         if (!day) throw new Error("Dia do calendário não encontrado.");
         return day;
