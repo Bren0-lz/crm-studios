@@ -22,7 +22,10 @@ test("sales history becomes stacked cards on mobile and stays a table on desktop
       patientId: patient.id,
       items: [{ productId: (await product.json()).id, quantity: 1 }],
       settlement: "paid",
-      paymentMethod: "pix",
+      payments: [
+        { paymentMethod: "pix", amountInCents: 1_500 },
+        { paymentMethod: "cash", amountInCents: 2_500 },
+      ],
       dueDate: clinicToday(),
     },
   });
@@ -77,6 +80,26 @@ test("sales history becomes stacked cards on mobile and stays a table on desktop
       ),
     ).toBe("none");
   }
+  await row.getByRole("button", { name: `Ver venda de ${name}` }).click();
+  const payment = page
+    .getByRole("dialog")
+    .getByRole("region", { name: "Pagamento" });
+  await expect(payment.getByText("Total do pagamento")).toBeVisible();
+  await expect(payment.getByText(/R\$\s*40,00/)).toBeVisible();
+  await expect(
+    payment.getByRole("listitem").filter({ hasText: "Pix" }),
+  ).toContainText(/R\$\s*15,00/);
+  await expect(
+    payment.getByRole("listitem").filter({ hasText: "Dinheiro" }),
+  ).toContainText(/R\$\s*25,00/);
+  expect(
+    await payment.evaluate(
+      (element) => element.scrollWidth <= element.clientWidth + 1,
+    ),
+  ).toBe(true);
+  await page
+    .getByRole("dialog")
+    .screenshot({ path: testInfo.outputPath("pagamento-dividido.png") });
   expect(
     await page.evaluate(
       () =>

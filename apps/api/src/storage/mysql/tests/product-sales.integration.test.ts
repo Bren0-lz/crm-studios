@@ -520,6 +520,39 @@ for (const storage of ["memory", "mysql"] as const) {
         });
       });
 
+      it.each([false, true])(
+        "mantém as partes de uma venda dividida com estorno prévio: %s",
+        async (alreadyRefunded) => {
+          const { patient, product } = await fixtures(5);
+          const payments = [
+            { paymentMethod: "pix" as const, amountInCents: 1_000 },
+            { paymentMethod: "cash" as const, amountInCents: 1_500 },
+          ];
+          const sale = await repository.createProductSale(clinicId, actorId, {
+            patientId: patient.id,
+            items: [{ productId: product.id, quantity: 1 }],
+            settlement: "paid",
+            payments,
+            dueDate: saoPauloToday(),
+          });
+          expect(
+            await repository.patientTabPayment(clinicId, sale.id),
+          ).toMatchObject({ status: "paid", paymentParts: payments });
+          if (alreadyRefunded)
+            await repository.reverseReceivablePayment(
+              clinicId,
+              actorId,
+              sale.receivableId!,
+            );
+          await repository.cancelPatientTab(clinicId, actorId, sale.id, {
+            refundPayment: !alreadyRefunded,
+          });
+          expect(
+            await repository.patientTabPayment(clinicId, sale.id),
+          ).toMatchObject({ status: "cancelled", paymentParts: payments });
+        },
+      );
+
       it("mantém a forma do pagamento na venda cancelada com estorno", async () => {
         const { patient, product } = await fixtures(5);
         const sale = await repository.createProductSale(clinicId, actorId, {

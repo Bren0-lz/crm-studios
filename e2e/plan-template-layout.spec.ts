@@ -35,7 +35,7 @@ test("aligns plan service rows and preserves values when adding and removing a r
   await page.getByRole("tab", { name: "Planos", exact: true }).click();
   await page
     .getByRole("button", {
-      name: "Editar plano Plano de vários serviços",
+      name: "Editar Plano de vários serviços",
       exact: true,
     })
     .click();
@@ -56,16 +56,17 @@ test("aligns plan service rows and preserves values when adding and removing a r
     .getByRole("button", { name: "Remover serviço 1", exact: true })
     .boundingBox();
   expect(select && sessions && value && remove).toBeTruthy();
+  // A lixeira fica ao lado do rótulo do serviço, acima do campo pesquisável.
+  expect(remove!.y + remove!.height).toBeLessThanOrEqual(select!.y);
+  expect(
+    Math.abs(remove!.x + remove!.width - select!.x - select!.width),
+  ).toBeLessThan(2);
+  expect(select!.y + select!.height).toBeLessThan(sessions!.y);
   if ((page.viewportSize()?.width ?? 0) > 700) {
-    expect(
-      Math.abs(select!.y + select!.height - remove!.y - remove!.height),
-    ).toBeLessThan(2);
-    expect(select!.x).toBeLessThan(sessions!.x);
+    expect(Math.abs(sessions!.y - value!.y)).toBeLessThan(2);
     expect(sessions!.x).toBeLessThan(value!.x);
   } else {
-    expect(select!.y).toBeLessThan(sessions!.y);
     expect(sessions!.y).toBeLessThan(value!.y);
-    expect(value!.y).toBeLessThan(remove!.y);
   }
   const add = dialog.getByRole("button", {
     name: "Adicionar serviço",
@@ -97,9 +98,4 @@ test("aligns plan service rows and preserves values when adding and removing a r
   await expect(dialog.getByLabel("Valor total", { exact: true })).toHaveValue(
     total,
   );
-  await expect(
-    dialog.getByText(
-      /Só referência: quanto o cliente pagaria pelas sessões avulsas/,
-    ),
-  ).toBeVisible();
 });

@@ -5,19 +5,19 @@ import { test, expect, login } from "./fixtures.js";
 // grade do Dia começa logo abaixo das datas, dentro da primeira tela.
 const phones = [
   { width: 440, height: 956 },
+  { width: 390, height: 844 },
   { width: 360, height: 800 },
 ];
 
-/** Dois alertas no topo (a faixa empurra a página e, rolando, para acima da tela). */
-async function twoBannerAlerts(page: Page, apiUrl: string) {
+/** Separa os cenários do cabeçalho das pendências da base de demonstração. */
+async function bannerAlerts(page: Page, apiUrl: string, alerts: boolean) {
   await page.route("**/api/notifications", async (route) => {
     const response = await route.fetch({ url: `${apiUrl}/notifications` });
     await route.fulfill({
       response,
       json: {
-        ...(await response.json()),
-        overdueReceivables: 4,
-        pendingFinalization: 7,
+        date: (await response.json()).date,
+        ...(alerts ? { overdueReceivables: 4, pendingFinalization: 7 } : {}),
       },
     });
   });
@@ -41,13 +41,12 @@ for (const viewport of phones) {
     }, testInfo) => {
       test.skip(testInfo.project.name !== "mobile", "Celular.");
       await page.setViewportSize(viewport);
-      if (alerts) await twoBannerAlerts(page, apiServer.url);
+      await bannerAlerts(page, apiServer.url, alerts);
       await login(page);
       await page.goto("/agenda");
-      if (alerts)
-        await expect(
-          page.getByRole("region", { name: "Alertas", exact: true }),
-        ).toBeVisible();
+      const banner = page.getByRole("region", { name: "Alertas", exact: true });
+      if (alerts) await expect(banner).toBeVisible();
+      else await expect(banner).toHaveCount(0);
       const grid = page.locator(".day-grid-scroll");
       await expect(grid).toBeVisible();
 
@@ -77,13 +76,18 @@ for (const viewport of phones) {
             grid.boundingBox(),
             header.boundingBox(),
           ]);
-          return (
-            gridBox!.y - (dates!.y + dates!.height) <= 240 &&
-            headerBox!.y + headerBox!.height <= viewport.height &&
-            (alerts || gridBox!.y <= viewport.height - 200)
-          );
+          return {
+            distanceFromDates: gridBox!.y - (dates!.y + dates!.height) <= 240,
+            headerInViewport:
+              headerBox!.y + headerBox!.height <= viewport.height,
+            roomForTimes: alerts || gridBox!.y <= viewport.height - 200,
+          };
         })
-        .toBe(true);
+        .toEqual({
+          distanceFromDates: true,
+          headerInViewport: true,
+          roomForTimes: true,
+        });
       await noSideScroll(page);
 
       // Rolando até a grade e até o fim da página, a primeira linha dela não fica sob o topo

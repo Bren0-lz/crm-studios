@@ -55,7 +55,7 @@ test("imports event participants with custom columns, missing data and existing 
   page,
   api,
 }) => {
-  await seedPatient(api, "Cliente já cadastrado");
+  const existing = await seedPatient(api, "Cliente já cadastrado");
   const response = await api.post("/events", {
     data: { name: "Encontro aberto", startsAt: "2039-06-10T12:00:00.000Z" },
   });
@@ -75,13 +75,14 @@ test("imports event participants with custom columns, missing data and existing 
   await dialog
     .getByLabel("Dado do sistema para a coluna Pessoa")
     .selectOption("fullName");
-  await expect(dialog.getByText("3 válida(s)", { exact: true })).toBeVisible();
+  await expect(dialog.getByText("3 válidas", { exact: true })).toBeVisible();
   await dialog
     .getByLabel("Dado do sistema para a coluna Contato")
     .selectOption("phone");
-  await expect(
-    dialog.getByRole("button", { name: "Importar 4 participante(s)" }),
-  ).toBeEnabled();
+  const importButton = dialog.getByRole("button", {
+    name: "Importar 4 participantes",
+  });
+  await expect(importButton).toBeEnabled();
   await expect(
     dialog.getByText("Nenhum campo é obrigatório", { exact: false }),
   ).toBeVisible();
@@ -96,18 +97,16 @@ test("imports event participants with custom columns, missing data and existing 
     path: test.info().outputPath("event-import.png"),
     fullPage: true,
   });
-  await dialog
-    .getByRole("button", { name: "Importar 4 participante(s)" })
-    .click();
+  await importButton.click();
   await expect(dialog.getByRole("status")).toContainText(
-    "3 participante(s) novo(s), 0 já cliente(s) vinculado(s), 1 ignorado(s) por já estar(em) no evento e 0 com erro.",
+    "2 participantes novos, 1 já cliente vinculado, 1 ignorado por já estar no evento e 0 com erro.",
   );
   await dialog
     .locator(".modal-actions")
     .getByRole("button", { name: "Fechar", exact: true })
     .click();
   await expect(
-    page.getByText("3 participante(s)", { exact: true }),
+    page.getByText("3 participantes", { exact: true }),
   ).toBeVisible();
   await expect(
     page.getByRole("heading", { name: "Ana", exact: true }),
@@ -122,6 +121,7 @@ test("imports event participants with custom columns, missing data and existing 
   ).toHaveLength(1);
   expect(participants).toEqual(
     expect.arrayContaining([
+      expect.objectContaining({ convertedPatientId: existing.id }),
       expect.objectContaining({
         fullName: "",
         phone: "",
@@ -138,6 +138,6 @@ test("imports event participants with custom columns, missing data and existing 
     .click();
   await expect(add).toHaveCount(0);
   await expect(
-    page.getByText("5 participante(s)", { exact: true }),
+    page.getByText("4 participantes", { exact: true }),
   ).toBeVisible();
 });

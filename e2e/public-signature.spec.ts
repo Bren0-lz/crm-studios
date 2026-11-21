@@ -66,6 +66,10 @@ test("the client checks and signs the payment receipt on an iPhone", async ({
     page.getByRole("textbox", { name: "Nome completo", exact: true }),
   ).toHaveValue("Cliente Recibo iPhone");
 
+  await page
+    .getByRole("textbox", { name: "CPF de quem assina", exact: true })
+    .fill(patient.cpf);
+
   // 4. Assina com o dedo, também depois de girar o celular.
   await drawSignature(page);
   await canvasMatchesItsBox(page);

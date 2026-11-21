@@ -59,7 +59,7 @@ import {
   type DailyCashSources,
 } from "../../modules/finance/daily-cash.js";
 import type { PoolClient } from "../../infrastructure/mysql-client.js";
-import { paymentInstallmentsValue } from "./mappers/finance.js";
+import { paymentInstallmentsValue, paymentPartsOf } from "./mappers/finance.js";
 import {
   DomainError,
   type CommissionRecalculationRequest,
@@ -104,6 +104,7 @@ import {
 import { issueReceiptSignature } from "./receipt-signatures.js";
 import { changeProductStock, productStockOf } from "./product-stock.js";
 import {
+  lastRecordedSplitPayment,
   storedPaymentParts,
   tabPaymentParts,
 } from "../../modules/finance/payment-parts.js";
@@ -848,8 +849,9 @@ export function createFinanceRepository(
               await client.query<{
                 paymentMethod: string | null;
                 paymentInstallments: number | null;
+                paymentParts: unknown;
               }>(
-                `SELECT payment_method AS "paymentMethod",payment_installments AS "paymentInstallments" FROM receivables WHERE clinic_id=$1 AND id=$2 AND status='paid' FOR UPDATE`,
+                `SELECT payment_method AS "paymentMethod",payment_installments AS "paymentInstallments",payment_parts AS "paymentParts" FROM receivables WHERE clinic_id=$1 AND id=$2 AND status='paid' FOR UPDATE`,
                 [clinicId, row.receivableId],
               )
             ).rows[0]
@@ -912,11 +914,12 @@ export function createFinanceRepository(
         }
         if (row.receivableId) {
           await client.query(
-            `UPDATE receivables SET status='cancelled',paid_at=NULL,payment_method=$2,payment_installments=$3,updated_at=NOW(6) WHERE id=$1`,
+            `UPDATE receivables SET status='cancelled',paid_at=NULL,payment_method=$2,payment_installments=$3,payment_parts=$4,updated_at=NOW(6) WHERE id=$1`,
             [
               row.receivableId,
               paidWith?.paymentMethod ?? null,
               paidWith?.paymentInstallments ?? null,
+              paymentPartsOf(paidWith?.paymentParts).paymentParts ?? [],
             ],
           );
           await client.query(
@@ -1007,24 +1010,38 @@ export function createFinanceRepository(
           )
         : null;
       if (!receivable) return null;
-      // Venda cancelada antes de a forma ser mantida: a forma vem da última baixa registrada.
-      if (receivable.status === "cancelled" && !receivable.paymentMethod) {
-        const last = (
-          await repositoryContext.pool.query<{
-            paymentMethod: PaymentMethod | null;
-            paymentInstallments: string | number | null;
-          }>(
-            `SELECT JSON_VALUE(metadata, '$.paymentMethod') AS "paymentMethod",
-                    JSON_VALUE(metadata, '$.paymentInstallments') AS "paymentInstallments"
-             FROM financial_events
-             WHERE clinic_id = $1 AND receivable_id = $2 AND kind = 'payment'
-             ORDER BY created_at DESC, id DESC LIMIT 1`,
-            [clinicId, receivable.id],
-          )
-        ).rows[0];
-        if (last?.paymentMethod) receivable.paymentMethod = last.paymentMethod;
-        if (Number(last?.paymentInstallments) > 1)
-          receivable.paymentInstallments = Number(last!.paymentInstallments);
+      let paymentParts =
+        receivable.status === "open" ? undefined : receivable.paymentParts;
+      // Cancelamentos antigos podem ter preservado só a primeira forma.
+      if (receivable.status === "cancelled" && !paymentParts) {
+        const { rows } = await repositoryContext.pool.query<{
+          kind: "payment" | "payment_reversal";
+          amountInCents: number;
+          paymentMethod: PaymentMethod | null;
+          paymentInstallments: string | number | null;
+        }>(
+          `SELECT kind, amount_in_cents AS "amountInCents",
+                  JSON_VALUE(metadata, '$.paymentMethod') AS "paymentMethod",
+                  JSON_VALUE(metadata, '$.paymentInstallments') AS "paymentInstallments"
+           FROM financial_events
+           WHERE clinic_id = $1 AND receivable_id = $2 AND kind IN ('payment', 'payment_reversal')
+           ORDER BY created_at, id`,
+          [clinicId, receivable.id],
+        );
+        paymentParts =
+          lastRecordedSplitPayment(
+            rows.map((row) => ({
+              ...row,
+              amountInCents: Number(row.amountInCents),
+              paymentInstallments: Number(row.paymentInstallments),
+            })),
+          ) ?? undefined;
+        const last = rows.filter((row) => row.kind === "payment").at(-1);
+        if (!receivable.paymentMethod && last?.paymentMethod) {
+          receivable.paymentMethod = last.paymentMethod;
+          if (Number(last.paymentInstallments) > 1)
+            receivable.paymentInstallments = Number(last.paymentInstallments);
+        }
       }
       const payment: PatientTabPayment = {
         receivableId: receivable.id,
@@ -1035,6 +1052,7 @@ export function createFinanceRepository(
         ...(receivable.paymentMethod
           ? { paymentMethod: receivable.paymentMethod }
           : {}),
+        ...(paymentParts?.length ? { paymentParts } : {}),
         ...(receivable.paymentInstallments
           ? { paymentInstallments: receivable.paymentInstallments }
           : {}),

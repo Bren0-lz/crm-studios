@@ -1,5 +1,11 @@
 import type { PatientTab, PatientTabPayment } from "@crm/contracts";
-import { paymentMethodLabels, productItemName } from "@crm/contracts";
+import {
+  paymentMethodLabels,
+  paymentMethodWithInstallments,
+  paymentPartsLabel,
+  paymentPartsTotal,
+  productItemName,
+} from "@crm/contracts";
 import { useEffect, useState } from "react";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
@@ -18,7 +24,12 @@ const paymentStatusLabels: Record<PatientTabPayment["status"], string> = {
 
 /** Forma de pagamento com o parcelamento ("Cartão em 3x"); sem forma, "—". */
 function paymentMethodText(payment: PatientTabPayment) {
-  if (!payment.paymentMethod) return "—";
+  if (payment.paymentParts?.length)
+    return paymentPartsLabel(payment.paymentParts, (cents) =>
+      currency.format(cents / 100),
+    );
+  if (!payment.paymentMethod)
+    return payment.status === "cancelled" ? "Detalhamento indisponível" : "—";
   const label = paymentMethodLabels[payment.paymentMethod];
   return payment.paymentInstallments && payment.paymentInstallments > 1
     ? `${label} em ${payment.paymentInstallments}x`
@@ -26,6 +37,10 @@ function paymentMethodText(payment: PatientTabPayment) {
 }
 
 function SalePayment({ payment }: { payment: PatientTabPayment }) {
+  const parts = payment.paymentParts;
+  const total = parts?.length
+    ? paymentPartsTotal(parts)
+    : payment.amountInCents;
   return (
     <section className="sale-payment" aria-label="Pagamento">
       <h3>Pagamento</h3>
@@ -35,12 +50,30 @@ function SalePayment({ payment }: { payment: PatientTabPayment }) {
           <dd>{paymentStatusLabels[payment.status]}</dd>
         </div>
         <div>
-          <dt>Valor</dt>
-          <dd>{currency.format(payment.amountInCents / 100)}</dd>
+          <dt>{parts?.length ? "Total do pagamento" : "Valor"}</dt>
+          <dd>{currency.format(total / 100)}</dd>
         </div>
         <div>
-          <dt>Forma</dt>
-          <dd>{paymentMethodText(payment)}</dd>
+          <dt>{parts?.length ? "Formas de pagamento" : "Forma"}</dt>
+          <dd>
+            {parts?.length ? (
+              <ul className="sale-payment-parts" role="list">
+                {parts.map((part) => (
+                  <li key={part.paymentMethod}>
+                    <span>
+                      {paymentMethodWithInstallments(
+                        part.paymentMethod,
+                        part.paymentInstallments,
+                      )}
+                    </span>
+                    <span>{currency.format(part.amountInCents / 100)}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              paymentMethodText(payment)
+            )}
+          </dd>
         </div>
         {payment.paidAt ? (
           <div>
@@ -98,7 +131,13 @@ export function SaleDetailsModal({
 
   const paid = payment?.status === "paid" ? payment : null;
   const canRefund = can("patients.tabs_refund");
-  const paidAmount = paid ? currency.format(paid.amountInCents / 100) : "";
+  const paidAmount = paid
+    ? currency.format(
+        (paid.paymentParts?.length
+          ? paymentPartsTotal(paid.paymentParts)
+          : paid.amountInCents) / 100,
+      )
+    : "";
   return (
     <Modal
       title={`Venda · ${sale.patientName}`}

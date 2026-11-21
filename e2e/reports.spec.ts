@@ -50,7 +50,7 @@ test("reports share a custom period across tabs, charts and downloads", async ({
   const sales = page.locator(".reports-sales");
   await expect(
     sales.getByRole("group", {
-      name: "Vendas líquidas e recebimentos no período",
+      name: "Vendas líquidas no período",
       exact: true,
     }),
   ).toBeVisible();

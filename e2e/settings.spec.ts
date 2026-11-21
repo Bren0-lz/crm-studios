@@ -44,11 +44,14 @@ test("settings can be saved repeatedly after switching tabs and reloading", asyn
     .click();
   dialog = page.getByRole("dialog");
   await dialog.getByLabel("Nome do plano").fill("Plano de teste");
-  await dialog.getByLabel("Valor total", { exact: true }).fill("200");
+  await dialog.getByLabel("Valor total", { exact: true }).fill("20000");
   const services = await (await api.get("/services")).json();
   await dialog
     .getByRole("combobox", { name: "Serviço 1", exact: true })
-    .selectOption(services[0].id);
+    .fill(services[0].name);
+  await dialog
+    .getByRole("option", { name: services[0].name, exact: true })
+    .click();
   await dialog.getByLabel("Sessões por semana do serviço 1").fill("2");
   await dialog
     .getByRole("button", { name: "Salvar plano", exact: true })
@@ -66,7 +69,9 @@ test("settings can be saved repeatedly after switching tabs and reloading", asyn
   await panel.getByRole("button", { name: "Adicionar etiqueta" }).click();
   await expect(panel.getByText("Etiqueta criada.")).toBeVisible();
 
-  await page.getByRole("tab", { name: "Contatos sugeridos", exact: true }).click();
+  await page
+    .getByRole("tab", { name: "Contatos sugeridos", exact: true })
+    .click();
   await panel.getByLabel("Saldo baixo: sessões restantes").fill("7");
   await panel
     .getByRole("button", { name: "Salvar prazos e mensagens" })
@@ -108,10 +113,10 @@ test("settings can be saved repeatedly after switching tabs and reloading", asyn
 
   await page.getByRole("tab", { name: "Planos", exact: true }).click();
   await panel
-    .getByRole("button", { name: "Editar plano Plano de teste", exact: true })
+    .getByRole("button", { name: "Editar Plano de teste", exact: true })
     .click();
   dialog = page.getByRole("dialog");
-  await dialog.getByLabel("Valor total", { exact: true }).fill("250");
+  await dialog.getByLabel("Valor total", { exact: true }).fill("25000");
   await dialog
     .getByRole("button", { name: "Salvar plano", exact: true })
     .click();
@@ -137,7 +142,7 @@ test("settings can be saved repeatedly after switching tabs and reloading", asyn
   await page.getByRole("tab", { name: "Etiquetas", exact: true }).click();
   await panel
     .getByRole("button", {
-      name: "Editar etiqueta Etiqueta de teste",
+      name: "Editar Etiqueta de teste",
       exact: true,
     })
     .click();
@@ -150,7 +155,9 @@ test("settings can be saved repeatedly after switching tabs and reloading", asyn
     panel.getByText("Etiqueta atualizada", { exact: true }),
   ).toBeVisible();
 
-  await page.getByRole("tab", { name: "Contatos sugeridos", exact: true }).click();
+  await page
+    .getByRole("tab", { name: "Contatos sugeridos", exact: true })
+    .click();
   await expect(panel.getByLabel("Saldo baixo: sessões restantes")).toHaveValue(
     "7",
   );

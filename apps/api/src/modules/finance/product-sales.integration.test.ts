@@ -213,6 +213,58 @@ describe("product sales", () => {
     await app.close();
   });
 
+  it("keeps each part of a split sale in the payment detail after a refund", async () => {
+    const { app, headers, patientId, createProduct, workspace } = await setup();
+    const productId = await createProduct("CRM-SPLIT", 5);
+    const payments = [
+      { paymentMethod: "pix", amountInCents: 2_000 },
+      { paymentMethod: "cash", amountInCents: 2_500 },
+    ];
+    const sold = await app.inject({
+      method: "POST",
+      url: "/product-sales",
+      headers,
+      payload: {
+        patientId,
+        items: [{ productId, quantity: 1 }],
+        settlement: "paid",
+        payments,
+        dueDate: saoPauloToday(),
+      },
+    });
+    expect(sold.statusCode).toBe(201);
+    const { id } = sold.json<Tab>();
+    const payment = async () =>
+      (
+        await app.inject({
+          method: "GET",
+          url: `/patient-tabs/${id}/payment`,
+          headers,
+        })
+      ).json().payment;
+    expect(await payment()).toMatchObject({
+      status: "paid",
+      amountInCents: 4_500,
+      paymentParts: payments,
+    });
+    const cancelled = await app.inject({
+      method: "POST",
+      url: `/patient-tabs/${id}/cancel`,
+      headers,
+      payload: { refundPayment: true },
+    });
+    expect(cancelled.statusCode).toBe(200);
+    expect(await payment()).toMatchObject({
+      status: "cancelled",
+      paymentParts: payments,
+    });
+    expect(
+      (await workspace()).products.find((item) => item.id === productId)
+        ?.currentStock,
+    ).toBe(5);
+    await app.close();
+  });
+
   it("shows the sale payment and refunds it when cancelling, without finance access", async () => {
     const { app, headers, patientId, createProduct, workspace, receivable } =
       await setup();
