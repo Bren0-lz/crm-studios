@@ -83,7 +83,22 @@ describe("day schedule grid", () => {
     ).toHaveTextContent(localIsoDate().split("-").reverse().join("/"));
 
     fireEvent.click(within(dialog).getByRole("button", { name: "Cancelar" }));
-    fireEvent.click(screen.getByRole("button", { name: "Lista" }));
+    const format = within(
+      screen.getByRole("group", { name: "Formato do dia" }),
+    );
+    expect(
+      format.getByRole("button", { name: "Grade", pressed: true }),
+    ).toBeVisible();
+    expect(
+      format.getByRole("button", { name: "Lista", pressed: false }),
+    ).toBeVisible();
+    fireEvent.click(format.getByRole("button", { name: "Lista" }));
+    expect(
+      format.getByRole("button", { name: "Lista", pressed: true }),
+    ).toBeVisible();
+    expect(
+      format.getByRole("button", { name: "Grade", pressed: false }),
+    ).toBeVisible();
     expect(
       screen.queryByRole("table", { name: "Agenda do dia por profissional" }),
     ).not.toBeInTheDocument();

@@ -42,6 +42,38 @@ export function latestPaymentBatch<
   return events.slice(start).filter((event) => event.kind === "payment");
 }
 
+/** Formas da última baixa efetiva, inclusive quando ela já foi estornada. */
+export function lastRecordedSplitPayment(
+  events: readonly {
+    kind: string;
+    amountInCents: number;
+    paymentMethod?: PaymentPart["paymentMethod"] | null;
+    paymentInstallments?: number | null;
+  }[],
+): PaymentPart[] | null {
+  const lastPayment = events.map((event) => event.kind).lastIndexOf("payment");
+  const batch = latestPaymentBatch(events.slice(0, lastPayment + 1));
+  const parts: PaymentPart[] = [];
+  for (const event of batch) {
+    const { amountInCents, paymentMethod, paymentInstallments } = event;
+    if (
+      !paymentMethod ||
+      !Number.isSafeInteger(amountInCents) ||
+      amountInCents <= 0
+    )
+      return null;
+    parts.push({
+      amountInCents,
+      paymentMethod,
+      ...(paymentInstallments && paymentInstallments > 1
+        ? { paymentInstallments }
+        : {}),
+    });
+  }
+  const methods = new Set(parts.map((part) => part.paymentMethod));
+  return methods.size > 1 && methods.size === parts.length ? parts : null;
+}
+
 /**
  * Formas do fechamento de comanda / venda de produto. Pago agora: obrigatórias e somando o
  * total. A receber: opcionais (as previstas), mas se vierem também precisam somar o total.

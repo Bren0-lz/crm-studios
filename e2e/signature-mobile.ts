@@ -16,17 +16,19 @@ export async function noHorizontalScroll(page: Page) {
 
 /** A resolução do canvas acompanha a caixa (também depois de girar o celular). */
 export async function canvasMatchesItsBox(page: Page) {
-  const size = await page
-    .getByRole("img", { name: "Área de assinatura", exact: true })
-    .evaluate((element) => {
-      const canvas = element as HTMLCanvasElement;
-      const ratio = Math.min(window.devicePixelRatio || 1, 2);
-      return {
-        width: canvas.width,
-        expected: Math.round(canvas.clientWidth * ratio),
-      };
-    });
-  expect.soft(size.width).toBe(size.expected);
+  const pad = page.getByRole("img", {
+    name: "Área de assinatura",
+    exact: true,
+  });
+  await expect
+    .poll(() =>
+      pad.evaluate((element) => {
+        const canvas = element as HTMLCanvasElement;
+        const ratio = Math.min(window.devicePixelRatio || 1, 2);
+        return canvas.width - Math.round(canvas.clientWidth * ratio);
+      }),
+    )
+    .toBe(0);
 }
 
 /** Desenha um traço com o toque na área de assinatura. */

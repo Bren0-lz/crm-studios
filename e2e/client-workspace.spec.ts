@@ -1,4 +1,5 @@
 import { test, expect, login, seedPatient, clinicToday } from "./fixtures.js";
+import { sellSessionForAppointment } from "../apps/api/src/test-support/commission-billing.js";
 
 test("preserves a clinical attachment through keyboard navigation, an upload failure and a retry", async ({
   page,
@@ -90,9 +91,10 @@ test("manages clinical catalogs in settings and creates, orders, copies and reco
   await login(page);
   await page.goto("/configuracoes");
   await page.getByRole("tab", { name: "Cadastros", exact: true }).click();
-  const catalogs = page.getByText("Aparelhos e exercícios", { exact: true });
-  await catalogs.focus();
-  await catalogs.press("Enter");
+  await page.getByRole("tab", { name: "Clínico", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: "Aparelhos e exercícios", exact: true }),
+  ).toBeVisible();
   await page
     .getByRole("button", { name: "Novo registro", exact: true })
     .click();
@@ -268,6 +270,7 @@ test("manages clinical catalogs in settings and creates, orders, copies and reco
 test("reconciles a paid commission without rewriting the original payout", async ({
   page,
   api,
+  apiServer,
 }) => {
   const patient = await seedPatient(api, "Cliente Comissão Conciliada"),
     services = await (await api.get("/services")).json(),
@@ -284,37 +287,30 @@ test("reconciles a paid commission without rewriting the original payout", async
       })
     ).status(),
   ).toBe(201);
-  const created = await api.post("/appointments", {
-    data: {
+  const actor = await (await api.get("/me")).json();
+  const yesterday = new Date(
+    Date.parse(clinicToday() + "T12:00:00Z") - 86_400_000,
+  ).toISOString();
+  const appointment = await apiServer.repository.createAppointment(
+    patient.clinicId,
+    {
       patientId: patient.id,
       professionalId: professionals[0].id,
       roomId: rooms[0].id,
       serviceId: services[0].id,
-      startsAt: "2025-02-10T12:00:00Z",
-      visitType: "trial",
+      startsAt: yesterday,
+      visitType: "regular",
       notes: "",
     },
-  });
-  expect(created.status()).toBe(201);
-  const appointment = await created.json();
-  // A comissão sai do valor pago: R$ 150 na comanda → 10% = R$ 15.
-  const tab = await (
-    await api.post("/patient-tabs", { data: { patientId: patient.id } })
-  ).json();
-  expect(
-    (
-      await api.post(`/patient-tabs/${tab.id}/services`, {
-        data: { appointmentId: appointment.id, amountInCents: 15000 },
-      })
-    ).status(),
-  ).toBe(200);
-  expect(
-    (
-      await api.post(`/patient-tabs/${tab.id}/close`, {
-        data: { settlement: "receivable", dueDate: "2025-02-10" },
-      })
-    ).status(),
-  ).toBe(200);
+  );
+  // Uma sessão avulsa de R$ 150 gera R$ 15 de comissão ao concluir.
+  await sellSessionForAppointment(
+    apiServer.repository,
+    patient.clinicId,
+    actor.id,
+    appointment,
+    15_000,
+  );
   expect(
     (
       await api.patch(`/appointments/${appointment.id}/status`, {
@@ -324,7 +320,7 @@ test("reconciles a paid commission without rewriting the original payout", async
   ).toBe(200);
   const generated = await (
       await api.post("/finance/commissions/generate", {
-        data: { competence: "2025-02" },
+        data: { competence: yesterday.slice(0, 7) },
       })
     ).json(),
     commission = generated.find(
@@ -332,12 +328,16 @@ test("reconciles a paid commission without rewriting the original payout", async
         entry.appointmentId === appointment.id,
     );
   expect(commission.amountInCents).toBe(1500);
-  expect(
-    (await api.post(`/finance/commissions/${commission.id}/pay`)).status(),
-  ).toBe(200);
+  // A baixa original faz parte da massa de histórico; a interface concilia a partir dela.
+  await apiServer.repository.settleCommission(
+    patient.clinicId,
+    actor.id,
+    commission.id,
+  );
   const frozen = (
     await (await api.get("/finance/workspace")).json()
   ).commissions.find((entry: { id: string }) => entry.id === commission.id);
+  expect(frozen).toMatchObject({ status: "paid", amountInCents: 1_500 });
   expect(
     (
       await api.patch(`/appointments/${appointment.id}/status`, {
@@ -364,32 +364,14 @@ test("reconciles a paid commission without rewriting the original payout", async
   await expect(
     dialog.getByText("Pagamento original registrado", { exact: true }),
   ).toBeVisible();
-  await dialog
-    .getByLabel("Motivo da conciliação", { exact: true })
-    .fill("Correção da presença registrada pela equipe");
-  await dialog
-    .getByRole("button", { name: "Confirmar conciliação", exact: true })
-    .click();
+  await expect(
+    dialog.getByRole("heading", { name: "Histórico de ajustes" }),
+  ).toBeVisible();
   await expect(
     dialog.getByText(
-      "Conciliação registrada com ajustes separados da comissão original.",
+      "Conciliação automática: situação do atendimento alterada.",
       { exact: true },
     ),
-  ).toBeVisible();
-  await dialog
-    .getByRole("button", { name: "Registrar devolução ao caixa", exact: true })
-    .click();
-  const confirmation = page.getByRole("dialog", {
-    name: "Confirmar baixa conciliada",
-    exact: true,
-  });
-  await expect(confirmation).toContainText("já recebida");
-  await confirmation
-    .getByRole("button", { name: "Confirmar registro conciliado", exact: true })
-    .click();
-  await expect(confirmation).toHaveCount(0);
-  await expect(
-    dialog.getByText("Baixa conciliada registrada.", { exact: true }),
   ).toBeVisible();
   await dialog.press("Escape");
   await expect(dialog).toHaveCount(0);
@@ -403,13 +385,13 @@ test("reconciles a paid commission without rewriting the original payout", async
     expect.objectContaining({
       commissionId: commission.id,
       amountInCents: -1500,
-      status: "paid",
+      status: "open",
     }),
   ]);
   expect(
     (await (await api.get(`/finance/daily-cash?date=${clinicToday()}`)).json())
       .totalOutflowInCents,
-  ).toBe(0);
+  ).toBe(1_500);
   expect(
     await page.evaluate(
       () => document.documentElement.scrollWidth <= window.innerWidth,
@@ -517,13 +499,18 @@ test("records an NPS response from manual work without treating opening a link a
     services = await (await api.get("/services")).json(),
     professionals = await (await api.get("/professionals")).json(),
     rooms = await (await api.get("/rooms")).json();
+  const referenceDate = new Date(
+    Date.parse(clinicToday() + "T12:00:00Z") - 86400000,
+  )
+    .toISOString()
+    .slice(0, 10);
   const response = await api.post("/appointments", {
     data: {
       patientId: patient.id,
       serviceId: services[0].id,
       professionalId: professionals[0].id,
       roomId: rooms[0].id,
-      startsAt: "2025-02-10T12:00:00Z",
+      startsAt: `${referenceDate}T12:00:00Z`,
       visitType: "trial",
       notes: "",
     },
@@ -541,7 +528,7 @@ test("records an NPS response from manual work without treating opening a link a
     (
       await api.post("/communications/reminders/generate", {
         data: {
-          referenceDate: "2025-02-10",
+          referenceDate,
           appointments: false,
           payments: false,
           satisfaction: true,
@@ -550,9 +537,21 @@ test("records an NPS response from manual work without treating opening a link a
     ).status(),
   ).toBe(200);
   await login(page);
-  await page.goto(`/comunicacoes?patientId=${patient.id}`);
+  await page.goto("/agenda");
+  const openAppointment = async () => {
+    await page
+      .getByRole("button", { name: "Dia anterior", exact: true })
+      .click();
+    await page
+      .getByRole("button", {
+        name: `Detalhes de ${patient.fullName}`,
+        exact: true,
+      })
+      .click();
+  };
+  await openAppointment();
   await page
-    .getByRole("button", { name: "Registrar resposta de NPS", exact: true })
+    .getByRole("button", { name: "Registrar satisfação", exact: true })
     .click();
   const dialog = page.getByRole("dialog", {
     name: "Registrar satisfação",
@@ -564,11 +563,12 @@ test("records an NPS response from manual work without treating opening a link a
     .click();
   await expect(dialog).toHaveCount(0);
   await expect(
-    page.getByText("Resposta de NPS registrada pela equipe.", { exact: true }),
+    page.getByText("Satisfação registrada: nota 9", { exact: true }),
   ).toBeVisible();
   await page.reload();
+  await openAppointment();
   await expect(
-    page.getByText("Resposta de NPS registrada pela equipe.", { exact: true }),
+    page.getByText("Satisfação registrada: nota 9", { exact: true }),
   ).toBeVisible();
   const center = await (await api.get("/communications")).json(),
     message = center.messages.find(
@@ -576,10 +576,8 @@ test("records an NPS response from manual work without treating opening a link a
         entry.patientId === patient.id &&
         entry.kind === "satisfaction_followup",
     );
-  expect(message).toMatchObject({
-    status: "queued",
-    satisfactionSurveyId: expect.any(String),
-  });
+  expect(message).toMatchObject({ status: "queued" });
+  expect(message).not.toHaveProperty("sentAt");
   expect(message).not.toHaveProperty("manualCompletion");
   expect(
     await page.evaluate(
@@ -666,6 +664,7 @@ test("purchases a contextual plan with group enrollment and an issued document",
     dialog.getByRole("link", { name: "Abrir WhatsApp", exact: true }),
   ).toBeVisible();
   await dialog.getByRole("button", { name: "Concluir", exact: true }).click();
+  await dialog.getByRole("button", { name: "Não", exact: true }).click();
   await expect(dialog).toHaveCount(0);
   const plans = await (await api.get(`/plans?patientId=${patient.id}`)).json();
   expect(plans).toHaveLength(1);

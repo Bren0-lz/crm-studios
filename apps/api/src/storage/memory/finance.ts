@@ -25,6 +25,7 @@ import {
   resolvePaymentParts,
 } from "@crm/contracts";
 import {
+  lastRecordedSplitPayment,
   latestPaymentBatch,
   storedPaymentParts,
   tabPaymentParts,
@@ -637,6 +638,7 @@ export function createFinanceRepository(
         ? {
             paymentMethod: paidReceivable.paymentMethod,
             paymentInstallments: paidReceivable.paymentInstallments,
+            paymentParts: paidReceivable.paymentParts,
           }
         : undefined;
       if (paidReceivable) reversePaidReceivable(paidReceivable);
@@ -668,6 +670,9 @@ export function createFinanceRepository(
             receivable.paymentMethod = paidWith.paymentMethod;
           if (paidWith?.paymentInstallments)
             receivable.paymentInstallments = paidWith.paymentInstallments;
+          if (paidWith?.paymentParts)
+            receivable.paymentParts = paidWith.paymentParts;
+          else delete receivable.paymentParts;
           receivable.overdue = false;
           receivable.updatedAt = now();
         }
@@ -943,17 +948,20 @@ export function createFinanceRepository(
         (item) => item.clinicId === clinicId && item.id === tab.receivableId,
       );
       if (!receivable) return null;
-      // Venda cancelada antes de a forma ser mantida: a forma vem da última baixa registrada.
-      const lastPayment =
-        receivable.status === "cancelled" && !receivable.paymentMethod
-          ? repositoryContext.receiptEvents
-              .filter(
-                (item) =>
-                  item.receivableId === receivable.id &&
-                  item.kind === "payment",
-              )
-              .at(-1)
-          : undefined;
+      // Cancelamentos antigos podem ter preservado só a primeira forma.
+      const history =
+        receivable.status === "cancelled" && !receivable.paymentParts
+          ? repositoryContext.receiptEvents.filter(
+              (item) => item.receivableId === receivable.id,
+            )
+          : [];
+      const lastPayment = history
+        .filter((item) => item.kind === "payment")
+        .at(-1);
+      const paymentParts =
+        receivable.status === "open"
+          ? undefined
+          : (receivable.paymentParts ?? lastRecordedSplitPayment(history));
       const paymentMethod =
         receivable.paymentMethod ?? lastPayment?.paymentMethod;
       const payment: PatientTabPayment = {
@@ -963,6 +971,7 @@ export function createFinanceRepository(
         dueDate: receivable.dueDate,
         ...(receivable.paidAt ? { paidAt: receivable.paidAt } : {}),
         ...(paymentMethod ? { paymentMethod } : {}),
+        ...(paymentParts?.length ? { paymentParts } : {}),
         ...(receivable.paymentInstallments
           ? { paymentInstallments: receivable.paymentInstallments }
           : {}),

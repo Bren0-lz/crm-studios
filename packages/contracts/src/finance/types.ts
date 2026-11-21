@@ -308,6 +308,8 @@ export interface PatientTabPayment {
   paymentMethod?: PaymentMethod;
   /** Parcelas na própria forma (ex.: cartão em 3x); ausente = à vista. */
   paymentInstallments?: number;
+  /** Formas efetivamente recebidas em uma baixa dividida. */
+  paymentParts?: PaymentPart[];
 }
 
 export interface InventoryWorkspace {

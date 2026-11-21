@@ -731,16 +731,21 @@ export function AgendaPage() {
             {view === "day" && (
               <div
                 className="view-toggle agenda-day-layout"
+                role="group"
                 aria-label="Formato do dia"
               >
                 <button
+                  type="button"
                   className={`tab-button ${dayLayout === "grid" ? "active" : ""}`}
+                  aria-pressed={dayLayout === "grid"}
                   onClick={() => setDayLayout("grid")}
                 >
                   Grade
                 </button>
                 <button
+                  type="button"
                   className={`tab-button ${dayLayout === "list" ? "active" : ""}`}
+                  aria-pressed={dayLayout === "list"}
                   onClick={() => setDayLayout("list")}
                 >
                   Lista

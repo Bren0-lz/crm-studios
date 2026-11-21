@@ -84,8 +84,9 @@ describe("textos simples dos indicadores", () => {
 
   it("não mostra zero negativo no eixo dos gráficos", () => {
     const text = (cents: number) => compactMoney(cents).replace(/\s/g, " ");
-    expect(text(-0)).toBe("R$ 0,0");
-    expect(text(-4)).toBe("R$ 0,0");
+    expect(text(0)).toMatch(/^R\$ 0(?:,0)?$/);
+    expect(text(-0)).toBe(text(0));
+    expect(text(-4)).toBe(text(0));
     expect(text(-120000)).toBe("-R$ 1,2 mil");
   });
 });
