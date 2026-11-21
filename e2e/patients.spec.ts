@@ -25,7 +25,9 @@ test("creates, searches and edits a client through the interface", async ({
   await dialog
     .getByRole("button", { name: "Usar os dados do cliente", exact: true })
     .click();
-  await dialog.getByLabel("Só cadastrar por enquanto", { exact: true }).check();
+  await expect(
+    dialog.getByText("Nada adicionado: só o cadastro do cliente será salvo."),
+  ).toBeVisible();
   await expect(
     dialog.getByRole("button", { name: "Salvar cliente", exact: true }),
   ).toBeDisabled();
@@ -34,10 +36,9 @@ test("creates, searches and edits a client through the interface", async ({
     .getByRole("button", { name: "Salvar cliente", exact: true })
     .click();
   await expect(dialog).toHaveCount(0);
-  await page
-    .getByRole("dialog", { name: "Cliente cadastrado", exact: true })
-    .getByRole("button", { name: "Concluir", exact: true })
-    .click();
+  await expect(
+    page.getByRole("dialog", { name: "Cliente cadastrado", exact: true }),
+  ).toHaveCount(0);
   await page
     .getByPlaceholder("Buscar por nome, CPF ou telefone")
     .fill("Cliente Navegador");

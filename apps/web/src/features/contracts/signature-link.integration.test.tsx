@@ -102,7 +102,7 @@ describe("contract signature link", () => {
     ).toContain("Olá Breno");
     fireEvent.click(within(dialog).getByRole("button", { name: "Fechar" }));
     expect(
-      await screen.findByText("Aguardando assinatura", {
+      await screen.findByText("Link ativo", {
         selector: ".status-pill",
       }),
     ).toBeInTheDocument();
@@ -113,6 +113,44 @@ describe("contract signature link", () => {
       within(details).getByText(/Ainda não visualizado/),
     ).toBeInTheDocument();
     expect(within(details).getByText(/Vale até/)).toBeInTheDocument();
+  });
+
+  it("records link generation when the sharing dialog is closed without sharing", async () => {
+    const { repository, patient, dance } = await clientWithTemplates();
+    const draft = await repository.createIssuedDocument(clinicId, actorId, {
+      patientId: patient.id,
+      templateId: dance.id,
+      title: dance.name,
+    });
+    await repository.updateIssuedDocumentStatus(clinicId, draft.id, "issued");
+    open(`/contratos?patientId=${patient.id}`);
+    fireEvent.click(
+      await screen.findByRole("button", { name: /Ver detalhes/ }),
+    );
+    const details = screen.getByRole("dialog", { name: dance.name });
+    expect(
+      within(details).getByText("Nenhum link de assinatura gerado."),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      within(details).getByRole("button", { name: "Enviar pelo WhatsApp" }),
+    );
+    const share = screen.getByRole("dialog", {
+      name: "Enviar para assinatura",
+    });
+    await within(share).findByRole("link", { name: /Abrir WhatsApp/ });
+    fireEvent.click(within(share).getByRole("button", { name: "Fechar" }));
+
+    const updatedDetails = await screen.findByRole("dialog", {
+      name: dance.name,
+    });
+    expect(within(updatedDetails).getByText("Link ativo")).toBeInTheDocument();
+    expect(within(updatedDetails).getByText("Link gerado")).toBeInTheDocument();
+    expect(
+      within(updatedDetails).getByText("Ainda não visualizado"),
+    ).toBeInTheDocument();
+    expect(
+      within(updatedDetails).queryByText("Link enviado"),
+    ).not.toBeInTheDocument();
   });
 
   it("opens the contract without login, records the view and the drawn signature", async () => {

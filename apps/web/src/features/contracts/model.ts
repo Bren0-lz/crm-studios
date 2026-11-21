@@ -26,17 +26,12 @@ export const documentKindLabels: Record<DocumentKind, string> = {
 
 /** Situação do documento na lista: junta a situação da emissão e a da assinatura. */
 export type DocumentSituation =
-  | "draft"
-  | "issued"
-  | "awaiting_signature"
-  | "link_expired"
-  | "signed"
-  | "cancelled";
+  "draft" | "issued" | "link_active" | "link_expired" | "signed" | "cancelled";
 
 export const documentSituationLabels: Record<DocumentSituation, string> = {
   draft: "Rascunho",
   issued: "Emitido",
-  awaiting_signature: "Aguardando assinatura",
+  link_active: "Link ativo",
   link_expired: "Link expirado",
   signed: "Assinado",
   cancelled: "Cancelado",
@@ -46,7 +41,7 @@ export const documentSituationLabels: Record<DocumentSituation, string> = {
 export const documentSituationPills: Record<DocumentSituation, string> = {
   draft: "open",
   issued: "issued",
-  awaiting_signature: "draft",
+  link_active: "draft",
   link_expired: "expired",
   signed: "active",
   cancelled: "cancelled",
@@ -63,7 +58,7 @@ export function documentSituation(
   if (document.signatureLink)
     return signatureLinkExpired(document.signatureLink, at)
       ? "link_expired"
-      : "awaiting_signature";
+      : "link_active";
   return "issued";
 }
 

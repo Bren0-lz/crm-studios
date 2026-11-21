@@ -108,7 +108,7 @@ export function DocumentDetailsModal({
                 ? "Emita o documento para enviá-lo à assinatura."
                 : document.status === "cancelled"
                   ? "Documento cancelado sem assinatura."
-                  : "Nenhum link de assinatura enviado."}
+                  : "Nenhum link de assinatura gerado."}
             </p>
           )}
           {document.signatureLink && !document.manualSignature ? (

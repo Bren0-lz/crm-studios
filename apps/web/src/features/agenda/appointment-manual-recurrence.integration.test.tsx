@@ -74,6 +74,15 @@ describe("appointment recurrence on chosen dates", () => {
     fireEvent.click(screen.getByRole("button", { name: /Novo atendimento/ }));
     const dialog = screen.getByRole("dialog", { name: "Novo atendimento" });
     await fillAppointmentForm(dialog, patient.fullName);
+    const time = within(dialog).getByLabelText("Horário");
+    const form = time.closest("form")!;
+    fireEvent.change(time, { target: { value: "" } });
+    // Exercita a proteção do envio mesmo sem a validação nativa do navegador.
+    fireEvent.submit(form);
+    expect(
+      within(dialog).getByText("Informe a data e o horário do atendimento."),
+    ).toBeInTheDocument();
+    fireEvent.change(time, { target: { value: "09:00" } });
     fireEvent.click(within(dialog).getByLabelText("Repetir este atendimento"));
     fireEvent.change(within(dialog).getByLabelText("Intervalo"), {
       target: { value: "custom" },
@@ -100,6 +109,18 @@ describe("appointment recurrence on chosen dates", () => {
       within(dates).getByRole("button", { name: "Adicionar data" }),
     );
     expect(within(dates).getAllByLabelText("Horário")).toHaveLength(2);
+    fireEvent.submit(form);
+    expect(
+      within(dialog).getByText("Informe a data e o horário da ocorrência 3."),
+    ).toBeInTheDocument();
+    const submissions = () =>
+      vi
+        .mocked(fetch)
+        .mock.calls.filter(
+          ([url, init]) =>
+            String(url).includes("/appointments") && init?.method === "POST",
+        );
+    expect(submissions()).toHaveLength(0);
     fireEvent.click(
       within(dates).getByRole("button", { name: "Remover ocorrência 3" }),
     );
@@ -114,14 +135,10 @@ describe("appointment recurrence on chosen dates", () => {
       within(dialog).getByRole("button", { name: "Confirmar atendimento" }),
     );
     await screen.findByText("Horário ocupado.");
-    const call = vi
-      .mocked(fetch)
-      .mock.calls.find(
-        ([url, init]) =>
-          String(url).includes("/appointments/recurring") &&
-          init?.method === "POST",
-      );
-    expect(JSON.parse(call![1]!.body as string)).toMatchObject({
+    const calls = submissions();
+    expect(calls).toHaveLength(1);
+    expect(String(calls[0]![0])).toContain("/appointments/recurring");
+    expect(JSON.parse(calls[0]![1]!.body as string)).toMatchObject({
       patientId: patient.id,
       occurrences: 2,
       customStartsAt: [new Date(`${chosen}T09:00`).toISOString()],

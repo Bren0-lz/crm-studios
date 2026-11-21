@@ -33,7 +33,10 @@ export function missingLabels(fields: Array<[label: string, value: unknown]>) {
 
 /** Data e horário completos no formato do seletor de agenda ("aaaa-mm-ddThh:mm"). */
 export function isCompleteDateTime(value: string) {
-  return /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(value);
+  return (
+    /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(value) &&
+    Number.isFinite(Date.parse(value))
+  );
 }
 
 /** Campos de um modelo clínico em montagem: pergunta vazia e seleção sem opções. */
