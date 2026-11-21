@@ -10,6 +10,20 @@ async function openInventoryTab() {
 }
 
 describe("aba Estoque de Vendas de produtos (QM9)", () => {
+  it("abre o Estoque pelo aviso de Nova venda quando não há produtos ativos", async () => {
+    await setupApi();
+    open("/vendas");
+    const sale = await screen.findByRole("region", { name: "Nova venda" });
+    fireEvent.click(
+      within(sale).getByRole("button", { name: "Abrir estoque" }),
+    );
+    const tab = screen.getByRole("button", { name: "Estoque" });
+    expect(tab).toHaveAttribute("aria-pressed", "true");
+    expect(tab).toHaveFocus();
+    const inventory = screen.getByRole("region", { name: "Estoque" });
+    expect(await within(inventory).findByText("Nenhum produto")).toBeVisible();
+  });
+
   it("lista, cadastra, ajusta e edita produtos em Vendas de produtos", async () => {
     const { repository } = await setupApi();
     await repository.createProduct(clinicId, actorId, {
