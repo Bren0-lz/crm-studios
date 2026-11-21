@@ -1,5 +1,5 @@
 import type { InventoryWorkspace } from "@crm/contracts";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { allBranches, api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
@@ -39,11 +39,16 @@ export function SalesPage() {
   const [tab, setTab] = useState<SalesTab>(
     requested && tabs.includes(requested) ? requested : tabs[0]!,
   );
+  const inventoryTabRef = useRef<HTMLButtonElement>(null);
   const [data, setData] = useState<InventoryWorkspace | null>(null);
   const [error, setError] = useState("");
   const canView = can("patients.inventory_view");
   async function reload() {
     setData(await api.inventoryWorkspace(allBranches));
+  }
+  function openInventory() {
+    setTab("inventory");
+    inventoryTabRef.current?.focus();
   }
   // Recarrega em silêncio quando uma venda ou ajuste muda o estoque (QC6).
   const version = useDataVersion("inventory");
@@ -87,6 +92,7 @@ export function SalesPage() {
               {tabs.map((key) => (
                 <button
                   key={key}
+                  ref={key === "inventory" ? inventoryTabRef : undefined}
                   type="button"
                   className={`tab-button ${tab === key ? "active" : ""}`}
                   aria-pressed={tab === key}
@@ -108,7 +114,7 @@ export function SalesPage() {
           ) : !data ? (
             !error && <LoadingBlock />
           ) : tab === "new" ? (
-            <NewSaleSection workspace={data} />
+            <NewSaleSection workspace={data} onOpenInventory={openInventory} />
           ) : tab === "history" ? (
             <SalesHistorySection workspace={data} onChanged={reload} />
           ) : (

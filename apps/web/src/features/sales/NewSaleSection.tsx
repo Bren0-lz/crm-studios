@@ -7,7 +7,7 @@ import type {
   ProductSize,
 } from "@crm/contracts";
 import { patientFirstName, productSizeLabel } from "@crm/contracts";
-import { CircleAlert, Plus, Trash2 } from "lucide-react";
+import { CircleAlert, Package, Plus, Trash2 } from "lucide-react";
 import { useEffect, useId, useState, type FormEvent } from "react";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
@@ -66,8 +66,10 @@ const defaultParts = (): PaymentPartDraft[] => [
 
 export function NewSaleSection({
   workspace,
+  onOpenInventory,
 }: {
   workspace: InventoryWorkspace;
+  onOpenInventory: () => void;
 }) {
   const toast = useToast();
   const { can } = useAuthorization();
@@ -244,7 +246,17 @@ export function NewSaleSection({
       <section className="panel" aria-label="Nova venda">
         <EmptyState
           title="Nenhum produto ativo"
-          copy="Cadastre produtos na aba Estoque do Financeiro para registrar vendas."
+          copy="Cadastre ou ative um produto para registrar vendas."
+          icon={Package}
+          action={
+            <button
+              type="button"
+              className="primary-button"
+              onClick={onOpenInventory}
+            >
+              Abrir estoque
+            </button>
+          }
         />
       </section>
     );

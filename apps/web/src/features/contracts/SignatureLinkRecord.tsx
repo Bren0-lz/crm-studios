@@ -13,6 +13,7 @@ import { Modal } from "../../shared/components/Modal";
 import { shortDate, timeLabel } from "../../shared/lib/formatting";
 import type { DocumentPdfSignature } from "./ContractPdf";
 import { DocumentPdfPreview } from "./DocumentPdfPreview";
+import { documentSituationLabels, documentSituationPills } from "./model";
 
 function when(iso: string) {
   const date = new Date(iso);
@@ -28,7 +29,7 @@ function viewsLabel(link: NonNullable<IssuedDocument["signatureLink"]>) {
 }
 
 /**
- * Situação do link de assinatura enviado ao cliente: visualizações e assinatura.
+ * Situação do link de assinatura: geração, visualizações e assinatura.
  * `detailed` mostra os dados em campos (modal de detalhes, onde a situação já
  * aparece no topo); `actions` entra na mesma linha dos botões do link.
  */
@@ -57,7 +58,7 @@ export function SignatureLinkRecord({
       {detailed ? (
         <dl className="signature-evidence signature-link-facts">
           <div>
-            <dt>Link enviado</dt>
+            <dt>Link gerado</dt>
             <dd>
               {when(link.createdAt)} por {link.createdByName}
             </dd>
@@ -92,16 +93,20 @@ export function SignatureLinkRecord({
               <span className="status-pill issued">Assinado pelo link</span>{" "}
               {link.signerName} em {when(link.signedAt)}.
             </>
-          ) : signatureLinkExpired(link) ? (
+          ) : expired ? (
             <>
               <span className="status-pill expired">Link expirado</span> Venceu
-              em {when(link.expiresAt)}. Envie de novo pelo WhatsApp para gerar
+              em {when(link.expiresAt)}. Abra “Enviar pelo WhatsApp” para gerar
               outro link.
             </>
           ) : (
             <>
-              <span className="status-pill draft">Aguardando assinatura</span>{" "}
-              Link enviado em {when(link.createdAt)} por {link.createdByName}.
+              <span
+                className={`status-pill ${documentSituationPills.link_active}`}
+              >
+                {documentSituationLabels.link_active}
+              </span>{" "}
+              Link gerado em {when(link.createdAt)} por {link.createdByName}.
               Vale até {when(link.expiresAt)}.
             </>
           )}{" "}
@@ -112,7 +117,7 @@ export function SignatureLinkRecord({
       )}
       {detailed && expired && (
         <p className="muted-copy">
-          Envie de novo pelo WhatsApp para gerar outro link.
+          Abra “Enviar pelo WhatsApp” para gerar outro link.
         </p>
       )}
       <div className="page-actions">
