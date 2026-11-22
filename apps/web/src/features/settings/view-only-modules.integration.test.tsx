@@ -9,6 +9,62 @@ import {
 } from "../../test-support/lead-board";
 
 describe("view-only modules", () => {
+  // QA-R2-02: quem só consulta Clientes vê a ficha, sem campos editáveis.
+  it("opens a client for reading only when Clients is view-only", async () => {
+    localStorage.setItem("crm.auth.token", "test-token");
+    localStorage.setItem(
+      "crm.auth.user",
+      JSON.stringify({
+        id: "55555555-5555-4555-8555-555555555555",
+        fullName: "Carla Consulta",
+        email: "carla@movimenta.local",
+        role: "user",
+        modules: ["patients"],
+        editModules: [],
+      }),
+    );
+    const patient = {
+      id: "99999999-9999-4999-8999-999999999999",
+      recordNumber: "PAC-00001",
+      fullName: "Helena Almeida",
+      phone: "11987654321",
+      tags: [],
+      status: "active",
+    };
+    vi.mocked(fetch).mockImplementation(
+      async () =>
+        ({ ok: true, status: 200, json: async () => [patient] }) as Response,
+    );
+    render(
+      <MemoryRouter initialEntries={["/clientes"]}>
+        <App />
+      </MemoryRouter>,
+    );
+    const view = await screen.findByRole("button", {
+      name: "Ver Helena Almeida",
+    });
+    expect(
+      screen.queryByRole("button", { name: "Editar Helena Almeida" }),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(view);
+    const dialog = screen.getByRole("dialog", { name: "Consultar cliente" });
+    const name = within(dialog).getByLabelText("Nome completo");
+    expect(name).toHaveValue("Helena Almeida");
+    expect(name).toBeDisabled();
+    expect(
+      within(dialog).queryByRole("button", { name: /Salvar/ }),
+    ).not.toBeInTheDocument();
+
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(
+      screen.queryByRole("dialog", { name: "Descartar alterações?" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("dialog", { name: "Consultar cliente" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("shows appointment details without cancel, reschedule or satisfaction when the agenda is view-only", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
     localStorage.setItem(

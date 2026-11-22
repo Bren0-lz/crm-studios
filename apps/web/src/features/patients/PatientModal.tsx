@@ -1161,447 +1161,466 @@ export function PatientModal({
       title={
         title ??
         (patient
-          ? "Editar cliente"
+          ? editable
+            ? "Editar cliente"
+            : "Consultar cliente"
           : lead
             ? "Converter lead em cliente"
             : "Novo cliente")
       }
       subtitle={
         patient
-          ? `Atualize o cadastro ${patient.recordNumber}.`
+          ? editable
+            ? `Atualize o cadastro ${patient.recordNumber}.`
+            : `Cadastro ${patient.recordNumber}.`
           : lead
             ? `${lead.fullName} · ${formatPhone(lead.phone)}`
             : "Cadastre as informações essenciais. O restante pode ser completado depois."
       }
       busy={loading}
-      dirty={dirty}
+      dirty={editable && dirty}
       inactive={Boolean(discountTarget) || scheduleNested}
       onClose={onClose}
     >
       <form className="form-grid" onSubmit={submit}>
-        <label className="span-2">
-          Nome completo
-          <input
-            required
-            value={form.fullName}
-            onChange={(e) => field("fullName", e.target.value)}
-            autoFocus
-          />
-        </label>
-        <label className="span-2">
-          Apelido
-          <input
-            maxLength={80}
-            placeholder="Como o cliente prefere ser chamado"
-            value={form.nickname ?? ""}
-            onChange={(e) => field("nickname", e.target.value)}
-          />
-        </label>
-        <div className="field-with-hint span-2">
-          <label>
-            CPF
-            <CpfInput
-              required={!cpfOptional}
-              hintId={cpfOptional ? "patient-cpf-hint" : undefined}
-              value={form.cpf}
-              onChange={(digits) => field("cpf", digits)}
+        {/* Só consulta (QA-R2-02): os campos ficam visíveis, mas não aceitam edição. */}
+        <fieldset className="form-contents" disabled={!editable}>
+          <label className="span-2">
+            Nome completo
+            <input
+              required
+              value={form.fullName}
+              onChange={(e) => field("fullName", e.target.value)}
+              autoFocus
             />
           </label>
-          {cpfOptional && (
-            <span className="field-hint" id="patient-cpf-hint">
-              {patient?.importedInvalidCpf
-                ? `A planilha trouxe o CPF “${patient.importedInvalidCpf}”, que não confere: preencha o CPF correto e a etiqueta “${tagLabel(INVALID_CPF_TAG)}” sai sozinha.`
-                : `Cliente sem CPF: preencha quando tiver. A etiqueta “${tagLabel(MISSING_CPF_TAG)}” sai sozinha.`}
-            </span>
-          )}
-        </div>
-        <fieldset className="form-fieldset span-2">
-          <legend>Contato</legend>
-          <div className="form-fieldset-grid">
-            <div className="field-with-hint">
+          <label className="span-2">
+            Apelido
+            <input
+              maxLength={80}
+              placeholder="Como o cliente prefere ser chamado"
+              value={form.nickname ?? ""}
+              onChange={(e) => field("nickname", e.target.value)}
+            />
+          </label>
+          <div className="field-with-hint span-2">
+            <label>
+              CPF
+              <CpfInput
+                required={!cpfOptional}
+                hintId={cpfOptional ? "patient-cpf-hint" : undefined}
+                value={form.cpf}
+                onChange={(digits) => field("cpf", digits)}
+              />
+            </label>
+            {cpfOptional && (
+              <span className="field-hint" id="patient-cpf-hint">
+                {patient?.importedInvalidCpf
+                  ? `A planilha trouxe o CPF “${patient.importedInvalidCpf}”, que não confere: preencha o CPF correto e a etiqueta “${tagLabel(INVALID_CPF_TAG)}” sai sozinha.`
+                  : `Cliente sem CPF: preencha quando tiver. A etiqueta “${tagLabel(MISSING_CPF_TAG)}” sai sozinha.`}
+              </span>
+            )}
+          </div>
+          <fieldset className="form-fieldset span-2">
+            <legend>Contato</legend>
+            <div className="form-fieldset-grid">
+              <div className="field-with-hint">
+                <label>
+                  Telefone
+                  <PhoneInput
+                    required
+                    value={form.phone}
+                    onChange={(digits) => field("phone", digits)}
+                  />
+                </label>
+              </div>
+              <div className="field-with-hint">
+                <label>
+                  WhatsApp
+                  <PhoneInput
+                    required={!whatsappOptional}
+                    value={form.whatsapp ?? ""}
+                    onChange={(digits) => field("whatsapp", digits)}
+                  />
+                </label>
+                {whatsappOptional && (
+                  <small className="field-hint">
+                    Cadastro sem WhatsApp: preencha quando tiver. Em branco, as
+                    mensagens usam o telefone de contato.
+                  </small>
+                )}
+              </div>
+            </div>
+          </fieldset>
+          <fieldset className="form-fieldset emergency-fieldset span-2">
+            <legend>Contato de emergência</legend>
+            <div className="form-fieldset-grid">
+              <label className="span-2">
+                Nome
+                <input
+                  autoComplete="off"
+                  placeholder="Ex.: Maria Souza (mãe)"
+                  required={!emergencyNameOptional}
+                  value={form.emergencyContactName}
+                  onChange={(e) =>
+                    field("emergencyContactName", e.target.value)
+                  }
+                />
+              </label>
               <label>
                 Telefone
                 <PhoneInput
-                  required
-                  value={form.phone}
-                  onChange={(digits) => field("phone", digits)}
+                  required={!emergencyPhoneOptional}
+                  value={form.emergencyContactPhone ?? ""}
+                  onChange={(digits) => field("emergencyContactPhone", digits)}
                 />
               </label>
-            </div>
-            <div className="field-with-hint">
               <label>
                 WhatsApp
                 <PhoneInput
-                  required={!whatsappOptional}
-                  value={form.whatsapp ?? ""}
-                  onChange={(digits) => field("whatsapp", digits)}
+                  required={!emergencyWhatsappOptional}
+                  value={form.emergencyContactWhatsapp ?? ""}
+                  onChange={(digits) =>
+                    field("emergencyContactWhatsapp", digits)
+                  }
                 />
               </label>
-              {whatsappOptional && (
-                <small className="field-hint">
-                  Cadastro sem WhatsApp: preencha quando tiver. Em branco, as
-                  mensagens usam o telefone de contato.
-                </small>
-              )}
             </div>
-          </div>
-        </fieldset>
-        <fieldset className="form-fieldset emergency-fieldset span-2">
-          <legend>Contato de emergência</legend>
-          <div className="form-fieldset-grid">
-            <label className="span-2">
-              Nome
-              <input
-                autoComplete="off"
-                placeholder="Ex.: Maria Souza (mãe)"
-                required={!emergencyNameOptional}
-                value={form.emergencyContactName}
-                onChange={(e) => field("emergencyContactName", e.target.value)}
-              />
-            </label>
-            <label>
-              Telefone
-              <PhoneInput
-                required={!emergencyPhoneOptional}
-                value={form.emergencyContactPhone ?? ""}
-                onChange={(digits) => field("emergencyContactPhone", digits)}
-              />
-            </label>
-            <label>
-              WhatsApp
-              <PhoneInput
-                required={!emergencyWhatsappOptional}
-                value={form.emergencyContactWhatsapp ?? ""}
-                onChange={(digits) => field("emergencyContactWhatsapp", digits)}
-              />
-            </label>
-          </div>
-          {/* Quem não tem contato de emergência repete o próprio nome, telefone e WhatsApp. */}
-          <button
-            className="secondary-button"
-            type="button"
-            disabled={
-              !form.fullName.trim() &&
-              !form.phone.trim() &&
-              !form.whatsapp?.trim()
-            }
-            onClick={() =>
-              setForm((current) => ({
-                ...current,
-                emergencyContactName: current.fullName,
-                emergencyContactPhone: current.phone,
-                emergencyContactWhatsapp: current.whatsapp || current.phone,
-              }))
-            }
-          >
-            Usar os dados do cliente
-          </button>
-        </fieldset>
-        <label>
-          E-mail
-          <input
-            type="email"
-            value={form.email}
-            onChange={(e) => field("email", e.target.value)}
-          />
-        </label>
-        <label>
-          Data de nascimento
-          <input
-            type="date"
-            value={form.birthDate}
-            onChange={(e) => field("birthDate", e.target.value)}
-          />
-        </label>
-        {/* Cadastro rápido (U15): o essencial à vista; o restante fica recolhido. */}
-        <details className="more-info span-2" open={Boolean(patient)}>
-          <summary>Mais informações</summary>
-          <div className="form-grid">
-            <PatientProfileFields
-              form={form}
-              onChange={(key, value) =>
-                setForm((current) => ({ ...current, [key]: value }))
+            {/* Quem não tem contato de emergência repete o próprio nome, telefone e WhatsApp. */}
+            <button
+              className="secondary-button"
+              type="button"
+              disabled={
+                !form.fullName.trim() &&
+                !form.phone.trim() &&
+                !form.whatsapp?.trim()
               }
+              onClick={() =>
+                setForm((current) => ({
+                  ...current,
+                  emergencyContactName: current.fullName,
+                  emergencyContactPhone: current.phone,
+                  emergencyContactWhatsapp: current.whatsapp || current.phone,
+                }))
+              }
+            >
+              Usar os dados do cliente
+            </button>
+          </fieldset>
+          <label>
+            E-mail
+            <input
+              type="email"
+              value={form.email}
+              onChange={(e) => field("email", e.target.value)}
             />
-            <fieldset className="form-fieldset span-2">
-              <legend>Etiquetas</legend>
-              {configuredTags.error ? (
-                <p className="form-error">{`Não foi possível carregar as etiquetas: ${configuredTags.error}`}</p>
-              ) : configuredTags.tags === null ? (
-                <LoadingBlock />
-              ) : tagChoices.length === 0 ? (
-                <p className="muted-copy">
-                  Nenhuma etiqueta configurada. Cadastre as etiquetas em
-                  Configurações › Etiquetas.
-                </p>
-              ) : (
-                <div className="tag-filter-list">
-                  {tagChoices.map((tag) => (
-                    <TagChoice
-                      key={tag.name}
-                      name={tag.name}
-                      color={patientTagDisplayColor(tag)}
-                      pressed={form.tags.includes(tag.name)}
-                      disabled={!editable}
-                      onToggle={() => toggleTag(tag.name)}
-                    />
-                  ))}
-                </div>
-              )}
-            </fieldset>
-            <label className="span-2">
-              Observações
-              <textarea
-                maxLength={patientNotesMaxLength}
-                value={form.notes}
-                onChange={(e) => field("notes", e.target.value)}
-                rows={3}
+          </label>
+          <label>
+            Data de nascimento
+            <input
+              type="date"
+              value={form.birthDate}
+              onChange={(e) => field("birthDate", e.target.value)}
+            />
+          </label>
+          {/* Cadastro rápido (U15): o essencial à vista; o restante fica recolhido. */}
+          <details className="more-info span-2" open={Boolean(patient)}>
+            <summary>Mais informações</summary>
+            <div className="form-grid">
+              <PatientProfileFields
+                form={form}
+                onChange={(key, value) =>
+                  setForm((current) => ({ ...current, [key]: value }))
+                }
               />
-            </label>
-          </div>
-        </details>
-        {demonstrationAdded && (
-          <GuidedItemFieldset
-            legend="Aula experimental"
-            onRemoved={() => {
-              setDemonstrationAdded(false);
-              announce("Aula experimental removida.");
-            }}
-          >
-            {(remove) => (
-              <>
-                <GuidedDemonstrationFields
-                  value={demonstration}
-                  setValue={setDemonstration}
-                  leadId={lead?.id}
-                />
-                {removeButton("aula experimental", remove)}
-              </>
-            )}
-          </GuidedItemFieldset>
-        )}
-        {plans.map((entry, index) => (
-          <GuidedItemFieldset
-            key={entry.id}
-            legend={planLabel(index)}
-            onRemoved={() => {
-              setPlans((current) =>
-                current.filter((item) => item.id !== entry.id),
-              );
-              announce(`${entry.form.name || planLabel(index)} removido.`);
-            }}
-          >
-            {(remove) => (
-              <>
-                <GuidedPlanFields
-                  form={entry.form}
-                  setForm={planFormSetter(entry.id)}
-                  onServiceChange={() => updatePlan(entry.id, { groupId: "" })}
-                  onTemplateChange={(planType) =>
-                    updatePlan(entry.id, { planType })
-                  }
-                  groupSlots={slotsOf(entry.groupId)}
-                  waitlisted={guidedGroupFull(groups, entry.groupId)}
-                  patientName={form.fullName}
-                  pixKey={pixKey}
-                  pixTemplate={pixTemplate}
-                  kindField={
-                    <label>
-                      Modelo
-                      <select
-                        value={entry.form.kind}
-                        onChange={(e) => {
-                          const kind = e.target.value as GuidedPlanForm["kind"];
-                          updatePlan(entry.id, {
-                            form: {
-                              ...entry.form,
-                              kind,
-                              // Recorrente: uma cobrança por ciclo.
-                              installments:
-                                kind === "recurring"
-                                  ? 1
-                                  : entry.form.installments,
-                              autoRenew:
-                                kind === "recurring" &&
-                                Boolean(entry.form.validUntil),
-                            },
-                          });
-                        }}
-                      >
-                        {guidedPlanKindOptions(entry.form.kind).map((kind) => (
-                          <option value={kind} key={kind}>
-                            {planKindLabels[kind]}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                  }
-                >
-                  <GuidedGroupField
-                    serviceIds={entry.form.services.map(
-                      (service) => service.serviceId,
-                    )}
-                    value={entry.groupId}
-                    onChange={(groupId) => updatePlan(entry.id, { groupId })}
-                    groups={groups}
-                    setGroups={setGroups}
-                  />
-                </GuidedPlanFields>
-                {canSign && !guidedGroupFull(groups, entry.groupId) && (
-                  <SignatureTemplateField
-                    state={signatureTemplates}
-                    value={entry.document}
-                    onChange={(document) => updatePlan(entry.id, { document })}
-                    disabled={!editable || loading}
-                  />
+              <fieldset className="form-fieldset span-2">
+                <legend>Etiquetas</legend>
+                {configuredTags.error ? (
+                  <p className="form-error">{`Não foi possível carregar as etiquetas: ${configuredTags.error}`}</p>
+                ) : configuredTags.tags === null ? (
+                  <LoadingBlock />
+                ) : tagChoices.length === 0 ? (
+                  <p className="muted-copy">
+                    Nenhuma etiqueta configurada. Cadastre as etiquetas em
+                    Configurações › Etiquetas.
+                  </p>
+                ) : (
+                  <div className="tag-filter-list">
+                    {tagChoices.map((tag) => (
+                      <TagChoice
+                        key={tag.name}
+                        name={tag.name}
+                        color={patientTagDisplayColor(tag)}
+                        pressed={form.tags.includes(tag.name)}
+                        disabled={!editable}
+                        onToggle={() => toggleTag(tag.name)}
+                      />
+                    ))}
+                  </div>
                 )}
-                {entry.form.planTemplateId &&
-                  !guidedGroupFull(groups, entry.groupId) && (
+              </fieldset>
+              <label className="span-2">
+                Observações
+                <textarea
+                  maxLength={patientNotesMaxLength}
+                  value={form.notes}
+                  onChange={(e) => field("notes", e.target.value)}
+                  rows={3}
+                />
+              </label>
+            </div>
+          </details>
+          {demonstrationAdded && (
+            <GuidedItemFieldset
+              legend="Aula experimental"
+              onRemoved={() => {
+                setDemonstrationAdded(false);
+                announce("Aula experimental removida.");
+              }}
+            >
+              {(remove) => (
+                <>
+                  <GuidedDemonstrationFields
+                    value={demonstration}
+                    setValue={setDemonstration}
+                    leadId={lead?.id}
+                  />
+                  {removeButton("aula experimental", remove)}
+                </>
+              )}
+            </GuidedItemFieldset>
+          )}
+          {plans.map((entry, index) => (
+            <GuidedItemFieldset
+              key={entry.id}
+              legend={planLabel(index)}
+              onRemoved={() => {
+                setPlans((current) =>
+                  current.filter((item) => item.id !== entry.id),
+                );
+                announce(`${entry.form.name || planLabel(index)} removido.`);
+              }}
+            >
+              {(remove) => (
+                <>
+                  <GuidedPlanFields
+                    form={entry.form}
+                    setForm={planFormSetter(entry.id)}
+                    onServiceChange={() =>
+                      updatePlan(entry.id, { groupId: "" })
+                    }
+                    onTemplateChange={(planType) =>
+                      updatePlan(entry.id, { planType })
+                    }
+                    groupSlots={slotsOf(entry.groupId)}
+                    waitlisted={guidedGroupFull(groups, entry.groupId)}
+                    patientName={form.fullName}
+                    pixKey={pixKey}
+                    pixTemplate={pixTemplate}
+                    kindField={
+                      <label>
+                        Modelo
+                        <select
+                          value={entry.form.kind}
+                          onChange={(e) => {
+                            const kind = e.target
+                              .value as GuidedPlanForm["kind"];
+                            updatePlan(entry.id, {
+                              form: {
+                                ...entry.form,
+                                kind,
+                                // Recorrente: uma cobrança por ciclo.
+                                installments:
+                                  kind === "recurring"
+                                    ? 1
+                                    : entry.form.installments,
+                                autoRenew:
+                                  kind === "recurring" &&
+                                  Boolean(entry.form.validUntil),
+                              },
+                            });
+                          }}
+                        >
+                          {guidedPlanKindOptions(entry.form.kind).map(
+                            (kind) => (
+                              <option value={kind} key={kind}>
+                                {planKindLabels[kind]}
+                              </option>
+                            ),
+                          )}
+                        </select>
+                      </label>
+                    }
+                  >
+                    <GuidedGroupField
+                      serviceIds={entry.form.services.map(
+                        (service) => service.serviceId,
+                      )}
+                      value={entry.groupId}
+                      onChange={(groupId) => updatePlan(entry.id, { groupId })}
+                      groups={groups}
+                      setGroups={setGroups}
+                    />
+                  </GuidedPlanFields>
+                  {canSign && !guidedGroupFull(groups, entry.groupId) && (
+                    <SignatureTemplateField
+                      state={signatureTemplates}
+                      value={entry.document}
+                      onChange={(document) =>
+                        updatePlan(entry.id, { document })
+                      }
+                      disabled={!editable || loading}
+                    />
+                  )}
+                  {entry.form.planTemplateId &&
+                    !guidedGroupFull(groups, entry.groupId) && (
+                      <PlanDiscountSummary
+                        discount={entry.form.discount}
+                        emptyLabel="Sem desconto neste plano."
+                        disabled={!editable || loading}
+                        onEdit={() =>
+                          editDiscount(
+                            entry.form.discount,
+                            planFormSetter(entry.id),
+                          )
+                        }
+                      />
+                    )}
+                  {removeButton(planLabel(index).toLowerCase(), remove)}
+                </>
+              )}
+            </GuidedItemFieldset>
+          ))}
+          {singles.map((entry, index) => (
+            <GuidedItemFieldset
+              key={entry.id}
+              legend={singleLabel(index)}
+              onRemoved={() => {
+                setSingles((current) =>
+                  current.filter((item) => item.id !== entry.id),
+                );
+                announce(`${entry.form.name || singleLabel(index)} removido.`);
+              }}
+            >
+              {(remove) => (
+                <>
+                  <GuidedPlanFields
+                    form={entry.form}
+                    setForm={singleFormSetter(entry.id)}
+                    patientName={form.fullName}
+                    pixKey={pixKey}
+                    pixTemplate={pixTemplate}
+                  />
+                  {canSign && (
+                    <SignatureTemplateField
+                      state={signatureTemplates}
+                      value={entry.document}
+                      onChange={(document) =>
+                        updateSingle(entry.id, { document })
+                      }
+                      disabled={!editable || loading}
+                    />
+                  )}
+                  {guidedSale?.renderScheduling({
+                    plan: { ...entry.form, kind: "single", patientId: "" },
+                    appointments: entry.appointments,
+                    onChange: (appointments) =>
+                      updateSingle(entry.id, { appointments }),
+                    onNestedChange: setScheduleNested,
+                    onBlockedChange: (message) =>
+                      setScheduleBlocked((current) =>
+                        current[entry.id] === message
+                          ? current
+                          : { ...current, [entry.id]: message },
+                      ),
+                  })}
+                  {entry.form.planTemplateId && (
                     <PlanDiscountSummary
                       discount={entry.form.discount}
-                      emptyLabel="Sem desconto neste plano."
+                      emptyLabel="Sem desconto neste serviço."
                       disabled={!editable || loading}
                       onEdit={() =>
                         editDiscount(
                           entry.form.discount,
-                          planFormSetter(entry.id),
+                          singleFormSetter(entry.id),
                         )
                       }
                     />
                   )}
-                {removeButton(planLabel(index).toLowerCase(), remove)}
-              </>
-            )}
-          </GuidedItemFieldset>
-        ))}
-        {singles.map((entry, index) => (
-          <GuidedItemFieldset
-            key={entry.id}
-            legend={singleLabel(index)}
-            onRemoved={() => {
-              setSingles((current) =>
-                current.filter((item) => item.id !== entry.id),
-              );
-              announce(`${entry.form.name || singleLabel(index)} removido.`);
-            }}
-          >
-            {(remove) => (
-              <>
-                <GuidedPlanFields
-                  form={entry.form}
-                  setForm={singleFormSetter(entry.id)}
-                  patientName={form.fullName}
-                  pixKey={pixKey}
-                  pixTemplate={pixTemplate}
-                />
-                {canSign && (
-                  <SignatureTemplateField
-                    state={signatureTemplates}
-                    value={entry.document}
-                    onChange={(document) =>
-                      updateSingle(entry.id, { document })
-                    }
-                    disabled={!editable || loading}
-                  />
+                  {removeButton(singleLabel(index).toLowerCase(), remove)}
+                </>
+              )}
+            </GuidedItemFieldset>
+          ))}
+          {productBlocks}
+          {productLines.length > 0 && (
+            <fieldset className="form-fieldset span-2">
+              <legend>Pagamento dos produtos</legend>
+              <GuidedProductPaymentFields
+                value={productPayment}
+                totalInCents={productsTotalInCents}
+                disabled={!editable || loading}
+                onChange={(patch) =>
+                  setProductPayment((current) => ({ ...current, ...patch }))
+                }
+              />
+            </fieldset>
+          )}
+          {/* Menu de adicionar sempre depois do último item, logo acima da sacola. */}
+          {addOptions.length > 0 && (
+            <fieldset className="form-fieldset guided-add span-2">
+              <legend>O que o cliente vai fazer?</legend>
+              <p className="field-hint">{addedSummary}</p>
+              <p className="guided-item-notice" role="status">
+                {itemNotice && (
+                  <span key={itemNotice.id}>
+                    <CheckCircle2 size={16} aria-hidden="true" />
+                    {itemNotice.text}
+                  </span>
                 )}
-                {guidedSale?.renderScheduling({
-                  plan: { ...entry.form, kind: "single", patientId: "" },
-                  appointments: entry.appointments,
-                  onChange: (appointments) =>
-                    updateSingle(entry.id, { appointments }),
-                  onNestedChange: setScheduleNested,
-                  onBlockedChange: (message) =>
-                    setScheduleBlocked((current) =>
-                      current[entry.id] === message
-                        ? current
-                        : { ...current, [entry.id]: message },
-                    ),
-                })}
-                {entry.form.planTemplateId && (
-                  <PlanDiscountSummary
-                    discount={entry.form.discount}
-                    emptyLabel="Sem desconto neste serviço."
-                    disabled={!editable || loading}
-                    onEdit={() =>
-                      editDiscount(
-                        entry.form.discount,
-                        singleFormSetter(entry.id),
-                      )
-                    }
-                  />
+              </p>
+              <div className="guided-add-grid">
+                {addOptions.map(
+                  ({ key, label, detail, icon: Icon, disabled }) => (
+                    <button
+                      type="button"
+                      key={key}
+                      className="guided-add-option"
+                      aria-label={label}
+                      aria-describedby={`guided-add-${key}`}
+                      disabled={disabled || !editable || loading}
+                      onClick={() => addItem(key)}
+                    >
+                      <span className="guided-add-icon" aria-hidden="true">
+                        <Icon size={18} />
+                      </span>
+                      <span className="guided-add-text">
+                        <strong>{label}</strong>
+                        <small id={`guided-add-${key}`}>{detail}</small>
+                      </span>
+                    </button>
+                  ),
                 )}
-                {removeButton(singleLabel(index).toLowerCase(), remove)}
-              </>
-            )}
-          </GuidedItemFieldset>
-        ))}
-        {productBlocks}
-        {productLines.length > 0 && (
-          <fieldset className="form-fieldset span-2">
-            <legend>Pagamento dos produtos</legend>
-            <GuidedProductPaymentFields
-              value={productPayment}
-              totalInCents={productsTotalInCents}
+              </div>
+            </fieldset>
+          )}
+          {(soldPlans.length + singles.length > 0 ||
+            productLines.length > 0) && (
+            <GuidedOrderSummary
+              order={order}
+              productInstallments={productInstallments}
+              orderDiscount={orderDiscount}
               disabled={!editable || loading}
-              onChange={(patch) =>
-                setProductPayment((current) => ({ ...current, ...patch }))
+              onEditOrderDiscount={() =>
+                setDiscountTarget({
+                  target: "order",
+                  discount: orderDiscount,
+                  apply: (next) => setOrderDiscount(next ?? undefined),
+                })
               }
             />
-          </fieldset>
-        )}
-        {/* Menu de adicionar sempre depois do último item, logo acima da sacola. */}
-        {addOptions.length > 0 && (
-          <fieldset className="form-fieldset guided-add span-2">
-            <legend>O que o cliente vai fazer?</legend>
-            <p className="field-hint">{addedSummary}</p>
-            <p className="guided-item-notice" role="status">
-              {itemNotice && (
-                <span key={itemNotice.id}>
-                  <CheckCircle2 size={16} aria-hidden="true" />
-                  {itemNotice.text}
-                </span>
-              )}
-            </p>
-            <div className="guided-add-grid">
-              {addOptions.map(
-                ({ key, label, detail, icon: Icon, disabled }) => (
-                  <button
-                    type="button"
-                    key={key}
-                    className="guided-add-option"
-                    aria-label={label}
-                    aria-describedby={`guided-add-${key}`}
-                    disabled={disabled || !editable || loading}
-                    onClick={() => addItem(key)}
-                  >
-                    <span className="guided-add-icon" aria-hidden="true">
-                      <Icon size={18} />
-                    </span>
-                    <span className="guided-add-text">
-                      <strong>{label}</strong>
-                      <small id={`guided-add-${key}`}>{detail}</small>
-                    </span>
-                  </button>
-                ),
-              )}
-            </div>
-          </fieldset>
-        )}
-        {(soldPlans.length + singles.length > 0 || productLines.length > 0) && (
-          <GuidedOrderSummary
-            order={order}
-            productInstallments={productInstallments}
-            orderDiscount={orderDiscount}
-            disabled={!editable || loading}
-            onEditOrderDiscount={() =>
-              setDiscountTarget({
-                target: "order",
-                discount: orderDiscount,
-                apply: (next) => setOrderDiscount(next ?? undefined),
-              })
-            }
-          />
-        )}
+          )}
+        </fieldset>
         {patient && editable && (
           <ChangeReasonField
             value={changeReason}
