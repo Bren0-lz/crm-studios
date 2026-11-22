@@ -139,12 +139,19 @@ export function LeadActivityModal({
     dueAt: toLocalDateTimeInput(tomorrow),
     assignedUserId: currentUser?.id ?? "",
   });
+  // Valores da tarefa depois da última gravação: o formulário que volta limpo
+  // após criar a tarefa não conta como alteração pendente (QA-I-01).
+  const [savedTask, setSavedTask] = useState({
+    title: task.title,
+    notes: task.notes,
+  });
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
-  const dirty = useFormDirty({
-    contact: contact.notes,
-    task: [task.title, task.notes],
-  });
+  const contactDirty = useFormDirty({ contact: contact.notes });
+  const dirty =
+    contactDirty ||
+    task.title !== savedTask.title ||
+    task.notes !== savedTask.notes;
   const taskMissing = useMissingFields(
     [!task.title.trim() && "Tarefa", !task.dueAt && "Vencimento"].filter(
       (item): item is string => Boolean(item),
@@ -239,6 +246,7 @@ export function LeadActivityModal({
         current ? { ...current, tasks: [...current.tasks, created] } : current,
       );
       setTask({ ...task, title: "", notes: "" });
+      setSavedTask({ title: "", notes: "" });
       toast.success("Tarefa criada.");
       onChanged();
     } catch (cause) {
