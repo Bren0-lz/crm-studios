@@ -1665,7 +1665,7 @@ describe("users and permissions", () => {
       </MemoryRouter>,
     );
     expect(
-      await screen.findByRole("button", { name: "Editar Helena Almeida" }),
+      await screen.findByRole("button", { name: "Ver Helena Almeida" }),
     ).toBeInTheDocument();
     const nav = screen.getByRole("navigation");
     expect(
@@ -1693,9 +1693,9 @@ describe("users and permissions", () => {
       "Seu acesso a Clientes é só de consulta",
     );
     fireEvent.click(
-      screen.getByRole("button", { name: "Editar Helena Almeida" }),
+      screen.getByRole("button", { name: "Ver Helena Almeida" }),
     );
-    const dialog = screen.getByRole("dialog", { name: "Editar cliente" });
+    const dialog = screen.getByRole("dialog", { name: "Consultar cliente" });
     expect(
       within(dialog).queryByRole("button", { name: "Salvar alterações" }),
     ).not.toBeInTheDocument();

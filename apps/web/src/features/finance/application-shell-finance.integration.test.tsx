@@ -57,7 +57,10 @@ describe("application shell", () => {
           <App />
         </MemoryRouter>,
       );
-      await screen.findByRole("button", { name: "Editar Helena Almeida" });
+      // Quem não edita Clientes vê "Ver" (QA-R2-02).
+      await screen.findByRole("button", {
+        name: /^(Editar|Ver) Helena Almeida$/,
+      });
       expect(
         screen.queryByRole("button", { name: "Exportar" }),
       ).not.toBeInTheDocument();

@@ -2253,10 +2253,10 @@ describe("application shell", () => {
       </MemoryRouter>,
     );
     fireEvent.click(
-      await screen.findByRole("button", { name: "Editar Helena Almeida" }),
+      await screen.findByRole("button", { name: "Ver Helena Almeida" }),
     );
     expect(
-      screen.getByRole("heading", { name: "Editar cliente" }),
+      screen.getByRole("heading", { name: "Consultar cliente" }),
     ).toBeInTheDocument();
     expect(
       screen.queryByRole("region", { name: "Histórico" }),
@@ -4713,7 +4713,7 @@ describe("application shell", () => {
         <App />
       </MemoryRouter>,
     );
-    await screen.findByRole("button", { name: "Editar Helena Almeida" });
+    await screen.findByRole("button", { name: "Ver Helena Almeida" });
     // Desde a T053 a fisioterapeuta só consulta Clientes: sem criar nem importar.
     expect(
       screen.queryByRole("button", { name: /Novo cliente/ }),
@@ -4970,7 +4970,10 @@ describe("application shell", () => {
           <App />
         </MemoryRouter>,
       );
-      await screen.findByRole("button", { name: "Editar Helena Almeida" });
+      // Quem não edita Clientes vê "Ver" (QA-R2-02).
+      await screen.findByRole("button", {
+        name: /^(Editar|Ver) Helena Almeida$/,
+      });
       expect(moreActionNames()).not.toContain("Exportar");
     },
   );
@@ -9894,7 +9897,7 @@ describe("users and permissions", () => {
       </MemoryRouter>,
     );
     expect(
-      await screen.findByRole("button", { name: "Editar Helena Almeida" }),
+      await screen.findByRole("button", { name: "Ver Helena Almeida" }),
     ).toBeInTheDocument();
     const nav = screen.getByRole("navigation");
     expect(
@@ -9922,9 +9925,9 @@ describe("users and permissions", () => {
       "Seu acesso a Clientes é só de consulta",
     );
     fireEvent.click(
-      screen.getByRole("button", { name: "Editar Helena Almeida" }),
+      screen.getByRole("button", { name: "Ver Helena Almeida" }),
     );
-    const dialog = screen.getByRole("dialog", { name: "Editar cliente" });
+    const dialog = screen.getByRole("dialog", { name: "Consultar cliente" });
     expect(
       within(dialog).queryByRole("button", { name: "Salvar alterações" }),
     ).not.toBeInTheDocument();
