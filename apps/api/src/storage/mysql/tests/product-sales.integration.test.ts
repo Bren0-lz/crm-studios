@@ -575,6 +575,99 @@ for (const storage of ["memory", "mysql"] as const) {
           paymentInstallments: 3,
         });
       });
+
+      // QA-I-02: a baixa parcial cria um recebível de saldo, que é cobrança da mesma venda.
+      async function saleWithPartialPayment() {
+        const { patient, product } = await fixtures(4);
+        const sale = await repository.createProductSale(clinicId, actorId, {
+          patientId: patient.id,
+          items: [{ productId: product.id, quantity: 2 }],
+          settlement: "receivable",
+          dueDate: saoPauloToday(),
+        });
+        await repository.settleReceivable(
+          clinicId,
+          actorId,
+          sale.receivableId!,
+          "cash",
+          { paidAt: new Date().toISOString() },
+          { receivedInCents: 2_000 },
+        );
+        const receivablesOf = async () =>
+          (await repository.getFinancialSummary(clinicId)).receivables.filter(
+            (item) => item.patientId === patient.id,
+          );
+        const balance = (await receivablesOf()).find(
+          (item) => item.id !== sale.receivableId,
+        )!;
+        expect(balance).toMatchObject({ status: "open", amountInCents: 3_000 });
+        return { sale, product, balance, receivablesOf };
+      }
+
+      it("cancela o saldo da baixa parcial estornada ao cancelar a venda", async () => {
+        const { sale, product, balance, receivablesOf } =
+          await saleWithPartialPayment();
+        await repository.reverseReceivablePayment(
+          clinicId,
+          actorId,
+          sale.receivableId!,
+        );
+        await repository.cancelPatientTab(clinicId, actorId, sale.id, {
+          reason: "Cancelamento após estorno",
+        });
+
+        const receivables = await receivablesOf();
+        expect(receivables.map((item) => item.status)).toEqual([
+          "cancelled",
+          "cancelled",
+        ]);
+        await expect(
+          repository.settleReceivable(clinicId, actorId, balance.id, "cash"),
+        ).rejects.toThrow();
+        const inventory = await repository.getInventoryWorkspace(clinicId);
+        expect(
+          inventory.products.find((item) => item.id === product.id)
+            ?.currentStock,
+        ).toBe(4);
+      });
+
+      it("exige estorno do saldo já pago e o estorna junto ao cancelar com estorno", async () => {
+        const { sale, balance, receivablesOf } = await saleWithPartialPayment();
+        await repository.reverseReceivablePayment(
+          clinicId,
+          actorId,
+          sale.receivableId!,
+        );
+        await repository.settleReceivable(
+          clinicId,
+          actorId,
+          balance.id,
+          "pix",
+        );
+        await expect(
+          repository.cancelPatientTab(clinicId, actorId, sale.id),
+        ).rejects.toMatchObject({ code: "PATIENT_TAB_PAYMENT_REVERSAL_REQUIRED" });
+
+        await repository.cancelPatientTab(clinicId, actorId, sale.id, {
+          refundPayment: true,
+        });
+        const receivables = await receivablesOf();
+        expect(receivables.every((item) => item.status === "cancelled")).toBe(
+          true,
+        );
+        // A baixa do saldo continua no histórico e é estornada no caixa.
+        const today = saoPauloToday();
+        const history = (
+          await repository.listReceivedPayments(clinicId, today, today)
+        ).filter((item) => item.receivableId === balance.id);
+        expect(history.map((item) => item.kind).sort()).toEqual([
+          "payment",
+          "reversal",
+        ]);
+        expect(
+          history.reduce((total, item) => total + item.amountInCents, 0),
+        ).toBe(0);
+      });
     },
   );
 }
