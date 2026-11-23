@@ -847,12 +847,15 @@ export function createClinicalRepository(
 
     async listClinicalAccessEvents(clinicId: string, patientId: string) {
       const result = await repositoryContext.pool.query<ClinicalAccessEventRow>(
-        `SELECT id, clinic_id AS "clinicId", patient_id AS "patientId",
-              actor_user_id AS "actorUserId", action,
-              entity_type AS "entityType", entity_id AS "entityId",
-              created_at AS "createdAt"
-       FROM clinical_access_events
-       WHERE clinic_id = $1 AND patient_id IN (SELECT id FROM patients WHERE clinic_id=$1 AND (id=$2 OR merged_into_patient_id=$2)) ORDER BY created_at DESC`,
+        `SELECT e.id, e.clinic_id AS "clinicId", e.patient_id AS "patientId",
+              e.actor_user_id AS "actorUserId", u.full_name AS "actorName", e.action,
+              e.entity_type AS "entityType", e.entity_id AS "entityId",
+              e.created_at AS "createdAt"
+       FROM clinical_access_events e
+       LEFT JOIN users u ON u.id = e.actor_user_id AND u.clinic_id = e.clinic_id
+       WHERE e.clinic_id = $1 AND e.patient_id IN (
+         SELECT id FROM patients WHERE clinic_id=$1 AND (id=$2 OR merged_into_patient_id=$2)
+       ) ORDER BY e.created_at DESC`,
         [clinicId, patientId],
       );
       return result.rows.map(mapClinicalAccessEvent);

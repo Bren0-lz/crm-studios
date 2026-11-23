@@ -157,6 +157,7 @@ export interface ClinicalAccessEvent {
   clinicId: string;
   patientId: string;
   actorUserId: string;
+  actorName?: string;
   action: "read" | "export" | "upload" | "download" | "addendum";
   entityType: "workspace" | "attachment" | "clinical_record";
   entityId?: string;
