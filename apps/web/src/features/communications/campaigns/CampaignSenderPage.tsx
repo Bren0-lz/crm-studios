@@ -139,7 +139,6 @@ export function CampaignSenderPage() {
     );
   if (!campaign) return <LoadingBlock />;
 
-  const recipient = campaign.recipients[currentIndex];
   const handled = campaignHandled(campaign);
   const pending = campaign.total - handled;
   const imageList = campaign.images.map((image) => ({
@@ -166,6 +165,12 @@ export function CampaignSenderPage() {
         (filter === "all" || item.status === filter) &&
         (!term || item.patientName.toLocaleLowerCase("pt-BR").includes(term)),
     );
+  // O painel acompanha a lista visível: quem saiu do filtro ou da busca não fica
+  // com ações ativas (QA-R2-01). Sem ninguém na lista, não há envio atual.
+  const current =
+    listed.find(({ index }) => index === currentIndex) ?? listed[0];
+  const recipient = current?.item;
+  const recipientIndex = current?.index ?? currentIndex;
 
   async function setStatus(
     target: WhatsappCampaignRecipient,
@@ -187,8 +192,10 @@ export function CampaignSenderPage() {
       setConfirming(false);
       setCopied(null);
       if (status !== "pending") {
-        const next = nextPendingIndex(recipients, currentIndex);
+        const next = nextPendingIndex(recipients, recipientIndex);
         if (next >= 0) setCurrentIndex(next);
+        // Sem pendentes, o último atendido continua à vista (como ao abrir a campanha).
+        else if (filter === "pending") setFilter("all");
         toast.success(
           status === "sent"
             ? `Envio para ${target.patientName} registrado.`
@@ -294,7 +301,9 @@ export function CampaignSenderPage() {
                   <button
                     type="button"
                     className={`recipient-row ${item.status}`}
-                    aria-current={index === currentIndex ? "true" : undefined}
+                    aria-current={
+                      index === recipientIndex ? "true" : undefined
+                    }
                     onClick={() => {
                       setCurrentIndex(index);
                       setCopied(null);
@@ -350,7 +359,7 @@ export function CampaignSenderPage() {
                     {recipient.leadId && !recipient.patientId
                       ? "Lead"
                       : "Cliente"}{" "}
-                    {currentIndex + 1} de {campaign.total}
+                    {recipientIndex + 1} de {campaign.total}
                   </p>
                   <span className="sender-phone">
                     {formatPhone(recipient.phone)}

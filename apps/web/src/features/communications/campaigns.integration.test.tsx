@@ -987,6 +987,58 @@ describe("campanhas de WhatsApp", () => {
     );
   });
 
+  it("o envio atual acompanha o filtro e some quando o filtro fica vazio", async () => {
+    const detail = campaign([
+      recipient({
+        id: "r1",
+        patientId: "p1",
+        patientName: "Ana Lima",
+        status: "skipped",
+        handledAt: now,
+      }),
+      recipient({ id: "r2", patientId: "p2", patientName: "Bruno Costa" }),
+    ]);
+    const { calls } = setup(
+      `/comunicacoes/campanhas/${detail.id}`,
+      (url, init) =>
+        url.includes(`/communications/campaigns/${detail.id}`) && !init?.method
+          ? detail
+          : undefined,
+    );
+    expect(
+      await screen.findByRole("heading", { name: "Bruno Costa" }),
+    ).toBeInTheDocument();
+    const filters = screen.getByRole("group", { name: "Filtrar clientes" });
+
+    fireEvent.click(within(filters).getByRole("button", { name: "Enviadas" }));
+    expect(screen.getByText("Nenhum cliente neste filtro.")).toBeInTheDocument();
+    const sender = screen.getByRole("region", { name: "Envio atual" });
+    expect(
+      within(sender).queryByRole("heading", { name: "Bruno Costa" }),
+    ).not.toBeInTheDocument();
+    expect(
+      within(sender).queryByRole("button", { name: /Marcar como enviada/ }),
+    ).not.toBeInTheDocument();
+    expect(
+      within(sender).queryByRole("button", { name: /Pular/ }),
+    ).not.toBeInTheDocument();
+
+    // Em Puladas, o painel mostra quem está na lista, e não o pendente.
+    fireEvent.click(within(filters).getByRole("button", { name: "Puladas" }));
+    expect(
+      within(sender).getByRole("heading", { name: "Ana Lima" }),
+    ).toBeInTheDocument();
+    expect(
+      within(sender).queryByRole("button", { name: /Marcar como enviada/ }),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(within(filters).getByRole("button", { name: "Pendentes" }));
+    expect(
+      within(sender).getByRole("heading", { name: "Bruno Costa" }),
+    ).toBeInTheDocument();
+    expect(calls.some((call) => call.url.includes("/recipients/"))).toBe(false);
+  });
+
   it("campanha concluída com 1 envio e 1 pulado usa o singular", async () => {
     const detail = {
       ...campaign([
