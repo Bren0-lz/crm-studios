@@ -56,6 +56,22 @@ describe("toasts", () => {
     expect(screen.queryByRole("status")).not.toBeInTheDocument();
   });
 
+  it("clears timers when a toast is replaced or the provider unmounts", () => {
+    vi.useFakeTimers();
+    const { unmount } = render(
+      <ToastProvider>
+        <Trigger />
+      </ToastProvider>,
+    );
+    const show = screen.getByRole("button", { name: "ok" });
+    for (let index = 0; index < 4; index++) fireEvent.click(show);
+
+    expect(screen.getAllByRole("status")).toHaveLength(3);
+    expect(vi.getTimerCount()).toBe(3);
+    unmount();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
   it("confirms an appointment in the agenda with a toast", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
     localStorage.setItem(
