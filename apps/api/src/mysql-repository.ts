@@ -92,6 +92,11 @@ export class MysqlClinicRepository implements ClinicRepository {
   readonly getTelegramReceiptReminderSentOn: ClinicRepository["getTelegramReceiptReminderSentOn"];
   readonly claimTelegramReceiptReminder: ClinicRepository["claimTelegramReceiptReminder"];
   readonly deleteTelegramLink: ClinicRepository["deleteTelegramLink"];
+  readonly setTelegramLinkTopics: ClinicRepository["setTelegramLinkTopics"];
+  readonly listTelegramGroupLinks: ClinicRepository["listTelegramGroupLinks"];
+  readonly findTelegramGroupLinksByChat: ClinicRepository["findTelegramGroupLinksByChat"];
+  readonly updateTelegramGroupLink: ClinicRepository["updateTelegramGroupLink"];
+  readonly deleteTelegramGroupLink: ClinicRepository["deleteTelegramGroupLink"];
   readonly createTelegramLinkCode: ClinicRepository["createTelegramLinkCode"];
   readonly linkTelegramChat: ClinicRepository["linkTelegramChat"];
   readonly enqueueTelegramMessages: ClinicRepository["enqueueTelegramMessages"];
@@ -226,6 +231,11 @@ export class MysqlClinicRepository implements ClinicRepository {
       telegram.getTelegramReceiptReminderSentOn;
     this.claimTelegramReceiptReminder = telegram.claimTelegramReceiptReminder;
     this.deleteTelegramLink = telegram.deleteTelegramLink;
+    this.setTelegramLinkTopics = telegram.setTelegramLinkTopics;
+    this.listTelegramGroupLinks = telegram.listTelegramGroupLinks;
+    this.findTelegramGroupLinksByChat = telegram.findTelegramGroupLinksByChat;
+    this.updateTelegramGroupLink = telegram.updateTelegramGroupLink;
+    this.deleteTelegramGroupLink = telegram.deleteTelegramGroupLink;
     this.createTelegramLinkCode = telegram.createTelegramLinkCode;
     this.linkTelegramChat = telegram.linkTelegramChat;
     this.enqueueTelegramMessages = telegram.enqueueTelegramMessages;

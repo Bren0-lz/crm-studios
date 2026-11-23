@@ -1,7 +1,12 @@
 import {
+  normalizeTelegramTopics,
   TELEGRAM_LINK_CODE_TTL_MINUTES,
+  telegramTopicLabels,
+  telegramTopics,
+  type TelegramGroupLink,
   type TelegramLinkCode,
   type TelegramStatus,
+  type TelegramTopic,
   userRoleLabels,
 } from "@crm/contracts";
 import { Send } from "lucide-react";
@@ -13,6 +18,280 @@ import { ErrorBanner } from "../../shared/components/ErrorBanner";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
 import { shortDate, timeLabel } from "../../shared/lib/formatting";
 import { useSettingsBusy } from "../../shared/workflows/useSettingsBusy";
+
+/** "Recibos, Agendamentos e Clientes novos". */
+function topicList(topics: readonly TelegramTopic[]) {
+  const labels = topics.map((topic) => telegramTopicLabels[topic]);
+  return labels.length <= 1
+    ? (labels[0] ?? "")
+    : `${labels.slice(0, -1).join(", ")} e ${labels.at(-1)}`;
+}
+
+const sameTopics = (a: readonly TelegramTopic[], b: readonly TelegramTopic[]) =>
+  a.join() === b.join();
+
+/** Caixas dos assuntos dos avisos (TG7). */
+function TopicChecks({
+  legend,
+  value,
+  onChange,
+  disabled = false,
+  className = "",
+}: {
+  legend: string;
+  value: TelegramTopic[];
+  onChange: (topics: TelegramTopic[]) => void;
+  disabled?: boolean;
+  className?: string;
+}) {
+  return (
+    <fieldset className={`telegram-topics ${className}`.trim()}>
+      <legend>{legend}</legend>
+      {telegramTopics.map((topic) => (
+        <label key={topic} className="checkbox-field">
+          <input
+            type="checkbox"
+            checked={value.includes(topic)}
+            disabled={disabled}
+            onChange={(event) =>
+              onChange(
+                event.target.checked
+                  ? normalizeTelegramTopics([...value, topic])
+                  : value.filter((item) => item !== topic),
+              )
+            }
+          />
+          {telegramTopicLabels[topic]}
+        </label>
+      ))}
+    </fieldset>
+  );
+}
+
+/**
+ * Grupos do Telegram (TG7): o admin gera um código com os assuntos do grupo, envia no grupo e
+ * o grupo passa a receber só esses avisos.
+ */
+function TelegramGroupsContent() {
+  const [groups, setGroups] = useState<TelegramGroupLink[] | null>(null);
+  const [error, setError] = useState("");
+  const [attempt, setAttempt] = useState(0);
+  const [creating, setCreating] = useState(false);
+  const [code, setCode] = useState<TelegramLinkCode | null>(null);
+  const [editing, setEditing] = useState<TelegramGroupLink | null>(null);
+  const [removing, setRemoving] = useState<TelegramGroupLink | null>(null);
+  const [draft, setDraft] = useState<TelegramTopic[]>([]);
+  const [notice, setNotice] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    api
+      .telegramGroups()
+      .then((data) => active && setGroups(data))
+      .catch((cause: Error) => active && setError(cause.message));
+    return () => {
+      active = false;
+    };
+  }, [attempt]);
+
+  function reload() {
+    setGroups(null);
+    setError("");
+    setAttempt((value) => value + 1);
+  }
+
+  const missing = draft.length ? [] : ["pelo menos um tipo de aviso"];
+
+  return (
+    <div className="telegram-groups">
+      <div className="telegram-groups-head">
+        <div>
+          <h4>Grupos</h4>
+          <p className="muted-copy">
+            Cada grupo recebe só os avisos marcados. Os comandos de agenda só
+            respondem no chat privado com o bot.
+          </p>
+        </div>
+        <button
+          type="button"
+          className="secondary-button"
+          onClick={() => {
+            setNotice("");
+            setDraft([...telegramTopics]);
+            setCreating(true);
+          }}
+        >
+          <Send size={17} aria-hidden="true" />
+          Vincular grupo
+        </button>
+      </div>
+      {notice && (
+        <div className="success-banner" role="status">
+          {notice}
+        </div>
+      )}
+      {code && (
+        <div className="clinical-form" role="status">
+          <p className="muted-copy">
+            Adicione o bot do estúdio ao grupo e envie lá a mensagem abaixo. Se
+            o Telegram pedir, acrescente o nome do bot ao comando
+            (/vincular@nome_do_bot). O código vale{" "}
+            {TELEGRAM_LINK_CODE_TTL_MINUTES} minutos (até{" "}
+            {timeLabel.format(new Date(code.expiresAt))}) e só pode ser usado
+            uma vez.
+          </p>
+          <label>
+            Mensagem para o grupo
+            <input
+              readOnly
+              value={code.command}
+              onFocus={(event) => event.target.select()}
+            />
+          </label>
+          <div className="modal-actions">
+            <button
+              type="button"
+              className="primary-button"
+              onClick={() => {
+                setCode(null);
+                reload();
+              }}
+            >
+              Já enviei
+            </button>
+          </div>
+        </div>
+      )}
+      {error ? (
+        <>
+          <ErrorBanner error={error} />
+          <div className="modal-actions">
+            <button type="button" className="secondary-button" onClick={reload}>
+              Tentar novamente
+            </button>
+          </div>
+        </>
+      ) : !groups ? (
+        <LoadingBlock />
+      ) : groups.length === 0 ? (
+        <EmptyState
+          icon={Send}
+          title="Nenhum grupo vinculado"
+          copy="Vincule um grupo para separar os avisos, por exemplo recibos num grupo e agendamentos em outro."
+        />
+      ) : (
+        <div className="holiday-list">
+          {groups.map((group) => (
+            <article key={group.id}>
+              <div>
+                <strong>{group.title || "Grupo sem nome"}</strong>
+                <small>
+                  {topicList(group.topics)} · vinculado em{" "}
+                  {shortDate.format(new Date(group.linkedAt))}
+                  {group.linkedByName ? ` por ${group.linkedByName}` : ""}
+                </small>
+              </div>
+              <div className="telegram-row-actions">
+                <button
+                  type="button"
+                  className="secondary-button button-sm"
+                  aria-label={`Editar avisos de ${group.title || "grupo sem nome"}`}
+                  onClick={() => {
+                    setNotice("");
+                    setDraft(group.topics);
+                    setEditing(group);
+                  }}
+                >
+                  Editar avisos
+                </button>
+                <button
+                  type="button"
+                  className="danger-button button-sm"
+                  aria-label={`Desvincular ${group.title || "grupo sem nome"}`}
+                  onClick={() => {
+                    setNotice("");
+                    setRemoving(group);
+                  }}
+                >
+                  Desvincular
+                </button>
+              </div>
+            </article>
+          ))}
+        </div>
+      )}
+      {creating && (
+        <ActionModal
+          eyebrow="Integrações"
+          title="Vincular grupo do Telegram"
+          subtitle="Escolha os avisos que o grupo vai receber"
+          confirmLabel="Gerar código"
+          missing={missing}
+          dirty={!sameTopics(draft, [...telegramTopics])}
+          onConfirm={async () => {
+            setCode(await api.createTelegramGroupLinkCode(draft));
+            setCreating(false);
+          }}
+          onClose={() => setCreating(false)}
+        >
+          <TopicChecks
+            legend="Avisos do grupo"
+            value={draft}
+            onChange={setDraft}
+            className="span-2"
+          />
+        </ActionModal>
+      )}
+      {editing && (
+        <ActionModal
+          eyebrow="Integrações"
+          title="Editar avisos do grupo"
+          subtitle={editing.title || "Grupo sem nome"}
+          confirmLabel="Salvar"
+          missing={missing}
+          dirty={!sameTopics(draft, editing.topics)}
+          onConfirm={async () => {
+            const saved = await api.updateTelegramGroup(editing.id, draft);
+            setGroups((current) =>
+              (current ?? []).map((item) =>
+                item.id === saved.id ? saved : item,
+              ),
+            );
+            setEditing(null);
+            setNotice("Avisos do grupo atualizados.");
+          }}
+          onClose={() => setEditing(null)}
+        >
+          <TopicChecks
+            legend="Avisos do grupo"
+            value={draft}
+            onChange={setDraft}
+            className="span-2"
+          />
+        </ActionModal>
+      )}
+      {removing && (
+        <ActionModal
+          eyebrow="Integrações"
+          title="Desvincular grupo"
+          subtitle={removing.title || "Grupo sem nome"}
+          effect="Os avisos do CRM param de chegar neste grupo. Para voltar a receber, gere um novo código."
+          confirmLabel="Desvincular"
+          danger
+          onConfirm={async () => {
+            await api.deleteTelegramGroup(removing.id);
+            setGroups((current) =>
+              (current ?? []).filter((item) => item.id !== removing.id),
+            );
+            setRemoving(null);
+            setNotice("Grupo desvinculado.");
+          }}
+          onClose={() => setRemoving(null)}
+        />
+      )}
+    </div>
+  );
+}
 
 /**
  * Telegram (TG1): o usuário vincula o próprio chat ao bot com um código de uso único e passa a
@@ -27,8 +306,13 @@ export function TelegramIntegrationContent() {
   const [saving, setSaving] = useState(false);
   const [unlinking, setUnlinking] = useState(false);
   const [notice, setNotice] = useState("");
+  /** Edição dos assuntos do chat pessoal; `null` = o que está gravado. */
+  const [topicsDraft, setTopicsDraft] = useState<TelegramTopic[] | null>(null);
+  const [savingTopics, setSavingTopics] = useState(false);
   const savingRef = useRef(false);
-  useSettingsBusy(saving);
+  useSettingsBusy(saving || savingTopics);
+
+  const topics = topicsDraft ?? status?.link?.topics ?? [];
 
   useEffect(() => {
     let active = true;
@@ -57,9 +341,25 @@ export function TelegramIntegrationContent() {
     }
   }
 
+  async function saveTopics() {
+    setSavingTopics(true);
+    setActionError("");
+    setNotice("");
+    try {
+      setStatus(await api.saveTelegramLinkTopics(topics));
+      setTopicsDraft(null);
+      setNotice("Avisos deste chat atualizados.");
+    } catch (cause) {
+      setActionError((cause as Error).message);
+    } finally {
+      setSavingTopics(false);
+    }
+  }
+
   async function unlink() {
     const next = await api.unlinkTelegram();
     setStatus(next);
+    setTopicsDraft(null);
     setCode(null);
     setUnlinking(false);
     setNotice("Telegram desvinculado. Os avisos não chegam mais neste chat.");
@@ -67,20 +367,28 @@ export function TelegramIntegrationContent() {
 
   function refresh() {
     setStatus(null);
+    setTopicsDraft(null);
     setCode(null);
     setNotice("");
     setAttempt((value) => value + 1);
   }
 
   return (
-    <section className="catalog-section telegram-section" aria-labelledby="telegram-title">
+    <section
+      className="catalog-section telegram-section"
+      aria-labelledby="telegram-title"
+    >
       <header className="catalog-section-head">
         <div>
           <h3 id="telegram-title">Telegram</h3>
           <p>Receba os avisos do CRM num chat com o bot do estúdio.</p>
         </div>
         {status?.enabled && (
-          <span className={"status-pill " + (status.link ? "confirmed" : "scheduled")}>
+          <span
+            className={
+              "status-pill " + (status.link ? "confirmed" : "scheduled")
+            }
+          >
             {status.link ? "Vinculado" : "Não vinculado"}
           </span>
         )}
@@ -125,23 +433,48 @@ export function TelegramIntegrationContent() {
             </div>
           )}
           {status.link ? (
-            <div className="holiday-list">
-              <article>
-                <div>
-                  <strong>Chat vinculado</strong>
-                  <small>
-                    Vinculado em {shortDate.format(new Date(status.link.linkedAt))}
-                  </small>
-                </div>
+            <>
+              <div className="holiday-list">
+                <article>
+                  <div>
+                    <strong>Chat vinculado</strong>
+                    <small>
+                      Vinculado em{" "}
+                      {shortDate.format(new Date(status.link.linkedAt))}
+                    </small>
+                  </div>
+                  <button
+                    type="button"
+                    className="danger-button button-sm"
+                    onClick={() => setUnlinking(true)}
+                  >
+                    Desvincular
+                  </button>
+                </article>
+              </div>
+              <TopicChecks
+                legend="Avisos neste chat"
+                value={topics}
+                onChange={setTopicsDraft}
+                disabled={savingTopics}
+              />
+              <p className="muted-copy">
+                Sem nenhum marcado, o chat fica só com os comandos /hoje,
+                /semana e /mes.
+              </p>
+              <div className="modal-actions">
                 <button
                   type="button"
-                  className="danger-button button-sm"
-                  onClick={() => setUnlinking(true)}
+                  className="secondary-button"
+                  disabled={
+                    savingTopics || sameTopics(topics, status.link.topics)
+                  }
+                  onClick={() => void saveTopics()}
                 >
-                  Desvincular
+                  {savingTopics ? "Salvando…" : "Salvar avisos"}
                 </button>
-              </article>
-            </div>
+              </div>
+            </>
           ) : !status.canLink ? (
             <p className="muted-copy">
               Seu perfil não pode vincular o Telegram. Fale com o admin da
@@ -199,6 +532,7 @@ export function TelegramIntegrationContent() {
               {actionError}
             </div>
           )}
+          <TelegramGroupsContent />
         </>
       )}
       {unlinking && (

@@ -3,6 +3,7 @@ import {
   TELEGRAM_LINK_COMMAND,
   type TelegramDrainResult,
   type TelegramLinkCode,
+  type TelegramTopic,
 } from "@crm/contracts";
 import { createHash, randomInt, timingSafeEqual } from "node:crypto";
 import type { FastifyBaseLogger } from "fastify";
@@ -59,8 +60,9 @@ export type TelegramService = ReturnType<typeof createTelegramService>;
  * enfileira, a cada webhook e sob demanda. Falha no Telegram nunca desfaz a operação de
  * origem: o erro fica na fila e no log.
  *
- * Ponto de enfileiramento dos avisos (TG2 em diante): `notifyLinkedChats(clinicId, texto)`,
- * chamado por um assinante do evento de domínio (ex.: `receipt.signed`) depois do commit.
+ * Ponto de enfileiramento dos avisos (TG2 em diante): `notifyLinkedChats(clinicId, assunto,
+ * texto)`, chamado por um assinante do evento de domínio (ex.: `receipt.signed`) depois do
+ * commit. Só recebem os destinos (chats pessoais e grupos) que escolheram o assunto (TG7).
  */
 export function createTelegramService({
   repository,
@@ -168,11 +170,24 @@ export function createTelegramService({
       );
     },
     enqueue,
-    /** Aviso para todos os chats vinculados da clínica (um por chat). */
-    async notifyLinkedChats(clinicId: string, message: string) {
+    /** Aviso para os chats e grupos da clínica que recebem o assunto (um por chat). */
+    async notifyLinkedChats(
+      clinicId: string,
+      topic: TelegramTopic,
+      message: string,
+    ) {
       if (!integration) return;
-      const links = await repository.listTelegramLinks(clinicId);
-      const chats = [...new Set(links.map((link) => link.chatId))];
+      const [links, groups] = await Promise.all([
+        repository.listTelegramLinks(clinicId),
+        repository.listTelegramGroupLinks(clinicId),
+      ]);
+      const chats = [
+        ...new Set(
+          [...links, ...groups]
+            .filter((destination) => destination.topics.includes(topic))
+            .map((destination) => destination.chatId),
+        ),
+      ];
       await enqueue(
         clinicId,
         chats.map((chatId) => ({ chatId, message })),
@@ -180,10 +195,14 @@ export function createTelegramService({
     },
     drain,
     drainSafely,
-    /** Gera o código de uso único do usuário (10 min); só o hash vai para o banco. */
+    /**
+     * Gera o código de uso único do usuário (10 min); só o hash vai para o banco. Com
+     * `groupTopics` (TG7), o código vincula um grupo com esses assuntos.
+     */
     async createLinkCode(
       clinicId: string,
       userId: string,
+      groupTopics?: TelegramTopic[],
     ): Promise<TelegramLinkCode> {
       const code = generateTelegramLinkCode();
       const expiresAt = new Date(
@@ -192,6 +211,7 @@ export function createTelegramService({
       await repository.createTelegramLinkCode(clinicId, userId, {
         codeHash: hashTelegramLinkCode(code),
         expiresAt,
+        ...(groupTopics ? { groupTopics } : {}),
       });
       return { code, expiresAt, command: `${TELEGRAM_LINK_COMMAND} ${code}` };
     },

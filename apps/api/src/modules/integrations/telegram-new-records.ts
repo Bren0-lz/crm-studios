@@ -163,6 +163,7 @@ export function createAppointmentsCreatedTelegramHandler({
     ]);
     await telegram.notifyLinkedChats(
       event.clinicId,
+      "appointments",
       formatAppointmentsCreatedMessage(
         event.appointments,
         actor,
@@ -184,6 +185,7 @@ export function createPatientCreatedTelegramHandler({
     if (!telegram.enabled) return;
     await telegram.notifyLinkedChats(
       event.clinicId,
+      "patients",
       formatPatientCreatedMessage(
         event,
         await actorName(repository, event.clinicId, event.actorUserId),
@@ -204,6 +206,7 @@ export function createPatientsImportedTelegramHandler({
     if (!telegram.enabled || event.created === 0) return;
     await telegram.notifyLinkedChats(
       event.clinicId,
+      "patients",
       formatPatientsImportedMessage(
         event.created,
         await actorName(repository, event.clinicId, event.actorUserId),

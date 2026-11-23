@@ -31,6 +31,7 @@ export function createReceiptSignedTelegramHandler({
     }).format(new Date(event.paidAt));
     await telegram.notifyLinkedChats(
       event.clinicId,
+      "receipts",
       `Recibo assinado: ${patient.fullName} · ${currency.format(event.amountInCents / 100)} · pago em ${paidOn}`,
     );
   };

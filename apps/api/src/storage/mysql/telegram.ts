@@ -1,10 +1,15 @@
 import {
   resolveTelegramLinkRoles,
+  resolveTelegramTopics,
+  type TelegramGroupLink,
   type TelegramSettingsInput,
+  type TelegramTopic,
   type UserRole,
 } from "@crm/contracts";
 import { randomUUID } from "node:crypto";
 import type {
+  TelegramChatKind,
+  TelegramClinicGroupLink,
   TelegramDeliveryResult,
   TelegramLink,
   TelegramLinkAttempt,
@@ -15,11 +20,51 @@ import type { MysqlRepositoryContext } from "./context.js";
 import { bool, json } from "./helpers.js";
 import { inJsonArray, insertRows } from "./sql.js";
 
-const linkColumns = `l.clinic_id AS "clinicId", l.user_id AS "userId", l.chat_id AS "chatId", l.linked_at AS "linkedAt"`;
-type LinkRow = Omit<TelegramLink, "linkedAt"> & { linkedAt: Date };
+const linkColumns = `l.clinic_id AS "clinicId", l.user_id AS "userId", l.chat_id AS "chatId", l.linked_at AS "linkedAt", l.topics`;
+type LinkRow = Omit<TelegramLink, "linkedAt" | "topics"> & {
+  linkedAt: Date;
+  topics: unknown;
+};
+/** JSON lido do banco; NULL fica NULL (= todos os assuntos). */
+const storedJson = (value: unknown) =>
+  value === null || value === undefined ? null : json<unknown>(value);
 const mapLink = (row: LinkRow): TelegramLink => ({
-  ...row,
+  clinicId: row.clinicId,
+  userId: row.userId,
+  chatId: row.chatId,
   linkedAt: row.linkedAt.toISOString(),
+  topics: resolveTelegramTopics(storedJson(row.topics)),
+});
+
+const groupColumns = `g.id, g.clinic_id AS "clinicId", g.chat_id AS "chatId", g.title,
+  g.topics, g.linked_at AS "linkedAt", u.full_name AS "linkedByName"`;
+const groupFrom = `telegram_group_links g
+  LEFT JOIN users u ON u.id = g.linked_by_user_id AND u.clinic_id = g.clinic_id`;
+interface GroupRow {
+  id: string;
+  clinicId: string;
+  chatId: string;
+  title: string | null;
+  topics: unknown;
+  linkedAt: Date;
+  linkedByName: string | null;
+}
+const mapGroup = (row: GroupRow): TelegramClinicGroupLink => ({
+  id: row.id,
+  clinicId: row.clinicId,
+  chatId: row.chatId,
+  title: row.title,
+  topics: resolveTelegramTopics(json<unknown>(row.topics)),
+  linkedAt: row.linkedAt.toISOString(),
+  linkedByName: row.linkedByName,
+});
+const withoutClinic = (group: TelegramClinicGroupLink): TelegramGroupLink => ({
+  id: group.id,
+  chatId: group.chatId,
+  title: group.title,
+  topics: group.topics,
+  linkedAt: group.linkedAt,
+  linkedByName: group.linkedByName,
 });
 
 const outboxColumns = `id, clinic_id AS "clinicId", chat_id AS "chatId", message, attempts,
@@ -143,10 +188,78 @@ export function createTelegramRepository(context: MysqlRepositoryContext) {
       return result.rowCount > 0;
     },
 
+    async setTelegramLinkTopics(
+      clinicId: string,
+      userId: string,
+      topics: TelegramTopic[],
+    ) {
+      await pool.query(
+        `UPDATE telegram_links SET topics = $3 WHERE clinic_id = $1 AND user_id = $2`,
+        [clinicId, userId, JSON.stringify(topics)],
+      );
+      const row = (
+        await pool.query<LinkRow>(
+          `SELECT ${linkColumns} FROM telegram_links l
+            WHERE l.clinic_id = $1 AND l.user_id = $2`,
+          [clinicId, userId],
+        )
+      ).rows[0];
+      return row ? mapLink(row) : null;
+    },
+
+    async listTelegramGroupLinks(clinicId: string) {
+      const result = await pool.query<GroupRow>(
+        `SELECT ${groupColumns} FROM ${groupFrom}
+          WHERE g.clinic_id = $1 ORDER BY g.linked_at, g.id`,
+        [clinicId],
+      );
+      return result.rows.map((row) => withoutClinic(mapGroup(row)));
+    },
+
+    async findTelegramGroupLinksByChat(chatId: string) {
+      const result = await pool.query<GroupRow>(
+        `SELECT ${groupColumns} FROM ${groupFrom}
+          WHERE g.chat_id = $1 ORDER BY g.linked_at DESC, g.id`,
+        [chatId],
+      );
+      return result.rows.map(mapGroup);
+    },
+
+    async updateTelegramGroupLink(
+      clinicId: string,
+      id: string,
+      topics: TelegramTopic[],
+    ) {
+      await pool.query(
+        `UPDATE telegram_group_links SET topics = $3 WHERE clinic_id = $1 AND id = $2`,
+        [clinicId, id, JSON.stringify(topics)],
+      );
+      const row = (
+        await pool.query<GroupRow>(
+          `SELECT ${groupColumns} FROM ${groupFrom}
+            WHERE g.clinic_id = $1 AND g.id = $2`,
+          [clinicId, id],
+        )
+      ).rows[0];
+      return row ? withoutClinic(mapGroup(row)) : null;
+    },
+
+    async deleteTelegramGroupLink(clinicId: string, id: string) {
+      const result = await pool.query(
+        `DELETE FROM telegram_group_links WHERE clinic_id = $1 AND id = $2`,
+        [clinicId, id],
+      );
+      return result.rowCount > 0;
+    },
+
     async createTelegramLinkCode(
       clinicId: string,
       userId: string,
-      code: { codeHash: string; expiresAt: string },
+      code: {
+        codeHash: string;
+        expiresAt: string;
+        groupTopics?: TelegramTopic[];
+      },
     ) {
       await context.inTransaction(async (client) => {
         await client.query(
@@ -161,6 +274,9 @@ export function createTelegramRepository(context: MysqlRepositoryContext) {
             user_id: userId,
             code_hash: code.codeHash,
             expires_at: code.expiresAt,
+            group_topics: code.groupTopics
+              ? JSON.stringify(code.groupTopics)
+              : null,
           },
         ]);
       });
@@ -169,10 +285,14 @@ export function createTelegramRepository(context: MysqlRepositoryContext) {
     async linkTelegramChat({
       codeHash,
       chatId,
+      chatKind = "private",
+      chatTitle,
       now,
     }: {
       codeHash: string;
       chatId: string;
+      chatKind?: TelegramChatKind;
+      chatTitle?: string;
       now: string;
     }): Promise<TelegramLinkAttempt> {
       return context.inTransaction(async (client) => {
@@ -183,9 +303,11 @@ export function createTelegramRepository(context: MysqlRepositoryContext) {
             userId: string;
             expiresAt: Date;
             usedAt: Date | null;
+            groupTopics: unknown;
           }>(
             `SELECT id, clinic_id AS "clinicId", user_id AS "userId",
-                    expires_at AS "expiresAt", used_at AS "usedAt"
+                    expires_at AS "expiresAt", used_at AS "usedAt",
+                    group_topics AS "groupTopics"
                FROM telegram_link_codes WHERE code_hash = $1 FOR UPDATE`,
             [codeHash],
           )
@@ -194,6 +316,13 @@ export function createTelegramRepository(context: MysqlRepositoryContext) {
         if (code.usedAt) return { status: "used" };
         if (code.expiresAt.getTime() <= Date.parse(now))
           return { status: "expired" };
+        const stored = storedJson(code.groupTopics);
+        const groupTopics =
+          stored === null ? null : resolveTelegramTopics(stored);
+        if (groupTopics && chatKind !== "group")
+          return { status: "needs_group" };
+        if (!groupTopics && chatKind === "group")
+          return { status: "needs_private" };
         const user = (
           await client.query<{
             fullName: string;
@@ -205,24 +334,61 @@ export function createTelegramRepository(context: MysqlRepositoryContext) {
             [code.clinicId, code.userId],
           )
         ).rows[0];
-        const roles = await linkRolesOf(client, code.clinicId);
-        if (!user || !bool(user.active) || !roles.includes(user.role))
+        const allowed = groupTopics
+          ? user?.role === "admin"
+          : user &&
+            (await linkRolesOf(client, code.clinicId)).includes(user.role);
+        if (!user || !bool(user.active) || !allowed)
           return { status: "forbidden" };
         await client.query(
           `UPDATE telegram_link_codes SET used_at = $2 WHERE id = $1`,
           [code.id, now],
         );
+        if (groupTopics) {
+          await client.query(
+            `INSERT INTO telegram_group_links
+               (id, clinic_id, chat_id, title, topics, linked_by_user_id, linked_at)
+             VALUES ($1, $2, $3, $4, $5, $6, $7)
+             ON DUPLICATE KEY UPDATE title = VALUES(title), topics = VALUES(topics),
+               linked_by_user_id = VALUES(linked_by_user_id), linked_at = VALUES(linked_at)`,
+            [
+              randomUUID(),
+              code.clinicId,
+              chatId,
+              chatTitle?.trim().slice(0, 191) || null,
+              JSON.stringify(groupTopics),
+              code.userId,
+              now,
+            ],
+          );
+          return {
+            status: "linked",
+            kind: "group",
+            clinicId: code.clinicId,
+            userId: code.userId,
+            userName: user.fullName,
+            topics: groupTopics,
+          };
+        }
         await client.query(
           `INSERT INTO telegram_links (id, clinic_id, user_id, chat_id, linked_at)
            VALUES ($1, $2, $3, $4, $5)
            ON DUPLICATE KEY UPDATE chat_id = VALUES(chat_id), linked_at = VALUES(linked_at)`,
           [randomUUID(), code.clinicId, code.userId, chatId, now],
         );
+        const topics = (
+          await client.query<{ topics: unknown }>(
+            `SELECT topics FROM telegram_links WHERE clinic_id = $1 AND user_id = $2`,
+            [code.clinicId, code.userId],
+          )
+        ).rows[0]?.topics;
         return {
           status: "linked",
+          kind: "private",
           clinicId: code.clinicId,
           userId: code.userId,
           userName: user.fullName,
+          topics: resolveTelegramTopics(storedJson(topics)),
         };
       });
     },

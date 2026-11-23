@@ -6,7 +6,10 @@ import {
   leadMissingRegistrationFields,
   leadRegistrationRequestMessage,
   resolveTelegramLinkRoles,
+  resolveTelegramTopics,
+  telegramGroupTopicsInputSchema,
   telegramSettingsInputSchema,
+  telegramTopicsInputSchema,
   auditChangesOf,
   changeReasonSchema,
   documentStatusInputSchema,
@@ -3482,6 +3485,43 @@ describe("Telegram (TG1)", () => {
     ).toEqual({ linkRoles: ["user", "admin"] });
     expect(
       telegramSettingsInputSchema.safeParse({ linkRoles: ["gestora"] }).success,
+    ).toBe(false);
+  });
+});
+
+describe("Telegram: assuntos por destino (TG7)", () => {
+  it("sem escolha gravada, o destino recebe todos os assuntos", () => {
+    expect(resolveTelegramTopics(null)).toEqual([
+      "receipts",
+      "appointments",
+      "patients",
+    ]);
+    expect(resolveTelegramTopics(["outro"])).toEqual([
+      "receipts",
+      "appointments",
+      "patients",
+    ]);
+    expect(resolveTelegramTopics(["patients", "receipts", "patients"])).toEqual(
+      ["receipts", "patients"],
+    );
+    expect(resolveTelegramTopics([])).toEqual([]);
+  });
+
+  it("chat pessoal aceita nenhum assunto; grupo exige pelo menos um", () => {
+    expect(telegramTopicsInputSchema.parse({ topics: [] })).toEqual({
+      topics: [],
+    });
+    expect(
+      telegramGroupTopicsInputSchema.parse({
+        topics: ["patients", "appointments", "patients"],
+      }),
+    ).toEqual({ topics: ["appointments", "patients"] });
+    expect(telegramGroupTopicsInputSchema.safeParse({ topics: [] }).success).toBe(
+      false,
+    );
+    expect(
+      telegramGroupTopicsInputSchema.safeParse({ topics: ["financeiro"] })
+        .success,
     ).toBe(false);
   });
 });

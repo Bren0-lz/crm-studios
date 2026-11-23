@@ -37,8 +37,10 @@ import type {
   IntegrationKey,
   IntegrationKeyCreated,
   IntegrationKeyInput,
+  TelegramGroupLink,
   TelegramLinkCode,
   TelegramStatus,
+  TelegramTopic,
 } from "@crm/contracts";
 import { TOKEN_KEY, storeUser, type Session } from "../session";
 import { request } from "../transport";
@@ -182,6 +184,28 @@ export const administrationApi = {
     }),
   unlinkTelegram: () =>
     request<TelegramStatus>("/integrations/telegram/link", {
+      method: "DELETE",
+    }),
+  /** TG7: o que o chat pessoal recebe e os grupos da clínica, cada um com os seus assuntos. */
+  saveTelegramLinkTopics: (topics: TelegramTopic[]) =>
+    request<TelegramStatus>("/integrations/telegram/link/topics", {
+      method: "PUT",
+      body: JSON.stringify({ topics }),
+    }),
+  telegramGroups: () =>
+    request<TelegramGroupLink[]>("/integrations/telegram/groups"),
+  createTelegramGroupLinkCode: (topics: TelegramTopic[]) =>
+    request<TelegramLinkCode>("/integrations/telegram/groups/link-code", {
+      method: "POST",
+      body: JSON.stringify({ topics }),
+    }),
+  updateTelegramGroup: (id: string, topics: TelegramTopic[]) =>
+    request<TelegramGroupLink>(`/integrations/telegram/groups/${id}`, {
+      method: "PUT",
+      body: JSON.stringify({ topics }),
+    }),
+  deleteTelegramGroup: (id: string) =>
+    request<void>(`/integrations/telegram/groups/${id}`, {
       method: "DELETE",
     }),
   adminAuditEvents: () => request<AdminAuditEvent[]>("/admin/audit-events"),
