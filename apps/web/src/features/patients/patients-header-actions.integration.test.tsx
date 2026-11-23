@@ -30,9 +30,13 @@ describe("clients header", () => {
     expect(
       await screen.findByRole("button", { name: /Novo cliente/ }),
     ).toHaveClass("primary-button");
-    for (const name of ["Inativar antigos", "Importar", "Exportar"])
+    for (const name of ["Inativar em lote", "Importar", "Exportar"])
       expect(screen.queryByRole("button", { name })).not.toBeInTheDocument();
-    expect(moreActionNames()).toEqual(["Importar", "Exportar"]);
+    expect(moreActionNames()).toEqual([
+      "Importar",
+      "Exportar",
+      "Inativar em lote",
+    ]);
     // A lixeira fica à vista, só com o ícone (LX3).
     expect(screen.getByRole("button", { name: "Abrir lixeira" })).toHaveClass(
       "trash-icon-button",

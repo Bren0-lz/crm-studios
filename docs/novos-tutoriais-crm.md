@@ -1,10 +1,12 @@
 # Novos tutoriais do CRM Organiza Studios
 
 **Inspeção:** 20/11/2026, horário de São Paulo.  
-**Revisão funcional consultada da branch main:** [`dd13b30dbf99a361899221397f476792601a54d2`](https://github.com/Bren0-lz/crm-studios/commit/dd13b30dbf99a361899221397f476792601a54d2). A main foi conferida novamente ao fim e continuava nesse SHA. Todas as referências de código e testes abaixo estão fixadas nessa revisão.  
+**Revisão funcional consultada da branch main:** [`dd13b30dbf99a361899221397f476792601a54d2`](https://github.com/Bren0-lz/crm-studios/commit/dd13b30dbf99a361899221397f476792601a54d2). A main foi conferida novamente ao fim e continuava nesse SHA. As referências de código e testes da inspeção original estão fixadas nessa revisão.<br>
 **Site:** [crm.organizastudios.com](https://crm.organizastudios.com). A revisão exata publicada não foi identificada; não se presume que seja o mesmo commit.  
 **Sessão:** perfil Admin, já autenticado no Brave. Não foi necessário novo login. A inspeção não foi feita no Chrome.  
 **Base:** os 15 tutoriais anteriores foram consultados na revisão de documentação disponível. Eles não foram reescritos. Este complemento usa os identificadores **tarefa-16 a tarefa-101**.
+
+**Atualização de 23/11/2026:** Os guias 102 a 104 e as correções do guia 80 refletem a revisão posterior da interface. As evidências datadas abaixo registram a auditoria original de 20/11.
 
 ## Como interpretar a verificação
 
@@ -106,6 +108,9 @@ O plugin de consulta ao manual respondeu **INVALID_ARGUMENT** nas tentativas e n
 | 99 | [Mudar o nome exibido de uma aba do menu](#tarefa-99) | Configurações |
 | 100 | [Atualizar a foto e o nome do próprio perfil](#tarefa-100) | Meu perfil |
 | 101 | [Alterar a própria senha](#tarefa-101) | Meu perfil |
+| 102 | [Sair de todos os dispositivos](#tarefa-102) | Menu lateral |
+| 103 | [Inativar clientes em lote](#tarefa-103) | Clientes |
+| 104 | [Consultar o histórico de acessos ao prontuário](#tarefa-104) | Prontuários |
 
 <a id="tarefa-16"></a>
 
@@ -1515,13 +1520,13 @@ O plugin de consulta ao manual respondeu **INVALID_ARGUMENT** nas tentativas e n
 4. Use **Abrir WhatsApp** ou **Copiar link** quando for enviar ao destinatário.
 5. Depois, confira o acompanhamento nos detalhes.
 
-**Como saber se deu certo:** Abrir a preparação já gera ou reaproveita o link e pode mostrar **Aguardando assinatura** e **Link enviado**. Esses rótulos não comprovam entrega da mensagem; a visualização é acompanhada separadamente.
+**Como saber se deu certo:** A preparação gera ou reaproveita o link. Nos detalhes, **Link ativo** indica que o link pode ser usado, e **Link gerado** mostra a data e quem o criou. Para compartilhar, conclua o envio no WhatsApp ou cole o link na mensagem ao destinatário. Confira **Visualizações** e **Assinatura** para acompanhar a abertura e a assinatura.
 
 **Se o botão não aparecer:** Rascunho precisa ser emitido. Confira contato e permissões; links expirados têm tratamento próprio.
 
-**Verificação:** Link gerado apenas para documento fictício; não foi aberto, copiado ou enviado. A mudança de estado antes de abrir WhatsApp foi observada.
+**Verificação:** A auditoria de 20/11 gerou um link fictício. O teste na revisão posterior cobre gerar o link e fechar a janela com o estado **Ainda não visualizado**.
 
-**Fontes:** [Contratos](https://crm.organizastudios.com/contratos) · [SendForSignatureModal.tsx][fonte-91] · [signature-link.integration.test.tsx][fonte-92]
+**Fontes:** [Contratos](https://crm.organizastudios.com/contratos) · [Teste atualizado](../apps/web/src/features/contracts/signature-link.integration.test.tsx)
 
 <a id="tarefa-81"></a>
 
@@ -1983,13 +1988,56 @@ O plugin de consulta ao manual respondeu **INVALID_ARGUMENT** nas tentativas e n
 
 **Fontes:** [Meu perfil](https://crm.organizastudios.com/perfil) · [ProfilePage.tsx][fonte-122] · [profile.integration.test.tsx][fonte-123]
 
+<a id="tarefa-102"></a>
+
+## Sair de todos os dispositivos
+
+- **Antes de começar:** Entre na sua conta. A confirmação encerra também a sessão atual.
+
+1. No celular, toque em **Abrir menu**.
+2. No rodapé do menu lateral, clique em **Sair de todos os dispositivos**.
+3. Clique em **Encerrar acessos** para voltar à tela de login. Para manter a sessão, clique em **Cancelar**.
+
+**Fontes:** [Menu lateral](../apps/web/src/app/Shell.tsx) · [Confirmação](../apps/web/src/shared/auth/RevokeSessionsButton.tsx)
+
+<a id="tarefa-103"></a>
+
+## Inativar clientes em lote
+
+- **Antes de começar:** Entre com um perfil administrador. A prévia considera os cadastros da rede e as regras de elegibilidade, como plano vigente e atividade na Agenda.
+
+1. Em **Clientes**, abra **Mais** e clique em **Inativar em lote**.
+2. Informe **Meses sem atividade**, entre 3 e 120.
+3. Clique em **Ver prévia**.
+4. Marque os clientes que quer inativar e confira o total selecionado.
+5. Clique em **Confirmar inativação**.
+
+**Como saber se deu certo:** A tela informa quantos clientes foram inativados e quantos foram ignorados. O servidor confere a elegibilidade novamente ao confirmar. Você pode usar **Cancelar** antes da confirmação para manter os cadastros como estão.
+
+**Fontes:** [Modal de inativação](../apps/web/src/features/patients/PatientInactivationModal.tsx) · [Cenário de navegador](../e2e/audit-followup.spec.ts)
+
+<a id="tarefa-104"></a>
+
+## Consultar o histórico de acessos ao prontuário
+
+- **Antes de começar:** Seu perfil precisa ter permissão para consultar os acessos.
+
+1. Em **Prontuários**, abra o prontuário do cliente. Você também pode usar a aba **Prontuário** na ficha em **Clientes**.
+2. Abra **Mais ações**.
+3. Clique em **Histórico de acessos**.
+4. Confira o usuário, a ação, a data e a hora. Os eventos mais recentes aparecem primeiro.
+
+**Como saber se deu certo:** A janela está identificada pelo nome do cliente e mostra as ações registradas para aquele prontuário.
+
+**Fontes:** [Janela de histórico](../apps/web/src/features/clinical/ClinicalAccessHistoryModal.tsx) · [Cenário de navegador](../e2e/audit-followup.spec.ts)
+
 ## Inventário complementar das telas
 
 ### Ficha do cliente e validação de duplicidade
 
 A ficha tem **Agenda**, **Planos**, **Financeiro**, **Contratos**, **Prontuário** e **Histórico**. Os dados gerais mostram situação, plano ativo, próximo atendimento e contatos. Há atalhos contextuais para os módulos, como **Abrir na Agenda**. O caminho foi aberto pelo nome da pessoa na lista de Clientes. [PatientDetailPage.tsx][fonte-127]
 
-O cadastro bloqueou CPFs já existentes com **Já existe um cliente com este CPF.** Não foi encontrado um caminho de unificação de cadastros na lista ou na ficha examinadas. Isso não autoriza inferir a existência de um botão de unificação a partir de uma ação antiga no Histórico. [PatientsPage.tsx][fonte-126] · [PatientDetailPage.tsx][fonte-127]
+O cadastro manual exige CPF válido e único. Se aparecer **Já existe um cliente com este CPF.**, procure a ficha existente em **Clientes**. A mesclagem foi retirada da interface. [PatientsPage.tsx][fonte-126] · [PatientDetailPage.tsx][fonte-127]
 
 Em **Novo lead**, **Nome completo**, **Telefone**, **Origem** e **Interesse** são obrigatórios. Nesta sessão, Origem começou em **Indicação** e Interesse em **Fisioterapia**. Os dois valores devem ser conferidos; não se deve orientar que estarão sempre vazios. **WhatsApp** não era obrigatório nesse cadastro de lead.
 
@@ -2058,11 +2106,11 @@ Os prazos de contatos incluem aniversário, veio uma vez e não voltou, plano ac
 | Assunto | Tela publicada e fonte da revisão consultada | Conclusão |
 | --- | --- | --- |
 | Versão publicada | Não foi encontrada identificação conclusiva do commit em execução. | Não atribuir automaticamente o SHA da main ao site publicado. Não foi comprovada divergência de implantação. |
-| Novo cliente | A tela e o componente atual oferecem itens em O que o cliente vai fazer?. O teste e2e ainda procura Só cadastrar por enquanto. | Divergência entre teste e formulário na mesma revisão; usar o formulário e os testes de cadastro guiado para os novos guias. |
+| Novo cliente | A seção **O que o cliente vai fazer?** aceita salvar o cadastro sem adicionar itens. | O teste atual confere **Salvar cliente**, o fechamento do formulário e a busca. |
 | Novo lead | Nesta sessão Origem/Interesse vieram preenchidos; continuam obrigatórios. | Revalidar o texto anterior que dizia que sempre começavam em Selecione; valores dependem do estado/catálogo. |
 | Relatórios | Há cinco abas principais e subdivisões internas. | Corrigir o inventário anterior de nove abas no mesmo nível. |
-| Evolução clínica | Não há seção Evolução na interface consultada. O teste explicitamente remove também seções legadas desse tipo. | Não inventar um fluxo Novo registro de evolução nesta revisão. Avaliações e demais registros têm caminhos próprios. |
-| Link de contrato | Abrir Enviar para assinatura de documento emitido já chama a geração/reuso de link e atualiza o acompanhamento. | Link enviado/Aguardando assinatura não comprovam mensagem efetivamente entregue pelo WhatsApp. |
+| Evolução clínica | A interface oferece **Linha do tempo** e **Buscar no histórico** para os eventos clínicos exibidos. | Retirar os guias de criação, edição, finalização e adendo de evoluções. |
+| Link de contrato | Abrir **Enviar para assinatura** em um documento emitido gera ou reaproveita o link. | Acompanhar geração, visualizações e assinatura nos detalhes. Conferir o envio da mensagem no canal usado para compartilhar. |
 | Recibo | Abrir o recibo não marcou envio. O teste registra envio no clique do atalho de WhatsApp. | Enviado, visualizado e assinado são estados distintos; clique no atalho também não comprova entrega externa. |
 | Estoque | O estado vazio de Nova venda orientou Estoque do Financeiro, mas o caminho observado está em Vendas de produtos → Estoque. | Usar o caminho do menu verificado. O texto vazio é uma indicação imprecisa, não prova de outra tela. |
 | Histórico | Detalhes da alteração tem Resumo/Detalhes técnicos. Não foi visto link para o registro de origem e o componente não apresenta esse atalho. | Não orientar que basta clicar em um ID ou numa rota técnica para abrir o registro. |
@@ -2095,7 +2143,6 @@ Não foram excluídos registros, canceladas matrículas antigas, modificadas cre
 | --- | --- | --- | --- |
 | Turmas | Reservar e tratar reposição | Frequência e reposições, Nenhum crédito de reposição disponível | Abrir os seletores com crédito disponível, reservar e conferir o participante de reposição. |
 | Turmas | Frequência e conclusão | Aula futura de turma, com seletores e aviso de disponibilidade | Exercitar registros e conclusão em encontro apropriado. Nesta auditoria somente a matrícula foi gravada. |
-| Clientes | Unificar duplicados | Lista de Clientes e ficha | Identificar um caminho de unificação, se existir. Só o bloqueio por CPF duplicado foi comprovado; nenhum menu foi presumido. |
 | Clientes/Comercial/Eventos | Prévia de importação | Importar clientes, Importar leads e Importar participantes, sem arquivo | Abrir a prévia com planilhas fictícias, conferir mapeamento e mensagens de erro da publicação. Testes foram lidos, sem upload ao vivo. |
 | Financeiro | Comprovantes | Comprovantes da parcela paga, sem anexos | Enviar arquivo fictício e conferir download/gestão ao vivo; limites e preservação estão nos testes. |
 | Financeiro | Folha e vale | Folha, Nenhum colaborador na folha | Com colaborador elegível, abrir Novo vale, lançar folha, conferir despesas e efeitos nas comissões. Nenhum usuário/salário foi modificado para viabilizar isso. |

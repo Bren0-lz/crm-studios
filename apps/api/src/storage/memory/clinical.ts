@@ -632,15 +632,22 @@ export function createClinicalRepository(
     },
 
     async listClinicalAccessEvents(clinicId: string, patientId: string) {
+      const patientIds = repositoryContext.patientIds(clinicId, patientId);
+      const actorNames = new Map(
+        repositoryContext.users
+          .filter((user) => user.clinicId === clinicId)
+          .map((user) => [user.id, user.fullName]),
+      );
       return repositoryContext.clinicalAccessEvents
         .filter(
           (item) =>
-            item.clinicId === clinicId &&
-            repositoryContext
-              .patientIds(clinicId, patientId)
-              .has(item.patientId),
+            item.clinicId === clinicId && patientIds.has(item.patientId),
         )
-        .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+        .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+        .map((item) => {
+          const actorName = actorNames.get(item.actorUserId);
+          return { ...item, ...(actorName ? { actorName } : {}) };
+        });
     },
   };
 }
