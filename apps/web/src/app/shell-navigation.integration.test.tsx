@@ -54,6 +54,12 @@ function renderShell(modules = legacyAccess("admin").modules, block = false) {
 }
 
 beforeEach(() => {
+  // O cabeçalho também busca notificações, filiais etc. Sem isto essas chamadas iam
+  // para a API real (localhost:3333): com ela no ar, o 401 do token de teste encerrava
+  // a sessão no meio do teste e desmontava o SOS.
+  vi.spyOn(globalThis, "fetch").mockRejectedValue(
+    new TypeError("Rede desativada no teste."),
+  );
   vi.spyOn(api, "clinicBranding").mockResolvedValue({
     name: "Studios Aryana",
     logoDataUrl: "",
