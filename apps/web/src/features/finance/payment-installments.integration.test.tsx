@@ -74,6 +74,7 @@ describe("installments by payment method", () => {
     settings.unmount();
 
     const sale = open(`/planos?patientId=${patient.id}`);
+    expect(await screen.findByText(patient.fullName)).toBeVisible();
     fireEvent.click(await screen.findByRole("button", { name: "Novo plano" }));
     const dialog = screen.getByRole("dialog", { name: "Novo plano" });
     await within(dialog).findByRole("option", {
@@ -84,13 +85,16 @@ describe("installments by payment method", () => {
     expect(within(dialog).getByLabelText("Forma de pagamento")).toHaveValue(
       "pix",
     );
+    expect(await within(dialog).findByText("Pix: só à vista.")).toBeVisible();
     change("Forma de pagamento", "card", dialog);
+    expect(
+      await within(dialog).findByText("Este plano: até 3x."),
+    ).toBeVisible();
     change("Parcelas", "5", dialog);
-    // O plano aceita até 3: a quantidade acompanha o limite e a dica explica.
+    // O plano aceita até 3: a quantidade acompanha o limite.
     await waitFor(() =>
       expect(within(dialog).getByLabelText("Parcelas")).toHaveValue(3),
     );
-    expect(within(dialog).getByText("Este plano: até 3x.")).toBeInTheDocument();
     change("Forma de pagamento", "pix", dialog);
     await waitFor(() =>
       expect(within(dialog).getByLabelText("Parcelas")).toHaveValue(1),
