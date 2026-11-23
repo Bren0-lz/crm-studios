@@ -23,6 +23,7 @@ import {
   Plus,
   Search,
   SlidersHorizontal,
+  UserMinus,
   UserPlus,
 } from "lucide-react";
 import { ActionMenu } from "../../shared/components/ActionMenu";
@@ -42,6 +43,7 @@ import { usePatientTags } from "../../shared/hooks/usePatientTags";
 import {
   automaticPatientTagColor,
   initials,
+  plural,
   tagColorLookup,
   tagLabelLookup,
   tagCounts,
@@ -52,6 +54,7 @@ import {
   patientsPerPage,
 } from "./model";
 import { PatientExportModal } from "./PatientExportModal";
+import { PatientInactivationModal } from "./PatientInactivationModal";
 import { PatientImportModal } from "./PatientImportModal";
 import { PatientModal } from "./PatientModal";
 import { TrashButton } from "../trash";
@@ -70,7 +73,8 @@ const automaticTagHints: Record<string, string> = {
     "Etiqueta automática: cliente importado da planilha sem e-mail. Sai sozinha quando o e-mail é preenchido.",
 };
 export function PatientsPage() {
-  const { can, canEdit, canView } = useAuthorization();
+  const { user, can, canEdit, canView } = useAuthorization();
+  const isAdmin = user?.role === "admin";
   const navigate = useNavigate();
   const [segments, setSegments] = useState<PatientSegmentSummary[]>([]);
   const [patients, setPatients] = useState<Patient[]>([]);
@@ -83,6 +87,7 @@ export function PatientsPage() {
   const [editingPatient, setEditingPatient] = useState<Patient | null>(null);
   const [importOpen, setImportOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
+  const [inactivationOpen, setInactivationOpen] = useState(false);
   // Busca efetivamente aplicada na lista (a do campo só vale depois de "Buscar").
   const [appliedSearch, setAppliedSearch] = useState("");
   const [page, setPage] = useState(1);
@@ -218,6 +223,18 @@ export function PatientsPage() {
             label: "Exportar",
             icon: <FileUp size={16} aria-hidden="true" />,
             onSelect: () => setExportOpen(true),
+          },
+        ]
+      : []),
+    ...(isAdmin
+      ? [
+          {
+            label: "Inativar em lote",
+            icon: <UserMinus size={16} aria-hidden="true" />,
+            onSelect: () => {
+              setNotice("");
+              setInactivationOpen(true);
+            },
           },
         ]
       : []),
@@ -644,6 +661,21 @@ export function PatientsPage() {
           tagLabel={tagLabel}
           onClose={() => setImportOpen(false)}
           onImported={() => void load()}
+        />
+      )}
+      {isAdmin && inactivationOpen && (
+        <PatientInactivationModal
+          onClose={() => setInactivationOpen(false)}
+          onSaved={({ changed, skipped }) => {
+            setInactivationOpen(false);
+            setNotice(
+              [
+                plural(changed, "cliente inativado", "clientes inativados"),
+                plural(skipped, "cliente ignorado", "clientes ignorados"),
+              ].join(" · "),
+            );
+            void load(appliedSearch);
+          }}
         />
       )}
       {exportOpen && (

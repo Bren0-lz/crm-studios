@@ -164,6 +164,7 @@ export interface ClinicalAccessEventRow {
   clinicId: string;
   patientId: string;
   actorUserId: string;
+  actorName: string | null;
   action: ClinicalAccessEvent["action"];
   entityType: ClinicalAccessEvent["entityType"];
   entityId: string | null;
@@ -360,6 +361,7 @@ export function mapClinicalAccessEvent(
     clinicId: row.clinicId,
     patientId: row.patientId,
     actorUserId: row.actorUserId,
+    ...(row.actorName ? { actorName: row.actorName } : {}),
     action: row.action,
     entityType: row.entityType,
     ...(row.entityId ? { entityId: row.entityId } : {}),
