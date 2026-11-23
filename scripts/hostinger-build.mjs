@@ -12,6 +12,11 @@ import { build } from "esbuild";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 
+execSync("node scripts/prepare-mcp-manual.mjs", {
+  cwd: root,
+  stdio: "inherit",
+});
+
 console.log("› Compilando o site com VITE_API_URL=/api");
 execSync("npm run build -w @crm/web", {
   cwd: root,

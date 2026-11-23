@@ -78,6 +78,10 @@ export const ROUTE_ACCESS: Record<string, RouteAccess> = {
   ),
   "POST /clinic-catalogs/:kind": "admin",
   "PUT /clinic-catalogs/:kind/:id": "admin",
+  // O MCP valida seu token de piloto, sem executar authenticate nem consultar o banco.
+  "GET /mcp": "public",
+  "POST /mcp": "public",
+  "DELETE /mcp": "public",
   "GET /health": "public",
   "POST /auth/login": "public",
   "POST /auth/logout-all": "login",

@@ -1,0 +1,333 @@
+{
+  "revisao": "8c39314434d6ba8c32c6cb43f86ba9bc12378ac5",
+  "material": "857877be5a1e8be07e72c6908691ed66d1461b40f9307ac7f966f83ab03962b2",
+  "manualPath": "docs/manual-crm-organiza-studios.md",
+  "manualSha256": "fff6ce64edd17f7bf655a03c795a836afa1a0f4a0ee52b1f67139d01c5e5c911",
+  "sourceHashes": {
+    "apps/web/src/features/agenda/AgendaCard.tsx": "0d9fdcda18fac410ce389ee5757f0243b83ff88f8c5bd6c7c78986676b5617dc",
+    "apps/web/src/features/agenda/AppointmentDetailsModal.tsx": "e4302c2463bc416c98176469ce9003073f02ba50e4b456d60c10101e94774e85",
+    "apps/web/src/features/agenda/agenda-card-menu.integration.test.tsx": "e8d20a6fe670ab684f29fa307c4074e485eb29ceeb689ccdbb9db1d5268d45ed",
+    "apps/web/src/features/agenda/appointment-attendance.integration.test.tsx": "d88c1b860e96c906c34b93d303b51837b86a38b12d7cc2e95ee0057a05db3d6b",
+    "apps/web/src/features/agenda/agenda-cancelled.integration.test.tsx": "174028dda61c1b3604586a79354062deb6432a3cd7fb2e73d737267ede6e3c10",
+    "apps/web/src/features/commercial/CommercialPage.tsx": "94612cb13d11f8f66cf15ebe52be6118765a55c128db893c423c8a3b5ac42e70",
+    "apps/web/src/features/commercial/LeadModal.tsx": "9bef6463b1a3ab676344b1edb34eb6fd18fffe5274a60048ae2dbc087a23890e",
+    "apps/web/src/features/commercial/lead-form-conversion.integration.test.tsx": "8bea41489819a84f36f907d0580aeec74f47395b831cd95158d22ae2b8565663",
+    "apps/web/src/features/commercial/LeadCard.tsx": "45ebf9e86e063a9c6c01452beabcfd6721d10864e561e87baf2d8ddc34216b0b",
+    "apps/web/src/features/commercial/LeadConvertModal.tsx": "bb4ef500cd257f0e224ee8591e1164f3f84598dc4dab92133b8f83d2e963b6d4",
+    "apps/web/src/features/groups/GroupsPage.tsx": "330bf2864d0618727ea69328c3f73daf21bd15bc02179ac1b654af91f2d2155c",
+    "apps/web/src/features/groups/GroupModal.tsx": "0ce09ff692611c39b51b7ab78166a9461b514c2f96b6e1e7f9f64d8f0d9f84fc",
+    "e2e/groups.spec.ts": "43c1c09d17e7b6ac30b8708ded24a2a3eeeb445135edf4f147bf27b6bd947dd5",
+    "apps/web/src/features/groups/GroupDetailsModal.tsx": "4699999899704aa1253a386a252b4d5c3b51d2d92ddbbb1927c113dda1e11447",
+    "apps/web/src/features/plans/PlansPage.tsx": "6e85bbe336f61f4057eba0933bc31b43b49a545fca70f3f6eaf856c0608650e9",
+    "apps/web/src/features/plans/PlanModal.tsx": "0e2e517c4a09e964830680649391717277c63121a00e89854a285eb1f9ec3fa6",
+    "e2e/plans-finance.spec.ts": "f1885c6da1cf8c27a9f292613c694a0b2b04e360ec5c0d532fa4426467290238",
+    "apps/web/src/features/waitlist/WaitlistPage.tsx": "67687834f7c2276df1ec67887bf6eba47b88ab31fccc7cdf90571387cae6a83c",
+    "apps/web/src/features/waitlist/WaitlistEntryModal.tsx": "6c32c66dc283424ef04a14212139697e5f77bb4ba24b04b3f690ac763d5e6e03",
+    "apps/web/src/features/waitlist/waitlist-page.integration.test.tsx": "1aace89f0a3d87ac7c516f089ed8919760c071e21927b945c626296bc2fa4e26",
+    "apps/web/src/features/finance/FinancePage.tsx": "de1751a48a4b8b9c32b43ff3ec70a206ba3d857860c8e94e4cbb0c30f26dce60",
+    "apps/web/src/features/finance/ReceivablesList.tsx": "3ca34e3a490c10f5459d8027cab1dddad19dce1182bfc1a6573f586843c3a9e0",
+    "apps/web/src/features/finance/SettleModal.tsx": "3a51defb5bb5b439f217672bad1f1c281016595b500d0fac34aba942079d04fc",
+    "apps/web/src/features/patients/PatientsPage.tsx": "bde5651e471978dcb5b475a0cf980aae064b67fe4648bbeea59a7ad4c923237a",
+    "apps/web/src/features/patients/PatientModal.tsx": "fa084141288eb7240e244a6ecf176b98e3ac4d0ff0ff281ae4448f4c1829581b",
+    "apps/web/src/features/patients/patient-nickname.integration.test.tsx": "897497802d67c49144a729dd17ea3d5edd680952138e24cc92dfaa02f043a78c",
+    "e2e/patients.spec.ts": "27c2bbdd5dabb10bb311bc5b1a944aaaf64b252e4208f2fd19b7e74d99cfdfc8",
+    "apps/web/src/features/settings/view-only-modules.integration.test.tsx": "ef21ad9237922cc20a00563ce629bb166f2a871b094ada64743400c134eb206e",
+    "docs/ajuda-mcp-clientes.md": "c9cf923f5aded8a01f89aa94ac6b291838855c2d43a62f3708cacaf3fdabc623"
+  },
+  "excluidos": [
+    "Agendar um atendimento",
+    "Mudar o horário de um atendimento",
+    "Cadastrar um cliente sem contratar um plano",
+    "Estornar a baixa de uma parcela paga",
+    "Cadastrar um evento",
+    "Consultar os números de um período"
+  ],
+  "capitulos": [
+    {
+      "id": "cadastrar-cliente",
+      "titulo": "Cadastrar um novo cliente sem contratar um plano",
+      "trecho": "- **Também perguntam:** Como cadastrar um novo cliente? Como faço só a ficha do cliente? Como cadastro um aluno?\n- **Onde começar:** Menu lateral → [Clientes](https://crm.organizastudios.com/clientes).\n- **Antes de começar:** Seu acesso deve permitir cadastrar clientes. Separe os dados do cliente e do contato de emergência. Este tutorial cobre somente o cadastro, sem adicionar plano, serviço, produto ou aula experimental.\n\n1. Clique em **Novo cliente**, no topo da tela.\n2. Preencha **Nome completo**.\n3. Informe um **CPF** válido.\n4. Na seção **Contato**, preencha **Telefone** e **WhatsApp**.\n5. Na seção **Contato de emergência**, preencha **Nome**, **Telefone** e **WhatsApp**. Se o contato for o próprio cliente, use **Usar os dados do cliente**.\n6. Se aparecer a seção **O que o cliente vai fazer?**, deixe-a sem itens. Ela mostra **Nada adicionado: só o cadastro do cliente será salvo.**\n7. Clique em **Salvar cliente**.\n\n**Como saber se deu certo:** O formulário fecha e aparece um aviso de cadastro criado. Para localizar o cadastro, use **Buscar por nome, CPF ou telefone** e clique em **Buscar**. O teste confirma que o cliente pode ser encontrado e editado após salvar. Este fluxo não exige clicar em Concluir nem abre a antiga confirmação Cliente cadastrado.\n\n**Se o botão não aparecer:** Confira se seu acesso permite cadastrar clientes. Em um perfil só de consulta, a lista oferece **Ver**, abre **Consultar cliente** com os campos bloqueados e não oferece salvar alterações. Se **Salvar cliente** estiver desabilitado, confira os campos obrigatórios.\n\n**Verificação:** Rótulos, permissão do botão, modo de consulta e aviso conferidos no código e no teste de perfil só de consulta. Cadastro, fechamento do formulário, busca e ausência da antiga confirmação conferidos no teste de ponta a ponta da mesma revisão. Não houve envio de formulário na produção nesta implementação.",
+      "referencias": [
+        {
+          "titulo": "Clientes",
+          "url": "https://crm.organizastudios.com/clientes"
+        },
+        {
+          "titulo": "PatientsPage.tsx",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/8c39314434d6ba8c32c6cb43f86ba9bc12378ac5/apps/web/src/features/patients/PatientsPage.tsx"
+        },
+        {
+          "titulo": "PatientModal.tsx",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/8c39314434d6ba8c32c6cb43f86ba9bc12378ac5/apps/web/src/features/patients/PatientModal.tsx"
+        },
+        {
+          "titulo": "patient-nickname.integration.test.tsx",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/8c39314434d6ba8c32c6cb43f86ba9bc12378ac5/apps/web/src/features/patients/patient-nickname.integration.test.tsx"
+        },
+        {
+          "titulo": "patients.spec.ts",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/8c39314434d6ba8c32c6cb43f86ba9bc12378ac5/e2e/patients.spec.ts"
+        },
+        {
+          "titulo": "view-only-modules.integration.test.tsx",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/8c39314434d6ba8c32c6cb43f86ba9bc12378ac5/apps/web/src/features/settings/view-only-modules.integration.test.tsx"
+        }
+      ]
+    },
+    {
+      "id": "tutorial-1",
+      "titulo": "Cancelar um atendimento agendado",
+      "trecho": "## Cancelar um atendimento agendado\n\n- **Também perguntam:** Como cancelo uma sessão? Como tiro da agenda um horário que não vai acontecer?\n- **Onde começar:** Menu lateral → [Agenda](https://crm.organizastudios.com/agenda).\n- **Antes de começar:** Tenha permissão para cancelar. O atendimento deve estar agendado ou confirmado.\n\n1. No cartão do atendimento, abra o menu de três pontos.\n2. Clique em **Cancelar**.\n3. Selecione o **Motivo do cancelamento**.\n4. Se precisar, preencha **Detalhes (opcional)**.\n5. Clique em **Confirmar cancelamento**.\n\n**Como saber se deu certo:** O sistema registra o atendimento como cancelado. A Agenda só exibe cancelados quando a visualização correspondente é ativada.\n\n**Se o botão não aparecer:** Confira se o atendimento está agendado ou confirmado e se seu acesso permite cancelar.\n\n**Verificação:** Caminho, motivo obrigatório e envio do cancelamento conferidos no código e em testes de integração separados. Cartão e confirmação pendentes na tela publicada.",
+      "referencias": [
+        {
+          "titulo": "Agenda",
+          "url": "https://crm.organizastudios.com/agenda"
+        },
+        {
+          "titulo": "Agenda",
+          "url": "https://crm.organizastudios.com/agenda"
+        },
+        {
+          "titulo": "AgendaCard.tsx",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/8c39314434d6ba8c32c6cb43f86ba9bc12378ac5/apps/web/src/features/agenda/AgendaCard.tsx"
+        },
+        {
+          "titulo": "AppointmentDetailsModal.tsx",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/8c39314434d6ba8c32c6cb43f86ba9bc12378ac5/apps/web/src/features/agenda/AppointmentDetailsModal.tsx"
+        },
+        {
+          "titulo": "agenda-card-menu.integration.test.tsx",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/8c39314434d6ba8c32c6cb43f86ba9bc12378ac5/apps/web/src/features/agenda/agenda-card-menu.integration.test.tsx"
+        },
+        {
+          "titulo": "appointment-attendance.integration.test.tsx",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/8c39314434d6ba8c32c6cb43f86ba9bc12378ac5/apps/web/src/features/agenda/appointment-attendance.integration.test.tsx"
+        },
+        {
+          "titulo": "agenda-cancelled.integration.test.tsx",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/8c39314434d6ba8c32c6cb43f86ba9bc12378ac5/apps/web/src/features/agenda/agenda-cancelled.integration.test.tsx"
+        }
+      ]
+    },
+    {
+      "id": "tutorial-2",
+      "titulo": "Cadastrar uma pessoa interessada",
+      "trecho": "## Cadastrar uma pessoa interessada\n\n- **Também perguntam:** Como crio um lead? Como adiciono um contato ao funil? Como cadastro um lead?\n- **Onde começar:** Menu lateral → [CRM comercial](https://crm.organizastudios.com/comercial).\n- **Antes de começar:** Tenha permissão para cadastrar leads. Um lead é uma pessoa que demonstrou interesse.\n\n1. Clique em **Novo lead**.\n2. Preencha **Nome completo**.\n3. Preencha **Telefone**.\n4. Selecione a **Origem**.\n5. Selecione o **Interesse**.\n6. Clique em **Adicionar ao funil**.\n\n**Como saber se deu certo:** Um aviso confirma o cadastro e o cartão aparece em **Novos**.\n\n**Se o botão não aparecer:** Confira se seu acesso permite cadastrar leads. **Cadastrar origem** e **Cadastrar interesse** aparecem para administradores.\n\n**Verificação:** Formulário visto na interface. Código marca Origem e Interesse como obrigatórios. A confirmação e o cartão são verificados no teste de integração.",
+      "referencias": [
+        {
+          "titulo": "CRM comercial",
+          "url": "https://crm.organizastudios.com/comercial"
+        },
+        {
+          "titulo": "CRM comercial",
+          "url": "https://crm.organizastudios.com/comercial"
+        },
+        {
+          "titulo": "CommercialPage.tsx",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/8c39314434d6ba8c32c6cb43f86ba9bc12378ac5/apps/web/src/features/commercial/CommercialPage.tsx"
+        },
+        {
+          "titulo": "LeadModal.tsx",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/8c39314434d6ba8c32c6cb43f86ba9bc12378ac5/apps/web/src/features/commercial/LeadModal.tsx"
+        },
+        {
+          "titulo": "lead-form-conversion.integration.test.tsx",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/8c39314434d6ba8c32c6cb43f86ba9bc12378ac5/apps/web/src/features/commercial/lead-form-conversion.integration.test.tsx"
+        }
+      ]
+    },
+    {
+      "id": "tutorial-3",
+      "titulo": "Transformar uma pessoa interessada em cliente",
+      "trecho": "## Transformar uma pessoa interessada em cliente\n\n- **Também perguntam:** Como converto um lead? Como passo um contato do funil para Clientes? Como converto um lead em cliente?\n- **Onde começar:** Menu lateral → [CRM comercial](https://crm.organizastudios.com/comercial).\n- **Antes de começar:** O lead precisa estar em aberto. Tenha permissão para converter leads e cadastrar clientes. Este caminho cobre a conversão sem plano ou venda junto.\n\n1. No cartão do lead, clique em **Converter**.\n2. Se aparecer uma janela com os dados que faltam, clique em **Preencher cadastro**.\n3. Confira o **Nome completo** e o **Telefone** que vieram do lead.\n4. Complete o **CPF** e o **WhatsApp**.\n5. Preencha nome, telefone e WhatsApp em **Contato de emergência**.\n6. Complete os demais dados disponíveis no formulário.\n7. Clique em **Converter em cliente**.\n\n**Como saber se deu certo:** O lead aparece na coluna **Ganhos** e um aviso confirma a conversão.\n\n**Se o botão não aparecer:** Confira se o lead ainda está em aberto e se seu acesso permite converter leads e cadastrar clientes.\n\n**Verificação:** A tela do funil foi vista sem cartões. Caminho no cartão, condições e resultado verificados no código e no teste de integração.",
+      "referencias": [
+        {
+          "titulo": "CRM comercial",
+          "url": "https://crm.organizastudios.com/comercial"
+        },
+        {
+          "titulo": "CRM comercial",
+          "url": "https://crm.organizastudios.com/comercial"
+        },
+        {
+          "titulo": "CommercialPage.tsx",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/8c39314434d6ba8c32c6cb43f86ba9bc12378ac5/apps/web/src/features/commercial/CommercialPage.tsx"
+        },
+        {
+          "titulo": "LeadCard.tsx",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/8c39314434d6ba8c32c6cb43f86ba9bc12378ac5/apps/web/src/features/commercial/LeadCard.tsx"
+        },
+        {
+          "titulo": "LeadConvertModal.tsx",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/8c39314434d6ba8c32c6cb43f86ba9bc12378ac5/apps/web/src/features/commercial/LeadConvertModal.tsx"
+        },
+        {
+          "titulo": "lead-form-conversion.integration.test.tsx",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/8c39314434d6ba8c32c6cb43f86ba9bc12378ac5/apps/web/src/features/commercial/lead-form-conversion.integration.test.tsx"
+        }
+      ]
+    },
+    {
+      "id": "tutorial-4",
+      "titulo": "Criar uma turma",
+      "trecho": "## Criar uma turma\n\n- **Também perguntam:** Como abro uma turma nova? Onde cadastro uma turma semanal?\n- **Onde começar:** Menu lateral → [Turmas](https://crm.organizastudios.com/turmas).\n- **Antes de começar:** Tenha permissão para criar turmas. Separe o serviço, o profissional, a sala, o número de vagas e o horário semanal.\n\n1. Clique em **Nova turma**.\n2. Se quiser dar um nome próprio à turma, preencha **Nome da turma**.\n3. Selecione o **Serviço**.\n4. Selecione o **Profissional**.\n5. Selecione a **Sala**.\n6. Confira **Vagas**.\n7. Clique em **Adicionar horário**.\n8. Confira o dia e o horário em **Horários semanais**.\n9. Clique em **Criar turma**.\n\n**Como saber se deu certo:** A janela fecha e aparece um cartão com o nome da turma.\n\n**Se o botão não aparecer:** Confira se seu acesso permite criar turmas.\n\n**Verificação:** Formulário visto na interface. Criação verificada no código e no teste de ponta a ponta.",
+      "referencias": [
+        {
+          "titulo": "Turmas",
+          "url": "https://crm.organizastudios.com/turmas"
+        },
+        {
+          "titulo": "Turmas",
+          "url": "https://crm.organizastudios.com/turmas"
+        },
+        {
+          "titulo": "GroupsPage.tsx",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/8c39314434d6ba8c32c6cb43f86ba9bc12378ac5/apps/web/src/features/groups/GroupsPage.tsx"
+        },
+        {
+          "titulo": "GroupModal.tsx",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/8c39314434d6ba8c32c6cb43f86ba9bc12378ac5/apps/web/src/features/groups/GroupModal.tsx"
+        },
+        {
+          "titulo": "groups.spec.ts",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/8c39314434d6ba8c32c6cb43f86ba9bc12378ac5/e2e/groups.spec.ts"
+        }
+      ]
+    },
+    {
+      "id": "tutorial-5",
+      "titulo": "Abrir os dados e a frequência de uma turma",
+      "trecho": "## Abrir os dados e a frequência de uma turma\n\n- **Também perguntam:** Onde vejo as aulas da turma? Como abro a aba de frequência?\n- **Onde começar:** Menu lateral → [Turmas](https://crm.organizastudios.com/turmas).\n- **Antes de começar:** A turma deve estar cadastrada e visível na lista.\n\n1. No cartão da turma, clique em **Abrir turma**.\n2. Clique em **Frequência e reposições** para ver o calendário da turma.\n3. Clique em **Dados da turma** para voltar aos dados.\n\n**Como saber se deu certo:** A janela permanece na mesma turma e passa a mostrar o conteúdo da aba escolhida.\n\n**Se o botão não aparecer:** Você consegue ver o cartão da turma na aba **Turmas**?\n\n**Verificação:** Abas vistas na interface. Calendário e troca de abas conferidos no teste de ponta a ponta.",
+      "referencias": [
+        {
+          "titulo": "Turmas",
+          "url": "https://crm.organizastudios.com/turmas"
+        },
+        {
+          "titulo": "Turmas",
+          "url": "https://crm.organizastudios.com/turmas"
+        },
+        {
+          "titulo": "GroupsPage.tsx",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/8c39314434d6ba8c32c6cb43f86ba9bc12378ac5/apps/web/src/features/groups/GroupsPage.tsx"
+        },
+        {
+          "titulo": "GroupDetailsModal.tsx",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/8c39314434d6ba8c32c6cb43f86ba9bc12378ac5/apps/web/src/features/groups/GroupDetailsModal.tsx"
+        },
+        {
+          "titulo": "groups.spec.ts",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/8c39314434d6ba8c32c6cb43f86ba9bc12378ac5/e2e/groups.spec.ts"
+        }
+      ]
+    },
+    {
+      "id": "tutorial-6",
+      "titulo": "Colocar um cliente na espera de uma turma cheia",
+      "trecho": "## Colocar um cliente na espera de uma turma cheia\n\n- **Também perguntam:** Como coloco um aluno numa fila de turma? O que clico quando a turma está sem vagas?\n- **Onde começar:** Menu lateral → [Turmas](https://crm.organizastudios.com/turmas).\n- **Antes de começar:** Tenha permissão para matricular. A turma deve estar sem vagas e o cliente deve estar cadastrado.\n\n1. Clique em **Matricular cliente**.\n2. Em **Turma**, selecione a opção indicada como turma cheia.\n3. Selecione o cliente.\n4. Clique em **Colocar na lista de espera**.\n\n**Como saber se deu certo:** O contador **em espera** aumenta no cartão da turma. O teste verifica que a fila permanece após recarregar a página.\n\n**Se o botão não aparecer:** Confira se você escolheu uma turma cheia. Veja se seu acesso permite matricular.\n\n**Verificação:** Entrada da matrícula vista na interface. Seleção de turma cheia e resultado verificados no teste de ponta a ponta.",
+      "referencias": [
+        {
+          "titulo": "Turmas",
+          "url": "https://crm.organizastudios.com/turmas"
+        },
+        {
+          "titulo": "Turmas",
+          "url": "https://crm.organizastudios.com/turmas"
+        },
+        {
+          "titulo": "GroupsPage.tsx",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/8c39314434d6ba8c32c6cb43f86ba9bc12378ac5/apps/web/src/features/groups/GroupsPage.tsx"
+        },
+        {
+          "titulo": "groups.spec.ts",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/8c39314434d6ba8c32c6cb43f86ba9bc12378ac5/e2e/groups.spec.ts"
+        }
+      ]
+    },
+    {
+      "id": "tutorial-7",
+      "titulo": "Contratar um pacote já cadastrado para um cliente",
+      "trecho": "## Contratar um pacote já cadastrado para um cliente\n\n- **Também perguntam:** Como vendo um pacote de sessões? Como coloco um plano existente no cliente?\n- **Onde começar:** Menu lateral → [Planos e sessões](https://crm.organizastudios.com/planos).\n- **Antes de começar:** Tenha permissão para contratar planos. Este exemplo cobre um pacote fixo já cadastrado, com pagamento em uma parcela.\n\n1. Clique em **Novo plano**.\n2. Selecione o **Cliente**.\n3. Em **Plano cadastrado**, escolha o pacote.\n4. Confira o **Valor total**.\n5. Confira a **Forma de pagamento**.\n6. Informe uma parcela no campo **Parcelas**.\n7. Preencha **Primeiro vencimento**.\n8. Clique em **Criar plano e parcelas**.\n\n**Como saber se deu certo:** A janela fecha. O teste verifica que o plano foi criado com o saldo de sessões do pacote e que a parcela aparece no Financeiro.\n\n**Se o botão não aparecer:** Confira se seu acesso permite contratar planos. Se não encontrar o pacote, verifique a lista **Plano cadastrado**.\n\n**Verificação:** Formulário visto na interface. Gravação do plano e criação da parcela verificadas no teste de ponta a ponta.",
+      "referencias": [
+        {
+          "titulo": "Planos e sessões",
+          "url": "https://crm.organizastudios.com/planos"
+        },
+        {
+          "titulo": "Planos e sessões",
+          "url": "https://crm.organizastudios.com/planos"
+        },
+        {
+          "titulo": "PlansPage.tsx",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/8c39314434d6ba8c32c6cb43f86ba9bc12378ac5/apps/web/src/features/plans/PlansPage.tsx"
+        },
+        {
+          "titulo": "PlanModal.tsx",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/8c39314434d6ba8c32c6cb43f86ba9bc12378ac5/apps/web/src/features/plans/PlanModal.tsx"
+        },
+        {
+          "titulo": "plans-finance.spec.ts",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/8c39314434d6ba8c32c6cb43f86ba9bc12378ac5/e2e/plans-finance.spec.ts"
+        }
+      ]
+    },
+    {
+      "id": "tutorial-8",
+      "titulo": "Colocar um cliente na fila por um serviço",
+      "trecho": "## Colocar um cliente na fila por um serviço\n\n- **Também perguntam:** Como ponho um aluno na lista de espera? Como registro que alguém está esperando uma vaga?\n- **Onde começar:** Menu lateral → [Lista de espera](https://crm.organizastudios.com/lista-de-espera).\n- **Antes de começar:** Tenha permissão para gerenciar a lista. O cliente e o serviço precisam estar cadastrados.\n\n1. Clique em **Adicionar à lista**.\n2. Selecione o **Cliente**.\n3. Clique em **Turma de um serviço**.\n4. Selecione o **Serviço**.\n5. Se precisar, preencha **Observações**.\n6. Clique em **Adicionar à lista** dentro da janela.\n\n**Como saber se deu certo:** A janela fecha. O serviço aparece em **Maior procura** e o cliente aparece em **Clientes na lista**, com sua posição na fila.\n\n**Se o botão não aparecer:** Confira se você tem permissão para gerenciar a lista. Se o botão da janela estiver desabilitado, confira **Cliente** e **Serviço**.\n\n**Verificação:** Formulário visto na interface. Gravação e posição na fila verificadas no teste de integração.",
+      "referencias": [
+        {
+          "titulo": "Lista de espera",
+          "url": "https://crm.organizastudios.com/lista-de-espera"
+        },
+        {
+          "titulo": "Lista de espera",
+          "url": "https://crm.organizastudios.com/lista-de-espera"
+        },
+        {
+          "titulo": "WaitlistPage.tsx",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/8c39314434d6ba8c32c6cb43f86ba9bc12378ac5/apps/web/src/features/waitlist/WaitlistPage.tsx"
+        },
+        {
+          "titulo": "WaitlistEntryModal.tsx",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/8c39314434d6ba8c32c6cb43f86ba9bc12378ac5/apps/web/src/features/waitlist/WaitlistEntryModal.tsx"
+        },
+        {
+          "titulo": "waitlist-page.integration.test.tsx",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/8c39314434d6ba8c32c6cb43f86ba9bc12378ac5/apps/web/src/features/waitlist/waitlist-page.integration.test.tsx"
+        }
+      ]
+    },
+    {
+      "id": "tutorial-9",
+      "titulo": "Registrar o pagamento de uma parcela já recebida",
+      "trecho": "## Registrar o pagamento de uma parcela já recebida\n\n- **Também perguntam:** Como dou baixa em uma parcela? Como marco uma parcela como paga? Como registro o pagamento de uma parcela?\n- **Onde começar:** Menu lateral → [Financeiro](https://crm.organizastudios.com/financeiro).\n- **Antes de começar:** Tenha permissão para registrar recebimentos. A parcela precisa estar em aberto. Este exemplo cobre pagamento integral por Pix.\n\n1. Em **Contas a receber**, encontre a parcela na seção **Parcelas**.\n2. Na linha da parcela, clique em **Dar baixa**.\n3. Em **Forma de pagamento recebida**, selecione **Pix**.\n4. Clique em **Confirmar baixa**.\n\n**Como saber se deu certo:** A janela fecha e a parcela aparece como **Paga**.\n\n**Se o botão não aparecer:** Confira se a parcela está em aberto e se você tem permissão para registrar recebimentos.\n\n**Verificação:** Tela de parcelas vista na interface. Caminho da baixa e situação Paga verificados no código e no teste de ponta a ponta.",
+      "referencias": [
+        {
+          "titulo": "Financeiro",
+          "url": "https://crm.organizastudios.com/financeiro"
+        },
+        {
+          "titulo": "Financeiro",
+          "url": "https://crm.organizastudios.com/financeiro"
+        },
+        {
+          "titulo": "FinancePage.tsx",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/8c39314434d6ba8c32c6cb43f86ba9bc12378ac5/apps/web/src/features/finance/FinancePage.tsx"
+        },
+        {
+          "titulo": "ReceivablesList.tsx",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/8c39314434d6ba8c32c6cb43f86ba9bc12378ac5/apps/web/src/features/finance/ReceivablesList.tsx"
+        },
+        {
+          "titulo": "SettleModal.tsx",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/8c39314434d6ba8c32c6cb43f86ba9bc12378ac5/apps/web/src/features/finance/SettleModal.tsx"
+        },
+        {
+          "titulo": "plans-finance.spec.ts",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/8c39314434d6ba8c32c6cb43f86ba9bc12378ac5/e2e/plans-finance.spec.ts"
+        }
+      ]
+    }
+  ]
+}

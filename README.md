@@ -230,3 +230,7 @@ TEST_DATABASE_URL=mysql://<usuário>:<senha>@127.0.0.1:3306/crm_test npm run tes
 ```
 
 Mais detalhes para localizar código e rodar testes focados em [AGENTS.md](AGENTS.md).
+
+## Ajuda do CRM por MCP
+
+O servidor existente oferece consulta ao manual em `/api/mcp`, com Streamable HTTP e acesso restrito ao piloto. Veja [configuração, material, publicação na Hostinger e teste no Claude](docs/mcp-manual-hostinger.md). Sem configuração válida, apenas essa rota fica indisponível.

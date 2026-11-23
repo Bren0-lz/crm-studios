@@ -21,6 +21,13 @@ está no histórico do git (este arquivo antes do commit "chore: handoff da roda
 
 ## Pedidos avulsos do dono
 
+### MCP1 — Manual do CRM em conectores MCP remotos
+
+- **Pedido (23/11/2026):** integrar consulta de ajuda ao Fastify/Hostinger com Streamable HTTP, revisão das fontes, acesso autorizado no Claude e preparação para deploy sem publicação.
+- **Escopo:** única ferramenta `consultar_manual_crm`; corpus local de ajuda, sem banco; credencial exclusiva do piloto; build e instruções em `docs/mcp-manual-hostinger.md`.
+- **Gate:** gate completo, cliente MCP oficial por HTTP, build Hostinger e fluxo de cadastro no navegador.
+- **Status:** DONE
+
 ### V1 — Vales para colaboradores
 
 - **Pedido (02/11/2026):** vale com valor configurável, colaborador que recebe e mês em que é
