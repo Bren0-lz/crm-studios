@@ -1,9 +1,4 @@
-import type { PaymentMethod, RelationshipSettings } from "@crm/contracts";
-
-export type RelationshipDeadlineKey = Exclude<
-  keyof RelationshipSettings,
-  "messages"
->;
+import type { PaymentMethod } from "@crm/contracts";
 
 export type SettingsTabKey =
   | "branches"
@@ -15,7 +10,6 @@ export type SettingsTabKey =
   | "plans"
   | "holidays"
   | "tags"
-  | "relationship"
   | "autoFinalization"
   | "paymentMethods"
   | "integrations";

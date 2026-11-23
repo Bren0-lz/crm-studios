@@ -14,7 +14,6 @@ import {
   CreditCard,
   MapPin,
   PanelLeft,
-  HeartHandshake,
   KeyRound,
   PackageOpen,
   Stethoscope,
@@ -27,7 +26,6 @@ import type {
   AutoFinalizationDraft,
   AutoFinalizationUnit,
   PaymentMethodDraft,
-  RelationshipDeadlineKey,
   SettingsTabKey,
 } from "./types";
 
@@ -49,59 +47,6 @@ export const percentageLabel = new Intl.NumberFormat("pt-BR", {
 export function percentageText(value: number | undefined) {
   return value === undefined ? "" : String(value);
 }
-
-export const relationshipDeadlineFields: Array<{
-  key: RelationshipDeadlineKey;
-  label: string;
-  min: number;
-}> = [
-  {
-    key: "birthdayDaysAhead",
-    label: "Aniversário: avisar quantos dias antes",
-    min: 0,
-  },
-  { key: "singleNoReturnDays", label: "Veio uma vez: dias sem voltar", min: 1 },
-  {
-    key: "planExpiringDays",
-    label: "Plano acabando: avisar quantos dias antes do fim",
-    min: 1,
-  },
-  {
-    key: "lowBalanceSessions",
-    label: "Saldo baixo: sessões restantes",
-    min: 0,
-  },
-  {
-    key: "expiredWithBalanceDays",
-    label: "Vencido com saldo: até quantos dias após vencer",
-    min: 1,
-  },
-  {
-    key: "treatmentPausedDays",
-    label: "Tratamento parado: dias sem atendimento",
-    min: 1,
-  },
-  {
-    key: "repeatedNoShowCount",
-    label: "Faltas seguidas: número de faltas",
-    min: 1,
-  },
-  {
-    key: "repeatedNoShowWindowDays",
-    label: "Faltas seguidas: período em dias",
-    min: 1,
-  },
-  {
-    key: "formerClientMinDays",
-    label: "Ex-cliente: cancelou há pelo menos (dias)",
-    min: 0,
-  },
-  {
-    key: "formerClientMaxDays",
-    label: "Ex-cliente: cancelou há no máximo (dias)",
-    min: 1,
-  },
-];
 
 export const settingsTabs: Array<{
   key: SettingsTabKey;
@@ -209,14 +154,6 @@ export const settingsTabs: Array<{
     title: "Serviços e salas",
     description: "Cadastre os serviços e as salas usados na agenda.",
     icon: Stethoscope,
-  },
-  {
-    key: "relationship",
-    label: "Contatos sugeridos",
-    title: "Prazos e mensagens",
-    description:
-      "Configure quando entrar em contato e as mensagens sugeridas para cada situação.",
-    icon: HeartHandshake,
   },
 ];
 

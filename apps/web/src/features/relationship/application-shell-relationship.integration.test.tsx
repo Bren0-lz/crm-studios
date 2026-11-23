@@ -9,7 +9,6 @@ import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import App from "../../App";
 import {
-  openSettingsSection,
   relationshipSettingsFixture,
   storedUser,
 } from "../../test-support/legacy-fixtures";
@@ -641,55 +640,6 @@ describe("application shell", () => {
       vi
         .mocked(fetch)
         .mock.calls.some(([url]) => String(url).includes("/relationship/")),
-    ).toBe(false);
-  });
-
-  it("shows relationship settings read-only to reception", async () => {
-    localStorage.setItem("crm.auth.token", "test-token");
-    localStorage.setItem(
-      "crm.auth.user",
-      storedUser({
-        id: "22222222-2222-4222-8222-222222222222",
-        fullName: "Joana Recepção",
-        email: "recepcao@movimenta.local",
-        role: "reception",
-      }),
-    );
-    const settings = relationshipSettingsFixture();
-    vi.mocked(fetch).mockImplementation(async (input) => {
-      const url = String(input);
-      const body = url.includes("/relationship/settings") ? settings : [];
-      return { ok: true, status: 200, json: async () => body } as Response;
-    });
-    render(
-      <MemoryRouter initialEntries={["/configuracoes"]}>
-        <App />
-      </MemoryRouter>,
-    );
-    const section = await openSettingsSection("Prazos e mensagens");
-    const planDays = await within(section).findByLabelText(
-      "Plano acabando: avisar quantos dias antes do fim",
-    );
-    expect(planDays).toHaveValue(7);
-    expect(planDays).toHaveAttribute("readonly");
-    expect(
-      within(section).getByLabelText("Mensagem: Veio uma vez"),
-    ).toHaveValue("Oi {{nome}}, sentimos sua falta.");
-    expect(
-      within(section).getByLabelText("Mensagem: Veio uma vez"),
-    ).toHaveAttribute("readonly");
-    expect(
-      within(section).queryByRole("button", {
-        name: "Salvar prazos e mensagens",
-      }),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole("heading", { name: "Usuários" }),
-    ).not.toBeInTheDocument();
-    expect(
-      vi
-        .mocked(fetch)
-        .mock.calls.some(([url]) => String(url).includes("/admin/")),
     ).toBe(false);
   });
 

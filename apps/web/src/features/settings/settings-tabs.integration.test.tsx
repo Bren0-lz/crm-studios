@@ -97,7 +97,6 @@ describe("settings tabs", () => {
       "Etiquetas",
       "Cadastros",
       "Serviços e salas",
-      "Contatos sugeridos",
     ]);
     expect(screen.getByRole("tab", { name: "Clínica" })).toHaveAttribute(
       "aria-selected",
@@ -142,10 +141,8 @@ describe("settings tabs", () => {
     expect(users).toHaveAttribute("aria-selected", "true");
     expect(users).toHaveAttribute("tabindex", "0");
     fireEvent.keyDown(users, { key: "End" });
-    expect(
-      screen.getByRole("tab", { name: "Contatos sugeridos" }),
-    ).toHaveFocus();
-    fireEvent.keyDown(screen.getByRole("tab", { name: "Contatos sugeridos" }), {
+    expect(screen.getByRole("tab", { name: "Serviços e salas" })).toHaveFocus();
+    fireEvent.keyDown(screen.getByRole("tab", { name: "Serviços e salas" }), {
       key: "Home",
     });
     expect(clinicTab).toHaveFocus();
@@ -428,7 +425,7 @@ describe("settings tabs", () => {
     });
   });
 
-  it("opens the first available tab for reception and keeps relationship read-only", async () => {
+  it("opens the first available tab for reception", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
     localStorage.setItem(
       "crm.auth.user",
@@ -454,13 +451,7 @@ describe("settings tabs", () => {
       "Etiquetas",
       "Cadastros",
       "Serviços e salas",
-      "Contatos sugeridos",
     ]);
-    expect(fetched("/relationship/settings")).toBe(false);
-    await openSettingsSection("Prazos e mensagens");
-    expect(
-      await screen.findByLabelText("Saldo baixo: sessões restantes"),
-    ).toHaveAttribute("readonly");
   });
 
   it.each(["Feriados", "Etiquetas"])(
@@ -871,52 +862,5 @@ describe("settings tabs", () => {
       );
     });
 
-    it("warns before closing Prazos e mensagens with unsaved edits", async () => {
-      mockClinicSave([]);
-      localStorage.setItem("crm.auth.token", "test-token");
-      localStorage.setItem("crm.auth.user", storedUser(owner));
-      render(
-        <MemoryRouter initialEntries={["/configuracoes"]}>
-          <App />
-        </MemoryRouter>,
-      );
-      const toggle = await screen.findByRole("tab", {
-        name: "Contatos sugeridos",
-      });
-      fireEvent.click(toggle);
-      const field = await screen.findByLabelText(
-        "Saldo baixo: sessões restantes",
-      );
-      const original = (field as HTMLInputElement).value;
-      fireEvent.change(field, { target: { value: "7" } });
-      fireEvent.click(screen.getByRole("tab", { name: "Usuários" }));
-      const dialog = screen.getByRole("dialog", {
-        name: "Salvar as alterações?",
-      });
-      fireEvent.click(
-        within(dialog).getByRole("button", { name: "Continuar editando" }),
-      );
-      expect(toggle).toHaveAttribute("aria-selected", "true");
-      fireEvent.click(screen.getByRole("tab", { name: "Usuários" }));
-      fireEvent.click(
-        within(screen.getByRole("dialog")).getByRole("button", {
-          name: "Salvar alterações",
-        }),
-      );
-      await waitFor(() =>
-        expect(toggle).toHaveAttribute("aria-selected", "false"),
-      );
-      const put = vi
-        .mocked(fetch)
-        .mock.calls.find(
-          ([input, options]) =>
-            String(input).includes("/relationship/settings") &&
-            options?.method === "PUT",
-        );
-      expect(JSON.parse(String(put![1]!.body))).toMatchObject({
-        lowBalanceSessions: 7,
-      });
-      expect(original).not.toBe("7");
-    });
   });
 });

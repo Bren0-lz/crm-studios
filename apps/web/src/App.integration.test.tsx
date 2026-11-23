@@ -603,12 +603,7 @@ beforeEach(() => {
 async function openSettingsSection(...names: string[]) {
   let section: HTMLElement | null = null;
   for (const name of names) {
-    const label =
-      name === "Dados da clínica"
-        ? "Clínica"
-        : name === "Prazos e mensagens"
-          ? "Contatos sugeridos"
-          : name;
+    const label = name === "Dados da clínica" ? "Clínica" : name;
     const tab = await screen.findByRole("tab", { name: label });
     // As abas ficam desativadas enquanto um salvamento termina: clicar antes disso é ignorado.
     await waitFor(() => expect(tab).toBeEnabled());
@@ -2968,116 +2963,6 @@ describe("application shell", () => {
         .mock.calls.some(([url]) => String(url).includes("/relationship/")),
     ).toBe(false);
   });
-  it("lets the owner edit relationship deadlines and messages in settings", async () => {
-    localStorage.setItem("crm.auth.token", "test-token");
-    localStorage.setItem(
-      "crm.auth.user",
-      storedUser({
-        id: "22222222-2222-4222-8222-222222222222",
-        fullName: "Aryana Dutra",
-        email: "admin@movimenta.local",
-        role: "owner",
-      }),
-    );
-    const settings = relationshipSettingsFixture();
-    let putBody: Record<string, unknown> | undefined;
-    vi.mocked(fetch).mockImplementation(async (input, init) => {
-      const url = String(input);
-      if (url.includes("/relationship/settings") && init?.method === "PUT") {
-        putBody = JSON.parse(String(init.body));
-        return { ok: true, status: 200, json: async () => putBody } as Response;
-      }
-      const body = url.includes("/relationship/settings")
-        ? settings
-        : url.includes("/admin/clinic-settings")
-          ? null
-          : [];
-      return { ok: true, status: 200, json: async () => body } as Response;
-    });
-    render(
-      <MemoryRouter initialEntries={["/configuracoes"]}>
-        <App />
-      </MemoryRouter>,
-    );
-    const section = await openSettingsSection("Prazos e mensagens");
-    expect(await within(section).findByText("{{nome}}")).toBeInTheDocument();
-    expect(section).toHaveTextContent("primeiro nome do cliente");
-    const planDays = await within(section).findByLabelText(
-      "Plano acabando: avisar quantos dias antes do fim",
-    );
-    expect(planDays).toHaveValue(7);
-    fireEvent.change(planDays, { target: { value: "10" } });
-    fireEvent.change(within(section).getByLabelText("Mensagem: Aniversário"), {
-      target: { value: "Feliz aniversário, {{nome}}!" },
-    });
-    fireEvent.click(
-      within(section).getByRole("button", {
-        name: "Salvar prazos e mensagens",
-      }),
-    );
-    await vi.waitFor(() => expect(putBody).toBeDefined());
-    expect(putBody).toEqual({
-      ...settings,
-      planExpiringDays: 10,
-      messages: {
-        ...settings.messages,
-        birthday: "Feliz aniversário, {{nome}}!",
-      },
-    });
-    expect(
-      await within(section).findByText("Prazos e mensagens salvos."),
-    ).toBeInTheDocument();
-  });
-
-  it("shows relationship settings read-only to reception", async () => {
-    localStorage.setItem("crm.auth.token", "test-token");
-    localStorage.setItem(
-      "crm.auth.user",
-      storedUser({
-        id: "22222222-2222-4222-8222-222222222222",
-        fullName: "Joana Recepção",
-        email: "recepcao@movimenta.local",
-        role: "reception",
-      }),
-    );
-    const settings = relationshipSettingsFixture();
-    vi.mocked(fetch).mockImplementation(async (input) => {
-      const url = String(input);
-      const body = url.includes("/relationship/settings") ? settings : [];
-      return { ok: true, status: 200, json: async () => body } as Response;
-    });
-    render(
-      <MemoryRouter initialEntries={["/configuracoes"]}>
-        <App />
-      </MemoryRouter>,
-    );
-    const section = await openSettingsSection("Prazos e mensagens");
-    const planDays = await within(section).findByLabelText(
-      "Plano acabando: avisar quantos dias antes do fim",
-    );
-    expect(planDays).toHaveValue(7);
-    expect(planDays).toHaveAttribute("readonly");
-    expect(
-      within(section).getByLabelText("Mensagem: Veio uma vez"),
-    ).toHaveValue("Oi {{nome}}, sentimos sua falta.");
-    expect(
-      within(section).getByLabelText("Mensagem: Veio uma vez"),
-    ).toHaveAttribute("readonly");
-    expect(
-      within(section).queryByRole("button", {
-        name: "Salvar prazos e mensagens",
-      }),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole("heading", { name: "Usuários" }),
-    ).not.toBeInTheDocument();
-    expect(
-      vi
-        .mocked(fetch)
-        .mock.calls.some(([url]) => String(url).includes("/admin/")),
-    ).toBe(false);
-  });
-
   it("does not show relationship settings to physiotherapists", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
     localStorage.setItem(
@@ -5398,7 +5283,7 @@ describe("application shell", () => {
         <App />
       </MemoryRouter>,
     );
-    await openSettingsSection("Prazos e mensagens");
+    await openSettingsSection("Etiquetas");
     expect(
       screen.queryByRole("heading", { name: "Feriados" }),
     ).not.toBeInTheDocument();
@@ -10196,7 +10081,6 @@ describe("settings tabs", () => {
       "Etiquetas",
       "Cadastros",
       "Serviços e salas",
-      "Contatos sugeridos",
     ]);
     expect(screen.getByRole("tab", { name: "Clínica" })).toHaveAttribute(
       "aria-selected",
@@ -10241,10 +10125,8 @@ describe("settings tabs", () => {
     expect(users).toHaveAttribute("aria-selected", "true");
     expect(users).toHaveAttribute("tabindex", "0");
     fireEvent.keyDown(users, { key: "End" });
-    expect(
-      screen.getByRole("tab", { name: "Contatos sugeridos" }),
-    ).toHaveFocus();
-    fireEvent.keyDown(screen.getByRole("tab", { name: "Contatos sugeridos" }), {
+    expect(screen.getByRole("tab", { name: "Serviços e salas" })).toHaveFocus();
+    fireEvent.keyDown(screen.getByRole("tab", { name: "Serviços e salas" }), {
       key: "Home",
     });
     expect(clinicTab).toHaveFocus();
@@ -10322,7 +10204,7 @@ describe("settings tabs", () => {
     );
   });
 
-  it("opens the first available tab for reception and keeps relationship read-only", async () => {
+  it("opens the first available tab for reception", async () => {
     localStorage.setItem("crm.auth.token", "test-token");
     localStorage.setItem(
       "crm.auth.user",
@@ -10348,13 +10230,7 @@ describe("settings tabs", () => {
       "Etiquetas",
       "Cadastros",
       "Serviços e salas",
-      "Contatos sugeridos",
     ]);
-    expect(fetched("/relationship/settings")).toBe(false);
-    await openSettingsSection("Prazos e mensagens");
-    expect(
-      await screen.findByLabelText("Saldo baixo: sessões restantes"),
-    ).toHaveAttribute("readonly");
   });
 
   it.each(["Feriados", "Etiquetas"])(
@@ -10717,53 +10593,6 @@ describe("settings tabs", () => {
       );
     });
 
-    it("warns before closing Prazos e mensagens with unsaved edits", async () => {
-      mockClinicSave([]);
-      localStorage.setItem("crm.auth.token", "test-token");
-      localStorage.setItem("crm.auth.user", storedUser(owner));
-      render(
-        <MemoryRouter initialEntries={["/configuracoes"]}>
-          <App />
-        </MemoryRouter>,
-      );
-      const toggle = await screen.findByRole("tab", {
-        name: "Contatos sugeridos",
-      });
-      fireEvent.click(toggle);
-      const field = await screen.findByLabelText(
-        "Saldo baixo: sessões restantes",
-      );
-      const original = (field as HTMLInputElement).value;
-      fireEvent.change(field, { target: { value: "7" } });
-      fireEvent.click(screen.getByRole("tab", { name: "Usuários" }));
-      const dialog = screen.getByRole("dialog", {
-        name: "Salvar as alterações?",
-      });
-      fireEvent.click(
-        within(dialog).getByRole("button", { name: "Continuar editando" }),
-      );
-      expect(toggle).toHaveAttribute("aria-selected", "true");
-      fireEvent.click(screen.getByRole("tab", { name: "Usuários" }));
-      fireEvent.click(
-        within(screen.getByRole("dialog")).getByRole("button", {
-          name: "Salvar alterações",
-        }),
-      );
-      await waitFor(() =>
-        expect(toggle).toHaveAttribute("aria-selected", "false"),
-      );
-      const put = vi
-        .mocked(fetch)
-        .mock.calls.find(
-          ([input, options]) =>
-            String(input).includes("/relationship/settings") &&
-            options?.method === "PUT",
-        );
-      expect(JSON.parse(String(put![1]!.body))).toMatchObject({
-        lowBalanceSessions: 7,
-      });
-      expect(original).not.toBe("7");
-    });
   });
 });
 
@@ -11374,11 +11203,7 @@ describe("button variants", () => {
         <App />
       </MemoryRouter>,
     );
-    await openSettingsSection(
-      "Dados da clínica",
-      "Prazos e mensagens",
-      "Feriados",
-    );
+    await openSettingsSection("Dados da clínica", "Feriados");
     const section = await openSettingsSection("Usuários");
     await within(section).findByText("Maria Souza");
     expect(
@@ -11394,16 +11219,12 @@ describe("button variants", () => {
       }),
     ).toHaveClass("danger-button", "button-sm");
     // Salvar dos formulários de configuração: tamanho normal, no rodapé alinhado à direita (não estica no grid).
-    for (const name of ["Salvar configurações", "Salvar prazos e mensagens"]) {
-      await openSettingsSection(
-        name === "Salvar configurações"
-          ? "Dados da clínica"
-          : "Prazos e mensagens",
-      );
-      const save = await screen.findByRole("button", { name });
-      expect(save).toHaveClass("primary-button");
-      expect(save.parentElement).toHaveClass("modal-actions");
-    }
+    await openSettingsSection("Dados da clínica");
+    const save = await screen.findByRole("button", {
+      name: "Salvar configurações",
+    });
+    expect(save).toHaveClass("primary-button");
+    expect(save.parentElement).toHaveClass("modal-actions");
     expect(unstyledButtons(container)).toEqual([]);
   });
 

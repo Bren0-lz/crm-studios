@@ -26,7 +26,6 @@ import { TelegramIntegrationContent } from "./TelegramIntegrationContent";
 import { settingsTabFromSection, settingsTabs } from "./model";
 import { PatientTagsContent } from "./PatientTagsContent";
 import { PlanTemplatesContent } from "./PlanTemplatesContent";
-import { RelationshipSettingsContent } from "./RelationshipSettingsContent";
 import { SettingsPanel } from "./SettingsPanel";
 import type { SettingsTabKey } from "./types";
 
@@ -184,10 +183,8 @@ export function SettingsPage() {
                 <ClinicCatalogsContent />
               ) : tab.key === "registry" ? (
                 <AdministrativeRegistrySection />
-              ) : tab.key === "tags" ? (
-                <PatientTagsContent canEdit={canEdit("settings")} />
               ) : (
-                <RelationshipSettingsContent canEdit={admin} />
+                <PatientTagsContent canEdit={canEdit("settings")} />
               )}
             </Fragment>
           )}

@@ -703,7 +703,7 @@ describe("application shell", () => {
         <App />
       </MemoryRouter>,
     );
-    await openSettingsSection("Prazos e mensagens");
+    await openSettingsSection("Etiquetas");
     expect(
       screen.queryByRole("heading", { name: "Feriados" }),
     ).not.toBeInTheDocument();
