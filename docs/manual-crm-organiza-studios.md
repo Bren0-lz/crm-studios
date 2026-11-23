@@ -1,6 +1,6 @@
 # Manual do CRM Organiza Studios
 
-**Revisão examinada na abertura da auditoria:** [`dd13b30dbf99a361899221397f476792601a54d2`](https://github.com/Bren0-lz/crm-studios/commit/dd13b30dbf99a361899221397f476792601a54d2), branch `main`, em 19/11/2026. As referências ao repositório apontam para essa revisão. A versão exata em execução no CRM publicado ficou sem confirmação.
+**Revisão examinada na abertura da auditoria:** [`dd13b30dbf99a361899221397f476792601a54d2`](https://github.com/Bren0-lz/crm-studios/commit/dd13b30dbf99a361899221397f476792601a54d2), branch `main`, em 19/11/2026. As fontes da inspeção original apontam para essa revisão. O guia de cadastro simples foi atualizado em 23/11/2026. A versão exata em execução no CRM publicado ficou sem confirmação.
 
 **Cobertura parcial.** A consulta ao sistema foi de leitura. Nenhum formulário foi enviado. Os resultados de gravação citados vêm das asserções dos testes consultados no repositório. Os testes foram lidos, sem execução nesta auditoria.
 
@@ -140,15 +140,15 @@ Os caminhos começam no menu lateral. O nome de uma opção pode variar se a cl�
 5. Informe nome, telefone e WhatsApp do contato de emergência. Se forem os próprios dados do cliente, clique em **Usar os dados do cliente**.
 6. Deixe sem seleção as opções de **O que o cliente vai fazer?**.
 7. Clique em **Salvar cliente**.
-8. Na janela **Cliente cadastrado**, clique em **Concluir**.
+8. Na lista de **Clientes**, busque pelo nome para localizar o cadastro.
 
-**Como saber se deu certo:** A janela confirma o cadastro. O teste encontra o cliente na busca.
+**Como saber se deu certo:** O formulário fecha e o cliente aparece na busca.
 
-**Se o botão não aparecer:** Confira se você tem permissão para cadastrar. Se **Salvar cliente** estiver desabilitado, confira os campos obrigatórios.
+**Se o botão não aparecer:** Confira se você tem permissão para cadastrar. Se **Salvar cliente** estiver desabilitado, confira os campos obrigatórios. O CPF é obrigatório no cadastro manual e deve ser único. Se o CRM informar que o CPF já está cadastrado, procure a ficha existente em **Clientes**.
 
-**Verificação:** Formulário visto na interface. O teste de integração confirma a gravação com **Salvar cliente**. A confirmação e a busca constam no teste de ponta a ponta, que cita uma opção antiga, registrada nas pendências.
+**Verificação:** O cenário de navegador cobre **Salvar cliente**, o fechamento do formulário e a localização do cadastro pela busca.
 
-**Fontes:** [Clientes](https://crm.organizastudios.com/clientes) · [PatientsPage.tsx](https://github.com/Bren0-lz/crm-studios/blob/dd13b30dbf99a361899221397f476792601a54d2/apps/web/src/features/patients/PatientsPage.tsx) · [PatientModal.tsx](https://github.com/Bren0-lz/crm-studios/blob/dd13b30dbf99a361899221397f476792601a54d2/apps/web/src/features/patients/PatientModal.tsx) · [patient-nickname.integration.test.tsx](https://github.com/Bren0-lz/crm-studios/blob/dd13b30dbf99a361899221397f476792601a54d2/apps/web/src/features/patients/patient-nickname.integration.test.tsx) · [patients.spec.ts](https://github.com/Bren0-lz/crm-studios/blob/dd13b30dbf99a361899221397f476792601a54d2/e2e/patients.spec.ts)
+**Fontes:** [Clientes](https://crm.organizastudios.com/clientes) · [Formulário](../apps/web/src/features/patients/PatientModal.tsx) · [Cenário de navegador](../e2e/patients.spec.ts)
 
 <a id="tarefa-4"></a>
 
@@ -425,7 +425,6 @@ Retome pela **Agenda → cartão de um atendimento → menu de três pontos e De
 
 ### Diferenças e caminhos ainda sem confirmação
 
-- **Novo cliente.** O teste de ponta a ponta seleciona **Só cadastrar por enquanto**. Esse controle não apareceu na tela publicada e o componente atual oferece os botões da seção **O que o cliente vai fazer?** para adicionar itens. O tutorial segue o formulário visto e o teste de integração que usa **Salvar cliente**. Revalidar o teste de ponta a ponta contra o formulário atual. [patients.spec.ts](https://github.com/Bren0-lz/crm-studios/blob/dd13b30dbf99a361899221397f476792601a54d2/e2e/patients.spec.ts) · [PatientModal.tsx](https://github.com/Bren0-lz/crm-studios/blob/dd13b30dbf99a361899221397f476792601a54d2/apps/web/src/features/patients/PatientModal.tsx) · [patient-nickname.integration.test.tsx](https://github.com/Bren0-lz/crm-studios/blob/dd13b30dbf99a361899221397f476792601a54d2/apps/web/src/features/patients/patient-nickname.integration.test.tsx)
 - **Novo lead.** O teste de integração cadastra com nome e telefone preenchidos no cenário dele. O formulário atual também marca **Origem** e **Interesse** como obrigatórios, e na tela publicada ambos começaram em **Selecione**. O tutorial orienta preencher os dois. [LeadModal.tsx](https://github.com/Bren0-lz/crm-studios/blob/dd13b30dbf99a361899221397f476792601a54d2/apps/web/src/features/commercial/LeadModal.tsx) · [lead-form-conversion.integration.test.tsx](https://github.com/Bren0-lz/crm-studios/blob/dd13b30dbf99a361899221397f476792601a54d2/apps/web/src/features/commercial/lead-form-conversion.integration.test.tsx)
 - **Assinaturas públicas.** O código declara rotas próprias para assinatura de contrato e recibo. Caminho pela interface publicado pendente. Conferir como o link é gerado, em que situação aparece e quais etapas o destinatário vê. [AppRoutes.tsx](https://github.com/Bren0-lz/crm-studios/blob/dd13b30dbf99a361899221397f476792601a54d2/apps/web/src/app/AppRoutes.tsx) · [public-signature.spec.ts](https://github.com/Bren0-lz/crm-studios/blob/dd13b30dbf99a361899221397f476792601a54d2/e2e/public-signature.spec.ts)
 - **Perfis e publicação.** A inspeção usou a sessão que já estava aberta. Falta comparar a interface com perfis de acesso restrito, testar as condições de cada ação e identificar a revisão publicada. Os pontos acima descrevem diferenças de rótulos ou de cenário observadas, sem atribuir uma revisão ao sistema publicado.

@@ -72,6 +72,7 @@ describe("screens without loose elements", () => {
       "Novo alerta clínico",
       "Novo modelo",
       "Encerrar tratamento",
+      "Histórico de acessos",
     ]);
     expect(
       within(menu).getByRole("menuitem", { name: "Nova medição" }),

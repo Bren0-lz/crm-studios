@@ -22,12 +22,14 @@ import { ActionMenu } from "../../shared/components/ActionMenu";
 import { ActionModal } from "../../shared/components/ActionModal";
 import { ErrorBanner } from "../../shared/components/ErrorBanner";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
+import type { ActionMenuItem } from "../../shared/lib/types";
 import { useToast } from "../../shared/feedback/toast-context";
 import { initials, shortDate } from "../../shared/lib/formatting";
 import { AssessmentTemplateModal } from "./AssessmentTemplateModal";
 import { ChartFilesTab } from "./ChartFilesTab";
 import { ChartAssessmentsTab } from "./ChartAssessmentsTab";
 import { ChartGoalsTab, ChartTimelineTab } from "./ChartTabs";
+import { ClinicalAccessHistoryModal } from "./ClinicalAccessHistoryModal";
 import { ClinicalAlertModal } from "./ClinicalAlertModal";
 import { ClinicalAssessmentModal } from "./ClinicalAssessmentModal";
 import { ClinicalAttachmentModal } from "./ClinicalAttachmentModal";
@@ -55,6 +57,7 @@ type ChartTab = (typeof chartTabs)[number][0];
 type Editor =
   | { kind: "template"; template?: AssessmentTemplate }
   | { kind: "archiveAlert"; alert: ClinicalAlert }
+  | { kind: "accessHistory"; patientId: string }
   | {
       kind:
         | "assessment"
@@ -207,42 +210,52 @@ export function ClinicalChart({
               Registrar avaliação
             </button>
           )}
-          {editable && (
+          {(editable || can("clinical.access_events")) && (
             <ActionMenu
               label="Mais ações"
               align="end"
               items={[
+                ...(editable
+                  ? ([
+                      {
+                        label: "Nova medição",
+                        permission: "clinical.measurements_create",
+                        onSelect: () => setEditor({ kind: "measurement" }),
+                      },
+                      {
+                        label: "Novo objetivo",
+                        permission: "clinical.goals_create",
+                        onSelect: () => setEditor({ kind: "goal" }),
+                      },
+                      {
+                        label: "Anexar arquivo",
+                        icon: <Paperclip size={15} />,
+                        permission: "clinical.attachments_create",
+                        onSelect: () => setEditor({ kind: "attachment" }),
+                      },
+                      {
+                        label: "Novo alerta clínico",
+                        permission: "clinical.records_update",
+                        onSelect: () => setEditor({ kind: "alert" }),
+                      },
+                      {
+                        label: "Novo modelo",
+                        permission: "clinical.templates_create",
+                        onSelect: () => setEditor({ kind: "template" }),
+                      },
+                      {
+                        label: "Encerrar tratamento",
+                        danger: true,
+                        permission: "clinical.closures_create",
+                        onSelect: () => setEditor({ kind: "closure" }),
+                      },
+                    ] satisfies ActionMenuItem[])
+                  : []),
                 {
-                  label: "Nova medição",
-                  permission: "clinical.measurements_create",
-                  onSelect: () => setEditor({ kind: "measurement" }),
-                },
-                {
-                  label: "Novo objetivo",
-                  permission: "clinical.goals_create",
-                  onSelect: () => setEditor({ kind: "goal" }),
-                },
-                {
-                  label: "Anexar arquivo",
-                  icon: <Paperclip size={15} />,
-                  permission: "clinical.attachments_create",
-                  onSelect: () => setEditor({ kind: "attachment" }),
-                },
-                {
-                  label: "Novo alerta clínico",
-                  permission: "clinical.records_update",
-                  onSelect: () => setEditor({ kind: "alert" }),
-                },
-                {
-                  label: "Novo modelo",
-                  permission: "clinical.templates_create",
-                  onSelect: () => setEditor({ kind: "template" }),
-                },
-                {
-                  label: "Encerrar tratamento",
-                  danger: true,
-                  permission: "clinical.closures_create",
-                  onSelect: () => setEditor({ kind: "closure" }),
+                  label: "Histórico de acessos",
+                  permission: "clinical.access_events",
+                  onSelect: () =>
+                    setEditor({ kind: "accessHistory", patientId }),
                 },
               ]}
             />
@@ -444,6 +457,16 @@ export function ClinicalChart({
           onSaved={() => saved("Alerta fixado no prontuário.")}
         />
       )}
+      {editor?.kind === "accessHistory" &&
+        editor.patientId === patient.id &&
+        editor.patientId === patientId &&
+        can("clinical.access_events") && (
+          <ClinicalAccessHistoryModal
+            patientId={patient.id}
+            patientName={patient.fullName}
+            onClose={() => setEditor(null)}
+          />
+        )}
       {editor?.kind === "archiveAlert" && (
         <ActionModal
           eyebrow="Prontuários"
