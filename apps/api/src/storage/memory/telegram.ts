@@ -13,6 +13,7 @@ import type {
   TelegramLink,
   TelegramLinkAttempt,
   TelegramOutboxMessage,
+  TelegramOutgoingMessage,
 } from "../../repository.js";
 import type { MemoryRepositoryContext } from "./context.js";
 import { uuid } from "./helpers.js";
@@ -289,15 +290,14 @@ export function createTelegramRepository(context: MemoryRepositoryContext) {
 
     async enqueueTelegramMessages(
       clinicId: string | null,
-      messages: { chatId: string; message: string }[],
+      messages: TelegramOutgoingMessage[],
       createdAt: string,
     ) {
       for (const item of messages)
         state.outbox.push({
           id: uuid(),
           clinicId,
-          chatId: item.chatId,
-          message: item.message,
+          ...item,
           attempts: 0,
           nextAttemptAt: createdAt,
           createdAt,

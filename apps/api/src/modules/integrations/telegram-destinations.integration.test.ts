@@ -18,14 +18,18 @@ afterEach(async () => {
 async function setup() {
   const repository = new MemoryClinicRepository();
   const sent: { chatId: string; text: string }[] = [];
+  const unavailableChats = new Set<string>();
+  let currentTime = now;
   const app = await buildApp({
     repository,
     logger: false,
     telegram: {
       webhookSecret: secret,
-      now: () => now,
+      now: () => currentTime,
       client: {
         async sendMessage(chatId, text) {
+          if (unavailableChats.has(chatId))
+            throw new Error("Telegram indisponível.");
           sent.push({ chatId, text });
         },
       },
@@ -92,6 +96,10 @@ async function setup() {
     repository,
     headers,
     sent,
+    unavailableChats,
+    advanceTime: (milliseconds: number) => {
+      currentTime = new Date(currentTime.getTime() + milliseconds);
+    },
     webhook,
     groupCode,
     linkGroup,
@@ -272,6 +280,88 @@ describe("TG7: cada destino recebe só os seus assuntos", () => {
     });
     expect(missing.statusCode).toBe(404);
     expect(missing.json().code).toBe("TELEGRAM_GROUP_NOT_FOUND");
+  });
+
+  it("revalida assuntos e vínculos ao repetir uma entrega pendente", async () => {
+    const test = await setup();
+    await test.linkGroup(-701, "Grupo removido", ["patients"]);
+    await test.linkGroup(-702, "Grupo com novos assuntos", ["patients"]);
+    await test.linkGroup(-703, "Grupo ainda autorizado", ["patients"]);
+    await test.linkPrivate(555);
+    const [removed, changed] =
+      await test.repository.listTelegramGroupLinks(clinicId);
+    const chatIds = ["-701", "-702", "-703", "555"];
+    for (const chatId of chatIds) test.unavailableChats.add(chatId);
+    test.sent.length = 0;
+
+    await test.createPatient("Cliente com aviso pendente");
+    expect(test.sent).toEqual([]);
+    const pending = (await test.repository.listTelegramOutbox(clinicId)).filter(
+      (item) => item.topic === "patients",
+    );
+    expect(pending.map((item) => item.chatId).sort()).toEqual(chatIds);
+    expect(pending.every((item) => item.attempts === 1 && !item.failedAt)).toBe(
+      true,
+    );
+
+    expect(
+      (
+        await test.app.inject({
+          method: "DELETE",
+          url: `/integrations/telegram/groups/${removed!.id}`,
+          headers: test.headers,
+        })
+      ).statusCode,
+    ).toBe(204);
+    expect(
+      (
+        await test.app.inject({
+          method: "PUT",
+          url: `/integrations/telegram/groups/${changed!.id}`,
+          headers: test.headers,
+          payload: { topics: ["receipts"] },
+        })
+      ).statusCode,
+    ).toBe(200);
+    expect(
+      (
+        await test.app.inject({
+          method: "PUT",
+          url: "/integrations/telegram/link/topics",
+          headers: test.headers,
+          payload: { topics: [] },
+        })
+      ).statusCode,
+    ).toBe(200);
+
+    test.unavailableChats.clear();
+    test.advanceTime(60_000);
+    const retried = await test.app.inject({
+      method: "POST",
+      url: "/integrations/telegram/outbox/drain",
+      headers: test.headers,
+    });
+    expect(retried.json()).toEqual({ sent: 1, failed: 0, gaveUp: 3 });
+    expect(test.sent.map((item) => item.chatId)).toEqual(["-703"]);
+    const outbox = await test.repository.listTelegramOutbox(clinicId);
+    for (const chatId of ["-701", "-702", "555"]) {
+      expect(
+        outbox.find(
+          (item) => item.topic === "patients" && item.chatId === chatId,
+        ),
+      ).toMatchObject({
+        failedAt: expect.any(String),
+        lastError: "O destino não recebe mais este assunto.",
+      });
+    }
+  });
+
+  it("ignora vínculo pessoal antigo com ID de grupo ao enviar avisos", async () => {
+    const test = await setup();
+    await test.linkPrivate(-800);
+    test.sent.length = 0;
+    await test.createPatient("Cliente que não deve aparecer no grupo antigo");
+    expect(test.sent).toEqual([]);
   });
 
   it("assuntos do chat pessoal sem vínculo: 404", async () => {

@@ -316,12 +316,12 @@ for (const storage of ["memory", "mysql"] as const) {
             "receipts",
           ]),
         ).toBeNull();
-        expect(await repository.deleteTelegramGroupLink(clinicId, group!.id)).toBe(
-          true,
-        );
-        expect(await repository.deleteTelegramGroupLink(clinicId, group!.id)).toBe(
-          false,
-        );
+        expect(
+          await repository.deleteTelegramGroupLink(clinicId, group!.id),
+        ).toBe(true);
+        expect(
+          await repository.deleteTelegramGroupLink(clinicId, group!.id),
+        ).toBe(false);
       });
 
       it("TG7: código pessoal não vincula grupo; grupo exige admin; assuntos do chat pessoal", async () => {
@@ -425,7 +425,7 @@ for (const storage of ["memory", "mysql"] as const) {
           clinicId,
           [
             { chatId: "1", message: "Primeira" },
-            { chatId: "2", message: "Segunda" },
+            { chatId: "2", message: "Segunda", topic: "patients" },
           ],
           at(0),
         );
@@ -487,7 +487,11 @@ for (const storage of ["memory", "mysql"] as const) {
           limit: 10,
           clinicId,
         });
-        expect(retry).toMatchObject({ message: "Segunda", attempts: 1 });
+        expect(retry).toMatchObject({
+          message: "Segunda",
+          attempts: 1,
+          topic: "patients",
+        });
         await repository.recordTelegramDelivery(retry!.id, {
           error: "desistiu",
           failedAt: at(5),

@@ -8,7 +8,10 @@ import {
 import { createHash, randomInt, timingSafeEqual } from "node:crypto";
 import type { FastifyBaseLogger } from "fastify";
 import type { TelegramIntegration } from "../../infrastructure/telegram-client.js";
-import type { ClinicRepository } from "../../repository.js";
+import type {
+  ClinicRepository,
+  TelegramOutgoingMessage,
+} from "../../repository.js";
 
 /** Tentativas por mensagem antes de desistir (a falha fica registrada em `last_error`). */
 export const TELEGRAM_MAX_ATTEMPTS = 5;
@@ -75,6 +78,21 @@ export function createTelegramService({
 }) {
   const clock = integration?.now ?? (() => new Date());
 
+  async function stillReceivesNotice(
+    clinicId: string,
+    chatId: string,
+    topic: TelegramTopic,
+  ) {
+    // O Telegram usa IDs negativos para grupos. Um vínculo pessoal antigo não autoriza
+    // avisos para um grupo: ele precisa estar na lista administrada pela clínica.
+    const links = chatId.startsWith("-")
+      ? await repository.findTelegramGroupLinksByChat(chatId)
+      : await repository.findTelegramLinksByChat(chatId);
+    return links.some(
+      (link) => link.clinicId === clinicId && link.topics.includes(topic),
+    );
+  }
+
   async function drain({
     clinicId,
   }: { clinicId?: string } = {}): Promise<TelegramDrainResult> {
@@ -89,6 +107,22 @@ export function createTelegramService({
     });
     for (const item of claimed) {
       try {
+        if (
+          item.topic &&
+          (!item.clinicId ||
+            !(await stillReceivesNotice(
+              item.clinicId,
+              item.chatId,
+              item.topic,
+            )))
+        ) {
+          await repository.recordTelegramDelivery(item.id, {
+            error: "O destino não recebe mais este assunto.",
+            failedAt: clock().toISOString(),
+          });
+          result.gaveUp++;
+          continue;
+        }
         await integration.client.sendMessage(item.chatId, item.message);
         await repository.recordTelegramDelivery(item.id, {
           sentAt: clock().toISOString(),
@@ -137,14 +171,14 @@ export function createTelegramService({
   /** Enfileira e drena em seguida. Desligada (sem token), não enfileira nada. */
   async function enqueue(
     clinicId: string | null,
-    messages: { chatId: string; message: string }[],
+    messages: TelegramOutgoingMessage[],
   ) {
     if (!integration || messages.length === 0) return;
     try {
       await repository.enqueueTelegramMessages(
         clinicId,
         messages.map((item) => ({
-          chatId: item.chatId,
+          ...item,
           message: truncate(item.message, MAX_MESSAGE_LENGTH),
         })),
         clock().toISOString(),
@@ -183,14 +217,14 @@ export function createTelegramService({
       ]);
       const chats = [
         ...new Set(
-          [...links, ...groups]
+          [...links.filter((link) => !link.chatId.startsWith("-")), ...groups]
             .filter((destination) => destination.topics.includes(topic))
             .map((destination) => destination.chatId),
         ),
       ];
       await enqueue(
         clinicId,
-        chats.map((chatId) => ({ chatId, message })),
+        chats.map((chatId) => ({ chatId, message, topic })),
       );
     },
     drain,

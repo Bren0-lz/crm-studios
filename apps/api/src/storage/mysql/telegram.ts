@@ -14,6 +14,7 @@ import type {
   TelegramLink,
   TelegramLinkAttempt,
   TelegramOutboxMessage,
+  TelegramOutgoingMessage,
 } from "../../repository.js";
 import type { Queryable } from "../../infrastructure/mysql-client.js";
 import type { MysqlRepositoryContext } from "./context.js";
@@ -67,7 +68,7 @@ const withoutClinic = (group: TelegramClinicGroupLink): TelegramGroupLink => ({
   linkedByName: group.linkedByName,
 });
 
-const outboxColumns = `id, clinic_id AS "clinicId", chat_id AS "chatId", message, attempts,
+const outboxColumns = `id, clinic_id AS "clinicId", chat_id AS "chatId", message, topic, attempts,
   next_attempt_at AS "nextAttemptAt", last_error AS "lastError", sent_at AS "sentAt",
   failed_at AS "failedAt", created_at AS "createdAt"`;
 interface OutboxRow {
@@ -75,6 +76,7 @@ interface OutboxRow {
   clinicId: string | null;
   chatId: string;
   message: string;
+  topic: TelegramTopic | null;
   attempts: number;
   nextAttemptAt: Date;
   lastError: string | null;
@@ -87,6 +89,7 @@ const mapOutbox = (row: OutboxRow): TelegramOutboxMessage => ({
   clinicId: row.clinicId,
   chatId: row.chatId,
   message: row.message,
+  ...(row.topic ? { topic: row.topic } : {}),
   attempts: Number(row.attempts),
   nextAttemptAt: row.nextAttemptAt.toISOString(),
   ...(row.lastError ? { lastError: row.lastError } : {}),
@@ -395,7 +398,7 @@ export function createTelegramRepository(context: MysqlRepositoryContext) {
 
     async enqueueTelegramMessages(
       clinicId: string | null,
-      messages: { chatId: string; message: string }[],
+      messages: TelegramOutgoingMessage[],
       at: string,
     ) {
       await insertRows(
@@ -406,6 +409,7 @@ export function createTelegramRepository(context: MysqlRepositoryContext) {
           clinic_id: clinicId,
           chat_id: item.chatId,
           message: item.message,
+          topic: item.topic ?? null,
           next_attempt_at: at,
           created_at: at,
         })),

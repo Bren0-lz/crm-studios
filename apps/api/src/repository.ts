@@ -338,12 +338,17 @@ export type TelegramLinkAttempt =
         | "needs_private";
     };
 
-/** Mensagem da fila de saída do Telegram. `clinicId` null: resposta a chat sem vínculo. */
-export interface TelegramOutboxMessage {
-  id: string;
-  clinicId: string | null;
+export interface TelegramOutgoingMessage {
   chatId: string;
   message: string;
+  /** Avisos do CRM preservam o assunto até a entrega. Respostas do bot não têm assunto. */
+  topic?: TelegramTopic;
+}
+
+/** Mensagem da fila de saída do Telegram. `clinicId` null: resposta a chat sem vínculo. */
+export interface TelegramOutboxMessage extends TelegramOutgoingMessage {
+  id: string;
+  clinicId: string | null;
   attempts: number;
   nextAttemptAt: string;
   lastError?: string;
@@ -870,7 +875,11 @@ export interface ClinicRepository {
   createTelegramLinkCode(
     clinicId: string,
     userId: string,
-    code: { codeHash: string; expiresAt: string; groupTopics?: TelegramTopic[] },
+    code: {
+      codeHash: string;
+      expiresAt: string;
+      groupTopics?: TelegramTopic[];
+    },
   ): Promise<void>;
   /**
    * `/vincular <código>`, em qualquer clínica (o código diz a clínica): confere validade, uso,
@@ -888,7 +897,7 @@ export interface ClinicRepository {
   /** Enfileira para envio a partir de `at` (relógio do serviço). */
   enqueueTelegramMessages(
     clinicId: string | null,
-    messages: { chatId: string; message: string }[],
+    messages: TelegramOutgoingMessage[],
     at: string,
   ): Promise<void>;
   /**
