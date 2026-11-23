@@ -148,6 +148,32 @@ export function createFinanceRepository(
    * Estorna a baixa de um recebível pago: volta a "open" sem o desconto/juros da baixa. No
    * pagamento picado, estorna forma por forma, cada uma no caixa da sua forma.
    */
+  // Recebíveis de saldo gerados por baixas parciais a partir de `receivableId`, em cadeia.
+  function tabBalanceReceivables(
+    clinicId: string,
+    receivableId: string | undefined,
+  ): Receivable[] {
+    const found: Receivable[] = [];
+    const queue = receivableId ? [receivableId] : [];
+    const seen = new Set(queue);
+    while (queue.length) {
+      const current = queue.shift()!;
+      for (const event of repositoryContext.receiptEvents) {
+        const balanceId = event.balanceReceivableId;
+        if (event.receivableId !== current || !balanceId || seen.has(balanceId))
+          continue;
+        seen.add(balanceId);
+        const balance = repositoryContext.receivables.find(
+          (item) => item.clinicId === clinicId && item.id === balanceId,
+        );
+        if (!balance) continue;
+        found.push(balance);
+        queue.push(balanceId);
+      }
+    }
+    return found;
+  }
+
   function reversePaidReceivable(receivable: Receivable, reason?: string) {
     const receivableId = receivable.id;
     const clinicId = receivable.clinicId;
@@ -625,7 +651,10 @@ export function createFinanceRepository(
           item.id === tab.receivableId &&
           item.status === "paid",
       );
-      if (paidReceivable && !options.refundPayment)
+      // Saldos de baixas parciais (e saldos de saldos) são cobranças da mesma venda.
+      const balances = tabBalanceReceivables(clinicId, tab.receivableId);
+      const paidBalances = balances.filter((item) => item.status === "paid");
+      if ((paidReceivable || paidBalances.length) && !options.refundPayment)
         throw new DomainError(
           "PATIENT_TAB_PAYMENT_REVERSAL_REQUIRED",
           "Estorne o pagamento no Financeiro antes de cancelar a comanda.",
@@ -676,6 +705,13 @@ export function createFinanceRepository(
           receivable.overdue = false;
           receivable.updatedAt = now();
         }
+      }
+      for (const balance of balances) {
+        if (balance.status === "paid") reversePaidReceivable(balance);
+        if (balance.status !== "open") continue;
+        balance.status = "cancelled";
+        balance.overdue = false;
+        balance.updatedAt = now();
       }
       tab.status = "cancelled";
       tab.paymentStatus = "cancelled";

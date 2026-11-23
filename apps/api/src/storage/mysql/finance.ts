@@ -95,6 +95,7 @@ import {
 import { randomUUID } from "node:crypto";
 import {
   branchOrDefault,
+  inJsonArray,
   latestDateCorrection,
   localDate,
   localMonth,
@@ -114,6 +115,39 @@ import {
   isStockOut,
   stockKey,
 } from "../../modules/finance/product-stock.js";
+
+/** Recebíveis de saldo gerados por baixas parciais a partir de `receivableId`, em cadeia (travados). */
+async function tabBalanceReceivables(
+  client: PoolClient,
+  clinicId: string,
+  receivableId: string | null,
+) {
+  const found: { id: string; status: string; amountInCents: number }[] = [];
+  const seen = new Set(receivableId ? [receivableId] : []);
+  let frontier = [...seen];
+  while (frontier.length) {
+    const result = await client.query<{
+      id: string;
+      status: string;
+      amountInCents: number;
+    }>(
+      `SELECT r.id,r.status,r.amount_in_cents AS "amountInCents"
+       FROM financial_events e
+       JOIN receivables r ON r.id=e.balance_receivable_id AND r.clinic_id=e.clinic_id
+       WHERE e.clinic_id=$1 AND ${inJsonArray("e.receivable_id", "$2")}
+       ORDER BY r.id FOR UPDATE`,
+      [clinicId, frontier],
+    );
+    frontier = [];
+    for (const item of result.rows) {
+      if (seen.has(item.id)) continue;
+      seen.add(item.id);
+      found.push(item);
+      frontier.push(item.id);
+    }
+  }
+  return found;
+}
 
 /** Insere um produto na comanda (reserva estoque); `false` se a comanda não existe. */
 async function addTabItem(
@@ -857,7 +891,14 @@ export function createFinanceRepository(
             ).rows[0]
           : undefined;
         const paid = Boolean(paidWith);
-        if (paid && !options.refundPayment)
+        // Saldos de baixas parciais (e saldos de saldos) são cobranças da mesma venda.
+        const balances = await tabBalanceReceivables(
+          client,
+          clinicId,
+          row.receivableId,
+        );
+        const paidBalances = balances.filter((item) => item.status === "paid");
+        if ((paid || paidBalances.length) && !options.refundPayment)
           throw new DomainError(
             "PATIENT_TAB_PAYMENT_REVERSAL_REQUIRED",
             "Estorne o pagamento no Financeiro antes de cancelar a comanda.",
@@ -929,6 +970,34 @@ export function createFinanceRepository(
               row.receivableId,
               actorUserId,
               row.totalInCents,
+              JSON.stringify({
+                source: "patient_tab",
+                tabId,
+                ...(options.reason ? { reason: options.reason } : {}),
+              }),
+            ],
+          );
+        }
+        for (const balance of balances) {
+          if (balance.status === "paid")
+            await repositoryContext.reversePaidReceivableWith(
+              client,
+              clinicId,
+              actorUserId,
+              balance.id,
+            );
+          else if (balance.status !== "open") continue;
+          await client.query(
+            `UPDATE receivables SET status='cancelled',updated_at=NOW(6) WHERE clinic_id=$1 AND id=$2`,
+            [clinicId, balance.id],
+          );
+          await client.query(
+            `INSERT INTO financial_events(clinic_id,receivable_id,actor_user_id,kind,amount_in_cents,metadata) VALUES($1,$2,$3,'cancellation',$4,$5)`,
+            [
+              clinicId,
+              balance.id,
+              actorUserId,
+              balance.amountInCents,
               JSON.stringify({
                 source: "patient_tab",
                 tabId,
