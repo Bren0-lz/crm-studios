@@ -220,7 +220,7 @@ describe("group name editing", () => {
       fireEvent.click(
         await screen.findByRole("button", { name: "Nova turma" }),
       );
-      const dialog = screen.getByRole("dialog", { name: "Nova turma" });
+      const dialog = await screen.findByRole("dialog", { name: "Nova turma" });
       for (const [label, value] of [
         ["Serviço", initial.serviceId],
         ["Profissional", initial.professionalId],
