@@ -86,23 +86,31 @@ test("the client reads and signs a long contract on an iPhone", async ({
     page.getByRole("heading", { name: "Contrato longo", exact: true }),
   ).toBeVisible();
 
+  await page.evaluate(() => document.fonts.ready);
+
   // 1. Nada passa da largura da tela.
   await noHorizontalScroll(page);
 
-  // 2. O texto fica dentro da folha e a folha termina antes do formulário.
-  const paper = page.locator(".public-signature-document .document-paper");
-  const overflow = await paper.evaluate((element) => ({
-    scroll: element.scrollHeight,
-    client: element.clientHeight,
-  }));
-  expect(overflow.scroll).toBeLessThanOrEqual(overflow.client + 1);
-  const paperBox = (await paper.boundingBox())!;
+  // 2. Mede a folha e o formulário no mesmo layout.
   const formTitle = page.getByRole("heading", {
     name: "Assinatura",
     exact: true,
   });
-  const formBox = (await formTitle.boundingBox())!;
-  expect(formBox.y).toBeGreaterThanOrEqual(paperBox.y + paperBox.height);
+  await expect(formTitle).toBeVisible();
+  const layout = await formTitle.evaluate((heading) => {
+    const paper = heading
+      .closest(".public-signature")
+      ?.querySelector(".public-signature-document .document-paper");
+    if (!paper) throw new Error("Folha do contrato não encontrada.");
+    return {
+      scrollHeight: paper.scrollHeight,
+      clientHeight: paper.clientHeight,
+      paperBottom: paper.getBoundingClientRect().bottom,
+      formTop: heading.getBoundingClientRect().top,
+    };
+  });
+  expect(layout.scrollHeight).toBeLessThanOrEqual(layout.clientHeight + 1);
+  expect(layout.formTop).toBeGreaterThanOrEqual(layout.paperBottom);
 
   // 3. Campos com 16 px ou mais: abaixo disso o Safari do iOS dá zoom ao tocar.
   for (const name of ["Nome completo", "CPF de quem assina"]) {
