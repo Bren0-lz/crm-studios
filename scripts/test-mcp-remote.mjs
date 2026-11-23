@@ -187,6 +187,7 @@ if (process.argv.includes("--local")) {
     await verifyManual(url, token);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    throw new Error(message.replaceAll(token, "[credencial omitida]"));
+    console.error(message.replaceAll(token, "[credencial omitida]"));
+    process.exitCode = 1;
   }
 }
