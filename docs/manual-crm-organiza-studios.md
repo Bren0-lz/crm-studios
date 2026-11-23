@@ -140,11 +140,11 @@ Os caminhos começam no menu lateral. O nome de uma opção pode variar se a cl�
 5. Informe nome, telefone e WhatsApp do contato de emergência. Se forem os próprios dados do cliente, clique em **Usar os dados do cliente**.
 6. Deixe sem seleção as opções de **O que o cliente vai fazer?**.
 7. Clique em **Salvar cliente**.
-8. Na janela **Cliente cadastrado**, clique em **Concluir**.
+8. Na lista de **Clientes**, busque pelo nome para localizar o cadastro.
 
-**Como saber se deu certo:** A janela confirma o cadastro. O teste encontra o cliente na busca.
+**Como saber se deu certo:** O formulário fecha e o cliente aparece na busca.
 
-**Se o botão não aparecer:** Confira se você tem permissão para cadastrar. Se **Salvar cliente** estiver desabilitado, confira os campos obrigatórios.
+**Se o botão não aparecer:** Confira se você tem permissão para cadastrar. Se **Salvar cliente** estiver desabilitado, confira os campos obrigatórios. O CPF é obrigatório no cadastro manual e deve ser único. Se o CRM informar que o CPF já está cadastrado, procure a ficha existente em **Clientes**.
 
 **Verificação:** Formulário visto na interface. O teste de integração confirma a gravação com **Salvar cliente**. A confirmação e a busca constam no teste de ponta a ponta, que cita uma opção antiga, registrada nas pendências.
 
