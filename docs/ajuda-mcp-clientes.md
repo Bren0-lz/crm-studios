@@ -1,6 +1,6 @@
 # Cadastrar um novo cliente sem contratar um plano
 
-Revisão conferida no código e nos testes: `8c39314434d6ba8c32c6cb43f86ba9bc12378ac5`.
+Revisão conferida no código e nos testes: `0e3485f61844fd9aa9d2adb79791ed09c0b28409`.
 
 - **Também perguntam:** Como cadastrar um novo cliente? Como faço só a ficha do cliente? Como cadastro um aluno?
 - **Onde começar:** Menu lateral → [Clientes](https://crm.organizastudios.com/clientes).
@@ -8,7 +8,7 @@ Revisão conferida no código e nos testes: `8c39314434d6ba8c32c6cb43f86ba9bc123
 
 1. Clique em **Novo cliente**, no topo da tela.
 2. Preencha **Nome completo**.
-3. Informe um **CPF** válido.
+3. Informe um **CPF** válido. Se ele já estiver cadastrado, busque a ficha existente em **Clientes**.
 4. Na seção **Contato**, preencha **Telefone** e **WhatsApp**.
 5. Na seção **Contato de emergência**, preencha **Nome**, **Telefone** e **WhatsApp**. Se o contato for o próprio cliente, use **Usar os dados do cliente**.
 6. Se aparecer a seção **O que o cliente vai fazer?**, deixe-a sem itens. Ela mostra **Nada adicionado: só o cadastro do cliente será salvo.**
@@ -20,4 +20,4 @@ Revisão conferida no código e nos testes: `8c39314434d6ba8c32c6cb43f86ba9bc123
 
 **Verificação:** Rótulos, permissão do botão, modo de consulta e aviso conferidos no código e no teste de perfil só de consulta. Cadastro, fechamento do formulário, busca e ausência da antiga confirmação conferidos no teste de ponta a ponta da mesma revisão. Não houve envio de formulário na produção nesta implementação.
 
-**Fontes:** [PatientsPage.tsx](https://github.com/Bren0-lz/crm-studios/blob/8c39314434d6ba8c32c6cb43f86ba9bc12378ac5/apps/web/src/features/patients/PatientsPage.tsx) · [PatientModal.tsx](https://github.com/Bren0-lz/crm-studios/blob/8c39314434d6ba8c32c6cb43f86ba9bc12378ac5/apps/web/src/features/patients/PatientModal.tsx) · [patient-nickname.integration.test.tsx](https://github.com/Bren0-lz/crm-studios/blob/8c39314434d6ba8c32c6cb43f86ba9bc12378ac5/apps/web/src/features/patients/patient-nickname.integration.test.tsx) · [patients.spec.ts](https://github.com/Bren0-lz/crm-studios/blob/8c39314434d6ba8c32c6cb43f86ba9bc12378ac5/e2e/patients.spec.ts) · [view-only-modules.integration.test.tsx](https://github.com/Bren0-lz/crm-studios/blob/8c39314434d6ba8c32c6cb43f86ba9bc12378ac5/apps/web/src/features/settings/view-only-modules.integration.test.tsx)
+**Fontes:** [PatientsPage.tsx](https://github.com/Bren0-lz/crm-studios/blob/0e3485f61844fd9aa9d2adb79791ed09c0b28409/apps/web/src/features/patients/PatientsPage.tsx) · [PatientModal.tsx](https://github.com/Bren0-lz/crm-studios/blob/0e3485f61844fd9aa9d2adb79791ed09c0b28409/apps/web/src/features/patients/PatientModal.tsx) · [patient-nickname.integration.test.tsx](https://github.com/Bren0-lz/crm-studios/blob/0e3485f61844fd9aa9d2adb79791ed09c0b28409/apps/web/src/features/patients/patient-nickname.integration.test.tsx) · [patients.spec.ts](https://github.com/Bren0-lz/crm-studios/blob/0e3485f61844fd9aa9d2adb79791ed09c0b28409/e2e/patients.spec.ts) · [view-only-modules.integration.test.tsx](https://github.com/Bren0-lz/crm-studios/blob/0e3485f61844fd9aa9d2adb79791ed09c0b28409/apps/web/src/features/settings/view-only-modules.integration.test.tsx)

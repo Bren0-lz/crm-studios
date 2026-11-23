@@ -1,8 +1,8 @@
 {
-  "revisao": "8c39314434d6ba8c32c6cb43f86ba9bc12378ac5",
-  "material": "857877be5a1e8be07e72c6908691ed66d1461b40f9307ac7f966f83ab03962b2",
+  "revisao": "ae971c52b54794dd1fb822294e5a1826497680d0",
+  "material": "c2da75d7a08561611788a91fb0261f1914bcc21a765e5c84c583b8f9e0b692c7",
   "manualPath": "docs/manual-crm-organiza-studios.md",
-  "manualSha256": "fff6ce64edd17f7bf655a03c795a836afa1a0f4a0ee52b1f67139d01c5e5c911",
+  "manualSha256": "0e777d85e81ce7fd5d1a7e12f51486efd373a0384e5f72c6053fcb3a9d100ff7",
   "sourceHashes": {
     "apps/web/src/features/agenda/AgendaCard.tsx": "0d9fdcda18fac410ce389ee5757f0243b83ff88f8c5bd6c7c78986676b5617dc",
     "apps/web/src/features/agenda/AppointmentDetailsModal.tsx": "e4302c2463bc416c98176469ce9003073f02ba50e4b456d60c10101e94774e85",
@@ -27,12 +27,12 @@
     "apps/web/src/features/finance/FinancePage.tsx": "de1751a48a4b8b9c32b43ff3ec70a206ba3d857860c8e94e4cbb0c30f26dce60",
     "apps/web/src/features/finance/ReceivablesList.tsx": "3ca34e3a490c10f5459d8027cab1dddad19dce1182bfc1a6573f586843c3a9e0",
     "apps/web/src/features/finance/SettleModal.tsx": "3a51defb5bb5b439f217672bad1f1c281016595b500d0fac34aba942079d04fc",
-    "apps/web/src/features/patients/PatientsPage.tsx": "bde5651e471978dcb5b475a0cf980aae064b67fe4648bbeea59a7ad4c923237a",
+    "apps/web/src/features/patients/PatientsPage.tsx": "ebc4e14d47f0f29182256661eadf988d1fe44e7108919e56f880939b3c8a6c9f",
     "apps/web/src/features/patients/PatientModal.tsx": "fa084141288eb7240e244a6ecf176b98e3ac4d0ff0ff281ae4448f4c1829581b",
     "apps/web/src/features/patients/patient-nickname.integration.test.tsx": "897497802d67c49144a729dd17ea3d5edd680952138e24cc92dfaa02f043a78c",
     "e2e/patients.spec.ts": "27c2bbdd5dabb10bb311bc5b1a944aaaf64b252e4208f2fd19b7e74d99cfdfc8",
     "apps/web/src/features/settings/view-only-modules.integration.test.tsx": "ef21ad9237922cc20a00563ce629bb166f2a871b094ada64743400c134eb206e",
-    "docs/ajuda-mcp-clientes.md": "c9cf923f5aded8a01f89aa94ac6b291838855c2d43a62f3708cacaf3fdabc623"
+    "docs/ajuda-mcp-clientes.md": "af09babc1aaee27e4ef9775ed17221df76e34107787431dc1e01b5d1e9b2a2c2"
   },
   "excluidos": [
     "Agendar um atendimento",
@@ -46,7 +46,7 @@
     {
       "id": "cadastrar-cliente",
       "titulo": "Cadastrar um novo cliente sem contratar um plano",
-      "trecho": "- **Também perguntam:** Como cadastrar um novo cliente? Como faço só a ficha do cliente? Como cadastro um aluno?\n- **Onde começar:** Menu lateral → [Clientes](https://crm.organizastudios.com/clientes).\n- **Antes de começar:** Seu acesso deve permitir cadastrar clientes. Separe os dados do cliente e do contato de emergência. Este tutorial cobre somente o cadastro, sem adicionar plano, serviço, produto ou aula experimental.\n\n1. Clique em **Novo cliente**, no topo da tela.\n2. Preencha **Nome completo**.\n3. Informe um **CPF** válido.\n4. Na seção **Contato**, preencha **Telefone** e **WhatsApp**.\n5. Na seção **Contato de emergência**, preencha **Nome**, **Telefone** e **WhatsApp**. Se o contato for o próprio cliente, use **Usar os dados do cliente**.\n6. Se aparecer a seção **O que o cliente vai fazer?**, deixe-a sem itens. Ela mostra **Nada adicionado: só o cadastro do cliente será salvo.**\n7. Clique em **Salvar cliente**.\n\n**Como saber se deu certo:** O formulário fecha e aparece um aviso de cadastro criado. Para localizar o cadastro, use **Buscar por nome, CPF ou telefone** e clique em **Buscar**. O teste confirma que o cliente pode ser encontrado e editado após salvar. Este fluxo não exige clicar em Concluir nem abre a antiga confirmação Cliente cadastrado.\n\n**Se o botão não aparecer:** Confira se seu acesso permite cadastrar clientes. Em um perfil só de consulta, a lista oferece **Ver**, abre **Consultar cliente** com os campos bloqueados e não oferece salvar alterações. Se **Salvar cliente** estiver desabilitado, confira os campos obrigatórios.\n\n**Verificação:** Rótulos, permissão do botão, modo de consulta e aviso conferidos no código e no teste de perfil só de consulta. Cadastro, fechamento do formulário, busca e ausência da antiga confirmação conferidos no teste de ponta a ponta da mesma revisão. Não houve envio de formulário na produção nesta implementação.",
+      "trecho": "- **Também perguntam:** Como cadastrar um novo cliente? Como faço só a ficha do cliente? Como cadastro um aluno?\n- **Onde começar:** Menu lateral → [Clientes](https://crm.organizastudios.com/clientes).\n- **Antes de começar:** Seu acesso deve permitir cadastrar clientes. Separe os dados do cliente e do contato de emergência. Este tutorial cobre somente o cadastro, sem adicionar plano, serviço, produto ou aula experimental.\n\n1. Clique em **Novo cliente**, no topo da tela.\n2. Preencha **Nome completo**.\n3. Informe um **CPF** válido. Se ele já estiver cadastrado, busque a ficha existente em **Clientes**.\n4. Na seção **Contato**, preencha **Telefone** e **WhatsApp**.\n5. Na seção **Contato de emergência**, preencha **Nome**, **Telefone** e **WhatsApp**. Se o contato for o próprio cliente, use **Usar os dados do cliente**.\n6. Se aparecer a seção **O que o cliente vai fazer?**, deixe-a sem itens. Ela mostra **Nada adicionado: só o cadastro do cliente será salvo.**\n7. Clique em **Salvar cliente**.\n\n**Como saber se deu certo:** O formulário fecha e aparece um aviso de cadastro criado. Para localizar o cadastro, use **Buscar por nome, CPF ou telefone** e clique em **Buscar**. O teste confirma que o cliente pode ser encontrado e editado após salvar. Este fluxo não exige clicar em Concluir nem abre a antiga confirmação Cliente cadastrado.\n\n**Se o botão não aparecer:** Confira se seu acesso permite cadastrar clientes. Em um perfil só de consulta, a lista oferece **Ver**, abre **Consultar cliente** com os campos bloqueados e não oferece salvar alterações. Se **Salvar cliente** estiver desabilitado, confira os campos obrigatórios.\n\n**Verificação:** Rótulos, permissão do botão, modo de consulta e aviso conferidos no código e no teste de perfil só de consulta. Cadastro, fechamento do formulário, busca e ausência da antiga confirmação conferidos no teste de ponta a ponta da mesma revisão. Não houve envio de formulário na produção nesta implementação.",
       "referencias": [
         {
           "titulo": "Clientes",
@@ -54,23 +54,23 @@
         },
         {
           "titulo": "PatientsPage.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/8c39314434d6ba8c32c6cb43f86ba9bc12378ac5/apps/web/src/features/patients/PatientsPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/0e3485f61844fd9aa9d2adb79791ed09c0b28409/apps/web/src/features/patients/PatientsPage.tsx"
         },
         {
           "titulo": "PatientModal.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/8c39314434d6ba8c32c6cb43f86ba9bc12378ac5/apps/web/src/features/patients/PatientModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/0e3485f61844fd9aa9d2adb79791ed09c0b28409/apps/web/src/features/patients/PatientModal.tsx"
         },
         {
           "titulo": "patient-nickname.integration.test.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/8c39314434d6ba8c32c6cb43f86ba9bc12378ac5/apps/web/src/features/patients/patient-nickname.integration.test.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/0e3485f61844fd9aa9d2adb79791ed09c0b28409/apps/web/src/features/patients/patient-nickname.integration.test.tsx"
         },
         {
           "titulo": "patients.spec.ts",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/8c39314434d6ba8c32c6cb43f86ba9bc12378ac5/e2e/patients.spec.ts"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/0e3485f61844fd9aa9d2adb79791ed09c0b28409/e2e/patients.spec.ts"
         },
         {
           "titulo": "view-only-modules.integration.test.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/8c39314434d6ba8c32c6cb43f86ba9bc12378ac5/apps/web/src/features/settings/view-only-modules.integration.test.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/0e3485f61844fd9aa9d2adb79791ed09c0b28409/apps/web/src/features/settings/view-only-modules.integration.test.tsx"
         }
       ]
     },
@@ -89,23 +89,23 @@
         },
         {
           "titulo": "AgendaCard.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/8c39314434d6ba8c32c6cb43f86ba9bc12378ac5/apps/web/src/features/agenda/AgendaCard.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/ae971c52b54794dd1fb822294e5a1826497680d0/apps/web/src/features/agenda/AgendaCard.tsx"
         },
         {
           "titulo": "AppointmentDetailsModal.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/8c39314434d6ba8c32c6cb43f86ba9bc12378ac5/apps/web/src/features/agenda/AppointmentDetailsModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/ae971c52b54794dd1fb822294e5a1826497680d0/apps/web/src/features/agenda/AppointmentDetailsModal.tsx"
         },
         {
           "titulo": "agenda-card-menu.integration.test.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/8c39314434d6ba8c32c6cb43f86ba9bc12378ac5/apps/web/src/features/agenda/agenda-card-menu.integration.test.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/ae971c52b54794dd1fb822294e5a1826497680d0/apps/web/src/features/agenda/agenda-card-menu.integration.test.tsx"
         },
         {
           "titulo": "appointment-attendance.integration.test.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/8c39314434d6ba8c32c6cb43f86ba9bc12378ac5/apps/web/src/features/agenda/appointment-attendance.integration.test.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/ae971c52b54794dd1fb822294e5a1826497680d0/apps/web/src/features/agenda/appointment-attendance.integration.test.tsx"
         },
         {
           "titulo": "agenda-cancelled.integration.test.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/8c39314434d6ba8c32c6cb43f86ba9bc12378ac5/apps/web/src/features/agenda/agenda-cancelled.integration.test.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/ae971c52b54794dd1fb822294e5a1826497680d0/apps/web/src/features/agenda/agenda-cancelled.integration.test.tsx"
         }
       ]
     },
@@ -124,15 +124,15 @@
         },
         {
           "titulo": "CommercialPage.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/8c39314434d6ba8c32c6cb43f86ba9bc12378ac5/apps/web/src/features/commercial/CommercialPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/ae971c52b54794dd1fb822294e5a1826497680d0/apps/web/src/features/commercial/CommercialPage.tsx"
         },
         {
           "titulo": "LeadModal.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/8c39314434d6ba8c32c6cb43f86ba9bc12378ac5/apps/web/src/features/commercial/LeadModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/ae971c52b54794dd1fb822294e5a1826497680d0/apps/web/src/features/commercial/LeadModal.tsx"
         },
         {
           "titulo": "lead-form-conversion.integration.test.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/8c39314434d6ba8c32c6cb43f86ba9bc12378ac5/apps/web/src/features/commercial/lead-form-conversion.integration.test.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/ae971c52b54794dd1fb822294e5a1826497680d0/apps/web/src/features/commercial/lead-form-conversion.integration.test.tsx"
         }
       ]
     },
@@ -151,19 +151,19 @@
         },
         {
           "titulo": "CommercialPage.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/8c39314434d6ba8c32c6cb43f86ba9bc12378ac5/apps/web/src/features/commercial/CommercialPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/ae971c52b54794dd1fb822294e5a1826497680d0/apps/web/src/features/commercial/CommercialPage.tsx"
         },
         {
           "titulo": "LeadCard.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/8c39314434d6ba8c32c6cb43f86ba9bc12378ac5/apps/web/src/features/commercial/LeadCard.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/ae971c52b54794dd1fb822294e5a1826497680d0/apps/web/src/features/commercial/LeadCard.tsx"
         },
         {
           "titulo": "LeadConvertModal.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/8c39314434d6ba8c32c6cb43f86ba9bc12378ac5/apps/web/src/features/commercial/LeadConvertModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/ae971c52b54794dd1fb822294e5a1826497680d0/apps/web/src/features/commercial/LeadConvertModal.tsx"
         },
         {
           "titulo": "lead-form-conversion.integration.test.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/8c39314434d6ba8c32c6cb43f86ba9bc12378ac5/apps/web/src/features/commercial/lead-form-conversion.integration.test.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/ae971c52b54794dd1fb822294e5a1826497680d0/apps/web/src/features/commercial/lead-form-conversion.integration.test.tsx"
         }
       ]
     },
@@ -182,15 +182,15 @@
         },
         {
           "titulo": "GroupsPage.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/8c39314434d6ba8c32c6cb43f86ba9bc12378ac5/apps/web/src/features/groups/GroupsPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/ae971c52b54794dd1fb822294e5a1826497680d0/apps/web/src/features/groups/GroupsPage.tsx"
         },
         {
           "titulo": "GroupModal.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/8c39314434d6ba8c32c6cb43f86ba9bc12378ac5/apps/web/src/features/groups/GroupModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/ae971c52b54794dd1fb822294e5a1826497680d0/apps/web/src/features/groups/GroupModal.tsx"
         },
         {
           "titulo": "groups.spec.ts",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/8c39314434d6ba8c32c6cb43f86ba9bc12378ac5/e2e/groups.spec.ts"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/ae971c52b54794dd1fb822294e5a1826497680d0/e2e/groups.spec.ts"
         }
       ]
     },
@@ -209,15 +209,15 @@
         },
         {
           "titulo": "GroupsPage.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/8c39314434d6ba8c32c6cb43f86ba9bc12378ac5/apps/web/src/features/groups/GroupsPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/ae971c52b54794dd1fb822294e5a1826497680d0/apps/web/src/features/groups/GroupsPage.tsx"
         },
         {
           "titulo": "GroupDetailsModal.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/8c39314434d6ba8c32c6cb43f86ba9bc12378ac5/apps/web/src/features/groups/GroupDetailsModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/ae971c52b54794dd1fb822294e5a1826497680d0/apps/web/src/features/groups/GroupDetailsModal.tsx"
         },
         {
           "titulo": "groups.spec.ts",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/8c39314434d6ba8c32c6cb43f86ba9bc12378ac5/e2e/groups.spec.ts"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/ae971c52b54794dd1fb822294e5a1826497680d0/e2e/groups.spec.ts"
         }
       ]
     },
@@ -236,11 +236,11 @@
         },
         {
           "titulo": "GroupsPage.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/8c39314434d6ba8c32c6cb43f86ba9bc12378ac5/apps/web/src/features/groups/GroupsPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/ae971c52b54794dd1fb822294e5a1826497680d0/apps/web/src/features/groups/GroupsPage.tsx"
         },
         {
           "titulo": "groups.spec.ts",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/8c39314434d6ba8c32c6cb43f86ba9bc12378ac5/e2e/groups.spec.ts"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/ae971c52b54794dd1fb822294e5a1826497680d0/e2e/groups.spec.ts"
         }
       ]
     },
@@ -259,15 +259,15 @@
         },
         {
           "titulo": "PlansPage.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/8c39314434d6ba8c32c6cb43f86ba9bc12378ac5/apps/web/src/features/plans/PlansPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/ae971c52b54794dd1fb822294e5a1826497680d0/apps/web/src/features/plans/PlansPage.tsx"
         },
         {
           "titulo": "PlanModal.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/8c39314434d6ba8c32c6cb43f86ba9bc12378ac5/apps/web/src/features/plans/PlanModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/ae971c52b54794dd1fb822294e5a1826497680d0/apps/web/src/features/plans/PlanModal.tsx"
         },
         {
           "titulo": "plans-finance.spec.ts",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/8c39314434d6ba8c32c6cb43f86ba9bc12378ac5/e2e/plans-finance.spec.ts"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/ae971c52b54794dd1fb822294e5a1826497680d0/e2e/plans-finance.spec.ts"
         }
       ]
     },
@@ -286,15 +286,15 @@
         },
         {
           "titulo": "WaitlistPage.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/8c39314434d6ba8c32c6cb43f86ba9bc12378ac5/apps/web/src/features/waitlist/WaitlistPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/ae971c52b54794dd1fb822294e5a1826497680d0/apps/web/src/features/waitlist/WaitlistPage.tsx"
         },
         {
           "titulo": "WaitlistEntryModal.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/8c39314434d6ba8c32c6cb43f86ba9bc12378ac5/apps/web/src/features/waitlist/WaitlistEntryModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/ae971c52b54794dd1fb822294e5a1826497680d0/apps/web/src/features/waitlist/WaitlistEntryModal.tsx"
         },
         {
           "titulo": "waitlist-page.integration.test.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/8c39314434d6ba8c32c6cb43f86ba9bc12378ac5/apps/web/src/features/waitlist/waitlist-page.integration.test.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/ae971c52b54794dd1fb822294e5a1826497680d0/apps/web/src/features/waitlist/waitlist-page.integration.test.tsx"
         }
       ]
     },
@@ -313,19 +313,19 @@
         },
         {
           "titulo": "FinancePage.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/8c39314434d6ba8c32c6cb43f86ba9bc12378ac5/apps/web/src/features/finance/FinancePage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/ae971c52b54794dd1fb822294e5a1826497680d0/apps/web/src/features/finance/FinancePage.tsx"
         },
         {
           "titulo": "ReceivablesList.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/8c39314434d6ba8c32c6cb43f86ba9bc12378ac5/apps/web/src/features/finance/ReceivablesList.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/ae971c52b54794dd1fb822294e5a1826497680d0/apps/web/src/features/finance/ReceivablesList.tsx"
         },
         {
           "titulo": "SettleModal.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/8c39314434d6ba8c32c6cb43f86ba9bc12378ac5/apps/web/src/features/finance/SettleModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/ae971c52b54794dd1fb822294e5a1826497680d0/apps/web/src/features/finance/SettleModal.tsx"
         },
         {
           "titulo": "plans-finance.spec.ts",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/8c39314434d6ba8c32c6cb43f86ba9bc12378ac5/e2e/plans-finance.spec.ts"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/ae971c52b54794dd1fb822294e5a1826497680d0/e2e/plans-finance.spec.ts"
         }
       ]
     }
