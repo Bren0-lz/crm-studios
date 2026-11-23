@@ -80,7 +80,9 @@ node scripts/test-mcp-remote.mjs
 unset MCP_TEST_TOKEN
 ```
 
-Para o bundle local, use `http://127.0.0.1:<porta>/api/mcp`. HTTP só é aceito em localhost. O script valida inicialização, lista exatamente uma ferramenta, consulta **Como cadastrar um novo cliente?**, confere falta de resultado em **Como emitir nota fiscal eletrônica?** e testa o 401 sem credencial.
+Execute o script a partir do checkout que gerou o artefato. Ele exige que a revisão das fontes e o hash retornados pelo servidor coincidam com o corpus desse checkout. Também valida o 401 sem credencial, a inicialização, a ferramenta única, o tutorial de cadastro e a ausência de evidência sobre nota fiscal. A verificação rejeita redirecionamentos. HTTP só é aceito em localhost.
+
+Para testar o artefato em memória, execute `npm run hostinger-build` e `node scripts/test-mcp-remote.mjs --local`. O CI usa esses comandos com Node 22. O modo local cria uma credencial descartável e também verifica o 503 com o piloto desativado, o acesso à saúde da API, a autenticação de Clientes e a entrega da interface pelo servidor da Hostinger.
 
 ### Conector na conta do cliente no Claude
 
