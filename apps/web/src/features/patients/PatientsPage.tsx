@@ -16,6 +16,7 @@ import {
 import {
   ChevronLeft,
   ChevronRight,
+  Eye,
   FileDown,
   FileUp,
   Pencil,
@@ -87,6 +88,8 @@ export function PatientsPage() {
   const [page, setPage] = useState(1);
   const [notice, setNotice] = useState("");
   const canManage = canEdit("patients");
+  // Sem permissão de editar, a ficha abre só para consulta (QA-R2-02).
+  const canUpdate = can("patients.update");
   const canEnroll = can("groups.enroll");
   const canExport = can("patients.export");
   const configuredTags = usePatientTags(true, true);
@@ -568,11 +571,15 @@ export function PatientsPage() {
                     <button
                       type="button"
                       className="secondary-button button-sm"
-                      aria-label={`Editar ${patient.fullName}`}
+                      aria-label={`${canUpdate ? "Editar" : "Ver"} ${patient.fullName}`}
                       onClick={() => setEditingPatient(patient)}
                     >
-                      <Pencil size={14} aria-hidden="true" />
-                      Editar
+                      {canUpdate ? (
+                        <Pencil size={14} aria-hidden="true" />
+                      ) : (
+                        <Eye size={14} aria-hidden="true" />
+                      )}
+                      {canUpdate ? "Editar" : "Ver"}
                     </button>
                   </div>
                 </div>

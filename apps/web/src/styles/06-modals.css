@@ -289,6 +289,15 @@
   gap: var(--space-4);
 }
 
+/* Agrupa os campos para desativá-los juntos sem mudar a grade do formulário. */
+.form-contents {
+  display: contents;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
 .form-grid .span-2 {
   grid-column: span 2;
 }

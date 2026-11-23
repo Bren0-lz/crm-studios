@@ -488,10 +488,10 @@ describe("application shell", () => {
       </MemoryRouter>,
     );
     fireEvent.click(
-      await screen.findByRole("button", { name: "Editar Helena Almeida" }),
+      await screen.findByRole("button", { name: "Ver Helena Almeida" }),
     );
     expect(
-      screen.getByRole("heading", { name: "Editar cliente" }),
+      screen.getByRole("heading", { name: "Consultar cliente" }),
     ).toBeInTheDocument();
     expect(
       screen.queryByRole("region", { name: "Histórico" }),
@@ -1115,7 +1115,7 @@ describe("application shell", () => {
         <App />
       </MemoryRouter>,
     );
-    await screen.findByRole("button", { name: "Editar Helena Almeida" });
+    await screen.findByRole("button", { name: "Ver Helena Almeida" });
     // Desde a T053 a fisioterapeuta só consulta Clientes: sem criar nem importar.
     expect(
       screen.queryByRole("button", { name: /Novo cliente/ }),
