@@ -348,7 +348,7 @@ describe("management reports redesign", () => {
     expect(
       screen.getByText(/Atendidos de 01\/08\/2026 a 31\/08\/2026/),
     ).toBeInTheDocument();
-    expect(scroll).toHaveBeenCalled();
+    await waitFor(() => expect(scroll).toHaveBeenCalled());
   });
   it("filters clients without return by name and next appointment", async () => {
     session();
