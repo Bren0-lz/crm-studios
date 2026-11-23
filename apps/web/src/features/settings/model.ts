@@ -200,7 +200,7 @@ export const settingsTabs: Array<{
     key: "catalogs",
     label: "Cadastros",
     title: "Cadastros da clínica",
-    description: "Listas compartilhadas do comercial e do clínico.",
+    description: "Listas compartilhadas do comercial.",
     icon: Tags,
   },
   {

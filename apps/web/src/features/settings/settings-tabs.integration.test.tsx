@@ -358,16 +358,27 @@ describe("settings tabs", () => {
     expect(
       within(catalogs).queryByText("Serviços e salas"),
     ).not.toBeInTheDocument();
+    expect(within(catalogs).queryByRole("tab")).not.toBeInTheDocument();
     expect(
-      within(catalogs)
-        .getAllByRole("tab")
-        .map((tab) => tab.textContent),
-    ).toEqual(["Comercial", "Clínico"]);
+      within(catalogs).queryByRole("heading", { name: "Grupos musculares" }),
+    ).not.toBeInTheDocument();
     expect(
-      within(catalogs).getByRole("tab", { name: "Comercial" }),
-    ).toHaveAttribute("aria-selected", "true");
+      within(catalogs).queryByRole("heading", {
+        name: "Aparelhos e exercícios",
+      }),
+    ).not.toBeInTheDocument();
     expect(
       await within(catalogs).findByRole("region", { name: "Origens" }),
+    ).toBeInTheDocument();
+    expect(
+      await within(catalogs).findByRole("region", {
+        name: "Formas de contato",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      await within(catalogs).findByRole("region", {
+        name: "Motivos de não efetivação",
+      }),
     ).toBeInTheDocument();
     expect(
       within(catalogs).queryByRole("region", { name: "Interesses" }),

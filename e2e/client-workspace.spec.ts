@@ -82,7 +82,7 @@ test("preserves a clinical attachment through keyboard navigation, an upload fai
   await expect(page.getByText("avaliacao.pdf", { exact: true })).toBeVisible();
 });
 
-test("manages clinical catalogs in settings and creates, orders, copies and records customer workouts", async ({
+test("shows commercial catalogs in settings and creates, orders, copies and records customer workouts", async ({
   page,
   api,
 }) => {
@@ -91,43 +91,33 @@ test("manages clinical catalogs in settings and creates, orders, copies and reco
   await login(page);
   await page.goto("/configuracoes");
   await page.getByRole("tab", { name: "Cadastros", exact: true }).click();
-  await page.getByRole("tab", { name: "Clínico", exact: true }).click();
+  await expect(
+    page.getByRole("tab", { name: "Clínico", exact: true }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole("heading", { name: "Origens", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Grupos musculares", exact: true }),
+  ).toHaveCount(0);
   await expect(
     page.getByRole("heading", { name: "Aparelhos e exercícios", exact: true }),
-  ).toBeVisible();
-  await page
-    .getByRole("button", { name: "Novo registro", exact: true })
-    .click();
-  let dialog = page.getByRole("dialog", { name: "Novo registro", exact: true });
-  await dialog.getByLabel("Nome", { exact: true }).fill("Reformer de teste");
-  await dialog.getByRole("button", { name: "Salvar", exact: true }).click();
-  await expect(dialog).toHaveCount(0);
-  await expect(
-    page.getByRole("heading", { name: "Reformer de teste", exact: true }),
-  ).toBeVisible();
-  const equipment = (
-    await (await api.get("/clinical-resources/catalog")).json()
-  ).find((entry: { name: string }) => entry.name === "Reformer de teste");
-  await page
-    .getByRole("combobox", { name: "Seção", exact: true })
-    .selectOption("exercise");
-  await page
-    .getByRole("button", { name: "Novo registro", exact: true })
-    .click();
-  dialog = page.getByRole("dialog", { name: "Novo registro", exact: true });
-  await dialog
-    .getByLabel("Nome", { exact: true })
-    .fill("Mobilidade no reformer");
-  await dialog
-    .getByRole("combobox", { name: "Aparelho", exact: true })
-    .selectOption(equipment.id);
-  await dialog.getByRole("button", { name: "Salvar", exact: true }).click();
-  await expect(dialog).toHaveCount(0);
-  const exercise = (
-      await (await api.get("/clinical-resources/catalog")).json()
-    ).find(
-      (entry: { name: string }) => entry.name === "Mobilidade no reformer",
-    ),
+  ).toHaveCount(0);
+  const equipmentResponse = await api.post("/clinical-resources", {
+    data: { kind: "equipment", name: "Reformer de teste", active: true },
+  });
+  expect(equipmentResponse.status()).toBe(201);
+  const equipment = await equipmentResponse.json();
+  const exerciseResponse = await api.post("/clinical-resources", {
+    data: {
+      kind: "exercise",
+      name: "Mobilidade no reformer",
+      equipmentId: equipment.id,
+      active: true,
+    },
+  });
+  expect(exerciseResponse.status()).toBe(201);
+  const exercise = await exerciseResponse.json(),
     otherResponse = await api.post("/clinical-resources", {
       data: {
         kind: "exercise",
@@ -154,7 +144,7 @@ test("manages clinical catalogs in settings and creates, orders, copies and reco
   await page
     .getByRole("button", { name: "Novo registro", exact: true })
     .click();
-  dialog = page.getByRole("dialog", { name: "Novo registro", exact: true });
+  let dialog = page.getByRole("dialog", { name: "Novo registro", exact: true });
   await dialog
     .getByLabel("Nome", { exact: true })
     .fill("Treino personalizado da equipe");
