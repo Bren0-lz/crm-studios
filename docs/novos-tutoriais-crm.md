@@ -1,7 +1,7 @@
 # Novos tutoriais do CRM Organiza Studios
 
 **Inspeção:** 20/11/2026, horário de São Paulo.  
-**Revisão funcional consultada da branch main:** [`dd13b30dbf99a361899221397f476792601a54d2`](https://github.com/Bren0-lz/crm-studios/commit/dd13b30dbf99a361899221397f476792601a54d2). A main foi conferida novamente ao fim e continuava nesse SHA. Todas as referências de código e testes abaixo estão fixadas nessa revisão.  
+**Revisão funcional consultada da branch main:** [`dd13b30dbf99a361899221397f476792601a54d2`](https://github.com/Bren0-lz/crm-studios/commit/dd13b30dbf99a361899221397f476792601a54d2). A main foi conferida novamente ao fim e continuava nesse SHA. As referências de código e testes da inspeção original estão fixadas nessa revisão.<br>
 **Site:** [crm.organizastudios.com](https://crm.organizastudios.com). A revisão exata publicada não foi identificada; não se presume que seja o mesmo commit.  
 **Sessão:** perfil Admin, já autenticado no Brave. Não foi necessário novo login. A inspeção não foi feita no Chrome.  
 **Base:** os 15 tutoriais anteriores foram consultados na revisão de documentação disponível. Eles não foram reescritos. Este complemento usa os identificadores **tarefa-16 a tarefa-101**.
@@ -2106,7 +2106,7 @@ Os prazos de contatos incluem aniversário, veio uma vez e não voltou, plano ac
 | Assunto | Tela publicada e fonte da revisão consultada | Conclusão |
 | --- | --- | --- |
 | Versão publicada | Não foi encontrada identificação conclusiva do commit em execução. | Não atribuir automaticamente o SHA da main ao site publicado. Não foi comprovada divergência de implantação. |
-| Novo cliente | A tela e o componente atual oferecem itens em O que o cliente vai fazer?. O teste e2e ainda procura Só cadastrar por enquanto. | Divergência entre teste e formulário na mesma revisão; usar o formulário e os testes de cadastro guiado para os novos guias. |
+| Novo cliente | A seção **O que o cliente vai fazer?** aceita salvar o cadastro sem adicionar itens. | O teste atual confere **Salvar cliente**, o fechamento do formulário e a busca. |
 | Novo lead | Nesta sessão Origem/Interesse vieram preenchidos; continuam obrigatórios. | Revalidar o texto anterior que dizia que sempre começavam em Selecione; valores dependem do estado/catálogo. |
 | Relatórios | Há cinco abas principais e subdivisões internas. | Corrigir o inventário anterior de nove abas no mesmo nível. |
 | Evolução clínica | A interface oferece **Linha do tempo** e **Buscar no histórico** para os eventos clínicos exibidos. | Retirar os guias de criação, edição, finalização e adendo de evoluções. |
