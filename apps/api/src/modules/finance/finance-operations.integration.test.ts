@@ -278,6 +278,21 @@ describe("mixed tabs and financial classification", () => {
       expensesInCents: 0,
       resultInCents: 12345,
     });
+    const categoryDetails = await app.inject({
+      method: "GET",
+      url: `/finance/dre?from=2039-01-01&to=2039-01-31&categoryId=${category.id}`,
+      headers,
+    });
+    expect(categoryDetails.statusCode).toBe(200);
+    expect(categoryDetails.json().categoryEntries).toEqual([
+      {
+        id: created.json().id,
+        kind: "income",
+        competence: "2039-01",
+        description: "Lançamento manual",
+        amountInCents: 12345,
+      },
+    ]);
     await expect(
       repository.createManualReceivable(
         "99999999-9999-4999-8999-999999999999",
