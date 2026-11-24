@@ -27,6 +27,7 @@ import {
   serviceInputSchema,
   singlePlanSessionPrices,
   type ApiError,
+  type Appointment,
   type Holiday,
   type HolidayBatchResult,
   type ClinicalAppointmentOption,
@@ -58,6 +59,22 @@ export function registerAgendaRoutes(context: RouteContext) {
     events,
   } = context;
   const professionalScope = agendaProfessionalScope(context);
+
+  async function refreshPastAppointments(
+    clinicId: string,
+    appointments: Appointment[],
+  ) {
+    if (!appointments.some((item) => Date.parse(item.endsAt) <= Date.now()))
+      return appointments;
+    await autoFinalizer.run(clinicId, { force: true });
+    return Promise.all(
+      appointments.map(async (item) =>
+        Date.parse(item.endsAt) <= Date.now()
+          ? ((await repository.findAppointment(clinicId, item.id)) ?? item)
+          : item,
+      ),
+    );
+  }
 
   /** Remarcar/sucessor mantém o serviço: o profissional e a sala novos precisam atendê-lo. */
   async function assertMovedServiceAvailable(
@@ -407,7 +424,10 @@ export function registerAgendaRoutes(context: RouteContext) {
         request.user.sub,
         [appointment],
       );
-      return reply.status(201).send(appointment);
+      const [updated] = await refreshPastAppointments(request.user.clinicId, [
+        appointment,
+      ]);
+      return reply.status(201).send(updated);
     },
   );
 
@@ -447,7 +467,11 @@ export function registerAgendaRoutes(context: RouteContext) {
         request.user.sub,
         appointments,
       );
-      return reply.status(201).send(appointments);
+      return reply
+        .status(201)
+        .send(
+          await refreshPastAppointments(request.user.clinicId, appointments),
+        );
     },
   );
 
@@ -835,7 +859,10 @@ export function registerAgendaRoutes(context: RouteContext) {
         request.user.sub,
         [appointment],
       );
-      return reply.status(201).send(appointment);
+      const [updated] = await refreshPastAppointments(request.user.clinicId, [
+        appointment,
+      ]);
+      return reply.status(201).send(updated);
     },
   );
 }

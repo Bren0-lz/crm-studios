@@ -66,6 +66,35 @@ async function setup() {
 }
 
 describe("appointment auto finalization", () => {
+  it("returns the final status when creating a past appointment", async () => {
+    const { app, headers, repository, saveSettings } = await setup();
+    const [professional] = await repository.listProfessionals(clinicId);
+    const [room] = await repository.listRooms(clinicId);
+    const [service] = await repository.listServices(clinicId);
+    const [patient] = await repository.listPatients(clinicId);
+    const settings = await saveSettings({ enabled: true, delayMinutes: 0 });
+    expect(settings.statusCode).toBe(200);
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/appointments",
+      headers,
+      payload: {
+        patientId: patient!.id,
+        professionalId: professional!.id,
+        roomId: room!.id,
+        serviceId: service!.id,
+        startsAt: "2039-06-09T12:00:00Z",
+        visitType: "trial",
+      },
+    });
+    expect(response.statusCode, response.body).toBe(201);
+    expect(response.json()).toMatchObject({
+      status: "completed",
+      autoCompletedAt: "2039-06-10T18:00:00.000Z",
+    });
+  });
+
   it("starts disabled and keeps past appointments pending", async () => {
     const { app, headers, appointmentAt } = await setup();
     const past = await appointmentAt("2039-06-09T12:00:00Z");
