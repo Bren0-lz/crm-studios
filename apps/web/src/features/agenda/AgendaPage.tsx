@@ -244,8 +244,9 @@ export function AgendaPage() {
   const visibleAppointments = showCancelled
     ? shownAppointments
     : shownAppointments.filter((item) => item.status !== "cancelled");
+  const showCommercialEvents = !contextPatientId && canView("events");
   const eventsByDay = new Map<string, CommercialEvent[]>();
-  for (const event of commercialEvents) {
+  for (const event of showCommercialEvents ? commercialEvents : []) {
     const day = localIsoDate(new Date(event.startsAt));
     eventsByDay.set(day, [...(eventsByDay.get(day) ?? []), event]);
   }
@@ -391,21 +392,20 @@ export function AgendaPage() {
     user?.role,
   ]);
   useEffect(() => {
-    if (contextPatientId || !canView("events")) {
-      setCommercialEvents([]);
-      return;
-    }
-    const controller = new AbortController();
+    if (!showCommercialEvents) return;
+    let active = true;
     api.events().then(
       (items) => {
-        if (!controller.signal.aborted) setCommercialEvents(items);
+        if (active) setCommercialEvents(items);
       },
       (cause: Error) => {
-        if (!controller.signal.aborted) setError(cause.message);
+        if (active) setError(cause.message);
       },
     );
-    return () => controller.abort();
-  }, [canView, contextPatientId, rangeFrom, rangeTo]);
+    return () => {
+      active = false;
+    };
+  }, [showCommercialEvents, rangeFrom, rangeTo]);
   function moveDay(amount: number) {
     setLoading(true);
     setError("");
