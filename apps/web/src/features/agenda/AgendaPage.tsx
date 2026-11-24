@@ -1,3 +1,4 @@
+import { CommercialAgendaEvents } from "./CommercialAgendaEvents";
 import { AgendaNoteCard } from "./AgendaNoteCard";
 import { AgendaNoteModal } from "./AgendaNoteModal";
 import { AgendaNoteDetailsModal } from "./AgendaNoteDetailsModal";
@@ -13,6 +14,7 @@ import { PatientContextNotice } from "../../shared/components/PatientContextNoti
 import type {
   Appointment,
   AppointmentStatus,
+  CommercialEvent,
   GroupSession,
   Holiday,
   Patient,
@@ -121,6 +123,9 @@ export function AgendaPage() {
   const [blocks, setBlocks] = useState<ScheduleBlock[]>([]);
   const [cancellingBlock, setCancellingBlock] = useState<ScheduleBlock | null>(
     null,
+  );
+  const [commercialEvents, setCommercialEvents] = useState<CommercialEvent[]>(
+    [],
   );
   const [groupSessions, setGroupSessions] = useState<GroupSession[]>([]);
   const [holidays, setHolidays] = useState<Holiday[]>([]);
@@ -240,11 +245,20 @@ export function AgendaPage() {
   const visibleAppointments = showCancelled
     ? shownAppointments
     : shownAppointments.filter((item) => item.status !== "cancelled");
+  const showCommercialEvents = !contextPatientId && canView("events");
+  const eventsByDay = new Map<string, CommercialEvent[]>();
+  for (const event of showCommercialEvents ? commercialEvents : []) {
+    const day = localIsoDate(new Date(event.startsAt));
+    eventsByDay.set(day, [...(eventsByDay.get(day) ?? []), event]);
+  }
+  const selectedCommercialEvents =
+    eventsByDay.get(localIsoDate(selectedDate)) ?? [];
   const dayEventCount =
     shownAppointments.filter((item) => item.status !== "cancelled").length +
     shownGroupSessions.length +
     shownBlocks.length +
-    shownNotes.length;
+    shownNotes.length +
+    selectedCommercialEvents.length;
   // Sem "Ver agenda de todos os profissionais", a API só devolve a agenda do profissional
   // ligado ao usuário: a legenda e as colunas da grade acompanham (sem o filtro).
   const canSeeAllAgenda = can("agenda.view_all");
@@ -379,6 +393,21 @@ export function AgendaPage() {
     blockReload,
     user?.role,
   ]);
+  useEffect(() => {
+    if (!showCommercialEvents) return;
+    let active = true;
+    api.events().then(
+      (items) => {
+        if (active) setCommercialEvents(items);
+      },
+      (cause: Error) => {
+        if (active) setError(cause.message);
+      },
+    );
+    return () => {
+      active = false;
+    };
+  }, [showCommercialEvents, rangeFrom, rangeTo]);
   function moveDay(amount: number) {
     setLoading(true);
     setError("");
@@ -815,6 +844,11 @@ export function AgendaPage() {
                       )}
                     </button>
                     <span className="month-day-events">
+                      {(eventsByDay.get(dayKey) ?? []).map((event) => (
+                        <span className="month-event" key={event.id}>
+                          {event.name}
+                        </span>
+                      ))}
                       {dayHoliday && (
                         <span
                           className="month-holiday"
@@ -1034,7 +1068,11 @@ export function AgendaPage() {
                         </article>
                       ),
                     )}
+                    <CommercialAgendaEvents
+                      events={eventsByDay.get(dayKey) ?? []}
+                    />
                     {!dayHoliday &&
+                      !eventsByDay.get(dayKey)?.length &&
                       dayAppointments.length === 0 &&
                       dayBlocks.length === 0 &&
                       dayNotes.length === 0 &&
@@ -1051,6 +1089,7 @@ export function AgendaPage() {
             {selectedHoliday && (
               <p className="holiday-notice">Feriado: {selectedHoliday}</p>
             )}
+            <CommercialAgendaEvents events={selectedCommercialEvents} />
             <DayScheduleGrid
               day={selectedDate}
               professionals={
@@ -1080,7 +1119,8 @@ export function AgendaPage() {
         ) : visibleAppointments.length === 0 &&
           shownBlocks.length === 0 &&
           shownNotes.length === 0 &&
-          shownGroupSessions.length === 0 ? (
+          shownGroupSessions.length === 0 &&
+          selectedCommercialEvents.length === 0 ? (
           selectedHoliday ? (
             <div className="day-agenda">
               <p className="holiday-notice">Feriado: {selectedHoliday}</p>
@@ -1106,6 +1146,7 @@ export function AgendaPage() {
             {selectedHoliday && (
               <p className="holiday-notice">Feriado: {selectedHoliday}</p>
             )}
+            <CommercialAgendaEvents events={selectedCommercialEvents} />
             {sortAgendaEntriesWithNotes({
               appointments: visibleAppointments,
               groupSessions: shownGroupSessions,
@@ -1391,6 +1432,7 @@ export function AgendaPage() {
       {eventsDay && (
         <DayEventsModal
           day={eventsDay}
+          commercialEvents={eventsByDay.get(localIsoDate(eventsDay)) ?? []}
           notes={shownNotes.filter(
             (item) =>
               localIsoDate(new Date(item.startsAt)) === localIsoDate(eventsDay),
