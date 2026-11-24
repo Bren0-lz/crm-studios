@@ -459,7 +459,10 @@ describe("campanhas de WhatsApp", () => {
   it("usa em campanha a mensagem recém-criada e chega à conferência", async () => {
     const saved: MessageTemplate[] = [];
     const { calls } = setup("/comunicacoes", (url, init) => {
-      if (url.endsWith("/communications/templates") && init?.method === "POST") {
+      if (
+        url.endsWith("/communications/templates") &&
+        init?.method === "POST"
+      ) {
         const created = { ...template, ...JSON.parse(String(init.body)) };
         saved.push(created);
         return created;
@@ -497,10 +500,9 @@ describe("campanhas de WhatsApp", () => {
     const editor = await screen.findByRole("dialog", {
       name: "Nova mensagem padrão",
     });
-    fireEvent.change(
-      within(editor).getByLabelText("Título (só a equipe vê)"),
-      { target: { value: "Mensagem nova" } },
-    );
+    fireEvent.change(within(editor).getByLabelText("Título (só a equipe vê)"), {
+      target: { value: "Mensagem nova" },
+    });
     installDocumentBrowserMocks();
     setDocumentText(
       within(editor).getByRole("textbox", { name: "Mensagem" }),
@@ -1011,7 +1013,9 @@ describe("campanhas de WhatsApp", () => {
     const filters = screen.getByRole("group", { name: "Filtrar clientes" });
 
     fireEvent.click(within(filters).getByRole("button", { name: "Enviadas" }));
-    expect(screen.getByText("Nenhum cliente neste filtro.")).toBeInTheDocument();
+    expect(
+      screen.getByText("Nenhum cliente neste filtro."),
+    ).toBeInTheDocument();
     const sender = screen.getByRole("region", { name: "Envio atual" });
     expect(
       within(sender).queryByRole("heading", { name: "Bruno Costa" }),
@@ -1288,6 +1292,36 @@ describe("motivo de quem foi pulado na campanha", () => {
       ),
     ).toBeInTheDocument();
     expect(results).not.toHaveTextContent("pode receber esta mensagem");
+  });
+});
+
+describe("filtros da lista de campanhas", () => {
+  it("combina busca por título e filtro de situação", async () => {
+    const open = { ...campaign([recipient({})]), name: "Campanha de verão" };
+    const done = {
+      ...campaign([recipient({ status: "sent" })]),
+      id: "finished-campaign",
+      name: "Campanha de inverno",
+      completedAt: now,
+    };
+    setup("/comunicacoes?aba=campanhas", (url) => {
+      if (url.endsWith("/communications/campaigns")) return [open, done];
+      if (url.endsWith("/communications/templates")) return [template];
+    });
+    const search = await screen.findByRole("searchbox", {
+      name: "Buscar por título",
+    });
+    expect(screen.getByRole("heading", { name: done.name })).toBeVisible();
+    fireEvent.change(search, { target: { value: "VERAO" } });
+    expect(screen.getByRole("heading", { name: open.name })).toBeVisible();
+    expect(screen.queryByRole("heading", { name: done.name })).toBeNull();
+    fireEvent.change(screen.getByLabelText("Situação"), {
+      target: { value: "finished" },
+    });
+    expect(screen.getByText("Nenhuma campanha encontrada")).toBeVisible();
+    fireEvent.change(search, { target: { value: "" } });
+    expect(screen.getByRole("heading", { name: done.name })).toBeVisible();
+    expect(screen.queryByRole("heading", { name: open.name })).toBeNull();
   });
 });
 
