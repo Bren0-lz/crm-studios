@@ -48,10 +48,12 @@ type SupplierRow = Omit<
   Supplier,
   | "createdAt"
   | "updatedAt"
+  | "email"
   | "hiredOn"
   | "contractAmountInCents"
   | "paymentMethod"
 > & {
+  email: string | null;
   hiredOn: string | null;
   contractAmountInCents: number | null;
   paymentMethod: Supplier["paymentMethod"] | null;
@@ -59,12 +61,14 @@ type SupplierRow = Omit<
   updatedAt: Date;
 };
 const mapSupplier = ({
+  email,
   hiredOn,
   contractAmountInCents,
   paymentMethod,
   ...row
 }: SupplierRow): Supplier => ({
   ...row,
+  email: email ?? "",
   ...(hiredOn ? { hiredOn } : {}),
   ...(contractAmountInCents !== null ? { contractAmountInCents } : {}),
   ...(paymentMethod ? { paymentMethod } : {}),
