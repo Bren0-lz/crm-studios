@@ -249,7 +249,8 @@ export function AgendaPage() {
     const day = localIsoDate(new Date(event.startsAt));
     eventsByDay.set(day, [...(eventsByDay.get(day) ?? []), event]);
   }
-  const selectedCommercialEvents = eventsByDay.get(date) ?? [];
+  const selectedCommercialEvents =
+    eventsByDay.get(localIsoDate(selectedDate)) ?? [];
   const dayEventCount =
     shownAppointments.filter((item) => item.status !== "cancelled").length +
     shownGroupSessions.length +
