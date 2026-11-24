@@ -196,26 +196,28 @@ export function CampaignsTab({
         />
       ) : (
         <>
-          <div className="campaign-panel-body form-fields form-grid">
-            <label>
-              Buscar por título
-              <input
-                type="search"
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-              />
-            </label>
-            <label>
-              Situação
-              <select
-                value={status}
-                onChange={(event) => setStatus(event.target.value)}
-              >
-                <option value="all">Todas</option>
-                <option value="in_progress">Em andamento</option>
-                <option value="finished">Concluídas</option>
-              </select>
-            </label>
+          <div className="campaign-panel-body">
+            <div className="form-grid">
+              <label>
+                Buscar por título
+                <input
+                  type="search"
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                />
+              </label>
+              <label>
+                Situação
+                <select
+                  value={status}
+                  onChange={(event) => setStatus(event.target.value)}
+                >
+                  <option value="all">Todas</option>
+                  <option value="in_progress">Em andamento</option>
+                  <option value="finished">Concluídas</option>
+                </select>
+              </label>
+            </div>
           </div>
           {!inProgress.length && !finished.length && (
             <EmptyState
