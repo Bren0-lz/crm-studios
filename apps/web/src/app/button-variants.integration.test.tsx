@@ -169,11 +169,7 @@ describe("button variants", () => {
         <App />
       </MemoryRouter>,
     );
-    await openSettingsSection(
-      "Dados da clínica",
-      "Prazos e mensagens",
-      "Feriados",
-    );
+    await openSettingsSection("Dados da clínica", "Feriados");
     const section = await openSettingsSection("Usuários");
     await within(section).findByText("Maria Souza");
     expect(
@@ -189,16 +185,12 @@ describe("button variants", () => {
       }),
     ).toHaveClass("danger-button", "button-sm");
     // Salvar dos formulários de configuração: tamanho normal, no rodapé alinhado à direita (não estica no grid).
-    for (const name of ["Salvar configurações", "Salvar prazos e mensagens"]) {
-      await openSettingsSection(
-        name === "Salvar configurações"
-          ? "Dados da clínica"
-          : "Prazos e mensagens",
-      );
-      const save = await screen.findByRole("button", { name });
-      expect(save).toHaveClass("primary-button");
-      expect(save.parentElement).toHaveClass("modal-actions");
-    }
+    await openSettingsSection("Dados da clínica");
+    const save = await screen.findByRole("button", {
+      name: "Salvar configurações",
+    });
+    expect(save).toHaveClass("primary-button");
+    expect(save.parentElement).toHaveClass("modal-actions");
     expect(unstyledButtons(container)).toEqual([]);
   });
 

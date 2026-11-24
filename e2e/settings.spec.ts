@@ -69,14 +69,9 @@ test("settings can be saved repeatedly after switching tabs and reloading", asyn
   await panel.getByRole("button", { name: "Adicionar etiqueta" }).click();
   await expect(panel.getByText("Etiqueta criada.")).toBeVisible();
 
-  await page
-    .getByRole("tab", { name: "Contatos sugeridos", exact: true })
-    .click();
-  await panel.getByLabel("Saldo baixo: sessões restantes").fill("7");
-  await panel
-    .getByRole("button", { name: "Salvar prazos e mensagens" })
-    .click();
-  await expect(panel.getByText("Prazos e mensagens salvos.")).toBeVisible();
+  await expect(
+    page.getByRole("tab", { name: "Contatos sugeridos", exact: true }),
+  ).toHaveCount(0);
 
   await page.getByRole("tab", { name: "Clínica", exact: true }).click();
   await panel.getByLabel("Razão social").fill("Clínica atualizada Ltda.");
@@ -154,19 +149,4 @@ test("settings can be saved repeatedly after switching tabs and reloading", asyn
   await expect(
     panel.getByText("Etiqueta atualizada", { exact: true }),
   ).toBeVisible();
-
-  await page
-    .getByRole("tab", { name: "Contatos sugeridos", exact: true })
-    .click();
-  await expect(panel.getByLabel("Saldo baixo: sessões restantes")).toHaveValue(
-    "7",
-  );
-  await panel.getByLabel("Saldo baixo: sessões restantes").fill("8");
-  await panel
-    .getByRole("button", { name: "Salvar prazos e mensagens" })
-    .click();
-  await expect(panel.getByText("Prazos e mensagens salvos.")).toBeVisible();
-  expect(await (await api.get("/relationship/settings")).json()).toMatchObject({
-    lowBalanceSessions: 8,
-  });
 });

@@ -130,12 +130,7 @@ export const originalMe = api.me;
 export async function openSettingsSection(...names: string[]) {
   let section: HTMLElement | null = null;
   for (const name of names) {
-    const label =
-      name === "Dados da clínica"
-        ? "Clínica"
-        : name === "Prazos e mensagens"
-          ? "Contatos sugeridos"
-          : name;
+    const label = name === "Dados da clínica" ? "Clínica" : name;
     const tab = await screen.findByRole("tab", { name: label });
     if (tab.getAttribute("aria-selected") !== "true") fireEvent.click(tab);
     section = document.getElementById(tab.getAttribute("aria-controls")!);
