@@ -98,6 +98,8 @@ export function CampaignsTab({
   const [campaigns, setCampaigns] = useState<WhatsappCampaign[] | null>(null);
   const [templates, setTemplates] = useState<MessageTemplate[]>([]);
   const [patients, setPatients] = useState<PatientOption[]>([]);
+  const [search, setSearch] = useState("");
+  const [status, setStatus] = useState("all");
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState("");
 
@@ -130,8 +132,19 @@ export function CampaignsTab({
     (template) => !template.archivedAt,
   );
   const modalOpen = creating || Boolean(templateToUse && campaigns);
-  const inProgress = (campaigns ?? []).filter((item) => !item.completedAt);
-  const finished = (campaigns ?? []).filter((item) => item.completedAt);
+  const normalize = (value: string) =>
+    value
+      .normalize("NFD")
+      .replace(/\p{Diacritic}/gu, "")
+      .toLocaleLowerCase("pt-BR");
+  const query = normalize(search.trim());
+  const matching = (campaigns ?? []).filter((item) =>
+    normalize(item.name).includes(query),
+  );
+  const inProgress =
+    status === "finished" ? [] : matching.filter((item) => !item.completedAt);
+  const finished =
+    status === "in_progress" ? [] : matching.filter((item) => item.completedAt);
   const newButton = canSend && activeTemplates.length > 0 && (
     <button
       type="button"
@@ -183,6 +196,34 @@ export function CampaignsTab({
         />
       ) : (
         <>
+          <div className="campaign-panel-body form-fields form-grid">
+            <label>
+              Buscar por título
+              <input
+                type="search"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+              />
+            </label>
+            <label>
+              Situação
+              <select
+                value={status}
+                onChange={(event) => setStatus(event.target.value)}
+              >
+                <option value="all">Todas</option>
+                <option value="in_progress">Em andamento</option>
+                <option value="finished">Concluídas</option>
+              </select>
+            </label>
+          </div>
+          {!inProgress.length && !finished.length && (
+            <EmptyState
+              icon={Megaphone}
+              title="Nenhuma campanha encontrada"
+              copy="Altere a busca ou a situação."
+            />
+          )}
           {inProgress.length > 0 && (
             <div className="campaign-group">
               <h3 className="campaign-group-title">Em andamento</h3>
