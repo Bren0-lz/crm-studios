@@ -117,6 +117,7 @@ export function AgendaPage() {
   const [noteModal, setNoteModal] = useState<AgendaNote | "new" | null>(null);
   const [selectedNote, setSelectedNote] = useState<AgendaNote | null>(null);
   const [noteReload, setNoteReload] = useState(0);
+  const [blockReload, setBlockReload] = useState(0);
   const [blocks, setBlocks] = useState<ScheduleBlock[]>([]);
   const [cancellingBlock, setCancellingBlock] = useState<ScheduleBlock | null>(
     null,
@@ -375,6 +376,7 @@ export function AgendaPage() {
     holidayTo,
     canView,
     noteReload,
+    blockReload,
     user?.role,
   ]);
   function moveDay(amount: number) {
@@ -1279,12 +1281,16 @@ export function AgendaPage() {
           onClose={() => setBlockModalOpen(false)}
           onCreated={(block) => {
             toast.success("Bloqueio criado.");
-            if (block.startsAt < rangeTo && block.endsAt > rangeFrom)
+            if (
+              Date.parse(block.startsAt) < rangeEnd.getTime() &&
+              Date.parse(block.endsAt) > rangeStart.getTime()
+            )
               setBlocks((items) =>
-                [...items, block].sort((a, b) =>
-                  a.startsAt.localeCompare(b.startsAt),
+                [...items.filter((item) => item.id !== block.id), block].sort(
+                  (a, b) => a.startsAt.localeCompare(b.startsAt),
                 ),
               );
+            setBlockReload((value) => value + 1);
             setBlockModalOpen(false);
           }}
         />
@@ -1461,6 +1467,7 @@ export function AgendaPage() {
   async function cancelBlock(block: ScheduleBlock) {
     const updated = await api.cancelScheduleBlock(block.id);
     setBlocks((items) => items.filter((item) => item.id !== updated.id));
+    setBlockReload((value) => value + 1);
     setCancellingBlock(null);
     toast.success("Bloqueio cancelado.");
   }
