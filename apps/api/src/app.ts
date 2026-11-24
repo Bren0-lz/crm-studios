@@ -1,3 +1,4 @@
+import { registerManualRoutes } from "./modules/manual/routes.js";
 import { registerBranchesRoutes } from "./modules/branches/routes.js";
 import { registerFinanceOperationRoutes } from "./modules/finance/operation-routes.js";
 import { registerPayrollRoutes } from "./modules/finance/payroll-routes.js";
@@ -34,6 +35,7 @@ import { registerExternalRoutes } from "./modules/external/routes.js";
 
 export async function buildApp(options: BuildAppOptions) {
   const context = await createRouteContext(options);
+  registerManualRoutes(context.app);
   registerAuthRoutes(context);
   registerBranchesRoutes(context);
   registerCatalogRoutes(context);

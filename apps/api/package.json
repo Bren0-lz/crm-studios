@@ -15,12 +15,14 @@
     "lint": "eslint src --max-warnings=0",
     "test:unit": "vitest run --project unit",
     "test:integration": "vitest run --project integration --passWithNoTests",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "prebuild": "node ../../scripts/prepare-mcp-manual.mjs"
   },
   "dependencies": {
     "@crm/contracts": "*",
     "@fastify/cors": "latest",
     "@fastify/jwt": "latest",
+    "@modelcontextprotocol/sdk": "^1.32.2",
     "bcryptjs": "latest",
     "dotenv": "latest",
     "exceljs": "^4.4.0",

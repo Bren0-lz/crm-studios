@@ -1,5 +1,12 @@
 import { CheckCircle2, AlertCircle, X } from "lucide-react";
-import { type ReactNode, useCallback, useMemo, useRef, useState } from "react";
+import {
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { ToastContext, type Toasts } from "./toast-context";
 
 interface ToastItem {
@@ -19,15 +26,11 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       setItems((current) => current.filter((item) => item.id !== id)),
     [],
   );
-  const push = useCallback(
-    (kind: ToastItem["kind"], message: string) => {
-      const id = nextId.current++;
-      // No máximo 3 avisos ao mesmo tempo: o mais antigo sai.
-      setItems((current) => [...current.slice(-2), { id, kind, message }]);
-      window.setTimeout(() => dismiss(id), DURATION[kind]);
-    },
-    [dismiss],
-  );
+  const push = useCallback((kind: ToastItem["kind"], message: string) => {
+    const id = nextId.current++;
+    // No máximo 3 avisos ao mesmo tempo: o mais antigo sai.
+    setItems((current) => [...current.slice(-2), { id, kind, message }]);
+  }, []);
   const value = useMemo<Toasts>(
     () => ({
       success: (message) => push("success", message),
@@ -40,28 +43,45 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       {children}
       <div className="toast-stack" aria-live="polite">
         {items.map((item) => (
-          <div
-            key={item.id}
-            className={`toast toast-${item.kind}`}
-            role={item.kind === "error" ? "alert" : "status"}
-          >
-            {item.kind === "success" ? (
-              <CheckCircle2 size={18} aria-hidden="true" />
-            ) : (
-              <AlertCircle size={18} aria-hidden="true" />
-            )}
-            <span>{item.message}</span>
-            <button
-              type="button"
-              className="icon-button toast-close"
-              aria-label="Fechar aviso"
-              onClick={() => dismiss(item.id)}
-            >
-              <X size={16} />
-            </button>
-          </div>
+          <ToastMessage key={item.id} item={item} onDismiss={dismiss} />
         ))}
       </div>
     </ToastContext.Provider>
+  );
+}
+
+function ToastMessage({
+  item,
+  onDismiss,
+}: {
+  item: ToastItem;
+  onDismiss: (id: number) => void;
+}) {
+  const { id, kind, message } = item;
+  useEffect(() => {
+    const timer = window.setTimeout(() => onDismiss(id), DURATION[kind]);
+    return () => window.clearTimeout(timer);
+  }, [id, kind, onDismiss]);
+
+  return (
+    <div
+      className={`toast toast-${kind}`}
+      role={kind === "error" ? "alert" : "status"}
+    >
+      {kind === "success" ? (
+        <CheckCircle2 size={18} aria-hidden="true" />
+      ) : (
+        <AlertCircle size={18} aria-hidden="true" />
+      )}
+      <span>{message}</span>
+      <button
+        type="button"
+        className="icon-button toast-close"
+        aria-label="Fechar aviso"
+        onClick={() => onDismiss(id)}
+      >
+        <X size={16} />
+      </button>
+    </div>
   );
 }
