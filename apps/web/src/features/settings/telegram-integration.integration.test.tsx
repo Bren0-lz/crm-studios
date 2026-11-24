@@ -87,4 +87,105 @@ describe("Telegram em Configurações › Integrações", () => {
       within(section).queryByRole("button", { name: "Gerar código de vínculo" }),
     ).toBeNull();
   });
+
+  it("escolhe os avisos do chat pessoal", async () => {
+    const fake = fakeTelegram();
+    const { app, repository } = await setupApi({
+      telegram: fake.integration,
+    });
+    const section = await openIntegrations();
+    fireEvent.click(
+      await within(section).findByRole("button", {
+        name: "Gerar código de vínculo",
+      }),
+    );
+    const message = (await within(section).findByLabelText(
+      "Mensagem para o bot",
+    )) as HTMLInputElement;
+    await app.inject({
+      method: "POST",
+      url: `/integrations/telegram/webhook/${secret}`,
+      headers: { "x-telegram-bot-api-secret-token": secret },
+      payload: { update_id: 1, message: { chat: { id: 42 }, text: message.value } },
+    });
+    fireEvent.click(within(section).getByRole("button", { name: "Já enviei" }));
+    const topics = await within(section).findByRole("group", {
+      name: "Avisos neste chat",
+    });
+    const save = within(section).getByRole("button", { name: "Salvar avisos" });
+    expect(save).toBeDisabled();
+    fireEvent.click(within(topics).getByRole("checkbox", { name: "Recibos" }));
+    fireEvent.click(
+      within(topics).getByRole("checkbox", { name: "Clientes novos" }),
+    );
+    fireEvent.click(save);
+    await within(section).findByText("Avisos deste chat atualizados.");
+    expect((await repository.getTelegramLink(clinicId, actorId))?.topics).toEqual(
+      ["appointments"],
+    );
+  });
+
+  it("vincula um grupo com os avisos escolhidos, edita e desvincula", async () => {
+    const fake = fakeTelegram();
+    const { app, repository } = await setupApi({
+      telegram: fake.integration,
+    });
+    const section = await openIntegrations();
+    await within(section).findByText("Nenhum grupo vinculado");
+    fireEvent.click(within(section).getByRole("button", { name: "Vincular grupo" }));
+    const dialog = screen.getByRole("dialog", {
+      name: "Vincular grupo do Telegram",
+    });
+    for (const name of ["Recibos", "Agendamentos", "Clientes novos"])
+      fireEvent.click(within(dialog).getByRole("checkbox", { name }));
+    expect(
+      within(dialog).getByRole("button", { name: "Gerar código" }),
+    ).toBeDisabled();
+    fireEvent.click(within(dialog).getByRole("checkbox", { name: "Recibos" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Gerar código" }));
+    const message = (await within(section).findByLabelText(
+      "Mensagem para o grupo",
+    )) as HTMLInputElement;
+    expect(message.value).toMatch(/^\/vincular [A-Z2-9]{8}$/);
+
+    await app.inject({
+      method: "POST",
+      url: `/integrations/telegram/webhook/${secret}`,
+      headers: { "x-telegram-bot-api-secret-token": secret },
+      payload: {
+        update_id: 2,
+        message: {
+          chat: { id: -100, type: "supergroup", title: "CRM · Financeiro" },
+          text: message.value,
+        },
+      },
+    });
+    expect(fake.sent.at(-1)?.text).toMatch(/avisos de: Recibos\.$/);
+    fireEvent.click(within(section).getByRole("button", { name: "Já enviei" }));
+    await within(section).findByText("CRM · Financeiro");
+    expect(within(section).getByText(/^Recibos · vinculado em /)).toBeInTheDocument();
+
+    fireEvent.click(
+      within(section).getByRole("button", {
+        name: "Editar avisos de CRM · Financeiro",
+      }),
+    );
+    const edit = screen.getByRole("dialog", { name: "Editar avisos do grupo" });
+    fireEvent.click(within(edit).getByRole("checkbox", { name: "Agendamentos" }));
+    fireEvent.click(within(edit).getByRole("button", { name: "Salvar" }));
+    await within(section).findByText("Avisos do grupo atualizados.");
+    expect(
+      within(section).getByText(/^Recibos e Agendamentos · vinculado em /),
+    ).toBeInTheDocument();
+
+    fireEvent.click(
+      within(section).getByRole("button", {
+        name: "Desvincular CRM · Financeiro",
+      }),
+    );
+    const remove = screen.getByRole("dialog", { name: "Desvincular grupo" });
+    fireEvent.click(within(remove).getByRole("button", { name: "Desvincular" }));
+    await within(section).findByText("Grupo desvinculado.");
+    expect(await repository.listTelegramGroupLinks(clinicId)).toEqual([]);
+  });
 });

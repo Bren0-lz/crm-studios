@@ -639,6 +639,7 @@ export class MemoryRepositoryContext {
   /** Telegram (TG1): vínculos, códigos de vínculo, fila de saída e perfis que vinculam. */
   readonly telegram: import("./telegram.js").TelegramMemoryState = {
     links: [],
+    groups: [],
     codes: [],
     outbox: [],
     linkRoles: new Map(),

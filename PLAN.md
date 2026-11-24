@@ -1072,6 +1072,30 @@ atualizado no mesmo PR):
 - **Depende de:** TG5
 - **Status:** BLOCKED
 
+### TG7 — Avisos do Telegram por grupo e por assunto
+
+- **Origem:** pedido do dono em 23/11/2026: criar grupos no Telegram (ex.: Financeiro e
+  Agenda) e cada grupo receber só a sua parte. Até aqui todo aviso ia para todos os chats
+  vinculados e cada usuário tinha um chat só.
+- **Escopo:**
+  - Assuntos: `receipts` (recibo assinado e lembrete de recibos), `appointments`
+    (agendamento novo) e `patients` (cliente novo e importação).
+  - Migração nova `0069_telegram_destinations`: `telegram_links.topics` (NULL = todos, como
+    antes), `telegram_link_codes.group_topics` (código de grupo) e `telegram_group_links`
+    (um por grupo e clínica, com assuntos, nome e quem vinculou).
+  - Admin gera o código de grupo com os assuntos em Configurações › Integrações › Vincular
+    grupo; `/vincular` dentro do grupo grava o grupo sem ocupar o chat pessoal. Código de grupo
+    no privado (ou pessoal no grupo) é recusado sem gastar o código.
+  - Cada usuário escolhe os assuntos do próprio chat (vazio = só comandos).
+  - No grupo, os comandos de agenda não respondem (a agenda não fica exposta) e conversa
+    comum é ignorada.
+  - Rotas: `PUT /integrations/telegram/link/topics` (login); `GET …/groups`,
+    `POST …/groups/link-code`, `PUT`/`DELETE …/groups/:id` (admin).
+  - Testes API, web e MySQL.
+- **Gate:** gate completo e `npm run test:mysql`
+- **Depende de:** TG4
+- **Status:** DONE
+
 ### CM1 — Variável "Inserir endereço" da filial
 
 - **Origem:** B3-04. "Tem gente que é leigo": além do link, o endereço por extenso.

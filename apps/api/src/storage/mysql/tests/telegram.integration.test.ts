@@ -32,6 +32,7 @@ for (const storage of ["memory", "mysql"] as const) {
         if (storage === "memory") repository = new MemoryClinicRepository();
         else {
           await pool!.query("DELETE FROM telegram_outbox");
+          await pool!.query("DELETE FROM telegram_group_links");
           await pool!.query("DELETE FROM telegram_links");
           await pool!.query("DELETE FROM telegram_link_codes");
           await pool!.query(
@@ -107,9 +108,11 @@ for (const storage of ["memory", "mysql"] as const) {
           }),
         ).toEqual({
           status: "linked",
+          kind: "private",
           clinicId,
           userId: ownerId,
           userName: "Aryana Dutra",
+          topics: ["receipts", "appointments", "patients"],
         });
         expect(
           await repository.linkTelegramChat({
@@ -123,6 +126,7 @@ for (const storage of ["memory", "mysql"] as const) {
           userId: ownerId,
           chatId: "555",
           linkedAt: at(5),
+          topics: ["receipts", "appointments", "patients"],
         });
 
         // Vincular de novo troca o chat do usuário.
@@ -137,7 +141,13 @@ for (const storage of ["memory", "mysql"] as const) {
           now: at(7),
         });
         expect(await repository.listTelegramLinks(clinicId)).toEqual([
-          { clinicId, userId: ownerId, chatId: "999", linkedAt: at(7) },
+          {
+            clinicId,
+            userId: ownerId,
+            chatId: "999",
+            linkedAt: at(7),
+            topics: ["receipts", "appointments", "patients"],
+          },
         ]);
 
         const user = await repository.createAdminUser(
@@ -224,10 +234,167 @@ for (const storage of ["memory", "mysql"] as const) {
         await link(ownerId, 1);
         await link(user.id, 2);
         expect(await repository.findTelegramLinksByChat("777")).toEqual([
-          { clinicId, userId: user.id, chatId: "777", linkedAt: at(2) },
-          { clinicId, userId: ownerId, chatId: "777", linkedAt: at(1) },
+          expect.objectContaining({ userId: user.id, linkedAt: at(2) }),
+          expect.objectContaining({ userId: ownerId, linkedAt: at(1) }),
         ]);
         expect(await repository.findTelegramLinksByChat("778")).toEqual([]);
+      });
+
+      it("TG7: código de grupo vincula o grupo com os assuntos, sem ocupar o chat pessoal", async () => {
+        const groupCode = `grupo-${randomUUID()}`;
+        await repository.createTelegramLinkCode(clinicId, ownerId, {
+          codeHash: groupCode,
+          expiresAt: at(30),
+          groupTopics: ["patients", "receipts"],
+        });
+        expect(
+          await repository.linkTelegramChat({
+            codeHash: groupCode,
+            chatId: "555",
+            chatKind: "private",
+            now: at(1),
+          }),
+        ).toEqual({ status: "needs_group" });
+        expect(
+          await repository.linkTelegramChat({
+            codeHash: groupCode,
+            chatId: "-100",
+            chatKind: "group",
+            chatTitle: "CRM · Financeiro",
+            now: at(2),
+          }),
+        ).toEqual({
+          status: "linked",
+          kind: "group",
+          clinicId,
+          userId: ownerId,
+          userName: "Aryana Dutra",
+          topics: ["receipts", "patients"],
+        });
+        expect(await repository.listTelegramLinks(clinicId)).toEqual([]);
+        const [group] = await repository.listTelegramGroupLinks(clinicId);
+        expect(group).toEqual({
+          id: expect.any(String),
+          chatId: "-100",
+          title: "CRM · Financeiro",
+          topics: ["receipts", "patients"],
+          linkedAt: at(2),
+          linkedByName: "Aryana Dutra",
+        });
+        expect(await repository.findTelegramGroupLinksByChat("-100")).toEqual([
+          { ...group, clinicId },
+        ]);
+
+        // Vincular o mesmo grupo de novo troca os assuntos (um registro por grupo).
+        const again = `grupo2-${randomUUID()}`;
+        await repository.createTelegramLinkCode(clinicId, ownerId, {
+          codeHash: again,
+          expiresAt: at(30),
+          groupTopics: ["appointments"],
+        });
+        await repository.linkTelegramChat({
+          codeHash: again,
+          chatId: "-100",
+          chatKind: "group",
+          now: at(3),
+        });
+        expect(await repository.listTelegramGroupLinks(clinicId)).toEqual([
+          expect.objectContaining({
+            id: group!.id,
+            title: null,
+            topics: ["appointments"],
+          }),
+        ]);
+
+        expect(
+          await repository.updateTelegramGroupLink(clinicId, group!.id, [
+            "receipts",
+          ]),
+        ).toMatchObject({ id: group!.id, topics: ["receipts"] });
+        expect(
+          await repository.updateTelegramGroupLink(clinicId, randomUUID(), [
+            "receipts",
+          ]),
+        ).toBeNull();
+        expect(
+          await repository.deleteTelegramGroupLink(clinicId, group!.id),
+        ).toBe(true);
+        expect(
+          await repository.deleteTelegramGroupLink(clinicId, group!.id),
+        ).toBe(false);
+      });
+
+      it("TG7: código pessoal não vincula grupo; grupo exige admin; assuntos do chat pessoal", async () => {
+        const personal = `pessoal-${randomUUID()}`;
+        await repository.createTelegramLinkCode(clinicId, ownerId, {
+          codeHash: personal,
+          expiresAt: at(30),
+        });
+        expect(
+          await repository.linkTelegramChat({
+            codeHash: personal,
+            chatId: "-1",
+            chatKind: "group",
+            now: at(1),
+          }),
+        ).toEqual({ status: "needs_private" });
+        await repository.linkTelegramChat({
+          codeHash: personal,
+          chatId: "555",
+          chatKind: "private",
+          now: at(2),
+        });
+        expect(
+          await repository.setTelegramLinkTopics(clinicId, ownerId, []),
+        ).toMatchObject({ chatId: "555", topics: [] });
+        expect(
+          (await repository.getTelegramLink(clinicId, ownerId))?.topics,
+        ).toEqual([]);
+        // Vincular de novo mantém a escolha.
+        const relink = `pessoal2-${randomUUID()}`;
+        await repository.createTelegramLinkCode(clinicId, ownerId, {
+          codeHash: relink,
+          expiresAt: at(30),
+        });
+        expect(
+          await repository.linkTelegramChat({
+            codeHash: relink,
+            chatId: "556",
+            now: at(3),
+          }),
+        ).toMatchObject({ status: "linked", topics: [] });
+        expect(
+          await repository.setTelegramLinkTopics(clinicId, randomUUID(), []),
+        ).toBeNull();
+
+        await repository.saveTelegramSettings(clinicId, {
+          linkRoles: ["admin", "user"],
+        });
+        const user = await repository.createAdminUser(
+          clinicId,
+          ownerId,
+          {
+            fullName: "Recepção do grupo",
+            email: `${randomUUID()}@test.local`,
+            role: "user",
+            password: "Password123",
+          },
+          "unused-hash",
+        );
+        const groupCode = `grupo-user-${randomUUID()}`;
+        await repository.createTelegramLinkCode(clinicId, user.id, {
+          codeHash: groupCode,
+          expiresAt: at(30),
+          groupTopics: ["receipts"],
+        });
+        expect(
+          await repository.linkTelegramChat({
+            codeHash: groupCode,
+            chatId: "-2",
+            chatKind: "group",
+            now: at(4),
+          }),
+        ).toEqual({ status: "forbidden" });
       });
 
       it("reserva o aviso de recibos uma vez por dia", async () => {
@@ -258,7 +425,7 @@ for (const storage of ["memory", "mysql"] as const) {
           clinicId,
           [
             { chatId: "1", message: "Primeira" },
-            { chatId: "2", message: "Segunda" },
+            { chatId: "2", message: "Segunda", topic: "patients" },
           ],
           at(0),
         );
@@ -320,7 +487,11 @@ for (const storage of ["memory", "mysql"] as const) {
           limit: 10,
           clinicId,
         });
-        expect(retry).toMatchObject({ message: "Segunda", attempts: 1 });
+        expect(retry).toMatchObject({
+          message: "Segunda",
+          attempts: 1,
+          topic: "patients",
+        });
         await repository.recordTelegramDelivery(retry!.id, {
           error: "desistiu",
           failedAt: at(5),

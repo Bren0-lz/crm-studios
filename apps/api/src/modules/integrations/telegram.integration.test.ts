@@ -145,14 +145,23 @@ describe("Telegram: vínculo", () => {
       },
     ]);
     expect(await repository.listTelegramLinks(clinicId)).toEqual([
-      { clinicId, userId: ownerId, chatId: "555", linkedAt: fake.at() },
+      {
+        clinicId,
+        userId: ownerId,
+        chatId: "555",
+        linkedAt: fake.at(),
+        topics: ["receipts", "appointments", "patients"],
+      },
     ]);
     const status = await app.inject({ url: "/integrations/telegram", headers });
     expect(status.json()).toEqual({
       enabled: true,
       canLink: true,
       linkRoles: ["admin"],
-      link: { linkedAt: fake.at() },
+      link: {
+        linkedAt: fake.at(),
+        topics: ["receipts", "appointments", "patients"],
+      },
     });
     const [reply] = await repository.listTelegramOutbox(clinicId);
     expect(reply).toMatchObject({ attempts: 1, sentAt: fake.at() });

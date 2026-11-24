@@ -138,8 +138,10 @@ import type {
   NotificationPreferences,
   IntegrationKey,
   IntegrationKeyInput,
+  TelegramGroupLink,
   TelegramSettings,
   TelegramSettingsInput,
+  TelegramTopic,
   CommissionEntry,
   CommissionRule,
   CommissionRuleInput,
@@ -297,30 +299,56 @@ export interface AuthenticatedUser extends UserSummary {
   updatedAt: string;
 }
 
-/** Chat do Telegram vinculado a um usuário (TG1). */
+/** Chat do Telegram vinculado a um usuário (TG1); `topics`: o que recebe (TG7). */
 export interface TelegramLink {
   clinicId: string;
   userId: string;
   chatId: string;
   linkedAt: string;
+  topics: TelegramTopic[];
 }
 
-/** Resultado de `/vincular <código>`: o vínculo gravado ou o motivo da recusa. */
+/** Grupo do Telegram vinculado (TG7), com a clínica. */
+export type TelegramClinicGroupLink = TelegramGroupLink & { clinicId: string };
+
+/** Tipo do chat que mandou `/vincular`: privado ou grupo (grupo e supergrupo). */
+export type TelegramChatKind = "private" | "group";
+
+/**
+ * Resultado de `/vincular <código>`: o vínculo gravado ou o motivo da recusa.
+ * `needs_group`/`needs_private`: código de grupo enviado no privado, ou o contrário (o
+ * código continua valendo).
+ */
 export type TelegramLinkAttempt =
   | {
       status: "linked";
+      kind: TelegramChatKind;
       clinicId: string;
       userId: string;
       userName: string;
+      topics: TelegramTopic[];
     }
-  | { status: "invalid" | "expired" | "used" | "forbidden" };
+  | {
+      status:
+        | "invalid"
+        | "expired"
+        | "used"
+        | "forbidden"
+        | "needs_group"
+        | "needs_private";
+    };
 
-/** Mensagem da fila de saída do Telegram. `clinicId` null: resposta a chat sem vínculo. */
-export interface TelegramOutboxMessage {
-  id: string;
-  clinicId: string | null;
+export interface TelegramOutgoingMessage {
   chatId: string;
   message: string;
+  /** Avisos do CRM preservam o assunto até a entrega. Respostas do bot não têm assunto. */
+  topic?: TelegramTopic;
+}
+
+/** Mensagem da fila de saída do Telegram. `clinicId` null: resposta a chat sem vínculo. */
+export interface TelegramOutboxMessage extends TelegramOutgoingMessage {
+  id: string;
+  clinicId: string | null;
   attempts: number;
   nextAttemptAt: string;
   lastError?: string;
@@ -820,25 +848,56 @@ export interface ClinicRepository {
   ): Promise<boolean>;
   /** Desvincula o chat do usuário; `false` se não havia vínculo. */
   deleteTelegramLink(clinicId: string, userId: string): Promise<boolean>;
-  /** Grava o código (pelo hash) e apaga os códigos ainda não usados do usuário. */
+  /** Assuntos do chat pessoal do usuário (TG7); `null` se não há vínculo. */
+  setTelegramLinkTopics(
+    clinicId: string,
+    userId: string,
+    topics: TelegramTopic[],
+  ): Promise<TelegramLink | null>;
+  /** Grupos vinculados da clínica (TG7), do mais antigo ao mais novo. */
+  listTelegramGroupLinks(clinicId: string): Promise<TelegramGroupLink[]>;
+  /** Grupos vinculados com este chat, em qualquer clínica (TG7). */
+  findTelegramGroupLinksByChat(
+    chatId: string,
+  ): Promise<TelegramClinicGroupLink[]>;
+  /** Troca os assuntos do grupo; `null` se o grupo não é da clínica. */
+  updateTelegramGroupLink(
+    clinicId: string,
+    id: string,
+    topics: TelegramTopic[],
+  ): Promise<TelegramGroupLink | null>;
+  /** Desvincula o grupo; `false` se não era da clínica. */
+  deleteTelegramGroupLink(clinicId: string, id: string): Promise<boolean>;
+  /**
+   * Grava o código (pelo hash) e apaga os códigos ainda não usados do usuário.
+   * `groupTopics` (TG7): código de vínculo de grupo com os assuntos escolhidos.
+   */
   createTelegramLinkCode(
     clinicId: string,
     userId: string,
-    code: { codeHash: string; expiresAt: string },
+    code: {
+      codeHash: string;
+      expiresAt: string;
+      groupTopics?: TelegramTopic[];
+    },
   ): Promise<void>;
   /**
-   * `/vincular <código>`, em qualquer clínica (o código diz a clínica): confere validade, uso
-   * e perfil do usuário, marca o código como usado e grava o vínculo, numa transação.
+   * `/vincular <código>`, em qualquer clínica (o código diz a clínica): confere validade, uso,
+   * tipo do chat e perfil do usuário, marca o código como usado e grava o vínculo (do usuário
+   * ou do grupo, conforme o código), numa transação. Grupo exige admin ativo.
    */
   linkTelegramChat(input: {
     codeHash: string;
     chatId: string;
+    /** Padrão: `private`. */
+    chatKind?: TelegramChatKind;
+    chatTitle?: string;
     now: string;
   }): Promise<TelegramLinkAttempt>;
   /** Enfileira para envio a partir de `at` (relógio do serviço). */
   enqueueTelegramMessages(
     clinicId: string | null,
-    messages: { chatId: string; message: string }[],
+    messages: TelegramOutgoingMessage[],
     at: string,
   ): Promise<void>;
   /**

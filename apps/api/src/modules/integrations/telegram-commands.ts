@@ -187,6 +187,7 @@ export function formatTelegramAgenda(
 type Repository = Pick<
   ClinicRepository,
   | "findTelegramLinksByChat"
+  | "findTelegramGroupLinksByChat"
   | "findUserById"
   | "getClinicSettings"
   | "getOwnProfile"
@@ -377,6 +378,7 @@ export function createTelegramCommands({
       return;
     await telegram.notifyLinkedChats(
       clinicId,
+      "receipts",
       count === 1
         ? "Recibos: 1 cliente ainda não assinou o recibo."
         : `Recibos: ${count} clientes ainda não assinaram o recibo.`,
@@ -387,13 +389,22 @@ export function createTelegramCommands({
     agenda,
     /** Vínculo do chat (o mais recente), para escolher a ajuda certa. */
     linkOf,
-    /** Depois de cada webhook: aviso de recibos das clínicas do chat. Nunca lança. */
+    /** Grupo vinculado com este chat (o mais recente), se houver. */
+    async groupOf(chatId: string) {
+      return (await repository.findTelegramGroupLinksByChat(chatId))[0];
+    },
+    /**
+     * Depois de cada webhook: aviso de recibos das clínicas do chat (pessoal ou grupo).
+     * Nunca lança.
+     */
     async receiptReminderSafely(chatId: string) {
       try {
+        const [links, groups] = await Promise.all([
+          repository.findTelegramLinksByChat(chatId),
+          repository.findTelegramGroupLinksByChat(chatId),
+        ]);
         const clinics = new Set(
-          (await repository.findTelegramLinksByChat(chatId)).map(
-            (link) => link.clinicId,
-          ),
+          [...links, ...groups].map((link) => link.clinicId),
         );
         for (const clinicId of clinics) await receiptReminder(clinicId);
       } catch (error) {
