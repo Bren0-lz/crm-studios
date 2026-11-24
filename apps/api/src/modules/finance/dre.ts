@@ -1,6 +1,7 @@
 import { DomainError } from "../../repository.js";
 import { clinicDateOf, DEFAULT_CLINIC_TIMEZONE } from "./daily-cash.js";
 import {
+  type DreCategoryEntry,
   type DreGroup,
   type DreReport,
   type Receivable,
@@ -32,6 +33,7 @@ export function buildDre(
   costCenterId?: string,
   timezone = DEFAULT_CLINIC_TIMEZONE,
   adjustments: import("@crm/contracts").CommissionAdjustment[] = [],
+  detailCategoryId?: string,
 ): DreReport {
   const months: DreReport["months"] = [];
   let year = Number(from.slice(0, 4)),
@@ -60,6 +62,7 @@ export function buildDre(
       year++;
     }
   }
+  const categoryEntries: DreCategoryEntry[] = [];
   const categoryTotals = new Map<
     string,
     { id: string; name: string; group: DreGroup; amountInCents: number }
@@ -120,6 +123,14 @@ export function buildDre(
       receivable.amountInCents,
       category?.dreGroup ?? "unclassified",
     );
+    if (detailCategoryId === (receivable.categoryId ?? "unclassified"))
+      categoryEntries.push({
+        id: receivable.id,
+        kind: "income",
+        competence,
+        description: receivable.description,
+        amountInCents: receivable.amountInCents,
+      });
     if (tab)
       period.expenses.product_cost += tab.items.reduce(
         (total, item) => total + item.unitCostInCents * item.quantity,
@@ -148,6 +159,14 @@ export function buildDre(
     if (!amount) continue;
     period.expenses[group] += amount;
     addCategory(payable.categoryId, amount, group);
+    if (detailCategoryId === (payable.categoryId ?? "unclassified"))
+      categoryEntries.push({
+        id: payable.id,
+        kind: "expense",
+        competence: period.month,
+        description: payable.description,
+        amountInCents: amount,
+      });
   }
   if (!costCenterId)
     for (const commission of commissions) {
@@ -208,6 +227,13 @@ export function buildDre(
       ...(settlementDiscountInCents ? { settlementDiscountInCents } : {}),
     },
     categories: [...categoryTotals.values()],
+    ...(detailCategoryId
+      ? {
+          categoryEntries: categoryEntries.sort((a, b) =>
+            a.competence.localeCompare(b.competence),
+          ),
+        }
+      : {}),
   };
 }
 

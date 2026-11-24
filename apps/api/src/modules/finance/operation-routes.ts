@@ -424,11 +424,17 @@ export function registerFinanceOperationRoutes({
     });
   app.get("/finance/dre", { preHandler: authenticate }, async (request) => {
     const { from, to, costCenterId } = dreFilterSchema.parse(request.query);
+    const { categoryId } = z
+      .object({
+        categoryId: z.union([z.uuid(), z.literal("unclassified")]).optional(),
+      })
+      .parse(request.query);
     return repository.getDreReport(
       request.user.clinicId,
       from,
       to,
       costCenterId,
+      categoryId,
     );
   });
 }

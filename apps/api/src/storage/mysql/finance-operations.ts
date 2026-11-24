@@ -586,6 +586,7 @@ export function createFinanceOperationsRepository(
       from: string,
       to: string,
       costCenterId?: string,
+      detailCategoryId?: string,
     ) {
       const branchIds = context.branchReadIds();
       return context.inTransaction(async (client) => {
@@ -646,6 +647,7 @@ export function createFinanceOperationsRepository(
           (await loadCommissionAdjustments(client, clinicId)).filter((item) =>
             scopedProfessionals.has(item.professionalId),
           ),
+          detailCategoryId,
         );
       });
     },
