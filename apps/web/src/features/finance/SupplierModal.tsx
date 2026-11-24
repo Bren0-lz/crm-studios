@@ -133,7 +133,9 @@ export function SupplierModal({
     supplier === "new" ? null : supplier,
   );
   const [form, setForm] = useState<SupplierInput>(() =>
-    supplier === "new" ? emptySupplier : { ...emptySupplier, ...supplier },
+    supplier === "new"
+      ? emptySupplier
+      : { ...emptySupplier, ...supplier, email: supplier.email ?? "" },
   );
   /** Último estado gravado do formulário, para saber se há o que salvar. */
   const [savedForm, setSavedForm] = useState(() => JSON.stringify(form));
