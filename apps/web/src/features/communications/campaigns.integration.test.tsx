@@ -363,6 +363,38 @@ describe("cartões das mensagens padrão", () => {
 });
 
 describe("campanhas de WhatsApp", () => {
+  it("registra a resposta de NPS no destinatário da campanha", async () => {
+    const entry = recipient({ status: "sent" });
+    const detail = campaign([entry]);
+    const { calls } = setup(`/comunicacoes/campanhas/${detail.id}`, (url) => {
+      if (url.endsWith(`/communications/campaigns/${detail.id}`)) return detail;
+      if (url.endsWith("/satisfaction"))
+        return { patientName: entry.patientName, score: 9 };
+    });
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Registrar resposta de NPS" }),
+    );
+    const dialog = screen.getByRole("dialog", { name: "Registrar satisfação" });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Nota 9" }));
+    fireEvent.change(within(dialog).getByLabelText("Comentário (opcional)"), {
+      target: { value: "Ótimo atendimento" },
+    });
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Salvar avaliação" }),
+    );
+    expect(await screen.findByText("Resposta de NPS registrada")).toBeVisible();
+    expect(
+      calls.find(
+        (call) => call.url.endsWith("/satisfaction") && call.method === "POST",
+      )?.body,
+    ).toEqual({
+      patientId: entry.patientId,
+      campaignRecipientId: entry.id,
+      score: 9,
+      comment: "Ótimo atendimento",
+    });
+  });
+
   it("cria a campanha escolhendo clientes e abre o envio", async () => {
     const created = campaign([
       recipient({
@@ -459,7 +491,10 @@ describe("campanhas de WhatsApp", () => {
   it("usa em campanha a mensagem recém-criada e chega à conferência", async () => {
     const saved: MessageTemplate[] = [];
     const { calls } = setup("/comunicacoes", (url, init) => {
-      if (url.endsWith("/communications/templates") && init?.method === "POST") {
+      if (
+        url.endsWith("/communications/templates") &&
+        init?.method === "POST"
+      ) {
         const created = { ...template, ...JSON.parse(String(init.body)) };
         saved.push(created);
         return created;
@@ -497,10 +532,9 @@ describe("campanhas de WhatsApp", () => {
     const editor = await screen.findByRole("dialog", {
       name: "Nova mensagem padrão",
     });
-    fireEvent.change(
-      within(editor).getByLabelText("Título (só a equipe vê)"),
-      { target: { value: "Mensagem nova" } },
-    );
+    fireEvent.change(within(editor).getByLabelText("Título (só a equipe vê)"), {
+      target: { value: "Mensagem nova" },
+    });
     installDocumentBrowserMocks();
     setDocumentText(
       within(editor).getByRole("textbox", { name: "Mensagem" }),
@@ -1011,7 +1045,9 @@ describe("campanhas de WhatsApp", () => {
     const filters = screen.getByRole("group", { name: "Filtrar clientes" });
 
     fireEvent.click(within(filters).getByRole("button", { name: "Enviadas" }));
-    expect(screen.getByText("Nenhum cliente neste filtro.")).toBeInTheDocument();
+    expect(
+      screen.getByText("Nenhum cliente neste filtro."),
+    ).toBeInTheDocument();
     const sender = screen.getByRole("region", { name: "Envio atual" });
     expect(
       within(sender).queryByRole("heading", { name: "Bruno Costa" }),

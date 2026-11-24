@@ -1,3 +1,4 @@
+import { SatisfactionSurveyModal } from "../../agenda/index";
 import { withQuotedPrefix } from "@crm/contracts";
 import {
   campaignRecipientStatusLabels,
@@ -91,6 +92,8 @@ export function CampaignSenderPage() {
   const [actionError, setActionError] = useState("");
   const [busy, setBusy] = useState(false);
   const [awaitingReturn, setAwaitingReturn] = useState(false);
+  const [surveyRecipient, setSurveyRecipient] =
+    useState<WhatsappCampaignRecipient | null>(null);
   const [confirming, setConfirming] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
   const { images, error: imageError } = useTemplateImages(
@@ -170,6 +173,20 @@ export function CampaignSenderPage() {
   const current =
     listed.find(({ index }) => index === currentIndex) ?? listed[0];
   const recipient = current?.item;
+  function markSurveyRecorded() {
+    setCampaign(
+      (current) =>
+        current && {
+          ...current,
+          recipients: current.recipients.map((item) =>
+            item.id === surveyRecipient?.id
+              ? { ...item, satisfactionRecorded: true }
+              : item,
+          ),
+        },
+    );
+    setSurveyRecipient(null);
+  }
   const recipientIndex = current?.index ?? currentIndex;
 
   async function setStatus(
@@ -301,9 +318,7 @@ export function CampaignSenderPage() {
                   <button
                     type="button"
                     className={`recipient-row ${item.status}`}
-                    aria-current={
-                      index === recipientIndex ? "true" : undefined
-                    }
+                    aria-current={index === recipientIndex ? "true" : undefined}
                     onClick={() => {
                       setCurrentIndex(index);
                       setCopied(null);
@@ -594,6 +609,22 @@ export function CampaignSenderPage() {
                       )}
                     </div>
                   )}
+                  {recipient.satisfactionRecorded && (
+                    <p>Resposta de NPS registrada</p>
+                  )}
+                  {recipient.status === "sent" &&
+                    recipient.patientId &&
+                    !recipient.satisfactionRecorded &&
+                    canSend &&
+                    can("agenda.satisfaction_create") && (
+                      <button
+                        type="button"
+                        className="secondary-button"
+                        onClick={() => setSurveyRecipient(recipient)}
+                      >
+                        Registrar resposta de NPS
+                      </button>
+                    )}
                   {actionError && !confirming && (
                     <p className="form-error" role="alert">
                       {actionError}
@@ -614,6 +645,18 @@ export function CampaignSenderPage() {
           )}
         </section>
       </div>
+      {surveyRecipient?.patientId && (
+        <SatisfactionSurveyModal
+          patient={{
+            id: surveyRecipient.patientId,
+            fullName: surveyRecipient.patientName,
+          }}
+          campaignRecipientId={surveyRecipient.id}
+          onClose={() => setSurveyRecipient(null)}
+          onSaved={markSurveyRecorded}
+          onDuplicate={markSurveyRecorded}
+        />
+      )}
       {confirming && recipient && (
         <Modal
           title={`Enviou para ${recipient.patientName}?`}

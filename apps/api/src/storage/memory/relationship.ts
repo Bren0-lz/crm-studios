@@ -220,7 +220,40 @@ export function createRelationshipRepository(
             409,
           );
       }
+      if (input.campaignRecipientId) {
+        const matches = repositoryContext.whatsappCampaigns.some(
+          (campaign) =>
+            campaign.clinicId === clinicId &&
+            campaign.recipients.some(
+              (recipient) =>
+                recipient.id === input.campaignRecipientId &&
+                recipient.patientId === input.patientId &&
+                recipient.status === "sent",
+            ),
+        );
+        if (!matches)
+          throw new DomainError(
+            "SATISFACTION_CAMPAIGN_MISMATCH",
+            "O envio da campanha não pertence a este cliente.",
+            404,
+          );
+        if (
+          repositoryContext.satisfactionSurveys.some(
+            (item) =>
+              item.clinicId === clinicId &&
+              item.campaignRecipientId === input.campaignRecipientId,
+          )
+        )
+          throw new DomainError(
+            "SATISFACTION_DUPLICATE",
+            "Este envio já possui resposta de NPS.",
+            409,
+          );
+      }
       const survey: SatisfactionSurvey = {
+        ...(input.campaignRecipientId
+          ? { campaignRecipientId: input.campaignRecipientId }
+          : {}),
         ...(input.sourceMessageId
           ? { sourceMessageId: input.sourceMessageId }
           : {}),

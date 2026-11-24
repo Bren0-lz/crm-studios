@@ -110,16 +110,20 @@ export function registerRelationshipRoutes(context: RouteContext) {
   app.post(
     "/satisfaction",
     { preHandler: authenticate },
-    async (request, reply) =>
-      reply
+    async (request, reply) => {
+      const input = satisfactionSurveyInputSchema.parse(request.body);
+      if (input.campaignRecipientId)
+        context.assertPermissions(request, "communications.campaigns");
+      return reply
         .status(201)
         .send(
           await repository.createSatisfactionSurvey(
             request.user.clinicId,
             request.user.sub,
-            satisfactionSurveyInputSchema.parse(request.body),
+            input,
           ),
-        ),
+        );
+    },
   );
 
   app.get(

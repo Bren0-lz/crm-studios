@@ -317,12 +317,26 @@ export function createRelationshipRepository(
             "A solicitação de NPS não pertence a este cliente.",
             404,
           );
+        if (
+          input.campaignRecipientId &&
+          !(
+            await client.query(
+              "SELECT id FROM whatsapp_campaign_recipients WHERE clinic_id=$1 AND id=$2 AND patient_id=$3 AND status='sent' LOCK IN SHARE MODE",
+              [clinicId, input.campaignRecipientId, input.patientId],
+            )
+          ).rowCount
+        )
+          throw new DomainError(
+            "SATISFACTION_CAMPAIGN_MISMATCH",
+            "O envio da campanha não pertence a este cliente.",
+            404,
+          );
         try {
           const result = await writeAndRead<SatisfactionSurveyRow>(
             client,
             `INSERT INTO satisfaction_surveys (
-             clinic_id, patient_id, appointment_id, score, comment, actor_user_id,source_message_id,id
-           ) VALUES ($1, $2, $3, $4, $5, $6,$7,$8)`,
+             clinic_id, patient_id, appointment_id, score, comment, actor_user_id,source_message_id,id,campaign_recipient_id
+           ) VALUES ($1, $2, $3, $4, $5, $6,$7,$8,$9)`,
             [
               clinicId,
               input.patientId,
@@ -332,6 +346,7 @@ export function createRelationshipRepository(
               actorUserId,
               input.sourceMessageId ?? null,
               randomUUID(),
+              input.campaignRecipientId ?? null,
             ],
             `SELECT ${satisfactionSurveyColumns}
          FROM satisfaction_surveys s JOIN patients p ON p.id = s.patient_id AND p.clinic_id=s.clinic_id
@@ -342,7 +357,9 @@ export function createRelationshipRepository(
           if (hasDatabaseCode(error, "23505"))
             throw new DomainError(
               "SATISFACTION_DUPLICATE",
-              "Este atendimento já possui pesquisa de satisfação.",
+              input.campaignRecipientId
+                ? "Este envio já possui resposta de NPS."
+                : "Este atendimento já possui pesquisa de satisfação.",
               409,
             );
           throw error;

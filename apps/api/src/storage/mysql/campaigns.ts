@@ -51,6 +51,7 @@ interface CampaignRow {
 }
 
 interface RecipientRow {
+  satisfactionRecorded: number;
   id: string;
   patientId: string | null;
   leadId: string | null;
@@ -75,7 +76,8 @@ const campaignColumns = `c.id, c.name, c.template_id AS "templateId",
 
 const recipientColumns = `r.id, r.patient_id AS "patientId", r.lead_id AS "leadId",
   r.patient_name AS "patientName",
-  r.phone, r.message, r.status, r.handled_at AS "handledAt", u.full_name AS "handledByName"`;
+  r.phone, r.message, r.status, r.handled_at AS "handledAt", u.full_name AS "handledByName",
+  EXISTS(SELECT 1 FROM satisfaction_surveys ss WHERE ss.clinic_id=r.clinic_id AND ss.campaign_recipient_id=r.id) AS "satisfactionRecorded"`;
 
 const toImage = (row: ImageRow): MessageTemplateImage => ({
   id: row.id,
@@ -92,6 +94,7 @@ const toRecipient = (row: RecipientRow): WhatsappCampaignRecipient => ({
   phone: row.phone,
   message: row.message,
   status: row.status,
+  ...(row.satisfactionRecorded ? { satisfactionRecorded: true } : {}),
   ...(row.handledAt
     ? {
         handledAt: row.handledAt.toISOString(),

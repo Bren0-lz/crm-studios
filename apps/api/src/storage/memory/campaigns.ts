@@ -134,6 +134,13 @@ export function createCampaignsRepository(
     phone: recipient.phone,
     message: recipient.message,
     status: recipient.status,
+    ...(repositoryContext.satisfactionSurveys.some(
+      (survey) =>
+        survey.clinicId === campaign.clinicId &&
+        survey.campaignRecipientId === recipient.id,
+    )
+      ? { satisfactionRecorded: true }
+      : {}),
     ...(recipient.handledAt
       ? {
           handledAt: recipient.handledAt,

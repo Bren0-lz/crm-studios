@@ -36,6 +36,7 @@ export function mapContactActivity(row: ContactActivityRow): ContactActivity {
 }
 
 export interface SatisfactionSurveyRow {
+  campaignRecipientId: string | null;
   sourceMessageId: string | null;
   id: string;
   clinicId: string;
@@ -49,7 +50,7 @@ export interface SatisfactionSurveyRow {
 }
 
 export const satisfactionSurveyColumns = `
-  s.source_message_id AS "sourceMessageId",s.id, s.clinic_id AS "clinicId", s.patient_id AS "patientId",
+  s.campaign_recipient_id AS "campaignRecipientId", s.source_message_id AS "sourceMessageId",s.id, s.clinic_id AS "clinicId", s.patient_id AS "patientId",
   p.full_name AS "patientName", s.appointment_id AS "appointmentId", s.score,
   s.comment, s.actor_user_id AS "actorUserId", s.created_at AS "createdAt"
 `;
@@ -62,6 +63,9 @@ export function mapSatisfactionSurvey(
     clinicId: row.clinicId,
     patientId: row.patientId,
     patientName: row.patientName,
+    ...(row.campaignRecipientId
+      ? { campaignRecipientId: row.campaignRecipientId }
+      : {}),
     ...(row.sourceMessageId ? { sourceMessageId: row.sourceMessageId } : {}),
     ...(row.appointmentId ? { appointmentId: row.appointmentId } : {}),
     score: row.score,
