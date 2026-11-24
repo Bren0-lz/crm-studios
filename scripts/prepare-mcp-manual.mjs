@@ -104,6 +104,69 @@ if (process.argv.includes("--write")) {
     referencias: references,
   });
   sourceHashes[curatedPath] = sha(curated);
+  const fieldGuidesPath = "docs/guias-mcp-fluxos-verificados.md";
+  const fieldGuides = read(fieldGuidesPath);
+  const fieldRevision = fieldGuides.match(
+    /^Revisão das fontes: `([a-f0-9]{40})`/m,
+  )?.[1];
+  if (!fieldRevision)
+    throw new Error("Guias verificados sem revisão das fontes");
+
+  const fieldHeadings = /^## ([A-Z]{2}\d{2}) · (.+)$/gm;
+  const entries = [...fieldGuides.matchAll(fieldHeadings)];
+  if (!entries.length) throw new Error("Nenhum guia verificado encontrado");
+
+  const fieldIds = new Set();
+  for (const [index, entry] of entries.entries()) {
+    const [heading, id, title] = entry;
+    const body = fieldGuides.slice(
+      entry.index + heading.length,
+      entries[index + 1]?.index,
+    );
+    const [lesson, metadata] = body.split(/^\*\*Perguntas:\*\* /m);
+    const [questionLine, sources] =
+      metadata?.split(/^\*\*Fontes:\*\*\s*/m) ?? [];
+    const questions = questionLine?.trim().split(" | ").filter(Boolean) ?? [];
+    const references = [
+      ...(sources ?? "").matchAll(/\[([^\]]+)\]\((https:\/\/[^\s)]+)\)/g),
+    ].map(([, titulo, url]) => ({ titulo, url }));
+    if (
+      fieldIds.has(id) ||
+      !lesson.trim() ||
+      !questions.length ||
+      !references.length
+    ) {
+      throw new Error(`Guia verificado incompleto ou duplicado: ${id}`);
+    }
+    fieldIds.add(id);
+    const sourcePrefix = `https://github.com/Bren0-lz/crm-studios/blob/${fieldRevision}/`;
+    for (const { url } of references) {
+      if (!url.startsWith(sourcePrefix))
+        throw new Error(`Fonte sem revisão fixa: ${id}`);
+      const path = url.slice(sourcePrefix.length).split("#")[0];
+      const contents = read(path);
+      const reviewedContents = execFileSync(
+        "git",
+        ["show", `${fieldRevision}:${path}`],
+        {
+          cwd: root,
+          encoding: "utf8",
+        },
+      );
+      if (contents !== reviewedContents) {
+        throw new Error(`Revise o guia ${id}: a fonte ${path} mudou.`);
+      }
+      sourceHashes[path] = sha(contents);
+    }
+    chapters.push({
+      id,
+      titulo: title,
+      trecho: `## ${title}\n\n${lesson.trim()}`,
+      referencias: references,
+      perguntas: questions,
+    });
+  }
+  sourceHashes[fieldGuidesPath] = sha(fieldGuides);
   if (!chapters.length)
     throw new Error("Nenhum tutorial com fontes iguais à revisão auditada");
   const material = sha(JSON.stringify(chapters));

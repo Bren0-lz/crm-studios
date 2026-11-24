@@ -81,6 +81,15 @@ async function verifyManual(url, token) {
           item.referencias.length > 0,
       ),
     );
+    const enrollment = await consult(
+      "Como matricular um aluno quando tem vaga?",
+    );
+    assert.equal(enrollment.status, "evidencia_encontrada");
+    assert.deepEqual(
+      enrollment.trechos.map((item) => item.id),
+      ["GR04"],
+    );
+    assert.match(enrollment.trechos[0].trecho, /\*\*Matricular\*\*/);
     const missing = await consult("Como emitir nota fiscal eletrônica?");
     assert.equal(missing.status, "evidencia_insuficiente");
     assert.deepEqual(missing.trechos, []);
@@ -91,6 +100,7 @@ async function verifyManual(url, token) {
           inicializacao: "OK",
           ferramentas: tools.map((tool) => tool.name),
           cadastroCliente: "OK",
+          matriculaComVaga: "OK",
           semResultado: "OK",
           semCredencial: 401,
           revisao: expectedRevision,
