@@ -352,9 +352,13 @@ describe("action modals instead of browser dialogs", () => {
       createdAt: "2026-09-01T12:00:00.000Z",
       updatedAt: "2026-09-01T12:00:00.000Z",
     };
+    let activeBlocks = [block];
     mockApi(
-      (url) => (url.includes("/schedule-blocks?") ? [block] : undefined),
-      () => ({ ...block, status: "cancelled" }),
+      (url) => (url.includes("/schedule-blocks?") ? activeBlocks : undefined),
+      () => {
+        activeBlocks = [];
+        return { ...block, status: "cancelled" };
+      },
     );
     render(
       <MemoryRouter initialEntries={["/agenda"]}>
