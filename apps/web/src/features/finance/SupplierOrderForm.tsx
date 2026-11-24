@@ -21,11 +21,7 @@ export function SupplierOrderFields({
   disabled?: boolean;
 }) {
   const hintId = useId();
-  const { products, lines } = draft;
-  const itemsCostInCents = lines.reduce(
-    (sum, line) => sum + draft.lineQuantity(line) * (line.unitCostInCents ?? 0),
-    0,
-  );
+  const { products, lines, itemsCostInCents } = draft;
   return (
     <>
       <fieldset className="form-fields form-grid" disabled={disabled}>

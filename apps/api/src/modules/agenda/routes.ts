@@ -548,13 +548,15 @@ export function registerAgendaRoutes(context: RouteContext) {
       await assertNoHoliday(request.user.clinicId, [input.startsAt]);
       await assertMovedServiceAvailable(request.user.clinicId, id, input);
       const planId = input.planId ?? current.planId;
-      await assertAppointmentPlan(
-        repository,
-        request.user.clinicId,
-        { ...current, planId },
-        [input.startsAt],
-        id,
-      );
+      // A reposição preserva a experimental original, mesmo após a compra de um plano.
+      if (current.visitType !== "trial")
+        await assertAppointmentPlan(
+          repository,
+          request.user.clinicId,
+          { ...current, planId },
+          [input.startsAt],
+          id,
+        );
       return reply
         .status(201)
         .send(
