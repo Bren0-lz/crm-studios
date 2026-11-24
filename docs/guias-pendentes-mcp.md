@@ -1,5 +1,7 @@
 # Guias que faltam na ajuda do CRM
 
+A situação atual dos objetivos do anexo está no [relatório de validação no site](relatorio-validacao-mcp-2026-11-24.md#inventário-dos-objetivos-pendentes). O inventário abaixo registra a auditoria inicial.
+
 Inventário inicial de 24/11/2026, antes dos testes no navegador. A [matriz do CRM](auditoria-cobertura-mcp.md#matriz-por-objetivo) identifica 240 tarefas ativas. A versão `5e03ad9c` contém 10 capítulos dedicados. Os 230 objetivos abaixo precisam de um guia próprio. Alguns já têm material histórico ou uma nota em outro capítulo.
 
 Os dez capítulos existentes também precisam da revisão de condições descrita na matriz. Ela cobre, por exemplo, acesso, filial, atendimento confirmado, vagas, cobrança e diferenças no celular.

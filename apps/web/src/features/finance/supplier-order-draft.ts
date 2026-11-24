@@ -34,13 +34,13 @@ export function useSupplierOrderDraft(enabled: boolean) {
   const [loadError, setLoadError] = useState("");
   const [orderedOn, setOrderedOn] = useState(() => localIsoDate());
   const [number, setNumber] = useState("");
-  const [totalInCents, setTotalInCents] = useState<number | null>(null);
+  const [manualTotal, setTotalInCents] = useState<number | null>(null);
   const [notes, setNotes] = useState("");
   const [lines, setLines] = useState<OrderLine[]>(() => [emptyLine()]);
   /** Item cujo produto está sendo cadastrado no modal por cima. */
   const [creatingFor, setCreatingFor] = useState<number | null>(null);
   const dirty = useFormDirty(
-    { orderedOn, number, totalInCents, notes, lines },
+    { orderedOn, number, manualTotal, notes, lines },
     enabled,
   );
   const loading = enabled && products === null;
@@ -73,6 +73,15 @@ export function useSupplierOrderDraft(enabled: boolean) {
           0,
         )
       : line.quantity;
+  const itemsCostInCents = lines.reduce(
+    (sum, line) => sum + lineQuantity(line) * (line.unitCostInCents ?? 0),
+    0,
+  );
+  const totalInCents =
+    manualTotal ??
+    (lines.every((line) => line.productId && line.unitCostInCents !== null)
+      ? itemsCostInCents
+      : null);
   function updateLine(key: number, patch: Partial<OrderLine>) {
     setLines((current) =>
       current.map((line) => (line.key === key ? { ...line, ...patch } : line)),
@@ -151,6 +160,7 @@ export function useSupplierOrderDraft(enabled: boolean) {
     number,
     setNumber,
     totalInCents,
+    itemsCostInCents,
     setTotalInCents,
     notes,
     setNotes,
