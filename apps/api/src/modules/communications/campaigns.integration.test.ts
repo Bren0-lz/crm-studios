@@ -213,9 +213,9 @@ describe("mensagens padrão de WhatsApp", () => {
       },
     });
     expect(campaign.statusCode).toBe(201);
-    expect(
-      campaign.json<WhatsappCampaignDetail>().recipients[0]?.message,
-    ).toBe(`Oi, ${ana!.fullName.split(" ")[0]}! {{interesse}}`);
+    expect(campaign.json<WhatsappCampaignDetail>().recipients[0]?.message).toBe(
+      `Oi, ${ana!.fullName.split(" ")[0]}! {{interesse}}`,
+    );
   });
 });
 
@@ -310,6 +310,31 @@ describe("campanhas de WhatsApp", () => {
     expect(update.campaign.sent).toBe(1);
     expect(update.campaign.completedAt).toBeTruthy();
 
+    const submitNps = (patientId: string) =>
+      app.inject({
+        method: "POST",
+        url: "/satisfaction",
+        headers,
+        payload: {
+          campaignRecipientId: update.recipient.id,
+          patientId,
+          score: 9,
+          comment: "Ótimo atendimento.",
+        },
+      });
+    expect((await submitNps(bruno!.id)).json()).toMatchObject({
+      code: "SATISFACTION_CAMPAIGN_MISMATCH",
+    });
+    const survey = await submitNps(ana!.id);
+    expect(survey.statusCode).toBe(201);
+    expect(survey.json()).toMatchObject({
+      campaignRecipientId: update.recipient.id,
+      score: 9,
+    });
+    expect((await submitNps(ana!.id)).json()).toMatchObject({
+      code: "SATISFACTION_DUPLICATE",
+    });
+
     const reopened = await app.inject({
       method: "POST",
       url: `/communications/campaigns/${campaign.id}/recipients/${campaign.recipients[0]!.id}`,
@@ -326,6 +351,7 @@ describe("campanhas de WhatsApp", () => {
         headers,
       })
     ).json<WhatsappCampaignDetail>();
+    expect(detail.recipients[0]?.satisfactionRecorded).toBe(true);
     expect(detail.body).toBe("Olá, {{nome}}! ({{nome_completo}})");
     expect(detail.images).toHaveLength(1);
     const list = (

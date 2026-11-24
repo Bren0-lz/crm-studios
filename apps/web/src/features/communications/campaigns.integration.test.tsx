@@ -363,6 +363,38 @@ describe("cartões das mensagens padrão", () => {
 });
 
 describe("campanhas de WhatsApp", () => {
+  it("registra a resposta de NPS no destinatário da campanha", async () => {
+    const entry = recipient({ status: "sent" });
+    const detail = campaign([entry]);
+    const { calls } = setup(`/comunicacoes/campanhas/${detail.id}`, (url) => {
+      if (url.endsWith(`/communications/campaigns/${detail.id}`)) return detail;
+      if (url.endsWith("/satisfaction"))
+        return { patientName: entry.patientName, score: 9 };
+    });
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Registrar resposta de NPS" }),
+    );
+    const dialog = screen.getByRole("dialog", { name: "Registrar satisfação" });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Nota 9" }));
+    fireEvent.change(within(dialog).getByLabelText("Comentário (opcional)"), {
+      target: { value: "Ótimo atendimento" },
+    });
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Salvar avaliação" }),
+    );
+    expect(await screen.findByText("Resposta de NPS registrada")).toBeVisible();
+    expect(
+      calls.find(
+        (call) => call.url.endsWith("/satisfaction") && call.method === "POST",
+      )?.body,
+    ).toEqual({
+      patientId: entry.patientId,
+      campaignRecipientId: entry.id,
+      score: 9,
+      comment: "Ótimo atendimento",
+    });
+  });
+
   it("cria a campanha escolhendo clientes e abre o envio", async () => {
     const created = campaign([
       recipient({

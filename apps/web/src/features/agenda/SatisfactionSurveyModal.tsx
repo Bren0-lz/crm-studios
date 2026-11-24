@@ -17,6 +17,7 @@ export function SatisfactionSurveyModal({
   appointment,
   patient,
   sourceMessageId,
+  campaignRecipientId,
   onClose,
   onSaved,
   onDuplicate,
@@ -24,6 +25,7 @@ export function SatisfactionSurveyModal({
   appointment?: Appointment | undefined;
   patient?: Pick<PatientOption, "id" | "fullName"> | undefined;
   sourceMessageId?: string | undefined;
+  campaignRecipientId?: string | undefined;
   onClose: () => void;
   onSaved: (survey: SatisfactionSurvey) => void;
   onDuplicate: () => void;
@@ -51,6 +53,7 @@ export function SatisfactionSurveyModal({
       const saved = await api.createSatisfactionSurvey({
         patientId,
         ...(appointment ? { appointmentId: appointment.id } : {}),
+        ...(campaignRecipientId ? { campaignRecipientId } : {}),
         ...(sourceMessageId ? { sourceMessageId } : {}),
         score,
         ...(trimmed ? { comment: trimmed } : {}),

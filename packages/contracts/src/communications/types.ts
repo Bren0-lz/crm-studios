@@ -181,6 +181,7 @@ export interface WhatsappCampaignRecipientDraft {
 }
 
 export interface WhatsappCampaignRecipient extends WhatsappCampaignRecipientDraft {
+  satisfactionRecorded?: boolean;
   id: string;
   status: CampaignRecipientStatus;
   handledAt?: string;
