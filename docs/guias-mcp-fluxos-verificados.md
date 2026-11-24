@@ -55,7 +55,7 @@ Se não encontrar um nome, confirme com o administrador se sua conta tem acesso 
 
 1. Abra [**Agenda**](https://crm.organizastudios.com/agenda).
 2. Encontre o cartão do atendimento na data em que ele está marcado.
-3. Clique em **Detalhes** no cartão.
+3. Clique no cartão do atendimento para abrir os detalhes.
 4. Em **Detalhes do atendimento**, confira a situação e o horário. Se a seção **Dados do cliente** estiver disponível, use-a para conferir o cadastro vinculado.
 
 Os dados do cliente disponíveis na janela dependem das permissões da sua conta.
@@ -69,7 +69,7 @@ Os dados do cliente disponíveis na janela dependem das permissões da sua conta
 ## AG07 · Remarcar um atendimento
 
 1. Abra [**Agenda**](https://crm.organizastudios.com/agenda).
-2. Encontre o atendimento no dia em que ele está agendado e abra os **Detalhes** do cartão.
+2. Encontre o atendimento no dia em que ele está agendado e clique no cartão.
 3. No painel **Detalhes do atendimento**, clique em **Remarcar atendimento**.
 4. Na janela **Reagendar atendimento**, clique em **Data** e escolha o novo dia. Se só o horário mudar, mantenha a data.
 5. Preencha o novo **Horário**. Se o calendário estiver aberto, clique em **Fechar calendário**.
@@ -81,6 +81,7 @@ Esse caminho vale quando o botão **Remarcar atendimento** estiver disponível n
 **Perguntas:** Como remarcar um atendimento? | Como reagendar uma consulta? | Como trocar o horário de um atendimento? | Como mudar a data de um agendamento? | Como remarcar uma aula experimental já marcada? | Como mudar o horário de uma sessão?
 
 **Fontes:**
+- [Cartão que abre os detalhes na Agenda](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/agenda/AgendaCard.tsx)
 - [Ação Remarcar atendimento](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/agenda/AppointmentDetailsModal.tsx)
 - [Formulário de reagendamento](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/agenda/AppointmentRescheduleModal.tsx)
 - [Teste da preservação do atendimento na remarcação](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/e2e/agenda.spec.ts)
