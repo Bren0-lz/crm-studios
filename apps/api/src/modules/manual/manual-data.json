@@ -1,6 +1,6 @@
 {
-  "revisao": "164806197822677ba55789a665b174ec16a45a2a",
-  "material": "6b90eccb94155381d19c39583e6b12ad9b849d98ac75450e3ebebe78e21b98ce",
+  "revisao": "a1b6dac3d000714173ca1ce9e1f0827bf85694e8",
+  "material": "1ab93ade9580656c97f178c437eed119b00572f38f8356301993180582e39b79",
   "manualPath": "docs/manual-crm-organiza-studios.md",
   "manualSha256": "0e777d85e81ce7fd5d1a7e12f51486efd373a0384e5f72c6053fcb3a9d100ff7",
   "sourceHashes": {
@@ -77,6 +77,8 @@
     "apps/web/src/features/agenda/DayEventsModal.tsx": "a43bb07ae26b978f7865addacd6198a2406b5b7cdbfc4df35b3bb7602620096f",
     "apps/web/src/features/patients/PatientImportModal.tsx": "82a73626ee0d12f73822c13531b12208776ecf19d9d6a9714ddcacdc97e22374",
     "apps/web/src/features/patients/PatientExportModal.tsx": "ed59628847551d6f4f733ec6b0355bf1322818deea53cdfa138c8fc25a814035",
+    "apps/web/src/features/patients/PatientInactivationModal.tsx": "5c98dc8987e85ddfe65cfa729c5436b1b88a465b7918d8d73d465d681b381ca8",
+    "apps/api/src/storage/mysql/patient-management.ts": "89b6b842cd025a735215ef5c12197106327f049fecec7a393c0c09b2e210b38d",
     "apps/web/src/features/commercial/LeadFiltersModal.tsx": "40152997739b8f5d70cd679e4eeeb202875474f27a5101fc5a7bf9683030771d",
     "apps/web/src/features/commercial/LeadDetailsModal.tsx": "52d82844d541ee5caa62c057af3a32d909fea7bec6115471b12bb4e4217b2ca6",
     "apps/web/src/features/commercial/LeadAnalysisModal.tsx": "156bc11e4bc66e950c0e62b1c5e24a72cf97463e9a115251abaf0bb4f4358047",
@@ -198,6 +200,8 @@
     "apps/web/src/features/settings/AutoFinalizationContent.tsx": "16bf6750cba267a0c5f9983230094d9628738ece0b18ccf2c5abbd7c030595bb",
     "apps/web/src/features/settings/PaymentMethodsContent.tsx": "32f1ffe63b629301e497fddd113e6d2d2924014b239d4920c0bee52fb0b53bbc",
     "apps/web/src/features/settings/IntegrationKeysContent.tsx": "b1e59347d0425497021b34b670e37290e09901f8b3b9622b70f76074c053282f",
+    "apps/web/src/features/settings/TelegramIntegrationContent.tsx": "af574549fa8e81bc6e4498e9d098defa5b7a8ef292229e92e9dad823391d215f",
+    "packages/contracts/src/integrations/telegram.ts": "7b79cb5560aa9d93896cef00390b93c4c9a621b77a29f7ac796238490ece711f",
     "apps/web/src/features/settings/PatientTagsContent.tsx": "21773b0cc0937e5a0c6330b8e714498fddacb7d864086a4e90f7a9cfa92118e7",
     "apps/web/src/features/settings/PatientTagEditModal.tsx": "c4d23cffdfc0d5ae07f31ee74fc9103b89e1f4a9bbc849d3630d52a0187cc6b4",
     "apps/web/src/features/settings/AutomaticTagEditModal.tsx": "1239559af954ae526e38e0dbe99873069e916f81f4f7f6a3d927af81b1865b5f",
@@ -208,7 +212,7 @@
     "apps/web/src/features/trash/SendToTrashModal.tsx": "b22fc267294fa933fb375e424a866508503b56a70c1c103e7bd1677d4b3094f2",
     "apps/web/src/features/trash/TrashModal.tsx": "99cf3b20c146f63a68639e3465648ae65eb2756ccec9d4c6b894f081ddf02dc2",
     "apps/web/src/features/trash/PurgeConfirmModal.tsx": "431247cc24391c5df720e8892632dfe3861addeb38ece271af4b6e83ed79d57f",
-    "docs/guias-mcp-fluxos-verificados.md": "19ef0cfb7fb1921859b2869ae4147b382f280bea86dd19da8ba2593817f7a3d3"
+    "docs/guias-mcp-fluxos-verificados.md": "db383a052ce2a5aede59439bb13a1e489700f1efd49fe3c9371d393e17b77897"
   },
   "excluidos": [
     "Agendar um atendimento",
@@ -265,23 +269,23 @@
         },
         {
           "titulo": "AgendaCard.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/164806197822677ba55789a665b174ec16a45a2a/apps/web/src/features/agenda/AgendaCard.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/a1b6dac3d000714173ca1ce9e1f0827bf85694e8/apps/web/src/features/agenda/AgendaCard.tsx"
         },
         {
           "titulo": "AppointmentDetailsModal.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/164806197822677ba55789a665b174ec16a45a2a/apps/web/src/features/agenda/AppointmentDetailsModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/a1b6dac3d000714173ca1ce9e1f0827bf85694e8/apps/web/src/features/agenda/AppointmentDetailsModal.tsx"
         },
         {
           "titulo": "agenda-card-menu.integration.test.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/164806197822677ba55789a665b174ec16a45a2a/apps/web/src/features/agenda/agenda-card-menu.integration.test.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/a1b6dac3d000714173ca1ce9e1f0827bf85694e8/apps/web/src/features/agenda/agenda-card-menu.integration.test.tsx"
         },
         {
           "titulo": "appointment-attendance.integration.test.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/164806197822677ba55789a665b174ec16a45a2a/apps/web/src/features/agenda/appointment-attendance.integration.test.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/a1b6dac3d000714173ca1ce9e1f0827bf85694e8/apps/web/src/features/agenda/appointment-attendance.integration.test.tsx"
         },
         {
           "titulo": "agenda-cancelled.integration.test.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/164806197822677ba55789a665b174ec16a45a2a/apps/web/src/features/agenda/agenda-cancelled.integration.test.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/a1b6dac3d000714173ca1ce9e1f0827bf85694e8/apps/web/src/features/agenda/agenda-cancelled.integration.test.tsx"
         }
       ]
     },
@@ -300,15 +304,15 @@
         },
         {
           "titulo": "CommercialPage.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/164806197822677ba55789a665b174ec16a45a2a/apps/web/src/features/commercial/CommercialPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/a1b6dac3d000714173ca1ce9e1f0827bf85694e8/apps/web/src/features/commercial/CommercialPage.tsx"
         },
         {
           "titulo": "LeadModal.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/164806197822677ba55789a665b174ec16a45a2a/apps/web/src/features/commercial/LeadModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/a1b6dac3d000714173ca1ce9e1f0827bf85694e8/apps/web/src/features/commercial/LeadModal.tsx"
         },
         {
           "titulo": "lead-form-conversion.integration.test.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/164806197822677ba55789a665b174ec16a45a2a/apps/web/src/features/commercial/lead-form-conversion.integration.test.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/a1b6dac3d000714173ca1ce9e1f0827bf85694e8/apps/web/src/features/commercial/lead-form-conversion.integration.test.tsx"
         }
       ]
     },
@@ -327,19 +331,19 @@
         },
         {
           "titulo": "CommercialPage.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/164806197822677ba55789a665b174ec16a45a2a/apps/web/src/features/commercial/CommercialPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/a1b6dac3d000714173ca1ce9e1f0827bf85694e8/apps/web/src/features/commercial/CommercialPage.tsx"
         },
         {
           "titulo": "LeadCard.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/164806197822677ba55789a665b174ec16a45a2a/apps/web/src/features/commercial/LeadCard.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/a1b6dac3d000714173ca1ce9e1f0827bf85694e8/apps/web/src/features/commercial/LeadCard.tsx"
         },
         {
           "titulo": "LeadConvertModal.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/164806197822677ba55789a665b174ec16a45a2a/apps/web/src/features/commercial/LeadConvertModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/a1b6dac3d000714173ca1ce9e1f0827bf85694e8/apps/web/src/features/commercial/LeadConvertModal.tsx"
         },
         {
           "titulo": "lead-form-conversion.integration.test.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/164806197822677ba55789a665b174ec16a45a2a/apps/web/src/features/commercial/lead-form-conversion.integration.test.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/a1b6dac3d000714173ca1ce9e1f0827bf85694e8/apps/web/src/features/commercial/lead-form-conversion.integration.test.tsx"
         }
       ]
     },
@@ -358,15 +362,15 @@
         },
         {
           "titulo": "GroupsPage.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/164806197822677ba55789a665b174ec16a45a2a/apps/web/src/features/groups/GroupsPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/a1b6dac3d000714173ca1ce9e1f0827bf85694e8/apps/web/src/features/groups/GroupsPage.tsx"
         },
         {
           "titulo": "GroupModal.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/164806197822677ba55789a665b174ec16a45a2a/apps/web/src/features/groups/GroupModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/a1b6dac3d000714173ca1ce9e1f0827bf85694e8/apps/web/src/features/groups/GroupModal.tsx"
         },
         {
           "titulo": "groups.spec.ts",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/164806197822677ba55789a665b174ec16a45a2a/e2e/groups.spec.ts"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/a1b6dac3d000714173ca1ce9e1f0827bf85694e8/e2e/groups.spec.ts"
         }
       ]
     },
@@ -385,15 +389,15 @@
         },
         {
           "titulo": "GroupsPage.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/164806197822677ba55789a665b174ec16a45a2a/apps/web/src/features/groups/GroupsPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/a1b6dac3d000714173ca1ce9e1f0827bf85694e8/apps/web/src/features/groups/GroupsPage.tsx"
         },
         {
           "titulo": "GroupDetailsModal.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/164806197822677ba55789a665b174ec16a45a2a/apps/web/src/features/groups/GroupDetailsModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/a1b6dac3d000714173ca1ce9e1f0827bf85694e8/apps/web/src/features/groups/GroupDetailsModal.tsx"
         },
         {
           "titulo": "groups.spec.ts",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/164806197822677ba55789a665b174ec16a45a2a/e2e/groups.spec.ts"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/a1b6dac3d000714173ca1ce9e1f0827bf85694e8/e2e/groups.spec.ts"
         }
       ]
     },
@@ -412,11 +416,11 @@
         },
         {
           "titulo": "GroupsPage.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/164806197822677ba55789a665b174ec16a45a2a/apps/web/src/features/groups/GroupsPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/a1b6dac3d000714173ca1ce9e1f0827bf85694e8/apps/web/src/features/groups/GroupsPage.tsx"
         },
         {
           "titulo": "groups.spec.ts",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/164806197822677ba55789a665b174ec16a45a2a/e2e/groups.spec.ts"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/a1b6dac3d000714173ca1ce9e1f0827bf85694e8/e2e/groups.spec.ts"
         }
       ]
     },
@@ -435,15 +439,15 @@
         },
         {
           "titulo": "PlansPage.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/164806197822677ba55789a665b174ec16a45a2a/apps/web/src/features/plans/PlansPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/a1b6dac3d000714173ca1ce9e1f0827bf85694e8/apps/web/src/features/plans/PlansPage.tsx"
         },
         {
           "titulo": "PlanModal.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/164806197822677ba55789a665b174ec16a45a2a/apps/web/src/features/plans/PlanModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/a1b6dac3d000714173ca1ce9e1f0827bf85694e8/apps/web/src/features/plans/PlanModal.tsx"
         },
         {
           "titulo": "plans-finance.spec.ts",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/164806197822677ba55789a665b174ec16a45a2a/e2e/plans-finance.spec.ts"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/a1b6dac3d000714173ca1ce9e1f0827bf85694e8/e2e/plans-finance.spec.ts"
         }
       ]
     },
@@ -462,15 +466,15 @@
         },
         {
           "titulo": "WaitlistPage.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/164806197822677ba55789a665b174ec16a45a2a/apps/web/src/features/waitlist/WaitlistPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/a1b6dac3d000714173ca1ce9e1f0827bf85694e8/apps/web/src/features/waitlist/WaitlistPage.tsx"
         },
         {
           "titulo": "WaitlistEntryModal.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/164806197822677ba55789a665b174ec16a45a2a/apps/web/src/features/waitlist/WaitlistEntryModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/a1b6dac3d000714173ca1ce9e1f0827bf85694e8/apps/web/src/features/waitlist/WaitlistEntryModal.tsx"
         },
         {
           "titulo": "waitlist-page.integration.test.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/164806197822677ba55789a665b174ec16a45a2a/apps/web/src/features/waitlist/waitlist-page.integration.test.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/a1b6dac3d000714173ca1ce9e1f0827bf85694e8/apps/web/src/features/waitlist/waitlist-page.integration.test.tsx"
         }
       ]
     },
@@ -489,19 +493,19 @@
         },
         {
           "titulo": "FinancePage.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/164806197822677ba55789a665b174ec16a45a2a/apps/web/src/features/finance/FinancePage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/a1b6dac3d000714173ca1ce9e1f0827bf85694e8/apps/web/src/features/finance/FinancePage.tsx"
         },
         {
           "titulo": "ReceivablesList.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/164806197822677ba55789a665b174ec16a45a2a/apps/web/src/features/finance/ReceivablesList.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/a1b6dac3d000714173ca1ce9e1f0827bf85694e8/apps/web/src/features/finance/ReceivablesList.tsx"
         },
         {
           "titulo": "SettleModal.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/164806197822677ba55789a665b174ec16a45a2a/apps/web/src/features/finance/SettleModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/a1b6dac3d000714173ca1ce9e1f0827bf85694e8/apps/web/src/features/finance/SettleModal.tsx"
         },
         {
           "titulo": "plans-finance.spec.ts",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/164806197822677ba55789a665b174ec16a45a2a/e2e/plans-finance.spec.ts"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/a1b6dac3d000714173ca1ce9e1f0827bf85694e8/e2e/plans-finance.spec.ts"
         }
       ]
     },
@@ -1645,6 +1649,30 @@
         "Como exportar clientes?",
         "Como baixar lista de clientes?",
         "Onde baixo a planilha de clientes?"
+      ]
+    },
+    {
+      "id": "CL14",
+      "titulo": "Inativar clientes em lote",
+      "trecho": "## Inativar clientes em lote\n\n1. Entre como administrador e abra [**Clientes**](https://crm.organizastudios.com/clientes). Clique em **Mais** e escolha **Inativar em lote**.\n2. Em **Meses sem atividade**, informe o período, de 3 a 120 meses. Clique em **Ver prévia**.\n3. Em **Clientes elegíveis**, marque os cadastros que deseja inativar. Se mudar o período, gere a prévia novamente.\n4. Confira a quantidade selecionada e clique em **Confirmar inativação**.\n5. Leia os totais de clientes inativados e ignorados. Para localizar os cadastros inativados, abra **Filtros** e escolha **Inativos** em **Situação**.\n\nA prévia considera clientes ativos da rede com cadastros antigos o suficiente para o período escolhido. Atendimento individual no período ou agendado, frequência de turma no período, plano ativo e vigente ou matrícula ativa com aula futura impedem a seleção. Se um cliente perder a elegibilidade entre a prévia e a confirmação, o CRM conta esse cadastro como ignorado.",
+      "referencias": [
+        {
+          "titulo": "Ação, resultado e filtro em Clientes",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/patients/PatientsPage.tsx"
+        },
+        {
+          "titulo": "Período, prévia e seleção",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/patients/PatientInactivationModal.tsx"
+        },
+        {
+          "titulo": "Critérios de elegibilidade e revalidação",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/api/src/storage/mysql/patient-management.ts"
+        }
+      ],
+      "perguntas": [
+        "Como inativar clientes em lote?",
+        "Onde desativo vários clientes sem atividade?",
+        "Por que um cliente foi ignorado na inativação em lote?"
       ]
     },
     {
@@ -2968,6 +2996,30 @@
       "perguntas": [
         "Como registrar que uma mensagem automática não foi enviada?",
         "Onde trato as mensagens pendentes de campanha automática?"
+      ]
+    },
+    {
+      "id": "CO09",
+      "titulo": "Registrar manualmente uma resposta de NPS recebida por mensagem",
+      "trecho": "## Registrar manualmente uma resposta de NPS recebida por mensagem\n\n1. Se a resposta veio de uma campanha manual, confira o nome do destinatário na fila da campanha em [**Comunicações**](https://crm.organizastudios.com/comunicacoes).\n2. Vá à [**Agenda**](https://crm.organizastudios.com/agenda) e abra os **Detalhes do atendimento** realizado que corresponde à resposta do cliente.\n3. Clique em **Registrar satisfação**, escolha a nota de **0 a 10** informada pelo cliente e preencha **Comentário (opcional)** se ele tiver enviado um comentário.\n4. Clique em **Salvar avaliação** e confira **Satisfação registrada** com a nota nos detalhes do atendimento.\n\nO registro fica no atendimento. A fila da campanha registra o status do envio e não oferece um campo para lançar ou associar a resposta à campanha. Se o atendimento já tem uma avaliação, os detalhes exibem a nota registrada.",
+      "referencias": [
+        {
+          "titulo": "Ações de acompanhamento na fila da campanha",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/communications/campaigns/CampaignSenderPage.tsx"
+        },
+        {
+          "titulo": "Disponibilidade e nota registrada no atendimento",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/agenda/AppointmentDetailsModal.tsx"
+        },
+        {
+          "titulo": "Formulário de nota e comentário",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/agenda/SatisfactionSurveyModal.tsx"
+        }
+      ],
+      "perguntas": [
+        "Como registrar manualmente uma resposta de NPS de uma campanha?",
+        "Onde lanço uma nota de NPS que o cliente respondeu pelo WhatsApp?",
+        "A fila da campanha permite registrar resposta de NPS?"
       ]
     },
     {
@@ -4618,6 +4670,27 @@
         "Como criar uma chave de integração?",
         "Onde copio o token de integração de vendas?",
         "Como revogar uma chave de integração do CRM?"
+      ]
+    },
+    {
+      "id": "CF18",
+      "titulo": "Vincular e gerenciar avisos do Telegram em chats pessoais e grupos",
+      "trecho": "## Vincular e gerenciar avisos do Telegram em chats pessoais e grupos\n\n1. Abra [**Configurações › Integrações**](https://crm.organizastudios.com/configuracoes?secao=integracoes) e localize **Telegram**. A integração precisa estar ligada. Em **Podem vincular**, confira quais perfis podem vincular o chat pessoal. Use uma conta administradora para vincular grupos.\n2. Para o chat pessoal, clique em **Gerar código de vínculo**. Copie **Mensagem para o bot**, envie o comando no chat privado com o bot do estúdio e volte ao CRM. Clique em **Já enviei** e confira **Chat vinculado**.\n3. Em **Avisos neste chat**, escolha **Recibos**, **Agendamentos** e **Clientes novos** conforme o que deseja receber. Clique em **Salvar avisos**. Com todos desmarcados, ficam disponíveis no privado os comandos `/hoje`, `/semana` e `/mes`.\n4. Para um grupo, adicione o bot do estúdio ao grupo desejado. No CRM, clique em **Vincular grupo**, marque pelo menos um assunto e clique em **Gerar código**.\n5. Envie **Mensagem para o grupo** no grupo escolhido. Se o Telegram pedir o nome do bot, use o formato `/vincular@nome_do_bot CÓDIGO`. Volte ao CRM, clique em **Já enviei** e confira o nome do grupo e os assuntos exibidos em **Grupos**.\n6. Para alterar os assuntos do grupo, clique em **Editar avisos**, ajuste as opções e clique em **Salvar**. Para interromper os avisos de um grupo ou do chat pessoal, clique em **Desvincular** junto ao destino e confirme.\n\nCada código vale 10 minutos e pode ser usado uma vez. Para verificar o recebimento de um assunto selecionado, confira no chat se chegou o aviso após uma ação correspondente no CRM. Os comandos de agenda respondem no chat privado.",
+      "referencias": [
+        {
+          "titulo": "Vínculo, assuntos e desvinculação na tela de Integrações",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/settings/TelegramIntegrationContent.tsx"
+        },
+        {
+          "titulo": "Expiração dos códigos e assuntos disponíveis",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/packages/contracts/src/integrations/telegram.ts"
+        }
+      ],
+      "perguntas": [
+        "Como vincular o Telegram ao CRM?",
+        "Como configurar avisos do CRM em um grupo do Telegram?",
+        "Como mudar ou desativar avisos do Telegram?",
+        "Como desvincular um chat ou grupo do Telegram do CRM?"
       ]
     },
     {

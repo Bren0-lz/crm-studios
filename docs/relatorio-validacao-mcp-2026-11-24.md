@@ -58,7 +58,7 @@ Ao adicionar um produto ao pedido de fornecedor, o CRM mostrou a soma dos itens.
 
 ## Cobertura da rodada
 
-Na primeira rodada entraram **129** guias. A segunda acrescentou **79** dos **82** objetivos pendentes. Dos **211** objetivos do anexo, **208** têm guia e **3** ainda precisam de validação suficiente para receber um. Com os capítulos anteriores, o catálogo do MCP no repositório tem **238** tutoriais. A busca e o filtro da lista de campanhas (**CO01**) e a abertura de lançamentos por categoria da DRE (**RL07**) são diferenças de cobertura nos guias correspondentes, descritas acima.
+Na primeira rodada entraram **129** guias. A segunda acrescentou **79** e a terceira documentou os **3** objetivos restantes. Com os capítulos anteriores, o catálogo do MCP no repositório tem **241** tutoriais. A busca e o filtro da lista de campanhas (**CO01**) e a abertura de lançamentos por categoria da DRE (**RL07**) são diferenças de cobertura nos guias correspondentes, descritas acima.
 
 Na segunda rodada, conferi resultados após sair do formulário, nas listas, fichas e históricos correspondentes. Por exemplo, a matrícula apareceu na turma selecionada, o cancelamento com devolução gerou uma saída no Financeiro e o estorno da folha devolveu a comissão à situação **Na folha**. As variantes de perfil, filial, situação do registro e dispositivo estão na [matriz de cobertura](auditoria-cobertura-mcp.md#matriz-por-objetivo).
 
@@ -70,16 +70,16 @@ Usei o prefixo `[MCP 241126]` em cadastros e lançamentos criados para a rodada.
 
 Na segunda rodada, usei também o prefixo `[MCP 241126 R2]`. Restaurei as preferências da Agenda e a configuração de pró-labore ajustadas temporariamente. Nos fluxos de WhatsApp, conferi a abertura do canal e o registro de status no CRM usando destinatários fictícios, sem disparar mensagens externas.
 
-## Objetivos pendentes
+## Validação dos três últimos guias
 
 ### CL14 · Inativar clientes em lote
 
-Em **Clientes › Mais › Inativar em lote**, o prazo mínimo foi de três meses. Com esse prazo, **Ver prévia** retornou “Nenhum cliente elegível para o período informado.” Os clientes criados para esta rodada eram recentes. O teste de integração do repositório passou com cadastros elegíveis e conferiu a inativação. Falta conferir no site a seleção de um cadastro fictício elegível, a confirmação e a situação final do cliente.
+O site de homologação retornou “Nenhum cliente elegível para o período informado” na prévia de três meses. No site local, com a mesma interface e uma API isolada, preparei dois cadastros antigos fictícios e um recente. Selecionei os dois antigos na prévia e acrescentei um atendimento futuro para um deles antes de confirmar. A tela informou **1 cliente inativado · 1 cliente ignorado**. O filtro **Inativos** mostrou apenas o cadastro inativado entre os selecionados. [Guia CL14](guias-mcp-fluxos-verificados.md#cl14--inativar-clientes-em-lote)
 
 ### CO09 · Registrar manualmente uma resposta de NPS em campanha
 
-Na fila de campanhas em **Comunicações**, a tela permitiu registrar o envio e pular destinatários. Não encontrei uma ação para lançar a resposta manual ali. A entrada manual de nota e comentário funcionou nos detalhes do atendimento, em **Satisfação**. Falta confirmar se o inventário também exige que a resposta seja atribuída à campanha. [Guia AG24](guias-mcp-fluxos-verificados.md#ag24--registrar-uma-pesquisa-de-satisfação-no-atendimento)
+Em **Comunicações**, a fila da campanha permite registrar o envio e pular destinatários. O campo de resposta de NPS e a atribuição dessa resposta à campanha estão indisponíveis na fila. O guia orienta como localizar o destinatário e registrar a resposta no atendimento correspondente. Validei a gravação de nota e comentário nos detalhes do atendimento no site de homologação e repeti o fluxo no navegador com a API local isolada. [Guia CO09](guias-mcp-fluxos-verificados.md#co09--registrar-manualmente-uma-resposta-de-nps-recebida-por-mensagem)
 
 ### CF18 · Vincular e gerenciar avisos no Telegram
 
-Em **Configurações › Integrações**, gerei códigos de vínculo para conversa privada e grupo em uma conta administrativa fictícia. Ao reconferir, nenhum chat aparecia vinculado nessa conta. A etapa com o bot no chat privado e no grupo de teste precisa ser concluída para validar o recebimento dos avisos, os assuntos selecionados, a edição e a desvinculação.
+Em **Configurações › Integrações** no site de homologação, gerei códigos de vínculo para conversa privada e grupo em uma conta administrativa fictícia. No navegador, com a API local e um bot simulado, validei os vínculos, a edição de assuntos, o encaminhamento de avisos a cada destino de acordo com as escolhas e a interrupção dos avisos após desvincular ambos. A entrega pelo bot real aos chats de teste ainda precisa ser confirmada. [Guia CF18](guias-mcp-fluxos-verificados.md#cf18--vincular-e-gerenciar-avisos-do-telegram-em-chats-pessoais-e-grupos)

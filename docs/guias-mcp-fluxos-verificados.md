@@ -4,7 +4,7 @@ Revisão das fontes: `5e03ad9c1da1279154229546e583d82ae8104a40`
 
 Os percursos abaixo foram exercitados na interface de `crm.organizastudios.com` em 24/11/2026, no Chromium, com uma conta de teste e registros fictícios. O menu também foi testado em tamanho de celular. Na Agenda, foram concluídos um agendamento experimental, uma remarcação e um agendamento com plano ativo. A revisão identifica o código usado para conferir as instruções. Cada guia indica as condições que mudam os passos.
 
-A rodada seguinte acrescentou percursos executados no site com registros fictícios. Consulte o [relatório de validação da rodada](relatorio-validacao-mcp-2026-11-24.md) para ver as falhas observadas e os objetivos que ainda precisam de validação.
+As rodadas seguintes acrescentaram percursos executados no site com registros fictícios e testes locais para etapas que dependiam de cadastros antigos ou de um bot. Consulte o [relatório de validação](relatorio-validacao-mcp-2026-11-24.md) para ver as falhas observadas e o que foi confirmado em cada ambiente.
 
 ## AC01 · Entrar no CRM
 
@@ -917,6 +917,23 @@ Abra o arquivo CSV que o navegador baixou. Confira se foram incluídas as coluna
 **Fontes:**
 - [Atalho Mais e ação Exportar](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/patients/PatientsPage.tsx)
 - [Seleção dos campos e download](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/patients/PatientExportModal.tsx)
+
+## CL14 · Inativar clientes em lote
+
+1. Entre como administrador e abra [**Clientes**](https://crm.organizastudios.com/clientes). Clique em **Mais** e escolha **Inativar em lote**.
+2. Em **Meses sem atividade**, informe o período, de 3 a 120 meses. Clique em **Ver prévia**.
+3. Em **Clientes elegíveis**, marque os cadastros que deseja inativar. Se mudar o período, gere a prévia novamente.
+4. Confira a quantidade selecionada e clique em **Confirmar inativação**.
+5. Leia os totais de clientes inativados e ignorados. Para localizar os cadastros inativados, abra **Filtros** e escolha **Inativos** em **Situação**.
+
+A prévia considera clientes ativos da rede com cadastros antigos o suficiente para o período escolhido. Atendimento individual no período ou agendado, frequência de turma no período, plano ativo e vigente ou matrícula ativa com aula futura impedem a seleção. Se um cliente perder a elegibilidade entre a prévia e a confirmação, o CRM conta esse cadastro como ignorado.
+
+**Perguntas:** Como inativar clientes em lote? | Onde desativo vários clientes sem atividade? | Por que um cliente foi ignorado na inativação em lote?
+
+**Fontes:**
+- [Ação, resultado e filtro em Clientes](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/patients/PatientsPage.tsx)
+- [Período, prévia e seleção](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/patients/PatientInactivationModal.tsx)
+- [Critérios de elegibilidade e revalidação](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/api/src/storage/mysql/patient-management.ts)
 
 ## CL15 · Consultar o contato de emergência de um cliente
 
@@ -2030,6 +2047,22 @@ Use **Enviadas** ou **Não enviadas** para conferir o novo estado do cartão.
 
 **Fontes:**
 - [Aba de campanhas no painel inicial](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/dashboard/DashboardPage.tsx)
+
+## CO09 · Registrar manualmente uma resposta de NPS recebida por mensagem
+
+1. Se a resposta veio de uma campanha manual, confira o nome do destinatário na fila da campanha em [**Comunicações**](https://crm.organizastudios.com/comunicacoes).
+2. Vá à [**Agenda**](https://crm.organizastudios.com/agenda) e abra os **Detalhes do atendimento** realizado que corresponde à resposta do cliente.
+3. Clique em **Registrar satisfação**, escolha a nota de **0 a 10** informada pelo cliente e preencha **Comentário (opcional)** se ele tiver enviado um comentário.
+4. Clique em **Salvar avaliação** e confira **Satisfação registrada** com a nota nos detalhes do atendimento.
+
+O registro fica no atendimento. A fila da campanha registra o status do envio e não oferece um campo para lançar ou associar a resposta à campanha. Se o atendimento já tem uma avaliação, os detalhes exibem a nota registrada.
+
+**Perguntas:** Como registrar manualmente uma resposta de NPS de uma campanha? | Onde lanço uma nota de NPS que o cliente respondeu pelo WhatsApp? | A fila da campanha permite registrar resposta de NPS?
+
+**Fontes:**
+- [Ações de acompanhamento na fila da campanha](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/communications/campaigns/CampaignSenderPage.tsx)
+- [Disponibilidade e nota registrada no atendimento](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/agenda/AppointmentDetailsModal.tsx)
+- [Formulário de nota e comentário](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/agenda/SatisfactionSurveyModal.tsx)
 
 ## CO10 · Preparar lembrete de uma sessão pelo WhatsApp
 
@@ -3398,6 +3431,23 @@ A lista identifica as chaves revogadas. Ao revogar, a integração deixa de pode
 
 **Fontes:**
 - [Criação, permissões, token e revogação](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/settings/IntegrationKeysContent.tsx)
+
+## CF18 · Vincular e gerenciar avisos do Telegram em chats pessoais e grupos
+
+1. Abra [**Configurações › Integrações**](https://crm.organizastudios.com/configuracoes?secao=integracoes) e localize **Telegram**. A integração precisa estar ligada. Em **Podem vincular**, confira quais perfis podem vincular o chat pessoal. Use uma conta administradora para vincular grupos.
+2. Para o chat pessoal, clique em **Gerar código de vínculo**. Copie **Mensagem para o bot**, envie o comando no chat privado com o bot do estúdio e volte ao CRM. Clique em **Já enviei** e confira **Chat vinculado**.
+3. Em **Avisos neste chat**, escolha **Recibos**, **Agendamentos** e **Clientes novos** conforme o que deseja receber. Clique em **Salvar avisos**. Com todos desmarcados, ficam disponíveis no privado os comandos `/hoje`, `/semana` e `/mes`.
+4. Para um grupo, adicione o bot do estúdio ao grupo desejado. No CRM, clique em **Vincular grupo**, marque pelo menos um assunto e clique em **Gerar código**.
+5. Envie **Mensagem para o grupo** no grupo escolhido. Se o Telegram pedir o nome do bot, use o formato `/vincular@nome_do_bot CÓDIGO`. Volte ao CRM, clique em **Já enviei** e confira o nome do grupo e os assuntos exibidos em **Grupos**.
+6. Para alterar os assuntos do grupo, clique em **Editar avisos**, ajuste as opções e clique em **Salvar**. Para interromper os avisos de um grupo ou do chat pessoal, clique em **Desvincular** junto ao destino e confirme.
+
+Cada código vale 10 minutos e pode ser usado uma vez. Para verificar o recebimento de um assunto selecionado, confira no chat se chegou o aviso após uma ação correspondente no CRM. Os comandos de agenda respondem no chat privado.
+
+**Perguntas:** Como vincular o Telegram ao CRM? | Como configurar avisos do CRM em um grupo do Telegram? | Como mudar ou desativar avisos do Telegram? | Como desvincular um chat ou grupo do Telegram do CRM?
+
+**Fontes:**
+- [Vínculo, assuntos e desvinculação na tela de Integrações](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/settings/TelegramIntegrationContent.tsx)
+- [Expiração dos códigos e assuntos disponíveis](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/packages/contracts/src/integrations/telegram.ts)
 
 ## CF19 · Criar ou editar uma etiqueta manual
 
