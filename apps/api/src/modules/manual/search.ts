@@ -1,7 +1,7 @@
 import data from "./manual-data.json" with { type: "json" };
 
 const stop = new Set(
-  "a o os as um uma uns umas como que de do da dos das no na nos nas para por e em com ao pelo pela meu minha novo nova crm organiza studios eu quero fazer posso onde qual se ja".split(
+  "a o os as um uma uns umas como que de do da dos das no na nos nas para por e em com ao pelo pela meu minha novo nova crm organiza studios eu quero fazer faco posso onde qual se ja".split(
     " ",
   ),
 );
@@ -34,14 +34,14 @@ function tokens(text: string) {
 }
 
 const actions = new Set(
-  "cadastrar agendar cancelar contratar criar consultar abrir mudar remarcar colocar estornar apagar excluir exportar importar emitir".split(
+  "cadastrar agendar cancelar contratar criar consultar abrir mudar remarcar colocar estornar apagar excluir exportar importar emitir matricular localizar buscar encontrar editar acessar confirmar oferecer avisar".split(
     " ",
   ),
 );
 
-export function searchManual(consulta: string) {
-  const words = tokens(consulta);
+function rankLegacyChapters(words: string[]) {
   const ranked = data.capitulos
+    .filter((chapter) => !("perguntas" in chapter))
     .map((chapter) => {
       const all = new Set(tokens(chapter.trecho));
       const heading = new Set(tokens(chapter.titulo));
@@ -67,10 +67,29 @@ export function searchManual(consulta: string) {
         item.score >= 2,
     )
     .sort((a, b) => b.score - a.score);
-  const excerpts = ranked
+  return ranked
     .filter((item) => item.score >= (ranked[0]?.score ?? 0) * 0.8)
     .slice(0, 3)
     .map((item) => item.chapter);
+}
+
+function queryKey(words: string[]) {
+  return [...words].sort().join(" ");
+}
+
+export function searchManual(consulta: string) {
+  const words = tokens(consulta);
+  const query = queryKey(words);
+  const matches = data.capitulos.filter(
+    (chapter) =>
+      query &&
+      "perguntas" in chapter &&
+      [chapter.titulo, ...chapter.perguntas].some(
+        (question) => queryKey(tokens(question)) === query,
+      ),
+  );
+  const excerpts = matches.length === 1 ? matches : [];
+  if (matches.length === 0) excerpts.push(...rankLegacyChapters(words));
   return {
     status: excerpts.length ? "evidencia_encontrada" : "evidencia_insuficiente",
     revisao: { fontes: data.revisao, material: `sha256:${data.material}` },
@@ -81,6 +100,11 @@ export function searchManual(consulta: string) {
     mensagem: excerpts.length
       ? "Confira as condições e os limites dos trechos antes de orientar."
       : "Não encontrei evidência suficiente no conteúdo de ajuda disponível para esta consulta. Não invente passos. Peça uma descrição da tela, sem dados pessoais.",
-    trechos: excerpts,
+    trechos: excerpts.map(({ id, titulo, trecho, referencias }) => ({
+      id,
+      titulo,
+      trecho,
+      referencias,
+    })),
   };
 }

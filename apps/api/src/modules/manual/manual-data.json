@@ -1,6 +1,6 @@
 {
-  "revisao": "ae971c52b54794dd1fb822294e5a1826497680d0",
-  "material": "c2da75d7a08561611788a91fb0261f1914bcc21a765e5c84c583b8f9e0b692c7",
+  "revisao": "51c5aca1e4a0192dddc72fdf272ac5eff42800f7",
+  "material": "ad3d953fe40784741436dabec220a0b7cbe730898408e67d4b94d6291a7b3490",
   "manualPath": "docs/manual-crm-organiza-studios.md",
   "manualSha256": "0e777d85e81ce7fd5d1a7e12f51486efd373a0384e5f72c6053fcb3a9d100ff7",
   "sourceHashes": {
@@ -32,7 +32,26 @@
     "apps/web/src/features/patients/patient-nickname.integration.test.tsx": "897497802d67c49144a729dd17ea3d5edd680952138e24cc92dfaa02f043a78c",
     "e2e/patients.spec.ts": "27c2bbdd5dabb10bb311bc5b1a944aaaf64b252e4208f2fd19b7e74d99cfdfc8",
     "apps/web/src/features/settings/view-only-modules.integration.test.tsx": "ef21ad9237922cc20a00563ce629bb166f2a871b094ada64743400c134eb206e",
-    "docs/ajuda-mcp-clientes.md": "af09babc1aaee27e4ef9775ed17221df76e34107787431dc1e01b5d1e9b2a2c2"
+    "docs/ajuda-mcp-clientes.md": "af09babc1aaee27e4ef9775ed17221df76e34107787431dc1e01b5d1e9b2a2c2",
+    "apps/web/src/features/auth/LoginPage.tsx": "588b6aad2456e91e30c5718216be89c2f6c252784cd749d73b50076b23774425",
+    "apps/web/src/app/Shell.tsx": "d229251901d81a09f4a4397a2f099135279590f72a80800ee79483ef66503f8d",
+    "apps/web/src/features/agenda/AgendaPage.tsx": "8711d0f53af40b5d648e0584f958409f513a7277a451de3855847521ecc29769",
+    "apps/web/src/features/agenda/AppointmentForm.tsx": "86a386246a52a1210bec5998f0357f7e7a9f78fbb310e3b8340d2aa69d03d14a",
+    "e2e/agenda.spec.ts": "11f79ae3052bbbc4dcd367c80adca579ad9d30f2f647dded927b7cb6c969916a",
+    "apps/web/src/features/agenda/AppointmentRescheduleModal.tsx": "cccf1707e2fdaab33a7ab5d5f9476aa44dfe513aa7d874b6a34b1d97160d11d0",
+    "apps/web/src/features/patients/PatientRecordTabs.tsx": "8d1b3cd39b2f19146fe307c0397483154a9e0ac757490b906746d3c94536e623",
+    "apps/web/src/features/patients/PatientDetailPage.tsx": "d010389027e50bc4a033d951147d5de939785f347e1f3af16c375e509a9a60ef",
+    "apps/web/src/features/events/EventsPage.tsx": "805133d6355a2a84877cb11e03aaedd31e2eae1f90b326da6aa2862c9c79f256",
+    "apps/web/src/features/events/EventDetailPage.tsx": "ee208a0304fe374d049ae457ff0008d8778c711eaf3a73dba72af310f7361420",
+    "apps/web/src/features/events/EventModal.tsx": "cba9ba886b9ca079356611bbfab70050ae4ae0efb3a1eeb2c217e343041442f4",
+    "apps/web/src/features/events/EventParticipantModal.tsx": "f5d8801cd54dfd5bdf743a7c9be3430748763c4b62ab99149d4ecfc3b2743d9d",
+    "apps/web/src/features/finance/FinanceClassificationPanel.tsx": "e0dfc5c14023fa9a5a6331b90a423bb233661d5d06ef2b9f638d7cd028737315",
+    "apps/web/src/features/finance/ReversePaymentModal.tsx": "fbb2c85302b5c2cb100bdd382ceb830b636457decebf82a7c850908752bf076d",
+    "apps/web/src/features/patients/PatientPlanModal.tsx": "03a38f9dda7489fa061025667f7619508437e5a85e8fd54a665fb79985de2b08",
+    "apps/web/src/features/plans/PlanForm.tsx": "ea677130148ec418f328ff8d7a40aadbf3440536fa21bd4cbbee8d9fb20ef455",
+    "apps/web/src/features/reports/ReportsPage.tsx": "e859fe2c609168b994b287b6a9d0dbead096faca1ec6d6969914d034fce093a1",
+    "apps/web/src/features/reports/ReportTabs.tsx": "6a517867680123168f1769b3d3d094bcce3c3a838abd751f0bd6f0fa6dbec218",
+    "docs/guias-mcp-fluxos-verificados.md": "e2aa384f40b6c965d73a9fc7acc4d121bf63104ac6b3f2ba53c825c25e751958"
   },
   "excluidos": [
     "Agendar um atendimento",
@@ -89,23 +108,23 @@
         },
         {
           "titulo": "AgendaCard.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/ae971c52b54794dd1fb822294e5a1826497680d0/apps/web/src/features/agenda/AgendaCard.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/51c5aca1e4a0192dddc72fdf272ac5eff42800f7/apps/web/src/features/agenda/AgendaCard.tsx"
         },
         {
           "titulo": "AppointmentDetailsModal.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/ae971c52b54794dd1fb822294e5a1826497680d0/apps/web/src/features/agenda/AppointmentDetailsModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/51c5aca1e4a0192dddc72fdf272ac5eff42800f7/apps/web/src/features/agenda/AppointmentDetailsModal.tsx"
         },
         {
           "titulo": "agenda-card-menu.integration.test.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/ae971c52b54794dd1fb822294e5a1826497680d0/apps/web/src/features/agenda/agenda-card-menu.integration.test.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/51c5aca1e4a0192dddc72fdf272ac5eff42800f7/apps/web/src/features/agenda/agenda-card-menu.integration.test.tsx"
         },
         {
           "titulo": "appointment-attendance.integration.test.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/ae971c52b54794dd1fb822294e5a1826497680d0/apps/web/src/features/agenda/appointment-attendance.integration.test.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/51c5aca1e4a0192dddc72fdf272ac5eff42800f7/apps/web/src/features/agenda/appointment-attendance.integration.test.tsx"
         },
         {
           "titulo": "agenda-cancelled.integration.test.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/ae971c52b54794dd1fb822294e5a1826497680d0/apps/web/src/features/agenda/agenda-cancelled.integration.test.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/51c5aca1e4a0192dddc72fdf272ac5eff42800f7/apps/web/src/features/agenda/agenda-cancelled.integration.test.tsx"
         }
       ]
     },
@@ -124,15 +143,15 @@
         },
         {
           "titulo": "CommercialPage.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/ae971c52b54794dd1fb822294e5a1826497680d0/apps/web/src/features/commercial/CommercialPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/51c5aca1e4a0192dddc72fdf272ac5eff42800f7/apps/web/src/features/commercial/CommercialPage.tsx"
         },
         {
           "titulo": "LeadModal.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/ae971c52b54794dd1fb822294e5a1826497680d0/apps/web/src/features/commercial/LeadModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/51c5aca1e4a0192dddc72fdf272ac5eff42800f7/apps/web/src/features/commercial/LeadModal.tsx"
         },
         {
           "titulo": "lead-form-conversion.integration.test.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/ae971c52b54794dd1fb822294e5a1826497680d0/apps/web/src/features/commercial/lead-form-conversion.integration.test.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/51c5aca1e4a0192dddc72fdf272ac5eff42800f7/apps/web/src/features/commercial/lead-form-conversion.integration.test.tsx"
         }
       ]
     },
@@ -151,19 +170,19 @@
         },
         {
           "titulo": "CommercialPage.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/ae971c52b54794dd1fb822294e5a1826497680d0/apps/web/src/features/commercial/CommercialPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/51c5aca1e4a0192dddc72fdf272ac5eff42800f7/apps/web/src/features/commercial/CommercialPage.tsx"
         },
         {
           "titulo": "LeadCard.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/ae971c52b54794dd1fb822294e5a1826497680d0/apps/web/src/features/commercial/LeadCard.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/51c5aca1e4a0192dddc72fdf272ac5eff42800f7/apps/web/src/features/commercial/LeadCard.tsx"
         },
         {
           "titulo": "LeadConvertModal.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/ae971c52b54794dd1fb822294e5a1826497680d0/apps/web/src/features/commercial/LeadConvertModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/51c5aca1e4a0192dddc72fdf272ac5eff42800f7/apps/web/src/features/commercial/LeadConvertModal.tsx"
         },
         {
           "titulo": "lead-form-conversion.integration.test.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/ae971c52b54794dd1fb822294e5a1826497680d0/apps/web/src/features/commercial/lead-form-conversion.integration.test.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/51c5aca1e4a0192dddc72fdf272ac5eff42800f7/apps/web/src/features/commercial/lead-form-conversion.integration.test.tsx"
         }
       ]
     },
@@ -182,15 +201,15 @@
         },
         {
           "titulo": "GroupsPage.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/ae971c52b54794dd1fb822294e5a1826497680d0/apps/web/src/features/groups/GroupsPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/51c5aca1e4a0192dddc72fdf272ac5eff42800f7/apps/web/src/features/groups/GroupsPage.tsx"
         },
         {
           "titulo": "GroupModal.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/ae971c52b54794dd1fb822294e5a1826497680d0/apps/web/src/features/groups/GroupModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/51c5aca1e4a0192dddc72fdf272ac5eff42800f7/apps/web/src/features/groups/GroupModal.tsx"
         },
         {
           "titulo": "groups.spec.ts",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/ae971c52b54794dd1fb822294e5a1826497680d0/e2e/groups.spec.ts"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/51c5aca1e4a0192dddc72fdf272ac5eff42800f7/e2e/groups.spec.ts"
         }
       ]
     },
@@ -209,15 +228,15 @@
         },
         {
           "titulo": "GroupsPage.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/ae971c52b54794dd1fb822294e5a1826497680d0/apps/web/src/features/groups/GroupsPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/51c5aca1e4a0192dddc72fdf272ac5eff42800f7/apps/web/src/features/groups/GroupsPage.tsx"
         },
         {
           "titulo": "GroupDetailsModal.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/ae971c52b54794dd1fb822294e5a1826497680d0/apps/web/src/features/groups/GroupDetailsModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/51c5aca1e4a0192dddc72fdf272ac5eff42800f7/apps/web/src/features/groups/GroupDetailsModal.tsx"
         },
         {
           "titulo": "groups.spec.ts",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/ae971c52b54794dd1fb822294e5a1826497680d0/e2e/groups.spec.ts"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/51c5aca1e4a0192dddc72fdf272ac5eff42800f7/e2e/groups.spec.ts"
         }
       ]
     },
@@ -236,11 +255,11 @@
         },
         {
           "titulo": "GroupsPage.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/ae971c52b54794dd1fb822294e5a1826497680d0/apps/web/src/features/groups/GroupsPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/51c5aca1e4a0192dddc72fdf272ac5eff42800f7/apps/web/src/features/groups/GroupsPage.tsx"
         },
         {
           "titulo": "groups.spec.ts",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/ae971c52b54794dd1fb822294e5a1826497680d0/e2e/groups.spec.ts"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/51c5aca1e4a0192dddc72fdf272ac5eff42800f7/e2e/groups.spec.ts"
         }
       ]
     },
@@ -259,15 +278,15 @@
         },
         {
           "titulo": "PlansPage.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/ae971c52b54794dd1fb822294e5a1826497680d0/apps/web/src/features/plans/PlansPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/51c5aca1e4a0192dddc72fdf272ac5eff42800f7/apps/web/src/features/plans/PlansPage.tsx"
         },
         {
           "titulo": "PlanModal.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/ae971c52b54794dd1fb822294e5a1826497680d0/apps/web/src/features/plans/PlanModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/51c5aca1e4a0192dddc72fdf272ac5eff42800f7/apps/web/src/features/plans/PlanModal.tsx"
         },
         {
           "titulo": "plans-finance.spec.ts",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/ae971c52b54794dd1fb822294e5a1826497680d0/e2e/plans-finance.spec.ts"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/51c5aca1e4a0192dddc72fdf272ac5eff42800f7/e2e/plans-finance.spec.ts"
         }
       ]
     },
@@ -286,15 +305,15 @@
         },
         {
           "titulo": "WaitlistPage.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/ae971c52b54794dd1fb822294e5a1826497680d0/apps/web/src/features/waitlist/WaitlistPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/51c5aca1e4a0192dddc72fdf272ac5eff42800f7/apps/web/src/features/waitlist/WaitlistPage.tsx"
         },
         {
           "titulo": "WaitlistEntryModal.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/ae971c52b54794dd1fb822294e5a1826497680d0/apps/web/src/features/waitlist/WaitlistEntryModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/51c5aca1e4a0192dddc72fdf272ac5eff42800f7/apps/web/src/features/waitlist/WaitlistEntryModal.tsx"
         },
         {
           "titulo": "waitlist-page.integration.test.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/ae971c52b54794dd1fb822294e5a1826497680d0/apps/web/src/features/waitlist/waitlist-page.integration.test.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/51c5aca1e4a0192dddc72fdf272ac5eff42800f7/apps/web/src/features/waitlist/waitlist-page.integration.test.tsx"
         }
       ]
     },
@@ -313,20 +332,463 @@
         },
         {
           "titulo": "FinancePage.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/ae971c52b54794dd1fb822294e5a1826497680d0/apps/web/src/features/finance/FinancePage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/51c5aca1e4a0192dddc72fdf272ac5eff42800f7/apps/web/src/features/finance/FinancePage.tsx"
         },
         {
           "titulo": "ReceivablesList.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/ae971c52b54794dd1fb822294e5a1826497680d0/apps/web/src/features/finance/ReceivablesList.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/51c5aca1e4a0192dddc72fdf272ac5eff42800f7/apps/web/src/features/finance/ReceivablesList.tsx"
         },
         {
           "titulo": "SettleModal.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/ae971c52b54794dd1fb822294e5a1826497680d0/apps/web/src/features/finance/SettleModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/51c5aca1e4a0192dddc72fdf272ac5eff42800f7/apps/web/src/features/finance/SettleModal.tsx"
         },
         {
           "titulo": "plans-finance.spec.ts",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/ae971c52b54794dd1fb822294e5a1826497680d0/e2e/plans-finance.spec.ts"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/51c5aca1e4a0192dddc72fdf272ac5eff42800f7/e2e/plans-finance.spec.ts"
         }
+      ]
+    },
+    {
+      "id": "AC01",
+      "titulo": "Entrar no CRM",
+      "trecho": "## Entrar no CRM\n\n1. Abra o [CRM Organiza Studios](https://crm.organizastudios.com/).\n2. Se aparecer a tela de entrada, digite o endereço da sua conta em **E-mail**.\n3. Digite a sua **Senha**.\n4. Clique em **Entrar**.\n\nDeu certo quando a tela de entrada dá lugar ao painel do CRM. Se o CRM já abrir no painel, a sessão está ativa. Se a tela de entrada continuar aberta com um aviso, confira o e-mail e digite a senha novamente.",
+      "referencias": [
+        {
+          "titulo": "Tela de entrada",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/auth/LoginPage.tsx"
+        }
+      ],
+      "perguntas": [
+        "Como entrar no CRM?",
+        "Como faço login?",
+        "Como acessar o sistema?",
+        "Onde entro no Organiza Studios?",
+        "Como faço para entrar no sistema?"
+      ]
+    },
+    {
+      "id": "AC03",
+      "titulo": "Abrir o menu no celular e encontrar uma tela",
+      "trecho": "## Abrir o menu no celular e encontrar uma tela\n\n1. Abra o CRM.\n2. No celular, toque no ícone **Abrir menu** no alto da tela. No computador, use o menu lateral.\n3. Toque no nome da tela que você quer abrir. Por exemplo, toque em **Clientes** para abrir a lista de clientes.\n4. Confira o título da tela que abriu.\n\nSe não encontrar um nome, confirme com o administrador se sua conta tem acesso ao módulo e qual nome ele usa no menu da clínica.",
+      "referencias": [
+        {
+          "titulo": "Menu lateral e botão Abrir menu",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/app/Shell.tsx"
+        }
+      ],
+      "perguntas": [
+        "Como abrir o menu no celular?",
+        "Onde fica o menu no celular?",
+        "Como achar os módulos do CRM no celular?",
+        "Como encontrar o menu lateral?",
+        "O menu sumiu no celular?"
+      ]
+    },
+    {
+      "id": "AG02",
+      "titulo": "Agendar um atendimento individual",
+      "trecho": "## Agendar um atendimento individual\n\n1. Abra [**Agenda**](https://crm.organizastudios.com/agenda).\n2. Clique em **Novo atendimento**.\n3. Em **Cliente**, digite o nome e selecione o cadastro na lista.\n4. Em **Tipo**, escolha a opção adequada. Para uma aula experimental, escolha **Experimental**.\n5. Escolha o **Profissional**, a **Sala** e o **Serviço**. Se o tipo **Atendimento** pedir um **Plano**, escolha o plano que cobre o serviço. Se **Serviço** ficar bloqueado e aparecer o aviso de que o cliente está sem plano ativo, resolva a contratação antes de seguir. Quando sua conta tiver acesso, o aviso pode indicar **Vender plano avulso…**.\n6. Clique em **Data** e selecione o dia no calendário.\n7. Preencha **Horário** e confira a disponibilidade. Se o calendário continuar aberto, clique em **Fechar calendário**.\n8. Clique em **Confirmar atendimento**.\n9. Na Agenda, abra os detalhes do cartão e confira se ele aparece como **Agendado**, no dia e horário escolhidos.",
+      "referencias": [
+        {
+          "titulo": "Abertura do formulário pela Agenda",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/agenda/AgendaPage.tsx"
+        },
+        {
+          "titulo": "Tipo, plano, recursos, data e confirmação do agendamento",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/agenda/AppointmentForm.tsx"
+        },
+        {
+          "titulo": "Teste do agendamento com plano e da remarcação",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/e2e/agenda.spec.ts"
+        }
+      ],
+      "perguntas": [
+        "Como agendar um atendimento?",
+        "Como marcar um horário para um cliente?",
+        "Como agendar uma aula experimental?",
+        "Como marcar atendimento na agenda?",
+        "Como faço para marcar um atendimento individual?",
+        "Por que o serviço está bloqueado no atendimento?"
+      ]
+    },
+    {
+      "id": "AG05",
+      "titulo": "Consultar os detalhes de um atendimento na Agenda",
+      "trecho": "## Consultar os detalhes de um atendimento na Agenda\n\n1. Abra [**Agenda**](https://crm.organizastudios.com/agenda).\n2. Encontre o cartão do atendimento na data em que ele está marcado.\n3. Clique no cartão do atendimento para abrir os detalhes.\n4. Em **Detalhes do atendimento**, confira a situação e o horário. Se a seção **Dados do cliente** estiver disponível, use-a para conferir o cadastro vinculado.\n\nOs dados do cliente disponíveis na janela dependem das permissões da sua conta.",
+      "referencias": [
+        {
+          "titulo": "Cartão do atendimento na Agenda",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/agenda/AgendaCard.tsx"
+        },
+        {
+          "titulo": "Detalhes do atendimento e dados do cliente",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/agenda/AppointmentDetailsModal.tsx"
+        }
+      ],
+      "perguntas": [
+        "Como ver os detalhes de um atendimento?",
+        "Onde confiro o horário de um atendimento?",
+        "Como saber se uma sessão está agendada?",
+        "Como abrir detalhes de um compromisso na agenda?"
+      ]
+    },
+    {
+      "id": "AG07",
+      "titulo": "Remarcar um atendimento",
+      "trecho": "## Remarcar um atendimento\n\n1. Abra [**Agenda**](https://crm.organizastudios.com/agenda).\n2. Encontre o atendimento no dia em que ele está agendado e clique no cartão.\n3. No painel **Detalhes do atendimento**, clique em **Remarcar atendimento**.\n4. Na janela **Reagendar atendimento**, clique em **Data** e escolha o novo dia. Se só o horário mudar, mantenha a data.\n5. Preencha o novo **Horário**. Se o calendário estiver aberto, clique em **Fechar calendário**.\n6. Clique em **Confirmar reagendamento**. Se o sistema indicar um conflito, escolha outro horário disponível.\n7. Confira na Agenda se o atendimento está no novo horário e se deixou de aparecer no horário antigo.\n\nEsse caminho vale quando o botão **Remarcar atendimento** estiver disponível nos detalhes. O caso verificado manteve o mesmo atendimento com o horário atualizado.",
+      "referencias": [
+        {
+          "titulo": "Cartão que abre os detalhes na Agenda",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/agenda/AgendaCard.tsx"
+        },
+        {
+          "titulo": "Ação Remarcar atendimento",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/agenda/AppointmentDetailsModal.tsx"
+        },
+        {
+          "titulo": "Formulário de reagendamento",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/agenda/AppointmentRescheduleModal.tsx"
+        },
+        {
+          "titulo": "Teste da preservação do atendimento na remarcação",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/e2e/agenda.spec.ts"
+        }
+      ],
+      "perguntas": [
+        "Como remarcar um atendimento?",
+        "Como reagendar uma consulta?",
+        "Como trocar o horário de um atendimento?",
+        "Como mudar a data de um agendamento?",
+        "Como remarcar uma aula experimental já marcada?",
+        "Como mudar o horário de uma sessão?"
+      ]
+    },
+    {
+      "id": "CL01",
+      "titulo": "Localizar um cliente cadastrado",
+      "trecho": "## Localizar um cliente cadastrado\n\n1. Abra [**Clientes**](https://crm.organizastudios.com/clientes) no menu lateral.\n2. No campo **Buscar por nome, CPF ou telefone**, digite o nome, o apelido, o CPF ou o telefone do cliente.\n3. Clique em **Buscar**.\n4. Confira o nome do cliente no resultado.\n\nSe a lista estiver vazia, tente outro dado no mesmo campo. Se houver filtros ativos, abra **Filtros** e confira se a situação ou a etiqueta escolhida pode estar deixando o cadastro de fora.",
+      "referencias": [
+        {
+          "titulo": "Busca e filtros de Clientes",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/patients/PatientsPage.tsx"
+        }
+      ],
+      "perguntas": [
+        "Como localizar um cliente?",
+        "Como buscar um cliente cadastrado?",
+        "Como encontrar uma aluna sem mexer em nada?",
+        "Onde busco um cliente pelo CPF?",
+        "Como pesquisar um cliente pelo telefone?",
+        "Como localizar uma aluna sem mexer em nada?",
+        "Como encontro o cadastro de um aluno?"
+      ]
+    },
+    {
+      "id": "CL04",
+      "titulo": "Abrir a ficha de um cliente",
+      "trecho": "## Abrir a ficha de um cliente\n\n1. Abra [**Clientes**](https://crm.organizastudios.com/clientes).\n2. Use **Buscar por nome, CPF ou telefone** para localizar a pessoa.\n3. Clique no nome do cliente na lista.\n4. Na ficha, escolha a aba que contém a informação. A conta pode ter acesso a **Agenda**, **Planos**, **Financeiro**, **Contratos**, **Prontuário** ou **Histórico**.\n\nO nome do cliente aparece no topo da ficha. As abas disponíveis dependem das permissões da sua conta.",
+      "referencias": [
+        {
+          "titulo": "Entrada da ficha na lista de Clientes",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/patients/PatientsPage.tsx"
+        },
+        {
+          "titulo": "Abas da ficha",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/patients/PatientRecordTabs.tsx"
+        }
+      ],
+      "perguntas": [
+        "Como abro a ficha do cliente?",
+        "Como abrir o perfil de um cliente?",
+        "Onde fica a ficha de um aluno?",
+        "Como ver as abas da ficha do cliente?",
+        "Como abrir ficha cliente?"
+      ]
+    },
+    {
+      "id": "CL05",
+      "titulo": "Editar o cadastro de um cliente",
+      "trecho": "## Editar o cadastro de um cliente\n\n1. Abra [**Clientes**](https://crm.organizastudios.com/clientes) e localize o cliente.\n2. Clique em **Editar** ao lado do cadastro. Na ficha, o botão é **Editar cadastro**.\n3. Altere o campo desejado na janela **Editar cliente**.\n4. Clique em **Salvar alterações**.\n5. Abra o cadastro novamente e confira se a alteração foi guardada.\n\nSe o formulário apontar campos obrigatórios, complete os campos indicados antes de salvar. A disponibilidade de **Editar** depende das permissões da sua conta.",
+      "referencias": [
+        {
+          "titulo": "Ação de edição na lista de Clientes",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/patients/PatientsPage.tsx"
+        },
+        {
+          "titulo": "Ação de edição na ficha",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/patients/PatientDetailPage.tsx"
+        },
+        {
+          "titulo": "Formulário de edição e salvamento",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/patients/PatientModal.tsx"
+        }
+      ],
+      "perguntas": [
+        "Como editar um cliente?",
+        "Como mudar dados do cadastro do cliente?",
+        "Como trocar o apelido de um aluno?",
+        "Como corrigir os dados de um cliente?",
+        "Como alterar o telefone do cliente?",
+        "Como editar um cadastro existente?"
+      ]
+    },
+    {
+      "id": "CL13",
+      "titulo": "Inativar ou reativar um cadastro de cliente",
+      "trecho": "## Inativar ou reativar um cadastro de cliente\n\n1. Abra [**Clientes**](https://crm.organizastudios.com/clientes).\n2. Localize a pessoa e clique no nome para abrir a ficha.\n3. Para inativar, clique em **Inativar cliente** na ficha. A situação muda ao clicar.\n4. Confira o aviso de inativação. O botão muda para **Reativar cliente**.\n\nPara reativar, abra a ficha do cliente inativo e clique em **Reativar cliente**. Se precisar encontrar a ficha na lista, abra **Filtros** e selecione **Inativos** na seção **Situação**. Na ficha reativada, volta a aparecer **Inativar cliente**. A opção de inativar ou reativar depende de acesso à edição de clientes.",
+      "referencias": [
+        {
+          "titulo": "Ações e resultado da mudança de situação",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/patients/PatientDetailPage.tsx"
+        },
+        {
+          "titulo": "Filtro de clientes inativos",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/patients/PatientsPage.tsx"
+        }
+      ],
+      "perguntas": [
+        "Como inativar um cliente?",
+        "Como reativar um cliente?",
+        "Como deixar um cadastro inativo?",
+        "Como voltar um cadastro para ativo?",
+        "Onde desativo o cadastro de um aluno?"
+      ]
+    },
+    {
+      "id": "EV01",
+      "titulo": "Localizar um evento e abrir a sua lista de participantes",
+      "trecho": "## Localizar um evento e abrir a sua lista de participantes\n\n1. Abra [**Eventos**](https://crm.organizastudios.com/eventos).\n2. Procure o nome em **Eventos cadastrados**. Se estiver usando o filtro **Serviço**, escolha **Todos os serviços** para ver novamente a lista completa.\n3. Na linha do evento, clique em **Participantes**.\n4. Confira o nome do evento no topo da tela e a seção **Participantes**.",
+      "referencias": [
+        {
+          "titulo": "Lista, filtro por Serviço e atalho Participantes",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/events/EventsPage.tsx"
+        },
+        {
+          "titulo": "Tela de detalhes do evento",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/events/EventDetailPage.tsx"
+        }
+      ],
+      "perguntas": [
+        "Como abrir um evento?",
+        "Como localizar um evento já cadastrado?",
+        "Onde vejo os participantes de um evento?",
+        "Como abrir a lista de participantes do evento?",
+        "Como filtrar eventos por serviço?"
+      ]
+    },
+    {
+      "id": "EV02",
+      "titulo": "Cadastrar um evento",
+      "trecho": "## Cadastrar um evento\n\n1. Abra [**Eventos**](https://crm.organizastudios.com/eventos).\n2. Clique em **Novo evento**.\n3. Preencha **Nome do evento**.\n4. Preencha **Data e horário** no fuso que aparece no formulário.\n5. Confira **Unidade**. Escolha uma unidade ou mantenha **Toda a rede**, conforme o alcance do evento.\n6. Se necessário, preencha **Serviço**, **Local ou cidade**, **Público estimado** e **Observações**.\n7. Clique em **Salvar evento**.\n8. Confira se o cartão com o nome do evento aparece na lista.",
+      "referencias": [
+        {
+          "titulo": "Lista e ação Novo evento",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/events/EventsPage.tsx"
+        },
+        {
+          "titulo": "Campos e salvamento do evento",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/events/EventModal.tsx"
+        }
+      ],
+      "perguntas": [
+        "Como cadastrar um evento?",
+        "Como criar um evento comercial?",
+        "Como adicionar um novo evento?",
+        "Onde cadastro um evento?",
+        "Como faço para registrar um evento?"
+      ]
+    },
+    {
+      "id": "EV03",
+      "titulo": "Editar um evento já cadastrado",
+      "trecho": "## Editar um evento já cadastrado\n\n1. Abra [**Eventos**](https://crm.organizastudios.com/eventos).\n2. Em **Eventos cadastrados**, localize o evento.\n3. Clique em **Editar** ao lado do evento.\n4. Na janela **Editar evento**, altere os dados desejados, como **Local ou cidade**.\n5. Clique em **Salvar evento**.\n6. Confira os novos dados na lista.\n\nA disponibilidade de **Editar** depende das permissões da sua conta.",
+      "referencias": [
+        {
+          "titulo": "Ação Editar na lista de eventos",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/events/EventsPage.tsx"
+        },
+        {
+          "titulo": "Preenchimento e salvamento na edição",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/events/EventModal.tsx"
+        }
+      ],
+      "perguntas": [
+        "Como editar um evento?",
+        "Como mudar o local de um evento?",
+        "Como alterar a data de um evento?",
+        "Como corrigir os dados de um evento já cadastrado?"
+      ]
+    },
+    {
+      "id": "EV05",
+      "titulo": "Adicionar um participante a um evento existente",
+      "trecho": "## Adicionar um participante a um evento existente\n\n1. Abra [**Eventos**](https://crm.organizastudios.com/eventos).\n2. Na linha do evento, clique em **Participantes**.\n3. Na tela do evento, clique em **Adicionar participante**.\n4. Informe o **Nome completo** e os dados de contato que tiver à disposição. O formulário informa que todos os campos são opcionais.\n5. Na janela, clique em **Adicionar participante**.\n6. Confira se a pessoa aparece na lista do evento.\n\nA janela informa a origem com que o participante entra no CRM comercial. Contatos já cadastrados também podem participar.",
+      "referencias": [
+        {
+          "titulo": "Ação de inclusão na tela do evento",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/events/EventDetailPage.tsx"
+        },
+        {
+          "titulo": "Formulário de participante",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/events/EventParticipantModal.tsx"
+        }
+      ],
+      "perguntas": [
+        "Como adicionar um participante ao evento?",
+        "Como colocar uma pessoa em um evento já criado?",
+        "Onde incluo alguém na lista do evento?",
+        "Como cadastrar um participante de evento?"
+      ]
+    },
+    {
+      "id": "EV06",
+      "titulo": "Buscar um participante dentro de um evento",
+      "trecho": "## Buscar um participante dentro de um evento\n\n1. Abra [**Eventos**](https://crm.organizastudios.com/eventos).\n2. Clique em **Participantes** no evento desejado.\n3. Na lista, digite o nome, telefone ou e-mail no campo **Buscar por nome, telefone ou e-mail**.\n4. Confira o resultado enquanto digita. Se precisar, refine por **Status**.\n5. Se aparecer **Nenhum participante encontrado**, limpe a busca e confira se **Status** está em **Todos**.\n\nO campo de busca aparece quando o evento já tem participantes.",
+      "referencias": [
+        {
+          "titulo": "Busca, filtro de status e mensagem sem resultados",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/events/EventDetailPage.tsx"
+        }
+      ],
+      "perguntas": [
+        "Como buscar um participante de evento?",
+        "Como encontrar uma pessoa na lista de participantes?",
+        "Onde pesquiso o nome de alguém inscrito no evento?",
+        "Como filtrar participantes do evento?"
+      ]
+    },
+    {
+      "id": "FI01",
+      "titulo": "Criar uma conta a receber manual",
+      "trecho": "## Criar uma conta a receber manual\n\n1. Abra [**Financeiro**](https://crm.organizastudios.com/financeiro).\n2. Clique em **Lançamentos**.\n3. Clique em **Nova conta a receber**.\n4. Em **Cliente**, digite o nome e selecione o cadastro.\n5. Preencha **Descrição** e **Valor (R$)**.\n6. Confira **Vencimento** e **Competência**. A competência é o mês ao qual a receita pertence.\n7. Se precisar classificar o lançamento, escolha **Categoria** e **Centro de custo**.\n8. Clique em **Salvar lançamento**.\n9. Abra **Contas a receber** e confira se aparece a descrição que você cadastrou.\n\nO lançamento registra o valor a receber. Quando o dinheiro entrar, use **Dar baixa** para registrar o recebimento.",
+      "referencias": [
+        {
+          "titulo": "Abas de Financeiro",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/finance/FinancePage.tsx"
+        },
+        {
+          "titulo": "Formulário de lançamento manual",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/finance/FinanceClassificationPanel.tsx"
+        }
+      ],
+      "perguntas": [
+        "Como criar uma conta a receber?",
+        "Como lançar uma receita manual?",
+        "Como cadastrar uma cobrança manual?",
+        "Como faço um lançamento a receber?",
+        "Como adicionar uma conta a receber no financeiro?"
+      ]
+    },
+    {
+      "id": "FI06",
+      "titulo": "Estornar a baixa de uma parcela paga",
+      "trecho": "## Estornar a baixa de uma parcela paga\n\n1. Abra [**Financeiro**](https://crm.organizastudios.com/financeiro).\n2. Clique em **Contas a receber**.\n3. Localize a parcela paga e confira cliente, descrição e valor.\n4. Na linha da parcela, clique em **Mais**.\n5. Clique em **Estornar**.\n6. Na janela **Estornar pagamento**, confira o valor e a forma de pagamento exibidos.\n7. Preencha **Motivo**.\n8. Clique em **Estornar pagamento**.\n\nA parcela volta a ficar em aberto, o recebimento sai do caixa e o botão **Dar baixa** volta a aparecer. A janela informa que a ação não pode ser desfeita. Se **Estornar** estiver ausente, confira se a parcela está paga e se sua conta tem a permissão para estornar recebimentos.",
+      "referencias": [
+        {
+          "titulo": "Ações da parcela em Contas a receber",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/finance/ReceivablesList.tsx"
+        },
+        {
+          "titulo": "Confirmação, motivo obrigatório e efeito do estorno",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/finance/ReversePaymentModal.tsx"
+        }
+      ],
+      "perguntas": [
+        "Como estornar o recebimento de uma parcela?",
+        "Como estornar um pagamento de cliente?",
+        "Como desfazer a baixa de uma parcela?",
+        "Como cancelar uma baixa no contas a receber?",
+        "Como reabrir uma parcela que marquei como paga?",
+        "Como estornar parcela paga?"
+      ]
+    },
+    {
+      "id": "GR04",
+      "titulo": "Matricular um cliente em uma turma com vaga",
+      "trecho": "## Matricular um cliente em uma turma com vaga\n\n1. Abra [**Turmas**](https://crm.organizastudios.com/turmas).\n2. Clique em **Matricular cliente**.\n3. Na janela **Nova matrícula**, selecione em **Turma** a turma que tem vaga.\n4. Em **Cliente**, digite o nome e selecione o cadastro correto.\n5. Confira ou ajuste **Início da matrícula**.\n6. Clique em **Matricular**.\n7. No cartão da turma, clique em **Abrir turma** e confira se o nome aparece como **Matriculado**.\n\nSe a escolha mostrar **turma cheia (lista de espera)** ou o botão mudar para **Colocar na lista de espera**, essa turma está sem vaga. Volte à seleção para escolher outra turma com vaga ou siga o fluxo de espera se for o que deseja.",
+      "referencias": [
+        {
+          "titulo": "Seleção da turma, do cliente e confirmação da matrícula",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/groups/GroupsPage.tsx"
+        },
+        {
+          "titulo": "Situação da matrícula nos detalhes da turma",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/groups/GroupDetailsModal.tsx"
+        }
+      ],
+      "perguntas": [
+        "Como matricular um aluno quando tem vaga?",
+        "Como matricular um cliente?",
+        "Como colocar um aluno em uma turma com vaga?",
+        "Como faço uma matrícula em turma?",
+        "Como incluir cliente em turma com vagas livres?",
+        "Como matricular um cliente numa turma?"
+      ]
+    },
+    {
+      "id": "PL04",
+      "titulo": "Contratar uma sessão avulsa pela ficha do cliente",
+      "trecho": "## Contratar uma sessão avulsa pela ficha do cliente\n\nEste caminho vale para um cliente existente e um plano avulso já disponível no catálogo.\n\n1. Abra [**Clientes**](https://crm.organizastudios.com/clientes).\n2. Localize o cliente e clique no nome para abrir a ficha.\n3. Abra a aba **Planos**.\n4. Clique em **Plano avulso**.\n5. Na janela **Novo plano avulso**, escolha a opção em **Plano cadastrado**.\n6. Confira o serviço, o número de sessões e o **Valor total**.\n7. Confira **Início**, **Fim da validade**, a forma de pagamento e o **Primeiro vencimento**.\n8. Clique em **Criar plano e parcelas**.\n9. Confira o novo cartão na aba **Planos** e a cobrança na aba **Financeiro**.\n\nSe a lista **Plano cadastrado** estiver vazia, confira com quem administra o catálogo se há um plano avulso disponível. A contratação cria o saldo e as contas a receber.",
+      "referencias": [
+        {
+          "titulo": "Ação Plano avulso na ficha",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/patients/PatientRecordTabs.tsx"
+        },
+        {
+          "titulo": "Janela e registro da contratação avulsa",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/patients/PatientPlanModal.tsx"
+        },
+        {
+          "titulo": "Campos e ação de criar plano e parcelas",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/plans/PlanForm.tsx"
+        }
+      ],
+      "perguntas": [
+        "Como vender uma sessão avulsa para um cliente?",
+        "Como fazer um plano avulso na ficha?",
+        "Como contratar um plano avulso para um cliente existente?",
+        "Como vender atendimento avulso?"
+      ]
+    },
+    {
+      "id": "PL11",
+      "titulo": "Consultar planos e parcelas na ficha do cliente",
+      "trecho": "## Consultar planos e parcelas na ficha do cliente\n\n1. Abra [**Clientes**](https://crm.organizastudios.com/clientes).\n2. Localize o cliente e clique no nome para abrir a ficha.\n3. Abra **Planos** para ver as contratações. Para consultar os movimentos de um plano, use **Extrato** no cartão.\n4. Abra **Financeiro** para ver as parcelas do mesmo cliente. Confira descrição, vencimento, valor e situação.\n5. Se precisar abrir a tela completa, use **Abrir em Planos** ou **Abrir no Financeiro** na aba correspondente.\n\nA exibição das duas abas depende das permissões da sua conta. A ficha mostra uma mensagem quando o cliente ainda não tem plano ou parcela.",
+      "referencias": [
+        {
+          "titulo": "Planos e parcelas na ficha do cliente",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/patients/PatientRecordTabs.tsx"
+        }
+      ],
+      "perguntas": [
+        "Como ver os planos e pagamentos do cliente?",
+        "Onde vejo as parcelas na ficha do cliente?",
+        "Como consultar as contratações de um aluno?",
+        "Onde vejo os planos contratados na ficha?",
+        "Como ver as cobranças desse cliente?"
+      ]
+    },
+    {
+      "id": "RL01",
+      "titulo": "Escolher o período e consultar a visão geral dos relatórios",
+      "trecho": "## Escolher o período e consultar a visão geral dos relatórios\n\n1. Abra [**Relatórios**](https://crm.organizastudios.com/relatorios).\n2. Em **Período de análise**, escolha um atalho como **Este mês** ou **Mês passado**. O atalho aplica o período na hora.\n3. Para escolher datas específicas, preencha **De** e **Até**, depois clique em **Atualizar**.\n4. Abra a aba **Visão geral**.\n5. Confira o intervalo exibido abaixo de **Período de análise** e leia os quadros da seção.\n\nSe **Atualizar** estiver desativado, confira se as duas datas estão preenchidas e se **De** é igual ou anterior a **Até**. As seções disponíveis dependem das permissões da conta.",
+      "referencias": [
+        {
+          "titulo": "Atalhos, datas e seções de relatórios",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/reports/ReportsPage.tsx"
+        },
+        {
+          "titulo": "Navegação entre seções",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/reports/ReportTabs.tsx"
+        }
+      ],
+      "perguntas": [
+        "Como consultar relatórios por período?",
+        "Como vejo os números do mês?",
+        "Como mudar o período nos relatórios?",
+        "Como consultar o resumo do mês passado?",
+        "Como escolher o intervalo do relatório?",
+        "Como ver a visão geral dos relatórios?"
       ]
     }
   ]
