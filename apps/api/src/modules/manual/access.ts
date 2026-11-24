@@ -2,7 +2,8 @@ import { createHash, timingSafeEqual } from "node:crypto";
 import { z } from "zod";
 
 const configuration = z.object({
-  MCP_PUBLIC_ORIGIN: z.url().refine((value) => {
+  MCP_PUBLIC_ORIGIN: z.string().refine((value) => {
+    if (!URL.canParse(value)) return false;
     const url = new URL(value);
     return url.protocol === "https:" && url.origin === value;
   }),

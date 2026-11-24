@@ -155,26 +155,28 @@ describe("manual MCP isolado do CRM", () => {
     });
     expect(oversized.statusCode).toBe(413);
   });
-  it("fica indisponível sem configuração completa ou com configuração inválida", async () => {
+  it.each([
+    ["MCP_ACCESS_TOKEN_SHA256", undefined],
+    ["MCP_ACCESS_TOKEN_SHA256", "invalido"],
+    ["MCP_PUBLIC_ORIGIN", undefined],
+    ["MCP_PUBLIC_ORIGIN", ""],
+    ["MCP_PUBLIC_ORIGIN", "crm.example.com"],
+    ["MCP_PUBLIC_ORIGIN", "https://crm.example.com/"],
+  ])("desativa apenas o MCP com %s igual a %j", async (name, value) => {
     await app.close();
-    for (const hash of ["", "invalido"]) {
-      vi.stubEnv("MCP_ACCESS_TOKEN_SHA256", hash);
-      app = await buildApp({ repository, logger: false });
-      expect(
-        (
-          await app.inject({
-            method: "POST",
-            url: "/mcp",
-            headers,
-            payload: initialize,
-          })
-        ).statusCode,
-      ).toBe(503);
-      expect(
-        (await app.inject({ method: "GET", url: "/health" })).statusCode,
-      ).toBe(200);
-      await app.close();
-    }
+    vi.stubEnv(name, value);
+    app = await buildApp({ repository, logger: false });
+    const response = await app.inject({
+      method: "POST",
+      url: "/mcp",
+      headers,
+      payload: initialize,
+    });
+    expect(response.statusCode).toBe(503);
+    expect(response.json()).toEqual({ code: "MCP_UNAVAILABLE" });
+    expect(
+      (await app.inject({ method: "GET", url: "/health" })).statusCode,
+    ).toBe(200);
   });
   it("rejeita Origin externo, limita requisições e não abre streams GET", async () => {
     expect(
