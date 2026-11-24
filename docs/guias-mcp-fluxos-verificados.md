@@ -503,6 +503,38 @@ Confira o período exibido no alto da agenda. No celular, abra **Filtros** para 
 - [Navegação, visualizações e filtros da Agenda](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/agenda/AgendaPage.tsx)
 - [Teste da apresentação dos filtros no celular](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/e2e/agenda-mobile-filters.spec.ts)
 
+## AG03 · Agendar uma série de atendimentos
+
+1. Abra [**Agenda**](https://crm.organizastudios.com/agenda) e clique em **Novo atendimento**.
+2. Escolha **Cliente** e um **Tipo** que permita repetição.
+3. Marque **Repetir este atendimento** e preencha **Número de ocorrências** e **Intervalo**.
+4. Escolha profissional, sala e serviço. Informe plano se o atendimento pedir.
+5. Selecione a primeira **Data** e o **Horário**. Revise os avisos de disponibilidade.
+6. Clique em **Confirmar atendimento**.
+
+Confira o cartão na primeira data e nas datas seguintes. A opção de repetição fica indisponível para o tipo **Experimental**.
+
+**Perguntas:** Como agendar atendimentos recorrentes? | Como marcar o mesmo atendimento em várias semanas?
+
+**Fontes:**
+- [Campos de repetição e confirmação](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/agenda/AppointmentForm.tsx)
+- [Visualização das ocorrências na Agenda](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/agenda/AgendaPage.tsx)
+
+## AG04 · Cadastrar um cliente durante um agendamento
+
+1. Abra [**Agenda**](https://crm.organizastudios.com/agenda) e clique em **Novo atendimento**.
+2. Clique no campo **Cliente** e use **Adicionar cliente**, abaixo das sugestões.
+3. Em **Novo cliente**, preencha os campos obrigatórios e clique em **Salvar cliente**.
+4. Confira o nome que ficou selecionado em **Cliente** e continue o agendamento.
+
+O formulário da Agenda permanece aberto com o novo cliente selecionado.
+
+**Perguntas:** Como cadastrar um cliente sem sair do agendamento? | Onde fica Adicionar cliente na Agenda?
+
+**Fontes:**
+- [Campo Cliente do agendamento](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/agenda/AppointmentForm.tsx)
+- [Janela de cadastro e retorno à Agenda](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/agenda/AppointmentPatientCreateModal.tsx)
+
 ## AG06 · Editar os dados de um atendimento na Agenda
 
 1. Abra [**Agenda**](https://crm.organizastudios.com/agenda).
@@ -547,6 +579,34 @@ O atendimento passa para **Não compareceu**. A tela informa que a falta não co
 
 **Fontes:**
 - [Ação e confirmação da ausência](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/agenda/AppointmentDetailsModal.tsx)
+
+## AG11 · Finalizar um atendimento individual
+
+1. Abra [**Agenda**](https://crm.organizastudios.com/agenda) e selecione o cartão do atendimento.
+2. Em **Detalhes do atendimento**, confira a situação e o horário.
+3. Quando a ação estiver disponível, clique em **Marcar como realizado**.
+
+O cartão passa a indicar **Finalizado**. Se a ação estiver desativada, confira a informação de horário nos detalhes.
+
+**Perguntas:** Como finalizar atendimento individual? | Onde marco um atendimento como realizado?
+
+**Fontes:**
+- [Detalhes e ação de finalizar](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/agenda/AppointmentDetailsModal.tsx)
+
+## AG12 · Agendar reposição a partir de uma falta
+
+1. Em **Agenda**, abra o dia do atendimento original e clique no cartão do cliente marcado como **Faltou**.
+2. Nos **Detalhes do atendimento**, clique em **Remarcar ausência**.
+3. Em **Reagendar atendimento**, confirme o profissional e a sala, escolha a **Data** e um **Horário** disponível.
+4. Clique em **Confirmar reagendamento**. Abra o dia de destino na Agenda e confira o novo atendimento.
+
+O atendimento original continua com a falta registrada. Cada falta pode ter uma remarcação ativa vinculada. Se a falta for de uma experimental e o cliente já tiver plano do mesmo serviço, o CRM recusa a reposição como experimental.
+
+**Perguntas:** Como remarcar uma falta na agenda? | Onde agendo reposição para uma falta individual?
+
+**Fontes:**
+- [Detalhes e ações do atendimento](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/agenda/AppointmentDetailsModal.tsx)
+- [Formulário de reagendamento](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/agenda/AppointmentRescheduleModal.tsx)
 
 ## AG13 · Bloquear um horário de um profissional ou de uma sala
 
@@ -644,6 +704,37 @@ Confira se a nota saiu do dia. Se excluiu as próximas ocorrências, abra uma da
 **Fontes:**
 - [Exclusão e escolha das ocorrências](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/agenda/AgendaNoteDetailsModal.tsx)
 
+## AG19 · Consultar o histórico de remarcações
+
+1. Abra [**Agenda**](https://crm.organizastudios.com/agenda) e localize o atendimento.
+2. Para ver as ações na programação diária, use **Dia → Lista**.
+3. Abra **Mais ações** no cartão e clique em **Histórico**.
+4. Na janela **Histórico de reagendamentos**, confira as datas e os horários registrados.
+
+O histórico permite identificar a mudança sem editar o atendimento.
+
+**Perguntas:** Onde vejo o histórico de remarcações? | Como descubro o horário antigo de um atendimento remarcado?
+
+**Fontes:**
+- [Ações do cartão na Agenda](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/agenda/AgendaCard.tsx)
+- [Janela de histórico](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/agenda/AppointmentRescheduleHistoryModal.tsx)
+
+## AG20 · Filtrar e finalizar atendimentos pendentes
+
+1. Na [**Agenda**](https://crm.organizastudios.com/agenda), abra o aviso **Atendimentos a finalizar** quando ele aparecer.
+2. Na lista, ajuste **Profissional**, **Serviço**, **Situação** ou o intervalo de datas.
+3. Confira o nome e horário. Marque a caixa do atendimento correto.
+4. Clique em **Marcar como realizados** ou em **Marcar falta**, conforme o que ocorreu.
+5. Confira a confirmação e conclua o registro.
+
+O atendimento sai da lista de pendências. Você pode abrir **Ver concluídos** para consultar o registro correspondente.
+
+**Perguntas:** Como finalizar os atendimentos pendentes? | Onde filtro a lista A finalizar?
+
+**Fontes:**
+- [Destino do aviso](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/app/notification-center.tsx)
+- [Filtros, seleção e finalização](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/agenda/PendingFinalizationPage.tsx)
+
 ## AG21 · Consultar atendimentos concluídos na Agenda
 
 1. Abra [**Agenda**](https://crm.organizastudios.com/agenda).
@@ -691,6 +782,21 @@ O CRM abre **Turmas** com o encontro selecionado. A ação depende de acesso ao 
 - [Cartão de aula e atalho Abrir encontro](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/agenda/GroupSessionCard.tsx)
 - [Abertura do encontro indicado pela Agenda](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/groups/GroupsPage.tsx)
 
+## AG24 · Registrar uma pesquisa de satisfação no atendimento
+
+1. Abra [**Agenda**](https://crm.organizastudios.com/agenda) e selecione o atendimento realizado.
+2. Em **Detalhes do atendimento**, clique em **Registrar satisfação**.
+3. Escolha uma **Nota** de 0 a 10 e preencha **Comentário (opcional)** se precisar.
+4. Clique em **Salvar avaliação**.
+
+O CRM fecha a pesquisa depois de registrar a avaliação para aquele cliente e atendimento.
+
+**Perguntas:** Como registrar satisfação em um atendimento? | Onde lanço a nota de NPS da sessão?
+
+**Fontes:**
+- [Entrada nos detalhes](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/agenda/AppointmentDetailsModal.tsx)
+- [Nota, comentário e salvamento](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/agenda/SatisfactionSurveyModal.tsx)
+
 ## AG25 · Conferir feriados e compromissos de um dia na Agenda
 
 1. Abra [**Agenda**](https://crm.organizastudios.com/agenda).
@@ -721,6 +827,65 @@ Os campos aparecem disponíveis para leitura. Feche a janela em **Fechar** quand
 **Fontes:**
 - [Ação de consulta na lista de clientes](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/patients/PatientsPage.tsx)
 - [Modo Consultar cliente no formulário](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/patients/PatientModal.tsx)
+
+## CL06 · Cadastrar um cliente e agendar aula experimental no mesmo fluxo
+
+1. Abra [**Clientes**](https://crm.organizastudios.com/clientes) e clique em **Novo cliente**.
+2. Preencha os dados obrigatórios do cliente.
+3. Em **O que o cliente vai fazer?**, clique em **Agendar aula experimental**.
+4. Confira **Serviço**, **Profissional** e **Sala** e preencha **Data e horário**.
+5. Clique em **Salvar e agendar aula experimental**.
+
+Abra a ficha do novo cliente e confira a aula nos próximos atendimentos da aba **Agenda**.
+
+**Perguntas:** Como cadastrar cliente e agendar uma experimental junto? | Onde marco a aula experimental no cadastro de cliente?
+
+**Fontes:**
+- [Cadastro e ações de agendamento guiado](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/patients/PatientModal.tsx)
+
+## CL07 · Cadastrar um cliente e contratar um plano junto
+
+1. Abra [**Clientes**](https://crm.organizastudios.com/clientes), clique em **Novo cliente** e preencha os campos obrigatórios.
+2. Clique em **Adicionar plano**.
+3. Selecione **Plano cadastrado**. Confira os serviços, as sessões e o valor.
+4. Escolha a **Turma**, se exigida, e confira as datas e o pagamento.
+5. Clique em **Salvar e criar plano**.
+
+Abra a ficha do novo cliente e confira a contratação em **Planos**. Se o fluxo oferecer lista de espera para uma turma cheia, confira o resultado mostrado pelo CRM.
+
+**Perguntas:** Como cadastrar um cliente já com um plano? | Onde contrato plano junto com cadastro de cliente?
+
+**Fontes:**
+- [Contratação integrada ao cadastro de cliente](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/patients/PatientModal.tsx)
+- [Aba Planos na ficha do cliente](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/patients/PatientRecordTabs.tsx)
+
+## CL08 · Cadastrar um cliente e vender um serviço avulso junto
+
+1. Abra [**Clientes**](https://crm.organizastudios.com/clientes), clique em **Novo cliente** e preencha os dados obrigatórios.
+2. Clique em **Adicionar serviço avulso**.
+3. Escolha o **Plano cadastrado** que representa o serviço avulso e confira o valor.
+4. Revise os campos de pagamento e clique em **Salvar e criar serviço avulso**.
+
+Confira a contratação na aba **Planos** da ficha do novo cliente.
+
+**Perguntas:** Como cadastrar um cliente já com serviço avulso? | Onde incluo a sessão avulsa no cadastro?
+
+**Fontes:**
+- [Fluxo de cadastro e serviço avulso](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/patients/PatientModal.tsx)
+
+## CL09 · Cadastrar um cliente e incluir uma venda de produto
+
+1. Abra [**Clientes**](https://crm.organizastudios.com/clientes), clique em **Novo cliente** e preencha o cadastro.
+2. Clique em **Adicionar produto**.
+3. Escolha **Produto**, confira **Quantidade** e **Preço unitário**.
+4. Revise **Pagamento** e clique em **Salvar e registrar venda**.
+
+Confira o cadastro em **Clientes** e a venda correspondente em **Vendas realizadas**.
+
+**Perguntas:** Como cadastrar cliente e vender produto na mesma tela? | Onde adiciono um produto no cadastro de cliente?
+
+**Fontes:**
+- [Cadastro e ação de venda guiada](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/patients/PatientModal.tsx)
 
 ## CL10 · Importar clientes de uma planilha
 
@@ -767,6 +932,20 @@ Se aparecer um telefone ou WhatsApp, use o canal conforme a necessidade. Se o co
 **Fontes:**
 - [Consulta, dados e ações do SOS](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/shared/components/EmergencyButton.tsx)
 
+## CL16 · Aplicar desconto em uma compra durante o cadastro
+
+1. Abra [**Clientes**](https://crm.organizastudios.com/clientes) e inicie **Novo cliente**.
+2. Adicione o item da compra. Para descontar um produto, abra **Configurar desconto** junto ao item.
+3. Preencha **Porcentagem de desconto (%)** e clique em **Aplicar desconto**.
+4. Confira o total e use o botão de salvamento da compra.
+
+Depois de salvar, abra a venda para conferir o valor final e o desconto registrado.
+
+**Perguntas:** Como dar desconto no cadastro com compra? | Onde aplico desconto a um produto durante o cadastro?
+
+**Fontes:**
+- [Fluxo de venda e configuração do desconto](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/patients/PatientModal.tsx)
+
 ## CL17 · Consultar o histórico de um cliente
 
 1. Abra [**Clientes**](https://crm.organizastudios.com/clientes) e localize o cadastro.
@@ -781,6 +960,22 @@ A aba reúne o histórico daquele cadastro. Sua exibição depende da permissão
 **Fontes:**
 - [Entrada da ficha na lista](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/patients/PatientsPage.tsx)
 - [Aba Histórico e permissão](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/patients/PatientRecordTabs.tsx)
+
+## CL18 · Concluir os passos após uma contratação guiada
+
+1. Ao salvar a contratação ou compra, leia a janela de confirmação.
+2. Se aparecer **Link de assinatura**, confira o documento e use **Copiar link** ou **Abrir WhatsApp** para preparar o envio. Depois clique em **Concluir**.
+3. Quando o CRM perguntar se o cliente já pagou, use **Não** para deixar em aberto. Se já recebeu, clique em **Sim, já pagou**.
+4. Confira os dados da baixa e clique em **Confirmar baixa**.
+5. Use **Enviar recibo pelo WhatsApp** para preparar o envio quando o link aparecer e clique em **Concluir** para voltar à lista.
+
+Confira o plano e a situação do recebimento. Cada etapa depende dos dados preenchidos na contratação.
+
+**Perguntas:** Como concluir a venda guiada após contratar um plano? | Onde registro pagamento ou preparo o recibo depois da contratação?
+
+**Fontes:**
+- [Etapas posteriores à contratação](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/plans/PlansPage.tsx)
+- [Baixa da parcela](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/finance/SettleModal.tsx)
 
 ## CM01 · Encontrar uma pessoa interessada no funil
 
@@ -861,6 +1056,21 @@ O lead sai das oportunidades abertas. Para encontrá-lo, confira se **Ocultar pe
 - [Seleção da etapa e exibição de perdidos](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/commercial/CommercialPage.tsx)
 - [Motivo obrigatório e confirmação](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/commercial/LeadLostModal.tsx)
 
+## CM07 · Criar, editar ou reordenar uma etapa do funil
+
+1. Abra [**CRM comercial**](https://crm.organizastudios.com/comercial).
+2. Clique em **Adicionar etapa** para criar uma coluna. Para alterar uma existente, use **Editar etapa** no cabeçalho dela.
+3. Preencha **Nome da etapa**, escolha **Posição no funil** e confira a cor.
+4. Clique em **Adicionar etapa** ou **Salvar etapa**, conforme a janela.
+
+Confira a nova posição no funil. No computador, a interface também oferece o arraste pelo cabeçalho da coluna.
+
+**Perguntas:** Como criar uma etapa no funil? | Como mudar a ordem das etapas do CRM comercial? | Onde renomeio uma coluna do funil?
+
+**Fontes:**
+- [Funil e ações do cabeçalho](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/commercial/CommercialPage.tsx)
+- [Campos da etapa e posição](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/commercial/LeadStageModal.tsx)
+
 ## CM08 · Criar uma tarefa de acompanhamento para um lead
 
 1. Abra [**CRM comercial**](https://crm.organizastudios.com/comercial) e encontre o lead.
@@ -909,6 +1119,22 @@ O registro aparece no histórico do lead, inclusive quando você informa que a t
 **Fontes:**
 - [Campos e histórico de contato](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/commercial/LeadActivityModal.tsx)
 
+## CM11 · Agendar aula experimental para um lead
+
+1. Abra [**CRM comercial**](https://crm.organizastudios.com/comercial) e localize o lead.
+2. No cartão, clique em **Agendar experimental**.
+3. Confira **Serviço**, **Profissional** e **Sala**.
+4. Selecione **Data** e preencha **Horário**. Se precisar, informe **Observação**.
+5. Clique em **Confirmar agendamento**.
+
+A aula aparece na Agenda vinculada ao lead. O cadastro de cliente pode ser feito depois, na conversão.
+
+**Perguntas:** Como marcar uma aula experimental para um lead? | Onde agendo atendimento para um interessado do funil?
+
+**Fontes:**
+- [Ação no funil](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/commercial/CommercialPage.tsx)
+- [Formulário do agendamento de lead](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/commercial/LeadAppointmentModal.tsx)
+
 ## CM13 · Importar leads de uma planilha
 
 1. Abra [**CRM comercial**](https://crm.organizastudios.com/comercial).
@@ -956,6 +1182,91 @@ Confira o nome na lista e os horários ou vagas nos detalhes da turma.
 - [Abertura da turma](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/groups/GroupsPage.tsx)
 - [Edição de nome, capacidade e horários](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/groups/GroupDetailsModal.tsx)
 
+## GR07 · Registrar a frequência de uma aula de turma
+
+1. Abra [**Turmas**](https://crm.organizastudios.com/turmas), localize a turma e clique em **Abrir turma**.
+2. Em **Frequência e reposições**, abra a aula na data correta.
+3. Localize o aluno. No campo **Frequência**, escolha **Presente**, **Falta** ou **Falta justificada**, conforme o que aconteceu.
+
+Confira a situação ao lado do nome. A opção **Marcar todos presentes** fica disponível a partir do horário indicado na janela.
+
+**Perguntas:** Como marcar frequência em uma aula de turma? | Onde registro falta ou presença de um aluno da turma?
+
+**Fontes:**
+- [Calendário de frequência](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/groups/GroupDetailsModal.tsx)
+- [Ações individuais e presença coletiva](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/groups/GroupSessionModal.tsx)
+
+## GR08 · Concluir um encontro de turma
+
+1. Abra [**Turmas**](https://crm.organizastudios.com/turmas), localize a turma e clique em **Abrir turma**.
+2. Em **Frequência e reposições**, abra o encontro e confira a data e os participantes.
+3. Registre a frequência que for necessária e clique em **Concluir encontro**.
+
+O botão de concluir deixa de aparecer naquele encontro. Consulte a situação do encontro no calendário da turma.
+
+**Perguntas:** Como concluir uma aula de turma? | Onde finalizo o encontro após a chamada?
+
+**Fontes:**
+- [Abertura de encontros](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/groups/GroupDetailsModal.tsx)
+- [Ação Concluir encontro](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/groups/GroupSessionModal.tsx)
+
+## GR09 · Reservar uma aula de reposição para um aluno
+
+1. Abra [**Turmas**](https://crm.organizastudios.com/turmas) e clique em **Abrir turma**.
+2. Em **Frequência e reposições**, selecione o **Crédito de reposição** do aluno.
+3. Em **Encontro de reposição**, escolha um horário elegível com vaga.
+4. Clique em **Reservar reposição**.
+
+Abra o encontro de destino e confira o aluno na lista de reposições. A tela informa que faltas justificadas podem gerar crédito.
+
+**Perguntas:** Como reservar reposição de aula de turma? | Onde escolho o encontro para usar um crédito de reposição?
+
+**Fontes:**
+- [Crédito, elegibilidade e gravação da reserva](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/groups/GroupOperationsPanel.tsx)
+
+## GR10 · Registrar presença de um aluno na reposição
+
+1. Abra [**Turmas**](https://crm.organizastudios.com/turmas) e clique em **Abrir turma** na turma do encontro de reposição.
+2. Em **Frequência e reposições**, abra o encontro reservado.
+3. Localize a linha do aluno identificada como **Reposição**.
+4. No seletor da reposição, escolha **Presente**.
+
+Confira a situação **Presente** na linha de reposição. Registre a situação na reposição em que ele participou.
+
+**Perguntas:** Como registrar presença na reposição da turma? | Onde marco que o aluno compareceu à aula de reposição?
+
+**Fontes:**
+- [Linha de reposição e estados de presença](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/groups/GroupSessionModal.tsx)
+
+## GR11 · Cancelar a matrícula de um aluno na turma
+
+1. Abra [**Turmas**](https://crm.organizastudios.com/turmas) e clique em **Abrir turma** na turma correta.
+2. Em **Dados da turma**, localize o aluno em **Participantes**.
+3. Clique em **Cancelar matrícula** na linha dele.
+4. Confira o nome na confirmação e clique em **Cancelar matrícula**.
+
+Confira a lista de participantes depois de salvar. A vaga passa a poder ser oferecida a outro aluno conforme a capacidade da turma.
+
+**Perguntas:** Como cancelar a matrícula de um aluno? | Como tirar um cliente de uma turma?
+
+**Fontes:**
+- [Participantes e ação de cancelar matrícula](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/groups/GroupDetailsModal.tsx)
+- [Confirmação da matrícula](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/groups/GroupsPage.tsx)
+
+## GR12 · Alterar o profissional de um encontro da turma
+
+1. Abra [**Turmas**](https://crm.organizastudios.com/turmas) e clique em **Abrir turma**.
+2. Em **Frequência e reposições**, escolha a aula e confira a data e o horário.
+3. Em **Profissional deste encontro**, selecione o profissional que vai atender.
+4. Aguarde a atualização e confira o nome selecionado.
+
+A mudança pode ser conferida ao reabrir aquele encontro. O seletor mostra os profissionais elegíveis para o serviço.
+
+**Perguntas:** Como trocar o profissional de uma aula específica? | Onde altero o responsável só pelo encontro da turma?
+
+**Fontes:**
+- [Edição do profissional do encontro](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/groups/GroupSessionModal.tsx)
+
 ## LE01 · Consultar a procura e filtrar a lista de espera
 
 1. Abra [**Lista de espera**](https://crm.organizastudios.com/lista-de-espera).
@@ -1001,6 +1312,21 @@ A fila mostra a situação **Avisado** depois que você salva a mudança. O text
 
 **Fontes:**
 - [Aviso, canal e atualização de situação](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/waitlist/WaitlistManageModal.tsx)
+
+## LE05 · Matricular um cliente pela lista de espera
+
+1. Abra **Lista de espera**, localize a entrada do cliente e clique em **Abrir entrada**.
+2. Em **Matricular em turma**, selecione uma **Turma com vaga** do serviço aguardado e confira horário, profissional e vagas.
+3. Clique em **Matricular e configurar pagamento**. Revise os dados do cliente, da turma e o plano. No formulário de plano recorrente, preencha o pagamento e clique em **Criar plano e parcelas**.
+4. Confira a saída da entrada da fila. Em **Turmas**, clique em **Abrir turma** na turma escolhida e confira o cliente em **Matriculados**.
+
+O CRM oferece turmas ativas do serviço escolhido com vagas disponíveis.
+
+**Perguntas:** Como confirmar matrícula pela lista de espera? | Como matricular na turma um cliente que está na fila?
+
+**Fontes:**
+- [Entrada da fila](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/waitlist/WaitlistPage.tsx)
+- [Seleção de turma e contratação](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/waitlist/WaitlistEnrollSection.tsx)
 
 ## LE06 · Atualizar a situação de um cliente na lista de espera
 
@@ -1062,6 +1388,23 @@ O extrato indica a quantidade disponível no momento e detalha o saldo por servi
 **Fontes:**
 - [Cartões e abertura do extrato](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/plans/PlansPage.tsx)
 
+## PL05 · Contratar um plano com matrícula e documento
+
+1. Abra [**Planos e sessões**](https://crm.organizastudios.com/planos) e clique em **Novo plano**.
+2. Selecione **Cliente** e **Plano cadastrado**.
+3. Em **Turma**, escolha uma turma com vaga e confira as datas e o pagamento.
+4. Em **Documento para o cliente assinar**, escolha um modelo.
+5. Clique em **Criar plano e parcelas**. Na confirmação, confira o link de assinatura.
+6. Use **Copiar link** ou **Abrir WhatsApp** se precisar preparar o envio e clique em **Concluir** para continuar.
+
+Confira o cartão do plano. A turma mostra o participante e o documento emitido pode ser acompanhado em **Contratos**.
+
+**Perguntas:** Como contratar um plano com matrícula e documento para assinatura? | Onde escolho a turma e o documento durante a contratação?
+
+**Fontes:**
+- [Turma e seleção do documento](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/plans/PlanModal.tsx)
+- [Confirmações após criar o plano](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/plans/PlansPage.tsx)
+
 ## PL06 · Dividir a compra de um plano entre formas de pagamento
 
 1. Abra [**Planos e sessões**](https://crm.organizastudios.com/planos) e clique em **Novo plano**.
@@ -1112,6 +1455,21 @@ O plano passa a aparecer em **Pausado** depois da pausa. Após ativá-lo, confir
 - [Situações e ações Pausar e Ativar](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/plans/PlansPage.tsx)
 - [Campos opcionais e confirmação da pausa](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/plans/PlanPauseModal.tsx)
 
+## PL09 · Cancelar um plano com ou sem estorno ao cliente
+
+1. Abra **Planos e sessões**, localize o plano do cliente e clique em **Cancelar** no cartão correspondente.
+2. Confira o cliente, o plano e o efeito do cancelamento. Para cancelar sem devolução, mantenha **Houve estorno de valor ao cliente** desmarcado.
+3. Se houver devolução, marque **Houve estorno de valor ao cliente** e preencha **Valor estornado ao cliente (R$)** e **Forma de pagamento do estorno**. A observação é opcional.
+4. Clique em **Confirmar**. Use o filtro **Cancelado** para conferir o plano e o registro do cancelamento. Com devolução, confira também a saída em **Financeiro › Contas a pagar**.
+
+As parcelas em aberto são canceladas e as sessões que restavam ficam indisponíveis. A devolução registrada aparece como uma conta paga na categoria **Estornos a clientes**.
+
+**Perguntas:** Como cancelar um plano e devolver o valor ao cliente? | Como cancelar um plano sem estorno?
+
+**Fontes:**
+- [Lista e ações dos planos](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/plans/PlansPage.tsx)
+- [Cancelamento e registro de estorno](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/plans/PlanCancelModal.tsx)
+
 ## PL10 · Configurar a renovação automática de um plano
 
 1. Abra [**Planos e sessões**](https://crm.organizastudios.com/planos) e localize o cartão do plano.
@@ -1141,6 +1499,20 @@ O prontuário abre com as áreas clínicas disponíveis para a sua conta, como *
 **Fontes:**
 - [Lista e seleção de clientes](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/clinical/ClinicalRecordsPage.tsx)
 - [Cabeçalho e abas do prontuário](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/clinical/ClinicalWorkspacePanel.tsx)
+
+## PR02 · Consultar a linha do tempo do prontuário
+
+1. Abra [**Prontuários**](https://crm.organizastudios.com/prontuarios) e selecione o cliente.
+2. Clique em **Linha do tempo**.
+3. Escolha **Tudo**, **Avaliações**, **Medições** ou **Arquivos**, conforme os filtros disponíveis.
+4. Confira o tipo, a descrição, a data e o autor de cada registro.
+
+Os filtros mudam os itens mostrados. Quando houver uma medição, a linha apresenta o valor registrado e a unidade.
+
+**Perguntas:** Como ver o histórico clínico? | Onde vejo a linha do tempo do prontuário? | Como filtrar medições e anexos no histórico clínico?
+
+**Fontes:**
+- [Linha do tempo e filtros no prontuário](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/clinical/ClinicalChart.tsx)
 
 ## PR06 · Anexar um arquivo ao prontuário
 
@@ -1273,6 +1645,22 @@ Consulte **Evolução das medições** para comparar as medições registradas a
 - [Campos da medição clínica](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/clinical/ClinicalMeasurementModal.tsx)
 - [Evolução dos valores](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/clinical/MeasurementChart.tsx)
 
+## PR14 · Registrar alta ou encerramento do tratamento
+
+1. Abra [**Prontuários**](https://crm.organizastudios.com/prontuarios) e selecione o cliente.
+2. Clique em **Mais ações** e em **Encerrar tratamento**.
+3. Escolha **Motivo**, como **Alta**, **Encaminhamento** ou **Abandono**.
+4. Preencha **Resumo clínico** e inclua **Recomendações**, se necessário.
+5. Clique em **Registrar encerramento**.
+
+Confira a situação e a data na ficha. O registro também aparece na história clínica.
+
+**Perguntas:** Como registrar alta no prontuário? | Onde registro o encerramento de tratamento de um paciente?
+
+**Fontes:**
+- [Ação e situação no prontuário](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/clinical/ClinicalChart.tsx)
+- [Campos do encerramento](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/clinical/TreatmentClosureModal.tsx)
+
 ## PR15 · Consultar quem acessou um prontuário
 
 1. Abra [**Prontuários**](https://crm.organizastudios.com/prontuarios) e selecione o cliente.
@@ -1301,6 +1689,72 @@ A exportação gera um arquivo JSON com os dados do prontuário. Para guardar um
 
 **Fontes:**
 - [Ações de exportação e impressão](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/clinical/ClinicalWorkspacePanel.tsx)
+
+## PR17 · Criar um treino no prontuário do cliente
+
+1. Abra [**Prontuários**](https://crm.organizastudios.com/prontuarios), escolha o cliente e abra **Treinos e documentos**.
+2. Expanda **Treinos, relatórios e prescrições**.
+3. Em **Seção**, escolha **Treinos** e clique em **Novo registro**.
+4. Preencha **Nome**, confira o **Profissional** e informe as datas ou o limite de execuções quando aplicável.
+5. Em **Adicionar exercício**, escolha um exercício e revise os detalhes do treino.
+6. Clique em **Salvar**.
+
+Confira o treino pelo nome na lista. Para incluir um exercício que ainda não está disponível, cadastre-o na seção **Exercícios e procedimentos**.
+
+**Perguntas:** Como montar um treino no prontuário? | Onde cadastro um exercício para usar no treino do cliente?
+
+**Fontes:**
+- [Seções e lista de registros clínicos](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/clinical/ClinicalResourcesPanel.tsx)
+- [Campos de exercícios e treinos](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/clinical/ClinicalResourceEditor.tsx)
+
+## PR18 · Copiar, editar, finalizar ou imprimir registros clínicos
+
+1. Abra [**Prontuários**](https://crm.organizastudios.com/prontuarios), escolha o cliente e entre em **Treinos e documentos**.
+2. Expanda **Treinos, relatórios e prescrições** e escolha a **Seção**.
+3. Num treino, use **Copiar treino**, revise os dados da cópia e clique em **Salvar**. Para alterar um registro que admite edição, use **Editar**.
+4. Em **Relatórios e prescrições**, use **Finalizar** no registro e confirme em **Confirmar finalização**.
+5. Para imprimir os registros do período, ajuste as datas e clique em **Imprimir período**.
+
+Confira o nome da cópia ou a situação **Finalizado**, conforme a ação. As opções dependem do tipo e da situação do registro.
+
+**Perguntas:** Como copiar treino ou finalizar relatório clínico? | Onde imprimo treinos e documentos de um período?
+
+**Fontes:**
+- [Ações e impressão no prontuário](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/clinical/ClinicalResourcesPanel.tsx)
+- [Edição e cópia de registros](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/clinical/ClinicalResourceEditor.tsx)
+
+## PR19 · Gravar e ouvir um áudio no prontuário
+
+1. Abra [**Prontuários**](https://crm.organizastudios.com/prontuarios), escolha o cliente e entre em **Arquivos**.
+2. Clique em **Anexar arquivo** e depois em **Gravar áudio**.
+3. Autorize o microfone se o navegador perguntar. Aguarde o contador de gravação.
+4. Clique em **Concluir gravação**, preencha **Observações** se precisar e clique em **Anexar arquivo**.
+5. Na aba **Arquivos**, clique em **Reproduzir áudio** e use o controle do player para ouvir.
+
+O áudio fica na lista de anexos. A janela informa os limites de 15 minutos e 16 MB.
+
+**Perguntas:** Como gravar áudio no prontuário? | Onde consigo ouvir um áudio salvo na ficha clínica?
+
+**Fontes:**
+- [Gravação no formulário do anexo](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/clinical/ClinicalAttachmentModal.tsx)
+- [Carregamento e reprodução](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/clinical/ClinicalAudioPlayer.tsx)
+
+## PR20 · Registrar a execução de um treino
+
+1. Abra [**Prontuários**](https://crm.organizastudios.com/prontuarios), selecione o cliente e abra **Treinos e documentos**.
+2. Expanda **Treinos, relatórios e prescrições**.
+3. Em **Seção**, selecione **Treinos executados**.
+4. Clique em **Novo registro** e selecione o **Treino**.
+5. Preencha **Observações** e marque **Execução concluída** quando for o caso.
+6. Clique em **Salvar**.
+
+Confira o novo registro na lista de treinos executados e clique em **Visualizar** para rever o que foi gravado.
+
+**Perguntas:** Como registrar que o cliente executou um treino? | Onde lanço uma execução de treino no prontuário?
+
+**Fontes:**
+- [Entrada da seção de treinos executados](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/clinical/ClinicalResourcesPanel.tsx)
+- [Campos da execução](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/clinical/ClinicalResourceEditor.tsx)
 
 ## EV04 · Excluir um evento
 
@@ -1347,6 +1801,21 @@ A planilha XLSX traz o nome do evento no nome do arquivo.
 
 **Fontes:**
 - [Botão e geração da planilha](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/events/EventDetailPage.tsx)
+
+## EV09 · Converter um participante do evento em cliente
+
+1. Abra [**Eventos**](https://crm.organizastudios.com/eventos) e entre em **Participantes** no evento correto.
+2. Na linha da pessoa, clique em **Se tornou cliente**.
+3. Se aparecer uma solicitação de dados, confira o que falta e clique em **Preencher cadastro**.
+4. Preencha os dados obrigatórios e clique em **Cadastrar cliente**.
+
+O participante aparece com o estado **Cliente** na lista do evento.
+
+**Perguntas:** Como transformar um participante do evento em cliente? | Onde completo o cadastro de cliente de um inscrito?
+
+**Fontes:**
+- [Ação na lista de participantes](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/events/EventDetailPage.tsx)
+- [Solicitação de dados e conversão](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/events/EventConvertModal.tsx)
 
 ## EV10 · Registrar contato com um participante de evento
 
@@ -1410,6 +1879,21 @@ Confira o nome do cliente na janela antes de seguir para outra tela.
 - [Abertura das pendências pelo cartão](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/relationship/RelationshipPage.tsx)
 - [Seções e atalhos da janela de pendências](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/relationship/ClientPendingModal.tsx)
 
+## RE03 · Registrar contato com um cliente sugerido
+
+1. Abra [**Contatos sugeridos**](https://crm.organizastudios.com/relacionamento) e clique no cartão do cliente.
+2. Na janela de pendências, clique em **Registrar contato**.
+3. Escolha **Resultado** e preencha **Observação**, se necessário.
+4. Clique em **Salvar contato**.
+
+A interface confirma o contato registrado para o cliente.
+
+**Perguntas:** Como registrar contato em Contatos sugeridos? | Onde registro o resultado de um contato sugerido?
+
+**Fontes:**
+- [Ação no cartão de pendências](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/relationship/ClientPendingModal.tsx)
+- [Campos e salvamento do contato](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/relationship/ContactActivityModal.tsx)
+
 ## RE04 · Consultar aniversariantes e preparar o contato
 
 1. Abra [**Contatos sugeridos**](https://crm.organizastudios.com/relacionamento).
@@ -1425,6 +1909,64 @@ O cartão mostra quem faz aniversário no mês escolhido. As ações de contato 
 
 **Fontes:**
 - [Mês, cartões e ações de aniversário](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/relationship/BirthdaysMonthPanel.tsx)
+
+## CO01 · Encontrar uma campanha manual em Comunicações
+
+1. Abra [**Comunicações**](https://crm.organizastudios.com/comunicacoes) e entre em **Campanhas**.
+2. Procure o título em **Em andamento** ou **Concluídas**.
+3. Clique em **Continuar** para abrir uma campanha em andamento, ou em **Ver** para consultar uma concluída.
+
+As campanhas manuais aparecem agrupadas por situação. Os filtros de destinatário ficam dentro de cada campanha.
+
+**Perguntas:** Onde vejo as campanhas em andamento? | Como localizar uma campanha manual concluída?
+
+**Fontes:**
+- [Listagem por situação e ações das campanhas](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/communications/campaigns/CampaignsTab.tsx)
+
+## CO02 · Preparar uma campanha manual e conferir os destinatários
+
+1. Abra [**Comunicações**](https://crm.organizastudios.com/comunicacoes) e entre em **Campanhas**.
+2. Clique em **Nova campanha**, escolha a mensagem e clique em **Continuar**.
+3. Em **Clientes**, selecione as pessoas. Se quiser montar a lista por critérios, use **Por filtros**.
+4. Clique em **Conferir quem recebe**.
+5. Revise o **Nome da campanha**, os destinatários e a mensagem preparada.
+6. Clique em **Criar e começar a enviar** para abrir a fila.
+
+A fila mostra os destinatários pendentes. Cada conversa é aberta individualmente na etapa de envio.
+
+**Perguntas:** Como preparar uma campanha manual de WhatsApp? | Onde vejo quem vai receber uma campanha antes de criar?
+
+**Fontes:**
+- [Entrada e fluxo de campanhas](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/communications/CommunicationsPage.tsx)
+
+## CO03 · Trabalhar na fila de uma campanha com filtro ativo
+
+1. Abra [**Comunicações**](https://crm.organizastudios.com/comunicacoes), entre em **Campanhas** e clique em **Continuar** na campanha correta.
+2. Na fila **Clientes**, escolha **Pendentes**, **Enviadas**, **Puladas** ou **Todas**.
+3. Clique no destinatário correto para conferir a mensagem e as ações disponíveis.
+4. Depois de registrar o resultado, abra o filtro correspondente para localizar a pessoa novamente.
+
+A pessoa aparece no filtro da nova situação. Confira o nome da campanha e do destinatário ao mudar o filtro.
+
+**Perguntas:** Como filtrar a fila de uma campanha? | Onde vejo os destinatários enviados ou pulados?
+
+**Fontes:**
+- [Acesso às campanhas e fila de destinatários](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/communications/CommunicationsPage.tsx)
+
+## CO04 · Abrir o WhatsApp e registrar a situação de uma mensagem manual
+
+1. Abra **Comunicações** e entre na fila da campanha manual que você quer executar.
+2. Selecione um destinatário pendente. Confira o telefone e a mensagem. Use **Abrir conversa no WhatsApp** para abrir o canal com o texto ou **Copiar texto** para usar o conteúdo na conversa.
+3. Depois de fazer o envio no WhatsApp, volte ao CRM e clique em **Marcar como enviada** ou confirme o envio se a tela perguntar.
+4. Se a mensagem ficar sem envio e você quiser seguir para o próximo contato, use **Pular**. Confira a pessoa no filtro **Puladas**. O filtro **Enviadas** mostra as que você confirmou.
+
+Uma mensagem com campos de atendimento exige que o destinatário tenha o atendimento necessário. A fila registra a confirmação feita pela equipe para cada destinatário.
+
+**Perguntas:** Como marcar uma campanha manual como enviada no WhatsApp? | Como pular um destinatário que não recebeu a campanha?
+
+**Fontes:**
+- [Ações e filtros da fila](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/communications/campaigns/CampaignSenderPage.tsx)
+- [Seleção de campanha e destinatários](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/communications/campaigns/NewCampaignModal.tsx)
 
 ## CO05 · Criar uma mensagem padrão e conferir a prévia
 
@@ -1458,6 +2000,65 @@ Confira as mudanças no cartão. As mensagens arquivadas ficam em **Arquivadas**
 **Fontes:**
 - [Cartões, ações e filtros de mensagens](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/communications/CommunicationsPage.tsx)
 - [Conteúdo e salvamento da edição](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/communications/campaigns/TemplateEditorModal.tsx)
+
+## CO07 · Criar e programar os momentos de uma campanha automática
+
+1. Abra [**Comunicações**](https://crm.organizastudios.com/comunicacoes) e clique em **Campanhas automáticas**.
+2. Clique em **Nova campanha automática**.
+3. Preencha **Nome da campanha**, escolha **Evento** e confira **Campanha ativa**.
+4. Informe o momento e o texto de **Mensagem 1**. Use **Adicionar mensagem** para criar outro momento.
+5. Confira os textos e dias e clique em **Salvar campanha**.
+
+O cartão mostra a campanha e a quantidade de mensagens. Quando houver destinatários elegíveis, as pendências aparecem em **Visão geral → Campanhas automáticas**.
+
+**Perguntas:** Como criar uma campanha automática? | Como programar duas mensagens para um mesmo evento?
+
+**Fontes:**
+- [Lista e entrada do editor](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/communications/auto-campaigns/AutoCampaignsTab.tsx)
+- [Eventos, mensagem e dias de envio](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/communications/auto-campaigns/AutoCampaignEditorModal.tsx)
+
+## CO08 · Tratar uma pendência de campanha automática
+
+1. Abra [**Visão geral**](https://crm.organizastudios.com/) e entre em **Campanhas automáticas**.
+2. Em **Pendentes**, confira a campanha, o destinatário e a mensagem do cartão.
+3. Depois do envio pelo canal escolhido, clique em **Enviada**.
+4. Se não quiser enviar, clique em **Não enviar**, preencha **Observação (opcional)** se necessário e clique em **Registrar**.
+
+Use **Enviadas** ou **Não enviadas** para conferir o novo estado do cartão.
+
+**Perguntas:** Como registrar que uma mensagem automática não foi enviada? | Onde trato as mensagens pendentes de campanha automática?
+
+**Fontes:**
+- [Aba de campanhas no painel inicial](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/dashboard/DashboardPage.tsx)
+
+## CO10 · Preparar lembrete de uma sessão pelo WhatsApp
+
+1. Abra [**Visão geral**](https://crm.organizastudios.com/) e clique em **Campanhas automáticas**.
+2. Em **Pendentes**, localize o lembrete do cliente e confira o serviço, a data e o horário.
+3. Revise a mensagem do cartão. Se o endereço estiver presente, confira a unidade.
+4. Use **WhatsApp** para abrir a conversa com o texto preparado, ou **Copiar mensagem** para copiar o texto.
+
+Revise a conversa antes de enviar. Registre o resultado no CRM depois de tratar o lembrete.
+
+**Perguntas:** Como preparar o WhatsApp de lembrete de sessão? | Onde vejo um lembrete de atendimento que está pendente?
+
+**Fontes:**
+- [Aba do painel que exibe os lembretes](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/dashboard/DashboardPage.tsx)
+- [Escolha do evento e dados do atendimento](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/communications/auto-campaigns/AutoCampaignEditorModal.tsx)
+
+## CO11 · Editar preferências de contato do cliente
+
+1. Abra [**Clientes**](https://crm.organizastudios.com/clientes) e abra a ficha do cliente correto.
+2. Localize as opções de comunicação na ficha.
+3. Marque ou desmarque **WhatsApp** e **E-mail** conforme a preferência informada pelo cliente.
+4. Aguarde a mudança na ficha e abra o cadastro novamente para conferir.
+
+A seleção permanece gravada na ficha. Confira o destinatário e os canais respeitados quando preparar campanhas.
+
+**Perguntas:** Como mudar as preferências de contato do cliente? | Onde desligo e-mail ou WhatsApp para um cliente?
+
+**Fontes:**
+- [Preferências de comunicação na ficha](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/patients/PatientDetailPage.tsx)
 
 ## CT01 · Localizar um documento e consultar os seus detalhes
 
@@ -1588,6 +2189,21 @@ O link abre o contrato em uma página de assinatura. Se usar o WhatsApp, confirm
 - [Ação de envio do contrato emitido](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/contracts/DocumentDetailsModal.tsx)
 - [Geração, prazo e compartilhamento do link](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/contracts/SignatureRequest.tsx)
 
+## CT09 · Registrar a assinatura presencial de um contrato
+
+1. Abra [**Contratos**](https://crm.organizastudios.com/contratos) e clique em **Ver detalhes** na linha do contrato emitido.
+2. Clique em **Registrar assinatura manual**.
+3. Confira **Data da assinatura** e **Responsável pela obtenção**.
+4. Em **Cópia do documento assinado**, selecione o arquivo.
+5. Clique em **Registrar assinatura**.
+
+A seção **Assinatura** passa a oferecer **Baixar cópia assinada**.
+
+**Perguntas:** Como lançar uma assinatura presencial de contrato? | Onde anexo o contrato assinado à mão? | Como registrar assinatura manual em Contratos?
+
+**Fontes:**
+- [Formulário de registro manual e acesso à cópia](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/contracts/DocumentSignatureActions.tsx)
+
 ## CT10 · Acompanhar a assinatura e abrir o contrato assinado
 
 1. Abra [**Contratos**](https://crm.organizastudios.com/contratos).
@@ -1619,6 +2235,20 @@ O detalhe passa a mostrar **Cancelado**. Use o filtro **Situação** na lista pa
 **Fontes:**
 - [Opção de cancelamento nos detalhes](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/contracts/DocumentDetailsModal.tsx)
 - [Confirmação e atualização da lista](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/contracts/DocumentsPage.tsx)
+
+## CT12 · Consultar os documentos enviados para um fornecedor
+
+1. Em **Vendas de produtos**, abra **Fornecedores**, localize o fornecedor e clique em **Editar**.
+2. Abra **Documentos** e confira a seção **Documentos enviados**. Cada entrada traz o título do documento e os dados da assinatura disponíveis.
+3. Use **Ver registro** quando ele estiver disponível. Se precisar reenviar um documento ainda pendente de assinatura e o botão estiver disponível, use **WhatsApp** na entrada correspondente.
+
+Se a lista estiver vazia, o CRM mostra **Nenhum documento enviado para assinatura**. Para emitir pelo cadastro do fornecedor, confira o **E-mail** em **Dados**, selecione um modelo em **Documentos** e use **Salvar e enviar pelo WhatsApp**.
+
+**Perguntas:** Onde vejo os documentos de um fornecedor? | Como abrir o registro de um documento enviado ao fornecedor?
+
+**Fontes:**
+- [Cadastro do fornecedor](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/finance/SupplierModal.tsx)
+- [Documentos e ações de assinatura](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/contracts/SupplierDocuments.tsx)
 
 ## AS01 · Ler e assinar um contrato recebido por link
 
@@ -1700,6 +2330,38 @@ Em **Vendas realizadas**, confira a venda individual. Em **Resumo**, veja os pro
 **Fontes:**
 - [Histórico, filtros e detalhes](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/sales/SalesHistorySection.tsx)
 - [Período e indicadores do resumo](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/sales/SalesSummarySection.tsx)
+
+## VE04 · Cancelar uma venda que ainda está a receber
+
+1. Abra [**Vendas de produtos**](https://crm.organizastudios.com/vendas) e clique em **Vendas realizadas**.
+2. Em **Situação**, selecione **A receber**.
+3. Abra **Ver** na linha da venda correta.
+4. Clique em **Cancelar venda** e informe **Motivo do cancelamento**.
+5. Confirme em **Cancelar venda**.
+
+Mude o filtro para **Cancelada** ou volte à lista geral para localizar o registro. Confira a situação e o motivo nos detalhes.
+
+**Perguntas:** Como cancelar uma venda a receber? | Onde cancelo uma venda de produto ainda não paga?
+
+**Fontes:**
+- [Histórico e filtro de situação](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/sales/SalesHistorySection.tsx)
+- [Motivo e confirmação do cancelamento](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/sales/SaleDetailsModal.tsx)
+
+## VE05 · Estornar o pagamento e cancelar uma venda paga
+
+1. Abra [**Vendas de produtos**](https://crm.organizastudios.com/vendas) e entre em **Vendas realizadas**.
+2. Abra **Ver** na linha da venda paga e confirme o cliente e o total.
+3. Clique em **Cancelar venda**.
+4. Informe **Motivo do cancelamento** e marque **Estornar o pagamento** com o valor exibido.
+5. Clique em **Estornar e cancelar**.
+
+O histórico mostra a venda como **Cancelada**. Confira o recebimento no **Financeiro** e a quantidade do produto em **Estoque**.
+
+**Perguntas:** Como estornar e cancelar uma venda paga? | Onde devolvo o pagamento de uma venda de produto?
+
+**Fontes:**
+- [Venda paga e confirmação do estorno e cancelamento](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/sales/SaleDetailsModal.tsx)
+- [Histórico da venda após o cancelamento](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/sales/SalesHistorySection.tsx)
 
 ## VE06 · Consultar estoque e iniciar uma venda pelo estoque
 
@@ -1846,6 +2508,22 @@ A parcela aparece em **Pagas**. O **Recibo** mostra as formas e os valores regis
 - [Formas, valores e confirmação da baixa](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/finance/SettleModal.tsx)
 - [Apresentação do pagamento no recibo](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/finance/ReceiptModal.tsx)
 
+## FI05 · Ajustar o valor de uma parcela em aberto
+
+1. Abra [**Financeiro**](https://crm.organizastudios.com/financeiro) e clique em **Contas a receber**.
+2. Localize a parcela em aberto e confira o cliente e o valor.
+3. Abra **Mais** na linha da parcela e clique em **Ajustar**.
+4. Preencha **Novo valor (R$)** e **Justificativa**.
+5. Clique em **Confirmar**.
+
+Confira o valor atualizado. A justificativa fica registrada no histórico.
+
+**Perguntas:** Como ajustar uma parcela em aberto? | Onde corrijo o valor de uma parcela antes da baixa?
+
+**Fontes:**
+- [Ações da parcela](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/finance/ReceivablesList.tsx)
+- [Valor e justificativa](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/finance/ReceivableAdjustModal.tsx)
+
 ## FI07 · Anexar, baixar ou excluir um comprovante de pagamento
 
 1. Abra [**Financeiro**](https://crm.organizastudios.com/financeiro) e clique em **Contas a receber**.
@@ -1893,6 +2571,52 @@ O cliente abre o link para conferir e assinar o recibo. Volte à seção **Assin
 
 **Fontes:**
 - [Link e acompanhamento no recibo](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/finance/ReceiptModal.tsx)
+
+## FI10 · Preparar um contato sobre uma parcela
+
+1. Abra [**Financeiro**](https://crm.organizastudios.com/financeiro) e clique em **Contas a receber**.
+2. Localize a parcela e confira cliente, descrição, valor e vencimento.
+3. Em **Mais**, clique em **Entrar em contato**.
+4. Revise **Mensagem** e escolha **Ligar** ou **Enviar pelo WhatsApp**, conforme o que estiver disponível.
+
+Confira o destinatário e o conteúdo no canal antes de enviar. A mensagem preparada inclui os dados da parcela.
+
+**Perguntas:** Como contatar um cliente sobre uma parcela? | Onde preparo um lembrete de parcela pelo WhatsApp?
+
+**Fontes:**
+- [Menu da parcela](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/finance/ReceivablesList.tsx)
+- [Mensagem e canais da parcela](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/finance/ReceivableContactModal.tsx)
+
+## FI12 · Renegociar parcelas a receber
+
+1. Abra [**Financeiro**](https://crm.organizastudios.com/financeiro) e clique em **Contas a receber**.
+2. Marque as parcelas abertas do cliente e clique em **Renegociar**.
+3. Revise **Novo valor total (R$)**, **Número de parcelas** e **Primeiro vencimento**.
+4. Preencha **Motivo da renegociação** e clique em **Confirmar**.
+
+As parcelas antigas ficam canceladas e as novas aparecem com o valor dividido e vencimentos mensais.
+
+**Perguntas:** Como renegociar parcelas de um cliente? | Onde divido um saldo em novas parcelas no Financeiro?
+
+**Fontes:**
+- [Seleção e ação na lista](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/finance/ReceivablesList.tsx)
+- [Execução da renegociação no Financeiro](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/finance/FinancePage.tsx)
+
+## FI13 · Corrigir datas ou classificar um lançamento
+
+1. Abra [**Financeiro**](https://crm.organizastudios.com/financeiro) e entre em **Lançamentos**.
+2. Localize a linha pela descrição e pelo valor.
+3. Para classificar, abra **Classificar**, ajuste os campos disponíveis e clique em **Salvar lançamento**.
+4. Para corrigir datas, abra **Datas financeiras** e ajuste a data correspondente.
+5. Preencha **Motivo do ajuste** e clique em **Salvar datas**.
+
+Abra a linha novamente para conferir a classificação e as datas corrigidas.
+
+**Perguntas:** Como corrigir a data de um lançamento? | Onde altero a categoria ou centro de custo de um lançamento?
+
+**Fontes:**
+- [Seleção e ações dos lançamentos](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/finance/FinanceClassificationPanel.tsx)
+- [Fluxo dos lançamentos financeiros](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/finance/FinancePage.tsx)
 
 ## FI14 · Localizar e filtrar contas a pagar
 
@@ -1978,6 +2702,21 @@ Confira a conta entre os pagamentos registrados. Para corrigir um pagamento regi
 - [Ação Pagar na lista](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/finance/PayablesList.tsx)
 - [Datas, forma e confirmação](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/finance/PayableModal.tsx)
 
+## FI19 · Informar o valor de uma conta a pagar variável
+
+1. Abra [**Financeiro**](https://crm.organizastudios.com/financeiro) e clique em **Contas a pagar**.
+2. Em **Contas**, procure a conta aberta que aparece com valor a informar.
+3. Na linha dela, clique em **Informar valor**.
+4. Preencha **Valor do mês** e clique em **Salvar valor**.
+
+Confira o valor e a ação **Pagar** na linha. **Informar valor** aparece nas contas com valor pendente.
+
+**Perguntas:** Como ajustar uma conta a pagar de valor variável? | Onde informo o valor do mês de uma despesa fixa variável?
+
+**Fontes:**
+- [Condição da ação Informar valor](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/finance/PayablesList.tsx)
+- [Valor mensal e confirmação](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/finance/PayableAmountModal.tsx)
+
 ## FI20 · Estornar o pagamento de uma despesa
 
 1. Abra [**Financeiro**](https://crm.organizastudios.com/financeiro) e clique em **Contas a pagar**.
@@ -2009,6 +2748,162 @@ O cadastro fica disponível nos campos de classificação dos lançamentos. Em *
 - [Atalhos e salvamento da classificação](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/finance/FinancePage.tsx)
 - [Opções de cadastro na despesa](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/finance/NewExpenseModal.tsx)
 
+## FI22 · Cadastrar ou editar um fornecedor para uma despesa
+
+1. Abra [**Financeiro**](https://crm.organizastudios.com/financeiro) e clique em **Nova despesa**.
+2. Em **Fornecedor**, escolha **+ Novo fornecedor**.
+3. Preencha **Nome** e os dados do fornecedor e clique em **Salvar fornecedor**.
+4. Confira o fornecedor selecionado e conclua a despesa. Para editar um cadastro existente, abra **Vendas de produtos → Fornecedores** e use **Editar**.
+
+O fornecedor fica disponível na lista e aparece associado à despesa salva.
+
+**Perguntas:** Como cadastrar um fornecedor direto no Financeiro? | Onde edito os dados de um fornecedor usado em despesas?
+
+**Fontes:**
+- [Cadastro dentro da despesa](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/finance/NewExpenseModal.tsx)
+- [Edição e salvamento do fornecedor](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/finance/SupplierModal.tsx)
+
+## FI23 · Consultar ou cadastrar um pedido de fornecedor
+
+1. Abra [**Vendas de produtos**](https://crm.organizastudios.com/vendas) e clique em **Fornecedores**.
+2. Na linha do fornecedor, clique em **Pedidos**.
+3. Para cadastrar, clique em **Novo pedido**. Informe **Data do pedido**, **Nº do pedido** e **Valor do pedido (R$)**.
+4. Adicione os produtos, confira a quantidade e o custo de cada item, e revise a soma.
+5. Clique em **Registrar pedido**.
+
+Confira o número do pedido na lista do fornecedor. O formulário pede o valor do pedido mesmo quando a soma dos itens já aparece.
+
+**Perguntas:** Como cadastrar um pedido de fornecedor? | Onde consulto os pedidos de um fornecedor?
+
+**Fontes:**
+- [Acesso aos pedidos pelo fornecedor](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/sales/SalesSuppliersSection.tsx)
+
+## FI24 · Consultar comissões e entender a regra aplicada
+
+1. Abra [**Financeiro**](https://crm.organizastudios.com/financeiro) e entre em **Comissões**.
+2. Localize o profissional e confira a competência na linha.
+3. Compare **Base de cálculo**, **Percentual**, **Comissão** e **Situação**.
+4. Para revisar o cadastro de quem tem usuário vinculado, consulte **Configurações → Usuários**.
+
+A tela informa que a comissão cadastrada no usuário prevalece sobre a regra do profissional.
+
+**Perguntas:** Onde vejo as comissões no Financeiro? | Como descobrir qual percentual entrou na comissão do profissional?
+
+**Fontes:**
+- [Aba de comissões e precedência das regras](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/finance/FinancePage.tsx)
+- [Tabela e situação de cada comissão](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/finance/CommissionsList.tsx)
+
+## FI25 · Criar uma regra de comissão e conferir o recálculo
+
+1. Abra [**Financeiro**](https://crm.organizastudios.com/financeiro) e clique em **Comissões**.
+2. Clique em **Nova regra**.
+3. Selecione **Origem da regra** e escolha o usuário ou profissional.
+4. Preencha **Percentual (%)**, **Vale a partir de** e, se necessário, **Vale até**.
+5. Clique em **Salvar**. Se houver uma prévia de recálculo, confira os valores antes de usar **Confirmar e recalcular**.
+
+Volte à tabela e confira o percentual e a comissão na linha do profissional. A regra do usuário é prioritária quando existe uma regra vigente no cadastro dele.
+
+**Perguntas:** Como criar uma regra de comissão? | Onde altero o percentual e reviso o recálculo das comissões?
+
+**Fontes:**
+- [Regra, vigência e prévia de recálculo](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/finance/CommissionRuleModal.tsx)
+
+## FI26 · Gerar comissões do mês
+
+1. Abra [**Financeiro**](https://crm.organizastudios.com/financeiro) e entre em **Comissões**.
+2. Confira se há uma regra vigente e se o atendimento ou a presença foi registrado.
+3. Clique em **Gerar comissões do mês**.
+4. Aguarde a atualização e confira profissional, competência e valor na lista.
+
+As comissões elegíveis aparecem com a situação e os valores calculados. A lista indica quando não há comissão gerada.
+
+**Perguntas:** Como gerar comissões do mês? | Onde calculo comissões de atendimentos ou presença em turma?
+
+**Fontes:**
+- [Ação de gerar comissões](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/finance/FinancePage.tsx)
+- [Comissões calculadas e seus valores](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/finance/CommissionsList.tsx)
+
+## FI27 · Pagar ou estornar uma comissão pela folha
+
+1. Em **Financeiro › Comissões**, encontre o lançamento na competência desejada.
+2. Abra **Folha**, revise a comissão na composição do colaborador e lance a folha.
+3. Em **Contas a pagar**, localize a despesa **Folha** do mês e do colaborador. Clique em **Pagar** e registre a baixa com os dados do pagamento efetivo.
+4. Se precisar reverter essa baixa, vá à seção **Pagas** em **Contas a pagar**, clique em **Estornar** na mesma despesa, preencha **Motivo** e confirme em **Estornar pagamento**.
+5. Confira que a conta voltou a ficar em aberto. Em **Comissões**, a comissão vinculada volta à situação **Na folha**.
+
+O pagamento e o estorno atuam sobre a despesa da folha inteira, que pode incluir salário e outros itens além da comissão.
+
+**Perguntas:** Como pagar ou estornar uma comissão? | Como estornar o pagamento da folha com comissão?
+
+**Fontes:**
+- [Comissões e vínculo com a folha](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/finance/CommissionsList.tsx)
+- [Pagamentos em Contas a pagar](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/finance/PayablesList.tsx)
+- [Motivo e confirmação do estorno](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/finance/ReversePaymentModal.tsx)
+
+## FI28 · Conciliar ajustes de uma comissão já paga
+
+1. Em **Financeiro › Comissões**, escolha a competência da comissão e localize o lançamento.
+2. Abra **Conciliar comissão**. Compare a **Comissão original** e seu pagamento com a **Origem atual**.
+3. Se você corrigiu a presença na turma depois do pagamento, confira o registro em **Histórico de ajustes**. A correção pode aparecer como **Conciliação automática: presença na turma alterada**.
+4. Confira o valor em **Saldos em aberto por profissional**. Abra **Financeiro › Folha** para revisar a composição da competência antes do próximo pagamento.
+
+A comissão original e seu pagamento continuam registrados. O CRM lança a diferença em um ajuste da folha. Por exemplo, quando a presença que gerou a comissão passa a ser falta, o ajuste desconta a comissão que havia sido paga.
+
+**Perguntas:** Como conciliar ajuste de comissão já paga? | Onde vejo o ajuste de comissão após corrigir a presença na turma?
+
+**Fontes:**
+- [Lançamentos de comissão](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/finance/CommissionsList.tsx)
+- [Revisão da origem e histórico de ajustes](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/finance/CommissionReconciliationModal.tsx)
+
+## FI29 · Configurar um colaborador para aparecer na folha
+
+1. Abra [**Configurações**](https://crm.organizastudios.com/configuracoes) e entre em **Usuários**.
+2. Clique em **Editar** na linha do colaborador.
+3. Marque **Recebe salário** e preencha **Salário mensal (R$)**.
+4. Clique em **Salvar alterações**.
+5. Abra [**Financeiro**](https://crm.organizastudios.com/financeiro) e clique em **Folha** para conferir o colaborador e a filial.
+
+O colaborador com salário aparece na folha da competência consultada.
+
+**Perguntas:** Como incluir um colaborador na folha? | Onde defino o salário mensal de um usuário?
+
+**Fontes:**
+- [Configuração de salário no usuário](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/settings/UserFormModal.tsx)
+- [Lista da folha por filial](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/finance/PayrollSection.tsx)
+
+## FI30 · Registrar desconto, recompensa ou vale para um colaborador
+
+1. Abra [**Financeiro**](https://crm.organizastudios.com/financeiro) e clique em **Folha**. Confira a **Competência**.
+2. Para desconto ou recompensa, clique em **Ajustar** na linha do colaborador.
+3. Escolha **Tipo**, revise **Forma**, preencha o valor e o **Motivo**, e clique em **Adicionar**.
+4. Para vale, clique em **Novo vale**, escolha **Colaborador** e informe o valor, o mês do desconto, a data e a forma de pagamento.
+5. Clique em **Registrar vale**.
+
+Abra **Detalhes** do colaborador para conferir os ajustes e vales na composição do mês.
+
+**Perguntas:** Como lançar um desconto ou recompensa na folha? | Onde registro um vale de salário?
+
+**Fontes:**
+- [Ações e composição da folha](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/finance/PayrollSection.tsx)
+- [Formulário de ajuste](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/finance/PayrollEntryModal.tsx)
+- [Formulário de vale](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/finance/PayrollAdvanceModal.tsx)
+
+## FI31 · Lançar a folha do mês e desfazer o lançamento
+
+1. Abra **Financeiro** e selecione **Folha**. Escolha a competência e confira os colaboradores incluídos.
+2. Abra o detalhe do colaborador e revise a **Composição do mês**. Confira salário, comissões e itens como bônus e vales antes de lançar.
+3. Clique em **Lançar folha do mês**. Confira a prévia dos valores, os vencimentos e os colaboradores. Confirme em **Lançar folha**.
+4. Veja a situação da folha e a conta criada em **Contas a pagar**.
+5. Para desfazer o lançamento que ainda está em aberto, volte ao colaborador em **Folha**, abra o detalhe, clique em **Desfazer lançamento** e confirme.
+
+O lançamento leva o valor à conta a pagar da folha. Ao desfazer, os itens voltam a ficar disponíveis para um novo lançamento.
+
+**Perguntas:** Como lançar a folha de pagamento do mês? | Como desfazer uma folha lançada no financeiro?
+
+**Fontes:**
+- [Ações e composição da folha](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/finance/PayrollSection.tsx)
+- [Prévia e lançamento](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/finance/PayrollLaunchModal.tsx)
+
 ## FI32 · Consultar a previsão financeira e o caixa diário
 
 1. Abra [**Financeiro**](https://crm.organizastudios.com/financeiro).
@@ -2025,6 +2920,36 @@ Revise a data ou o horizonte antes de comparar os valores. A previsão distingue
 - [Abas de Caixa do dia e Previsão](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/finance/FinancePage.tsx)
 - [Consulta por data](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/finance/DailyCashSection.tsx)
 - [Horizonte e totais da previsão](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/finance/FinanceForecastSection.tsx)
+
+## FI33 · Registrar uma operação externa com comprovante
+
+1. Abra [**Financeiro**](https://crm.organizastudios.com/financeiro) e entre em **Documentos fiscais**.
+2. Clique em **Registrar operação externa**.
+3. Escolha **Tipo de registro** e confira **Data da operação externa**.
+4. Informe **Emissor ou parceiro** e **Referência do documento ou operação**.
+5. Em **Comprovante**, escolha um PDF, PNG ou JPEG de até 5 MB. Se necessário, vincule o cliente ou a conta a receber.
+6. Clique em **Salvar registro manual**.
+
+O registro aparece em **Documentos fiscais e operações com parceiros**, com a referência e a opção de baixar o comprovante.
+
+**Perguntas:** Como registrar uma nota emitida fora do CRM? | Onde cadastro uma operação externa com parceiro? | Como lançar um documento fiscal externo com comprovante?
+
+**Fontes:**
+- [Formulário, anexos e lista de operações externas](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/finance/ExternalOperationsPanel.tsx)
+
+## FI34 · Consultar ou baixar o comprovante de uma operação externa
+
+1. Abra [**Financeiro**](https://crm.organizastudios.com/financeiro) e clique em **Documentos fiscais**.
+2. Localize a referência em **Documentos fiscais e operações com parceiros**.
+3. Confira emissor e data do registro.
+4. Clique em **Baixar comprovante** na linha correspondente.
+
+O navegador baixa o arquivo anexado à operação.
+
+**Perguntas:** Onde baixo o comprovante de uma operação externa? | Como consultar comprovante de documento fiscal registrado? | Onde está o anexo da operação com parceiro?
+
+**Fontes:**
+- [Listagem e download de comprovante externo](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/finance/ExternalOperationsPanel.tsx)
 
 ## RL02 · Consultar a retenção de clientes
 
@@ -2103,6 +3028,36 @@ Confira o intervalo e o tipo selecionados antes de comparar os resultados.
 **Fontes:**
 - [Período e acesso ao relatório](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/reports/ReportsPage.tsx)
 - [Filtros e exportação de campanhas](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/reports/CampaignsSection.tsx)
+
+## RL07 · Ler a composição da DRE
+
+1. Abra [**Relatórios**](https://crm.organizastudios.com/relatorios) e ajuste o período.
+2. Clique na aba **DRE**.
+3. Em **DRE por competência**, confira **Receitas**, **Despesas** e **Resultado**.
+4. Na tabela **Composição**, compare as linhas das categorias nas colunas de cada mês.
+5. Use **Exportar DRE** ou **Imprimir DRE** para conferir fora da tela.
+
+Os valores são agrupados pela competência. Confira o período e a categoria antes de comparar com os lançamentos.
+
+**Perguntas:** Onde vejo a DRE por competência? | Como conferir as categorias e baixar a DRE?
+
+**Fontes:**
+- [Totais, composição e exportação da DRE](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/reports/DreSection.tsx)
+
+## RL08 · Configurar pró-labore a partir do relatório
+
+1. Abra [**Relatórios**](https://crm.organizastudios.com/relatorios) e entre em **Financeiro**.
+2. Clique em **Configurar pró-labore**.
+3. Preencha **Percentual (%)**.
+4. Confira a opção em **Calcular sobre** e clique em **Salvar pró-labore**.
+
+Abra a configuração novamente para conferir o percentual salvo. O relatório usa a base selecionada.
+
+**Perguntas:** Como configurar pró-labore no relatório? | Onde mudo o percentual ou a base de pró-labore?
+
+**Fontes:**
+- [Atalho no relatório financeiro](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/reports/FinancialSection.tsx)
+- [Percentual, base e salvamento](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/reports/ProLaboreModal.tsx)
 
 ## RL09 · Consultar e exportar o extrato financeiro
 
@@ -2199,6 +3154,51 @@ Ao descartar, os campos voltam aos valores salvos. Ao gravar, abra a aba de novo
 **Fontes:**
 - [Navegação e confirmação da troca de aba](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/settings/SettingsPage.tsx)
 
+## CF02 · Atualizar dados e apresentação da clínica
+
+1. Abra [**Configurações**](https://crm.organizastudios.com/configuracoes) e clique em **Clínica**.
+2. Em **Dados da clínica**, revise **Nome**, **Razão social**, a identificação e os contatos.
+3. Se precisar atualizar a imagem, use **Logotipo**.
+4. Clique em **Salvar configurações**.
+
+Reabra **Clínica** e confira os dados salvos.
+
+**Perguntas:** Como alterar a razão social da clínica? | Onde edito os dados e o logotipo da clínica?
+
+**Fontes:**
+- [Campos de identificação, imagem e salvamento](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/settings/ClinicSettingsContent.tsx)
+
+## CF03 · Cadastrar um usuário e associá-lo às filiais
+
+1. Abra [**Configurações**](https://crm.organizastudios.com/configuracoes) e clique em **Usuários**.
+2. Clique em **Novo usuário**. Preencha nome, e-mail e senha inicial, e escolha **Tipo**.
+3. Para **Usuário comum**, selecione as permissões necessárias.
+4. Em **Filiais**, escolha **Acessa todas as filiais** ou desmarque a opção e selecione as unidades permitidas.
+5. Clique em **Criar usuário**. Para ajustar um cadastro existente, abra **Editar** e clique em **Salvar alterações**.
+
+Confira o usuário na lista. A seção **Filiais** aparece para usuário comum quando há mais de uma filial ativa.
+
+**Perguntas:** Como cadastrar um usuário e dar acesso às filiais? | Onde escolho as unidades que um usuário pode acessar?
+
+**Fontes:**
+- [Lista e ações dos usuários](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/settings/AdminUsersContent.tsx)
+- [Cadastro e seleção de filiais](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/settings/UserFormModal.tsx)
+
+## CF04 · Selecionar, copiar ou limpar permissões de um usuário
+
+1. Abra [**Configurações**](https://crm.organizastudios.com/configuracoes), entre em **Usuários** e clique em **Editar** na linha do usuário comum.
+2. Em **Permissões**, marque ou desmarque as ações necessárias.
+3. Use **Copiar permissões de…** para começar com o acesso de outro usuário comum, ou **Limpar permissões** para limpar a seleção.
+4. Revise os módulos de acesso e clique em **Salvar alterações**.
+
+Reabra o cadastro e confira as permissões. Para usar ações de um módulo, o usuário também precisa da permissão de acesso daquele módulo.
+
+**Perguntas:** Como copiar permissões de um usuário? | Como retirar ou mudar permissões de um usuário comum?
+
+**Fontes:**
+- [Cópia e salvamento das permissões](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/settings/UserFormModal.tsx)
+- [Seleção e limpeza de permissões](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/settings/PermissionEditor.tsx)
+
 ## CF05 · Editar, desativar ou ativar um usuário
 
 1. Abra [**Configurações**](https://crm.organizastudios.com/configuracoes) e clique em **Usuários**.
@@ -2214,6 +3214,38 @@ Confira os dados e a situação na lista. A gestão de usuários está disponív
 **Fontes:**
 - [Lista e ações Ativar e Desativar](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/settings/AdminUsersContent.tsx)
 - [Campos e salvamento da edição](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/settings/UserFormModal.tsx)
+
+## CF06 · Redefinir a senha ou encerrar sessões de outro usuário
+
+1. Abra [**Configurações**](https://crm.organizastudios.com/configuracoes) e vá a **Usuários**.
+2. Localize o usuário correto.
+3. Clique em **Redefinir senha**, preencha **Nova senha** e confirme em **Redefinir senha**.
+4. Para derrubar os acessos ativos, clique em **Encerrar acessos** na linha do usuário e confirme em **Encerrar acessos**.
+
+A nova senha pode ser usada na próxima entrada. Depois de encerrar acessos, o usuário precisa entrar novamente.
+
+**Perguntas:** Como redefinir a senha de outro usuário? | Como derrubar as sessões de um usuário pelo cadastro?
+
+**Fontes:**
+- [Ações administrativas sobre o usuário](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/settings/AdminUsersContent.tsx)
+- [Formulário da senha nova](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/settings/ResetPasswordModal.tsx)
+
+## CF07 · Configurar um profissional de Agenda e sua comissão
+
+1. Abra [**Configurações**](https://crm.organizastudios.com/configuracoes) e clique em **Usuários**.
+2. Abra **Editar** na linha do usuário que vai atender.
+3. Na seção **Agenda**, marque **Realiza atendimentos**.
+4. Revise **Nome na agenda**, preencha **Registro profissional** e ajuste os demais campos do profissional, se necessário.
+5. Em **Comissão**, preencha **Comissão (%)** e confira a data de vigência, quando exibida.
+6. Clique em **Salvar alterações** e leia a prévia se aparecer.
+
+Reabra o cadastro para conferir o nome de Agenda e o percentual salvo.
+
+**Perguntas:** Como ligar um usuário à agenda? | Onde cadastro a comissão de um profissional da agenda?
+
+**Fontes:**
+- [Dados de Agenda e comissão no usuário](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/settings/UserFormModal.tsx)
+- [Campos do profissional](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/settings/UserAgendaFields.tsx)
 
 ## CF08 · Cadastrar uma filial
 
@@ -2247,6 +3279,51 @@ Confira o nome e a situação na lista. A filial inativa deixa de aparecer no se
 - [Listagem e ação Editar](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/settings/BranchesContent.tsx)
 - [Campos, situação e salvamento da filial](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/settings/BranchModal.tsx)
 
+## CF10 · Renomear uma aba do menu
+
+1. Abra [**Configurações**](https://crm.organizastudios.com/configuracoes) e clique em **Abas do menu**.
+2. Localize o campo da aba desejada e preencha o nome que deve aparecer.
+3. Clique em **Salvar nomes das abas**.
+4. Confira o novo rótulo no menu lateral.
+
+Para recuperar os rótulos originais, use **Restaurar nomes padrão** e confira a confirmação mostrada pelo CRM.
+
+**Perguntas:** Como trocar o nome de uma aba do menu? | Onde altero o rótulo das páginas no menu do CRM?
+
+**Fontes:**
+- [Campos, rótulos e salvamento](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/settings/NavTabLabelsContent.tsx)
+
+## CF11 · Cadastrar um plano no catálogo
+
+1. Abra [**Configurações**](https://crm.organizastudios.com/configuracoes) e entre em **Planos**.
+2. Clique em **Cadastrar plano**.
+3. Preencha **Nome do plano**, escolha **Tipo de plano** e informe **Valor total**.
+4. Selecione cada **Serviço** e informe as sessões pedidas pelo formulário.
+5. Clique em **Salvar plano**.
+
+Confira o novo plano na lista. A quantidade de sessões pedida pode variar conforme o tipo de plano.
+
+**Perguntas:** Como cadastrar um plano no catálogo? | Onde crio um modelo de plano para vender? | Como definir os serviços de um plano cadastrado?
+
+**Fontes:**
+- [Lista e ações do catálogo](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/settings/PlanTemplatesContent.tsx)
+- [Campos do plano](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/settings/PlanTemplateModal.tsx)
+
+## CF12 · Editar, desativar ou ativar um plano do catálogo
+
+1. Abra [**Configurações**](https://crm.organizastudios.com/configuracoes) e entre em **Planos**.
+2. Localize o plano. Clique em **Editar**, faça os ajustes e clique em **Salvar plano**.
+3. Para retirar o plano das novas contratações, clique em **Desativar** na linha dele.
+4. Para voltar a oferecê-lo, use **Ativar**.
+
+Confira a situação na lista. O catálogo mostra **Ativar** na linha do plano desativado.
+
+**Perguntas:** Como editar um plano no catálogo? | Como desativar um modelo de plano?
+
+**Fontes:**
+- [Ações de edição e situação no catálogo](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/settings/PlanTemplatesContent.tsx)
+- [Formulário de edição do plano](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/settings/PlanTemplateModal.tsx)
+
 ## CF13 · Adicionar um feriado manualmente
 
 1. Abra [**Configurações**](https://crm.organizastudios.com/configuracoes) e clique em **Feriados**.
@@ -2278,6 +3355,34 @@ Os feriados importados aparecem com suas datas. Depois da exclusão, confira se 
 - [Seleção e importação de feriados](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/settings/ImportHolidaysModal.tsx)
 - [Lista e ação de excluir](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/settings/HolidaysContent.tsx)
 
+## CF15 · Configurar a finalização automática dos atendimentos
+
+1. Abra [**Configurações**](https://crm.organizastudios.com/configuracoes) e clique em **Finalização automática**.
+2. Marque **Finalizar atendimentos automaticamente** para ativar, ou desmarque para desativar.
+3. Com a opção ativa, preencha **Tempo de espera após o término** e escolha **Unidade**.
+4. Clique em **Salvar finalização automática**.
+
+Confira o aviso de finalização ligada ou desligada. Com ela ativa, o prazo começa após o término do atendimento.
+
+**Perguntas:** Como ligar ou desligar a finalização automática? | Onde altero o prazo para o CRM finalizar atendimentos?
+
+**Fontes:**
+- [Prazo, ativação e salvamento](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/settings/AutoFinalizationContent.tsx)
+
+## CF16 · Definir parcelamento por forma de pagamento
+
+1. Abra [**Configurações**](https://crm.organizastudios.com/configuracoes) e clique em **Formas de pagamento**.
+2. Localize a forma de pagamento.
+3. Marque ou desmarque **Aceita parcelamento**. Se permitido, preencha **Máximo de parcelas**.
+4. Clique em **Salvar formas de pagamento**.
+
+Reabra a aba e confira o limite salvo. O máximo limita as opções de parcelamento apresentadas para aquela forma.
+
+**Perguntas:** Onde defino o máximo de parcelas no cartão? | Como liberar ou limitar as parcelas de uma forma de pagamento?
+
+**Fontes:**
+- [Formas disponíveis e limites de parcelas](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/settings/PaymentMethodsContent.tsx)
+
 ## CF17 · Criar ou revogar uma chave de integração
 
 1. Abra [**Configurações**](https://crm.organizastudios.com/configuracoes) e clique em **Integrações**.
@@ -2293,6 +3398,94 @@ A lista identifica as chaves revogadas. Ao revogar, a integração deixa de pode
 
 **Fontes:**
 - [Criação, permissões, token e revogação](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/settings/IntegrationKeysContent.tsx)
+
+## CF19 · Criar ou editar uma etiqueta manual
+
+1. Abra [**Configurações**](https://crm.organizastudios.com/configuracoes) e entre em **Etiquetas**.
+2. Preencha **Nome da etiqueta** e escolha uma **Categoria**, se precisar.
+3. Selecione a cor e clique em **Adicionar etiqueta**.
+4. Para corrigir uma existente, clique em **Editar** na linha dela. Ajuste os campos e clique em **Salvar etiqueta**.
+
+Confira o nome e a cor na lista de etiquetas manuais.
+
+**Perguntas:** Como criar uma etiqueta manual? | Onde mudo o nome ou a cor de uma etiqueta?
+
+**Fontes:**
+- [Criação e ações da lista](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/settings/PatientTagsContent.tsx)
+- [Campos de edição da etiqueta](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/settings/PatientTagEditModal.tsx)
+
+## CF20 · Excluir uma etiqueta manual ou editar uma automática
+
+1. Abra [**Configurações**](https://crm.organizastudios.com/configuracoes) e clique em **Etiquetas**.
+2. Para apagar uma etiqueta manual, clique em **Excluir** na linha dela e confirme em **Excluir etiqueta**.
+3. Para mudar a apresentação de uma etiqueta automática, vá a **Etiquetas automáticas** e clique em **Editar** na etiqueta.
+4. Ajuste **Nome da etiqueta** ou cor e clique em **Salvar etiqueta**.
+
+Confira a remoção na lista manual e o nome ou a cor na lista automática. A etiqueta automática continua sendo aplicada pelo critério definido no CRM.
+
+**Perguntas:** Como excluir uma etiqueta de cliente? | Como mudar a cor ou o nome de uma etiqueta automática?
+
+**Fontes:**
+- [Exclusão da etiqueta manual](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/settings/PatientTagsContent.tsx)
+- [Edição da apresentação automática](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/settings/AutomaticTagEditModal.tsx)
+
+## CF21 · Gerenciar catálogos comerciais da clínica
+
+1. Abra [**Configurações**](https://crm.organizastudios.com/configuracoes) e clique em **Cadastros**.
+2. Localize o quadro desejado, como **Origens**, **Formas de contato** ou **Motivos de não efetivação**.
+3. Clique em **Adicionar**, preencha **Nome** e revise a situação do item.
+4. Clique em **Salvar**. Use a edição na linha para ajustar um cadastro existente.
+
+Confira o item no quadro. Uma origem ativa pode ser selecionada em **Novo lead** no CRM comercial.
+
+**Perguntas:** Onde cadastro uma origem comercial? | Como gerenciar formas de contato ou motivos de não efetivação?
+
+**Fontes:**
+- [Quadros dos cadastros comerciais](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/settings/ClinicCatalogsContent.tsx)
+- [Ações de cada catálogo](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/settings/CatalogSection.tsx)
+
+## CF22 · Cadastrar um serviço e definir os recursos
+
+1. Abra [**Configurações**](https://crm.organizastudios.com/configuracoes) e clique em **Serviços e salas → Serviços**.
+2. Clique em **Novo cadastro** ou em **Editar** no serviço desejado.
+3. Preencha **Nome** e **Duração (minutos)**.
+4. Marque os recursos em **Profissionais que atendem** e **Salas onde é atendido** para limitar as opções do agendamento.
+5. Clique em **Salvar cadastro**.
+
+Confira o serviço na lista. O formulário explica que, com a lista de recursos desmarcada, todos os recursos daquele tipo podem ser usados.
+
+**Perguntas:** Onde cadastro um serviço? | Como limitar as salas de um serviço? | Como indicar quais profissionais atendem um serviço?
+
+**Fontes:**
+- [Cadastro do serviço e restrições de recursos](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/settings/AdministrativeRegistrySection.tsx)
+
+## CF23 · Cadastrar ou editar uma sala e sua capacidade
+
+1. Abra [**Configurações**](https://crm.organizastudios.com/configuracoes) e entre em **Serviços e salas → Salas**.
+2. Clique em **Novo cadastro** ou em **Editar** na linha da sala.
+3. Preencha **Nome da sala** e **Capacidade de atendimento simultâneo**.
+4. Clique em **Salvar cadastro**.
+
+Confira a sala e sua capacidade na lista.
+
+**Perguntas:** Como cadastrar uma sala? | Onde mudo a capacidade de uma sala? | Como editar uma sala de atendimento?
+
+**Fontes:**
+- [Cadastro e capacidade da sala](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/settings/AdministrativeRegistrySection.tsx)
+
+## MP01 · Atualizar seu nome ou sua foto de perfil
+
+1. Abra [**Meu perfil**](https://crm.organizastudios.com/perfil).
+2. Em **Dados pessoais**, revise **Nome completo**.
+3. Em **Foto**, escolha uma imagem PNG ou JPEG de até 2 MB.
+4. Clique em **Salvar perfil** e aguarde **Perfil salvo.**.
+
+Confira o nome e a foto em **Meu perfil**. Eles também identificam seu usuário na interface.
+
+**Perguntas:** Como mudar minha foto de perfil? | Como atualizar meu nome no CRM? | Onde salvo os dados do meu perfil?
+
+**Fontes:**
+- [Campos de perfil, tamanho da foto e salvamento](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/profile/ProfilePage.tsx)
 
 ## MP02 · Alterar a própria senha
 

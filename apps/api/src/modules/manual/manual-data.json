@@ -1,6 +1,6 @@
 {
-  "revisao": "84fd92e18fc06d125417e7c82afcf3d4d0d7832f",
-  "material": "00b9d74e238dbe4a7361021e1fb1cd4183f3bdc0712e1a0cfb243b9b8b41d0cf",
+  "revisao": "164806197822677ba55789a665b174ec16a45a2a",
+  "material": "6b90eccb94155381d19c39583e6b12ad9b849d98ac75450e3ebebe78e21b98ce",
   "manualPath": "docs/manual-crm-organiza-studios.md",
   "manualSha256": "0e777d85e81ce7fd5d1a7e12f51486efd373a0384e5f72c6053fcb3a9d100ff7",
   "sourceHashes": {
@@ -60,6 +60,7 @@
     "apps/web/src/app/NotificationAlerts.tsx": "b977f68345cef8bc08ec611b74212474d059efa44b8808013bf684708ef4c580",
     "apps/web/src/features/dashboard/BirthdayDashboardCard.tsx": "a53ee71759a28a9cd07230a7b6bffaa8485c350ded5611d69c1f6ce5cdc62551",
     "e2e/agenda-mobile-filters.spec.ts": "973c221ff929df87e14d27233594b72e3352dd7bd3160854bbb38db11565e7dd",
+    "apps/web/src/features/agenda/AppointmentPatientCreateModal.tsx": "49c7e6e6189c9ab0a3a8eb69341b6578aadf5f7d3a552a8ef7b2e137f91022c1",
     "apps/web/src/features/agenda/AppointmentEditModal.tsx": "f19df0e2877a265172f3a23c9c242d304059b4c73e168ccd3efe5494c057bcb4",
     "apps/web/src/features/agenda/ScheduleBlockModal.tsx": "a357408f2aa6e411af8e774b883df03a07748a683d74f86cd072283d7acd0b34",
     "apps/web/src/features/agenda/ScheduleBlockCard.tsx": "984796123aaab83821b2d90295ef181982420428240f3a6d47b313580ebd873e",
@@ -67,9 +68,12 @@
     "apps/web/src/features/agenda/AgendaNoteModal.tsx": "7aedec459baafaa334390d4ead2bc43707d39f427673f95afa35917240d7de33",
     "e2e/agenda-notes.spec.ts": "c2d7fd5f822a020129022209df2acec192fecb5e7c98715d2797861b8dc79c72",
     "apps/web/src/features/agenda/AgendaNoteDetailsModal.tsx": "65a6e280b1369eafeb68f51c970ec2b096c96b22153e6255b3a495dff74471f6",
+    "apps/web/src/features/agenda/AppointmentRescheduleHistoryModal.tsx": "e60ad51d8799479605b90d4af9b37b229b9209c7686583c0cc66d3da0ae3f7f6",
+    "apps/web/src/features/agenda/PendingFinalizationPage.tsx": "72b76e5fe38f718b9f2caf1db827937ad980f8ce2cd8aeacede0e1271d56948e",
     "apps/web/src/features/agenda/CompletedAppointmentsPage.tsx": "f9a4f57b5148cc913e850ea4af6bcb0921b713d60582b907a91488979c8e9619",
     "apps/web/src/features/agenda/ShareAgendaModal.tsx": "063288151cbf6a2fc1e5fd5166004fc60ea7e0d416e64847aefdebfa7bec3091",
     "apps/web/src/features/agenda/GroupSessionCard.tsx": "4659b31d8a88d2d6917d0d0efea256c65cccfacc49271001d79c9a9258463cb1",
+    "apps/web/src/features/agenda/SatisfactionSurveyModal.tsx": "aa0f7fd5ff84f59d6b8449f6116eee000c2b1d7da73aab73b8245a450c9e6fb9",
     "apps/web/src/features/agenda/DayEventsModal.tsx": "a43bb07ae26b978f7865addacd6198a2406b5b7cdbfc4df35b3bb7602620096f",
     "apps/web/src/features/patients/PatientImportModal.tsx": "82a73626ee0d12f73822c13531b12208776ecf19d9d6a9714ddcacdc97e22374",
     "apps/web/src/features/patients/PatientExportModal.tsx": "ed59628847551d6f4f733ec6b0355bf1322818deea53cdfa138c8fc25a814035",
@@ -77,12 +81,19 @@
     "apps/web/src/features/commercial/LeadDetailsModal.tsx": "52d82844d541ee5caa62c057af3a32d909fea7bec6115471b12bb4e4217b2ca6",
     "apps/web/src/features/commercial/LeadAnalysisModal.tsx": "156bc11e4bc66e950c0e62b1c5e24a72cf97463e9a115251abaf0bb4f4358047",
     "apps/web/src/features/commercial/LeadLostModal.tsx": "1ad70ca9ac2dacff84a3890331a3d801e0a0bdb3f72f54f12102d674c7b42aeb",
+    "apps/web/src/features/commercial/LeadStageModal.tsx": "f3b0c4be3de8b5c352fea841c002d1e69cefa34fc8a5ebf7427730535e523335",
     "apps/web/src/features/commercial/LeadActivityModal.tsx": "ae774717f99b3c3876c32ea2e82fd0ad5d2fdba285ed9dde3776858be4ded325",
+    "apps/web/src/features/commercial/LeadAppointmentModal.tsx": "77791d693b31eace1b52c47b64b20c7dc02fe2f5e001b708e222a1587e77e66f",
     "apps/web/src/features/commercial/LeadImportModal.tsx": "958880eefbfec47f565d159621e010701b60a7655004023794cd14676cc34ddf",
+    "apps/web/src/features/groups/GroupSessionModal.tsx": "c6f2cbd72c445bacab740e823e49f153188b4b43f426ff2f73ff75a0fa69bf28",
+    "apps/web/src/features/groups/GroupOperationsPanel.tsx": "fe41d3ff34e497ed8815c1a576f3b348a2c6b46f26e557cbff7b86e780c76cf6",
     "apps/web/src/features/waitlist/WaitlistManageModal.tsx": "3e598a0db85ede6a9eebdfc3bf6af735af60f4a8ed548fdf1bbae3f9f854b94a",
+    "apps/web/src/features/waitlist/WaitlistEnrollSection.tsx": "06fab9b1dd5e8f4d48befb54b83f7f7103c38dbe618f88033d55b603e6b92a38",
     "apps/web/src/features/plans/PlanPauseModal.tsx": "a422ae71b453dfa3ad11887bcf72ffb5c1c2d5520a736b5484d9bd9a9fa4b3d5",
+    "apps/web/src/features/plans/PlanCancelModal.tsx": "02225728420875d360b007e08646bf11fe7772a1ad70a07fae4ffdd6d48d9ef9",
     "apps/web/src/features/clinical/ClinicalRecordsPage.tsx": "c47e93e73b67a99d9cbf598241d7c914ea7d9513e0be094fd51b75d3e82db364",
     "apps/web/src/features/clinical/ClinicalWorkspacePanel.tsx": "3ef666a07d8cc3e567bab32aa2a7a0455668be83456ec4d2427c1b75a3304c44",
+    "apps/web/src/features/clinical/ClinicalChart.tsx": "93f9f93ccd1b1bf3f7e76026e4dc78ea31279f9204b41ae2de15b862c578f637",
     "apps/web/src/features/clinical/ChartFilesTab.tsx": "c5b5afa21c9603dd0b70b70bfb777cd2088f68df145ec7d8596c3cd2a7e6207c",
     "apps/web/src/features/clinical/ClinicalAttachmentModal.tsx": "30e8efaa77b6fae5518af8a54b153beb87c651be843d9ed6a1259d02b7a53eba",
     "apps/web/src/features/clinical/ClinicalAlertModal.tsx": "b53060132f65cfc5f65e16d185544acfecebc0e8d0da08f30c1072e2b313a86d",
@@ -94,14 +105,25 @@
     "apps/web/src/features/clinical/ChartTabs.tsx": "61486f517d49218ec36afd1a731936feeefdd505fe4d95196376c821aa149766",
     "apps/web/src/features/clinical/ClinicalMeasurementModal.tsx": "6cbace15257875a80f43693c09104165a4d7971db953549d3142a47d746717db",
     "apps/web/src/features/clinical/MeasurementChart.tsx": "863279871f1e7c6b298ac4139bc8efc85a5748b6a9422b96d8095bcf07670e1e",
+    "apps/web/src/features/clinical/TreatmentClosureModal.tsx": "9adca56fcc922460dc355bb248e593a1f994dc9fc870d7ece40992554b9a64a4",
     "apps/web/src/features/clinical/ClinicalAccessHistoryModal.tsx": "f207fa483d05765dbb1251aed335a5c217342bea22f0af4201889cc64b1c5b06",
+    "apps/web/src/features/clinical/ClinicalResourcesPanel.tsx": "ca861ffb6f6a2561a1e17002cddb4c5e34da1f661c88276c1c5b9b8e9d4ffc15",
+    "apps/web/src/features/clinical/ClinicalResourceEditor.tsx": "b1a58fd32b990632a49fd6498a8f155a6d1e200b567b23f56c19cfd9b5d84964",
+    "apps/web/src/features/clinical/ClinicalAudioPlayer.tsx": "6f5bceeb678fc54315aef9192c72cddbf67fadc44bdef2d64f72937652f05691",
     "apps/web/src/features/events/EventImportModal.tsx": "4371f2fa8990e2ecebc258d4f38e9ee06a5a8b77049671ce253a6f1654d9b312",
+    "apps/web/src/features/events/EventConvertModal.tsx": "7af099df274681ba36bf7222914b27ac977de02ad263ee57914f7b103625acf5",
     "apps/web/src/features/events/EventContactModal.tsx": "1e92165aee11b806ea6ec65dfcd706e269eaf0a81fa70a02f9a1da68fb09a38e",
     "apps/web/src/features/relationship/RelationshipPage.tsx": "190050a9c2e281c369580515b9718528bbd751d4d990ef3ebb2e73fdcd44346a",
     "apps/web/src/features/relationship/ClientPendingModal.tsx": "71ecbefc57b70e13618b2810cf57741f1e45b9d288961543b31418f730f855e8",
+    "apps/web/src/features/relationship/ContactActivityModal.tsx": "08bda7d4416c8a459d555621a1762dac5dc913d81dccb9833eed725ab868700f",
     "apps/web/src/features/relationship/BirthdaysMonthPanel.tsx": "e66ca5ad63dcffee62cad638b2a4aaa2ff7d61373cbc3931e40ee54e87367063",
+    "apps/web/src/features/communications/campaigns/CampaignsTab.tsx": "a2020c5c606273015352cedb6e3b65f1abed7e18e4bbf639885df9ac0ec15370",
     "apps/web/src/features/communications/CommunicationsPage.tsx": "f53b175affa4ea3355bb82c9c1db50c1fce9c351dc69f489e8a38c3133044037",
+    "apps/web/src/features/communications/campaigns/CampaignSenderPage.tsx": "e1c149c7b8b978504f81bb214e678ba2b383cf4b8ebb269da56edc446d5b1b63",
+    "apps/web/src/features/communications/campaigns/NewCampaignModal.tsx": "b78d0a446f61ad30d4fbbc47dc1a0502b85b0947479b7088ebb48efea6b943d6",
     "apps/web/src/features/communications/campaigns/TemplateEditorModal.tsx": "474d0b281fdd71dcee5a6503eab92f32acdf8d88ae5d456265f82f0e8756582e",
+    "apps/web/src/features/communications/auto-campaigns/AutoCampaignsTab.tsx": "bb651d980af4099352b4284e7f676578f1caee9b1b7a40ad4f7093319b85e740",
+    "apps/web/src/features/communications/auto-campaigns/AutoCampaignEditorModal.tsx": "b9024683975eafd1e80366a5f1d62bc3c35089d783e705938d246c87c9821ead",
     "apps/web/src/features/contracts/DocumentsPage.tsx": "857873d5991ed43a5f7b40ea4626220586863dbb74ac1ea2bb527f9e9f243c8d",
     "apps/web/src/features/contracts/DocumentDetailsModal.tsx": "cf5ebd3a646821da47e0a3a7cd84cf12d3b55ab65a9b69ea96db949c08b7f9c8",
     "apps/web/src/features/contracts/TemplateBodyEditor.tsx": "f23de69981e1a794c8ddbaf6f143fc02e2018acf0df919b324cf7d3f7891f9c5",
@@ -111,6 +133,8 @@
     "apps/web/src/features/contracts/SignatureRequest.tsx": "437be09c5b1a414ffbee10c2eb1107afafff31e3a9bdf3cd1f0585c784dce940",
     "apps/web/src/features/contracts/DocumentSignatureActions.tsx": "ffe5cae1d78078a3f64bb99f96372a93daf4f30c422b60577f191d341f34fb17",
     "apps/web/src/features/contracts/SignatureLinkRecord.tsx": "27c27e91e229be1950bb9df50536e49308beef6481a4dc7533d3492d739d4f54",
+    "apps/web/src/features/finance/SupplierModal.tsx": "7b0538cc1799e85023dc32e661bd653b05c922181c706597cdb5c4bfc112a909",
+    "apps/web/src/features/contracts/SupplierDocuments.tsx": "6b5a21139fe2485927c82cbc62e4faa7df9aaffab3d93c23838b5b5934475d91",
     "apps/web/src/features/contracts/PublicSignaturePage.tsx": "2c0f423f2e4cce4081ebb23b049b60eada571edaee496b0ebfa54117fa6e211e",
     "apps/web/src/features/contracts/PublicSignatureLayout.tsx": "2a33f5868ed8dfea6be181e18ead2c53871e1ff25f2b327ed92860787e071f8b",
     "apps/web/src/features/finance/PublicReceiptSignaturePage.tsx": "427b2b8b4ae49fd9f41d3acecfa4b028da18f9fc77cc5e9b425926a2c66934bb",
@@ -118,25 +142,40 @@
     "apps/web/src/features/sales/NewSaleSection.tsx": "4846af1af025085b0feaa5af7082b9d2c75689ba121f22822930b15dff09f2b0",
     "apps/web/src/features/sales/SalesHistorySection.tsx": "a21f6c86537e4ac6731efbf9762df9e87282a57692983ad924a1f2b2dacb0a85",
     "apps/web/src/features/sales/SalesSummarySection.tsx": "abb8f06a03337c48e8b7553aa213bcff3120e4bb159462ae02e6008ffb53e2ce",
+    "apps/web/src/features/sales/SaleDetailsModal.tsx": "9a81e25ae1c107e378c8f58887d29e18797e752a6f4bbee07a7b182adf023af0",
     "apps/web/src/features/sales/InventorySection.tsx": "c071359efd663f80a5aa3509cff0945c19ca378ad536533f2ad23a8822c7cfc3",
     "apps/web/src/features/sales/ProductModal.tsx": "cfbcdd6877b570d29ef7c0fc016e1e72920f1ba1c99a12bb939632a8f1044d46",
     "apps/web/src/features/sales/ProductCatalogsSection.tsx": "ea366ba82e685925557989aa69b3839047978f6f189848cbe790e4c8d1e8594d",
     "apps/web/src/features/sales/SalesSuppliersSection.tsx": "2ec70d9e0edb70f167bd966cc2afc094149a2c328513f56f86da34837bae1ba1",
     "apps/web/src/features/finance/FinanceEntryFilters.tsx": "36347381eccb75567ad58d78fa6e02715b935a79ab8c0f7ce095c4654716eee1",
     "apps/web/src/features/finance/ReceiptModal.tsx": "ddf3cd77229496ecff56c1d58e86508fc144f03f4ca09951648be9fae403c416",
+    "apps/web/src/features/finance/ReceivableAdjustModal.tsx": "ebaf53feff53299db4a55ce1b5af76deb8324d1584a45d344b92843ca7417657",
     "apps/web/src/features/finance/PaymentProofs.tsx": "d903998f13570f9284f0394ac5604d2657f8fb3d2bfb7112f524b8d22ce41408",
+    "apps/web/src/features/finance/ReceivableContactModal.tsx": "e4daadebeaa0c1e1db9ce4eee9ca4726713edcc5a7415baf2aff54b944ace3bc",
     "apps/web/src/features/finance/NewExpenseModal.tsx": "79f2601045e9ec2ec954fc6bf2c40f24732a1db504436fc62c24777576419f11",
     "apps/web/src/features/finance/RecurringPayablesSection.tsx": "ca733f856fce89bf0c3ff0a9faa58a4c8a7209bdc88b32c9b95f3e03edbace21",
     "apps/web/src/features/finance/RecurringPayableModal.tsx": "f9f74cf0c52417c138d37861d2ee7cbe91e040a7e11cebf2150269e51015c07e",
     "apps/web/src/features/finance/RecurringPayableEndModal.tsx": "74e579404a8748cbf4b970bc80b164838171b5faeae75a0bfd11da799ac19313",
     "apps/web/src/features/finance/PayablesList.tsx": "fd9adb8ac9659296bc37e16c191fa896f20f4bd98a18c86a030d829cb56e368d",
     "apps/web/src/features/finance/PayableModal.tsx": "6222c652f3be71ce86a4c1305171d84e7f501b7c82bbafa4e7cf3e654e9bb8d0",
+    "apps/web/src/features/finance/PayableAmountModal.tsx": "5b16d2557b00423ea91b58b5961915ec2c4027e80ac43b10b653aa789f5c6e62",
+    "apps/web/src/features/finance/CommissionsList.tsx": "ce0663b09b206ebc9c1e469f5eadd4f52c82791259a85f3b31859eb26506c04b",
+    "apps/web/src/features/finance/CommissionRuleModal.tsx": "b217b5a92ccf71c7d35cf4c8ab26d8f2be276b19d3a68ddb2e46281c86c0d056",
+    "apps/web/src/features/finance/CommissionReconciliationModal.tsx": "df551b35ee041cc720399c2bb41923779665b26d9aef843028fdde11fa90eedf",
+    "apps/web/src/features/settings/UserFormModal.tsx": "2f02bf67ac24c76858310b51cf64bafa46ef07e7d28b300478be46f7d2a8a31a",
+    "apps/web/src/features/finance/PayrollSection.tsx": "38fe3b839a2791ff0daceaa5fac5d518adfefc4ee17a9551dec3c95f3dec6cd9",
+    "apps/web/src/features/finance/PayrollEntryModal.tsx": "117afcf1dd8e85ee24f1662afeb3368774651a41d276e3d1aad25562b6eab40b",
+    "apps/web/src/features/finance/PayrollAdvanceModal.tsx": "c11d62d8d6282b7a153393d7e72df4cde489390edc95c5c024c6cbabeea7b28c",
+    "apps/web/src/features/finance/PayrollLaunchModal.tsx": "6034022b5a85e3d8ec2900b6f0fa3ecbfccb16e1022d63b7bb650ce15476c324",
     "apps/web/src/features/finance/DailyCashSection.tsx": "454040d30ab69d136bd18292a588daacaf1c3ee30b59ce11df52032cb19b98d5",
     "apps/web/src/features/finance/FinanceForecastSection.tsx": "1761941202ea3710ea5d8a2c2e57b3ecf8bf8f5e377ac1986a211f1974b672d3",
+    "apps/web/src/features/finance/ExternalOperationsPanel.tsx": "7648097be85bd336cd9d2ec99a42fef71a90688d4071aabb9fae323bf7438274",
     "apps/web/src/features/reports/ClientInsights.tsx": "4c28573ca06f7336912d31d8145ac366b5e952b7dbac733032dd125d58025f85",
     "apps/web/src/features/reports/ClientDetailsSection.tsx": "025faeef2444ae23237775ed4f1ac1acdea781e2089df6159195960776d616e5",
     "apps/web/src/features/reports/CampaignsSection.tsx": "f96fc64a802ed4169715edb96de0b6206b3b1c5b59a94fdc53347cde7ff8bfd4",
+    "apps/web/src/features/reports/DreSection.tsx": "566d03ac7adee99051e7288ae82699d3990dc334a52895e9434dc7a5c33e3ad7",
     "apps/web/src/features/reports/FinancialSection.tsx": "fef86a3aea7bae732781cea7531a98a7033fde987ac36ce2988d194602be53f0",
+    "apps/web/src/features/reports/ProLaboreModal.tsx": "41be3fe9580a618a5ad22cefad3325c100f4775563269b28d6d9544e58c7cda8",
     "apps/web/src/features/reports/FinancialLedger.tsx": "e38265da5eeff8b9ba091766dd758ad48333705f7ae988c9d2587e3974a8bf14",
     "apps/web/src/features/reports/SalesInsights.tsx": "4687ee45b79d1f395396665d6107613396568235f36b9ca89a09eb857226a342",
     "apps/web/src/features/reports/ClinicIndicators.tsx": "8832ef262c528344bee1f5d59eaf4a88f606ae4c6af06cfaa69a79dcac42519d",
@@ -144,18 +183,32 @@
     "apps/web/src/features/history/HistoryPage.tsx": "77dc8077049220151b3309c0dfeaf3b58f77815f4160d02d93a1813128a766bf",
     "apps/web/src/features/history/HistoryDetailsModal.tsx": "65c1977fdf677a39a86f79c9e4d35c89eda34c06665a877d67eb10a93d57a710",
     "apps/web/src/features/settings/SettingsPage.tsx": "2e8e50349e648fd61d361c1bcbbd659b2180176129a81a2ba1877018f63e9032",
+    "apps/web/src/features/settings/ClinicSettingsContent.tsx": "9aa3cdc21218213e2d3aa082c748a4caa0b804fc85c4b2bc083b610117133e24",
     "apps/web/src/features/settings/AdminUsersContent.tsx": "ea00ceea18507272b5f11805ccc66d027ab7a41fb7d7c4ba57b62014d28a56d1",
-    "apps/web/src/features/settings/UserFormModal.tsx": "2f02bf67ac24c76858310b51cf64bafa46ef07e7d28b300478be46f7d2a8a31a",
+    "apps/web/src/features/settings/PermissionEditor.tsx": "08ce399b6c458708309ecf15a788da27967924bcf0e80d99081724b2d6408b41",
+    "apps/web/src/features/settings/ResetPasswordModal.tsx": "1ccd88f5758e06bca47d35b5dd95f0fecc09302d172b5903245cdf262b2f1c8b",
+    "apps/web/src/features/settings/UserAgendaFields.tsx": "6676002ede92f3ab15e0450ced6b28fdf3b1336187f4618a29b8a8d02c9b0377",
     "apps/web/src/features/settings/BranchesContent.tsx": "1e613732a7001f2aedd21db1636bc285ab730b27c9857e64e5315b6217b47ad1",
     "apps/web/src/features/settings/BranchModal.tsx": "61a417a2483f7b92eea2319ceca48d3824df1dbef906b4c1884cc7594125f693",
+    "apps/web/src/features/settings/NavTabLabelsContent.tsx": "cda40d38ead2d4ba0a6da94a6926d2ff4359d2e7150140ac7ecb66a9126596e2",
+    "apps/web/src/features/settings/PlanTemplatesContent.tsx": "02ba50c741da8cffec1ebc53d3b99db6410136c3b169c11e38a43676d7a52b6f",
+    "apps/web/src/features/settings/PlanTemplateModal.tsx": "ec835a9677c7391f261a8e675ef088e8d133657aff10053fee261fd457a0ae20",
     "apps/web/src/features/settings/HolidaysContent.tsx": "d260deaf34f8c0d25ede7da376cc93e3b54499ce21ce169e9fda050f117eb619",
     "apps/web/src/features/settings/ImportHolidaysModal.tsx": "7ec03c0574d69fb9a526e3f5f1499f5cde35941cd6f9bc6cd6124f32b0887b04",
+    "apps/web/src/features/settings/AutoFinalizationContent.tsx": "16bf6750cba267a0c5f9983230094d9628738ece0b18ccf2c5abbd7c030595bb",
+    "apps/web/src/features/settings/PaymentMethodsContent.tsx": "32f1ffe63b629301e497fddd113e6d2d2924014b239d4920c0bee52fb0b53bbc",
     "apps/web/src/features/settings/IntegrationKeysContent.tsx": "b1e59347d0425497021b34b670e37290e09901f8b3b9622b70f76074c053282f",
+    "apps/web/src/features/settings/PatientTagsContent.tsx": "21773b0cc0937e5a0c6330b8e714498fddacb7d864086a4e90f7a9cfa92118e7",
+    "apps/web/src/features/settings/PatientTagEditModal.tsx": "c4d23cffdfc0d5ae07f31ee74fc9103b89e1f4a9bbc849d3630d52a0187cc6b4",
+    "apps/web/src/features/settings/AutomaticTagEditModal.tsx": "1239559af954ae526e38e0dbe99873069e916f81f4f7f6a3d927af81b1865b5f",
+    "apps/web/src/features/settings/ClinicCatalogsContent.tsx": "a78bb3f649e7f1cc1c241104833fbdddb8010e42fb8c4d2cd61b7f11ea0cd767",
+    "apps/web/src/features/settings/CatalogSection.tsx": "04010e93997cd433b47a298ec718c8ee919067b1dbd1aafb2e7e2570d1de23cc",
+    "apps/web/src/features/settings/AdministrativeRegistrySection.tsx": "617cc859c14ebb9a9c7dfa4c3dd61d10c82d88f2dd2bd80fe60579f5c3c2b688",
     "apps/web/src/features/profile/ProfilePage.tsx": "aa360accfe63823c45459d5e0f8910e1f48880740dbdf54e2fd55b1cffa42d29",
     "apps/web/src/features/trash/SendToTrashModal.tsx": "b22fc267294fa933fb375e424a866508503b56a70c1c103e7bd1677d4b3094f2",
     "apps/web/src/features/trash/TrashModal.tsx": "99cf3b20c146f63a68639e3465648ae65eb2756ccec9d4c6b894f081ddf02dc2",
     "apps/web/src/features/trash/PurgeConfirmModal.tsx": "431247cc24391c5df720e8892632dfe3861addeb38ece271af4b6e83ed79d57f",
-    "docs/guias-mcp-fluxos-verificados.md": "55daa8aaad32d0b125ac8a88b614fae0a258fbf3522e6330fbadae7edabacf93"
+    "docs/guias-mcp-fluxos-verificados.md": "19ef0cfb7fb1921859b2869ae4147b382f280bea86dd19da8ba2593817f7a3d3"
   },
   "excluidos": [
     "Agendar um atendimento",
@@ -212,23 +265,23 @@
         },
         {
           "titulo": "AgendaCard.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/84fd92e18fc06d125417e7c82afcf3d4d0d7832f/apps/web/src/features/agenda/AgendaCard.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/164806197822677ba55789a665b174ec16a45a2a/apps/web/src/features/agenda/AgendaCard.tsx"
         },
         {
           "titulo": "AppointmentDetailsModal.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/84fd92e18fc06d125417e7c82afcf3d4d0d7832f/apps/web/src/features/agenda/AppointmentDetailsModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/164806197822677ba55789a665b174ec16a45a2a/apps/web/src/features/agenda/AppointmentDetailsModal.tsx"
         },
         {
           "titulo": "agenda-card-menu.integration.test.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/84fd92e18fc06d125417e7c82afcf3d4d0d7832f/apps/web/src/features/agenda/agenda-card-menu.integration.test.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/164806197822677ba55789a665b174ec16a45a2a/apps/web/src/features/agenda/agenda-card-menu.integration.test.tsx"
         },
         {
           "titulo": "appointment-attendance.integration.test.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/84fd92e18fc06d125417e7c82afcf3d4d0d7832f/apps/web/src/features/agenda/appointment-attendance.integration.test.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/164806197822677ba55789a665b174ec16a45a2a/apps/web/src/features/agenda/appointment-attendance.integration.test.tsx"
         },
         {
           "titulo": "agenda-cancelled.integration.test.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/84fd92e18fc06d125417e7c82afcf3d4d0d7832f/apps/web/src/features/agenda/agenda-cancelled.integration.test.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/164806197822677ba55789a665b174ec16a45a2a/apps/web/src/features/agenda/agenda-cancelled.integration.test.tsx"
         }
       ]
     },
@@ -247,15 +300,15 @@
         },
         {
           "titulo": "CommercialPage.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/84fd92e18fc06d125417e7c82afcf3d4d0d7832f/apps/web/src/features/commercial/CommercialPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/164806197822677ba55789a665b174ec16a45a2a/apps/web/src/features/commercial/CommercialPage.tsx"
         },
         {
           "titulo": "LeadModal.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/84fd92e18fc06d125417e7c82afcf3d4d0d7832f/apps/web/src/features/commercial/LeadModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/164806197822677ba55789a665b174ec16a45a2a/apps/web/src/features/commercial/LeadModal.tsx"
         },
         {
           "titulo": "lead-form-conversion.integration.test.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/84fd92e18fc06d125417e7c82afcf3d4d0d7832f/apps/web/src/features/commercial/lead-form-conversion.integration.test.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/164806197822677ba55789a665b174ec16a45a2a/apps/web/src/features/commercial/lead-form-conversion.integration.test.tsx"
         }
       ]
     },
@@ -274,19 +327,19 @@
         },
         {
           "titulo": "CommercialPage.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/84fd92e18fc06d125417e7c82afcf3d4d0d7832f/apps/web/src/features/commercial/CommercialPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/164806197822677ba55789a665b174ec16a45a2a/apps/web/src/features/commercial/CommercialPage.tsx"
         },
         {
           "titulo": "LeadCard.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/84fd92e18fc06d125417e7c82afcf3d4d0d7832f/apps/web/src/features/commercial/LeadCard.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/164806197822677ba55789a665b174ec16a45a2a/apps/web/src/features/commercial/LeadCard.tsx"
         },
         {
           "titulo": "LeadConvertModal.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/84fd92e18fc06d125417e7c82afcf3d4d0d7832f/apps/web/src/features/commercial/LeadConvertModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/164806197822677ba55789a665b174ec16a45a2a/apps/web/src/features/commercial/LeadConvertModal.tsx"
         },
         {
           "titulo": "lead-form-conversion.integration.test.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/84fd92e18fc06d125417e7c82afcf3d4d0d7832f/apps/web/src/features/commercial/lead-form-conversion.integration.test.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/164806197822677ba55789a665b174ec16a45a2a/apps/web/src/features/commercial/lead-form-conversion.integration.test.tsx"
         }
       ]
     },
@@ -305,15 +358,15 @@
         },
         {
           "titulo": "GroupsPage.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/84fd92e18fc06d125417e7c82afcf3d4d0d7832f/apps/web/src/features/groups/GroupsPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/164806197822677ba55789a665b174ec16a45a2a/apps/web/src/features/groups/GroupsPage.tsx"
         },
         {
           "titulo": "GroupModal.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/84fd92e18fc06d125417e7c82afcf3d4d0d7832f/apps/web/src/features/groups/GroupModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/164806197822677ba55789a665b174ec16a45a2a/apps/web/src/features/groups/GroupModal.tsx"
         },
         {
           "titulo": "groups.spec.ts",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/84fd92e18fc06d125417e7c82afcf3d4d0d7832f/e2e/groups.spec.ts"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/164806197822677ba55789a665b174ec16a45a2a/e2e/groups.spec.ts"
         }
       ]
     },
@@ -332,15 +385,15 @@
         },
         {
           "titulo": "GroupsPage.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/84fd92e18fc06d125417e7c82afcf3d4d0d7832f/apps/web/src/features/groups/GroupsPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/164806197822677ba55789a665b174ec16a45a2a/apps/web/src/features/groups/GroupsPage.tsx"
         },
         {
           "titulo": "GroupDetailsModal.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/84fd92e18fc06d125417e7c82afcf3d4d0d7832f/apps/web/src/features/groups/GroupDetailsModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/164806197822677ba55789a665b174ec16a45a2a/apps/web/src/features/groups/GroupDetailsModal.tsx"
         },
         {
           "titulo": "groups.spec.ts",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/84fd92e18fc06d125417e7c82afcf3d4d0d7832f/e2e/groups.spec.ts"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/164806197822677ba55789a665b174ec16a45a2a/e2e/groups.spec.ts"
         }
       ]
     },
@@ -359,11 +412,11 @@
         },
         {
           "titulo": "GroupsPage.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/84fd92e18fc06d125417e7c82afcf3d4d0d7832f/apps/web/src/features/groups/GroupsPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/164806197822677ba55789a665b174ec16a45a2a/apps/web/src/features/groups/GroupsPage.tsx"
         },
         {
           "titulo": "groups.spec.ts",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/84fd92e18fc06d125417e7c82afcf3d4d0d7832f/e2e/groups.spec.ts"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/164806197822677ba55789a665b174ec16a45a2a/e2e/groups.spec.ts"
         }
       ]
     },
@@ -382,15 +435,15 @@
         },
         {
           "titulo": "PlansPage.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/84fd92e18fc06d125417e7c82afcf3d4d0d7832f/apps/web/src/features/plans/PlansPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/164806197822677ba55789a665b174ec16a45a2a/apps/web/src/features/plans/PlansPage.tsx"
         },
         {
           "titulo": "PlanModal.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/84fd92e18fc06d125417e7c82afcf3d4d0d7832f/apps/web/src/features/plans/PlanModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/164806197822677ba55789a665b174ec16a45a2a/apps/web/src/features/plans/PlanModal.tsx"
         },
         {
           "titulo": "plans-finance.spec.ts",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/84fd92e18fc06d125417e7c82afcf3d4d0d7832f/e2e/plans-finance.spec.ts"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/164806197822677ba55789a665b174ec16a45a2a/e2e/plans-finance.spec.ts"
         }
       ]
     },
@@ -409,15 +462,15 @@
         },
         {
           "titulo": "WaitlistPage.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/84fd92e18fc06d125417e7c82afcf3d4d0d7832f/apps/web/src/features/waitlist/WaitlistPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/164806197822677ba55789a665b174ec16a45a2a/apps/web/src/features/waitlist/WaitlistPage.tsx"
         },
         {
           "titulo": "WaitlistEntryModal.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/84fd92e18fc06d125417e7c82afcf3d4d0d7832f/apps/web/src/features/waitlist/WaitlistEntryModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/164806197822677ba55789a665b174ec16a45a2a/apps/web/src/features/waitlist/WaitlistEntryModal.tsx"
         },
         {
           "titulo": "waitlist-page.integration.test.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/84fd92e18fc06d125417e7c82afcf3d4d0d7832f/apps/web/src/features/waitlist/waitlist-page.integration.test.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/164806197822677ba55789a665b174ec16a45a2a/apps/web/src/features/waitlist/waitlist-page.integration.test.tsx"
         }
       ]
     },
@@ -436,19 +489,19 @@
         },
         {
           "titulo": "FinancePage.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/84fd92e18fc06d125417e7c82afcf3d4d0d7832f/apps/web/src/features/finance/FinancePage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/164806197822677ba55789a665b174ec16a45a2a/apps/web/src/features/finance/FinancePage.tsx"
         },
         {
           "titulo": "ReceivablesList.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/84fd92e18fc06d125417e7c82afcf3d4d0d7832f/apps/web/src/features/finance/ReceivablesList.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/164806197822677ba55789a665b174ec16a45a2a/apps/web/src/features/finance/ReceivablesList.tsx"
         },
         {
           "titulo": "SettleModal.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/84fd92e18fc06d125417e7c82afcf3d4d0d7832f/apps/web/src/features/finance/SettleModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/164806197822677ba55789a665b174ec16a45a2a/apps/web/src/features/finance/SettleModal.tsx"
         },
         {
           "titulo": "plans-finance.spec.ts",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/84fd92e18fc06d125417e7c82afcf3d4d0d7832f/e2e/plans-finance.spec.ts"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/164806197822677ba55789a665b174ec16a45a2a/e2e/plans-finance.spec.ts"
         }
       ]
     },
@@ -1102,6 +1155,44 @@
       ]
     },
     {
+      "id": "AG03",
+      "titulo": "Agendar uma série de atendimentos",
+      "trecho": "## Agendar uma série de atendimentos\n\n1. Abra [**Agenda**](https://crm.organizastudios.com/agenda) e clique em **Novo atendimento**.\n2. Escolha **Cliente** e um **Tipo** que permita repetição.\n3. Marque **Repetir este atendimento** e preencha **Número de ocorrências** e **Intervalo**.\n4. Escolha profissional, sala e serviço. Informe plano se o atendimento pedir.\n5. Selecione a primeira **Data** e o **Horário**. Revise os avisos de disponibilidade.\n6. Clique em **Confirmar atendimento**.\n\nConfira o cartão na primeira data e nas datas seguintes. A opção de repetição fica indisponível para o tipo **Experimental**.",
+      "referencias": [
+        {
+          "titulo": "Campos de repetição e confirmação",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/agenda/AppointmentForm.tsx"
+        },
+        {
+          "titulo": "Visualização das ocorrências na Agenda",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/agenda/AgendaPage.tsx"
+        }
+      ],
+      "perguntas": [
+        "Como agendar atendimentos recorrentes?",
+        "Como marcar o mesmo atendimento em várias semanas?"
+      ]
+    },
+    {
+      "id": "AG04",
+      "titulo": "Cadastrar um cliente durante um agendamento",
+      "trecho": "## Cadastrar um cliente durante um agendamento\n\n1. Abra [**Agenda**](https://crm.organizastudios.com/agenda) e clique em **Novo atendimento**.\n2. Clique no campo **Cliente** e use **Adicionar cliente**, abaixo das sugestões.\n3. Em **Novo cliente**, preencha os campos obrigatórios e clique em **Salvar cliente**.\n4. Confira o nome que ficou selecionado em **Cliente** e continue o agendamento.\n\nO formulário da Agenda permanece aberto com o novo cliente selecionado.",
+      "referencias": [
+        {
+          "titulo": "Campo Cliente do agendamento",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/agenda/AppointmentForm.tsx"
+        },
+        {
+          "titulo": "Janela de cadastro e retorno à Agenda",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/agenda/AppointmentPatientCreateModal.tsx"
+        }
+      ],
+      "perguntas": [
+        "Como cadastrar um cliente sem sair do agendamento?",
+        "Onde fica Adicionar cliente na Agenda?"
+      ]
+    },
+    {
       "id": "AG06",
       "titulo": "Editar os dados de um atendimento na Agenda",
       "trecho": "## Editar os dados de um atendimento na Agenda\n\n1. Abra [**Agenda**](https://crm.organizastudios.com/agenda).\n2. Clique no cartão do atendimento agendado ou confirmado.\n3. Em **Detalhes do atendimento**, clique em **Editar**.\n4. Ajuste **Serviço**, **Sala** ou **Observação**, conforme o que o formulário permite.\n5. Clique em **Salvar alterações**.\n\nAbra os detalhes para conferir o que ficou salvo. Para mudar data, horário ou profissional, use **Remarcar atendimento**. Se o aviso disser que só atendimentos agendados ou confirmados podem ser editados, recarregue a Agenda e confira a situação atual.",
@@ -1151,6 +1242,40 @@
         "Como registrar falta na agenda?",
         "Como marcar que o cliente não compareceu?",
         "Onde marco falta em um atendimento?"
+      ]
+    },
+    {
+      "id": "AG11",
+      "titulo": "Finalizar um atendimento individual",
+      "trecho": "## Finalizar um atendimento individual\n\n1. Abra [**Agenda**](https://crm.organizastudios.com/agenda) e selecione o cartão do atendimento.\n2. Em **Detalhes do atendimento**, confira a situação e o horário.\n3. Quando a ação estiver disponível, clique em **Marcar como realizado**.\n\nO cartão passa a indicar **Finalizado**. Se a ação estiver desativada, confira a informação de horário nos detalhes.",
+      "referencias": [
+        {
+          "titulo": "Detalhes e ação de finalizar",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/agenda/AppointmentDetailsModal.tsx"
+        }
+      ],
+      "perguntas": [
+        "Como finalizar atendimento individual?",
+        "Onde marco um atendimento como realizado?"
+      ]
+    },
+    {
+      "id": "AG12",
+      "titulo": "Agendar reposição a partir de uma falta",
+      "trecho": "## Agendar reposição a partir de uma falta\n\n1. Em **Agenda**, abra o dia do atendimento original e clique no cartão do cliente marcado como **Faltou**.\n2. Nos **Detalhes do atendimento**, clique em **Remarcar ausência**.\n3. Em **Reagendar atendimento**, confirme o profissional e a sala, escolha a **Data** e um **Horário** disponível.\n4. Clique em **Confirmar reagendamento**. Abra o dia de destino na Agenda e confira o novo atendimento.\n\nO atendimento original continua com a falta registrada. Cada falta pode ter uma remarcação ativa vinculada. Se a falta for de uma experimental e o cliente já tiver plano do mesmo serviço, o CRM recusa a reposição como experimental.",
+      "referencias": [
+        {
+          "titulo": "Detalhes e ações do atendimento",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/agenda/AppointmentDetailsModal.tsx"
+        },
+        {
+          "titulo": "Formulário de reagendamento",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/agenda/AppointmentRescheduleModal.tsx"
+        }
+      ],
+      "perguntas": [
+        "Como remarcar uma falta na agenda?",
+        "Onde agendo reposição para uma falta individual?"
       ]
     },
     {
@@ -1266,6 +1391,44 @@
       ]
     },
     {
+      "id": "AG19",
+      "titulo": "Consultar o histórico de remarcações",
+      "trecho": "## Consultar o histórico de remarcações\n\n1. Abra [**Agenda**](https://crm.organizastudios.com/agenda) e localize o atendimento.\n2. Para ver as ações na programação diária, use **Dia → Lista**.\n3. Abra **Mais ações** no cartão e clique em **Histórico**.\n4. Na janela **Histórico de reagendamentos**, confira as datas e os horários registrados.\n\nO histórico permite identificar a mudança sem editar o atendimento.",
+      "referencias": [
+        {
+          "titulo": "Ações do cartão na Agenda",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/agenda/AgendaCard.tsx"
+        },
+        {
+          "titulo": "Janela de histórico",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/agenda/AppointmentRescheduleHistoryModal.tsx"
+        }
+      ],
+      "perguntas": [
+        "Onde vejo o histórico de remarcações?",
+        "Como descubro o horário antigo de um atendimento remarcado?"
+      ]
+    },
+    {
+      "id": "AG20",
+      "titulo": "Filtrar e finalizar atendimentos pendentes",
+      "trecho": "## Filtrar e finalizar atendimentos pendentes\n\n1. Na [**Agenda**](https://crm.organizastudios.com/agenda), abra o aviso **Atendimentos a finalizar** quando ele aparecer.\n2. Na lista, ajuste **Profissional**, **Serviço**, **Situação** ou o intervalo de datas.\n3. Confira o nome e horário. Marque a caixa do atendimento correto.\n4. Clique em **Marcar como realizados** ou em **Marcar falta**, conforme o que ocorreu.\n5. Confira a confirmação e conclua o registro.\n\nO atendimento sai da lista de pendências. Você pode abrir **Ver concluídos** para consultar o registro correspondente.",
+      "referencias": [
+        {
+          "titulo": "Destino do aviso",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/app/notification-center.tsx"
+        },
+        {
+          "titulo": "Filtros, seleção e finalização",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/agenda/PendingFinalizationPage.tsx"
+        }
+      ],
+      "perguntas": [
+        "Como finalizar os atendimentos pendentes?",
+        "Onde filtro a lista A finalizar?"
+      ]
+    },
+    {
       "id": "AG21",
       "titulo": "Consultar atendimentos concluídos na Agenda",
       "trecho": "## Consultar atendimentos concluídos na Agenda\n\n1. Abra [**Agenda**](https://crm.organizastudios.com/agenda).\n2. No alto da página, clique em **Concluídos**.\n3. Selecione um atalho em **Período**, como **Hoje** ou **7 dias**. Em **Personalizado**, informe **De** e **Até**.\n4. Use **Profissional**, **Serviço** ou **Origem** para refinar os resultados.\n5. Selecione o atendimento para consultar os detalhes disponíveis.\n\nConfira se o atendimento aparece em **Atendimentos concluídos** no período escolhido.",
@@ -1322,6 +1485,25 @@
       ]
     },
     {
+      "id": "AG24",
+      "titulo": "Registrar uma pesquisa de satisfação no atendimento",
+      "trecho": "## Registrar uma pesquisa de satisfação no atendimento\n\n1. Abra [**Agenda**](https://crm.organizastudios.com/agenda) e selecione o atendimento realizado.\n2. Em **Detalhes do atendimento**, clique em **Registrar satisfação**.\n3. Escolha uma **Nota** de 0 a 10 e preencha **Comentário (opcional)** se precisar.\n4. Clique em **Salvar avaliação**.\n\nO CRM fecha a pesquisa depois de registrar a avaliação para aquele cliente e atendimento.",
+      "referencias": [
+        {
+          "titulo": "Entrada nos detalhes",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/agenda/AppointmentDetailsModal.tsx"
+        },
+        {
+          "titulo": "Nota, comentário e salvamento",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/agenda/SatisfactionSurveyModal.tsx"
+        }
+      ],
+      "perguntas": [
+        "Como registrar satisfação em um atendimento?",
+        "Onde lanço a nota de NPS da sessão?"
+      ]
+    },
+    {
       "id": "AG25",
       "titulo": "Conferir feriados e compromissos de um dia na Agenda",
       "trecho": "## Conferir feriados e compromissos de um dia na Agenda\n\n1. Abra [**Agenda**](https://crm.organizastudios.com/agenda).\n2. Clique em **Mês** para ver as marcações no calendário.\n3. Clique no número do dia que quer consultar.\n4. Na janela do dia, leia o aviso **Feriado** e a lista de compromissos daquele dia, quando houver.\n5. Clique em **Abrir dia na agenda** para continuar na programação diária.\n\nO nome do feriado aparece no calendário e no detalhe do dia. Confira a data no título antes de usar os atalhos dos compromissos.",
@@ -1359,6 +1541,70 @@
         "Como consultar cliente sem editar?",
         "Como abrir o cadastro com acesso somente leitura?",
         "Por que aparece Ver no lugar de Editar cliente?"
+      ]
+    },
+    {
+      "id": "CL06",
+      "titulo": "Cadastrar um cliente e agendar aula experimental no mesmo fluxo",
+      "trecho": "## Cadastrar um cliente e agendar aula experimental no mesmo fluxo\n\n1. Abra [**Clientes**](https://crm.organizastudios.com/clientes) e clique em **Novo cliente**.\n2. Preencha os dados obrigatórios do cliente.\n3. Em **O que o cliente vai fazer?**, clique em **Agendar aula experimental**.\n4. Confira **Serviço**, **Profissional** e **Sala** e preencha **Data e horário**.\n5. Clique em **Salvar e agendar aula experimental**.\n\nAbra a ficha do novo cliente e confira a aula nos próximos atendimentos da aba **Agenda**.",
+      "referencias": [
+        {
+          "titulo": "Cadastro e ações de agendamento guiado",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/patients/PatientModal.tsx"
+        }
+      ],
+      "perguntas": [
+        "Como cadastrar cliente e agendar uma experimental junto?",
+        "Onde marco a aula experimental no cadastro de cliente?"
+      ]
+    },
+    {
+      "id": "CL07",
+      "titulo": "Cadastrar um cliente e contratar um plano junto",
+      "trecho": "## Cadastrar um cliente e contratar um plano junto\n\n1. Abra [**Clientes**](https://crm.organizastudios.com/clientes), clique em **Novo cliente** e preencha os campos obrigatórios.\n2. Clique em **Adicionar plano**.\n3. Selecione **Plano cadastrado**. Confira os serviços, as sessões e o valor.\n4. Escolha a **Turma**, se exigida, e confira as datas e o pagamento.\n5. Clique em **Salvar e criar plano**.\n\nAbra a ficha do novo cliente e confira a contratação em **Planos**. Se o fluxo oferecer lista de espera para uma turma cheia, confira o resultado mostrado pelo CRM.",
+      "referencias": [
+        {
+          "titulo": "Contratação integrada ao cadastro de cliente",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/patients/PatientModal.tsx"
+        },
+        {
+          "titulo": "Aba Planos na ficha do cliente",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/patients/PatientRecordTabs.tsx"
+        }
+      ],
+      "perguntas": [
+        "Como cadastrar um cliente já com um plano?",
+        "Onde contrato plano junto com cadastro de cliente?"
+      ]
+    },
+    {
+      "id": "CL08",
+      "titulo": "Cadastrar um cliente e vender um serviço avulso junto",
+      "trecho": "## Cadastrar um cliente e vender um serviço avulso junto\n\n1. Abra [**Clientes**](https://crm.organizastudios.com/clientes), clique em **Novo cliente** e preencha os dados obrigatórios.\n2. Clique em **Adicionar serviço avulso**.\n3. Escolha o **Plano cadastrado** que representa o serviço avulso e confira o valor.\n4. Revise os campos de pagamento e clique em **Salvar e criar serviço avulso**.\n\nConfira a contratação na aba **Planos** da ficha do novo cliente.",
+      "referencias": [
+        {
+          "titulo": "Fluxo de cadastro e serviço avulso",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/patients/PatientModal.tsx"
+        }
+      ],
+      "perguntas": [
+        "Como cadastrar um cliente já com serviço avulso?",
+        "Onde incluo a sessão avulsa no cadastro?"
+      ]
+    },
+    {
+      "id": "CL09",
+      "titulo": "Cadastrar um cliente e incluir uma venda de produto",
+      "trecho": "## Cadastrar um cliente e incluir uma venda de produto\n\n1. Abra [**Clientes**](https://crm.organizastudios.com/clientes), clique em **Novo cliente** e preencha o cadastro.\n2. Clique em **Adicionar produto**.\n3. Escolha **Produto**, confira **Quantidade** e **Preço unitário**.\n4. Revise **Pagamento** e clique em **Salvar e registrar venda**.\n\nConfira o cadastro em **Clientes** e a venda correspondente em **Vendas realizadas**.",
+      "referencias": [
+        {
+          "titulo": "Cadastro e ação de venda guiada",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/patients/PatientModal.tsx"
+        }
+      ],
+      "perguntas": [
+        "Como cadastrar cliente e vender produto na mesma tela?",
+        "Onde adiciono um produto no cadastro de cliente?"
       ]
     },
     {
@@ -1418,6 +1664,21 @@
       ]
     },
     {
+      "id": "CL16",
+      "titulo": "Aplicar desconto em uma compra durante o cadastro",
+      "trecho": "## Aplicar desconto em uma compra durante o cadastro\n\n1. Abra [**Clientes**](https://crm.organizastudios.com/clientes) e inicie **Novo cliente**.\n2. Adicione o item da compra. Para descontar um produto, abra **Configurar desconto** junto ao item.\n3. Preencha **Porcentagem de desconto (%)** e clique em **Aplicar desconto**.\n4. Confira o total e use o botão de salvamento da compra.\n\nDepois de salvar, abra a venda para conferir o valor final e o desconto registrado.",
+      "referencias": [
+        {
+          "titulo": "Fluxo de venda e configuração do desconto",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/patients/PatientModal.tsx"
+        }
+      ],
+      "perguntas": [
+        "Como dar desconto no cadastro com compra?",
+        "Onde aplico desconto a um produto durante o cadastro?"
+      ]
+    },
+    {
       "id": "CL17",
       "titulo": "Consultar o histórico de um cliente",
       "trecho": "## Consultar o histórico de um cliente\n\n1. Abra [**Clientes**](https://crm.organizastudios.com/clientes) e localize o cadastro.\n2. Clique no cartão do cliente para abrir a ficha.\n3. Confira o nome no topo da ficha.\n4. Clique em **Histórico** e leia os registros apresentados.\n\nA aba reúne o histórico daquele cadastro. Sua exibição depende da permissão **Ver histórico do cliente**.",
@@ -1435,6 +1696,25 @@
         "Como consultar o histórico de um cliente?",
         "Onde vejo as alterações na ficha do cliente?",
         "Por que a aba Histórico não aparece na ficha?"
+      ]
+    },
+    {
+      "id": "CL18",
+      "titulo": "Concluir os passos após uma contratação guiada",
+      "trecho": "## Concluir os passos após uma contratação guiada\n\n1. Ao salvar a contratação ou compra, leia a janela de confirmação.\n2. Se aparecer **Link de assinatura**, confira o documento e use **Copiar link** ou **Abrir WhatsApp** para preparar o envio. Depois clique em **Concluir**.\n3. Quando o CRM perguntar se o cliente já pagou, use **Não** para deixar em aberto. Se já recebeu, clique em **Sim, já pagou**.\n4. Confira os dados da baixa e clique em **Confirmar baixa**.\n5. Use **Enviar recibo pelo WhatsApp** para preparar o envio quando o link aparecer e clique em **Concluir** para voltar à lista.\n\nConfira o plano e a situação do recebimento. Cada etapa depende dos dados preenchidos na contratação.",
+      "referencias": [
+        {
+          "titulo": "Etapas posteriores à contratação",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/plans/PlansPage.tsx"
+        },
+        {
+          "titulo": "Baixa da parcela",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/finance/SettleModal.tsx"
+        }
+      ],
+      "perguntas": [
+        "Como concluir a venda guiada após contratar um plano?",
+        "Onde registro pagamento ou preparo o recibo depois da contratação?"
       ]
     },
     {
@@ -1538,6 +1818,26 @@
       ]
     },
     {
+      "id": "CM07",
+      "titulo": "Criar, editar ou reordenar uma etapa do funil",
+      "trecho": "## Criar, editar ou reordenar uma etapa do funil\n\n1. Abra [**CRM comercial**](https://crm.organizastudios.com/comercial).\n2. Clique em **Adicionar etapa** para criar uma coluna. Para alterar uma existente, use **Editar etapa** no cabeçalho dela.\n3. Preencha **Nome da etapa**, escolha **Posição no funil** e confira a cor.\n4. Clique em **Adicionar etapa** ou **Salvar etapa**, conforme a janela.\n\nConfira a nova posição no funil. No computador, a interface também oferece o arraste pelo cabeçalho da coluna.",
+      "referencias": [
+        {
+          "titulo": "Funil e ações do cabeçalho",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/commercial/CommercialPage.tsx"
+        },
+        {
+          "titulo": "Campos da etapa e posição",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/commercial/LeadStageModal.tsx"
+        }
+      ],
+      "perguntas": [
+        "Como criar uma etapa no funil?",
+        "Como mudar a ordem das etapas do CRM comercial?",
+        "Onde renomeio uma coluna do funil?"
+      ]
+    },
+    {
       "id": "CM08",
       "titulo": "Criar uma tarefa de acompanhamento para um lead",
       "trecho": "## Criar uma tarefa de acompanhamento para um lead\n\n1. Abra [**CRM comercial**](https://crm.organizastudios.com/comercial) e encontre o lead.\n2. No cartão, clique em **Atividades**.\n3. Abra **Tarefas**.\n4. Preencha **Tarefa** e confira o **Vencimento**.\n5. Se precisar, preencha **Observações**.\n6. Clique em **Adicionar tarefa**.\n\nA nova tarefa aparece na lista do lead com o vencimento escolhido.",
@@ -1587,6 +1887,25 @@
         "Como registrar contato com um lead?",
         "Como anotar uma ligação para um lead?",
         "Onde registro uma tentativa de contato comercial?"
+      ]
+    },
+    {
+      "id": "CM11",
+      "titulo": "Agendar aula experimental para um lead",
+      "trecho": "## Agendar aula experimental para um lead\n\n1. Abra [**CRM comercial**](https://crm.organizastudios.com/comercial) e localize o lead.\n2. No cartão, clique em **Agendar experimental**.\n3. Confira **Serviço**, **Profissional** e **Sala**.\n4. Selecione **Data** e preencha **Horário**. Se precisar, informe **Observação**.\n5. Clique em **Confirmar agendamento**.\n\nA aula aparece na Agenda vinculada ao lead. O cadastro de cliente pode ser feito depois, na conversão.",
+      "referencias": [
+        {
+          "titulo": "Ação no funil",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/commercial/CommercialPage.tsx"
+        },
+        {
+          "titulo": "Formulário do agendamento de lead",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/commercial/LeadAppointmentModal.tsx"
+        }
+      ],
+      "perguntas": [
+        "Como marcar uma aula experimental para um lead?",
+        "Onde agendo atendimento para um interessado do funil?"
       ]
     },
     {
@@ -1650,6 +1969,108 @@
       ]
     },
     {
+      "id": "GR07",
+      "titulo": "Registrar a frequência de uma aula de turma",
+      "trecho": "## Registrar a frequência de uma aula de turma\n\n1. Abra [**Turmas**](https://crm.organizastudios.com/turmas), localize a turma e clique em **Abrir turma**.\n2. Em **Frequência e reposições**, abra a aula na data correta.\n3. Localize o aluno. No campo **Frequência**, escolha **Presente**, **Falta** ou **Falta justificada**, conforme o que aconteceu.\n\nConfira a situação ao lado do nome. A opção **Marcar todos presentes** fica disponível a partir do horário indicado na janela.",
+      "referencias": [
+        {
+          "titulo": "Calendário de frequência",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/groups/GroupDetailsModal.tsx"
+        },
+        {
+          "titulo": "Ações individuais e presença coletiva",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/groups/GroupSessionModal.tsx"
+        }
+      ],
+      "perguntas": [
+        "Como marcar frequência em uma aula de turma?",
+        "Onde registro falta ou presença de um aluno da turma?"
+      ]
+    },
+    {
+      "id": "GR08",
+      "titulo": "Concluir um encontro de turma",
+      "trecho": "## Concluir um encontro de turma\n\n1. Abra [**Turmas**](https://crm.organizastudios.com/turmas), localize a turma e clique em **Abrir turma**.\n2. Em **Frequência e reposições**, abra o encontro e confira a data e os participantes.\n3. Registre a frequência que for necessária e clique em **Concluir encontro**.\n\nO botão de concluir deixa de aparecer naquele encontro. Consulte a situação do encontro no calendário da turma.",
+      "referencias": [
+        {
+          "titulo": "Abertura de encontros",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/groups/GroupDetailsModal.tsx"
+        },
+        {
+          "titulo": "Ação Concluir encontro",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/groups/GroupSessionModal.tsx"
+        }
+      ],
+      "perguntas": [
+        "Como concluir uma aula de turma?",
+        "Onde finalizo o encontro após a chamada?"
+      ]
+    },
+    {
+      "id": "GR09",
+      "titulo": "Reservar uma aula de reposição para um aluno",
+      "trecho": "## Reservar uma aula de reposição para um aluno\n\n1. Abra [**Turmas**](https://crm.organizastudios.com/turmas) e clique em **Abrir turma**.\n2. Em **Frequência e reposições**, selecione o **Crédito de reposição** do aluno.\n3. Em **Encontro de reposição**, escolha um horário elegível com vaga.\n4. Clique em **Reservar reposição**.\n\nAbra o encontro de destino e confira o aluno na lista de reposições. A tela informa que faltas justificadas podem gerar crédito.",
+      "referencias": [
+        {
+          "titulo": "Crédito, elegibilidade e gravação da reserva",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/groups/GroupOperationsPanel.tsx"
+        }
+      ],
+      "perguntas": [
+        "Como reservar reposição de aula de turma?",
+        "Onde escolho o encontro para usar um crédito de reposição?"
+      ]
+    },
+    {
+      "id": "GR10",
+      "titulo": "Registrar presença de um aluno na reposição",
+      "trecho": "## Registrar presença de um aluno na reposição\n\n1. Abra [**Turmas**](https://crm.organizastudios.com/turmas) e clique em **Abrir turma** na turma do encontro de reposição.\n2. Em **Frequência e reposições**, abra o encontro reservado.\n3. Localize a linha do aluno identificada como **Reposição**.\n4. No seletor da reposição, escolha **Presente**.\n\nConfira a situação **Presente** na linha de reposição. Registre a situação na reposição em que ele participou.",
+      "referencias": [
+        {
+          "titulo": "Linha de reposição e estados de presença",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/groups/GroupSessionModal.tsx"
+        }
+      ],
+      "perguntas": [
+        "Como registrar presença na reposição da turma?",
+        "Onde marco que o aluno compareceu à aula de reposição?"
+      ]
+    },
+    {
+      "id": "GR11",
+      "titulo": "Cancelar a matrícula de um aluno na turma",
+      "trecho": "## Cancelar a matrícula de um aluno na turma\n\n1. Abra [**Turmas**](https://crm.organizastudios.com/turmas) e clique em **Abrir turma** na turma correta.\n2. Em **Dados da turma**, localize o aluno em **Participantes**.\n3. Clique em **Cancelar matrícula** na linha dele.\n4. Confira o nome na confirmação e clique em **Cancelar matrícula**.\n\nConfira a lista de participantes depois de salvar. A vaga passa a poder ser oferecida a outro aluno conforme a capacidade da turma.",
+      "referencias": [
+        {
+          "titulo": "Participantes e ação de cancelar matrícula",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/groups/GroupDetailsModal.tsx"
+        },
+        {
+          "titulo": "Confirmação da matrícula",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/groups/GroupsPage.tsx"
+        }
+      ],
+      "perguntas": [
+        "Como cancelar a matrícula de um aluno?",
+        "Como tirar um cliente de uma turma?"
+      ]
+    },
+    {
+      "id": "GR12",
+      "titulo": "Alterar o profissional de um encontro da turma",
+      "trecho": "## Alterar o profissional de um encontro da turma\n\n1. Abra [**Turmas**](https://crm.organizastudios.com/turmas) e clique em **Abrir turma**.\n2. Em **Frequência e reposições**, escolha a aula e confira a data e o horário.\n3. Em **Profissional deste encontro**, selecione o profissional que vai atender.\n4. Aguarde a atualização e confira o nome selecionado.\n\nA mudança pode ser conferida ao reabrir aquele encontro. O seletor mostra os profissionais elegíveis para o serviço.",
+      "referencias": [
+        {
+          "titulo": "Edição do profissional do encontro",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/groups/GroupSessionModal.tsx"
+        }
+      ],
+      "perguntas": [
+        "Como trocar o profissional de uma aula específica?",
+        "Onde altero o responsável só pelo encontro da turma?"
+      ]
+    },
+    {
       "id": "LE01",
       "titulo": "Consultar a procura e filtrar a lista de espera",
       "trecho": "## Consultar a procura e filtrar a lista de espera\n\n1. Abra [**Lista de espera**](https://crm.organizastudios.com/lista-de-espera).\n2. Consulte **Maior procura** para ver serviços e produtos com fila.\n3. Clique em **Ver fila** no item que deseja consultar.\n4. Em **Clientes na lista**, use **Item** e **Situação** para ajustar os resultados.\n5. Clique em **Limpar filtros** para voltar à lista geral.\n\nA lista mostra as entradas compatíveis com o item e a situação escolhidos.",
@@ -1699,6 +2120,25 @@
         "Como avisar alguém da lista de espera?",
         "Como avisar que chegou o produto?",
         "Onde preparo o WhatsApp para oferecer uma vaga?"
+      ]
+    },
+    {
+      "id": "LE05",
+      "titulo": "Matricular um cliente pela lista de espera",
+      "trecho": "## Matricular um cliente pela lista de espera\n\n1. Abra **Lista de espera**, localize a entrada do cliente e clique em **Abrir entrada**.\n2. Em **Matricular em turma**, selecione uma **Turma com vaga** do serviço aguardado e confira horário, profissional e vagas.\n3. Clique em **Matricular e configurar pagamento**. Revise os dados do cliente, da turma e o plano. No formulário de plano recorrente, preencha o pagamento e clique em **Criar plano e parcelas**.\n4. Confira a saída da entrada da fila. Em **Turmas**, clique em **Abrir turma** na turma escolhida e confira o cliente em **Matriculados**.\n\nO CRM oferece turmas ativas do serviço escolhido com vagas disponíveis.",
+      "referencias": [
+        {
+          "titulo": "Entrada da fila",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/waitlist/WaitlistPage.tsx"
+        },
+        {
+          "titulo": "Seleção de turma e contratação",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/waitlist/WaitlistEnrollSection.tsx"
+        }
+      ],
+      "perguntas": [
+        "Como confirmar matrícula pela lista de espera?",
+        "Como matricular na turma um cliente que está na fila?"
       ]
     },
     {
@@ -1770,6 +2210,25 @@
       ]
     },
     {
+      "id": "PL05",
+      "titulo": "Contratar um plano com matrícula e documento",
+      "trecho": "## Contratar um plano com matrícula e documento\n\n1. Abra [**Planos e sessões**](https://crm.organizastudios.com/planos) e clique em **Novo plano**.\n2. Selecione **Cliente** e **Plano cadastrado**.\n3. Em **Turma**, escolha uma turma com vaga e confira as datas e o pagamento.\n4. Em **Documento para o cliente assinar**, escolha um modelo.\n5. Clique em **Criar plano e parcelas**. Na confirmação, confira o link de assinatura.\n6. Use **Copiar link** ou **Abrir WhatsApp** se precisar preparar o envio e clique em **Concluir** para continuar.\n\nConfira o cartão do plano. A turma mostra o participante e o documento emitido pode ser acompanhado em **Contratos**.",
+      "referencias": [
+        {
+          "titulo": "Turma e seleção do documento",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/plans/PlanModal.tsx"
+        },
+        {
+          "titulo": "Confirmações após criar o plano",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/plans/PlansPage.tsx"
+        }
+      ],
+      "perguntas": [
+        "Como contratar um plano com matrícula e documento para assinatura?",
+        "Onde escolho a turma e o documento durante a contratação?"
+      ]
+    },
+    {
       "id": "PL06",
       "titulo": "Dividir a compra de um plano entre formas de pagamento",
       "trecho": "## Dividir a compra de um plano entre formas de pagamento\n\n1. Abra [**Planos e sessões**](https://crm.organizastudios.com/planos) e clique em **Novo plano**.\n2. Selecione o **Cliente** e o **Plano cadastrado**. Quando necessário, escolha a **Turma** e confira as datas.\n3. Clique em **Adicionar forma de pagamento**.\n4. Escolha as formas e preencha o valor de cada uma.\n5. Se o plano pedir **Cobrança da forma**, escolha **Só na primeira vez** ou **Recorrente (segue nas renovações)** para cada forma.\n6. Confira se a **Soma das formas** corresponde ao total e revise **Primeiro vencimento**.\n7. Clique em **Criar plano e parcelas**.\n\nO plano aparece em **Planos dos clientes**. As formas marcadas como recorrentes entram nas próximas renovações nos planos que usam essa configuração.",
@@ -1830,6 +2289,25 @@
       ]
     },
     {
+      "id": "PL09",
+      "titulo": "Cancelar um plano com ou sem estorno ao cliente",
+      "trecho": "## Cancelar um plano com ou sem estorno ao cliente\n\n1. Abra **Planos e sessões**, localize o plano do cliente e clique em **Cancelar** no cartão correspondente.\n2. Confira o cliente, o plano e o efeito do cancelamento. Para cancelar sem devolução, mantenha **Houve estorno de valor ao cliente** desmarcado.\n3. Se houver devolução, marque **Houve estorno de valor ao cliente** e preencha **Valor estornado ao cliente (R$)** e **Forma de pagamento do estorno**. A observação é opcional.\n4. Clique em **Confirmar**. Use o filtro **Cancelado** para conferir o plano e o registro do cancelamento. Com devolução, confira também a saída em **Financeiro › Contas a pagar**.\n\nAs parcelas em aberto são canceladas e as sessões que restavam ficam indisponíveis. A devolução registrada aparece como uma conta paga na categoria **Estornos a clientes**.",
+      "referencias": [
+        {
+          "titulo": "Lista e ações dos planos",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/plans/PlansPage.tsx"
+        },
+        {
+          "titulo": "Cancelamento e registro de estorno",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/plans/PlanCancelModal.tsx"
+        }
+      ],
+      "perguntas": [
+        "Como cancelar um plano e devolver o valor ao cliente?",
+        "Como cancelar um plano sem estorno?"
+      ]
+    },
+    {
       "id": "PL10",
       "titulo": "Configurar a renovação automática de um plano",
       "trecho": "## Configurar a renovação automática de um plano\n\n1. Abra [**Planos e sessões**](https://crm.organizastudios.com/planos) e localize o cartão do plano.\n2. Confira se aparece **Renovar automaticamente**.\n3. Marque a opção para ligar a renovação. Desmarque para desligar.\n4. Aguarde o cartão refletir a mudança e confira se a opção ficou como você escolheu.\n\nO controle aparece nos planos que admitem renovação automática. Na contratação desses planos, a opção também pode aparecer como **Renovar automaticamente ao fim da validade, com as mesmas condições**.",
@@ -1867,6 +2345,22 @@
         "Como abrir um prontuário?",
         "Como localizar um paciente em Prontuários?",
         "Onde abro a ficha clínica de um cliente?"
+      ]
+    },
+    {
+      "id": "PR02",
+      "titulo": "Consultar a linha do tempo do prontuário",
+      "trecho": "## Consultar a linha do tempo do prontuário\n\n1. Abra [**Prontuários**](https://crm.organizastudios.com/prontuarios) e selecione o cliente.\n2. Clique em **Linha do tempo**.\n3. Escolha **Tudo**, **Avaliações**, **Medições** ou **Arquivos**, conforme os filtros disponíveis.\n4. Confira o tipo, a descrição, a data e o autor de cada registro.\n\nOs filtros mudam os itens mostrados. Quando houver uma medição, a linha apresenta o valor registrado e a unidade.",
+      "referencias": [
+        {
+          "titulo": "Linha do tempo e filtros no prontuário",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/clinical/ClinicalChart.tsx"
+        }
+      ],
+      "perguntas": [
+        "Como ver o histórico clínico?",
+        "Onde vejo a linha do tempo do prontuário?",
+        "Como filtrar medições e anexos no histórico clínico?"
       ]
     },
     {
@@ -2026,6 +2520,25 @@
       ]
     },
     {
+      "id": "PR14",
+      "titulo": "Registrar alta ou encerramento do tratamento",
+      "trecho": "## Registrar alta ou encerramento do tratamento\n\n1. Abra [**Prontuários**](https://crm.organizastudios.com/prontuarios) e selecione o cliente.\n2. Clique em **Mais ações** e em **Encerrar tratamento**.\n3. Escolha **Motivo**, como **Alta**, **Encaminhamento** ou **Abandono**.\n4. Preencha **Resumo clínico** e inclua **Recomendações**, se necessário.\n5. Clique em **Registrar encerramento**.\n\nConfira a situação e a data na ficha. O registro também aparece na história clínica.",
+      "referencias": [
+        {
+          "titulo": "Ação e situação no prontuário",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/clinical/ClinicalChart.tsx"
+        },
+        {
+          "titulo": "Campos do encerramento",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/clinical/TreatmentClosureModal.tsx"
+        }
+      ],
+      "perguntas": [
+        "Como registrar alta no prontuário?",
+        "Onde registro o encerramento de tratamento de um paciente?"
+      ]
+    },
+    {
       "id": "PR15",
       "titulo": "Consultar quem acessou um prontuário",
       "trecho": "## Consultar quem acessou um prontuário\n\n1. Abra [**Prontuários**](https://crm.organizastudios.com/prontuarios) e selecione o cliente.\n2. No alto da ficha, clique em **Mais ações**.\n3. Escolha **Histórico de acessos**.\n4. Confira os registros apresentados na janela.\n\nO histórico é referente ao prontuário aberto. Se a ação estiver indisponível, confira se sua conta tem acesso ao histórico clínico.",
@@ -2059,6 +2572,82 @@
         "Como exportar um prontuário?",
         "Como imprimir a ficha clínica?",
         "Onde baixo os dados do prontuário do cliente?"
+      ]
+    },
+    {
+      "id": "PR17",
+      "titulo": "Criar um treino no prontuário do cliente",
+      "trecho": "## Criar um treino no prontuário do cliente\n\n1. Abra [**Prontuários**](https://crm.organizastudios.com/prontuarios), escolha o cliente e abra **Treinos e documentos**.\n2. Expanda **Treinos, relatórios e prescrições**.\n3. Em **Seção**, escolha **Treinos** e clique em **Novo registro**.\n4. Preencha **Nome**, confira o **Profissional** e informe as datas ou o limite de execuções quando aplicável.\n5. Em **Adicionar exercício**, escolha um exercício e revise os detalhes do treino.\n6. Clique em **Salvar**.\n\nConfira o treino pelo nome na lista. Para incluir um exercício que ainda não está disponível, cadastre-o na seção **Exercícios e procedimentos**.",
+      "referencias": [
+        {
+          "titulo": "Seções e lista de registros clínicos",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/clinical/ClinicalResourcesPanel.tsx"
+        },
+        {
+          "titulo": "Campos de exercícios e treinos",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/clinical/ClinicalResourceEditor.tsx"
+        }
+      ],
+      "perguntas": [
+        "Como montar um treino no prontuário?",
+        "Onde cadastro um exercício para usar no treino do cliente?"
+      ]
+    },
+    {
+      "id": "PR18",
+      "titulo": "Copiar, editar, finalizar ou imprimir registros clínicos",
+      "trecho": "## Copiar, editar, finalizar ou imprimir registros clínicos\n\n1. Abra [**Prontuários**](https://crm.organizastudios.com/prontuarios), escolha o cliente e entre em **Treinos e documentos**.\n2. Expanda **Treinos, relatórios e prescrições** e escolha a **Seção**.\n3. Num treino, use **Copiar treino**, revise os dados da cópia e clique em **Salvar**. Para alterar um registro que admite edição, use **Editar**.\n4. Em **Relatórios e prescrições**, use **Finalizar** no registro e confirme em **Confirmar finalização**.\n5. Para imprimir os registros do período, ajuste as datas e clique em **Imprimir período**.\n\nConfira o nome da cópia ou a situação **Finalizado**, conforme a ação. As opções dependem do tipo e da situação do registro.",
+      "referencias": [
+        {
+          "titulo": "Ações e impressão no prontuário",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/clinical/ClinicalResourcesPanel.tsx"
+        },
+        {
+          "titulo": "Edição e cópia de registros",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/clinical/ClinicalResourceEditor.tsx"
+        }
+      ],
+      "perguntas": [
+        "Como copiar treino ou finalizar relatório clínico?",
+        "Onde imprimo treinos e documentos de um período?"
+      ]
+    },
+    {
+      "id": "PR19",
+      "titulo": "Gravar e ouvir um áudio no prontuário",
+      "trecho": "## Gravar e ouvir um áudio no prontuário\n\n1. Abra [**Prontuários**](https://crm.organizastudios.com/prontuarios), escolha o cliente e entre em **Arquivos**.\n2. Clique em **Anexar arquivo** e depois em **Gravar áudio**.\n3. Autorize o microfone se o navegador perguntar. Aguarde o contador de gravação.\n4. Clique em **Concluir gravação**, preencha **Observações** se precisar e clique em **Anexar arquivo**.\n5. Na aba **Arquivos**, clique em **Reproduzir áudio** e use o controle do player para ouvir.\n\nO áudio fica na lista de anexos. A janela informa os limites de 15 minutos e 16 MB.",
+      "referencias": [
+        {
+          "titulo": "Gravação no formulário do anexo",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/clinical/ClinicalAttachmentModal.tsx"
+        },
+        {
+          "titulo": "Carregamento e reprodução",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/clinical/ClinicalAudioPlayer.tsx"
+        }
+      ],
+      "perguntas": [
+        "Como gravar áudio no prontuário?",
+        "Onde consigo ouvir um áudio salvo na ficha clínica?"
+      ]
+    },
+    {
+      "id": "PR20",
+      "titulo": "Registrar a execução de um treino",
+      "trecho": "## Registrar a execução de um treino\n\n1. Abra [**Prontuários**](https://crm.organizastudios.com/prontuarios), selecione o cliente e abra **Treinos e documentos**.\n2. Expanda **Treinos, relatórios e prescrições**.\n3. Em **Seção**, selecione **Treinos executados**.\n4. Clique em **Novo registro** e selecione o **Treino**.\n5. Preencha **Observações** e marque **Execução concluída** quando for o caso.\n6. Clique em **Salvar**.\n\nConfira o novo registro na lista de treinos executados e clique em **Visualizar** para rever o que foi gravado.",
+      "referencias": [
+        {
+          "titulo": "Entrada da seção de treinos executados",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/clinical/ClinicalResourcesPanel.tsx"
+        },
+        {
+          "titulo": "Campos da execução",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/clinical/ClinicalResourceEditor.tsx"
+        }
+      ],
+      "perguntas": [
+        "Como registrar que o cliente executou um treino?",
+        "Onde lanço uma execução de treino no prontuário?"
       ]
     },
     {
@@ -2111,6 +2700,25 @@
         "Como exportar participantes de um evento?",
         "Como baixar a lista de inscritos do evento?",
         "Onde baixo a planilha de participantes?"
+      ]
+    },
+    {
+      "id": "EV09",
+      "titulo": "Converter um participante do evento em cliente",
+      "trecho": "## Converter um participante do evento em cliente\n\n1. Abra [**Eventos**](https://crm.organizastudios.com/eventos) e entre em **Participantes** no evento correto.\n2. Na linha da pessoa, clique em **Se tornou cliente**.\n3. Se aparecer uma solicitação de dados, confira o que falta e clique em **Preencher cadastro**.\n4. Preencha os dados obrigatórios e clique em **Cadastrar cliente**.\n\nO participante aparece com o estado **Cliente** na lista do evento.",
+      "referencias": [
+        {
+          "titulo": "Ação na lista de participantes",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/events/EventDetailPage.tsx"
+        },
+        {
+          "titulo": "Solicitação de dados e conversão",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/events/EventConvertModal.tsx"
+        }
+      ],
+      "perguntas": [
+        "Como transformar um participante do evento em cliente?",
+        "Onde completo o cadastro de cliente de um inscrito?"
       ]
     },
     {
@@ -2190,6 +2798,25 @@
       ]
     },
     {
+      "id": "RE03",
+      "titulo": "Registrar contato com um cliente sugerido",
+      "trecho": "## Registrar contato com um cliente sugerido\n\n1. Abra [**Contatos sugeridos**](https://crm.organizastudios.com/relacionamento) e clique no cartão do cliente.\n2. Na janela de pendências, clique em **Registrar contato**.\n3. Escolha **Resultado** e preencha **Observação**, se necessário.\n4. Clique em **Salvar contato**.\n\nA interface confirma o contato registrado para o cliente.",
+      "referencias": [
+        {
+          "titulo": "Ação no cartão de pendências",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/relationship/ClientPendingModal.tsx"
+        },
+        {
+          "titulo": "Campos e salvamento do contato",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/relationship/ContactActivityModal.tsx"
+        }
+      ],
+      "perguntas": [
+        "Como registrar contato em Contatos sugeridos?",
+        "Onde registro o resultado de um contato sugerido?"
+      ]
+    },
+    {
       "id": "RE04",
       "titulo": "Consultar aniversariantes e preparar o contato",
       "trecho": "## Consultar aniversariantes e preparar o contato\n\n1. Abra [**Contatos sugeridos**](https://crm.organizastudios.com/relacionamento).\n2. Clique em **Aniversários do mês**.\n3. Em **Mês**, selecione o mês que deseja consultar.\n4. Localize a pessoa na lista de **Aniversariantes**.\n5. Se o cartão mostrar **Dar parabéns**, use o atalho para abrir a mensagem e revise o texto.\n6. Quando enviar, volte ao CRM e use **Marcar como enviado** para registrar o contato.\n\nO cartão mostra quem faz aniversário no mês escolhido. As ações de contato dependem dos dados cadastrados para a pessoa.",
@@ -2203,6 +2830,70 @@
         "Como consultar aniversariantes do mês?",
         "Onde abro a mensagem de aniversário de um cliente?",
         "Como dar parabéns em Contatos sugeridos?"
+      ]
+    },
+    {
+      "id": "CO01",
+      "titulo": "Encontrar uma campanha manual em Comunicações",
+      "trecho": "## Encontrar uma campanha manual em Comunicações\n\n1. Abra [**Comunicações**](https://crm.organizastudios.com/comunicacoes) e entre em **Campanhas**.\n2. Procure o título em **Em andamento** ou **Concluídas**.\n3. Clique em **Continuar** para abrir uma campanha em andamento, ou em **Ver** para consultar uma concluída.\n\nAs campanhas manuais aparecem agrupadas por situação. Os filtros de destinatário ficam dentro de cada campanha.",
+      "referencias": [
+        {
+          "titulo": "Listagem por situação e ações das campanhas",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/communications/campaigns/CampaignsTab.tsx"
+        }
+      ],
+      "perguntas": [
+        "Onde vejo as campanhas em andamento?",
+        "Como localizar uma campanha manual concluída?"
+      ]
+    },
+    {
+      "id": "CO02",
+      "titulo": "Preparar uma campanha manual e conferir os destinatários",
+      "trecho": "## Preparar uma campanha manual e conferir os destinatários\n\n1. Abra [**Comunicações**](https://crm.organizastudios.com/comunicacoes) e entre em **Campanhas**.\n2. Clique em **Nova campanha**, escolha a mensagem e clique em **Continuar**.\n3. Em **Clientes**, selecione as pessoas. Se quiser montar a lista por critérios, use **Por filtros**.\n4. Clique em **Conferir quem recebe**.\n5. Revise o **Nome da campanha**, os destinatários e a mensagem preparada.\n6. Clique em **Criar e começar a enviar** para abrir a fila.\n\nA fila mostra os destinatários pendentes. Cada conversa é aberta individualmente na etapa de envio.",
+      "referencias": [
+        {
+          "titulo": "Entrada e fluxo de campanhas",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/communications/CommunicationsPage.tsx"
+        }
+      ],
+      "perguntas": [
+        "Como preparar uma campanha manual de WhatsApp?",
+        "Onde vejo quem vai receber uma campanha antes de criar?"
+      ]
+    },
+    {
+      "id": "CO03",
+      "titulo": "Trabalhar na fila de uma campanha com filtro ativo",
+      "trecho": "## Trabalhar na fila de uma campanha com filtro ativo\n\n1. Abra [**Comunicações**](https://crm.organizastudios.com/comunicacoes), entre em **Campanhas** e clique em **Continuar** na campanha correta.\n2. Na fila **Clientes**, escolha **Pendentes**, **Enviadas**, **Puladas** ou **Todas**.\n3. Clique no destinatário correto para conferir a mensagem e as ações disponíveis.\n4. Depois de registrar o resultado, abra o filtro correspondente para localizar a pessoa novamente.\n\nA pessoa aparece no filtro da nova situação. Confira o nome da campanha e do destinatário ao mudar o filtro.",
+      "referencias": [
+        {
+          "titulo": "Acesso às campanhas e fila de destinatários",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/communications/CommunicationsPage.tsx"
+        }
+      ],
+      "perguntas": [
+        "Como filtrar a fila de uma campanha?",
+        "Onde vejo os destinatários enviados ou pulados?"
+      ]
+    },
+    {
+      "id": "CO04",
+      "titulo": "Abrir o WhatsApp e registrar a situação de uma mensagem manual",
+      "trecho": "## Abrir o WhatsApp e registrar a situação de uma mensagem manual\n\n1. Abra **Comunicações** e entre na fila da campanha manual que você quer executar.\n2. Selecione um destinatário pendente. Confira o telefone e a mensagem. Use **Abrir conversa no WhatsApp** para abrir o canal com o texto ou **Copiar texto** para usar o conteúdo na conversa.\n3. Depois de fazer o envio no WhatsApp, volte ao CRM e clique em **Marcar como enviada** ou confirme o envio se a tela perguntar.\n4. Se a mensagem ficar sem envio e você quiser seguir para o próximo contato, use **Pular**. Confira a pessoa no filtro **Puladas**. O filtro **Enviadas** mostra as que você confirmou.\n\nUma mensagem com campos de atendimento exige que o destinatário tenha o atendimento necessário. A fila registra a confirmação feita pela equipe para cada destinatário.",
+      "referencias": [
+        {
+          "titulo": "Ações e filtros da fila",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/communications/campaigns/CampaignSenderPage.tsx"
+        },
+        {
+          "titulo": "Seleção de campanha e destinatários",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/communications/campaigns/NewCampaignModal.tsx"
+        }
+      ],
+      "perguntas": [
+        "Como marcar uma campanha manual como enviada no WhatsApp?",
+        "Como pular um destinatário que não recebeu a campanha?"
       ]
     },
     {
@@ -2243,6 +2934,74 @@
         "Como editar uma mensagem padrão?",
         "Como arquivar uma mensagem padrão?",
         "Onde reutilizo uma mensagem pronta em uma campanha?"
+      ]
+    },
+    {
+      "id": "CO07",
+      "titulo": "Criar e programar os momentos de uma campanha automática",
+      "trecho": "## Criar e programar os momentos de uma campanha automática\n\n1. Abra [**Comunicações**](https://crm.organizastudios.com/comunicacoes) e clique em **Campanhas automáticas**.\n2. Clique em **Nova campanha automática**.\n3. Preencha **Nome da campanha**, escolha **Evento** e confira **Campanha ativa**.\n4. Informe o momento e o texto de **Mensagem 1**. Use **Adicionar mensagem** para criar outro momento.\n5. Confira os textos e dias e clique em **Salvar campanha**.\n\nO cartão mostra a campanha e a quantidade de mensagens. Quando houver destinatários elegíveis, as pendências aparecem em **Visão geral → Campanhas automáticas**.",
+      "referencias": [
+        {
+          "titulo": "Lista e entrada do editor",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/communications/auto-campaigns/AutoCampaignsTab.tsx"
+        },
+        {
+          "titulo": "Eventos, mensagem e dias de envio",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/communications/auto-campaigns/AutoCampaignEditorModal.tsx"
+        }
+      ],
+      "perguntas": [
+        "Como criar uma campanha automática?",
+        "Como programar duas mensagens para um mesmo evento?"
+      ]
+    },
+    {
+      "id": "CO08",
+      "titulo": "Tratar uma pendência de campanha automática",
+      "trecho": "## Tratar uma pendência de campanha automática\n\n1. Abra [**Visão geral**](https://crm.organizastudios.com/) e entre em **Campanhas automáticas**.\n2. Em **Pendentes**, confira a campanha, o destinatário e a mensagem do cartão.\n3. Depois do envio pelo canal escolhido, clique em **Enviada**.\n4. Se não quiser enviar, clique em **Não enviar**, preencha **Observação (opcional)** se necessário e clique em **Registrar**.\n\nUse **Enviadas** ou **Não enviadas** para conferir o novo estado do cartão.",
+      "referencias": [
+        {
+          "titulo": "Aba de campanhas no painel inicial",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/dashboard/DashboardPage.tsx"
+        }
+      ],
+      "perguntas": [
+        "Como registrar que uma mensagem automática não foi enviada?",
+        "Onde trato as mensagens pendentes de campanha automática?"
+      ]
+    },
+    {
+      "id": "CO10",
+      "titulo": "Preparar lembrete de uma sessão pelo WhatsApp",
+      "trecho": "## Preparar lembrete de uma sessão pelo WhatsApp\n\n1. Abra [**Visão geral**](https://crm.organizastudios.com/) e clique em **Campanhas automáticas**.\n2. Em **Pendentes**, localize o lembrete do cliente e confira o serviço, a data e o horário.\n3. Revise a mensagem do cartão. Se o endereço estiver presente, confira a unidade.\n4. Use **WhatsApp** para abrir a conversa com o texto preparado, ou **Copiar mensagem** para copiar o texto.\n\nRevise a conversa antes de enviar. Registre o resultado no CRM depois de tratar o lembrete.",
+      "referencias": [
+        {
+          "titulo": "Aba do painel que exibe os lembretes",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/dashboard/DashboardPage.tsx"
+        },
+        {
+          "titulo": "Escolha do evento e dados do atendimento",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/communications/auto-campaigns/AutoCampaignEditorModal.tsx"
+        }
+      ],
+      "perguntas": [
+        "Como preparar o WhatsApp de lembrete de sessão?",
+        "Onde vejo um lembrete de atendimento que está pendente?"
+      ]
+    },
+    {
+      "id": "CO11",
+      "titulo": "Editar preferências de contato do cliente",
+      "trecho": "## Editar preferências de contato do cliente\n\n1. Abra [**Clientes**](https://crm.organizastudios.com/clientes) e abra a ficha do cliente correto.\n2. Localize as opções de comunicação na ficha.\n3. Marque ou desmarque **WhatsApp** e **E-mail** conforme a preferência informada pelo cliente.\n4. Aguarde a mudança na ficha e abra o cadastro novamente para conferir.\n\nA seleção permanece gravada na ficha. Confira o destinatário e os canais respeitados quando preparar campanhas.",
+      "referencias": [
+        {
+          "titulo": "Preferências de comunicação na ficha",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/patients/PatientDetailPage.tsx"
+        }
+      ],
+      "perguntas": [
+        "Como mudar as preferências de contato do cliente?",
+        "Onde desligo e-mail ou WhatsApp para um cliente?"
       ]
     },
     {
@@ -2406,6 +3165,22 @@
       ]
     },
     {
+      "id": "CT09",
+      "titulo": "Registrar a assinatura presencial de um contrato",
+      "trecho": "## Registrar a assinatura presencial de um contrato\n\n1. Abra [**Contratos**](https://crm.organizastudios.com/contratos) e clique em **Ver detalhes** na linha do contrato emitido.\n2. Clique em **Registrar assinatura manual**.\n3. Confira **Data da assinatura** e **Responsável pela obtenção**.\n4. Em **Cópia do documento assinado**, selecione o arquivo.\n5. Clique em **Registrar assinatura**.\n\nA seção **Assinatura** passa a oferecer **Baixar cópia assinada**.",
+      "referencias": [
+        {
+          "titulo": "Formulário de registro manual e acesso à cópia",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/contracts/DocumentSignatureActions.tsx"
+        }
+      ],
+      "perguntas": [
+        "Como lançar uma assinatura presencial de contrato?",
+        "Onde anexo o contrato assinado à mão?",
+        "Como registrar assinatura manual em Contratos?"
+      ]
+    },
+    {
       "id": "CT10",
       "titulo": "Acompanhar a assinatura e abrir o contrato assinado",
       "trecho": "## Acompanhar a assinatura e abrir o contrato assinado\n\n1. Abra [**Contratos**](https://crm.organizastudios.com/contratos).\n2. Em **Documentos**, encontre o contrato e clique em **Ver detalhes**.\n3. Na seção **Assinatura**, confira a situação e os registros disponíveis.\n4. Quando aparecer **Assinado**, clique em **Ver contrato assinado**.\n5. Se precisar ver as informações registradas, clique em **Ver registro**.\n\nA seção identifica quem assinou e quando. O contrato assinado pode ser aberto para conferência.",
@@ -2443,6 +3218,25 @@
         "Como cancelar um documento?",
         "Como cancelar um contrato emitido?",
         "Onde coloco o motivo do cancelamento de um contrato?"
+      ]
+    },
+    {
+      "id": "CT12",
+      "titulo": "Consultar os documentos enviados para um fornecedor",
+      "trecho": "## Consultar os documentos enviados para um fornecedor\n\n1. Em **Vendas de produtos**, abra **Fornecedores**, localize o fornecedor e clique em **Editar**.\n2. Abra **Documentos** e confira a seção **Documentos enviados**. Cada entrada traz o título do documento e os dados da assinatura disponíveis.\n3. Use **Ver registro** quando ele estiver disponível. Se precisar reenviar um documento ainda pendente de assinatura e o botão estiver disponível, use **WhatsApp** na entrada correspondente.\n\nSe a lista estiver vazia, o CRM mostra **Nenhum documento enviado para assinatura**. Para emitir pelo cadastro do fornecedor, confira o **E-mail** em **Dados**, selecione um modelo em **Documentos** e use **Salvar e enviar pelo WhatsApp**.",
+      "referencias": [
+        {
+          "titulo": "Cadastro do fornecedor",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/finance/SupplierModal.tsx"
+        },
+        {
+          "titulo": "Documentos e ações de assinatura",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/contracts/SupplierDocuments.tsx"
+        }
+      ],
+      "perguntas": [
+        "Onde vejo os documentos de um fornecedor?",
+        "Como abrir o registro de um documento enviado ao fornecedor?"
       ]
     },
     {
@@ -2536,6 +3330,44 @@
         "Como consultar o histórico de vendas de produtos?",
         "Onde vejo os detalhes de uma venda?",
         "Como ver o resumo de vendas de produtos?"
+      ]
+    },
+    {
+      "id": "VE04",
+      "titulo": "Cancelar uma venda que ainda está a receber",
+      "trecho": "## Cancelar uma venda que ainda está a receber\n\n1. Abra [**Vendas de produtos**](https://crm.organizastudios.com/vendas) e clique em **Vendas realizadas**.\n2. Em **Situação**, selecione **A receber**.\n3. Abra **Ver** na linha da venda correta.\n4. Clique em **Cancelar venda** e informe **Motivo do cancelamento**.\n5. Confirme em **Cancelar venda**.\n\nMude o filtro para **Cancelada** ou volte à lista geral para localizar o registro. Confira a situação e o motivo nos detalhes.",
+      "referencias": [
+        {
+          "titulo": "Histórico e filtro de situação",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/sales/SalesHistorySection.tsx"
+        },
+        {
+          "titulo": "Motivo e confirmação do cancelamento",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/sales/SaleDetailsModal.tsx"
+        }
+      ],
+      "perguntas": [
+        "Como cancelar uma venda a receber?",
+        "Onde cancelo uma venda de produto ainda não paga?"
+      ]
+    },
+    {
+      "id": "VE05",
+      "titulo": "Estornar o pagamento e cancelar uma venda paga",
+      "trecho": "## Estornar o pagamento e cancelar uma venda paga\n\n1. Abra [**Vendas de produtos**](https://crm.organizastudios.com/vendas) e entre em **Vendas realizadas**.\n2. Abra **Ver** na linha da venda paga e confirme o cliente e o total.\n3. Clique em **Cancelar venda**.\n4. Informe **Motivo do cancelamento** e marque **Estornar o pagamento** com o valor exibido.\n5. Clique em **Estornar e cancelar**.\n\nO histórico mostra a venda como **Cancelada**. Confira o recebimento no **Financeiro** e a quantidade do produto em **Estoque**.",
+      "referencias": [
+        {
+          "titulo": "Venda paga e confirmação do estorno e cancelamento",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/sales/SaleDetailsModal.tsx"
+        },
+        {
+          "titulo": "Histórico da venda após o cancelamento",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/sales/SalesHistorySection.tsx"
+        }
+      ],
+      "perguntas": [
+        "Como estornar e cancelar uma venda paga?",
+        "Onde devolvo o pagamento de uma venda de produto?"
       ]
     },
     {
@@ -2703,6 +3535,25 @@
       ]
     },
     {
+      "id": "FI05",
+      "titulo": "Ajustar o valor de uma parcela em aberto",
+      "trecho": "## Ajustar o valor de uma parcela em aberto\n\n1. Abra [**Financeiro**](https://crm.organizastudios.com/financeiro) e clique em **Contas a receber**.\n2. Localize a parcela em aberto e confira o cliente e o valor.\n3. Abra **Mais** na linha da parcela e clique em **Ajustar**.\n4. Preencha **Novo valor (R$)** e **Justificativa**.\n5. Clique em **Confirmar**.\n\nConfira o valor atualizado. A justificativa fica registrada no histórico.",
+      "referencias": [
+        {
+          "titulo": "Ações da parcela",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/finance/ReceivablesList.tsx"
+        },
+        {
+          "titulo": "Valor e justificativa",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/finance/ReceivableAdjustModal.tsx"
+        }
+      ],
+      "perguntas": [
+        "Como ajustar uma parcela em aberto?",
+        "Onde corrijo o valor de uma parcela antes da baixa?"
+      ]
+    },
+    {
       "id": "FI07",
       "titulo": "Anexar, baixar ou excluir um comprovante de pagamento",
       "trecho": "## Anexar, baixar ou excluir um comprovante de pagamento\n\n1. Abra [**Financeiro**](https://crm.organizastudios.com/financeiro) e clique em **Contas a receber**.\n2. Durante a baixa, use **Adicionar comprovantes (opcional)** para escolher os arquivos.\n3. Para revisar depois, na linha da parcela paga abra **Mais** e escolha **Comprovantes**.\n4. Em **Anexados**, use **Baixar** ao lado do arquivo que quer consultar. Use **Arquivos** para anexar outro comprovante.\n5. Para retirar um arquivo, clique em **Excluir** no item certo, preencha **Motivo** e clique em **Excluir comprovante**.\n\nConfira os arquivos em **Anexados**. O formulário da baixa aceita PDF, PNG ou JPEG de até 5 MB por arquivo.",
@@ -2756,6 +3607,63 @@
         "Como enviar recibo para assinatura pelo WhatsApp?",
         "Onde fica o link para o cliente assinar o recibo?",
         "Como compartilhar a assinatura de um recibo?"
+      ]
+    },
+    {
+      "id": "FI10",
+      "titulo": "Preparar um contato sobre uma parcela",
+      "trecho": "## Preparar um contato sobre uma parcela\n\n1. Abra [**Financeiro**](https://crm.organizastudios.com/financeiro) e clique em **Contas a receber**.\n2. Localize a parcela e confira cliente, descrição, valor e vencimento.\n3. Em **Mais**, clique em **Entrar em contato**.\n4. Revise **Mensagem** e escolha **Ligar** ou **Enviar pelo WhatsApp**, conforme o que estiver disponível.\n\nConfira o destinatário e o conteúdo no canal antes de enviar. A mensagem preparada inclui os dados da parcela.",
+      "referencias": [
+        {
+          "titulo": "Menu da parcela",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/finance/ReceivablesList.tsx"
+        },
+        {
+          "titulo": "Mensagem e canais da parcela",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/finance/ReceivableContactModal.tsx"
+        }
+      ],
+      "perguntas": [
+        "Como contatar um cliente sobre uma parcela?",
+        "Onde preparo um lembrete de parcela pelo WhatsApp?"
+      ]
+    },
+    {
+      "id": "FI12",
+      "titulo": "Renegociar parcelas a receber",
+      "trecho": "## Renegociar parcelas a receber\n\n1. Abra [**Financeiro**](https://crm.organizastudios.com/financeiro) e clique em **Contas a receber**.\n2. Marque as parcelas abertas do cliente e clique em **Renegociar**.\n3. Revise **Novo valor total (R$)**, **Número de parcelas** e **Primeiro vencimento**.\n4. Preencha **Motivo da renegociação** e clique em **Confirmar**.\n\nAs parcelas antigas ficam canceladas e as novas aparecem com o valor dividido e vencimentos mensais.",
+      "referencias": [
+        {
+          "titulo": "Seleção e ação na lista",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/finance/ReceivablesList.tsx"
+        },
+        {
+          "titulo": "Execução da renegociação no Financeiro",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/finance/FinancePage.tsx"
+        }
+      ],
+      "perguntas": [
+        "Como renegociar parcelas de um cliente?",
+        "Onde divido um saldo em novas parcelas no Financeiro?"
+      ]
+    },
+    {
+      "id": "FI13",
+      "titulo": "Corrigir datas ou classificar um lançamento",
+      "trecho": "## Corrigir datas ou classificar um lançamento\n\n1. Abra [**Financeiro**](https://crm.organizastudios.com/financeiro) e entre em **Lançamentos**.\n2. Localize a linha pela descrição e pelo valor.\n3. Para classificar, abra **Classificar**, ajuste os campos disponíveis e clique em **Salvar lançamento**.\n4. Para corrigir datas, abra **Datas financeiras** e ajuste a data correspondente.\n5. Preencha **Motivo do ajuste** e clique em **Salvar datas**.\n\nAbra a linha novamente para conferir a classificação e as datas corrigidas.",
+      "referencias": [
+        {
+          "titulo": "Seleção e ações dos lançamentos",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/finance/FinanceClassificationPanel.tsx"
+        },
+        {
+          "titulo": "Fluxo dos lançamentos financeiros",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/finance/FinancePage.tsx"
+        }
+      ],
+      "perguntas": [
+        "Como corrigir a data de um lançamento?",
+        "Onde altero a categoria ou centro de custo de um lançamento?"
       ]
     },
     {
@@ -2863,6 +3771,25 @@
       ]
     },
     {
+      "id": "FI19",
+      "titulo": "Informar o valor de uma conta a pagar variável",
+      "trecho": "## Informar o valor de uma conta a pagar variável\n\n1. Abra [**Financeiro**](https://crm.organizastudios.com/financeiro) e clique em **Contas a pagar**.\n2. Em **Contas**, procure a conta aberta que aparece com valor a informar.\n3. Na linha dela, clique em **Informar valor**.\n4. Preencha **Valor do mês** e clique em **Salvar valor**.\n\nConfira o valor e a ação **Pagar** na linha. **Informar valor** aparece nas contas com valor pendente.",
+      "referencias": [
+        {
+          "titulo": "Condição da ação Informar valor",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/finance/PayablesList.tsx"
+        },
+        {
+          "titulo": "Valor mensal e confirmação",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/finance/PayableAmountModal.tsx"
+        }
+      ],
+      "perguntas": [
+        "Como ajustar uma conta a pagar de valor variável?",
+        "Onde informo o valor do mês de uma despesa fixa variável?"
+      ]
+    },
+    {
       "id": "FI20",
       "titulo": "Estornar o pagamento de uma despesa",
       "trecho": "## Estornar o pagamento de uma despesa\n\n1. Abra [**Financeiro**](https://crm.organizastudios.com/financeiro) e clique em **Contas a pagar**.\n2. Localize a despesa que teve o pagamento registrado.\n3. Na linha correspondente, clique em **Estornar**.\n4. Em **Estornar pagamento**, preencha **Motivo**.\n5. Clique em **Estornar pagamento**.\n\nA conta volta a ficar em aberto. A ação **Pagar** fica disponível novamente.",
@@ -2903,6 +3830,196 @@
       ]
     },
     {
+      "id": "FI22",
+      "titulo": "Cadastrar ou editar um fornecedor para uma despesa",
+      "trecho": "## Cadastrar ou editar um fornecedor para uma despesa\n\n1. Abra [**Financeiro**](https://crm.organizastudios.com/financeiro) e clique em **Nova despesa**.\n2. Em **Fornecedor**, escolha **+ Novo fornecedor**.\n3. Preencha **Nome** e os dados do fornecedor e clique em **Salvar fornecedor**.\n4. Confira o fornecedor selecionado e conclua a despesa. Para editar um cadastro existente, abra **Vendas de produtos → Fornecedores** e use **Editar**.\n\nO fornecedor fica disponível na lista e aparece associado à despesa salva.",
+      "referencias": [
+        {
+          "titulo": "Cadastro dentro da despesa",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/finance/NewExpenseModal.tsx"
+        },
+        {
+          "titulo": "Edição e salvamento do fornecedor",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/finance/SupplierModal.tsx"
+        }
+      ],
+      "perguntas": [
+        "Como cadastrar um fornecedor direto no Financeiro?",
+        "Onde edito os dados de um fornecedor usado em despesas?"
+      ]
+    },
+    {
+      "id": "FI23",
+      "titulo": "Consultar ou cadastrar um pedido de fornecedor",
+      "trecho": "## Consultar ou cadastrar um pedido de fornecedor\n\n1. Abra [**Vendas de produtos**](https://crm.organizastudios.com/vendas) e clique em **Fornecedores**.\n2. Na linha do fornecedor, clique em **Pedidos**.\n3. Para cadastrar, clique em **Novo pedido**. Informe **Data do pedido**, **Nº do pedido** e **Valor do pedido (R$)**.\n4. Adicione os produtos, confira a quantidade e o custo de cada item, e revise a soma.\n5. Clique em **Registrar pedido**.\n\nConfira o número do pedido na lista do fornecedor. O formulário pede o valor do pedido mesmo quando a soma dos itens já aparece.",
+      "referencias": [
+        {
+          "titulo": "Acesso aos pedidos pelo fornecedor",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/sales/SalesSuppliersSection.tsx"
+        }
+      ],
+      "perguntas": [
+        "Como cadastrar um pedido de fornecedor?",
+        "Onde consulto os pedidos de um fornecedor?"
+      ]
+    },
+    {
+      "id": "FI24",
+      "titulo": "Consultar comissões e entender a regra aplicada",
+      "trecho": "## Consultar comissões e entender a regra aplicada\n\n1. Abra [**Financeiro**](https://crm.organizastudios.com/financeiro) e entre em **Comissões**.\n2. Localize o profissional e confira a competência na linha.\n3. Compare **Base de cálculo**, **Percentual**, **Comissão** e **Situação**.\n4. Para revisar o cadastro de quem tem usuário vinculado, consulte **Configurações → Usuários**.\n\nA tela informa que a comissão cadastrada no usuário prevalece sobre a regra do profissional.",
+      "referencias": [
+        {
+          "titulo": "Aba de comissões e precedência das regras",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/finance/FinancePage.tsx"
+        },
+        {
+          "titulo": "Tabela e situação de cada comissão",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/finance/CommissionsList.tsx"
+        }
+      ],
+      "perguntas": [
+        "Onde vejo as comissões no Financeiro?",
+        "Como descobrir qual percentual entrou na comissão do profissional?"
+      ]
+    },
+    {
+      "id": "FI25",
+      "titulo": "Criar uma regra de comissão e conferir o recálculo",
+      "trecho": "## Criar uma regra de comissão e conferir o recálculo\n\n1. Abra [**Financeiro**](https://crm.organizastudios.com/financeiro) e clique em **Comissões**.\n2. Clique em **Nova regra**.\n3. Selecione **Origem da regra** e escolha o usuário ou profissional.\n4. Preencha **Percentual (%)**, **Vale a partir de** e, se necessário, **Vale até**.\n5. Clique em **Salvar**. Se houver uma prévia de recálculo, confira os valores antes de usar **Confirmar e recalcular**.\n\nVolte à tabela e confira o percentual e a comissão na linha do profissional. A regra do usuário é prioritária quando existe uma regra vigente no cadastro dele.",
+      "referencias": [
+        {
+          "titulo": "Regra, vigência e prévia de recálculo",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/finance/CommissionRuleModal.tsx"
+        }
+      ],
+      "perguntas": [
+        "Como criar uma regra de comissão?",
+        "Onde altero o percentual e reviso o recálculo das comissões?"
+      ]
+    },
+    {
+      "id": "FI26",
+      "titulo": "Gerar comissões do mês",
+      "trecho": "## Gerar comissões do mês\n\n1. Abra [**Financeiro**](https://crm.organizastudios.com/financeiro) e entre em **Comissões**.\n2. Confira se há uma regra vigente e se o atendimento ou a presença foi registrado.\n3. Clique em **Gerar comissões do mês**.\n4. Aguarde a atualização e confira profissional, competência e valor na lista.\n\nAs comissões elegíveis aparecem com a situação e os valores calculados. A lista indica quando não há comissão gerada.",
+      "referencias": [
+        {
+          "titulo": "Ação de gerar comissões",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/finance/FinancePage.tsx"
+        },
+        {
+          "titulo": "Comissões calculadas e seus valores",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/finance/CommissionsList.tsx"
+        }
+      ],
+      "perguntas": [
+        "Como gerar comissões do mês?",
+        "Onde calculo comissões de atendimentos ou presença em turma?"
+      ]
+    },
+    {
+      "id": "FI27",
+      "titulo": "Pagar ou estornar uma comissão pela folha",
+      "trecho": "## Pagar ou estornar uma comissão pela folha\n\n1. Em **Financeiro › Comissões**, encontre o lançamento na competência desejada.\n2. Abra **Folha**, revise a comissão na composição do colaborador e lance a folha.\n3. Em **Contas a pagar**, localize a despesa **Folha** do mês e do colaborador. Clique em **Pagar** e registre a baixa com os dados do pagamento efetivo.\n4. Se precisar reverter essa baixa, vá à seção **Pagas** em **Contas a pagar**, clique em **Estornar** na mesma despesa, preencha **Motivo** e confirme em **Estornar pagamento**.\n5. Confira que a conta voltou a ficar em aberto. Em **Comissões**, a comissão vinculada volta à situação **Na folha**.\n\nO pagamento e o estorno atuam sobre a despesa da folha inteira, que pode incluir salário e outros itens além da comissão.",
+      "referencias": [
+        {
+          "titulo": "Comissões e vínculo com a folha",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/finance/CommissionsList.tsx"
+        },
+        {
+          "titulo": "Pagamentos em Contas a pagar",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/finance/PayablesList.tsx"
+        },
+        {
+          "titulo": "Motivo e confirmação do estorno",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/finance/ReversePaymentModal.tsx"
+        }
+      ],
+      "perguntas": [
+        "Como pagar ou estornar uma comissão?",
+        "Como estornar o pagamento da folha com comissão?"
+      ]
+    },
+    {
+      "id": "FI28",
+      "titulo": "Conciliar ajustes de uma comissão já paga",
+      "trecho": "## Conciliar ajustes de uma comissão já paga\n\n1. Em **Financeiro › Comissões**, escolha a competência da comissão e localize o lançamento.\n2. Abra **Conciliar comissão**. Compare a **Comissão original** e seu pagamento com a **Origem atual**.\n3. Se você corrigiu a presença na turma depois do pagamento, confira o registro em **Histórico de ajustes**. A correção pode aparecer como **Conciliação automática: presença na turma alterada**.\n4. Confira o valor em **Saldos em aberto por profissional**. Abra **Financeiro › Folha** para revisar a composição da competência antes do próximo pagamento.\n\nA comissão original e seu pagamento continuam registrados. O CRM lança a diferença em um ajuste da folha. Por exemplo, quando a presença que gerou a comissão passa a ser falta, o ajuste desconta a comissão que havia sido paga.",
+      "referencias": [
+        {
+          "titulo": "Lançamentos de comissão",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/finance/CommissionsList.tsx"
+        },
+        {
+          "titulo": "Revisão da origem e histórico de ajustes",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/finance/CommissionReconciliationModal.tsx"
+        }
+      ],
+      "perguntas": [
+        "Como conciliar ajuste de comissão já paga?",
+        "Onde vejo o ajuste de comissão após corrigir a presença na turma?"
+      ]
+    },
+    {
+      "id": "FI29",
+      "titulo": "Configurar um colaborador para aparecer na folha",
+      "trecho": "## Configurar um colaborador para aparecer na folha\n\n1. Abra [**Configurações**](https://crm.organizastudios.com/configuracoes) e entre em **Usuários**.\n2. Clique em **Editar** na linha do colaborador.\n3. Marque **Recebe salário** e preencha **Salário mensal (R$)**.\n4. Clique em **Salvar alterações**.\n5. Abra [**Financeiro**](https://crm.organizastudios.com/financeiro) e clique em **Folha** para conferir o colaborador e a filial.\n\nO colaborador com salário aparece na folha da competência consultada.",
+      "referencias": [
+        {
+          "titulo": "Configuração de salário no usuário",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/settings/UserFormModal.tsx"
+        },
+        {
+          "titulo": "Lista da folha por filial",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/finance/PayrollSection.tsx"
+        }
+      ],
+      "perguntas": [
+        "Como incluir um colaborador na folha?",
+        "Onde defino o salário mensal de um usuário?"
+      ]
+    },
+    {
+      "id": "FI30",
+      "titulo": "Registrar desconto, recompensa ou vale para um colaborador",
+      "trecho": "## Registrar desconto, recompensa ou vale para um colaborador\n\n1. Abra [**Financeiro**](https://crm.organizastudios.com/financeiro) e clique em **Folha**. Confira a **Competência**.\n2. Para desconto ou recompensa, clique em **Ajustar** na linha do colaborador.\n3. Escolha **Tipo**, revise **Forma**, preencha o valor e o **Motivo**, e clique em **Adicionar**.\n4. Para vale, clique em **Novo vale**, escolha **Colaborador** e informe o valor, o mês do desconto, a data e a forma de pagamento.\n5. Clique em **Registrar vale**.\n\nAbra **Detalhes** do colaborador para conferir os ajustes e vales na composição do mês.",
+      "referencias": [
+        {
+          "titulo": "Ações e composição da folha",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/finance/PayrollSection.tsx"
+        },
+        {
+          "titulo": "Formulário de ajuste",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/finance/PayrollEntryModal.tsx"
+        },
+        {
+          "titulo": "Formulário de vale",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/finance/PayrollAdvanceModal.tsx"
+        }
+      ],
+      "perguntas": [
+        "Como lançar um desconto ou recompensa na folha?",
+        "Onde registro um vale de salário?"
+      ]
+    },
+    {
+      "id": "FI31",
+      "titulo": "Lançar a folha do mês e desfazer o lançamento",
+      "trecho": "## Lançar a folha do mês e desfazer o lançamento\n\n1. Abra **Financeiro** e selecione **Folha**. Escolha a competência e confira os colaboradores incluídos.\n2. Abra o detalhe do colaborador e revise a **Composição do mês**. Confira salário, comissões e itens como bônus e vales antes de lançar.\n3. Clique em **Lançar folha do mês**. Confira a prévia dos valores, os vencimentos e os colaboradores. Confirme em **Lançar folha**.\n4. Veja a situação da folha e a conta criada em **Contas a pagar**.\n5. Para desfazer o lançamento que ainda está em aberto, volte ao colaborador em **Folha**, abra o detalhe, clique em **Desfazer lançamento** e confirme.\n\nO lançamento leva o valor à conta a pagar da folha. Ao desfazer, os itens voltam a ficar disponíveis para um novo lançamento.",
+      "referencias": [
+        {
+          "titulo": "Ações e composição da folha",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/finance/PayrollSection.tsx"
+        },
+        {
+          "titulo": "Prévia e lançamento",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/finance/PayrollLaunchModal.tsx"
+        }
+      ],
+      "perguntas": [
+        "Como lançar a folha de pagamento do mês?",
+        "Como desfazer uma folha lançada no financeiro?"
+      ]
+    },
+    {
       "id": "FI32",
       "titulo": "Consultar a previsão financeira e o caixa diário",
       "trecho": "## Consultar a previsão financeira e o caixa diário\n\n1. Abra [**Financeiro**](https://crm.organizastudios.com/financeiro).\n2. Para consultar um dia, clique em **Caixa do dia** e escolha a **Data**.\n3. Leia as entradas, saídas e totais apresentados para a data.\n4. Para consultar valores previstos, clique em **Previsão**.\n5. Escolha o **Horizonte** para ajustar o período mostrado.\n\nRevise a data ou o horizonte antes de comparar os valores. A previsão distingue pagamentos confirmados e valores em aberto.",
@@ -2924,6 +4041,38 @@
         "Onde vejo o caixa do dia?",
         "Como consultar a previsão financeira?",
         "Como mudar o horizonte da previsão?"
+      ]
+    },
+    {
+      "id": "FI33",
+      "titulo": "Registrar uma operação externa com comprovante",
+      "trecho": "## Registrar uma operação externa com comprovante\n\n1. Abra [**Financeiro**](https://crm.organizastudios.com/financeiro) e entre em **Documentos fiscais**.\n2. Clique em **Registrar operação externa**.\n3. Escolha **Tipo de registro** e confira **Data da operação externa**.\n4. Informe **Emissor ou parceiro** e **Referência do documento ou operação**.\n5. Em **Comprovante**, escolha um PDF, PNG ou JPEG de até 5 MB. Se necessário, vincule o cliente ou a conta a receber.\n6. Clique em **Salvar registro manual**.\n\nO registro aparece em **Documentos fiscais e operações com parceiros**, com a referência e a opção de baixar o comprovante.",
+      "referencias": [
+        {
+          "titulo": "Formulário, anexos e lista de operações externas",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/finance/ExternalOperationsPanel.tsx"
+        }
+      ],
+      "perguntas": [
+        "Como registrar uma nota emitida fora do CRM?",
+        "Onde cadastro uma operação externa com parceiro?",
+        "Como lançar um documento fiscal externo com comprovante?"
+      ]
+    },
+    {
+      "id": "FI34",
+      "titulo": "Consultar ou baixar o comprovante de uma operação externa",
+      "trecho": "## Consultar ou baixar o comprovante de uma operação externa\n\n1. Abra [**Financeiro**](https://crm.organizastudios.com/financeiro) e clique em **Documentos fiscais**.\n2. Localize a referência em **Documentos fiscais e operações com parceiros**.\n3. Confira emissor e data do registro.\n4. Clique em **Baixar comprovante** na linha correspondente.\n\nO navegador baixa o arquivo anexado à operação.",
+      "referencias": [
+        {
+          "titulo": "Listagem e download de comprovante externo",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/finance/ExternalOperationsPanel.tsx"
+        }
+      ],
+      "perguntas": [
+        "Onde baixo o comprovante de uma operação externa?",
+        "Como consultar comprovante de documento fiscal registrado?",
+        "Onde está o anexo da operação com parceiro?"
       ]
     },
     {
@@ -3024,6 +4173,40 @@
         "Onde vejo o desempenho de uma campanha?",
         "Como filtrar o relatório de campanhas?",
         "Onde exporto a planilha de campanhas?"
+      ]
+    },
+    {
+      "id": "RL07",
+      "titulo": "Ler a composição da DRE",
+      "trecho": "## Ler a composição da DRE\n\n1. Abra [**Relatórios**](https://crm.organizastudios.com/relatorios) e ajuste o período.\n2. Clique na aba **DRE**.\n3. Em **DRE por competência**, confira **Receitas**, **Despesas** e **Resultado**.\n4. Na tabela **Composição**, compare as linhas das categorias nas colunas de cada mês.\n5. Use **Exportar DRE** ou **Imprimir DRE** para conferir fora da tela.\n\nOs valores são agrupados pela competência. Confira o período e a categoria antes de comparar com os lançamentos.",
+      "referencias": [
+        {
+          "titulo": "Totais, composição e exportação da DRE",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/reports/DreSection.tsx"
+        }
+      ],
+      "perguntas": [
+        "Onde vejo a DRE por competência?",
+        "Como conferir as categorias e baixar a DRE?"
+      ]
+    },
+    {
+      "id": "RL08",
+      "titulo": "Configurar pró-labore a partir do relatório",
+      "trecho": "## Configurar pró-labore a partir do relatório\n\n1. Abra [**Relatórios**](https://crm.organizastudios.com/relatorios) e entre em **Financeiro**.\n2. Clique em **Configurar pró-labore**.\n3. Preencha **Percentual (%)**.\n4. Confira a opção em **Calcular sobre** e clique em **Salvar pró-labore**.\n\nAbra a configuração novamente para conferir o percentual salvo. O relatório usa a base selecionada.",
+      "referencias": [
+        {
+          "titulo": "Atalho no relatório financeiro",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/reports/FinancialSection.tsx"
+        },
+        {
+          "titulo": "Percentual, base e salvamento",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/reports/ProLaboreModal.tsx"
+        }
+      ],
+      "perguntas": [
+        "Como configurar pró-labore no relatório?",
+        "Onde mudo o percentual ou a base de pró-labore?"
       ]
     },
     {
@@ -3147,6 +4330,59 @@
       ]
     },
     {
+      "id": "CF02",
+      "titulo": "Atualizar dados e apresentação da clínica",
+      "trecho": "## Atualizar dados e apresentação da clínica\n\n1. Abra [**Configurações**](https://crm.organizastudios.com/configuracoes) e clique em **Clínica**.\n2. Em **Dados da clínica**, revise **Nome**, **Razão social**, a identificação e os contatos.\n3. Se precisar atualizar a imagem, use **Logotipo**.\n4. Clique em **Salvar configurações**.\n\nReabra **Clínica** e confira os dados salvos.",
+      "referencias": [
+        {
+          "titulo": "Campos de identificação, imagem e salvamento",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/settings/ClinicSettingsContent.tsx"
+        }
+      ],
+      "perguntas": [
+        "Como alterar a razão social da clínica?",
+        "Onde edito os dados e o logotipo da clínica?"
+      ]
+    },
+    {
+      "id": "CF03",
+      "titulo": "Cadastrar um usuário e associá-lo às filiais",
+      "trecho": "## Cadastrar um usuário e associá-lo às filiais\n\n1. Abra [**Configurações**](https://crm.organizastudios.com/configuracoes) e clique em **Usuários**.\n2. Clique em **Novo usuário**. Preencha nome, e-mail e senha inicial, e escolha **Tipo**.\n3. Para **Usuário comum**, selecione as permissões necessárias.\n4. Em **Filiais**, escolha **Acessa todas as filiais** ou desmarque a opção e selecione as unidades permitidas.\n5. Clique em **Criar usuário**. Para ajustar um cadastro existente, abra **Editar** e clique em **Salvar alterações**.\n\nConfira o usuário na lista. A seção **Filiais** aparece para usuário comum quando há mais de uma filial ativa.",
+      "referencias": [
+        {
+          "titulo": "Lista e ações dos usuários",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/settings/AdminUsersContent.tsx"
+        },
+        {
+          "titulo": "Cadastro e seleção de filiais",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/settings/UserFormModal.tsx"
+        }
+      ],
+      "perguntas": [
+        "Como cadastrar um usuário e dar acesso às filiais?",
+        "Onde escolho as unidades que um usuário pode acessar?"
+      ]
+    },
+    {
+      "id": "CF04",
+      "titulo": "Selecionar, copiar ou limpar permissões de um usuário",
+      "trecho": "## Selecionar, copiar ou limpar permissões de um usuário\n\n1. Abra [**Configurações**](https://crm.organizastudios.com/configuracoes), entre em **Usuários** e clique em **Editar** na linha do usuário comum.\n2. Em **Permissões**, marque ou desmarque as ações necessárias.\n3. Use **Copiar permissões de…** para começar com o acesso de outro usuário comum, ou **Limpar permissões** para limpar a seleção.\n4. Revise os módulos de acesso e clique em **Salvar alterações**.\n\nReabra o cadastro e confira as permissões. Para usar ações de um módulo, o usuário também precisa da permissão de acesso daquele módulo.",
+      "referencias": [
+        {
+          "titulo": "Cópia e salvamento das permissões",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/settings/UserFormModal.tsx"
+        },
+        {
+          "titulo": "Seleção e limpeza de permissões",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/settings/PermissionEditor.tsx"
+        }
+      ],
+      "perguntas": [
+        "Como copiar permissões de um usuário?",
+        "Como retirar ou mudar permissões de um usuário comum?"
+      ]
+    },
+    {
       "id": "CF05",
       "titulo": "Editar, desativar ou ativar um usuário",
       "trecho": "## Editar, desativar ou ativar um usuário\n\n1. Abra [**Configurações**](https://crm.organizastudios.com/configuracoes) e clique em **Usuários**.\n2. Localize o usuário pelo nome.\n3. Para alterar o cadastro, clique em **Editar**, faça as mudanças e clique em **Salvar alterações**.\n4. Para impedir o acesso, clique em **Desativar** e confirme em **Desativar**.\n5. Para devolver o acesso ao usuário inativo, clique em **Ativar**.\n\nConfira os dados e a situação na lista. A gestão de usuários está disponível para administradores.",
@@ -3164,6 +4400,44 @@
         "Como editar um usuário?",
         "Como desativar um usuário do CRM?",
         "Como reativar um usuário inativo?"
+      ]
+    },
+    {
+      "id": "CF06",
+      "titulo": "Redefinir a senha ou encerrar sessões de outro usuário",
+      "trecho": "## Redefinir a senha ou encerrar sessões de outro usuário\n\n1. Abra [**Configurações**](https://crm.organizastudios.com/configuracoes) e vá a **Usuários**.\n2. Localize o usuário correto.\n3. Clique em **Redefinir senha**, preencha **Nova senha** e confirme em **Redefinir senha**.\n4. Para derrubar os acessos ativos, clique em **Encerrar acessos** na linha do usuário e confirme em **Encerrar acessos**.\n\nA nova senha pode ser usada na próxima entrada. Depois de encerrar acessos, o usuário precisa entrar novamente.",
+      "referencias": [
+        {
+          "titulo": "Ações administrativas sobre o usuário",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/settings/AdminUsersContent.tsx"
+        },
+        {
+          "titulo": "Formulário da senha nova",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/settings/ResetPasswordModal.tsx"
+        }
+      ],
+      "perguntas": [
+        "Como redefinir a senha de outro usuário?",
+        "Como derrubar as sessões de um usuário pelo cadastro?"
+      ]
+    },
+    {
+      "id": "CF07",
+      "titulo": "Configurar um profissional de Agenda e sua comissão",
+      "trecho": "## Configurar um profissional de Agenda e sua comissão\n\n1. Abra [**Configurações**](https://crm.organizastudios.com/configuracoes) e clique em **Usuários**.\n2. Abra **Editar** na linha do usuário que vai atender.\n3. Na seção **Agenda**, marque **Realiza atendimentos**.\n4. Revise **Nome na agenda**, preencha **Registro profissional** e ajuste os demais campos do profissional, se necessário.\n5. Em **Comissão**, preencha **Comissão (%)** e confira a data de vigência, quando exibida.\n6. Clique em **Salvar alterações** e leia a prévia se aparecer.\n\nReabra o cadastro para conferir o nome de Agenda e o percentual salvo.",
+      "referencias": [
+        {
+          "titulo": "Dados de Agenda e comissão no usuário",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/settings/UserFormModal.tsx"
+        },
+        {
+          "titulo": "Campos do profissional",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/settings/UserAgendaFields.tsx"
+        }
+      ],
+      "perguntas": [
+        "Como ligar um usuário à agenda?",
+        "Onde cadastro a comissão de um profissional da agenda?"
       ]
     },
     {
@@ -3207,6 +4481,60 @@
       ]
     },
     {
+      "id": "CF10",
+      "titulo": "Renomear uma aba do menu",
+      "trecho": "## Renomear uma aba do menu\n\n1. Abra [**Configurações**](https://crm.organizastudios.com/configuracoes) e clique em **Abas do menu**.\n2. Localize o campo da aba desejada e preencha o nome que deve aparecer.\n3. Clique em **Salvar nomes das abas**.\n4. Confira o novo rótulo no menu lateral.\n\nPara recuperar os rótulos originais, use **Restaurar nomes padrão** e confira a confirmação mostrada pelo CRM.",
+      "referencias": [
+        {
+          "titulo": "Campos, rótulos e salvamento",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/settings/NavTabLabelsContent.tsx"
+        }
+      ],
+      "perguntas": [
+        "Como trocar o nome de uma aba do menu?",
+        "Onde altero o rótulo das páginas no menu do CRM?"
+      ]
+    },
+    {
+      "id": "CF11",
+      "titulo": "Cadastrar um plano no catálogo",
+      "trecho": "## Cadastrar um plano no catálogo\n\n1. Abra [**Configurações**](https://crm.organizastudios.com/configuracoes) e entre em **Planos**.\n2. Clique em **Cadastrar plano**.\n3. Preencha **Nome do plano**, escolha **Tipo de plano** e informe **Valor total**.\n4. Selecione cada **Serviço** e informe as sessões pedidas pelo formulário.\n5. Clique em **Salvar plano**.\n\nConfira o novo plano na lista. A quantidade de sessões pedida pode variar conforme o tipo de plano.",
+      "referencias": [
+        {
+          "titulo": "Lista e ações do catálogo",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/settings/PlanTemplatesContent.tsx"
+        },
+        {
+          "titulo": "Campos do plano",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/settings/PlanTemplateModal.tsx"
+        }
+      ],
+      "perguntas": [
+        "Como cadastrar um plano no catálogo?",
+        "Onde crio um modelo de plano para vender?",
+        "Como definir os serviços de um plano cadastrado?"
+      ]
+    },
+    {
+      "id": "CF12",
+      "titulo": "Editar, desativar ou ativar um plano do catálogo",
+      "trecho": "## Editar, desativar ou ativar um plano do catálogo\n\n1. Abra [**Configurações**](https://crm.organizastudios.com/configuracoes) e entre em **Planos**.\n2. Localize o plano. Clique em **Editar**, faça os ajustes e clique em **Salvar plano**.\n3. Para retirar o plano das novas contratações, clique em **Desativar** na linha dele.\n4. Para voltar a oferecê-lo, use **Ativar**.\n\nConfira a situação na lista. O catálogo mostra **Ativar** na linha do plano desativado.",
+      "referencias": [
+        {
+          "titulo": "Ações de edição e situação no catálogo",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/settings/PlanTemplatesContent.tsx"
+        },
+        {
+          "titulo": "Formulário de edição do plano",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/settings/PlanTemplateModal.tsx"
+        }
+      ],
+      "perguntas": [
+        "Como editar um plano no catálogo?",
+        "Como desativar um modelo de plano?"
+      ]
+    },
+    {
       "id": "CF13",
       "titulo": "Adicionar um feriado manualmente",
       "trecho": "## Adicionar um feriado manualmente\n\n1. Abra [**Configurações**](https://crm.organizastudios.com/configuracoes) e clique em **Feriados**.\n2. Preencha **Data**.\n3. Digite o **Nome do feriado**.\n4. Clique em **Adicionar feriado**.\n\nO feriado aparece na lista com a data e o nome informados. Na Agenda, consulte o dia correspondente para ver a indicação de feriado.",
@@ -3247,6 +4575,36 @@
       ]
     },
     {
+      "id": "CF15",
+      "titulo": "Configurar a finalização automática dos atendimentos",
+      "trecho": "## Configurar a finalização automática dos atendimentos\n\n1. Abra [**Configurações**](https://crm.organizastudios.com/configuracoes) e clique em **Finalização automática**.\n2. Marque **Finalizar atendimentos automaticamente** para ativar, ou desmarque para desativar.\n3. Com a opção ativa, preencha **Tempo de espera após o término** e escolha **Unidade**.\n4. Clique em **Salvar finalização automática**.\n\nConfira o aviso de finalização ligada ou desligada. Com ela ativa, o prazo começa após o término do atendimento.",
+      "referencias": [
+        {
+          "titulo": "Prazo, ativação e salvamento",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/settings/AutoFinalizationContent.tsx"
+        }
+      ],
+      "perguntas": [
+        "Como ligar ou desligar a finalização automática?",
+        "Onde altero o prazo para o CRM finalizar atendimentos?"
+      ]
+    },
+    {
+      "id": "CF16",
+      "titulo": "Definir parcelamento por forma de pagamento",
+      "trecho": "## Definir parcelamento por forma de pagamento\n\n1. Abra [**Configurações**](https://crm.organizastudios.com/configuracoes) e clique em **Formas de pagamento**.\n2. Localize a forma de pagamento.\n3. Marque ou desmarque **Aceita parcelamento**. Se permitido, preencha **Máximo de parcelas**.\n4. Clique em **Salvar formas de pagamento**.\n\nReabra a aba e confira o limite salvo. O máximo limita as opções de parcelamento apresentadas para aquela forma.",
+      "referencias": [
+        {
+          "titulo": "Formas disponíveis e limites de parcelas",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/settings/PaymentMethodsContent.tsx"
+        }
+      ],
+      "perguntas": [
+        "Onde defino o máximo de parcelas no cartão?",
+        "Como liberar ou limitar as parcelas de uma forma de pagamento?"
+      ]
+    },
+    {
       "id": "CF17",
       "titulo": "Criar ou revogar uma chave de integração",
       "trecho": "## Criar ou revogar uma chave de integração\n\n1. Abra [**Configurações**](https://crm.organizastudios.com/configuracoes) e clique em **Integrações**.\n2. Preencha **Nome** para identificar a chave.\n3. Confira as permissões, como **Ler vendas** e **Gravar vendas**, e deixe marcadas apenas as necessárias.\n4. Clique em **Criar chave**.\n5. Use **Copiar token** e guarde o token no local seguro da sua integração. O token completo é exibido somente na criação.\n6. Para desativar uma chave existente, localize o nome, clique em **Revogar** e confirme com **Revogar**.\n\nA lista identifica as chaves revogadas. Ao revogar, a integração deixa de poder usar aquela chave.",
@@ -3260,6 +4618,111 @@
         "Como criar uma chave de integração?",
         "Onde copio o token de integração de vendas?",
         "Como revogar uma chave de integração do CRM?"
+      ]
+    },
+    {
+      "id": "CF19",
+      "titulo": "Criar ou editar uma etiqueta manual",
+      "trecho": "## Criar ou editar uma etiqueta manual\n\n1. Abra [**Configurações**](https://crm.organizastudios.com/configuracoes) e entre em **Etiquetas**.\n2. Preencha **Nome da etiqueta** e escolha uma **Categoria**, se precisar.\n3. Selecione a cor e clique em **Adicionar etiqueta**.\n4. Para corrigir uma existente, clique em **Editar** na linha dela. Ajuste os campos e clique em **Salvar etiqueta**.\n\nConfira o nome e a cor na lista de etiquetas manuais.",
+      "referencias": [
+        {
+          "titulo": "Criação e ações da lista",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/settings/PatientTagsContent.tsx"
+        },
+        {
+          "titulo": "Campos de edição da etiqueta",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/settings/PatientTagEditModal.tsx"
+        }
+      ],
+      "perguntas": [
+        "Como criar uma etiqueta manual?",
+        "Onde mudo o nome ou a cor de uma etiqueta?"
+      ]
+    },
+    {
+      "id": "CF20",
+      "titulo": "Excluir uma etiqueta manual ou editar uma automática",
+      "trecho": "## Excluir uma etiqueta manual ou editar uma automática\n\n1. Abra [**Configurações**](https://crm.organizastudios.com/configuracoes) e clique em **Etiquetas**.\n2. Para apagar uma etiqueta manual, clique em **Excluir** na linha dela e confirme em **Excluir etiqueta**.\n3. Para mudar a apresentação de uma etiqueta automática, vá a **Etiquetas automáticas** e clique em **Editar** na etiqueta.\n4. Ajuste **Nome da etiqueta** ou cor e clique em **Salvar etiqueta**.\n\nConfira a remoção na lista manual e o nome ou a cor na lista automática. A etiqueta automática continua sendo aplicada pelo critério definido no CRM.",
+      "referencias": [
+        {
+          "titulo": "Exclusão da etiqueta manual",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/settings/PatientTagsContent.tsx"
+        },
+        {
+          "titulo": "Edição da apresentação automática",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/settings/AutomaticTagEditModal.tsx"
+        }
+      ],
+      "perguntas": [
+        "Como excluir uma etiqueta de cliente?",
+        "Como mudar a cor ou o nome de uma etiqueta automática?"
+      ]
+    },
+    {
+      "id": "CF21",
+      "titulo": "Gerenciar catálogos comerciais da clínica",
+      "trecho": "## Gerenciar catálogos comerciais da clínica\n\n1. Abra [**Configurações**](https://crm.organizastudios.com/configuracoes) e clique em **Cadastros**.\n2. Localize o quadro desejado, como **Origens**, **Formas de contato** ou **Motivos de não efetivação**.\n3. Clique em **Adicionar**, preencha **Nome** e revise a situação do item.\n4. Clique em **Salvar**. Use a edição na linha para ajustar um cadastro existente.\n\nConfira o item no quadro. Uma origem ativa pode ser selecionada em **Novo lead** no CRM comercial.",
+      "referencias": [
+        {
+          "titulo": "Quadros dos cadastros comerciais",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/settings/ClinicCatalogsContent.tsx"
+        },
+        {
+          "titulo": "Ações de cada catálogo",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/settings/CatalogSection.tsx"
+        }
+      ],
+      "perguntas": [
+        "Onde cadastro uma origem comercial?",
+        "Como gerenciar formas de contato ou motivos de não efetivação?"
+      ]
+    },
+    {
+      "id": "CF22",
+      "titulo": "Cadastrar um serviço e definir os recursos",
+      "trecho": "## Cadastrar um serviço e definir os recursos\n\n1. Abra [**Configurações**](https://crm.organizastudios.com/configuracoes) e clique em **Serviços e salas → Serviços**.\n2. Clique em **Novo cadastro** ou em **Editar** no serviço desejado.\n3. Preencha **Nome** e **Duração (minutos)**.\n4. Marque os recursos em **Profissionais que atendem** e **Salas onde é atendido** para limitar as opções do agendamento.\n5. Clique em **Salvar cadastro**.\n\nConfira o serviço na lista. O formulário explica que, com a lista de recursos desmarcada, todos os recursos daquele tipo podem ser usados.",
+      "referencias": [
+        {
+          "titulo": "Cadastro do serviço e restrições de recursos",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/settings/AdministrativeRegistrySection.tsx"
+        }
+      ],
+      "perguntas": [
+        "Onde cadastro um serviço?",
+        "Como limitar as salas de um serviço?",
+        "Como indicar quais profissionais atendem um serviço?"
+      ]
+    },
+    {
+      "id": "CF23",
+      "titulo": "Cadastrar ou editar uma sala e sua capacidade",
+      "trecho": "## Cadastrar ou editar uma sala e sua capacidade\n\n1. Abra [**Configurações**](https://crm.organizastudios.com/configuracoes) e entre em **Serviços e salas → Salas**.\n2. Clique em **Novo cadastro** ou em **Editar** na linha da sala.\n3. Preencha **Nome da sala** e **Capacidade de atendimento simultâneo**.\n4. Clique em **Salvar cadastro**.\n\nConfira a sala e sua capacidade na lista.",
+      "referencias": [
+        {
+          "titulo": "Cadastro e capacidade da sala",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/settings/AdministrativeRegistrySection.tsx"
+        }
+      ],
+      "perguntas": [
+        "Como cadastrar uma sala?",
+        "Onde mudo a capacidade de uma sala?",
+        "Como editar uma sala de atendimento?"
+      ]
+    },
+    {
+      "id": "MP01",
+      "titulo": "Atualizar seu nome ou sua foto de perfil",
+      "trecho": "## Atualizar seu nome ou sua foto de perfil\n\n1. Abra [**Meu perfil**](https://crm.organizastudios.com/perfil).\n2. Em **Dados pessoais**, revise **Nome completo**.\n3. Em **Foto**, escolha uma imagem PNG ou JPEG de até 2 MB.\n4. Clique em **Salvar perfil** e aguarde **Perfil salvo.**.\n\nConfira o nome e a foto em **Meu perfil**. Eles também identificam seu usuário na interface.",
+      "referencias": [
+        {
+          "titulo": "Campos de perfil, tamanho da foto e salvamento",
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/profile/ProfilePage.tsx"
+        }
+      ],
+      "perguntas": [
+        "Como mudar minha foto de perfil?",
+        "Como atualizar meu nome no CRM?",
+        "Onde salvo os dados do meu perfil?"
       ]
     },
     {
