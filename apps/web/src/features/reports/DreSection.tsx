@@ -323,7 +323,11 @@ function DreCategoryDetails({
     };
   }, [report.from, report.to, category.id]);
   return (
-    <Modal title={category.name} onClose={onClose}>
+    <Modal
+      title={category.name}
+      subtitle="Lançamentos da categoria por competência"
+      onClose={onClose}
+    >
       {error ? (
         <ErrorBanner error={error} />
       ) : !entries ? (
