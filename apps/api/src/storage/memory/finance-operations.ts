@@ -451,6 +451,7 @@ export function createFinanceOperationsRepository(
       from: string,
       to: string,
       costCenterId?: string,
+      detailCategoryId?: string,
     ) {
       const scope = <T extends { clinicId: string }>(items: T[]) =>
         items.filter((item) => item.clinicId === clinicId);
@@ -476,6 +477,7 @@ export function createFinanceOperationsRepository(
         costCenterId,
         context.clinicSettings.timezone,
         byProfessional(context.commissionAdjustments),
+        detailCategoryId,
       );
     },
   };

@@ -578,6 +578,7 @@ export interface ClinicRepository {
     from: string,
     to: string,
     costCenterId?: string,
+    detailCategoryId?: string,
   ): Promise<DreReport>;
   listClinicalSources(
     clinicId: string,

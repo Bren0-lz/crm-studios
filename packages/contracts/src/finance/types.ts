@@ -56,7 +56,15 @@ export type FinancialClassification = z.infer<
   typeof financialClassificationSchema
 >;
 export type DreGroup = z.infer<typeof categoryDreInputSchema>["dreGroup"];
+export interface DreCategoryEntry {
+  id: string;
+  kind: "income" | "expense";
+  competence: string;
+  description: string;
+  amountInCents: number;
+}
 export interface DreReport {
+  categoryEntries?: DreCategoryEntry[];
   from: string;
   to: string;
   months: Array<{

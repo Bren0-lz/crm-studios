@@ -1,8 +1,9 @@
 import type { DreReport } from "@crm/contracts";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { api } from "../../api";
 import { useAuthorization } from "../../authorization-context";
+import { Modal } from "../../shared/components/Modal";
 import { ErrorBanner } from "../../shared/components/ErrorBanner";
 import { LoadingBlock } from "../../shared/components/LoadingBlock";
 import { EmptyState } from "../../shared/components/EmptyState";
@@ -13,12 +14,15 @@ import { useReportQuery, type ReportPeriod } from "./useReportQuery";
 import { dreGroupLabels } from "../finance/index";
 
 export function DreSection({ period }: { period: ReportPeriod }) {
-  const { can } = useAuthorization();
+  const { can, canView } = useAuthorization();
   const {
     data: report,
     error: queryError,
     loading,
   } = useReportQuery(period, api.dreReport);
+  const [category, setCategory] = useState<
+    DreReport["categories"][number] | null
+  >(null);
   const [exporting, setBusy] = useState(false);
   const [exportError, setExportError] = useState({ period, message: "" });
   const [printed, setPrinted] = useState<DreReport | null>(null);
@@ -234,6 +238,32 @@ export function DreSection({ period }: { period: ReportPeriod }) {
             ) : (
               table(report)
             )}
+            {canView("finance") && report.categories?.length > 0 && (
+              <section>
+                <h3>Lançamentos por categoria</h3>
+                <ul>
+                  {report.categories.map((item) => (
+                    <li key={item.id}>
+                      <button
+                        type="button"
+                        className="secondary-button"
+                        onClick={() => setCategory(item)}
+                      >
+                        {item.name} ·{" "}
+                        {currency.format(item.amountInCents / 100)}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
+            {category && canView("finance") && (
+              <DreCategoryDetails
+                report={report}
+                category={category}
+                onClose={() => setCategory(null)}
+              />
+            )}
             {can("reports.dre_export") && (
               <div className="page-actions">
                 <button
@@ -264,5 +294,64 @@ export function DreSection({ period }: { period: ReportPeriod }) {
           document.body,
         )}
     </section>
+  );
+}
+
+function DreCategoryDetails({
+  report,
+  category,
+  onClose,
+}: {
+  report: DreReport;
+  category: DreReport["categories"][number];
+  onClose: () => void;
+}) {
+  const [entries, setEntries] = useState<DreReport["categoryEntries"]>();
+  const [error, setError] = useState("");
+  useEffect(() => {
+    let active = true;
+    api.dreCategoryEntries(report.from, report.to, category.id).then(
+      (data) => {
+        if (active) setEntries(data.categoryEntries ?? []);
+      },
+      (cause: Error) => {
+        if (active) setError(cause.message);
+      },
+    );
+    return () => {
+      active = false;
+    };
+  }, [report.from, report.to, category.id]);
+  return (
+    <Modal title={category.name} onClose={onClose}>
+      {error ? (
+        <ErrorBanner error={error} />
+      ) : !entries ? (
+        <LoadingBlock />
+      ) : (
+        <div className="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th scope="col">Competência</th>
+                <th scope="col">Lançamento</th>
+                <th scope="col">Tipo</th>
+                <th scope="col">Valor</th>
+              </tr>
+            </thead>
+            <tbody>
+              {entries.map((entry) => (
+                <tr key={`${entry.kind}-${entry.id}`}>
+                  <td>{entry.competence.split("-").reverse().join("/")}</td>
+                  <td>{entry.description}</td>
+                  <td>{entry.kind === "income" ? "Receita" : "Despesa"}</td>
+                  <td>{currency.format(entry.amountInCents / 100)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </Modal>
   );
 }

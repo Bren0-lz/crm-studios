@@ -258,6 +258,10 @@ export const financeApi = {
     request<DreReport>(
       `/reports/dre${exporting ? "/export" : ""}?from=${from}&to=${to}${costCenterId ? `&costCenterId=${costCenterId}` : ""}`,
     ),
+  dreCategoryEntries: (from: string, to: string, categoryId: string) =>
+    request<DreReport>(
+      `/finance/dre?${new URLSearchParams({ from, to, categoryId })}`,
+    ),
   /** Planilha Excel da DRE por competência. */
   dreReportXlsx: (from: string, to: string) =>
     requestBlob(
