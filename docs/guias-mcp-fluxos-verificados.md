@@ -47,9 +47,8 @@ Se não encontrar um nome, confirme com o administrador se sua conta tem acesso 
 **Perguntas:** Como agendar um atendimento? | Como marcar um horário para um cliente? | Como agendar uma aula experimental? | Como marcar atendimento na agenda? | Como faço para marcar um atendimento individual? | Por que o serviço está bloqueado no atendimento?
 
 **Fontes:**
-- [Abertura do formulário pela Agenda](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/agenda/AgendaPage.tsx)
 - [Tipo, plano, recursos, data e confirmação do agendamento](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/apps/web/src/features/agenda/AppointmentForm.tsx)
-- [Teste do agendamento com plano e da remarcação](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/e2e/agenda.spec.ts)
+- [Teste de abertura do formulário pela Agenda, agendamento com plano e remarcação](https://github.com/Bren0-lz/crm-studios/blob/5e03ad9c1da1279154229546e583d82ae8104a40/e2e/agenda.spec.ts)
 
 ## AG05 · Consultar os detalhes de um atendimento na Agenda
 
