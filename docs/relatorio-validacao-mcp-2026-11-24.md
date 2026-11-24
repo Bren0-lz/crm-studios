@@ -4,6 +4,8 @@ O teste foi feito no site de homologação informado, no Chromium. Usei uma cont
 
 Os guias incorporados estão no [catálogo de passos verificados](guias-mcp-fluxos-verificados.md). O código usado para conferir os rótulos e condições é o da revisão `84fd92e18fc06d125417e7c82afcf3d4d0d7832f`. As referências dos guias usam uma revisão anterior com os mesmos arquivos citados, equivalência que o gerador do MCP verifica no build.
 
+O JavaScript `index-2iho31au.js` e o CSS `index-BEDjH5Ke.css` do site eram idênticos aos arquivos do build local para a Hostinger. A comparação cobre a interface carregada no navegador.
+
 ## Problemas observados
 
 ### AG06 · A Agenda oferece edição para um atendimento já finalizado
