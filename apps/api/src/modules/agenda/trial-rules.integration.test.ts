@@ -92,6 +92,25 @@ describe("aula experimental", () => {
   it("recusa experimental de serviço que o plano do cliente cobre (EX2)", async () => {
     const { app, headers, at, resources, patientId, serviceIds } =
       await setup();
+    const trial = await app.inject({
+      method: "POST",
+      url: "/appointments",
+      headers,
+      payload: {
+        ...resources,
+        patientId,
+        startsAt: at(-1),
+        visitType: "trial",
+      },
+    });
+    expect(trial.statusCode, trial.body).toBe(201);
+    const absent = await app.inject({
+      method: "PATCH",
+      url: `/appointments/${trial.json<Appointment>().id}/status`,
+      headers,
+      payload: { status: "excused_absence", absenceReason: "Imprevisto" },
+    });
+    expect(absent.statusCode, absent.body).toBe(200);
     // Atendimento normal cria (via helper) um plano do cliente para o 1º serviço.
     const regular = await app.inject({
       method: "POST",
@@ -112,6 +131,17 @@ describe("aula experimental", () => {
     });
     expect(covered.statusCode).toBe(409);
     expect(covered.json()).toMatchObject({ code: "TRIAL_SERVICE_IN_PLAN" });
+    const successor = await app.inject({
+      method: "POST",
+      url: `/appointments/${trial.json<Appointment>().id}/successor`,
+      headers,
+      payload: { ...resources, startsAt: at(1) },
+    });
+    expect(successor.statusCode, successor.body).toBe(201);
+    expect(successor.json<Appointment>()).toMatchObject({
+      predecessorId: trial.json<Appointment>().id,
+      visitType: "trial",
+    });
     // Plano avulso do outro serviço não bloqueia a experimental.
     const otherServiceId = serviceIds.find((id) => id !== resources.serviceId)!;
     const composition = [
@@ -184,6 +214,8 @@ describe("aula experimental", () => {
     expect(history.json<Appointment[]>().map((item) => item.id)).toEqual([
       again.json().id,
       outside.json().id,
+      successor.json().id,
+      trial.json().id,
     ]);
     await app.close();
   });
