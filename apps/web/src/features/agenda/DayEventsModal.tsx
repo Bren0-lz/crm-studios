@@ -1,5 +1,6 @@
+import { CommercialAgendaEvents } from "./CommercialAgendaEvents";
 import { AgendaNoteCard } from "./AgendaNoteCard";
-import type { AgendaNote } from "@crm/contracts";
+import type { AgendaNote, CommercialEvent } from "@crm/contracts";
 import type { Appointment, GroupSession, ScheduleBlock } from "@crm/contracts";
 import { Modal } from "../../shared/components/Modal";
 import { VisitTypeBadge } from "../../shared/components/VisitTypeBadge";
@@ -10,6 +11,7 @@ import { sortAgendaEntries } from "./model";
 
 export function DayEventsModal({
   day,
+  commercialEvents = [],
   holidayName,
   appointments,
   groupSessions,
@@ -22,6 +24,7 @@ export function DayEventsModal({
   onOpenDay,
 }: {
   day: Date;
+  commercialEvents?: CommercialEvent[];
   holidayName: string | undefined;
   appointments: Appointment[];
   groupSessions: GroupSession[];
@@ -81,9 +84,9 @@ export function DayEventsModal({
         month: "long",
       })}
       subtitle={
-        count === 0 && notes.length === 0
+        count + notes.length + commercialEvents.length === 0
           ? "Nenhum evento neste dia."
-          : `${count + notes.length} ${count + notes.length === 1 ? "evento" : "eventos"} neste dia.`
+          : `${count + notes.length + commercialEvents.length} ${count + notes.length + commercialEvents.length === 1 ? "evento" : "eventos"} neste dia.`
       }
       onClose={onClose}
     >
@@ -91,6 +94,7 @@ export function DayEventsModal({
         {holidayName && (
           <p className="holiday-notice">Feriado: {holidayName}</p>
         )}
+        <CommercialAgendaEvents events={commercialEvents} />
         {notes.map((note) => (
           <AgendaNoteCard
             key={note.id}
