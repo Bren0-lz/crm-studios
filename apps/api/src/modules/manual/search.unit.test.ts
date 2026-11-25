@@ -70,6 +70,10 @@ describe("evidência de ajuda", () => {
     ["Como estornar um pagamento?", "FI06"],
     ["reagendar a consulta da paciente", "AG07"],
     ["excluir etiqueta do cliente", "CF20"],
+    ["como importar feriados", "CF14"],
+    ["como editar uma etiqueta automática", "CF20"],
+    ["anexar comprovante na parcela", "FI07"],
+    ["editar dados do usuário", "CF05"],
     ["como cadastrar um funcionário", "CF03"],
     ["como renegociar uma dívida", "FI12"],
   ])("entende outra formulação: %s", (query, id) => {
@@ -84,6 +88,8 @@ describe("evidência de ajuda", () => {
     ["marcar presença da aluna", "AG02"],
     ["Como excluir um cliente?", "CF20"],
     ["Como apagar um cliente?", "CF20"],
+    ["Como dar baixa em parcela", "FI06"],
+    ["importar feriados", "CF13"],
   ])("não troca a ação pedida: %s", (query, id) => {
     expect(
       searchManual(query).trechos.map((chapter) => chapter.id),

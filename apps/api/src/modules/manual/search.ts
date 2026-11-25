@@ -106,7 +106,8 @@ const actions = new Set([
   "emitir",
   "pagamento",
 ]);
-// Ações que desfazem ou trocam algo: guia com uma delas no título só serve se a consulta pedir.
+// Ações que desfazem ou trocam algo: guia com uma delas no título só serve se a consulta pedir
+// alguma das ações do título ("Importar ou excluir feriados" serve para "importar feriados").
 const reversals = [
   "estornar",
   "cancelar",
@@ -183,6 +184,12 @@ const index = data.capitulos.map((chapter) => {
   return {
     chapter,
     title: new Set(tokens(chapter.titulo)),
+    // Verbos no infinitivo do título: "baixa" e "paga" não contam como ação.
+    titleVerbs: new Set(
+      words(chapter.titulo)
+        .filter((word) => /(ar|er|ir)$/.test(word))
+        .map(stem),
+    ),
     intent: new Set(tokens(intentText)),
     heads: new Set(
       [chapter.titulo, aliases, ...questions].flatMap((text) => [
@@ -234,10 +241,8 @@ function rank(words: string[]) {
             !(actions.has(word) || polarity.has(word)) ||
             entry.intent.has(word),
         ) &&
-        (!reversals.some((action) => entry.title.has(action)) ||
-          reversals.some(
-            (action) => entry.title.has(action) && words.includes(action),
-          ));
+        (!reversals.some((action) => entry.titleVerbs.has(action)) ||
+          [...entry.titleVerbs].some((verb) => words.includes(verb)));
       return { entry, score, coverage: total ? matched / total : 0, fits };
     })
     .filter((item) => item.score > 0)
