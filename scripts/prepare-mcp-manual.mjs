@@ -9,6 +9,13 @@ const root = fileURLToPath(new URL("../", import.meta.url));
 const file = join(root, "apps/api/src/modules/manual/manual-data.json");
 const manualPath = "docs/manual-crm-organiza-studios.md";
 const sha = (text) => createHash("sha256").update(text).digest("hex");
+const slug = (text) =>
+  text
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
 const read = (path) => readFileSync(join(root, path), "utf8");
 const git = (...args) =>
   execFileSync("git", args, { cwd: root, encoding: "utf8" }).trim();
@@ -58,7 +65,8 @@ if (process.argv.includes("--write")) {
       ...text.matchAll(/\[([^\]]+)\]\((https:\/\/[^\s)]+)\)/g),
     ].map((m) => ({ titulo: m[1], url: m[2] }));
     chapters.push({
-      id: `tutorial-${chapters.length + 1}`,
+      // Id derivado do título: não muda quando outro tutorial é excluído na regeneração.
+      id: slug(title),
       titulo: title,
       trecho: text.split("**Fontes:**")[0].trim(),
       referencias: references,
