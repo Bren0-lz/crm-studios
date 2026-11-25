@@ -62,7 +62,7 @@ async function verifyManual(url, token) {
     const { tools } = await client.listTools(undefined, requestOptions);
     assert.deepEqual(
       tools.map((tool) => tool.name),
-      ["consultar_manual_crm"],
+      ["consultar_manual_crm", "listar_guias"],
     );
 
     const consult = async (consulta) => {

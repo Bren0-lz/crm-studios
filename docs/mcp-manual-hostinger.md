@@ -6,7 +6,7 @@ Implementação para revisão; **não publicada em produção**. Não altera o l
 
 O hPanel executa `npm start` na raiz, que inicia `apps/api/dist/site-server.mjs`. `scripts/hostinger-build.mjs` gera esse bundle a partir de `apps/api/src/site-server.ts` e compila o site com `VITE_API_URL=/api`. O servidor encaminha `/api/*` para o Fastify removendo o prefixo; a rota interna `/mcp` vira **`https://crm.organizastudios.com/api/mcp`**. `apps/api/src/app.ts` registra o módulo de ajuda junto das rotas existentes.
 
-SDK oficial TypeScript `@modelcontextprotocol/sdk` 1.32.2, compatível com Node 22+. Transporte **Streamable HTTP**, sem sessão, com respostas JSON. O cliente envia `Accept: application/json, text/event-stream`; GET e DELETE autenticados retornam 405 porque não há stream de notificações nem sessão a encerrar. Clientes MCP compatíveis com esse modo podem usar a única ferramenta `consultar_manual_crm`, com `consulta` não vazia de até 300 caracteres. Não há recursos MCP nem ferramentas de escrita.
+SDK oficial TypeScript `@modelcontextprotocol/sdk` 1.32.2, compatível com Node 22+. Transporte **Streamable HTTP**, sem sessão, com respostas JSON. O cliente envia `Accept: application/json, text/event-stream`; GET e DELETE autenticados retornam 405 porque não há stream de notificações nem sessão a encerrar. Clientes MCP compatíveis com esse modo podem usar duas ferramentas de leitura: `consultar_manual_crm`, com `consulta` não vazia de até 300 caracteres (a tarefa em linguagem natural ou o id de um guia, como `AG07`), e `listar_guias`, que devolve as áreas do manual ou os guias de uma área (`area` opcional). Não há recursos MCP nem ferramentas de escrita.
 
 ## Acesso autorizado no Claude
 
@@ -82,7 +82,7 @@ node scripts/test-mcp-remote.mjs
 unset MCP_TEST_TOKEN
 ```
 
-Execute o script a partir do checkout que gerou o artefato. Ele exige que a revisão das fontes e o hash retornados pelo servidor coincidam com o corpus desse checkout. Também valida o 401 sem credencial, a inicialização, a ferramenta única, o tutorial de cadastro e a ausência de evidência sobre nota fiscal. A verificação rejeita redirecionamentos. HTTP só é aceito em localhost.
+Execute o script a partir do checkout que gerou o artefato. Ele exige que a revisão das fontes e o hash retornados pelo servidor coincidam com o corpus desse checkout. Também valida o 401 sem credencial, a inicialização, as duas ferramentas, o tutorial de cadastro e a ausência de evidência sobre nota fiscal. A verificação rejeita redirecionamentos. HTTP só é aceito em localhost.
 
 Para testar o artefato em memória, execute `npm run hostinger-build` e `node scripts/test-mcp-remote.mjs --local`. O CI usa esses comandos com Node 22. O modo local cria uma credencial descartável e também verifica o 503 com o piloto desativado, o acesso à saúde da API, a autenticação de Clientes e a entrega da interface pelo servidor da Hostinger.
 

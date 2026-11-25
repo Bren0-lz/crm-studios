@@ -47,7 +47,7 @@ está no histórico do git (este arquivo antes do commit "chore: handoff da roda
 - **Pedido (25/11/2026):** perguntas comuns como "como remarcar" ou "cancelar uma aula" voltam sem evidência.
 - **Escopo:** busca aproximada também nos guias verificados e ferramenta `listar_guias` (id, título e perguntas).
 - **Gate:** gate completo e testes do módulo `manual` com consultas reformuladas.
-- **Status:** TODO
+- **Status:** DONE
 
 ### V1 — Vales para colaboradores
 
