@@ -1042,7 +1042,12 @@ export interface ClinicRepository {
   importPatients(
     clinicId: string,
     inputs: PatientImportInput[],
-  ): Promise<{ created: number; skipped: number; updated: number }>;
+  ): Promise<{
+    created: number;
+    skipped: number;
+    updated: number;
+    createdPatients: Pick<Patient, "fullName" | "cpf">[];
+  }>;
   /** O CPF pode seguir vazio (cliente importado sem CPF); sem CPF, grava `NULL`. */
   updatePatient(
     clinicId: string,

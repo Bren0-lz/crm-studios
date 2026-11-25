@@ -299,6 +299,7 @@ export function registerPatientsRoutes(context: RouteContext) {
         actorUserId: request.user.sub,
         patientId: patient.id,
         fullName: patient.fullName,
+        cpf: patient.cpf,
         origin: "form",
       });
       return reply.status(201).send(patient);
@@ -402,6 +403,7 @@ export function registerPatientsRoutes(context: RouteContext) {
         actorUserId: request.user.sub,
         patientId: result.patient.id,
         fullName: result.patient.fullName,
+        cpf: result.patient.cpf,
         origin: input.leadId ? "lead" : "guided",
       });
       await publishAppointmentsCreated(events, clinicId, request.user.sub, [
@@ -546,17 +548,15 @@ export function registerPatientsRoutes(context: RouteContext) {
           ? [row.input]
           : [],
       );
-      const { created, skipped, updated } = await repository.importPatients(
-        request.user.clinicId,
-        inputs,
-      );
-      // Importação em lote: um aviso com o total de clientes novos, não um por linha.
+      const { created, skipped, updated, createdPatients } =
+        await repository.importPatients(request.user.clinicId, inputs);
+      // O aviso usa os cadastros confirmados pelo repositório.
       if (created > 0)
         await events.publish({
           type: "patients.imported",
           clinicId: request.user.clinicId,
           actorUserId: request.user.sub,
-          created,
+          patients: createdPatients,
         });
       return {
         created,

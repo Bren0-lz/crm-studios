@@ -12,6 +12,7 @@ import type {
   ClinicRepository,
   TelegramOutgoingMessage,
 } from "../../repository.js";
+import { MAX_TELEGRAM_MESSAGE_LENGTH } from "./telegram-messages.js";
 
 /** Tentativas por mensagem antes de desistir (a falha fica registrada em `last_error`). */
 export const TELEGRAM_MAX_ATTEMPTS = 5;
@@ -22,8 +23,6 @@ const DRAIN_BATCH = 20;
  * uma rodada (20 mensagens × 10 s de limite por chamada = 200 s) com folga.
  */
 const CLAIM_LEASE_MS = 5 * 60_000;
-/** Limite de texto de uma mensagem do Telegram. */
-const MAX_MESSAGE_LENGTH = 4096;
 
 /** Espera antes da próxima tentativa, crescente: 1, 2, 4 e 8 minutos. */
 export function telegramRetryDelayMs(failedAttempts: number) {
@@ -179,7 +178,7 @@ export function createTelegramService({
         clinicId,
         messages.map((item) => ({
           ...item,
-          message: truncate(item.message, MAX_MESSAGE_LENGTH),
+          message: truncate(item.message, MAX_TELEGRAM_MESSAGE_LENGTH),
         })),
         clock().toISOString(),
       );
@@ -208,7 +207,7 @@ export function createTelegramService({
     async notifyLinkedChats(
       clinicId: string,
       topic: TelegramTopic,
-      message: string,
+      messages: readonly string[],
     ) {
       if (!integration) return;
       const [links, groups] = await Promise.all([
@@ -224,7 +223,9 @@ export function createTelegramService({
       ];
       await enqueue(
         clinicId,
-        chats.map((chatId) => ({ chatId, message, topic })),
+        messages.flatMap((message) =>
+          chats.map((chatId) => ({ chatId, message, topic })),
+        ),
       );
     },
     drain,

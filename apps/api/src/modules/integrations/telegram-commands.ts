@@ -2,7 +2,7 @@ import {
   groupEnrollmentCoversSession,
   isReceiptReminderDue,
   resolveReceiptReminderSettings,
-  unsignedReceiptPatientCount,
+  unsignedReceiptPatientIds,
   withPrefix,
   type Appointment,
   type BranchScope,
@@ -22,16 +22,24 @@ import {
   DEFAULT_CLINIC_TIMEZONE,
 } from "../finance/daily-cash.js";
 import type { TelegramService } from "./telegram.js";
+import {
+  telegramAppointmentCpfs,
+  telegramClock,
+  telegramCpf,
+  telegramMessagePages,
+} from "./telegram-messages.js";
 
 /** Comandos de agenda do bot (TG4): período no fuso da clínica. */
 export const telegramAgendaCommands = ["/hoje", "/semana", "/mes"] as const;
 export type TelegramAgendaCommand = (typeof telegramAgendaCommands)[number];
 
-/** Limite de texto de uma mensagem do Telegram. */
-const MAX_MESSAGE_LENGTH = 4096;
-
-export const telegramCommandsHelp =
-  "Comandos: /hoje (agenda de hoje), /semana (desta semana) e /mes (deste mês).";
+export const telegramCommandsHelp = [
+  "Quer consultar a agenda? Toque em uma opção:",
+  "",
+  "/hoje — Agenda de hoje",
+  "/semana — Agenda desta semana",
+  "/mes — Agenda deste mês",
+].join("\n");
 
 function addDays(date: string, amount: number) {
   const next = new Date(`${date}T12:00:00Z`);
@@ -70,7 +78,6 @@ export function telegramAgendaPeriod(
 
 export interface TelegramAgendaItem {
   startsAt: string;
-  /** Linha sem o horário: "Cliente · Serviço · com Profissional". */
   text: string;
   kind: "appointment" | "class";
 }
@@ -80,15 +87,6 @@ const plural = (count: number, one: string, many: string) =>
 
 const shortDate = (date: string) => `${date.slice(8, 10)}/${date.slice(5, 7)}`;
 const fullDate = (date: string) => `${shortDate(date)}/${date.slice(0, 4)}`;
-const WEEKDAYS = [
-  "Domingo",
-  "Segunda",
-  "Terça",
-  "Quarta",
-  "Quinta",
-  "Sexta",
-  "Sábado",
-];
 const MONTHS = [
   "janeiro",
   "fevereiro",
@@ -107,81 +105,52 @@ const MONTHS = [
 function periodTitle(
   command: TelegramAgendaCommand,
   period: { first: string; last: string },
+  dayLabel: string,
 ) {
-  if (command === "/hoje")
-    return `Agenda de hoje (${WEEKDAYS[weekdayOf(period.first)]!.toLowerCase()}, ${fullDate(period.first)})`;
+  if (command === "/hoje") return `Agenda de hoje — ${dayLabel}`;
   if (command === "/semana")
-    return `Agenda da semana (${shortDate(period.first)} a ${fullDate(period.last)})`;
+    return `Agenda da semana — ${fullDate(period.first)} a ${fullDate(period.last)}`;
   return `Agenda de ${MONTHS[Number(period.first.slice(5, 7)) - 1]} de ${period.first.slice(0, 4)}`;
 }
 
 /**
- * Texto da resposta: título, totais e os itens agrupados por dia (dias vazios não aparecem).
- * Acima do limite do Telegram, corta no último item que cabe e diz quantos ficaram de fora.
+ * Resposta com os itens agrupados por dia. Agendas longas continuam em outras mensagens.
  */
-export function formatTelegramAgenda(
+export function formatTelegramAgendaMessages(
   command: TelegramAgendaCommand,
   period: { first: string; last: string },
   items: readonly TelegramAgendaItem[],
   timeZone: string,
-  maxLength = MAX_MESSAGE_LENGTH,
 ) {
-  const appointments = items.filter((item) => item.kind === "appointment");
-  const classes = items.length - appointments.length;
-  const header = [
-    periodTitle(command, period),
-    `${plural(appointments.length, "atendimento", "atendimentos")} · ${plural(classes, "aula", "aulas")}`,
-  ];
+  const clock = telegramClock(timeZone);
+  const dayLabel = clock.day(zonedTimeToUtc(period.first, "12:00", timeZone));
+  const title = periodTitle(command, period, dayLabel);
   if (items.length === 0)
-    return [...header, "", "Nada marcado no período."].join("\n");
-  const time = new Intl.DateTimeFormat("pt-BR", {
-    timeZone,
-    hour: "2-digit",
-    minute: "2-digit",
-    hourCycle: "h23",
-  });
+    return [`${title}\n\nNenhum atendimento ou aula marcado nesse período.`];
+  const appointments = items.filter(
+    (item) => item.kind === "appointment",
+  ).length;
+  const classes = items.length - appointments;
   const sorted = [...items].sort(
     (a, b) =>
-      a.startsAt.localeCompare(b.startsAt) || a.text.localeCompare(b.text),
+      Date.parse(a.startsAt) - Date.parse(b.startsAt) ||
+      a.text.localeCompare(b.text, "pt-BR"),
   );
-  const lines: { text: string; item: boolean }[] = [];
-  let day = "";
-  for (const item of sorted) {
-    const date = clinicDateOf(item.startsAt, timeZone);
-    if (date !== day) {
-      day = date;
-      lines.push({ text: "", item: false });
-      lines.push({
-        text: `${WEEKDAYS[weekdayOf(date)]}, ${shortDate(date)}`,
-        item: false,
-      });
-    }
-    lines.push({
-      text: `${time.format(new Date(item.startsAt))} · ${item.text}`,
-      item: true,
-    });
+  const total = `${plural(appointments, "atendimento", "atendimentos")} e ${plural(classes, "aula", "aulas")}`;
+  const days = new Map<string | undefined, string[]>();
+  for (const { startsAt, text } of sorted) {
+    const start = new Date(startsAt);
+    const day = command === "/hoje" ? undefined : clock.day(start);
+    const lines = days.get(day) ?? [];
+    lines.push(`• ${clock.time(start)} — ${text}`);
+    days.set(day, lines);
   }
-  const full = [...header, ...lines.map((line) => line.text)].join("\n");
-  if (full.length <= maxLength) return full;
-  // Reserva espaço para "… e mais N" e corta no último item que cabe.
-  const budget = maxLength - `\n… e mais ${sorted.length}`.length;
-  const output = [...header];
-  let length = output.join("\n").length;
-  let shown = 0;
-  for (const line of lines) {
-    if (length + 1 + line.text.length > budget) break;
-    output.push(line.text);
-    length += 1 + line.text.length;
-    if (line.item) shown++;
-  }
-  // Dia sem nenhum item embaixo (cabeçalho ou linha em branco) não fica sozinho no fim.
-  while (
-    output.length > header.length &&
-    !/^\d{2}:\d{2} · /.test(output.at(-1)!)
-  )
-    output.pop();
-  output.push(`… e mais ${sorted.length - shown}`);
-  return output.join("\n");
+  return telegramMessagePages(
+    `${title}\n${total}`,
+    [...days].map(([heading, lines]) =>
+      heading ? { heading, lines } : { lines },
+    ),
+  );
 }
 
 type Repository = Pick<
@@ -194,6 +163,8 @@ type Repository = Pick<
   | "listAppointments"
   | "listGroupSessions"
   | "getGroupWorkspace"
+  | "getPatient"
+  | "listLeads"
   | "getFinancialSummary"
   | "getTelegramReceiptReminderSentOn"
   | "claimTelegramReceiptReminder"
@@ -234,16 +205,20 @@ async function agendaItems(
       : { groups: [] as GroupClass[], enrollments: [] as GroupEnrollment[] },
   ]);
   const groups = new Map(workspace.groups.map((group) => [group.id, group]));
+  const visibleAppointments = appointments.filter(
+    (item) => item.status !== "cancelled" && visible(item.professionalId),
+  );
+  const cpfOf = await telegramAppointmentCpfs(
+    repository,
+    user.clinicId,
+    visibleAppointments,
+  );
   return [
-    ...appointments
-      .filter(
-        (item) => item.status !== "cancelled" && visible(item.professionalId),
-      )
-      .map((item) => ({
-        kind: "appointment" as const,
-        startsAt: item.startsAt,
-        text: `${item.patientName}${item.leadId ? " (lead)" : ""} · ${item.serviceName} · com ${item.professionalName}`,
-      })),
+    ...visibleAppointments.map((item) => ({
+      kind: "appointment" as const,
+      startsAt: item.startsAt,
+      text: `${item.patientName}${item.leadId ? " (pessoa interessada)" : ""} (${telegramCpf(cpfOf(item))}) — ${item.serviceName} com ${item.professionalName}`,
+    })),
     ...sessions
       .filter(
         (item) => item.status !== "cancelled" && visible(item.professionalId),
@@ -256,19 +231,16 @@ async function agendaItems(
             groupEnrollmentCoversSession(enrollment, session, timeZone),
         ).length;
         const occupancy = group
-          ? ` · ${enrolled}/${group.capacity} ${group.capacity === 1 ? "vaga ocupada" : "vagas ocupadas"}`
+          ? ` (${enrolled} de ${group.capacity} ${group.capacity === 1 ? "vaga ocupada" : "vagas ocupadas"})`
           : "";
         return {
           kind: "class" as const,
           startsAt: session.startsAt,
-          text: `${withPrefix("Turma", session.groupName)} · com ${session.professionalName}${occupancy}`,
+          text: `${withPrefix("Turma", session.groupName)} com ${session.professionalName}${occupancy}`,
         };
       }),
   ];
 }
-
-const unlinkedReply = (settingsPath: string, linkCommand: string) =>
-  `Este chat ainda não está vinculado ao CRM. Gere um código em ${settingsPath} e envie ${linkCommand} <código>.`;
 
 /**
  * Comandos de agenda e aviso periódico de recibos (TG4). O chat diz a clínica e o usuário
@@ -279,8 +251,7 @@ export function createTelegramCommands({
   telegram,
   accessibleBranches,
   log,
-  settingsPath,
-  linkCommand,
+  unlinkedReply,
 }: {
   repository: Repository;
   telegram: TelegramService;
@@ -288,8 +259,7 @@ export function createTelegramCommands({
     user: AuthenticatedUser,
   ) => Promise<{ id: string; isDefault: boolean }[]>;
   log: FastifyBaseLogger;
-  settingsPath: string;
-  linkCommand: string;
+  unlinkedReply: string;
 }) {
   async function linkOf(chatId: string): Promise<TelegramLink | undefined> {
     return (await repository.findTelegramLinksByChat(chatId))[0];
@@ -319,25 +289,30 @@ export function createTelegramCommands({
   async function agenda(command: TelegramAgendaCommand, chatId: string) {
     const link = await linkOf(chatId);
     if (!link) {
-      await telegram.enqueue(null, [
-        { chatId, message: unlinkedReply(settingsPath, linkCommand) },
-      ]);
+      await telegram.enqueue(null, [{ chatId, message: unlinkedReply }]);
       return;
     }
-    const reply = (message: string) =>
-      telegram.enqueue(link.clinicId, [{ chatId, message }]);
+    const reply = (...messages: string[]) =>
+      telegram.enqueue(
+        link.clinicId,
+        messages.map((message) => ({ chatId, message })),
+      );
     const user = await repository.findUserById(link.clinicId, link.userId);
     if (!user) {
-      await reply(unlinkedReply(settingsPath, linkCommand));
+      await reply(unlinkedReply);
       return;
     }
     if (!user.modules.includes("agenda") && !user.modules.includes("groups")) {
-      await reply("Seu perfil não tem acesso à agenda nem às turmas do CRM.");
+      await reply(
+        "Para consultar a agenda aqui, peça acesso à Agenda ou a Turmas à pessoa responsável pelo CRM.",
+      );
       return;
     }
     const scope = await branchScopeOf(user);
     if (!scope) {
-      await reply("Seu usuário não tem acesso a nenhuma filial ativa.");
+      await reply(
+        "Para consultar a agenda aqui, peça acesso a uma filial à pessoa responsável pelo CRM.",
+      );
       return;
     }
     const timeZone = await timeZoneOf(link.clinicId);
@@ -345,7 +320,9 @@ export function createTelegramCommands({
     const items = await repository.branchScope.run(scope, () =>
       agendaItems(repository, user, period, timeZone),
     );
-    await reply(formatTelegramAgenda(command, period, items, timeZone));
+    await reply(
+      ...formatTelegramAgendaMessages(command, period, items, timeZone),
+    );
   }
 
   /**
@@ -370,18 +347,39 @@ export function createTelegramCommands({
     if ((await repository.getTelegramReceiptReminderSentOn(clinicId)) === today)
       return;
     // Fora do escopo de filial do usuário: consolidado, como o aviso de recibo assinado.
-    const count = unsignedReceiptPatientCount(
-      (await repository.getFinancialSummary(clinicId)).receivables,
-    );
+    const { receivables } = await repository.getFinancialSummary(clinicId);
+    const pending = unsignedReceiptPatientIds(receivables);
+    const count = pending.size;
     if (count === 0) return;
+    const names = new Map(
+      receivables.map(({ patientId, patientName }) => [patientId, patientName]),
+    );
+    const clients = await Promise.all(
+      [...pending].map(async (id) => {
+        const patient = await repository.getPatient(clinicId, id);
+        return {
+          name: patient?.fullName ?? names.get(id)!,
+          cpf: patient?.cpf,
+        };
+      }),
+    );
     if (!(await repository.claimTelegramReceiptReminder(clinicId, today)))
       return;
     await telegram.notifyLinkedChats(
       clinicId,
       "receipts",
-      count === 1
-        ? "Recibos: 1 cliente ainda não assinou o recibo."
-        : `Recibos: ${count} clientes ainda não assinaram o recibo.`,
+      telegramMessagePages(
+        count === 1
+          ? "Recibos para assinar\n1 cliente ainda precisa assinar."
+          : `Recibos para assinar\n${count} clientes ainda precisam assinar.`,
+        [
+          {
+            lines: clients
+              .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"))
+              .map(({ name, cpf }) => `• ${name} (${telegramCpf(cpf)})`),
+          },
+        ],
+      ),
     );
   }
 

@@ -20,7 +20,8 @@ export interface CreatedAppointmentSummary {
   id: string;
   /** Nome do cliente ou, na aula experimental, do lead. */
   patientName: string;
-  lead: boolean;
+  patientId?: string | undefined;
+  leadId?: string | undefined;
   serviceName: string;
   professionalName: string;
   startsAt: string;
@@ -45,15 +46,16 @@ export interface PatientCreatedEvent {
   actorUserId: string;
   patientId: string;
   fullName: string;
+  cpf?: string | undefined;
   origin: "form" | "guided" | "lead";
 }
 
-/** Importação em lote: um evento com o total, não um por cliente. */
+/** Importação em lote: um evento com os cadastros criados pela operação. */
 export interface PatientsImportedEvent {
   type: "patients.imported";
   clinicId: string;
   actorUserId: string;
-  created: number;
+  patients: { fullName: string; cpf?: string | undefined }[];
 }
 
 export type DomainEvent =
@@ -115,6 +117,7 @@ export function createdAppointmentSummaries(
   appointments: {
     id: string;
     patientName: string;
+    patientId?: string | undefined;
     leadId?: string | undefined;
     serviceName: string;
     professionalName: string;
@@ -124,7 +127,8 @@ export function createdAppointmentSummaries(
   return appointments.map((item) => ({
     id: item.id,
     patientName: item.patientName,
-    lead: Boolean(item.leadId),
+    patientId: item.patientId,
+    leadId: item.leadId,
     serviceName: item.serviceName,
     professionalName: item.professionalName,
     startsAt: item.startsAt,

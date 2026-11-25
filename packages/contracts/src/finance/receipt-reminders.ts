@@ -121,12 +121,12 @@ export function isReceiptReminderDue(
 }
 
 /** Clientes distintos com recibo pendente, desde a geração, sem prazo mínimo. */
-export function unsignedReceiptPatientCount(
+export function unsignedReceiptPatientIds(
   receivables: readonly {
     patientId: string;
     receiptSignature?: ReceiptSignatureSummary | undefined;
   }[],
-): number {
+) {
   const patients = new Set<string>();
   for (const { patientId, receiptSignature } of receivables) {
     if (
@@ -136,5 +136,11 @@ export function unsignedReceiptPatientCount(
     )
       patients.add(patientId);
   }
-  return patients.size;
+  return patients;
+}
+
+export function unsignedReceiptPatientCount(
+  receivables: Parameters<typeof unsignedReceiptPatientIds>[0],
+) {
+  return unsignedReceiptPatientIds(receivables).size;
 }

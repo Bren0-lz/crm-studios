@@ -890,7 +890,7 @@ describe.skipIf(!databaseUrl)("MySQL repository", () => {
           tags: ["importada"],
         },
       ]);
-      expect(first).toEqual({ created: 2, skipped: 0, updated: 0 });
+      expect(first).toMatchObject({ created: 2, skipped: 0, updated: 0 });
       const listed = await repository.listPatients(clinicId, "Importada PG");
       expect(listed.map((patient) => patient.fullName)).toEqual([
         "Importada PG Dois",
@@ -920,11 +920,17 @@ describe.skipIf(!databaseUrl)("MySQL repository", () => {
           tags: [],
         },
       ]);
-      expect(again).toEqual({ created: 0, skipped: 3, updated: 0 });
+      expect(again).toEqual({
+        created: 0,
+        skipped: 3,
+        updated: 0,
+        createdPatients: [],
+      });
       expect(await repository.importPatients(clinicId, [])).toEqual({
         created: 0,
         skipped: 0,
         updated: 0,
+        createdPatients: [],
       });
       expect(
         await repository.listPatients(clinicId, "Importada PG"),

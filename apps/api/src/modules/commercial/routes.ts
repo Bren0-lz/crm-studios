@@ -192,6 +192,7 @@ export function registerCommercialRoutes(context: RouteContext) {
           actorUserId: request.user.sub,
           patientId: conversion.patient.id,
           fullName: conversion.patient.fullName,
+          cpf: conversion.patient.cpf,
           origin: "lead",
         });
       return conversion;
