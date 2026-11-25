@@ -5,10 +5,18 @@ import { createHash, randomBytes } from "node:crypto";
 import { once } from "node:events";
 import { createServer } from "node:net";
 import { setTimeout as delay } from "node:timers/promises";
+import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
-import data from "../apps/api/src/modules/manual/manual-data.json" with { type: "json" };
+import checkout from "../apps/api/src/modules/manual/manual-data.json" with { type: "json" };
+import { checkManual } from "./mcp-manual-freshness.mjs";
+
+// O bundle leva só os guias que conferem com o código (ver hostinger-build.mjs).
+const root = fileURLToPath(new URL("../", import.meta.url));
+const data = checkManual(checkout, (path) =>
+  existsSync(root + path) ? readFileSync(root + path, "utf8") : undefined,
+).fresh;
 
 const expectedRevision = {
   fontes: data.revisao,
@@ -71,25 +79,34 @@ async function verifyManual(url, token) {
       );
       return result.structuredContent;
     };
-    const found = await consult("Como cadastrar um novo cliente?");
-    assert.equal(found.status, "evidencia_encontrada");
-    assert(
-      found.trechos.some(
-        (item) =>
-          item.id === "cadastrar-cliente" &&
-          item.trecho.includes("Salvar cliente") &&
-          item.referencias.length > 0,
-      ),
-    );
-    const enrollment = await consult(
-      "Como matricular um aluno quando tem vaga?",
-    );
-    assert.equal(enrollment.status, "evidencia_encontrada");
-    assert.deepEqual(
-      enrollment.trechos.map((item) => item.id),
-      ["GR04"],
-    );
-    assert.match(enrollment.trechos[0].trecho, /\*\*Matricular\*\*/);
+    // Guia com fonte alterada sai do pacote (hostinger-build): a prova só exige os que entraram,
+    // senão um PR do CRM que muda PatientModal deixaria o CI vermelho.
+    const packaged = new Set(data.capitulos.map((chapter) => chapter.id));
+    assert(packaged.size > 0, "Nenhum guia entrou no pacote.");
+    const skipped = [];
+    if (packaged.has("cadastrar-cliente")) {
+      const found = await consult("Como cadastrar um novo cliente?");
+      assert.equal(found.status, "evidencia_encontrada");
+      assert(
+        found.trechos.some(
+          (item) =>
+            item.id === "cadastrar-cliente" &&
+            item.trecho.includes("Salvar cliente") &&
+            item.referencias.length > 0,
+        ),
+      );
+    } else skipped.push("cadastrar-cliente");
+    if (packaged.has("GR04")) {
+      const enrollment = await consult(
+        "Como matricular um aluno quando tem vaga?",
+      );
+      assert.equal(enrollment.status, "evidencia_encontrada");
+      assert.deepEqual(
+        enrollment.trechos.map((item) => item.id),
+        ["GR04"],
+      );
+      assert.match(enrollment.trechos[0].trecho, /\*\*Matricular\*\*/);
+    } else skipped.push("GR04");
     const missing = await consult("Como emitir nota fiscal eletrônica?");
     assert.equal(missing.status, "evidencia_insuficiente");
     assert.deepEqual(missing.trechos, []);
@@ -99,8 +116,10 @@ async function verifyManual(url, token) {
         {
           inicializacao: "OK",
           ferramentas: tools.map((tool) => tool.name),
-          cadastroCliente: "OK",
-          matriculaComVaga: "OK",
+          cadastroCliente: skipped.includes("cadastrar-cliente")
+            ? "fora do pacote"
+            : "OK",
+          matriculaComVaga: skipped.includes("GR04") ? "fora do pacote" : "OK",
           semResultado: "OK",
           semCredencial: 401,
           revisao: expectedRevision,
