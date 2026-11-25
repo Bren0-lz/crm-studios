@@ -128,8 +128,7 @@ export const settingsTabs: Array<{
     key: "integrations",
     label: "Integrações",
     title: "Integrações",
-    description:
-      "Crie chaves para outros sistemas, como o dashboard de vendas, consultarem e gravarem dados pela API.",
+    description: "Gerencie os acessos à API e os avisos enviados pelo Telegram.",
     icon: KeyRound,
     adminOnly: true,
   },
