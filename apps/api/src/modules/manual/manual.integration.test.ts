@@ -48,30 +48,47 @@ describe("manual MCP isolado do CRM", () => {
     );
     return client;
   }
-  it("inicializa, lista as ferramentas e consulta clientes usando cliente oficial e HTTP real, sem buscar dados do CRM", async () => {
+  it("inicializa com as instruções, lista as ferramentas e busca e lê guias pelo cliente oficial e HTTP real, sem buscar dados do CRM", async () => {
     const findUser = vi.spyOn(repository, "findUserById");
     const patients = vi.spyOn(repository, "listPatients");
     const sdk = await connect();
+    expect(sdk.getInstructions()).toMatch(
+      /base de conhecimento[\s\S]*Nunca invente/,
+    );
     const tools = await sdk.listTools();
     expect(tools.tools.map((tool) => tool.name)).toEqual([
-      "consultar_manual_crm",
+      "buscar_guias",
+      "ler_guias",
       "listar_guias",
+      "visao_geral_crm",
     ]);
     expect(tools.tools[0]?.inputSchema).toMatchObject({
       properties: { consulta: { maxLength: 300 } },
     });
-    const result = await sdk.callTool({
-      name: "consultar_manual_crm",
-      arguments: { consulta: "Como cadastrar um novo cliente?" },
+    expect(
+      tools.tools.every((tool) => tool.annotations?.readOnlyHint === true),
+    ).toBe(true);
+    const search = await sdk.callTool({
+      name: "buscar_guias",
+      arguments: { consulta: "aluna nova, como cadastro ela?" },
     });
-    expect(result.isError).not.toBe(true);
-    expect(result.structuredContent).toMatchObject({
-      status: "evidencia_encontrada",
+    expect(search.isError).not.toBe(true);
+    expect(search.structuredContent).toMatchObject({
+      status: "guias_relacionados",
       revisao: {
         fontes: expect.stringMatching(/^[a-f0-9]{40}$/),
         material: expect.stringMatching(/^sha256:/),
       },
-      trechos: [
+      guias: expect.arrayContaining([
+        expect.objectContaining({ id: "cadastrar-cliente", aderencia: "alta" }),
+      ]),
+    });
+    const read = await sdk.callTool({
+      name: "ler_guias",
+      arguments: { ids: ["cadastrar-cliente", "CL06"] },
+    });
+    expect(read.structuredContent).toMatchObject({
+      guias: [
         expect.objectContaining({
           id: "cadastrar-cliente",
           trecho: expect.stringContaining("Salvar cliente"),
@@ -79,15 +96,17 @@ describe("manual MCP isolado do CRM", () => {
             expect.objectContaining({ url: expect.stringContaining("/blob/") }),
           ]),
         }),
+        expect.objectContaining({ id: "CL06" }),
       ],
+      naoEncontrados: [],
     });
-    expect(JSON.stringify(result)).not.toMatch(
+    expect(JSON.stringify([search, read])).not.toMatch(
       /Cliente Navegador|52998224725|function |describe\(/,
     );
     expect(findUser).not.toHaveBeenCalled();
     expect(patients).not.toHaveBeenCalled();
   });
-  it("lista as áreas e os guias de uma área, e lê o guia pelo id", async () => {
+  it("lista as áreas e os guias de uma área, e mostra o mapa do CRM", async () => {
     const sdk = await connect();
     const areas = await sdk.callTool({ name: "listar_guias", arguments: {} });
     expect(areas.structuredContent).toMatchObject({
@@ -108,43 +127,58 @@ describe("manual MCP isolado do CRM", () => {
         }),
       ]),
     });
-    const guide = await sdk.callTool({
-      name: "consultar_manual_crm",
-      arguments: { consulta: "AG07" },
-    });
-    expect(guide.structuredContent).toMatchObject({
-      status: "evidencia_encontrada",
-      trechos: [expect.objectContaining({ id: "AG07" })],
-    });
     const invalid = await sdk.callTool({
       name: "listar_guias",
       arguments: { area: "ZZ" },
     });
     expect(invalid.isError).toBe(true);
+    const overview = await sdk.callTool({
+      name: "visao_geral_crm",
+      arguments: {},
+    });
+    expect(overview.structuredContent).toMatchObject({
+      menu: expect.arrayContaining([
+        expect.objectContaining({ grupo: "Rotina" }),
+      ]),
+    });
+    const finance = await sdk.callTool({
+      name: "visao_geral_crm",
+      arguments: { modulo: "finance" },
+    });
+    expect(finance.structuredContent).toMatchObject({
+      modulo: "finance",
+      operacoes: expect.arrayContaining([
+        expect.objectContaining({ permissao: "finance.view" }),
+      ]),
+    });
   });
-  it("retorna falta de evidência e rejeita consulta acima de 300 caracteres", async () => {
+  it("avisa quando os guias não cobrem o assunto e valida as entradas", async () => {
     const sdk = await connect();
     const result = await sdk.callTool({
-      name: "consultar_manual_crm",
+      name: "buscar_guias",
       arguments: { consulta: "Como emitir nota fiscal eletrônica?" },
     });
     expect(result.structuredContent).toMatchObject({
-      status: "evidencia_insuficiente",
-      trechos: [],
+      status: expect.stringMatching(/^(so_guias_parciais|nenhum_guia)$/),
+      orientacao: expect.stringMatching(/não cobre|não tem nada/),
     });
-    const oversized = await sdk.callTool({
-      name: "consultar_manual_crm",
-      arguments: { consulta: "x".repeat(301) },
-    });
-    expect(oversized.isError).toBe(true);
-    const padded = await sdk.callTool({
-      name: "consultar_manual_crm",
-      arguments: { consulta: "cliente" + " ".repeat(294) },
-    });
-    expect(padded.isError).toBe(true);
+    for (const consulta of ["x".repeat(301), "cliente" + " ".repeat(294)]) {
+      const invalid = await sdk.callTool({
+        name: "buscar_guias",
+        arguments: { consulta },
+      });
+      expect(invalid.isError).toBe(true);
+    }
+    for (const ids of [[], Array.from({ length: 11 }, (_, i) => `AG${i}`)]) {
+      const invalid = await sdk.callTool({
+        name: "ler_guias",
+        arguments: { ids },
+      });
+      expect(invalid.isError).toBe(true);
+    }
     const unsupported = await sdk.callTool({
-      name: "ler_banco_crm",
-      arguments: {},
+      name: "consultar_manual_crm",
+      arguments: { consulta: "agenda" },
     });
     expect(unsupported.isError).toBe(true);
     await expect(sdk.listResources()).rejects.toThrow();

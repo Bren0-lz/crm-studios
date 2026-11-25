@@ -62,21 +62,27 @@ async function verifyManual(url, token) {
     const { tools } = await client.listTools(undefined, requestOptions);
     assert.deepEqual(
       tools.map((tool) => tool.name),
-      ["consultar_manual_crm", "listar_guias"],
+      ["buscar_guias", "ler_guias", "listar_guias", "visao_geral_crm"],
+    );
+    assert.match(
+      client.getInstructions() ?? "",
+      /base de conhecimento/,
+      "O servidor não enviou as instruções de uso dos guias.",
     );
 
-    const consult = async (consulta) => {
+    const call = async (name, args) => {
       const result = await client.callTool(
-        { name: "consultar_manual_crm", arguments: { consulta } },
+        { name, arguments: args },
         undefined,
         requestOptions,
       );
-      assert.notEqual(result.isError, true, "A consulta MCP retornou um erro.");
-      assert.deepEqual(
-        result.structuredContent?.revisao,
-        expectedRevision,
-        "A revisão ou o hash do manual servido difere do corpus deste checkout.",
-      );
+      assert.notEqual(result.isError, true, `${name} retornou um erro.`);
+      if (result.structuredContent?.revisao)
+        assert.deepEqual(
+          result.structuredContent.revisao,
+          expectedRevision,
+          "A revisão ou o hash do manual servido difere do corpus deste checkout.",
+        );
       return result.structuredContent;
     };
     // Guia com fonte alterada sai do pacote (hostinger-build): a prova só exige os que entraram,
@@ -85,31 +91,31 @@ async function verifyManual(url, token) {
     assert(packaged.size > 0, "Nenhum guia entrou no pacote.");
     const skipped = [];
     if (packaged.has("cadastrar-cliente")) {
-      const found = await consult("Como cadastrar um novo cliente?");
-      assert.equal(found.status, "evidencia_encontrada");
+      const found = await call("buscar_guias", {
+        consulta: "Como cadastrar um novo cliente?",
+      });
+      assert.equal(found.status, "guias_relacionados");
+      assert.equal(found.guias[0]?.id, "cadastrar-cliente");
+      const read = await call("ler_guias", { ids: ["cadastrar-cliente"] });
       assert(
-        found.trechos.some(
-          (item) =>
-            item.id === "cadastrar-cliente" &&
-            item.trecho.includes("Salvar cliente") &&
-            item.referencias.length > 0,
-        ),
+        read.guias[0]?.trecho.includes("Salvar cliente") &&
+          read.guias[0].referencias.length > 0,
       );
     } else skipped.push("cadastrar-cliente");
     if (packaged.has("GR04")) {
-      const enrollment = await consult(
-        "Como matricular um aluno quando tem vaga?",
-      );
-      assert.equal(enrollment.status, "evidencia_encontrada");
-      assert.deepEqual(
-        enrollment.trechos.map((item) => item.id),
-        ["GR04"],
-      );
-      assert.match(enrollment.trechos[0].trecho, /\*\*Matricular\*\*/);
+      const enrollment = await call("buscar_guias", {
+        consulta: "Como matricular um aluno quando tem vaga?",
+      });
+      assert.equal(enrollment.guias[0]?.id, "GR04");
+      const read = await call("ler_guias", { ids: ["GR04"] });
+      assert.match(read.guias[0].trecho, /\*\*Matricular\*\*/);
     } else skipped.push("GR04");
-    const missing = await consult("Como emitir nota fiscal eletrônica?");
-    assert.equal(missing.status, "evidencia_insuficiente");
-    assert.deepEqual(missing.trechos, []);
+    const missing = await call("buscar_guias", {
+      consulta: "Como emitir nota fiscal eletrônica?",
+    });
+    assert.notEqual(missing.status, "guias_relacionados");
+    const overview = await call("visao_geral_crm", {});
+    assert(overview.menu.length > 0, "Visão geral sem menu.");
 
     console.log(
       JSON.stringify(
@@ -121,6 +127,7 @@ async function verifyManual(url, token) {
             : "OK",
           matriculaComVaga: skipped.includes("GR04") ? "fora do pacote" : "OK",
           semResultado: "OK",
+          visaoGeral: "OK",
           semCredencial: 401,
           revisao: expectedRevision,
         },
