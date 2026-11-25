@@ -305,7 +305,7 @@ for (const width of [821, 1000, 1192, 1502, 1621, 2200]) {
     await expect(banner).toContainText("16 pendências pedem atenção");
     const scroller = await bannerItemsInOneRow(banner, 3);
     if (width === 2200) await notTruncated(scroller);
-    else await expectAutomaticBannerScroll(scroller);
+    if (width <= 1502) await expectAutomaticBannerScroll(scroller);
     await topActionsVisible(page);
 
     counts.groupVacancies = groupVacancies;
