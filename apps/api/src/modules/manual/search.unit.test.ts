@@ -41,6 +41,8 @@ describe("evidência de ajuda", () => {
     ["Como desfazer a baixa de uma parcela?", "FI06"],
     ["Como vender uma sessão avulsa para um cliente?", "PL04"],
     ["Onde vejo as parcelas na ficha do cliente?", "PL11"],
+    ["A fila da campanha permite registrar resposta de NPS?", "CO09"],
+    ["Como ver os lançamentos de uma categoria da DRE?", "RL07"],
   ])("retorna o guia verificado para %s", (query, id) => {
     const { trechos } = searchManual(query);
     expect(trechos.map((chapter) => chapter.id)).toEqual([id]);
