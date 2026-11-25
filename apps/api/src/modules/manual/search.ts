@@ -1,4 +1,4 @@
-import data from "./manual-data.json" with { type: "json" };
+import { data } from "./material.js";
 
 type Chapter = (typeof data.capitulos)[number];
 
@@ -8,7 +8,7 @@ const stop = new Set(
     "a o os as um uma uns umas de do da dos das no na nos nas num numa para pra por pelo pela pelos pelas e ou em com ao aos " +
     "como que qual quais quando onde porque por que se ja eu me meu minha meus minhas seu sua isso esse essa este esta " +
     "faco fazer faz posso pode consigo preciso quero queria gostaria devo tenho tem ter da sobre tela crm organiza studios " +
-    "aqui la ele ela dele dela lhe nele nela outro outra mais ainda so quem dar fica ficam " +
+    "aqui la ele ela dele dela lhe nele nela outro outra mais ainda so quem dar fica ficam nao " +
     // Serviços e modalidades são cadastro da clínica, não muda o passo a passo.
     "pilates dancaterapia depilacao fisioterapia"
   ).split(" "),
@@ -21,7 +21,16 @@ const groups: string[][] = [
   ["agendar", "agendo"],
   ["cancelar", "desmarcar", "cancelamento", "cancelo", "desmarco"],
   ["remarcar", "reagendar", "remarcacao", "reagendamento", "remarco"],
-  ["excluir", "apagar", "deletar", "remover", "exclusao", "excluo", "apago"],
+  [
+    "excluir",
+    "apagar",
+    "deletar",
+    "remover",
+    "exclusao",
+    "excluo",
+    "exclui",
+    "apago",
+  ],
   [
     "criar",
     "cadastrar",
@@ -29,11 +38,8 @@ const groups: string[][] = [
     "incluir",
     "registrar",
     "lancar",
-
     "crio",
-    "cadastro_acao",
     "lanco",
-    "registro_acao",
   ],
   [
     "editar",
@@ -64,13 +70,13 @@ const groups: string[][] = [
     "confiro",
   ],
   ["pagamento", "baixa", "quitar", "pago", "paga", "pagar"],
-  ["estornar", "estorno", "desfazer", "reembolso", "devolver"],
+  ["estornar", "estorno", "desfazer", "desfaco", "reembolso", "devolver"],
   ["inativar", "desativar", "inativo", "inativa"],
   ["reativar", "reativo"],
   ["lead", "interessado", "interessada", "prospect"],
   ["whatsapp", "zap", "wpp", "whats"],
   ["enviar", "mandar", "envio", "mando", "envie"],
-  ["vencida", "vencido", "atrasada", "atrasado", "atraso", "vencimento_atraso"],
+  ["vencida", "vencido", "atrasada", "atrasado", "atraso"],
   ["falta", "faltou", "faltar", "ausencia", "faltaram"],
   ["receita", "faturamento", "faturei", "recebimento"],
   ["matricular", "matricula", "matriculo", "inscrever"],
@@ -79,7 +85,7 @@ const groups: string[][] = [
   ["parcela", "divida", "debito", "mensalidade"],
   ["senha", "password"],
   ["imprimir", "impressao", "imprimo"],
-  ["exportar", "exportacao", "baixar_arquivo"],
+  ["exportar", "exportacao"],
   ["turma", "grupo"],
 ];
 const canonical = new Map<string, string>();
@@ -116,8 +122,30 @@ const reversals = [
   "reativar",
   "remarcar",
 ];
-// Palavras que invertem o sentido ("turma sem vaga" não é "turma com vaga").
-const polarity = new Set(["sem", "nao", "nunca", "nenhum", "nenhuma"]);
+// Palavra que inverte o sentido ("turma sem vaga" não é "turma com vaga"). "Não" fica de fora:
+// aparece em queixas ("não consigo entrar") que não invertem a tarefa.
+const polarity = new Set(["sem"]);
+
+// Verbo conjugado ("cancelei", "agendou", "consulto") vira o infinitivo, mas só quando o
+// infinitivo é um termo conhecido: "plano" não vira "planar".
+const conjugations: Array<[RegExp, string]> = [
+  [/quei$/, "car"],
+  [/guei$/, "gar"],
+  [/cei$/, "car"],
+  [/ei$/, "ar"],
+  [/ou$/, "ar"],
+  [/o$/, "ar"],
+  [/i$/, "ir"],
+];
+function infinitive(word: string) {
+  for (const [ending, replacement] of conjugations) {
+    if (!ending.test(word)) continue;
+    const verb = word.replace(ending, replacement);
+    const known = canonical.get(verb) ?? (actions.has(verb) ? verb : undefined);
+    if (known) return known;
+  }
+  return undefined;
+}
 
 function stem(word: string) {
   const known = canonical.get(word);
@@ -125,7 +153,7 @@ function stem(word: string) {
   let w = word;
   if (w.endsWith("oes") || w.endsWith("aes")) w = w.slice(0, -3) + "ao";
   else if (w.length > 3 && w.endsWith("s")) w = w.slice(0, -1);
-  return canonical.get(w) ?? w;
+  return canonical.get(w) ?? infinitive(w) ?? w;
 }
 
 function words(text: string) {
@@ -274,24 +302,22 @@ const areaNames: Record<string, string> = {
   OU: "Outros guias",
 };
 export const manualAreas = Object.keys(areaNames) as [string, ...string[]];
-// Tutoriais anteriores aos guias verificados não têm sigla no id.
+// Tutoriais anteriores aos guias verificados não têm sigla: o id vem do título.
 const legacyAreas: Record<string, string> = {
   "cadastrar-cliente": "CL",
-  "Cancelar um atendimento agendado": "AG",
-  "Cadastrar uma pessoa interessada": "CM",
-  "Transformar uma pessoa interessada em cliente": "CM",
-  "Criar uma turma": "GR",
-  "Abrir os dados e a frequência de uma turma": "GR",
-  "Colocar um cliente na espera de uma turma cheia": "LE",
-  "Contratar um pacote já cadastrado para um cliente": "PL",
-  "Colocar um cliente na fila por um serviço": "LE",
-  "Registrar o pagamento de uma parcela já recebida": "FI",
+  "cancelar-um-atendimento-agendado": "AG",
+  "cadastrar-uma-pessoa-interessada": "CM",
+  "transformar-uma-pessoa-interessada-em-cliente": "CM",
+  "criar-uma-turma": "GR",
+  "abrir-os-dados-e-a-frequencia-de-uma-turma": "GR",
+  "colocar-um-cliente-na-espera-de-uma-turma-cheia": "LE",
+  "contratar-um-pacote-ja-cadastrado-para-um-cliente": "PL",
+  "colocar-um-cliente-na-fila-por-um-servico": "LE",
+  "registrar-o-pagamento-de-uma-parcela-ja-recebida": "FI",
 };
 function areaOf(chapter: Chapter) {
   const prefix = /^([A-Z]{2})\d{2}$/.exec(chapter.id)?.[1];
-  return (
-    prefix ?? legacyAreas[chapter.id] ?? legacyAreas[chapter.titulo] ?? "OU"
-  );
+  return prefix ?? legacyAreas[chapter.id] ?? "OU";
 }
 
 /** Índice do manual: áreas com a quantidade de guias, ou os guias de uma área. */
