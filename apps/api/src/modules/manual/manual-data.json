@@ -1,6 +1,6 @@
 {
-  "revisao": "58d24f259205b3ab076a0b1326e14753d8ce615c",
-  "material": "63733e319ac909f57298063b079334469f9236f57a580c98f35a7e8315e5f9dc",
+  "revisao": "4268bc26d457ef255a634a12de4078dfd79e6fe6",
+  "material": "4cedbe3f119ad5681a017b95255fc90fe3bf4e26c5cf3e7ffb35c0952e5b2bf2",
   "manualPath": "docs/manual-crm-organiza-studios.md",
   "manualSha256": "0e777d85e81ce7fd5d1a7e12f51486efd373a0384e5f72c6053fcb3a9d100ff7",
   "sourceHashes": {
@@ -57,7 +57,7 @@
     "apps/web/src/app/NotificationSettingsModal.tsx": "80697d6391e34b7821f9ceadda97913f260d5193a4d861f1ea73e2f8c84e717b",
     "apps/web/src/shared/components/EmergencyButton.tsx": "b1527f616092dd1093f4b4a63513f32d10d99165b09a52d6c333ddd45fcab9cc",
     "apps/web/src/features/dashboard/DashboardPage.tsx": "b4874d9969fa20de9b0f5de8f4b1f3792e6a9a74df4ccf550a577311b7efc15c",
-    "apps/web/src/app/NotificationAlerts.tsx": "b977f68345cef8bc08ec611b74212474d059efa44b8808013bf684708ef4c580",
+    "apps/web/src/app/NotificationAlerts.tsx": "ead0955a18152822b7d0f1fa95a1982047380c195d4845ebd27321f649faf17f",
     "apps/web/src/features/dashboard/BirthdayDashboardCard.tsx": "a53ee71759a28a9cd07230a7b6bffaa8485c350ded5611d69c1f6ce5cdc62551",
     "e2e/agenda-mobile-filters.spec.ts": "973c221ff929df87e14d27233594b72e3352dd7bd3160854bbb38db11565e7dd",
     "apps/web/src/features/agenda/AppointmentPatientCreateModal.tsx": "49c7e6e6189c9ab0a3a8eb69341b6578aadf5f7d3a552a8ef7b2e137f91022c1",
@@ -213,7 +213,7 @@
     "apps/web/src/features/trash/SendToTrashModal.tsx": "b22fc267294fa933fb375e424a866508503b56a70c1c103e7bd1677d4b3094f2",
     "apps/web/src/features/trash/TrashModal.tsx": "99cf3b20c146f63a68639e3465648ae65eb2756ccec9d4c6b894f081ddf02dc2",
     "apps/web/src/features/trash/PurgeConfirmModal.tsx": "431247cc24391c5df720e8892632dfe3861addeb38ece271af4b6e83ed79d57f",
-    "docs/guias-mcp-fluxos-verificados.md": "549e045268248e5a980ec9f574d652431ce424bc0de1597f2230f812efee25f8"
+    "docs/guias-mcp-fluxos-verificados.md": "fb5498699bdff1908a555a9b4050d8e3758b1798b63d546cb2f5e95ccba8441c"
   },
   "excluidos": [
     "Agendar um atendimento",
@@ -277,23 +277,23 @@
         },
         {
           "titulo": "AgendaCard.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/58d24f259205b3ab076a0b1326e14753d8ce615c/apps/web/src/features/agenda/AgendaCard.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/agenda/AgendaCard.tsx"
         },
         {
           "titulo": "AppointmentDetailsModal.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/58d24f259205b3ab076a0b1326e14753d8ce615c/apps/web/src/features/agenda/AppointmentDetailsModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/agenda/AppointmentDetailsModal.tsx"
         },
         {
           "titulo": "agenda-card-menu.integration.test.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/58d24f259205b3ab076a0b1326e14753d8ce615c/apps/web/src/features/agenda/agenda-card-menu.integration.test.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/agenda/agenda-card-menu.integration.test.tsx"
         },
         {
           "titulo": "appointment-attendance.integration.test.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/58d24f259205b3ab076a0b1326e14753d8ce615c/apps/web/src/features/agenda/appointment-attendance.integration.test.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/agenda/appointment-attendance.integration.test.tsx"
         },
         {
           "titulo": "agenda-cancelled.integration.test.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/58d24f259205b3ab076a0b1326e14753d8ce615c/apps/web/src/features/agenda/agenda-cancelled.integration.test.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/agenda/agenda-cancelled.integration.test.tsx"
         }
       ],
       "fontes": [
@@ -319,15 +319,15 @@
         },
         {
           "titulo": "CommercialPage.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/58d24f259205b3ab076a0b1326e14753d8ce615c/apps/web/src/features/commercial/CommercialPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/commercial/CommercialPage.tsx"
         },
         {
           "titulo": "LeadModal.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/58d24f259205b3ab076a0b1326e14753d8ce615c/apps/web/src/features/commercial/LeadModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/commercial/LeadModal.tsx"
         },
         {
           "titulo": "lead-form-conversion.integration.test.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/58d24f259205b3ab076a0b1326e14753d8ce615c/apps/web/src/features/commercial/lead-form-conversion.integration.test.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/commercial/lead-form-conversion.integration.test.tsx"
         }
       ],
       "fontes": [
@@ -351,19 +351,19 @@
         },
         {
           "titulo": "CommercialPage.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/58d24f259205b3ab076a0b1326e14753d8ce615c/apps/web/src/features/commercial/CommercialPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/commercial/CommercialPage.tsx"
         },
         {
           "titulo": "LeadCard.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/58d24f259205b3ab076a0b1326e14753d8ce615c/apps/web/src/features/commercial/LeadCard.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/commercial/LeadCard.tsx"
         },
         {
           "titulo": "LeadConvertModal.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/58d24f259205b3ab076a0b1326e14753d8ce615c/apps/web/src/features/commercial/LeadConvertModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/commercial/LeadConvertModal.tsx"
         },
         {
           "titulo": "lead-form-conversion.integration.test.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/58d24f259205b3ab076a0b1326e14753d8ce615c/apps/web/src/features/commercial/lead-form-conversion.integration.test.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/commercial/lead-form-conversion.integration.test.tsx"
         }
       ],
       "fontes": [
@@ -388,15 +388,15 @@
         },
         {
           "titulo": "GroupsPage.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/58d24f259205b3ab076a0b1326e14753d8ce615c/apps/web/src/features/groups/GroupsPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/groups/GroupsPage.tsx"
         },
         {
           "titulo": "GroupModal.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/58d24f259205b3ab076a0b1326e14753d8ce615c/apps/web/src/features/groups/GroupModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/groups/GroupModal.tsx"
         },
         {
           "titulo": "groups.spec.ts",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/58d24f259205b3ab076a0b1326e14753d8ce615c/e2e/groups.spec.ts"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/e2e/groups.spec.ts"
         }
       ],
       "fontes": [
@@ -420,15 +420,15 @@
         },
         {
           "titulo": "GroupsPage.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/58d24f259205b3ab076a0b1326e14753d8ce615c/apps/web/src/features/groups/GroupsPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/groups/GroupsPage.tsx"
         },
         {
           "titulo": "GroupDetailsModal.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/58d24f259205b3ab076a0b1326e14753d8ce615c/apps/web/src/features/groups/GroupDetailsModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/groups/GroupDetailsModal.tsx"
         },
         {
           "titulo": "groups.spec.ts",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/58d24f259205b3ab076a0b1326e14753d8ce615c/e2e/groups.spec.ts"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/e2e/groups.spec.ts"
         }
       ],
       "fontes": [
@@ -452,11 +452,11 @@
         },
         {
           "titulo": "GroupsPage.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/58d24f259205b3ab076a0b1326e14753d8ce615c/apps/web/src/features/groups/GroupsPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/groups/GroupsPage.tsx"
         },
         {
           "titulo": "groups.spec.ts",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/58d24f259205b3ab076a0b1326e14753d8ce615c/e2e/groups.spec.ts"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/e2e/groups.spec.ts"
         }
       ],
       "fontes": [
@@ -479,15 +479,15 @@
         },
         {
           "titulo": "PlansPage.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/58d24f259205b3ab076a0b1326e14753d8ce615c/apps/web/src/features/plans/PlansPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/plans/PlansPage.tsx"
         },
         {
           "titulo": "PlanModal.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/58d24f259205b3ab076a0b1326e14753d8ce615c/apps/web/src/features/plans/PlanModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/plans/PlanModal.tsx"
         },
         {
           "titulo": "plans-finance.spec.ts",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/58d24f259205b3ab076a0b1326e14753d8ce615c/e2e/plans-finance.spec.ts"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/e2e/plans-finance.spec.ts"
         }
       ],
       "fontes": [
@@ -511,15 +511,15 @@
         },
         {
           "titulo": "WaitlistPage.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/58d24f259205b3ab076a0b1326e14753d8ce615c/apps/web/src/features/waitlist/WaitlistPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/waitlist/WaitlistPage.tsx"
         },
         {
           "titulo": "WaitlistEntryModal.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/58d24f259205b3ab076a0b1326e14753d8ce615c/apps/web/src/features/waitlist/WaitlistEntryModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/waitlist/WaitlistEntryModal.tsx"
         },
         {
           "titulo": "waitlist-page.integration.test.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/58d24f259205b3ab076a0b1326e14753d8ce615c/apps/web/src/features/waitlist/waitlist-page.integration.test.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/waitlist/waitlist-page.integration.test.tsx"
         }
       ],
       "fontes": [
@@ -543,19 +543,19 @@
         },
         {
           "titulo": "FinancePage.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/58d24f259205b3ab076a0b1326e14753d8ce615c/apps/web/src/features/finance/FinancePage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/finance/FinancePage.tsx"
         },
         {
           "titulo": "ReceivablesList.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/58d24f259205b3ab076a0b1326e14753d8ce615c/apps/web/src/features/finance/ReceivablesList.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/finance/ReceivablesList.tsx"
         },
         {
           "titulo": "SettleModal.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/58d24f259205b3ab076a0b1326e14753d8ce615c/apps/web/src/features/finance/SettleModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/finance/SettleModal.tsx"
         },
         {
           "titulo": "plans-finance.spec.ts",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/58d24f259205b3ab076a0b1326e14753d8ce615c/e2e/plans-finance.spec.ts"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/e2e/plans-finance.spec.ts"
         }
       ],
       "fontes": [
@@ -572,7 +572,7 @@
       "referencias": [
         {
           "titulo": "Tela de entrada",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/auth/LoginPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/auth/LoginPage.tsx"
         }
       ],
       "perguntas": [
@@ -593,7 +593,7 @@
       "referencias": [
         {
           "titulo": "Menu lateral e botão Abrir menu",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/app/Shell.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/app/Shell.tsx"
         }
       ],
       "perguntas": [
@@ -614,15 +614,15 @@
       "referencias": [
         {
           "titulo": "Abertura do formulário pela Agenda",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/agenda/AgendaPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/agenda/AgendaPage.tsx"
         },
         {
           "titulo": "Tipo, plano, recursos, data e confirmação do agendamento",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/agenda/AppointmentForm.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/agenda/AppointmentForm.tsx"
         },
         {
           "titulo": "Teste do agendamento com plano e da remarcação",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/e2e/agenda.spec.ts"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/e2e/agenda.spec.ts"
         }
       ],
       "perguntas": [
@@ -646,11 +646,11 @@
       "referencias": [
         {
           "titulo": "Cartão do atendimento na Agenda",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/agenda/AgendaCard.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/agenda/AgendaCard.tsx"
         },
         {
           "titulo": "Detalhes do atendimento e dados do cliente",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/agenda/AppointmentDetailsModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/agenda/AppointmentDetailsModal.tsx"
         }
       ],
       "perguntas": [
@@ -671,19 +671,19 @@
       "referencias": [
         {
           "titulo": "Cartão que abre os detalhes na Agenda",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/agenda/AgendaCard.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/agenda/AgendaCard.tsx"
         },
         {
           "titulo": "Ação Remarcar atendimento",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/agenda/AppointmentDetailsModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/agenda/AppointmentDetailsModal.tsx"
         },
         {
           "titulo": "Formulário de reagendamento",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/agenda/AppointmentRescheduleModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/agenda/AppointmentRescheduleModal.tsx"
         },
         {
           "titulo": "Teste da preservação do atendimento na remarcação",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/e2e/agenda.spec.ts"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/e2e/agenda.spec.ts"
         }
       ],
       "perguntas": [
@@ -708,7 +708,7 @@
       "referencias": [
         {
           "titulo": "Busca e filtros de Clientes",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/patients/PatientsPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/patients/PatientsPage.tsx"
         }
       ],
       "perguntas": [
@@ -731,11 +731,11 @@
       "referencias": [
         {
           "titulo": "Entrada da ficha na lista de Clientes",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/patients/PatientsPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/patients/PatientsPage.tsx"
         },
         {
           "titulo": "Abas da ficha",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/patients/PatientRecordTabs.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/patients/PatientRecordTabs.tsx"
         }
       ],
       "perguntas": [
@@ -757,15 +757,15 @@
       "referencias": [
         {
           "titulo": "Ação de edição na lista de Clientes",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/patients/PatientsPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/patients/PatientsPage.tsx"
         },
         {
           "titulo": "Ação de edição na ficha",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/patients/PatientDetailPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/patients/PatientDetailPage.tsx"
         },
         {
           "titulo": "Formulário de edição e salvamento",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/patients/PatientModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/patients/PatientModal.tsx"
         }
       ],
       "perguntas": [
@@ -789,11 +789,11 @@
       "referencias": [
         {
           "titulo": "Ações e resultado da mudança de situação",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/patients/PatientDetailPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/patients/PatientDetailPage.tsx"
         },
         {
           "titulo": "Filtro de clientes inativos",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/patients/PatientsPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/patients/PatientsPage.tsx"
         }
       ],
       "perguntas": [
@@ -815,11 +815,11 @@
       "referencias": [
         {
           "titulo": "Lista, filtro por Serviço e atalho Participantes",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/events/EventsPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/events/EventsPage.tsx"
         },
         {
           "titulo": "Tela de detalhes do evento",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/events/EventDetailPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/events/EventDetailPage.tsx"
         }
       ],
       "perguntas": [
@@ -841,11 +841,11 @@
       "referencias": [
         {
           "titulo": "Lista e ação Novo evento",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/events/EventsPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/events/EventsPage.tsx"
         },
         {
           "titulo": "Campos e salvamento do evento",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/events/EventModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/events/EventModal.tsx"
         }
       ],
       "perguntas": [
@@ -867,11 +867,11 @@
       "referencias": [
         {
           "titulo": "Ação Editar na lista de eventos",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/events/EventsPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/events/EventsPage.tsx"
         },
         {
           "titulo": "Preenchimento e salvamento na edição",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/events/EventModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/events/EventModal.tsx"
         }
       ],
       "perguntas": [
@@ -892,11 +892,11 @@
       "referencias": [
         {
           "titulo": "Ação de inclusão na tela do evento",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/events/EventDetailPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/events/EventDetailPage.tsx"
         },
         {
           "titulo": "Formulário de participante",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/events/EventParticipantModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/events/EventParticipantModal.tsx"
         }
       ],
       "perguntas": [
@@ -917,7 +917,7 @@
       "referencias": [
         {
           "titulo": "Busca, filtro de status e mensagem sem resultados",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/events/EventDetailPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/events/EventDetailPage.tsx"
         }
       ],
       "perguntas": [
@@ -937,11 +937,11 @@
       "referencias": [
         {
           "titulo": "Abas de Financeiro",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/finance/FinancePage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/finance/FinancePage.tsx"
         },
         {
           "titulo": "Formulário de lançamento manual",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/finance/FinanceClassificationPanel.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/finance/FinanceClassificationPanel.tsx"
         }
       ],
       "perguntas": [
@@ -963,11 +963,11 @@
       "referencias": [
         {
           "titulo": "Ações da parcela em Contas a receber",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/finance/ReceivablesList.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/finance/ReceivablesList.tsx"
         },
         {
           "titulo": "Confirmação, motivo obrigatório e efeito do estorno",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/finance/ReversePaymentModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/finance/ReversePaymentModal.tsx"
         }
       ],
       "perguntas": [
@@ -990,11 +990,11 @@
       "referencias": [
         {
           "titulo": "Seleção da turma, do cliente e confirmação da matrícula",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/groups/GroupsPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/groups/GroupsPage.tsx"
         },
         {
           "titulo": "Situação da matrícula nos detalhes da turma",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/groups/GroupDetailsModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/groups/GroupDetailsModal.tsx"
         }
       ],
       "perguntas": [
@@ -1017,15 +1017,15 @@
       "referencias": [
         {
           "titulo": "Ação Plano avulso na ficha",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/patients/PatientRecordTabs.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/patients/PatientRecordTabs.tsx"
         },
         {
           "titulo": "Janela e registro da contratação avulsa",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/patients/PatientPlanModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/patients/PatientPlanModal.tsx"
         },
         {
           "titulo": "Campos e ação de criar plano e parcelas",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/plans/PlanForm.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/plans/PlanForm.tsx"
         }
       ],
       "perguntas": [
@@ -1047,7 +1047,7 @@
       "referencias": [
         {
           "titulo": "Planos e parcelas na ficha do cliente",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/patients/PatientRecordTabs.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/patients/PatientRecordTabs.tsx"
         }
       ],
       "perguntas": [
@@ -1068,11 +1068,11 @@
       "referencias": [
         {
           "titulo": "Atalhos, datas e seções de relatórios",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/reports/ReportsPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/reports/ReportsPage.tsx"
         },
         {
           "titulo": "Navegação entre seções",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/reports/ReportTabs.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/reports/ReportTabs.tsx"
         }
       ],
       "perguntas": [
@@ -1095,11 +1095,11 @@
       "referencias": [
         {
           "titulo": "Menu de usuário e ação Sair",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/app/Shell.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/app/Shell.tsx"
         },
         {
           "titulo": "Confirmação para encerrar todas as sessões",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/shared/auth/RevokeSessionsButton.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/shared/auth/RevokeSessionsButton.tsx"
         }
       ],
       "perguntas": [
@@ -1120,11 +1120,11 @@
       "referencias": [
         {
           "titulo": "Seletor e condições de exibição",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/app/BranchSelector.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/app/BranchSelector.tsx"
         },
         {
           "titulo": "Atualização da tela na troca de filial",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/app/Shell.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/app/Shell.tsx"
         }
       ],
       "perguntas": [
@@ -1144,11 +1144,11 @@
       "referencias": [
         {
           "titulo": "Sino e atalhos de pendências",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/app/Shell.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/app/Shell.tsx"
         },
         {
           "titulo": "Grupos de notificações e destinos",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/app/notification-center.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/app/notification-center.tsx"
         }
       ],
       "perguntas": [
@@ -1168,7 +1168,7 @@
       "referencias": [
         {
           "titulo": "Configuração e salvamento das preferências",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/app/NotificationSettingsModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/app/NotificationSettingsModal.tsx"
         }
       ],
       "perguntas": [
@@ -1187,7 +1187,7 @@
       "referencias": [
         {
           "titulo": "Busca de clientes e serviços no SOS",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/shared/components/EmergencyButton.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/shared/components/EmergencyButton.tsx"
         }
       ],
       "perguntas": [
@@ -1206,7 +1206,7 @@
       "referencias": [
         {
           "titulo": "Resumo e atalho para a Agenda",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/dashboard/DashboardPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/dashboard/DashboardPage.tsx"
         }
       ],
       "perguntas": [
@@ -1221,15 +1221,15 @@
     {
       "id": "VG02",
       "titulo": "Abrir uma pendência pelo painel inicial",
-      "trecho": "## Abrir uma pendência pelo painel inicial\n\n1. Abra [**Visão geral**](https://crm.organizastudios.com/).\n2. Leia os grupos de pendências em destaque no alto da tela.\n3. Clique no grupo que deseja tratar, como **Parcelas vencidas**.\n4. Confira o grupo ou o filtro que abriu na tela de destino.\n\nPara **Parcelas vencidas**, confira se o **Financeiro** abriu em **Contas a receber**, com **Vencidas** selecionado. Os grupos exibidos dependem das pendências e das preferências da sua conta.",
+      "trecho": "## Abrir uma pendência pelo painel inicial\n\n1. Abra [**Visão geral**](https://crm.organizastudios.com/).\n2. Leia os grupos de pendências em destaque no alto da tela.\n3. Clique no grupo que deseja tratar, como **Parcelas vencidas**.\n4. Confira o grupo ou o filtro que abriu na tela de destino.\n\nQuando faltar espaço, a faixa de alertas rola automaticamente na horizontal. Você também pode usar a barra de rolagem ou arrastar a faixa no celular.\n\nPara **Parcelas vencidas**, confira se o **Financeiro** abriu em **Contas a receber**, com **Vencidas** selecionado. Os grupos exibidos dependem das pendências e das preferências da sua conta.",
       "referencias": [
         {
           "titulo": "Alertas do cabeçalho e suas ações",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/app/NotificationAlerts.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/app/NotificationAlerts.tsx"
         },
         {
           "titulo": "Destino do alerta de parcelas vencidas",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/app/notification-center.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/app/notification-center.tsx"
         }
       ],
       "perguntas": [
@@ -1249,11 +1249,11 @@
       "referencias": [
         {
           "titulo": "Atalho do painel",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/dashboard/DashboardPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/dashboard/DashboardPage.tsx"
         },
         {
           "titulo": "Abertura do formulário de agendamento",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/agenda/AgendaPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/agenda/AgendaPage.tsx"
         }
       ],
       "perguntas": [
@@ -1273,11 +1273,11 @@
       "referencias": [
         {
           "titulo": "Bloco de clientes sem retorno",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/dashboard/DashboardPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/dashboard/DashboardPage.tsx"
         },
         {
           "titulo": "Bloco de aniversariantes e atalho",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/dashboard/BirthdayDashboardCard.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/dashboard/BirthdayDashboardCard.tsx"
         }
       ],
       "perguntas": [
@@ -1297,7 +1297,7 @@
       "referencias": [
         {
           "titulo": "Aba de campanhas no painel",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/dashboard/DashboardPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/dashboard/DashboardPage.tsx"
         }
       ],
       "perguntas": [
@@ -1316,11 +1316,11 @@
       "referencias": [
         {
           "titulo": "Navegação, visualizações e filtros da Agenda",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/agenda/AgendaPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/agenda/AgendaPage.tsx"
         },
         {
           "titulo": "Teste da apresentação dos filtros no celular",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/e2e/agenda-mobile-filters.spec.ts"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/e2e/agenda-mobile-filters.spec.ts"
         }
       ],
       "perguntas": [
@@ -1341,11 +1341,11 @@
       "referencias": [
         {
           "titulo": "Campos de repetição e confirmação",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/agenda/AppointmentForm.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/agenda/AppointmentForm.tsx"
         },
         {
           "titulo": "Visualização das ocorrências na Agenda",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/agenda/AgendaPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/agenda/AgendaPage.tsx"
         }
       ],
       "perguntas": [
@@ -1364,11 +1364,11 @@
       "referencias": [
         {
           "titulo": "Campo Cliente do agendamento",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/agenda/AppointmentForm.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/agenda/AppointmentForm.tsx"
         },
         {
           "titulo": "Janela de cadastro e retorno à Agenda",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/agenda/AppointmentPatientCreateModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/agenda/AppointmentPatientCreateModal.tsx"
         }
       ],
       "perguntas": [
@@ -1387,11 +1387,11 @@
       "referencias": [
         {
           "titulo": "Ação de edição em Detalhes do atendimento",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/agenda/AppointmentDetailsModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/agenda/AppointmentDetailsModal.tsx"
         },
         {
           "titulo": "Campos, confirmação e validação da edição",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/agenda/AppointmentEditModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/agenda/AppointmentEditModal.tsx"
         }
       ],
       "perguntas": [
@@ -1411,7 +1411,7 @@
       "referencias": [
         {
           "titulo": "Ação Confirmar presença e condições",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/agenda/AppointmentDetailsModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/agenda/AppointmentDetailsModal.tsx"
         }
       ],
       "perguntas": [
@@ -1430,7 +1430,7 @@
       "referencias": [
         {
           "titulo": "Ação e confirmação da ausência",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/agenda/AppointmentDetailsModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/agenda/AppointmentDetailsModal.tsx"
         }
       ],
       "perguntas": [
@@ -1449,7 +1449,7 @@
       "referencias": [
         {
           "titulo": "Detalhes e ação de finalizar",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/agenda/AppointmentDetailsModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/agenda/AppointmentDetailsModal.tsx"
         }
       ],
       "perguntas": [
@@ -1467,11 +1467,11 @@
       "referencias": [
         {
           "titulo": "Detalhes e ações do atendimento",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/agenda/AppointmentDetailsModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/agenda/AppointmentDetailsModal.tsx"
         },
         {
           "titulo": "Formulário de reagendamento",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/agenda/AppointmentRescheduleModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/agenda/AppointmentRescheduleModal.tsx"
         }
       ],
       "perguntas": [
@@ -1490,11 +1490,11 @@
       "referencias": [
         {
           "titulo": "Criação do bloqueio e aviso",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/agenda/AgendaPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/agenda/AgendaPage.tsx"
         },
         {
           "titulo": "Campos do bloqueio",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/agenda/ScheduleBlockModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/agenda/ScheduleBlockModal.tsx"
         }
       ],
       "perguntas": [
@@ -1514,11 +1514,11 @@
       "referencias": [
         {
           "titulo": "Ação no cartão do bloqueio",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/agenda/ScheduleBlockCard.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/agenda/ScheduleBlockCard.tsx"
         },
         {
           "titulo": "Confirmação e efeito do cancelamento",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/agenda/CancelBlockModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/agenda/CancelBlockModal.tsx"
         }
       ],
       "perguntas": [
@@ -1538,11 +1538,11 @@
       "referencias": [
         {
           "titulo": "Formulário de nota na Agenda",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/agenda/AgendaNoteModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/agenda/AgendaNoteModal.tsx"
         },
         {
           "titulo": "Teste de criação e exibição da nota",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/e2e/agenda-notes.spec.ts"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/e2e/agenda-notes.spec.ts"
         }
       ],
       "perguntas": [
@@ -1562,7 +1562,7 @@
       "referencias": [
         {
           "titulo": "Campos da repetição e limite de ocorrências",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/agenda/AgendaNoteModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/agenda/AgendaNoteModal.tsx"
         }
       ],
       "perguntas": [
@@ -1581,11 +1581,11 @@
       "referencias": [
         {
           "titulo": "Ação Editar no detalhe da nota",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/agenda/AgendaNoteDetailsModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/agenda/AgendaNoteDetailsModal.tsx"
         },
         {
           "titulo": "Edição e escolha das ocorrências",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/agenda/AgendaNoteModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/agenda/AgendaNoteModal.tsx"
         }
       ],
       "perguntas": [
@@ -1605,7 +1605,7 @@
       "referencias": [
         {
           "titulo": "Exclusão e escolha das ocorrências",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/agenda/AgendaNoteDetailsModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/agenda/AgendaNoteDetailsModal.tsx"
         }
       ],
       "perguntas": [
@@ -1624,11 +1624,11 @@
       "referencias": [
         {
           "titulo": "Ações do cartão na Agenda",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/agenda/AgendaCard.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/agenda/AgendaCard.tsx"
         },
         {
           "titulo": "Janela de histórico",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/agenda/AppointmentRescheduleHistoryModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/agenda/AppointmentRescheduleHistoryModal.tsx"
         }
       ],
       "perguntas": [
@@ -1647,11 +1647,11 @@
       "referencias": [
         {
           "titulo": "Destino do aviso",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/app/notification-center.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/app/notification-center.tsx"
         },
         {
           "titulo": "Filtros, seleção e finalização",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/agenda/PendingFinalizationPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/agenda/PendingFinalizationPage.tsx"
         }
       ],
       "perguntas": [
@@ -1670,11 +1670,11 @@
       "referencias": [
         {
           "titulo": "Atalho Concluídos na Agenda",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/agenda/AgendaPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/agenda/AgendaPage.tsx"
         },
         {
           "titulo": "Seleção de período e filtros",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/agenda/CompletedAppointmentsPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/agenda/CompletedAppointmentsPage.tsx"
         }
       ],
       "perguntas": [
@@ -1694,7 +1694,7 @@
       "referencias": [
         {
           "titulo": "Janela, prévia e link de WhatsApp",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/agenda/ShareAgendaModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/agenda/ShareAgendaModal.tsx"
         }
       ],
       "perguntas": [
@@ -1713,11 +1713,11 @@
       "referencias": [
         {
           "titulo": "Cartão de aula e atalho Abrir encontro",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/agenda/GroupSessionCard.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/agenda/GroupSessionCard.tsx"
         },
         {
           "titulo": "Abertura do encontro indicado pela Agenda",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/groups/GroupsPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/groups/GroupsPage.tsx"
         }
       ],
       "perguntas": [
@@ -1737,11 +1737,11 @@
       "referencias": [
         {
           "titulo": "Entrada nos detalhes",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/agenda/AppointmentDetailsModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/agenda/AppointmentDetailsModal.tsx"
         },
         {
           "titulo": "Nota, comentário e salvamento",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/agenda/SatisfactionSurveyModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/agenda/SatisfactionSurveyModal.tsx"
         }
       ],
       "perguntas": [
@@ -1760,11 +1760,11 @@
       "referencias": [
         {
           "titulo": "Calendário mensal e abertura do dia",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/agenda/AgendaPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/agenda/AgendaPage.tsx"
         },
         {
           "titulo": "Feriado e programação na janela do dia",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/agenda/DayEventsModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/agenda/DayEventsModal.tsx"
         }
       ],
       "perguntas": [
@@ -1784,11 +1784,11 @@
       "referencias": [
         {
           "titulo": "Ação de consulta na lista de clientes",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/patients/PatientsPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/patients/PatientsPage.tsx"
         },
         {
           "titulo": "Modo Consultar cliente no formulário",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/patients/PatientModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/patients/PatientModal.tsx"
         }
       ],
       "perguntas": [
@@ -1808,7 +1808,7 @@
       "referencias": [
         {
           "titulo": "Cadastro e ações de agendamento guiado",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/patients/PatientModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/patients/PatientModal.tsx"
         }
       ],
       "perguntas": [
@@ -1826,11 +1826,11 @@
       "referencias": [
         {
           "titulo": "Contratação integrada ao cadastro de cliente",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/patients/PatientModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/patients/PatientModal.tsx"
         },
         {
           "titulo": "Aba Planos na ficha do cliente",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/patients/PatientRecordTabs.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/patients/PatientRecordTabs.tsx"
         }
       ],
       "perguntas": [
@@ -1849,7 +1849,7 @@
       "referencias": [
         {
           "titulo": "Fluxo de cadastro e serviço avulso",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/patients/PatientModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/patients/PatientModal.tsx"
         }
       ],
       "perguntas": [
@@ -1867,7 +1867,7 @@
       "referencias": [
         {
           "titulo": "Cadastro e ação de venda guiada",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/patients/PatientModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/patients/PatientModal.tsx"
         }
       ],
       "perguntas": [
@@ -1885,11 +1885,11 @@
       "referencias": [
         {
           "titulo": "Atalho Mais e ação Importar",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/patients/PatientsPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/patients/PatientsPage.tsx"
         },
         {
           "titulo": "Formulário e prévia da planilha",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/patients/PatientImportModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/patients/PatientImportModal.tsx"
         }
       ],
       "perguntas": [
@@ -1909,11 +1909,11 @@
       "referencias": [
         {
           "titulo": "Atalho Mais e ação Exportar",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/patients/PatientsPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/patients/PatientsPage.tsx"
         },
         {
           "titulo": "Seleção dos campos e download",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/patients/PatientExportModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/patients/PatientExportModal.tsx"
         }
       ],
       "perguntas": [
@@ -1933,15 +1933,15 @@
       "referencias": [
         {
           "titulo": "Ação, resultado e filtro em Clientes",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/patients/PatientsPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/patients/PatientsPage.tsx"
         },
         {
           "titulo": "Período, prévia e seleção",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/patients/PatientInactivationModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/patients/PatientInactivationModal.tsx"
         },
         {
           "titulo": "Critérios de elegibilidade e revalidação",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/api/src/storage/mysql/patient-management.ts"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/api/src/storage/mysql/patient-management.ts"
         }
       ],
       "perguntas": [
@@ -1962,7 +1962,7 @@
       "referencias": [
         {
           "titulo": "Consulta, dados e ações do SOS",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/shared/components/EmergencyButton.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/shared/components/EmergencyButton.tsx"
         }
       ],
       "perguntas": [
@@ -1981,7 +1981,7 @@
       "referencias": [
         {
           "titulo": "Fluxo de venda e configuração do desconto",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/patients/PatientModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/patients/PatientModal.tsx"
         }
       ],
       "perguntas": [
@@ -1999,11 +1999,11 @@
       "referencias": [
         {
           "titulo": "Entrada da ficha na lista",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/patients/PatientsPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/patients/PatientsPage.tsx"
         },
         {
           "titulo": "Aba Histórico e permissão",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/patients/PatientRecordTabs.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/patients/PatientRecordTabs.tsx"
         }
       ],
       "perguntas": [
@@ -2023,11 +2023,11 @@
       "referencias": [
         {
           "titulo": "Etapas posteriores à contratação",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/plans/PlansPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/plans/PlansPage.tsx"
         },
         {
           "titulo": "Baixa da parcela",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/finance/SettleModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/finance/SettleModal.tsx"
         }
       ],
       "perguntas": [
@@ -2046,11 +2046,11 @@
       "referencias": [
         {
           "titulo": "Funil, atalhos e abertura dos filtros",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/commercial/CommercialPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/commercial/CommercialPage.tsx"
         },
         {
           "titulo": "Campos e aplicação dos filtros",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/commercial/LeadFiltersModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/commercial/LeadFiltersModal.tsx"
         }
       ],
       "perguntas": [
@@ -2070,15 +2070,15 @@
       "referencias": [
         {
           "titulo": "Entrada de análise e ações dos cartões",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/commercial/CommercialPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/commercial/CommercialPage.tsx"
         },
         {
           "titulo": "Abas do detalhe",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/commercial/LeadDetailsModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/commercial/LeadDetailsModal.tsx"
         },
         {
           "titulo": "Quadros de análise",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/commercial/LeadAnalysisModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/commercial/LeadAnalysisModal.tsx"
         }
       ],
       "perguntas": [
@@ -2099,11 +2099,11 @@
       "referencias": [
         {
           "titulo": "Ação de edição no funil",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/commercial/CommercialPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/commercial/CommercialPage.tsx"
         },
         {
           "titulo": "Campos e salvamento do lead",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/commercial/LeadModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/commercial/LeadModal.tsx"
         }
       ],
       "perguntas": [
@@ -2123,7 +2123,7 @@
       "referencias": [
         {
           "titulo": "Seletor de etapa no funil",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/commercial/CommercialPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/commercial/CommercialPage.tsx"
         }
       ],
       "perguntas": [
@@ -2142,11 +2142,11 @@
       "referencias": [
         {
           "titulo": "Seleção da etapa e exibição de perdidos",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/commercial/CommercialPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/commercial/CommercialPage.tsx"
         },
         {
           "titulo": "Motivo obrigatório e confirmação",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/commercial/LeadLostModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/commercial/LeadLostModal.tsx"
         }
       ],
       "perguntas": [
@@ -2166,11 +2166,11 @@
       "referencias": [
         {
           "titulo": "Funil e ações do cabeçalho",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/commercial/CommercialPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/commercial/CommercialPage.tsx"
         },
         {
           "titulo": "Campos da etapa e posição",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/commercial/LeadStageModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/commercial/LeadStageModal.tsx"
         }
       ],
       "perguntas": [
@@ -2190,11 +2190,11 @@
       "referencias": [
         {
           "titulo": "Entrada de Atividades no funil",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/commercial/CommercialPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/commercial/CommercialPage.tsx"
         },
         {
           "titulo": "Formulário e lista de tarefas",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/commercial/LeadActivityModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/commercial/LeadActivityModal.tsx"
         }
       ],
       "perguntas": [
@@ -2214,7 +2214,7 @@
       "referencias": [
         {
           "titulo": "Ações e estados de tarefas comerciais",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/commercial/LeadActivityModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/commercial/LeadActivityModal.tsx"
         }
       ],
       "perguntas": [
@@ -2233,7 +2233,7 @@
       "referencias": [
         {
           "titulo": "Campos e histórico de contato",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/commercial/LeadActivityModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/commercial/LeadActivityModal.tsx"
         }
       ],
       "perguntas": [
@@ -2252,11 +2252,11 @@
       "referencias": [
         {
           "titulo": "Ação no funil",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/commercial/CommercialPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/commercial/CommercialPage.tsx"
         },
         {
           "titulo": "Formulário do agendamento de lead",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/commercial/LeadAppointmentModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/commercial/LeadAppointmentModal.tsx"
         }
       ],
       "perguntas": [
@@ -2275,11 +2275,11 @@
       "referencias": [
         {
           "titulo": "Abertura da importação no funil",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/commercial/CommercialPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/commercial/CommercialPage.tsx"
         },
         {
           "titulo": "Escolha do arquivo e destino no funil",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/commercial/LeadImportModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/commercial/LeadImportModal.tsx"
         }
       ],
       "perguntas": [
@@ -2299,11 +2299,11 @@
       "referencias": [
         {
           "titulo": "Lista de turmas e aba de indicadores",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/groups/GroupsPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/groups/GroupsPage.tsx"
         },
         {
           "titulo": "Abas e calendário da turma",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/groups/GroupDetailsModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/groups/GroupDetailsModal.tsx"
         }
       ],
       "perguntas": [
@@ -2323,11 +2323,11 @@
       "referencias": [
         {
           "titulo": "Abertura da turma",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/groups/GroupsPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/groups/GroupsPage.tsx"
         },
         {
           "titulo": "Edição de nome, capacidade e horários",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/groups/GroupDetailsModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/groups/GroupDetailsModal.tsx"
         }
       ],
       "perguntas": [
@@ -2347,11 +2347,11 @@
       "referencias": [
         {
           "titulo": "Calendário de frequência",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/groups/GroupDetailsModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/groups/GroupDetailsModal.tsx"
         },
         {
           "titulo": "Ações individuais e presença coletiva",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/groups/GroupSessionModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/groups/GroupSessionModal.tsx"
         }
       ],
       "perguntas": [
@@ -2370,11 +2370,11 @@
       "referencias": [
         {
           "titulo": "Abertura de encontros",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/groups/GroupDetailsModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/groups/GroupDetailsModal.tsx"
         },
         {
           "titulo": "Ação Concluir encontro",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/groups/GroupSessionModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/groups/GroupSessionModal.tsx"
         }
       ],
       "perguntas": [
@@ -2393,7 +2393,7 @@
       "referencias": [
         {
           "titulo": "Crédito, elegibilidade e gravação da reserva",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/groups/GroupOperationsPanel.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/groups/GroupOperationsPanel.tsx"
         }
       ],
       "perguntas": [
@@ -2411,7 +2411,7 @@
       "referencias": [
         {
           "titulo": "Linha de reposição e estados de presença",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/groups/GroupSessionModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/groups/GroupSessionModal.tsx"
         }
       ],
       "perguntas": [
@@ -2429,11 +2429,11 @@
       "referencias": [
         {
           "titulo": "Participantes e ação de cancelar matrícula",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/groups/GroupDetailsModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/groups/GroupDetailsModal.tsx"
         },
         {
           "titulo": "Confirmação da matrícula",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/groups/GroupsPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/groups/GroupsPage.tsx"
         }
       ],
       "perguntas": [
@@ -2452,7 +2452,7 @@
       "referencias": [
         {
           "titulo": "Edição do profissional do encontro",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/groups/GroupSessionModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/groups/GroupSessionModal.tsx"
         }
       ],
       "perguntas": [
@@ -2470,7 +2470,7 @@
       "referencias": [
         {
           "titulo": "Indicadores, atalhos e filtros da fila",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/waitlist/WaitlistPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/waitlist/WaitlistPage.tsx"
         }
       ],
       "perguntas": [
@@ -2489,11 +2489,11 @@
       "referencias": [
         {
           "titulo": "Formulário da fila por produto",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/waitlist/WaitlistEntryModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/waitlist/WaitlistEntryModal.tsx"
         },
         {
           "titulo": "Lista e filtros de espera",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/waitlist/WaitlistPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/waitlist/WaitlistPage.tsx"
         }
       ],
       "perguntas": [
@@ -2513,7 +2513,7 @@
       "referencias": [
         {
           "titulo": "Aviso, canal e atualização de situação",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/waitlist/WaitlistManageModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/waitlist/WaitlistManageModal.tsx"
         }
       ],
       "perguntas": [
@@ -2532,11 +2532,11 @@
       "referencias": [
         {
           "titulo": "Entrada da fila",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/waitlist/WaitlistPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/waitlist/WaitlistPage.tsx"
         },
         {
           "titulo": "Seleção de turma e contratação",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/waitlist/WaitlistEnrollSection.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/waitlist/WaitlistEnrollSection.tsx"
         }
       ],
       "perguntas": [
@@ -2555,11 +2555,11 @@
       "referencias": [
         {
           "titulo": "Abertura da entrada na fila",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/waitlist/WaitlistPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/waitlist/WaitlistPage.tsx"
         },
         {
           "titulo": "Situações e salvamento",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/waitlist/WaitlistManageModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/waitlist/WaitlistManageModal.tsx"
         }
       ],
       "perguntas": [
@@ -2579,7 +2579,7 @@
       "referencias": [
         {
           "titulo": "Ação de remoção e confirmação",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/waitlist/WaitlistManageModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/waitlist/WaitlistManageModal.tsx"
         }
       ],
       "perguntas": [
@@ -2598,7 +2598,7 @@
       "referencias": [
         {
           "titulo": "Cartões e filtros por situação",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/plans/PlansPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/plans/PlansPage.tsx"
         }
       ],
       "perguntas": [
@@ -2617,7 +2617,7 @@
       "referencias": [
         {
           "titulo": "Cartões e abertura do extrato",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/plans/PlansPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/plans/PlansPage.tsx"
         }
       ],
       "perguntas": [
@@ -2636,11 +2636,11 @@
       "referencias": [
         {
           "titulo": "Turma e seleção do documento",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/plans/PlanModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/plans/PlanModal.tsx"
         },
         {
           "titulo": "Confirmações após criar o plano",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/plans/PlansPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/plans/PlansPage.tsx"
         }
       ],
       "perguntas": [
@@ -2659,11 +2659,11 @@
       "referencias": [
         {
           "titulo": "Formulário de contratação e criação de parcelas",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/plans/PlanModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/plans/PlanModal.tsx"
         },
         {
           "titulo": "Teste da contratação e baixa financeira",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/e2e/plans-finance.spec.ts"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/e2e/plans-finance.spec.ts"
         }
       ],
       "perguntas": [
@@ -2683,11 +2683,11 @@
       "referencias": [
         {
           "titulo": "Ação Renovar no plano do cliente",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/plans/PlansPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/plans/PlansPage.tsx"
         },
         {
           "titulo": "Campos e confirmação da renovação",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/plans/PlanModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/plans/PlanModal.tsx"
         }
       ],
       "perguntas": [
@@ -2707,11 +2707,11 @@
       "referencias": [
         {
           "titulo": "Situações e ações Pausar e Ativar",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/plans/PlansPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/plans/PlansPage.tsx"
         },
         {
           "titulo": "Campos opcionais e confirmação da pausa",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/plans/PlanPauseModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/plans/PlanPauseModal.tsx"
         }
       ],
       "perguntas": [
@@ -2731,11 +2731,11 @@
       "referencias": [
         {
           "titulo": "Lista e ações dos planos",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/plans/PlansPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/plans/PlansPage.tsx"
         },
         {
           "titulo": "Cancelamento e registro de estorno",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/plans/PlanCancelModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/plans/PlanCancelModal.tsx"
         }
       ],
       "perguntas": [
@@ -2754,11 +2754,11 @@
       "referencias": [
         {
           "titulo": "Opção de renovação no cartão e atualização",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/plans/PlansPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/plans/PlansPage.tsx"
         },
         {
           "titulo": "Opção durante a contratação",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/plans/PlanModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/plans/PlanModal.tsx"
         }
       ],
       "perguntas": [
@@ -2778,11 +2778,11 @@
       "referencias": [
         {
           "titulo": "Lista e seleção de clientes",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/clinical/ClinicalRecordsPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/clinical/ClinicalRecordsPage.tsx"
         },
         {
           "titulo": "Cabeçalho e abas do prontuário",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/clinical/ClinicalWorkspacePanel.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/clinical/ClinicalWorkspacePanel.tsx"
         }
       ],
       "perguntas": [
@@ -2802,7 +2802,7 @@
       "referencias": [
         {
           "titulo": "Linha do tempo e filtros no prontuário",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/clinical/ClinicalChart.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/clinical/ClinicalChart.tsx"
         }
       ],
       "perguntas": [
@@ -2821,11 +2821,11 @@
       "referencias": [
         {
           "titulo": "Aba de arquivos e abertura da janela",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/clinical/ChartFilesTab.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/clinical/ChartFilesTab.tsx"
         },
         {
           "titulo": "Envio e limites de anexos",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/clinical/ClinicalAttachmentModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/clinical/ClinicalAttachmentModal.tsx"
         }
       ],
       "perguntas": [
@@ -2845,7 +2845,7 @@
       "referencias": [
         {
           "titulo": "Lista, visualização e download dos anexos",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/clinical/ChartFilesTab.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/clinical/ChartFilesTab.tsx"
         }
       ],
       "perguntas": [
@@ -2864,11 +2864,11 @@
       "referencias": [
         {
           "titulo": "Ações de alerta no prontuário",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/clinical/ClinicalWorkspacePanel.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/clinical/ClinicalWorkspacePanel.tsx"
         },
         {
           "titulo": "Campos e gravação do alerta",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/clinical/ClinicalAlertModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/clinical/ClinicalAlertModal.tsx"
         }
       ],
       "perguntas": [
@@ -2888,11 +2888,11 @@
       "referencias": [
         {
           "titulo": "Abas e publicação de modelos",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/clinical/AssessmentTemplatesTabs.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/clinical/AssessmentTemplatesTabs.tsx"
         },
         {
           "titulo": "Campos, prévia e botões",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/clinical/AssessmentTemplateFields.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/clinical/AssessmentTemplateFields.tsx"
         }
       ],
       "perguntas": [
@@ -2912,11 +2912,11 @@
       "referencias": [
         {
           "titulo": "Lista e ações dos modelos de avaliação",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/clinical/AssessmentTemplatesTabs.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/clinical/AssessmentTemplatesTabs.tsx"
         },
         {
           "titulo": "Formulário de edição e publicação",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/clinical/AssessmentTemplateModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/clinical/AssessmentTemplateModal.tsx"
         }
       ],
       "perguntas": [
@@ -2936,11 +2936,11 @@
       "referencias": [
         {
           "titulo": "Abertura da avaliação no prontuário",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/clinical/ClinicalWorkspacePanel.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/clinical/ClinicalWorkspacePanel.tsx"
         },
         {
           "titulo": "Seleção de formulário, respostas e registro",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/clinical/ClinicalAssessmentModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/clinical/ClinicalAssessmentModal.tsx"
         }
       ],
       "perguntas": [
@@ -2960,11 +2960,11 @@
       "referencias": [
         {
           "titulo": "Campos e salvamento do objetivo",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/clinical/TherapeuticGoalModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/clinical/TherapeuticGoalModal.tsx"
         },
         {
           "titulo": "Exibição do plano e ações de objetivos",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/clinical/ChartTabs.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/clinical/ChartTabs.tsx"
         }
       ],
       "perguntas": [
@@ -2984,11 +2984,11 @@
       "referencias": [
         {
           "titulo": "Campos da medição clínica",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/clinical/ClinicalMeasurementModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/clinical/ClinicalMeasurementModal.tsx"
         },
         {
           "titulo": "Evolução dos valores",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/clinical/MeasurementChart.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/clinical/MeasurementChart.tsx"
         }
       ],
       "perguntas": [
@@ -3008,11 +3008,11 @@
       "referencias": [
         {
           "titulo": "Ação e situação no prontuário",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/clinical/ClinicalChart.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/clinical/ClinicalChart.tsx"
         },
         {
           "titulo": "Campos do encerramento",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/clinical/TreatmentClosureModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/clinical/TreatmentClosureModal.tsx"
         }
       ],
       "perguntas": [
@@ -3031,11 +3031,11 @@
       "referencias": [
         {
           "titulo": "Ação no cabeçalho da ficha",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/clinical/ClinicalWorkspacePanel.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/clinical/ClinicalWorkspacePanel.tsx"
         },
         {
           "titulo": "Janela de histórico de acessos",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/clinical/ClinicalAccessHistoryModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/clinical/ClinicalAccessHistoryModal.tsx"
         }
       ],
       "perguntas": [
@@ -3055,7 +3055,7 @@
       "referencias": [
         {
           "titulo": "Ações de exportação e impressão",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/clinical/ClinicalWorkspacePanel.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/clinical/ClinicalWorkspacePanel.tsx"
         }
       ],
       "perguntas": [
@@ -3074,11 +3074,11 @@
       "referencias": [
         {
           "titulo": "Seções e lista de registros clínicos",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/clinical/ClinicalResourcesPanel.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/clinical/ClinicalResourcesPanel.tsx"
         },
         {
           "titulo": "Campos de exercícios e treinos",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/clinical/ClinicalResourceEditor.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/clinical/ClinicalResourceEditor.tsx"
         }
       ],
       "perguntas": [
@@ -3097,11 +3097,11 @@
       "referencias": [
         {
           "titulo": "Ações e impressão no prontuário",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/clinical/ClinicalResourcesPanel.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/clinical/ClinicalResourcesPanel.tsx"
         },
         {
           "titulo": "Edição e cópia de registros",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/clinical/ClinicalResourceEditor.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/clinical/ClinicalResourceEditor.tsx"
         }
       ],
       "perguntas": [
@@ -3120,11 +3120,11 @@
       "referencias": [
         {
           "titulo": "Gravação no formulário do anexo",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/clinical/ClinicalAttachmentModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/clinical/ClinicalAttachmentModal.tsx"
         },
         {
           "titulo": "Carregamento e reprodução",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/clinical/ClinicalAudioPlayer.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/clinical/ClinicalAudioPlayer.tsx"
         }
       ],
       "perguntas": [
@@ -3143,11 +3143,11 @@
       "referencias": [
         {
           "titulo": "Entrada da seção de treinos executados",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/clinical/ClinicalResourcesPanel.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/clinical/ClinicalResourcesPanel.tsx"
         },
         {
           "titulo": "Campos da execução",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/clinical/ClinicalResourceEditor.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/clinical/ClinicalResourceEditor.tsx"
         }
       ],
       "perguntas": [
@@ -3166,7 +3166,7 @@
       "referencias": [
         {
           "titulo": "Ação e efeitos da exclusão",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/events/EventsPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/events/EventsPage.tsx"
         }
       ],
       "perguntas": [
@@ -3185,11 +3185,11 @@
       "referencias": [
         {
           "titulo": "Ação de importação no evento",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/events/EventDetailPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/events/EventDetailPage.tsx"
         },
         {
           "titulo": "Planilha, prévia e resumo da importação",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/events/EventImportModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/events/EventImportModal.tsx"
         }
       ],
       "perguntas": [
@@ -3209,7 +3209,7 @@
       "referencias": [
         {
           "titulo": "Botão e geração da planilha",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/events/EventDetailPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/events/EventDetailPage.tsx"
         }
       ],
       "perguntas": [
@@ -3228,11 +3228,11 @@
       "referencias": [
         {
           "titulo": "Ação na lista de participantes",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/events/EventDetailPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/events/EventDetailPage.tsx"
         },
         {
           "titulo": "Solicitação de dados e conversão",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/events/EventConvertModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/events/EventConvertModal.tsx"
         }
       ],
       "perguntas": [
@@ -3251,11 +3251,11 @@
       "referencias": [
         {
           "titulo": "Ação na lista do evento",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/events/EventDetailPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/events/EventDetailPage.tsx"
         },
         {
           "titulo": "Campos e salvamento do contato",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/events/EventContactModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/events/EventContactModal.tsx"
         }
       ],
       "perguntas": [
@@ -3275,7 +3275,7 @@
       "referencias": [
         {
           "titulo": "Ação e confirmação de remoção",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/events/EventDetailPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/events/EventDetailPage.tsx"
         }
       ],
       "perguntas": [
@@ -3294,11 +3294,11 @@
       "referencias": [
         {
           "titulo": "Filtros e cartões de contatos sugeridos",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/relationship/RelationshipPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/relationship/RelationshipPage.tsx"
         },
         {
           "titulo": "Motivos e situações no cartão",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/relationship/ClientPendingModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/relationship/ClientPendingModal.tsx"
         }
       ],
       "perguntas": [
@@ -3318,11 +3318,11 @@
       "referencias": [
         {
           "titulo": "Abertura das pendências pelo cartão",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/relationship/RelationshipPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/relationship/RelationshipPage.tsx"
         },
         {
           "titulo": "Seções e atalhos da janela de pendências",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/relationship/ClientPendingModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/relationship/ClientPendingModal.tsx"
         }
       ],
       "perguntas": [
@@ -3342,11 +3342,11 @@
       "referencias": [
         {
           "titulo": "Ação no cartão de pendências",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/relationship/ClientPendingModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/relationship/ClientPendingModal.tsx"
         },
         {
           "titulo": "Campos e salvamento do contato",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/relationship/ContactActivityModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/relationship/ContactActivityModal.tsx"
         }
       ],
       "perguntas": [
@@ -3365,7 +3365,7 @@
       "referencias": [
         {
           "titulo": "Mês, cartões e ações de aniversário",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/relationship/BirthdaysMonthPanel.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/relationship/BirthdaysMonthPanel.tsx"
         }
       ],
       "perguntas": [
@@ -3384,7 +3384,7 @@
       "referencias": [
         {
           "titulo": "Listagem por situação e ações das campanhas",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/communications/campaigns/CampaignsTab.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/communications/campaigns/CampaignsTab.tsx"
         }
       ],
       "perguntas": [
@@ -3402,7 +3402,7 @@
       "referencias": [
         {
           "titulo": "Entrada e fluxo de campanhas",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/communications/CommunicationsPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/communications/CommunicationsPage.tsx"
         }
       ],
       "perguntas": [
@@ -3420,7 +3420,7 @@
       "referencias": [
         {
           "titulo": "Acesso às campanhas e fila de destinatários",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/communications/CommunicationsPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/communications/CommunicationsPage.tsx"
         }
       ],
       "perguntas": [
@@ -3438,11 +3438,11 @@
       "referencias": [
         {
           "titulo": "Ações e filtros da fila",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/communications/campaigns/CampaignSenderPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/communications/campaigns/CampaignSenderPage.tsx"
         },
         {
           "titulo": "Seleção de campanha e destinatários",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/communications/campaigns/NewCampaignModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/communications/campaigns/NewCampaignModal.tsx"
         }
       ],
       "perguntas": [
@@ -3461,11 +3461,11 @@
       "referencias": [
         {
           "titulo": "Lista e entrada de nova mensagem",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/communications/CommunicationsPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/communications/CommunicationsPage.tsx"
         },
         {
           "titulo": "Editor e prévia de mensagem",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/communications/campaigns/TemplateEditorModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/communications/campaigns/TemplateEditorModal.tsx"
         }
       ],
       "perguntas": [
@@ -3485,11 +3485,11 @@
       "referencias": [
         {
           "titulo": "Cartões, ações e filtros de mensagens",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/communications/CommunicationsPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/communications/CommunicationsPage.tsx"
         },
         {
           "titulo": "Conteúdo e salvamento da edição",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/communications/campaigns/TemplateEditorModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/communications/campaigns/TemplateEditorModal.tsx"
         }
       ],
       "perguntas": [
@@ -3509,11 +3509,11 @@
       "referencias": [
         {
           "titulo": "Lista e entrada do editor",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/communications/auto-campaigns/AutoCampaignsTab.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/communications/auto-campaigns/AutoCampaignsTab.tsx"
         },
         {
           "titulo": "Eventos, mensagem e dias de envio",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/communications/auto-campaigns/AutoCampaignEditorModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/communications/auto-campaigns/AutoCampaignEditorModal.tsx"
         }
       ],
       "perguntas": [
@@ -3532,7 +3532,7 @@
       "referencias": [
         {
           "titulo": "Aba de campanhas no painel inicial",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/dashboard/DashboardPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/dashboard/DashboardPage.tsx"
         }
       ],
       "perguntas": [
@@ -3550,15 +3550,15 @@
       "referencias": [
         {
           "titulo": "Botão e condições na fila da campanha",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/communications/campaigns/CampaignSenderPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/communications/campaigns/CampaignSenderPage.tsx"
         },
         {
           "titulo": "Formulário de nota e comentário",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/agenda/SatisfactionSurveyModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/agenda/SatisfactionSurveyModal.tsx"
         },
         {
           "titulo": "Registro da resposta pela fila",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/communications/campaigns.integration.test.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/communications/campaigns.integration.test.tsx"
         }
       ],
       "perguntas": [
@@ -3579,11 +3579,11 @@
       "referencias": [
         {
           "titulo": "Aba do painel que exibe os lembretes",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/dashboard/DashboardPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/dashboard/DashboardPage.tsx"
         },
         {
           "titulo": "Escolha do evento e dados do atendimento",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/communications/auto-campaigns/AutoCampaignEditorModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/communications/auto-campaigns/AutoCampaignEditorModal.tsx"
         }
       ],
       "perguntas": [
@@ -3602,7 +3602,7 @@
       "referencias": [
         {
           "titulo": "Preferências de comunicação na ficha",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/patients/PatientDetailPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/patients/PatientDetailPage.tsx"
         }
       ],
       "perguntas": [
@@ -3620,11 +3620,11 @@
       "referencias": [
         {
           "titulo": "Filtros e abertura dos detalhes",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/contracts/DocumentsPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/contracts/DocumentsPage.tsx"
         },
         {
           "titulo": "Dados e ações por situação",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/contracts/DocumentDetailsModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/contracts/DocumentDetailsModal.tsx"
         }
       ],
       "perguntas": [
@@ -3644,11 +3644,11 @@
       "referencias": [
         {
           "titulo": "Criação e listagem de modelos",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/contracts/DocumentsPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/contracts/DocumentsPage.tsx"
         },
         {
           "titulo": "Editor de conteúdo do modelo",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/contracts/TemplateBodyEditor.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/contracts/TemplateBodyEditor.tsx"
         }
       ],
       "perguntas": [
@@ -3668,15 +3668,15 @@
       "referencias": [
         {
           "titulo": "Ações de versões em Modelos",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/contracts/DocumentsPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/contracts/DocumentsPage.tsx"
         },
         {
           "titulo": "Edição e criação da versão",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/contracts/TemplateVersionModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/contracts/TemplateVersionModal.tsx"
         },
         {
           "titulo": "Histórico e restauração",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/contracts/TemplateHistoryModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/contracts/TemplateHistoryModal.tsx"
         }
       ],
       "perguntas": [
@@ -3697,7 +3697,7 @@
       "referencias": [
         {
           "titulo": "Ação, confirmação e resultado da exclusão",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/contracts/DocumentsPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/contracts/DocumentsPage.tsx"
         }
       ],
       "perguntas": [
@@ -3716,11 +3716,11 @@
       "referencias": [
         {
           "titulo": "Entrada de novo documento em Contratos",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/contracts/DocumentsPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/contracts/DocumentsPage.tsx"
         },
         {
           "titulo": "Etapas, prévia e criação do rascunho",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/contracts/DocumentWizard.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/contracts/DocumentWizard.tsx"
         }
       ],
       "perguntas": [
@@ -3740,11 +3740,11 @@
       "referencias": [
         {
           "titulo": "Ações de detalhe do contrato",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/contracts/DocumentDetailsModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/contracts/DocumentDetailsModal.tsx"
         },
         {
           "titulo": "Revisão e emissão do rascunho",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/contracts/DocumentWizard.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/contracts/DocumentWizard.tsx"
         }
       ],
       "perguntas": [
@@ -3764,11 +3764,11 @@
       "referencias": [
         {
           "titulo": "Botões de download e impressão",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/contracts/DocumentDetailsModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/contracts/DocumentDetailsModal.tsx"
         },
         {
           "titulo": "Geração do arquivo e impressão",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/contracts/DocumentsPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/contracts/DocumentsPage.tsx"
         }
       ],
       "perguntas": [
@@ -3788,11 +3788,11 @@
       "referencias": [
         {
           "titulo": "Ação de envio do contrato emitido",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/contracts/DocumentDetailsModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/contracts/DocumentDetailsModal.tsx"
         },
         {
           "titulo": "Geração, prazo e compartilhamento do link",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/contracts/SignatureRequest.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/contracts/SignatureRequest.tsx"
         }
       ],
       "perguntas": [
@@ -3812,7 +3812,7 @@
       "referencias": [
         {
           "titulo": "Formulário de registro manual e acesso à cópia",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/contracts/DocumentSignatureActions.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/contracts/DocumentSignatureActions.tsx"
         }
       ],
       "perguntas": [
@@ -3831,11 +3831,11 @@
       "referencias": [
         {
           "titulo": "Dados e ações da assinatura",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/contracts/DocumentSignatureActions.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/contracts/DocumentSignatureActions.tsx"
         },
         {
           "titulo": "Registro do link e da assinatura",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/contracts/SignatureLinkRecord.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/contracts/SignatureLinkRecord.tsx"
         }
       ],
       "perguntas": [
@@ -3855,11 +3855,11 @@
       "referencias": [
         {
           "titulo": "Opção de cancelamento nos detalhes",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/contracts/DocumentDetailsModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/contracts/DocumentDetailsModal.tsx"
         },
         {
           "titulo": "Confirmação e atualização da lista",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/contracts/DocumentsPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/contracts/DocumentsPage.tsx"
         }
       ],
       "perguntas": [
@@ -3879,11 +3879,11 @@
       "referencias": [
         {
           "titulo": "Cadastro do fornecedor",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/finance/SupplierModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/finance/SupplierModal.tsx"
         },
         {
           "titulo": "Documentos e ações de assinatura",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/contracts/SupplierDocuments.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/contracts/SupplierDocuments.tsx"
         }
       ],
       "perguntas": [
@@ -3902,11 +3902,11 @@
       "referencias": [
         {
           "titulo": "Página pública e confirmação da assinatura",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/contracts/PublicSignaturePage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/contracts/PublicSignaturePage.tsx"
         },
         {
           "titulo": "Campos do formulário público",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/contracts/PublicSignatureLayout.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/contracts/PublicSignatureLayout.tsx"
         }
       ],
       "perguntas": [
@@ -3926,11 +3926,11 @@
       "referencias": [
         {
           "titulo": "Página pública e confirmação do recibo",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/finance/PublicReceiptSignaturePage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/finance/PublicReceiptSignaturePage.tsx"
         },
         {
           "titulo": "Teste de assinatura em tela de celular",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/e2e/public-signature.spec.ts"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/e2e/public-signature.spec.ts"
         }
       ],
       "perguntas": [
@@ -3951,7 +3951,7 @@
       "referencias": [
         {
           "titulo": "Formulário de venda, pagamento e total",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/sales/NewSaleSection.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/sales/NewSaleSection.tsx"
         }
       ],
       "perguntas": [
@@ -3970,7 +3970,7 @@
       "referencias": [
         {
           "titulo": "Formas de pagamento no formulário da venda",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/sales/NewSaleSection.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/sales/NewSaleSection.tsx"
         }
       ],
       "perguntas": [
@@ -3989,11 +3989,11 @@
       "referencias": [
         {
           "titulo": "Histórico, filtros e detalhes",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/sales/SalesHistorySection.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/sales/SalesHistorySection.tsx"
         },
         {
           "titulo": "Período e indicadores do resumo",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/sales/SalesSummarySection.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/sales/SalesSummarySection.tsx"
         }
       ],
       "perguntas": [
@@ -4013,11 +4013,11 @@
       "referencias": [
         {
           "titulo": "Histórico e filtro de situação",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/sales/SalesHistorySection.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/sales/SalesHistorySection.tsx"
         },
         {
           "titulo": "Motivo e confirmação do cancelamento",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/sales/SaleDetailsModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/sales/SaleDetailsModal.tsx"
         }
       ],
       "perguntas": [
@@ -4036,11 +4036,11 @@
       "referencias": [
         {
           "titulo": "Venda paga e confirmação do estorno e cancelamento",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/sales/SaleDetailsModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/sales/SaleDetailsModal.tsx"
         },
         {
           "titulo": "Histórico da venda após o cancelamento",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/sales/SalesHistorySection.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/sales/SalesHistorySection.tsx"
         }
       ],
       "perguntas": [
@@ -4059,7 +4059,7 @@
       "referencias": [
         {
           "titulo": "Lista, movimentações e atalho de venda",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/sales/InventorySection.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/sales/InventorySection.tsx"
         }
       ],
       "perguntas": [
@@ -4078,11 +4078,11 @@
       "referencias": [
         {
           "titulo": "Estoque e entrada do cadastro",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/sales/InventorySection.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/sales/InventorySection.tsx"
         },
         {
           "titulo": "Campos e salvamento do produto",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/sales/ProductModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/sales/ProductModal.tsx"
         }
       ],
       "perguntas": [
@@ -4102,11 +4102,11 @@
       "referencias": [
         {
           "titulo": "Ação de edição no estoque",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/sales/InventorySection.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/sales/InventorySection.tsx"
         },
         {
           "titulo": "Formulário do produto",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/sales/ProductModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/sales/ProductModal.tsx"
         }
       ],
       "perguntas": [
@@ -4126,7 +4126,7 @@
       "referencias": [
         {
           "titulo": "Entrada do ajuste e histórico de estoque",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/sales/InventorySection.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/sales/InventorySection.tsx"
         }
       ],
       "perguntas": [
@@ -4145,7 +4145,7 @@
       "referencias": [
         {
           "titulo": "Quadros e formulário de categorias e marcas",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/sales/ProductCatalogsSection.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/sales/ProductCatalogsSection.tsx"
         }
       ],
       "perguntas": [
@@ -4164,7 +4164,7 @@
       "referencias": [
         {
           "titulo": "Aba Fornecedores em Vendas",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/sales/SalesSuppliersSection.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/sales/SalesSuppliersSection.tsx"
         }
       ],
       "perguntas": [
@@ -4183,11 +4183,11 @@
       "referencias": [
         {
           "titulo": "Lista de parcelas e ações por situação",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/finance/ReceivablesList.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/finance/ReceivablesList.tsx"
         },
         {
           "titulo": "Datas e filtros de classificação",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/finance/FinanceEntryFilters.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/finance/FinanceEntryFilters.tsx"
         }
       ],
       "perguntas": [
@@ -4207,11 +4207,11 @@
       "referencias": [
         {
           "titulo": "Valor recebido, conferência e baixa parcial",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/finance/SettleModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/finance/SettleModal.tsx"
         },
         {
           "titulo": "Exibição das parcelas após a baixa",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/finance/ReceivablesList.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/finance/ReceivablesList.tsx"
         }
       ],
       "perguntas": [
@@ -4231,11 +4231,11 @@
       "referencias": [
         {
           "titulo": "Formas, valores e confirmação da baixa",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/finance/SettleModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/finance/SettleModal.tsx"
         },
         {
           "titulo": "Apresentação do pagamento no recibo",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/finance/ReceiptModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/finance/ReceiptModal.tsx"
         }
       ],
       "perguntas": [
@@ -4255,11 +4255,11 @@
       "referencias": [
         {
           "titulo": "Ações da parcela",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/finance/ReceivablesList.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/finance/ReceivablesList.tsx"
         },
         {
           "titulo": "Valor e justificativa",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/finance/ReceivableAdjustModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/finance/ReceivableAdjustModal.tsx"
         }
       ],
       "perguntas": [
@@ -4278,11 +4278,11 @@
       "referencias": [
         {
           "titulo": "Anexo no formulário de baixa",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/finance/SettleModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/finance/SettleModal.tsx"
         },
         {
           "titulo": "Lista, download e exclusão com motivo",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/finance/PaymentProofs.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/finance/PaymentProofs.tsx"
         }
       ],
       "perguntas": [
@@ -4302,11 +4302,11 @@
       "referencias": [
         {
           "titulo": "Ação Recibo na parcela paga",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/finance/ReceivablesList.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/finance/ReceivablesList.tsx"
         },
         {
           "titulo": "Detalhes, impressão e acompanhamento do recibo",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/finance/ReceiptModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/finance/ReceiptModal.tsx"
         }
       ],
       "perguntas": [
@@ -4326,7 +4326,7 @@
       "referencias": [
         {
           "titulo": "Link e acompanhamento no recibo",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/finance/ReceiptModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/finance/ReceiptModal.tsx"
         }
       ],
       "perguntas": [
@@ -4345,11 +4345,11 @@
       "referencias": [
         {
           "titulo": "Menu da parcela",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/finance/ReceivablesList.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/finance/ReceivablesList.tsx"
         },
         {
           "titulo": "Mensagem e canais da parcela",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/finance/ReceivableContactModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/finance/ReceivableContactModal.tsx"
         }
       ],
       "perguntas": [
@@ -4368,11 +4368,11 @@
       "referencias": [
         {
           "titulo": "Seleção e ação na lista",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/finance/ReceivablesList.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/finance/ReceivablesList.tsx"
         },
         {
           "titulo": "Execução da renegociação no Financeiro",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/finance/FinancePage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/finance/FinancePage.tsx"
         }
       ],
       "perguntas": [
@@ -4391,11 +4391,11 @@
       "referencias": [
         {
           "titulo": "Seleção e ações dos lançamentos",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/finance/FinanceClassificationPanel.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/finance/FinanceClassificationPanel.tsx"
         },
         {
           "titulo": "Fluxo dos lançamentos financeiros",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/finance/FinancePage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/finance/FinancePage.tsx"
         }
       ],
       "perguntas": [
@@ -4414,11 +4414,11 @@
       "referencias": [
         {
           "titulo": "Contas a pagar e acesso à lista",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/finance/FinancePage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/finance/FinancePage.tsx"
         },
         {
           "titulo": "Pesquisa e filtros dos lançamentos",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/finance/FinanceEntryFilters.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/finance/FinanceEntryFilters.tsx"
         }
       ],
       "perguntas": [
@@ -4438,11 +4438,11 @@
       "referencias": [
         {
           "titulo": "Entrada e lista de contas a pagar",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/finance/FinancePage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/finance/FinancePage.tsx"
         },
         {
           "titulo": "Campos e salvamento da despesa",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/finance/NewExpenseModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/finance/NewExpenseModal.tsx"
         }
       ],
       "perguntas": [
@@ -4462,11 +4462,11 @@
       "referencias": [
         {
           "titulo": "Opções e salvamento da despesa fixa",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/finance/NewExpenseModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/finance/NewExpenseModal.tsx"
         },
         {
           "titulo": "Lista de despesas fixas",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/finance/RecurringPayablesSection.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/finance/RecurringPayablesSection.tsx"
         }
       ],
       "perguntas": [
@@ -4486,15 +4486,15 @@
       "referencias": [
         {
           "titulo": "Lista de recorrências e ações",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/finance/RecurringPayablesSection.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/finance/RecurringPayablesSection.tsx"
         },
         {
           "titulo": "Formulário de edição",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/finance/RecurringPayableModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/finance/RecurringPayableModal.tsx"
         },
         {
           "titulo": "Último mês e confirmação",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/finance/RecurringPayableEndModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/finance/RecurringPayableEndModal.tsx"
         }
       ],
       "perguntas": [
@@ -4515,11 +4515,11 @@
       "referencias": [
         {
           "titulo": "Ação Pagar na lista",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/finance/PayablesList.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/finance/PayablesList.tsx"
         },
         {
           "titulo": "Datas, forma e confirmação",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/finance/PayableModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/finance/PayableModal.tsx"
         }
       ],
       "perguntas": [
@@ -4539,11 +4539,11 @@
       "referencias": [
         {
           "titulo": "Condição da ação Informar valor",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/finance/PayablesList.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/finance/PayablesList.tsx"
         },
         {
           "titulo": "Valor mensal e confirmação",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/finance/PayableAmountModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/finance/PayableAmountModal.tsx"
         }
       ],
       "perguntas": [
@@ -4562,11 +4562,11 @@
       "referencias": [
         {
           "titulo": "Ação na linha da despesa paga",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/finance/PayablesList.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/finance/PayablesList.tsx"
         },
         {
           "titulo": "Motivo e confirmação do estorno",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/finance/ReversePaymentModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/finance/ReversePaymentModal.tsx"
         }
       ],
       "perguntas": [
@@ -4586,11 +4586,11 @@
       "referencias": [
         {
           "titulo": "Atalhos e salvamento da classificação",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/finance/FinancePage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/finance/FinancePage.tsx"
         },
         {
           "titulo": "Opções de cadastro na despesa",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/finance/NewExpenseModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/finance/NewExpenseModal.tsx"
         }
       ],
       "perguntas": [
@@ -4610,11 +4610,11 @@
       "referencias": [
         {
           "titulo": "Cadastro dentro da despesa",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/finance/NewExpenseModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/finance/NewExpenseModal.tsx"
         },
         {
           "titulo": "Edição e salvamento do fornecedor",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/finance/SupplierModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/finance/SupplierModal.tsx"
         }
       ],
       "perguntas": [
@@ -4633,7 +4633,7 @@
       "referencias": [
         {
           "titulo": "Acesso aos pedidos pelo fornecedor",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/sales/SalesSuppliersSection.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/sales/SalesSuppliersSection.tsx"
         }
       ],
       "perguntas": [
@@ -4651,11 +4651,11 @@
       "referencias": [
         {
           "titulo": "Aba de comissões e precedência das regras",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/finance/FinancePage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/finance/FinancePage.tsx"
         },
         {
           "titulo": "Tabela e situação de cada comissão",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/finance/CommissionsList.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/finance/CommissionsList.tsx"
         }
       ],
       "perguntas": [
@@ -4674,7 +4674,7 @@
       "referencias": [
         {
           "titulo": "Regra, vigência e prévia de recálculo",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/finance/CommissionRuleModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/finance/CommissionRuleModal.tsx"
         }
       ],
       "perguntas": [
@@ -4692,11 +4692,11 @@
       "referencias": [
         {
           "titulo": "Ação de gerar comissões",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/finance/FinancePage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/finance/FinancePage.tsx"
         },
         {
           "titulo": "Comissões calculadas e seus valores",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/finance/CommissionsList.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/finance/CommissionsList.tsx"
         }
       ],
       "perguntas": [
@@ -4715,15 +4715,15 @@
       "referencias": [
         {
           "titulo": "Comissões e vínculo com a folha",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/finance/CommissionsList.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/finance/CommissionsList.tsx"
         },
         {
           "titulo": "Pagamentos em Contas a pagar",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/finance/PayablesList.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/finance/PayablesList.tsx"
         },
         {
           "titulo": "Motivo e confirmação do estorno",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/finance/ReversePaymentModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/finance/ReversePaymentModal.tsx"
         }
       ],
       "perguntas": [
@@ -4743,11 +4743,11 @@
       "referencias": [
         {
           "titulo": "Lançamentos de comissão",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/finance/CommissionsList.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/finance/CommissionsList.tsx"
         },
         {
           "titulo": "Revisão da origem e histórico de ajustes",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/finance/CommissionReconciliationModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/finance/CommissionReconciliationModal.tsx"
         }
       ],
       "perguntas": [
@@ -4766,11 +4766,11 @@
       "referencias": [
         {
           "titulo": "Configuração de salário no usuário",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/settings/UserFormModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/settings/UserFormModal.tsx"
         },
         {
           "titulo": "Lista da folha por filial",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/finance/PayrollSection.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/finance/PayrollSection.tsx"
         }
       ],
       "perguntas": [
@@ -4789,15 +4789,15 @@
       "referencias": [
         {
           "titulo": "Ações e composição da folha",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/finance/PayrollSection.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/finance/PayrollSection.tsx"
         },
         {
           "titulo": "Formulário de ajuste",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/finance/PayrollEntryModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/finance/PayrollEntryModal.tsx"
         },
         {
           "titulo": "Formulário de vale",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/finance/PayrollAdvanceModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/finance/PayrollAdvanceModal.tsx"
         }
       ],
       "perguntas": [
@@ -4817,11 +4817,11 @@
       "referencias": [
         {
           "titulo": "Ações e composição da folha",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/finance/PayrollSection.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/finance/PayrollSection.tsx"
         },
         {
           "titulo": "Prévia e lançamento",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/finance/PayrollLaunchModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/finance/PayrollLaunchModal.tsx"
         }
       ],
       "perguntas": [
@@ -4840,15 +4840,15 @@
       "referencias": [
         {
           "titulo": "Abas de Caixa do dia e Previsão",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/finance/FinancePage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/finance/FinancePage.tsx"
         },
         {
           "titulo": "Consulta por data",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/finance/DailyCashSection.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/finance/DailyCashSection.tsx"
         },
         {
           "titulo": "Horizonte e totais da previsão",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/finance/FinanceForecastSection.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/finance/FinanceForecastSection.tsx"
         }
       ],
       "perguntas": [
@@ -4869,7 +4869,7 @@
       "referencias": [
         {
           "titulo": "Formulário, anexos e lista de operações externas",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/finance/ExternalOperationsPanel.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/finance/ExternalOperationsPanel.tsx"
         }
       ],
       "perguntas": [
@@ -4888,7 +4888,7 @@
       "referencias": [
         {
           "titulo": "Listagem e download de comprovante externo",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/finance/ExternalOperationsPanel.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/finance/ExternalOperationsPanel.tsx"
         }
       ],
       "perguntas": [
@@ -4907,11 +4907,11 @@
       "referencias": [
         {
           "titulo": "Período e abas de clientes",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/reports/ReportsPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/reports/ReportsPage.tsx"
         },
         {
           "titulo": "Quadro de retenção",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/reports/ClientInsights.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/reports/ClientInsights.tsx"
         }
       ],
       "perguntas": [
@@ -4931,11 +4931,11 @@
       "referencias": [
         {
           "titulo": "Abas de análise de clientes",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/reports/ReportsPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/reports/ReportsPage.tsx"
         },
         {
           "titulo": "Ranking e agrupamento por idade",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/reports/ClientInsights.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/reports/ClientInsights.tsx"
         }
       ],
       "perguntas": [
@@ -4955,11 +4955,11 @@
       "referencias": [
         {
           "titulo": "Aba Sem retorno",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/reports/ReportsPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/reports/ReportsPage.tsx"
         },
         {
           "titulo": "Quadro de clientes sem retorno",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/reports/ClientInsights.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/reports/ClientInsights.tsx"
         }
       ],
       "perguntas": [
@@ -4979,11 +4979,11 @@
       "referencias": [
         {
           "titulo": "Abas de relatórios de clientes",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/reports/ReportsPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/reports/ReportsPage.tsx"
         },
         {
           "titulo": "Busca, filtros e resultados da consulta",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/reports/ClientDetailsSection.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/reports/ClientDetailsSection.tsx"
         }
       ],
       "perguntas": [
@@ -5003,11 +5003,11 @@
       "referencias": [
         {
           "titulo": "Período e acesso ao relatório",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/reports/ReportsPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/reports/ReportsPage.tsx"
         },
         {
           "titulo": "Filtros e exportação de campanhas",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/reports/CampaignsSection.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/reports/CampaignsSection.tsx"
         }
       ],
       "perguntas": [
@@ -5027,7 +5027,7 @@
       "referencias": [
         {
           "titulo": "Totais, composição e exportação da DRE",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/reports/DreSection.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/reports/DreSection.tsx"
         }
       ],
       "perguntas": [
@@ -5046,11 +5046,11 @@
       "referencias": [
         {
           "titulo": "Atalho no relatório financeiro",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/reports/FinancialSection.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/reports/FinancialSection.tsx"
         },
         {
           "titulo": "Percentual, base e salvamento",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/reports/ProLaboreModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/reports/ProLaboreModal.tsx"
         }
       ],
       "perguntas": [
@@ -5069,11 +5069,11 @@
       "referencias": [
         {
           "titulo": "Aba de relatórios financeiros",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/reports/FinancialSection.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/reports/FinancialSection.tsx"
         },
         {
           "titulo": "Filtros e exportação do extrato",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/reports/FinancialLedger.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/reports/FinancialLedger.tsx"
         }
       ],
       "perguntas": [
@@ -5093,11 +5093,11 @@
       "referencias": [
         {
           "titulo": "Período, seção e atualização do relatório",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/reports/ReportsPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/reports/ReportsPage.tsx"
         },
         {
           "titulo": "Exportação das vendas",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/reports/SalesInsights.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/reports/SalesInsights.tsx"
         }
       ],
       "perguntas": [
@@ -5117,19 +5117,19 @@
       "referencias": [
         {
           "titulo": "Abas do resumo geral",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/reports/ReportsPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/reports/ReportsPage.tsx"
         },
         {
           "titulo": "Indicadores da clínica",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/reports/ClinicIndicators.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/reports/ClinicIndicators.tsx"
         },
         {
           "titulo": "Tabelas de rentabilidade",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/reports/ProfitTables.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/reports/ProfitTables.tsx"
         },
         {
           "titulo": "Detalhes de vendas",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/reports/SalesInsights.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/reports/SalesInsights.tsx"
         }
       ],
       "perguntas": [
@@ -5151,7 +5151,7 @@
       "referencias": [
         {
           "titulo": "Campos, filtros e resultados do Histórico",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/history/HistoryPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/history/HistoryPage.tsx"
         }
       ],
       "perguntas": [
@@ -5170,11 +5170,11 @@
       "referencias": [
         {
           "titulo": "Botão Ver detalhes no Histórico",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/history/HistoryPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/history/HistoryPage.tsx"
         },
         {
           "titulo": "Abas e campos da alteração",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/history/HistoryDetailsModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/history/HistoryDetailsModal.tsx"
         }
       ],
       "perguntas": [
@@ -5194,7 +5194,7 @@
       "referencias": [
         {
           "titulo": "Navegação e confirmação da troca de aba",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/settings/SettingsPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/settings/SettingsPage.tsx"
         }
       ],
       "perguntas": [
@@ -5213,7 +5213,7 @@
       "referencias": [
         {
           "titulo": "Campos de identificação, imagem e salvamento",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/settings/ClinicSettingsContent.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/settings/ClinicSettingsContent.tsx"
         }
       ],
       "perguntas": [
@@ -5231,11 +5231,11 @@
       "referencias": [
         {
           "titulo": "Lista e ações dos usuários",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/settings/AdminUsersContent.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/settings/AdminUsersContent.tsx"
         },
         {
           "titulo": "Cadastro e seleção de filiais",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/settings/UserFormModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/settings/UserFormModal.tsx"
         }
       ],
       "perguntas": [
@@ -5254,11 +5254,11 @@
       "referencias": [
         {
           "titulo": "Cópia e salvamento das permissões",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/settings/UserFormModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/settings/UserFormModal.tsx"
         },
         {
           "titulo": "Seleção e limpeza de permissões",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/settings/PermissionEditor.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/settings/PermissionEditor.tsx"
         }
       ],
       "perguntas": [
@@ -5277,11 +5277,11 @@
       "referencias": [
         {
           "titulo": "Lista e ações Ativar e Desativar",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/settings/AdminUsersContent.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/settings/AdminUsersContent.tsx"
         },
         {
           "titulo": "Campos e salvamento da edição",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/settings/UserFormModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/settings/UserFormModal.tsx"
         }
       ],
       "perguntas": [
@@ -5301,11 +5301,11 @@
       "referencias": [
         {
           "titulo": "Ações administrativas sobre o usuário",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/settings/AdminUsersContent.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/settings/AdminUsersContent.tsx"
         },
         {
           "titulo": "Formulário da senha nova",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/settings/ResetPasswordModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/settings/ResetPasswordModal.tsx"
         }
       ],
       "perguntas": [
@@ -5324,11 +5324,11 @@
       "referencias": [
         {
           "titulo": "Dados de Agenda e comissão no usuário",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/settings/UserFormModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/settings/UserFormModal.tsx"
         },
         {
           "titulo": "Campos do profissional",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/settings/UserAgendaFields.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/settings/UserAgendaFields.tsx"
         }
       ],
       "perguntas": [
@@ -5347,11 +5347,11 @@
       "referencias": [
         {
           "titulo": "Lista de filiais e botão Nova filial",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/settings/BranchesContent.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/settings/BranchesContent.tsx"
         },
         {
           "titulo": "Campos do cadastro de filial",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/settings/BranchModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/settings/BranchModal.tsx"
         }
       ],
       "perguntas": [
@@ -5371,11 +5371,11 @@
       "referencias": [
         {
           "titulo": "Listagem e ação Editar",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/settings/BranchesContent.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/settings/BranchesContent.tsx"
         },
         {
           "titulo": "Campos, situação e salvamento da filial",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/settings/BranchModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/settings/BranchModal.tsx"
         }
       ],
       "perguntas": [
@@ -5395,7 +5395,7 @@
       "referencias": [
         {
           "titulo": "Campos, rótulos e salvamento",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/settings/NavTabLabelsContent.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/settings/NavTabLabelsContent.tsx"
         }
       ],
       "perguntas": [
@@ -5413,11 +5413,11 @@
       "referencias": [
         {
           "titulo": "Lista e ações do catálogo",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/settings/PlanTemplatesContent.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/settings/PlanTemplatesContent.tsx"
         },
         {
           "titulo": "Campos do plano",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/settings/PlanTemplateModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/settings/PlanTemplateModal.tsx"
         }
       ],
       "perguntas": [
@@ -5437,11 +5437,11 @@
       "referencias": [
         {
           "titulo": "Ações de edição e situação no catálogo",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/settings/PlanTemplatesContent.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/settings/PlanTemplatesContent.tsx"
         },
         {
           "titulo": "Formulário de edição do plano",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/settings/PlanTemplateModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/settings/PlanTemplateModal.tsx"
         }
       ],
       "perguntas": [
@@ -5460,11 +5460,11 @@
       "referencias": [
         {
           "titulo": "Cadastro e lista de feriados",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/settings/HolidaysContent.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/settings/HolidaysContent.tsx"
         },
         {
           "titulo": "Exibição do feriado na Agenda",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/agenda/AgendaPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/agenda/AgendaPage.tsx"
         }
       ],
       "perguntas": [
@@ -5484,11 +5484,11 @@
       "referencias": [
         {
           "titulo": "Seleção e importação de feriados",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/settings/ImportHolidaysModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/settings/ImportHolidaysModal.tsx"
         },
         {
           "titulo": "Lista e ação de excluir",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/settings/HolidaysContent.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/settings/HolidaysContent.tsx"
         }
       ],
       "perguntas": [
@@ -5508,7 +5508,7 @@
       "referencias": [
         {
           "titulo": "Prazo, ativação e salvamento",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/settings/AutoFinalizationContent.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/settings/AutoFinalizationContent.tsx"
         }
       ],
       "perguntas": [
@@ -5526,7 +5526,7 @@
       "referencias": [
         {
           "titulo": "Formas disponíveis e limites de parcelas",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/settings/PaymentMethodsContent.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/settings/PaymentMethodsContent.tsx"
         }
       ],
       "perguntas": [
@@ -5544,7 +5544,7 @@
       "referencias": [
         {
           "titulo": "Criação, permissões, token e revogação",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/settings/IntegrationKeysContent.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/settings/IntegrationKeysContent.tsx"
         }
       ],
       "perguntas": [
@@ -5563,11 +5563,11 @@
       "referencias": [
         {
           "titulo": "Vínculo, assuntos e desvinculação na tela de Integrações",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/settings/TelegramIntegrationContent.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/settings/TelegramIntegrationContent.tsx"
         },
         {
           "titulo": "Expiração dos códigos e assuntos disponíveis",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/packages/contracts/src/integrations/telegram.ts"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/packages/contracts/src/integrations/telegram.ts"
         }
       ],
       "perguntas": [
@@ -5588,11 +5588,11 @@
       "referencias": [
         {
           "titulo": "Criação e ações da lista",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/settings/PatientTagsContent.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/settings/PatientTagsContent.tsx"
         },
         {
           "titulo": "Campos de edição da etiqueta",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/settings/PatientTagEditModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/settings/PatientTagEditModal.tsx"
         }
       ],
       "perguntas": [
@@ -5611,11 +5611,11 @@
       "referencias": [
         {
           "titulo": "Exclusão da etiqueta manual",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/settings/PatientTagsContent.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/settings/PatientTagsContent.tsx"
         },
         {
           "titulo": "Edição da apresentação automática",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/settings/AutomaticTagEditModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/settings/AutomaticTagEditModal.tsx"
         }
       ],
       "perguntas": [
@@ -5634,11 +5634,11 @@
       "referencias": [
         {
           "titulo": "Quadros dos cadastros comerciais",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/settings/ClinicCatalogsContent.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/settings/ClinicCatalogsContent.tsx"
         },
         {
           "titulo": "Ações de cada catálogo",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/settings/CatalogSection.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/settings/CatalogSection.tsx"
         }
       ],
       "perguntas": [
@@ -5657,7 +5657,7 @@
       "referencias": [
         {
           "titulo": "Cadastro do serviço e restrições de recursos",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/settings/AdministrativeRegistrySection.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/settings/AdministrativeRegistrySection.tsx"
         }
       ],
       "perguntas": [
@@ -5676,7 +5676,7 @@
       "referencias": [
         {
           "titulo": "Cadastro e capacidade da sala",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/settings/AdministrativeRegistrySection.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/settings/AdministrativeRegistrySection.tsx"
         }
       ],
       "perguntas": [
@@ -5695,7 +5695,7 @@
       "referencias": [
         {
           "titulo": "Campos de perfil, tamanho da foto e salvamento",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/profile/ProfilePage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/profile/ProfilePage.tsx"
         }
       ],
       "perguntas": [
@@ -5714,7 +5714,7 @@
       "referencias": [
         {
           "titulo": "Campos e confirmação da alteração",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/profile/ProfilePage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/profile/ProfilePage.tsx"
         }
       ],
       "perguntas": [
@@ -5733,7 +5733,7 @@
       "referencias": [
         {
           "titulo": "Dados da própria agenda e salvamento",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/profile/ProfilePage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/profile/ProfilePage.tsx"
         }
       ],
       "perguntas": [
@@ -5752,11 +5752,11 @@
       "referencias": [
         {
           "titulo": "Ação de excluir na ficha",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/patients/PatientDetailPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/patients/PatientDetailPage.tsx"
         },
         {
           "titulo": "Confirmação de envio para a lixeira",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/trash/SendToTrashModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/trash/SendToTrashModal.tsx"
         }
       ],
       "perguntas": [
@@ -5776,7 +5776,7 @@
       "referencias": [
         {
           "titulo": "Lista de excluídos e ação Restaurar",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/trash/TrashModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/trash/TrashModal.tsx"
         }
       ],
       "perguntas": [
@@ -5795,11 +5795,11 @@
       "referencias": [
         {
           "titulo": "Ação por item na Lixeira",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/trash/TrashModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/trash/TrashModal.tsx"
         },
         {
           "titulo": "Resumo dos efeitos e confirmação",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/trash/PurgeConfirmModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/4268bc26d457ef255a634a12de4078dfd79e6fe6/apps/web/src/features/trash/PurgeConfirmModal.tsx"
         }
       ],
       "perguntas": [
