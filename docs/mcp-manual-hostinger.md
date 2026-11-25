@@ -6,7 +6,7 @@ Implementação para revisão; **não publicada em produção**. Não altera o l
 
 O hPanel executa `npm start` na raiz, que inicia `apps/api/dist/site-server.mjs`. `scripts/hostinger-build.mjs` gera esse bundle a partir de `apps/api/src/site-server.ts` e compila o site com `VITE_API_URL=/api`. O servidor encaminha `/api/*` para o Fastify removendo o prefixo; a rota interna `/mcp` vira **`https://crm.organizastudios.com/api/mcp`**. `apps/api/src/app.ts` registra o módulo de ajuda junto das rotas existentes.
 
-SDK oficial TypeScript `@modelcontextprotocol/sdk` 1.32.2, compatível com Node 22+. Transporte **Streamable HTTP**, sem sessão, com respostas JSON. O cliente envia `Accept: application/json, text/event-stream`; GET e DELETE autenticados retornam 405 porque não há stream de notificações nem sessão a encerrar. Clientes MCP compatíveis com esse modo podem usar duas ferramentas de leitura: `consultar_manual_crm`, com `consulta` não vazia de até 300 caracteres (a tarefa em linguagem natural ou o id de um guia, como `AG07`), e `listar_guias`, que devolve as áreas do manual ou os guias de uma área (`area` opcional). Não há recursos MCP nem ferramentas de escrita.
+SDK oficial TypeScript `@modelcontextprotocol/sdk` 1.32.2, compatível com Node 22+. Transporte **Streamable HTTP**, sem sessão, com respostas JSON. O cliente envia `Accept: application/json, text/event-stream`; GET e DELETE autenticados retornam 405 porque não há stream de notificações nem sessão a encerrar. Na inicialização, o servidor envia **instruções** ao agente: os guias são a base de conhecimento do CRM, não uma lista de perguntas e respostas; o agente interpreta a pergunta, pesquisa com várias formulações, lê os guias pertinentes, adapta e combina os passos, e diz claramente o que os guias não cobrem. São quatro ferramentas de leitura: `buscar_guias` (`consulta` de até 300 caracteres; devolve até 8 guias próximos com aderência alta ou parcial, sem os passos), `ler_guias` (`ids`, de 1 a 10; devolve o texto completo e as referências), `listar_guias` (`area` opcional; índice por área) e `visao_geral_crm` (`modulo` opcional; menu, telas, endereços, conceitos e as operações de cada módulo, montados do código: `navMenu` e o catálogo de permissões de `@crm/contracts`). Não há recursos MCP nem ferramentas de escrita.
 
 ## Acesso autorizado no Claude
 
@@ -82,7 +82,7 @@ node scripts/test-mcp-remote.mjs
 unset MCP_TEST_TOKEN
 ```
 
-Execute o script a partir do checkout que gerou o artefato. Ele exige que a revisão das fontes e o hash retornados pelo servidor coincidam com o corpus desse checkout. Também valida o 401 sem credencial, a inicialização, as duas ferramentas, o tutorial de cadastro e a ausência de evidência sobre nota fiscal. A verificação rejeita redirecionamentos. HTTP só é aceito em localhost.
+Execute o script a partir do checkout que gerou o artefato. Ele exige que a revisão das fontes e o hash retornados pelo servidor coincidam com o corpus desse checkout. Também valida o 401 sem credencial, a inicialização com as instruções, as quatro ferramentas, a busca e a leitura do guia de cadastro e de GR04 (quando estão no pacote), a falta de guia sobre nota fiscal e a visão geral. A verificação rejeita redirecionamentos. HTTP só é aceito em localhost.
 
 Para testar o artefato em memória, execute `npm run hostinger-build` e `node scripts/test-mcp-remote.mjs --local`. O CI usa esses comandos com Node 22. O modo local cria uma credencial descartável e também verifica o 503 com o piloto desativado, o acesso à saúde da API, a autenticação de Clientes e a entrega da interface pelo servidor da Hostinger.
 
@@ -93,7 +93,7 @@ Os nomes podem variar conforme idioma/versão da conta; os rótulos abaixo são 
 1. Abra **Settings → Connectors** e **Add custom connector** (em organizações, pode ser necessário o administrador).
 2. Nomeie **Manual do CRM Organiza Studios**. Informe a URL HTTPS **`https://crm.organizastudios.com/api/mcp`** ou a URL de homologação aprovada.
 3. Em **Authentication**, selecione **No sign in**: a autenticação será feita pelo cabeçalho fixo. Em **Request headers**, adicione o nome **Authorization** e o valor **Bearer TOKEN_DO_PILOTO**. Não configure OAuth e não inclua o token na URL.
-4. Salve e habilite o conector em uma conversa. Peça: **Use consultar_manual_crm para explicar como cadastrar um novo cliente.** Confira português do Brasil, passos curtos, **Novo cliente**, **Salvar cliente**, fontes e revisão. O fluxo simples deve fechar após salvar, sem exigir a antiga confirmação.
+4. Salve e habilite o conector em uma conversa. Pergunte, com suas palavras: **Chegou uma aluna nova, como coloco ela no sistema?** O agente deve buscar e ler os guias antes de responder. Confira português do Brasil, passos curtos, **Novo cliente**, **Salvar cliente**, fontes e revisão. O fluxo simples deve fechar após salvar, sem exigir a antiga confirmação.
 5. Pergunte como emitir nota fiscal eletrônica. A resposta deve informar que o material não confirma os passos. Revogue/rotacione o token de homologação e confirme que o conector perde o acesso.
 
 Não confunda independência do ChatGPT com disponibilidade de um recurso/plano do Claude: a conta do cliente ainda precisa permitir o conector remoto e os cabeçalhos fixos. Nenhuma ação foi feita nessa conta nesta entrega.

@@ -7,7 +7,9 @@ import {
   createManualAccess,
   type ManualAccessConfig,
 } from "./access.js";
-import { listGuides, manualAreas, searchManual } from "./search.js";
+import { manualInstructions } from "./instructions.js";
+import { crmOverview, overviewModules } from "./overview.js";
+import { listGuides, manualAreas, readGuides, searchGuides } from "./search.js";
 
 /** Não recebe repository: a única fonte é o material de ajuda empacotado. */
 export function registerManualRoutes(
@@ -67,51 +69,61 @@ export function registerManualRoutes(
       // Sem sessão e sem notificações do servidor: GET e DELETE não abrem streams.
       if (request.method !== "POST")
         return reply.code(405).header("allow", "POST").send();
-      const server = new McpServer({
-        name: "manual-crm-organiza-studios",
-        version: "1.0.0",
+      const server = new McpServer(
+        { name: "manual-crm-organiza-studios", version: "2.0.0" },
+        { instructions: manualInstructions },
+      );
+      const readOnly = {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      };
+      const json = (result: Record<string, unknown>) => ({
+        content: [{ type: "text" as const, text: JSON.stringify(result) }],
+        structuredContent: result,
       });
       server.registerTool(
-        "consultar_manual_crm",
+        "buscar_guias",
         {
           description:
-            "Consulta somente o manual do CRM Organiza Studios. Recebe a tarefa e a tela, sem dados pessoais, em até 300 caracteres, ou o id de um guia (ex.: AG07). Responda em português do Brasil, com passos curtos e os nomes exatos dos botões e campos quando confirmados. Cite as referências e a revisão. Se faltar evidência pertinente, confira as sugestões ou use listar_guias; nunca invente passos.",
+            "Procura nos guias do CRM Organiza Studios os mais próximos de uma tarefa. Envie palavras-chave ou a tarefa resumida (até 300 caracteres, sem dados pessoais), ou o id de um guia. Devolve até 8 guias com título, área, aderência e perguntas de exemplo; não devolve os passos. Leia os pertinentes com ler_guias. Repita com outras palavras se vier pouco.",
           inputSchema: { consulta: z.string().max(300).trim().min(1) },
-          annotations: {
-            readOnlyHint: true,
-            destructiveHint: false,
-            idempotentHint: true,
-            openWorldHint: false,
+          annotations: readOnly,
+        },
+        async ({ consulta }) => json(searchGuides(consulta)),
+      );
+      server.registerTool(
+        "ler_guias",
+        {
+          description:
+            "Lê o texto completo de até 10 guias pelo id (ex.: AG07, CL13), com os passos, condições e referências ao código conferido. Use os guias como base para montar a resposta adaptada à pergunta.",
+          inputSchema: {
+            ids: z.array(z.string().trim().min(1).max(40)).min(1).max(10),
           },
+          annotations: readOnly,
         },
-        async ({ consulta }) => {
-          const result = searchManual(consulta);
-          return {
-            content: [{ type: "text", text: JSON.stringify(result) }],
-            structuredContent: result,
-          };
-        },
+        async ({ ids }) => json(readGuides(ids)),
       );
       server.registerTool(
         "listar_guias",
         {
           description:
-            "Lista o índice do manual do CRM Organiza Studios. Sem área, devolve as áreas e quantos guias cada uma tem; com a área, devolve id, título e perguntas de cada guia. Use quando consultar_manual_crm não encontrar evidência ou para descobrir o que o manual cobre. Para ler os passos, chame consultar_manual_crm com o id.",
+            "Índice do manual por área. Sem área, devolve as áreas e quantos guias cada uma tem; com a área, devolve id, título e perguntas de exemplo de cada guia. Use para descobrir o que o manual cobre.",
           inputSchema: { area: z.enum(manualAreas).optional() },
-          annotations: {
-            readOnlyHint: true,
-            destructiveHint: false,
-            idempotentHint: true,
-            openWorldHint: false,
-          },
+          annotations: readOnly,
         },
-        async ({ area }) => {
-          const result = listGuides(area);
-          return {
-            content: [{ type: "text", text: JSON.stringify(result) }],
-            structuredContent: result,
-          };
+        async ({ area }) => json(listGuides(area)),
+      );
+      server.registerTool(
+        "visao_geral_crm",
+        {
+          description:
+            "Mapa do CRM gerado do próprio código: grupos do menu, telas e endereços, o que cada módulo faz, conceitos gerais e, com o módulo, as operações (permissões) que existem nele. Use para situar a pergunta e explicar onde fica cada coisa; os passos estão nos guias.",
+          inputSchema: { modulo: z.enum(overviewModules).optional() },
+          annotations: readOnly,
         },
+        async ({ modulo }) => json(crmOverview(modulo)),
       );
       const transport = new WebStandardStreamableHTTPServerTransport({
         enableJsonResponse: true,

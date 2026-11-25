@@ -1,10 +1,16 @@
 import { describe, expect, it } from "vitest";
-import { listGuides, manualAreas, searchManual } from "./search.js";
+import { listGuides, manualAreas, readGuides, searchGuides } from "./search.js";
 
-describe("evidência de ajuda", () => {
-  it("distingue cadastrar cliente de vender um pacote cadastrado", () => {
-    const result = searchManual("Como cadastrar um novo cliente?");
-    expect(result.trechos.map((t) => t.id)).toEqual(["cadastrar-cliente"]);
+const strong = (query: string) =>
+  searchGuides(query)
+    .guias.filter((guide) => guide.aderencia === "alta")
+    .map((guide) => guide.id);
+
+describe("busca nos guias", () => {
+  it("põe o guia de cadastro primeiro, sem confundir com venda de pacote", () => {
+    const { guias } = searchGuides("Como cadastrar um novo cliente?");
+    expect(guias[0]?.id).toBe("cadastrar-cliente");
+    expect(guias[0]?.aderencia).toBe("alta");
   });
   it.each([
     ["Como cancelar um atendimento?", "Cancelar um atendimento agendado"],
@@ -14,8 +20,8 @@ describe("evidência de ajuda", () => {
       "Como dar baixa em uma parcela?",
       "Registrar o pagamento de uma parcela já recebida",
     ],
-  ])("localiza a ação pertinente: %s", (query, title) => {
-    expect(searchManual(query).trechos[0]?.titulo).toBe(title);
+  ])("põe a ação pertinente primeiro: %s", (query, title) => {
+    expect(searchGuides(query).guias[0]?.titulo).toBe(title);
   });
   it.each([
     ["Como entrar no CRM?", "AC01"],
@@ -43,11 +49,11 @@ describe("evidência de ajuda", () => {
     ["Onde vejo as parcelas na ficha do cliente?", "PL11"],
     ["A fila da campanha permite registrar resposta de NPS?", "CO09"],
     ["Como ver os lançamentos de uma categoria da DRE?", "RL07"],
-  ])("retorna o guia verificado para %s", (query, id) => {
-    const { trechos } = searchManual(query);
-    expect(trechos.map((chapter) => chapter.id)).toEqual([id]);
-    expect(trechos[0]?.trecho).not.toContain("**Perguntas:**");
-    expect(trechos[0]).not.toHaveProperty("perguntas");
+  ])("põe o guia da pergunta cadastrada primeiro: %s", (query, id) => {
+    const { status, guias } = searchGuides(query);
+    expect(status).toBe("guias_relacionados");
+    expect(guias[0]?.id).toBe(id);
+    expect(guias[0]).not.toHaveProperty("trecho");
   });
   it.each([
     ["como remarcar", "AG07"],
@@ -77,10 +83,10 @@ describe("evidência de ajuda", () => {
     ["como cadastrar um funcionário", "CF03"],
     ["como renegociar uma dívida", "FI12"],
   ])("entende outra formulação: %s", (query, id) => {
-    const { status, trechos } = searchManual(query);
-    expect(status).toBe("evidencia_encontrada");
-    expect(trechos.length).toBeLessThanOrEqual(3);
-    expect(trechos.map((chapter) => chapter.id)).toContain(id);
+    const result = searchGuides(query);
+    expect(result.status).toBe("guias_relacionados");
+    expect(result.guias.length).toBeLessThanOrEqual(8);
+    expect(strong(query)).toContain(id);
   });
   it.each([
     ["Como cancelar uma aula?", "AG02"],
@@ -90,38 +96,43 @@ describe("evidência de ajuda", () => {
     ["Como apagar um cliente?", "CF20"],
     ["Como dar baixa em parcela", "FI06"],
     ["importar feriados", "CF13"],
-  ])("não troca a ação pedida: %s", (query, id) => {
-    expect(
-      searchManual(query).trechos.map((chapter) => chapter.id),
-    ).not.toContain(id);
+  ])("não marca como alta a ação trocada: %s", (query, id) => {
+    expect(strong(query)).not.toContain(id);
   });
   it.each([
     "Como matricular cliente em turma sem vaga?",
     "Como emitir nota fiscal eletrônica?",
     "Como integrar com o Google Agenda?",
-    "",
-    "xyzzy 987654",
-  ])("recusa evidência insuficiente: %s", (query) => {
-    expect(searchManual(query)).toMatchObject({
-      status: "evidencia_insuficiente",
-      trechos: [],
+  ])("avisa quando nenhum guia trata da tarefa: %s", (query) => {
+    const result = searchGuides(query);
+    expect(result.status).not.toBe("guias_relacionados");
+    expect(strong(query)).toEqual([]);
+    expect(result.orientacao).toMatch(/não cobre|não tem nada/);
+  });
+  it.each(["", "xyzzy 987654"])("não devolve nada sem termos: %j", (query) => {
+    expect(searchGuides(query)).toMatchObject({
+      status: "nenhum_guia",
+      guias: [],
     });
   });
-  it("sugere títulos próximos sem tratá-los como evidência", () => {
-    const result = searchManual(
+  it("traz guias parciais para o agente avaliar", () => {
+    const result = searchGuides(
       "Como oferecer uma vaga da Lista de espera e matricular?",
     );
-    expect(result).toMatchObject({
-      status: "evidencia_insuficiente",
-      trechos: [],
-    });
-    expect(result.sugestoes.map((item) => item.id)).toContain("LE05");
-    expect(result.sugestoes[0]).not.toHaveProperty("trecho");
+    expect(result.guias.map((guide) => guide.id)).toContain("LE05");
   });
-  it("lê o guia pelo id e lista todos os guias por área", () => {
-    expect(searchManual("ag07").trechos.map((chapter) => chapter.id)).toEqual([
+  it("lê vários guias inteiros pelo id e aponta os ids desconhecidos", () => {
+    expect(searchGuides("ag07").guias.map((guide) => guide.id)).toEqual([
       "AG07",
     ]);
+    const result = readGuides(["ag07", "CL13", "ZZ99", "AG07"]);
+    expect(result.guias.map((guide) => guide.id)).toEqual(["AG07", "CL13"]);
+    expect(result.guias[0]?.trecho).toContain("Remarcar");
+    expect(result.guias[0]?.trecho).not.toContain("**Perguntas:**");
+    expect(result.guias[0]?.referencias.length).toBeGreaterThan(0);
+    expect(result.naoEncontrados).toEqual(["zz99"]);
+  });
+  it("lista todos os guias por área", () => {
     const areas = listGuides().areas ?? [];
     const total = areas.reduce((sum, area) => sum + area.guias, 0);
     expect(total).toBe(

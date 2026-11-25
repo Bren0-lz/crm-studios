@@ -249,53 +249,6 @@ function rank(words: string[]) {
     .sort((a, b) => b.score - a.score);
 }
 
-function find(consulta: string) {
-  const byId = index.find(
-    (entry) => entry.chapter.id.toLowerCase() === consulta.trim().toLowerCase(),
-  );
-  if (byId) return { found: [byId.chapter], suggestions: [] as Chapter[] };
-  const words = tokens(consulta);
-  if (!words.length)
-    return { found: [] as Chapter[], suggestions: [] as Chapter[] };
-  const key = queryKey(literal(consulta));
-  const exact = index.filter((entry) => entry.keys.has(key));
-  if (exact.length === 1)
-    return { found: [exact[0]!.chapter], suggestions: [] };
-  const ranked = rank(words);
-  const accepted = ranked.filter((item) => item.fits && item.coverage >= 0.75);
-  const best = accepted[0]?.score ?? 0;
-  const found = accepted
-    .filter((item) => item.score >= best * 0.85)
-    .slice(0, 3)
-    .map((item) => item.entry.chapter);
-  const suggestions = found.length
-    ? []
-    : ranked.slice(0, 5).map((item) => item.entry.chapter);
-  return { found, suggestions };
-}
-
-export function searchManual(consulta: string) {
-  const { found, suggestions } = find(consulta);
-  return {
-    status: found.length ? "evidencia_encontrada" : "evidencia_insuficiente",
-    revisao: { fontes: data.revisao, material: `sha256:${data.material}` },
-    cobertura:
-      "Parcial. Somente tutoriais auditados cujas fontes conferem com o build. A revisão da URL publicada precisa ser conferida no deploy.",
-    orientacao:
-      "Responda em português do Brasil, com passos curtos e os nomes exatos dos botões e campos confirmados nos trechos. Use somente evidência pertinente. Se os trechos não responderem à pergunta ou faltarem passos, diga explicitamente o que não foi confirmado. Não peça dados pessoais.",
-    mensagem: found.length
-      ? "Confira as condições e os limites dos trechos antes de orientar."
-      : "Não encontrei evidência suficiente no conteúdo de ajuda disponível para esta consulta. Não invente passos. Se um dos títulos em sugestoes corresponder à tarefa, consulte de novo pelo id dele; senão, use listar_guias ou peça uma descrição da tela, sem dados pessoais.",
-    trechos: found.map(({ id, titulo, trecho, referencias }) => ({
-      id,
-      titulo,
-      trecho,
-      referencias,
-    })),
-    sugestoes: suggestions.map(({ id, titulo }) => ({ id, titulo })),
-  };
-}
-
 const areaNames: Record<string, string> = {
   AC: "Acesso ao CRM",
   VG: "Visão geral",
@@ -348,7 +301,7 @@ export function listGuides(area?: string) {
     return {
       revisao,
       orientacao:
-        "Escolha a área e chame listar_guias de novo com ela. Depois use consultar_manual_crm com o id do guia.",
+        "Escolha a área e chame listar_guias de novo com ela. Depois leia os guias com ler_guias.",
       areas: manualAreas.map((code) => ({
         area: code,
         nome: areaNames[code]!,
@@ -359,7 +312,7 @@ export function listGuides(area?: string) {
   return {
     revisao,
     orientacao:
-      "Para ler um guia, chame consultar_manual_crm com o id dele. Os títulos não substituem os passos do guia.",
+      "Para ler um guia, chame ler_guias com o id dele. Os títulos não substituem os passos do guia.",
     area,
     nome: areaNames[area] ?? area,
     guias: data.capitulos
@@ -370,4 +323,100 @@ export function listGuides(area?: string) {
         perguntas: "perguntas" in chapter ? chapter.perguntas : [],
       })),
   };
+}
+
+const revision = () => ({
+  fontes: data.revisao,
+  material: `sha256:${data.material}`,
+});
+
+/**
+ * Guias mais próximos da consulta, para o agente escolher o que ler. Não decide sozinho se o
+ * guia responde: marca a aderência ("alta" quando cobre a tarefa e a ação pedidas).
+ */
+export function searchGuides(consulta: string, limite = 8) {
+  const byId = index.find(
+    (entry) => entry.chapter.id.toLowerCase() === consulta.trim().toLowerCase(),
+  );
+  const words = tokens(consulta);
+  // Pergunta igual a uma cadastrada (sem sinônimos) vai para o topo.
+  const key = queryKey(literal(consulta));
+  const ranked = byId
+    ? [{ entry: byId, score: 1, coverage: 1, fits: true }]
+    : words.length
+      ? rank(words)
+          .filter((item) => item.coverage >= 0.3)
+          // Ação diferente da pedida continua na lista, mas atrás das que servem.
+          .map((item) => ({
+            ...item,
+            score:
+              (item.fits ? item.score : item.score / 2) +
+              (key && item.entry.keys.has(key) ? 1000 : 0),
+          }))
+          .sort((a, b) => b.score - a.score)
+      : [];
+  // "Alta": cobre a tarefa e a ação pedidas e pontua perto do melhor desses guias.
+  const best = ranked.find((item) => item.fits && item.coverage >= 0.75)?.score;
+  const isStrong = (item: (typeof ranked)[number]) =>
+    best !== undefined &&
+    item.fits &&
+    item.coverage >= 0.75 &&
+    item.score >= best * 0.85;
+  const candidates = ranked.slice(0, limite).map((item) => ({
+    id: item.entry.chapter.id,
+    titulo: item.entry.chapter.titulo,
+    area: areaOf(item.entry.chapter),
+    aderencia: isStrong(item) ? ("alta" as const) : ("parcial" as const),
+    perguntas: (
+      ("perguntas" in item.entry.chapter
+        ? item.entry.chapter.perguntas
+        : []) as string[]
+    ).slice(0, 3),
+  }));
+  const status = candidates.some((item) => item.aderencia === "alta")
+    ? "guias_relacionados"
+    : candidates.length
+      ? "so_guias_parciais"
+      : "nenhum_guia";
+  return {
+    status,
+    revisao: revision(),
+    orientacao:
+      status === "guias_relacionados"
+        ? "Leia com ler_guias os guias pertinentes (os de aderência alta e os relacionados que completem a resposta) e adapte os passos à pergunta."
+        : status === "so_guias_parciais"
+          ? "Nenhum guia trata exatamente desta tarefa. Tente outras palavras-chave ou leia os parciais: se eles não responderem, diga claramente que os guias não cobrem o assunto."
+          : "Os guias não têm nada sobre esta consulta. Tente sinônimos ou outra formulação; se continuar sem resultado, diga claramente que o manual não cobre o assunto e não invente passos.",
+    guias: candidates,
+  };
+}
+
+/** Texto completo dos guias pedidos, com as referências ao código conferido. */
+export function readGuides(ids: readonly string[]) {
+  const wanted = [...new Set(ids.map((id) => id.trim().toLowerCase()))];
+  const found = wanted
+    .map((id) => index.find((entry) => entry.chapter.id.toLowerCase() === id))
+    .filter((entry) => entry !== undefined);
+  return {
+    revisao: revision(),
+    orientacao:
+      "Responda em português do Brasil adaptando estes passos à pergunta. Use os nomes exatos de telas, botões e campos que aparecem aqui. O que não estiver nos guias não foi confirmado: diga isso em vez de supor.",
+    guias: found.map(({ chapter }) => ({
+      id: chapter.id,
+      titulo: chapter.titulo,
+      area: areaOf(chapter),
+      trecho: chapter.trecho,
+      referencias: chapter.referencias,
+    })),
+    naoEncontrados: wanted.filter(
+      (id) => !found.some((entry) => entry.chapter.id.toLowerCase() === id),
+    ),
+  };
+}
+
+export function guideCountByArea() {
+  const counts: Record<string, number> = {};
+  for (const chapter of data.capitulos)
+    counts[areaOf(chapter)] = (counts[areaOf(chapter)] ?? 0) + 1;
+  return counts;
 }

@@ -49,6 +49,13 @@ está no histórico do git (este arquivo antes do commit "chore: handoff da roda
 - **Gate:** gate completo e testes do módulo `manual` com consultas reformuladas.
 - **Status:** DONE
 
+### MCP5 — Agente usa os guias como base de conhecimento e entende o CRM inteiro
+
+- **Pedido (26/11/2026):** o agente não deve procurar uma pergunta igual à dos guias; deve interpretar a pergunta, usar os guias como base, adaptar os passos e dizer claramente quando os guias não cobrem o assunto. Além disso, uma forma mais fácil de o agente entender todo o CRM. Decisões do dono: trocar `consultar_manual_crm` por `buscar_guias` + `ler_guias`; visão geral gerada do código.
+- **Escopo:** instruções do servidor MCP; `buscar_guias` (até 8 guias com aderência alta/parcial, sem corte), `ler_guias` (até 10 guias inteiros), `listar_guias` e `visao_geral_crm` (menu, telas, endereços, conceitos e operações por módulo, a partir de `navMenu` e do catálogo de permissões); estrutura do menu movida para `@crm/contracts` (o web só acrescenta ícones).
+- **Gate:** gate completo e `node scripts/test-mcp-remote.mjs --local` após `npm run hostinger-build`.
+- **Status:** DONE
+
 ### V1 — Vales para colaboradores
 
 - **Pedido (02/11/2026):** vale com valor configurável, colaborador que recebe e mês em que é
