@@ -75,7 +75,7 @@ está no histórico do git (este arquivo antes do commit "chore: handoff da roda
 - **Pedido (25/11/2026):** organizar Configurações › Integrações em subpáginas e facilitar a consulta e a revogação de chaves ativas.
 - **Escopo:** abrir **Chaves de API** por padrão, listar as chaves ativas da clínica, mostrar o histórico de revogação e oferecer uma subpágina para **Telegram**. Atualizar os guias CF17 e CF18.
 - **Gate:** gate completo, conferência estrita do manual e fluxo de criação, cópia e revogação em desktop e celular.
-- **Status:** DOING
+- **Status:** DONE
 
 ### V1 — Vales para colaboradores
 
