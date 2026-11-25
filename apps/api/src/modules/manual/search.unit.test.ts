@@ -140,7 +140,8 @@ describe("busca nos guias", () => {
     ["remarquei a sessão da aluna", "AG07"],
     ["consulto o extrato como", "RL09"],
     ["desfaço a baixa como", "FI06"],
-    ["excluí um cliente sem querer", "LX01"],
+    // "sem querer" não conta: antes, o "sem" casava por acaso com "sem apagar de vez" do LX01.
+    ["excluí um cliente sem querer", "LX03"],
     ["lancei uma despesa errada", "FI15"],
   ])("entende o verbo conjugado: %s", (query, id) => {
     expect(
@@ -177,5 +178,63 @@ describe("busca nos guias", () => {
     );
     expect(total).toBeGreaterThanOrEqual(241);
     expect(listGuides("OU").guias).toEqual([]);
+  });
+});
+
+describe("confirmação do que a pessoa quis dizer", () => {
+  it("não pede confirmação quando um guia responde a pergunta", () => {
+    const result = searchGuides("cliente faltou, como marco a falta?");
+    expect(result.confirmacao).toEqual({ necessaria: false });
+    expect(result.entendimento.termosDesconhecidos).toEqual([]);
+  });
+  it.each([
+    ["como trocar o aluno de turma", ["GR03", "CF18"]],
+    ["como dar desconto", ["CL16", "FI30"]],
+  ])(
+    "pede para escolher quando guias fortes são de áreas diferentes: %s",
+    (query, ids) => {
+      const { status, confirmacao } = searchGuides(query);
+      expect(status).toBe("guias_relacionados");
+      expect(confirmacao).toMatchObject({
+        necessaria: true,
+        motivo: "varias_interpretacoes",
+      });
+      const options = "opcoes" in confirmacao ? confirmacao.opcoes : [];
+      expect(options.map((option) => option.id)).toEqual(ids);
+      expect(options[0]?.pergunta).toMatch(/^Você quer [a-z].*\?$/);
+    },
+  );
+  it("sugere os guias parciais como opções em vez de supor em silêncio", () => {
+    const { confirmacao } = searchGuides("como mandar lembrete pelo whatsapp");
+    expect(confirmacao).toMatchObject({
+      necessaria: true,
+      motivo: "sem_guia_exato",
+      opcoes: expect.arrayContaining([
+        expect.objectContaining({
+          id: "CO10",
+          pergunta: "Você quer preparar lembrete de uma sessão pelo WhatsApp?",
+        }),
+      ]),
+    });
+  });
+  it.each([
+    ["como cadastrar uma nova professora", "professora"],
+    ["onde vejo quem está devendo", "devendo"],
+  ])(
+    "aponta as palavras que o manual não conhece para o agente reformular: %s",
+    (query, word) => {
+      const result = searchGuides(query);
+      expect(result.entendimento.termosDesconhecidos).toContain(word);
+      expect(result.confirmacao).toMatchObject({ necessaria: true });
+      expect(result.orientacao).toMatch(/Reformule/);
+    },
+  );
+  it("'sem querer' não inverte o sentido nem vira termo desconhecido", () => {
+    const result = searchGuides("cancelei um atendimento sem querer");
+    expect(result.entendimento.termosDesconhecidos).toEqual([]);
+    expect(result.guias[0]?.id).toBe("cancelar-um-atendimento-agendado");
+  });
+  it("busca pelo id não pede confirmação", () => {
+    expect(searchGuides("AG07").confirmacao).toEqual({ necessaria: false });
   });
 });

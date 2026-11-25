@@ -87,7 +87,7 @@ export function registerManualRoutes(
         "buscar_guias",
         {
           description:
-            "Procura nos guias do CRM Organiza Studios os mais próximos de uma tarefa. Envie palavras-chave ou a tarefa resumida (até 300 caracteres, sem dados pessoais), ou o id de um guia. Devolve até 8 guias com título, área, aderência e perguntas de exemplo; não devolve os passos. Leia os pertinentes com ler_guias. Repita com outras palavras se vier pouco.",
+            "Procura nos guias do CRM Organiza Studios os mais próximos de uma tarefa. Envie palavras-chave ou a tarefa resumida (até 300 caracteres, sem dados pessoais), ou o id de um guia. Devolve até 8 guias com título, área, aderência e perguntas de exemplo; não devolve os passos. Leia os pertinentes com ler_guias. Repita com outras palavras se vier pouco ou se entendimento.termosDesconhecidos listar palavras. Quando confirmacao.necessaria for true, pergunte à pessoa qual das opções ela quis dizer antes de dar os passos.",
           inputSchema: { consulta: z.string().max(300).trim().min(1) },
           annotations: readOnly,
         },
