@@ -69,6 +69,7 @@ describe("evidência de ajuda", () => {
     ["imprimir contrato", "CT07"],
     ["Como estornar um pagamento?", "FI06"],
     ["reagendar a consulta da paciente", "AG07"],
+    ["excluir etiqueta do cliente", "CF20"],
     ["como cadastrar um funcionário", "CF03"],
     ["como renegociar uma dívida", "FI12"],
   ])("entende outra formulação: %s", (query, id) => {
@@ -81,6 +82,8 @@ describe("evidência de ajuda", () => {
     ["Como cancelar uma aula?", "AG02"],
     ["trocar minha senha", "CF06"],
     ["marcar presença da aluna", "AG02"],
+    ["Como excluir um cliente?", "CF20"],
+    ["Como apagar um cliente?", "CF20"],
   ])("não troca a ação pedida: %s", (query, id) => {
     expect(
       searchManual(query).trechos.map((chapter) => chapter.id),

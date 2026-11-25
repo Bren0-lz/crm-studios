@@ -144,6 +144,33 @@ function literal(text: string) {
   return [...new Set(words(text).map((word) => word.replace(/s$/, "")))];
 }
 
+const prepositions = new Set(["de", "do", "da", "dos", "das"]);
+const articles = new Set(["um", "uma", "uns", "umas", "o", "a", "os", "as"]);
+/**
+ * Palavras que são o assunto da frase, e não complemento: em "excluir uma etiqueta de
+ * cliente" o assunto é a etiqueta; "cliente" só vem depois de "de".
+ */
+function heads(text: string) {
+  const all =
+    text
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .match(/[a-z0-9]+/g) ?? [];
+  const result = new Set<string>();
+  let afterPreposition = false;
+  for (const word of all) {
+    if (prepositions.has(word)) {
+      afterPreposition = true;
+      continue;
+    }
+    if (articles.has(word)) continue;
+    if (!afterPreposition && !stop.has(word)) result.add(stem(word));
+    afterPreposition = false;
+  }
+  return result;
+}
+
 function queryKey(words: string[]) {
   return [...words].sort().join(" ");
 }
@@ -157,6 +184,11 @@ const index = data.capitulos.map((chapter) => {
     chapter,
     title: new Set(tokens(chapter.titulo)),
     intent: new Set(tokens(intentText)),
+    heads: new Set(
+      [chapter.titulo, aliases, ...questions].flatMap((text) => [
+        ...heads(text),
+      ]),
+    ),
     body: new Set(tokens(chapter.trecho)),
     keys: new Set(
       [chapter.titulo, ...questions].map((question) =>
@@ -180,7 +212,11 @@ function rank(words: string[]) {
       let matched = 0;
       for (const word of words) {
         if (entry.intent.has(word)) {
-          score += idf(word) * (entry.title.has(word) ? 4 : 3);
+          // Complemento ("etiqueta de cliente") pesa metade do assunto.
+          score +=
+            idf(word) *
+            (entry.title.has(word) ? 4 : 3) *
+            (entry.heads.has(word) ? 1 : 0.5);
           matched += idf(word);
         } else if (entry.body.has(word)) {
           score += idf(word);
@@ -224,7 +260,7 @@ function find(consulta: string) {
   const accepted = ranked.filter((item) => item.fits && item.coverage >= 0.75);
   const best = accepted[0]?.score ?? 0;
   const found = accepted
-    .filter((item) => item.score >= best * 0.8)
+    .filter((item) => item.score >= best * 0.85)
     .slice(0, 3)
     .map((item) => item.entry.chapter);
   const suggestions = found.length
