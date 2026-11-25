@@ -48,13 +48,14 @@ describe("manual MCP isolado do CRM", () => {
     );
     return client;
   }
-  it("inicializa, lista uma ferramenta e consulta clientes usando cliente oficial e HTTP real, sem buscar dados do CRM", async () => {
+  it("inicializa, lista as ferramentas e consulta clientes usando cliente oficial e HTTP real, sem buscar dados do CRM", async () => {
     const findUser = vi.spyOn(repository, "findUserById");
     const patients = vi.spyOn(repository, "listPatients");
     const sdk = await connect();
     const tools = await sdk.listTools();
     expect(tools.tools.map((tool) => tool.name)).toEqual([
       "consultar_manual_crm",
+      "listar_guias",
     ]);
     expect(tools.tools[0]?.inputSchema).toMatchObject({
       properties: { consulta: { maxLength: 300 } },
@@ -85,6 +86,41 @@ describe("manual MCP isolado do CRM", () => {
     );
     expect(findUser).not.toHaveBeenCalled();
     expect(patients).not.toHaveBeenCalled();
+  });
+  it("lista as áreas e os guias de uma área, e lê o guia pelo id", async () => {
+    const sdk = await connect();
+    const areas = await sdk.callTool({ name: "listar_guias", arguments: {} });
+    expect(areas.structuredContent).toMatchObject({
+      areas: expect.arrayContaining([
+        { area: "AG", nome: "Agenda", guias: expect.any(Number) },
+      ]),
+    });
+    const agenda = await sdk.callTool({
+      name: "listar_guias",
+      arguments: { area: "AG" },
+    });
+    expect(agenda.structuredContent).toMatchObject({
+      area: "AG",
+      guias: expect.arrayContaining([
+        expect.objectContaining({
+          id: "AG07",
+          titulo: "Remarcar um atendimento",
+        }),
+      ]),
+    });
+    const guide = await sdk.callTool({
+      name: "consultar_manual_crm",
+      arguments: { consulta: "AG07" },
+    });
+    expect(guide.structuredContent).toMatchObject({
+      status: "evidencia_encontrada",
+      trechos: [expect.objectContaining({ id: "AG07" })],
+    });
+    const invalid = await sdk.callTool({
+      name: "listar_guias",
+      arguments: { area: "ZZ" },
+    });
+    expect(invalid.isError).toBe(true);
   });
   it("retorna falta de evidência e rejeita consulta acima de 300 caracteres", async () => {
     const sdk = await connect();

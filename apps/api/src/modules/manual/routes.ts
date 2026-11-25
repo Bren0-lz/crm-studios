@@ -7,7 +7,7 @@ import {
   createManualAccess,
   type ManualAccessConfig,
 } from "./access.js";
-import { searchManual } from "./search.js";
+import { listGuides, manualAreas, searchManual } from "./search.js";
 
 /** Não recebe repository: a única fonte é o material de ajuda empacotado. */
 export function registerManualRoutes(
@@ -75,7 +75,7 @@ export function registerManualRoutes(
         "consultar_manual_crm",
         {
           description:
-            "Consulta somente o manual do CRM Organiza Studios. Recebe a tarefa e a tela, sem dados pessoais, em até 300 caracteres. Responda em português do Brasil, com passos curtos e os nomes exatos dos botões e campos quando confirmados. Cite as referências e a revisão. Se faltar evidência pertinente, diga isso explicitamente e não invente passos.",
+            "Consulta somente o manual do CRM Organiza Studios. Recebe a tarefa e a tela, sem dados pessoais, em até 300 caracteres, ou o id de um guia (ex.: AG07). Responda em português do Brasil, com passos curtos e os nomes exatos dos botões e campos quando confirmados. Cite as referências e a revisão. Se faltar evidência pertinente, confira as sugestões ou use listar_guias; nunca invente passos.",
           inputSchema: { consulta: z.string().max(300).trim().min(1) },
           annotations: {
             readOnlyHint: true,
@@ -86,6 +86,27 @@ export function registerManualRoutes(
         },
         async ({ consulta }) => {
           const result = searchManual(consulta);
+          return {
+            content: [{ type: "text", text: JSON.stringify(result) }],
+            structuredContent: result,
+          };
+        },
+      );
+      server.registerTool(
+        "listar_guias",
+        {
+          description:
+            "Lista o índice do manual do CRM Organiza Studios. Sem área, devolve as áreas e quantos guias cada uma tem; com a área, devolve id, título e perguntas de cada guia. Use quando consultar_manual_crm não encontrar evidência ou para descobrir o que o manual cobre. Para ler os passos, chame consultar_manual_crm com o id.",
+          inputSchema: { area: z.enum(manualAreas).optional() },
+          annotations: {
+            readOnlyHint: true,
+            destructiveHint: false,
+            idempotentHint: true,
+            openWorldHint: false,
+          },
+        },
+        async ({ area }) => {
+          const result = listGuides(area);
           return {
             content: [{ type: "text", text: JSON.stringify(result) }],
             structuredContent: result,
