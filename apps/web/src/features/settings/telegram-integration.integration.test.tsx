@@ -21,7 +21,7 @@ function fakeTelegram() {
 }
 
 async function openIntegrations() {
-  open("/configuracoes?secao=integracoes");
+  open("/configuracoes?secao=integracoes&integracao=telegram");
   const panel = await screen.findByRole("tabpanel", { name: "Integrações" });
   return within(panel).findByRole("region", { name: "Telegram" });
 }
@@ -29,8 +29,21 @@ async function openIntegrations() {
 describe("Telegram em Configurações › Integrações", () => {
   it("avisa que a integração está desligada sem o token do bot", async () => {
     await setupApi({ telegram: null });
-    const section = await openIntegrations();
+    open("/configuracoes?secao=integracoes");
+    const sections = await screen.findByRole("navigation", {
+      name: "Páginas de integrações",
+    });
+    expect(
+      within(sections).getByRole("link", { name: "Chaves de API" }),
+    ).toHaveAttribute("aria-current", "page");
+    fireEvent.click(within(sections).getByRole("link", { name: "Telegram" }));
+    const section = await screen.findByRole("region", { name: "Telegram" });
     await within(section).findByText("Integração desligada");
+    expect(screen.getByRole("link", { name: "Telegram" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    expect(screen.queryByRole("region", { name: "Chaves de API" })).toBeNull();
     expect(
       within(section).queryByRole("button", { name: "Gerar código de vínculo" }),
     ).toBeNull();

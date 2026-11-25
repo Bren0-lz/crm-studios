@@ -1730,6 +1730,105 @@
   color: var(--muted);
   font-size: var(--text-sm);
 }
+
+.integration-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+  border-bottom: 1px solid var(--line);
+}
+
+.integration-nav a {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--space-7);
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 2px solid transparent;
+  color: var(--muted);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.integration-nav a:hover,
+.integration-nav a[aria-current="page"] {
+  color: var(--green);
+}
+
+.integration-nav a[aria-current="page"] {
+  border-bottom-color: var(--green);
+}
+
+.integration-nav a:focus-visible,
+.integration-key-active h4:focus-visible {
+  outline: 2px solid var(--green-2);
+  outline-offset: -2px;
+}
+
+.integration-key-active h4,
+.integration-key-history > summary {
+  margin: 0;
+  padding: var(--space-3) 0;
+  font-size: var(--text-md);
+  font-weight: 700;
+}
+
+.integration-key-list {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.integration-key-list > li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+}
+
+.integration-key-info {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.integration-key-name {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-2);
+}
+
+.integration-key-name code {
+  padding: 0 var(--space-1);
+  border-radius: var(--radius-sm);
+  background: var(--paper);
+}
+
+.integration-key-info small,
+.integration-key-name code {
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+
+.integration-key-history {
+  border-top: 1px solid var(--line);
+}
+
+.integration-key-error {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-2);
+}
+
 .catalog-list {
   margin: 0;
   padding: 0;
