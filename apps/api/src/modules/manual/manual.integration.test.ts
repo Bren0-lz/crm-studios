@@ -53,7 +53,7 @@ describe("manual MCP isolado do CRM", () => {
     const patients = vi.spyOn(repository, "listPatients");
     const sdk = await connect();
     expect(sdk.getInstructions()).toMatch(
-      /base de conhecimento[\s\S]*Nunca invente/,
+      /base de conhecimento[\s\S]*Confirme antes de supor[\s\S]*Nunca invente/,
     );
     const tools = await sdk.listTools();
     expect(tools.tools.map((tool) => tool.name)).toEqual([
@@ -161,6 +161,8 @@ describe("manual MCP isolado do CRM", () => {
     expect(result.structuredContent).toMatchObject({
       status: expect.stringMatching(/^(so_guias_parciais|nenhum_guia)$/),
       orientacao: expect.stringMatching(/não cobre|não tem nada/),
+      confirmacao: expect.objectContaining({ necessaria: true }),
+      entendimento: { termosDesconhecidos: expect.any(Array) },
     });
     for (const consulta of ["x".repeat(301), "cliente" + " ".repeat(294)]) {
       const invalid = await sdk.callTool({

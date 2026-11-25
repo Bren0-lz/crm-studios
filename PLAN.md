@@ -63,6 +63,13 @@ está no histórico do git (este arquivo antes do commit "chore: handoff da roda
 - **Gate:** gate completo e `node scripts/test-mcp-remote.mjs --local` após `npm run hostinger-build`.
 - **Status:** DONE
 
+### MCP7 — Agente confirma o que a pessoa quis dizer antes de supor
+
+- **Pedido (25/11/2026):** no teste com 23 perguntas da equipe, a busca errou ou não achou nada em perguntas com palavras do dia a dia ("professora", "quem está devendo", "trocar o aluno de turma"). O dono pediu uma solução geral, sem lista de sinônimos por pergunta: a IA interpreta o que a pessoa quer e, quando supõe algo, sugere as interpretações e **sempre pede confirmação** antes de dar os passos.
+- **Escopo:** instruções do servidor (traduzir para o vocabulário do CRM, confirmar antes de supor, sugerir combinação de guias como sugestão confirmada); `buscar_guias` devolve `entendimento.termosDesconhecidos` e `confirmacao` (`necessaria`, `motivo`: `varias_interpretacoes` quando há guias fortes de áreas diferentes, `sem_guia_exato` ou `nenhum_guia`, e `opcoes` com a pergunta "Você quer …?"); "sem querer"/"por engano" deixam de inverter o sentido da busca.
+- **Gate:** gate completo e `node scripts/test-mcp-remote.mjs --local` após `npm run hostinger-build`.
+- **Status:** DONE
+
 ### V1 — Vales para colaboradores
 
 - **Pedido (02/11/2026):** vale com valor configurável, colaborador que recebe e mês em que é
