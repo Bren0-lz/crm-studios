@@ -162,6 +162,8 @@ function words(text: string) {
       .normalize("NFD")
       .replace(/[\u0300-\u036f]/g, "")
       .toLowerCase()
+      // "Cancelei sem querer" não pede um guia "sem" alguma coisa.
+      .replace(/\b(sem querer|por engano|por erro)\b/g, " ")
       .match(/[a-z0-9]+/g) ?? []
   ).filter((word) => !stop.has(word));
 }
@@ -399,22 +401,64 @@ export function searchGuides(consulta: string, limite = 8) {
         : []) as string[]
     ).slice(0, 3),
   }));
-  const status = candidates.some((item) => item.aderencia === "alta")
+  const strongOnes = candidates.filter((item) => item.aderencia === "alta");
+  const status = strongOnes.length
     ? "guias_relacionados"
     : candidates.length
       ? "so_guias_parciais"
       : "nenhum_guia";
+  const termosDesconhecidos = byId ? [] : unknownWords(consulta);
+  // Guias fortes em áreas diferentes ("trocar aluno de turma" casa com turma e com grupo do
+  // Telegram; "dar desconto" com cliente e com colaborador): a pessoa precisa escolher.
+  const motivo =
+    status === "nenhum_guia"
+      ? ("nenhum_guia" as const)
+      : status === "so_guias_parciais"
+        ? ("sem_guia_exato" as const)
+        : new Set(strongOnes.map((item) => item.area)).size > 1
+          ? ("varias_interpretacoes" as const)
+          : undefined;
+  const options = (strongOnes.length > 1 ? strongOnes : candidates).slice(
+    0,
+    4,
+  );
   return {
     status,
     revisao: revision(),
     orientacao:
-      status === "guias_relacionados"
-        ? "Leia com ler_guias os guias pertinentes (os de aderência alta e os relacionados que completem a resposta) e adapte os passos à pergunta."
-        : status === "so_guias_parciais"
-          ? "Nenhum guia trata exatamente desta tarefa. Tente outras palavras-chave ou leia os parciais: se eles não responderem, diga claramente que os guias não cobrem o assunto."
-          : "Os guias não têm nada sobre esta consulta. Tente sinônimos ou outra formulação; se continuar sem resultado, diga claramente que o manual não cobre o assunto e não invente passos.",
+      motivo === "varias_interpretacoes"
+        ? "A consulta tem mais de uma interpretação no CRM. Antes de dar os passos, pergunte à pessoa qual delas ela quis dizer, usando as opções de confirmacao."
+        : status === "guias_relacionados"
+          ? "Leia com ler_guias os guias pertinentes (os de aderência alta e os relacionados que completem a resposta) e adapte os passos à pergunta."
+          : status === "so_guias_parciais"
+            ? "Nenhum guia trata exatamente desta tarefa. Reformule os termos desconhecidos com o vocabulário do CRM e busque de novo. Se ainda assim só houver parciais, não suponha em silêncio: pergunte à pessoa se ela quis dizer uma das opções de confirmacao; se nenhuma servir, diga claramente que os guias não cobrem o assunto."
+            : "Os guias não têm nada sobre esta consulta. Reformule os termos desconhecidos com o vocabulário do CRM (visao_geral_crm) e busque de novo; se continuar sem resultado, pergunte à pessoa o que ela quer fazer ou diga claramente que o manual não cobre o assunto, sem inventar passos.",
+    entendimento: { termosDesconhecidos },
+    confirmacao: motivo
+      ? {
+          necessaria: true,
+          motivo,
+          opcoes:
+            motivo === "nenhum_guia"
+              ? []
+              : options.map((item) => ({
+                  id: item.id,
+                  titulo: item.titulo,
+                  pergunta: `Você quer ${item.titulo.charAt(0).toLowerCase()}${item.titulo.slice(1)}?`,
+                })),
+        }
+      : { necessaria: false },
     guias: candidates,
   };
+}
+
+/** Palavras da consulta que não aparecem em nenhum guia: o agente deve reformulá-las. */
+function unknownWords(consulta: string) {
+  return [
+    ...new Set(
+      words(consulta).filter((word) => !documentFrequency.has(stem(word))),
+    ),
+  ];
 }
 
 /** Texto completo dos guias pedidos, com as referências ao código conferido. */
