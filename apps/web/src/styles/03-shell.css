@@ -223,8 +223,6 @@
   top: 0;
   z-index: 10;
   display: flex;
-  /* Altura mínima: com muitos alertas a faixa quebra em linhas e o topo cresce (RF3); com
-     até dois, segue com 60px. */
   min-height: calc(var(--space-8) - var(--space-1));
   align-items: center;
   justify-content: space-between;
@@ -248,8 +246,11 @@
 
 .clinic-label {
   display: block;
+  overflow: hidden;
   font-size: var(--text-md);
   font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .top-actions {
@@ -515,17 +516,10 @@
   color: #963f35;
 }
 
-/* Alertas fixos no cabeçalho: grupos destacados nas preferências do sino. Sem botão de
-   fechar; fundo branco com borda, título e ícone em vermelho forte (#963f35 sobre branco ≈ 7:1)
-   e cada atalho como botão vermelho de letra branca. Quando os atalhos não cabem numa linha,
-   quebram em outras, inteiros, com qualquer número de alertas (RF3; antes a lista rolava de
-   lado e cortava atalhos). Sem espaço ao lado do resumo, a lista desce para baixo dele; um
-   atalho mais largo que a lista quebra o próprio texto. Até 1100px a faixa ocupa uma linha
-   própria no topo (11-responsive.css). */
+/* O resumo e os atalhos compartilham uma linha rolável. O ícone fica visível. */
 .notification-banner {
   display: flex;
   flex: 1;
-  flex-wrap: wrap;
   align-items: center;
   gap: var(--space-2);
   min-width: 0;
@@ -535,14 +529,6 @@
   background: #fff;
   color: var(--danger-strong);
   font-size: var(--text-sm);
-}
-/* O resumo quebra em duas linhas ("11 pendências / pedem atenção") para sobrar espaço aos
-   atalhos: com dois alertas, os dois cabem inteiros em 1192px com o menu lateral (RE11). */
-.notification-banner > strong {
-  flex-shrink: 0;
-  max-width: calc(var(--space-8) + var(--space-7));
-  font-weight: 600;
-  line-height: 1.25;
 }
 .notification-banner-icon {
   display: inline-grid;
@@ -555,40 +541,51 @@
 }
 /* Sem scrollbar-width: no Chrome 121+ ela anula os ::-webkit-scrollbar abaixo e volta a
    barra cinza com setas. O Firefox recebe scrollbar-color em 01-base.css. */
-.notification-banner ul {
+.notification-banner-scroll {
   display: flex;
-  flex: 1 1 calc(var(--space-8) * 6);
-  flex-wrap: wrap;
+  flex: 1;
+  align-items: center;
   gap: var(--space-2);
   min-width: 0;
-  margin: 0;
-  padding: var(--space-1) 0;
+  padding: var(--space-1);
   overflow-x: auto;
+  white-space: nowrap;
+}
+.notification-banner-scroll > strong {
+  flex: none;
+  font-weight: 600;
+  line-height: 1.25;
+}
+.notification-banner ul {
+  display: flex;
+  flex: none;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
   list-style: none;
 }
-.notification-banner ul::-webkit-scrollbar {
+.notification-banner-scroll::-webkit-scrollbar {
   height: var(--space-2);
 }
-.notification-banner ul::-webkit-scrollbar-track {
+.notification-banner-scroll::-webkit-scrollbar-track {
   border-radius: 999px;
   background: color-mix(in srgb, var(--danger-strong) 8%, transparent);
 }
-.notification-banner ul::-webkit-scrollbar-thumb {
+.notification-banner-scroll::-webkit-scrollbar-thumb {
   border: 2px solid transparent;
   border-radius: 999px;
   background: color-mix(in srgb, var(--danger-strong) 40%, #fff) padding-box;
 }
-.notification-banner ul::-webkit-scrollbar-thumb:hover {
+.notification-banner-scroll::-webkit-scrollbar-thumb:hover {
   background: color-mix(in srgb, var(--danger-strong) 70%, #fff) padding-box;
 }
-.notification-banner ul::-webkit-scrollbar-thumb:active {
+.notification-banner-scroll::-webkit-scrollbar-thumb:active {
   background: var(--danger-strong) padding-box;
 }
 .notification-banner-item {
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
-  max-width: 100%;
   min-height: calc(var(--space-6) + var(--space-1));
   padding: 0 var(--space-1) 0 var(--space-2);
   border: 1px solid var(--danger-strong);

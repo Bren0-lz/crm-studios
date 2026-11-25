@@ -17,49 +17,50 @@ function prefersReducedMotion() {
 }
 
 /**
- * Rola a lista sozinha quando os atalhos não cabem. Pausa enquanto `paused.current` for
+ * Rola a faixa sozinha quando os atalhos não cabem. Pausa enquanto `paused.current` for
  * verdadeiro (mouse, foco ou toque na barra) e continua de onde o usuário deixou o scroll
  * manual. Ao chegar no fim, espera e volta ao início. Desliga com movimento reduzido.
  */
 function useAutoScroll(
-  listRef: RefObject<HTMLUListElement | null>,
+  scrollRef: RefObject<HTMLDivElement | null>,
   paused: RefObject<boolean>,
   resetKey: number,
 ) {
   useEffect(() => {
-    const list = listRef.current;
-    if (!list || prefersReducedMotion()) return;
+    const scroller = scrollRef.current;
+    if (!scroller || prefersReducedMotion()) return;
     let frame = 0;
     let holdUntil = performance.now() + AUTO_SCROLL_HOLD_MS;
     let last: number | null = null;
-    let position = list.scrollLeft;
+    let position = scroller.scrollLeft;
     const step = (now: number) => {
       frame = requestAnimationFrame(step);
       const elapsed = last === null ? 0 : now - last;
       last = now;
-      const max = list.scrollWidth - list.clientWidth;
+      const max = scroller.scrollWidth - scroller.clientWidth;
       if (max <= 0 || paused.current || now < holdUntil) {
-        position = list.scrollLeft;
+        position = scroller.scrollLeft;
         return;
       }
       // Lê o scroll atual: se o usuário rolou à mão, segue dali.
-      if (Math.abs(list.scrollLeft - position) > 1) position = list.scrollLeft;
+      if (Math.abs(scroller.scrollLeft - position) > 1)
+        position = scroller.scrollLeft;
       if (position >= max - 1) {
         holdUntil = now + AUTO_SCROLL_HOLD_MS * 2;
         position = 0;
-        if (typeof list.scrollTo === "function") {
-          list.scrollTo({ left: 0, behavior: "smooth" });
+        if (typeof scroller.scrollTo === "function") {
+          scroller.scrollTo({ left: 0, behavior: "smooth" });
         } else {
-          list.scrollLeft = 0;
+          scroller.scrollLeft = 0;
         }
         return;
       }
       position = Math.min(max, position + (AUTO_SCROLL_SPEED * elapsed) / 1000);
-      list.scrollLeft = position;
+      scroller.scrollLeft = position;
     };
     frame = requestAnimationFrame(step);
     return () => cancelAnimationFrame(frame);
-  }, [listRef, paused, resetKey]);
+  }, [scrollRef, paused, resetKey]);
 }
 
 /**
@@ -102,7 +103,7 @@ export function NotificationsBanner({
   onNavigate: (to: string) => void;
 }) {
   const groups = center.bannerGroups;
-  const listRef = useRef<HTMLUListElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
   const bannerRef = useRef<HTMLElement>(null);
   const hovered = useRef(false);
   const focused = useRef(false);
@@ -112,7 +113,7 @@ export function NotificationsBanner({
     paused.current =
       hovered.current || focused.current || touchTimer.current !== undefined;
   };
-  useAutoScroll(listRef, paused, groups.length);
+  useAutoScroll(scrollRef, paused, groups.length);
   useBannerHeight(bannerRef, groups.length > 0);
   useEffect(() => () => window.clearTimeout(touchTimer.current), []);
   if (groups.length === 0) return null;
@@ -152,27 +153,29 @@ export function NotificationsBanner({
       <span className="notification-banner-icon" aria-hidden="true">
         <AlertTriangle size={16} />
       </span>
-      <strong>
-        {total === 1
-          ? "1 pendência pede atenção"
-          : `${total} pendências pedem atenção`}
-      </strong>
-      <ul ref={listRef}>
-        {groups.map((group) => (
-          <li key={group.key}>
-            <button
-              type="button"
-              className="notification-banner-item"
-              title={group.detail}
-              onClick={() => onNavigate(group.to)}
-            >
-              {group.icon}
-              {group.label}
-              <span className="notification-banner-count">{group.count}</span>
-            </button>
-          </li>
-        ))}
-      </ul>
+      <div ref={scrollRef} className="notification-banner-scroll">
+        <strong>
+          {total === 1
+            ? "1 pendência pede atenção"
+            : `${total} pendências pedem atenção`}
+        </strong>
+        <ul>
+          {groups.map((group) => (
+            <li key={group.key}>
+              <button
+                type="button"
+                className="notification-banner-item"
+                title={group.detail}
+                onClick={() => onNavigate(group.to)}
+              >
+                {group.icon}
+                {group.label}
+                <span className="notification-banner-count">{group.count}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      </div>
     </section>
   );
 }

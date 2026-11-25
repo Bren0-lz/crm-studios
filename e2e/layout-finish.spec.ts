@@ -36,11 +36,12 @@ async function bannerAlerts(
   });
 }
 
-/** RF3: com 3 e 4 alertas, como no teste de 15/11 (vaga de turma com nome longo). */
+/** Os três alertas do cabeçalho, com uma vaga de turma de rótulo longo para o quarto. */
 const manyAlerts = {
-  overdueReceivables: 4,
-  pendingFinalization: 7,
-  overdueLeadTasks: 2,
+  overdueReceivables: 11,
+  unsignedReceipts: 4,
+  pendingFinalization: 0,
+  overdueLeadTasks: 1,
   groupVacancies: [
     {
       groupId: "rf3-group",
@@ -69,26 +70,43 @@ async function notTruncated(locator: Locator) {
   expect(size.scroll).toBeLessThanOrEqual(size.client + 1);
 }
 
-/** Os atalhos da faixa de alertas ficam inteiros dentro dela. */
-async function bannerItemsWhole(page: Page, count = 2) {
-  const banner = page.getByRole("region", { name: "Alertas", exact: true });
-  const items = banner.locator(".notification-banner-item");
+/** O resumo e todos os atalhos ficam na mesma linha, inclusive fora da área visível. */
+async function bannerItemsInOneRow(banner: Locator, count: number) {
+  const scroller = banner.locator(".notification-banner-scroll");
+  const items = scroller.locator(".notification-banner-item");
   await expect(items).toHaveCount(count);
-  const area = await box(banner);
+  const first = await box(items.first());
+  const summary = scroller.locator("strong");
+  const summaryBox = await box(summary);
+  expect(summaryBox.y + summaryBox.height / 2).toBeCloseTo(
+    first.y + first.height / 2,
+    0,
+  );
+  expect(
+    await summary.evaluate((element) => {
+      const range = document.createRange();
+      range.selectNodeContents(element);
+      return range.getClientRects().length;
+    }),
+  ).toBe(1);
   for (const item of await items.all()) {
     const itemBox = await box(item);
-    expect(itemBox.x).toBeGreaterThanOrEqual(area.x - 1);
-    expect(itemBox.x + itemBox.width).toBeLessThanOrEqual(
-      area.x + area.width + 1,
-    );
-    expect(itemBox.y).toBeGreaterThanOrEqual(area.y - 1);
-    expect(itemBox.y + itemBox.height).toBeLessThanOrEqual(
-      area.y + area.height + 1,
-    );
+    expect(itemBox.y).toBeCloseTo(first.y, 0);
+    expect(itemBox.height).toBeCloseTo(first.height, 0);
     await notTruncated(item);
   }
-  const list = banner.locator("ul");
-  await notTruncated(list);
+  return scroller;
+}
+
+async function expectAutomaticBannerScroll(scroller: Locator) {
+  expect(
+    await scroller.evaluate(
+      (element) => element.scrollWidth > element.clientWidth,
+    ),
+  ).toBe(true);
+  await expect
+    .poll(() => scroller.evaluate((element) => element.scrollLeft))
+    .toBeGreaterThan(0);
 }
 
 async function seedTaggedPatient(api: APIRequestContext, fullName: string) {
@@ -172,8 +190,10 @@ test("desktop 1192px: tags, lead message label, alerts and receivables fit", asy
   await twoBannerAlerts(page, apiServer.url);
   await login(page);
 
-  // Faixa de alertas: os dois atalhos inteiros.
-  await bannerItemsWhole(page);
+  await bannerItemsInOneRow(
+    page.getByRole("region", { name: "Alertas", exact: true }),
+    2,
+  );
 
   // Clientes: as etiquetas ficam na coluna delas, sem cobrir o contato nem a situação.
   await page.goto("/clientes");
@@ -268,9 +288,8 @@ async function topActionsVisible(page: Page) {
   }
 }
 
-// RF3: no computador (a partir de 821px, com o menu lateral), qualquer número de alertas cabe.
-for (const width of [821, 1000, 1192, 1502]) {
-  test(`desktop ${width}px: 3 and 4 alerts wrap whole, without side scroll`, async ({
+for (const width of [821, 1000, 1192, 1502, 1621, 2200]) {
+  test(`desktop ${width}px: 3 and 4 alerts stay on a single line`, async ({
     page,
     apiServer,
   }, testInfo) => {
@@ -281,18 +300,22 @@ for (const width of [821, 1000, 1192, 1502]) {
     // Lido a cada consulta: o quarto alerta entra mais abaixo, antes de recarregar.
     await bannerAlerts(page, apiServer.url, counts);
     await login(page);
+    await page.mouse.move(0, 0);
     const banner = page.getByRole("region", { name: "Alertas", exact: true });
-    await expect(banner).toContainText("Tarefas comerciais vencidas");
-    await bannerItemsWhole(page, 3);
+    await expect(banner).toContainText("16 pendências pedem atenção");
+    const scroller = await bannerItemsInOneRow(banner, 3);
+    if (width === 2200) await notTruncated(scroller);
+    else await expectAutomaticBannerScroll(scroller);
     await topActionsVisible(page);
 
-    // Com o quarto alerta (vaga de turma) a faixa ganha outra linha; nada rola de lado.
     counts.groupVacancies = groupVacancies;
     await page.reload();
     await expect(banner).toContainText(
       "TESTE Turma: 1 vaga disponível · 2 na espera",
     );
-    await bannerItemsWhole(page, 4);
+    await bannerItemsInOneRow(banner, 4);
+    if (width === 2200) await notTruncated(scroller);
+    else await expectAutomaticBannerScroll(scroller);
     await topActionsVisible(page);
     const topbar = await box(page.locator(".topbar"));
     const area = await box(banner);
@@ -326,8 +349,7 @@ test("desktop 1192px: with 4 alerts the template editor stays below the top bar"
   await expect(
     page.getByRole("region", { name: "Alertas", exact: true }),
   ).toContainText("TESTE Turma");
-  // O topo com 4 alertas é mais alto que os 60px de antes.
-  expect((await box(page.locator(".topbar"))).height).toBeGreaterThan(90);
+  expect((await box(page.locator(".topbar"))).height).toBeLessThan(80);
   await page.evaluate(() =>
     window.scrollTo(0, document.documentElement.scrollHeight),
   );
@@ -359,8 +381,7 @@ for (const viewport of phones) {
     await page.goto("/agenda");
     const banner = page.getByRole("region", { name: "Alertas", exact: true });
     await expect(banner).toBeVisible();
-    // No alto da página a faixa aparece com os dois atalhos inteiros.
-    await bannerItemsWhole(page);
+    await expectAutomaticBannerScroll(await bannerItemsInOneRow(banner, 2));
 
     // Rolando, só a linha do menu fica presa no topo; a faixa sai da tela.
     const grid = page.locator(".day-grid-scroll");

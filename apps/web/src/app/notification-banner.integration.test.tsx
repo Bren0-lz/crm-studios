@@ -62,8 +62,12 @@ describe("barra de pendências (NB1)", () => {
     const focus = rule(shellCss, ".notification-banner-item:focus-visible");
     expect(focus).toMatch(/outline: 2px solid var\(--danger-strong\);/);
     // scrollbar-width anula os ::-webkit-scrollbar no Chrome (volta a barra cinza com setas).
-    expect(rule(shellCss, ".notification-banner ul")).not.toMatch(/scrollbar-width/);
-    expect(shellCss).toMatch(/\.notification-banner ul::-webkit-scrollbar-thumb \{/);
+    expect(rule(shellCss, ".notification-banner-scroll")).not.toMatch(
+      /scrollbar-width/,
+    );
+    expect(shellCss).toMatch(
+      /\.notification-banner-scroll::-webkit-scrollbar-thumb \{/,
+    );
     expect(shellCss).not.toMatch(/notification-banner-(breathe|ring|shake)/);
   });
 });
@@ -87,10 +91,10 @@ describe("rolagem automática da barra de pendências", () => {
       .mockReturnValue(400);
     render(<NotificationsBanner center={centerWith([overdue])} onNavigate={vi.fn()} />);
     const banner = screen.getByRole("region", { name: "Alertas" });
-    const list = banner.querySelector("ul")!;
+    const scroller = banner.querySelector(".notification-banner-scroll")!;
     return {
       banner,
-      list,
+      scroller,
       restore: () => {
         sizes.mockRestore();
         client.mockRestore();
@@ -99,20 +103,20 @@ describe("rolagem automática da barra de pendências", () => {
   }
 
   it("rola sozinha quando os atalhos não cabem e pausa com o mouse em cima", () => {
-    const { banner, list, restore } = renderOverflowing();
+    const { banner, scroller, restore } = renderOverflowing();
     act(() => vi.advanceTimersByTime(3000));
-    const moved = list.scrollLeft;
+    const moved = scroller.scrollLeft;
     expect(moved).toBeGreaterThan(0);
 
     fireEvent.mouseEnter(banner);
     act(() => vi.advanceTimersByTime(2000));
-    expect(list.scrollLeft).toBe(moved);
+    expect(scroller.scrollLeft).toBe(moved);
 
     // Scroll manual com a rolagem pausada; ao sair, continua dali.
-    list.scrollLeft = 300;
+    scroller.scrollLeft = 300;
     fireEvent.mouseLeave(banner);
     act(() => vi.advanceTimersByTime(1000));
-    expect(list.scrollLeft).toBeGreaterThan(300);
+    expect(scroller.scrollLeft).toBeGreaterThan(300);
     restore();
   });
 
@@ -124,9 +128,11 @@ describe("rolagem automática da barra de pendências", () => {
     vi.useFakeTimers({ toFake: ["requestAnimationFrame", "cancelAnimationFrame", "performance"] });
     const sizes = vi.spyOn(HTMLElement.prototype, "scrollWidth", "get").mockReturnValue(1000);
     render(<NotificationsBanner center={centerWith([overdue])} onNavigate={vi.fn()} />);
-    const list = screen.getByRole("region", { name: "Alertas" }).querySelector("ul")!;
+    const scroller = screen
+      .getByRole("region", { name: "Alertas" })
+      .querySelector(".notification-banner-scroll")!;
     act(() => vi.advanceTimersByTime(4000));
-    expect(list.scrollLeft).toBe(0);
+    expect(scroller.scrollLeft).toBe(0);
     sizes.mockRestore();
   });
 });
