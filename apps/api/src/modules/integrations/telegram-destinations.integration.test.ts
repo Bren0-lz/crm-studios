@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { formatCpf } from "@crm/contracts";
 import { afterEach, describe, expect, it } from "vitest";
 import { buildApp } from "../../app.js";
 import { MemoryClinicRepository } from "../../memory-repository.js";
@@ -78,6 +79,7 @@ async function setup() {
     });
   }
   const createPatient = async (fullName: string) => {
+    const cpf = nextTestCpf();
     const response = await app.inject({
       method: "POST",
       url: "/patients",
@@ -85,11 +87,12 @@ async function setup() {
       payload: {
         fullName,
         phone: "11933331111",
-        cpf: nextTestCpf(),
+        cpf,
         ...testPatientContact,
       },
     });
     expect(response.statusCode, response.body).toBe(201);
+    return cpf;
   };
   return {
     app,
@@ -119,7 +122,7 @@ describe("TG7: vínculo de grupo", () => {
     await test.webhook(`/vincular ${code}`, { id: 555, type: "private" });
     expect(test.sent.at(-1)).toEqual({
       chatId: "555",
-      text: "Este código é para vincular um grupo: adicione o bot ao grupo e envie lá /vincular <código>.",
+      text: "Essa mensagem conecta um grupo ao CRM. Adicione o bot ao grupo e envie a mensagem por lá.",
     });
 
     await test.webhook(`/vincular@StudiosBot ${code}`, {
@@ -129,7 +132,7 @@ describe("TG7: vínculo de grupo", () => {
     });
     expect(test.sent.at(-1)).toEqual({
       chatId: "-100200",
-      text: "Pronto! Este grupo foi vinculado ao CRM por Aryana Dutra e vai receber os avisos de: Agendamentos e Clientes novos.",
+      text: "Pronto! Aryana Dutra conectou este grupo ao CRM. Vocês vão receber avisos sobre agendamentos e clientes novos.",
     });
     const groups = await test.app.inject({
       url: "/integrations/telegram/groups",
@@ -159,7 +162,7 @@ describe("TG7: vínculo de grupo", () => {
     const { code } = created.json<{ code: string }>();
     await test.webhook(`/vincular ${code}`, { id: -1, type: "group" });
     expect(test.sent.at(-1)?.text).toBe(
-      "Este código vincula o seu chat pessoal: envie no chat privado com o bot. Para um grupo, o admin gera o código em Configurações › Integrações › Vincular grupo.",
+      "Essa mensagem conecta seu chat pessoal ao CRM. Envie a mensagem na conversa privada com o bot.",
     );
     expect(await test.repository.listTelegramLinks(clinicId)).toEqual([]);
     // Continua valendo no privado.
@@ -215,11 +218,11 @@ describe("TG7: cada destino recebe só os seus assuntos", () => {
     expect(topics.json().link.topics).toEqual([]);
     test.sent.length = 0;
 
-    await test.createPatient("Cliente Grupo TG7");
+    const cpf = await test.createPatient("Cliente Grupo TG7");
     expect(test.sent).toEqual([
       {
         chatId: "-200",
-        text: "Cliente novo: Cliente Grupo TG7 · cadastrado por Aryana Dutra",
+        text: `Novo cadastro de cliente\n\nCliente: Cliente Grupo TG7\nCPF: ${formatCpf(cpf)}\nCadastro feito por Aryana Dutra.`,
       },
     ]);
 
@@ -390,15 +393,15 @@ describe("TG7: comandos no grupo", () => {
 
     await test.webhook("/hoje@StudiosBot", group);
     expect(test.sent.at(-1)?.text).toBe(
-      "Os comandos de agenda só respondem no chat privado com o bot, para a agenda não ficar exposta no grupo.",
+      "Para consultar a agenda, abra uma conversa privada com o bot e envie o mesmo comando por lá.",
     );
     await test.webhook("/start", group);
     expect(test.sent.at(-1)?.text).toBe(
-      "Este grupo recebe os avisos de: Recibos. Os comandos de agenda só respondem no chat privado com o bot.",
+      "Este grupo recebe avisos sobre recibos.\n\nPara consultar a agenda, abra uma conversa privada com o bot e envie o mesmo comando por lá.",
     );
     await test.webhook("/start", { id: -600, type: "group" });
     expect(test.sent.at(-1)?.text).toBe(
-      "Para este grupo receber os avisos do CRM, o admin gera um código em Configurações › Integrações › Vincular grupo e envia aqui /vincular <código>.",
+      "Conecte este grupo ao CRM para receber avisos.\n\nNo CRM, vá em Configurações, abra Integrações e encontre a seção Telegram. Peça a quem administra o CRM para tocar em “Vincular grupo” e enviar aqui a mensagem que aparecer.",
     );
   });
 });

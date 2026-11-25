@@ -53,14 +53,14 @@ for (const storage of ["memory", "mysql"] as const) {
             imported("Lia Outros", "11966660001", { Pé: "37", Cor: "azul" }),
             imported("Mel Outros", "11966660002"),
           ]),
-        ).toEqual({ created: 2, skipped: 0, updated: 0 });
+        ).toMatchObject({ created: 2, skipped: 0, updated: 0 });
         expect(
           await repository.importPatients(clinicId, [
             imported("Lia Outros", "11966660001", { Pé: "38", Turma: "B" }),
             imported("Mel Outros", "11966660002"),
             imported("Mel Outros", "11966660002", { Turma: "A" }),
           ]),
-        ).toEqual({ created: 0, skipped: 1, updated: 2 });
+        ).toEqual({ created: 0, skipped: 1, updated: 2, createdPatients: [] });
 
         const [lia] = await repository.listPatients(clinicId, "Lia Outros");
         expect(lia?.extraFields).toEqual({ Pé: "38", Cor: "azul", Turma: "B" });

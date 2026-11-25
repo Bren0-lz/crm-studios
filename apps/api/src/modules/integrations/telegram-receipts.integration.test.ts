@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { formatCpf } from "@crm/contracts";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { buildApp } from "../../app.js";
 import type { BuildAppOptions } from "../../infrastructure/route-utils.js";
@@ -138,7 +139,7 @@ describe("TG2: aviso de recibo assinado", () => {
     expect(test.sent).toEqual([
       {
         chatId: "555",
-        text: `Recibo assinado: ${test.patient.fullName} · R$\u00a012,34 · pago em 02/11/2026`,
+        text: `Recibo assinado\n\nCliente: ${test.patient.fullName}\nCPF: ${formatCpf(test.patient.cpf!)}\nValor pago: R$\u00a012,34\nPago em 02/11/2026 (segunda-feira)`,
       },
     ]);
     expect((await test.sign()).statusCode).toBe(409);
@@ -176,7 +177,7 @@ describe("TG2: aviso de recibo assinado", () => {
     await test.link();
     await test.pay();
     expect((await test.sign()).statusCode).toBe(200);
-    expect(test.sent[0]!.text).toContain("pago em 03/11/2026");
+    expect(test.sent[0]!.text).toContain("Pago em 03/11/2026 (terça-feira)");
   });
 
   it("preserva a assinatura na falha de envio e usa a fila para tentar novamente", async () => {

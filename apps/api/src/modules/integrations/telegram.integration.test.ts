@@ -130,7 +130,9 @@ describe("Telegram: vínculo", () => {
     const { code, expiresAt, command } = created.json();
     expect(code).toMatch(/^[A-HJKMNP-Z2-9]{8}$/);
     expect(command).toBe(`/vincular ${code}`);
-    expect(expiresAt).toBe(new Date(start.getTime() + 10 * minute).toISOString());
+    expect(expiresAt).toBe(
+      new Date(start.getTime() + 10 * minute).toISOString(),
+    );
 
     // Aceita o nome do bot no comando e o código em minúsculas.
     const response = await webhook(
@@ -141,7 +143,7 @@ describe("Telegram: vínculo", () => {
     expect(fake.sent).toEqual([
       {
         chatId: "555",
-        text: "Pronto, Aryana Dutra! Este chat foi vinculado ao CRM e vai receber os avisos.",
+        text: "Pronto, Aryana Dutra! Seu chat já está conectado ao CRM. Digite /ajuda para ver como consultar a agenda.",
       },
     ]);
     expect(await repository.listTelegramLinks(clinicId)).toEqual([
@@ -191,7 +193,7 @@ describe("Telegram: vínculo", () => {
     await webhook(`/vincular ${first}`, 777);
     expect(fake.sent.at(-1)).toEqual({
       chatId: "777",
-      text: "Este código já foi usado. Gere um novo em Configurações › Integrações.",
+      text: "Esse código já foi usado. Gere outro na seção Telegram do CRM e envie a nova mensagem aqui.",
     });
     expect(
       (await repository.listTelegramLinks(clinicId)).map((link) => link.chatId),
@@ -201,17 +203,21 @@ describe("Telegram: vínculo", () => {
     fake.advance(10 * minute);
     await webhook(`/vincular ${expired}`, 777);
     expect(fake.sent.at(-1)?.text).toBe(
-      "Este código venceu (vale 10 minutos). Gere um novo em Configurações › Integrações.",
+      "O código vale por 10 minutos e já venceu. Gere outro na seção Telegram do CRM e envie a nova mensagem aqui.",
     );
 
     const replaced = (await linkCode()).json().code as string;
     const current = (await linkCode()).json().code as string;
     await webhook(`/vincular ${replaced}`, 777);
-    expect(fake.sent.at(-1)?.text).toMatch(/^Código não encontrado\./);
+    expect(fake.sent.at(-1)?.text).toMatch(
+      /^Confira se você copiou a mensagem inteira do CRM\./,
+    );
     await webhook("/vincular", 777);
-    expect(fake.sent.at(-1)?.text).toMatch(/^Envie \/vincular seguido/);
+    expect(fake.sent.at(-1)?.text).toContain(
+      "Toque em “Gerar código de vínculo” e envie aqui a mensagem que aparecer.",
+    );
     await webhook("oi", 777);
-    expect(fake.sent.at(-1)?.text).toMatch(/^Olá! Para receber os avisos/);
+    expect(fake.sent.at(-1)?.text).toMatch(/^Olá! Conecte este chat ao CRM/);
 
     await webhook(`/vincular ${current}`, 777);
     expect(
@@ -254,14 +260,19 @@ describe("Telegram: vínculo", () => {
     expect(denied.json().code).toBe("TELEGRAM_LINK_FORBIDDEN");
 
     // Só o admin muda a configuração.
-    const settings = (headersFor: { authorization: string }, linkRoles: string[]) =>
+    const settings = (
+      headersFor: { authorization: string },
+      linkRoles: string[],
+    ) =>
       app.inject({
         method: "PUT",
         url: "/integrations/telegram/settings",
         headers: headersFor,
         payload: { linkRoles },
       });
-    expect((await settings(user.headers, ["admin", "user"])).statusCode).toBe(403);
+    expect((await settings(user.headers, ["admin", "user"])).statusCode).toBe(
+      403,
+    );
     const saved = await settings(headers, ["admin", "user"]);
     expect(saved.statusCode).toBe(200);
     expect(saved.json()).toEqual({ linkRoles: ["admin", "user"] });
@@ -270,7 +281,9 @@ describe("Telegram: vínculo", () => {
     // O perfil é conferido de novo no /vincular.
     await settings(headers, ["admin"]);
     await webhook(`/vincular ${code}`, 888);
-    expect(fake.sent.at(-1)?.text).toMatch(/^Seu perfil não pode receber/);
+    expect(fake.sent.at(-1)?.text).toMatch(
+      /^Peça à pessoa responsável pelo CRM para liberar o Telegram/,
+    );
     expect(await repository.getTelegramLink(clinicId, user.id)).toBeNull();
 
     await settings(headers, ["admin", "user"]);
@@ -299,7 +312,8 @@ describe("Telegram: fila de saída", () => {
       [{ chatId: "555", message: "Aviso de teste" }],
       fake.at(),
     );
-    const outbox = async () => (await repository.listTelegramOutbox(clinicId))[0]!;
+    const outbox = async () =>
+      (await repository.listTelegramOutbox(clinicId))[0]!;
 
     expect(await drain()).toEqual({ sent: 0, failed: 1, gaveUp: 0 });
     expect(await outbox()).toMatchObject({

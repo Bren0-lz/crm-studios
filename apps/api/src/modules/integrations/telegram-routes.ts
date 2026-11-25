@@ -1,6 +1,7 @@
 import {
   TELEGRAM_LINK_CODE_TTL_MINUTES,
   TELEGRAM_LINK_COMMAND,
+  joinWithAnd,
   telegramGroupTopicsInputSchema,
   telegramSettingsInputSchema,
   telegramTopicLabels,
@@ -22,32 +23,40 @@ import {
   telegramCommandsHelp,
 } from "./telegram-commands.js";
 
-const SETTINGS_PATH = "Configurações › Integrações";
+const settingsPath =
+  "No CRM, vá em Configurações, abra Integrações e encontre a seção Telegram.";
+const personalLinkSteps = `${settingsPath} Toque em “Gerar código de vínculo” e envie aqui a mensagem que aparecer.`;
+const groupLinkSteps = `${settingsPath} Peça a quem administra o CRM para tocar em “Vincular grupo” e enviar aqui a mensagem que aparecer.`;
+const unlinkedReply = `Conecte este chat ao CRM para consultar a agenda.\n\n${personalLinkSteps}`;
 
 /** Respostas do bot a `/vincular`, por resultado. */
 const linkReplies: Record<
   Exclude<TelegramLinkAttempt["status"], "linked">,
   string
 > = {
-  invalid: `Código não encontrado. Gere um novo em ${SETTINGS_PATH} e envie ${TELEGRAM_LINK_COMMAND} <código>.`,
-  expired: `Este código venceu (vale ${TELEGRAM_LINK_CODE_TTL_MINUTES} minutos). Gere um novo em ${SETTINGS_PATH}.`,
-  used: `Este código já foi usado. Gere um novo em ${SETTINGS_PATH}.`,
+  invalid:
+    "Confira se você copiou a mensagem inteira do CRM. Você também pode gerar um novo código em Configurações, na seção Telegram de Integrações.",
+  expired: `O código vale por ${TELEGRAM_LINK_CODE_TTL_MINUTES} minutos e já venceu. Gere outro na seção Telegram do CRM e envie a nova mensagem aqui.`,
+  used: "Esse código já foi usado. Gere outro na seção Telegram do CRM e envie a nova mensagem aqui.",
   forbidden:
-    "Seu perfil não pode receber os avisos do CRM pelo Telegram. Fale com o admin da clínica.",
-  needs_group: `Este código é para vincular um grupo: adicione o bot ao grupo e envie lá ${TELEGRAM_LINK_COMMAND} <código>.`,
-  needs_private: `Este código vincula o seu chat pessoal: envie no chat privado com o bot. Para um grupo, o admin gera o código em ${SETTINGS_PATH} › Vincular grupo.`,
+    "Peça à pessoa responsável pelo CRM para liberar o Telegram para sua conta.",
+  needs_group:
+    "Essa mensagem conecta um grupo ao CRM. Adicione o bot ao grupo e envie a mensagem por lá.",
+  needs_private:
+    "Essa mensagem conecta seu chat pessoal ao CRM. Envie a mensagem na conversa privada com o bot.",
 };
-const helpReply = `Olá! Para receber os avisos do CRM, gere um código em ${SETTINGS_PATH} e envie ${TELEGRAM_LINK_COMMAND} <código>.`;
-const groupHelpReply = `Para este grupo receber os avisos do CRM, o admin gera um código em ${SETTINGS_PATH} › Vincular grupo e envia aqui ${TELEGRAM_LINK_COMMAND} <código>.`;
+const helpReply = `Olá! Conecte este chat ao CRM para receber avisos e consultar a agenda.\n\n${personalLinkSteps}`;
+const groupHelpReply = `Conecte este grupo ao CRM para receber avisos.\n\n${groupLinkSteps}`;
 const groupAgendaReply =
-  "Os comandos de agenda só respondem no chat privado com o bot, para a agenda não ficar exposta no grupo.";
+  "Para consultar a agenda, abra uma conversa privada com o bot e envie o mesmo comando por lá.";
 
 /** "Recibos, Agendamentos e Clientes novos". */
 function topicList(topics: readonly TelegramTopic[]) {
-  const labels = topics.map((topic) => telegramTopicLabels[topic]);
-  return labels.length <= 1
-    ? (labels[0] ?? "")
-    : `${labels.slice(0, -1).join(", ")} e ${labels.at(-1)}`;
+  return joinWithAnd(
+    topics.map((topic) =>
+      telegramTopicLabels[topic].toLocaleLowerCase("pt-BR"),
+    ),
+  );
 }
 
 /** Só o que o webhook usa da atualização do Telegram; o resto é ignorado. */
@@ -107,7 +116,7 @@ const help: CommandHandler = async ({
       {
         chatId,
         message: group
-          ? `Este grupo recebe os avisos de: ${topicList(group.topics)}. Os comandos de agenda só respondem no chat privado com o bot.`
+          ? `Este grupo recebe avisos sobre ${topicList(group.topics)}.\n\n${groupAgendaReply}`
           : groupHelpReply,
       },
     ]);
@@ -133,7 +142,7 @@ const commands: Record<string, CommandHandler> = {
       await telegram.enqueue(null, [
         {
           chatId,
-          message: `Envie ${TELEGRAM_LINK_COMMAND} seguido do código gerado em ${SETTINGS_PATH}.`,
+          message: chatKind === "group" ? groupLinkSteps : personalLinkSteps,
         },
       ]);
       return;
@@ -151,8 +160,8 @@ const commands: Record<string, CommandHandler> = {
           chatId,
           message:
             result.kind === "group"
-              ? `Pronto! Este grupo foi vinculado ao CRM por ${result.userName} e vai receber os avisos de: ${topicList(result.topics)}.`
-              : `Pronto, ${result.userName}! Este chat foi vinculado ao CRM e vai receber os avisos.`,
+              ? `Pronto! ${result.userName} conectou este grupo ao CRM. Vocês vão receber avisos sobre ${topicList(result.topics)}.`
+              : `Pronto, ${result.userName}! Seu chat já está conectado ao CRM. Digite /ajuda para ver como consultar a agenda.`,
         },
       ]);
     else
@@ -200,8 +209,7 @@ export function registerTelegramRoutes(context: RouteContext) {
     telegram,
     accessibleBranches: context.accessibleBranches,
     log: app.log,
-    settingsPath: SETTINGS_PATH,
-    linkCommand: TELEGRAM_LINK_COMMAND,
+    unlinkedReply,
   });
 
   async function statusOf(

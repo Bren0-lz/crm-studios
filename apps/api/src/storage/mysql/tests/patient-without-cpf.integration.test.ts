@@ -42,14 +42,24 @@ for (const storage of ["memory", "mysql"] as const) {
       });
 
       it("importa vários clientes sem CPF na mesma clínica e grava NULL", async () => {
+        const cpf = nextTestCpf();
         const result = await repository.importPatients(clinicId, [
           imported("Bianca Sem Cpf", "11955530001"),
           imported("Caio Sem Cpf", "11955530002"),
-          imported("Davi Com Cpf", "11955530003", nextTestCpf()),
+          imported("Davi Com Cpf", "11955530003", cpf),
           // Mesmo telefone de outro da planilha: ignorado.
           imported("Bianca Repetida", "(11) 95553-0001"),
         ]);
-        expect(result).toEqual({ created: 3, skipped: 1, updated: 0 });
+        expect(result).toEqual({
+          created: 3,
+          skipped: 1,
+          updated: 0,
+          createdPatients: [
+            { fullName: "Bianca Sem Cpf" },
+            { fullName: "Caio Sem Cpf" },
+            { fullName: "Davi Com Cpf", cpf },
+          ],
+        });
 
         const found = await repository.listPatients(clinicId, "Sem Cpf");
         expect(found.map((patient) => patient.fullName).sort()).toEqual([
@@ -75,14 +85,17 @@ for (const storage of ["memory", "mysql"] as const) {
           await repository.importPatients(clinicId, [
             imported("Caio De Novo", "11955530002"),
           ]),
-        ).toEqual({ created: 0, skipped: 1, updated: 0 });
+        ).toEqual({ created: 0, skipped: 1, updated: 0, createdPatients: [] });
       });
 
       it("edita sem CPF, preenche depois e recusa CPF de outro cliente", async () => {
         await repository.importPatients(clinicId, [
           imported("Helga Sem Cpf", "11955530010"),
         ]);
-        const [helga] = await repository.listPatients(clinicId, "Helga Sem Cpf");
+        const [helga] = await repository.listPatients(
+          clinicId,
+          "Helga Sem Cpf",
+        );
         const update = (cpf: string, phone = "11955530011") =>
           patientUpdateInputSchema.parse({
             fullName: "Helga Sem Cpf",

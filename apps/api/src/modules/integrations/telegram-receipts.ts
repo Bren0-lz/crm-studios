@@ -1,6 +1,7 @@
 import type { ReceiptSignedEvent } from "../../infrastructure/domain-events.js";
 import type { ClinicRepository } from "../../repository.js";
 import { DEFAULT_CLINIC_TIMEZONE } from "../finance/daily-cash.js";
+import { telegramClock, telegramCpf } from "./telegram-messages.js";
 import type { TelegramService } from "./telegram.js";
 
 const currency = new Intl.NumberFormat("pt-BR", {
@@ -23,16 +24,16 @@ export function createReceiptSignedTelegramHandler({
       repository.getClinicSettings(event.clinicId),
     ]);
     if (!patient) return;
-    const paidOn = new Intl.DateTimeFormat("pt-BR", {
-      timeZone: settings?.timezone ?? DEFAULT_CLINIC_TIMEZONE,
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-    }).format(new Date(event.paidAt));
-    await telegram.notifyLinkedChats(
-      event.clinicId,
-      "receipts",
-      `Recibo assinado: ${patient.fullName} · ${currency.format(event.amountInCents / 100)} · pago em ${paidOn}`,
-    );
+    const clock = telegramClock(settings?.timezone ?? DEFAULT_CLINIC_TIMEZONE);
+    await telegram.notifyLinkedChats(event.clinicId, "receipts", [
+      [
+        "Recibo assinado",
+        "",
+        `Cliente: ${patient.fullName}`,
+        telegramCpf(patient.cpf),
+        `Valor pago: ${currency.format(event.amountInCents / 100)}`,
+        `Pago em ${clock.day(new Date(event.paidAt))}`,
+      ].join("\n"),
+    ]);
   };
 }

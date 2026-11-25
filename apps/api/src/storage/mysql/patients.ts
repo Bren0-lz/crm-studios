@@ -2,6 +2,7 @@ import {
   auditChangesOf,
   type GuidedPatientInput,
   type GuidedPatientResult,
+  type Patient,
   type PatientImportInput,
   type PatientUpdateInput,
   type PatientPlan,
@@ -533,7 +534,9 @@ export function createPatientsRepository(
     },
 
     async importPatients(clinicId: string, inputs: PatientImportInput[]) {
-      if (inputs.length === 0) return { created: 0, skipped: 0, updated: 0 };
+      const createdPatients: Pick<Patient, "fullName" | "cpf">[] = [];
+      if (inputs.length === 0)
+        return { created: 0, skipped: 0, updated: 0, createdPatients };
       return repositoryContext.inTransaction(async (client) => {
         // Serializa importações da mesma clínica para a checagem de duplicados valer até o COMMIT.
         await client.query("SELECT id FROM clinics WHERE id = $1 FOR UPDATE", [
@@ -558,7 +561,6 @@ export function createPatientsRepository(
         }
         const digits = (value: string | undefined) =>
           (value ?? "").replace(/\D/g, "");
-        let created = 0;
         let skipped = 0;
         let updated = 0;
         for (const input of inputs) {
@@ -591,9 +593,15 @@ export function createPatientsRepository(
              WHERE clinic_id = $1 AND id = $2`,
             [clinicId, patient.id, input.invalidCpf ?? null],
           );
-          created += 1;
+          const { fullName, cpf: patientCpf } = patient;
+          createdPatients.push({ fullName, cpf: patientCpf });
         }
-        return { created, skipped, updated };
+        return {
+          created: createdPatients.length,
+          skipped,
+          updated,
+          createdPatients,
+        };
       });
     },
 

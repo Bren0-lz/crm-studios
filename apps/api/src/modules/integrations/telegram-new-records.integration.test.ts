@@ -1,6 +1,10 @@
 import { randomUUID } from "node:crypto";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { packageScheduleStarts, type Appointment } from "@crm/contracts";
+import {
+  formatCpf,
+  packageScheduleStarts,
+  type Appointment,
+} from "@crm/contracts";
 import { buildApp } from "../../app.js";
 import type {
   CreatedAppointmentSummary,
@@ -12,7 +16,7 @@ import { withAppointmentPlan } from "../../test-support/appointment-plan.js";
 import { nextTestCpf } from "../../test-support/cpf.js";
 import { configuredPlan } from "../../test-support/legacy-fixtures.js";
 import { testPatientContact } from "../../test-support/patient-contact.js";
-import { formatAppointmentsCreatedMessage } from "./telegram-new-records.js";
+import { formatAppointmentsCreatedMessages } from "./telegram-new-records.js";
 
 const clinicId = "11111111-1111-4111-8111-111111111111";
 const actorId = "22222222-2222-4222-8222-222222222222";
@@ -77,12 +81,13 @@ async function setup(
   }
   const post = async (url: string, payload: object) =>
     app.inject({ method: "POST", url, headers, payload });
-  const createLead = async (fullName: string) => {
+  const createLead = async (fullName: string, cpf?: string) => {
     const response = await post("/leads", {
       fullName,
       phone: "11944443333",
       source: "Instagram",
       interest: "Pilates",
+      cpf,
     });
     expect(response.statusCode, response.body).toBe(201);
     return response.json<{ id: string }>().id;
@@ -129,12 +134,21 @@ describe("TG3: aviso de agendamento", () => {
     expect(test.sent).toEqual([
       {
         chatId: "555",
-        text: `Novo agendamento por ${actorName}: ${test.patient.fullName} · ${test.service.name} · com ${test.professional.fullName} · 10/03/2031 às 09:00`,
+        text: [
+          "Novo agendamento",
+          `Marcado por ${actorName}.`,
+          "",
+          `Cliente: ${test.patient.fullName}`,
+          `CPF: ${formatCpf(test.patient.cpf!)}`,
+          `Serviço: ${test.service.name}`,
+          `Profissional: ${test.professional.fullName}`,
+          "Quando: 10/03/2031 (segunda-feira) às 09:00",
+        ].join("\n"),
       },
     ]);
   });
 
-  it("recorrência gera um aviso só, com o resumo das sessões", async () => {
+  it("recorrência gera um aviso só com todas as sessões", async () => {
     const test = await setup();
     await test.link();
     const response = await test.post(
@@ -158,9 +172,12 @@ describe("TG3: aviso de agendamento", () => {
     expect(response.statusCode, response.body).toBe(201);
     expect(response.json<Appointment[]>()).toHaveLength(4);
     expect(test.sent).toHaveLength(1);
-    expect(test.sent[0]!.text).toBe(
-      `Novos agendamentos por ${actorName}: ${test.patient.fullName} · ${test.service.name} · com ${test.professional.fullName} · 4 sessões, de 10/03/2031 a 19/03/2031, segundas e quartas às 09:00`,
-    );
+    expect(test.sent[0]!.text.split("\n").slice(-4)).toEqual([
+      "• 10/03/2031 (segunda-feira) às 09:00",
+      "• 12/03/2031 (quarta-feira) às 09:00",
+      "• 17/03/2031 (segunda-feira) às 09:00",
+      "• 19/03/2031 (quarta-feira) às 09:00",
+    ]);
     expect(await test.repository.listTelegramOutbox(clinicId)).toHaveLength(1);
   });
 
@@ -197,15 +214,19 @@ describe("TG3: aviso de agendamento", () => {
     });
     expect(purchase.statusCode, purchase.body).toBe(201);
     expect(test.sent).toHaveLength(1);
-    expect(test.sent[0]!.text).toBe(
-      `Novos agendamentos por ${actorName}: ${test.patient.fullName} · ${test.service.name} · com ${test.professional.fullName} · 10 sessões, de 01/03/2039 a 03/05/2039, terças às 09:00`,
+    const slots = test.sent[0]!.text.split("\n").filter((line) =>
+      line.startsWith("•"),
     );
+    expect(slots).toHaveLength(10);
+    expect(slots[0]).toBe("• 01/03/2039 (terça-feira) às 09:00");
+    expect(slots.at(-1)).toBe("• 03/05/2039 (terça-feira) às 09:00");
   });
 
-  it("aula experimental de lead também avisa, marcando o lead", async () => {
+  it("aula experimental inclui o nome e o CPF da pessoa interessada", async () => {
     const test = await setup();
     await test.link();
-    const leadId = await test.createLead("Lead Experimental TG3");
+    const cpf = nextTestCpf();
+    const leadId = await test.createLead("Contato Experimental TG3", cpf);
     const response = await test.post(`/leads/${leadId}/appointments`, {
       professionalId: test.base.professionalId,
       roomId: test.base.roomId,
@@ -215,7 +236,7 @@ describe("TG3: aviso de agendamento", () => {
     });
     expect(response.statusCode, response.body).toBe(201);
     expect(test.sent.map((item) => item.text)).toEqual([
-      `Novo agendamento por ${actorName}: Lead Experimental TG3 (lead) · ${test.service.name} · com ${test.professional.fullName} · 12/05/2031 às 14:30`,
+      `Novo agendamento\nMarcado por ${actorName}.\n\nPessoa interessada: Contato Experimental TG3\nCPF: ${formatCpf(cpf)}\nServiço: ${test.service.name}\nProfissional: ${test.professional.fullName}\nQuando: 12/05/2031 (segunda-feira) às 14:30`,
     ]);
   });
 
@@ -231,13 +252,13 @@ describe("TG3: aviso de agendamento", () => {
       "/appointments",
       await withAppointmentPlan(
         test.app,
-        { ...test.base, startsAt: at("2031-03-10"), notes: "" },
+        { ...test.base, startsAt: at("2031-03-10", "15:00"), notes: "" },
         test.headers,
       ),
     );
     expect(response.statusCode, response.body).toBe(201);
-    // 09:00 em São Paulo = 21:00 em Tóquio.
-    expect(test.sent[0]!.text).toContain("10/03/2031 às 21:00");
+    // 15:00 em São Paulo = 03:00 em Tóquio no dia seguinte.
+    expect(test.sent[0]!.text).toContain("11/03/2031 (terça-feira) às 03:00");
   });
 
   it("criação recusada não avisa; falha no aviso não desfaz o atendimento", async () => {
@@ -356,28 +377,32 @@ describe("TG3: aviso de cliente novo", () => {
       "unused-hash",
     );
     await test.link("777", other.id);
+    const cpf = nextTestCpf();
     const response = await test.post("/patients", {
       fullName: "Cliente Novo TG3",
       phone: "11933331111",
-      cpf: nextTestCpf(),
+      cpf,
       ...testPatientContact,
     });
     expect(response.statusCode, response.body).toBe(201);
     expect(test.sent.map((item) => item.chatId).sort()).toEqual(["555", "777"]);
     expect(new Set(test.sent.map((item) => item.text))).toEqual(
-      new Set([`Cliente novo: Cliente Novo TG3 · cadastrado por ${actorName}`]),
+      new Set([
+        `Novo cadastro de cliente\n\nCliente: Cliente Novo TG3\nCPF: ${formatCpf(cpf)}\nCadastro feito por ${actorName}.`,
+      ]),
     );
   });
 
   it("cadastro guiado com aula experimental avisa o cliente novo e o agendamento", async () => {
     const test = await setup();
     await test.link();
+    const cpf = nextTestCpf();
     const response = await test.post("/patients/guided", {
       next: "demonstration",
       patient: {
         fullName: "Guiado TG3",
         phone: "11955559999",
-        cpf: nextTestCpf(),
+        cpf,
         ...testPatientContact,
       },
       appointment: {
@@ -390,8 +415,8 @@ describe("TG3: aviso de cliente novo", () => {
     });
     expect(response.statusCode, response.body).toBe(201);
     expect(test.sent.map((item) => item.text)).toEqual([
-      `Cliente novo: Guiado TG3 · cadastrado por ${actorName}`,
-      `Novo agendamento por ${actorName}: Guiado TG3 · ${test.service.name} · com ${test.professional.fullName} · 13/03/2031 às 10:00`,
+      `Novo cadastro de cliente\n\nCliente: Guiado TG3\nCPF: ${formatCpf(cpf)}\nCadastro feito por ${actorName}.`,
+      `Novo agendamento\nMarcado por ${actorName}.\n\nCliente: Guiado TG3\nCPF: ${formatCpf(cpf)}\nServiço: ${test.service.name}\nProfissional: ${test.professional.fullName}\nQuando: 13/03/2031 (quinta-feira) às 10:00`,
     ]);
   });
 
@@ -406,7 +431,7 @@ describe("TG3: aviso de cliente novo", () => {
     });
     expect(converted.statusCode, converted.body).toBe(200);
     expect(test.sent.map((item) => item.text)).toEqual([
-      `Cliente novo: Lead Convertido TG3 (convertido de lead) · cadastrado por ${actorName}`,
+      `Novo cadastro de cliente\n\nCliente: Lead Convertido TG3\nCPF: ${formatCpf(cpf)}\nCadastro feito por ${actorName}.`,
     ]);
 
     // Outro lead do mesmo cliente (mesmo CPF): reaproveita o cadastro, sem aviso.
@@ -421,21 +446,22 @@ describe("TG3: aviso de cliente novo", () => {
     expect(test.sent).toEqual([]);
   });
 
-  it("importação em lote gera um aviso com o total, não um por cliente", async () => {
+  it("importação em lote lista somente os cadastros novos e seus CPFs", async () => {
     const test = await setup();
     await test.link();
+    const cpf = nextTestCpf();
     const payload = {
       fileName: "lista.csv",
       contentBase64: Buffer.from(
-        "Nome;Telefone\nAna Import TG3;11977771001\nBia Import TG3;11977771002\nCaio Import TG3;11977771003\n",
+        `Nome;Telefone;CPF\nAna Import TG3;11977771001;${cpf}\nBia Import TG3;11977771002;\nCadastro Existente;11977771003;${test.patient.cpf}\n`,
       ).toString("base64"),
-      mapping: ["fullName", "phone"],
+      mapping: ["fullName", "phone", "cpf"],
     };
     const imported = await test.post("/patients/import", payload);
     expect(imported.statusCode, imported.body).toBe(200);
-    expect(imported.json().created).toBe(3);
+    expect(imported.json().created).toBe(2);
     expect(test.sent.map((item) => item.text)).toEqual([
-      `Importação de clientes: 3 clientes novos · importados por ${actorName}`,
+      `Importação de clientes\n2 novos cadastros por ${actorName}.\n\n• Ana Import TG3 (CPF: ${formatCpf(cpf)})\n• Bia Import TG3 (CPF não informado)`,
     ]);
 
     // Reimportação sem cliente novo: sem aviso.
@@ -453,7 +479,7 @@ describe("TG3: resumo das sessões", () => {
   ): CreatedAppointmentSummary => ({
     id: randomUUID(),
     patientName: "Maria",
-    lead: false,
+    patientId: "maria",
     serviceName: "Pilates",
     professionalName: "João",
     startsAt,
@@ -462,7 +488,7 @@ describe("TG3: resumo das sessões", () => {
 
   it("horários diferentes por dia aparecem em cada dia da semana", () => {
     expect(
-      formatAppointmentsCreatedMessage(
+      formatAppointmentsCreatedMessages(
         [
           item(at("2031-03-10", "09:00")),
           item(at("2031-03-12", "18:30")),
@@ -472,14 +498,14 @@ describe("TG3: resumo das sessões", () => {
         "Ana",
         "America/Sao_Paulo",
       ),
-    ).toBe(
-      "Novos agendamentos por Ana: Maria · Pilates · com João · 4 sessões, de 10/03/2031 a 19/03/2031, segundas às 09:00 e quartas às 18:30",
-    );
+    ).toEqual([
+      "Novos agendamentos\nMarcado por Ana.\n\nCliente: Maria\nCPF não informado\nServiço: Pilates\nProfissional: João\n• 10/03/2031 (segunda-feira) às 09:00\n• 12/03/2031 (quarta-feira) às 18:30\n• 17/03/2031 (segunda-feira) às 09:00\n• 19/03/2031 (quarta-feira) às 18:30",
+    ]);
   });
 
   it("serviços diferentes na mesma operação viram uma linha cada", () => {
     expect(
-      formatAppointmentsCreatedMessage(
+      formatAppointmentsCreatedMessages(
         [
           item(at("2031-03-10")),
           item(at("2031-03-11", "10:00"), { serviceName: "Dançaterapia" }),
@@ -488,12 +514,17 @@ describe("TG3: resumo das sessões", () => {
         undefined,
         "America/Sao_Paulo",
       ),
-    ).toBe(
+    ).toEqual([
       [
-        "Novos agendamentos:",
-        "- Maria · Pilates · com João · 10/03/2031 às 09:00",
-        "- Maria · Dançaterapia · com João · 2 sessões, de 11/03/2031 a 18/03/2031, terças às 10:00",
+        "Novos agendamentos",
+        "",
+        "Cliente: Maria\nCPF não informado\nServiço: Pilates\nProfissional: João",
+        "Quando: 10/03/2031 (segunda-feira) às 09:00",
+        "",
+        "Cliente: Maria\nCPF não informado\nServiço: Dançaterapia\nProfissional: João",
+        "• 11/03/2031 (terça-feira) às 10:00",
+        "• 18/03/2031 (terça-feira) às 10:00",
       ].join("\n"),
-    );
+    ]);
   });
 });

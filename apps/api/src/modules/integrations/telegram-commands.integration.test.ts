@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import {
+  formatCpf,
   unsignedReceiptPatientCount,
   type PermissionKey,
 } from "@crm/contracts";
@@ -12,7 +13,7 @@ import {
 } from "../../test-support/receipt-signatures-suite.js";
 import { clinicDateOf } from "../finance/daily-cash.js";
 import {
-  formatTelegramAgenda,
+  formatTelegramAgendaMessages,
   telegramAgendaPeriod,
   type TelegramAgendaItem,
 } from "./telegram-commands.js";
@@ -47,7 +48,6 @@ const at = (day: string, time: string) =>
   new Date(`${day}T${time}:00-03:00`).toISOString();
 const br = (day: string) =>
   `${day.slice(8, 10)}/${day.slice(5, 7)}/${day.slice(0, 4)}`;
-const dm = (day: string) => `${day.slice(8, 10)}/${day.slice(5, 7)}`;
 
 /**
  * Segunda-feira longe dos atendimentos de demonstração (gravados no dia real) e dentro do
@@ -182,7 +182,7 @@ describe("TG4: comandos de agenda do bot", () => {
     for (const message of test.sent) {
       expect(message.chatId).toBe("777");
       expect(message.text).toBe(
-        "Este chat ainda não está vinculado ao CRM. Gere um código em Configurações › Integrações e envie /vincular <código>.",
+        "Conecte este chat ao CRM para consultar a agenda.\n\nNo CRM, vá em Configurações, abra Integrações e encontre a seção Telegram. Toque em “Gerar código de vínculo” e envie aqui a mensagem que aparecer.",
       );
     }
     expect(await test.repository.listTelegramOutbox(clinicId)).toEqual([]);
@@ -209,19 +209,24 @@ describe("TG4: comandos de agenda do bot", () => {
     ).toMatchObject({ status: "cancelled" });
     await test.appointment(helena, ana, fisio, at(addDays(monday, 1), "09:00"));
     const group = await test.mondayClass();
+    const helenaCpf = formatCpf(
+      (await test.repository.getPatient(clinicId, helena))!.cpf!,
+    );
+    const lucasCpf = formatCpf(
+      (await test.repository.getPatient(clinicId, lucas))!.cpf!,
+    );
 
     const response = await test.webhook("/hoje");
     expect(response.statusCode).toBe(200);
     const text = test.sent.at(-1)!.text;
     expect(text).toBe(
       [
-        `Agenda de hoje (segunda, ${br(monday)})`,
-        "2 atendimentos · 1 aula",
+        `Agenda de hoje — ${br(monday)} (segunda-feira)`,
+        "2 atendimentos e 1 aula",
         "",
-        `Segunda, ${dm(monday)}`,
-        "09:00 · Helena Almeida · Fisioterapia individual · com Dra. Ana Martins",
-        "10:30 · Lucas Ribeiro · Avaliação funcional · com Dr. Paulo Nunes",
-        `18:00 · Turma ${group.name} · com Dra. Ana Martins · 1/4 vagas ocupadas`,
+        `• 09:00 — Helena Almeida (CPF: ${helenaCpf}) — Fisioterapia individual com Dra. Ana Martins`,
+        `• 10:30 — Lucas Ribeiro (CPF: ${lucasCpf}) — Avaliação funcional com Dr. Paulo Nunes`,
+        `• 18:00 — Turma ${group.name} com Dra. Ana Martins (1 de 4 vagas ocupadas)`,
       ].join("\n"),
     );
     expect(test.sent.at(-1)!.chatId).toBe("555");
@@ -249,12 +254,14 @@ describe("TG4: comandos de agenda do bot", () => {
     await test.webhook("/semana");
     const week = test.sent.at(-1)!.text;
     expect(week.split("\n").slice(0, 2)).toEqual([
-      `Agenda da semana (${dm(monday)} a ${br(addDays(monday, 6))})`,
-      "2 atendimentos · 0 aulas",
+      `Agenda da semana — ${br(monday)} a ${br(addDays(monday, 6))}`,
+      "2 atendimentos e 0 aulas",
     ]);
-    expect(week).toContain(`Segunda, ${dm(monday)}\n08:00 · Helena Almeida`);
     expect(week).toContain(
-      `Domingo, ${dm(addDays(monday, 6))}\n23:30 · Lucas Ribeiro`,
+      `${br(monday)} (segunda-feira)\n• 08:00 — Helena Almeida`,
+    );
+    expect(week).toContain(
+      `${br(addDays(monday, 6))} (domingo)\n• 23:30 — Lucas Ribeiro`,
     );
     expect(week).not.toContain("Sônia");
     expect(week).not.toContain("00:30");
@@ -276,7 +283,7 @@ describe("TG4: comandos de agenda do bot", () => {
       await test.repository.listAppointments(clinicId, period.from, period.to)
     ).filter((item) => item.status !== "cancelled").length;
     expect(month.split("\n")[1]).toBe(
-      `${inMonth} ${inMonth === 1 ? "atendimento" : "atendimentos"} · 0 aulas`,
+      `${inMonth} ${inMonth === 1 ? "atendimento" : "atendimentos"} e 0 aulas`,
     );
     expect(month.split("\n")[0]).toMatch(
       new RegExp(`^Agenda de [a-zç]+ de ${wednesday.slice(0, 4)}$`),
@@ -294,7 +301,7 @@ describe("TG4: comandos de agenda do bot", () => {
     await test.link("601", own);
     await test.webhook("/hoje", 601);
     const ownText = test.sent.at(-1)!.text;
-    expect(ownText).toContain("1 atendimento · 0 aulas");
+    expect(ownText).toContain("1 atendimento e 0 aulas");
     expect(ownText).toContain("Lucas Ribeiro");
     expect(ownText).not.toContain("Helena");
     expect(ownText).not.toContain("Turma");
@@ -302,14 +309,14 @@ describe("TG4: comandos de agenda do bot", () => {
     const all = await test.newUser(["agenda.view", "agenda.view_all"]);
     await test.link("602", all);
     await test.webhook("/hoje", 602);
-    expect(test.sent.at(-1)!.text).toContain("2 atendimentos · 1 aula");
+    expect(test.sent.at(-1)!.text).toContain("2 atendimentos e 1 aula");
 
     const none = await test.newUser(["finance.view"]);
     await test.link("603", none);
     await test.webhook("/hoje", 603);
     expect(test.sent.at(-1)).toEqual({
       chatId: "603",
-      text: "Seu perfil não tem acesso à agenda nem às turmas do CRM.",
+      text: "Para consultar a agenda aqui, peça acesso à Agenda ou a Turmas à pessoa responsável pelo CRM.",
     });
   });
 
@@ -319,14 +326,14 @@ describe("TG4: comandos de agenda do bot", () => {
     await test.webhook("oi");
     await test.webhook("/start");
     expect(test.sent.map((item) => item.text)).toEqual([
-      "Comandos: /hoje (agenda de hoje), /semana (desta semana) e /mes (deste mês).",
-      "Comandos: /hoje (agenda de hoje), /semana (desta semana) e /mes (deste mês).",
+      "Quer consultar a agenda? Toque em uma opção:\n\n/hoje — Agenda de hoje\n/semana — Agenda desta semana\n/mes — Agenda deste mês",
+      "Quer consultar a agenda? Toque em uma opção:\n\n/hoje — Agenda de hoje\n/semana — Agenda desta semana\n/mes — Agenda deste mês",
     ]);
   });
 });
 
 describe("TG4: resposta acima do limite do Telegram", () => {
-  it("corta no último item que cabe e diz quantos faltaram", () => {
+  it("envia todas as linhas em partes numeradas, com a data em cada parte", () => {
     const items: TelegramAgendaItem[] = Array.from(
       { length: 200 },
       (_, index) => ({
@@ -335,52 +342,58 @@ describe("TG4: resposta acima do limite do Telegram", () => {
           addDays("2031-03-01", Math.floor(index / 10)),
           `${String(8 + (index % 10)).padStart(2, "0")}:00`,
         ),
-        text: `Cliente ${index} com um nome bem comprido · Fisioterapia individual · com Dra. Ana Martins`,
+        text: `Cliente ${index} com um nome bem comprido (CPF não informado) — Fisioterapia individual com Dra. Ana Martins`,
       }),
     );
     const period = { first: "2031-03-01", last: "2031-03-31" };
-    const text = formatTelegramAgenda(
+    const pages = formatTelegramAgendaMessages(
       "/mes",
       period,
       items,
       "America/Sao_Paulo",
     );
-    expect(text.length).toBeLessThanOrEqual(4096);
-    expect(text.split("\n").slice(0, 2)).toEqual([
-      "Agenda de março de 2031",
-      "200 atendimentos · 0 aulas",
-    ]);
-    const shown = text
-      .split("\n")
-      .filter((line) => /^\d{2}:\d{2} · /.test(line)).length;
-    expect(shown).toBeGreaterThan(0);
-    expect(text.split("\n").at(-1)).toBe(`… e mais ${200 - shown}`);
-    expect(text.split("\n").at(-2)).toMatch(/^\d{2}:\d{2} · Cliente/);
+    expect(pages.length).toBeGreaterThan(1);
+    for (const [index, page] of pages.entries()) {
+      expect(page.length).toBeLessThanOrEqual(4096);
+      expect(page.split("\n").slice(0, 3)).toEqual([
+        "Agenda de março de 2031",
+        "200 atendimentos e 0 aulas",
+        `Parte ${index + 1} de ${pages.length}`,
+      ]);
+      expect(page.split("\n")[4]).toMatch(/^\d{2}\/03\/2031 \([\wçá-]+\)$/);
+    }
+    const shown = pages.flatMap((page) =>
+      page.split("\n").filter((line) => line.startsWith("• ")),
+    );
+    expect(shown.map((line) => line.replace(/^• \d{2}:\d{2} — /, ""))).toEqual(
+      items.map((item) => item.text),
+    );
 
-    const small = formatTelegramAgenda(
+    const small = formatTelegramAgendaMessages(
       "/mes",
       period,
       items.slice(0, 3),
       "America/Sao_Paulo",
     );
-    expect(small).not.toContain("… e mais");
+    expect(small).toHaveLength(1);
+    expect(small[0]).not.toContain("Parte ");
     expect(
-      formatTelegramAgenda(
+      formatTelegramAgendaMessages(
         "/hoje",
         { first: "2031-03-03", last: "2031-03-03" },
         [],
         "America/Sao_Paulo",
       ),
-    ).toBe(
-      "Agenda de hoje (segunda, 03/03/2031)\n0 atendimentos · 0 aulas\n\nNada marcado no período.",
-    );
+    ).toEqual([
+      "Agenda de hoje — 03/03/2031 (segunda-feira)\n\nNenhum atendimento ou aula marcado nesse período.",
+    ]);
   });
 });
 
 describe("TG4: aviso periódico de recibos pelo Telegram", () => {
   async function withUnsignedReceipt(clock: { now: Date }) {
     const test = await setup(clock);
-    const { receivable } = await receiptFixtures(test.repository);
+    const { patient, receivable } = await receiptFixtures(test.repository);
     const headers = {
       authorization: `Bearer ${test.app.jwt.sign({ sub: receiptActorId, clinicId, role: "admin" })}`,
     };
@@ -394,15 +407,12 @@ describe("TG4: aviso periódico de recibos pelo Telegram", () => {
     const count = unsignedReceiptPatientCount(
       (await test.repository.getFinancialSummary(clinicId)).receivables,
     );
-    expect(count).toBeGreaterThan(0);
-    const reminder =
-      count === 1
-        ? "Recibos: 1 cliente ainda não assinou o recibo."
-        : `Recibos: ${count} clientes ainda não assinaram o recibo.`;
+    expect(count).toBe(1);
+    const reminder = `Recibos para assinar\n1 cliente ainda precisa assinar.\n\n• ${patient.fullName} (CPF: ${formatCpf(patient.cpf!)})`;
     return { test, reminder };
   }
   const reminders = (sent: { text: string }[]) =>
-    sent.filter((item) => item.text.startsWith("Recibos:"));
+    sent.filter((item) => item.text.startsWith("Recibos para assinar"));
 
   it("antes do horário (18:00 da clínica) não avisa; depois, avisa uma vez por dia a todos os vinculados", async () => {
     const clock = { now: new Date(at("2026-11-09", "17:59")) };

@@ -160,7 +160,7 @@ describe("Telegram em Configurações › Integrações", () => {
         },
       },
     });
-    expect(fake.sent.at(-1)?.text).toMatch(/avisos de: Recibos\.$/);
+    expect(fake.sent.at(-1)?.text).toMatch(/vão receber avisos sobre recibos\.$/);
     fireEvent.click(within(section).getByRole("button", { name: "Já enviei" }));
     await within(section).findByText("CRM · Financeiro");
     expect(within(section).getByText(/^Recibos · vinculado em /)).toBeInTheDocument();
