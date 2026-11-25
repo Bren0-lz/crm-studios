@@ -5,10 +5,18 @@ import { createHash, randomBytes } from "node:crypto";
 import { once } from "node:events";
 import { createServer } from "node:net";
 import { setTimeout as delay } from "node:timers/promises";
+import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
-import data from "../apps/api/src/modules/manual/manual-data.json" with { type: "json" };
+import checkout from "../apps/api/src/modules/manual/manual-data.json" with { type: "json" };
+import { checkManual } from "./mcp-manual-freshness.mjs";
+
+// O bundle leva só os guias que conferem com o código (ver hostinger-build.mjs).
+const root = fileURLToPath(new URL("../", import.meta.url));
+const data = checkManual(checkout, (path) =>
+  existsSync(root + path) ? readFileSync(root + path, "utf8") : undefined,
+).fresh;
 
 const expectedRevision = {
   fontes: data.revisao,

@@ -1,6 +1,6 @@
 {
-  "revisao": "41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0",
-  "material": "cd787d8b0a8ff6d041fe4a49b74a67eee6d5bab92104bd538086d55e2cb95a13",
+  "revisao": "aff848e97c50e36da758ab225078ea6b69efbd1f",
+  "material": "75aedababe6b039bf8bbcd68b45b72c4bc7ad6c6268b9eb357f309c04aa8b566",
   "manualPath": "docs/manual-crm-organiza-studios.md",
   "manualSha256": "0e777d85e81ce7fd5d1a7e12f51486efd373a0384e5f72c6053fcb3a9d100ff7",
   "sourceHashes": {
@@ -253,6 +253,13 @@
           "titulo": "view-only-modules.integration.test.tsx",
           "url": "https://github.com/Bren0-lz/crm-studios/blob/0e3485f61844fd9aa9d2adb79791ed09c0b28409/apps/web/src/features/settings/view-only-modules.integration.test.tsx"
         }
+      ],
+      "fontes": [
+        "apps/web/src/features/patients/PatientsPage.tsx",
+        "apps/web/src/features/patients/PatientModal.tsx",
+        "apps/web/src/features/patients/patient-nickname.integration.test.tsx",
+        "e2e/patients.spec.ts",
+        "apps/web/src/features/settings/view-only-modules.integration.test.tsx"
       ]
     },
     {
@@ -270,24 +277,31 @@
         },
         {
           "titulo": "AgendaCard.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/agenda/AgendaCard.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/aff848e97c50e36da758ab225078ea6b69efbd1f/apps/web/src/features/agenda/AgendaCard.tsx"
         },
         {
           "titulo": "AppointmentDetailsModal.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/agenda/AppointmentDetailsModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/aff848e97c50e36da758ab225078ea6b69efbd1f/apps/web/src/features/agenda/AppointmentDetailsModal.tsx"
         },
         {
           "titulo": "agenda-card-menu.integration.test.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/agenda/agenda-card-menu.integration.test.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/aff848e97c50e36da758ab225078ea6b69efbd1f/apps/web/src/features/agenda/agenda-card-menu.integration.test.tsx"
         },
         {
           "titulo": "appointment-attendance.integration.test.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/agenda/appointment-attendance.integration.test.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/aff848e97c50e36da758ab225078ea6b69efbd1f/apps/web/src/features/agenda/appointment-attendance.integration.test.tsx"
         },
         {
           "titulo": "agenda-cancelled.integration.test.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/agenda/agenda-cancelled.integration.test.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/aff848e97c50e36da758ab225078ea6b69efbd1f/apps/web/src/features/agenda/agenda-cancelled.integration.test.tsx"
         }
+      ],
+      "fontes": [
+        "apps/web/src/features/agenda/AgendaCard.tsx",
+        "apps/web/src/features/agenda/AppointmentDetailsModal.tsx",
+        "apps/web/src/features/agenda/agenda-card-menu.integration.test.tsx",
+        "apps/web/src/features/agenda/appointment-attendance.integration.test.tsx",
+        "apps/web/src/features/agenda/agenda-cancelled.integration.test.tsx"
       ]
     },
     {
@@ -305,16 +319,21 @@
         },
         {
           "titulo": "CommercialPage.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/commercial/CommercialPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/aff848e97c50e36da758ab225078ea6b69efbd1f/apps/web/src/features/commercial/CommercialPage.tsx"
         },
         {
           "titulo": "LeadModal.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/commercial/LeadModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/aff848e97c50e36da758ab225078ea6b69efbd1f/apps/web/src/features/commercial/LeadModal.tsx"
         },
         {
           "titulo": "lead-form-conversion.integration.test.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/commercial/lead-form-conversion.integration.test.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/aff848e97c50e36da758ab225078ea6b69efbd1f/apps/web/src/features/commercial/lead-form-conversion.integration.test.tsx"
         }
+      ],
+      "fontes": [
+        "apps/web/src/features/commercial/CommercialPage.tsx",
+        "apps/web/src/features/commercial/LeadModal.tsx",
+        "apps/web/src/features/commercial/lead-form-conversion.integration.test.tsx"
       ]
     },
     {
@@ -332,20 +351,26 @@
         },
         {
           "titulo": "CommercialPage.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/commercial/CommercialPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/aff848e97c50e36da758ab225078ea6b69efbd1f/apps/web/src/features/commercial/CommercialPage.tsx"
         },
         {
           "titulo": "LeadCard.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/commercial/LeadCard.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/aff848e97c50e36da758ab225078ea6b69efbd1f/apps/web/src/features/commercial/LeadCard.tsx"
         },
         {
           "titulo": "LeadConvertModal.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/commercial/LeadConvertModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/aff848e97c50e36da758ab225078ea6b69efbd1f/apps/web/src/features/commercial/LeadConvertModal.tsx"
         },
         {
           "titulo": "lead-form-conversion.integration.test.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/commercial/lead-form-conversion.integration.test.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/aff848e97c50e36da758ab225078ea6b69efbd1f/apps/web/src/features/commercial/lead-form-conversion.integration.test.tsx"
         }
+      ],
+      "fontes": [
+        "apps/web/src/features/commercial/CommercialPage.tsx",
+        "apps/web/src/features/commercial/LeadCard.tsx",
+        "apps/web/src/features/commercial/LeadConvertModal.tsx",
+        "apps/web/src/features/commercial/lead-form-conversion.integration.test.tsx"
       ]
     },
     {
@@ -363,16 +388,21 @@
         },
         {
           "titulo": "GroupsPage.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/groups/GroupsPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/aff848e97c50e36da758ab225078ea6b69efbd1f/apps/web/src/features/groups/GroupsPage.tsx"
         },
         {
           "titulo": "GroupModal.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/groups/GroupModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/aff848e97c50e36da758ab225078ea6b69efbd1f/apps/web/src/features/groups/GroupModal.tsx"
         },
         {
           "titulo": "groups.spec.ts",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/e2e/groups.spec.ts"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/aff848e97c50e36da758ab225078ea6b69efbd1f/e2e/groups.spec.ts"
         }
+      ],
+      "fontes": [
+        "apps/web/src/features/groups/GroupsPage.tsx",
+        "apps/web/src/features/groups/GroupModal.tsx",
+        "e2e/groups.spec.ts"
       ]
     },
     {
@@ -390,16 +420,21 @@
         },
         {
           "titulo": "GroupsPage.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/groups/GroupsPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/aff848e97c50e36da758ab225078ea6b69efbd1f/apps/web/src/features/groups/GroupsPage.tsx"
         },
         {
           "titulo": "GroupDetailsModal.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/groups/GroupDetailsModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/aff848e97c50e36da758ab225078ea6b69efbd1f/apps/web/src/features/groups/GroupDetailsModal.tsx"
         },
         {
           "titulo": "groups.spec.ts",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/e2e/groups.spec.ts"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/aff848e97c50e36da758ab225078ea6b69efbd1f/e2e/groups.spec.ts"
         }
+      ],
+      "fontes": [
+        "apps/web/src/features/groups/GroupsPage.tsx",
+        "apps/web/src/features/groups/GroupDetailsModal.tsx",
+        "e2e/groups.spec.ts"
       ]
     },
     {
@@ -417,12 +452,16 @@
         },
         {
           "titulo": "GroupsPage.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/groups/GroupsPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/aff848e97c50e36da758ab225078ea6b69efbd1f/apps/web/src/features/groups/GroupsPage.tsx"
         },
         {
           "titulo": "groups.spec.ts",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/e2e/groups.spec.ts"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/aff848e97c50e36da758ab225078ea6b69efbd1f/e2e/groups.spec.ts"
         }
+      ],
+      "fontes": [
+        "apps/web/src/features/groups/GroupsPage.tsx",
+        "e2e/groups.spec.ts"
       ]
     },
     {
@@ -440,16 +479,21 @@
         },
         {
           "titulo": "PlansPage.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/plans/PlansPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/aff848e97c50e36da758ab225078ea6b69efbd1f/apps/web/src/features/plans/PlansPage.tsx"
         },
         {
           "titulo": "PlanModal.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/plans/PlanModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/aff848e97c50e36da758ab225078ea6b69efbd1f/apps/web/src/features/plans/PlanModal.tsx"
         },
         {
           "titulo": "plans-finance.spec.ts",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/e2e/plans-finance.spec.ts"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/aff848e97c50e36da758ab225078ea6b69efbd1f/e2e/plans-finance.spec.ts"
         }
+      ],
+      "fontes": [
+        "apps/web/src/features/plans/PlansPage.tsx",
+        "apps/web/src/features/plans/PlanModal.tsx",
+        "e2e/plans-finance.spec.ts"
       ]
     },
     {
@@ -467,16 +511,21 @@
         },
         {
           "titulo": "WaitlistPage.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/waitlist/WaitlistPage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/aff848e97c50e36da758ab225078ea6b69efbd1f/apps/web/src/features/waitlist/WaitlistPage.tsx"
         },
         {
           "titulo": "WaitlistEntryModal.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/waitlist/WaitlistEntryModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/aff848e97c50e36da758ab225078ea6b69efbd1f/apps/web/src/features/waitlist/WaitlistEntryModal.tsx"
         },
         {
           "titulo": "waitlist-page.integration.test.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/waitlist/waitlist-page.integration.test.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/aff848e97c50e36da758ab225078ea6b69efbd1f/apps/web/src/features/waitlist/waitlist-page.integration.test.tsx"
         }
+      ],
+      "fontes": [
+        "apps/web/src/features/waitlist/WaitlistPage.tsx",
+        "apps/web/src/features/waitlist/WaitlistEntryModal.tsx",
+        "apps/web/src/features/waitlist/waitlist-page.integration.test.tsx"
       ]
     },
     {
@@ -494,20 +543,26 @@
         },
         {
           "titulo": "FinancePage.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/finance/FinancePage.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/aff848e97c50e36da758ab225078ea6b69efbd1f/apps/web/src/features/finance/FinancePage.tsx"
         },
         {
           "titulo": "ReceivablesList.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/finance/ReceivablesList.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/aff848e97c50e36da758ab225078ea6b69efbd1f/apps/web/src/features/finance/ReceivablesList.tsx"
         },
         {
           "titulo": "SettleModal.tsx",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/apps/web/src/features/finance/SettleModal.tsx"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/aff848e97c50e36da758ab225078ea6b69efbd1f/apps/web/src/features/finance/SettleModal.tsx"
         },
         {
           "titulo": "plans-finance.spec.ts",
-          "url": "https://github.com/Bren0-lz/crm-studios/blob/41d2e8e4ea2f3d7d8191b2a6b51f3d23dbc5aca0/e2e/plans-finance.spec.ts"
+          "url": "https://github.com/Bren0-lz/crm-studios/blob/aff848e97c50e36da758ab225078ea6b69efbd1f/e2e/plans-finance.spec.ts"
         }
+      ],
+      "fontes": [
+        "apps/web/src/features/finance/FinancePage.tsx",
+        "apps/web/src/features/finance/ReceivablesList.tsx",
+        "apps/web/src/features/finance/SettleModal.tsx",
+        "e2e/plans-finance.spec.ts"
       ]
     },
     {
@@ -526,6 +581,9 @@
         "Como acessar o sistema?",
         "Onde entro no Organiza Studios?",
         "Como faço para entrar no sistema?"
+      ],
+      "fontes": [
+        "apps/web/src/features/auth/LoginPage.tsx"
       ]
     },
     {
@@ -544,6 +602,9 @@
         "Como achar os módulos do CRM no celular?",
         "Como encontrar o menu lateral?",
         "O menu sumiu no celular?"
+      ],
+      "fontes": [
+        "apps/web/src/app/Shell.tsx"
       ]
     },
     {
@@ -571,6 +632,11 @@
         "Como marcar atendimento na agenda?",
         "Como faço para marcar um atendimento individual?",
         "Por que o serviço está bloqueado no atendimento?"
+      ],
+      "fontes": [
+        "apps/web/src/features/agenda/AgendaPage.tsx",
+        "apps/web/src/features/agenda/AppointmentForm.tsx",
+        "e2e/agenda.spec.ts"
       ]
     },
     {
@@ -592,6 +658,10 @@
         "Onde confiro o horário de um atendimento?",
         "Como saber se uma sessão está agendada?",
         "Como abrir detalhes de um compromisso na agenda?"
+      ],
+      "fontes": [
+        "apps/web/src/features/agenda/AgendaCard.tsx",
+        "apps/web/src/features/agenda/AppointmentDetailsModal.tsx"
       ]
     },
     {
@@ -623,6 +693,12 @@
         "Como mudar a data de um agendamento?",
         "Como remarcar uma aula experimental já marcada?",
         "Como mudar o horário de uma sessão?"
+      ],
+      "fontes": [
+        "apps/web/src/features/agenda/AgendaCard.tsx",
+        "apps/web/src/features/agenda/AppointmentDetailsModal.tsx",
+        "apps/web/src/features/agenda/AppointmentRescheduleModal.tsx",
+        "e2e/agenda.spec.ts"
       ]
     },
     {
@@ -643,6 +719,9 @@
         "Como pesquisar um cliente pelo telefone?",
         "Como localizar uma aluna sem mexer em nada?",
         "Como encontro o cadastro de um aluno?"
+      ],
+      "fontes": [
+        "apps/web/src/features/patients/PatientsPage.tsx"
       ]
     },
     {
@@ -665,6 +744,10 @@
         "Onde fica a ficha de um aluno?",
         "Como ver as abas da ficha do cliente?",
         "Como abrir ficha cliente?"
+      ],
+      "fontes": [
+        "apps/web/src/features/patients/PatientsPage.tsx",
+        "apps/web/src/features/patients/PatientRecordTabs.tsx"
       ]
     },
     {
@@ -692,6 +775,11 @@
         "Como corrigir os dados de um cliente?",
         "Como alterar o telefone do cliente?",
         "Como editar um cadastro existente?"
+      ],
+      "fontes": [
+        "apps/web/src/features/patients/PatientsPage.tsx",
+        "apps/web/src/features/patients/PatientDetailPage.tsx",
+        "apps/web/src/features/patients/PatientModal.tsx"
       ]
     },
     {
@@ -714,6 +802,10 @@
         "Como deixar um cadastro inativo?",
         "Como voltar um cadastro para ativo?",
         "Onde desativo o cadastro de um aluno?"
+      ],
+      "fontes": [
+        "apps/web/src/features/patients/PatientDetailPage.tsx",
+        "apps/web/src/features/patients/PatientsPage.tsx"
       ]
     },
     {
@@ -736,6 +828,10 @@
         "Onde vejo os participantes de um evento?",
         "Como abrir a lista de participantes do evento?",
         "Como filtrar eventos por serviço?"
+      ],
+      "fontes": [
+        "apps/web/src/features/events/EventsPage.tsx",
+        "apps/web/src/features/events/EventDetailPage.tsx"
       ]
     },
     {
@@ -758,6 +854,10 @@
         "Como adicionar um novo evento?",
         "Onde cadastro um evento?",
         "Como faço para registrar um evento?"
+      ],
+      "fontes": [
+        "apps/web/src/features/events/EventsPage.tsx",
+        "apps/web/src/features/events/EventModal.tsx"
       ]
     },
     {
@@ -779,6 +879,10 @@
         "Como mudar o local de um evento?",
         "Como alterar a data de um evento?",
         "Como corrigir os dados de um evento já cadastrado?"
+      ],
+      "fontes": [
+        "apps/web/src/features/events/EventsPage.tsx",
+        "apps/web/src/features/events/EventModal.tsx"
       ]
     },
     {
@@ -800,6 +904,10 @@
         "Como colocar uma pessoa em um evento já criado?",
         "Onde incluo alguém na lista do evento?",
         "Como cadastrar um participante de evento?"
+      ],
+      "fontes": [
+        "apps/web/src/features/events/EventDetailPage.tsx",
+        "apps/web/src/features/events/EventParticipantModal.tsx"
       ]
     },
     {
@@ -817,6 +925,9 @@
         "Como encontrar uma pessoa na lista de participantes?",
         "Onde pesquiso o nome de alguém inscrito no evento?",
         "Como filtrar participantes do evento?"
+      ],
+      "fontes": [
+        "apps/web/src/features/events/EventDetailPage.tsx"
       ]
     },
     {
@@ -839,6 +950,10 @@
         "Como cadastrar uma cobrança manual?",
         "Como faço um lançamento a receber?",
         "Como adicionar uma conta a receber no financeiro?"
+      ],
+      "fontes": [
+        "apps/web/src/features/finance/FinancePage.tsx",
+        "apps/web/src/features/finance/FinanceClassificationPanel.tsx"
       ]
     },
     {
@@ -862,6 +977,10 @@
         "Como cancelar uma baixa no contas a receber?",
         "Como reabrir uma parcela que marquei como paga?",
         "Como estornar parcela paga?"
+      ],
+      "fontes": [
+        "apps/web/src/features/finance/ReceivablesList.tsx",
+        "apps/web/src/features/finance/ReversePaymentModal.tsx"
       ]
     },
     {
@@ -885,6 +1004,10 @@
         "Como faço uma matrícula em turma?",
         "Como incluir cliente em turma com vagas livres?",
         "Como matricular um cliente numa turma?"
+      ],
+      "fontes": [
+        "apps/web/src/features/groups/GroupsPage.tsx",
+        "apps/web/src/features/groups/GroupDetailsModal.tsx"
       ]
     },
     {
@@ -910,6 +1033,11 @@
         "Como fazer um plano avulso na ficha?",
         "Como contratar um plano avulso para um cliente existente?",
         "Como vender atendimento avulso?"
+      ],
+      "fontes": [
+        "apps/web/src/features/patients/PatientRecordTabs.tsx",
+        "apps/web/src/features/patients/PatientPlanModal.tsx",
+        "apps/web/src/features/plans/PlanForm.tsx"
       ]
     },
     {
@@ -928,6 +1056,9 @@
         "Como consultar as contratações de um aluno?",
         "Onde vejo os planos contratados na ficha?",
         "Como ver as cobranças desse cliente?"
+      ],
+      "fontes": [
+        "apps/web/src/features/patients/PatientRecordTabs.tsx"
       ]
     },
     {
@@ -951,6 +1082,10 @@
         "Como consultar o resumo do mês passado?",
         "Como escolher o intervalo do relatório?",
         "Como ver a visão geral dos relatórios?"
+      ],
+      "fontes": [
+        "apps/web/src/features/reports/ReportsPage.tsx",
+        "apps/web/src/features/reports/ReportTabs.tsx"
       ]
     },
     {
@@ -972,6 +1107,10 @@
         "Como desconectar do sistema?",
         "Como sair de todos os dispositivos?",
         "Como encerrar as sessões da minha conta?"
+      ],
+      "fontes": [
+        "apps/web/src/app/Shell.tsx",
+        "apps/web/src/shared/auth/RevokeSessionsButton.tsx"
       ]
     },
     {
@@ -992,6 +1131,10 @@
         "Como trocar de filial?",
         "Onde seleciono a filial ativa?",
         "Como voltar para Todas as filiais?"
+      ],
+      "fontes": [
+        "apps/web/src/app/BranchSelector.tsx",
+        "apps/web/src/app/Shell.tsx"
       ]
     },
     {
@@ -1012,6 +1155,10 @@
         "Como abrir uma pendência pelo sino?",
         "Onde vejo as notificações do CRM?",
         "Como abrir uma tarefa comercial vencida pelo sino?"
+      ],
+      "fontes": [
+        "apps/web/src/app/Shell.tsx",
+        "apps/web/src/app/notification-center.tsx"
       ]
     },
     {
@@ -1028,6 +1175,9 @@
         "Como configurar as notificações?",
         "Como desligar o som das notificações?",
         "Como escolher o que aparece no sino?"
+      ],
+      "fontes": [
+        "apps/web/src/app/NotificationSettingsModal.tsx"
       ]
     },
     {
@@ -1044,6 +1194,9 @@
         "Onde fica o SOS?",
         "Como procurar um cliente no SOS?",
         "Onde estão os serviços de atendimento no SOS?"
+      ],
+      "fontes": [
+        "apps/web/src/shared/components/EmergencyButton.tsx"
       ]
     },
     {
@@ -1060,6 +1213,9 @@
         "Onde vejo os horários de hoje?",
         "Como vejo a agenda de hoje pelo painel?",
         "Como abrir a agenda do dia pela Visão geral?"
+      ],
+      "fontes": [
+        "apps/web/src/features/dashboard/DashboardPage.tsx"
       ]
     },
     {
@@ -1080,6 +1236,10 @@
         "Como tratar as pendências do painel?",
         "Onde vejo parcelas vencidas na Visão geral?",
         "Como abrir um alerta do painel inicial?"
+      ],
+      "fontes": [
+        "apps/web/src/app/NotificationAlerts.tsx",
+        "apps/web/src/app/notification-center.tsx"
       ]
     },
     {
@@ -1100,6 +1260,10 @@
         "Como iniciar um atendimento pelo painel?",
         "Onde fica Novo atendimento na Visão geral?",
         "Como abrir o agendamento a partir da tela inicial?"
+      ],
+      "fontes": [
+        "apps/web/src/features/dashboard/DashboardPage.tsx",
+        "apps/web/src/features/agenda/AgendaPage.tsx"
       ]
     },
     {
@@ -1120,6 +1284,10 @@
         "Onde vejo aniversariantes no painel?",
         "Como encontro clientes sem retorno na Visão geral?",
         "Como abrir Contatos sugeridos a partir do painel?"
+      ],
+      "fontes": [
+        "apps/web/src/features/dashboard/DashboardPage.tsx",
+        "apps/web/src/features/dashboard/BirthdayDashboardCard.tsx"
       ]
     },
     {
@@ -1136,6 +1304,9 @@
         "Onde vejo as mensagens automáticas pendentes hoje?",
         "Como abro a fila de campanhas automáticas no início?",
         "Como atualizar as pendências de campanhas no painel?"
+      ],
+      "fontes": [
+        "apps/web/src/features/dashboard/DashboardPage.tsx"
       ]
     },
     {
@@ -1157,6 +1328,10 @@
         "Como filtrar a agenda por profissional?",
         "Como mostrar as notas na agenda?",
         "Como trocar a agenda para semana ou mês?"
+      ],
+      "fontes": [
+        "apps/web/src/features/agenda/AgendaPage.tsx",
+        "e2e/agenda-mobile-filters.spec.ts"
       ]
     },
     {
@@ -1176,6 +1351,10 @@
       "perguntas": [
         "Como agendar atendimentos recorrentes?",
         "Como marcar o mesmo atendimento em várias semanas?"
+      ],
+      "fontes": [
+        "apps/web/src/features/agenda/AppointmentForm.tsx",
+        "apps/web/src/features/agenda/AgendaPage.tsx"
       ]
     },
     {
@@ -1195,6 +1374,10 @@
       "perguntas": [
         "Como cadastrar um cliente sem sair do agendamento?",
         "Onde fica Adicionar cliente na Agenda?"
+      ],
+      "fontes": [
+        "apps/web/src/features/agenda/AppointmentForm.tsx",
+        "apps/web/src/features/agenda/AppointmentPatientCreateModal.tsx"
       ]
     },
     {
@@ -1215,6 +1398,10 @@
         "Como editar um atendimento?",
         "Como alterar a observação de um atendimento?",
         "Como mudar o serviço ou a sala de um atendimento?"
+      ],
+      "fontes": [
+        "apps/web/src/features/agenda/AppointmentDetailsModal.tsx",
+        "apps/web/src/features/agenda/AppointmentEditModal.tsx"
       ]
     },
     {
@@ -1231,6 +1418,9 @@
         "Como confirmar a presença de um cliente?",
         "Como marcar o atendimento como confirmado?",
         "Onde confirmo a sessão na Agenda?"
+      ],
+      "fontes": [
+        "apps/web/src/features/agenda/AppointmentDetailsModal.tsx"
       ]
     },
     {
@@ -1247,6 +1437,9 @@
         "Como registrar falta na agenda?",
         "Como marcar que o cliente não compareceu?",
         "Onde marco falta em um atendimento?"
+      ],
+      "fontes": [
+        "apps/web/src/features/agenda/AppointmentDetailsModal.tsx"
       ]
     },
     {
@@ -1262,6 +1455,9 @@
       "perguntas": [
         "Como finalizar atendimento individual?",
         "Onde marco um atendimento como realizado?"
+      ],
+      "fontes": [
+        "apps/web/src/features/agenda/AppointmentDetailsModal.tsx"
       ]
     },
     {
@@ -1281,6 +1477,10 @@
       "perguntas": [
         "Como remarcar uma falta na agenda?",
         "Onde agendo reposição para uma falta individual?"
+      ],
+      "fontes": [
+        "apps/web/src/features/agenda/AppointmentDetailsModal.tsx",
+        "apps/web/src/features/agenda/AppointmentRescheduleModal.tsx"
       ]
     },
     {
@@ -1301,6 +1501,10 @@
         "Como bloquear um horário na agenda?",
         "Como bloquear a agenda de um profissional?",
         "Como reservar um período indisponível em uma sala?"
+      ],
+      "fontes": [
+        "apps/web/src/features/agenda/AgendaPage.tsx",
+        "apps/web/src/features/agenda/ScheduleBlockModal.tsx"
       ]
     },
     {
@@ -1321,6 +1525,10 @@
         "Como cancelar um bloqueio na agenda?",
         "Como liberar um horário que bloqueei?",
         "Onde desfaço um bloqueio de sala?"
+      ],
+      "fontes": [
+        "apps/web/src/features/agenda/ScheduleBlockCard.tsx",
+        "apps/web/src/features/agenda/CancelBlockModal.tsx"
       ]
     },
     {
@@ -1341,6 +1549,10 @@
         "Como criar uma nota na agenda?",
         "Como colocar uma anotação na agenda?",
         "Como adicionar um lembrete simples na agenda?"
+      ],
+      "fontes": [
+        "apps/web/src/features/agenda/AgendaNoteModal.tsx",
+        "e2e/agenda-notes.spec.ts"
       ]
     },
     {
@@ -1357,6 +1569,9 @@
         "Como repetir uma nota na agenda?",
         "Como criar uma nota recorrente?",
         "Como colocar a mesma nota em várias semanas?"
+      ],
+      "fontes": [
+        "apps/web/src/features/agenda/AgendaNoteModal.tsx"
       ]
     },
     {
@@ -1377,6 +1592,10 @@
         "Como editar uma nota da agenda?",
         "Como alterar as próximas notas recorrentes?",
         "Como editar só uma ocorrência de uma nota?"
+      ],
+      "fontes": [
+        "apps/web/src/features/agenda/AgendaNoteDetailsModal.tsx",
+        "apps/web/src/features/agenda/AgendaNoteModal.tsx"
       ]
     },
     {
@@ -1393,6 +1612,9 @@
         "Como excluir uma nota da agenda?",
         "Como apagar as repetições de uma nota?",
         "Como apagar só uma ocorrência da nota?"
+      ],
+      "fontes": [
+        "apps/web/src/features/agenda/AgendaNoteDetailsModal.tsx"
       ]
     },
     {
@@ -1412,6 +1634,10 @@
       "perguntas": [
         "Onde vejo o histórico de remarcações?",
         "Como descubro o horário antigo de um atendimento remarcado?"
+      ],
+      "fontes": [
+        "apps/web/src/features/agenda/AgendaCard.tsx",
+        "apps/web/src/features/agenda/AppointmentRescheduleHistoryModal.tsx"
       ]
     },
     {
@@ -1431,6 +1657,10 @@
       "perguntas": [
         "Como finalizar os atendimentos pendentes?",
         "Onde filtro a lista A finalizar?"
+      ],
+      "fontes": [
+        "apps/web/src/app/notification-center.tsx",
+        "apps/web/src/features/agenda/PendingFinalizationPage.tsx"
       ]
     },
     {
@@ -1451,6 +1681,10 @@
         "Onde vejo os atendimentos concluídos?",
         "Como consultar atendimentos finalizados hoje?",
         "Como filtrar a lista de atendimentos concluídos?"
+      ],
+      "fontes": [
+        "apps/web/src/features/agenda/AgendaPage.tsx",
+        "apps/web/src/features/agenda/CompletedAppointmentsPage.tsx"
       ]
     },
     {
@@ -1467,6 +1701,9 @@
         "Como compartilhar a agenda?",
         "Como mandar a agenda do profissional por WhatsApp?",
         "Onde preparo uma mensagem com os horários da agenda?"
+      ],
+      "fontes": [
+        "apps/web/src/features/agenda/ShareAgendaModal.tsx"
       ]
     },
     {
@@ -1487,6 +1724,10 @@
         "Como abrir uma aula pela agenda?",
         "Onde fica Abrir encontro na agenda?",
         "Como ir da Agenda para os detalhes da aula de turma?"
+      ],
+      "fontes": [
+        "apps/web/src/features/agenda/GroupSessionCard.tsx",
+        "apps/web/src/features/groups/GroupsPage.tsx"
       ]
     },
     {
@@ -1506,6 +1747,10 @@
       "perguntas": [
         "Como registrar satisfação em um atendimento?",
         "Onde lanço a nota de NPS da sessão?"
+      ],
+      "fontes": [
+        "apps/web/src/features/agenda/AppointmentDetailsModal.tsx",
+        "apps/web/src/features/agenda/SatisfactionSurveyModal.tsx"
       ]
     },
     {
@@ -1526,6 +1771,10 @@
         "Onde vejo se um dia é feriado na Agenda?",
         "Como conferir os compromissos de um dia no mês?",
         "Como abrir os eventos de um dia na Agenda?"
+      ],
+      "fontes": [
+        "apps/web/src/features/agenda/AgendaPage.tsx",
+        "apps/web/src/features/agenda/DayEventsModal.tsx"
       ]
     },
     {
@@ -1546,6 +1795,10 @@
         "Como consultar cliente sem editar?",
         "Como abrir o cadastro com acesso somente leitura?",
         "Por que aparece Ver no lugar de Editar cliente?"
+      ],
+      "fontes": [
+        "apps/web/src/features/patients/PatientsPage.tsx",
+        "apps/web/src/features/patients/PatientModal.tsx"
       ]
     },
     {
@@ -1561,6 +1814,9 @@
       "perguntas": [
         "Como cadastrar cliente e agendar uma experimental junto?",
         "Onde marco a aula experimental no cadastro de cliente?"
+      ],
+      "fontes": [
+        "apps/web/src/features/patients/PatientModal.tsx"
       ]
     },
     {
@@ -1580,6 +1836,10 @@
       "perguntas": [
         "Como cadastrar um cliente já com um plano?",
         "Onde contrato plano junto com cadastro de cliente?"
+      ],
+      "fontes": [
+        "apps/web/src/features/patients/PatientModal.tsx",
+        "apps/web/src/features/patients/PatientRecordTabs.tsx"
       ]
     },
     {
@@ -1595,6 +1855,9 @@
       "perguntas": [
         "Como cadastrar um cliente já com serviço avulso?",
         "Onde incluo a sessão avulsa no cadastro?"
+      ],
+      "fontes": [
+        "apps/web/src/features/patients/PatientModal.tsx"
       ]
     },
     {
@@ -1610,6 +1873,9 @@
       "perguntas": [
         "Como cadastrar cliente e vender produto na mesma tela?",
         "Onde adiciono um produto no cadastro de cliente?"
+      ],
+      "fontes": [
+        "apps/web/src/features/patients/PatientModal.tsx"
       ]
     },
     {
@@ -1630,6 +1896,10 @@
         "Como importar clientes?",
         "Como enviar uma planilha de clientes?",
         "Onde subo o CSV de clientes?"
+      ],
+      "fontes": [
+        "apps/web/src/features/patients/PatientsPage.tsx",
+        "apps/web/src/features/patients/PatientImportModal.tsx"
       ]
     },
     {
@@ -1650,6 +1920,10 @@
         "Como exportar clientes?",
         "Como baixar lista de clientes?",
         "Onde baixo a planilha de clientes?"
+      ],
+      "fontes": [
+        "apps/web/src/features/patients/PatientsPage.tsx",
+        "apps/web/src/features/patients/PatientExportModal.tsx"
       ]
     },
     {
@@ -1674,6 +1948,11 @@
         "Como inativar clientes em lote?",
         "Onde desativo vários clientes sem atividade?",
         "Por que um cliente foi ignorado na inativação em lote?"
+      ],
+      "fontes": [
+        "apps/web/src/features/patients/PatientsPage.tsx",
+        "apps/web/src/features/patients/PatientInactivationModal.tsx",
+        "apps/api/src/storage/mysql/patient-management.ts"
       ]
     },
     {
@@ -1690,6 +1969,9 @@
         "Onde encontro o contato de emergência de um cliente?",
         "Como ver o telefone de emergência do cliente?",
         "Como consultar o responsável de emergência pelo SOS?"
+      ],
+      "fontes": [
+        "apps/web/src/shared/components/EmergencyButton.tsx"
       ]
     },
     {
@@ -1705,6 +1987,9 @@
       "perguntas": [
         "Como dar desconto no cadastro com compra?",
         "Onde aplico desconto a um produto durante o cadastro?"
+      ],
+      "fontes": [
+        "apps/web/src/features/patients/PatientModal.tsx"
       ]
     },
     {
@@ -1725,6 +2010,10 @@
         "Como consultar o histórico de um cliente?",
         "Onde vejo as alterações na ficha do cliente?",
         "Por que a aba Histórico não aparece na ficha?"
+      ],
+      "fontes": [
+        "apps/web/src/features/patients/PatientsPage.tsx",
+        "apps/web/src/features/patients/PatientRecordTabs.tsx"
       ]
     },
     {
@@ -1744,6 +2033,10 @@
       "perguntas": [
         "Como concluir a venda guiada após contratar um plano?",
         "Onde registro pagamento ou preparo o recibo depois da contratação?"
+      ],
+      "fontes": [
+        "apps/web/src/features/plans/PlansPage.tsx",
+        "apps/web/src/features/finance/SettleModal.tsx"
       ]
     },
     {
@@ -1764,6 +2057,10 @@
         "Como localizar um lead no funil?",
         "Onde encontro uma pessoa interessada?",
         "Como filtrar os leads por etapa ou responsável?"
+      ],
+      "fontes": [
+        "apps/web/src/features/commercial/CommercialPage.tsx",
+        "apps/web/src/features/commercial/LeadFiltersModal.tsx"
       ]
     },
     {
@@ -1788,6 +2085,11 @@
         "Como consultar os detalhes de um lead?",
         "Onde vejo as movimentações de um lead?",
         "Como abrir a análise do funil comercial?"
+      ],
+      "fontes": [
+        "apps/web/src/features/commercial/CommercialPage.tsx",
+        "apps/web/src/features/commercial/LeadDetailsModal.tsx",
+        "apps/web/src/features/commercial/LeadAnalysisModal.tsx"
       ]
     },
     {
@@ -1808,6 +2110,10 @@
         "Como editar um lead?",
         "Como alterar o nome de um lead no funil?",
         "Onde atualizo o cadastro de um interessado?"
+      ],
+      "fontes": [
+        "apps/web/src/features/commercial/CommercialPage.tsx",
+        "apps/web/src/features/commercial/LeadModal.tsx"
       ]
     },
     {
@@ -1824,6 +2130,9 @@
         "Como mover um lead de etapa?",
         "Como trocar a coluna de um lead no funil?",
         "Como passar um lead para Em contato?"
+      ],
+      "fontes": [
+        "apps/web/src/features/commercial/CommercialPage.tsx"
       ]
     },
     {
@@ -1844,6 +2153,10 @@
         "Como marcar um lead como perdido?",
         "Onde registro o motivo de perda de um interessado?",
         "Como mover um lead para Perdidos?"
+      ],
+      "fontes": [
+        "apps/web/src/features/commercial/CommercialPage.tsx",
+        "apps/web/src/features/commercial/LeadLostModal.tsx"
       ]
     },
     {
@@ -1864,6 +2177,10 @@
         "Como criar uma etapa no funil?",
         "Como mudar a ordem das etapas do CRM comercial?",
         "Onde renomeio uma coluna do funil?"
+      ],
+      "fontes": [
+        "apps/web/src/features/commercial/CommercialPage.tsx",
+        "apps/web/src/features/commercial/LeadStageModal.tsx"
       ]
     },
     {
@@ -1884,6 +2201,10 @@
         "Como criar uma tarefa para um lead?",
         "Como agendar um retorno no funil?",
         "Onde cadastro uma tarefa comercial de acompanhamento?"
+      ],
+      "fontes": [
+        "apps/web/src/features/commercial/CommercialPage.tsx",
+        "apps/web/src/features/commercial/LeadActivityModal.tsx"
       ]
     },
     {
@@ -1900,6 +2221,9 @@
         "Como concluir uma tarefa do lead?",
         "Como marcar uma tarefa comercial como concluída?",
         "Como cancelar uma tarefa de acompanhamento?"
+      ],
+      "fontes": [
+        "apps/web/src/features/commercial/LeadActivityModal.tsx"
       ]
     },
     {
@@ -1916,6 +2240,9 @@
         "Como registrar contato com um lead?",
         "Como anotar uma ligação para um lead?",
         "Onde registro uma tentativa de contato comercial?"
+      ],
+      "fontes": [
+        "apps/web/src/features/commercial/LeadActivityModal.tsx"
       ]
     },
     {
@@ -1935,6 +2262,10 @@
       "perguntas": [
         "Como marcar uma aula experimental para um lead?",
         "Onde agendo atendimento para um interessado do funil?"
+      ],
+      "fontes": [
+        "apps/web/src/features/commercial/CommercialPage.tsx",
+        "apps/web/src/features/commercial/LeadAppointmentModal.tsx"
       ]
     },
     {
@@ -1955,6 +2286,10 @@
         "Como importar leads?",
         "Como colocar uma planilha de interessados no funil?",
         "Onde baixo o modelo CSV para importar leads?"
+      ],
+      "fontes": [
+        "apps/web/src/features/commercial/CommercialPage.tsx",
+        "apps/web/src/features/commercial/LeadImportModal.tsx"
       ]
     },
     {
@@ -1975,6 +2310,10 @@
         "Onde vejo as aulas de uma turma?",
         "Como localizar uma turma e sua aula no calendário?",
         "Onde vejo o resumo das turmas?"
+      ],
+      "fontes": [
+        "apps/web/src/features/groups/GroupsPage.tsx",
+        "apps/web/src/features/groups/GroupDetailsModal.tsx"
       ]
     },
     {
@@ -1995,6 +2334,10 @@
         "Como renomear uma turma?",
         "Como editar os dados de uma turma?",
         "Onde mudo o nome da turma no CRM?"
+      ],
+      "fontes": [
+        "apps/web/src/features/groups/GroupsPage.tsx",
+        "apps/web/src/features/groups/GroupDetailsModal.tsx"
       ]
     },
     {
@@ -2014,6 +2357,10 @@
       "perguntas": [
         "Como marcar frequência em uma aula de turma?",
         "Onde registro falta ou presença de um aluno da turma?"
+      ],
+      "fontes": [
+        "apps/web/src/features/groups/GroupDetailsModal.tsx",
+        "apps/web/src/features/groups/GroupSessionModal.tsx"
       ]
     },
     {
@@ -2033,6 +2380,10 @@
       "perguntas": [
         "Como concluir uma aula de turma?",
         "Onde finalizo o encontro após a chamada?"
+      ],
+      "fontes": [
+        "apps/web/src/features/groups/GroupDetailsModal.tsx",
+        "apps/web/src/features/groups/GroupSessionModal.tsx"
       ]
     },
     {
@@ -2048,6 +2399,9 @@
       "perguntas": [
         "Como reservar reposição de aula de turma?",
         "Onde escolho o encontro para usar um crédito de reposição?"
+      ],
+      "fontes": [
+        "apps/web/src/features/groups/GroupOperationsPanel.tsx"
       ]
     },
     {
@@ -2063,6 +2417,9 @@
       "perguntas": [
         "Como registrar presença na reposição da turma?",
         "Onde marco que o aluno compareceu à aula de reposição?"
+      ],
+      "fontes": [
+        "apps/web/src/features/groups/GroupSessionModal.tsx"
       ]
     },
     {
@@ -2082,6 +2439,10 @@
       "perguntas": [
         "Como cancelar a matrícula de um aluno?",
         "Como tirar um cliente de uma turma?"
+      ],
+      "fontes": [
+        "apps/web/src/features/groups/GroupDetailsModal.tsx",
+        "apps/web/src/features/groups/GroupsPage.tsx"
       ]
     },
     {
@@ -2097,6 +2458,9 @@
       "perguntas": [
         "Como trocar o profissional de uma aula específica?",
         "Onde altero o responsável só pelo encontro da turma?"
+      ],
+      "fontes": [
+        "apps/web/src/features/groups/GroupSessionModal.tsx"
       ]
     },
     {
@@ -2113,6 +2477,9 @@
         "Como filtrar a lista de espera?",
         "Onde vejo os produtos com maior procura?",
         "Como ver a fila de um serviço específico?"
+      ],
+      "fontes": [
+        "apps/web/src/features/waitlist/WaitlistPage.tsx"
       ]
     },
     {
@@ -2133,6 +2500,10 @@
         "Como colocar um cliente na fila de um produto?",
         "Como adicionar alguém na espera por reposição de estoque?",
         "Onde cadastro uma espera por produto?"
+      ],
+      "fontes": [
+        "apps/web/src/features/waitlist/WaitlistEntryModal.tsx",
+        "apps/web/src/features/waitlist/WaitlistPage.tsx"
       ]
     },
     {
@@ -2149,6 +2520,9 @@
         "Como avisar alguém da lista de espera?",
         "Como avisar que chegou o produto?",
         "Onde preparo o WhatsApp para oferecer uma vaga?"
+      ],
+      "fontes": [
+        "apps/web/src/features/waitlist/WaitlistManageModal.tsx"
       ]
     },
     {
@@ -2168,6 +2542,10 @@
       "perguntas": [
         "Como confirmar matrícula pela lista de espera?",
         "Como matricular na turma um cliente que está na fila?"
+      ],
+      "fontes": [
+        "apps/web/src/features/waitlist/WaitlistPage.tsx",
+        "apps/web/src/features/waitlist/WaitlistEnrollSection.tsx"
       ]
     },
     {
@@ -2188,6 +2566,10 @@
         "Como mudar a situação na lista de espera?",
         "Como marcar um cliente como avisado na fila?",
         "Onde marco uma espera como atendida?"
+      ],
+      "fontes": [
+        "apps/web/src/features/waitlist/WaitlistPage.tsx",
+        "apps/web/src/features/waitlist/WaitlistManageModal.tsx"
       ]
     },
     {
@@ -2204,6 +2586,9 @@
         "Como remover um cliente da lista de espera?",
         "Como excluir uma entrada da fila?",
         "Onde apago uma espera por produto?"
+      ],
+      "fontes": [
+        "apps/web/src/features/waitlist/WaitlistManageModal.tsx"
       ]
     },
     {
@@ -2220,6 +2605,9 @@
         "Como localizar um plano de um cliente?",
         "Como ver somente os planos ativos?",
         "Onde filtro os planos que estão vencendo?"
+      ],
+      "fontes": [
+        "apps/web/src/features/plans/PlansPage.tsx"
       ]
     },
     {
@@ -2236,6 +2624,9 @@
         "Como ver o saldo de sessões de um cliente?",
         "Onde consulto o extrato de sessões?",
         "Como conferir se um plano ainda tem validade e sessões?"
+      ],
+      "fontes": [
+        "apps/web/src/features/plans/PlansPage.tsx"
       ]
     },
     {
@@ -2255,6 +2646,10 @@
       "perguntas": [
         "Como contratar um plano com matrícula e documento para assinatura?",
         "Onde escolho a turma e o documento durante a contratação?"
+      ],
+      "fontes": [
+        "apps/web/src/features/plans/PlanModal.tsx",
+        "apps/web/src/features/plans/PlansPage.tsx"
       ]
     },
     {
@@ -2275,6 +2670,10 @@
         "Como dividir a compra de um plano?",
         "Como contratar um plano com duas formas de pagamento?",
         "Como separar um valor recorrente e outro só na primeira cobrança?"
+      ],
+      "fontes": [
+        "apps/web/src/features/plans/PlanModal.tsx",
+        "e2e/plans-finance.spec.ts"
       ]
     },
     {
@@ -2295,6 +2694,10 @@
         "Como renovar um plano manualmente?",
         "Onde renovo o plano de um cliente?",
         "Como gerar as parcelas da renovação de um plano?"
+      ],
+      "fontes": [
+        "apps/web/src/features/plans/PlansPage.tsx",
+        "apps/web/src/features/plans/PlanModal.tsx"
       ]
     },
     {
@@ -2315,6 +2718,10 @@
         "Como pausar um plano?",
         "Como reativar um plano pausado?",
         "Onde registro a previsão de retorno de um plano?"
+      ],
+      "fontes": [
+        "apps/web/src/features/plans/PlansPage.tsx",
+        "apps/web/src/features/plans/PlanPauseModal.tsx"
       ]
     },
     {
@@ -2334,6 +2741,10 @@
       "perguntas": [
         "Como cancelar um plano e devolver o valor ao cliente?",
         "Como cancelar um plano sem estorno?"
+      ],
+      "fontes": [
+        "apps/web/src/features/plans/PlansPage.tsx",
+        "apps/web/src/features/plans/PlanCancelModal.tsx"
       ]
     },
     {
@@ -2354,6 +2765,10 @@
         "Como ligar a renovação automática de um plano?",
         "Como desligar a renovação automática?",
         "Onde vejo se o plano está com renovação automática?"
+      ],
+      "fontes": [
+        "apps/web/src/features/plans/PlansPage.tsx",
+        "apps/web/src/features/plans/PlanModal.tsx"
       ]
     },
     {
@@ -2374,6 +2789,10 @@
         "Como abrir um prontuário?",
         "Como localizar um paciente em Prontuários?",
         "Onde abro a ficha clínica de um cliente?"
+      ],
+      "fontes": [
+        "apps/web/src/features/clinical/ClinicalRecordsPage.tsx",
+        "apps/web/src/features/clinical/ClinicalWorkspacePanel.tsx"
       ]
     },
     {
@@ -2390,6 +2809,9 @@
         "Como ver o histórico clínico?",
         "Onde vejo a linha do tempo do prontuário?",
         "Como filtrar medições e anexos no histórico clínico?"
+      ],
+      "fontes": [
+        "apps/web/src/features/clinical/ClinicalChart.tsx"
       ]
     },
     {
@@ -2410,6 +2832,10 @@
         "Como anexar um arquivo ao prontuário?",
         "Onde adiciono uma foto ao prontuário?",
         "Como colocar um PDF na ficha clínica?"
+      ],
+      "fontes": [
+        "apps/web/src/features/clinical/ChartFilesTab.tsx",
+        "apps/web/src/features/clinical/ClinicalAttachmentModal.tsx"
       ]
     },
     {
@@ -2426,6 +2852,9 @@
         "Como abrir um anexo do prontuário?",
         "Onde baixo um arquivo da ficha clínica?",
         "Como ver os documentos anexados ao prontuário?"
+      ],
+      "fontes": [
+        "apps/web/src/features/clinical/ChartFilesTab.tsx"
       ]
     },
     {
@@ -2446,6 +2875,10 @@
         "Como criar um alerta clínico?",
         "Como fixar um aviso no prontuário?",
         "Como retirar um alerta do prontuário?"
+      ],
+      "fontes": [
+        "apps/web/src/features/clinical/ClinicalWorkspacePanel.tsx",
+        "apps/web/src/features/clinical/ClinicalAlertModal.tsx"
       ]
     },
     {
@@ -2466,6 +2899,10 @@
         "Como criar um formulário de avaliação?",
         "Como publicar um modelo de prontuário?",
         "Onde vejo a prévia do modelo de avaliação?"
+      ],
+      "fontes": [
+        "apps/web/src/features/clinical/AssessmentTemplatesTabs.tsx",
+        "apps/web/src/features/clinical/AssessmentTemplateFields.tsx"
       ]
     },
     {
@@ -2486,6 +2923,10 @@
         "Como editar um modelo de avaliação?",
         "Como alterar um formulário de avaliação publicado?",
         "Onde arquivo um modelo de prontuário?"
+      ],
+      "fontes": [
+        "apps/web/src/features/clinical/AssessmentTemplatesTabs.tsx",
+        "apps/web/src/features/clinical/AssessmentTemplateModal.tsx"
       ]
     },
     {
@@ -2506,6 +2947,10 @@
         "Como preencher um formulário de avaliação?",
         "Como registrar uma avaliação usando modelo?",
         "Onde registro a avaliação de um paciente?"
+      ],
+      "fontes": [
+        "apps/web/src/features/clinical/ClinicalWorkspacePanel.tsx",
+        "apps/web/src/features/clinical/ClinicalAssessmentModal.tsx"
       ]
     },
     {
@@ -2526,6 +2971,10 @@
         "Como criar um objetivo terapêutico?",
         "Onde acompanho as metas do paciente?",
         "Como marcar um objetivo como alcançado?"
+      ],
+      "fontes": [
+        "apps/web/src/features/clinical/TherapeuticGoalModal.tsx",
+        "apps/web/src/features/clinical/ChartTabs.tsx"
       ]
     },
     {
@@ -2546,6 +2995,10 @@
         "Como registrar uma medição no prontuário?",
         "Onde comparo as medições clínicas de um cliente?",
         "Como acompanhar a evolução de uma medida?"
+      ],
+      "fontes": [
+        "apps/web/src/features/clinical/ClinicalMeasurementModal.tsx",
+        "apps/web/src/features/clinical/MeasurementChart.tsx"
       ]
     },
     {
@@ -2565,6 +3018,10 @@
       "perguntas": [
         "Como registrar alta no prontuário?",
         "Onde registro o encerramento de tratamento de um paciente?"
+      ],
+      "fontes": [
+        "apps/web/src/features/clinical/ClinicalChart.tsx",
+        "apps/web/src/features/clinical/TreatmentClosureModal.tsx"
       ]
     },
     {
@@ -2585,6 +3042,10 @@
         "Como ver quem acessou um prontuário?",
         "Onde fica o histórico de acessos do prontuário?",
         "Como vejo o registro de acesso à ficha clínica?"
+      ],
+      "fontes": [
+        "apps/web/src/features/clinical/ClinicalWorkspacePanel.tsx",
+        "apps/web/src/features/clinical/ClinicalAccessHistoryModal.tsx"
       ]
     },
     {
@@ -2601,6 +3062,9 @@
         "Como exportar um prontuário?",
         "Como imprimir a ficha clínica?",
         "Onde baixo os dados do prontuário do cliente?"
+      ],
+      "fontes": [
+        "apps/web/src/features/clinical/ClinicalWorkspacePanel.tsx"
       ]
     },
     {
@@ -2620,6 +3084,10 @@
       "perguntas": [
         "Como montar um treino no prontuário?",
         "Onde cadastro um exercício para usar no treino do cliente?"
+      ],
+      "fontes": [
+        "apps/web/src/features/clinical/ClinicalResourcesPanel.tsx",
+        "apps/web/src/features/clinical/ClinicalResourceEditor.tsx"
       ]
     },
     {
@@ -2639,6 +3107,10 @@
       "perguntas": [
         "Como copiar treino ou finalizar relatório clínico?",
         "Onde imprimo treinos e documentos de um período?"
+      ],
+      "fontes": [
+        "apps/web/src/features/clinical/ClinicalResourcesPanel.tsx",
+        "apps/web/src/features/clinical/ClinicalResourceEditor.tsx"
       ]
     },
     {
@@ -2658,6 +3130,10 @@
       "perguntas": [
         "Como gravar áudio no prontuário?",
         "Onde consigo ouvir um áudio salvo na ficha clínica?"
+      ],
+      "fontes": [
+        "apps/web/src/features/clinical/ClinicalAttachmentModal.tsx",
+        "apps/web/src/features/clinical/ClinicalAudioPlayer.tsx"
       ]
     },
     {
@@ -2677,6 +3153,10 @@
       "perguntas": [
         "Como registrar que o cliente executou um treino?",
         "Onde lanço uma execução de treino no prontuário?"
+      ],
+      "fontes": [
+        "apps/web/src/features/clinical/ClinicalResourcesPanel.tsx",
+        "apps/web/src/features/clinical/ClinicalResourceEditor.tsx"
       ]
     },
     {
@@ -2693,6 +3173,9 @@
         "Como excluir um evento?",
         "Como apagar um evento cadastrado?",
         "O que acontece com os participantes quando excluo um evento?"
+      ],
+      "fontes": [
+        "apps/web/src/features/events/EventsPage.tsx"
       ]
     },
     {
@@ -2713,6 +3196,10 @@
         "Como importar participantes de um evento?",
         "Como trago os inscritos de uma planilha?",
         "Onde subo o CSV de participantes do evento?"
+      ],
+      "fontes": [
+        "apps/web/src/features/events/EventDetailPage.tsx",
+        "apps/web/src/features/events/EventImportModal.tsx"
       ]
     },
     {
@@ -2729,6 +3216,9 @@
         "Como exportar participantes de um evento?",
         "Como baixar a lista de inscritos do evento?",
         "Onde baixo a planilha de participantes?"
+      ],
+      "fontes": [
+        "apps/web/src/features/events/EventDetailPage.tsx"
       ]
     },
     {
@@ -2748,6 +3238,10 @@
       "perguntas": [
         "Como transformar um participante do evento em cliente?",
         "Onde completo o cadastro de cliente de um inscrito?"
+      ],
+      "fontes": [
+        "apps/web/src/features/events/EventDetailPage.tsx",
+        "apps/web/src/features/events/EventConvertModal.tsx"
       ]
     },
     {
@@ -2768,6 +3262,10 @@
         "Como registrar contato com um participante?",
         "Como anotar um telefonema para um inscrito do evento?",
         "Onde registro uma tentativa de falar com um participante?"
+      ],
+      "fontes": [
+        "apps/web/src/features/events/EventDetailPage.tsx",
+        "apps/web/src/features/events/EventContactModal.tsx"
       ]
     },
     {
@@ -2784,6 +3282,9 @@
         "Como remover um participante de um evento?",
         "Como tirar alguém da lista de participantes?",
         "O que acontece com o lead se removo o participante?"
+      ],
+      "fontes": [
+        "apps/web/src/features/events/EventDetailPage.tsx"
       ]
     },
     {
@@ -2804,6 +3305,10 @@
         "Por que um cliente aparece em Contatos sugeridos?",
         "Como ver os motivos de contato sugerido?",
         "Onde filtro os contatos sugeridos por atraso?"
+      ],
+      "fontes": [
+        "apps/web/src/features/relationship/RelationshipPage.tsx",
+        "apps/web/src/features/relationship/ClientPendingModal.tsx"
       ]
     },
     {
@@ -2824,6 +3329,10 @@
         "Como abrir as pendências de um contato sugerido?",
         "Onde vejo o que está pendente para um cliente sugerido?",
         "Como abrir a ficha a partir de Contatos sugeridos?"
+      ],
+      "fontes": [
+        "apps/web/src/features/relationship/RelationshipPage.tsx",
+        "apps/web/src/features/relationship/ClientPendingModal.tsx"
       ]
     },
     {
@@ -2843,6 +3352,10 @@
       "perguntas": [
         "Como registrar contato em Contatos sugeridos?",
         "Onde registro o resultado de um contato sugerido?"
+      ],
+      "fontes": [
+        "apps/web/src/features/relationship/ClientPendingModal.tsx",
+        "apps/web/src/features/relationship/ContactActivityModal.tsx"
       ]
     },
     {
@@ -2859,6 +3372,9 @@
         "Como consultar aniversariantes do mês?",
         "Onde abro a mensagem de aniversário de um cliente?",
         "Como dar parabéns em Contatos sugeridos?"
+      ],
+      "fontes": [
+        "apps/web/src/features/relationship/BirthdaysMonthPanel.tsx"
       ]
     },
     {
@@ -2874,6 +3390,9 @@
       "perguntas": [
         "Onde vejo as campanhas em andamento?",
         "Como localizar uma campanha manual concluída?"
+      ],
+      "fontes": [
+        "apps/web/src/features/communications/campaigns/CampaignsTab.tsx"
       ]
     },
     {
@@ -2889,6 +3408,9 @@
       "perguntas": [
         "Como preparar uma campanha manual de WhatsApp?",
         "Onde vejo quem vai receber uma campanha antes de criar?"
+      ],
+      "fontes": [
+        "apps/web/src/features/communications/CommunicationsPage.tsx"
       ]
     },
     {
@@ -2904,6 +3426,9 @@
       "perguntas": [
         "Como filtrar a fila de uma campanha?",
         "Onde vejo os destinatários enviados ou pulados?"
+      ],
+      "fontes": [
+        "apps/web/src/features/communications/CommunicationsPage.tsx"
       ]
     },
     {
@@ -2923,6 +3448,10 @@
       "perguntas": [
         "Como marcar uma campanha manual como enviada no WhatsApp?",
         "Como pular um destinatário que não recebeu a campanha?"
+      ],
+      "fontes": [
+        "apps/web/src/features/communications/campaigns/CampaignSenderPage.tsx",
+        "apps/web/src/features/communications/campaigns/NewCampaignModal.tsx"
       ]
     },
     {
@@ -2943,6 +3472,10 @@
         "Como criar uma mensagem padrão?",
         "Onde vejo uma prévia da mensagem padrão?",
         "Como colocar o nome do cliente em uma mensagem pronta?"
+      ],
+      "fontes": [
+        "apps/web/src/features/communications/CommunicationsPage.tsx",
+        "apps/web/src/features/communications/campaigns/TemplateEditorModal.tsx"
       ]
     },
     {
@@ -2963,6 +3496,10 @@
         "Como editar uma mensagem padrão?",
         "Como arquivar uma mensagem padrão?",
         "Onde reutilizo uma mensagem pronta em uma campanha?"
+      ],
+      "fontes": [
+        "apps/web/src/features/communications/CommunicationsPage.tsx",
+        "apps/web/src/features/communications/campaigns/TemplateEditorModal.tsx"
       ]
     },
     {
@@ -2982,6 +3519,10 @@
       "perguntas": [
         "Como criar uma campanha automática?",
         "Como programar duas mensagens para um mesmo evento?"
+      ],
+      "fontes": [
+        "apps/web/src/features/communications/auto-campaigns/AutoCampaignsTab.tsx",
+        "apps/web/src/features/communications/auto-campaigns/AutoCampaignEditorModal.tsx"
       ]
     },
     {
@@ -2997,6 +3538,9 @@
       "perguntas": [
         "Como registrar que uma mensagem automática não foi enviada?",
         "Onde trato as mensagens pendentes de campanha automática?"
+      ],
+      "fontes": [
+        "apps/web/src/features/dashboard/DashboardPage.tsx"
       ]
     },
     {
@@ -3021,6 +3565,11 @@
         "Como registrar manualmente uma resposta de NPS de uma campanha?",
         "Onde lanço uma nota de NPS que o cliente respondeu pelo WhatsApp?",
         "A fila da campanha permite registrar resposta de NPS?"
+      ],
+      "fontes": [
+        "apps/web/src/features/communications/campaigns/CampaignSenderPage.tsx",
+        "apps/web/src/features/agenda/SatisfactionSurveyModal.tsx",
+        "apps/web/src/features/communications/campaigns.integration.test.tsx"
       ]
     },
     {
@@ -3040,6 +3589,10 @@
       "perguntas": [
         "Como preparar o WhatsApp de lembrete de sessão?",
         "Onde vejo um lembrete de atendimento que está pendente?"
+      ],
+      "fontes": [
+        "apps/web/src/features/dashboard/DashboardPage.tsx",
+        "apps/web/src/features/communications/auto-campaigns/AutoCampaignEditorModal.tsx"
       ]
     },
     {
@@ -3055,6 +3608,9 @@
       "perguntas": [
         "Como mudar as preferências de contato do cliente?",
         "Onde desligo e-mail ou WhatsApp para um cliente?"
+      ],
+      "fontes": [
+        "apps/web/src/features/patients/PatientDetailPage.tsx"
       ]
     },
     {
@@ -3075,6 +3631,10 @@
         "Como encontrar um contrato no CRM?",
         "Como filtrar os documentos por situação?",
         "Onde vejo os detalhes de um documento?"
+      ],
+      "fontes": [
+        "apps/web/src/features/contracts/DocumentsPage.tsx",
+        "apps/web/src/features/contracts/DocumentDetailsModal.tsx"
       ]
     },
     {
@@ -3095,6 +3655,10 @@
         "Como criar um modelo de contrato?",
         "Onde cadastro um modelo de documento?",
         "Como conferir a prévia de um modelo de contrato?"
+      ],
+      "fontes": [
+        "apps/web/src/features/contracts/DocumentsPage.tsx",
+        "apps/web/src/features/contracts/TemplateBodyEditor.tsx"
       ]
     },
     {
@@ -3119,6 +3683,11 @@
         "Como editar um modelo de contrato já cadastrado?",
         "Onde crio uma nova versão de um modelo?",
         "Como restaurar a versão antiga de um modelo de documento?"
+      ],
+      "fontes": [
+        "apps/web/src/features/contracts/DocumentsPage.tsx",
+        "apps/web/src/features/contracts/TemplateVersionModal.tsx",
+        "apps/web/src/features/contracts/TemplateHistoryModal.tsx"
       ]
     },
     {
@@ -3135,6 +3704,9 @@
         "Como excluir um modelo de contrato?",
         "Como apagar um modelo de documento?",
         "Onde retiro um modelo cadastrado em Contratos?"
+      ],
+      "fontes": [
+        "apps/web/src/features/contracts/DocumentsPage.tsx"
       ]
     },
     {
@@ -3155,6 +3727,10 @@
         "Como criar um rascunho de contrato?",
         "Como ver a prévia do PDF antes de emitir?",
         "Onde reviso o conteúdo de um documento novo?"
+      ],
+      "fontes": [
+        "apps/web/src/features/contracts/DocumentsPage.tsx",
+        "apps/web/src/features/contracts/DocumentWizard.tsx"
       ]
     },
     {
@@ -3175,6 +3751,10 @@
         "Como emitir um contrato em rascunho?",
         "Como editar um rascunho de contrato?",
         "Onde finalizo a emissão de um documento?"
+      ],
+      "fontes": [
+        "apps/web/src/features/contracts/DocumentDetailsModal.tsx",
+        "apps/web/src/features/contracts/DocumentWizard.tsx"
       ]
     },
     {
@@ -3195,6 +3775,10 @@
         "Como baixar um contrato em PDF?",
         "Como imprimir um contrato emitido?",
         "Onde fica Salvar PDF em Contratos?"
+      ],
+      "fontes": [
+        "apps/web/src/features/contracts/DocumentDetailsModal.tsx",
+        "apps/web/src/features/contracts/DocumentsPage.tsx"
       ]
     },
     {
@@ -3215,6 +3799,10 @@
         "Como gerar link de assinatura de contrato?",
         "Como mandar um contrato para assinar por WhatsApp?",
         "Onde copio o link de um contrato?"
+      ],
+      "fontes": [
+        "apps/web/src/features/contracts/DocumentDetailsModal.tsx",
+        "apps/web/src/features/contracts/SignatureRequest.tsx"
       ]
     },
     {
@@ -3231,6 +3819,9 @@
         "Como lançar uma assinatura presencial de contrato?",
         "Onde anexo o contrato assinado à mão?",
         "Como registrar assinatura manual em Contratos?"
+      ],
+      "fontes": [
+        "apps/web/src/features/contracts/DocumentSignatureActions.tsx"
       ]
     },
     {
@@ -3251,6 +3842,10 @@
         "Como saber se um contrato foi assinado?",
         "Onde vejo o contrato assinado pelo cliente?",
         "Como acompanhar a assinatura de um documento?"
+      ],
+      "fontes": [
+        "apps/web/src/features/contracts/DocumentSignatureActions.tsx",
+        "apps/web/src/features/contracts/SignatureLinkRecord.tsx"
       ]
     },
     {
@@ -3271,6 +3866,10 @@
         "Como cancelar um documento?",
         "Como cancelar um contrato emitido?",
         "Onde coloco o motivo do cancelamento de um contrato?"
+      ],
+      "fontes": [
+        "apps/web/src/features/contracts/DocumentDetailsModal.tsx",
+        "apps/web/src/features/contracts/DocumentsPage.tsx"
       ]
     },
     {
@@ -3290,6 +3889,10 @@
       "perguntas": [
         "Onde vejo os documentos de um fornecedor?",
         "Como abrir o registro de um documento enviado ao fornecedor?"
+      ],
+      "fontes": [
+        "apps/web/src/features/finance/SupplierModal.tsx",
+        "apps/web/src/features/contracts/SupplierDocuments.tsx"
       ]
     },
     {
@@ -3310,6 +3913,10 @@
         "Como assinar um contrato recebido por link?",
         "Como assino um contrato pelo celular?",
         "Onde desenho minha assinatura no contrato?"
+      ],
+      "fontes": [
+        "apps/web/src/features/contracts/PublicSignaturePage.tsx",
+        "apps/web/src/features/contracts/PublicSignatureLayout.tsx"
       ]
     },
     {
@@ -3331,6 +3938,10 @@
         "Como assino um recibo pelo celular?",
         "Como assinar um recibo pelo celular?",
         "Onde coloco meu CPF para assinar o recibo?"
+      ],
+      "fontes": [
+        "apps/web/src/features/finance/PublicReceiptSignaturePage.tsx",
+        "e2e/public-signature.spec.ts"
       ]
     },
     {
@@ -3347,6 +3958,9 @@
         "Como vender um produto?",
         "Como registrar uma venda de produto?",
         "Onde lanço uma nova venda no estoque?"
+      ],
+      "fontes": [
+        "apps/web/src/features/sales/NewSaleSection.tsx"
       ]
     },
     {
@@ -3363,6 +3977,9 @@
         "Como dividir o pagamento de uma venda?",
         "Como vender um produto com Pix e cartão?",
         "Como adicionar duas formas de pagamento em Vendas?"
+      ],
+      "fontes": [
+        "apps/web/src/features/sales/NewSaleSection.tsx"
       ]
     },
     {
@@ -3383,6 +4000,10 @@
         "Como consultar o histórico de vendas de produtos?",
         "Onde vejo os detalhes de uma venda?",
         "Como ver o resumo de vendas de produtos?"
+      ],
+      "fontes": [
+        "apps/web/src/features/sales/SalesHistorySection.tsx",
+        "apps/web/src/features/sales/SalesSummarySection.tsx"
       ]
     },
     {
@@ -3402,6 +4023,10 @@
       "perguntas": [
         "Como cancelar uma venda a receber?",
         "Onde cancelo uma venda de produto ainda não paga?"
+      ],
+      "fontes": [
+        "apps/web/src/features/sales/SalesHistorySection.tsx",
+        "apps/web/src/features/sales/SaleDetailsModal.tsx"
       ]
     },
     {
@@ -3421,6 +4046,10 @@
       "perguntas": [
         "Como estornar e cancelar uma venda paga?",
         "Onde devolvo o pagamento de uma venda de produto?"
+      ],
+      "fontes": [
+        "apps/web/src/features/sales/SaleDetailsModal.tsx",
+        "apps/web/src/features/sales/SalesHistorySection.tsx"
       ]
     },
     {
@@ -3437,6 +4066,9 @@
         "Onde consulto o estoque de produtos?",
         "Como iniciar uma venda pelo estoque?",
         "Onde vejo as movimentações dos produtos?"
+      ],
+      "fontes": [
+        "apps/web/src/features/sales/InventorySection.tsx"
       ]
     },
     {
@@ -3457,6 +4089,10 @@
         "Como cadastrar um produto?",
         "Como cadastrar produto com estoque inicial?",
         "Onde informo o preço de venda do produto?"
+      ],
+      "fontes": [
+        "apps/web/src/features/sales/InventorySection.tsx",
+        "apps/web/src/features/sales/ProductModal.tsx"
       ]
     },
     {
@@ -3477,6 +4113,10 @@
         "Como editar um produto?",
         "Como mudar o preço de um produto cadastrado?",
         "Onde altero o nome de um item do estoque?"
+      ],
+      "fontes": [
+        "apps/web/src/features/sales/InventorySection.tsx",
+        "apps/web/src/features/sales/ProductModal.tsx"
       ]
     },
     {
@@ -3493,6 +4133,9 @@
         "Como ajustar o estoque de um produto?",
         "Como corrigir a quantidade em estoque?",
         "Onde registro uma entrada ou saída de estoque?"
+      ],
+      "fontes": [
+        "apps/web/src/features/sales/InventorySection.tsx"
       ]
     },
     {
@@ -3509,6 +4152,9 @@
         "Como cadastrar uma categoria de produto?",
         "Como adicionar uma marca de produto?",
         "Onde gerencio as categorias e marcas em Vendas?"
+      ],
+      "fontes": [
+        "apps/web/src/features/sales/ProductCatalogsSection.tsx"
       ]
     },
     {
@@ -3525,6 +4171,9 @@
         "Como cadastrar fornecedor em Vendas?",
         "Onde edito um fornecedor de produtos?",
         "Como abrir os pedidos de um fornecedor em Vendas?"
+      ],
+      "fontes": [
+        "apps/web/src/features/sales/SalesSuppliersSection.tsx"
       ]
     },
     {
@@ -3545,6 +4194,10 @@
         "Como localizar uma parcela no Financeiro?",
         "Como filtrar parcelas vencidas?",
         "Onde ficam as opções de uma parcela em Contas a receber?"
+      ],
+      "fontes": [
+        "apps/web/src/features/finance/ReceivablesList.tsx",
+        "apps/web/src/features/finance/FinanceEntryFilters.tsx"
       ]
     },
     {
@@ -3565,6 +4218,10 @@
         "Como registrar um recebimento parcial?",
         "Como dar baixa só em parte da parcela?",
         "Onde informo o valor recebido quando o cliente pagou uma parte?"
+      ],
+      "fontes": [
+        "apps/web/src/features/finance/SettleModal.tsx",
+        "apps/web/src/features/finance/ReceivablesList.tsx"
       ]
     },
     {
@@ -3585,6 +4242,10 @@
         "Como dividir uma baixa em Pix e cartão?",
         "Como dar baixa com duas formas de pagamento?",
         "Como registrar um recebimento dividido?"
+      ],
+      "fontes": [
+        "apps/web/src/features/finance/SettleModal.tsx",
+        "apps/web/src/features/finance/ReceiptModal.tsx"
       ]
     },
     {
@@ -3604,6 +4265,10 @@
       "perguntas": [
         "Como ajustar uma parcela em aberto?",
         "Onde corrijo o valor de uma parcela antes da baixa?"
+      ],
+      "fontes": [
+        "apps/web/src/features/finance/ReceivablesList.tsx",
+        "apps/web/src/features/finance/ReceivableAdjustModal.tsx"
       ]
     },
     {
@@ -3624,6 +4289,10 @@
         "Como anexar comprovante de pagamento?",
         "Onde baixo um comprovante da parcela?",
         "Como remover um comprovante da baixa?"
+      ],
+      "fontes": [
+        "apps/web/src/features/finance/SettleModal.tsx",
+        "apps/web/src/features/finance/PaymentProofs.tsx"
       ]
     },
     {
@@ -3644,6 +4313,10 @@
         "Como ver o recibo de uma parcela?",
         "Como imprimir um recibo de pagamento?",
         "Onde acompanho a assinatura do recibo?"
+      ],
+      "fontes": [
+        "apps/web/src/features/finance/ReceivablesList.tsx",
+        "apps/web/src/features/finance/ReceiptModal.tsx"
       ]
     },
     {
@@ -3660,6 +4333,9 @@
         "Como enviar recibo para assinatura pelo WhatsApp?",
         "Onde fica o link para o cliente assinar o recibo?",
         "Como compartilhar a assinatura de um recibo?"
+      ],
+      "fontes": [
+        "apps/web/src/features/finance/ReceiptModal.tsx"
       ]
     },
     {
@@ -3679,6 +4355,10 @@
       "perguntas": [
         "Como contatar um cliente sobre uma parcela?",
         "Onde preparo um lembrete de parcela pelo WhatsApp?"
+      ],
+      "fontes": [
+        "apps/web/src/features/finance/ReceivablesList.tsx",
+        "apps/web/src/features/finance/ReceivableContactModal.tsx"
       ]
     },
     {
@@ -3698,6 +4378,10 @@
       "perguntas": [
         "Como renegociar parcelas de um cliente?",
         "Onde divido um saldo em novas parcelas no Financeiro?"
+      ],
+      "fontes": [
+        "apps/web/src/features/finance/ReceivablesList.tsx",
+        "apps/web/src/features/finance/FinancePage.tsx"
       ]
     },
     {
@@ -3717,6 +4401,10 @@
       "perguntas": [
         "Como corrigir a data de um lançamento?",
         "Onde altero a categoria ou centro de custo de um lançamento?"
+      ],
+      "fontes": [
+        "apps/web/src/features/finance/FinanceClassificationPanel.tsx",
+        "apps/web/src/features/finance/FinancePage.tsx"
       ]
     },
     {
@@ -3737,6 +4425,10 @@
         "Como filtrar contas a pagar?",
         "Onde localizo uma despesa no Financeiro?",
         "Como buscar um lançamento em Contas a pagar?"
+      ],
+      "fontes": [
+        "apps/web/src/features/finance/FinancePage.tsx",
+        "apps/web/src/features/finance/FinanceEntryFilters.tsx"
       ]
     },
     {
@@ -3757,6 +4449,10 @@
         "Como registrar uma despesa pontual?",
         "Como cadastrar uma conta a pagar de uma vez?",
         "Onde lanço uma despesa avulsa?"
+      ],
+      "fontes": [
+        "apps/web/src/features/finance/FinancePage.tsx",
+        "apps/web/src/features/finance/NewExpenseModal.tsx"
       ]
     },
     {
@@ -3777,6 +4473,10 @@
         "Como cadastrar uma despesa recorrente?",
         "Como lançar a mesma conta todos os meses?",
         "Onde cadastro uma despesa fixa?"
+      ],
+      "fontes": [
+        "apps/web/src/features/finance/NewExpenseModal.tsx",
+        "apps/web/src/features/finance/RecurringPayablesSection.tsx"
       ]
     },
     {
@@ -3801,6 +4501,11 @@
         "Como editar uma despesa fixa?",
         "Como encerrar uma recorrência no Financeiro?",
         "Onde paro de gerar uma conta todo mês?"
+      ],
+      "fontes": [
+        "apps/web/src/features/finance/RecurringPayablesSection.tsx",
+        "apps/web/src/features/finance/RecurringPayableModal.tsx",
+        "apps/web/src/features/finance/RecurringPayableEndModal.tsx"
       ]
     },
     {
@@ -3821,6 +4526,10 @@
         "Como pagar uma conta a pagar no CRM?",
         "Como registrar pagamento de despesa?",
         "Onde confirmo o pagamento de uma conta?"
+      ],
+      "fontes": [
+        "apps/web/src/features/finance/PayablesList.tsx",
+        "apps/web/src/features/finance/PayableModal.tsx"
       ]
     },
     {
@@ -3840,6 +4549,10 @@
       "perguntas": [
         "Como ajustar uma conta a pagar de valor variável?",
         "Onde informo o valor do mês de uma despesa fixa variável?"
+      ],
+      "fontes": [
+        "apps/web/src/features/finance/PayablesList.tsx",
+        "apps/web/src/features/finance/PayableAmountModal.tsx"
       ]
     },
     {
@@ -3860,6 +4573,10 @@
         "Como estornar o pagamento de uma despesa?",
         "Como desfazer um pagamento em Contas a pagar?",
         "Onde registro por que estou estornando uma despesa?"
+      ],
+      "fontes": [
+        "apps/web/src/features/finance/PayablesList.tsx",
+        "apps/web/src/features/finance/ReversePaymentModal.tsx"
       ]
     },
     {
@@ -3880,6 +4597,10 @@
         "Como cadastrar uma categoria de despesa?",
         "Onde crio um centro de custo?",
         "Como criar uma categoria no Financeiro?"
+      ],
+      "fontes": [
+        "apps/web/src/features/finance/FinancePage.tsx",
+        "apps/web/src/features/finance/NewExpenseModal.tsx"
       ]
     },
     {
@@ -3899,6 +4620,10 @@
       "perguntas": [
         "Como cadastrar um fornecedor direto no Financeiro?",
         "Onde edito os dados de um fornecedor usado em despesas?"
+      ],
+      "fontes": [
+        "apps/web/src/features/finance/NewExpenseModal.tsx",
+        "apps/web/src/features/finance/SupplierModal.tsx"
       ]
     },
     {
@@ -3914,6 +4639,9 @@
       "perguntas": [
         "Como cadastrar um pedido de fornecedor?",
         "Onde consulto os pedidos de um fornecedor?"
+      ],
+      "fontes": [
+        "apps/web/src/features/sales/SalesSuppliersSection.tsx"
       ]
     },
     {
@@ -3933,6 +4661,10 @@
       "perguntas": [
         "Onde vejo as comissões no Financeiro?",
         "Como descobrir qual percentual entrou na comissão do profissional?"
+      ],
+      "fontes": [
+        "apps/web/src/features/finance/FinancePage.tsx",
+        "apps/web/src/features/finance/CommissionsList.tsx"
       ]
     },
     {
@@ -3948,6 +4680,9 @@
       "perguntas": [
         "Como criar uma regra de comissão?",
         "Onde altero o percentual e reviso o recálculo das comissões?"
+      ],
+      "fontes": [
+        "apps/web/src/features/finance/CommissionRuleModal.tsx"
       ]
     },
     {
@@ -3967,6 +4702,10 @@
       "perguntas": [
         "Como gerar comissões do mês?",
         "Onde calculo comissões de atendimentos ou presença em turma?"
+      ],
+      "fontes": [
+        "apps/web/src/features/finance/FinancePage.tsx",
+        "apps/web/src/features/finance/CommissionsList.tsx"
       ]
     },
     {
@@ -3990,6 +4729,11 @@
       "perguntas": [
         "Como pagar ou estornar uma comissão?",
         "Como estornar o pagamento da folha com comissão?"
+      ],
+      "fontes": [
+        "apps/web/src/features/finance/CommissionsList.tsx",
+        "apps/web/src/features/finance/PayablesList.tsx",
+        "apps/web/src/features/finance/ReversePaymentModal.tsx"
       ]
     },
     {
@@ -4009,6 +4753,10 @@
       "perguntas": [
         "Como conciliar ajuste de comissão já paga?",
         "Onde vejo o ajuste de comissão após corrigir a presença na turma?"
+      ],
+      "fontes": [
+        "apps/web/src/features/finance/CommissionsList.tsx",
+        "apps/web/src/features/finance/CommissionReconciliationModal.tsx"
       ]
     },
     {
@@ -4028,6 +4776,10 @@
       "perguntas": [
         "Como incluir um colaborador na folha?",
         "Onde defino o salário mensal de um usuário?"
+      ],
+      "fontes": [
+        "apps/web/src/features/settings/UserFormModal.tsx",
+        "apps/web/src/features/finance/PayrollSection.tsx"
       ]
     },
     {
@@ -4051,6 +4803,11 @@
       "perguntas": [
         "Como lançar um desconto ou recompensa na folha?",
         "Onde registro um vale de salário?"
+      ],
+      "fontes": [
+        "apps/web/src/features/finance/PayrollSection.tsx",
+        "apps/web/src/features/finance/PayrollEntryModal.tsx",
+        "apps/web/src/features/finance/PayrollAdvanceModal.tsx"
       ]
     },
     {
@@ -4070,6 +4827,10 @@
       "perguntas": [
         "Como lançar a folha de pagamento do mês?",
         "Como desfazer uma folha lançada no financeiro?"
+      ],
+      "fontes": [
+        "apps/web/src/features/finance/PayrollSection.tsx",
+        "apps/web/src/features/finance/PayrollLaunchModal.tsx"
       ]
     },
     {
@@ -4094,6 +4855,11 @@
         "Onde vejo o caixa do dia?",
         "Como consultar a previsão financeira?",
         "Como mudar o horizonte da previsão?"
+      ],
+      "fontes": [
+        "apps/web/src/features/finance/FinancePage.tsx",
+        "apps/web/src/features/finance/DailyCashSection.tsx",
+        "apps/web/src/features/finance/FinanceForecastSection.tsx"
       ]
     },
     {
@@ -4110,6 +4876,9 @@
         "Como registrar uma nota emitida fora do CRM?",
         "Onde cadastro uma operação externa com parceiro?",
         "Como lançar um documento fiscal externo com comprovante?"
+      ],
+      "fontes": [
+        "apps/web/src/features/finance/ExternalOperationsPanel.tsx"
       ]
     },
     {
@@ -4126,6 +4895,9 @@
         "Onde baixo o comprovante de uma operação externa?",
         "Como consultar comprovante de documento fiscal registrado?",
         "Onde está o anexo da operação com parceiro?"
+      ],
+      "fontes": [
+        "apps/web/src/features/finance/ExternalOperationsPanel.tsx"
       ]
     },
     {
@@ -4146,6 +4918,10 @@
         "Onde consulto a retenção de clientes?",
         "Como ver a retenção mês a mês?",
         "Onde fica o relatório de retenção?"
+      ],
+      "fontes": [
+        "apps/web/src/features/reports/ReportsPage.tsx",
+        "apps/web/src/features/reports/ClientInsights.tsx"
       ]
     },
     {
@@ -4166,6 +4942,10 @@
         "Onde vejo o ranking de clientes?",
         "Como ver as faixas etárias no relatório?",
         "Onde vejo quem concluiu mais sessões?"
+      ],
+      "fontes": [
+        "apps/web/src/features/reports/ReportsPage.tsx",
+        "apps/web/src/features/reports/ClientInsights.tsx"
       ]
     },
     {
@@ -4186,6 +4966,10 @@
         "Onde vejo clientes sem retorno nos relatórios?",
         "Como consultar relatório de clientes que não voltaram?",
         "Onde analiso o quadro Clientes sem retorno?"
+      ],
+      "fontes": [
+        "apps/web/src/features/reports/ReportsPage.tsx",
+        "apps/web/src/features/reports/ClientInsights.tsx"
       ]
     },
     {
@@ -4206,6 +4990,10 @@
         "Como consultar clientes no relatório?",
         "Onde vejo frequência e produtos contratados por cliente?",
         "Como filtrar o relatório de clientes por nome?"
+      ],
+      "fontes": [
+        "apps/web/src/features/reports/ReportsPage.tsx",
+        "apps/web/src/features/reports/ClientDetailsSection.tsx"
       ]
     },
     {
@@ -4226,6 +5014,10 @@
         "Onde vejo o desempenho de uma campanha?",
         "Como filtrar o relatório de campanhas?",
         "Onde exporto a planilha de campanhas?"
+      ],
+      "fontes": [
+        "apps/web/src/features/reports/ReportsPage.tsx",
+        "apps/web/src/features/reports/CampaignsSection.tsx"
       ]
     },
     {
@@ -4242,6 +5034,9 @@
         "Onde vejo a DRE por competência?",
         "Como conferir as categorias e baixar a DRE?",
         "Como ver os lançamentos de uma categoria da DRE?"
+      ],
+      "fontes": [
+        "apps/web/src/features/reports/DreSection.tsx"
       ]
     },
     {
@@ -4261,6 +5056,10 @@
       "perguntas": [
         "Como configurar pró-labore no relatório?",
         "Onde mudo o percentual ou a base de pró-labore?"
+      ],
+      "fontes": [
+        "apps/web/src/features/reports/FinancialSection.tsx",
+        "apps/web/src/features/reports/ProLaboreModal.tsx"
       ]
     },
     {
@@ -4281,6 +5080,10 @@
         "Como consultar o extrato financeiro?",
         "Como baixar o extrato financeiro filtrado?",
         "Onde exporto o extrato nos relatórios?"
+      ],
+      "fontes": [
+        "apps/web/src/features/reports/FinancialSection.tsx",
+        "apps/web/src/features/reports/FinancialLedger.tsx"
       ]
     },
     {
@@ -4301,6 +5104,10 @@
         "Como exportar o relatório gerencial de vendas?",
         "Como baixar o Excel detalhado de vendas?",
         "Como filtrar o período de um relatório de vendas antes de baixar?"
+      ],
+      "fontes": [
+        "apps/web/src/features/reports/ReportsPage.tsx",
+        "apps/web/src/features/reports/SalesInsights.tsx"
       ]
     },
     {
@@ -4329,6 +5136,12 @@
         "Onde vejo indicadores e rentabilidade?",
         "Como consultar rentabilidade por serviço?",
         "Onde analiso as vendas detalhadas nos relatórios?"
+      ],
+      "fontes": [
+        "apps/web/src/features/reports/ReportsPage.tsx",
+        "apps/web/src/features/reports/ClinicIndicators.tsx",
+        "apps/web/src/features/reports/ProfitTables.tsx",
+        "apps/web/src/features/reports/SalesInsights.tsx"
       ]
     },
     {
@@ -4345,6 +5158,9 @@
         "Como pesquisar no histórico de alterações?",
         "Como filtrar o histórico por responsável?",
         "Como ver só as alterações da Agenda no Histórico?"
+      ],
+      "fontes": [
+        "apps/web/src/features/history/HistoryPage.tsx"
       ]
     },
     {
@@ -4365,6 +5181,10 @@
         "Como abrir os detalhes de uma alteração?",
         "Onde vejo quem fez uma alteração no histórico?",
         "Como ler os detalhes técnicos de uma alteração?"
+      ],
+      "fontes": [
+        "apps/web/src/features/history/HistoryPage.tsx",
+        "apps/web/src/features/history/HistoryDetailsModal.tsx"
       ]
     },
     {
@@ -4381,6 +5201,9 @@
         "Como navegar nas configurações?",
         "Como descartar uma alteração ao mudar de aba?",
         "Como salvar as alterações em Configurações?"
+      ],
+      "fontes": [
+        "apps/web/src/features/settings/SettingsPage.tsx"
       ]
     },
     {
@@ -4396,6 +5219,9 @@
       "perguntas": [
         "Como alterar a razão social da clínica?",
         "Onde edito os dados e o logotipo da clínica?"
+      ],
+      "fontes": [
+        "apps/web/src/features/settings/ClinicSettingsContent.tsx"
       ]
     },
     {
@@ -4415,6 +5241,10 @@
       "perguntas": [
         "Como cadastrar um usuário e dar acesso às filiais?",
         "Onde escolho as unidades que um usuário pode acessar?"
+      ],
+      "fontes": [
+        "apps/web/src/features/settings/AdminUsersContent.tsx",
+        "apps/web/src/features/settings/UserFormModal.tsx"
       ]
     },
     {
@@ -4434,6 +5264,10 @@
       "perguntas": [
         "Como copiar permissões de um usuário?",
         "Como retirar ou mudar permissões de um usuário comum?"
+      ],
+      "fontes": [
+        "apps/web/src/features/settings/UserFormModal.tsx",
+        "apps/web/src/features/settings/PermissionEditor.tsx"
       ]
     },
     {
@@ -4454,6 +5288,10 @@
         "Como editar um usuário?",
         "Como desativar um usuário do CRM?",
         "Como reativar um usuário inativo?"
+      ],
+      "fontes": [
+        "apps/web/src/features/settings/AdminUsersContent.tsx",
+        "apps/web/src/features/settings/UserFormModal.tsx"
       ]
     },
     {
@@ -4473,6 +5311,10 @@
       "perguntas": [
         "Como redefinir a senha de outro usuário?",
         "Como derrubar as sessões de um usuário pelo cadastro?"
+      ],
+      "fontes": [
+        "apps/web/src/features/settings/AdminUsersContent.tsx",
+        "apps/web/src/features/settings/ResetPasswordModal.tsx"
       ]
     },
     {
@@ -4492,6 +5334,10 @@
       "perguntas": [
         "Como ligar um usuário à agenda?",
         "Onde cadastro a comissão de um profissional da agenda?"
+      ],
+      "fontes": [
+        "apps/web/src/features/settings/UserFormModal.tsx",
+        "apps/web/src/features/settings/UserAgendaFields.tsx"
       ]
     },
     {
@@ -4512,6 +5358,10 @@
         "Como cadastrar uma filial?",
         "Como criar uma nova unidade?",
         "Onde adiciono uma filial da clínica?"
+      ],
+      "fontes": [
+        "apps/web/src/features/settings/BranchesContent.tsx",
+        "apps/web/src/features/settings/BranchModal.tsx"
       ]
     },
     {
@@ -4532,6 +5382,10 @@
         "Como editar uma filial?",
         "Como inativar uma unidade?",
         "Como reativar uma filial?"
+      ],
+      "fontes": [
+        "apps/web/src/features/settings/BranchesContent.tsx",
+        "apps/web/src/features/settings/BranchModal.tsx"
       ]
     },
     {
@@ -4547,6 +5401,9 @@
       "perguntas": [
         "Como trocar o nome de uma aba do menu?",
         "Onde altero o rótulo das páginas no menu do CRM?"
+      ],
+      "fontes": [
+        "apps/web/src/features/settings/NavTabLabelsContent.tsx"
       ]
     },
     {
@@ -4567,6 +5424,10 @@
         "Como cadastrar um plano no catálogo?",
         "Onde crio um modelo de plano para vender?",
         "Como definir os serviços de um plano cadastrado?"
+      ],
+      "fontes": [
+        "apps/web/src/features/settings/PlanTemplatesContent.tsx",
+        "apps/web/src/features/settings/PlanTemplateModal.tsx"
       ]
     },
     {
@@ -4586,6 +5447,10 @@
       "perguntas": [
         "Como editar um plano no catálogo?",
         "Como desativar um modelo de plano?"
+      ],
+      "fontes": [
+        "apps/web/src/features/settings/PlanTemplatesContent.tsx",
+        "apps/web/src/features/settings/PlanTemplateModal.tsx"
       ]
     },
     {
@@ -4606,6 +5471,10 @@
         "Como adicionar um feriado manual?",
         "Onde cadastro um feriado na agenda?",
         "Como colocar um feriado local no CRM?"
+      ],
+      "fontes": [
+        "apps/web/src/features/settings/HolidaysContent.tsx",
+        "apps/web/src/features/agenda/AgendaPage.tsx"
       ]
     },
     {
@@ -4626,6 +5495,10 @@
         "Como importar os feriados do ano?",
         "Como remover um feriado do calendário?",
         "Onde escolho quais feriados importar?"
+      ],
+      "fontes": [
+        "apps/web/src/features/settings/ImportHolidaysModal.tsx",
+        "apps/web/src/features/settings/HolidaysContent.tsx"
       ]
     },
     {
@@ -4641,6 +5514,9 @@
       "perguntas": [
         "Como ligar ou desligar a finalização automática?",
         "Onde altero o prazo para o CRM finalizar atendimentos?"
+      ],
+      "fontes": [
+        "apps/web/src/features/settings/AutoFinalizationContent.tsx"
       ]
     },
     {
@@ -4656,6 +5532,9 @@
       "perguntas": [
         "Onde defino o máximo de parcelas no cartão?",
         "Como liberar ou limitar as parcelas de uma forma de pagamento?"
+      ],
+      "fontes": [
+        "apps/web/src/features/settings/PaymentMethodsContent.tsx"
       ]
     },
     {
@@ -4672,6 +5551,9 @@
         "Como criar uma chave de integração?",
         "Onde copio o token de integração de vendas?",
         "Como revogar uma chave de integração do CRM?"
+      ],
+      "fontes": [
+        "apps/web/src/features/settings/IntegrationKeysContent.tsx"
       ]
     },
     {
@@ -4693,6 +5575,10 @@
         "Como configurar avisos do CRM em um grupo do Telegram?",
         "Como mudar ou desativar avisos do Telegram?",
         "Como desvincular um chat ou grupo do Telegram do CRM?"
+      ],
+      "fontes": [
+        "apps/web/src/features/settings/TelegramIntegrationContent.tsx",
+        "packages/contracts/src/integrations/telegram.ts"
       ]
     },
     {
@@ -4712,6 +5598,10 @@
       "perguntas": [
         "Como criar uma etiqueta manual?",
         "Onde mudo o nome ou a cor de uma etiqueta?"
+      ],
+      "fontes": [
+        "apps/web/src/features/settings/PatientTagsContent.tsx",
+        "apps/web/src/features/settings/PatientTagEditModal.tsx"
       ]
     },
     {
@@ -4731,6 +5621,10 @@
       "perguntas": [
         "Como excluir uma etiqueta de cliente?",
         "Como mudar a cor ou o nome de uma etiqueta automática?"
+      ],
+      "fontes": [
+        "apps/web/src/features/settings/PatientTagsContent.tsx",
+        "apps/web/src/features/settings/AutomaticTagEditModal.tsx"
       ]
     },
     {
@@ -4750,6 +5644,10 @@
       "perguntas": [
         "Onde cadastro uma origem comercial?",
         "Como gerenciar formas de contato ou motivos de não efetivação?"
+      ],
+      "fontes": [
+        "apps/web/src/features/settings/ClinicCatalogsContent.tsx",
+        "apps/web/src/features/settings/CatalogSection.tsx"
       ]
     },
     {
@@ -4766,6 +5664,9 @@
         "Onde cadastro um serviço?",
         "Como limitar as salas de um serviço?",
         "Como indicar quais profissionais atendem um serviço?"
+      ],
+      "fontes": [
+        "apps/web/src/features/settings/AdministrativeRegistrySection.tsx"
       ]
     },
     {
@@ -4782,6 +5683,9 @@
         "Como cadastrar uma sala?",
         "Onde mudo a capacidade de uma sala?",
         "Como editar uma sala de atendimento?"
+      ],
+      "fontes": [
+        "apps/web/src/features/settings/AdministrativeRegistrySection.tsx"
       ]
     },
     {
@@ -4798,6 +5702,9 @@
         "Como mudar minha foto de perfil?",
         "Como atualizar meu nome no CRM?",
         "Onde salvo os dados do meu perfil?"
+      ],
+      "fontes": [
+        "apps/web/src/features/profile/ProfilePage.tsx"
       ]
     },
     {
@@ -4814,6 +5721,9 @@
         "Como alterar minha senha?",
         "Como trocar a senha do meu perfil?",
         "Onde mudo minha senha de acesso?"
+      ],
+      "fontes": [
+        "apps/web/src/features/profile/ProfilePage.tsx"
       ]
     },
     {
@@ -4830,6 +5740,9 @@
         "Como alterar meu nome na agenda?",
         "Como trocar minha cor na agenda?",
         "Onde mudo o nome que aparece nos atendimentos?"
+      ],
+      "fontes": [
+        "apps/web/src/features/profile/ProfilePage.tsx"
       ]
     },
     {
@@ -4850,6 +5763,10 @@
         "Como enviar um cliente para a lixeira?",
         "Onde excluo um cadastro sem apagar de vez?",
         "Como tirar um cadastro da lista e mandar para a lixeira?"
+      ],
+      "fontes": [
+        "apps/web/src/features/patients/PatientDetailPage.tsx",
+        "apps/web/src/features/trash/SendToTrashModal.tsx"
       ]
     },
     {
@@ -4866,6 +5783,9 @@
         "Como restaurar um cliente da lixeira?",
         "Onde vejo os clientes excluídos?",
         "Como desfazer o envio de um cliente para a lixeira?"
+      ],
+      "fontes": [
+        "apps/web/src/features/trash/TrashModal.tsx"
       ]
     },
     {
@@ -4886,6 +5806,10 @@
         "Como excluir definitivamente um cliente?",
         "O que vai ser apagado junto na lixeira?",
         "Por que preciso digitar EXCLUIR para apagar um cadastro?"
+      ],
+      "fontes": [
+        "apps/web/src/features/trash/TrashModal.tsx",
+        "apps/web/src/features/trash/PurgeConfirmModal.tsx"
       ]
     }
   ]

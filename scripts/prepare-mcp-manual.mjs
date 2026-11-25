@@ -1,9 +1,10 @@
 // Material permitido explicitamente; nunca percorre o repositório nem copia testes para respostas.
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
-import { readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
+import { checkManual, staleWarning } from "./mcp-manual-freshness.mjs";
 const root = fileURLToPath(new URL("../", import.meta.url));
 const file = join(root, "apps/api/src/modules/manual/manual-data.json");
 const manualPath = "docs/manual-crm-organiza-studios.md";
@@ -61,6 +62,7 @@ if (process.argv.includes("--write")) {
       titulo: title,
       trecho: text.split("**Fontes:**")[0].trim(),
       referencias: references,
+      fontes: paths,
     });
   }
   const curatedPath = "docs/ajuda-mcp-clientes.md";
@@ -102,6 +104,7 @@ if (process.argv.includes("--write")) {
       .replace(/^# .*\n\nRevisão[^\n]+\n/, "")
       .trim(),
     referencias: references,
+    fontes: curatedPaths,
   });
   sourceHashes[curatedPath] = sha(curated);
   const fieldGuidesPath = "docs/guias-mcp-fluxos-verificados.md";
@@ -139,6 +142,7 @@ if (process.argv.includes("--write")) {
       throw new Error(`Guia verificado incompleto ou duplicado: ${id}`);
     }
     fieldIds.add(id);
+    const paths = new Set();
     const sourcePrefix = `https://github.com/Bren0-lz/crm-studios/blob/${fieldRevision}/`;
     for (const { url } of references) {
       if (!url.startsWith(sourcePrefix))
@@ -157,6 +161,7 @@ if (process.argv.includes("--write")) {
         throw new Error(`Revise o guia ${id}: a fonte ${path} mudou.`);
       }
       sourceHashes[path] = sha(contents);
+      paths.add(path);
     }
     chapters.push({
       id,
@@ -164,6 +169,7 @@ if (process.argv.includes("--write")) {
       trecho: `## ${title}\n\n${lesson.trim()}`,
       referencias: references,
       perguntas: questions,
+      fontes: [...paths],
     });
   }
   sourceHashes[fieldGuidesPath] = sha(fieldGuides);
@@ -178,19 +184,23 @@ if (process.argv.includes("--write")) {
     `Manual MCP revisado: ${chapters.length} tutoriais; ${excluded.length} excluídos por alteração das fontes.`,
   );
 } else {
+  // Uma fonte citada que mudou num PR do CRM não pode travar o build de todos: o guia
+  // afetado só sai do pacote publicado (hostinger-build) até alguém revisá-lo.
+  // --strict falha nesse caso, para quem quer garantir o catálogo completo.
   const data = JSON.parse(readFileSync(file, "utf8"));
-  if (
-    sha(JSON.stringify(data.capitulos)) !== data.material ||
-    sha(read(data.manualPath)) !== data.manualSha256 ||
-    Object.entries(data.sourceHashes).some(
-      ([path, hash]) => sha(read(path)) !== hash,
-    )
-  ) {
-    throw new Error(
-      "Material MCP desatualizado. Revise os tutoriais e execute node scripts/prepare-mcp-manual.mjs --write antes do deploy.",
+  const check = checkManual(data, (path) =>
+    existsSync(join(root, path)) ? read(path) : undefined,
+  );
+  if (check.stale.length) {
+    const message = staleWarning(check);
+    if (process.argv.includes("--strict")) throw new Error(message);
+    console.warn(
+      process.env.GITHUB_ACTIONS
+        ? `::warning title=Manual MCP::${message.replaceAll("\n", " ")}`
+        : `⚠ ${message}`,
     );
   }
   console.log(
-    `Manual MCP confere com este build: ${data.capitulos.length} tutoriais, revisão ${data.revisao}.`,
+    `Manual MCP: ${check.fresh.capitulos.length} de ${data.capitulos.length} guias conferem com este build, revisão ${data.revisao}.`,
   );
 }

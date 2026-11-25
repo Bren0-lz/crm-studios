@@ -6,9 +6,11 @@
 // No hPanel: comando de build `npm run hostinger-build`, início `npm start`.
 // As migrações rodam quando o app sobe (STORAGE_MODE=mysql), não no build.
 import { execSync } from "node:child_process";
+import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { build } from "esbuild";
+import { checkManual } from "./mcp-manual-freshness.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -16,6 +18,34 @@ execSync("node scripts/prepare-mcp-manual.mjs", {
   cwd: root,
   stdio: "inherit",
 });
+
+// Guia cuja fonte mudou depois da revisão não entra no pacote: o MCP responde sem ele
+// em vez de ensinar um passo que talvez não exista mais (o aviso sai no comando acima).
+const manualFile = join(
+  root,
+  "apps",
+  "api",
+  "src",
+  "modules",
+  "manual",
+  "manual-data.json",
+);
+const manual = checkManual(
+  JSON.parse(readFileSync(manualFile, "utf8")),
+  (path) =>
+    existsSync(join(root, path))
+      ? readFileSync(join(root, path), "utf8")
+      : undefined,
+).fresh;
+const freshManual = {
+  name: "manual-mcp-conferido",
+  setup(esbuild) {
+    esbuild.onLoad({ filter: /manual-data\.json$/ }, () => ({
+      contents: JSON.stringify(manual),
+      loader: "json",
+    }));
+  },
+};
 
 console.log("› Compilando o site com VITE_API_URL=/api");
 execSync("npm run build -w @crm/web", {
@@ -39,6 +69,7 @@ await build({
   banner: {
     js: "import { createRequire as __createRequire } from 'node:module'; const require = __createRequire(import.meta.url);",
   },
+  plugins: [freshManual],
   logLevel: "warning",
 });
 

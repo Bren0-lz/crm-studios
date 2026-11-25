@@ -40,7 +40,7 @@ está no histórico do git (este arquivo antes do commit "chore: handoff da roda
 - **Pedido (25/11/2026):** PR que altera uma fonte citada por um guia não pode deixar a `main` sem compilar.
 - **Escopo:** o `prebuild` passa a só avisar; a conferência estrita vira etapa própria do deploy (`hostinger-build`) e do CI.
 - **Gate:** gate completo, `npm run hostinger-build` e o teste do MCP local.
-- **Status:** TODO
+- **Status:** DONE
 
 ### MCP4 — Busca do manual tolerante a outras formulações
 
