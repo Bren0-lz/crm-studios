@@ -57,8 +57,8 @@ describe("busca nos guias", () => {
   });
   it.each([
     ["como remarcar", "AG07"],
-    ["Como cancelar uma aula?", "tutorial-1"],
-    ["desmarcar sessão da aluna", "tutorial-1"],
+    ["Como cancelar uma aula?", "cancelar-um-atendimento-agendado"],
+    ["desmarcar sessão da aluna", "cancelar-um-atendimento-agendado"],
     ["Quero agendar uma aula de pilates", "AG02"],
     ["marcar um horário para a aluna", "AG02"],
     ["Como faço para agendar um atendimento para a cliente?", "AG02"],
@@ -66,7 +66,10 @@ describe("busca nos guias", () => {
     ["Como mudar a senha?", "MP02"],
     ["quem faltou na aula", "AG10"],
     ["ver parcelas atrasadas", "FI01"],
-    ["Como dar baixa em parcela", "tutorial-9"],
+    [
+      "Como dar baixa em parcela",
+      "registrar-o-pagamento-de-uma-parcela-ja-recebida",
+    ],
     ["nova cliente", "cadastrar-cliente"],
     ["Como apagar um cliente?", "LX03"],
     ["Como lançar uma despesa?", "FI15"],
@@ -131,6 +134,37 @@ describe("busca nos guias", () => {
     expect(result.guias[0]?.trecho).not.toContain("**Perguntas:**");
     expect(result.guias[0]?.referencias.length).toBeGreaterThan(0);
     expect(result.naoEncontrados).toEqual(["zz99"]);
+  });
+  it.each([
+    ["cancelei a aula por engano", "cancelar-um-atendimento-agendado"],
+    ["remarquei a sessão da aluna", "AG07"],
+    ["consulto o extrato como", "RL09"],
+    ["desfaço a baixa como", "FI06"],
+    ["excluí um cliente sem querer", "LX01"],
+    ["lancei uma despesa errada", "FI15"],
+  ])("entende o verbo conjugado: %s", (query, id) => {
+    expect(
+      searchGuides(query)
+        .guias.slice(0, 3)
+        .map((guide) => guide.id),
+    ).toContain(id);
+  });
+  it.each([
+    ["não consigo entrar no CRM", "AC01"],
+    ["não consigo agendar", "AG02"],
+  ])('não descarta queixas com "não": %s', (query, id) => {
+    expect(strong(query)).toContain(id);
+  });
+  it("dá aos tutoriais antigos ids derivados do título", () => {
+    const legacy = (listGuides().areas ?? [])
+      .flatMap((area) => listGuides(area.area).guias ?? [])
+      .filter((guide) => !/^[A-Z]{2}\d{2}$/.test(guide.id));
+    expect(legacy.length).toBeGreaterThan(0);
+    for (const guide of legacy)
+      expect(guide.id).toMatch(/^[a-z0-9]+(-[a-z0-9]+)*$/);
+    expect(legacy.map((guide) => guide.id)).not.toContainEqual(
+      expect.stringMatching(/^tutorial-\d+$/),
+    );
   });
   it("lista todos os guias por área", () => {
     const areas = listGuides().areas ?? [];

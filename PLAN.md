@@ -56,6 +56,13 @@ está no histórico do git (este arquivo antes do commit "chore: handoff da roda
 - **Gate:** gate completo e `node scripts/test-mcp-remote.mjs --local` após `npm run hostinger-build`.
 - **Status:** DONE
 
+### MCP6 — Problemas menores da revisão do manual
+
+- **Pedido (26/11/2026):** resolver os problemas menores apontados na revisão de código do MCP do manual.
+- **Escopo:** "não" sem inverter o sentido da busca; verbos conjugados viram o infinitivo conhecido; sinônimos que nunca casavam removidos; id dos tutoriais antigos derivado do título; `npm run dev` com o mesmo filtro de guias desatualizados do pacote da Hostinger.
+- **Gate:** gate completo e `node scripts/test-mcp-remote.mjs --local` após `npm run hostinger-build`.
+- **Status:** DONE
+
 ### V1 — Vales para colaboradores
 
 - **Pedido (02/11/2026):** vale com valor configurável, colaborador que recebe e mês em que é
