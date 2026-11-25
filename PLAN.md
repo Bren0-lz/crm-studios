@@ -28,6 +28,27 @@ está no histórico do git (este arquivo antes do commit "chore: handoff da roda
 - **Gate:** gate completo, cliente MCP oficial por HTTP, build Hostinger e fluxo de cadastro no navegador.
 - **Status:** DONE
 
+### MCP2 — Revalidar guias do MCP após NPS e DRE
+
+- **Pedido (25/11/2026):** a `main` deixou de compilar porque PRs do NPS e da DRE mudaram fontes citadas pelos guias do MCP.
+- **Escopo:** revisar CO09 (resposta de NPS na fila da campanha) e RL07 (lançamentos por categoria da DRE) contra o código e os testes atuais; conferir AG24 e CO04; regenerar `manual-data.json`.
+- **Gate:** gate completo e `node scripts/test-mcp-remote.mjs --local` após `npm run hostinger-build`.
+- **Status:** DONE
+
+### MCP3 — Mudança em fonte citada não quebra o build de PRs
+
+- **Pedido (25/11/2026):** PR que altera uma fonte citada por um guia não pode deixar a `main` sem compilar.
+- **Escopo:** o `prebuild` passa a só avisar; a conferência estrita vira etapa própria do deploy (`hostinger-build`) e do CI.
+- **Gate:** gate completo, `npm run hostinger-build` e o teste do MCP local.
+- **Status:** TODO
+
+### MCP4 — Busca do manual tolerante a outras formulações
+
+- **Pedido (25/11/2026):** perguntas comuns como "como remarcar" ou "cancelar uma aula" voltam sem evidência.
+- **Escopo:** busca aproximada também nos guias verificados e ferramenta `listar_guias` (id, título e perguntas).
+- **Gate:** gate completo e testes do módulo `manual` com consultas reformuladas.
+- **Status:** TODO
+
 ### V1 — Vales para colaboradores
 
 - **Pedido (02/11/2026):** vale com valor configurável, colaborador que recebe e mês em que é
