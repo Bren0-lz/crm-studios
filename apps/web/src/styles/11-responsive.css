@@ -4,8 +4,7 @@
     grid-template-columns: 1fr;
   }
 
-  /* Alertas do topo numa linha própria, abaixo do nome e das ações: ao lado deles a faixa
-     ficava estreita demais e cortava os atalhos (RF3). */
+  /* A faixa de alertas usa toda a largura abaixo do nome e das ações. */
   .topbar:has(> .notification-banner) {
     flex-wrap: wrap;
     padding-block: var(--space-2);
@@ -146,17 +145,6 @@
     gap: var(--space-1);
   }
 
-  /* Alertas do cabeçalho: linha inteira abaixo da marca e das ações. */
-  .notification-banner {
-    flex-basis: 100%;
-    flex-wrap: wrap;
-    order: 3;
-  }
-  .notification-banner ul {
-    flex-basis: 100%;
-    flex-wrap: wrap;
-  }
-
   .topbar .header-popover-panel {
     position: fixed;
     top: auto;
@@ -176,9 +164,6 @@
   }
 
   .clinic-label {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
     font-size: var(--text-sm);
   }
 
@@ -388,8 +373,7 @@
 
   /* Cabeçalho compacto: menu, ambiente e ações numa linha; os alertas ficam acima dela e
      rolam com a página. O topo fixo para com o alto da faixa escondido (`top` negativo com a
-     altura medida em NotificationsBanner): só a linha do menu fica presa, e os atalhos
-     quebram em linhas, inteiros (RE11; antes a faixa somava ~150px fixos). */
+     altura medida em NotificationsBanner): só a linha do menu fica presa (RE11). */
   .topbar {
     gap: var(--space-2);
     padding: var(--space-2) var(--space-4);
@@ -405,17 +389,7 @@
 
   .notification-banner {
     order: -1;
-    gap: var(--space-1) var(--space-2);
     padding: var(--space-2);
-  }
-
-  .notification-banner > strong {
-    flex: 1;
-    max-width: none;
-  }
-
-  .notification-banner li {
-    flex-shrink: 0;
   }
 
   .topbar .header-popover-panel {
