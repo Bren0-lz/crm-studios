@@ -101,6 +101,8 @@ export interface PublicReceiptSignatureOpen {
   status: "pending" | "signed";
   amountInCents: number;
   paidAt: string;
+  /** Fuso da clínica, para a data do pagamento e a da assinatura. */
+  timezone: string;
   receipt?: Omit<PaymentReceipt, "patientPhone">;
   signedAt?: string;
   signerName?: string;

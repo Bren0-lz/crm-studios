@@ -1223,6 +1223,7 @@ describe("application shell", () => {
               amountInCents: 29000,
               paymentMethod: "pix",
               paidAt: "2026-10-10T15:00:00.000Z",
+              timezone: "America/Sao_Paulo",
               clinicName: "Studios Aryana",
               clinicLegalName: "Studios Aryana Ltda.",
               clinicTaxId: "11222333000181",
@@ -1249,6 +1250,8 @@ describe("application shell", () => {
       expect(dialog).toHaveTextContent("Studios Aryana Ltda.");
       expect(dialog).toHaveTextContent("CNPJ/CPF 11.222.333/0001-81");
       expect(dialog).toHaveTextContent("Rua das Flores, 10 · São Paulo/SP");
+      // Horário no fuso da clínica (15:00 UTC = 12:00 em São Paulo), qualquer que seja o do aparelho.
+      expect(within(dialog).getByText("10/10/2026, 12:00")).toBeInTheDocument();
       expect(within(dialog).getByText("Pix")).toBeInTheDocument();
       expect(within(dialog).queryByText("pix")).not.toBeInTheDocument();
       expect(dialog).toHaveTextContent("Desconto");

@@ -59,9 +59,11 @@ export function ReceiptContent({
         <div>
           <dt>Data</dt>
           <dd>
+            {/* Fuso da clínica, não o do aparelho de quem abre o recibo. */}
             {new Date(receipt.paidAt).toLocaleString("pt-BR", {
               dateStyle: "short",
               timeStyle: "short",
+              timeZone: receipt.timezone,
             })}
           </dd>
         </div>

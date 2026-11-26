@@ -481,6 +481,8 @@ describe.skipIf(!databaseUrl)("MySQL repository", () => {
         discountInCents: 1_000,
         interestInCents: 500,
         clinicName: expect.any(String),
+        // Fuso da clínica: o recibo mostra o horário dela, não o do aparelho.
+        timezone: "America/Sao_Paulo",
       });
 
       const reversed = await repository.reverseReceivablePayment(

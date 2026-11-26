@@ -1,4 +1,4 @@
-import type { DailyCash, Payable } from "@crm/contracts";
+import type { DailyCash, Payable, PaymentReceipt } from "@crm/contracts";
 import { describe, expect, it } from "vitest";
 import {
   dailyCashGroups,
@@ -8,6 +8,7 @@ import {
   payablesSummary,
   receivableInstallmentLine,
   receivableSituation,
+  receiptMessage,
 } from "./model";
 
 function payable(overrides: Partial<Payable>): Payable {
@@ -207,5 +208,22 @@ describe("receivable installment line", () => {
     ).toMatch(
       /^Parcela 1 de 2 · Desconto do cliente: R\$\s10,00 · Desconto na baixa: R\$\s5,00 · Pago: /,
     );
+  });
+});
+
+describe("receiptMessage", () => {
+  it("usa o dia do pagamento no fuso da clínica, não no do aparelho", () => {
+    const receipt: PaymentReceipt = {
+      receiptNumber: "REC-00001",
+      patientName: "Ana Souza",
+      description: "Parcela",
+      amountInCents: 2000,
+      paymentMethod: "pix",
+      // 01:30 em UTC já é dia 21; em São Paulo ainda é 20/11 às 22:30.
+      paidAt: "2026-11-21T01:30:00.000Z",
+      timezone: "America/Sao_Paulo",
+      clinicName: "Studios Aryana",
+    };
+    expect(receiptMessage(receipt)).toContain("em 20/11/2026");
   });
 });

@@ -11,10 +11,24 @@ import {
 import { api } from "../../api";
 import { shortDate, timeLabel } from "../../shared/lib/formatting";
 
-/** Data e hora da assinatura no link público ("01 de out., 14:30"). */
-export function signatureMoment(iso: string) {
+/**
+ * Data e hora da assinatura no link público ("01 de out., 14:30"). Com `timeZone` (fuso da
+ * clínica), sai nele e não no do aparelho de quem abre o link.
+ */
+export function signatureMoment(iso: string, timeZone?: string) {
   const date = new Date(iso);
-  return `${shortDate.format(date)}, ${timeLabel.format(date)}`;
+  if (!timeZone) return `${shortDate.format(date)}, ${timeLabel.format(date)}`;
+  const day = new Intl.DateTimeFormat("pt-BR", {
+    day: "2-digit",
+    month: "short",
+    timeZone,
+  });
+  const time = new Intl.DateTimeFormat("pt-BR", {
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone,
+  });
+  return `${day.format(date)}, ${time.format(date)}`;
 }
 
 export const documentKindLabels: Record<DocumentKind, string> = {

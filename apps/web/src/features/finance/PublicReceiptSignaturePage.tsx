@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { api } from "../../api";
 import { ErrorBanner } from "../../shared/components/ErrorBanner";
-import { currency, shortDate } from "../../shared/lib/formatting";
+import { currency } from "../../shared/lib/formatting";
 import {
   PublicSignatureForm,
   PublicSignatureShell,
@@ -13,6 +13,14 @@ import {
 import { ReceiptContent } from "./ReceiptContent";
 
 const money = (cents: number) => currency.format(cents / 100);
+
+/** "20 de nov." no fuso da clínica, não no do aparelho de quem abre o link. */
+const clinicShortDate = (iso: string, timeZone: string) =>
+  new Intl.DateTimeFormat("pt-BR", {
+    day: "2-digit",
+    month: "short",
+    timeZone,
+  }).format(new Date(iso));
 
 /** Página aberta pelo cliente no link do recibo (B5-02): confere o pagamento e assina. */
 export function PublicReceiptSignaturePage() {
@@ -41,7 +49,7 @@ export function PublicReceiptSignaturePage() {
   const receipt = open?.receipt;
   // "Breno Assinante em 04 de nov., 14:30": quem assinou e quando (vai também na impressão).
   const signer = open
-    ? `${open.signerName ?? ""}${open.signedAt ? ` em ${signatureMoment(open.signedAt)}` : ""}`
+    ? `${open.signerName ?? ""}${open.signedAt ? ` em ${signatureMoment(open.signedAt, open.timezone)}` : ""}`
     : "";
   return (
     <PublicSignatureShell
@@ -78,7 +86,7 @@ export function PublicReceiptSignaturePage() {
                 <p className="panel-context">
                   {receipt
                     ? `${receipt.receiptNumber} · ${receipt.clinicName} · ${receipt.patientName}`
-                    : `${money(open.amountInCents)} · pago em ${shortDate.format(new Date(open.paidAt))}`}
+                    : `${money(open.amountInCents)} · pago em ${clinicShortDate(open.paidAt, open.timezone)}`}
                 </p>
               </div>
             </div>
