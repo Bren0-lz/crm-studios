@@ -361,4 +361,48 @@ describe("Telegram em Configurações › Integrações", () => {
     await within(section).findByLabelText("Mensagem para o grupo");
     expect(within(section).queryByRole("alert")).toBeNull();
   });
+
+  it("Já enviei reconhece um grupo já vinculado que foi revinculado com outros avisos", async () => {
+    const fake = fakeTelegram();
+    const { app, repository } = await setupApi({ telegram: fake.integration });
+    const section = await openIntegrations();
+    const send = (update_id: number, text: string) =>
+      app.inject({
+        method: "POST",
+        url: `/integrations/telegram/webhook/${secret}`,
+        headers: { "x-telegram-bot-api-secret-token": secret },
+        payload: {
+          update_id,
+          message: {
+            chat: { id: -300, type: "supergroup", title: "CRM · Equipe" },
+            text,
+          },
+        },
+      });
+    await send(5, await generateGroupCode(section));
+    fireEvent.click(within(section).getByRole("button", { name: "Já enviei" }));
+    await within(section).findByText(/^Recibos e Clientes novos · vinculado em /);
+    const [linked] = await repository.listTelegramGroupLinks(clinicId);
+
+    // Revincula o mesmo grupo para receber só agendamentos.
+    fireEvent.click(within(section).getByRole("button", { name: "Vincular grupo" }));
+    const dialog = screen.getByRole("dialog", {
+      name: "Vincular grupo do Telegram",
+    });
+    for (const name of ["Recibos", "Clientes novos"])
+      fireEvent.click(within(dialog).getByRole("checkbox", { name }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Gerar código" }));
+    const command = (
+      (await within(section).findByLabelText(
+        "Mensagem para o grupo",
+      )) as HTMLInputElement
+    ).value;
+    await send(6, command);
+    fireEvent.click(within(section).getByRole("button", { name: "Já enviei" }));
+    await within(section).findByText(/^Agendamentos · vinculado em /);
+    expect(within(section).queryByRole("alert")).toBeNull();
+    expect(within(section).queryByLabelText("Mensagem para o grupo")).toBeNull();
+    const groups = await repository.listTelegramGroupLinks(clinicId);
+    expect(groups.map((group) => group.id)).toEqual([linked?.id]);
+  });
 });

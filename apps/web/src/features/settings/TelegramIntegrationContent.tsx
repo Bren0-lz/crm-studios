@@ -131,17 +131,21 @@ function TelegramGroupsContent() {
     setAttempt((value) => value + 1);
   }
 
-  /** "Já enviei": recarrega os grupos e só some com o código se apareceu um grupo novo. */
+  /** "Já enviei": recarrega os grupos e só some com o código se um grupo foi vinculado ou revinculado. */
   async function confirmSent() {
     if (!code || !groups || checking) return;
-    const before = new Set(groups.map((group) => group.id));
+    // Revincular um grupo já vinculado mantém o id e só atualiza a data, o nome e os assuntos.
+    const linkKey = (group: TelegramGroupLink) =>
+      `${group.linkedAt}|${group.title ?? ""}|${group.topics.join()}`;
+    const before = new Map(groups.map((group) => [group.id, linkKey(group)]));
     setChecking(true);
     setLinkCheck(null);
     setNotice("");
     try {
       const data = await api.telegramGroups();
       setGroups(data);
-      if (data.some((group) => !before.has(group.id))) setCode(null);
+      if (data.some((group) => before.get(group.id) !== linkKey(group)))
+        setCode(null);
       else setLinkCheck(isExpired(code) ? "expired" : "pending");
     } catch (cause) {
       setError((cause as Error).message);
