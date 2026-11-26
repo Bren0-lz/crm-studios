@@ -94,7 +94,7 @@ fonte citada por guia revisa o guia e regenera o `manual-data.json`
 - **Branch:** `dev/youthful-fermat-g5f6uv-int2`
 - **Empilhar sobre:** `dev/youthful-fermat-g5f6uv` (traz este plano)
 - **Gate:** gate completo e `node scripts/test-mcp-remote.mjs --local` após `npm run hostinger-build`.
-- **Status:** TODO
+- **Status:** DONE
 
 ### INT3 — Nome do bot, link e botão de copiar no vínculo do Telegram
 
