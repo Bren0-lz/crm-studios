@@ -4,8 +4,13 @@ description: Executa a próxima tarefa do PLAN.md, verifica, commita, abre PR e 
 
 Execute **UMA** iteração do loop de desenvolvimento. Responda em pt-BR.
 
+Argumentos: $ARGUMENTS
+
 1. Leia o `PLAN.md` (Status de cada tarefa). Identifique a próxima tarefa `TODO` cujas dependências estão `DONE`.
-2. Se não houver nenhuma, ou houver bloqueio aberto: **PARE** e diga o motivo.
+   Se os argumentos citarem uma fila (ex.: `fila INT2-INT6`), considere **só** as tarefas dessa
+   fila, na ordem do `PLAN.md`; tarefas e bloqueios fora dela não contam.
+2. Se não houver nenhuma, ou houver bloqueio aberto (na fila, quando houver fila): **PARE** e diga o motivo.
+   Fila toda `DONE`: diga que a fila terminou, liste os PRs na ordem de merge e encerre o `/loop`.
    Não invente tarefa nova, não "adiante" outra coisa.
    Se a tarefa elegível tiver `**Tipo:** manual`: **não delegue**. Marque-a `BLOCKED` no
    `PLAN.md`, registre em `diario/<data>-<ID>.md` "aguardando revisão manual de <ID>", **PARE** e me chame
@@ -13,7 +18,10 @@ Execute **UMA** iteração do loop de desenvolvimento. Responda em pt-BR.
    depois de aprovar.)
 3. Crie o branch da tarefa a partir da `main` atual (`git fetch origin main` e
    `git switch -c <branch-da-tarefa> origin/main`), nunca de um branch antigo ou de outro PR
-   (regras em "PRs sem conflito" no `CLAUDE.md`). Marque a tarefa `DOING` no `PLAN.md` e delegue ao agente `implementer` (via Agent,
+   (regras em "PRs sem conflito" no `CLAUDE.md`). Use o nome do campo **Branch** quando existir.
+   **Exceção — PR empilhado:** se a tarefa tiver `**Empilhar sobre:** <ID ou branch>`, crie o
+   branch a partir do branch remoto dessa tarefa (`git fetch origin <branch-base>` e
+   `git switch -c <branch-da-tarefa> origin/<branch-base>`), nunca da `main`. Marque a tarefa `DOING` no `PLAN.md` e delegue ao agente `implementer` (via Agent,
    subagent_type `implementer`) passando: ID, escopo, gate e as descobertas do diário que
    sejam relevantes (arquivos das tarefas relacionadas em `diario/` e, para o histórico
    anterior a 06/11/2026, o `STATE.md`).
@@ -40,7 +48,10 @@ Execute **UMA** iteração do loop de desenvolvimento. Responda em pt-BR.
    Abra um PR: `git push -u origin <branch-da-tarefa>` (nunca no branch padrão, nunca
    force-push) e crie o pull request para o branch padrão com título `<ID>: <título da tarefa>`
    e descrição em pt-BR com o que mudou e a saída do gate (inclua `npm run test:mysql` quando a
-   tarefa mexer em SQL ou migração).
+   tarefa mexer em SQL ou migração). PR empilhado: base continua o branch padrão; a descrição
+   começa com "Depende do #N (<ID anterior>). Merge na ordem da fila, com merge commit." e o
+   push só sai depois de `git merge-tree --write-tree origin/<branch-base> HEAD` **e** contra
+   `origin/main` saírem com 0.
 9. Reporte em 3 linhas: o que foi feito · gate que passou + link do PR · qual é a próxima.
 
 **Nunca faça mais de uma tarefa por invocação.** O valor do loop está no ponto de controle
