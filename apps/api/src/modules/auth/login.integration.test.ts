@@ -38,6 +38,19 @@ describe("login protection", () => {
     });
   });
 
+  it("sends browser protection headers on API responses", async () => {
+    for (const response of [
+      await app.inject({ method: "GET", url: "/health" }),
+      await app.inject(login("Wrong@123")),
+    ]) {
+      expect(response.headers["x-content-type-options"]).toBe("nosniff");
+      expect(response.headers["x-frame-options"]).toBe("DENY");
+      expect(response.headers["referrer-policy"]).toBe(
+        "strict-origin-when-cross-origin",
+      );
+    }
+  });
+
   it("resets the failed-attempt counter after a successful login", async () => {
     for (let attempt = 0; attempt < 4; attempt++)
       await app.inject(login("Wrong@123"));
